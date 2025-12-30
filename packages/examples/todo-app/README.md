@@ -225,6 +225,82 @@ const result = await callTool('todo.create', {
 });
 ```
 
+## UI Demonstrates AFD Metadata
+
+The web UI fully consumes all AFD UX-enabling fields, demonstrating how to build agent-friendly interfaces:
+
+| AFD Field | UI Implementation | Where to See It |
+|-----------|-------------------|-----------------|
+| `confidence` | Visual indicator with percentage | Toast notifications after operations |
+| `reasoning` | Explains what the command did | Toast message text |
+| `warnings` | Prominent alert banners | Separate warning toasts (e.g., after delete) |
+| `error.suggestion` | Recovery guidance | Error toast includes "💡 Suggestion:" section |
+| `alternatives` | Clickable options | Filter panel shows alternative queries |
+| `metadata.executionTimeMs` | Performance indicator | Log panel shows `⚡ Xms` for each operation |
+
+### Confidence Indicators
+
+Every operation shows a confidence bar in the toast notification:
+
+```
+✓ Created todo "Learn AFD" with high priority
+[████████░░] 100%  ⚡ 2ms
+```
+
+For lower confidence results, the bar changes color (green > yellow > red).
+
+### Warnings Display
+
+When a command returns warnings (like `todo.delete`), they appear as separate warning toasts:
+
+```
+⚠️ PERMANENT
+This action cannot be undone
+Severity: info
+```
+
+### Error Suggestions
+
+When errors occur, the UI shows the suggestion to help users recover:
+
+```
+✗ NOT_FOUND
+Todo with ID "invalid" not found
+
+💡 Suggestion: Use todo.list to see available todos
+```
+
+### Alternatives Panel
+
+When filtering todos (e.g., viewing "Pending" only), the UI shows alternatives:
+
+```
+💡 Alternative queries available:
+┌──────────────────────────────────────────────┐
+│ View all 10 todos without filters    [Apply] │
+│ View completed todos instead (3)     [Apply] │
+└──────────────────────────────────────────────┘
+```
+
+### Confirmation Dialogs
+
+Destructive actions (delete, clear completed) show confirmation dialogs with the AFD warning message:
+
+```
+┌─────────────────────────────────────┐
+│ Delete Todo                         │
+│                                     │
+│ Are you sure you want to delete     │
+│ this todo?                          │
+│                                     │
+│ ⚠️ This action cannot be undone.    │
+│                                     │
+│              [Cancel]  [Confirm]    │
+└─────────────────────────────────────┘
+```
+
+This demonstrates how AFD metadata enables **informed user decisions** rather than silent operations.
+
 ## Environment Variables
 
 | Variable | Default | Description |
