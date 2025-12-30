@@ -345,6 +345,126 @@ Emphasis: `plan` with real-time status, `metadata.traceId`
 }
 ```
 
+### Batch Commands
+Emphasis: partial failure handling, `warnings`, calibrated `confidence`
+
+Batch commands process multiple items at once with best-effort execution. They return detailed results for each item rather than all-or-nothing transactions, giving agents maximum information to decide how to proceed.
+
+**When to use batch commands:**
+- Agent workflows that create/modify multiple items
+- Bulk operations initiated by users (e.g., "delete selected")
+- Import/export scenarios
+- Any case where calling individual commands N times is inefficient
+
+**Result structure:**
+
+```typescript
+interface BatchResult<T> {
+  /** Items that succeeded */
+  succeeded: T[];
+  
+  /** Items that failed with details */
+  failed: FailedItem[];
+  
+  /** Summary statistics */
+  summary: {
+    total: number;
+    successCount: number;
+    failureCount: number;
+  };
+}
+
+interface FailedItem {
+  /** Position in input array (0-indexed) */
+  index: number;
+  
+  /** The original input that failed */
+  input: unknown;
+  
+  /** Why it failed */
+  error: CommandError;
+}
+```
+
+**Example batch create:**
+
+```typescript
+// Input
+{
+  todos: [
+    { title: "Valid task", priority: "high" },
+    { title: "", priority: "medium" },  // Invalid: empty title
+    { title: "Another valid", priority: "low" }
+  ]
+}
+
+// Output (partial success)
+{
+  success: true,
+  data: {
+    succeeded: [
+      { id: "todo-1", title: "Valid task", priority: "high", ... },
+      { id: "todo-3", title: "Another valid", priority: "low", ... }
+    ],
+    failed: [
+      { 
+        index: 1, 
+        input: { title: "", priority: "medium" },
+        error: { 
+          code: "VALIDATION_ERROR", 
+          message: "Title is required",
+          suggestion: "Provide a non-empty title"
+        }
+      }
+    ],
+    summary: { total: 3, successCount: 2, failureCount: 1 }
+  },
+  confidence: 0.67,  // 2/3 succeeded
+  reasoning: "Created 2 of 3 todos. 1 failed validation.",
+  warnings: [
+    { code: "PARTIAL_SUCCESS", message: "1 of 3 items failed", severity: "warning" }
+  ]
+}
+```
+
+**Key patterns:**
+
+1. **Confidence reflects success rate**: `successCount / total`
+2. **Always return `success: true`**: Even with partial failures, the operation completed
+3. **Failed items include index**: So agents/UIs can identify which input failed
+4. **Use warnings for partial success**: `PARTIAL_SUCCESS` warning when some items fail
+5. **Include destructive warnings**: For delete batches, warn about permanence
+
+**Example batch delete with warnings:**
+
+```typescript
+{
+  success: true,
+  data: {
+    deletedIds: ["todo-1", "todo-2"],
+    failed: [{ index: 2, id: "fake-id", error: { code: "NOT_FOUND", ... } }],
+    summary: { total: 3, successCount: 2, failureCount: 1 }
+  },
+  warnings: [
+    { code: "DESTRUCTIVE_BATCH", message: "Permanently deleted 2 todos", severity: "caution" },
+    { code: "PARTIAL_SUCCESS", message: "1 of 3 items could not be deleted", severity: "warning" }
+  ]
+}
+```
+
+**CLI testing batch commands:**
+
+```bash
+# Create multiple items
+afd call todo.createBatch '{"todos": [{"title": "Task 1"}, {"title": "Task 2"}]}'
+
+# Delete multiple items
+afd call todo.deleteBatch '{"ids": ["todo-1", "todo-2"]}'
+
+# Toggle multiple items to specific state
+afd call todo.toggleBatch '{"ids": ["todo-1", "todo-2"], "completed": true}'
+```
+
 ## What is NOT a Command
 
 Not everything should be a command. Over-commanding creates noise, bloats your registry, and confuses the boundary between application logic and UI state.

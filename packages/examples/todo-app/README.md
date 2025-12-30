@@ -62,6 +62,9 @@ afd call todo.stats '{}'
 | `todo.delete` | mutation | Delete a todo |
 | `todo.clear` | mutation | Clear completed todos |
 | `todo.stats` | query | Get statistics |
+| `todo.createBatch` | mutation | Create multiple todos at once |
+| `todo.deleteBatch` | mutation | Delete multiple todos at once |
+| `todo.toggleBatch` | mutation | Toggle multiple todos at once |
 
 ## Command Examples
 
@@ -140,6 +143,101 @@ afd call todo.stats '{}'
 }
 ```
 
+### todo.createBatch
+
+Create multiple todos at once with partial failure support:
+
+```json
+// Input
+{
+  "todos": [
+    { "title": "Task 1", "priority": "high" },
+    { "title": "Task 2", "priority": "medium" },
+    { "title": "Task 3" }
+  ]
+}
+
+// Output (all succeeded)
+{
+  "success": true,
+  "data": {
+    "succeeded": [
+      { "id": "todo-1", "title": "Task 1", "priority": "high", ... },
+      { "id": "todo-2", "title": "Task 2", "priority": "medium", ... },
+      { "id": "todo-3", "title": "Task 3", "priority": "medium", ... }
+    ],
+    "failed": [],
+    "summary": { "total": 3, "successCount": 3, "failureCount": 0 }
+  },
+  "reasoning": "Successfully created all 3 todos",
+  "confidence": 1.0
+}
+```
+
+### todo.deleteBatch
+
+Delete multiple todos at once:
+
+```json
+// Input
+{
+  "ids": ["todo-1", "todo-2", "nonexistent"]
+}
+
+// Output (partial success)
+{
+  "success": true,
+  "data": {
+    "deletedIds": ["todo-1", "todo-2"],
+    "failed": [
+      { "index": 2, "id": "nonexistent", "error": { "code": "NOT_FOUND", ... } }
+    ],
+    "summary": { "total": 3, "successCount": 2, "failureCount": 1 }
+  },
+  "confidence": 0.67,
+  "reasoning": "Deleted 2 of 3 todos. 1 were not found.",
+  "warnings": [
+    { "code": "DESTRUCTIVE_BATCH", "message": "Permanently deleted 2 todos", "severity": "caution" },
+    { "code": "PARTIAL_SUCCESS", "message": "1 of 3 items could not be deleted", "severity": "warning" }
+  ]
+}
+```
+
+### todo.toggleBatch
+
+Toggle multiple todos, or set all to a specific state:
+
+```json
+// Input - toggle each item
+{
+  "ids": ["todo-1", "todo-2"]
+}
+
+// Input - set all to completed
+{
+  "ids": ["todo-1", "todo-2"],
+  "completed": true
+}
+
+// Output
+{
+  "success": true,
+  "data": {
+    "succeeded": [...],
+    "failed": [],
+    "summary": {
+      "total": 2,
+      "successCount": 2,
+      "failureCount": 0,
+      "markedComplete": 2,
+      "markedIncomplete": 0
+    }
+  },
+  "reasoning": "Successfully set to complete all 2 todos",
+  "confidence": 1.0
+}
+```
+
 ## Project Structure
 
 ```
@@ -154,6 +252,9 @@ todo-app/
 │   │   ├── delete.ts      # todo.delete
 │   │   ├── clear.ts       # todo.clear
 │   │   ├── stats.ts       # todo.stats
+│   │   ├── create-batch.ts # todo.createBatch
+│   │   ├── delete-batch.ts # todo.deleteBatch
+│   │   ├── toggle-batch.ts # todo.toggleBatch
 │   │   └── index.ts       # Export all
 │   ├── store/
 │   │   └── memory.ts      # In-memory storage
@@ -336,8 +437,9 @@ pnpm test:watch
 
 ```
 src/commands/__tests__/
-├── commands.test.ts      # Unit tests (31 tests)
-└── performance.test.ts   # Performance tests (13 tests)
+├── commands.test.ts      # Unit tests for individual commands
+├── batch.test.ts         # Batch operation tests
+└── performance.test.ts   # Performance tests
 ```
 
 ### Unit Tests (`commands.test.ts`)
