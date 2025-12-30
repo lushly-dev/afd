@@ -1,0 +1,56 @@
+{
+  "name": "@afd/testing",
+  "version": "0.1.0",
+  "description": "Testing utilities for Agent-First Development",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist *.tsbuildinfo",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "afd",
+    "testing",
+    "mcp",
+    "validation",
+    "commands"
+  ],
+  "author": "Falkicon",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Falkicon/afd.git",
+    "directory": "packages/testing"
+  },
+  "dependencies": {
+    "@afd/core": "workspace:*"
+  },
+  "devDependencies": {
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  },
+  "peerDependencies": {
+    "vitest": ">=1.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
+  }
+}

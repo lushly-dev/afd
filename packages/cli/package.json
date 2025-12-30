@@ -1,0 +1,59 @@
+{
+  "name": "@afd/cli",
+  "version": "0.1.0",
+  "description": "Command-line interface for Agent-First Development",
+  "type": "module",
+  "bin": {
+    "afd": "./dist/bin.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist *.tsbuildinfo",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "node dist/bin.js"
+  },
+  "keywords": [
+    "afd",
+    "cli",
+    "mcp",
+    "ai-agents",
+    "command-line"
+  ],
+  "author": "Falkicon",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Falkicon/afd.git",
+    "directory": "packages/cli"
+  },
+  "dependencies": {
+    "@afd/client": "workspace:*",
+    "@afd/core": "workspace:*",
+    "@afd/testing": "workspace:*",
+    "chalk": "^5.4.1",
+    "commander": "^13.0.0",
+    "conf": "^13.0.1",
+    "ora": "^8.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

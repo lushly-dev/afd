@@ -1,0 +1,50 @@
+{
+  "name": "@afd/client",
+  "version": "0.1.0",
+  "description": "MCP client library for Agent-First Development",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rimraf dist *.tsbuildinfo",
+    "dev": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "afd",
+    "mcp",
+    "ai-agents",
+    "sse",
+    "client"
+  ],
+  "author": "Falkicon",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Falkicon/afd.git",
+    "directory": "packages/client"
+  },
+  "dependencies": {
+    "@afd/core": "workspace:*",
+    "eventsource": "^2.0.2"
+  },
+  "devDependencies": {
+    "@types/eventsource": "^1.1.15",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "@afd/example-todo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Example todo app demonstrating AFD patterns",
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@afd/core": "workspace:*",
+    "@afd/server": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "keywords": [
+    "afd",
+    "example",
+    "todo",
+    "mcp"
+  ],
+  "license": "MIT"
+}

@@ -1,0 +1,37 @@
+{
+  "name": "afd",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent-First Development - Build software where AI agents are first-class users",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Falkicon/afd.git"
+  },
+  "author": "Falkicon",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "clean": "pnpm -r clean && rimraf node_modules",
+    "dev": "pnpm -r --parallel dev",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "pnpm -r test",
+    "test:watch": "pnpm -r --parallel test:watch",
+    "typecheck": "pnpm -r typecheck",
+    "prepare": "pnpm build"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.10.2",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
