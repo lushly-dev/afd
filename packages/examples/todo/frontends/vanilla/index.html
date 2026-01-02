@@ -554,6 +554,276 @@
         gap: 0.75rem;
       }
 
+      /* Trust Panel - Shows last operation's trust data */
+      .trust-panel {
+        background: var(--primary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        display: none;
+      }
+
+      .trust-panel.visible {
+        display: block;
+      }
+
+      .trust-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+      }
+
+      .trust-title {
+        font-size: 0.9rem;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .trust-close {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        font-size: 1rem;
+      }
+
+      .trust-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+      }
+
+      .trust-section {
+        background: var(--surface);
+        border-radius: 6px;
+        padding: 0.75rem;
+      }
+
+      .trust-section-title {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.5rem;
+      }
+
+      /* Confidence meter */
+      .confidence-meter {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .confidence-bar-large {
+        flex: 1;
+        height: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+
+      .confidence-bar-large .confidence-fill {
+        height: 100%;
+        transition: width 0.5s ease;
+      }
+
+      .confidence-value {
+        font-size: 1.25rem;
+        font-weight: bold;
+        min-width: 3rem;
+        text-align: right;
+      }
+
+      .confidence-label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+      }
+
+      /* Sources list */
+      .sources-list {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .source-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem;
+        background: var(--primary);
+        border-radius: 4px;
+        font-size: 0.85rem;
+      }
+
+      .source-icon {
+        flex-shrink: 0;
+      }
+
+      .source-link {
+        color: var(--accent);
+        text-decoration: none;
+        word-break: break-all;
+      }
+
+      .source-link:hover {
+        text-decoration: underline;
+      }
+
+      .source-relevance {
+        margin-left: auto;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      /* Plan visualization */
+      .plan-steps {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+
+      .plan-step {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.5rem;
+        background: var(--primary);
+        border-radius: 4px;
+        font-size: 0.85rem;
+      }
+
+      .plan-step-icon {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        flex-shrink: 0;
+      }
+
+      .plan-step-icon.pending {
+        background: var(--border);
+        color: var(--text-muted);
+      }
+
+      .plan-step-icon.in-progress {
+        background: var(--warning);
+        color: var(--bg);
+        animation: pulse 1.5s infinite;
+      }
+
+      .plan-step-icon.complete {
+        background: var(--success);
+        color: var(--bg);
+      }
+
+      .plan-step-icon.failed {
+        background: var(--error);
+        color: var(--bg);
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.6; }
+      }
+
+      .plan-step-content {
+        flex: 1;
+      }
+
+      .plan-step-name {
+        font-weight: 500;
+      }
+
+      .plan-step-desc {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      /* Reasoning display */
+      .reasoning-text {
+        font-style: italic;
+        color: var(--text-muted);
+        line-height: 1.5;
+      }
+
+      /* Enhanced error toast with retry */
+      .toast-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+      }
+
+      .toast-actions button {
+        padding: 0.35rem 0.75rem;
+        font-size: 0.75rem;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+
+      .toast-retry {
+        background: var(--accent);
+        border: none;
+        color: white;
+      }
+
+      .toast-retry:hover {
+        opacity: 0.9;
+      }
+
+      .toast-dismiss {
+        background: transparent;
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+      }
+
+      /* Error recovery panel */
+      .error-recovery {
+        background: rgba(248, 113, 113, 0.1);
+        border: 1px solid var(--error);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1.5rem;
+        display: none;
+      }
+
+      .error-recovery.visible {
+        display: block;
+      }
+
+      .error-recovery-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.75rem;
+        color: var(--error);
+        font-weight: 600;
+      }
+
+      .error-recovery-message {
+        margin-bottom: 0.75rem;
+      }
+
+      .error-recovery-suggestion {
+        background: var(--surface);
+        padding: 0.75rem;
+        border-radius: 4px;
+        margin-bottom: 0.75rem;
+      }
+
+      .error-recovery-actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+
       /* Alternatives panel */
       .alternatives-panel {
         background: var(--primary);
@@ -638,6 +908,65 @@
             <div class="stat-value" id="statRate">0%</div>
             <div class="stat-label">Done</div>
           </div>
+        </div>
+      </div>
+
+      <!-- Trust Panel - Shows last operation's trust data -->
+      <div class="trust-panel" id="trustPanel">
+        <div class="trust-header">
+          <span class="trust-title">
+            <span>🔍</span>
+            <span>Last Operation</span>
+            <span id="trustCommand" style="color: var(--text-muted); font-weight: normal;"></span>
+          </span>
+          <button class="trust-close" onclick="hideTrustPanel()">×</button>
+        </div>
+        <div class="trust-grid">
+          <!-- Confidence -->
+          <div class="trust-section" id="trustConfidence" style="display: none;">
+            <div class="trust-section-title">Confidence</div>
+            <div class="confidence-meter">
+              <div class="confidence-bar-large">
+                <span class="confidence-fill" id="trustConfidenceFill"></span>
+              </div>
+              <span class="confidence-value" id="trustConfidenceValue">0%</span>
+            </div>
+            <div class="confidence-label" id="trustConfidenceLabel">No confidence data</div>
+          </div>
+
+          <!-- Reasoning -->
+          <div class="trust-section" id="trustReasoning" style="display: none;">
+            <div class="trust-section-title">Reasoning</div>
+            <div class="reasoning-text" id="trustReasoningText"></div>
+          </div>
+        </div>
+
+        <!-- Sources -->
+        <div class="trust-section" id="trustSources" style="display: none; margin-top: 1rem;">
+          <div class="trust-section-title">Sources</div>
+          <div class="sources-list" id="trustSourcesList"></div>
+        </div>
+
+        <!-- Plan -->
+        <div class="trust-section" id="trustPlan" style="display: none; margin-top: 1rem;">
+          <div class="trust-section-title">Execution Plan</div>
+          <div class="plan-steps" id="trustPlanSteps"></div>
+        </div>
+      </div>
+
+      <!-- Error Recovery Panel -->
+      <div class="error-recovery" id="errorRecovery">
+        <div class="error-recovery-header">
+          <span>⚠️</span>
+          <span>Operation Failed</span>
+        </div>
+        <div class="error-recovery-message" id="errorMessage"></div>
+        <div class="error-recovery-suggestion" id="errorSuggestion" style="display: none;">
+          <strong>💡 Suggestion:</strong> <span id="errorSuggestionText"></span>
+        </div>
+        <div class="error-recovery-actions">
+          <button onclick="retryLastOperation()" style="background: var(--accent); border: none; color: white;">🔄 Retry</button>
+          <button onclick="hideErrorRecovery()" class="secondary">Dismiss</button>
         </div>
       </div>
 

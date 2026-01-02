@@ -16,6 +16,7 @@
 const SERVER_URL = "http://localhost:3100";
 let messageId = 0;
 let currentFilter = "all";
+let lastOperation = null; // Store last operation for retry
 
 // DOM Elements
 const statusDot = document.getElementById("statusDot");
@@ -35,6 +36,26 @@ const selectAllCheckbox = document.getElementById("selectAll");
 const batchActions = document.getElementById("batchActions");
 const deleteSelectedBtn = document.getElementById("deleteSelected");
 const toggleSelectedBtn = document.getElementById("toggleSelected");
+
+// Trust Panel Elements
+const trustPanel = document.getElementById("trustPanel");
+const trustCommand = document.getElementById("trustCommand");
+const trustConfidence = document.getElementById("trustConfidence");
+const trustConfidenceFill = document.getElementById("trustConfidenceFill");
+const trustConfidenceValue = document.getElementById("trustConfidenceValue");
+const trustConfidenceLabel = document.getElementById("trustConfidenceLabel");
+const trustReasoning = document.getElementById("trustReasoning");
+const trustReasoningText = document.getElementById("trustReasoningText");
+const trustSources = document.getElementById("trustSources");
+const trustSourcesList = document.getElementById("trustSourcesList");
+const trustPlan = document.getElementById("trustPlan");
+const trustPlanSteps = document.getElementById("trustPlanSteps");
+
+// Error Recovery Elements
+const errorRecovery = document.getElementById("errorRecovery");
+const errorMessage = document.getElementById("errorMessage");
+const errorSuggestion = document.getElementById("errorSuggestion");
+const errorSuggestionText = document.getElementById("errorSuggestionText");
 
 // Stats elements
 const statTotal = document.getElementById("statTotal");
@@ -92,6 +113,17 @@ function showToast(result, commandName) {
     `;
   }
 
+  // Build retry button for retryable errors
+  let actionsHtml = "";
+  if (!result.success && result.error?.retryable !== false) {
+    actionsHtml = `
+      <div class="toast-actions">
+        <button class="toast-retry" onclick="retryLastOperation(); this.closest('.toast').remove();">🔄 Retry</button>
+        <button class="toast-dismiss" onclick="this.closest('.toast').remove();">Dismiss</button>
+      </div>
+    `;
+  }
+
   // Main message
   const message = result.success
     ? result.reasoning || `${commandName} completed`
@@ -106,17 +138,19 @@ function showToast(result, commandName) {
         ${timeHtml}
       </div>
       ${suggestionHtml}
+      ${actionsHtml}
     </div>
     <button class="toast-close" onclick="this.parentElement.remove()">×</button>
   `;
 
   toastContainer.appendChild(toast);
 
-  // Auto-remove after 5 seconds
+  // Auto-remove after 5 seconds (longer for errors with actions)
+  const duration = !result.success && actionsHtml ? 10000 : 5000;
   setTimeout(() => {
     toast.style.animation = "slideIn 0.3s ease reverse";
     setTimeout(() => toast.remove(), 300);
-  }, 5000);
+  }, duration);
 }
 
 /**
@@ -150,6 +184,204 @@ function showWarnings(warnings) {
     }, 8000);
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TRUST PANEL - Display trust signals (confidence, sources, plan, reasoning)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Update the trust panel with data from a command result.
+ * Shows confidence, reasoning, sources, and plan if available.
+ */
+function updateTrustPanel(result, commandName) {
+  // Don't show trust panel for silent/query operations
+  if (!result) return;
+
+  const hasConfidence = result.confidence !== undefined;
+  const hasReasoning = result.reasoning !== undefined;
+  const hasSources = result.sources && result.sources.length > 0;
+  const hasPlan = result.plan && result.plan.length > 0;
+
+  // If no trust data, hide the panel
+  if (!hasConfidence && !hasReasoning && !hasSources && !hasPlan) {
+    trustPanel.classList.remove("visible");
+    return;
+  }
+
+  // Show the panel
+  trustPanel.classList.add("visible");
+  trustCommand.textContent = `— ${commandName}`;
+
+  // Update confidence section
+  if (hasConfidence) {
+    trustConfidence.style.display = "block";
+    const percent = Math.round(result.confidence * 100);
+    trustConfidenceValue.textContent = `${percent}%`;
+
+    // Set color based on confidence level
+    let colorClass = "";
+    let label = "High confidence";
+    if (result.confidence < 0.7) {
+      colorClass = "low";
+      label = "Low confidence - verify results";
+    } else if (result.confidence < 0.9) {
+      colorClass = "medium";
+      label = "Moderate confidence";
+    }
+
+    trustConfidenceFill.className = `confidence-fill ${colorClass}`;
+    trustConfidenceFill.style.width = `${percent}%`;
+    trustConfidenceLabel.textContent = label;
+  } else {
+    trustConfidence.style.display = "none";
+  }
+
+  // Update reasoning section
+  if (hasReasoning) {
+    trustReasoning.style.display = "block";
+    trustReasoningText.textContent = result.reasoning;
+  } else {
+    trustReasoning.style.display = "none";
+  }
+
+  // Update sources section
+  if (hasSources) {
+    trustSources.style.display = "block";
+    trustSourcesList.innerHTML = result.sources
+      .map((source) => {
+        const icon = getSourceIcon(source.type);
+        const relevancePercent = source.relevance
+          ? `${Math.round(source.relevance * 100)}%`
+          : "";
+        const link = source.url
+          ? `<a href="${escapeHtml(source.url)}" target="_blank" class="source-link">${escapeHtml(source.title || source.url)}</a>`
+          : `<span>${escapeHtml(source.title || "Unknown source")}</span>`;
+
+        return `
+          <div class="source-item">
+            <span class="source-icon">${icon}</span>
+            ${link}
+            ${relevancePercent ? `<span class="source-relevance">${relevancePercent} relevant</span>` : ""}
+          </div>
+        `;
+      })
+      .join("");
+  } else {
+    trustSources.style.display = "none";
+  }
+
+  // Update plan section
+  if (hasPlan) {
+    trustPlan.style.display = "block";
+    trustPlanSteps.innerHTML = result.plan
+      .map((step, idx) => {
+        const icon = getPlanStepIcon(step.status);
+        return `
+          <div class="plan-step">
+            <div class="plan-step-icon ${step.status || "pending"}">${icon}</div>
+            <div class="plan-step-content">
+              <div class="plan-step-name">${idx + 1}. ${escapeHtml(step.name || step.action)}</div>
+              ${step.description ? `<div class="plan-step-desc">${escapeHtml(step.description)}</div>` : ""}
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+  } else {
+    trustPlan.style.display = "none";
+  }
+}
+
+/**
+ * Get icon for source type.
+ */
+function getSourceIcon(type) {
+  const icons = {
+    api: "🔌",
+    database: "🗄️",
+    file: "📄",
+    url: "🔗",
+    cache: "💾",
+    user: "👤",
+    system: "⚙️",
+  };
+  return icons[type] || "📚";
+}
+
+/**
+ * Get icon for plan step status.
+ */
+function getPlanStepIcon(status) {
+  const icons = {
+    pending: "○",
+    "in-progress": "◐",
+    complete: "✓",
+    failed: "✗",
+  };
+  return icons[status] || "○";
+}
+
+/**
+ * Hide the trust panel.
+ */
+function hideTrustPanel() {
+  trustPanel.classList.remove("visible");
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ERROR RECOVERY - Enhanced error handling with retry
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Show error recovery panel with retry option.
+ */
+function showErrorRecovery(result, commandName, args) {
+  // Store for retry
+  lastOperation = { command: commandName, args };
+
+  errorRecovery.classList.add("visible");
+  errorMessage.textContent = `${commandName} failed: ${result.error?.message || "Unknown error"}`;
+
+  if (result.error?.suggestion) {
+    errorSuggestion.style.display = "block";
+    errorSuggestionText.textContent = result.error.suggestion;
+  } else {
+    errorSuggestion.style.display = "none";
+  }
+
+  // Auto-hide after 30 seconds
+  setTimeout(() => {
+    hideErrorRecovery();
+  }, 30000);
+}
+
+/**
+ * Hide error recovery panel.
+ */
+function hideErrorRecovery() {
+  errorRecovery.classList.remove("visible");
+}
+
+/**
+ * Retry the last failed operation.
+ */
+async function retryLastOperation() {
+  if (!lastOperation) return;
+
+  hideErrorRecovery();
+  log(`Retrying ${lastOperation.command}...`);
+
+  const result = await callTool(lastOperation.command, lastOperation.args);
+
+  if (result.success) {
+    await Promise.all([loadTodos(), loadStats()]);
+  }
+}
+
+// Make retry function available globally
+window.retryLastOperation = retryLastOperation;
+window.hideErrorRecovery = hideErrorRecovery;
+window.hideTrustPanel = hideTrustPanel;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONFIRMATION MODAL
@@ -342,14 +574,40 @@ async function callTool(name, args = {}, options = {}) {
       }
     }
 
+    // Update trust panel for mutations (not silent queries)
+    if (!silent && isMutation) {
+      updateTrustPanel(result, name);
+    }
+
+    // Show error recovery for failed mutations
+    if (!result.success && isMutation) {
+      showErrorRecovery(result, name, args);
+    } else {
+      // Hide error recovery on success
+      hideErrorRecovery();
+    }
+
     return result;
   } catch (error) {
-    const errorResult = { success: false, error: { message: error.message } };
+    const errorResult = {
+      success: false,
+      error: {
+        message: error.message,
+        suggestion: "Check that the server is running and try again.",
+        retryable: true,
+      },
+    };
     if (shouldLog) {
       log(`✗ ${name}: ${error.message}`, "error");
     }
     // Always show error toasts
     showToast(errorResult, name);
+
+    // Show error recovery for connection errors
+    if (isMutation) {
+      showErrorRecovery(errorResult, name, args);
+    }
+
     return errorResult;
   }
 }
