@@ -213,6 +213,51 @@ const created = await scenarioCreate({
 });
 ```
 
+### Agent Integration (Phase 3)
+
+MCP server and AI-friendly hints for agent integration:
+
+```typescript
+import { createMcpTestingServer, scenarioSuggest } from '@afd/testing';
+
+// Create MCP server exposing all scenario commands
+const server = createMcpTestingServer({
+  handler: async (command, input) => registry.execute(command, input),
+});
+
+// AI-powered scenario suggestions
+const suggestions = await scenarioSuggest({
+  context: 'changed-files',
+  files: ['src/commands/todo/create.ts'],
+});
+
+// Results include _agentHints for AI interpretation
+console.log(suggestions.data._agentHints);
+// { shouldRetry: false, nextSteps: [...], interpretationConfidence: 0.9 }
+```
+
+### App Adapters (Phase 4)
+
+Adapters enable the framework to work with different AFD applications:
+
+```typescript
+import { registerAdapter, detectAdapter, todoAdapter, createGenericAdapter } from '@afd/testing';
+
+// Register built-in adapter
+registerAdapter(todoAdapter);
+
+// Create custom adapter for your app
+const myAdapter = createGenericAdapter('myapp', {
+  commands: ['myapp.create', 'myapp.list'],
+  errors: ['NOT_FOUND', 'VALIDATION_ERROR'],
+});
+registerAdapter(myAdapter);
+
+// Auto-detect adapter from fixture
+const fixture = { app: 'todo', todos: [] };
+const adapter = detectAdapter(fixture);
+```
+
 See `packages/testing/README.md` for full documentation.
 
 ## How to Use AFD CLI
