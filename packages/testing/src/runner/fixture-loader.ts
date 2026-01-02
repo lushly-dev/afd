@@ -38,11 +38,36 @@ export interface FixtureData {
 }
 
 /**
+ * Applied command with its input data.
+ */
+export interface AppliedCommand {
+  /** Command name */
+  command: string;
+
+  /** Input data passed to command (if any) */
+  input?: Record<string, unknown>;
+}
+
+/**
  * Result from loading a fixture.
  */
 export type LoadFixtureResult =
   | { success: true; data: FixtureData; path: string }
   | { success: false; error: string; path?: string };
+
+/**
+ * Result from applying a fixture.
+ */
+export interface ApplyFixtureResult {
+  /** Whether application succeeded */
+  success: boolean;
+
+  /** Error message if failed */
+  error?: string;
+
+  /** Commands that were applied with their inputs */
+  appliedCommands: AppliedCommand[];
+}
 
 /**
  * Options for fixture loading.
@@ -225,8 +250,8 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 export async function applyFixture(
   data: FixtureData,
   handler: (command: string, input?: Record<string, unknown>) => Promise<unknown>
-): Promise<{ success: boolean; error?: string; appliedCommands: string[] }> {
-  const appliedCommands: string[] = [];
+): Promise<ApplyFixtureResult> {
+  const appliedCommands: AppliedCommand[] = [];
 
   try {
     // Check for app-specific fixture format
@@ -244,8 +269,9 @@ export async function applyFixture(
         if (Array.isArray(data.setup)) {
           for (const cmd of data.setup) {
             if (typeof cmd === "object" && cmd.command) {
-              await handler(cmd.command as string, cmd.input as Record<string, unknown>);
-              appliedCommands.push(cmd.command as string);
+              const input = cmd.input as Record<string, unknown> | undefined;
+              await handler(cmd.command as string, input);
+              appliedCommands.push({ command: cmd.command as string, input });
             }
           }
         }
@@ -266,24 +292,26 @@ export async function applyFixture(
 async function applyTodoFixture(
   data: FixtureData,
   handler: (command: string, input?: Record<string, unknown>) => Promise<unknown>,
-  appliedCommands: string[]
-): Promise<{ success: boolean; error?: string; appliedCommands: string[] }> {
+  appliedCommands: AppliedCommand[]
+): Promise<ApplyFixtureResult> {
   // Clear existing todos first
   if (data.clearFirst !== false) {
-    await handler("todo.clear", { all: true });
-    appliedCommands.push("todo.clear");
+    const input = { all: true };
+    await handler("todo.clear", input);
+    appliedCommands.push({ command: "todo.clear", input });
   }
 
   // Create todos from fixture
   const todos = data.todos as Array<Record<string, unknown>> | undefined;
   if (todos && Array.isArray(todos)) {
     for (const todo of todos) {
-      await handler("todo.create", {
+      const input = {
         title: todo.title,
         description: todo.description,
         priority: todo.priority ?? "medium",
-      });
-      appliedCommands.push("todo.create");
+      };
+      await handler("todo.create", input);
+      appliedCommands.push({ command: "todo.create", input });
 
       // If todo is completed, toggle it
       if (todo.completed) {
@@ -302,21 +330,22 @@ async function applyTodoFixture(
 async function applyVioletFixture(
   data: FixtureData,
   handler: (command: string, input?: Record<string, unknown>) => Promise<unknown>,
-  appliedCommands: string[]
-): Promise<{ success: boolean; error?: string; appliedCommands: string[] }> {
+  appliedCommands: AppliedCommand[]
+): Promise<ApplyFixtureResult> {
   // Create nodes first
   const nodes = data.nodes as Array<Record<string, unknown>> | undefined;
   if (nodes && Array.isArray(nodes)) {
     for (const node of nodes) {
-      await handler("node.create", {
+      const input = {
         id: node.id,
         name: node.name,
         type: node.type,
         parentId: node.parentId,
         includes: node.includes,
         tags: node.tags,
-      });
-      appliedCommands.push("node.create");
+      };
+      await handler("node.create", input);
+      appliedCommands.push({ command: "node.create", input });
     }
   }
 
@@ -326,15 +355,15 @@ async function applyVioletFixture(
     for (const op of operations) {
       const opType = op.type as string;
       const command = `token.${opType}`;
-
-      await handler(command, {
+      const input = {
         node: op.nodeId,
         token: op.token,
         value: op.value,
         from: op.sourceNodeId,
         ancestor: op.ancestorId,
-      });
-      appliedCommands.push(command);
+      };
+      await handler(command, input);
+      appliedCommands.push({ command, input });
     }
   }
 
@@ -342,14 +371,15 @@ async function applyVioletFixture(
   const constraints = data.constraints as Array<Record<string, unknown>> | undefined;
   if (constraints && Array.isArray(constraints)) {
     for (const constraint of constraints) {
-      await handler("constraints.set", {
+      const input = {
         node: constraint.nodeId,
         id: constraint.id,
         type: constraint.type,
         tokens: constraint.tokens,
         ...constraint, // Pass through other constraint-specific fields
-      });
-      appliedCommands.push("constraints.set");
+      };
+      await handler("constraints.set", input);
+      appliedCommands.push({ command: "constraints.set", input });
     }
   }
 

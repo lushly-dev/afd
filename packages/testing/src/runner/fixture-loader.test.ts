@@ -258,8 +258,8 @@ describe("applyFixture", () => {
       const result = await applyFixture(fixture, handler);
 
       expect(result.success).toBe(true);
-      expect(result.appliedCommands).toContain("todo.clear");
-      expect(result.appliedCommands.filter((c) => c === "todo.create")).toHaveLength(2);
+      expect(result.appliedCommands.map((c) => c.command)).toContain("todo.clear");
+      expect(result.appliedCommands.filter((c) => c.command === "todo.create")).toHaveLength(2);
 
       // Verify clear was called first
       expect(commands[0]?.command).toBe("todo.clear");

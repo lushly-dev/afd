@@ -12,11 +12,57 @@ import type {
   StepResult,
   StepOutcome,
   ScenarioOutcome,
+  AssertionResult,
 } from "../types/report.js";
 import { createStepError } from "../types/report.js";
 import { evaluateResult } from "./evaluator.js";
 import { CliWrapper, type CliConfig, type ExecuteResult } from "./cli-wrapper.js";
-import { loadFixture, applyFixture, type FixtureData } from "./fixture-loader.js";
+import { loadFixture, applyFixture, type FixtureData, type AppliedCommand } from "./fixture-loader.js";
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Format failed assertions into a human-readable error message.
+ * Shows expected vs actual values for each failure.
+ */
+function formatAssertionFailures(failures: AssertionResult[]): string {
+  if (failures.length === 0) {
+    return "Assertions failed";
+  }
+
+  if (failures.length === 1 && failures[0]) {
+    const f = failures[0];
+    return `${f.path}: expected ${formatValue(f.expected)}, got ${formatValue(f.actual)}`;
+  }
+
+  const lines = failures.map((f) => {
+    return `  - ${f.path}: expected ${formatValue(f.expected)}, got ${formatValue(f.actual)}`;
+  });
+
+  return `${failures.length} assertions failed:\n${lines.join("\n")}`;
+}
+
+/**
+ * Format a value for error message display.
+ */
+function formatValue(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (value === null) return "null";
+  if (typeof value === "string") {
+    return value.length > 40 ? `"${value.slice(0, 40)}..."` : `"${value}"`;
+  }
+  if (typeof value === "object") {
+    try {
+      const str = JSON.stringify(value);
+      return str.length > 60 ? str.slice(0, 60) + "..." : str;
+    } catch {
+      return "[object]";
+    }
+  }
+  return String(value);
+}
 
 // ============================================================================
 // Executor Configuration
@@ -179,6 +225,13 @@ export class ScenarioExecutor {
 
       const outcome: StepOutcome = evaluation.passed ? "pass" : "fail";
 
+      // Build detailed error message for failed assertions
+      let errorMessage: string | undefined;
+      if (!evaluation.passed) {
+        const failedAssertions = evaluation.assertions.filter((a) => !a.passed);
+        errorMessage = formatAssertionFailures(failedAssertions);
+      }
+
       return {
         stepId,
         command: step.command,
@@ -188,7 +241,7 @@ export class ScenarioExecutor {
         assertions: evaluation.assertions,
         error: evaluation.passed
           ? undefined
-          : createStepError("expectation_mismatch", "Assertions failed", {
+          : createStepError("expectation_mismatch", errorMessage ?? "Assertions failed", {
               expected: step.expect,
               actual: executeResult.result,
             }),
@@ -293,6 +346,12 @@ export interface InProcessExecutorConfig {
   /** Base path for resolving fixture files */
   basePath?: string;
 
+  /**
+   * Dry run mode - validate scenario structure without executing commands.
+   * Useful for CI validation and pre-flight checks.
+   */
+  dryRun?: boolean;
+
   /** Step completion callback */
   onStepComplete?: (step: Step, result: StepResult) => void;
 
@@ -302,8 +361,11 @@ export interface InProcessExecutorConfig {
   /** Scenario complete callback */
   onScenarioComplete?: (result: ScenarioResult) => void;
 
-  /** Fixture loaded callback */
-  onFixtureLoaded?: (fixture: FixtureData, appliedCommands: string[]) => void;
+  /** Fixture loaded callback with detailed command data */
+  onFixtureLoaded?: (
+    fixture: FixtureData,
+    appliedCommands: Array<{ command: string; input?: unknown }>
+  ) => void;
 }
 
 /**
@@ -313,6 +375,7 @@ export interface InProcessExecutorConfig {
  * Supports:
  * - Fixture loading and application
  * - Step references (${{ steps[0].data.id }})
+ * - Dry run mode for validation without execution
  */
 export class InProcessExecutor {
   private handler: CommandHandler;
@@ -323,6 +386,7 @@ export class InProcessExecutor {
     this.config = {
       stopOnFailure: config.stopOnFailure ?? true,
       basePath: config.basePath,
+      dryRun: config.dryRun ?? false,
       onStepComplete: config.onStepComplete,
       onScenarioStart: config.onScenarioStart,
       onScenarioComplete: config.onScenarioComplete,
@@ -332,6 +396,7 @@ export class InProcessExecutor {
 
   /**
    * Execute a scenario in-process.
+   * If dryRun is true, validates scenario structure without executing commands.
    */
   async execute(scenario: Scenario): Promise<ScenarioResult> {
     const startedAt = new Date();
@@ -348,12 +413,22 @@ export class InProcessExecutor {
 
     this.config.onScenarioStart?.(scenario);
 
-    // Load and apply fixture if present
+    // In dry run mode, validate fixture exists but don't apply
     if (scenario.fixture) {
-      const fixtureResult = await this.loadAndApplyFixture(scenario.fixture);
-      if (!fixtureResult.success) {
-        fixtureError = fixtureResult.error;
-        shouldSkipRemaining = true;
+      if (this.config.dryRun) {
+        const loadResult = await loadFixture(scenario.fixture, {
+          basePath: this.config.basePath,
+        });
+        if (!loadResult.success) {
+          fixtureError = `Fixture validation failed: ${loadResult.error}`;
+          shouldSkipRemaining = true;
+        }
+      } else {
+        const fixtureResult = await this.loadAndApplyFixture(scenario.fixture);
+        if (!fixtureResult.success) {
+          fixtureError = fixtureResult.error;
+          shouldSkipRemaining = true;
+        }
       }
     }
 
@@ -371,6 +446,22 @@ export class InProcessExecutor {
         stepOutputs.push({ success: false });
         skippedSteps++;
         this.config.onStepComplete?.(step, skippedResult);
+        continue;
+      }
+
+      // In dry run mode, validate step structure without execution
+      if (this.config.dryRun) {
+        const dryRunResult: StepResult = {
+          stepId: `step-${index + 1}`,
+          command: step.command,
+          outcome: "pass", // Validated successfully
+          durationMs: 0,
+          assertions: [],
+        };
+        stepResults.push(dryRunResult);
+        stepOutputs.push({ success: true, data: {} }); // Mock output for references
+        passedSteps++;
+        this.config.onStepComplete?.(step, dryRunResult);
         continue;
       }
 
@@ -437,6 +528,13 @@ export class InProcessExecutor {
       const evaluation = evaluateResult(commandResult, step.expect);
       const outcome: StepOutcome = evaluation.passed ? "pass" : "fail";
 
+      // Build detailed error message for failed assertions
+      let errorMessage: string | undefined;
+      if (!evaluation.passed) {
+        const failedAssertions = evaluation.assertions.filter((a) => !a.passed);
+        errorMessage = formatAssertionFailures(failedAssertions);
+      }
+
       return {
         stepId,
         command: step.command,
@@ -446,7 +544,7 @@ export class InProcessExecutor {
         assertions: evaluation.assertions,
         error: evaluation.passed
           ? undefined
-          : createStepError("expectation_mismatch", "Assertions failed"),
+          : createStepError("expectation_mismatch", errorMessage ?? "Assertions failed"),
       };
     } catch (err) {
       const durationMs = Date.now() - startTime;
@@ -626,4 +724,120 @@ export function createExecutor(config?: ExecutorConfig): ScenarioExecutor {
  */
 export function createInProcessExecutor(config: InProcessExecutorConfig): InProcessExecutor {
   return new InProcessExecutor(config);
+}
+
+/**
+ * Validation result from validateScenario.
+ */
+export interface ScenarioValidationResult {
+  /** Whether scenario is valid */
+  valid: boolean;
+
+  /** Validation errors (if any) */
+  errors: string[];
+
+  /** Validation warnings (if any) */
+  warnings: string[];
+
+  /** Scenario metadata */
+  metadata: {
+    name: string;
+    job: string;
+    stepCount: number;
+    hasFixture: boolean;
+    tags: string[];
+  };
+}
+
+/**
+ * Validate a scenario without executing it.
+ * Useful for CI/CD validation and pre-flight checks.
+ *
+ * @param scenario - The scenario to validate
+ * @param options - Validation options
+ * @returns Validation result
+ *
+ * @example
+ * ```typescript
+ * const result = await validateScenario(scenario, {
+ *   basePath: './scenarios',
+ *   checkFixtures: true,
+ * });
+ * if (!result.valid) {
+ *   console.error('Validation failed:', result.errors);
+ * }
+ * ```
+ */
+export async function validateScenario(
+  scenario: Scenario,
+  options: { basePath?: string; checkFixtures?: boolean } = {}
+): Promise<ScenarioValidationResult> {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  // Basic structural validation
+  if (!scenario.name) {
+    errors.push("Missing required field: name");
+  }
+
+  if (!scenario.job) {
+    errors.push("Missing required field: job");
+  }
+
+  if (!scenario.steps || scenario.steps.length === 0) {
+    errors.push("Scenario must have at least one step");
+  }
+
+  // Validate each step
+  for (const [index, step] of (scenario.steps ?? []).entries()) {
+    const stepNum = index + 1;
+
+    if (!step.command) {
+      errors.push(`Step ${stepNum}: Missing required field 'command'`);
+    }
+
+    if (!step.expect) {
+      warnings.push(`Step ${stepNum}: Missing 'expect' - step result won't be validated`);
+    }
+
+    // Check for invalid step references
+    if (step.input) {
+      const refs = JSON.stringify(step.input).match(/\$\{\{\s*steps\[(\d+)\]/g);
+      if (refs) {
+        for (const ref of refs) {
+          const match = ref.match(/steps\[(\d+)\]/);
+          if (match && match[1]) {
+            const refIndex = parseInt(match[1], 10);
+            if (refIndex >= index) {
+              errors.push(`Step ${stepNum}: Invalid reference to step ${refIndex} (can only reference earlier steps)`);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Validate fixture if present and checkFixtures is enabled
+  if (scenario.fixture && options.checkFixtures !== false) {
+    const fixtureResult = await loadFixture(scenario.fixture, {
+      basePath: options.basePath,
+    });
+
+    if (!fixtureResult.success) {
+      errors.push(`Fixture error: ${fixtureResult.error}`);
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings,
+    metadata: {
+      name: scenario.name,
+      job: scenario.job,
+      stepCount: scenario.steps?.length ?? 0,
+      hasFixture: !!scenario.fixture,
+      tags: scenario.tags ?? [],
+    },
+  };
 }

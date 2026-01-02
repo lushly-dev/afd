@@ -122,12 +122,14 @@ export type {
 	ExecutorConfig,
 	CommandHandler,
 	InProcessExecutorConfig,
+	ScenarioValidationResult,
 } from './runner/executor.js';
 export {
 	ScenarioExecutor,
 	InProcessExecutor,
 	createExecutor,
 	createInProcessExecutor,
+	validateScenario,
 } from './runner/executor.js';
 
 // Reporter
@@ -144,6 +146,8 @@ export type {
 	FixtureData,
 	LoadFixtureResult,
 	LoadFixtureOptions,
+	AppliedCommand,
+	ApplyFixtureResult,
 } from './runner/fixture-loader.js';
 export { loadFixture, applyFixture } from './runner/fixture-loader.js';
 
