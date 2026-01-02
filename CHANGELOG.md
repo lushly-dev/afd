@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2025-01-16
+
+### Added
+
+#### JTBD Scenario Runner UX Improvements (`@afd/testing`)
+
+- **Better Assertion Error Messages** - Failed assertions now show expected vs actual values
+  - Example: `"2 assertions failed: data.total: expected 99, got 2; data.completed: expected true, got false"`
+  - Added `formatAssertionFailures()` internal helper for detailed error formatting
+
+- **Dry Run Mode** - Validate scenarios without executing them
+  - `validateScenario(scenario, options)` - Pre-flight validation function
+  - `dryRun: true` option for `InProcessExecutor` - Returns validation results without execution
+  - Validates command existence, step references, and fixture availability
+
+- **Richer Fixture Callback** - `applyFixture()` now returns detailed command information
+  - Changed `appliedCommands` from `string[]` to `AppliedCommand[]`
+  - `AppliedCommand` type: `{ command: string; input?: Record<string, unknown> }`
+  - Enables better debugging and logging of fixture application
+
+- **New Exports** - Added types for programmatic usage
+  - `AppliedCommand` - Single applied command with input data
+  - `ApplyFixtureResult` - Full result of fixture application
+  - `ScenarioValidationResult` - Result of dry-run validation
+  - `validateScenario` - Pre-flight validation function
+
+### Changed
+
+- Updated `packages/testing/README.md` with new UX improvement documentation
+- Updated fixture loader tests for new `AppliedCommand[]` type
+
 ## [0.1.0] - 2025-01-01
 
 ### Added

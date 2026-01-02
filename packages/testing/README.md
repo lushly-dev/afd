@@ -103,6 +103,51 @@ reporter.report([result]);
 process.exit(result.status === 'passed' ? 0 : 1);
 ```
 
+### Dry Run Mode
+
+Validate scenarios without executing them using `validateScenario()`:
+
+```typescript
+import { parseScenario, validateScenario, InProcessExecutor } from '@afd/testing';
+
+// Validate scenario structure before execution
+const validation = validateScenario(parseResult.scenario, {
+  availableCommands: ['todo.create', 'todo.get', 'todo.list', 'todo.toggle'],
+  fixtures: fixtureIndex,  // Optional: Map<string, FixtureData>
+});
+
+if (!validation.valid) {
+  console.error('Validation errors:', validation.errors);
+  // Example: ["Unknown command 'todo.unknown' in step 3"]
+  process.exit(1);
+}
+
+// Or use dryRun option in executor
+const executor = new InProcessExecutor(handler, {
+  basePath: './scenarios',
+  dryRun: true,  // Validates but doesn't execute
+});
+
+const result = await executor.run(scenario);
+// result.steps will have status 'skipped' with reason
+```
+
+### Error Messages
+
+When assertions fail, detailed messages show expected vs actual values:
+
+```typescript
+// Example assertion failure output:
+// "2 assertions failed: data.total: expected 99, got 2; data.completed: expected true, got false"
+
+// In scenario results:
+{
+  name: "Check stats",
+  status: "failed",
+  error: "2 assertions failed: data.total: expected 99, got 2; data.completed: expected true, got false"
+}
+```
+
 ### Fixtures
 
 Fixtures pre-seed test data before scenario execution.
@@ -182,6 +227,34 @@ setup:
     { "command": "custom.init", "input": { "key": "value" } }
   ]
 }
+```
+
+#### Programmatic Fixture Loading
+
+Use `loadFixture()` and `applyFixture()` for direct fixture handling:
+
+```typescript
+import { loadFixture, applyFixture, AppliedCommand } from '@afd/testing';
+
+// Load fixture from file
+const fixture = await loadFixture('fixtures/test-data.json', {
+  basePath: './scenarios',
+  baseFile: 'fixtures/common.json',  // Optional inheritance
+  overrides: { clearFirst: true },    // Optional inline overrides
+});
+
+// Apply fixture to your system
+const result = await applyFixture(fixture, async (command, input) => {
+  return myRegistry.execute(command, input);
+});
+
+// Result includes applied commands with full details
+console.log(result.appliedCommands);
+// [
+//   { command: 'store.clear', input: {} },
+//   { command: 'todo.create', input: { title: 'Test', priority: 'high' } }
+// ]
+console.log(`Applied ${result.appliedCommands.length} commands`);
 ```
 
 ### Step References

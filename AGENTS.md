@@ -143,6 +143,31 @@ const scenario = parseScenario(yaml);
 const result = await executor.run(scenario);
 ```
 
+### Dry Run Validation
+
+Validate scenarios without executing them:
+
+```typescript
+import { validateScenario } from '@afd/testing';
+
+const validation = validateScenario(scenario, {
+  availableCommands: ['todo.create', 'todo.get'],
+});
+
+if (!validation.valid) {
+  console.error(validation.errors);
+  // ["Unknown command 'todo.unknown' in step 3"]
+}
+```
+
+### Error Messages
+
+Failed assertions show expected vs actual values:
+
+```
+"2 assertions failed: data.total: expected 99, got 2; data.completed: expected true, got false"
+```
+
 See `packages/testing/README.md` for full documentation.
 
 ## How to Use AFD CLI
