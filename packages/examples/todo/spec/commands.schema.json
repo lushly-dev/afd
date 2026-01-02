@@ -1,0 +1,408 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Todo Example Commands",
+  "description": "JSON Schema for all 11 commands in the Todo example",
+  "definitions": {
+    "Priority": {
+      "type": "string",
+      "enum": ["low", "medium", "high"]
+    },
+    "Todo": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "priority": { "$ref": "#/definitions/Priority" },
+        "completed": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "completedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "title",
+        "priority",
+        "completed",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CommandResult": {
+      "type": "object",
+      "properties": {
+        "success": { "type": "boolean" },
+        "data": { "type": "object" },
+        "error": {
+          "type": "object",
+          "properties": {
+            "code": { "type": "string" },
+            "message": { "type": "string" },
+            "suggestion": { "type": "string" },
+            "retryable": { "type": "boolean" }
+          },
+          "required": ["code", "message"]
+        },
+        "reasoning": { "type": "string" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "severity": {
+                "type": "string",
+                "enum": ["info", "warning", "caution"]
+              }
+            },
+            "required": ["code", "message"]
+          }
+        }
+      },
+      "required": ["success"]
+    }
+  },
+  "commands": {
+    "todo.create": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "description": { "type": "string", "maxLength": 1000 },
+          "priority": { "$ref": "#/definitions/Priority", "default": "medium" }
+        },
+        "required": ["title"]
+      },
+      "output": {
+        "allOf": [
+          { "$ref": "#/definitions/CommandResult" },
+          {
+            "properties": {
+              "data": { "$ref": "#/definitions/Todo" }
+            }
+          }
+        ]
+      }
+    },
+    "todo.list": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "completed": { "type": "boolean" },
+          "priority": { "$ref": "#/definitions/Priority" },
+          "search": { "type": "string" },
+          "sortBy": {
+            "type": "string",
+            "enum": ["createdAt", "updatedAt", "priority", "title"],
+            "default": "createdAt"
+          },
+          "sortOrder": {
+            "type": "string",
+            "enum": ["asc", "desc"],
+            "default": "desc"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 20
+          },
+          "offset": { "type": "integer", "minimum": 0, "default": 0 }
+        }
+      },
+      "output": {
+        "allOf": [
+          { "$ref": "#/definitions/CommandResult" },
+          {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "todos": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/Todo" }
+                  },
+                  "total": { "type": "integer" },
+                  "hasMore": { "type": "boolean" }
+                },
+                "required": ["todos", "total", "hasMore"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "todo.get": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }
+        },
+        "required": ["id"]
+      },
+      "output": {
+        "allOf": [
+          { "$ref": "#/definitions/CommandResult" },
+          {
+            "properties": {
+              "data": { "$ref": "#/definitions/Todo" }
+            }
+          }
+        ]
+      }
+    },
+    "todo.update": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "description": { "type": "string", "maxLength": 1000 },
+          "priority": { "$ref": "#/definitions/Priority" },
+          "completed": { "type": "boolean" }
+        },
+        "required": ["id"]
+      },
+      "output": {
+        "allOf": [
+          { "$ref": "#/definitions/CommandResult" },
+          {
+            "properties": {
+              "data": { "$ref": "#/definitions/Todo" }
+            }
+          }
+        ]
+      }
+    },
+    "todo.toggle": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }
+        },
+        "required": ["id"]
+      },
+      "output": {
+        "allOf": [
+          { "$ref": "#/definitions/CommandResult" },
+          {
+            "properties": {
+              "data": { "$ref": "#/definitions/Todo" }
+            }
+          }
+        ]
+      }
+    },
+    "todo.delete": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }
+        },
+        "required": ["id"]
+      },
+      "output": {
+        "allOf": [
+          { "$ref": "#/definitions/CommandResult" },
+          {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "deleted": { "type": "boolean" },
+                  "id": { "type": "string" }
+                },
+                "required": ["deleted", "id"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "todo.clear": {
+      "input": { "type": "object" },
+      "output": {
+        "allOf": [
+          { "$ref": "#/definitions/CommandResult" },
+          {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "cleared": { "type": "integer" },
+                  "remaining": { "type": "integer" }
+                },
+                "required": ["cleared", "remaining"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "todo.stats": {
+      "input": { "type": "object" },
+      "output": {
+        "allOf": [
+          { "$ref": "#/definitions/CommandResult" },
+          {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "total": { "type": "integer" },
+                  "completed": { "type": "integer" },
+                  "pending": { "type": "integer" },
+                  "byPriority": {
+                    "type": "object",
+                    "properties": {
+                      "low": { "type": "integer" },
+                      "medium": { "type": "integer" },
+                      "high": { "type": "integer" }
+                    },
+                    "required": ["low", "medium", "high"]
+                  },
+                  "completionRate": { "type": "number" }
+                },
+                "required": [
+                  "total",
+                  "completed",
+                  "pending",
+                  "byPriority",
+                  "completionRate"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "todo.createBatch": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "todos": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+                "description": { "type": "string", "maxLength": 1000 },
+                "priority": { "$ref": "#/definitions/Priority" }
+              },
+              "required": ["title"]
+            }
+          }
+        },
+        "required": ["todos"]
+      },
+      "output": {
+        "allOf": [
+          { "$ref": "#/definitions/CommandResult" },
+          {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "succeeded": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/Todo" }
+                  },
+                  "failed": { "type": "array" },
+                  "summary": {
+                    "type": "object",
+                    "properties": {
+                      "total": { "type": "integer" },
+                      "successCount": { "type": "integer" },
+                      "failureCount": { "type": "integer" }
+                    },
+                    "required": ["total", "successCount", "failureCount"]
+                  }
+                },
+                "required": ["succeeded", "failed", "summary"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "todo.deleteBatch": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "ids": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["ids"]
+      },
+      "output": {
+        "allOf": [
+          { "$ref": "#/definitions/CommandResult" },
+          {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "deletedIds": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "failed": { "type": "array" },
+                  "summary": {
+                    "type": "object",
+                    "properties": {
+                      "total": { "type": "integer" },
+                      "successCount": { "type": "integer" },
+                      "failureCount": { "type": "integer" }
+                    },
+                    "required": ["total", "successCount", "failureCount"]
+                  }
+                },
+                "required": ["deletedIds", "failed", "summary"]
+              }
+            }
+          }
+        ]
+      }
+    },
+    "todo.toggleBatch": {
+      "input": {
+        "type": "object",
+        "properties": {
+          "ids": { "type": "array", "items": { "type": "string" } },
+          "completed": { "type": "boolean" }
+        },
+        "required": ["ids"]
+      },
+      "output": {
+        "allOf": [
+          { "$ref": "#/definitions/CommandResult" },
+          {
+            "properties": {
+              "data": {
+                "type": "object",
+                "properties": {
+                  "succeeded": {
+                    "type": "array",
+                    "items": { "$ref": "#/definitions/Todo" }
+                  },
+                  "failed": { "type": "array" },
+                  "summary": {
+                    "type": "object",
+                    "properties": {
+                      "total": { "type": "integer" },
+                      "successCount": { "type": "integer" },
+                      "failureCount": { "type": "integer" }
+                    },
+                    "required": ["total", "successCount", "failureCount"]
+                  }
+                },
+                "required": ["succeeded", "failed", "summary"]
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

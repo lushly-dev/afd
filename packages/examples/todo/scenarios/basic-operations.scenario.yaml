@@ -1,0 +1,51 @@
+# JTBD Scenario: Basic Todo Operations
+# Tests core functionality without step references (good for smoke testing)
+
+name: Basic Todo Operations
+description: Verify basic CRUD operations work correctly
+job: basic-operations
+tags: [smoke, basic]
+
+steps:
+  # Test create
+  - command: todo.create
+    description: Create a simple todo
+    input:
+      title: Test todo item
+    expect:
+      success: true
+      data:
+        title: Test todo item
+        completed: false
+        priority: medium
+        id: { exists: true }
+
+  # Test list
+  - command: todo.list
+    description: List all todos
+    expect:
+      success: true
+      data:
+        todos: { exists: true }
+        total: { gte: 0 }
+        hasMore: { exists: true }
+
+  # Test stats
+  - command: todo.stats
+    description: Get todo statistics
+    expect:
+      success: true
+      data:
+        total: { gte: 0 }
+        completed: { gte: 0 }
+        pending: { gte: 0 }
+        byPriority: { exists: true }
+
+  # Test clear (cleanup)
+  - command: todo.clear
+    description: Clear completed todos
+    expect:
+      success: true
+      data:
+        cleared: { gte: 0 }
+        remaining: { gte: 0 }

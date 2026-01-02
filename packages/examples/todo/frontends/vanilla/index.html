@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AFD Todo App</title>
+    <style>
+      :root {
+        --bg: #1a1a2e;
+        --surface: #16213e;
+        --primary: #0f3460;
+        --accent: #e94560;
+        --text: #eaeaea;
+        --text-muted: #8b8b8b;
+        --success: #4ade80;
+        --warning: #fbbf24;
+        --error: #f87171;
+        --border: #2a2a4a;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        padding: 2rem;
+      }
+
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+      }
+
+      header {
+        text-align: center;
+        margin-bottom: 2rem;
+      }
+
+      h1 {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .subtitle {
+        color: var(--text-muted);
+        font-size: 0.9rem;
+      }
+
+      .connection-status {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-top: 1rem;
+        padding: 0.5rem 1rem;
+        background: var(--surface);
+        border-radius: 9999px;
+        font-size: 0.85rem;
+        width: fit-content;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--error);
+      }
+
+      .status-dot.connected {
+        background: var(--success);
+      }
+
+      .card {
+        background: var(--surface);
+        border-radius: 12px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border: 1px solid var(--border);
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        text-align: center;
+      }
+
+      .stat-value {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: var(--accent);
+      }
+
+      .stat-label {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+      }
+
+      .add-form {
+        display: flex;
+        gap: 0.75rem;
+      }
+
+      input,
+      select,
+      button {
+        font-family: inherit;
+        font-size: 1rem;
+      }
+
+      input[type="text"] {
+        flex: 1;
+        padding: 0.75rem 1rem;
+        background: var(--primary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+      }
+
+      input[type="text"]:focus {
+        outline: none;
+        border-color: var(--accent);
+      }
+
+      select {
+        padding: 0.75rem 1rem;
+        background: var(--primary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        color: var(--text);
+        cursor: pointer;
+      }
+
+      button {
+        padding: 0.75rem 1.5rem;
+        background: var(--accent);
+        border: none;
+        border-radius: 8px;
+        color: white;
+        cursor: pointer;
+        font-weight: 500;
+        transition: opacity 0.2s;
+      }
+
+      button:hover {
+        opacity: 0.9;
+      }
+
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      button.secondary {
+        background: var(--primary);
+        border: 1px solid var(--border);
+      }
+
+      .filters {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .filter-btn {
+        padding: 0.5rem 1rem;
+        font-size: 0.85rem;
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text-muted);
+      }
+
+      .filter-btn.active {
+        background: var(--primary);
+        border-color: var(--accent);
+        color: var(--text);
+      }
+
+      .todo-list {
+        list-style: none;
+      }
+
+      .todo-item {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        padding: 1rem;
+        background: var(--primary);
+        border-radius: 8px;
+        margin-bottom: 0.5rem;
+        transition: transform 0.1s;
+      }
+
+      .todo-item:hover {
+        transform: translateX(4px);
+      }
+
+      .todo-checkbox {
+        width: 24px;
+        height: 24px;
+        border: 2px solid var(--border);
+        border-radius: 6px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: all 0.2s;
+      }
+
+      .todo-checkbox:hover {
+        border-color: var(--accent);
+      }
+
+      .todo-checkbox.checked {
+        background: var(--success);
+        border-color: var(--success);
+      }
+
+      .todo-checkbox.checked::after {
+        content: "✓";
+        color: var(--bg);
+        font-weight: bold;
+      }
+
+      .todo-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .todo-title {
+        font-weight: 500;
+        word-break: break-word;
+      }
+
+      .todo-item.completed .todo-title {
+        text-decoration: line-through;
+        color: var(--text-muted);
+      }
+
+      .todo-meta {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-top: 0.25rem;
+      }
+
+      .priority-badge {
+        display: inline-block;
+        padding: 0.15rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 500;
+        text-transform: uppercase;
+      }
+
+      .priority-high {
+        background: rgba(248, 113, 113, 0.2);
+        color: var(--error);
+      }
+
+      .priority-medium {
+        background: rgba(251, 191, 36, 0.2);
+        color: var(--warning);
+      }
+
+      .priority-low {
+        background: rgba(74, 222, 128, 0.2);
+        color: var(--success);
+      }
+
+      .todo-actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .todo-actions button {
+        padding: 0.5rem;
+        font-size: 0.8rem;
+        background: transparent;
+        border: 1px solid var(--border);
+      }
+
+      .todo-actions button:hover {
+        border-color: var(--error);
+        color: var(--error);
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-muted);
+      }
+
+      .log-panel {
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        max-height: 200px;
+        overflow-y: auto;
+        font-family: monospace;
+        font-size: 0.8rem;
+      }
+
+      .log-entry {
+        padding: 0.25rem 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .log-entry:last-child {
+        border-bottom: none;
+      }
+
+      .log-entry.success {
+        color: var(--success);
+      }
+
+      .log-entry.error {
+        color: var(--error);
+      }
+
+      .log-entry .reasoning {
+        color: var(--text-muted);
+        font-style: italic;
+      }
+
+      footer {
+        text-align: center;
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--border);
+        color: var(--text-muted);
+        font-size: 0.85rem;
+      }
+
+      footer a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+
+      /* Toast notifications */
+      .toast-container {
+        position: fixed;
+        top: 1rem;
+        right: 1rem;
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        max-width: 400px;
+      }
+
+      .toast {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+        padding: 1rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        animation: slideIn 0.3s ease;
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateX(100%);
+          opacity: 0;
+        }
+        to {
+          transform: translateX(0);
+          opacity: 1;
+        }
+      }
+
+      .toast.success {
+        border-color: var(--success);
+      }
+
+      .toast.warning {
+        border-color: var(--warning);
+      }
+
+      .toast.error {
+        border-color: var(--error);
+      }
+
+      .toast-icon {
+        font-size: 1.25rem;
+        flex-shrink: 0;
+      }
+
+      .toast.success .toast-icon {
+        color: var(--success);
+      }
+      .toast.warning .toast-icon {
+        color: var(--warning);
+      }
+      .toast.error .toast-icon {
+        color: var(--error);
+      }
+
+      .toast-content {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .toast-message {
+        font-weight: 500;
+        margin-bottom: 0.25rem;
+      }
+
+      .toast-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+
+      .toast-confidence {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.15rem 0.5rem;
+        background: var(--primary);
+        border-radius: 4px;
+      }
+
+      .confidence-bar {
+        display: inline-block;
+        width: 60px;
+        height: 8px;
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 4px;
+        overflow: hidden;
+        vertical-align: middle;
+      }
+
+      .confidence-fill {
+        display: block;
+        height: 100%;
+        background: #4ade80;
+        border-radius: 4px;
+        transition: width 0.3s ease;
+      }
+
+      .confidence-fill.medium {
+        background: #fbbf24;
+      }
+      .confidence-fill.low {
+        background: #f87171;
+      }
+
+      .toast-suggestion {
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background: var(--primary);
+        border-radius: 4px;
+        font-size: 0.8rem;
+      }
+
+      .toast-suggestion strong {
+        color: var(--accent);
+      }
+
+      .toast-close {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 0.25rem;
+        font-size: 1rem;
+        line-height: 1;
+      }
+
+      .toast-close:hover {
+        color: var(--text);
+      }
+
+      /* Confirmation Modal */
+      .modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.2s, visibility 0.2s;
+      }
+
+      .modal-overlay.visible {
+        opacity: 1;
+        visibility: visible;
+      }
+
+      .modal {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1.5rem;
+        max-width: 400px;
+        width: 90%;
+        transform: scale(0.9);
+        transition: transform 0.2s;
+      }
+
+      .modal-overlay.visible .modal {
+        transform: scale(1);
+      }
+
+      .modal-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+      }
+
+      .modal-message {
+        color: var(--text-muted);
+        margin-bottom: 1rem;
+      }
+
+      .modal-warning {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.75rem;
+        background: rgba(251, 191, 36, 0.1);
+        border: 1px solid var(--warning);
+        border-radius: 6px;
+        margin-bottom: 1rem;
+        font-size: 0.85rem;
+        color: var(--warning);
+      }
+
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.75rem;
+      }
+
+      /* Alternatives panel */
+      .alternatives-panel {
+        background: var(--primary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 0.75rem;
+        margin-top: 0.75rem;
+      }
+
+      .alternatives-title {
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        margin-bottom: 0.5rem;
+      }
+
+      .alternative-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem;
+        background: var(--surface);
+        border-radius: 4px;
+        margin-bottom: 0.25rem;
+        font-size: 0.85rem;
+      }
+
+      .alternative-item:last-child {
+        margin-bottom: 0;
+      }
+
+      .alternative-item button {
+        padding: 0.35rem 0.75rem;
+        font-size: 0.75rem;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Toast Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Confirmation Modal -->
+    <div class="modal-overlay" id="confirmModal">
+      <div class="modal">
+        <div class="modal-title" id="modalTitle">Confirm Action</div>
+        <div class="modal-message" id="modalMessage">Are you sure?</div>
+        <div class="modal-warning" id="modalWarning" style="display: none">
+          <span>⚠️</span>
+          <span id="modalWarningText"></span>
+        </div>
+        <div class="modal-actions">
+          <button class="secondary" id="modalCancel">Cancel</button>
+          <button id="modalConfirm">Confirm</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <header>
+        <h1>AFD Todo App</h1>
+        <p class="subtitle">A demo app powered by Agent-First Development</p>
+        <div class="connection-status">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">Disconnected</span>
+        </div>
+      </header>
+
+      <div class="card">
+        <div class="stats" id="stats">
+          <div>
+            <div class="stat-value" id="statTotal">0</div>
+            <div class="stat-label">Total</div>
+          </div>
+          <div>
+            <div class="stat-value" id="statPending">0</div>
+            <div class="stat-label">Pending</div>
+          </div>
+          <div>
+            <div class="stat-value" id="statCompleted">0</div>
+            <div class="stat-label">Completed</div>
+          </div>
+          <div>
+            <div class="stat-value" id="statRate">0%</div>
+            <div class="stat-label">Done</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <form class="add-form" id="addForm">
+          <input
+            type="text"
+            id="newTodoTitle"
+            placeholder="What needs to be done?"
+            required
+          />
+          <select id="newTodoPriority">
+            <option value="low">Low</option>
+            <option value="medium" selected>Medium</option>
+            <option value="high">High</option>
+          </select>
+          <button type="submit">Add</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="filters">
+          <button class="filter-btn active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="pending">Pending</button>
+          <button class="filter-btn" data-filter="completed">Completed</button>
+          <button
+            class="filter-btn secondary"
+            id="clearCompleted"
+            style="margin-left: auto"
+          >
+            Clear Completed
+          </button>
+        </div>
+        <div
+          class="batch-controls"
+          style="
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+          "
+        >
+          <label
+            style="
+              display: flex;
+              align-items: center;
+              gap: 0.5rem;
+              font-size: 0.85rem;
+              cursor: pointer;
+            "
+          >
+            <input
+              type="checkbox"
+              id="selectAll"
+              onchange="toggleSelectAll()"
+            />
+            Select All
+          </label>
+          <div id="batchActions" style="display: none; gap: 0.5rem">
+            <button class="filter-btn" onclick="toggleSelected()">
+              Toggle Selected
+            </button>
+            <button
+              class="filter-btn"
+              style="color: var(--error); border-color: var(--error)"
+              onclick="deleteSelected()"
+            >
+              Delete Selected
+            </button>
+          </div>
+        </div>
+        <div
+          class="alternatives-panel"
+          id="alternativesPanel"
+          style="display: none"
+        >
+          <div class="alternatives-title">
+            💡 Alternative queries available:
+          </div>
+          <div id="alternativesList"></div>
+        </div>
+        <ul class="todo-list" id="todoList">
+          <li class="empty-state">Loading...</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3
+          style="
+            margin-bottom: 0.75rem;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+          "
+        >
+          Command Log
+        </h3>
+        <div class="log-panel" id="logPanel">
+          <div class="log-entry">Connecting to server...</div>
+        </div>
+      </div>
+
+      <footer>
+        <p>
+          Built with
+          <a href="https://github.com/Falkicon/afd" target="_blank"
+            >Agent-First Development</a
+          >. Same commands work via CLI, MCP, and this UI.
+        </p>
+      </footer>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

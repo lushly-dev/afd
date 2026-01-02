@@ -1,0 +1,60 @@
+# JTBD Scenario: Todo Workflow with Step References
+# Tests chaining operations using step output references
+
+name: Update and Complete Created Todo
+description: As a user, I want to create, update, and complete a todo using the same ID
+job: todo-lifecycle
+tags: [smoke, step-refs, workflow]
+
+steps:
+  # Step 0: Create a todo - capture the ID
+  - command: todo.create
+    description: Create a new todo to work with
+    input:
+      title: Test step references
+      priority: medium
+    expect:
+      success: true
+      data:
+        title: Test step references
+
+  # Step 1: Update the todo using step 0's ID
+  - command: todo.update
+    description: Update the todo we just created
+    input:
+      id: ${{ steps[0].data.id }}
+      priority: high
+    expect:
+      success: true
+      data:
+        priority: high
+
+  # Step 2: Get the todo to verify update
+  - command: todo.get
+    description: Verify the todo was updated
+    input:
+      id: ${{ steps[0].data.id }}
+    expect:
+      success: true
+      data:
+        title: Test step references
+        priority: high
+        completed: false
+
+  # Step 3: Toggle the todo (mark as complete)
+  - command: todo.toggle
+    description: Mark the todo as done
+    input:
+      id: ${{ steps[0].data.id }}
+    expect:
+      success: true
+      data:
+        completed: true
+
+  # Step 4: Delete the todo (cleanup)
+  - command: todo.delete
+    description: Clean up the test todo
+    input:
+      id: ${{ steps[0].data.id }}
+    expect:
+      success: true

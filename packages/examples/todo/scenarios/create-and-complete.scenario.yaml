@@ -1,0 +1,53 @@
+# JTBD Scenario: Create and Complete Todo
+# Tests the basic workflow of creating a todo and verifying it
+# NOTE: Step references (Phase 2) not yet implemented, so we can't toggle a specific todo
+
+name: Create and Complete Todo
+description: As a user, I want to create a todo and verify it appears in the list
+job: create-and-complete
+tags: [smoke, basic, p0]
+
+steps:
+  # Step 0: Clear any existing todos for a clean slate
+  - command: todo.clear
+    description: Clear all todos before test
+    input:
+      all: true
+    expect:
+      success: true
+
+  # Step 1: Create a new todo
+  - command: todo.create
+    description: Create a new todo item
+    input:
+      title: Buy groceries
+      description: Need milk, eggs, and bread
+      priority: high
+    expect:
+      success: true
+      data:
+        title: Buy groceries
+        description: Need milk, eggs, and bread
+        priority: high
+        completed: false
+        id: { exists: true }
+        createdAt: { exists: true }
+
+  # Step 2: Verify the todo appears in the list
+  - command: todo.list
+    description: List all todos to verify creation
+    expect:
+      success: true
+      data:
+        todos: { exists: true }
+        total: { gte: 1 }
+
+  # Step 3: Verify stats reflect the new todo
+  - command: todo.stats
+    description: Check statistics show pending todo
+    expect:
+      success: true
+      data:
+        total: { gte: 1 }
+        pending: { gte: 1 }
+        completionRate: { gte: 0 }

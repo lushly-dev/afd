@@ -3,6 +3,9 @@
  */
 
 import type {
+	BatchCommand,
+	BatchOptions,
+	BatchResult,
 	CommandResult,
 	McpInitializeParams,
 	McpInitializeResult,
@@ -12,11 +15,18 @@ import type {
 	McpToolCallParams,
 	McpToolCallResult,
 	McpToolsListResult,
+	StreamCallbacks,
+	StreamChunk,
+	StreamOptions,
 } from '@afd/core';
 import {
 	createMcpErrorResponse,
 	createMcpRequest,
 	failure,
+	isCompleteChunk,
+	isDataChunk,
+	isErrorChunk,
+	isProgressChunk,
 	McpErrorCodes,
 	success,
 	wrapError,
@@ -291,6 +301,347 @@ export class McpClient {
 		} catch (error) {
 			return failure(wrapError(error));
 		}
+	}
+
+	/**
+	 * Execute multiple commands in a single batch request.
+	 *
+	 * Batch execution provides partial success semantics - the batch
+	 * succeeds if at least one command succeeds, with aggregated
+	 * confidence scores and detailed timing information.
+	 *
+	 * @param commands - Array of commands to execute
+	 * @param options - Batch execution options
+	 * @returns BatchResult with individual command results
+	 *
+	 * @example
+	 * ```typescript
+	 * const result = await client.batch([
+	 *   { name: 'todo.create', input: { title: 'First' } },
+	 *   { name: 'todo.create', input: { title: 'Second' } },
+	 *   { name: 'todo.list', input: {} }
+	 * ], { stopOnError: false });
+	 *
+	 * console.log(`${result.summary.successCount}/${result.summary.total} succeeded`);
+	 * console.log(`Confidence: ${(result.confidence * 100).toFixed(1)}%`);
+	 * ```
+	 */
+	async batch<T = unknown>(
+		commands: BatchCommand[],
+		options?: BatchOptions
+	): Promise<BatchResult<T>> {
+		const startedAt = new Date().toISOString();
+
+		try {
+			const result = await this.callTool('afd.batch', {
+				commands,
+				options,
+			});
+
+			if (result.isError) {
+				const errorText = result.content
+					.filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+					.map((c) => c.text)
+					.join('\n');
+
+				// Return failed batch result
+				return {
+					success: false,
+					results: [],
+					summary: {
+						total: commands.length,
+						successCount: 0,
+						failureCount: commands.length,
+						skippedCount: 0,
+					},
+					timing: {
+						startedAt,
+						completedAt: new Date().toISOString(),
+						totalMs: 0,
+						averageMs: 0,
+					},
+					confidence: 0,
+					reasoning: `Batch execution failed: ${errorText || 'Unknown error'}`,
+					error: {
+						code: 'BATCH_ERROR',
+						message: errorText || 'Batch execution failed',
+						suggestion: 'Check the batch commands and try again',
+					},
+				};
+			}
+
+			// Parse batch result from response
+			const textContent = result.content
+				.filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+				.map((c) => c.text)
+				.join('');
+
+			try {
+				return JSON.parse(textContent) as BatchResult<T>;
+			} catch {
+				return {
+					success: false,
+					results: [],
+					summary: {
+						total: commands.length,
+						successCount: 0,
+						failureCount: commands.length,
+						skippedCount: 0,
+					},
+					timing: {
+						startedAt,
+						completedAt: new Date().toISOString(),
+						totalMs: 0,
+						averageMs: 0,
+					},
+					confidence: 0,
+					reasoning: 'Failed to parse batch result',
+					error: {
+						code: 'PARSE_ERROR',
+						message: 'Failed to parse batch result',
+						suggestion: 'The server returned an invalid response',
+					},
+				};
+			}
+		} catch (error) {
+			const err = error instanceof Error ? error.message : String(error);
+			return {
+				success: false,
+				results: [],
+				summary: {
+					total: commands.length,
+					successCount: 0,
+					failureCount: commands.length,
+					skippedCount: 0,
+				},
+				timing: {
+					startedAt,
+					completedAt: new Date().toISOString(),
+					totalMs: 0,
+					averageMs: 0,
+				},
+				confidence: 0,
+				reasoning: `Batch execution failed: ${err}`,
+				error: {
+					code: 'BATCH_ERROR',
+					message: err,
+					suggestion: 'Check the connection and try again',
+				},
+			};
+		}
+	}
+
+	/**
+	 * Stream command execution results with real-time progress.
+	 *
+	 * Returns an async generator that yields StreamChunk objects
+	 * containing progress updates, incremental data, completion,
+	 * or error information.
+	 *
+	 * @param name - Command name to execute
+	 * @param args - Command arguments
+	 * @param options - Stream options (abort signal, timeout)
+	 * @returns AsyncGenerator of StreamChunk objects
+	 *
+	 * @example
+	 * ```typescript
+	 * for await (const chunk of client.stream('llm.generate', { prompt: 'Hello' })) {
+	 *   if (chunk.type === 'progress') {
+	 *     console.log(`Progress: ${(chunk.progress * 100).toFixed(0)}%`);
+	 *   } else if (chunk.type === 'data') {
+	 *     process.stdout.write(String(chunk.data));
+	 *   } else if (chunk.type === 'complete') {
+	 *     console.log('Done!', chunk.data);
+	 *   } else if (chunk.type === 'error') {
+	 *     console.error('Error:', chunk.error.message);
+	 *   }
+	 * }
+	 * ```
+	 */
+	async *stream<T = unknown>(
+		name: string,
+		args?: Record<string, unknown>,
+		options?: StreamOptions
+	): AsyncGenerator<StreamChunk<T>, void, unknown> {
+		const url = new URL(this.config.url);
+		// Use the stream endpoint relative to base URL
+		const streamUrl = `${url.protocol}//${url.host}/stream/${encodeURIComponent(name)}`;
+
+		const controller = new AbortController();
+		const signal = options?.signal
+			? this.combineSignals(options.signal, controller.signal)
+			: controller.signal;
+
+		// Setup timeout if specified
+		let timeoutId: ReturnType<typeof setTimeout> | undefined;
+		if (options?.timeout) {
+			timeoutId = setTimeout(() => controller.abort(), options.timeout);
+		}
+
+		try {
+			const response = await fetch(streamUrl, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Accept: 'text/event-stream',
+					...this.config.headers,
+				},
+				body: JSON.stringify(args ?? {}),
+				signal,
+			});
+
+			if (!response.ok) {
+				yield {
+					type: 'error',
+					error: {
+						code: 'STREAM_ERROR',
+						message: `HTTP ${response.status}: ${response.statusText}`,
+						suggestion: 'Check the command name and arguments',
+					},
+					chunksBeforeError: 0,
+					recoverable: false,
+				};
+				return;
+			}
+
+			const reader = response.body?.getReader();
+			if (!reader) {
+				yield {
+					type: 'error',
+					error: {
+						code: 'STREAM_ERROR',
+						message: 'Response body is not readable',
+						suggestion: 'The server does not support streaming',
+					},
+					chunksBeforeError: 0,
+					recoverable: false,
+				};
+				return;
+			}
+
+			const decoder = new TextDecoder();
+			let buffer = '';
+			let chunksReceived = 0;
+
+			while (true) {
+				const { done, value } = await reader.read();
+
+				if (done) break;
+
+				buffer += decoder.decode(value, { stream: true });
+
+				// Process SSE events
+				const lines = buffer.split('\n');
+				buffer = lines.pop() ?? ''; // Keep incomplete line in buffer
+
+				for (const line of lines) {
+					if (line.startsWith('data: ')) {
+						const data = line.slice(6).trim();
+						if (data === '[DONE]') {
+							return;
+						}
+
+						try {
+							const chunk = JSON.parse(data) as StreamChunk<T>;
+							chunksReceived++;
+							yield chunk;
+
+							// Stop on complete or error
+							if (isCompleteChunk(chunk) || isErrorChunk(chunk)) {
+								return;
+							}
+						} catch {
+							// Ignore malformed JSON
+							this.debug('Malformed stream chunk:', data);
+						}
+					}
+				}
+			}
+		} catch (error) {
+			if (signal.aborted) {
+				yield {
+					type: 'error',
+					error: {
+						code: 'STREAM_CANCELLED',
+						message: 'Stream was cancelled',
+						suggestion: 'The request was aborted by the client',
+					},
+					chunksBeforeError: 0,
+					recoverable: false,
+				};
+			} else {
+				yield {
+					type: 'error',
+					error: wrapError(error),
+					chunksBeforeError: 0,
+					recoverable: true,
+				};
+			}
+		} finally {
+			if (timeoutId) {
+				clearTimeout(timeoutId);
+			}
+		}
+	}
+
+	/**
+	 * Stream with callback-style API for convenience.
+	 *
+	 * This is a convenience wrapper around stream() that uses callbacks
+	 * instead of async iteration.
+	 *
+	 * @param name - Command name to execute
+	 * @param args - Command arguments
+	 * @param callbacks - Callback handlers for stream events
+	 * @param options - Stream options
+	 * @returns Promise that resolves when stream completes
+	 *
+	 * @example
+	 * ```typescript
+	 * await client.streamWithCallbacks('llm.generate', { prompt: 'Hello' }, {
+	 *   onProgress: (chunk) => console.log(`${(chunk.progress * 100).toFixed(0)}% - ${chunk.message}`),
+	 *   onData: (chunk) => process.stdout.write(String(chunk.data)),
+	 *   onComplete: (chunk) => console.log('Done!', chunk.data),
+	 *   onError: (chunk) => console.error('Error:', chunk.error.message),
+	 * });
+	 * ```
+	 */
+	async streamWithCallbacks<T = unknown>(
+		name: string,
+		args: Record<string, unknown> | undefined,
+		callbacks: StreamCallbacks<T>,
+		options?: StreamOptions
+	): Promise<void> {
+		for await (const chunk of this.stream<T>(name, args, options)) {
+			if (isProgressChunk(chunk) && callbacks.onProgress) {
+				callbacks.onProgress(chunk);
+			} else if (isDataChunk(chunk) && callbacks.onData) {
+				callbacks.onData(chunk);
+			} else if (isCompleteChunk(chunk) && callbacks.onComplete) {
+				callbacks.onComplete(chunk);
+			} else if (isErrorChunk(chunk) && callbacks.onError) {
+				callbacks.onError(chunk);
+			}
+		}
+	}
+
+	/**
+	 * Combine two AbortSignals into one.
+	 */
+	private combineSignals(signal1: AbortSignal, signal2: AbortSignal): AbortSignal {
+		const controller = new AbortController();
+
+		const abort = () => controller.abort();
+
+		signal1.addEventListener('abort', abort);
+		signal2.addEventListener('abort', abort);
+
+		// Abort if either is already aborted
+		if (signal1.aborted || signal2.aborted) {
+			controller.abort();
+		}
+
+		return controller.signal;
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════

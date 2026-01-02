@@ -152,16 +152,13 @@ def define_command(
 
 def _accepts_context(func: Callable) -> bool:
     """Check if function accepts a context parameter."""
+    import inspect
     try:
-        hints = get_type_hints(func)
-        params = list(hints.keys())
-        return len(params) > 1 or "context" in params
-    except Exception:
-        # Fallback: check parameter count
-        import inspect
         sig = inspect.signature(func)
         params = list(sig.parameters.keys())
-        return len(params) > 1
+        return "context" in params or len(params) > 1
+    except Exception:
+        return False
 
 
 def has_command_metadata(func: Callable) -> bool:

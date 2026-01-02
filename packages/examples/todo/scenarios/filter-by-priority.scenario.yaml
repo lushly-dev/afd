@@ -1,0 +1,53 @@
+# JTBD Scenario: Filter Todos by Priority
+# Tests filtering functionality with pre-seeded data via fixture
+
+name: Filter Todos by Priority
+description: As a user, I want to filter todos by priority so I can focus on what's important
+job: filter-by-priority
+tags: [smoke, filtering, fixture]
+
+fixture:
+  file: ../fixtures/seeded-todos.json
+
+steps:
+  # Step 1: Verify fixture loaded correctly (4 todos created)
+  - command: todo.stats
+    description: Verify fixture created the expected todos
+    expect:
+      success: true
+      data:
+        total: 4
+        pending: 4
+        completed: 0
+
+  # Step 2: Filter high priority todos
+  - command: todo.list
+    description: List only high priority todos
+    input:
+      filter:
+        priority: high
+    expect:
+      success: true
+      data:
+        total: 2
+        todos:
+          length: 2
+
+  # Step 3: Filter low priority todos
+  - command: todo.list
+    description: List only low priority todos
+    input:
+      filter:
+        priority: low
+    expect:
+      success: true
+      data:
+        total: 1
+
+  # Step 4: Clear all todos (cleanup)
+  - command: todo.clear
+    description: Clean up all todos
+    input:
+      all: true
+    expect:
+      success: true

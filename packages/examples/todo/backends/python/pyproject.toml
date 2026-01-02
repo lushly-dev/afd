@@ -1,0 +1,12 @@
+[project]
+name = "afd-example-todo-python"
+version = "1.0.0"
+description = "Todo example - Python backend implementing AFD patterns"
+requires-python = ">=3.10"
+dependencies = [
+    "afd>=0.1.0",
+    "pydantic>=2.0.0",
+]
+
+[project.scripts]
+todo-server = "src.server:main"

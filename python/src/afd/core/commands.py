@@ -247,7 +247,7 @@ class _CommandRegistryImpl:
                 error=CmdError(
                     code="COMMAND_NOT_FOUND",
                     message=f"Command '{name}' not found",
-                    suggestion="Use 'afd tools' to see available commands",
+                    suggestion="List available commands to see valid options",
                 ),
             )
 

@@ -18,6 +18,256 @@ This package provides utilities for testing AFD commands:
 - **Test Helpers**: Easy command testing with validation
 - **Assertions**: Custom assertions for command results
 - **Mock Server**: In-memory MCP server for testing
+- **JTBD Scenario Runner**: Jobs-to-be-Done scenario testing with YAML files
+- **Fixtures**: Pre-seeded test data with inheritance and overrides
+- **Step References**: Dynamic references between scenario steps
+
+## JTBD Scenario Runner
+
+Test user journeys and jobs-to-be-done through YAML scenario files.
+
+### Scenario Structure
+
+```yaml
+# scenarios/create-and-complete-todo.scenario.yaml
+scenario:
+  name: "Create and complete a todo"
+  description: "Tests the complete lifecycle of a todo item"
+  tags: ["smoke", "crud"]
+
+setup:
+  fixture:
+    file: "fixtures/seeded-todos.json"
+
+steps:
+  - name: "Create a new todo"
+    command: todo.create
+    input:
+      title: "Buy groceries"
+      priority: "high"
+    expect:
+      success: true
+      data:
+        title: "Buy groceries"
+        completed: false
+
+  - name: "Complete the todo"
+    command: todo.toggle
+    input:
+      id: "${{ steps[0].data.id }}"  # Reference previous step
+    expect:
+      success: true
+      data:
+        completed: true
+
+  - name: "Delete the todo"
+    command: todo.delete
+    input:
+      id: "${{ steps[0].data.id }}"
+    expect:
+      success: true
+```
+
+### Running Scenarios
+
+```typescript
+import { parseScenario, InProcessExecutor, ConsoleReporter } from '@afd/testing';
+import { readFile } from 'node:fs/promises';
+
+// Parse scenario file
+const yaml = await readFile('scenarios/my-scenario.yaml', 'utf-8');
+const parseResult = parseScenario(yaml);
+
+if (!parseResult.success) {
+  console.error('Parse error:', parseResult.error);
+  process.exit(1);
+}
+
+// Create executor with your command handler
+const executor = new InProcessExecutor(
+  async (command, input) => {
+    // Execute command against your system
+    return myCommandRegistry.execute(command, input);
+  },
+  { basePath: './scenarios' }
+);
+
+// Run scenario
+const result = await executor.run(parseResult.scenario);
+
+// Report results
+const reporter = new ConsoleReporter();
+reporter.report([result]);
+
+// Exit with appropriate code
+process.exit(result.status === 'passed' ? 0 : 1);
+```
+
+### Fixtures
+
+Fixtures pre-seed test data before scenario execution.
+
+#### JSON Fixture File
+
+```json
+// fixtures/seeded-todos.json
+{
+  "app": "todo",
+  "clearFirst": true,
+  "todos": [
+    { "title": "Existing todo 1", "priority": "high" },
+    { "title": "Existing todo 2", "priority": "low", "completed": true }
+  ]
+}
+```
+
+#### Using Fixtures in Scenarios
+
+```yaml
+setup:
+  fixture:
+    file: "fixtures/base.json"        # Main fixture file
+    base: "fixtures/common.json"       # Optional base (inherited)
+    overrides:                         # Optional inline overrides
+      todos:
+        - title: "Override todo"
+```
+
+#### Fixture Inheritance
+
+```yaml
+# Override priority of merge: base → file → overrides
+setup:
+  fixture:
+    base: "common-setup.json"          # Applied first
+    file: "specific-setup.json"        # Merged on top
+    overrides:                         # Highest priority
+      clearFirst: false
+```
+
+#### Supported Fixture Structures
+
+**Todo App:**
+```json
+{
+  "app": "todo",
+  "clearFirst": true,
+  "todos": [
+    { "title": "string", "priority": "low|medium|high", "completed": false }
+  ]
+}
+```
+
+**Violet Design System:**
+```json
+{
+  "app": "violet",
+  "nodes": [
+    { "id": "string", "name": "string", "type": "root|product", "parentId": "string" }
+  ],
+  "operations": [
+    { "type": "add|override|subtract", "nodeId": "string", "token": "string", "value": "any" }
+  ],
+  "constraints": [
+    { "nodeId": "string", "id": "string", "type": "enum|range", "tokens": ["string"] }
+  ]
+}
+```
+
+**Generic (Custom Apps):**
+```json
+{
+  "app": "custom",
+  "setup": [
+    { "command": "custom.init", "input": { "key": "value" } }
+  ]
+}
+```
+
+### Step References
+
+Reference data from previous steps using `${{ steps[N].path }}` syntax.
+
+#### Reference Syntax
+
+```yaml
+# Exact reference (preserves type)
+input:
+  id: "${{ steps[0].data.id }}"           # Returns actual type (string, number, etc.)
+
+# Embedded reference (string interpolation)  
+input:
+  message: "Created todo ${{ steps[0].data.id }}"  # Returns string
+
+# Nested paths
+input:
+  name: "${{ steps[0].data.user.profile.name }}"
+
+# Array access
+input:
+  firstItem: "${{ steps[0].data.items[0].name }}"
+```
+
+#### Reference Examples
+
+```yaml
+steps:
+  - name: "Create user"
+    command: user.create
+    input:
+      email: "test@example.com"
+    # Result: { data: { id: "user-123", email: "test@example.com" } }
+
+  - name: "Create todo for user"
+    command: todo.create
+    input:
+      title: "My todo"
+      userId: "${{ steps[0].data.id }}"     # → "user-123"
+    # Result: { data: { id: "todo-456" } }
+
+  - name: "Get todo"
+    command: todo.get
+    input:
+      id: "${{ steps[1].data.id }}"         # → "todo-456"
+
+  - name: "Verify ownership"
+    command: todo.verify
+    input:
+      todoId: "${{ steps[1].data.id }}"     # → "todo-456"
+      userId: "${{ steps[0].data.id }}"     # → "user-123"
+```
+
+### Expectations
+
+#### Success Expectations
+
+```yaml
+expect:
+  success: true
+  data:
+    title: "Expected title"
+    completed: false
+```
+
+#### Partial Data Matching
+
+```yaml
+expect:
+  success: true
+  data:
+    title: "Expected title"     # Only checks title
+    # Other fields ignored
+```
+
+#### Error Expectations
+
+```yaml
+expect:
+  success: false
+  error:
+    code: "NOT_FOUND"
+    message: "Todo not found"   # Optional
+```
 
 ## Usage
 

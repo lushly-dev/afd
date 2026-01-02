@@ -26,6 +26,8 @@ Example:
     >>> server.run()
 """
 
+import sys
+
 from dataclasses import dataclass, field
 from typing import (
     Any,
@@ -269,14 +271,98 @@ class MCPServer:
         if not self._mcp_server:
             return
         
-        # Create the tool wrapper
-        @self._mcp_server.tool(name=metadata.name, description=metadata.description)
-        async def tool_handler(**kwargs) -> str:
-            """MCP tool handler that delegates to the command."""
-            import json
-            result = await func(kwargs)
-            return json.dumps(result.model_dump(), default=str)
-    
+        import json
+        from pydantic import BaseModel, ConfigDict, create_model
+        from typing import Any
+        from mcp.server.fastmcp import Context
+        from afd.server.decorators import _accepts_context
+
+        # Create the input schema
+        if metadata.input_schema:
+            input_schema = metadata.input_schema
+        else:
+            input_schema = create_model(
+                f"{metadata.name.replace('.', '_')}_Input",
+                __config__=ConfigDict(extra="allow")
+            )
+
+        # We need to create a function with a specific signature so FastMCP 
+        # can correctly introspect it and generate the JSON schema.
+        # Using a closure and exec is the most reliable way to do this dynamically.
+        handler_name = f"handler_{metadata.name.replace('.', '_')}"
+        namespace = {
+            "func": func,
+            "json": json,
+            "input_schema": input_schema,
+            "CommandResult": CommandResult,
+            "Context": Context,
+            "Any": Any,
+        }
+        
+        arg_list = []
+        fields = input_schema.model_fields
+        
+        if not fields and input_schema.model_config.get("extra") == "allow":
+            arg_list.append("**kwargs")
+            if metadata.input_schema:
+                call_args_code = "input_schema(**kwargs)"
+            else:
+                call_args_code = "kwargs"
+        else:
+            for name, field in fields.items():
+                type_key = f"type_{name}"
+                namespace[type_key] = field.annotation
+                
+                # Handle defaults
+                if field.default is not None and field.default != ...:
+                    namespace[f"default_{name}"] = field.default
+                    arg_list.append(f"{name}: {type_key} = default_{name}")
+                elif field.default_factory is not None:
+                    arg_list.append(f"{name}: {type_key} = None")
+                else:
+                    # Check if required
+                    is_required = True
+                    try:
+                        is_required = field.is_required()
+                    except AttributeError:
+                        is_required = field.default == ...
+                    
+                    if is_required:
+                        arg_list.append(f"{name}: {type_key}")
+                    else:
+                        arg_list.append(f"{name}: {type_key} = None")
+            
+            field_names = list(fields.keys())
+            dict_construction = ", ".join([f"'{name}': {name}" for name in field_names])
+            if metadata.input_schema:
+                call_args_code = f"input_schema(**{{{dict_construction}}})"
+            else:
+                call_args_code = f"{{{dict_construction}}}"
+            
+        # Add context if needed
+        has_context = _accepts_context(func)
+        if has_context:
+            arg_list.append("context: Context = None")
+            
+        signature = ", ".join(arg_list)
+        
+        if has_context:
+            final_call = f"await func({call_args_code}, context=context)"
+        else:
+            final_call = f"await func({call_args_code})"
+
+        exec_code = f"""
+async def {handler_name}({signature}) -> str:
+    \"\"\"MCP tool handler for {metadata.name}\"\"\"
+    result = {final_call}
+    return json.dumps(result.model_dump(), default=str)
+"""
+        exec(exec_code, namespace)
+        handler = namespace[handler_name]
+        
+        # Register with FastMCP
+        self._mcp_server.tool(name=metadata.name, description=metadata.description)(handler)
+
     def run(self, transport: str = "stdio") -> None:
         """Run the server with the specified transport.
         

@@ -38,7 +38,8 @@
     "directory": "packages/testing"
   },
   "dependencies": {
-    "@afd/core": "workspace:*"
+    "@afd/core": "workspace:*",
+    "yaml": "^2.7.0"
   },
   "devDependencies": {
     "rimraf": "^6.0.1",

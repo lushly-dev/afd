@@ -331,6 +331,9 @@ Emphasis: `confidence`, `reasoning`, `sources`, `alternatives`
 ### Long-Running Commands
 Emphasis: `plan` with real-time status, `metadata.traceId`
 
+> **Implementation**: AFD provides built-in streaming support via `executeStream()` in the CommandRegistry,
+> SSE endpoint at `/stream/:command`, and `afd stream` CLI command. See `@afd/core/streaming` for types.
+
 ```typescript
 // Initial response
 {
@@ -349,6 +352,9 @@ Emphasis: `plan` with real-time status, `metadata.traceId`
 Emphasis: partial failure handling, `warnings`, calibrated `confidence`
 
 Batch commands process multiple items at once with best-effort execution. They return detailed results for each item rather than all-or-nothing transactions, giving agents maximum information to decide how to proceed.
+
+> **Implementation**: AFD provides built-in batch support via `executeBatch()` in the CommandRegistry, 
+> `afd.batch` MCP tool, and `afd batch` CLI command. See `@afd/core/batch` for types.
 
 **When to use batch commands:**
 - Agent workflows that create/modify multiple items
@@ -469,6 +475,8 @@ afd call todo.toggleBatch '{"ids": ["todo-1", "todo-2"], "completed": true}'
 
 Not everything should be a command. Over-commanding creates noise, bloats your registry, and confuses the boundary between application logic and UI state.
 
+> **See also**: [State Layering Strategy](./PLAN/performance/06e-state-layering.plan.md) for a comprehensive four-layer model of state management (Visual → UI → Local Preference → Business).
+
 ### Ephemeral UI State
 
 **Not commands:**
@@ -574,4 +582,5 @@ afd call content.review --input "" --expect-error
 - [Trust Through Validation](./trust-through-validation.md) - Why CLI validation matters
 - [Implementation Phases](./implementation-phases.md) - When to add which fields
 - [Production Considerations](./production-considerations.md) - Security, mutation safety, sensitive reasoning
+- [State Layering Strategy](./PLAN/performance/06e-state-layering.plan.md) - Four-layer state model (what IS vs ISN'T a command)
 - [Agentic AI UX Design Principles](/Agentic%20AI%20UX%20Design%20Principles/) - The UX principles these schemas enable

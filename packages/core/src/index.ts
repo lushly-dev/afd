@@ -6,6 +6,8 @@
  * - **CommandResult**: Standard result type with UX-enabling fields
  * - **CommandError**: Actionable error structure
  * - **CommandDefinition**: Full command schema with handler
+ * - **BatchResult**: Batch execution with aggregated confidence
+ * - **StreamChunk**: Streaming results with progress feedback
  * - **MCP types**: Model Context Protocol types for agent communication
  *
  * @packageDocumentation
@@ -54,6 +56,53 @@ export type {
 	CommandRegistry,
 } from './commands.js';
 export { createCommandRegistry, commandToMcpTool } from './commands.js';
+
+// Batch types
+export type {
+	BatchCommand,
+	BatchOptions,
+	BatchRequest,
+	BatchCommandResult,
+	BatchSummary,
+	BatchTiming,
+	BatchResult,
+} from './batch.js';
+export {
+	createBatchRequest,
+	createBatchResult,
+	createFailedBatchResult,
+	calculateBatchConfidence,
+	isBatchRequest,
+	isBatchResult,
+	isBatchCommand,
+} from './batch.js';
+
+// Streaming types
+export type {
+	ProgressChunk,
+	DataChunk,
+	CompleteChunk,
+	ErrorChunk,
+	StreamChunk,
+	StreamOptions,
+	StreamCallbacks,
+	StreamableCommand,
+} from './streaming.js';
+export {
+	createProgressChunk,
+	createDataChunk,
+	createCompleteChunk,
+	createErrorChunk,
+	isProgressChunk,
+	isDataChunk,
+	isCompleteChunk,
+	isErrorChunk,
+	isStreamChunk,
+	isStreamableCommand,
+	consumeStream,
+	collectStreamData,
+	createTimeoutController,
+} from './streaming.js';
 
 // MCP types
 export type {

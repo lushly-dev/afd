@@ -6,8 +6,26 @@
  */
 
 import { createServer, type Server as HttpServer } from "node:http";
-import type { CommandContext, CommandResult } from "@afd/core";
-import { failure } from "@afd/core";
+import type {
+  BatchCommand,
+  BatchCommandResult,
+  BatchOptions,
+  BatchRequest,
+  BatchResult,
+  BatchTiming,
+  CommandContext,
+  CommandResult,
+  StreamChunk,
+} from "@afd/core";
+import {
+  calculateBatchConfidence,
+  createBatchResult,
+  createCompleteChunk,
+  createErrorChunk,
+  createFailedBatchResult,
+  failure,
+  isBatchRequest,
+} from "@afd/core";
 import type { ZodCommandDefinition } from "./schema.js";
 import { validateInput, type ValidationResult } from "./validation.js";
 
@@ -50,6 +68,9 @@ export interface McpServerOptions {
 
   /** Enable CORS for browser access (in production, requires explicit opt-in) */
   cors?: boolean;
+
+  /** Enable stdio transport (default: true) */
+  stdio?: boolean;
 
   /** Middleware to run before command execution */
   middleware?: CommandMiddleware[];
@@ -156,6 +177,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
     devMode = false,
     // In dev mode, CORS is permissive by default; in production, it's off by default
     cors = devMode,
+    stdio = true,
     middleware = [],
     onCommand,
     onError,
@@ -252,6 +274,182 @@ export function createMcpServer(options: McpServerOptions): McpServer {
   }
 
   /**
+   * Execute multiple commands in a batch with partial success semantics.
+   */
+  async function executeBatch(
+    request: BatchRequest,
+    context: CommandContext = {}
+  ): Promise<BatchResult> {
+    const startedAt = new Date().toISOString();
+    const startTime = performance.now();
+
+    // Validate request
+    if (!request.commands || request.commands.length === 0) {
+      return createFailedBatchResult(
+        {
+          code: "INVALID_BATCH_REQUEST",
+          message: "Batch request must contain at least one command",
+          suggestion: "Provide an array of commands to execute",
+        },
+        { startedAt }
+      );
+    }
+
+    const options = request.options ?? {};
+    const results: BatchCommandResult[] = [];
+    let stopped = false;
+
+    // Execute commands sequentially
+    for (let i = 0; i < request.commands.length; i++) {
+      const cmd = request.commands[i]!;
+
+      if (stopped) {
+        results.push({
+          id: cmd.id ?? `cmd-${i}`,
+          index: i,
+          command: cmd.command,
+          result: {
+            success: false,
+            error: {
+              code: "COMMAND_SKIPPED",
+              message: "Command skipped due to previous error (stopOnError enabled)",
+            },
+          },
+          durationMs: 0,
+        });
+        continue;
+      }
+
+      const cmdStartTime = performance.now();
+      const result = await executeCommand(cmd.command, cmd.input, {
+        ...context,
+        traceId: context.traceId ?? `batch-${Date.now()}-${i}`,
+      });
+      const cmdDuration = performance.now() - cmdStartTime;
+
+      results.push({
+        id: cmd.id ?? `cmd-${i}`,
+        index: i,
+        command: cmd.command,
+        result,
+        durationMs: Math.round(cmdDuration * 100) / 100,
+      });
+
+      if (!result.success && options.stopOnError) {
+        stopped = true;
+      }
+
+      // Check timeout
+      if (options.timeout && performance.now() - startTime > options.timeout) {
+        for (let j = i + 1; j < request.commands.length; j++) {
+          const remainingCmd = request.commands[j]!;
+          results.push({
+            id: remainingCmd.id ?? `cmd-${j}`,
+            index: j,
+            command: remainingCmd.command,
+            result: {
+              success: false,
+              error: {
+                code: "BATCH_TIMEOUT",
+                message: `Batch timeout exceeded (${options.timeout}ms)`,
+                retryable: true,
+              },
+            },
+            durationMs: 0,
+          });
+        }
+        break;
+      }
+    }
+
+    const completedAt = new Date().toISOString();
+    const totalMs = performance.now() - startTime;
+
+    const timing: BatchTiming = {
+      totalMs: Math.round(totalMs * 100) / 100,
+      averageMs:
+        results.length > 0
+          ? Math.round((totalMs / results.length) * 100) / 100
+          : 0,
+      startedAt,
+      completedAt,
+    };
+
+    return createBatchResult(results, timing, {
+      traceId: context.traceId ?? `batch-${Date.now()}`,
+    });
+  }
+
+  /**
+   * Execute a command as a stream, yielding chunks.
+   */
+  async function* executeStream(
+    commandName: string,
+    input: unknown,
+    context: CommandContext = {}
+  ): AsyncGenerator<StreamChunk, void, unknown> {
+    const startTime = performance.now();
+    let chunksEmitted = 0;
+
+    try {
+      const result = await executeCommand(commandName, input, context);
+
+      if (!result.success) {
+        yield createErrorChunk(
+          result.error ?? {
+            code: "COMMAND_FAILED",
+            message: "Command execution failed",
+          },
+          chunksEmitted,
+          result.error?.retryable ?? false
+        );
+        return;
+      }
+
+      const data = result.data;
+
+      // If result is an array, emit each item as a chunk
+      if (Array.isArray(data)) {
+        for (let i = 0; i < data.length; i++) {
+          yield {
+            type: "data",
+            data: data[i],
+            index: i,
+            isLast: i === data.length - 1,
+          };
+          chunksEmitted++;
+        }
+      } else {
+        yield {
+          type: "data",
+          data: data,
+          index: 0,
+          isLast: true,
+        };
+        chunksEmitted++;
+      }
+
+      // Emit completion
+      const totalDurationMs = performance.now() - startTime;
+      yield createCompleteChunk(chunksEmitted, totalDurationMs, {
+        confidence: result.confidence,
+        reasoning: result.reasoning,
+        metadata: result.metadata,
+      });
+    } catch (error) {
+      yield createErrorChunk(
+        {
+          code: "STREAM_ERROR",
+          message: error instanceof Error ? error.message : String(error),
+          retryable: true,
+        },
+        chunksEmitted,
+        true
+      );
+    }
+  }
+
+  /**
    * Handle MCP JSON-RPC request.
    */
   function handleMcpRequest(request: McpRequest): McpResponse {
@@ -279,18 +477,53 @@ export function createMcpServer(options: McpServerOptions): McpServer {
           jsonrpc: "2.0",
           id,
           result: {
-            tools: commands.map((cmd) => {
-              // Destructure to avoid duplicate 'type' property
-              const { type: _type, ...restSchema } = cmd.jsonSchema;
-              return {
-                name: cmd.name,
-                description: cmd.description,
+            tools: [
+              // Built-in afd.batch tool
+              {
+                name: "afd.batch",
+                description: "Execute multiple commands in a single batch request with partial success semantics",
                 inputSchema: {
                   type: "object" as const,
-                  ...restSchema,
+                  properties: {
+                    commands: {
+                      type: "array",
+                      description: "Array of commands to execute",
+                      items: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string", description: "Optional client-provided ID for correlating results" },
+                          command: { type: "string", description: "The command name to execute" },
+                          input: { type: "object", description: "Input parameters for the command" },
+                        },
+                        required: ["command"],
+                      },
+                    },
+                    options: {
+                      type: "object",
+                      description: "Batch execution options",
+                      properties: {
+                        stopOnError: { type: "boolean", description: "Stop execution on first error" },
+                        timeout: { type: "number", description: "Timeout in milliseconds for entire batch" },
+                      },
+                    },
+                  },
+                  required: ["commands"],
                 },
-              };
-            }),
+              },
+              // User-defined commands
+              ...commands.map((cmd) => {
+                // Destructure to avoid duplicate 'type' property
+                const { type: _type, ...restSchema } = cmd.jsonSchema;
+                return {
+                  name: cmd.name,
+                  description: cmd.description,
+                  inputSchema: {
+                    type: "object" as const,
+                    ...restSchema,
+                  },
+                };
+              }),
+            ],
           },
         };
 
@@ -328,6 +561,28 @@ export function createMcpServer(options: McpServerOptions): McpServer {
         name: string;
         arguments?: unknown;
       };
+
+      // Handle built-in afd.batch tool
+      if (toolName === "afd.batch") {
+        const batchRequest = args as BatchRequest;
+        const result = await executeBatch(batchRequest, {
+          traceId: `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        });
+
+        return {
+          jsonrpc: "2.0",
+          id,
+          result: {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+            isError: !result.success,
+          },
+        };
+      }
 
       const result = await executeCommand(toolName, args ?? {}, {
         traceId: `trace-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -451,6 +706,112 @@ export function createMcpServer(options: McpServerOptions): McpServer {
         return;
       }
 
+      // Batch endpoint
+      if (url.pathname === "/batch" && req.method === "POST") {
+        let body = "";
+        for await (const chunk of req) {
+          body += chunk;
+        }
+
+        try {
+          const batchRequest = JSON.parse(body) as BatchRequest;
+          
+          if (!isBatchRequest(batchRequest)) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+              success: false,
+              error: {
+                code: "INVALID_BATCH_REQUEST",
+                message: "Invalid batch request format",
+                suggestion: "Provide { commands: [...] } with command objects",
+              },
+            }));
+            return;
+          }
+
+          const result = await executeBatch(batchRequest, {
+            traceId: `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          });
+
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify(result));
+        } catch (error) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({
+            success: false,
+            error: {
+              code: "PARSE_ERROR",
+              message: "Failed to parse batch request",
+              suggestion: "Ensure request body is valid JSON",
+            },
+          }));
+        }
+        return;
+      }
+
+      // Stream endpoint - SSE for streaming command results
+      if (url.pathname.startsWith("/stream/") && req.method === "GET") {
+        const commandName = url.pathname.slice("/stream/".length);
+        const inputParam = url.searchParams.get("input");
+        let input: unknown = {};
+
+        if (inputParam) {
+          try {
+            input = JSON.parse(inputParam);
+          } catch {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+              success: false,
+              error: {
+                code: "INVALID_INPUT",
+                message: "Failed to parse input parameter",
+                suggestion: "Ensure input is valid JSON",
+              },
+            }));
+            return;
+          }
+        }
+
+        // Set up SSE response
+        res.writeHead(200, {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        });
+
+        const context: CommandContext = {
+          traceId: `stream-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        };
+
+        // Handle client disconnect
+        let aborted = false;
+        req.on("close", () => {
+          aborted = true;
+        });
+
+        // Stream the command execution
+        try {
+          for await (const chunk of executeStream(commandName, input, context)) {
+            if (aborted) break;
+            res.write(`event: chunk\ndata: ${JSON.stringify(chunk)}\n\n`);
+          }
+        } catch (error) {
+          const errorChunk = createErrorChunk(
+            {
+              code: "STREAM_ERROR",
+              message: error instanceof Error ? error.message : String(error),
+              retryable: true,
+            },
+            0,
+            true
+          );
+          res.write(`event: chunk\ndata: ${JSON.stringify(errorChunk)}\n\n`);
+        }
+
+        res.end();
+        return;
+      }
+
       // Not found
       res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Not found" }));
@@ -461,6 +822,26 @@ export function createMcpServer(options: McpServerOptions): McpServer {
     async start() {
       if (isRunning) {
         return;
+      }
+
+      // Start stdio transport if enabled
+      if (stdio) {
+        const readline = await import("node:readline");
+        const rl = readline.createInterface({
+          input: process.stdin,
+          terminal: false,
+        });
+
+        rl.on("line", async (line) => {
+          if (!line.trim()) return;
+          try {
+            const request = JSON.parse(line) as McpRequest;
+            const response = await handleAsyncMcpRequest(request);
+            process.stdout.write(JSON.stringify(response) + "\n");
+          } catch (error) {
+            // Silent fail for parse errors to avoid breaking protocol
+          }
+        });
       }
 
       httpServer = createServer(createRequestHandler());

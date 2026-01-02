@@ -42,14 +42,108 @@ afd/
 │   ├── server/                      # Zod-based MCP server factory
 │   ├── client/                      # MCP client library (Node.js)
 │   ├── cli/                         # AFD command-line tool
-│   ├── testing/                     # Test utilities for command validation
+│   ├── testing/                     # Test utilities + JTBD scenario runner
 │   └── examples/
-│       └── todo-app/                # Complete working example
+│       └── todo/                    # Multi-stack Todo example (TS + Python)
+│           ├── scenarios/           # JTBD scenario YAML files
+│           └── fixtures/            # Pre-seeded test data (JSON)
 ├── Agentic AI UX Design Principles/ # Reference: UX framework (for PMs/designers)
 ├── AGENTS.md                        # This file - AI agent context
 ├── README.md                        # Human-readable overview
 └── package.json
 ```
+
+## Conformance Testing
+
+AFD promotes **Spec-First Development**. We use a shared conformance suite to ensure multiple implementations (e.g., TS and Python) behave identically.
+
+```bash
+# Run conformance tests for the Todo example
+cd packages/examples/todo
+npx tsx dx/run-conformance.ts ts  # Test TypeScript backend
+npx tsx dx/run-conformance.ts py  # Test Python backend
+```
+
+## JTBD Scenario Testing
+
+Test user journeys through YAML scenario files with fixtures and step references.
+
+### Scenario File Structure
+
+```yaml
+# scenarios/create-and-complete-todo.scenario.yaml
+scenario:
+  name: "Create and complete a todo"
+  tags: ["smoke", "crud"]
+
+setup:
+  fixture:
+    file: "fixtures/seeded-todos.json"
+
+steps:
+  - name: "Create todo"
+    command: todo.create
+    input:
+      title: "Buy groceries"
+    expect:
+      success: true
+      data:
+        title: "Buy groceries"
+
+  - name: "Complete todo"
+    command: todo.toggle
+    input:
+      id: "${{ steps[0].data.id }}"  # Reference previous step
+    expect:
+      success: true
+```
+
+### Step References
+
+Reference data from previous steps: `${{ steps[N].data.path }}`
+
+```yaml
+steps:
+  - name: "Create"
+    command: todo.create
+    input: { title: "Test" }
+    # Result: { data: { id: "todo-123" } }
+
+  - name: "Update"
+    command: todo.update
+    input:
+      id: "${{ steps[0].data.id }}"    # → "todo-123"
+      title: "Updated"
+```
+
+### Fixtures
+
+Pre-seed test data before scenario execution:
+
+```json
+// fixtures/seeded-todos.json
+{
+  "app": "todo",
+  "clearFirst": true,
+  "todos": [
+    { "title": "Existing todo", "priority": "high" }
+  ]
+}
+```
+
+### Running Scenarios
+
+```bash
+# Via conformance runner
+npx tsx dx/run-conformance.ts ts
+
+# Programmatically
+import { parseScenario, InProcessExecutor } from '@afd/testing';
+const scenario = parseScenario(yaml);
+const result = await executor.run(scenario);
+```
+
+See `packages/testing/README.md` for full documentation.
 
 ## How to Use AFD CLI
 
