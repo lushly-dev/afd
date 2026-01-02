@@ -8,10 +8,8 @@ This folder contains planning documents for future AFD features and integrations
 PLAN/
 ├── Archive/                    # ✅ Completed plans
 │   ├── multi-stack-examples/   # Todo example with TS/Python backends, Vanilla/React frontends
-│   └── performance/            # Performance optimizations
-│
-├── jtbd-testing/              # 🟡 PARTIAL - JTBD Scenario Testing Framework
-│   └── 00-overview.plan.md    # Phase 1 done, Phases 2-4 pending
+│   ├── performance/            # Performance optimizations
+│   └── jtbd-testing/           # JTBD Scenario Testing Framework (4 phases complete)
 │
 ├── design-to-code/            # ❌ NOT STARTED - Figma + AFD integration
 │   └── 00-overview.md         # Design-to-code pipeline with Figma Make
@@ -33,14 +31,6 @@ PLAN/
 
 ## Current Priorities
 
-### Active Development
-
-**JTBD Testing Framework** (`jtbd-testing/`)
-- **Phase 1**: ✅ Core Framework MVP - implemented in `@afd/testing`
-- **Phase 2**: ❌ Full Command Suite - `scenario.create`, `list`, `evaluate`, `coverage`
-- **Phase 3**: ❌ Agent Integration - MCP tools, AI scenario suggestions
-- **Phase 4**: ❌ Multi-App Support - Noisett, Violet adapters
-
 ### Future Work (Not Started)
 
 1. **Rust Support** (`rust-support/`) - Prerequisite for Mint
@@ -48,6 +38,18 @@ PLAN/
 3. **Design-to-Code** (`design-to-code/`) - Figma integration
 
 ## Completed Work (Archive)
+
+### JTBD Testing Framework
+
+Jobs-to-be-Done scenario testing for validating complete user workflows.
+
+**Deliverables**:
+- Phase 1: Core Framework (YAML parser, executor, fixtures, step references)
+- Phase 2: Command Suite (list, evaluate, coverage, create)
+- Phase 3: Agent Integration (MCP server, tools, agent hints, suggestions)
+- Phase 4: Multi-App Support (adapters, registry, todo/generic adapters)
+
+**Tests**: 169 passing | **Location**: `packages/testing/`
 
 ### Multi-Stack Examples
 

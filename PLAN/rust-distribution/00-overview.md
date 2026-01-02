@@ -216,7 +216,7 @@ Four-layer testing from conformance (foundation) through JTBD scenarios (behavio
 
 **See:** [04-testing-conformance.md](./04-testing-conformance.md)
 
-**Related:** [JTBD Testing Framework](../jtbd-testing/00-overview.plan.md) - Layer 4 detailed specification
+**Related:** [JTBD Testing Framework](../Archive/jtbd-testing/00-overview.plan.md) - Layer 4 detailed specification
 
 ### Part 5: Collaboration & Sync
 

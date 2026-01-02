@@ -20,7 +20,7 @@ AFD testing is organized into **four layers**, each with a specific purpose:
 │                    JTBD Scenarios (Behavior)                        │  ← User Jobs
 │              "Does the complete workflow succeed?"                  │
 │                                                                     │
-│  See: docs/PLAN/jtbd-testing/00-overview.plan.md                   │
+│  See: PLAN/Archive/jtbd-testing/00-overview.plan.md               │
 └───────────────────────────────┬─────────────────────────────────────┘
                                 │ Depends on
 ┌───────────────────────────────┼─────────────────────────────────────┐
@@ -389,7 +389,7 @@ async fn test_postgres_parity() {
 
 **Purpose**: Validate complete user workflows end-to-end.
 
-> **Full specification**: [JTBD Testing Framework](../jtbd-testing/00-overview.plan.md)
+> **Full specification**: [JTBD Testing Framework](../Archive/jtbd-testing/00-overview.plan.md)
 
 ### Integration with Rust Distribution
 
