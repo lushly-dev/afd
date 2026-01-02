@@ -168,6 +168,51 @@ Failed assertions show expected vs actual values:
 "2 assertions failed: data.total: expected 99, got 2; data.completed: expected true, got false"
 ```
 
+### Scenario Commands (Phase 2)
+
+Batch operations for managing JTBD scenarios:
+
+```typescript
+import {
+  scenarioList,
+  scenarioEvaluate,
+  scenarioCoverage,
+  scenarioCreate,
+} from '@afd/testing';
+
+// List all scenarios with filtering
+const list = await scenarioList({
+  directory: './scenarios',
+  job: 'todo-management',
+  tags: ['smoke'],
+});
+
+// Batch evaluate with parallel execution
+const result = await scenarioEvaluate({
+  handler: myCommandHandler,
+  directory: './scenarios',
+  concurrency: 4,
+  format: 'junit',
+  output: './test-results.xml',
+});
+console.log(`Exit code: ${result.data.exitCode}`);
+
+// Calculate coverage against known commands
+const coverage = await scenarioCoverage({
+  directory: './scenarios',
+  knownCommands: ['todo.create', 'todo.list', 'todo.delete'],
+});
+console.log(`Coverage: ${coverage.data.summary.commands.coverage}%`);
+
+// Create scenario from template
+const created = await scenarioCreate({
+  name: 'todo-crud',
+  job: 'Manage todos',
+  template: 'crud',  // Generates create/read/update/delete steps
+  directory: './scenarios',
+});
+```
+
 See `packages/testing/README.md` for full documentation.
 
 ## How to Use AFD CLI

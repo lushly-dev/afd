@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-01-17
+
+### Added
+
+#### JTBD Testing Phase 2: Command Suite (`@afd/testing`)
+
+- **`scenario.list`** - List and filter scenarios in a directory
+  - Filter by job name, tags, status, or search term
+  - Sort by name, job, or step count
+  - Output formats: terminal table, JSON
+  - Includes scenario metadata (step count, fixture, tags)
+
+- **`scenario.evaluate`** - Batch execute scenarios
+  - Parallel execution with configurable concurrency
+  - Fail-fast mode to stop on first failure
+  - Per-scenario timeout support
+  - Output formats: terminal, JSON, JUnit XML, Markdown
+  - Exit code 0/1 for CI integration
+  - Detailed test reports with summary statistics
+
+- **`scenario.coverage`** - Calculate coverage metrics
+  - Command coverage: which commands are tested
+  - Error coverage: which error codes are tested
+  - Job coverage: which user goals are covered
+  - Identify untested commands against known list
+  - Output formats: terminal, JSON, Markdown
+
+- **`scenario.create`** - Generate scenario files from templates
+  - Templates: blank, crud, error-handling, workflow
+  - CRUD template includes create/read/update/delete/verify steps
+  - Error-handling template includes validation and not-found tests
+  - Workflow template includes setup/actions/verification steps
+  - Generates proper YAML with step references
+
+- **Output Formatters**
+  - `formatTerminal()` - Colored terminal output
+  - `formatJunit()` - JUnit XML for CI systems
+  - `formatMarkdown()` - Markdown reports for documentation
+  - `formatCoverageTerminal()` / `formatCoverageMarkdown()` - Coverage reports
+
+### Changed
+
+- Updated `packages/testing/src/index.ts` with Phase 2 exports
+- Added 21 unit tests for new commands
+
+### Test Coverage
+
+| Package | Tests | Status |
+|---------|-------|--------|
+| @afd/core | 57 | ✅ Pass |
+| @afd/testing | 95 | ✅ Pass |
+| @afd/example-todo | 78 | ✅ Pass |
+| **Total** | 230 | ✅ Pass |
+
+---
+
 ## [0.3.1] - 2025-01-16
 
 ### Added

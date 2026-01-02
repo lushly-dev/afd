@@ -152,6 +152,53 @@ export type {
 export { loadFixture, applyFixture } from './runner/fixture-loader.js';
 
 // ============================================================================
+// Scenario Commands (Phase 2)
+// ============================================================================
+
+// scenario.list
+export type {
+	ScenarioListInput,
+	ScenarioListOutput,
+	ScenarioSummary,
+} from './commands/list.js';
+export { scenarioList, formatScenarioTable } from './commands/list.js';
+
+// scenario.evaluate
+export type {
+	ScenarioEvaluateInput,
+	ScenarioEvaluateOutput,
+} from './commands/evaluate.js';
+export {
+	scenarioEvaluate,
+	formatTerminal,
+	formatJunit,
+	formatMarkdown,
+} from './commands/evaluate.js';
+
+// scenario.coverage
+export type {
+	ScenarioCoverageInput,
+	ScenarioCoverageOutput,
+	CommandCoverage,
+	ErrorCoverage,
+	JobCoverage,
+	CoverageSummary,
+} from './commands/coverage.js';
+export {
+	scenarioCoverage,
+	formatCoverageTerminal,
+	formatCoverageMarkdown,
+} from './commands/coverage.js';
+
+// scenario.create
+export type {
+	ScenarioCreateInput,
+	ScenarioCreateOutput,
+	ScenarioStepInput,
+} from './commands/create.js';
+export { scenarioCreate, listTemplates } from './commands/create.js';
+
+// ============================================================================
 // Re-export core types commonly used in testing
 // ============================================================================
 

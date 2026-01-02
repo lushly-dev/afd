@@ -21,6 +21,188 @@ This package provides utilities for testing AFD commands:
 - **JTBD Scenario Runner**: Jobs-to-be-Done scenario testing with YAML files
 - **Fixtures**: Pre-seeded test data with inheritance and overrides
 - **Step References**: Dynamic references between scenario steps
+- **Scenario Commands**: List, evaluate, coverage, and create scenarios
+
+## Scenario Commands (Phase 2)
+
+Batch operations and management commands for JTBD scenarios.
+
+### scenario.list
+
+List and filter scenarios in a directory.
+
+```typescript
+import { scenarioList } from '@afd/testing';
+
+// List all scenarios
+const result = await scenarioList({ directory: './scenarios' });
+
+// Filter by job
+const filtered = await scenarioList({
+  directory: './scenarios',
+  job: 'todo-management',
+});
+
+// Filter by tags
+const tagged = await scenarioList({
+  directory: './scenarios',
+  tags: ['smoke', 'p0'],
+});
+
+// Search in scenario names
+const searched = await scenarioList({
+  directory: './scenarios',
+  search: 'create',
+});
+
+// Sort results
+const sorted = await scenarioList({
+  directory: './scenarios',
+  sortBy: 'stepCount',
+  sortOrder: 'desc',
+});
+
+console.log(`Found ${result.data.total} scenarios`);
+console.log(`Filtered: ${result.data.filtered}`);
+for (const s of result.data.scenarios) {
+  console.log(`  ${s.name}: ${s.stepCount} steps [${s.tags.join(', ')}]`);
+}
+```
+
+### scenario.evaluate
+
+Batch execute scenarios with parallel support and multiple output formats.
+
+```typescript
+import { scenarioEvaluate } from '@afd/testing';
+
+// Basic evaluation
+const result = await scenarioEvaluate({
+  handler: async (command, input) => registry.execute(command, input),
+  directory: './scenarios',
+});
+
+console.log(`Exit code: ${result.data.exitCode}`);
+console.log(`Passed: ${result.data.report.summary.passedScenarios}`);
+
+// With filtering and fail-fast
+const filtered = await scenarioEvaluate({
+  handler,
+  directory: './scenarios',
+  job: 'todo-management',
+  tags: ['smoke'],
+  failFast: true,  // Stop on first failure
+});
+
+// Parallel execution
+const parallel = await scenarioEvaluate({
+  handler,
+  directory: './scenarios',
+  concurrency: 4,  // Run 4 scenarios at once
+  timeout: 30000,  // 30s per scenario
+});
+
+// Output formats for CI
+const junit = await scenarioEvaluate({
+  handler,
+  directory: './scenarios',
+  format: 'junit',
+  output: './test-results.xml',  // Write to file
+});
+
+// Available formats: 'terminal', 'json', 'junit', 'markdown'
+```
+
+### scenario.coverage
+
+Calculate coverage metrics across commands, errors, and jobs.
+
+```typescript
+import { scenarioCoverage } from '@afd/testing';
+
+// Basic coverage
+const result = await scenarioCoverage({
+  directory: './scenarios',
+});
+
+console.log(`Commands tested: ${result.data.summary.commands.tested}`);
+console.log(`Jobs covered: ${result.data.summary.jobs.count}`);
+
+// Coverage against known commands
+const detailed = await scenarioCoverage({
+  directory: './scenarios',
+  knownCommands: ['todo.create', 'todo.list', 'todo.get', 'todo.update', 'todo.delete'],
+  knownErrors: ['NOT_FOUND', 'VALIDATION_ERROR', 'UNAUTHORIZED'],
+});
+
+console.log(`Command coverage: ${detailed.data.summary.commands.coverage}%`);
+console.log(`Untested commands:`, detailed.data.summary.commands.untested);
+
+// Per-command details
+for (const cmd of detailed.data.commandCoverage) {
+  console.log(`${cmd.command}: ${cmd.stepCount} steps, error tests: ${cmd.hasErrorTests}`);
+}
+
+// Format for reporting
+const markdown = await scenarioCoverage({
+  directory: './scenarios',
+  format: 'markdown',
+});
+console.log(markdown.data.formattedOutput);
+```
+
+### scenario.create
+
+Generate scenario files from templates.
+
+```typescript
+import { scenarioCreate, listTemplates } from '@afd/testing';
+
+// See available templates
+const templates = listTemplates();
+// [
+//   { name: 'blank', description: 'Empty scenario with just job and description' },
+//   { name: 'crud', description: 'Create, Read, Update, Delete test pattern' },
+//   { name: 'error-handling', description: 'Tests for error cases and validation' },
+//   { name: 'workflow', description: 'Multi-step workflow with state verification' },
+// ]
+
+// Create blank scenario
+const result = await scenarioCreate({
+  name: 'my-new-scenario',
+  job: 'My user job',
+  description: 'Tests the my user job workflow',
+  directory: './scenarios',
+  tags: ['smoke', 'p0'],
+});
+
+// Create from CRUD template
+const crud = await scenarioCreate({
+  name: 'todo-crud',
+  job: 'Manage todo items',
+  directory: './scenarios',
+  template: 'crud',  // Generates create/read/update/delete/verify steps
+});
+
+// Create error handling tests
+const errors = await scenarioCreate({
+  name: 'todo-errors',
+  job: 'Handle todo errors',
+  directory: './scenarios',
+  template: 'error-handling',  // Generates validation and not-found tests
+});
+
+// Create with custom steps
+const custom = await scenarioCreate({
+  name: 'custom-workflow',
+  job: 'Custom workflow',
+  directory: './scenarios',
+  steps: [
+    { description: 'Step 1', command: 'action.first', expectSuccess: true },
+    { description: 'Step 2', command: 'action.second', expectData: { status: 'done' } },
+  ],
+});
+```
 
 ## JTBD Scenario Runner
 
