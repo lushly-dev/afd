@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-01-01
+
+### Added
+
+#### JTBD Testing Phase 3: Agent Integration (`@afd/testing`)
+
+- **MCP Server** - JSON-RPC 2.0 server for AI agent integration
+  - `createMcpTestingServer()` - Factory function for MCP server instances
+  - `runStdioServer()` - Start server with stdio transport
+  - Handlers: `initialize`, `ping`, `tools/list`, `tools/call`
+  - Protocol-compliant request/response handling
+
+- **MCP Tool Generation** - Expose all scenario commands as MCP tools
+  - `generateTools()` - Create tool definitions from commands
+  - `createToolRegistry()` - Tool lookup and execution registry
+  - `executeTool()` - Execute tool with context injection
+  - Tools: `scenario_list`, `scenario_evaluate`, `scenario_coverage`, `scenario_create`, `scenario_suggest`
+
+- **Agent Hints System** - AI-friendly metadata for result interpretation
+  - `_agentHints` field added to all command results
+  - `shouldRetry` - Boolean indicating if operation should be retried
+  - `relatedCommands` - Suggested follow-up commands
+  - `nextSteps` - Action recommendations based on result
+  - `interpretationConfidence` - Confidence score (0-1) for result interpretation
+  - `generateAgentHints()` - Generate hints for any command result
+  - `enhanceWithAgentHints()` - Add hints to existing results
+
+- **`scenario.suggest`** - AI-powered scenario suggestions
+  - 5 context strategies for intelligent suggestions:
+    - `changed-files` - Map changed files to relevant commands
+    - `uncovered` - Use coverage data to find testing gaps
+    - `failed` - Find scenarios needing attention
+    - `command` - Generate test variations for specific command
+    - `natural` - Keyword matching for natural language queries
+  - Returns suggestions with confidence scores and reasoning
+  - Optional skeleton generation for new scenarios
+
+### Test Coverage
+
+| Package | Tests | Status |
+|---------|-------|--------|
+| @afd/core | 57 | ✅ Pass |
+| @afd/testing | 127 | ✅ Pass |
+| @afd/example-todo | 78 | ✅ Pass |
+| **Total** | 262 | ✅ Pass |
+
+---
+
 ## [0.4.0] - 2025-01-17
 
 ### Added

@@ -263,7 +263,7 @@ afd validate --category document
 | [`@afd/core`](./packages/core) | Core types (CommandResult, CommandError, MCP) | ✅ Complete |
 | [`@afd/server`](./packages/server) | Zod-based MCP server factory | ✅ Complete |
 | [`@afd/client`](./packages/client) | MCP client library with SSE/HTTP transports | ✅ Complete |
-| [`@afd/testing`](./packages/testing) | Validators, assertions, mock server | ✅ Complete |
+| [`@afd/testing`](./packages/testing) | JTBD scenario testing with MCP agent integration | ✅ Complete |
 | [`@afd/cli`](./packages/cli) | Command-line interface | ✅ Complete |
 
 ## Examples

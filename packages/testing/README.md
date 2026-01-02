@@ -21,7 +21,103 @@ This package provides utilities for testing AFD commands:
 - **JTBD Scenario Runner**: Jobs-to-be-Done scenario testing with YAML files
 - **Fixtures**: Pre-seeded test data with inheritance and overrides
 - **Step References**: Dynamic references between scenario steps
-- **Scenario Commands**: List, evaluate, coverage, and create scenarios
+- **Scenario Commands**: List, evaluate, coverage, create, and suggest scenarios
+- **MCP Agent Integration**: Expose commands as MCP tools with agent hints
+
+## Agent Integration (Phase 3)
+
+MCP server and tools for AI agent integration.
+
+### MCP Server
+
+Start an MCP server exposing all scenario commands:
+
+```typescript
+import { createMcpTestingServer, runStdioServer } from '@afd/testing';
+
+// Create server with command handler
+const server = createMcpTestingServer({
+  handler: async (command, input) => registry.execute(command, input),
+});
+
+// Start with stdio transport
+await runStdioServer(server);
+```
+
+### MCP Tools
+
+All scenario commands are exposed as MCP tools:
+
+| Tool | Description |
+|------|-------------|
+| `scenario_list` | List and filter scenarios |
+| `scenario_evaluate` | Run scenarios with reporting |
+| `scenario_coverage` | Calculate coverage metrics |
+| `scenario_create` | Generate scenario files |
+| `scenario_suggest` | AI-powered suggestions |
+
+### Agent Hints
+
+All results include `_agentHints` for AI interpretation:
+
+```typescript
+import { enhanceWithAgentHints } from '@afd/testing';
+
+const result = await scenarioEvaluate({ handler, directory });
+const enhanced = enhanceWithAgentHints(result, 'scenario.evaluate');
+
+// Result includes:
+// _agentHints: {
+//   shouldRetry: false,
+//   relatedCommands: ['scenario.suggest --context failed'],
+//   nextSteps: ['Review failed scenarios', 'Run with --verbose'],
+//   interpretationConfidence: 0.95
+// }
+```
+
+### scenario.suggest
+
+AI-powered scenario suggestions based on context:
+
+```typescript
+import { scenarioSuggest } from '@afd/testing';
+
+// Suggest based on changed files
+const changed = await scenarioSuggest({
+  context: 'changed-files',
+  files: ['src/commands/todo/create.ts'],
+});
+
+// Suggest for uncovered commands
+const uncovered = await scenarioSuggest({
+  context: 'uncovered',
+  directory: './scenarios',
+  knownCommands: ['todo.create', 'todo.list', 'todo.delete'],
+});
+
+// Suggest for failed scenarios
+const failed = await scenarioSuggest({
+  context: 'failed',
+  directory: './scenarios',
+});
+
+// Suggest test variations for a command
+const command = await scenarioSuggest({
+  context: 'command',
+  command: 'todo.create',
+  includeSkeleton: true,  // Include generated scenario YAML
+});
+
+// Natural language query
+const natural = await scenarioSuggest({
+  context: 'natural',
+  query: 'error handling for invalid input',
+});
+
+for (const s of changed.data.suggestions) {
+  console.log(`${s.name} (${s.confidence}): ${s.reason}`);
+}
+```
 
 ## Scenario Commands (Phase 2)
 
