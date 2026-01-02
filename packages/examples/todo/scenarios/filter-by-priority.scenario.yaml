@@ -24,8 +24,7 @@ steps:
   - command: todo.list
     description: List only high priority todos
     input:
-      filter:
-        priority: high
+      priority: high
     expect:
       success: true
       data:
@@ -37,8 +36,7 @@ steps:
   - command: todo.list
     description: List only low priority todos
     input:
-      filter:
-        priority: low
+      priority: low
     expect:
       success: true
       data:
