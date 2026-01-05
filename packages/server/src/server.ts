@@ -34,6 +34,25 @@ import { validateInput, type ValidationResult } from "./validation.js";
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
+ * Transport type for MCP server.
+ *
+ * - `"stdio"`: Standard input/output transport for IDE/CLI integration (Cursor, Claude Code, etc.)
+ * - `"http"`: HTTP/SSE transport for browser-based clients
+ * - `"auto"`: Auto-detect based on whether stdin is a TTY (stdio if piped, http if TTY)
+ */
+export type McpTransport = "stdio" | "http" | "auto";
+
+/**
+ * Detect whether stdin is being piped (non-TTY).
+ * Used for auto-detection of transport mode.
+ *
+ * @returns true if stdin is a pipe (not interactive), false if it's a TTY
+ */
+export function isStdinPiped(): boolean {
+  return !process.stdin.isTTY;
+}
+
+/**
  * MCP Server configuration options.
  */
 export interface McpServerOptions {
@@ -69,7 +88,33 @@ export interface McpServerOptions {
   /** Enable CORS for browser access (in production, requires explicit opt-in) */
   cors?: boolean;
 
-  /** Enable stdio transport (default: true) */
+  /**
+   * Transport protocol to use.
+   *
+   * - `"stdio"`: Standard input/output for IDE/agent integration (Cursor, Claude Code, Antigravity)
+   * - `"http"`: HTTP/SSE for browser-based clients and web UIs
+   * - `"auto"`: Auto-detect based on environment (stdio if piped, http if TTY) - **default**
+   *
+   * @default "auto"
+   *
+   * @example
+   * ```typescript
+   * // For IDE integration (Cursor, Claude Code):
+   * createMcpServer({ transport: "stdio", ... });
+   *
+   * // For web UI:
+   * createMcpServer({ transport: "http", ... });
+   *
+   * // Auto-detect (recommended for most cases):
+   * createMcpServer({ transport: "auto", ... });
+   * ```
+   */
+  transport?: McpTransport;
+
+  /**
+   * @deprecated Use `transport: "stdio"` or `transport: "auto"` instead.
+   * Enable stdio transport (default: true when transport is not specified)
+   */
   stdio?: boolean;
 
   /** Middleware to run before command execution */
@@ -102,11 +147,17 @@ export interface McpServer {
   /** Stop the server */
   stop(): Promise<void>;
 
-  /** Get server URL */
+  /** Get server URL (returns "stdio://" for stdio transport) */
   getUrl(): string;
 
   /** Get registered commands */
   getCommands(): ZodCommandDefinition[];
+
+  /**
+   * Get the resolved transport mode.
+   * Useful for debugging and logging.
+   */
+  getTransport(): "stdio" | "http";
 
   /** Execute a command directly (for testing) */
   execute(
@@ -177,11 +228,34 @@ export function createMcpServer(options: McpServerOptions): McpServer {
     devMode = false,
     // In dev mode, CORS is permissive by default; in production, it's off by default
     cors = devMode,
-    stdio = true,
+    transport = "auto",
+    stdio, // deprecated, for backward compatibility
     middleware = [],
     onCommand,
     onError,
   } = options;
+
+  // Resolve transport mode
+  // - If explicit transport is set, use it
+  // - If deprecated stdio option is set, use it for backward compatibility
+  // - Otherwise, auto-detect based on environment
+  function resolveTransport(): "stdio" | "http" {
+    // Handle deprecated stdio option for backward compatibility
+    if (stdio !== undefined) {
+      return stdio ? "stdio" : "http";
+    }
+
+    if (transport === "auto") {
+      // Auto-detect: use stdio if stdin is piped (not a TTY), otherwise use HTTP
+      return isStdinPiped() ? "stdio" : "http";
+    }
+
+    return transport;
+  }
+
+  const resolvedTransport = resolveTransport();
+  const useStdio = resolvedTransport === "stdio";
+  const useHttp = resolvedTransport === "http";
 
   // Build command map for quick lookup
   const commandMap = new Map<string, ZodCommandDefinition>();
@@ -818,6 +892,9 @@ export function createMcpServer(options: McpServerOptions): McpServer {
     };
   }
 
+  // Track readline interface for stdio transport cleanup
+  let stdioInterface: import("node:readline").Interface | null = null;
+
   return {
     async start() {
       if (isRunning) {
@@ -825,12 +902,13 @@ export function createMcpServer(options: McpServerOptions): McpServer {
       }
 
       // Start stdio transport if enabled
-      if (stdio) {
+      if (useStdio) {
         const readline = await import("node:readline");
         const rl = readline.createInterface({
           input: process.stdin,
           terminal: false,
         });
+        stdioInterface = rl;
 
         rl.on("line", async (line) => {
           if (!line.trim()) return;
@@ -842,47 +920,75 @@ export function createMcpServer(options: McpServerOptions): McpServer {
             // Silent fail for parse errors to avoid breaking protocol
           }
         });
+
+        // For stdio-only mode, mark as running immediately
+        // No HTTP server needed
+        if (!useHttp) {
+          isRunning = true;
+          return;
+        }
       }
 
-      httpServer = createServer(createRequestHandler());
+      // Start HTTP transport if enabled
+      if (useHttp) {
+        httpServer = createServer(createRequestHandler());
 
-      await new Promise<void>((resolve, reject) => {
-        httpServer!.on("error", reject);
-        httpServer!.listen(port, host, () => {
-          isRunning = true;
-          resolve();
+        await new Promise<void>((resolve, reject) => {
+          httpServer!.on("error", reject);
+          httpServer!.listen(port, host, () => {
+            isRunning = true;
+            resolve();
+          });
         });
-      });
+      }
     },
 
     async stop() {
-      if (!isRunning || !httpServer) {
+      if (!isRunning) {
         return;
       }
 
-      // Close all SSE clients
-      for (const client of sseClients.values()) {
-        client.response.end();
+      // Close stdio interface if it exists
+      if (stdioInterface) {
+        stdioInterface.close();
+        stdioInterface = null;
       }
-      sseClients.clear();
 
-      await new Promise<void>((resolve, reject) => {
-        httpServer!.close((err) => {
-          if (err) reject(err);
-          else resolve();
+      // Close HTTP server if it exists
+      if (httpServer) {
+        // Close all SSE clients
+        for (const client of sseClients.values()) {
+          client.response.end();
+        }
+        sseClients.clear();
+
+        await new Promise<void>((resolve, reject) => {
+          httpServer!.close((err) => {
+            if (err) reject(err);
+            else resolve();
+          });
         });
-      });
 
-      httpServer = null;
+        httpServer = null;
+      }
+
       isRunning = false;
     },
 
     getUrl() {
-      return `http://${host}:${port}`;
+      return useHttp ? `http://${host}:${port}` : "stdio://";
     },
 
     getCommands() {
       return commands;
+    },
+
+    /**
+     * Get the resolved transport mode.
+     * Useful for debugging and logging.
+     */
+    getTransport(): "stdio" | "http" {
+      return resolvedTransport;
     },
 
     execute: executeCommand,
