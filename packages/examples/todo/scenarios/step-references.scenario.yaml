@@ -8,7 +8,7 @@ tags: [smoke, step-refs, workflow]
 
 steps:
   # Step 0: Create a todo - capture the ID
-  - command: todo.create
+  - command: todo-create
     description: Create a new todo to work with
     input:
       title: Test step references
@@ -19,7 +19,7 @@ steps:
         title: Test step references
 
   # Step 1: Update the todo using step 0's ID
-  - command: todo.update
+  - command: todo-update
     description: Update the todo we just created
     input:
       id: ${{ steps[0].data.id }}
@@ -30,7 +30,7 @@ steps:
         priority: high
 
   # Step 2: Get the todo to verify update
-  - command: todo.get
+  - command: todo-get
     description: Verify the todo was updated
     input:
       id: ${{ steps[0].data.id }}
@@ -42,7 +42,7 @@ steps:
         completed: false
 
   # Step 3: Toggle the todo (mark as complete)
-  - command: todo.toggle
+  - command: todo-toggle
     description: Mark the todo as done
     input:
       id: ${{ steps[0].data.id }}
@@ -52,7 +52,7 @@ steps:
         completed: true
 
   # Step 4: Delete the todo (cleanup)
-  - command: todo.delete
+  - command: todo-delete
     description: Clean up the test todo
     input:
       id: ${{ steps[0].data.id }}

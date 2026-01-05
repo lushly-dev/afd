@@ -22,10 +22,10 @@ beforeEach(() => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// todo.create
+// todo-create
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('todo.create', () => {
+describe('todo-create', () => {
 	it('creates a todo with required fields', async () => {
 		const result = await createTodo.handler({ title: 'Test todo', priority: 'medium' }, {});
 
@@ -60,10 +60,10 @@ describe('todo.create', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// todo.list
+// todo-list
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('todo.list', () => {
+describe('todo-list', () => {
 	beforeEach(async () => {
 		// Create some test todos
 		await createTodo.handler({ title: 'Todo 1', priority: 'high' }, {});
@@ -163,10 +163,10 @@ describe('todo.list', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// todo.get
+// todo-get
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('todo.get', () => {
+describe('todo-get', () => {
 	it('gets a todo by ID', async () => {
 		const created = await createTodo.handler({ title: 'Find me', priority: 'medium' }, {});
 		const result = await getTodo.handler({ id: created.data!.id }, {});
@@ -185,10 +185,10 @@ describe('todo.get', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// todo.update
+// todo-update
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('todo.update', () => {
+describe('todo-update', () => {
 	it('updates todo title', async () => {
 		const created = await createTodo.handler({ title: 'Original', priority: 'medium' }, {});
 		
@@ -237,10 +237,10 @@ describe('todo.update', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// todo.toggle
+// todo-toggle
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('todo.toggle', () => {
+describe('todo-toggle', () => {
 	it('marks todo as completed', async () => {
 		const created = await createTodo.handler({ title: 'Toggle me', priority: 'medium' }, {});
 		const result = await toggleTodo.handler({ id: created.data!.id }, {});
@@ -271,10 +271,10 @@ describe('todo.toggle', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// todo.delete
+// todo-delete
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('todo.delete', () => {
+describe('todo-delete', () => {
 	it('deletes a todo', async () => {
 		const created = await createTodo.handler({ title: 'Delete me', priority: 'medium' }, {});
 		const result = await deleteTodo.handler({ id: created.data!.id }, {});
@@ -304,10 +304,10 @@ describe('todo.delete', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// todo.clear
+// todo-clear
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('todo.clear', () => {
+describe('todo-clear', () => {
 	it('clears completed todos', async () => {
 		// Create and complete some todos
 		const t1 = await createTodo.handler({ title: 'Todo 1', priority: 'medium' }, {});
@@ -344,10 +344,10 @@ describe('todo.clear', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// todo.stats
+// todo-stats
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('todo.stats', () => {
+describe('todo-stats', () => {
 	it('returns empty stats for empty store', async () => {
 		const result = await getStats.handler({}, {});
 

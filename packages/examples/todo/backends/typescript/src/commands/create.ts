@@ -14,7 +14,7 @@ const inputSchema = z.object({
 });
 
 export const createTodo = defineCommand<typeof inputSchema, Todo>({
-	name: 'todo.create',
+	name: 'todo-create',
 	description: 'Create a new todo item',
 	category: 'todo',
 	mutation: true,

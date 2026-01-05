@@ -16,7 +16,7 @@ export interface DeleteResult {
 }
 
 export const deleteTodo = defineCommand<typeof inputSchema, DeleteResult>({
-	name: 'todo.delete',
+	name: 'todo-delete',
 	description: 'Delete a todo item',
 	category: 'todo',
 	mutation: true,

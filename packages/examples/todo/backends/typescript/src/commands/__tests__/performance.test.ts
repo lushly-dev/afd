@@ -125,48 +125,48 @@ afterAll(() => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('Single Operation Performance', () => {
-	it(`todo.create < ${THRESHOLDS.create}ms`, async () => {
-		const result = await measure('todo.create', THRESHOLDS.create, () =>
+	it(`todo-create < ${THRESHOLDS.create}ms`, async () => {
+		const result = await measure('todo-create', THRESHOLDS.create, () =>
 			createTodo.handler({ title: 'Perf test', priority: 'medium' }, {})
 		);
 
 		expect(result.success).toBe(true);
 	});
 
-	it(`todo.get < ${THRESHOLDS.get}ms`, async () => {
+	it(`todo-get < ${THRESHOLDS.get}ms`, async () => {
 		const created = await createTodo.handler({ title: 'Find me', priority: 'medium' }, {});
 
-		const result = await measure('todo.get', THRESHOLDS.get, () =>
+		const result = await measure('todo-get', THRESHOLDS.get, () =>
 			getTodo.handler({ id: created.data!.id }, {})
 		);
 
 		expect(result.success).toBe(true);
 	});
 
-	it(`todo.update < ${THRESHOLDS.update}ms`, async () => {
+	it(`todo-update < ${THRESHOLDS.update}ms`, async () => {
 		const created = await createTodo.handler({ title: 'Update me', priority: 'medium' }, {});
 
-		const result = await measure('todo.update', THRESHOLDS.update, () =>
+		const result = await measure('todo-update', THRESHOLDS.update, () =>
 			updateTodo.handler({ id: created.data!.id, title: 'Updated' }, {})
 		);
 
 		expect(result.success).toBe(true);
 	});
 
-	it(`todo.toggle < ${THRESHOLDS.toggle}ms`, async () => {
+	it(`todo-toggle < ${THRESHOLDS.toggle}ms`, async () => {
 		const created = await createTodo.handler({ title: 'Toggle me', priority: 'medium' }, {});
 
-		const result = await measure('todo.toggle', THRESHOLDS.toggle, () =>
+		const result = await measure('todo-toggle', THRESHOLDS.toggle, () =>
 			toggleTodo.handler({ id: created.data!.id }, {})
 		);
 
 		expect(result.success).toBe(true);
 	});
 
-	it(`todo.delete < ${THRESHOLDS.delete}ms`, async () => {
+	it(`todo-delete < ${THRESHOLDS.delete}ms`, async () => {
 		const created = await createTodo.handler({ title: 'Delete me', priority: 'medium' }, {});
 
-		const result = await measure('todo.delete', THRESHOLDS.delete, () =>
+		const result = await measure('todo-delete', THRESHOLDS.delete, () =>
 			deleteTodo.handler({ id: created.data!.id }, {})
 		);
 
@@ -184,8 +184,8 @@ describe('Query Performance', () => {
 		await createBulkTodos(20);
 	});
 
-	it(`todo.list (20 items) < ${THRESHOLDS.list}ms`, async () => {
-		const result = await measure('todo.list', THRESHOLDS.list, () =>
+	it(`todo-list (20 items) < ${THRESHOLDS.list}ms`, async () => {
+		const result = await measure('todo-list', THRESHOLDS.list, () =>
 			listTodos.handler({
 				sortBy: 'createdAt',
 				sortOrder: 'desc',
@@ -198,8 +198,8 @@ describe('Query Performance', () => {
 		expect(result.data?.todos).toHaveLength(20);
 	});
 
-	it(`todo.list filtered < ${THRESHOLDS.listFiltered}ms`, async () => {
-		const result = await measure('todo.list (filtered)', THRESHOLDS.listFiltered, () =>
+	it(`todo-list filtered < ${THRESHOLDS.listFiltered}ms`, async () => {
+		const result = await measure('todo-list (filtered)', THRESHOLDS.listFiltered, () =>
 			listTodos.handler({
 				priority: 'high',
 				completed: false,
@@ -213,8 +213,8 @@ describe('Query Performance', () => {
 		expect(result.success).toBe(true);
 	});
 
-	it(`todo.stats < ${THRESHOLDS.stats}ms`, async () => {
-		const result = await measure('todo.stats', THRESHOLDS.stats, () =>
+	it(`todo-stats < ${THRESHOLDS.stats}ms`, async () => {
+		const result = await measure('todo-stats', THRESHOLDS.stats, () =>
 			getStats.handler({}, {})
 		);
 
@@ -228,14 +228,14 @@ describe('Query Performance', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('Batch Operation Performance', () => {
-	it(`todo.clear (10 completed) < ${THRESHOLDS.clear}ms`, async () => {
+	it(`todo-clear (10 completed) < ${THRESHOLDS.clear}ms`, async () => {
 		// Create 20 todos and complete 10
 		const ids = await createBulkTodos(20);
 		for (let i = 0; i < 10; i++) {
 			await toggleTodo.handler({ id: ids[i] }, {});
 		}
 
-		const result = await measure('todo.clear', THRESHOLDS.clear, () =>
+		const result = await measure('todo-clear', THRESHOLDS.clear, () =>
 			clearCompleted.handler({}, {})
 		);
 
@@ -286,7 +286,7 @@ describe('Bulk Operation Performance', () => {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 describe('Latency Percentiles', () => {
-	it('todo.create p50/p95/p99 within bounds', async () => {
+	it('todo-create p50/p95/p99 within bounds', async () => {
 		const durations: number[] = [];
 
 		// Run 50 iterations
@@ -303,7 +303,7 @@ describe('Latency Percentiles', () => {
 		const p95 = durations[Math.floor(durations.length * 0.95)];
 		const p99 = durations[Math.floor(durations.length * 0.99)];
 
-		console.log(`\n  todo.create latency: p50=${p50.toFixed(2)}ms, p95=${p95.toFixed(2)}ms, p99=${p99.toFixed(2)}ms`);
+		console.log(`\n  todo-create latency: p50=${p50.toFixed(2)}ms, p95=${p95.toFixed(2)}ms, p99=${p99.toFixed(2)}ms`);
 
 		// Record in results
 		results.push(

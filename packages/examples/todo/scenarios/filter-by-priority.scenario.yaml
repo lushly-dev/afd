@@ -11,7 +11,7 @@ fixture:
 
 steps:
   # Step 1: Verify fixture loaded correctly (4 todos created)
-  - command: todo.stats
+  - command: todo-stats
     description: Verify fixture created the expected todos
     expect:
       success: true
@@ -21,7 +21,7 @@ steps:
         completed: 0
 
   # Step 2: Filter high priority todos
-  - command: todo.list
+  - command: todo-list
     description: List only high priority todos
     input:
       priority: high
@@ -33,7 +33,7 @@ steps:
           length: 2
 
   # Step 3: Filter low priority todos
-  - command: todo.list
+  - command: todo-list
     description: List only low priority todos
     input:
       priority: low
@@ -43,7 +43,7 @@ steps:
         total: 1
 
   # Step 4: Clear all todos (cleanup)
-  - command: todo.clear
+  - command: todo-clear
     description: Clean up all todos
     input:
       all: true
