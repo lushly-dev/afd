@@ -919,7 +919,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
         const toolsList = [
           // Built-in afd.batch tool
           {
-            name: "afd.batch",
+            name: "afd-batch",
             description: "Execute multiple commands in a single batch request with partial success semantics",
             inputSchema: {
               type: "object" as const,
@@ -974,7 +974,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
           const args = request.params.arguments ?? {};
 
           // Handle built-in afd.batch tool
-          if (toolName === "afd.batch") {
+          if (toolName === "afd-batch") {
             // Validate that args looks like a BatchRequest before processing
             if (!isBatchRequest(args)) {
               return {
