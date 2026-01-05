@@ -245,12 +245,13 @@ export function createMcpServer(options: McpServerOptions): McpServer {
       return stdio ? "stdio" : "http";
     }
 
+    // Auto-detect: use stdio if stdin is piped (not a TTY), otherwise use HTTP
     if (transport === "auto") {
-      // Auto-detect: use stdio if stdin is piped (not a TTY), otherwise use HTTP
       return isStdinPiped() ? "stdio" : "http";
     }
 
-    return transport;
+    // Explicit transport mode (stdio or http)
+    return transport as "stdio" | "http";
   }
 
   const resolvedTransport = resolveTransport();

@@ -96,13 +96,13 @@ await server.start();
 // Server reads JSON-RPC from stdin, writes to stdout
 ```
 
-In your IDE's MCP configuration:
+In your IDE's MCP configuration (adjust the path to match your project):
 ```json
 {
   "mcpServers": {
     "my-server": {
       "command": "node",
-      "args": ["./dist/server.js"]
+      "args": ["path/to/your/server.js"]
     }
   }
 }
