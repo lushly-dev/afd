@@ -26,6 +26,12 @@ import {
   failure,
   isBatchRequest,
 } from "@afd/core";
+import { Server as McpSdkServer } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  ListToolsRequestSchema,
+  CallToolRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
 import type { ZodCommandDefinition } from "./schema.js";
 import { validateInput, type ValidationResult } from "./validation.js";
 
@@ -893,8 +899,8 @@ export function createMcpServer(options: McpServerOptions): McpServer {
     };
   }
 
-  // Track readline interface for stdio transport cleanup
-  let stdioInterface: import("node:readline").Interface | null = null;
+  // Track MCP SDK server for stdio transport cleanup
+  let mcpSdkServer: McpSdkServer | null = null;
 
   return {
     async start() {
@@ -902,30 +908,115 @@ export function createMcpServer(options: McpServerOptions): McpServer {
         return;
       }
 
-      // Start stdio transport if enabled
+      // Start stdio transport if enabled using official MCP SDK
       if (useStdio) {
-        const readline = await import("node:readline");
-        const rl = readline.createInterface({
-          input: process.stdin,
-          terminal: false,
-        });
-        stdioInterface = rl;
+        mcpSdkServer = new McpSdkServer(
+          { name, version },
+          { capabilities: { tools: {} } }
+        );
 
-        rl.on("line", async (line) => {
-          if (!line.trim()) return;
-          try {
-            const request = JSON.parse(line) as McpRequest;
-            const response = await handleAsyncMcpRequest(request);
-            process.stdout.write(JSON.stringify(response) + "\n");
-          } catch (error) {
-            // Silent fail for parse errors to avoid breaking protocol
+        // Build tools list including afd.batch
+        const toolsList = [
+          // Built-in afd.batch tool
+          {
+            name: "afd.batch",
+            description: "Execute multiple commands in a single batch request with partial success semantics",
+            inputSchema: {
+              type: "object" as const,
+              properties: {
+                commands: {
+                  type: "array",
+                  description: "Array of commands to execute",
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: { type: "string", description: "Optional client-provided ID for correlating results" },
+                      command: { type: "string", description: "The command name to execute" },
+                      input: { type: "object", description: "Input parameters for the command" },
+                    },
+                    required: ["command"],
+                  },
+                },
+                options: {
+                  type: "object",
+                  description: "Batch execution options",
+                  properties: {
+                    stopOnError: { type: "boolean", description: "Stop execution on first error" },
+                    timeout: { type: "number", description: "Timeout in milliseconds for entire batch" },
+                  },
+                },
+              },
+              required: ["commands"],
+            },
+          },
+          // User-defined commands
+          ...commands.map((cmd) => {
+            const { type: _type, ...restSchema } = cmd.jsonSchema;
+            return {
+              name: cmd.name,
+              description: cmd.description,
+              inputSchema: {
+                type: "object" as const,
+                ...restSchema,
+              },
+            };
+          }),
+        ];
+
+        // Register tools/list handler
+        mcpSdkServer.setRequestHandler(ListToolsRequestSchema, async () => ({
+          tools: toolsList,
+        }));
+
+        // Register tools/call handler
+        mcpSdkServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+          const toolName = request.params.name;
+          const args = request.params.arguments ?? {};
+
+          // Handle built-in afd.batch tool
+          if (toolName === "afd.batch") {
+            // Validate that args looks like a BatchRequest before processing
+            if (!isBatchRequest(args)) {
+              return {
+                content: [{ type: "text", text: JSON.stringify({
+                  success: false,
+                  error: {
+                    code: "INVALID_BATCH_REQUEST",
+                    message: "Invalid batch request format",
+                    suggestion: "Provide { commands: [...] } with command objects",
+                  },
+                }, null, 2) }],
+                isError: true,
+              };
+            }
+            const result = await executeBatch(args, {
+              traceId: `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+              isError: !result.success,
+            };
           }
+
+          // Handle user-defined commands
+          const result = await executeCommand(toolName, args, {
+            traceId: `trace-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          });
+
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            isError: !result.success,
+          };
         });
 
-        // For stdio-only mode, mark as running immediately
-        // No HTTP server needed
+        // Connect to stdio transport
+        const transport = new StdioServerTransport();
+        await mcpSdkServer.connect(transport);
+
+        isRunning = true;
+
+        // For stdio-only mode, we're done
         if (!useHttp) {
-          isRunning = true;
           return;
         }
       }
@@ -949,10 +1040,10 @@ export function createMcpServer(options: McpServerOptions): McpServer {
         return;
       }
 
-      // Close stdio interface if it exists
-      if (stdioInterface) {
-        stdioInterface.close();
-        stdioInterface = null;
+      // Close MCP SDK server if it exists
+      if (mcpSdkServer) {
+        await mcpSdkServer.close();
+        mcpSdkServer = null;
       }
 
       // Close HTTP server if it exists
