@@ -19,7 +19,7 @@ export interface ClearResult {
 }
 
 export const clearCompleted = defineCommand<typeof inputSchema, ClearResult>({
-  name: "todo.clear",
+  name: 'todo-clear',
   description: "Clear completed todos (or all if specified)",
   category: "todo",
   mutation: true,

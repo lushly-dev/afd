@@ -4,7 +4,7 @@
       "name": "create_basic",
       "description": "Create a todo with minimal fields",
       "setup": [],
-      "command": "todo.create",
+      "command": "todo-create",
       "input": { "title": "Test todo" },
       "expect": {
         "success": true,
@@ -17,7 +17,7 @@
       "name": "create_with_priority",
       "description": "Create a todo with high priority",
       "setup": [],
-      "command": "todo.create",
+      "command": "todo-create",
       "input": { "title": "High priority task", "priority": "high" },
       "expect": {
         "success": true,
@@ -29,7 +29,7 @@
       "name": "get_not_found",
       "description": "Get non-existent todo returns NOT_FOUND",
       "setup": [],
-      "command": "todo.get",
+      "command": "todo-get",
       "input": { "id": "nonexistent" },
       "expect": {
         "success": false,
@@ -40,10 +40,10 @@
       "name": "list_all",
       "description": "List all todos",
       "setup": [
-        { "command": "todo.create", "input": { "title": "Todo 1" } },
-        { "command": "todo.create", "input": { "title": "Todo 2" } }
+        { "command": "todo-create", "input": { "title": "Todo 1" } },
+        { "command": "todo-create", "input": { "title": "Todo 2" } }
       ],
-      "command": "todo.list",
+      "command": "todo-list",
       "input": {},
       "expect": {
         "success": true,
@@ -56,12 +56,12 @@
       "description": "Update a todo title",
       "setup": [
         {
-          "command": "todo.create",
+          "command": "todo-create",
           "input": { "title": "Original title" },
           "capture": "todo1"
         }
       ],
-      "command": "todo.update",
+      "command": "todo-update",
       "input": { "id": "$todo1.id", "title": "Updated title" },
       "expect": {
         "success": true,
@@ -73,12 +73,12 @@
       "description": "Toggle a todo status",
       "setup": [
         {
-          "command": "todo.create",
+          "command": "todo-create",
           "input": { "title": "Toggle me" },
           "capture": "todo1"
         }
       ],
-      "command": "todo.toggle",
+      "command": "todo-toggle",
       "input": { "id": "$todo1.id" },
       "expect": {
         "success": true,
@@ -90,12 +90,12 @@
       "description": "Delete a todo",
       "setup": [
         {
-          "command": "todo.create",
+          "command": "todo-create",
           "input": { "title": "Delete me" },
           "capture": "todo1"
         }
       ],
-      "command": "todo.delete",
+      "command": "todo-delete",
       "input": { "id": "$todo1.id" },
       "expect": {
         "success": true,
@@ -107,15 +107,15 @@
       "description": "Get stats for todos",
       "setup": [
         {
-          "command": "todo.create",
+          "command": "todo-create",
           "input": { "title": "Task 1", "priority": "high" }
         },
         {
-          "command": "todo.create",
+          "command": "todo-create",
           "input": { "title": "Task 2", "priority": "low" }
         }
       ],
-      "command": "todo.stats",
+      "command": "todo-stats",
       "input": {},
       "expect": {
         "success": true,

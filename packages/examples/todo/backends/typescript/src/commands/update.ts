@@ -16,7 +16,7 @@ const inputSchema = z.object({
 });
 
 export const updateTodo = defineCommand<typeof inputSchema, Todo>({
-  name: "todo.update",
+  name: 'todo-update',
   description: "Update a todo item",
   category: "todo",
   mutation: true,

@@ -8,7 +8,7 @@ tags: [smoke, basic]
 
 steps:
   # Test create
-  - command: todo.create
+  - command: todo-create
     description: Create a simple todo
     input:
       title: Test todo item
@@ -21,7 +21,7 @@ steps:
         id: { exists: true }
 
   # Test list
-  - command: todo.list
+  - command: todo-list
     description: List all todos
     expect:
       success: true
@@ -31,7 +31,7 @@ steps:
         hasMore: { exists: true }
 
   # Test stats
-  - command: todo.stats
+  - command: todo-stats
     description: Get todo statistics
     expect:
       success: true
@@ -42,7 +42,7 @@ steps:
         byPriority: { exists: true }
 
   # Test clear (cleanup)
-  - command: todo.clear
+  - command: todo-clear
     description: Clear completed todos
     expect:
       success: true

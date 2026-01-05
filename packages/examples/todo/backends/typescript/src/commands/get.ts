@@ -12,7 +12,7 @@ const inputSchema = z.object({
 });
 
 export const getTodo = defineCommand<typeof inputSchema, Todo>({
-	name: 'todo.get',
+	name: 'todo-get',
 	description: 'Get a single todo by ID',
 	category: 'todo',
 	mutation: false,

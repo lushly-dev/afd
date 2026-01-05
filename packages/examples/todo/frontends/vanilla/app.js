@@ -502,11 +502,11 @@ async function callTool(name, args = {}, options = {}) {
 
   // Mutations should show toasts by default, queries should not
   const isMutation = [
-    "todo.create",
-    "todo.update",
-    "todo.toggle",
-    "todo.delete",
-    "todo.clear",
+    "todo-create",
+    "todo-update",
+    "todo-toggle",
+    "todo-delete",
+    "todo-clear",
   ].includes(name);
   const shouldShowToast = forceToast ?? (!silent && isMutation);
   const shouldLog = !silent;
@@ -665,7 +665,7 @@ async function loadTodos(options = {}) {
   if (currentFilter === "completed") filterParams.completed = true;
 
   const result = await callTool(
-    "todo.list",
+    "todo-list",
     { ...filterParams, limit: 100 },
     { silent }
   );
@@ -695,7 +695,7 @@ async function loadTodos(options = {}) {
  */
 async function loadStats(options = {}) {
   const { silent = false } = options;
-  const result = await callTool("todo.stats", {}, { silent });
+  const result = await callTool("todo-stats", {}, { silent });
 
   if (result.success) {
     const stats = result.data;
@@ -738,7 +738,7 @@ function renderTodos(todos) {
         todo.priority
       }</span>
             &nbsp;·&nbsp;
-            ${formatDate(todo.createdAt)}
+            ${formatDate(todo-createdAt)}
           </div>
         </div>
         <div class="todo-actions">
@@ -784,7 +784,7 @@ async function editTodo(id) {
     newTitle.trim() !== "" &&
     newTitle !== currentTitle
   ) {
-    const result = await callTool("todo.update", {
+    const result = await callTool("todo-update", {
       id,
       title: newTitle.trim(),
     });
@@ -805,7 +805,7 @@ async function deleteSelected() {
 
   if (!confirmed) return;
 
-  const result = await callTool("todo.deleteBatch", {
+  const result = await callTool("todo-deleteBatch", {
     ids: Array.from(selectedIds),
   });
   if (result.success) {
@@ -817,7 +817,7 @@ async function deleteSelected() {
 async function toggleSelected() {
   if (selectedIds.size === 0) return;
 
-  const result = await callTool("todo.toggleBatch", {
+  const result = await callTool("todo-toggleBatch", {
     ids: Array.from(selectedIds),
   });
   if (result.success) {
@@ -846,7 +846,7 @@ function toggleSelectAll() {
  * Add a new todo.
  */
 async function addTodo(title, priority) {
-  const result = await callTool("todo.create", { title, priority });
+  const result = await callTool("todo-create", { title, priority });
 
   if (result.success) {
     newTodoTitle.value = "";
@@ -858,7 +858,7 @@ async function addTodo(title, priority) {
  * Toggle todo completion.
  */
 async function toggleTodo(id) {
-  const result = await callTool("todo.toggle", { id });
+  const result = await callTool("todo-toggle", { id });
 
   if (result.success) {
     await Promise.all([loadTodos(), loadStats()]);
@@ -878,7 +878,7 @@ async function deleteTodo(id) {
 
   if (!confirmed) return;
 
-  const result = await callTool("todo.delete", { id });
+  const result = await callTool("todo-delete", { id });
 
   if (result.success) {
     await Promise.all([loadTodos(), loadStats()]);
@@ -897,7 +897,7 @@ async function clearCompleted() {
 
   if (!confirmed) return;
 
-  const result = await callTool("todo.clear", {});
+  const result = await callTool("todo-clear", {});
 
   if (result.success) {
     await Promise.all([loadTodos(), loadStats()]);
