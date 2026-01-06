@@ -253,7 +253,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
     middleware = [],
     onCommand,
     onError,
-    toolStrategy = "individual",
+    toolStrategy = "grouped",
     groupByFn,
   } = options;
 
