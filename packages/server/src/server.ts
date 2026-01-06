@@ -991,57 +991,9 @@ export function createMcpServer(options: McpServerOptions): McpServer {
           { capabilities: { tools: {} } }
         );
 
-        // Build tools list including afd.batch
-        const toolsList = [
-          // Built-in afd.batch tool
-          {
-            name: "afd-batch",
-            description: "Execute multiple commands in a single batch request with partial success semantics",
-            inputSchema: {
-              type: "object" as const,
-              properties: {
-                commands: {
-                  type: "array",
-                  description: "Array of commands to execute",
-                  items: {
-                    type: "object",
-                    properties: {
-                      id: { type: "string", description: "Optional client-provided ID for correlating results" },
-                      command: { type: "string", description: "The command name to execute" },
-                      input: { type: "object", description: "Input parameters for the command" },
-                    },
-                    required: ["command"],
-                  },
-                },
-                options: {
-                  type: "object",
-                  description: "Batch execution options",
-                  properties: {
-                    stopOnError: { type: "boolean", description: "Stop execution on first error" },
-                    timeout: { type: "number", description: "Timeout in milliseconds for entire batch" },
-                  },
-                },
-              },
-              required: ["commands"],
-            },
-          },
-          // User-defined commands
-          ...commands.map((cmd) => {
-            const { type: _type, ...restSchema } = cmd.jsonSchema;
-            return {
-              name: cmd.name,
-              description: cmd.description,
-              inputSchema: {
-                type: "object" as const,
-                ...restSchema,
-              },
-            };
-          }),
-        ];
-
-        // Register tools/list handler
+        // Register tools/list handler - use shared getToolsList() for consistency
         mcpSdkServer.setRequestHandler(ListToolsRequestSchema, async () => ({
-          tools: toolsList,
+          tools: getToolsList(),
         }));
 
         // Register tools/call handler
