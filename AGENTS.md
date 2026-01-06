@@ -76,12 +76,12 @@ Control how commands appear in IDE tool lists:
 createMcpServer({
   name: 'my-app',
   commands: [/* ... */],
-  toolStrategy: 'grouped', // 'individual' (default) | 'grouped'
+  toolStrategy: 'individual', // 'grouped' (default) | 'individual'
 });
 ```
 
-- **individual**: Each command = separate MCP tool (11 tools)
-- **grouped**: Commands consolidated by category (3 tools: `afd-help`, `afd-docs`, `todo`)
+- **grouped** (default): Commands consolidated by category (cleaner IDE UX)
+- **individual**: Each command = separate MCP tool (more precise schemas)
 
 ## Repository Structure
 
