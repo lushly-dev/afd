@@ -80,6 +80,20 @@ export interface McpServerOptions {
 
   /** Called on server errors */
   onError?: (error: Error) => void;
+
+  /**
+   * Tool strategy for MCP tool listing.
+   * - "individual": Each command is exposed as a separate tool (default)
+   * - "grouped": Commands are grouped by category into consolidated tools
+   */
+  toolStrategy?: "individual" | "grouped";
+
+  /**
+   * Custom function to derive group name from command.
+   * Used when toolStrategy is "grouped".
+   * Defaults to using command.category or first segment of command name.
+   */
+  groupByFn?: (command: ZodCommandDefinition) => string | undefined;
 }
 
 /**
@@ -181,6 +195,8 @@ export function createMcpServer(options: McpServerOptions): McpServer {
     middleware = [],
     onCommand,
     onError,
+    toolStrategy = "individual",
+    groupByFn,
   } = options;
 
   // Build command map for quick lookup
@@ -450,6 +466,112 @@ export function createMcpServer(options: McpServerOptions): McpServer {
   }
 
   /**
+   * Get the tools list based on toolStrategy.
+   */
+  function getToolsList() {
+    // Built-in afd-batch tool (always individual)
+    const batchTool = {
+      name: "afd-batch",
+      description: "Execute multiple commands in a single batch request with partial success semantics",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          commands: {
+            type: "array",
+            description: "Array of commands to execute",
+            items: {
+              type: "object",
+              properties: {
+                id: { type: "string", description: "Optional client-provided ID for correlating results" },
+                command: { type: "string", description: "The command name to execute" },
+                input: { type: "object", description: "Input parameters for the command" },
+              },
+              required: ["command"],
+            },
+          },
+          options: {
+            type: "object",
+            description: "Batch execution options",
+            properties: {
+              stopOnError: { type: "boolean", description: "Stop execution on first error" },
+              timeout: { type: "number", description: "Timeout in milliseconds for entire batch" },
+            },
+          },
+        },
+        required: ["commands"],
+      },
+    };
+
+    // Individual strategy: each command is its own tool
+    if (toolStrategy === "individual") {
+      return [
+        batchTool,
+        ...commands.map((cmd) => {
+          const { type: _type, ...restSchema } = cmd.jsonSchema;
+          return {
+            name: cmd.name,
+            description: cmd.description,
+            inputSchema: {
+              type: "object" as const,
+              ...restSchema,
+            },
+          };
+        }),
+      ];
+    }
+
+    // Grouped strategy: commands grouped by category/entity
+    const defaultGroupFn = (cmd: ZodCommandDefinition): string => {
+      return cmd.category || cmd.name.split("-")[0] || "general";
+    };
+    const getGroup = groupByFn || defaultGroupFn;
+
+    // Group commands by their group key
+    const groups: Record<string, ZodCommandDefinition[]> = {};
+    for (const cmd of commands) {
+      const group = getGroup(cmd) || "general";
+      if (!groups[group]) {
+        groups[group] = [];
+      }
+      groups[group].push(cmd);
+    }
+
+    // Create a consolidated tool for each group
+    const groupedTools = Object.entries(groups).map(([groupName, groupCmds]) => {
+      // Build action enum from command names
+      const actions = groupCmds.map(cmd => {
+        // Extract action from command name (e.g., "todo-create" -> "create")
+        const parts = cmd.name.split("-");
+        return parts.length > 1 ? parts.slice(1).join("-") : cmd.name;
+      });
+
+      return {
+        name: groupName,
+        description: `${groupName} operations: ${actions.join(", ")}`,
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            action: {
+              type: "string",
+              enum: actions,
+              description: `Action to perform: ${actions.join(" | ")}`,
+            },
+            // Note: Full discriminated union would require merging all command schemas
+            // For now, we use a generic "params" object
+            params: {
+              type: "object",
+              description: "Parameters for the action (varies by action)",
+            },
+          },
+          required: ["action"],
+        },
+      };
+    });
+
+    return [batchTool, ...groupedTools];
+  }
+
+  /**
    * Handle MCP JSON-RPC request.
    */
   function handleMcpRequest(request: McpRequest): McpResponse {
@@ -477,53 +599,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
           jsonrpc: "2.0",
           id,
           result: {
-            tools: [
-              // Built-in afd.batch tool
-              {
-                name: "afd.batch",
-                description: "Execute multiple commands in a single batch request with partial success semantics",
-                inputSchema: {
-                  type: "object" as const,
-                  properties: {
-                    commands: {
-                      type: "array",
-                      description: "Array of commands to execute",
-                      items: {
-                        type: "object",
-                        properties: {
-                          id: { type: "string", description: "Optional client-provided ID for correlating results" },
-                          command: { type: "string", description: "The command name to execute" },
-                          input: { type: "object", description: "Input parameters for the command" },
-                        },
-                        required: ["command"],
-                      },
-                    },
-                    options: {
-                      type: "object",
-                      description: "Batch execution options",
-                      properties: {
-                        stopOnError: { type: "boolean", description: "Stop execution on first error" },
-                        timeout: { type: "number", description: "Timeout in milliseconds for entire batch" },
-                      },
-                    },
-                  },
-                  required: ["commands"],
-                },
-              },
-              // User-defined commands
-              ...commands.map((cmd) => {
-                // Destructure to avoid duplicate 'type' property
-                const { type: _type, ...restSchema } = cmd.jsonSchema;
-                return {
-                  name: cmd.name,
-                  description: cmd.description,
-                  inputSchema: {
-                    type: "object" as const,
-                    ...restSchema,
-                  },
-                };
-              }),
-            ],
+            tools: getToolsList(),
           },
         };
 
