@@ -12,7 +12,8 @@
  *   afd call todo.create '{"title": "My first todo"}'
  */
 
-import { createMcpServer, createLoggingMiddleware } from "@afd/server";
+import { createMcpServer, createLoggingMiddleware, getBootstrapCommands } from "@afd/server";
+import type { ZodCommandDefinition } from "@afd/server";
 import { allCommands } from "./commands/index.js";
 
 // Configuration from environment
@@ -30,10 +31,17 @@ const DEV_MODE = process.env.NODE_ENV === "development";
  * Create and configure the MCP server.
  */
 function createServer() {
+  // Combine app commands with bootstrap tools (afd-help, afd-docs, afd-schema)
+  // Cast needed due to ZodCommandDefinition vs CommandDefinition type differences
+  const bootstrapCommands = getBootstrapCommands(
+    () => allCommands as unknown as import("@afd/core").CommandDefinition[]
+  ) as unknown as ZodCommandDefinition[];
+  const allServerCommands = [...allCommands, ...bootstrapCommands];
+
   return createMcpServer({
     name: "todo-app",
     version: "1.0.0",
-    commands: allCommands,
+    commands: allServerCommands,
     port: PORT,
     host: HOST,
     devMode: DEV_MODE,
