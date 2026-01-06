@@ -42,4 +42,5 @@ coverage/
 # Misc
 *.plan.md
 !PLAN/**/*.plan.md
-.cursor/
+.cursor/|
+PLAN/
