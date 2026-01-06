@@ -2,6 +2,15 @@ use afd::{CommandHandler, CommandResult, CommandError, CommandContext, success, 
 use crate::types::TodoFilter;
 use crate::store;
 use async_trait::async_trait;
+use serde::Serialize;
+
+#[derive(Serialize)]
+struct ListResult {
+    todos: Vec<crate::types::Todo>,
+    total: usize,
+    #[serde(rename = "hasMore")]
+    has_more: bool,
+}
 
 pub struct ListHandler;
 
@@ -18,6 +27,14 @@ impl CommandHandler for ListHandler {
         };
 
         let todos = store::list(filter);
-        success(serde_json::to_value(todos).unwrap())
+        let total = todos.len();
+        
+        let result = ListResult {
+            todos,
+            total,
+            has_more: false,
+        };
+        
+        success(serde_json::to_value(result).unwrap())
     }
 }

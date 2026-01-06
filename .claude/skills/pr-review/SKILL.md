@@ -20,7 +20,7 @@ Review pull requests against AFD standards and best practices.
 **Command-First Architecture**
 
 - [ ] New functionality exposed as commands before UI
-- [ ] Commands follow `domain.action` naming (e.g., `todo.create`)
+- [ ] Commands follow `domain-action` naming (e.g., `todo-create`)
 - [ ] All business logic lives in command handlers, not UI
 - [ ] No UI-only code paths exist
 - [ ] Command is testable via `afd call`

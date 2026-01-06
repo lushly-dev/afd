@@ -83,6 +83,53 @@ createMcpServer({
 - **grouped** (default): Commands consolidated by category (cleaner IDE UX)
 - **individual**: Each command = separate MCP tool (more precise schemas)
 
+## VS Code MCP Configuration
+
+The Todo example includes three backend implementations (TypeScript, Python, Rust). Configure them in `.vscode/mcp.json`:
+
+```jsonc
+{
+  "mcpServers": {
+    // TypeScript backend (stdio transport - auto-starts)
+    "afd-todo-ts": {
+      "command": "node",
+      "args": ["packages/examples/todo/backends/typescript/dist/server.js"],
+      "disabled": false
+    },
+    
+    // Python backend (stdio transport - auto-starts)
+    "afd-todo-python": {
+      "command": "python",
+      "args": ["-m", "todo_backend"],
+      "cwd": "packages/examples/todo/backends/python",
+      "disabled": true
+    },
+    
+    // Rust backend (HTTP/SSE transport - requires manual server start)
+    "afd-todo-rust": {
+      "url": "http://127.0.0.1:3100/sse",
+      "disabled": true
+    }
+  }
+}
+```
+
+### Transport Types
+
+| Backend | Transport | Auto-Start | Notes |
+|---------|-----------|------------|-------|
+| TypeScript | stdio | ✅ Yes | VS Code spawns the Node process |
+| Python | stdio | ✅ Yes | VS Code spawns Python |
+| Rust | HTTP/SSE | ❌ No | Must run `cargo run -- server` first |
+
+### Switching Backends
+
+1. **Enable ONE backend** at a time (they share the same tool names)
+2. **Reload VS Code** after changes (Command Palette → "MCP: Restart Servers")
+3. **For Rust**: Start the server manually before enabling
+
+> **Important**: Only enable one todo backend at a time. All three expose identical tool names (`todo-create`, `todo-list`, etc.), so having multiple enabled causes conflicts.
+
 ## Repository Structure
 
 ```
@@ -100,7 +147,14 @@ afd/
 │   ├── cli/                         # AFD command-line tool
 │   ├── testing/                     # Test utilities + JTBD scenario runner
 │   └── examples/
-│       └── todo/                    # Multi-stack Todo example (TS + Python)
+│       └── todo/                    # Multi-stack Todo example
+│           ├── backends/
+│           │   ├── typescript/      # Node.js + @afd/server (stdio)
+│           │   ├── python/          # Python + FastMCP (stdio)
+│           │   └── rust/            # Axum + HTTP/SSE transport
+│           ├── frontends/
+│           │   ├── vanilla/         # Vanilla JS frontend
+│           │   └── react/           # React frontend
 │           ├── scenarios/           # JTBD scenario YAML files
 │           └── fixtures/            # Pre-seeded test data (JSON)
 ├── Agentic AI UX Design Principles/ # Reference: UX framework (for PMs/designers)

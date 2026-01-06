@@ -11,7 +11,7 @@ use afd::{CommandRegistry, CommandDefinition, CommandParameter};
 
 pub fn register_commands(registry: &mut CommandRegistry) {
     registry.register(CommandDefinition::new(
-        "todo.create",
+        "todo-create",
         "Create a new todo item",
         vec![
             CommandParameter::required_string("title", "Todo title"),
@@ -22,7 +22,7 @@ pub fn register_commands(registry: &mut CommandRegistry) {
     )).unwrap();
 
     registry.register(CommandDefinition::new(
-        "todo.list",
+        "todo-list",
         "List todo items with filtering and sorting",
         vec![
             CommandParameter::optional_string("search", "Search in title/description"),
@@ -33,14 +33,14 @@ pub fn register_commands(registry: &mut CommandRegistry) {
     )).unwrap();
 
     registry.register(CommandDefinition::new(
-        "todo.get",
+        "todo-get",
         "Get a specific todo item by ID",
         vec![CommandParameter::required_string("id", "Todo ID")],
         get::GetHandler,
     )).unwrap();
 
     registry.register(CommandDefinition::new(
-        "todo.update",
+        "todo-update",
         "Update an existing todo item",
         vec![
             CommandParameter::required_string("id", "Todo ID"),
@@ -53,28 +53,28 @@ pub fn register_commands(registry: &mut CommandRegistry) {
     )).unwrap();
 
     registry.register(CommandDefinition::new(
-        "todo.delete",
+        "todo-delete",
         "Delete a todo item",
         vec![CommandParameter::required_string("id", "Todo ID")],
         delete::DeleteHandler,
     )).unwrap();
 
     registry.register(CommandDefinition::new(
-        "todo.toggle",
+        "todo-toggle",
         "Toggle the completion status of a todo item",
         vec![CommandParameter::required_string("id", "Todo ID")],
         toggle::ToggleHandler,
     )).unwrap();
 
     registry.register(CommandDefinition::new(
-        "todo.clear",
+        "todo-clear",
         "Clear all todo items",
         vec![],
         clear::ClearHandler,
     )).unwrap();
 
     registry.register(CommandDefinition::new(
-        "todo.stats",
+        "todo-stats",
         "Get statistics about todo items",
         vec![],
         stats::StatsHandler,

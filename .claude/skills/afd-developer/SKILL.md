@@ -64,13 +64,14 @@ This principle ensures:
 
 ### Naming Convention
 
-Format: `domain.action` (lowercase, dot-separated)
+Format: `domain-action` (lowercase, hyphen-separated)
 
 ```
 Good:                    Bad:
-todo.create              createTodo (not namespaced)
-user.authenticate        todo_create (wrong separator)
-document.search          TodoCreate (not lowercase)
+todo-create              createTodo (not namespaced)
+user-authenticate        todo_create (wrong separator)
+document-search          TodoCreate (not lowercase)
+todo.create              (dots not compatible with all MCP clients)
 ```
 
 ### CommandResult Schema
@@ -130,7 +131,7 @@ afd connect http://localhost:3100/sse
 afd tools
 
 # Call a command
-afd call todo.create '{"title": "Test", "priority": "high"}'
+afd call todo-create '{"title": "Test", "priority": "high"}'
 
 # Interactive shell
 afd shell
