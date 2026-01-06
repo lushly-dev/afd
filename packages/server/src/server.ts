@@ -719,8 +719,8 @@ export function createMcpServer(options: McpServerOptions): McpServer {
         arguments?: unknown;
       };
 
-      // Handle built-in afd.batch tool
-      if (toolName === "afd.batch") {
+      // Handle built-in afd-batch tool
+      if (toolName === "afd-batch") {
         const batchRequest = args as BatchRequest;
         const result = await executeBatch(batchRequest, {
           traceId: `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -741,6 +741,37 @@ export function createMcpServer(options: McpServerOptions): McpServer {
         };
       }
 
+      // Handle grouped tool calls (when toolStrategy === "grouped")
+      if (toolStrategy === "grouped") {
+        const typedArgs = args as { action?: string; params?: unknown } | undefined;
+        const action = typedArgs?.action;
+        const commandParams = typedArgs?.params ?? {};
+        
+        if (action && typeof action === "string") {
+          // Construct actual command name: groupName-action
+          const actualCommandName = `${toolName}-${action}`;
+          
+          const result = await executeCommand(actualCommandName, commandParams, {
+            traceId: `trace-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          });
+
+          return {
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(result, null, 2),
+                },
+              ],
+              isError: !result.success,
+            },
+          };
+        }
+      }
+
+      // Handle user-defined commands (individual mode)
       const result = await executeCommand(toolName, args ?? {}, {
         traceId: `trace-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       });
@@ -1026,7 +1057,31 @@ export function createMcpServer(options: McpServerOptions): McpServer {
             };
           }
 
-          // Handle user-defined commands
+          // Handle grouped tool calls (when toolStrategy === "grouped")
+          // Grouped tools have format: { action: "create", params: {...} }
+          if (toolStrategy === "grouped") {
+            const action = (args as { action?: string }).action;
+            const params = (args as { params?: unknown }).params ?? {};
+            
+            // Check if this is a grouped tool call (has action property)
+            if (action && typeof action === "string") {
+              // Construct the actual command name: groupName-action
+              // e.g., "todo" + "create" = "todo-create"
+              const actualCommandName = `${toolName}-${action}`;
+              
+              // Execute the actual command
+              const result = await executeCommand(actualCommandName, params, {
+                traceId: `trace-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+              });
+
+              return {
+                content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+                isError: !result.success,
+              };
+            }
+          }
+
+          // Handle user-defined commands (individual mode or direct command calls)
           const result = await executeCommand(toolName, args, {
             traceId: `trace-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           });
