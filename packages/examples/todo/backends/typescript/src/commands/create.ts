@@ -17,6 +17,7 @@ export const createTodo = defineCommand<typeof inputSchema, Todo>({
 	name: 'todo-create',
 	description: 'Create a new todo item',
 	category: 'todo',
+	tags: ['todo', 'create', 'write', 'single'],
 	mutation: true,
 	version: '1.0.0',
 	input: inputSchema,

@@ -31,6 +31,7 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 	name: 'todo-list',
 	description: 'List todos with optional filtering and pagination',
 	category: 'todo',
+	tags: ['todo', 'list', 'read'],
 	mutation: false,
 	version: '1.0.0',
 	input: inputSchema,

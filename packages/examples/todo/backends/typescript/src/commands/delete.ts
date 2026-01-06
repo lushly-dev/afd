@@ -19,6 +19,7 @@ export const deleteTodo = defineCommand<typeof inputSchema, DeleteResult>({
 	name: 'todo-delete',
 	description: 'Delete a todo item',
 	category: 'todo',
+	tags: ['todo', 'delete', 'write', 'single', 'destructive'],
 	mutation: true,
 	version: '1.0.0',
 	input: inputSchema,

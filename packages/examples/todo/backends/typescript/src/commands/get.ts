@@ -15,6 +15,7 @@ export const getTodo = defineCommand<typeof inputSchema, Todo>({
 	name: 'todo-get',
 	description: 'Get a single todo by ID',
 	category: 'todo',
+	tags: ['todo', 'get', 'read', 'single'],
 	mutation: false,
 	version: '1.0.0',
 	input: inputSchema,
