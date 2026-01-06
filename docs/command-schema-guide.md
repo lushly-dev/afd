@@ -204,6 +204,45 @@ defineCommand({ name: 'todo.create', ... });  // Will fail in Cursor, Claude Cod
 
 > **Note:** This convention ensures AFD commands work seamlessly with all MCP clients including Cursor, Claude Code, Antigravity, and other IDE integrations.
 
+## Command Tags
+
+Commands can include a `tags` array for filtering, grouping, and permission control:
+
+```typescript
+defineCommand({
+  name: 'todo-delete',
+  category: 'todo',
+  tags: ['todo', 'delete', 'write', 'single', 'destructive'],
+  mutation: true,
+  // ...
+});
+```
+
+### Standard Tag Categories
+
+| Category | Example Tags | Purpose |
+|----------|-------------|---------|
+| **Entity** | `todo`, `user`, `document` | Domain grouping |
+| **Action** | `create`, `read`, `update`, `delete`, `list` | CRUD classification |
+| **Scope** | `single`, `batch` | Operation cardinality |
+| **Risk** | `destructive`, `safe` | Agent safety hints |
+| **Access** | `bootstrap`, `admin`, `public` | Permission filtering |
+
+### Querying by Tags
+
+```typescript
+import { createCommandRegistry } from '@afd/core';
+
+const registry = createCommandRegistry();
+registry.register(/* commands */);
+
+// Get all destructive commands
+const risky = registry.listByTags(['destructive'], 'any');
+
+// Get commands that are both read AND safe
+const safeReads = registry.listByTags(['read', 'safe'], 'all');
+```
+
 ## Design Principles
 
 ### 1. Return Data for the UI You Want
