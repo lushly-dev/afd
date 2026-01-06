@@ -1063,6 +1063,11 @@ export function createMcpServer(options: McpServerOptions): McpServer {
             const action = (args as { action?: string }).action;
             const params = (args as { params?: unknown }).params ?? {};
             
+            // Debug logging when enabled
+            if (devMode) {
+              console.error(`[MCP Debug] Grouped tool call: toolName=${toolName}, action=${action}, args=${JSON.stringify(args)}`);
+            }
+            
             // Check if this is a grouped tool call (has action property)
             if (action && typeof action === "string") {
               // Construct the actual command name: groupName-action
@@ -1077,6 +1082,37 @@ export function createMcpServer(options: McpServerOptions): McpServer {
               return {
                 content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
                 isError: !result.success,
+              };
+            }
+            
+            // In grouped mode, if tool is a known group but action is missing/invalid,
+            // return a helpful error instead of falling through
+            const groupNames = new Set(commands.map(cmd => {
+              const defaultGroupFn = (c: ZodCommandDefinition): string => c.category || c.name.split("-")[0] || "general";
+              return (groupByFn || defaultGroupFn)(cmd);
+            }));
+            
+            if (groupNames.has(toolName)) {
+              const groupCommands = commands.filter(cmd => {
+                const defaultGroupFn = (c: ZodCommandDefinition): string => c.category || c.name.split("-")[0] || "general";
+                return (groupByFn || defaultGroupFn)(cmd) === toolName;
+              });
+              const availableActions = groupCommands.map(cmd => {
+                const parts = cmd.name.split("-");
+                return parts.length > 1 ? parts.slice(1).join("-") : cmd.name;
+              });
+              
+              return {
+                content: [{ type: "text", text: JSON.stringify({
+                  success: false,
+                  error: {
+                    code: "INVALID_GROUPED_CALL",
+                    message: `Grouped tool '${toolName}' requires an 'action' parameter`,
+                    suggestion: `Provide { action: "<action>", params: {...} }. Available actions: ${availableActions.join(", ")}`,
+                  },
+                  _debug: devMode ? { receivedArgs: args } : undefined,
+                }, null, 2) }],
+                isError: true,
               };
             }
           }

@@ -11,6 +11,33 @@ python server.py
 
 Server runs at `http://localhost:3101`.
 
+## Storage Configuration
+
+By default, the server uses **file-based storage** (`../data/todos.json`) so that:
+- MCP clients (stdio transport) share data with the HTTP server
+- The UI and MCP tools see the same todos
+- **Both TypeScript and Python backends share the same data file**
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TODO_STORE_TYPE` | `file` | Storage type: `file` or `memory` |
+| `TODO_STORE_PATH` | `../data/todos.json` | Path to JSON file (file mode only) |
+
+### Examples
+
+```bash
+# Default: file storage, shared with TypeScript backend
+python server.py
+
+# Use in-memory storage (isolated per process)
+TODO_STORE_TYPE=memory python server.py
+
+# Custom storage path
+TODO_STORE_PATH=/path/to/todos.json python server.py
+```
+
 ## Commands
 
 | Command            | Type     | Description               |

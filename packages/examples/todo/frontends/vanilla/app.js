@@ -17,6 +17,8 @@ const SERVER_URL = "http://localhost:3100";
 let messageId = 0;
 let currentFilter = "all";
 let lastOperation = null; // Store last operation for retry
+let previousTodosMap = new Map(); // Track todos for remote change detection
+let hasBaseline = false; // Track whether we've established a baseline for change detection
 
 // DOM Elements
 const statusDot = document.getElementById("statusDot");
@@ -71,6 +73,7 @@ let selectedIds = new Set();
 
 /**
  * Show a toast notification with full AFD metadata.
+ * Warnings are now integrated into the main toast instead of separate toasts.
  */
 function showToast(result, commandName) {
   const toast = document.createElement("div");
@@ -101,6 +104,15 @@ function showToast(result, commandName) {
   let timeHtml = "";
   if (result.metadata?.executionTimeMs !== undefined) {
     timeHtml = `<span>⚡ ${result.metadata.executionTimeMs}ms</span>`;
+  }
+
+  // Build warnings display (integrated into main toast)
+  let warningsHtml = "";
+  if (result.warnings?.length > 0) {
+    const warningItems = result.warnings.map(w => 
+      `<div class="toast-warning-item">⚠️ ${escapeHtml(w.message)}</div>`
+    ).join('');
+    warningsHtml = `<div class="toast-warnings">${warningItems}</div>`;
   }
 
   // Build suggestion display (for errors)
@@ -137,6 +149,7 @@ function showToast(result, commandName) {
         ${confidenceHtml}
         ${timeHtml}
       </div>
+      ${warningsHtml}
       ${suggestionHtml}
       ${actionsHtml}
     </div>
@@ -145,8 +158,9 @@ function showToast(result, commandName) {
 
   toastContainer.appendChild(toast);
 
-  // Auto-remove after 5 seconds (longer for errors with actions)
-  const duration = !result.success && actionsHtml ? 10000 : 5000;
+  // Auto-remove after 5 seconds (longer for errors/warnings)
+  const hasWarnings = result.warnings?.length > 0;
+  const duration = (!result.success && actionsHtml) ? 10000 : (hasWarnings ? 6000 : 5000);
   setTimeout(() => {
     toast.style.animation = "slideIn 0.3s ease reverse";
     setTimeout(() => toast.remove(), 300);
@@ -183,6 +197,176 @@ function showWarnings(warnings) {
       setTimeout(() => toast.remove(), 300);
     }, 8000);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REMOTE CHANGE DETECTION - Detect and batch-notify changes from CLI/MCP
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Detect changes between previous and current todo lists.
+ * Returns categorized changes for batched notifications.
+ */
+function detectRemoteChanges(currentTodos) {
+  const changes = {
+    added: [],
+    deleted: [],
+    completed: [],
+    uncompleted: [],
+    updated: []
+  };
+
+  const currentMap = new Map(currentTodos.map(t => [t.id, t]));
+  
+  // Find deleted and modified todos
+  for (const [id, prevTodo] of previousTodosMap) {
+    const currentTodo = currentMap.get(id);
+    if (!currentTodo) {
+      // Todo was deleted
+      changes.deleted.push(prevTodo);
+    } else {
+      // Check for completion changes
+      if (!prevTodo.completed && currentTodo.completed) {
+        changes.completed.push(currentTodo);
+      } else if (prevTodo.completed && !currentTodo.completed) {
+        changes.uncompleted.push(currentTodo);
+      }
+      // Check for other updates (title, priority)
+      else if (prevTodo.title !== currentTodo.title || prevTodo.priority !== currentTodo.priority) {
+        changes.updated.push(currentTodo);
+      }
+    }
+  }
+
+  // Find added todos
+  for (const todo of currentTodos) {
+    if (!previousTodosMap.has(todo.id)) {
+      changes.added.push(todo);
+    }
+  }
+
+  return changes;
+}
+
+/**
+ * Show batched toast notifications for remote changes.
+ * Groups multiple changes of the same type into single notifications.
+ */
+function showRemoteChangeToasts(changes) {
+  const notifications = [];
+
+  // Batch added items
+  if (changes.added.length > 0) {
+    const count = changes.added.length;
+    const titles = changes.added.slice(0, 3).map(t => `"${t.title}"`).join(', ');
+    const extra = count > 3 ? ` and ${count - 3} more` : '';
+    notifications.push({
+      type: 'success',
+      icon: '➕',
+      message: count === 1 
+        ? `Added: ${titles}` 
+        : `${count} items added: ${titles}${extra}`
+    });
+  }
+
+  // Batch deleted items
+  if (changes.deleted.length > 0) {
+    const count = changes.deleted.length;
+    const titles = changes.deleted.slice(0, 3).map(t => `"${t.title}"`).join(', ');
+    const extra = count > 3 ? ` and ${count - 3} more` : '';
+    notifications.push({
+      type: 'warning',
+      icon: '🗑️',
+      message: count === 1 
+        ? `Deleted: ${titles}` 
+        : `${count} items deleted: ${titles}${extra}`
+    });
+  }
+
+  // Batch completed items
+  if (changes.completed.length > 0) {
+    const count = changes.completed.length;
+    const titles = changes.completed.slice(0, 3).map(t => `"${t.title}"`).join(', ');
+    const extra = count > 3 ? ` and ${count - 3} more` : '';
+    notifications.push({
+      type: 'success',
+      icon: '✅',
+      message: count === 1 
+        ? `Completed: ${titles}` 
+        : `${count} items completed: ${titles}${extra}`
+    });
+  }
+
+  // Batch uncompleted items
+  if (changes.uncompleted.length > 0) {
+    const count = changes.uncompleted.length;
+    const titles = changes.uncompleted.slice(0, 3).map(t => `"${t.title}"`).join(', ');
+    const extra = count > 3 ? ` and ${count - 3} more` : '';
+    notifications.push({
+      type: 'info',
+      icon: '🔄',
+      message: count === 1 
+        ? `Reopened: ${titles}` 
+        : `${count} items reopened: ${titles}${extra}`
+    });
+  }
+
+  // Batch updated items
+  if (changes.updated.length > 0) {
+    const count = changes.updated.length;
+    const titles = changes.updated.slice(0, 3).map(t => `"${t.title}"`).join(', ');
+    const extra = count > 3 ? ` and ${count - 3} more` : '';
+    notifications.push({
+      type: 'info',
+      icon: '✏️',
+      message: count === 1 
+        ? `Updated: ${titles}` 
+        : `${count} items updated: ${titles}${extra}`
+    });
+  }
+
+  // Show each batched notification
+  for (const notif of notifications) {
+    showRemoteChangeToast(notif.type, notif.icon, notif.message);
+  }
+}
+
+/**
+ * Show a single remote change toast with custom styling.
+ */
+function showRemoteChangeToast(type, icon, message) {
+  const toast = document.createElement("div");
+  toast.className = `toast ${type} remote-change`;
+
+  toast.innerHTML = `
+    <span class="toast-icon">${icon}</span>
+    <div class="toast-content">
+      <div class="toast-message">${escapeHtml(message)}</div>
+      <div class="toast-meta">
+        <span>🌐 Remote change</span>
+      </div>
+    </div>
+    <button class="toast-close" onclick="this.parentElement.remove()">×</button>
+  `;
+
+  toastContainer.appendChild(toast);
+
+  // Auto-remove after 4 seconds
+  setTimeout(() => {
+    toast.style.animation = "slideIn 0.3s ease reverse";
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
+/**
+ * Update the previous todos map for change tracking.
+ */
+function updatePreviousTodos(todos) {
+  previousTodosMap.clear();
+  for (const todo of todos) {
+    previousTodosMap.set(todo.id, { ...todo });
+  }
+  hasBaseline = true; // Mark that we've established a baseline
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -565,13 +749,9 @@ async function callTool(name, args = {}, options = {}) {
     }
 
     // Show toast for mutations or errors (users need to see errors)
+    // Warnings are now integrated into the main toast
     if (shouldShowToast || !result.success) {
       showToast(result, name);
-
-      // Show warnings separately
-      if (result.warnings?.length > 0) {
-        showWarnings(result.warnings);
-      }
     }
 
     // Update trust panel for mutations (not silent queries)
@@ -657,9 +837,10 @@ async function checkConnection() {
  * Load todos from server.
  * @param {object} options - Options
  * @param {boolean} options.silent - If true, don't show toasts
+ * @param {boolean} options.detectChanges - If true, detect and notify remote changes
  */
 async function loadTodos(options = {}) {
-  const { silent = false } = options;
+  const { silent = false, detectChanges = false } = options;
   const filterParams = {};
   if (currentFilter === "pending") filterParams.completed = false;
   if (currentFilter === "completed") filterParams.completed = true;
@@ -671,7 +852,28 @@ async function loadTodos(options = {}) {
   );
 
   if (result.success) {
-    renderTodos(result.data.todos);
+    const todos = result.data.todos;
+
+    // Detect and notify remote changes (during polling)
+    // Only detect if we have established a baseline (prevents false positives on first load)
+    if (detectChanges && hasBaseline) {
+      const changes = detectRemoteChanges(todos);
+      const hasChanges = 
+        changes.added.length > 0 || 
+        changes.deleted.length > 0 || 
+        changes.completed.length > 0 || 
+        changes.uncompleted.length > 0 || 
+        changes.updated.length > 0;
+      
+      if (hasChanges) {
+        showRemoteChangeToasts(changes);
+      }
+    }
+
+    // Update tracking map for next comparison
+    updatePreviousTodos(todos);
+    
+    renderTodos(todos);
 
     // Show alternatives if filtering (only on non-silent calls)
     if (!silent && currentFilter !== "all" && result.alternatives?.length > 0) {
@@ -738,7 +940,7 @@ function renderTodos(todos) {
         todo.priority
       }</span>
             &nbsp;·&nbsp;
-            ${formatDate(todo-createdAt)}
+            ${formatDate(todo.createdAt)}
           </div>
         </div>
         <div class="todo-actions">
@@ -972,6 +1174,16 @@ filterBtns.forEach((btn) => {
 async function init() {
   log("Initializing...");
 
+  // Support URL parameters for view switching (Agent-Friendly UI)
+  const urlParams = new URLSearchParams(window.location.search);
+  const viewParam = urlParams.get("view");
+  if (viewParam && ["all", "pending", "completed"].includes(viewParam)) {
+    currentFilter = viewParam;
+    filterBtns.forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.filter === viewParam);
+    });
+  }
+
   const connected = await checkConnection();
 
   if (connected) {
@@ -994,9 +1206,9 @@ async function init() {
 
     if (isConnected) {
       // Always refresh when connected (catches external changes from CLI/MCP)
-      // Use silent mode to avoid toast spam
+      // Use silent mode for callTool but enable change detection for batched toasts
       await Promise.all([
-        loadTodos({ silent: true }),
+        loadTodos({ silent: true, detectChanges: true }),
         loadStats({ silent: true }),
       ]);
     } else if (wasConnected && !isConnected) {

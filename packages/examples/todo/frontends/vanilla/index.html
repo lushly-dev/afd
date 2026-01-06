@@ -397,6 +397,20 @@
         border-color: var(--error);
       }
 
+      .toast.info {
+        border-color: #60a5fa;
+      }
+
+      /* Remote change indicator - subtle pulse */
+      .toast.remote-change {
+        animation: slideIn 0.3s ease, pulse-remote 2s ease-in-out;
+      }
+
+      @keyframes pulse-remote {
+        0%, 100% { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); }
+        50% { box-shadow: 0 2px 16px rgba(96, 165, 250, 0.4); }
+      }
+
       .toast-icon {
         font-size: 1.25rem;
         flex-shrink: 0;
@@ -410,6 +424,9 @@
       }
       .toast.error .toast-icon {
         color: var(--error);
+      }
+      .toast.info .toast-icon {
+        color: #60a5fa;
       }
 
       .toast-content {
@@ -462,6 +479,20 @@
       }
       .confidence-fill.low {
         background: #f87171;
+      }
+
+      .toast-warnings {
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background: rgba(251, 191, 36, 0.1);
+        border-left: 2px solid var(--warning);
+        border-radius: 4px;
+        font-size: 0.8rem;
+      }
+
+      .toast-warning-item {
+        color: var(--warning);
+        padding: 0.15rem 0;
       }
 
       .toast-suggestion {

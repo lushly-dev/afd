@@ -1,11 +1,21 @@
 /**
- * @fileoverview In-memory todo store
+ * @fileoverview File-based todo store with JSON persistence
  *
- * Simple in-memory storage for todos. In a real app, this would be
- * replaced with a database adapter.
+ * This store persists todos to a JSON file, allowing multiple server instances
+ * (HTTP and stdio/MCP) to share the same data.
+ *
+ * Environment variables:
+ *   TODO_STORE_PATH - Path to the JSON file (default: ./data/todos.json)
  */
 
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { Todo, TodoFilter, TodoStats, Priority } from "../types.js";
+
+// Get the directory of this file for consistent path resolution
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 /**
  * Generate a unique ID.
@@ -22,10 +32,60 @@ function now(): string {
 }
 
 /**
- * In-memory todo store.
+ * File-based todo store with JSON persistence.
  */
-export class TodoStore {
-  private todos: Map<string, Todo> = new Map();
+export class FileStore {
+  private filePath: string;
+
+  constructor(filePath?: string) {
+    // Default path: packages/examples/todo/data/todos.json
+    // From this file: store/file.ts → src/ → typescript/ → backends/ → todo/ → data/
+    this.filePath = filePath ?? resolve(__dirname, "..", "..", "..", "..", "data", "todos.json");
+
+    // Ensure the directory exists
+    const dir = dirname(this.filePath);
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+
+    // Initialize empty file if it doesn't exist
+    if (!existsSync(this.filePath)) {
+      this.saveTodos(new Map());
+    }
+  }
+
+  /**
+   * Load todos from file.
+   */
+  private loadTodos(): Map<string, Todo> {
+    try {
+      const data = readFileSync(this.filePath, "utf-8");
+      const parsed = JSON.parse(data);
+
+      // Handle both array format and object format
+      if (Array.isArray(parsed)) {
+        const map = new Map<string, Todo>();
+        for (const todo of parsed) {
+          map.set(todo.id, todo);
+        }
+        return map;
+      }
+
+      // Object format: { "id": todo }
+      return new Map(Object.entries(parsed));
+    } catch {
+      return new Map();
+    }
+  }
+
+  /**
+   * Save todos to file.
+   */
+  private saveTodos(todos: Map<string, Todo>): void {
+    // Save as array for better readability
+    const data = Array.from(todos.values());
+    writeFileSync(this.filePath, JSON.stringify(data, null, 2), "utf-8");
+  }
 
   /**
    * Create a new todo.
@@ -35,6 +95,8 @@ export class TodoStore {
     description?: string;
     priority?: Priority;
   }): Todo {
+    const todos = this.loadTodos();
+
     const todo: Todo = {
       id: generateId(),
       title: data.title,
@@ -45,7 +107,8 @@ export class TodoStore {
       updatedAt: now(),
     };
 
-    this.todos.set(todo.id, todo);
+    todos.set(todo.id, todo);
+    this.saveTodos(todos);
     return todo;
   }
 
@@ -53,14 +116,16 @@ export class TodoStore {
    * Get a todo by ID.
    */
   get(id: string): Todo | undefined {
-    return this.todos.get(id);
+    const todos = this.loadTodos();
+    return todos.get(id);
   }
 
   /**
    * List todos with optional filtering.
    */
   list(filter: TodoFilter = {}): Todo[] {
-    let results = Array.from(this.todos.values());
+    const todos = this.loadTodos();
+    let results = Array.from(todos.values());
 
     // Filter by completion status
     if (filter.completed !== undefined) {
@@ -129,15 +194,19 @@ export class TodoStore {
       Pick<Todo, "title" | "description" | "priority" | "completed">
     >
   ): Todo | undefined {
-    const todo = this.todos.get(id);
+    const todos = this.loadTodos();
+    const todo = todos.get(id);
     if (!todo) {
       return undefined;
     }
 
     // Filter out undefined values to avoid overwriting existing properties
-    const filteredData: Partial<Pick<Todo, "title" | "description" | "priority" | "completed">> = {};
+    const filteredData: Partial<
+      Pick<Todo, "title" | "description" | "priority" | "completed">
+    > = {};
     if (data.title !== undefined) filteredData.title = data.title;
-    if (data.description !== undefined) filteredData.description = data.description;
+    if (data.description !== undefined)
+      filteredData.description = data.description;
     if (data.priority !== undefined) filteredData.priority = data.priority;
     if (data.completed !== undefined) filteredData.completed = data.completed;
 
@@ -156,7 +225,8 @@ export class TodoStore {
       }
     }
 
-    this.todos.set(id, updated);
+    todos.set(id, updated);
+    this.saveTodos(todos);
     return updated;
   }
 
@@ -164,7 +234,8 @@ export class TodoStore {
    * Toggle todo completion status.
    */
   toggle(id: string): Todo | undefined {
-    const todo = this.todos.get(id);
+    const todos = this.loadTodos();
+    const todo = todos.get(id);
     if (!todo) {
       return undefined;
     }
@@ -177,7 +248,8 @@ export class TodoStore {
       updatedAt: now(),
     };
 
-    this.todos.set(id, updated);
+    todos.set(id, updated);
+    this.saveTodos(todos);
     return updated;
   }
 
@@ -185,41 +257,49 @@ export class TodoStore {
    * Delete a todo.
    */
   delete(id: string): boolean {
-    return this.todos.delete(id);
+    const todos = this.loadTodos();
+    const existed = todos.delete(id);
+    if (existed) {
+      this.saveTodos(todos);
+    }
+    return existed;
   }
 
   /**
    * Clear completed todos.
    */
   clearCompleted(): { cleared: number; remaining: number } {
+    const todos = this.loadTodos();
     let cleared = 0;
-    for (const [id, todo] of this.todos) {
+    for (const [id, todo] of todos) {
       if (todo.completed) {
-        this.todos.delete(id);
+        todos.delete(id);
         cleared++;
       }
     }
-    return { cleared, remaining: this.todos.size };
+    this.saveTodos(todos);
+    return { cleared, remaining: todos.size };
   }
 
   /**
    * Get todo statistics.
    */
   getStats(): TodoStats {
-    const todos = Array.from(this.todos.values());
-    const completed = todos.filter((t) => t.completed).length;
-    const pending = todos.length - completed;
+    const todos = this.loadTodos();
+    const allTodos = Array.from(todos.values());
+    const completed = allTodos.filter((t) => t.completed).length;
+    const pending = allTodos.length - completed;
 
     return {
-      total: todos.length,
+      total: allTodos.length,
       completed,
       pending,
       byPriority: {
-        low: todos.filter((t) => t.priority === "low").length,
-        medium: todos.filter((t) => t.priority === "medium").length,
-        high: todos.filter((t) => t.priority === "high").length,
+        low: allTodos.filter((t) => t.priority === "low").length,
+        medium: allTodos.filter((t) => t.priority === "medium").length,
+        high: allTodos.filter((t) => t.priority === "high").length,
       },
-      completionRate: todos.length > 0 ? completed / todos.length : 0,
+      completionRate: allTodos.length > 0 ? completed / allTodos.length : 0,
     };
   }
 
@@ -227,13 +307,13 @@ export class TodoStore {
    * Clear all todos (for testing).
    */
   clear(): void {
-    this.todos.clear();
+    this.saveTodos(new Map());
   }
 
   /**
    * Get count of todos.
    */
   count(): number {
-    return this.todos.size;
+    return this.loadTodos().size;
   }
 }

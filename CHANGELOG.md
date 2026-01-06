@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-01-06
+
+### Added
+
+#### Todo Example Enhancements
+
+- **Shared File Storage** - TypeScript and Python backends now share the same data file
+  - New `FileStore` class in TypeScript with JSON persistence
+  - Store factory with `TODO_STORE_TYPE` environment variable (`file` or `memory`)
+  - Default path: `packages/examples/todo/data/todos.json`
+  - Enables MCP clients and HTTP server to share data seamlessly
+  - Python backend updated with matching file-based storage
+
+- **React Frontend** - Complete rewrite with AFD UX principles
+  - **Toast Notifications** - Rich toast system with confidence bars, execution time, warnings
+  - **TrustPanel** - Displays command confidence, reasoning, sources, and execution plan
+  - **ConfirmModal** - Confirmation dialogs for destructive operations with keyboard support
+  - **ErrorRecovery** - Error panel with retry functionality and suggestions
+  - **CommandLog** - Real-time command execution log with timestamps
+  - **Remote Change Detection** - Polls for external changes (CLI/MCP) and shows batched notifications
+  - **Batch Operations** - Select all, toggle selected, delete selected with batch commands
+  - **Filters** - All/Pending/Completed filter buttons
+  - New dark theme with accent color (#e94560)
+  - `useConfirm` hook for promise-based confirmation dialogs
+  - `useToast` hook with `showResultToast` and `showRemoteChanges` helpers
+
+- **Vanilla JS Frontend** - Feature parity with React
+  - Remote change detection with batched toast notifications
+  - URL parameter support for view switching (`?view=pending`)
+  - Integrated warnings in toasts instead of separate notifications
+  - `hasBaseline` flag to prevent false positive change detection on first load
+
+- **MCP Server Improvements**
+  - Debug logging for grouped tool calls in dev mode
+  - Better error messages for invalid grouped tool calls with available actions list
+  - Transport mode configuration via `TRANSPORT` environment variable
+
+### Changed
+
+- All todo commands now use `store/index.ts` factory instead of direct memory store import
+- React frontend styling completely redesigned with new color scheme
+- Vanilla frontend updated with info toast type and remote change styling
+
+### Fixed
+
+- **Remote Change Detection** - Fixed false positive on first load when previous todos map was empty
+  - Added `hasBaselineRef` (React) / `hasBaseline` (Vanilla) flag
+  - Change detection now only triggers after baseline is established
+
+### Documentation
+
+- Updated TypeScript backend README with storage configuration
+- Updated Python backend README with environment variables
+- Added `data/.gitkeep` for shared data directory
+
+---
+
 ## [0.6.0] - 2026-01-01
 
 ### Added
