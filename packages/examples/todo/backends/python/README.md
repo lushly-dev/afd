@@ -42,17 +42,17 @@ TODO_STORE_PATH=/path/to/todos.json python server.py
 
 | Command            | Type     | Description               |
 | ------------------ | -------- | ------------------------- |
-| `todo.create`      | mutation | Create a new todo         |
-| `todo.list`        | query    | List todos with filtering |
-| `todo.get`         | query    | Get a single todo by ID   |
-| `todo.update`      | mutation | Update todo fields        |
-| `todo.toggle`      | mutation | Toggle completion status  |
-| `todo.delete`      | mutation | Delete a todo             |
-| `todo.clear`       | mutation | Clear all completed todos |
-| `todo.stats`       | query    | Get todo statistics       |
-| `todo.createBatch` | mutation | Create multiple todos     |
-| `todo.deleteBatch` | mutation | Delete multiple todos     |
-| `todo.toggleBatch` | mutation | Toggle multiple todos     |
+| `todo-create`      | mutation | Create a new todo         |
+| `todo-list`        | query    | List todos with filtering |
+| `todo-get`         | query    | Get a single todo by ID   |
+| `todo-update`      | mutation | Update todo fields        |
+| `todo-toggle`      | mutation | Toggle completion status  |
+| `todo-delete`      | mutation | Delete a todo             |
+| `todo-clear`       | mutation | Clear all completed todos |
+| `todo-stats`       | query    | Get todo statistics       |
+| `todo-createBatch` | mutation | Create multiple todos     |
+| `todo-deleteBatch` | mutation | Delete multiple todos     |
+| `todo-toggleBatch` | mutation | Toggle multiple todos     |
 
 ## Conformance
 

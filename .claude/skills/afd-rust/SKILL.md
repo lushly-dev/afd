@@ -203,7 +203,7 @@ impl CommandHandler for CreateTodoHandler {
 use afd::{CommandDefinition, CommandParameter, JsonSchemaType};
 
 let create_cmd = CommandDefinition::new(
-    "todo.create",
+    "todo-create",
     "Create a new todo item",
     vec![
         CommandParameter::required_string("title", "The todo title"),
@@ -267,18 +267,18 @@ registry.register(list_todos_cmd)?;
 registry.register(get_todo_cmd)?;
 
 // Check if command exists
-if registry.has("todo.create") {
+if registry.has("todo-create") {
     println!("Command registered");
 }
 
 // Get command definition
-if let Some(cmd) = registry.get("todo.create") {
+if let Some(cmd) = registry.get("todo-create") {
     println!("Description: {}", cmd.description);
 }
 
 // Execute command
 let result = registry.execute(
-    "todo.create",
+    "todo-create",
     serde_json::json!({"title": "Test"}),
     None,
 ).await;
@@ -294,12 +294,12 @@ let request = BatchRequest {
     commands: vec![
         BatchCommand {
             id: Some("1".to_string()),
-            command: "todo.create".to_string(),
+            command: "todo-create".to_string(),
             input: serde_json::json!({"title": "First"}),
         },
         BatchCommand {
             id: Some("2".to_string()),
-            command: "todo.create".to_string(),
+            command: "todo-create".to_string(),
             input: serde_json::json!({"title": "Second"}),
         },
     ],

@@ -60,6 +60,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated Python backend README with environment variables
 - Added `data/.gitkeep` for shared data directory
 
+#### Multi-Backend MCP Configuration
+
+- **VS Code MCP Configuration** - Added `.vscode/mcp.json` setup documentation
+  - TypeScript backend: stdio transport (auto-starts via VS Code)
+  - Python backend: stdio transport (auto-starts via VS Code)
+  - Rust backend: HTTP/SSE transport (requires manual server start)
+  - Only ONE backend should be enabled at a time (tool name conflicts)
+
+- **Rust Backend Fixes**
+  - Fixed command names from dots to hyphens (`todo.create` → `todo-create`)
+  - Fixed list response format to return `{ todos, total, hasMore }` object
+  - Created comprehensive README with build/run instructions
+
+- **Skill Files Updated** - All 5 AFD skill files aligned with implementation
+  - `afd-developer`: Command naming convention `domain-action` not `domain.action`
+  - `afd-typescript`: All command examples use hyphen format
+  - `afd-python`: Multiple command references corrected
+  - `afd-rust`: Registry and batch execution examples fixed
+  - `pr-review`: Command naming guideline updated
+
 ---
 
 ## [0.6.0] - 2026-01-01

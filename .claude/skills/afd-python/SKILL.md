@@ -51,7 +51,7 @@ class CreateTodoInput(BaseModel):
 
 # Define command
 @server.command(
-    name="todo.create",
+    name="todo-create",
     description="Create a new todo item",
     input_schema=CreateTodoInput,
     mutation=True
@@ -90,7 +90,7 @@ class ListTodosInput(BaseModel):
     offset: int = Field(0, ge=0)
 
 @server.command(
-    name="todo.list",
+    name="todo-list",
     description="List all todo items with optional filtering",
     input_schema=ListTodosInput
 )
@@ -257,7 +257,7 @@ return success(
 return error(
     code="NOT_FOUND",
     message=f"Todo '{todo_id}' not found",
-    suggestion="Use todo.list to see available todos"
+    suggestion="Use todo-list to see available todos"
 )
 
 # Validation error
@@ -303,10 +303,10 @@ server = create_server(
 )
 
 # Register commands using decorators
-@server.command(name="todo.create", ...)
+@server.command(name="todo-create", ...)
 async def create_todo(input): ...
 
-@server.command(name="todo.list", ...)
+@server.command(name="todo-list", ...)
 async def list_todos(input): ...
 
 # Run server
@@ -373,7 +373,7 @@ class IdInput(BaseModel):
 
 # Commands
 @server.command(
-    name="todo.create",
+    name="todo-create",
     description="Create a new todo item",
     input_schema=CreateTodoInput,
     mutation=True
@@ -389,7 +389,7 @@ async def create_todo(input: CreateTodoInput) -> CommandResult[Todo]:
     return success(data=todo, reasoning=f"Created todo '{todo.title}'")
 
 @server.command(
-    name="todo.get",
+    name="todo-get",
     description="Get a todo by ID",
     input_schema=IdInput
 )
@@ -398,12 +398,12 @@ async def get_todo(input: IdInput) -> CommandResult[Todo]:
         return error(
             code="NOT_FOUND",
             message=f"Todo '{input.id}' not found",
-            suggestion="Use todo.list to see available todos"
+            suggestion="Use todo-list to see available todos"
         )
     return success(data=todos[input.id])
 
 @server.command(
-    name="todo.delete",
+    name="todo-delete",
     description="Delete a todo by ID",
     input_schema=IdInput,
     mutation=True

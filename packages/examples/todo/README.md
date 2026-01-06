@@ -113,6 +113,65 @@ Any backend works with any frontend because they share the same command schemas:
 | TypeScript | React    | `pnpm dev:ts` + `pnpm dev:react` |
 | Python     | Vanilla  | `pnpm dev:py` + `pnpm dev:web`   |
 | Python     | React    | `pnpm dev:py` + `pnpm dev:react` |
+| Rust       | Vanilla  | `cargo run -- server` + `pnpm dev:web` |
+| Rust       | React    | `cargo run -- server` + `pnpm dev:react` |
+
+## VS Code MCP Configuration
+
+All three backends can be configured as MCP servers in VS Code. Edit `.vscode/mcp.json`:
+
+```jsonc
+{
+  "mcpServers": {
+    // TypeScript backend (stdio transport - auto-starts)
+    "afd-todo-ts": {
+      "command": "node",
+      "args": ["packages/examples/todo/backends/typescript/dist/server.js"],
+      "disabled": false
+    },
+    
+    // Python backend (stdio transport - auto-starts)
+    "afd-todo-python": {
+      "command": "python",
+      "args": ["-m", "todo_backend"],
+      "cwd": "packages/examples/todo/backends/python",
+      "disabled": true
+    },
+    
+    // Rust backend (HTTP/SSE transport - requires manual server start)
+    "afd-todo-rust": {
+      "url": "http://127.0.0.1:3100/sse",
+      "disabled": true
+    }
+  }
+}
+```
+
+### Transport Differences
+
+| Backend | Transport | Auto-Start | Notes |
+|---------|-----------|------------|-------|
+| TypeScript | stdio | ✅ Yes | VS Code spawns the process |
+| Python | stdio | ✅ Yes | VS Code spawns the process |
+| Rust | HTTP/SSE | ❌ No | Must start server manually first |
+
+### Switching Backends
+
+1. **Enable ONE backend** - Set `"disabled": false` for the desired backend
+2. **Disable others** - Set `"disabled": true` (they share the same tool names)
+3. **Reload VS Code** - Or use Command Palette → "MCP: Restart Servers"
+
+### Rust Backend Extra Step
+
+Since Rust uses HTTP transport, start the server before enabling MCP:
+
+```bash
+cd packages/examples/todo/backends/rust
+cargo run --release -- server
+# Server runs on http://127.0.0.1:3100
+```
+
+Then enable `afd-todo-rust` in mcp.json and reload VS Code.
 
 ## API Contract
 

@@ -41,7 +41,7 @@ const inputSchema = z.object({
 });
 
 export const createTodo = defineCommand({
-  name: 'todo.create',
+  name: 'todo-create',
   description: 'Create a new todo item',
   category: 'todo',
   mutation: true,
@@ -65,7 +65,7 @@ export const createTodo = defineCommand({
 
 ```typescript
 export const updateTodo = defineCommand({
-  name: 'todo.update',
+  name: 'todo-update',
   description: 'Update a todo item',
   category: 'todo',
   mutation: true,
@@ -210,7 +210,7 @@ return success(user, {
 ```typescript
 // Not found
 return error('NOT_FOUND', `Todo ${input.id} not found`, {
-  suggestion: 'Use todo.list to see available todos',
+  suggestion: 'Use todo-list to see available todos',
 });
 
 // Validation error

@@ -1,8 +1,8 @@
 # AFD - Agent-First Development
 
-A methodology and toolkit for building software where AI agents are first-class users.
+> ⚠️ **Alpha Status** — This project is under active development. APIs and patterns may change. Feedback welcome!
 
-> **"The best UI is no UI."** — AFD makes this UX principle achievable.
+A methodology and toolkit for building software where AI agents are first-class users.
 
 ## Philosophy: UX Design for AI Collaborators
 
@@ -18,7 +18,7 @@ This enables:
 - **Human-AI collaboration** — Shared command language both can understand and verify
 - **Reductive design** — Systematically remove UI friction as AI capabilities grow
 
-📖 **[Read the full philosophy →](./docs/philosophy.md)**
+**[Read the full philosophy →](./docs/philosophy.md)**
 
 ---
 
@@ -144,7 +144,7 @@ See [Command Schema Guide](./docs/command-schema-guide.md) for detailed patterns
 │  • Test via CLI: afd call <command>             │
 │  • Cover edge cases and error states            │
 │  • Add automated tests (Vitest)                 │
-│  • ⛔ Do NOT proceed until CLI works            │
+│  • Do NOT proceed until CLI works            │
 ├─────────────────────────────────────────────────┤
 │  Step 3: SURFACE                                │
 │  • Build UI component that invokes command      │
@@ -270,7 +270,7 @@ afd validate --category document
 
 | Example | Description |
 |---------|-------------|
-| [Todo App](./packages/examples/todo) | Multi-stack example (TS/Python backends, Vanilla/React frontends) with shared storage, trust UI, and remote change detection |
+| [Todo App](./packages/examples/todo) | Multi-stack example with 3 backends (TypeScript, Python, Rust) and 2 frontends (Vanilla JS, React). Features shared storage, trust UI, remote change detection, and full MCP integration |
 
 ## Testing
 
@@ -297,7 +297,7 @@ Performance tests establish baselines and detect regressions:
 pnpm test
 
 # Example output:
-# 📊 Performance Summary
+# Performance Summary
 # Command             Duration    Threshold   Status
 # todo.create         0.85ms      10ms        ✓
 # todo.list           8.7ms       20ms        ✓
