@@ -85,3 +85,11 @@ export {
 	type Tracer,
 	type Span,
 } from './middleware.js';
+
+// Bootstrap tools
+export {
+	getBootstrapCommands,
+	createAfdHelpCommand,
+	createAfdDocsCommand,
+	createAfdSchemaCommand,
+} from './bootstrap/index.js';
