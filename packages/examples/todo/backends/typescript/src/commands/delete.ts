@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { defineCommand, success, failure } from '@afd/server';
-import { store } from '../store/memory.js';
+import { store } from '../store/index.js';
 
 const inputSchema = z.object({
 	id: z.string().min(1, 'Todo ID is required'),

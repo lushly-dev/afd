@@ -7,7 +7,7 @@
 import { z } from 'zod';
 import { defineCommand, success } from '@afd/server';
 import type { CommandError } from '@afd/core';
-import { store } from '../store/memory.js';
+import { store } from '../store/index.js';
 
 const inputSchema = z.object({
 	ids: z

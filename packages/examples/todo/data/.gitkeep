@@ -1,0 +1,2 @@
+# This directory stores shared todo data between TypeScript and Python backends
+# The todos.json file is created automatically when the server starts

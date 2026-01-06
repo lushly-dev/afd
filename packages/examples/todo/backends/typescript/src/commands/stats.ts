@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { defineCommand, success } from '@afd/server';
-import { store } from '../store/memory.js';
+import { store } from '../store/index.js';
 import type { TodoStats } from '../types.js';
 
 const inputSchema = z.object({});

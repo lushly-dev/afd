@@ -8,6 +8,7 @@ Multi-stack implementation of a Todo application demonstrating **Agent-First Dev
 - **Multi-Stack**: Identical functionality implemented in TypeScript and Python.
 - **MCP-Native**: Backends are Model Context Protocol (MCP) servers, ready for AI agents.
 - **Thin UI**: Frontends are thin surfaces that invoke commands via MCP.
+- **Shared Storage**: Both backends use the same JSON file for data persistence.
 
 ## Quick Start
 
@@ -65,6 +66,43 @@ pnpm dev:web
 pnpm dev:react
 ```
 
+## Storage Configuration
+
+Both backends support file-based storage (default) or in-memory storage:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TODO_STORE_TYPE` | `file` | `file` for shared JSON storage, `memory` for isolated in-memory |
+| `TODO_STORE_PATH` | `data/todos.json` | Path to the shared JSON file |
+
+File-based storage enables:
+- **MCP/HTTP Sharing**: MCP clients (stdio) and HTTP server see the same todos
+- **Cross-Backend Sharing**: TypeScript and Python backends share the same data
+- **Remote Change Detection**: UI polls for changes made via CLI or MCP
+
+## Frontend Features
+
+Both Vanilla JS and React frontends demonstrate AFD UX principles:
+
+### Trust & Transparency
+- **Toast Notifications**: Show command results with confidence bars, execution time, and warnings
+- **TrustPanel**: Displays confidence scores, reasoning, sources, and execution plans
+- **CommandLog**: Real-time log of all MCP command calls
+
+### User Control
+- **ConfirmModal**: Confirmation dialogs for destructive operations (delete, clear)
+- **ErrorRecovery**: Error panels with retry functionality and actionable suggestions
+- **Batch Operations**: Select all, toggle selected, delete selected
+
+### Multi-Surface Awareness
+- **Remote Change Detection**: Polls every 3 seconds for external changes
+- **Batched Notifications**: Groups multiple changes into single toast (e.g., "4 items added")
+- **Source Indicators**: Shows "🌐 Remote change" for changes from CLI/MCP
+
+### Filtering & Navigation
+- **Filter Buttons**: All / Pending / Completed views
+- **URL Parameters**: `?view=pending` for direct linking (Vanilla)
+
 ## Mix and Match
 
 Any backend works with any frontend because they share the same command schemas:
@@ -79,6 +117,22 @@ Any backend works with any frontend because they share the same command schemas:
 ## API Contract
 
 The source of truth for this example is the [test-cases.json](./spec/test-cases.json) file, which defines the expected inputs, outputs, and state transitions for all commands.
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `todo-create` | Create a new todo |
+| `todo-list` | List todos with filtering/pagination |
+| `todo-get` | Get a single todo by ID |
+| `todo-update` | Update a todo's properties |
+| `todo-toggle` | Toggle completion status |
+| `todo-delete` | Delete a todo |
+| `todo-clear` | Clear completed todos |
+| `todo-stats` | Get statistics |
+| `todo-createBatch` | Create multiple todos |
+| `todo-toggleBatch` | Toggle multiple todos |
+| `todo-deleteBatch` | Delete multiple todos |
 
 ## Performance Features
 

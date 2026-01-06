@@ -20,6 +20,8 @@ import { allCommands } from "./commands/index.js";
 const PORT = parseInt(process.env.PORT ?? "3100", 10);
 const HOST = process.env.HOST ?? "localhost";
 const LOG_LEVEL = process.env.LOG_LEVEL ?? "info";
+// Transport mode: "auto" (default), "http" (for UI), or "stdio" (for MCP clients)
+const TRANSPORT = (process.env.TRANSPORT ?? "auto") as "auto" | "http" | "stdio";
 
 /**
  * Dev mode: enables verbose errors, permissive CORS, stack traces.
@@ -45,6 +47,8 @@ function createServer() {
     port: PORT,
     host: HOST,
     devMode: DEV_MODE,
+    // Transport mode from environment
+    transport: TRANSPORT,
     // CORS follows devMode by default (permissive in dev, restrictive in prod)
     // Explicitly set cors: true here for the UI to work in both modes
     cors: true,

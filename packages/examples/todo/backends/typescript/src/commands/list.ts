@@ -8,7 +8,7 @@
 import { z } from 'zod';
 import { defineCommand, success } from '@afd/server';
 import type { Alternative } from '@afd/core';
-import { store } from '../store/memory.js';
+import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 
 const inputSchema = z.object({

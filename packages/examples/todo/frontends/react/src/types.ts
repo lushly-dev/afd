@@ -18,6 +18,20 @@ export interface TodoStats {
   completionRate: number;
 }
 
+export interface Source {
+  type?: string;
+  title?: string;
+  url?: string;
+  relevance?: number;
+}
+
+export interface PlanStep {
+  name?: string;
+  action?: string;
+  description?: string;
+  status?: "pending" | "in-progress" | "complete" | "failed";
+}
+
 export interface CommandResult<T> {
   success: boolean;
   data: T;
@@ -25,10 +39,18 @@ export interface CommandResult<T> {
     code: string;
     message: string;
     suggestion?: string;
+    retryable?: boolean;
   };
   reasoning?: string;
   confidence?: number;
+  warnings?: Array<{
+    code: string;
+    message: string;
+    severity?: string;
+  }>;
   metadata?: {
     executionTimeMs: number;
   };
+  sources?: Source[];
+  plan?: PlanStep[];
 }

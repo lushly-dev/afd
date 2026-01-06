@@ -270,7 +270,7 @@ afd validate --category document
 
 | Example | Description |
 |---------|-------------|
-| [Todo App](./packages/examples/todo-app) | Complete working example with CLI, MCP server, and web UI |
+| [Todo App](./packages/examples/todo) | Multi-stack example (TS/Python backends, Vanilla/React frontends) with shared storage, trust UI, and remote change detection |
 
 ## Testing
 
@@ -303,7 +303,7 @@ pnpm test
 # todo.list           8.7ms       20ms        ✓
 ```
 
-Commands are tested in isolation (no network, no database) to measure pure business logic performance. See [Performance Testing Guide](./packages/examples/todo-app/src/commands/__tests__/performance.test.ts) for patterns.
+Commands are tested in isolation (no network, no database) to measure pure business logic performance. See the Todo example for patterns.
 
 ## Roadmap
 

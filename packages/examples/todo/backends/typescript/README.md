@@ -11,6 +11,35 @@ pnpm start
 
 Server runs at `http://localhost:3100`.
 
+## Storage Configuration
+
+By default, the server uses **file-based storage** (`data/todos.json`) so that:
+- MCP clients (stdio transport) share data with the HTTP server
+- The UI and MCP tools see the same todos
+
+### Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TODO_STORE_TYPE` | `file` | Storage type: `file` or `memory` |
+| `TODO_STORE_PATH` | `./data/todos.json` | Path to JSON file (file mode only) |
+| `PORT` | `3100` | HTTP server port |
+| `HOST` | `localhost` | HTTP server host |
+| `TRANSPORT` | `auto` | Transport mode: `auto`, `http`, or `stdio` |
+
+### Examples
+
+```bash
+# Default: file storage, shared between MCP and HTTP
+pnpm start
+
+# Use in-memory storage (isolated per process)
+TODO_STORE_TYPE=memory pnpm start
+
+# Custom storage path
+TODO_STORE_PATH=/path/to/todos.json pnpm start
+```
+
 ## Commands
 
 | Command            | Type     | Description               |
