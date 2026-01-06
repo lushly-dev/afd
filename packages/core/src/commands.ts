@@ -219,6 +219,14 @@ export interface CommandRegistry {
 	listByCategory(category: string): CommandDefinition[];
 
 	/**
+	 * Get commands by tags.
+	 * @param tags - Array of tags to filter by
+	 * @param mode - 'all' requires commands to have ALL tags, 'any' requires at least one tag
+	 * @returns Commands matching the tag filter
+	 */
+	listByTags(tags: string[], mode: 'all' | 'any'): CommandDefinition[];
+
+	/**
 	 * Execute a command by name.
 	 */
 	execute<TOutput = unknown>(
@@ -291,6 +299,23 @@ export function createCommandRegistry(): CommandRegistry {
 
 		listByCategory(category) {
 			return Array.from(commands.values()).filter((cmd) => cmd.category === category);
+		},
+
+		listByTags(tags, mode) {
+			if (tags.length === 0) {
+				return [];
+			}
+			return Array.from(commands.values()).filter((cmd) => {
+				const cmdTags = cmd.tags ?? [];
+				if (cmdTags.length === 0) {
+					return false;
+				}
+				if (mode === 'all') {
+					return tags.every((tag) => cmdTags.includes(tag));
+				}
+				// mode === 'any'
+				return tags.some((tag) => cmdTags.includes(tag));
+			});
 		},
 
 		async execute<TOutput = unknown>(
