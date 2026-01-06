@@ -176,6 +176,34 @@ interface Warning {
 }
 ```
 
+## Command Naming Conventions
+
+Command names must be compatible with the MCP (Model Context Protocol) specification, which restricts tool names to the pattern `^[a-zA-Z0-9_-]{1,64}$`.
+
+### Naming Rules
+
+| Rule | Example | Rationale |
+|------|---------|-----------|
+| Use hyphens as separators | `todo-create`, `user-update` | MCP-compatible, IDE-friendly |
+| ~~Avoid dots~~ | ~~`todo.create`~~ | Dots are not allowed by MCP regex |
+| Keep names lowercase | `todo-list` not `Todo-List` | Consistency, CLI-friendly |
+| Use `namespace-action` pattern | `todo-create`, `auth-login` | Groups related commands |
+| Max 64 characters | `user-profile-update` | MCP limit |
+
+### Examples
+
+```typescript
+// ✅ Good - MCP compatible
+defineCommand({ name: 'todo-create', ... });
+defineCommand({ name: 'todo-list', ... });
+defineCommand({ name: 'user-updateProfile', ... });
+
+// ❌ Bad - dots not allowed by MCP
+defineCommand({ name: 'todo.create', ... });  // Will fail in Cursor, Claude Code, etc.
+```
+
+> **Note:** This convention ensures AFD commands work seamlessly with all MCP clients including Cursor, Claude Code, Antigravity, and other IDE integrations.
+
 ## Design Principles
 
 ### 1. Return Data for the UI You Want

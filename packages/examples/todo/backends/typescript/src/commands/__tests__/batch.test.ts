@@ -21,10 +21,10 @@ beforeEach(() => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// todo.createBatch
+// todo-createBatch
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('todo.createBatch', () => {
+describe('todo-createBatch', () => {
 	it('creates multiple todos successfully', async () => {
 		const result = await createBatch.handler(
 			{
@@ -124,10 +124,10 @@ describe('todo.createBatch', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// todo.deleteBatch
+// todo-deleteBatch
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('todo.deleteBatch', () => {
+describe('todo-deleteBatch', () => {
 	it('deletes multiple todos successfully', async () => {
 		// Create some todos first
 		const t1 = await createTodo.handler({ title: 'Delete 1', priority: 'medium' }, {});
@@ -238,10 +238,10 @@ describe('todo.deleteBatch', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// todo.toggleBatch
+// todo-toggleBatch
 // ═══════════════════════════════════════════════════════════════════════════════
 
-describe('todo.toggleBatch', () => {
+describe('todo-toggleBatch', () => {
 	it('toggles multiple todos', async () => {
 		const t1 = await createTodo.handler({ title: 'Toggle 1', priority: 'medium' }, {});
 		const t2 = await createTodo.handler({ title: 'Toggle 2', priority: 'medium' }, {});

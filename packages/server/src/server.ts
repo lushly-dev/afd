@@ -26,12 +26,37 @@ import {
   failure,
   isBatchRequest,
 } from "@afd/core";
+import { Server as McpSdkServer } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import {
+  ListToolsRequestSchema,
+  CallToolRequestSchema,
+} from "@modelcontextprotocol/sdk/types.js";
 import type { ZodCommandDefinition } from "./schema.js";
 import { validateInput, type ValidationResult } from "./validation.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Transport type for MCP server.
+ *
+ * - `"stdio"`: Standard input/output transport for IDE/CLI integration (Cursor, Claude Code, etc.)
+ * - `"http"`: HTTP/SSE transport for browser-based clients
+ * - `"auto"`: Auto-detect based on whether stdin is a TTY (stdio if piped, http if TTY)
+ */
+export type McpTransport = "stdio" | "http" | "auto";
+
+/**
+ * Detect whether stdin is being piped (non-TTY).
+ * Used for auto-detection of transport mode.
+ *
+ * @returns true if stdin is a pipe (not interactive), false if it's a TTY
+ */
+export function isStdinPiped(): boolean {
+  return !process.stdin.isTTY;
+}
 
 /**
  * MCP Server configuration options.
@@ -69,7 +94,33 @@ export interface McpServerOptions {
   /** Enable CORS for browser access (in production, requires explicit opt-in) */
   cors?: boolean;
 
-  /** Enable stdio transport (default: true) */
+  /**
+   * Transport protocol to use.
+   *
+   * - `"stdio"`: Standard input/output for IDE/agent integration (Cursor, Claude Code, Antigravity)
+   * - `"http"`: HTTP/SSE for browser-based clients and web UIs
+   * - `"auto"`: Auto-detect based on environment (stdio if piped, http if TTY) - **default**
+   *
+   * @default "auto"
+   *
+   * @example
+   * ```typescript
+   * // For IDE integration (Cursor, Claude Code):
+   * createMcpServer({ transport: "stdio", ... });
+   *
+   * // For web UI:
+   * createMcpServer({ transport: "http", ... });
+   *
+   * // Auto-detect (recommended for most cases):
+   * createMcpServer({ transport: "auto", ... });
+   * ```
+   */
+  transport?: McpTransport;
+
+  /**
+   * @deprecated Use `transport: "stdio"` or `transport: "auto"` instead.
+   * Enable stdio transport (default: true when transport is not specified)
+   */
   stdio?: boolean;
 
   /** Middleware to run before command execution */
@@ -116,11 +167,17 @@ export interface McpServer {
   /** Stop the server */
   stop(): Promise<void>;
 
-  /** Get server URL */
+  /** Get server URL (returns "stdio://" for stdio transport) */
   getUrl(): string;
 
   /** Get registered commands */
   getCommands(): ZodCommandDefinition[];
+
+  /**
+   * Get the resolved transport mode.
+   * Useful for debugging and logging.
+   */
+  getTransport(): "stdio" | "http";
 
   /** Execute a command directly (for testing) */
   execute(
@@ -191,13 +248,37 @@ export function createMcpServer(options: McpServerOptions): McpServer {
     devMode = false,
     // In dev mode, CORS is permissive by default; in production, it's off by default
     cors = devMode,
-    stdio = true,
+    transport = "auto",
+    stdio, // deprecated, for backward compatibility
     middleware = [],
     onCommand,
     onError,
     toolStrategy = "individual",
     groupByFn,
   } = options;
+
+  // Resolve transport mode
+  // - If explicit transport is set, use it
+  // - If deprecated stdio option is set, use it for backward compatibility
+  // - Otherwise, auto-detect based on environment
+  function resolveTransport(): "stdio" | "http" {
+    // Handle deprecated stdio option for backward compatibility
+    if (stdio !== undefined) {
+      return stdio ? "stdio" : "http";
+    }
+
+    // Auto-detect: use stdio if stdin is piped (not a TTY), otherwise use HTTP
+    if (transport === "auto") {
+      return isStdinPiped() ? "stdio" : "http";
+    }
+
+    // Explicit transport mode (stdio or http)
+    return transport as "stdio" | "http";
+  }
+
+  const resolvedTransport = resolveTransport();
+  const useStdio = resolvedTransport === "stdio";
+  const useHttp = resolvedTransport === "http";
 
   // Build command map for quick lookup
   const commandMap = new Map<string, ZodCommandDefinition>();
@@ -894,71 +975,188 @@ export function createMcpServer(options: McpServerOptions): McpServer {
     };
   }
 
+  // Track MCP SDK server for stdio transport cleanup
+  let mcpSdkServer: McpSdkServer | null = null;
+
   return {
     async start() {
       if (isRunning) {
         return;
       }
 
-      // Start stdio transport if enabled
-      if (stdio) {
-        const readline = await import("node:readline");
-        const rl = readline.createInterface({
-          input: process.stdin,
-          terminal: false,
+      // Start stdio transport if enabled using official MCP SDK
+      if (useStdio) {
+        mcpSdkServer = new McpSdkServer(
+          { name, version },
+          { capabilities: { tools: {} } }
+        );
+
+        // Build tools list including afd.batch
+        const toolsList = [
+          // Built-in afd.batch tool
+          {
+            name: "afd-batch",
+            description: "Execute multiple commands in a single batch request with partial success semantics",
+            inputSchema: {
+              type: "object" as const,
+              properties: {
+                commands: {
+                  type: "array",
+                  description: "Array of commands to execute",
+                  items: {
+                    type: "object",
+                    properties: {
+                      id: { type: "string", description: "Optional client-provided ID for correlating results" },
+                      command: { type: "string", description: "The command name to execute" },
+                      input: { type: "object", description: "Input parameters for the command" },
+                    },
+                    required: ["command"],
+                  },
+                },
+                options: {
+                  type: "object",
+                  description: "Batch execution options",
+                  properties: {
+                    stopOnError: { type: "boolean", description: "Stop execution on first error" },
+                    timeout: { type: "number", description: "Timeout in milliseconds for entire batch" },
+                  },
+                },
+              },
+              required: ["commands"],
+            },
+          },
+          // User-defined commands
+          ...commands.map((cmd) => {
+            const { type: _type, ...restSchema } = cmd.jsonSchema;
+            return {
+              name: cmd.name,
+              description: cmd.description,
+              inputSchema: {
+                type: "object" as const,
+                ...restSchema,
+              },
+            };
+          }),
+        ];
+
+        // Register tools/list handler
+        mcpSdkServer.setRequestHandler(ListToolsRequestSchema, async () => ({
+          tools: toolsList,
+        }));
+
+        // Register tools/call handler
+        mcpSdkServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+          const toolName = request.params.name;
+          const args = request.params.arguments ?? {};
+
+          // Handle built-in afd.batch tool
+          if (toolName === "afd-batch") {
+            // Validate that args looks like a BatchRequest before processing
+            if (!isBatchRequest(args)) {
+              return {
+                content: [{ type: "text", text: JSON.stringify({
+                  success: false,
+                  error: {
+                    code: "INVALID_BATCH_REQUEST",
+                    message: "Invalid batch request format",
+                    suggestion: "Provide { commands: [...] } with command objects",
+                  },
+                }, null, 2) }],
+                isError: true,
+              };
+            }
+            const result = await executeBatch(args, {
+              traceId: `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            });
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+              isError: !result.success,
+            };
+          }
+
+          // Handle user-defined commands
+          const result = await executeCommand(toolName, args, {
+            traceId: `trace-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          });
+
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+            isError: !result.success,
+          };
         });
 
-        rl.on("line", async (line) => {
-          if (!line.trim()) return;
-          try {
-            const request = JSON.parse(line) as McpRequest;
-            const response = await handleAsyncMcpRequest(request);
-            process.stdout.write(JSON.stringify(response) + "\n");
-          } catch (error) {
-            // Silent fail for parse errors to avoid breaking protocol
-          }
-        });
+        // Connect to stdio transport
+        const transport = new StdioServerTransport();
+        await mcpSdkServer.connect(transport);
+
+        isRunning = true;
+
+        // For stdio-only mode, we're done
+        if (!useHttp) {
+          return;
+        }
       }
 
-      httpServer = createServer(createRequestHandler());
+      // Start HTTP transport if enabled
+      if (useHttp) {
+        httpServer = createServer(createRequestHandler());
 
-      await new Promise<void>((resolve, reject) => {
-        httpServer!.on("error", reject);
-        httpServer!.listen(port, host, () => {
-          isRunning = true;
-          resolve();
+        await new Promise<void>((resolve, reject) => {
+          httpServer!.on("error", reject);
+          httpServer!.listen(port, host, () => {
+            isRunning = true;
+            resolve();
+          });
         });
-      });
+      }
     },
 
     async stop() {
-      if (!isRunning || !httpServer) {
+      if (!isRunning) {
         return;
       }
 
-      // Close all SSE clients
-      for (const client of sseClients.values()) {
-        client.response.end();
+      // Close MCP SDK server if it exists
+      if (mcpSdkServer) {
+        await mcpSdkServer.close();
+        mcpSdkServer = null;
       }
-      sseClients.clear();
 
-      await new Promise<void>((resolve, reject) => {
-        httpServer!.close((err) => {
-          if (err) reject(err);
-          else resolve();
+      // Close HTTP server if it exists
+      if (httpServer) {
+        // Close all SSE clients
+        for (const client of sseClients.values()) {
+          client.response.end();
+        }
+        sseClients.clear();
+
+        await new Promise<void>((resolve, reject) => {
+          httpServer!.close((err) => {
+            if (err) reject(err);
+            else resolve();
+          });
         });
-      });
 
-      httpServer = null;
+        httpServer = null;
+      }
+
       isRunning = false;
     },
 
     getUrl() {
-      return `http://${host}:${port}`;
+      return useHttp ? `http://${host}:${port}` : "stdio://";
     },
 
     getCommands() {
       return commands;
+    },
+
+    /**
+     * Get the resolved transport mode.
+     * Useful for debugging and logging.
+     */
+    getTransport(): "stdio" | "http" {
+      return resolvedTransport;
     },
 
     execute: executeCommand,

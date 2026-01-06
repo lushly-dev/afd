@@ -28,7 +28,7 @@ export interface ListResult {
 }
 
 export const listTodos = defineCommand<typeof inputSchema, ListResult>({
-	name: 'todo.list',
+	name: 'todo-list',
 	description: 'List todos with optional filtering and pagination',
 	category: 'todo',
 	mutation: false,
