@@ -67,36 +67,44 @@ function createServer() {
 async function main() {
   const server = createServer();
 
-  // Use console.error for logging to avoid interfering with MCP stdio
-  console.error("Starting Todo App MCP Server...");
-  console.error(`  Name: todo-app`);
-  console.error(`  Version: 1.0.0`);
-  console.error(
-    `  Mode: ${
-      DEV_MODE
-        ? "🔧 DEVELOPMENT (verbose errors, permissive CORS)"
-        : "🔒 PRODUCTION (secure defaults)"
-    }`
-  );
-  console.error(`  Commands: ${allCommands.length}`);
-  console.error("");
+  // Only log startup messages if running interactively (TTY/HTTP mode)
+  // In stdio mode, stderr output can interfere with MCP protocol on some clients
+  const isInteractive = process.stdin.isTTY;
+
+  if (isInteractive) {
+    console.error("Starting Todo App MCP Server...");
+    console.error(`  Name: todo-app`);
+    console.error(`  Version: 1.0.0`);
+    console.error(
+      `  Mode: ${
+        DEV_MODE
+          ? "🔧 DEVELOPMENT (verbose errors, permissive CORS)"
+          : "🔒 PRODUCTION (secure defaults)"
+      }`
+    );
+    console.error(`  Commands: ${allCommands.length}`);
+    console.error("");
+  }
 
   await server.start();
 
-  console.error(`Server running at ${server.getUrl()}`);
-  console.error("");
-  console.error("Connect with the AFD CLI:");
-  console.error(`  afd connect ${server.getUrl()}/sse`);
-  console.error("");
-  console.error("Or open the UI:");
-  console.error(`  Open ui/index.html in a browser`);
-  console.error("");
-  console.error("Available commands:");
-  for (const cmd of server.getCommands()) {
-    console.error(`  - ${cmd.name}: ${cmd.description}`);
+  if (isInteractive) {
+    console.error(`Server running at ${server.getUrl()}`);
+    console.error("");
+    console.error("Connect with the AFD CLI:");
+    console.error(`  afd connect ${server.getUrl()}/sse`);
+    console.error("");
+    console.error("Or open the UI:");
+    console.error(`  Open ui/index.html in a browser`);
+    console.error("");
+    console.error("Available commands:");
+    for (const cmd of server.getCommands()) {
+      console.error(`  - ${cmd.name}: ${cmd.description}`);
+    }
+    console.error("");
+    console.error("Press Ctrl+C to stop.");
   }
-  console.error("");
-  console.error("Press Ctrl+C to stop.");
+
 
   // Handle shutdown
   process.on("SIGINT", async () => {
