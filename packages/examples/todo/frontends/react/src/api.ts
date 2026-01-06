@@ -46,7 +46,7 @@ export async function callTool<T>(
 }
 
 /**
- * Transport-level batch execution using the afd.batch tool.
+ * Transport-level batch execution using the afd-batch tool.
  * Executes multiple different commands in a single roundtrip.
  *
  * @example
@@ -91,7 +91,7 @@ export async function callBatch(
   commands: BatchCommand[],
   options?: BatchOptions
 ): Promise<BatchResult> {
-  return callTool<BatchResult>("afd.batch", {
+  return callTool<BatchResult>("afd-batch", {
     commands,
     options,
   }).then((res) => {
