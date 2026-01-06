@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(git -C /d/Github/Falkicon/afd config:*)",
+      "Bash(xargs:*)"
+    ]
+  }
+}

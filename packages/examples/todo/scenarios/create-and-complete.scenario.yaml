@@ -9,7 +9,7 @@ tags: [smoke, basic, p0]
 
 steps:
   # Step 0: Clear any existing todos for a clean slate
-  - command: todo.clear
+  - command: todo-clear
     description: Clear all todos before test
     input:
       all: true
@@ -17,7 +17,7 @@ steps:
       success: true
 
   # Step 1: Create a new todo
-  - command: todo.create
+  - command: todo-create
     description: Create a new todo item
     input:
       title: Buy groceries
@@ -34,7 +34,7 @@ steps:
         createdAt: { exists: true }
 
   # Step 2: Verify the todo appears in the list
-  - command: todo.list
+  - command: todo-list
     description: List all todos to verify creation
     expect:
       success: true
@@ -43,7 +43,7 @@ steps:
         total: { gte: 1 }
 
   # Step 3: Verify stats reflect the new todo
-  - command: todo.stats
+  - command: todo-stats
     description: Check statistics show pending todo
     expect:
       success: true

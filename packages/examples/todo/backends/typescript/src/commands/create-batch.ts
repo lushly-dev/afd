@@ -56,7 +56,7 @@ export interface BatchCreateResult {
 }
 
 export const createBatch = defineCommand<typeof inputSchema, BatchCreateResult>({
-	name: 'todo.createBatch',
+	name: 'todo-createBatch',
 	description: 'Create multiple todos at once with partial failure support',
 	category: 'todo',
 	mutation: true,

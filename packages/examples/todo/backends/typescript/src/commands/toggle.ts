@@ -12,7 +12,7 @@ const inputSchema = z.object({
 });
 
 export const toggleTodo = defineCommand<typeof inputSchema, Todo>({
-	name: 'todo.toggle',
+	name: 'todo-toggle',
 	description: 'Toggle the completion status of a todo',
 	category: 'todo',
 	mutation: true,

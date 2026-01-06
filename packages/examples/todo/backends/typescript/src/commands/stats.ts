@@ -10,7 +10,7 @@ import type { TodoStats } from '../types.js';
 const inputSchema = z.object({});
 
 export const getStats = defineCommand<typeof inputSchema, TodoStats>({
-	name: 'todo.stats',
+	name: 'todo-stats',
 	description: 'Get todo statistics',
 	category: 'todo',
 	mutation: false,

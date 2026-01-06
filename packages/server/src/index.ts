@@ -3,7 +3,10 @@
  *
  * This package provides tools for building MCP servers with:
  * - Zod-based command definitions with automatic validation
- * - MCP server factory with SSE/HTTP support
+ * - MCP server factory with multiple transport support:
+ *   - stdio: For IDE/agent integration (Cursor, Claude Code, Antigravity)
+ *   - http/SSE: For browser-based clients and web UIs
+ *   - auto: Auto-detect based on environment (default)
  * - Middleware for logging, tracing, rate limiting
  *
  * @example
@@ -22,10 +25,19 @@
  *   },
  * });
  *
+ * // Auto-detect transport (recommended)
  * const server = createMcpServer({
  *   name: 'my-server',
  *   version: '1.0.0',
  *   commands: [greet],
+ * });
+ *
+ * // Or explicitly set transport for IDE integration
+ * const stdioServer = createMcpServer({
+ *   name: 'my-server',
+ *   version: '1.0.0',
+ *   commands: [greet],
+ *   transport: 'stdio',
  * });
  *
  * await server.start();
@@ -50,8 +62,10 @@ export {
 // Server factory
 export {
 	createMcpServer,
+	isStdinPiped,
 	type McpServerOptions,
 	type McpServer,
+	type McpTransport,
 	type CommandMiddleware,
 } from './server.js';
 
