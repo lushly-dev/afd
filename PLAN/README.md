@@ -11,6 +11,9 @@ PLAN/
 │   ├── performance/            # Performance optimizations
 │   └── jtbd-testing/           # JTBD Scenario Testing Framework (4 phases complete)
 │
+├── in-process-binding/        # ❌ NOT STARTED - Zero-overhead local command execution
+│   └── 00-overview.plan.md    # Direct registry binding for co-located agents
+│
 ├── design-to-code/            # ❌ NOT STARTED - Figma + AFD integration
 │   └── 00-overview.md         # Design-to-code pipeline with Figma Make
 │
@@ -33,9 +36,10 @@ PLAN/
 
 ### Future Work (Not Started)
 
-1. **Rust Support** (`rust-support/`) - Prerequisite for Mint
-2. **Mint Distribution** (`rust-distribution/`) - Multi-platform deployment
-3. **Design-to-Code** (`design-to-code/`) - Figma integration
+1. **In-Process Binding** (`in-process-binding/`) - Zero-overhead local command execution
+2. **Rust Support** (`rust-support/`) - Prerequisite for Mint
+3. **Mint Distribution** (`rust-distribution/`) - Multi-platform deployment
+4. **Design-to-Code** (`design-to-code/`) - Figma integration
 
 ## Completed Work (Archive)
 
