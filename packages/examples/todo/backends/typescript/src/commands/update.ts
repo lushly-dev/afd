@@ -19,6 +19,7 @@ export const updateTodo = defineCommand<typeof inputSchema, Todo>({
   name: 'todo-update',
   description: "Update a todo item",
   category: "todo",
+  tags: ['todo', 'update', 'write', 'single'],
   mutation: true,
   version: "1.0.0",
   input: inputSchema,

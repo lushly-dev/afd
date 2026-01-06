@@ -59,6 +59,7 @@ export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>(
 	name: 'todo-toggleBatch',
 	description: 'Toggle completion status of multiple todos, or set all to a specific state',
 	category: 'todo',
+	tags: ['todo', 'toggle', 'write', 'batch'],
 	mutation: true,
 	version: '1.0.0',
 	input: inputSchema,

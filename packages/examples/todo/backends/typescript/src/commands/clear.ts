@@ -22,6 +22,7 @@ export const clearCompleted = defineCommand<typeof inputSchema, ClearResult>({
   name: 'todo-clear',
   description: "Clear completed todos (or all if specified)",
   category: "todo",
+  tags: ['todo', 'clear', 'write', 'batch', 'destructive'],
   mutation: true,
   version: "1.0.0",
   input: inputSchema,
