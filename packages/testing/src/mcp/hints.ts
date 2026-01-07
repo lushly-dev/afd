@@ -1,5 +1,5 @@
 /**
- * @fileoverview Agent hints system for @afd/testing
+ * @fileoverview Agent hints system for @lushly-dev/afd-testing
  *
  * Provides structured hints to help AI agents interpret command results
  * and determine next actions.

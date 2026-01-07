@@ -1,5 +1,5 @@
 /**
- * @afd/testing - Fixture Loader
+ * @lushly-dev/afd-testing - Fixture Loader
  *
  * Loads fixture files and applies them to set up initial test state.
  * Supports:
@@ -284,7 +284,7 @@ export async function applyFixture(
         cli: adapter.cli.command,
         handler: async (cmd, input) => {
           const result = await handler(cmd, input);
-          return { success: true, data: result } as import("@afd/core").CommandResult<unknown>;
+          return { success: true, data: result } as import("@lushly-dev/afd-core").CommandResult<unknown>;
         },
         cwd: options.cwd,
         env: options.env,

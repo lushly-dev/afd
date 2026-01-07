@@ -1,11 +1,11 @@
 /**
- * @afd/testing - Scenario Executor
+ * @lushly-dev/afd-testing - Scenario Executor
  *
  * Executes scenario steps sequentially, evaluates results, and produces a ScenarioResult.
  * Supports fixture loading and step references.
  */
 
-import type { CommandResult } from "@afd/core";
+import type { CommandResult } from "@lushly-dev/afd-core";
 import type { Scenario, Step, FixtureConfig } from "../types/scenario.js";
 import type {
   ScenarioResult,

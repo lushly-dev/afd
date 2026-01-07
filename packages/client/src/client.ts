@@ -89,7 +89,7 @@ export class McpClient {
 		this.config = {
 			url: config.url,
 			transport: config.transport ?? 'sse',
-			clientName: config.clientName ?? '@afd/client',
+			clientName: config.clientName ?? '@lushly-dev/afd-client',
 			clientVersion: config.clientVersion ?? '0.1.0',
 			timeout: config.timeout ?? 30000,
 			autoReconnect: config.autoReconnect ?? true,

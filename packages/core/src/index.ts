@@ -1,5 +1,5 @@
 /**
- * @fileoverview @afd/core - Core types and utilities for Agent-First Development
+ * @fileoverview @lushly-dev/afd-core - Core types and utilities for Agent-First Development
  *
  * This package provides the foundational types used across all AFD packages:
  *

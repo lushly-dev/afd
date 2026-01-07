@@ -296,7 +296,7 @@ export function createRateLimitMiddleware(
 		}
 
 		if (window.count >= maxRequests) {
-			const { failure } = await import('@afd/core');
+			const { failure } = await import('@lushly-dev/afd-core');
 			return failure({
 				code: 'RATE_LIMITED',
 				message: 'Too many requests',

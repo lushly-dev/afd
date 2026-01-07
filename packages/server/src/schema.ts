@@ -212,7 +212,7 @@ export function zodToJsonSchema(schema: ZodType): JsonSchema {
 }
 
 /**
- * Convert JSON Schema to CommandParameter array for @afd/core compatibility.
+ * Convert JSON Schema to CommandParameter array for @lushly-dev/afd-core compatibility.
  */
 function jsonSchemaToParameters(schema: JsonSchema): CommandParameter[] {
 	const parameters: CommandParameter[] = [];

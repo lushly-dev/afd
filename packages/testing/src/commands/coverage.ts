@@ -1,5 +1,5 @@
 /**
- * @afd/testing - scenario.coverage command
+ * @lushly-dev/afd-testing - scenario.coverage command
  *
  * Generate coverage metrics for scenarios across multiple dimensions:
  * - Commands: Which commands are being tested

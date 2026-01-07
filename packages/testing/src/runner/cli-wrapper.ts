@@ -1,12 +1,12 @@
 /**
- * @afd/testing - CLI Wrapper
+ * @lushly-dev/afd-testing - CLI Wrapper
  *
  * Executes CLI commands (afd call <command>) and captures structured output.
  * Supports both subprocess execution and in-process execution modes.
  */
 
 import { spawn } from "node:child_process";
-import type { CommandResult } from "@afd/core";
+import type { CommandResult } from "@lushly-dev/afd-core";
 import type { StepError } from "../types/report.js";
 import { createStepError } from "../types/report.js";
 

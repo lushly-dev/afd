@@ -9,8 +9,8 @@
  *   node dist/server.js
  */
 
-import { createMcpServer, createLoggingMiddleware, getBootstrapCommands } from "@afd/server";
-import type { ZodCommandDefinition } from "@afd/server";
+import { createMcpServer, createLoggingMiddleware, getBootstrapCommands } from "@lushly-dev/afd-server";
+import type { ZodCommandDefinition } from "@lushly-dev/afd-server";
 import { allCommands } from "./commands/index.js";
 
 // Configuration from environment
@@ -26,7 +26,7 @@ const DEV_MODE = process.env.NODE_ENV === "development";
 function createServer() {
   // Combine app commands with bootstrap tools
   const bootstrapCommands = getBootstrapCommands(
-    () => allCommands as unknown as import("@afd/core").CommandDefinition[]
+    () => allCommands as unknown as import("@lushly-dev/afd-core").CommandDefinition[]
   ) as unknown as ZodCommandDefinition[];
   const allServerCommands = [...allCommands, ...bootstrapCommands];
 

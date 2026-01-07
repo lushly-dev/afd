@@ -1,5 +1,5 @@
 /**
- * @fileoverview @afd/client - MCP client library for Agent-First Development
+ * @fileoverview @lushly-dev/afd-client - MCP client library for Agent-First Development
  *
  * This package provides a client for connecting to MCP servers:
  *
