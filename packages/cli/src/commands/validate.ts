@@ -7,7 +7,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { getClient } from './connect.js';
 import { printError, printInfo, printSuccess, printWarning } from '../output.js';
-import { validateResult, type ValidationResult } from '@afd/testing';
+import { validateResult, type ValidationResult } from '@lushly-dev/afd-testing';
 
 /**
  * Register the validate command.

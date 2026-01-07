@@ -13,7 +13,7 @@ import type {
 	McpTool,
 	McpToolCallParams,
 	McpToolsListResult,
-} from '@afd/core';
+} from '@lushly-dev/afd-core';
 import {
 	commandToMcpTool,
 	createCommandRegistry,
@@ -21,7 +21,7 @@ import {
 	createMcpResponse,
 	McpErrorCodes,
 	textContent,
-} from '@afd/core';
+} from '@lushly-dev/afd-core';
 
 /**
  * Mock MCP server for testing.

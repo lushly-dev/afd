@@ -12,7 +12,7 @@
  * @example
  * ```typescript
  * import { z } from 'zod';
- * import { defineCommand, createMcpServer, success } from '@afd/server';
+ * import { defineCommand, createMcpServer, success } from '@lushly-dev/afd-server';
  *
  * const greet = defineCommand({
  *   name: 'greet',
@@ -47,7 +47,7 @@
  */
 
 // Re-export core helpers for convenience
-export { success, failure, isSuccess, isFailure } from '@afd/core';
+export { success, failure, isSuccess, isFailure } from '@lushly-dev/afd-core';
 
 // Schema and command definition
 export {

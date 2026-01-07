@@ -16,6 +16,7 @@ This package provides a client for connecting to MCP (Model Context Protocol) se
 
 - **SSE Transport**: Real-time streaming with Server-Sent Events
 - **HTTP Transport**: Simple request/response communication
+- **Direct Transport**: Zero-overhead in-process execution for co-located agents
 - **Auto-reconnection**: Automatic reconnection with exponential backoff
 - **Type-safe API**: Full TypeScript support with CommandResult integration
 
@@ -168,6 +169,45 @@ const client = createClient({
   url: 'http://localhost:3100/message',
   transport: 'http',
 });
+```
+
+### Direct Transport (Zero Overhead)
+
+For co-located agents (same runtime as the application), use `DirectClient` to bypass all transport overhead:
+
+```typescript
+import { DirectClient } from '@afd/client';
+import { registry } from '@my-app/commands';
+
+// Direct execution - ~0.01ms latency vs 10-100ms for MCP
+const client = new DirectClient(registry);
+
+const result = await client.call<Todo>('todo-create', { title: 'Fast!' });
+if (result.success) {
+  console.log('Created:', result.data.id);
+}
+```
+
+**Performance comparison:**
+
+| Transport | Avg Latency | Use Case |
+|-----------|-------------|----------|
+| Direct | ~0.01ms | Same runtime, max performance |
+| SSE | ~20-50ms | Real-time streaming |
+| HTTP | ~20-100ms | Request/response, serverless |
+
+Your registry must implement the `DirectRegistry` interface:
+
+```typescript
+import { DirectRegistry } from '@afd/client';
+import type { CommandResult } from '@afd/core';
+
+class MyRegistry implements DirectRegistry {
+  async execute<T>(name: string, input?: unknown): Promise<CommandResult<T>>;
+  listCommandNames(): string[];
+  listCommands(): Array<{ name: string; description: string }>;
+  hasCommand(name: string): boolean;
+}
 ```
 
 ## Error Handling

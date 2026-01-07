@@ -1,5 +1,5 @@
 {
-  "name": "@afd/server",
+  "name": "@lushly-dev/afd-server",
   "version": "0.1.0",
   "description": "Server-side utilities for building AFD-compliant MCP servers with Zod validation",
   "type": "module",
@@ -24,7 +24,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@afd/core": "workspace:*",
+    "@lushly-dev/afd-core": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.24.0",
     "zod": "^3.23.8",
     "zod-to-json-schema": "^3.23.5"
@@ -41,5 +41,9 @@
     "zod",
     "validation"
   ],
-  "license": "MIT"
+  "license": "UNLICENSED",
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://npm.pkg.github.com"
+  }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@afd/testing",
+  "name": "@lushly-dev/afd-testing",
   "version": "0.1.0",
   "description": "Testing utilities for Agent-First Development",
   "type": "module",
@@ -31,14 +31,14 @@
     "commands"
   ],
   "author": "Falkicon",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Falkicon/afd.git",
+    "url": "https://github.com/lushly-dev/afd.git",
     "directory": "packages/testing"
   },
   "dependencies": {
-    "@afd/core": "workspace:*",
+    "@lushly-dev/afd-core": "workspace:*",
     "yaml": "^2.7.0"
   },
   "devDependencies": {
@@ -53,5 +53,9 @@
     "vitest": {
       "optional": true
     }
+  },
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://npm.pkg.github.com"
   }
 }

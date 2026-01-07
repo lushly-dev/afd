@@ -4,7 +4,7 @@
  * Provides a function to get all bootstrap commands for an AFD server.
  */
 
-import type { CommandDefinition } from '@afd/core';
+import type { CommandDefinition } from '@lushly-dev/afd-core';
 import { createAfdHelpCommand } from './afd-help.js';
 import { createAfdDocsCommand } from './afd-docs.js';
 import { createAfdSchemaCommand } from './afd-schema.js';

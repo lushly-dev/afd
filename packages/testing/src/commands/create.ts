@@ -4,7 +4,7 @@
  * Create new scenario files from templates or scratch.
  */
 
-import { success, failure, type CommandResult } from '@afd/core';
+import { success, failure, type CommandResult } from '@lushly-dev/afd-core';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as yaml from 'yaml';

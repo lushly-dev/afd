@@ -13,7 +13,7 @@ import type {
 	JsonSchema,
 	CommandDefinition,
 	CommandParameter,
-} from '@afd/core';
+} from '@lushly-dev/afd-core';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -119,7 +119,7 @@ export interface ZodCommandDefinition<
  * @example
  * ```typescript
  * import { z } from 'zod';
- * import { defineCommand, success } from '@afd/server';
+ * import { defineCommand, success } from '@lushly-dev/afd-server';
  *
  * const createTodo = defineCommand({
  *   name: 'todo.create',

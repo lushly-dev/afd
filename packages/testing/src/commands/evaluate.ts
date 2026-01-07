@@ -4,7 +4,7 @@
  * Batch execution of scenarios with parallel support, fail-fast, and multiple output formats.
  */
 
-import { success, failure, type CommandResult } from '@afd/core';
+import { success, failure, type CommandResult } from '@lushly-dev/afd-core';
 import { parseScenarioFile } from '../parsers/yaml.js';
 import type { Scenario } from '../types/scenario.js';
 import type {

@@ -15,10 +15,10 @@ import {
 	calculateSummary,
 	type ScenarioResult,
 	type TestReport,
-} from '@afd/testing';
-import type { Scenario, Step } from '@afd/testing';
-import { createClient, type McpClient } from '@afd/client';
-import type { CommandResult } from '@afd/core';
+} from '@lushly-dev/afd-testing';
+import type { Scenario, Step } from '@lushly-dev/afd-testing';
+import { createClient, type McpClient } from '@lushly-dev/afd-client';
+import type { CommandResult } from '@lushly-dev/afd-core';
 
 /**
  * Register the scenario command.

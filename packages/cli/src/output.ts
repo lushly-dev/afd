@@ -3,8 +3,8 @@
  */
 
 import chalk from 'chalk';
-import type { CommandResult, McpTool } from '@afd/core';
-import { isFailure, isSuccess } from '@afd/core';
+import type { CommandResult, McpTool } from '@lushly-dev/afd-core';
+import { isFailure, isSuccess } from '@lushly-dev/afd-core';
 
 export type OutputFormat = 'json' | 'text' | 'table';
 

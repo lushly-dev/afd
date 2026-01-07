@@ -5,7 +5,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { success, failure } from '@afd/core';
+import { success, failure } from '@lushly-dev/afd-core';
 import { scenarioList } from '../commands/list.js';
 import { scenarioEvaluate, formatTerminal, formatJunit, formatMarkdown } from '../commands/evaluate.js';
 import { scenarioCoverage } from '../commands/coverage.js';

@@ -130,6 +130,46 @@ The Todo example includes three backend implementations (TypeScript, Python, Rus
 
 > **Important**: Only enable one todo backend at a time. All three expose identical tool names (`todo-create`, `todo-list`, etc.), so having multiple enabled causes conflicts.
 
+### Transport Selection Guide
+
+Choose the right transport based on your deployment scenario:
+
+| Transport | Latency | Use When |
+|-----------|---------|----------|
+| **Direct** | ~0.01ms | Agent and app share the same runtime (tests, embedded agents) |
+| **stdio** | ~10-50ms | IDE integration, local development |
+| **HTTP/SSE** | ~20-100ms | Network communication, multi-process, production |
+
+#### Direct Transport (In-Process)
+
+When your agent runs in the same Node.js/Bun process as the application, use `DirectClient` for zero-overhead execution:
+
+```typescript
+import { DirectClient } from '@afd/client';
+import { registry } from '@my-app/commands';
+
+const client = new DirectClient(registry);
+const result = await client.call<Todo>('todo-create', { title: 'Fast!' });
+// ~0.03ms vs 2-10ms for MCP
+```
+
+**Best for**: Embedded AI agents (e.g., Gemini, OpenAI running in your Node process).
+
+**Trade-offs**: No process isolation, same runtime required, registry must be importable.
+
+**When to use DirectClient**:
+- ✅ LLM is co-located in the same process as your app
+- ✅ Agent makes many sequential tool calls (each saves ~2-10ms)
+- ❌ Not for tests (GitHub Actions, IDE) — use CLI/MCP instead
+- ❌ Not for remote agents — use HTTP/SSE
+
+**Security**: When exposing DirectClient over HTTP, apply hardening:
+- CORS lockdown, rate limiting, input validation, API key masking
+
+📖 See [DirectClient Guide](./docs/directclient-guide.md) for implementation details.
+
+📌 See `packages/examples/todo-directclient` for a complete AI Copilot example.
+
 ## Repository Structure
 
 ```
@@ -139,24 +179,28 @@ afd/
 │   ├── command-schema-guide.md      # How to design commands for good UX
 │   ├── trust-through-validation.md  # Why CLI validation builds trust
 │   ├── implementation-phases.md     # 4-phase implementation roadmap
-│   └── production-considerations.md # Security, observability, mutation safety
+│   ├── production-considerations.md # Security, observability, mutation safety
+│   └── directclient-guide.md        # DirectClient: when to use, security, hardening
 ├── packages/
 │   ├── core/                        # Core types (CommandResult, errors, etc.)
 │   ├── server/                      # Zod-based MCP server factory
-│   ├── client/                      # MCP client library (Node.js)
+│   ├── client/                      # MCP client + DirectClient
 │   ├── cli/                         # AFD command-line tool
 │   ├── testing/                     # Test utilities + JTBD scenario runner
 │   └── examples/
-│       └── todo/                    # Multi-stack Todo example
-│           ├── backends/
-│           │   ├── typescript/      # Node.js + @afd/server (stdio)
-│           │   ├── python/          # Python + FastMCP (stdio)
-│           │   └── rust/            # Axum + HTTP/SSE transport
-│           ├── frontends/
-│           │   ├── vanilla/         # Vanilla JS frontend
-│           │   └── react/           # React frontend
-│           ├── scenarios/           # JTBD scenario YAML files
-│           └── fixtures/            # Pre-seeded test data (JSON)
+│       ├── todo/                    # Multi-stack Todo example
+│       │   ├── backends/
+│       │   │   ├── typescript/      # Node.js + @afd/server (stdio)
+│       │   │   ├── python/          # Python + FastMCP (stdio)
+│       │   │   └── rust/            # Axum + HTTP/SSE transport
+│       │   ├── frontends/
+│       │   │   ├── vanilla/         # Vanilla JS frontend
+│       │   │   └── react/           # React frontend
+│       │   ├── scenarios/           # JTBD scenario YAML files
+│       │   └── fixtures/            # Pre-seeded test data (JSON)
+│       └── todo-directclient/       # DirectClient + AI Copilot example
+│           ├── backend/             # Chat server with Gemini integration
+│           └── frontend/            # Chat UI with tool execution display
 ├── Agentic AI UX Design Principles/ # Reference: UX framework (for PMs/designers)
 ├── AGENTS.md                        # This file - AI agent context
 ├── README.md                        # Human-readable overview

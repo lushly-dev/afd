@@ -5,8 +5,8 @@
  */
 
 import { z } from 'zod';
-import type { CommandDefinition } from '@afd/core';
-import { success } from '@afd/core';
+import type { CommandDefinition } from '@lushly-dev/afd-core';
+import { success } from '@lushly-dev/afd-core';
 
 const inputSchema = z.object({
 	filter: z.string().optional().describe('Tag filter: e.g., "todo" or "read"'),

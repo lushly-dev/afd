@@ -23,7 +23,7 @@ import {
   scenarioSuggest,
   type ScenarioSuggestInput,
 } from '../index.js';
-import { success, failure } from '@afd/core';
+import { success, failure } from '@lushly-dev/afd-core';
 
 // ============================================================================
 // MCP Server Tests

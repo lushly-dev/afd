@@ -4,7 +4,7 @@
  * Lists available scenarios with filtering by job, tags, and status.
  */
 
-import { success, failure, type CommandResult } from '@afd/core';
+import { success, failure, type CommandResult } from '@lushly-dev/afd-core';
 import { parseScenarioFile, parseScenarioFiles, type ParseResult } from '../parsers/yaml.js';
 import type { Scenario } from '../types/scenario.js';
 import * as fs from 'node:fs';

@@ -5,7 +5,7 @@
  * allowing AI agents to discover and invoke JTBD testing capabilities.
  */
 
-import type { CommandResult } from '@afd/core';
+import type { CommandResult } from '@lushly-dev/afd-core';
 import { enhanceWithAgentHints, type AgentEnhancedResult } from './hints.js';
 
 // Import commands directly from their modules

@@ -1,0 +1,87 @@
+/**
+ * @fileoverview Todo app type definitions
+ */
+
+/**
+ * Priority levels for todos.
+ */
+export type Priority = 'low' | 'medium' | 'high';
+
+/**
+ * Todo item.
+ */
+export interface Todo {
+	/** Unique identifier */
+	id: string;
+
+	/** Todo title */
+	title: string;
+
+	/** Optional description */
+	description?: string;
+
+	/** Priority level */
+	priority: Priority;
+
+	/** Whether the todo is completed */
+	completed: boolean;
+
+	/** Creation timestamp */
+	createdAt: string;
+
+	/** Last update timestamp */
+	updatedAt: string;
+
+	/** Completion timestamp */
+	completedAt?: string;
+}
+
+/**
+ * Todo statistics.
+ */
+export interface TodoStats {
+	/** Total number of todos */
+	total: number;
+
+	/** Number of completed todos */
+	completed: number;
+
+	/** Number of pending todos */
+	pending: number;
+
+	/** Breakdown by priority */
+	byPriority: {
+		low: number;
+		medium: number;
+		high: number;
+	};
+
+	/** Completion rate (0-1) */
+	completionRate: number;
+}
+
+/**
+ * Filter options for listing todos.
+ */
+export interface TodoFilter {
+	/** Filter by completion status */
+	completed?: boolean;
+
+	/** Filter by priority */
+	priority?: Priority;
+
+	/** Search in title/description */
+	search?: string;
+
+	/** Sort field */
+	sortBy?: 'createdAt' | 'updatedAt' | 'priority' | 'title';
+
+	/** Sort direction */
+	sortOrder?: 'asc' | 'desc';
+
+	/** Maximum results */
+	limit?: number;
+
+	/** Offset for pagination */
+	offset?: number;
+}

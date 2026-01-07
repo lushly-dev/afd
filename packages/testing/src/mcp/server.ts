@@ -5,7 +5,7 @@
  * Follows the same patterns as @afd/server but focused on testing tools.
  */
 
-import type { CommandResult } from '@afd/core';
+import type { CommandResult } from '@lushly-dev/afd-core';
 import {
   generateTools,
   createToolRegistry,
@@ -110,7 +110,7 @@ const JSON_RPC_ERRORS = {
  *
  * @example
  * ```typescript
- * import { createMcpTestingServer } from '@afd/testing';
+ * import { createMcpTestingServer } from '@lushly-dev/afd-testing';
  *
  * const server = createMcpTestingServer({
  *   name: 'testing-server',
@@ -329,7 +329,7 @@ function isJsonRpcError(error: unknown): error is JsonRpcError {
  *
  * @example
  * ```typescript
- * import { runStdioServer } from '@afd/testing';
+ * import { runStdioServer } from '@lushly-dev/afd-testing';
  *
  * // In your CLI tool
  * runStdioServer({
