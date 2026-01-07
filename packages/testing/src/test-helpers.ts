@@ -9,7 +9,7 @@ import type {
 	CommandDefinition,
 	CommandHandler,
 	CommandResult,
-} from '@afd/core';
+} from '@lushly-dev/afd-core';
 import {
 	createCommandRegistry,
 	failure,
@@ -17,7 +17,7 @@ import {
 	isSuccess,
 	success,
 	wrapError,
-} from '@afd/core';
+} from '@lushly-dev/afd-core';
 
 import {
 	validateCommandDefinition,

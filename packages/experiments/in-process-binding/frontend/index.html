@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>In-Process Binding Experiment</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #e0e0e0;
+            display: flex;
+        }
+
+        /* Main content area */
+        .main-content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 0.5rem;
+            color: #00d9ff;
+            font-size: 1.8rem;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 2rem;
+        }
+
+        .status {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #888;
+        }
+
+        .status-dot.connected {
+            background: #00ff88;
+            box-shadow: 0 0 8px #00ff88;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1.25rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .card h2 {
+            color: #00d9ff;
+            font-size: 1.1rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .input-row {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        input[type="text"], select {
+            flex: 1;
+            padding: 0.6rem 0.8rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 0.9rem;
+        }
+
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: #00d9ff;
+        }
+
+        button {
+            padding: 0.6rem 1.2rem;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #00d9ff, #0099cc);
+            color: #000;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            font-size: 0.9rem;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 20px rgba(0, 217, 255, 0.3);
+        }
+
+        button.secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        button.danger {
+            background: linear-gradient(135deg, #ff4757, #cc0022);
+        }
+
+        .todos-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .todo-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.6rem 0.8rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.15s;
+            font-size: 0.9rem;
+        }
+
+        .todo-item:hover {
+            background: rgba(0, 0, 0, 0.3);
+        }
+
+        .todo-item.completed .todo-title {
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+
+        .todo-checkbox {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #00d9ff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .todo-checkbox.checked {
+            background: #00d9ff;
+        }
+
+        .todo-checkbox.checked::after {
+            content: '✓';
+            color: #000;
+            font-size: 11px;
+        }
+
+        .todo-title {
+            flex: 1;
+        }
+
+        .priority-badge {
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+        }
+
+        .priority-high { background: rgba(255, 71, 87, 0.3); color: #ff4757; }
+        .priority-medium { background: rgba(255, 165, 0, 0.3); color: #ffa500; }
+        .priority-low { background: rgba(0, 217, 255, 0.3); color: #00d9ff; }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+        }
+
+        .stat-box {
+            text-align: center;
+            padding: 0.75rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #00d9ff;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: #888;
+            margin-top: 0.2rem;
+        }
+
+        .log {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            padding: 0.75rem;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.75rem;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            margin-bottom: 0.3rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .log-time { color: #666; }
+        .log-cmd { color: #00d9ff; }
+        .log-latency { color: #00ff88; }
+
+        .empty {
+            text-align: center;
+            color: #666;
+            padding: 1.5rem;
+        }
+
+        .actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        /* AI Sidebar */
+        .sidebar {
+            width: 380px;
+            background: rgba(0, 0, 0, 0.4);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .sidebar-header h2 {
+            font-size: 1rem;
+            color: #00d9ff;
+            flex: 1;
+        }
+
+        .sidebar-status {
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .chat-message {
+            padding: 0.75rem;
+            border-radius: 12px;
+            max-width: 90%;
+        }
+
+        .chat-message.user {
+            background: linear-gradient(135deg, #00d9ff, #0099cc);
+            color: #000;
+            align-self: flex-end;
+        }
+
+        .chat-message.assistant {
+            background: rgba(255, 255, 255, 0.1);
+            align-self: flex-start;
+        }
+
+        .chat-message.system {
+            background: rgba(255, 165, 0, 0.2);
+            color: #ffa500;
+            font-size: 0.8rem;
+            align-self: center;
+            text-align: center;
+        }
+
+        .tool-executions {
+            margin-top: 0.5rem;
+            padding-top: 0.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.75rem;
+        }
+
+        .tool-exec {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.25rem;
+        }
+
+        .tool-name {
+            color: #00d9ff;
+            font-family: monospace;
+        }
+
+        .tool-latency {
+            color: #00ff88;
+            font-family: monospace;
+        }
+
+        .chat-input-container {
+            padding: 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .chat-input-row {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        #chatInput {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 0.9rem;
+        }
+
+        #chatInput:focus {
+            outline: none;
+            border-color: #00d9ff;
+        }
+
+        .chat-send {
+            padding: 0.75rem 1rem;
+        }
+
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            color: #888;
+            font-size: 0.85rem;
+        }
+
+        .typing-indicator.visible {
+            display: flex;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dots span {
+            width: 6px;
+            height: 6px;
+            background: #00d9ff;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+
+        .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        .latency-summary {
+            font-size: 0.7rem;
+            color: #888;
+            margin-top: 0.5rem;
+            text-align: right;
+        }
+
+        .latency-summary .highlight {
+            color: #00ff88;
+        }
+    </style>
+</head>
+<body>
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="container">
+            <h1>⚡ In-Process Binding Experiment</h1>
+            <p class="subtitle">DirectClient + Gemini 3.0 Flash</p>
+
+            <div class="status">
+                <div class="status-item">
+                    <div class="status-dot" id="serverStatus"></div>
+                    <span>Backend: localhost:3200</span>
+                </div>
+                <div class="status-item">
+                    <div class="status-dot" id="chatStatus"></div>
+                    <span>AI Chat: localhost:3201</span>
+                </div>
+            </div>
+
+            <!-- Create Todo -->
+            <div class="card">
+                <h2>➕ Create Todo</h2>
+                <div class="input-row">
+                    <input type="text" id="todoTitle" placeholder="What needs to be done?">
+                    <select id="todoPriority">
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="low">Low</option>
+                    </select>
+                    <button onclick="createTodo()">Add</button>
+                </div>
+            </div>
+
+            <!-- Todos List -->
+            <div class="card">
+                <h2>📋 Todos</h2>
+                <div id="todosList" class="todos-list">
+                    <div class="empty">Loading...</div>
+                </div>
+                <div class="actions">
+                    <button class="secondary" onclick="refreshTodos()">Refresh</button>
+                    <button class="danger" onclick="clearTodos()">Clear All</button>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="card">
+                <h2>📊 Stats</h2>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="stat-value" id="statTotal">-</div>
+                        <div class="stat-label">Total</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="statCompleted">-</div>
+                        <div class="stat-label">Completed</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="statPending">-</div>
+                        <div class="stat-label">Pending</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Request Log -->
+            <div class="card">
+                <h2>📝 Request Log <small style="font-weight: normal; font-size: 0.65em; color: #888;">(DirectClient via HTTP)</small></h2>
+                <div id="log" class="log">
+                    <div class="empty">No requests yet</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <span>🤖</span>
+            <h2>AI Copilot</h2>
+            <span class="sidebar-status" id="aiStatus">Connecting...</span>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <div class="chat-message system">
+                Ask me to help manage your todos!<br>
+                Examples: "Create 3 high-priority tasks" or "Mark all completed"
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="typing-dots">
+                <span></span><span></span><span></span>
+            </div>
+            <span>Gemini thinking...</span>
+        </div>
+
+        <div class="chat-input-container">
+            <div class="chat-input-row">
+                <input type="text" id="chatInput" placeholder="Ask AI to help with todos...">
+                <button class="chat-send" onclick="sendChat()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const EXECUTE_URL = 'http://localhost:3201/execute';
+        const CHAT_URL = 'http://localhost:3201/chat';
+        let requestId = 0;
+
+        // ═══════════════════════════════════════════════════════════════
+        // Commands via DirectClient (same registry as AI sidebar)
+        // ═══════════════════════════════════════════════════════════════
+
+        async function callCommand(name, args = {}) {
+            const start = performance.now();
+
+            try {
+                const response = await fetch(EXECUTE_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, args })
+                });
+
+                const result = await response.json();
+                const elapsed = result.latencyMs?.toFixed(3) ?? (performance.now() - start).toFixed(2);
+
+                addLog(name, elapsed, result?.success ?? false);
+                return result;
+            } catch (err) {
+                const elapsed = (performance.now() - start).toFixed(2);
+                addLog(name, elapsed, false);
+                return { success: false, error: { message: err.message } };
+            }
+        }
+
+        function addLog(command, latency, success) {
+            const log = document.getElementById('log');
+            if (log.querySelector('.empty')) log.innerHTML = '';
+
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `
+                <span class="log-time">${time}</span>
+                <span class="log-cmd">${command}</span>
+                <span class="log-latency" title="DirectClient execution time (in-process)">${latency}ms exec</span>
+                <span style="color: ${success ? '#00ff88' : '#ff4757'}">${success ? '✓' : '✗'}</span>
+            `;
+            log.insertBefore(entry, log.firstChild);
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Todo UI Functions
+        // ═══════════════════════════════════════════════════════════════
+
+        async function createTodo() {
+            const title = document.getElementById('todoTitle').value.trim();
+            if (!title) return;
+            const priority = document.getElementById('todoPriority').value;
+
+            const result = await callCommand('todo-create', { title, priority });
+            if (result?.success) {
+                document.getElementById('todoTitle').value = '';
+                await refreshTodos();
+            }
+        }
+
+        async function toggleTodo(id) {
+            await callCommand('todo-toggle', { id });
+            await refreshTodos();
+        }
+
+        async function clearTodos() {
+            await callCommand('todo-clear', {});
+            await refreshTodos();
+        }
+
+        async function refreshTodos() {
+            const [listResult, statsResult] = await Promise.all([
+                callCommand('todo-list', {}),
+                callCommand('todo-stats', {})
+            ]);
+
+            const list = document.getElementById('todosList');
+            const todos = listResult?.data?.todos ?? [];
+
+            if (todos.length === 0) {
+                list.innerHTML = '<div class="empty">No todos yet. Create one above!</div>';
+            } else {
+                list.innerHTML = todos.map(todo => `
+                    <div class="todo-item ${todo.completed ? 'completed' : ''}" onclick="toggleTodo('${todo.id}')">
+                        <div class="todo-checkbox ${todo.completed ? 'checked' : ''}"></div>
+                        <span class="todo-title">${todo.title}</span>
+                        <span class="priority-badge priority-${todo.priority || 'medium'}">${todo.priority || 'medium'}</span>
+                    </div>
+                `).join('');
+            }
+
+            const stats = statsResult?.data;
+            if (stats) {
+                document.getElementById('statTotal').textContent = stats.total;
+                document.getElementById('statCompleted').textContent = stats.completed;
+                document.getElementById('statPending').textContent = stats.pending;
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // AI Chat (uses DirectClient on backend - zero overhead!)
+        // ═══════════════════════════════════════════════════════════════
+
+        async function sendChat() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            input.value = '';
+            addChatMessage('user', message);
+
+            const typing = document.getElementById('typingIndicator');
+            typing.classList.add('visible');
+
+            try {
+                const start = performance.now();
+                const response = await fetch(CHAT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message })
+                });
+
+                const data = await response.json();
+                const totalMs = performance.now() - start;
+
+                typing.classList.remove('visible');
+
+                if (data.error) {
+                    addChatMessage('system', `Error: ${data.error}`);
+                } else {
+                    addChatMessage('assistant', data.message, data.toolExecutions, data.totalToolLatencyMs, data.modelLatencyMs);
+                    // Refresh the todo list since AI may have changed things
+                    await refreshTodos();
+                }
+            } catch (err) {
+                typing.classList.remove('visible');
+                addChatMessage('system', `Connection error: ${err.message}`);
+            }
+        }
+
+        function addChatMessage(role, text, tools = [], toolLatency = 0, modelLatency = 0) {
+            const container = document.getElementById('chatMessages');
+            const msg = document.createElement('div');
+            msg.className = `chat-message ${role}`;
+
+            let html = text;
+
+            if (tools.length > 0) {
+                html += '<div class="tool-executions">';
+                html += '<strong>Tools executed:</strong>';
+                for (const t of tools) {
+                    html += `
+                        <div class="tool-exec">
+                            <span class="tool-name">${t.name}</span>
+                            <span class="tool-latency">${t.latencyMs.toFixed(3)}ms</span>
+                        </div>
+                    `;
+                }
+                html += `
+                    <div class="latency-summary" title="Model = Gemini API time, Tools = DirectClient in-process execution">
+                        🧠 Gemini: ${modelLatency.toFixed(0)}ms | 
+                        ⚡ DirectClient: <span class="highlight">${toolLatency.toFixed(3)}ms</span>
+                    </div>
+                `;
+                html += '</div>';
+            }
+
+            msg.innerHTML = html;
+            container.appendChild(msg);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // Status Checks
+        // ═══════════════════════════════════════════════════════════════
+
+        async function checkServers() {
+            // Check MCP server
+            try {
+                const r = await fetch('http://localhost:3200/health');
+                document.getElementById('serverStatus').classList.toggle('connected', r.ok);
+            } catch {
+                document.getElementById('serverStatus').classList.remove('connected');
+            }
+
+            // Check Chat server
+            try {
+                const r = await fetch('http://localhost:3201/health');
+                const data = await r.json();
+                const connected = r.ok && data.geminiConfigured;
+                document.getElementById('chatStatus').classList.toggle('connected', connected);
+                document.getElementById('aiStatus').textContent = connected ? 'Ready' : 'No API Key';
+            } catch {
+                document.getElementById('chatStatus').classList.remove('connected');
+                document.getElementById('aiStatus').textContent = 'Offline';
+            }
+        }
+
+        // Keyboard shortcuts
+        document.getElementById('todoTitle').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') createTodo();
+        });
+
+        document.getElementById('chatInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendChat();
+        });
+
+        // Init
+        checkServers();
+        refreshTodos();
+        setInterval(checkServers, 5000);
+    </script>
+</body>
+</html>

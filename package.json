@@ -5,10 +5,10 @@
   "description": "Agent-First Development - Build software where AI agents are first-class users",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Falkicon/afd.git"
+    "url": "https://github.com/lushly-dev/afd.git"
   },
   "author": "Falkicon",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "type": "module",
   "engines": {
     "node": ">=20.0.0",

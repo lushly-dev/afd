@@ -2,8 +2,8 @@
  * @fileoverview Transport layer for MCP communication
  */
 
-import type { McpRequest, McpResponse } from '@afd/core';
-import { isMcpResponse } from '@afd/core';
+import type { McpRequest, McpResponse } from '@lushly-dev/afd-core';
+import { isMcpResponse } from '@lushly-dev/afd-core';
 import EventSource from 'eventsource';
 
 /**

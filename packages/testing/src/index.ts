@@ -308,4 +308,4 @@ export {
 	type CommandResult,
 	type CommandDefinition,
 	type CommandError,
-} from '@afd/core';
+} from '@lushly-dev/afd-core';

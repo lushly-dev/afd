@@ -7,7 +7,7 @@
  * - Jobs: What user jobs are covered
  */
 
-import { success, failure, type CommandResult } from '@afd/core';
+import { success, failure, type CommandResult } from '@lushly-dev/afd-core';
 import { parseScenarioFile } from '../parsers/yaml.js';
 import type { Scenario, Step } from '../types/scenario.js';
 import { scenarioList, type ScenarioSummary } from './list.js';

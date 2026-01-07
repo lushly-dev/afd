@@ -5,7 +5,7 @@
  * and determine next actions.
  */
 
-import type { CommandResult, CommandError } from '@afd/core';
+import type { CommandResult, CommandError } from '@lushly-dev/afd-core';
 import type { TestReport, ScenarioResult, StepResult } from '../types/report.js';
 
 // ============================================================================

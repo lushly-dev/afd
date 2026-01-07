@@ -5,7 +5,7 @@
  * to different AFD applications (Violet, Noisett, Todo, etc.)
  */
 
-import type { CommandResult } from '@afd/core';
+import type { CommandResult } from '@lushly-dev/afd-core';
 
 // ============================================================================
 // Core Adapter Interface

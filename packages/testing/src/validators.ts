@@ -5,8 +5,8 @@
  * with all the expected fields for good agent UX.
  */
 
-import type { CommandDefinition, CommandError, CommandResult } from '@afd/core';
-import { isCommandError, isFailure, isSuccess } from '@afd/core';
+import type { CommandDefinition, CommandError, CommandResult } from '@lushly-dev/afd-core';
+import { isCommandError, isFailure, isSuccess } from '@lushly-dev/afd-core';
 
 /**
  * Validation result.

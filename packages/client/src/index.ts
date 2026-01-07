@@ -12,6 +12,7 @@
 
 export { McpClient, createClient } from './client.js';
 export { createTransport, HttpTransport, SseTransport, type Transport } from './transport.js';
+export { DirectTransport, DirectClient, type DirectRegistry, type UnknownToolError } from './direct.js';
 export type {
 	ClientStatus,
 	ConnectionState,
@@ -29,4 +30,4 @@ export type {
 	McpTool,
 	McpToolCallParams,
 	McpToolCallResult,
-} from '@afd/core';
+} from '@lushly-dev/afd-core';

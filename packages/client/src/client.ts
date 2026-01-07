@@ -18,7 +18,7 @@ import type {
 	StreamCallbacks,
 	StreamChunk,
 	StreamOptions,
-} from '@afd/core';
+} from '@lushly-dev/afd-core';
 import {
 	createMcpErrorResponse,
 	createMcpRequest,
@@ -30,7 +30,7 @@ import {
 	McpErrorCodes,
 	success,
 	wrapError,
-} from '@afd/core';
+} from '@lushly-dev/afd-core';
 
 import { createTransport, type Transport } from './transport.js';
 import type {
@@ -118,6 +118,12 @@ export class McpClient {
 			// Create transport
 			if (this.config.transport === 'stdio') {
 				throw new Error('stdio transport not yet implemented');
+			}
+
+			if (this.config.transport === 'direct') {
+				throw new Error(
+					'Direct transport requires a registry. Use DirectClient or DirectTransport instead.'
+				);
 			}
 
 			this.transport = createTransport(

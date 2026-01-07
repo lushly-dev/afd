@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { evaluateResult } from '../runner/evaluator.js';
-import type { CommandResult } from '@afd/core';
+import type { CommandResult } from '@lushly-dev/afd-core';
 import type { Expectation } from '../types/scenario.js';
 
 describe('Evaluator', () => {

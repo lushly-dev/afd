@@ -7,12 +7,12 @@ import type {
 	McpResponse,
 	McpServerCapabilities,
 	McpTool,
-} from '@afd/core';
+} from '@lushly-dev/afd-core';
 
 /**
  * Transport type for MCP communication.
  */
-export type TransportType = 'sse' | 'http' | 'stdio';
+export type TransportType = 'sse' | 'http' | 'stdio' | 'direct';
 
 /**
  * Client configuration options.

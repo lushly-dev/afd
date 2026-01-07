@@ -226,7 +226,7 @@ interface McpResponse {
  *
  * @example
  * ```typescript
- * import { createMcpServer, defineCommand } from '@afd/server';
+ * import { createMcpServer, defineCommand } from '@lushly-dev/afd-server';
  *
  * const server = createMcpServer({
  *   name: 'my-app',

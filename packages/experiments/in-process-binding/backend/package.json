@@ -1,0 +1,48 @@
+{
+  "name": "@afd/experiment-in-process",
+  "version": "0.1.0",
+  "description": "Experiment: In-process command binding for zero-transport-overhead execution",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server.js",
+      "types": "./dist/server.d.ts"
+    },
+    "./registry": {
+      "import": "./dist/registry.js",
+      "types": "./dist/registry.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "chat": "tsx src/chat-server.ts",
+    "benchmark": "tsx src/benchmark/compare.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@afd/client": "workspace:*",
+    "@afd/core": "workspace:*",
+    "@afd/server": "workspace:*",
+    "@google/genai": "^1.34.0",
+    "dotenv": "^16.4.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "tsx": "^4.7.0",
+    "vitest": "^1.4.0"
+  },
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://npm.pkg.github.com"
+  }
+}

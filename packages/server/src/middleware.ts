@@ -5,7 +5,7 @@
  * for logging, tracing, rate limiting, etc.
  */
 
-import type { CommandContext, CommandResult } from '@afd/core';
+import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import type { CommandMiddleware } from './server.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════

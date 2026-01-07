@@ -191,11 +191,7 @@ See [Trust Through Validation](./docs/trust-through-validation.md) for the full 
 ### Installation
 
 ```bash
-# Install globally (once published to npm)
-npm install -g @afd/cli
-
-# Or run from source
-git clone https://github.com/Falkicon/afd.git
+# From source (private repo)
 cd afd
 pnpm install
 pnpm build
@@ -321,12 +317,6 @@ Commands are tested in isolation (no network, no database) to measure pure busin
 - [ ] VS Code extension
 - [ ] npm publish
 
-## Contributing
-
-We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
 For AI agents contributing to this repo, see [AGENTS.md](AGENTS.md).
 
-## License
 
-MIT - see [LICENSE](LICENSE)

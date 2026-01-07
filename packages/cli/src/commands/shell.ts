@@ -6,7 +6,7 @@ import type { Command } from 'commander';
 import * as readline from 'node:readline';
 import chalk from 'chalk';
 import { getClient, setClient } from './connect.js';
-import { createClient } from '@afd/client';
+import { createClient } from '@lushly-dev/afd-client';
 import { printError, printResult, printTools, printStatus, printSuccess } from '../output.js';
 import { getConfig, setConfig } from '../config.js';
 

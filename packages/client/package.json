@@ -1,5 +1,5 @@
 {
-  "name": "@afd/client",
+  "name": "@lushly-dev/afd-client",
   "version": "0.1.0",
   "description": "MCP client library for Agent-First Development",
   "type": "module",
@@ -31,14 +31,14 @@
     "client"
   ],
   "author": "Falkicon",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Falkicon/afd.git",
+    "url": "https://github.com/lushly-dev/afd.git",
     "directory": "packages/client"
   },
   "dependencies": {
-    "@afd/core": "workspace:*",
+    "@lushly-dev/afd-core": "workspace:*",
     "eventsource": "^2.0.2"
   },
   "devDependencies": {
@@ -46,5 +46,9 @@
     "rimraf": "^6.0.1",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"
+  },
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://npm.pkg.github.com"
   }
 }

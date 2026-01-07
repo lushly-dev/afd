@@ -4,8 +4,8 @@
  * Execute multiple commands in a single request with partial success semantics.
  */
 
-import { createClient } from '@afd/client';
-import type { BatchCommand, BatchOptions, BatchResult } from '@afd/core';
+import { createClient } from '@lushly-dev/afd-client';
+import type { BatchCommand, BatchOptions, BatchResult } from '@lushly-dev/afd-core';
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import ora from 'ora';

@@ -10,8 +10,8 @@
  * - natural: Natural language query-based suggestions
  */
 
-import type { CommandResult } from '@afd/core';
-import { success, failure } from '@afd/core';
+import type { CommandResult } from '@lushly-dev/afd-core';
+import { success, failure } from '@lushly-dev/afd-core';
 import { scenarioCoverage, type ScenarioCoverageOutput } from './coverage.js';
 import { scenarioList, type ScenarioSummary } from './list.js';
 import type { Scenario, Step } from '../types/scenario.js';

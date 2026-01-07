@@ -4,8 +4,8 @@
  * These assertions provide clear error messages when tests fail.
  */
 
-import type { CommandError, CommandResult } from '@afd/core';
-import { isFailure, isSuccess } from '@afd/core';
+import type { CommandError, CommandResult } from '@lushly-dev/afd-core';
+import { isFailure, isSuccess } from '@lushly-dev/afd-core';
 
 /**
  * Assert that a result is successful.

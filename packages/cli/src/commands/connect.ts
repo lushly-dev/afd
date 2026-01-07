@@ -4,7 +4,7 @@
 
 import type { Command } from 'commander';
 import ora from 'ora';
-import { createClient, type McpClient } from '@afd/client';
+import { createClient, type McpClient } from '@lushly-dev/afd-client';
 import { setConfig } from '../config.js';
 import { printError, printStatus, printSuccess } from '../output.js';
 
