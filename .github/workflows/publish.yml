@@ -33,13 +33,18 @@ jobs:
           scope: '@lushly-dev'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --ignore-scripts
 
       - name: Build packages
-        run: pnpm build
+        run: |
+          pnpm --filter @lushly-dev/afd-core build
+          pnpm --filter @lushly-dev/afd-client build
+          pnpm --filter @lushly-dev/afd-server build
+          pnpm --filter @lushly-dev/afd-testing build
+          pnpm --filter @lushly-dev/afd-cli build
 
       - name: Run tests
-        run: pnpm test
+        run: pnpm --filter "@lushly-dev/*" test
 
       - name: Publish packages
         if: ${{ !inputs.dry_run }}
