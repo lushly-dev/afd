@@ -12,8 +12,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@afd/core": "workspace:*",
-    "@afd/server": "workspace:*",
+    "@lushly-dev/afd-core": "workspace:*",
+    "@lushly-dev/afd-server": "workspace:*",
     "zod": "^3.23.0"
   },
   "devDependencies": {
