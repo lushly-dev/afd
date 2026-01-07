@@ -163,12 +163,12 @@ export function success<T>(
  * Create a failed command result.
  *
  * @param error - The error details
- * @param options - Additional fields (e.g., warnings, metadata)
+ * @param options - Additional fields (e.g., warnings, metadata, alternatives)
  * @returns A CommandResult with success: false
  */
 export function failure<T = never>(
 	error: CommandError,
-	options?: Pick<CommandResult<T>, 'warnings' | 'metadata'>
+	options?: Omit<CommandResult<T>, 'success' | 'data' | 'error'>
 ): CommandResult<T> {
 	return {
 		success: false,

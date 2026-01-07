@@ -1,6 +1,6 @@
 {
   "name": "@lushly-dev/afd-core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Core types and utilities for Agent-First Development",
   "type": "module",
   "exports": {
@@ -31,7 +31,7 @@
     "command-schema"
   ],
   "author": "Falkicon",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/lushly-dev/afd.git",
@@ -43,7 +43,6 @@
     "vitest": "^2.1.8"
   },
   "publishConfig": {
-    "access": "restricted",
-    "registry": "https://npm.pkg.github.com"
+    "access": "public"
   }
 }
