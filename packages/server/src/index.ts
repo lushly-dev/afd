@@ -1,5 +1,5 @@
 /**
- * @fileoverview @afd/server - Server-side utilities for AFD
+ * @fileoverview @lushly-dev/afd-server - Server-side utilities for AFD
  *
  * This package provides tools for building MCP servers with:
  * - Zod-based command definitions with automatic validation

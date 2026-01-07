@@ -1,5 +1,5 @@
 /**
- * @afd/testing - Scenario Commands (Phase 2 + 3)
+ * @lushly-dev/afd-testing - Scenario Commands (Phase 2 + 3)
  *
  * AFD-style commands for managing JTBD scenarios:
  * - scenario.list - List scenarios with filtering

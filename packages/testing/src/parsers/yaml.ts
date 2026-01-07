@@ -1,5 +1,5 @@
 /**
- * @afd/testing - YAML Scenario Parser
+ * @lushly-dev/afd-testing - YAML Scenario Parser
  *
  * Parses .scenario.yaml files into typed Scenario objects.
  * Uses the 'yaml' package for parsing with strict validation.

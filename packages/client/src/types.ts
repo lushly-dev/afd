@@ -33,7 +33,7 @@ export interface McpClientConfig {
 
 	/**
 	 * Client name for identification.
-	 * @default '@afd/client'
+	 * @default '@lushly-dev/afd-client'
 	 */
 	clientName?: string;
 

@@ -1,5 +1,5 @@
 /**
- * @fileoverview @afd/cli - Command-line interface for Agent-First Development
+ * @fileoverview @lushly-dev/afd-cli - Command-line interface for Agent-First Development
  *
  * @packageDocumentation
  */

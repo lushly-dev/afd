@@ -1,5 +1,5 @@
 /**
- * @afd/testing - scenario.evaluate command
+ * @lushly-dev/afd-testing - scenario.evaluate command
  *
  * Batch execution of scenarios with parallel support, fail-fast, and multiple output formats.
  */

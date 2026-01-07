@@ -16,7 +16,7 @@ import type {
   CommandContext,
   CommandResult,
   StreamChunk,
-} from "@afd/core";
+} from "@lushly-dev/afd-core";
 import {
   calculateBatchConfidence,
   createBatchResult,
@@ -25,7 +25,7 @@ import {
   createFailedBatchResult,
   failure,
   isBatchRequest,
-} from "@afd/core";
+} from "@lushly-dev/afd-core";
 import { Server as McpSdkServer } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {

@@ -1,5 +1,5 @@
 /**
- * @afd/testing - Step Reference Resolution Tests
+ * @lushly-dev/afd-testing - Step Reference Resolution Tests
  */
 
 import { describe, it, expect } from "vitest";

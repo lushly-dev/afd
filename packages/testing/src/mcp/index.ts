@@ -1,5 +1,5 @@
 /**
- * @fileoverview MCP integration for @afd/testing
+ * @fileoverview MCP integration for @lushly-dev/afd-testing
  *
  * Exports MCP server, tools, and agent hints for AI agent integration.
  */

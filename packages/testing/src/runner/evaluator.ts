@@ -1,11 +1,11 @@
 /**
- * @afd/testing - Step Evaluator
+ * @lushly-dev/afd-testing - Step Evaluator
  *
  * Compares actual command results against expected values defined in scenarios.
  * Supports various matchers: equals, contains, exists, length, gte, lte, etc.
  */
 
-import type { CommandResult } from "@afd/core";
+import type { CommandResult } from "@lushly-dev/afd-core";
 import type { Expectation, AssertionMatcher } from "../types/scenario.js";
 import { isAssertionMatcher } from "../types/scenario.js";
 import type { AssertionResult, StepError } from "../types/report.js";

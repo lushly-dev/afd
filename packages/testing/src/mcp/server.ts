@@ -1,8 +1,8 @@
 /**
- * @fileoverview MCP Server for @afd/testing
+ * @fileoverview MCP Server for @lushly-dev/afd-testing
  *
  * Exposes JTBD scenario commands as MCP tools for AI agent integration.
- * Follows the same patterns as @afd/server but focused on testing tools.
+ * Follows the same patterns as @lushly-dev/afd-server but focused on testing tools.
  */
 
 import type { CommandResult } from '@lushly-dev/afd-core';
@@ -129,7 +129,7 @@ export function createMcpTestingServer(
   options: McpTestingServerOptions = {}
 ): McpTestingServer {
   const {
-    name = '@afd/testing',
+    name = '@lushly-dev/afd-testing',
     version = '0.1.0',
     commandHandler,
     cwd = process.cwd(),

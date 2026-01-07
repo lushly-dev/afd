@@ -1,5 +1,5 @@
 /**
- * @afd/testing - Terminal Reporter
+ * @lushly-dev/afd-testing - Terminal Reporter
  *
  * Formats scenario execution results for terminal output.
  * Supports both human-readable and CI/agent-friendly formats.

@@ -1,5 +1,5 @@
 /**
- * @fileoverview MCP tool definitions for @afd/testing
+ * @fileoverview MCP tool definitions for @lushly-dev/afd-testing
  *
  * Generates MCP tool specifications from the scenario commands,
  * allowing AI agents to discover and invoke JTBD testing capabilities.

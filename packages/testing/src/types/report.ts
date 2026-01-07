@@ -1,11 +1,11 @@
 /**
- * @afd/testing - Scenario execution result types
+ * @lushly-dev/afd-testing - Scenario execution result types
  *
  * Types for representing the outcome of running JTBD scenarios,
  * including step results, errors, and aggregate reports.
  */
 
-import type { CommandResult } from "@afd/core";
+import type { CommandResult } from "@lushly-dev/afd-core";
 
 // ============================================================================
 // Step Result Types

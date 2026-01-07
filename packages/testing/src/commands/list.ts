@@ -1,5 +1,5 @@
 /**
- * @afd/testing - scenario.list command
+ * @lushly-dev/afd-testing - scenario.list command
  *
  * Lists available scenarios with filtering by job, tags, and status.
  */

@@ -1,5 +1,5 @@
 /**
- * @fileoverview @afd/testing - Testing utilities for Agent-First Development
+ * @fileoverview @lushly-dev/afd-testing - Testing utilities for Agent-First Development
  *
  * This package provides utilities for testing AFD commands:
  *

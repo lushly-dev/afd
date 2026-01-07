@@ -1,5 +1,5 @@
 /**
- * @afd/testing - Fixture Loader Tests
+ * @lushly-dev/afd-testing - Fixture Loader Tests
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
