@@ -53,22 +53,22 @@ function calculateSimilarity(a: string, b: string): number {
 	}
 
 	for (let j = 0; j <= bLower.length; j++) {
-		matrix[0][j] = j;
+		matrix[0]![j] = j;
 	}
 
 	for (let i = 1; i <= aLower.length; i++) {
 		for (let j = 1; j <= bLower.length; j++) {
 			const cost = aLower[i - 1] === bLower[j - 1] ? 0 : 1;
-			matrix[i][j] = Math.min(
-				matrix[i - 1][j] + 1, // deletion
-				matrix[i][j - 1] + 1, // insertion
-				matrix[i - 1][j - 1] + cost // substitution
+			matrix[i]![j] = Math.min(
+				matrix[i - 1]![j]! + 1, // deletion
+				matrix[i]![j - 1]! + 1, // insertion
+				matrix[i - 1]![j - 1]! + cost // substitution
 			);
 		}
 	}
 
 	const maxLen = Math.max(aLower.length, bLower.length);
-	return maxLen === 0 ? 1 : 1 - matrix[aLower.length][bLower.length] / maxLen;
+	return maxLen === 0 ? 1 : 1 - matrix[aLower.length]![bLower.length]! / maxLen;
 }
 
 /**
