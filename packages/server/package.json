@@ -41,9 +41,8 @@
     "zod",
     "validation"
   ],
-  "license": "UNLICENSED",
+  "license": "MIT",
   "publishConfig": {
-    "access": "restricted",
-    "registry": "https://npm.pkg.github.com"
+    "access": "public"
   }
 }

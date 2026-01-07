@@ -31,7 +31,7 @@
     "client"
   ],
   "author": "Falkicon",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/lushly-dev/afd.git",
@@ -48,7 +48,6 @@
     "vitest": "^2.1.8"
   },
   "publishConfig": {
-    "access": "restricted",
-    "registry": "https://npm.pkg.github.com"
+    "access": "public"
   }
 }

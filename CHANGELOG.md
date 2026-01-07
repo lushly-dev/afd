@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-01-07
+
+### Changed
+
+- **`failure()` function** - Now accepts all optional CommandResult fields (alternatives, sources, plan, reasoning, confidence), not just warnings and metadata. This enables richer failure responses with suggested alternatives.
+
+### Added
+
+- **Public npm publishing** - All 5 packages now published to npm under MIT license:
+  - `@lushly-dev/afd-core` - Core types and utilities
+  - `@lushly-dev/afd-client` - MCP client library
+  - `@lushly-dev/afd-server` - Zod-based MCP server factory
+  - `@lushly-dev/afd-cli` - Command-line interface
+  - `@lushly-dev/afd-testing` - Testing utilities
+- **LICENSE file** - MIT license with compiled-only note (source repo remains private)
+
+---
+
 ## [0.7.0] - 2026-01-06
 
 ### Added
