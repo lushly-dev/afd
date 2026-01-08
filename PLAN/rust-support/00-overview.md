@@ -68,11 +68,11 @@ afd/
 
 ## Success Criteria
 
-- [ ] All AFD types match TypeScript/Python exactly (JSON serialization)
-- [ ] Pass shared conformance test suite
-- [ ] MCP server works with Claude Desktop and Cursor
-- [ ] Build for Windows, Mac, Linux, and WASM
-- [ ] Automated releases via cargo-dist
+- [x] All AFD types match TypeScript/Python exactly (JSON serialization)
+- [x] Pass shared conformance test suite
+- [x] MCP server works with Claude Desktop and Cursor
+- [x] Build for Windows, Mac, Linux, and WASM
+- [ ] Automated releases via cargo-dist (publish to crates.io)
 
 ## Timeline
 
