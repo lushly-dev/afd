@@ -90,15 +90,23 @@ export {
 	createRetryMiddleware,
 	createTracingMiddleware,
 	createRateLimitMiddleware,
+	createTelemetryMiddleware,
 	composeMiddleware,
+	ConsoleTelemetrySink,
 	type LoggingOptions,
 	type TimingOptions,
 	type RetryOptions,
 	type TracingOptions,
 	type RateLimitOptions,
+	type TelemetryOptions,
+	type ConsoleTelemetrySinkOptions,
 	type Tracer,
 	type Span,
 } from './middleware.js';
+
+// Re-export telemetry types from core for convenience
+export type { TelemetryEvent, TelemetrySink } from '@lushly-dev/afd-core';
+export { createTelemetryEvent, isTelemetryEvent } from '@lushly-dev/afd-core';
 
 // Bootstrap tools
 export {
