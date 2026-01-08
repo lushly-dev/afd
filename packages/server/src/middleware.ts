@@ -2,10 +2,16 @@
  * @fileoverview Command middleware utilities
  *
  * Middleware functions that can be applied to command execution
- * for logging, tracing, rate limiting, etc.
+ * for logging, tracing, rate limiting, telemetry, etc.
  */
 
-import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import type {
+	CommandContext,
+	CommandResult,
+	TelemetryEvent,
+	TelemetrySink,
+} from '@lushly-dev/afd-core';
+import { createTelemetryEvent } from '@lushly-dev/afd-core';
 import type { CommandMiddleware } from './server.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -308,6 +314,217 @@ export function createRateLimitMiddleware(
 		window.count++;
 		return next();
 	};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TELEMETRY MIDDLEWARE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Options for telemetry middleware.
+ */
+export interface TelemetryOptions {
+	/** Telemetry sink to record events to */
+	sink: TelemetrySink;
+
+	/**
+	 * Include command input in telemetry events.
+	 * Warning: May contain sensitive data. Default: false.
+	 */
+	includeInput?: boolean;
+
+	/**
+	 * Include result metadata in telemetry events.
+	 * Default: true.
+	 */
+	includeMetadata?: boolean;
+
+	/**
+	 * Filter function to determine which commands to track.
+	 * Return true to track, false to skip.
+	 * Default: track all commands.
+	 */
+	filter?: (commandName: string) => boolean;
+}
+
+/**
+ * Create a telemetry middleware that records command execution events.
+ *
+ * @example
+ * ```typescript
+ * import { createTelemetryMiddleware, ConsoleTelemetrySink } from '@lushly-dev/afd-server';
+ *
+ * const server = createMcpServer({
+ *   // ...
+ *   middleware: [
+ *     createTelemetryMiddleware({
+ *       sink: new ConsoleTelemetrySink(),
+ *     }),
+ *   ],
+ * });
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // Custom sink with filtering
+ * const server = createMcpServer({
+ *   middleware: [
+ *     createTelemetryMiddleware({
+ *       sink: customDatabaseSink,
+ *       includeInput: false, // Don't log potentially sensitive input
+ *       filter: (name) => !name.startsWith('internal.'), // Skip internal commands
+ *     }),
+ *   ],
+ * });
+ * ```
+ */
+export function createTelemetryMiddleware(
+	options: TelemetryOptions
+): CommandMiddleware {
+	const {
+		sink,
+		includeInput = false,
+		includeMetadata = true,
+		filter = () => true,
+	} = options;
+
+	return async (commandName, input, context, next) => {
+		// Skip if filtered out
+		if (!filter(commandName)) {
+			return next();
+		}
+
+		const startedAt = new Date().toISOString();
+		const startTime = Date.now();
+
+		let result: CommandResult;
+		let thrownError: Error | undefined;
+
+		try {
+			result = await next();
+		} catch (error) {
+			thrownError = error instanceof Error ? error : new Error(String(error));
+			// Re-throw after recording telemetry
+			throw error;
+		} finally {
+			const completedAt = new Date().toISOString();
+			const durationMs = Date.now() - startTime;
+
+			const event: TelemetryEvent = createTelemetryEvent({
+				commandName,
+				startedAt,
+				completedAt,
+				durationMs,
+				success: thrownError ? false : result!.success,
+				...(thrownError && {
+					error: {
+						code: 'UNHANDLED_ERROR',
+						message: thrownError.message,
+					},
+				}),
+				...(!thrownError && !result!.success && result!.error && { error: result!.error }),
+				...(context.traceId && { traceId: context.traceId }),
+				...(includeInput && { input }),
+				...(!thrownError && result!.confidence !== undefined && { confidence: result!.confidence }),
+				...(!thrownError && includeMetadata && result!.metadata && { metadata: result!.metadata }),
+				...(!thrownError && result!.metadata?.commandVersion && {
+					commandVersion: result!.metadata.commandVersion as string,
+				}),
+			});
+
+			// Record asynchronously - don't block command execution
+			try {
+				const recordResult = sink.record(event);
+				if (recordResult instanceof Promise) {
+					// Fire and forget, but catch errors to prevent unhandled rejections
+					recordResult.catch(() => {
+						// Silently ignore sink errors to prevent affecting command execution
+					});
+				}
+			} catch {
+				// Silently ignore sink errors to prevent affecting command execution
+			}
+		}
+
+		return result!;
+	};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONSOLE TELEMETRY SINK
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Options for the console telemetry sink.
+ */
+export interface ConsoleTelemetrySinkOptions {
+	/**
+	 * Log function to use.
+	 * Default: console.log
+	 */
+	log?: (message: string) => void;
+
+	/**
+	 * Whether to format output as JSON.
+	 * Default: false (human-readable format)
+	 */
+	json?: boolean;
+
+	/**
+	 * Prefix for log messages.
+	 * Default: '[Telemetry]'
+	 */
+	prefix?: string;
+}
+
+/**
+ * Default telemetry sink that logs events to the console.
+ *
+ * @example
+ * ```typescript
+ * // Human-readable output (default)
+ * const sink = new ConsoleTelemetrySink();
+ *
+ * // JSON output for log aggregation
+ * const jsonSink = new ConsoleTelemetrySink({ json: true });
+ *
+ * // Custom logger
+ * const customSink = new ConsoleTelemetrySink({
+ *   log: (msg) => myLogger.info(msg),
+ *   prefix: '[CMD]',
+ * });
+ * ```
+ */
+export class ConsoleTelemetrySink implements TelemetrySink {
+	private readonly log: (message: string) => void;
+	private readonly json: boolean;
+	private readonly prefix: string;
+
+	constructor(options: ConsoleTelemetrySinkOptions = {}) {
+		this.log = options.log ?? console.log;
+		this.json = options.json ?? false;
+		this.prefix = options.prefix ?? '[Telemetry]';
+	}
+
+	record(event: TelemetryEvent): void {
+		if (this.json) {
+			this.log(JSON.stringify({ ...event, _prefix: this.prefix }));
+		} else {
+			const status = event.success ? 'SUCCESS' : 'FAILURE';
+			const traceInfo = event.traceId ? ` [${event.traceId}]` : '';
+			const confidenceInfo =
+				event.confidence !== undefined ? ` (confidence: ${event.confidence})` : '';
+			const errorInfo = event.error ? ` - ${event.error.code}: ${event.error.message}` : '';
+
+			this.log(
+				`${this.prefix}${traceInfo} ${event.commandName} ${status} in ${event.durationMs}ms${confidenceInfo}${errorInfo}`
+			);
+		}
+	}
+
+	flush(): void {
+		// Console sink doesn't buffer, nothing to flush
+	}
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

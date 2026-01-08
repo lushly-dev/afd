@@ -134,3 +134,7 @@ export {
 	isMcpResponse,
 	isMcpNotification,
 } from './mcp.js';
+
+// Telemetry types
+export type { TelemetryEvent, TelemetrySink } from './telemetry.js';
+export { createTelemetryEvent, isTelemetryEvent } from './telemetry.js';
