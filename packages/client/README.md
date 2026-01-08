@@ -173,14 +173,14 @@ const client = createClient({
 
 ### Direct Transport (Zero Overhead)
 
-For co-located agents (same runtime as the application), use `DirectClient` to bypass all transport overhead:
+For co-located agents (same runtime as the application), use `createDirectClient` to bypass all transport overhead:
 
 ```typescript
-import { DirectClient } from '@afd/client';
+import { createDirectClient } from '@afd/client';
 import { registry } from '@my-app/commands';
 
-// Direct execution - ~0.01ms latency vs 10-100ms for MCP
-const client = new DirectClient(registry);
+// Direct execution - ~0.03-0.1ms latency vs 2-10ms for MCP
+const client = createDirectClient(registry);
 
 const result = await client.call<Todo>('todo-create', { title: 'Fast!' });
 if (result.success) {
@@ -192,21 +192,78 @@ if (result.success) {
 
 | Transport | Avg Latency | Use Case |
 |-----------|-------------|----------|
-| Direct | ~0.01ms | Same runtime, max performance |
-| SSE | ~20-50ms | Real-time streaming |
-| HTTP | ~20-100ms | Request/response, serverless |
+| Direct | ~0.03-0.1ms | Same runtime, max performance |
+| MCP HTTP | ~2-5ms | External services |
+| MCP SSE | ~5-10ms | Remote agents, real-time |
 
-Your registry must implement the `DirectRegistry` interface:
+#### DirectClient Options
 
 ```typescript
-import { DirectRegistry } from '@afd/client';
-import type { CommandResult } from '@afd/core';
+const client = createDirectClient(registry, {
+  source: 'my-agent',      // Identifier propagated to handlers
+  debug: true,             // Enable debug logging
+  validateInputs: true,    // Validate inputs against schemas (default: true)
+});
+```
+
+#### Context Propagation
+
+Pass context to individual calls for tracing and cancellation:
+
+```typescript
+// Custom trace ID
+const result = await client.call('command', args, {
+  traceId: 'custom-trace-123',
+  timeout: 5000,
+  signal: abortController.signal,
+});
+
+// Context is propagated to command handlers
+// Handler receives: { traceId, source, timeout, signal, ... }
+```
+
+#### Input Validation
+
+If your registry implements `getCommand()`, DirectClient validates inputs:
+
+```typescript
+class MyRegistry implements DirectRegistry {
+  // ... other methods ...
+
+  getCommand(name: string): CommandDefinition | undefined {
+    return this.commands.get(name);
+  }
+}
+
+const client = createDirectClient(registry, { validateInputs: true });
+
+// Missing required parameter
+const result = await client.call('todo-create', {});
+// Result: { success: false, error: { code: 'VALIDATION_ERROR', ... } }
+```
+
+#### DirectRegistry Interface
+
+Your registry must implement:
+
+```typescript
+import { DirectRegistry, CommandDefinition } from '@afd/client';
+import type { CommandResult, CommandContext } from '@afd/core';
 
 class MyRegistry implements DirectRegistry {
-  async execute<T>(name: string, input?: unknown): Promise<CommandResult<T>>;
+  // Required methods
+  async execute<T>(
+    name: string,
+    input?: unknown,
+    context?: CommandContext  // Receives traceId, source, etc.
+  ): Promise<CommandResult<T>>;
+
   listCommandNames(): string[];
   listCommands(): Array<{ name: string; description: string }>;
   hasCommand(name: string): boolean;
+
+  // Optional - enables input validation
+  getCommand?(name: string): CommandDefinition | undefined;
 }
 ```
 
