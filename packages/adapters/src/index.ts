@@ -1,0 +1,20 @@
+/**
+ * @afd/adapters - Frontend adapters for rendering CommandResult to styled HTML.
+ *
+ * Uses CSS custom properties for theming. Set these in your stylesheet:
+ *   --afd-success, --afd-error, --afd-warning, --afd-info, --afd-muted
+ *
+ * @example
+ * ```typescript
+ * import { WebAdapter } from '@afd/adapters';
+ *
+ * const result = await fetch('/api/execute', { command: 'lint' });
+ * const html = WebAdapter.renderPackageResults(result.data);
+ * container.innerHTML = html;
+ * ```
+ */
+
+export { WebAdapter } from './web-adapter.js';
+export { StatusType, STATUS_COLORS, AFD_CSS_VARIABLES } from './css-variables.js';
+export { escapeHtml, styledSpan } from './utils.js';
+export type { PackageResult, PackageResults, RenderOptions } from './types.js';

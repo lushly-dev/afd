@@ -1,91 +1,54 @@
 # AFD Implementation Plans
 
-This folder contains planning documents for future AFD features and integrations.
+This folder contains planning documents for AFD features. **Task tracking is in GitHub Issues/Projects**, these docs are reference only.
 
-## Folder Structure
+## Active Work
 
-```
-PLAN/
-├── Archive/                    # ✅ Completed plans
-│   ├── multi-stack-examples/   # Todo example with TS/Python backends, Vanilla/React frontends
-│   ├── performance/            # Performance optimizations
-│   └── jtbd-testing/           # JTBD Scenario Testing Framework (4 phases complete)
-│
-├── in-process-binding/        # ❌ NOT STARTED - Zero-overhead local command execution
-│   └── 00-overview.plan.md    # Direct registry binding for co-located agents
-│
-├── design-to-code/            # ❌ NOT STARTED - Figma + AFD integration
-│   └── 00-overview.md         # Design-to-code pipeline with Figma Make
-│
-├── rust-distribution/         # ❌ NOT STARTED - Mint distribution framework
-│   └── 00-overview.md         # Multi-platform deployment (depends on rust-support)
-│
-└── rust-support/              # ❌ NOT STARTED - Rust implementation for AFD
-    └── 00-overview.md         # Add Rust as third language to AFD
-```
+| Feature | GitHub | Status |
+|---------|--------|--------|
+| **Rust cargo-dist** | [Issue #15](https://github.com/lushly-dev/afd/issues/15) | Ready |
+| **Mint Distribution** | [Project #2](https://github.com/orgs/lushly-dev/projects/2) | Future |
+| **Design-to-Code** | [Project #3](https://github.com/orgs/lushly-dev/projects/3) | Future |
 
-## Status Legend
+## Documentation Index
 
-| Status | Meaning |
-|--------|---------|
-| ✅ Completed | All phases implemented, moved to Archive |
-| 🟡 Partial | Some phases complete, work in progress |
-| ❌ Not Started | Future work, planning only |
+### Rust Support (`rust-support/`)
+Adds Rust as third language to AFD (TS, Python, Rust).
 
-## Current Priorities
+- [00-overview.md](./rust-support/00-overview.md) - Requirements, timeline, success criteria
+- [01-afd-rust.md](./rust-support/01-afd-rust.md) - Full implementation details
 
-### Future Work (Not Started)
+### Mint Distribution (`rust-distribution/`)
+Private framework for multi-platform deployment (12+ targets).
 
-1. **In-Process Binding** (`in-process-binding/`) - Zero-overhead local command execution
-2. **Rust Support** (`rust-support/`) - Prerequisite for Mint
-3. **Mint Distribution** (`rust-distribution/`) - Multi-platform deployment
-4. **Design-to-Code** (`design-to-code/`) - Figma integration
+- [00-overview.md](./rust-distribution/00-overview.md) - Vision, architecture, phases
+- [01-mint.md](./rust-distribution/01-mint.md) - Core Mint framework
+- [02-service-layer.md](./rust-distribution/02-service-layer.md) - Database/Storage abstractions
+- [03-ui-heads.md](./rust-distribution/03-ui-heads.md) - CLI/Web/Desktop/Mobile heads
+- [04-testing-conformance.md](./rust-distribution/04-testing-conformance.md) - 4-layer testing
+- [05-collaboration-sync.md](./rust-distribution/05-collaboration-sync.md) - Real-time sync
+- [06-future-phases.md](./rust-distribution/06-future-phases.md) - Voice, Watch, etc.
 
-## Completed Work (Archive)
+### Design-to-Code (`design-to-code/`)
+Figma-to-AFD code generation pipeline.
 
-### JTBD Testing Framework
+- [00-overview.md](./design-to-code/00-overview.md) - Pipeline overview
+- [01-afd-schema-layer.md](./design-to-code/01-afd-schema-layer.md) - Schema exposure
+- [02-figma-plugin.md](./design-to-code/02-figma-plugin.md) - Plugin implementation
+- [03-figma-make-generation.md](./design-to-code/03-figma-make-generation.md) - Code generation
+- [04-documentation-pipeline.md](./design-to-code/04-documentation-pipeline.md) - Auto-docs
+- [05-validation-sync.md](./design-to-code/05-validation-sync.md) - Design/code sync
+- [06-implementation-roadmap.md](./design-to-code/06-implementation-roadmap.md) - Rollout
 
-Jobs-to-be-Done scenario testing for validating complete user workflows.
+### Other Documentation
 
-**Deliverables**:
-- Phase 1: Core Framework (YAML parser, executor, fixtures, step references)
-- Phase 2: Command Suite (list, evaluate, coverage, create)
-- Phase 3: Agent Integration (MCP server, tools, agent hints, suggestions)
-- Phase 4: Multi-App Support (adapters, registry, todo/generic adapters)
+- [AFD-Executive-Summary.md](./AFD-Executive-Summary.md) - High-level overview
+- [handoff-pattern.md](./handoff-pattern.md) - Agent handoff patterns
 
-**Tests**: 169 passing | **Location**: `packages/testing/`
+## Archived (Completed)
 
-### Multi-Stack Examples
-
-Demonstrates AFD's core promise: "commands ARE the application, surfaces are interchangeable"
-
-**Deliverables**:
-- TypeScript backend (11 commands)
-- Python backend (11 commands)
-- Vanilla JS frontend (with trust signals)
-- React frontend
-- Shared test runner
-- Conformance test suite
-
-**Location**: `packages/examples/todo/`
-
-### Performance
-
-Performance optimizations for command execution.
-
----
-
-## Adding New Plans
-
-When creating new plans:
-
-1. Create a folder with descriptive name (e.g., `feature-name/`)
-2. Add `00-overview.md` as the entry point
-3. Number sub-plans: `01-component.md`, `02-component.md`, etc.
-4. Update this README with status
-
-When completing plans:
-
-1. Move folder to `Archive/`
-2. Update this README
-3. Update CHANGELOG.md with accomplishments
+See [Archive/](./Archive/) for completed plans:
+- `in-process-binding/` - DirectClient implemented (PR #13)
+- `multi-stack-examples/` - Todo example with TS/Python backends
+- `performance/` - Performance optimizations
+- `jtbd-testing/` - JTBD Scenario Testing Framework
