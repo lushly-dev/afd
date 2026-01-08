@@ -12,7 +12,17 @@
 
 export { McpClient, createClient } from './client.js';
 export { createTransport, HttpTransport, SseTransport, type Transport } from './transport.js';
-export { DirectTransport, DirectClient, type DirectRegistry, type UnknownToolError } from './direct.js';
+export {
+	DirectTransport,
+	DirectClient,
+	createDirectClient,
+	type DirectRegistry,
+	type DirectClientOptions,
+	type DirectCallContext,
+	type UnknownToolError,
+	type CommandDefinition,
+	type CommandParameter,
+} from './direct.js';
 export type {
 	ClientStatus,
 	ConnectionState,
