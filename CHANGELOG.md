@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - 2026-01-08
+
+### Added
+
+- **@afd/adapters** - Frontend adapters for rendering CommandResult to styled HTML
+  - `WebAdapter` - Renders lint/test/build results with CSS variable theming
+  - CSS variable contract: `--afd-success`, `--afd-error`, `--afd-warning`, `--afd-info`, `--afd-muted`
+  - Default theme CSS included (`@afd/adapters/css`)
+  - TypeScript types for PackageResults and RenderOptions
+  - Fast regex-based HTML escaping (no DOM creation)
+  - Designed for Violet design token integration
+
+- **DirectClient** (`@afd/client`) - Zero-overhead in-process command execution
+  - `createDirectClient(registry)` factory for co-located modules
+  - Same API as McpClient (listCommands, call, hasCommand)
+  - Input validation identical to MCP transport
+  - Context propagation (source, traceId)
+  - **< 0.5ms latency** verified via benchmarks
+  - Fuzzy match suggestions for unknown commands
+
+- **Telemetry Middleware** (`@afd/core`, `@afd/server`)
+  - `TelemetryEvent` interface for command execution logging
+  - `TelemetrySink` pluggable storage interface
+  - `ConsoleTelemetrySink` default implementation
+  - `telemetryMiddleware` for automatic command tracking
+  - Source attribution (type, surface, userId)
+  - Duration and error code tracking
+
+---
+
 ## [0.1.1] - 2026-01-07
 
 ### Changed

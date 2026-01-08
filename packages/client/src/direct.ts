@@ -6,17 +6,34 @@
  *
  * @example
  * ```typescript
- * import { DirectClient } from '@lushly-dev/afd-client';
+ * import { createDirectClient } from '@lushly-dev/afd-client';
  * import { registry } from '@my-app/commands';
  *
- * const client = new DirectClient(registry);
+ * const client = createDirectClient(registry);
  * const result = await client.call('todo-create', { title: 'Fast!' });
- * // ~0.01-0.1ms latency vs 10-100ms for MCP
+ * // ~0.03-0.1ms latency vs 10-100ms for MCP
+ * ```
+ *
+ * @example Context propagation
+ * ```typescript
+ * const client = createDirectClient(registry, {
+ *   source: 'my-agent',
+ *   debug: true,
+ * });
+ *
+ * // traceId is auto-generated or can be passed per-call
+ * const result = await client.call('command', args, { traceId: 'trace-123' });
  * ```
  */
 
-import type { CommandResult, McpRequest, McpResponse, McpTool } from '@lushly-dev/afd-core';
-import { success, failure } from '@lushly-dev/afd-core';
+import type {
+	CommandContext,
+	CommandResult,
+	McpRequest,
+	McpResponse,
+	McpTool,
+} from '@lushly-dev/afd-core';
+import { failure, validationError } from '@lushly-dev/afd-core';
 import type { Transport } from './transport.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -109,6 +126,58 @@ function createUnknownToolError(
 	};
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DIRECT CLIENT OPTIONS AND CONTEXT
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Options for creating a DirectClient.
+ */
+export interface DirectClientOptions {
+	/**
+	 * Source identifier for this client (e.g., 'my-agent', 'api-server').
+	 * Propagated to command handlers via context.
+	 */
+	source?: string;
+
+	/**
+	 * Enable debug logging.
+	 */
+	debug?: boolean;
+
+	/**
+	 * Whether to validate inputs against command schemas.
+	 * Default: true
+	 */
+	validateInputs?: boolean;
+}
+
+/**
+ * Context options for individual command calls.
+ */
+export interface DirectCallContext {
+	/**
+	 * Trace ID for this command invocation.
+	 * If not provided, one will be auto-generated.
+	 */
+	traceId?: string;
+
+	/**
+	 * Timeout in milliseconds for this call.
+	 */
+	timeout?: number;
+
+	/**
+	 * Signal for cancellation.
+	 */
+	signal?: AbortSignal;
+
+	/**
+	 * Additional custom context values.
+	 */
+	[key: string]: unknown;
+}
+
 /**
  * Interface for command registries that support direct execution.
  *
@@ -119,9 +188,14 @@ export interface DirectRegistry {
 	 * Execute a command directly.
 	 * @param name - Command name
 	 * @param input - Command input
+	 * @param context - Optional command context for tracing/cancellation
 	 * @returns Command result
 	 */
-	execute<T>(name: string, input?: unknown): Promise<CommandResult<T>>;
+	execute<T>(
+		name: string,
+		input?: unknown,
+		context?: CommandContext
+	): Promise<CommandResult<T>>;
 
 	/**
 	 * List available command names.
@@ -137,6 +211,34 @@ export interface DirectRegistry {
 	 * Check if a command exists.
 	 */
 	hasCommand(name: string): boolean;
+
+	/**
+	 * Get command definition for validation (optional).
+	 * If provided, enables input validation.
+	 */
+	getCommand?(name: string): CommandDefinition | undefined;
+}
+
+/**
+ * Command definition for validation purposes.
+ * Matches the structure from @lushly-dev/afd-core.
+ */
+export interface CommandDefinition {
+	name: string;
+	description: string;
+	parameters: CommandParameter[];
+}
+
+/**
+ * Command parameter definition for validation.
+ */
+export interface CommandParameter {
+	name: string;
+	type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null';
+	description: string;
+	required?: boolean;
+	default?: unknown;
+	enum?: unknown[];
 }
 
 /**
@@ -373,19 +475,94 @@ interface ToolCallParams {
 	arguments?: Record<string, unknown>;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// INPUT VALIDATION
+// ═══════════════════════════════════════════════════════════════════════════
+
 /**
- * Simplified client for direct registry access.
+ * Validation error details for a specific parameter.
+ */
+interface ValidationIssue {
+	parameter: string;
+	message: string;
+	expected?: string;
+	received?: string;
+}
+
+/**
+ * Validate input against command parameters.
+ * Returns null if valid, or an array of validation issues.
+ */
+function validateInput(
+	input: Record<string, unknown> | undefined,
+	parameters: CommandParameter[]
+): ValidationIssue[] | null {
+	const issues: ValidationIssue[] = [];
+	const inputObj = input ?? {};
+
+	for (const param of parameters) {
+		const value = inputObj[param.name];
+
+		// Check required parameters
+		if (param.required && value === undefined) {
+			issues.push({
+				parameter: param.name,
+				message: `Required parameter '${param.name}' is missing`,
+				expected: param.type,
+			});
+			continue;
+		}
+
+		// Skip validation for undefined optional parameters
+		if (value === undefined) {
+			continue;
+		}
+
+		// Type validation
+		const actualType = Array.isArray(value) ? 'array' : value === null ? 'null' : typeof value;
+		if (actualType !== param.type) {
+			issues.push({
+				parameter: param.name,
+				message: `Parameter '${param.name}' has wrong type`,
+				expected: param.type,
+				received: actualType,
+			});
+		}
+
+		// Enum validation
+		if (param.enum && !param.enum.includes(value)) {
+			issues.push({
+				parameter: param.name,
+				message: `Parameter '${param.name}' must be one of: ${param.enum.join(', ')}`,
+				expected: param.enum.join(' | '),
+				received: String(value),
+			});
+		}
+	}
+
+	return issues.length > 0 ? issues : null;
+}
+
+/**
+ * Generate a unique trace ID.
+ */
+function generateTraceId(): string {
+	return `trace-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/**
+ * DirectClient for zero-overhead in-process command execution.
  *
  * Use this when you don't need the full McpClient features like
  * reconnection, events, etc. This provides the minimal API for
- * command execution.
+ * command execution with optional validation and context propagation.
  *
  * @example
  * ```typescript
- * import { DirectClient } from '@lushly-dev/afd-client';
+ * import { createDirectClient } from '@lushly-dev/afd-client';
  * import { registry } from '@my-app/commands';
  *
- * const client = new DirectClient(registry);
+ * const client = createDirectClient(registry);
  *
  * // Type-safe command execution
  * const result = await client.call<Todo>('todo-create', { title: 'Test' });
@@ -394,9 +571,33 @@ interface ToolCallParams {
  *   console.log(result.data.id);
  * }
  * ```
+ *
+ * @example With context propagation
+ * ```typescript
+ * const client = createDirectClient(registry, {
+ *   source: 'my-agent',
+ *   debug: true,
+ * });
+ *
+ * // Context is propagated to command handlers
+ * const result = await client.call('command', args, { traceId: 'custom-trace' });
+ * ```
  */
 export class DirectClient {
-	constructor(private readonly registry: DirectRegistry) {}
+	private readonly options: Required<Omit<DirectClientOptions, 'source'>> & {
+		source?: string;
+	};
+
+	constructor(
+		private readonly registry: DirectRegistry,
+		options: DirectClientOptions = {}
+	) {
+		this.options = {
+			source: options.source,
+			debug: options.debug ?? false,
+			validateInputs: options.validateInputs ?? true,
+		};
+	}
 
 	/**
 	 * Call a command and return a CommandResult.
@@ -406,17 +607,26 @@ export class DirectClient {
 	 *
 	 * @param name - Command name
 	 * @param args - Command arguments
+	 * @param context - Optional context for tracing/cancellation
 	 * @returns Command result
 	 */
 	async call<T = unknown>(
 		name: string,
-		args?: Record<string, unknown>
+		args?: Record<string, unknown>,
+		context?: DirectCallContext
 	): Promise<CommandResult<T> | CommandResult<UnknownToolError>> {
+		const startTime = this.options.debug ? performance.now() : 0;
+		const traceId = context?.traceId ?? generateTraceId();
+
+		this.debug(`[${traceId}] Calling ${name}`, args);
+
 		// Check if the command exists - return structured error if not
 		if (!this.registry.hasCommand(name)) {
 			const availableTools = this.registry.listCommandNames();
 			const unknownToolError = createUnknownToolError(name, availableTools);
-			
+
+			this.debug(`[${traceId}] Unknown command: ${name}`);
+
 			// Return as a CommandResult with the UnknownToolError as data
 			// This allows agents to receive structured information for recovery
 			return {
@@ -429,7 +639,46 @@ export class DirectClient {
 			};
 		}
 
-		return this.registry.execute<T>(name, args);
+		// Input validation (if registry supports getCommand)
+		if (this.options.validateInputs && this.registry.getCommand) {
+			const command = this.registry.getCommand(name);
+			if (command) {
+				const issues = validateInput(args, command.parameters);
+				if (issues) {
+					this.debug(`[${traceId}] Validation failed:`, issues);
+
+					return failure(
+						validationError(
+							`Invalid input for '${name}': ${issues.map((i) => i.message).join('; ')}`,
+							{ issues }
+						)
+					) as CommandResult<T>;
+				}
+			}
+		}
+
+		// Build command context
+		const commandContext: CommandContext = {
+			traceId,
+			...context,
+		};
+
+		// Add source if configured
+		if (this.options.source) {
+			commandContext.source = this.options.source;
+		}
+
+		// Execute the command
+		const result = await this.registry.execute<T>(name, args, commandContext);
+
+		if (this.options.debug) {
+			const duration = performance.now() - startTime;
+			this.debug(`[${traceId}] Completed in ${duration.toFixed(3)}ms`, {
+				success: result.success,
+			});
+		}
+
+		return result;
 	}
 
 	/**
@@ -452,4 +701,57 @@ export class DirectClient {
 	hasCommand(name: string): boolean {
 		return this.registry.hasCommand(name);
 	}
+
+	/**
+	 * Get the source identifier for this client.
+	 */
+	getSource(): string | undefined {
+		return this.options.source;
+	}
+
+	/**
+	 * Debug logging helper.
+	 */
+	private debug(message: string, data?: unknown): void {
+		if (this.options.debug) {
+			console.log(`[DirectClient] ${message}`, data ?? '');
+		}
+	}
+}
+
+/**
+ * Create a new DirectClient for zero-overhead command execution.
+ *
+ * This is the recommended way to create a DirectClient. It provides
+ * the same API as McpClient.call() but with ~100x faster execution
+ * for co-located modules.
+ *
+ * @param registry - The command registry to execute against
+ * @param options - Optional configuration for validation, context, and debugging
+ * @returns A new DirectClient instance
+ *
+ * @example Basic usage
+ * ```typescript
+ * import { createDirectClient } from '@lushly-dev/afd-client';
+ * import { registry } from './commands';
+ *
+ * const client = createDirectClient(registry);
+ * const result = await client.call('plant.get', { id: 'tomato-123' });
+ * // ~0.03-0.1ms latency vs ~2-10ms for MCP
+ * ```
+ *
+ * @example With options
+ * ```typescript
+ * const client = createDirectClient(registry, {
+ *   source: 'garden-api',
+ *   debug: true,
+ *   validateInputs: true,
+ * });
+ * ```
+ */
+export function createDirectClient(
+	registry: DirectRegistry,
+	options?: DirectClientOptions
+): DirectClient {
+	return new DirectClient(registry, options);
 }
