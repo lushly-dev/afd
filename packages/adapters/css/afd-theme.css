@@ -1,0 +1,31 @@
+/**
+ * AFD Adapters - Default Theme
+ *
+ * These CSS custom properties control the styling of rendered output.
+ * Override them in your stylesheet to match your design system.
+ *
+ * For Violet integration, map these to Violet tokens:
+ *   --afd-success: var(--violet-color-semantic-success);
+ *   --afd-error: var(--violet-color-semantic-error);
+ *   etc.
+ */
+
+:root {
+  /* Success/Pass - green */
+  --afd-success: #22c55e;
+
+  /* Error/Fail - red */
+  --afd-error: #ef4444;
+
+  /* Warning - yellow/amber */
+  --afd-warning: #f59e0b;
+
+  /* Info/Names - blue */
+  --afd-info: #3b82f6;
+
+  /* Muted/Secondary - gray */
+  --afd-muted: #6b7280;
+
+  /* Default text - inherits from parent */
+  --afd-text: inherit;
+}
