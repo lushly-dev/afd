@@ -1,5 +1,7 @@
 import React from "react";
 import type { List } from "../types";
+import type { Theme } from "../hooks/useTheme";
+import { ThemeToggle } from "./ThemeToggle";
 import "./Sidebar.css";
 
 export type ViewType = "inbox" | "today" | "list";
@@ -12,6 +14,8 @@ export interface SidebarProps {
 	onCreateList: () => void;
 	todayCount: number;
 	inboxCount: number;
+	theme?: Theme;
+	onThemeToggle?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -22,6 +26,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 	onCreateList,
 	todayCount,
 	inboxCount,
+	theme,
+	onThemeToggle,
 }) => {
 	return (
 		<aside className="sidebar">
@@ -98,6 +104,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
 					</div>
 				</div>
 			</nav>
+			{theme && onThemeToggle && (
+				<div className="sidebar-footer">
+					<ThemeToggle theme={theme} onToggle={onThemeToggle} />
+				</div>
+			)}
 		</aside>
 	);
 };
