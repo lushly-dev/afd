@@ -1,8 +1,9 @@
 # Spec: Platform Utils
 
 **Proposal:** [platform-utils.proposal.md](./platform-utils.proposal.md)  
-**Status:** DRAFT  
+**Status:** READY  
 **Created:** 2026-01-09  
+**Last Updated:** 2026-01-09  
 **Effort:** M (1-3 days)
 
 ---
@@ -92,6 +93,27 @@ export interface ExecResult {
   /** Duration in milliseconds */
   durationMs: number;
 }
+
+/**
+ * Factory function for ExecResult.
+ * Follows afd-core pattern from errors.ts, streaming.ts.
+ */
+export function createExecResult(
+  stdout: string,
+  stderr: string,
+  exitCode: number,
+  durationMs: number,
+  errorCode?: ExecErrorCode
+): ExecResult {
+  return { stdout, stderr, exitCode, durationMs, errorCode };
+}
+
+/**
+ * Type guard: check if ExecResult indicates an error.
+ */
+export function isExecError(result: ExecResult): boolean {
+  return result.errorCode !== undefined;
+}
 ```
 
 ### 3.2 Connector Interfaces
@@ -135,6 +157,17 @@ export interface PrCreateOptions {
 ## 4. Implementation
 
 ### 4.1 File: `packages/core/src/platform.ts` [NEW]
+
+#### File Header
+
+```typescript
+/**
+ * @fileoverview Cross-platform utilities for subprocess execution
+ * and path operations. Abstracts Windows/macOS/Linux differences.
+ *
+ * All imports must use .js extension for ESM module resolution.
+ */
+```
 
 #### Platform Constants
 
@@ -240,7 +273,22 @@ constructor(private pm: 'npm' | 'pnpm' = 'npm', private options?: { debug?: bool
 
 ---
 
-### 4.4 Export from `index.ts`
+### 4.4 File: `packages/core/src/connectors/index.ts` [NEW]
+
+Barrel export for connectors:
+
+```typescript
+/**
+ * @fileoverview Connector exports for CLI tool abstractions.
+ */
+export { GitHubConnector } from './github.js';
+export { PackageManagerConnector } from './package-manager.js';
+export type { IssueCreateOptions, IssueFilters, Issue, PrCreateOptions } from './github.js';
+```
+
+---
+
+### 4.5 Export from `index.ts`
 
 Add to `packages/core/src/index.ts`:
 
@@ -255,6 +303,8 @@ export {
   getTempDir,
   normalizePath,
   ExecErrorCode,
+  createExecResult,
+  isExecError,
 } from './platform.js';
 export type { ExecOptions, ExecResult } from './platform.js';
 
