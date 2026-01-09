@@ -69,6 +69,33 @@ body {
   margin: 0;
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.keyboard-help-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.keyboard-help-btn:hover {
+  background: var(--primary);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
 .mobile-menu-btn {
   display: none;
   align-items: center;
@@ -116,6 +143,17 @@ body {
 
 .app-footer a:hover {
   text-decoration: underline;
+}
+
+.app-footer kbd {
+  display: inline-block;
+  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+  font-family: inherit;
+  background: var(--primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
 }
 
 /* Sidebar overlay for mobile */
@@ -170,14 +208,11 @@ h1 {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  margin-top: 1rem;
   padding: 0.5rem 1rem;
-  background: var(--surface);
+  background: var(--primary);
   border-radius: 9999px;
   font-size: 0.85rem;
   width: fit-content;
-  margin-left: auto;
-  margin-right: auto;
 }
 
 .status-dot {
@@ -395,12 +430,17 @@ h1 {
   gap: 1rem;
   padding: 1rem;
   background: var(--primary);
+  border: 2px solid transparent;
   border-radius: 8px;
-  transition: transform 0.1s;
+  transition: transform 0.1s, border-color 0.15s;
 }
 
 .todo-item:hover {
   transform: translateX(4px);
+}
+
+.todo-item.focused {
+  border-color: var(--accent);
 }
 
 .todo-checkbox {
