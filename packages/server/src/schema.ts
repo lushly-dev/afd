@@ -58,6 +58,18 @@ export interface ZodCommandOptions<
 
 	/** Error codes this command may return */
 	errors?: string[];
+
+	/**
+	 * Whether this command returns a HandoffResult for protocol handoffs.
+	 * When true, the command will automatically be tagged with 'handoff'.
+	 */
+	handoff?: boolean;
+
+	/**
+	 * The specific handoff protocol this command uses (if handoff is true).
+	 * When specified, the command will also be tagged with 'handoff:{protocol}'.
+	 */
+	handoffProtocol?: 'websocket' | 'webrtc' | 'sse' | 'http-stream' | string;
 }
 
 /**
@@ -103,6 +115,12 @@ export interface ZodCommandDefinition<
 	/** Possible error codes */
 	errors?: string[];
 
+	/** Whether this command returns a HandoffResult */
+	handoff?: boolean;
+
+	/** The specific handoff protocol this command uses */
+	handoffProtocol?: 'websocket' | 'webrtc' | 'sse' | 'http-stream' | string;
+
 	/**
 	 * Convert to standard CommandDefinition format.
 	 */
@@ -145,6 +163,13 @@ export function defineCommand<
 ): ZodCommandDefinition<TInput, TOutput> {
 	const jsonSchema = zodToJsonSchema(options.input);
 
+	// Build tags with automatic handoff tags if handoff is enabled
+	const tags = buildHandoffTags(
+		options.tags,
+		options.handoff,
+		options.handoffProtocol
+	);
+
 	return {
 		name: options.name,
 		description: options.description,
@@ -154,9 +179,11 @@ export function defineCommand<
 		category: options.category,
 		mutation: options.mutation,
 		version: options.version,
-		tags: options.tags,
+		tags,
 		executionTime: options.executionTime,
 		errors: options.errors,
+		handoff: options.handoff,
+		handoffProtocol: options.handoffProtocol,
 
 		toCommandDefinition(): CommandDefinition<z.infer<TInput>, TOutput> {
 			return {
@@ -165,9 +192,11 @@ export function defineCommand<
 				category: options.category,
 				mutation: options.mutation,
 				version: options.version,
-				tags: options.tags,
+				tags,
 				executionTime: options.executionTime,
 				errors: options.errors,
+				handoff: options.handoff,
+				handoffProtocol: options.handoffProtocol,
 				parameters: jsonSchemaToParameters(jsonSchema),
 				returns: { type: 'object', description: 'Command result' },
 				handler: options.handler as (
@@ -177,6 +206,29 @@ export function defineCommand<
 			};
 		},
 	};
+}
+
+/**
+ * Build tags array with automatic handoff tags if handoff is enabled.
+ * Adds 'handoff' tag and optionally 'handoff:{protocol}' tag.
+ */
+function buildHandoffTags(
+	existingTags?: string[],
+	handoff?: boolean,
+	handoffProtocol?: string
+): string[] | undefined {
+	if (!handoff) {
+		return existingTags;
+	}
+
+	const tags = new Set(existingTags ?? []);
+	tags.add('handoff');
+
+	if (handoffProtocol) {
+		tags.add(`handoff:${handoffProtocol}`);
+	}
+
+	return Array.from(tags);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

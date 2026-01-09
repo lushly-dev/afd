@@ -158,6 +158,19 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	 * Estimated execution time category.
 	 */
 	executionTime?: 'instant' | 'fast' | 'slow' | 'long-running';
+
+	/**
+	 * Whether this command returns a HandoffResult for protocol handoffs.
+	 * When true, the command's data payload will be a HandoffResult
+	 * that the client should use to connect to the specified protocol.
+	 */
+	handoff?: boolean;
+
+	/**
+	 * The specific handoff protocol this command uses (if handoff is true).
+	 * Used for agent filtering (e.g., find all WebSocket commands).
+	 */
+	handoffProtocol?: 'websocket' | 'webrtc' | 'sse' | 'http-stream' | string;
 }
 
 /**
