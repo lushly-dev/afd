@@ -1,0 +1,95 @@
+.keyboard-help-overlay {
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.5);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+}
+
+.keyboard-help-modal {
+	background: var(--card-bg, #16213e);
+	border-radius: 12px;
+	padding: 1.5rem;
+	max-width: 500px;
+	width: 90%;
+	max-height: 80vh;
+	overflow-y: auto;
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.keyboard-help-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 1.5rem;
+	padding-bottom: 0.75rem;
+	border-bottom: 1px solid var(--border, #2a2a4a);
+}
+
+.keyboard-help-header h2 {
+	margin: 0;
+	font-size: 1.25rem;
+	color: var(--text, #eaeaea);
+}
+
+.keyboard-help-close {
+	background: none;
+	border: none;
+	font-size: 1.5rem;
+	cursor: pointer;
+	color: var(--text-muted, #8b8b8b);
+	padding: 0.25rem;
+	line-height: 1;
+	border-radius: 4px;
+}
+
+.keyboard-help-close:hover {
+	color: var(--text, #eaeaea);
+}
+
+.keyboard-help-section {
+	margin-bottom: 1.25rem;
+}
+
+.keyboard-help-section h3 {
+	font-size: 0.75rem;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--text-muted, #8b8b8b);
+	margin: 0 0 0.75rem 0;
+}
+
+.keyboard-help-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.keyboard-help-item {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 0.5rem 0;
+}
+
+.keyboard-help-description {
+	font-size: 0.9rem;
+	color: var(--text, #eaeaea);
+}
+
+.keyboard-key {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 1.75rem;
+	height: 1.75rem;
+	padding: 0 0.5rem;
+	background: var(--primary, #0f3460);
+	border: 1px solid var(--border, #2a2a4a);
+	border-radius: 4px;
+	font-size: 0.75rem;
+	font-weight: 500;
+	color: var(--text, #eaeaea);
+}
