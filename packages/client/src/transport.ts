@@ -260,7 +260,7 @@ export class HttpTransport implements Transport {
  * Create a transport based on type.
  */
 export function createTransport(
-	type: 'sse' | 'http',
+	type: 'sse' | 'http' | 'websocket',
 	url: string,
 	headers?: Record<string, string>
 ): Transport {

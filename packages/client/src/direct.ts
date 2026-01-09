@@ -33,8 +33,27 @@ import type {
 	McpResponse,
 	McpTool,
 	HandoffResult,
+	PipelineRequest,
+	PipelineStep,
+	PipelineResult,
+	PipelineMetadata,
+	PipelineContext,
+	StepResult,
+	ResultMetadata,
 } from '@lushly-dev/afd-core';
-import { failure, validationError, isHandoff } from '@lushly-dev/afd-core';
+import {
+	failure,
+	validationError,
+	isHandoff,
+	resolveVariables,
+	evaluateCondition,
+	aggregatePipelineConfidence,
+	aggregatePipelineReasoning,
+	aggregatePipelineWarnings,
+	aggregatePipelineSources,
+	aggregatePipelineAlternatives,
+	buildConfidenceBreakdown,
+} from '@lushly-dev/afd-core';
 import type { Transport } from './transport.js';
 import type {
 	HandoffConnection,
@@ -744,6 +763,250 @@ export class DirectClient {
 		options: ReconnectionOptions = {}
 	): Promise<ReconnectingHandoffConnection> {
 		return createReconnectingHandoff(this, handoff, options);
+	}
+
+	/**
+	 * Execute a pipeline of commands, chaining outputs to inputs.
+	 *
+	 * Pipelines allow declarative composition of commands where the output
+	 * of one step flows into the next. Supports variable resolution
+	 * ($prev, $first, $steps[n], $steps.alias), conditional execution,
+	 * and aggregated metadata (confidence, reasoning, warnings).
+	 *
+	 * @param request - Pipeline request or array of steps
+	 * @param context - Optional call context for tracing
+	 * @returns Pipeline result with final data and aggregated metadata
+	 *
+	 * @example Basic pipeline
+	 * ```typescript
+	 * const result = await client.pipe([
+	 *   { command: 'user-get', input: { id: 123 }, as: 'user' },
+	 *   { command: 'order-list', input: { userId: '$prev.id' } },
+	 *   { command: 'order-total', input: { orders: '$prev' } }
+	 * ]);
+	 *
+	 * console.log(result.data); // Total from last step
+	 * console.log(result.metadata.confidence); // Minimum confidence across steps
+	 * ```
+	 *
+	 * @example Conditional execution
+	 * ```typescript
+	 * const result = await client.pipe([
+	 *   { command: 'user-get', input: { id: 123 }, as: 'user' },
+	 *   {
+	 *     command: 'premium-features',
+	 *     input: { userId: '$user.id' },
+	 *     when: { $eq: ['$user.tier', 'premium'] }
+	 *   }
+	 * ]);
+	 * ```
+	 */
+	async pipe<T = unknown>(
+		request: PipelineRequest | PipelineStep[],
+		context?: DirectCallContext
+	): Promise<PipelineResult<T>> {
+		const startTime = performance.now();
+		const traceId = context?.traceId ?? generateTraceId();
+
+		// Normalize request
+		const pipelineRequest: PipelineRequest = Array.isArray(request)
+			? { steps: request }
+			: request;
+
+		const { steps: stepDefs, options = {} } = pipelineRequest;
+		const { continueOnFailure = false, timeoutMs } = options;
+
+		this.debug(`[${traceId}] Starting pipeline with ${stepDefs.length} steps`);
+
+		// Initialize pipeline context
+		const pipelineContext: PipelineContext = {
+			pipelineInput: undefined,
+			steps: [],
+			previousResult: undefined,
+		};
+
+		const stepResults: StepResult[] = [];
+		let finalData: unknown = undefined;
+		let pipelineFailed = false;
+
+		// Execute each step
+		for (let i = 0; i < stepDefs.length; i++) {
+			const stepDef = stepDefs[i]!;
+			const stepStartTime = performance.now();
+
+			// Check timeout
+			if (timeoutMs && performance.now() - startTime > timeoutMs) {
+				const stepResult: StepResult = {
+					index: i,
+					alias: stepDef.as,
+					command: stepDef.command,
+					status: 'skipped',
+					executionTimeMs: 0,
+					error: {
+						code: 'TIMEOUT',
+						message: `Pipeline timeout (${timeoutMs}ms) exceeded`,
+					},
+				};
+				stepResults.push(stepResult);
+				pipelineFailed = true;
+				break;
+			}
+
+			// Evaluate condition if present
+			if (stepDef.when) {
+				const conditionMet = evaluateCondition(stepDef.when, pipelineContext);
+				if (!conditionMet) {
+					this.debug(`[${traceId}] Step ${i} (${stepDef.command}) skipped: condition not met`);
+					const stepResult: StepResult = {
+						index: i,
+						alias: stepDef.as,
+						command: stepDef.command,
+						status: 'skipped',
+						executionTimeMs: 0,
+					};
+					stepResults.push(stepResult);
+					// Add to context with undefined data so alias is still resolvable
+					pipelineContext.steps.push({
+						index: i,
+						alias: stepDef.as,
+						command: stepDef.command,
+						status: 'skipped',
+						data: undefined,
+						executionTimeMs: 0,
+					});
+					continue;
+				}
+			}
+
+			// If pipeline already failed and we're not continuing on failure, skip
+			if (pipelineFailed && !continueOnFailure) {
+				const stepResult: StepResult = {
+					index: i,
+					alias: stepDef.as,
+					command: stepDef.command,
+					status: 'skipped',
+					executionTimeMs: 0,
+				};
+				stepResults.push(stepResult);
+				continue;
+			}
+
+			// Resolve variables in input
+			const resolvedInput = stepDef.input
+				? (resolveVariables(stepDef.input, pipelineContext) as Record<string, unknown>)
+				: undefined;
+
+			this.debug(`[${traceId}] Step ${i}: ${stepDef.command}`, resolvedInput);
+
+			// Execute the command
+			const result = await this.call<unknown>(stepDef.command, resolvedInput, {
+				...context,
+				traceId: `${traceId}-step-${i}`,
+			});
+
+			const stepExecutionTime = performance.now() - stepStartTime;
+
+			if (result.success) {
+				const stepResult: StepResult = {
+					index: i,
+					alias: stepDef.as,
+					command: stepDef.command,
+					status: 'success',
+					data: result.data,
+					executionTimeMs: stepExecutionTime,
+					metadata: this.extractResultMetadata(result),
+				};
+				stepResults.push(stepResult);
+
+				// Update context
+				pipelineContext.steps.push(stepResult);
+				pipelineContext.previousResult = stepResult;
+				finalData = result.data;
+			} else {
+				const stepResult: StepResult = {
+					index: i,
+					alias: stepDef.as,
+					command: stepDef.command,
+					status: 'failure',
+					error: result.error,
+					executionTimeMs: stepExecutionTime,
+				};
+				stepResults.push(stepResult);
+				pipelineContext.steps.push(stepResult);
+				pipelineFailed = true;
+
+				if (!continueOnFailure) {
+					this.debug(`[${traceId}] Pipeline failed at step ${i}: ${result.error?.message}`);
+					// Mark remaining steps as skipped
+					for (let j = i + 1; j < stepDefs.length; j++) {
+						const skippedDef = stepDefs[j]!;
+						stepResults.push({
+							index: j,
+							alias: skippedDef.as,
+							command: skippedDef.command,
+							status: 'skipped',
+							executionTimeMs: 0,
+						});
+					}
+					break;
+				}
+			}
+		}
+
+		const totalExecutionTime = performance.now() - startTime;
+
+		// Build aggregated metadata
+		const metadata = this.buildPipelineMetadata(stepResults, stepDefs, totalExecutionTime);
+
+		this.debug(`[${traceId}] Pipeline completed in ${totalExecutionTime.toFixed(3)}ms`, {
+			completedSteps: metadata.completedSteps,
+			totalSteps: metadata.totalSteps,
+			success: !pipelineFailed,
+		});
+
+		return {
+			data: finalData as T,
+			metadata,
+			steps: stepResults,
+		};
+	}
+
+	/**
+	 * Extract metadata from a command result.
+	 */
+	private extractResultMetadata(result: CommandResult<unknown>): ResultMetadata {
+		return {
+			confidence: result.confidence,
+			reasoning: result.reasoning,
+			warnings: result.warnings,
+			sources: result.sources,
+			alternatives: result.alternatives,
+			executionTimeMs: result.executionTimeMs,
+		};
+	}
+
+	/**
+	 * Build aggregated pipeline metadata from step results.
+	 */
+	private buildPipelineMetadata(
+		steps: StepResult[],
+		stepDefs: PipelineStep[],
+		totalExecutionTime: number
+	): PipelineMetadata {
+		const completedSteps = steps.filter((s) => s.status === 'success').length;
+		const totalSteps = steps.length;
+
+		return {
+			confidence: aggregatePipelineConfidence(steps),
+			confidenceBreakdown: buildConfidenceBreakdown(steps, stepDefs),
+			reasoning: aggregatePipelineReasoning(steps),
+			warnings: aggregatePipelineWarnings(steps),
+			sources: aggregatePipelineSources(steps),
+			alternatives: aggregatePipelineAlternatives(steps),
+			executionTimeMs: totalExecutionTime,
+			completedSteps,
+			totalSteps,
+		};
 	}
 
 	/**

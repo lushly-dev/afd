@@ -48,6 +48,14 @@ type EventHandler<T extends (...args: never[]) => void> = T;
 type EventMap = { [K in keyof McpClientEvents]: McpClientEvents[K][] };
 
 /**
+ * Resolved config type where url is always a string (resolved from url or endpoint).
+ */
+type ResolvedConfig = Omit<Required<McpClientConfig>, 'url' | 'endpoint'> & {
+	url: string;
+	endpoint?: string;
+};
+
+/**
  * MCP Client for connecting to MCP servers.
  *
  * @example
@@ -66,7 +74,7 @@ type EventMap = { [K in keyof McpClientEvents]: McpClientEvents[K][] };
  * ```
  */
 export class McpClient {
-	private readonly config: Required<McpClientConfig>;
+	private readonly config: ResolvedConfig;
 	private transport: Transport | null = null;
 	private state: ConnectionState = 'disconnected';
 	private serverInfo: McpInitializeResult['serverInfo'] | null = null;
@@ -86,8 +94,15 @@ export class McpClient {
 	};
 
 	constructor(config: McpClientConfig) {
+		// Resolve url from url or endpoint
+		const resolvedUrl = config.url ?? config.endpoint;
+		if (!resolvedUrl) {
+			throw new Error('Either url or endpoint must be provided');
+		}
+
 		this.config = {
-			url: config.url,
+			url: resolvedUrl,
+			endpoint: config.endpoint,
 			transport: config.transport ?? 'sse',
 			clientName: config.clientName ?? '@lushly-dev/afd-client',
 			clientVersion: config.clientVersion ?? '0.1.0',
