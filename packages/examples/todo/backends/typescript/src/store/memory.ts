@@ -41,7 +41,7 @@ export class TodoStore {
       id: generateId(),
       title: data.title,
       description: data.description,
-      priority: data.priority ?? "medium",
+      priority: data.priority ?? 2,
       completed: false,
       dueDate: data.dueDate,
       createdAt: now(),
@@ -120,18 +120,13 @@ export class TodoStore {
     // Sort
     const sortBy = filter.sortBy ?? "createdAt";
     const sortOrder = filter.sortOrder ?? "desc";
-    const priorityOrder: Record<Priority, number> = {
-      high: 3,
-      medium: 2,
-      low: 1,
-    };
 
     results.sort((a, b) => {
       let comparison = 0;
 
       switch (sortBy) {
         case "priority":
-          comparison = priorityOrder[a.priority] - priorityOrder[b.priority];
+          comparison = a.priority - b.priority;
           break;
         case "title":
           comparison = a.title.localeCompare(b.title);
@@ -264,9 +259,10 @@ export class TodoStore {
       pending,
       overdue,
       byPriority: {
-        low: todos.filter((t) => t.priority === "low").length,
-        medium: todos.filter((t) => t.priority === "medium").length,
-        high: todos.filter((t) => t.priority === "high").length,
+        0: todos.filter((t) => t.priority === 0).length,
+        1: todos.filter((t) => t.priority === 1).length,
+        2: todos.filter((t) => t.priority === 2).length,
+        3: todos.filter((t) => t.priority === 3).length,
       },
       completionRate: todos.length > 0 ? completed / todos.length : 0,
     };

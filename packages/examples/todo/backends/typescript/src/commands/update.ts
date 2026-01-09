@@ -5,14 +5,15 @@
 import { z } from "zod";
 import { defineCommand, success, failure } from "@afd/server";
 import { store } from "../store/index.js";
-import type { Todo } from "../types.js";
+import type { Todo, Priority } from "../types.js";
+import { PRIORITY_LABELS } from "../types.js";
 
 const inputSchema = z.object({
   id: z.string().min(1, "Todo ID is required"),
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(1000).optional(),
   completed: z.boolean().optional(),
-  priority: z.enum(["low", "medium", "high"]).optional(),
+  priority: (z.number().int().min(0).max(3) as z.ZodType<Priority, z.ZodTypeDef, Priority>).optional(),
   dueDate: z
     .string()
     .datetime({ message: "Due date must be a valid ISO 8601 date-time" })
@@ -75,7 +76,7 @@ export const updateTodo = defineCommand<typeof inputSchema, Todo>({
     const changes: string[] = [];
     if (updates.title) changes.push(`title to "${updates.title}"`);
     if (updates.description !== undefined) changes.push("description");
-    if (updates.priority) changes.push(`priority to ${updates.priority}`);
+    if (updates.priority !== undefined) changes.push(`priority to ${PRIORITY_LABELS[updates.priority]}`);
     if (updates.dueDate !== undefined) {
       if (updates.dueDate === null) {
         changes.push("cleared due date");

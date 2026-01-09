@@ -108,7 +108,7 @@ export class FileStore {
       id: generateId(),
       title: data.title,
       description: data.description,
-      priority: data.priority ?? "medium",
+      priority: data.priority ?? 2,
       completed: false,
       createdAt: now(),
       updatedAt: now(),
@@ -157,18 +157,13 @@ export class FileStore {
     // Sort
     const sortBy = filter.sortBy ?? "createdAt";
     const sortOrder = filter.sortOrder ?? "desc";
-    const priorityOrder: Record<Priority, number> = {
-      high: 3,
-      medium: 2,
-      low: 1,
-    };
 
     results.sort((a, b) => {
       let comparison = 0;
 
       switch (sortBy) {
         case "priority":
-          comparison = priorityOrder[a.priority] - priorityOrder[b.priority];
+          comparison = a.priority - b.priority;
           break;
         case "title":
           comparison = a.title.localeCompare(b.title);
@@ -307,9 +302,10 @@ export class FileStore {
       pending,
       overdue,
       byPriority: {
-        low: allTodos.filter((t) => t.priority === "low").length,
-        medium: allTodos.filter((t) => t.priority === "medium").length,
-        high: allTodos.filter((t) => t.priority === "high").length,
+        0: allTodos.filter((t) => t.priority === 0).length,
+        1: allTodos.filter((t) => t.priority === 1).length,
+        2: allTodos.filter((t) => t.priority === 2).length,
+        3: allTodos.filter((t) => t.priority === 3).length,
       },
       completionRate: allTodos.length > 0 ? completed / allTodos.length : 0,
     };

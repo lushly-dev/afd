@@ -65,12 +65,11 @@ export const listToday = defineCommand<typeof inputSchema, TodayResult>({
 		let combinedTodos = [...overdueTodos, ...todayTodos];
 
 		// Sort combined results
-		const priorityOrder: Record<string, number> = { high: 3, medium: 2, low: 1 };
 		combinedTodos.sort((a, b) => {
 			let comparison = 0;
 			switch (input.sortBy) {
 				case 'priority':
-					comparison = (priorityOrder[a.priority] ?? 0) - (priorityOrder[b.priority] ?? 0);
+					comparison = a.priority - b.priority;
 					break;
 				case 'title':
 					comparison = a.title.localeCompare(b.title);

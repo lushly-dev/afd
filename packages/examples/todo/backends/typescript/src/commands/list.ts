@@ -9,11 +9,12 @@ import { z } from 'zod';
 import { defineCommand, success } from '@afd/server';
 import type { Alternative } from '@afd/core';
 import { store } from '../store/index.js';
-import type { Todo } from '../types.js';
+import type { Todo, Priority } from '../types.js';
+import { PRIORITY_LABELS } from '../types.js';
 
 const inputSchema = z.object({
 	completed: z.boolean().optional(),
-	priority: z.enum(['low', 'medium', 'high']).optional(),
+	priority: (z.number().int().min(0).max(3) as z.ZodType<Priority, z.ZodTypeDef, Priority>).optional(),
 	search: z.string().optional(),
 	dueBefore: z
 		.string()
@@ -77,8 +78,8 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 		if (input.completed !== undefined) {
 			filters.push(input.completed ? 'completed' : 'pending');
 		}
-		if (input.priority) {
-			filters.push(`${input.priority} priority`);
+		if (input.priority !== undefined) {
+			filters.push(`${PRIORITY_LABELS[input.priority]} priority`);
 		}
 		if (input.search) {
 			filters.push(`matching "${input.search}"`);
