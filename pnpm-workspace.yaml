@@ -1,6 +1,7 @@
 packages:
   - "packages/*"
   - "packages/examples/_shared/*"
+  - "packages/examples/chat"
   - "packages/examples/todo/backends/*"
   - "packages/examples/todo/frontends/*"
   - "packages/examples/todo-directclient/backend"

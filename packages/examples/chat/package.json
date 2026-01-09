@@ -1,0 +1,26 @@
+{
+	"name": "@afd/example-chat",
+	"version": "1.0.0",
+	"description": "Real-time chat example demonstrating the AFD handoff pattern for WebSocket connections",
+	"type": "module",
+	"main": "dist/server.js",
+	"scripts": {
+		"build": "tsc",
+		"start": "node dist/server.js",
+		"dev": "tsx watch src/server.ts",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"dependencies": {
+		"@lushly-dev/afd-core": "workspace:*",
+		"@lushly-dev/afd-server": "workspace:*",
+		"ws": "^8.18.0",
+		"zod": "^3.23.0"
+	},
+	"devDependencies": {
+		"@types/ws": "^8.5.0",
+		"typescript": "^5.4.0",
+		"tsx": "^4.7.0",
+		"vitest": "^1.4.0"
+	}
+}
