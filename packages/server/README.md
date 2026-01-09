@@ -363,15 +363,102 @@ Create an MCP server from commands.
 | `getCommands()` | Get registered commands |
 | `execute(name, input, context)` | Execute command directly |
 
-## Endpoints
+## HTTP Endpoints
 
-The server exposes these endpoints:
+The server exposes these endpoints when using HTTP transport:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/sse` | GET | SSE connection for MCP clients |
-| `/message` | POST | JSON-RPC message endpoint |
+| `/message` | POST | MCP JSON-RPC message endpoint (for MCP protocol) |
+| `/rpc` | POST | Simple JSON-RPC endpoint (for browser clients) |
+| `/batch` | POST | Batch command execution |
+| `/stream/{command}` | GET | SSE streaming for command results |
 | `/health` | GET | Health check |
+
+### Browser-Friendly `/rpc` Endpoint
+
+The `/rpc` endpoint provides a simple JSON-RPC interface for browser clients. Unlike `/message` which uses the full MCP protocol, `/rpc` calls commands directly by name:
+
+**Request format:**
+```json
+{
+  "method": "command-name",
+  "params": { "key": "value" },
+  "id": 1
+}
+```
+
+**Response format:**
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "success": true,
+    "data": { ... },
+    "reasoning": "...",
+    "confidence": 1.0
+  }
+}
+```
+
+### Browser Example (Vanilla JavaScript)
+
+```html
+<!DOCTYPE html>
+<html>
+<head>
+  <title>AFD Browser Example</title>
+</head>
+<body>
+  <input type="text" id="name" placeholder="Enter name" />
+  <button onclick="greet()">Greet</button>
+  <div id="result"></div>
+
+  <script>
+    async function greet() {
+      const name = document.getElementById('name').value;
+
+      const response = await fetch('http://localhost:3100/rpc', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          method: 'greet',
+          params: { name },
+          id: 1
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.result?.success) {
+        document.getElementById('result').textContent = data.result.data.greeting;
+      } else {
+        document.getElementById('result').textContent =
+          'Error: ' + (data.error?.message || data.result?.error?.message);
+      }
+    }
+  </script>
+</body>
+</html>
+```
+
+### CORS Configuration
+
+CORS is automatically enabled in development mode (`devMode: true`). For production, explicitly enable CORS:
+
+```typescript
+const server = createMcpServer({
+  name: 'my-server',
+  version: '1.0.0',
+  commands: [greet],
+  cors: true,        // Enable CORS for browser access
+  devMode: false,    // Production mode (CORS origin is restricted)
+});
+```
+
+In development mode, CORS allows all origins (`*`). In production with `cors: true`, it allows requests from the same origin or the `Origin` header value.
 
 ## Related
 
