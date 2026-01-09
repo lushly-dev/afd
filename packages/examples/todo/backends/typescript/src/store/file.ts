@@ -11,7 +11,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { Todo, TodoFilter, TodoStats, Priority } from "../types.js";
+import type { Todo, TodoFilter, TodoStats, Priority, List, ListFilter } from "../types.js";
 
 // Get the directory of this file for consistent path resolution
 const __filename = fileURLToPath(import.meta.url);
@@ -20,8 +20,8 @@ const __dirname = dirname(__filename);
 /**
  * Generate a unique ID.
  */
-function generateId(): string {
-  return `todo-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+function generateId(prefix: string = 'todo'): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 /**
@@ -36,11 +36,15 @@ function now(): string {
  */
 export class FileStore {
   private filePath: string;
+  private listsFilePath: string;
 
   constructor(filePath?: string) {
     // Default path: packages/examples/todo/data/todos.json
     // From this file: store/file.ts → src/ → typescript/ → backends/ → todo/ → data/
     this.filePath = filePath ?? resolve(__dirname, "..", "..", "..", "..", "data", "todos.json");
+    this.listsFilePath = filePath
+      ? filePath.replace(/\.json$/, '-lists.json')
+      : resolve(__dirname, "..", "..", "..", "..", "data", "lists.json");
 
     // Ensure the directory exists
     const dir = dirname(this.filePath);
@@ -48,9 +52,12 @@ export class FileStore {
       mkdirSync(dir, { recursive: true });
     }
 
-    // Initialize empty file if it doesn't exist
+    // Initialize empty files if they don't exist
     if (!existsSync(this.filePath)) {
       this.saveTodos(new Map());
+    }
+    if (!existsSync(this.listsFilePath)) {
+      this.saveLists(new Map());
     }
   }
 
@@ -304,10 +311,11 @@ export class FileStore {
   }
 
   /**
-   * Clear all todos (for testing).
+   * Clear all todos and lists (for testing).
    */
   clear(): void {
     this.saveTodos(new Map());
+    this.saveLists(new Map());
   }
 
   /**
@@ -315,5 +323,175 @@ export class FileStore {
    */
   count(): number {
     return this.loadTodos().size;
+  }
+
+  // ==================== List Methods ====================
+
+  /**
+   * Load lists from file.
+   */
+  private loadLists(): Map<string, List> {
+    try {
+      const data = readFileSync(this.listsFilePath, "utf-8");
+      const parsed = JSON.parse(data);
+
+      // Handle both array format and object format
+      if (Array.isArray(parsed)) {
+        const map = new Map<string, List>();
+        for (const list of parsed) {
+          map.set(list.id, list);
+        }
+        return map;
+      }
+
+      // Object format: { "id": list }
+      return new Map(Object.entries(parsed));
+    } catch {
+      return new Map();
+    }
+  }
+
+  /**
+   * Save lists to file.
+   */
+  private saveLists(lists: Map<string, List>): void {
+    // Save as array for better readability
+    const data = Array.from(lists.values());
+    writeFileSync(this.listsFilePath, JSON.stringify(data, null, 2), "utf-8");
+  }
+
+  /**
+   * Create a new list.
+   */
+  createList(data: {
+    name: string;
+    description?: string;
+    todoIds?: string[];
+  }): List {
+    const lists = this.loadLists();
+
+    const list: List = {
+      id: generateId('list'),
+      name: data.name,
+      description: data.description,
+      todoIds: data.todoIds ?? [],
+      createdAt: now(),
+      updatedAt: now(),
+    };
+
+    lists.set(list.id, list);
+    this.saveLists(lists);
+    return list;
+  }
+
+  /**
+   * Get a list by ID.
+   */
+  getList(id: string): List | undefined {
+    const lists = this.loadLists();
+    return lists.get(id);
+  }
+
+  /**
+   * List all lists with optional filtering.
+   */
+  listLists(filter: ListFilter = {}): List[] {
+    const lists = this.loadLists();
+    let results = Array.from(lists.values());
+
+    // Search in name/description
+    if (filter.search) {
+      const search = filter.search.toLowerCase();
+      results = results.filter(
+        (l) =>
+          l.name.toLowerCase().includes(search) ||
+          l.description?.toLowerCase().includes(search)
+      );
+    }
+
+    // Sort
+    const sortBy = filter.sortBy ?? "createdAt";
+    const sortOrder = filter.sortOrder ?? "desc";
+
+    results.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortBy) {
+        case "name":
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case "updatedAt":
+          comparison = a.updatedAt.localeCompare(b.updatedAt);
+          break;
+        case "createdAt":
+        default:
+          comparison = a.createdAt.localeCompare(b.createdAt);
+      }
+
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
+
+    // Pagination
+    const offset = filter.offset ?? 0;
+    const limit = filter.limit ?? 100;
+    results = results.slice(offset, offset + limit);
+
+    return results;
+  }
+
+  /**
+   * Update a list.
+   */
+  updateList(
+    id: string,
+    data: Partial<Pick<List, "name" | "description" | "todoIds">>
+  ): List | undefined {
+    const lists = this.loadLists();
+    const list = lists.get(id);
+    if (!list) {
+      return undefined;
+    }
+
+    // Filter out undefined values
+    const filteredData: Partial<Pick<List, "name" | "description" | "todoIds">> = {};
+    if (data.name !== undefined) filteredData.name = data.name;
+    if (data.description !== undefined) filteredData.description = data.description;
+    if (data.todoIds !== undefined) filteredData.todoIds = data.todoIds;
+
+    const updated: List = {
+      ...list,
+      ...filteredData,
+      updatedAt: now(),
+    };
+
+    lists.set(id, updated);
+    this.saveLists(lists);
+    return updated;
+  }
+
+  /**
+   * Delete a list.
+   */
+  deleteList(id: string): boolean {
+    const lists = this.loadLists();
+    const existed = lists.delete(id);
+    if (existed) {
+      this.saveLists(lists);
+    }
+    return existed;
+  }
+
+  /**
+   * Get count of lists.
+   */
+  countLists(): number {
+    return this.loadLists().size;
+  }
+
+  /**
+   * Clear all lists (for testing).
+   */
+  clearLists(): void {
+    this.saveLists(new Map());
   }
 }

@@ -16,6 +16,12 @@ export { createBatch, type BatchCreateResult, type FailedItem } from './create-b
 export { deleteBatch, type BatchDeleteResult, type FailedDelete } from './delete-batch.js';
 export { toggleBatch, type BatchToggleResult, type FailedToggle } from './toggle-batch.js';
 
+// List operations
+export { createList } from './list-create.js';
+export { updateList } from './list-update.js';
+export { deleteList, type ListDeleteResult } from './list-delete.js';
+export { listLists, type ListListResult } from './list-list.js';
+
 // Re-export as array for convenience
 import { createTodo } from './create.js';
 import { listTodos } from './list.js';
@@ -28,6 +34,11 @@ import { getStats } from './stats.js';
 import { createBatch } from './create-batch.js';
 import { deleteBatch } from './delete-batch.js';
 import { toggleBatch } from './toggle-batch.js';
+// List operations
+import { createList } from './list-create.js';
+import { updateList } from './list-update.js';
+import { deleteList } from './list-delete.js';
+import { listLists } from './list-list.js';
 import type { ZodCommandDefinition } from '@afd/server';
 
 /**
@@ -48,4 +59,9 @@ export const allCommands = [
 	createBatch,
 	deleteBatch,
 	toggleBatch,
+	// List operations
+	createList,
+	updateList,
+	deleteList,
+	listLists,
 ] as unknown as ZodCommandDefinition[];

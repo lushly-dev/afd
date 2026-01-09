@@ -5,13 +5,13 @@
  * replaced with a database adapter.
  */
 
-import type { Todo, TodoFilter, TodoStats, Priority } from "../types.js";
+import type { Todo, TodoFilter, TodoStats, Priority, List, ListFilter } from "../types.js";
 
 /**
  * Generate a unique ID.
  */
-function generateId(): string {
-  return `todo-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+function generateId(prefix: string = 'todo'): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 /**
@@ -26,6 +26,7 @@ function now(): string {
  */
 export class TodoStore {
   private todos: Map<string, Todo> = new Map();
+  private lists: Map<string, List> = new Map();
 
   /**
    * Create a new todo.
@@ -224,10 +225,11 @@ export class TodoStore {
   }
 
   /**
-   * Clear all todos (for testing).
+   * Clear all todos and lists (for testing).
    */
   clear(): void {
     this.todos.clear();
+    this.lists.clear();
   }
 
   /**
@@ -235,5 +237,130 @@ export class TodoStore {
    */
   count(): number {
     return this.todos.size;
+  }
+
+  // ==================== List Methods ====================
+
+  /**
+   * Create a new list.
+   */
+  createList(data: {
+    name: string;
+    description?: string;
+    todoIds?: string[];
+  }): List {
+    const list: List = {
+      id: generateId('list'),
+      name: data.name,
+      description: data.description,
+      todoIds: data.todoIds ?? [],
+      createdAt: now(),
+      updatedAt: now(),
+    };
+
+    this.lists.set(list.id, list);
+    return list;
+  }
+
+  /**
+   * Get a list by ID.
+   */
+  getList(id: string): List | undefined {
+    return this.lists.get(id);
+  }
+
+  /**
+   * List all lists with optional filtering.
+   */
+  listLists(filter: ListFilter = {}): List[] {
+    let results = Array.from(this.lists.values());
+
+    // Search in name/description
+    if (filter.search) {
+      const search = filter.search.toLowerCase();
+      results = results.filter(
+        (l) =>
+          l.name.toLowerCase().includes(search) ||
+          l.description?.toLowerCase().includes(search)
+      );
+    }
+
+    // Sort
+    const sortBy = filter.sortBy ?? "createdAt";
+    const sortOrder = filter.sortOrder ?? "desc";
+
+    results.sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortBy) {
+        case "name":
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case "updatedAt":
+          comparison = a.updatedAt.localeCompare(b.updatedAt);
+          break;
+        case "createdAt":
+        default:
+          comparison = a.createdAt.localeCompare(b.createdAt);
+      }
+
+      return sortOrder === "asc" ? comparison : -comparison;
+    });
+
+    // Pagination
+    const offset = filter.offset ?? 0;
+    const limit = filter.limit ?? 100;
+    results = results.slice(offset, offset + limit);
+
+    return results;
+  }
+
+  /**
+   * Update a list.
+   */
+  updateList(
+    id: string,
+    data: Partial<Pick<List, "name" | "description" | "todoIds">>
+  ): List | undefined {
+    const list = this.lists.get(id);
+    if (!list) {
+      return undefined;
+    }
+
+    // Filter out undefined values
+    const filteredData: Partial<Pick<List, "name" | "description" | "todoIds">> = {};
+    if (data.name !== undefined) filteredData.name = data.name;
+    if (data.description !== undefined) filteredData.description = data.description;
+    if (data.todoIds !== undefined) filteredData.todoIds = data.todoIds;
+
+    const updated: List = {
+      ...list,
+      ...filteredData,
+      updatedAt: now(),
+    };
+
+    this.lists.set(id, updated);
+    return updated;
+  }
+
+  /**
+   * Delete a list.
+   */
+  deleteList(id: string): boolean {
+    return this.lists.delete(id);
+  }
+
+  /**
+   * Get count of lists.
+   */
+  countLists(): number {
+    return this.lists.size;
+  }
+
+  /**
+   * Clear all lists (for testing).
+   */
+  clearLists(): void {
+    this.lists.clear();
   }
 }
