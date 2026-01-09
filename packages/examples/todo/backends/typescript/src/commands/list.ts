@@ -15,7 +15,16 @@ const inputSchema = z.object({
 	completed: z.boolean().optional(),
 	priority: z.enum(['low', 'medium', 'high']).optional(),
 	search: z.string().optional(),
-	sortBy: z.enum(['createdAt', 'updatedAt', 'priority', 'title']).default('createdAt'),
+	dueBefore: z
+		.string()
+		.datetime({ message: 'dueBefore must be a valid ISO 8601 date-time' })
+		.optional(),
+	dueAfter: z
+		.string()
+		.datetime({ message: 'dueAfter must be a valid ISO 8601 date-time' })
+		.optional(),
+	overdue: z.boolean().optional(),
+	sortBy: z.enum(['createdAt', 'updatedAt', 'priority', 'title', 'dueDate']).default('createdAt'),
 	sortOrder: z.enum(['asc', 'desc']).default('desc'),
 	limit: z.number().int().min(1).max(100).default(20),
 	offset: z.number().int().min(0).default(0),
@@ -41,6 +50,9 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 			completed: input.completed,
 			priority: input.priority,
 			search: input.search,
+			dueBefore: input.dueBefore,
+			dueAfter: input.dueAfter,
+			overdue: input.overdue,
 			sortBy: input.sortBy,
 			sortOrder: input.sortOrder,
 			limit: input.limit,
@@ -52,6 +64,9 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 			completed: input.completed,
 			priority: input.priority,
 			search: input.search,
+			dueBefore: input.dueBefore,
+			dueAfter: input.dueAfter,
+			overdue: input.overdue,
 		});
 
 		const total = allMatching.length;
@@ -68,10 +83,24 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 		if (input.search) {
 			filters.push(`matching "${input.search}"`);
 		}
+		if (input.dueBefore) {
+			filters.push(`due before ${new Date(input.dueBefore).toLocaleDateString()}`);
+		}
+		if (input.dueAfter) {
+			filters.push(`due after ${new Date(input.dueAfter).toLocaleDateString()}`);
+		}
+		if (input.overdue !== undefined) {
+			filters.push(input.overdue ? 'overdue' : 'not overdue');
+		}
 
 		const filterText = filters.length > 0 ? ` (${filters.join(', ')})` : '';
 		const isFiltered =
-			input.completed !== undefined || input.priority !== undefined || input.search !== undefined;
+			input.completed !== undefined ||
+			input.priority !== undefined ||
+			input.search !== undefined ||
+			input.dueBefore !== undefined ||
+			input.dueAfter !== undefined ||
+			input.overdue !== undefined;
 
 		// Build alternatives when filtering
 		// This demonstrates the AFD alternatives pattern - giving users other options

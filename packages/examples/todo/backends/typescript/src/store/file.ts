@@ -296,11 +296,16 @@ export class FileStore {
     const allTodos = Array.from(todos.values());
     const completed = allTodos.filter((t) => t.completed).length;
     const pending = allTodos.length - completed;
+    const currentTime = new Date();
+    const overdue = allTodos.filter(
+      (t) => t.dueDate && !t.completed && new Date(t.dueDate) < currentTime
+    ).length;
 
     return {
       total: allTodos.length,
       completed,
       pending,
+      overdue,
       byPriority: {
         low: allTodos.filter((t) => t.priority === "low").length,
         medium: allTodos.filter((t) => t.priority === "medium").length,
