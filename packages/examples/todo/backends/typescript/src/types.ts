@@ -85,3 +85,46 @@ export interface TodoFilter {
 	/** Offset for pagination */
 	offset?: number;
 }
+
+/**
+ * A list that groups todos together.
+ */
+export interface List {
+	/** Unique identifier */
+	id: string;
+
+	/** List name */
+	name: string;
+
+	/** Optional description */
+	description?: string;
+
+	/** IDs of todos in this list */
+	todoIds: string[];
+
+	/** Creation timestamp */
+	createdAt: string;
+
+	/** Last update timestamp */
+	updatedAt: string;
+}
+
+/**
+ * Filter options for listing lists.
+ */
+export interface ListFilter {
+	/** Search in name/description */
+	search?: string;
+
+	/** Sort field */
+	sortBy?: 'createdAt' | 'updatedAt' | 'name';
+
+	/** Sort direction */
+	sortOrder?: 'asc' | 'desc';
+
+	/** Maximum results */
+	limit?: number;
+
+	/** Offset for pagination */
+	offset?: number;
+}
