@@ -15,16 +15,30 @@ import type {
   BatchTiming,
   CommandContext,
   CommandResult,
+  PipelineContext,
+  PipelineMetadata,
+  PipelineRequest,
+  PipelineResult,
+  StepResult,
   StreamChunk,
 } from "@lushly-dev/afd-core";
 import {
+  aggregatePipelineAlternatives,
+  aggregatePipelineConfidence,
+  aggregatePipelineReasoning,
+  aggregatePipelineSources,
+  aggregatePipelineWarnings,
+  buildConfidenceBreakdown,
   calculateBatchConfidence,
   createBatchResult,
   createCompleteChunk,
   createErrorChunk,
   createFailedBatchResult,
+  evaluateCondition,
   failure,
   isBatchRequest,
+  isPipelineRequest,
+  resolveVariables,
 } from "@lushly-dev/afd-core";
 import { Server as McpSdkServer } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -477,6 +491,181 @@ export function createMcpServer(options: McpServerOptions): McpServer {
     });
   }
 
+
+  /**
+   * Execute a pipeline of chained commands with variable resolution.
+   */
+  async function executePipeline(
+    request: PipelineRequest,
+    context: CommandContext = {}
+  ): Promise<PipelineResult> {
+    const startTime = performance.now();
+    const pipelineId = request.id ?? `pipeline-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+    // Validate request
+    if (!request.steps || request.steps.length === 0) {
+      return {
+        data: undefined,
+        metadata: {
+          confidence: 0,
+          confidenceBreakdown: [],
+          reasoning: [],
+          warnings: [],
+          sources: [],
+          alternatives: [],
+          executionTimeMs: 0,
+          completedSteps: 0,
+          totalSteps: 0,
+        },
+        steps: [],
+      };
+    }
+
+    const pipelineContext: PipelineContext = {
+      pipelineInput: context as Record<string, unknown>,
+      previousResult: undefined,
+      steps: [],
+    };
+
+    const stepResults: StepResult[] = [];
+    const options = request.options ?? {};
+    let stopped = false;
+
+    for (let i = 0; i < request.steps.length; i++) {
+      const step = request.steps[i]!;
+      const stepStartTime = performance.now();
+
+      // Check if pipeline was stopped by a previous failure
+      if (stopped) {
+        stepResults.push({
+          index: i,
+          alias: step.as,
+          command: step.command,
+          status: 'skipped',
+          executionTimeMs: 0,
+        });
+        continue;
+      }
+
+      // Evaluate when condition if present
+      if (step.when && !evaluateCondition(step.when, pipelineContext)) {
+        stepResults.push({
+          index: i,
+          alias: step.as,
+          command: step.command,
+          status: 'skipped',
+          executionTimeMs: 0,
+        });
+        continue;
+      }
+
+      // Resolve variables in step input
+      const resolvedInput = step.input
+        ? resolveVariables(step.input, pipelineContext)
+        : {};
+
+      // Execute the command
+      const result = await executeCommand(step.command, resolvedInput, {
+        ...context,
+        traceId: context.traceId ?? `${pipelineId}-step-${i}`,
+      });
+
+      const stepExecutionTimeMs = performance.now() - stepStartTime;
+
+      if (result.success) {
+        const stepResult: StepResult = {
+          index: i,
+          alias: step.as,
+          command: step.command,
+          status: 'success',
+          data: result.data,
+          executionTimeMs: Math.round(stepExecutionTimeMs * 100) / 100,
+          metadata: {
+            confidence: result.confidence,
+            reasoning: result.reasoning,
+            warnings: result.warnings,
+            sources: result.sources,
+            alternatives: result.alternatives,
+          },
+        };
+        stepResults.push(stepResult);
+        pipelineContext.steps.push(stepResult);
+        pipelineContext.previousResult = stepResult;
+      } else {
+        const stepResult: StepResult = {
+          index: i,
+          alias: step.as,
+          command: step.command,
+          status: 'failure',
+          error: result.error,
+          executionTimeMs: Math.round(stepExecutionTimeMs * 100) / 100,
+        };
+        stepResults.push(stepResult);
+
+        if (!options.continueOnFailure) {
+          stopped = true;
+          // Mark remaining steps as skipped
+          for (let j = i + 1; j < request.steps.length; j++) {
+            const remainingStep = request.steps[j]!;
+            stepResults.push({
+              index: j,
+              alias: remainingStep.as,
+              command: remainingStep.command,
+              status: 'skipped',
+              executionTimeMs: 0,
+            });
+          }
+          break;
+        }
+      }
+
+      // Check timeout
+      if (options.timeoutMs && (performance.now() - startTime) > options.timeoutMs) {
+        for (let j = i + 1; j < request.steps.length; j++) {
+          const remainingStep = request.steps[j]!;
+          stepResults.push({
+            index: j,
+            alias: remainingStep.as,
+            command: remainingStep.command,
+            status: 'skipped',
+            error: {
+              code: 'PIPELINE_TIMEOUT',
+              message: `Pipeline timeout exceeded (${options.timeoutMs}ms)`,
+              retryable: true,
+            },
+            executionTimeMs: 0,
+          });
+        }
+        break;
+      }
+    }
+
+    const totalExecutionTimeMs = performance.now() - startTime;
+
+    // Get the last successful step's data as the pipeline output
+    const lastSuccessfulStep = [...stepResults].reverse().find(s => s.status === 'success');
+    const finalData = lastSuccessfulStep?.data;
+
+    // Build metadata using helper functions
+    const metadata: PipelineMetadata = {
+      confidence: aggregatePipelineConfidence(stepResults),
+      confidenceBreakdown: buildConfidenceBreakdown(stepResults, request.steps),
+      reasoning: aggregatePipelineReasoning(stepResults),
+      warnings: aggregatePipelineWarnings(stepResults),
+      sources: aggregatePipelineSources(stepResults),
+      alternatives: aggregatePipelineAlternatives(stepResults),
+      executionTimeMs: Math.round(totalExecutionTimeMs * 100) / 100,
+      completedSteps: stepResults.filter(s => s.status === 'success').length,
+      totalSteps: request.steps.length,
+    };
+
+    return {
+      data: finalData,
+      metadata,
+      steps: stepResults,
+    };
+  }
+
   /**
    * Execute a command as a stream, yielding chunks.
    */
@@ -583,10 +772,47 @@ export function createMcpServer(options: McpServerOptions): McpServer {
       },
     };
 
+
+
+    // Built-in afd-pipe tool for pipeline execution
+    const pipeTool = {
+      name: "afd-pipe",
+      description: "Execute a pipeline of chained commands where the output of one becomes the input of the next",
+      inputSchema: {
+        type: "object" as const,
+        properties: {
+          steps: {
+            type: "array",
+            description: "Ordered list of pipeline steps to execute",
+            items: {
+              type: "object",
+              properties: {
+                command: { type: "string", description: "Command name to execute" },
+                input: { type: "object", description: "Input parameters, can reference $prev, $first, $steps[n], or $steps.alias" },
+                as: { type: "string", description: "Optional alias for referencing this step's output" },
+                when: { type: "object", description: "Optional condition for running this step (e.g., { $exists: '$prev.id' })" },
+              },
+              required: ["command"],
+            },
+          },
+          options: {
+            type: "object",
+            description: "Pipeline execution options",
+            properties: {
+              continueOnFailure: { type: "boolean", description: "Continue on failure or stop immediately" },
+              timeoutMs: { type: "number", description: "Timeout for entire pipeline in milliseconds" },
+            },
+          },
+        },
+        required: ["steps"],
+      },
+    };
+
     // Individual strategy: each command is its own tool
     if (toolStrategy === "individual") {
       return [
         batchTool,
+        pipeTool,
         ...commands.map((cmd) => {
           const { type: _type, ...restSchema } = cmd.jsonSchema;
           return {
@@ -649,7 +875,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
       };
     });
 
-    return [batchTool, ...groupedTools];
+    return [batchTool, pipeTool, ...groupedTools];
   }
 
   /**
@@ -737,6 +963,60 @@ export function createMcpServer(options: McpServerOptions): McpServer {
               },
             ],
             isError: !result.success,
+          },
+        };
+      }
+
+      // Handle built-in afd-pipe tool
+      if (toolName === "afd-pipe") {
+        const pipelineRequest = args as PipelineRequest;
+        if (!isPipelineRequest(pipelineRequest)) {
+          return {
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify({
+                    data: undefined,
+                    metadata: {
+                      confidence: 0,
+                      confidenceBreakdown: [],
+                      reasoning: [],
+                      warnings: [],
+                      sources: [],
+                      alternatives: [],
+                      executionTimeMs: 0,
+                      completedSteps: 0,
+                      totalSteps: 0,
+                    },
+                    steps: [],
+                  }, null, 2),
+                },
+              ],
+              isError: true,
+            },
+          };
+        }
+        const result = await executePipeline(pipelineRequest, {
+          traceId: `pipeline-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        });
+
+        // Determine if pipeline failed (any step failed)
+        const hasFailed = result.steps.some(s => s.status === 'failure');
+
+        return {
+          jsonrpc: "2.0",
+          id,
+          result: {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+            isError: hasFailed,
           },
         };
       }
@@ -1054,6 +1334,40 @@ export function createMcpServer(options: McpServerOptions): McpServer {
             return {
               content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
               isError: !result.success,
+            };
+          }
+
+          // Handle built-in afd-pipe tool
+          if (toolName === "afd-pipe") {
+            // Validate that args looks like a PipelineRequest before processing
+            if (!isPipelineRequest(args)) {
+              return {
+                content: [{ type: "text", text: JSON.stringify({
+                  data: undefined,
+                  metadata: {
+                    confidence: 0,
+                    confidenceBreakdown: [],
+                    reasoning: [],
+                    warnings: [],
+                    sources: [],
+                    alternatives: [],
+                    executionTimeMs: 0,
+                    completedSteps: 0,
+                    totalSteps: 0,
+                  },
+                  steps: [],
+                }, null, 2) }],
+                isError: true,
+              };
+            }
+            const result = await executePipeline(args, {
+              traceId: `pipeline-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            });
+            // Determine if pipeline failed (any step failed)
+            const hasFailed = result.steps.some(s => s.status === 'failure');
+            return {
+              content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+              isError: hasFailed,
             };
           }
 
