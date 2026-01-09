@@ -36,6 +36,7 @@ export class TodoStore {
     description?: string;
     priority?: Priority;
     dueDate?: string;
+    tags?: string[];
   }): Todo {
     const todo: Todo = {
       id: generateId(),
@@ -44,6 +45,7 @@ export class TodoStore {
       priority: data.priority ?? "medium",
       completed: false,
       dueDate: data.dueDate,
+      tags: data.tags ?? [],
       createdAt: now(),
       updatedAt: now(),
     };
@@ -117,6 +119,22 @@ export class TodoStore {
       }
     }
 
+    // Filter by tags (must have ALL specified tags)
+    if (filter.tags && filter.tags.length > 0) {
+      const filterTags = filter.tags.map(t => t.toLowerCase());
+      results = results.filter((todo) =>
+        filterTags.every(tag => todo.tags.some(t => t.toLowerCase() === tag))
+      );
+    }
+
+    // Filter by anyTag (must have AT LEAST ONE of specified tags)
+    if (filter.anyTag && filter.anyTag.length > 0) {
+      const filterTags = filter.anyTag.map(t => t.toLowerCase());
+      results = results.filter((todo) =>
+        filterTags.some(tag => todo.tags.some(t => t.toLowerCase() === tag))
+      );
+    }
+
     // Sort
     const sortBy = filter.sortBy ?? "createdAt";
     const sortOrder = filter.sortOrder ?? "desc";
@@ -167,7 +185,7 @@ export class TodoStore {
    */
   update(
     id: string,
-    data: Partial<Pick<Todo, "title" | "description" | "priority" | "completed">> & { dueDate?: string | null }
+    data: Partial<Pick<Todo, "title" | "description" | "priority" | "completed" | "tags">> & { dueDate?: string | null }
   ): Todo | undefined {
     const todo = this.todos.get(id);
     if (!todo) {
@@ -175,11 +193,12 @@ export class TodoStore {
     }
 
     // Filter out undefined values to avoid overwriting existing properties
-    const filteredData: Partial<Pick<Todo, "title" | "description" | "priority" | "completed" | "dueDate">> = {};
+    const filteredData: Partial<Pick<Todo, "title" | "description" | "priority" | "completed" | "dueDate" | "tags">> = {};
     if (data.title !== undefined) filteredData.title = data.title;
     if (data.description !== undefined) filteredData.description = data.description;
     if (data.priority !== undefined) filteredData.priority = data.priority;
     if (data.completed !== undefined) filteredData.completed = data.completed;
+    if (data.tags !== undefined) filteredData.tags = data.tags;
     // Handle dueDate: null clears it, undefined leaves it unchanged
     if (data.dueDate !== undefined) {
       filteredData.dueDate = data.dueDate === null ? undefined : data.dueDate;
@@ -202,6 +221,72 @@ export class TodoStore {
 
     this.todos.set(id, updated);
     return updated;
+  }
+
+  /**
+   * Add tags to a todo.
+   */
+  addTags(id: string, tags: string[]): Todo | undefined {
+    const todo = this.todos.get(id);
+    if (!todo) {
+      return undefined;
+    }
+
+    // Normalize tags to lowercase and dedupe
+    const existingTags = new Set(todo.tags.map(t => t.toLowerCase()));
+    const newTags = tags.filter(tag => !existingTags.has(tag.toLowerCase()));
+
+    if (newTags.length === 0) {
+      return todo; // No new tags to add
+    }
+
+    const updated: Todo = {
+      ...todo,
+      tags: [...todo.tags, ...newTags],
+      updatedAt: now(),
+    };
+
+    this.todos.set(id, updated);
+    return updated;
+  }
+
+  /**
+   * Remove tags from a todo.
+   */
+  removeTags(id: string, tags: string[]): Todo | undefined {
+    const todo = this.todos.get(id);
+    if (!todo) {
+      return undefined;
+    }
+
+    const tagsToRemove = new Set(tags.map(t => t.toLowerCase()));
+    const remainingTags = todo.tags.filter(t => !tagsToRemove.has(t.toLowerCase()));
+
+    if (remainingTags.length === todo.tags.length) {
+      return todo; // No tags were removed
+    }
+
+    const updated: Todo = {
+      ...todo,
+      tags: remainingTags,
+      updatedAt: now(),
+    };
+
+    this.todos.set(id, updated);
+    return updated;
+  }
+
+  /**
+   * Get all unique tags used across all todos.
+   */
+  getAllTags(): string[] {
+    const tagSet = new Set<string>();
+    for (const todo of this.todos.values()) {
+      for (const tag of todo.tags) {
+        tagSet.add(tag.toLowerCase());
+      }
+    }
+    return Array.from(tagSet).sort();
   }
 
   /**
