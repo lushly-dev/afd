@@ -1,0 +1,51 @@
+# AFD Persona Configuration
+
+version: "1.0"
+project: "Agent-First Development (AFD)"
+
+# Active personas for this project
+personas:
+  - id: frustrated-framework-fred
+    file: personas/frustrated-framework-fred.persona.yaml
+    active: true
+    use_for:
+      - proposal-review
+      - feature-feedback
+      - documentation-review
+
+  - id: protocol-pioneer-priya
+    file: personas/protocol-pioneer-priya.persona.yaml
+    active: true
+    use_for:
+      - mcp-review
+      - architecture-review
+      - api-design
+
+  - id: startup-steve
+    file: personas/startup-steve.persona.yaml
+    active: true
+    use_for:
+      - quickstart-review
+      - onboarding-feedback
+      - documentation-review
+
+# Default prompts for persona review
+prompts:
+  feature-feedback: prompts/feature-review.prompt.md
+  spec-critique: prompts/spec-critique.prompt.md
+  documentation-review: prompts/doc-review.prompt.md
+
+# Validation settings
+validation:
+  require_confidence: 0.7
+  gold_standard_file: validation/gold-standard-responses.json
+  refresh_interval: "30d"
+
+# CI/CD settings
+automation:
+  review_on_pr: true
+  paths_to_trigger:
+    - "docs/specs/**"
+    - "packages/core/**"
+    - "packages/server/**"
+  post_as_comment: true
