@@ -33,7 +33,7 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import type { ZodCommandDefinition } from "./schema.js";
-import { validateInput, type ValidationResult } from "./validation.js";
+import { validateInputEnhanced, formatEnhancedValidationError } from "./validation.js";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -314,14 +314,23 @@ export function createMcpServer(options: McpServerOptions): McpServer {
       });
     }
 
-    // Validate input
-    const validation = validateInput(command.inputSchema, input);
+    // Validate input with enhanced error messages
+    const validation = validateInputEnhanced(command.inputSchema, input);
     if (!validation.success) {
       return failure({
         code: "VALIDATION_ERROR",
         message: "Input validation failed",
-        suggestion: validation.errors.map((e) => e.message).join("; "),
-        details: { errors: validation.errors },
+        suggestion: formatEnhancedValidationError(validation.errors, {
+          expectedFields: validation.expectedFields,
+          unexpectedFields: validation.unexpectedFields,
+          missingFields: validation.missingFields,
+        }),
+        details: {
+          errors: validation.errors,
+          expectedFields: validation.expectedFields,
+          unexpectedFields: validation.unexpectedFields,
+          missingFields: validation.missingFields,
+        },
       });
     }
 

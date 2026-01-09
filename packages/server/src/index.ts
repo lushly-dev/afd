@@ -72,15 +72,19 @@ export {
 // Validation utilities
 export {
 	validateInput,
+	validateInputEnhanced,
 	validateOrThrow,
 	isValid,
 	formatValidationErrors,
+	formatEnhancedValidationError,
 	ValidationException,
 	patterns,
 	optional,
 	withDefault,
 	type ValidationResult,
 	type ValidationError,
+	type SchemaInfo,
+	type EnhancedValidationResult,
 } from './validation.js';
 
 // Middleware
