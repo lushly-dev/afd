@@ -101,6 +101,8 @@ export class FileStore {
     title: string;
     description?: string;
     priority?: Priority;
+    dueDate?: string;
+    parentId?: string;
   }): Todo {
     const todos = this.loadTodos();
 
@@ -110,6 +112,8 @@ export class FileStore {
       description: data.description,
       priority: data.priority ?? 2,
       completed: false,
+      dueDate: data.dueDate,
+      parentId: data.parentId,
       createdAt: now(),
       updatedAt: now(),
     };
@@ -154,6 +158,47 @@ export class FileStore {
       );
     }
 
+    // Filter by due date - before
+    if (filter.dueBefore) {
+      const beforeDate = new Date(filter.dueBefore);
+      results = results.filter(
+        (t) => t.dueDate && new Date(t.dueDate) < beforeDate
+      );
+    }
+
+    // Filter by due date - after
+    if (filter.dueAfter) {
+      const afterDate = new Date(filter.dueAfter);
+      results = results.filter(
+        (t) => t.dueDate && new Date(t.dueDate) > afterDate
+      );
+    }
+
+    // Filter by overdue status
+    if (filter.overdue !== undefined) {
+      const currentTime = new Date();
+      if (filter.overdue) {
+        results = results.filter(
+          (t) => t.dueDate && !t.completed && new Date(t.dueDate) < currentTime
+        );
+      } else {
+        results = results.filter(
+          (t) => !t.dueDate || t.completed || new Date(t.dueDate) >= currentTime
+        );
+      }
+    }
+
+    // Filter by parent ID
+    if (filter.parentId !== undefined) {
+      if (filter.parentId === null) {
+        // Root-level todos only (no parent)
+        results = results.filter((t) => !t.parentId);
+      } else {
+        // Subtasks of a specific parent
+        results = results.filter((t) => t.parentId === filter.parentId);
+      }
+    }
+
     // Sort
     const sortBy = filter.sortBy ?? "createdAt";
     const sortOrder = filter.sortOrder ?? "desc";
@@ -192,9 +237,7 @@ export class FileStore {
    */
   update(
     id: string,
-    data: Partial<
-      Pick<Todo, "title" | "description" | "priority" | "completed">
-    >
+    data: Partial<Pick<Todo, "title" | "description" | "priority" | "completed">> & { dueDate?: string | null; parentId?: string | null }
   ): Todo | undefined {
     const todos = this.loadTodos();
     const todo = todos.get(id);
@@ -203,14 +246,19 @@ export class FileStore {
     }
 
     // Filter out undefined values to avoid overwriting existing properties
-    const filteredData: Partial<
-      Pick<Todo, "title" | "description" | "priority" | "completed">
-    > = {};
+    const filteredData: Partial<Pick<Todo, "title" | "description" | "priority" | "completed" | "dueDate" | "parentId">> = {};
     if (data.title !== undefined) filteredData.title = data.title;
-    if (data.description !== undefined)
-      filteredData.description = data.description;
+    if (data.description !== undefined) filteredData.description = data.description;
     if (data.priority !== undefined) filteredData.priority = data.priority;
     if (data.completed !== undefined) filteredData.completed = data.completed;
+    // Handle dueDate: null clears it, undefined leaves it unchanged
+    if (data.dueDate !== undefined) {
+      filteredData.dueDate = data.dueDate === null ? undefined : data.dueDate;
+    }
+    // Handle parentId: null promotes to root level, undefined leaves it unchanged
+    if (data.parentId !== undefined) {
+      filteredData.parentId = data.parentId === null ? undefined : data.parentId;
+    }
 
     const updated: Todo = {
       ...todo,
@@ -324,6 +372,84 @@ export class FileStore {
    */
   count(): number {
     return this.loadTodos().size;
+  }
+
+  /**
+   * Get all subtasks of a todo (direct children only).
+   */
+  getSubtasks(parentId: string): Todo[] {
+    const todos = this.loadTodos();
+    return Array.from(todos.values()).filter((t) => t.parentId === parentId);
+  }
+
+  /**
+   * Get all descendants of a todo (subtasks, their subtasks, etc.).
+   */
+  getDescendants(parentId: string): Todo[] {
+    const todos = this.loadTodos();
+    const descendants: Todo[] = [];
+    const stack = [parentId];
+
+    while (stack.length > 0) {
+      const currentId = stack.pop()!;
+      const children = Array.from(todos.values()).filter((t) => t.parentId === currentId);
+      for (const child of children) {
+        descendants.push(child);
+        stack.push(child.id);
+      }
+    }
+
+    return descendants;
+  }
+
+  /**
+   * Check if moving a todo to a new parent would create a circular reference.
+   */
+  wouldCreateCycle(todoId: string, newParentId: string): boolean {
+    // Check if the new parent is the todo itself
+    if (todoId === newParentId) {
+      return true;
+    }
+
+    // Check if the new parent is a descendant of the todo
+    const descendants = this.getDescendants(todoId);
+    return descendants.some((d) => d.id === newParentId);
+  }
+
+  /**
+   * Delete a todo and optionally its subtasks.
+   * @param id Todo ID to delete
+   * @param cascade If true, delete all subtasks recursively
+   * @returns Object with deleted count and IDs
+   */
+  deleteWithSubtasks(id: string, cascade: boolean = false): { deleted: number; ids: string[] } {
+    const todos = this.loadTodos();
+    const todo = todos.get(id);
+    if (!todo) {
+      return { deleted: 0, ids: [] };
+    }
+
+    const deletedIds: string[] = [id];
+
+    if (cascade) {
+      // Get all descendants and delete them
+      const descendants = this.getDescendants(id);
+      for (const descendant of descendants) {
+        todos.delete(descendant.id);
+        deletedIds.push(descendant.id);
+      }
+    } else {
+      // Promote subtasks to the deleted todo's parent (or root level)
+      const subtasks = this.getSubtasks(id);
+      for (const subtask of subtasks) {
+        const updated = { ...subtask, parentId: todo.parentId, updatedAt: now() };
+        todos.set(subtask.id, updated);
+      }
+    }
+
+    todos.delete(id);
+    this.saveTodos(todos);
+    return { deleted: deletedIds.length, ids: deletedIds };
   }
 
   // ==================== List Methods ====================
