@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import {
 	HandoffResultSchema,
 	HandoffCredentialsSchema,
 	HandoffMetadataSchema,
 } from './handoff-schema.js';
+import { defineCommand, success } from './index.js';
 
 describe('HandoffCredentialsSchema', () => {
 	it('parses empty object', () => {
@@ -286,5 +288,165 @@ describe('HandoffResultSchema', () => {
 				metadata: 'invalid',
 			})
 		).toThrow();
+	});
+});
+
+describe('defineCommand with handoff', () => {
+	it('creates command with handoff: true', () => {
+		const cmd = defineCommand({
+			name: 'chat.connect',
+			description: 'Connect to chat room',
+			input: z.object({ roomId: z.string() }),
+			handoff: true,
+			async handler() {
+				return success({ protocol: 'websocket', endpoint: 'wss://example.com' });
+			},
+		});
+
+		expect(cmd.handoff).toBe(true);
+		expect(cmd.tags).toContain('handoff');
+	});
+
+	it('creates command with handoff and protocol', () => {
+		const cmd = defineCommand({
+			name: 'chat.connect',
+			description: 'Connect to chat room',
+			input: z.object({ roomId: z.string() }),
+			handoff: true,
+			handoffProtocol: 'websocket',
+			async handler() {
+				return success({ protocol: 'websocket', endpoint: 'wss://example.com' });
+			},
+		});
+
+		expect(cmd.handoff).toBe(true);
+		expect(cmd.handoffProtocol).toBe('websocket');
+		expect(cmd.tags).toContain('handoff');
+		expect(cmd.tags).toContain('handoff:websocket');
+	});
+
+	it('preserves existing tags when adding handoff tags', () => {
+		const cmd = defineCommand({
+			name: 'chat.connect',
+			description: 'Connect to chat room',
+			input: z.object({ roomId: z.string() }),
+			tags: ['realtime', 'streaming'],
+			handoff: true,
+			handoffProtocol: 'websocket',
+			async handler() {
+				return success({ protocol: 'websocket', endpoint: 'wss://example.com' });
+			},
+		});
+
+		expect(cmd.tags).toContain('realtime');
+		expect(cmd.tags).toContain('streaming');
+		expect(cmd.tags).toContain('handoff');
+		expect(cmd.tags).toContain('handoff:websocket');
+	});
+
+	it('does not add handoff tags when handoff is false', () => {
+		const cmd = defineCommand({
+			name: 'chat.list',
+			description: 'List chat rooms',
+			input: z.object({}),
+			handoff: false,
+			async handler() {
+				return success([]);
+			},
+		});
+
+		expect(cmd.handoff).toBe(false);
+		expect(cmd.tags).toBeUndefined();
+	});
+
+	it('does not add handoff tags when handoff is undefined', () => {
+		const cmd = defineCommand({
+			name: 'chat.list',
+			description: 'List chat rooms',
+			input: z.object({}),
+			tags: ['list'],
+			async handler() {
+				return success([]);
+			},
+		});
+
+		expect(cmd.handoff).toBeUndefined();
+		expect(cmd.tags).toEqual(['list']);
+	});
+
+	it('supports all standard protocols', () => {
+		const protocols = ['websocket', 'webrtc', 'sse', 'http-stream'] as const;
+
+		for (const protocol of protocols) {
+			const cmd = defineCommand({
+				name: `stream.${protocol}`,
+				description: `Connect via ${protocol}`,
+				input: z.object({}),
+				handoff: true,
+				handoffProtocol: protocol,
+				async handler() {
+					return success({ protocol, endpoint: 'https://example.com' });
+				},
+			});
+
+			expect(cmd.handoffProtocol).toBe(protocol);
+			expect(cmd.tags).toContain(`handoff:${protocol}`);
+		}
+	});
+
+	it('supports custom protocols', () => {
+		const cmd = defineCommand({
+			name: 'stream.custom',
+			description: 'Connect via custom protocol',
+			input: z.object({}),
+			handoff: true,
+			handoffProtocol: 'my-custom-protocol',
+			async handler() {
+				return success({
+					protocol: 'my-custom-protocol',
+					endpoint: 'custom://example.com',
+				});
+			},
+		});
+
+		expect(cmd.handoffProtocol).toBe('my-custom-protocol');
+		expect(cmd.tags).toContain('handoff:my-custom-protocol');
+	});
+
+	it('includes handoff properties in toCommandDefinition()', () => {
+		const cmd = defineCommand({
+			name: 'chat.connect',
+			description: 'Connect to chat room',
+			input: z.object({ roomId: z.string() }),
+			handoff: true,
+			handoffProtocol: 'websocket',
+			async handler() {
+				return success({ protocol: 'websocket', endpoint: 'wss://example.com' });
+			},
+		});
+
+		const def = cmd.toCommandDefinition();
+
+		expect(def.handoff).toBe(true);
+		expect(def.handoffProtocol).toBe('websocket');
+		expect(def.tags).toContain('handoff');
+		expect(def.tags).toContain('handoff:websocket');
+	});
+
+	it('does not duplicate handoff tag if already present', () => {
+		const cmd = defineCommand({
+			name: 'chat.connect',
+			description: 'Connect to chat room',
+			input: z.object({}),
+			tags: ['handoff'], // Already has handoff tag
+			handoff: true,
+			async handler() {
+				return success({ protocol: 'websocket', endpoint: 'wss://example.com' });
+			},
+		});
+
+		// Should only have one 'handoff' tag
+		const handoffCount = cmd.tags?.filter((t) => t === 'handoff').length ?? 0;
+		expect(handoffCount).toBe(1);
 	});
 });

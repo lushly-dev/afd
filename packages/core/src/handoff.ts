@@ -227,3 +227,88 @@ export function isHandoffProtocol(
 ): boolean {
 	return handoff.protocol === protocol;
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMMAND TYPE GUARDS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Minimal interface for checking if a command is a handoff command.
+ * This avoids circular dependencies with commands.ts.
+ */
+interface HandoffCommandLike {
+	handoff?: boolean;
+	handoffProtocol?: string;
+	tags?: string[];
+}
+
+/**
+ * Check if a command definition is a handoff command.
+ *
+ * A command is a handoff command if:
+ * - It has `handoff: true` property, OR
+ * - It has a 'handoff' tag
+ *
+ * @param command - Command definition to check
+ * @returns True if the command is a handoff command
+ *
+ * @example
+ * ```typescript
+ * const commands = registry.list();
+ * const handoffCommands = commands.filter(isHandoffCommand);
+ * ```
+ */
+export function isHandoffCommand(command: HandoffCommandLike): boolean {
+	// Check explicit handoff property
+	if (command.handoff === true) {
+		return true;
+	}
+
+	// Check for handoff tag
+	if (command.tags?.includes('handoff')) {
+		return true;
+	}
+
+	return false;
+}
+
+/**
+ * Get the handoff protocol from a command definition.
+ *
+ * Returns the protocol in this priority order:
+ * 1. Explicit `handoffProtocol` property
+ * 2. Protocol from 'handoff:{protocol}' tag
+ * 3. undefined if not a handoff command or no protocol specified
+ *
+ * @param command - Command definition to check
+ * @returns The handoff protocol or undefined
+ *
+ * @example
+ * ```typescript
+ * const protocol = getHandoffProtocol(chatConnectCommand);
+ * if (protocol === 'websocket') {
+ *   // Handle WebSocket handoff
+ * }
+ * ```
+ */
+export function getHandoffProtocol(
+	command: HandoffCommandLike
+): HandoffProtocol | undefined {
+	// Not a handoff command
+	if (!isHandoffCommand(command)) {
+		return undefined;
+	}
+
+	// Check explicit handoffProtocol property first
+	if (command.handoffProtocol) {
+		return command.handoffProtocol;
+	}
+
+	// Check for handoff:{protocol} tag
+	const protocolTag = command.tags?.find((tag) => tag.startsWith('handoff:'));
+	if (protocolTag) {
+		return protocolTag.slice('handoff:'.length);
+	}
+
+	return undefined;
+}

@@ -136,4 +136,9 @@ export type {
 	HandoffMetadata,
 	HandoffProtocol,
 } from '@lushly-dev/afd-core';
-export { isHandoff, isHandoffProtocol } from '@lushly-dev/afd-core';
+export {
+	isHandoff,
+	isHandoffProtocol,
+	isHandoffCommand,
+	getHandoffProtocol,
+} from '@lushly-dev/afd-core';

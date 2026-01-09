@@ -146,4 +146,9 @@ export type {
 	HandoffMetadata,
 	HandoffProtocol,
 } from './handoff.js';
-export { isHandoff, isHandoffProtocol } from './handoff.js';
+export {
+	isHandoff,
+	isHandoffProtocol,
+	isHandoffCommand,
+	getHandoffProtocol,
+} from './handoff.js';

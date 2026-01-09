@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { isHandoff, isHandoffProtocol, type HandoffResult } from './handoff.js';
+import {
+	isHandoff,
+	isHandoffProtocol,
+	isHandoffCommand,
+	getHandoffProtocol,
+	type HandoffResult,
+} from './handoff.js';
 
 describe('isHandoff', () => {
 	it('returns true for valid minimal HandoffResult', () => {
@@ -294,5 +300,92 @@ describe('isHandoffProtocol', () => {
 
 		expect(isHandoffProtocol(handoff, 'my-custom-protocol')).toBe(true);
 		expect(isHandoffProtocol(handoff, 'websocket')).toBe(false);
+	});
+});
+
+describe('isHandoffCommand', () => {
+	it('returns true when handoff property is true', () => {
+		expect(isHandoffCommand({ handoff: true })).toBe(true);
+	});
+
+	it('returns true when handoff tag is present', () => {
+		expect(isHandoffCommand({ tags: ['handoff'] })).toBe(true);
+	});
+
+	it('returns true when handoff tag is present among other tags', () => {
+		expect(isHandoffCommand({ tags: ['streaming', 'handoff', 'realtime'] })).toBe(true);
+	});
+
+	it('returns false when handoff property is false', () => {
+		expect(isHandoffCommand({ handoff: false })).toBe(false);
+	});
+
+	it('returns false when handoff property is undefined', () => {
+		expect(isHandoffCommand({})).toBe(false);
+	});
+
+	it('returns false when tags do not include handoff', () => {
+		expect(isHandoffCommand({ tags: ['streaming', 'realtime'] })).toBe(false);
+	});
+
+	it('returns false when tags is empty', () => {
+		expect(isHandoffCommand({ tags: [] })).toBe(false);
+	});
+
+	it('returns true when both handoff property and tag are present', () => {
+		expect(isHandoffCommand({ handoff: true, tags: ['handoff'] })).toBe(true);
+	});
+});
+
+describe('getHandoffProtocol', () => {
+	it('returns undefined for non-handoff commands', () => {
+		expect(getHandoffProtocol({})).toBeUndefined();
+		expect(getHandoffProtocol({ tags: ['streaming'] })).toBeUndefined();
+	});
+
+	it('returns handoffProtocol property when present', () => {
+		expect(
+			getHandoffProtocol({ handoff: true, handoffProtocol: 'websocket' })
+		).toBe('websocket');
+	});
+
+	it('returns protocol from handoff:{protocol} tag', () => {
+		expect(
+			getHandoffProtocol({ tags: ['handoff', 'handoff:sse'] })
+		).toBe('sse');
+	});
+
+	it('prefers handoffProtocol property over tag', () => {
+		expect(
+			getHandoffProtocol({
+				handoff: true,
+				handoffProtocol: 'websocket',
+				tags: ['handoff:sse'],
+			})
+		).toBe('websocket');
+	});
+
+	it('returns undefined when handoff is true but no protocol specified', () => {
+		expect(getHandoffProtocol({ handoff: true })).toBeUndefined();
+	});
+
+	it('returns undefined when only handoff tag present (no protocol tag)', () => {
+		expect(getHandoffProtocol({ tags: ['handoff'] })).toBeUndefined();
+	});
+
+	it('works with custom protocols', () => {
+		expect(
+			getHandoffProtocol({ handoff: true, handoffProtocol: 'custom-proto' })
+		).toBe('custom-proto');
+
+		expect(
+			getHandoffProtocol({ tags: ['handoff', 'handoff:my-protocol'] })
+		).toBe('my-protocol');
+	});
+
+	it('extracts protocol correctly from tag with colons', () => {
+		expect(
+			getHandoffProtocol({ tags: ['handoff', 'handoff:http-stream'] })
+		).toBe('http-stream');
 	});
 });
