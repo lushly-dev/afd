@@ -36,6 +36,7 @@ export class TodoStore {
     description?: string;
     priority?: Priority;
     dueDate?: string;
+    parentId?: string;
   }): Todo {
     const todo: Todo = {
       id: generateId(),
@@ -44,6 +45,7 @@ export class TodoStore {
       priority: data.priority ?? 2,
       completed: false,
       dueDate: data.dueDate,
+      parentId: data.parentId,
       createdAt: now(),
       updatedAt: now(),
     };
@@ -117,6 +119,17 @@ export class TodoStore {
       }
     }
 
+    // Filter by parent ID
+    if (filter.parentId !== undefined) {
+      if (filter.parentId === null) {
+        // Root-level todos only (no parent)
+        results = results.filter((t) => !t.parentId);
+      } else {
+        // Subtasks of a specific parent
+        results = results.filter((t) => t.parentId === filter.parentId);
+      }
+    }
+
     // Sort
     const sortBy = filter.sortBy ?? "createdAt";
     const sortOrder = filter.sortOrder ?? "desc";
@@ -162,7 +175,7 @@ export class TodoStore {
    */
   update(
     id: string,
-    data: Partial<Pick<Todo, "title" | "description" | "priority" | "completed">> & { dueDate?: string | null }
+    data: Partial<Pick<Todo, "title" | "description" | "priority" | "completed">> & { dueDate?: string | null; parentId?: string | null }
   ): Todo | undefined {
     const todo = this.todos.get(id);
     if (!todo) {
@@ -170,7 +183,7 @@ export class TodoStore {
     }
 
     // Filter out undefined values to avoid overwriting existing properties
-    const filteredData: Partial<Pick<Todo, "title" | "description" | "priority" | "completed" | "dueDate">> = {};
+    const filteredData: Partial<Pick<Todo, "title" | "description" | "priority" | "completed" | "dueDate" | "parentId">> = {};
     if (data.title !== undefined) filteredData.title = data.title;
     if (data.description !== undefined) filteredData.description = data.description;
     if (data.priority !== undefined) filteredData.priority = data.priority;
@@ -178,6 +191,10 @@ export class TodoStore {
     // Handle dueDate: null clears it, undefined leaves it unchanged
     if (data.dueDate !== undefined) {
       filteredData.dueDate = data.dueDate === null ? undefined : data.dueDate;
+    }
+    // Handle parentId: null promotes to root level, undefined leaves it unchanged
+    if (data.parentId !== undefined) {
+      filteredData.parentId = data.parentId === null ? undefined : data.parentId;
     }
 
     const updated: Todo = {
@@ -281,6 +298,79 @@ export class TodoStore {
    */
   count(): number {
     return this.todos.size;
+  }
+
+  /**
+   * Get all subtasks of a todo (direct children only).
+   */
+  getSubtasks(parentId: string): Todo[] {
+    return Array.from(this.todos.values()).filter((t) => t.parentId === parentId);
+  }
+
+  /**
+   * Get all descendants of a todo (subtasks, their subtasks, etc.).
+   */
+  getDescendants(parentId: string): Todo[] {
+    const descendants: Todo[] = [];
+    const stack = [parentId];
+
+    while (stack.length > 0) {
+      const currentId = stack.pop()!;
+      const children = this.getSubtasks(currentId);
+      for (const child of children) {
+        descendants.push(child);
+        stack.push(child.id);
+      }
+    }
+
+    return descendants;
+  }
+
+  /**
+   * Check if moving a todo to a new parent would create a circular reference.
+   */
+  wouldCreateCycle(todoId: string, newParentId: string): boolean {
+    // Check if the new parent is the todo itself
+    if (todoId === newParentId) {
+      return true;
+    }
+
+    // Check if the new parent is a descendant of the todo
+    const descendants = this.getDescendants(todoId);
+    return descendants.some((d) => d.id === newParentId);
+  }
+
+  /**
+   * Delete a todo and optionally its subtasks.
+   * @param id Todo ID to delete
+   * @param cascade If true, delete all subtasks recursively
+   * @returns Object with deleted count and IDs
+   */
+  deleteWithSubtasks(id: string, cascade: boolean = false): { deleted: number; ids: string[] } {
+    const todo = this.todos.get(id);
+    if (!todo) {
+      return { deleted: 0, ids: [] };
+    }
+
+    const deletedIds: string[] = [id];
+
+    if (cascade) {
+      // Get all descendants and delete them
+      const descendants = this.getDescendants(id);
+      for (const descendant of descendants) {
+        this.todos.delete(descendant.id);
+        deletedIds.push(descendant.id);
+      }
+    } else {
+      // Promote subtasks to root level (or to the deleted todo's parent)
+      const subtasks = this.getSubtasks(id);
+      for (const subtask of subtasks) {
+        this.update(subtask.id, { parentId: todo.parentId ?? null });
+      }
+    }
+
+    this.todos.delete(id);
+    return { deleted: deletedIds.length, ids: deletedIds };
   }
 
   // ==================== List Methods ====================
