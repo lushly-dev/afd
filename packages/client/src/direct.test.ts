@@ -733,3 +733,427 @@ describe('DirectClient Performance', () => {
 		console.log(`  Typical MCP SSE:      ~5-10ms (25-100x slower)`);
 	});
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DirectClient.pipe() Tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Mock registry for pipeline testing with trust signal support.
+ */
+class PipelineTestRegistry implements DirectRegistry {
+	async execute<T>(
+		name: string,
+		input?: unknown,
+		_context?: CommandContext
+	): Promise<CommandResult<T>> {
+		const params = (input ?? {}) as Record<string, unknown>;
+
+		switch (name) {
+			case 'user-get': {
+				const id = params.id as number;
+				if (id === 999) {
+					return {
+						success: false,
+						error: {
+							code: 'NOT_FOUND',
+							message: `User ${id} not found`,
+							suggestion: 'Check if user ID is correct',
+						},
+					};
+				}
+				return {
+					success: true,
+					data: {
+						id,
+						name: 'Alice',
+						tier: id === 1 ? 'premium' : 'standard',
+						email: 'alice@example.com',
+					} as T,
+					confidence: 0.95,
+					reasoning: 'User found in database cache',
+				};
+			}
+
+			case 'order-list': {
+				const userId = params.userId as number;
+				return {
+					success: true,
+					data: {
+						orders: [
+							{ id: 'order-1', total: 100, userId },
+							{ id: 'order-2', total: 200, userId },
+						],
+						count: 2,
+					} as T,
+					confidence: 0.9,
+					reasoning: 'Orders retrieved from primary database',
+					warnings: [{ code: 'CACHE_STALE', message: 'Data may be up to 5 minutes old' }],
+				};
+			}
+
+			case 'premium-features': {
+				return {
+					success: true,
+					data: {
+						features: ['priority-support', 'advanced-analytics', 'custom-reports'],
+					} as T,
+					confidence: 1.0,
+					reasoning: 'Premium features enabled',
+				};
+			}
+
+			case 'basic-features': {
+				return {
+					success: true,
+					data: {
+						features: ['standard-support'],
+					} as T,
+					confidence: 1.0,
+				};
+			}
+
+			case 'slow-command': {
+				// Simulate slow command for timeout testing
+				await new Promise((resolve) => setTimeout(resolve, 100));
+				return { success: true, data: { slow: true } as T };
+			}
+
+			case 'failing-command': {
+				return {
+					success: false,
+					error: {
+						code: 'INTERNAL_ERROR',
+						message: 'Command failed intentionally',
+						suggestion: 'Try again later',
+					},
+				};
+			}
+
+			default:
+				return {
+					success: false,
+					error: { code: 'COMMAND_NOT_FOUND', message: `Unknown command: ${name}` },
+				};
+		}
+	}
+
+	listCommandNames(): string[] {
+		return [
+			'user-get',
+			'order-list',
+			'premium-features',
+			'basic-features',
+			'slow-command',
+			'failing-command',
+		];
+	}
+
+	listCommands(): Array<{ name: string; description: string }> {
+		return this.listCommandNames().map((name) => ({ name, description: `${name} command` }));
+	}
+
+	hasCommand(name: string): boolean {
+		return this.listCommandNames().includes(name);
+	}
+}
+
+describe('DirectClient.pipe()', () => {
+	let registry: PipelineTestRegistry;
+	let client: DirectClient;
+
+	beforeEach(() => {
+		registry = new PipelineTestRegistry();
+		client = new DirectClient(registry);
+	});
+
+	describe('basic pipeline execution', () => {
+		it('executes single-step pipeline', async () => {
+			const result = await client.pipe([{ command: 'user-get', input: { id: 1 } }]);
+
+			expect(result.steps).toHaveLength(1);
+			expect(result.steps[0]?.status).toBe('success');
+			expect(result.data).toEqual({
+				id: 1,
+				name: 'Alice',
+				tier: 'premium',
+				email: 'alice@example.com',
+			});
+		});
+
+		it('executes multi-step pipeline with $prev variable', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 1 } },
+				{ command: 'order-list', input: { userId: '$prev.id' } },
+			]);
+
+			expect(result.steps).toHaveLength(2);
+			expect(result.steps[0]?.status).toBe('success');
+			expect(result.steps[1]?.status).toBe('success');
+
+			// Final data should be from last step
+			const data = result.data as { orders: unknown[]; count: number };
+			expect(data.count).toBe(2);
+			expect(data.orders).toHaveLength(2);
+		});
+
+		it('supports step aliases with $steps.alias reference', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 1 }, as: 'user' },
+				{ command: 'order-list', input: { userId: '$steps.user.id' } },
+			]);
+
+			expect(result.steps).toHaveLength(2);
+			expect(result.steps[0]?.alias).toBe('user');
+			expect(result.steps[1]?.status).toBe('success');
+		});
+
+		it('accepts PipelineRequest object format', async () => {
+			const result = await client.pipe({
+				steps: [
+					{ command: 'user-get', input: { id: 1 } },
+					{ command: 'order-list', input: { userId: '$prev.id' } },
+				],
+			});
+
+			expect(result.steps).toHaveLength(2);
+			expect(result.metadata.completedSteps).toBe(2);
+		});
+	});
+
+	describe('conditional execution', () => {
+		it('executes step when $eq condition is true', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 1 }, as: 'user' },
+				{
+					command: 'premium-features',
+					input: {},
+					when: { $eq: ['$steps.user.tier', 'premium'] },
+				},
+			]);
+
+			expect(result.steps).toHaveLength(2);
+			expect(result.steps[1]?.status).toBe('success');
+			const data = result.data as { features: string[] };
+			expect(data.features).toContain('priority-support');
+		});
+
+		it('skips step when $eq condition is false', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 2 }, as: 'user' }, // standard tier
+				{
+					command: 'premium-features',
+					input: {},
+					when: { $eq: ['$steps.user.tier', 'premium'] },
+				},
+			]);
+
+			expect(result.steps).toHaveLength(2);
+			expect(result.steps[1]?.status).toBe('skipped');
+		});
+
+		it('supports $exists condition', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 1 }, as: 'user' },
+				{
+					command: 'order-list',
+					input: { userId: '$user.id' },
+					when: { $exists: '$steps.user.email' },
+				},
+			]);
+
+			expect(result.steps[1]?.status).toBe('success');
+		});
+
+		it('supports $and condition', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 1 }, as: 'user' },
+				{
+					command: 'premium-features',
+					input: {},
+					when: {
+						$and: [
+							{ $eq: ['$steps.user.tier', 'premium'] },
+							{ $exists: '$steps.user.email' },
+						],
+					},
+				},
+			]);
+
+			expect(result.steps[1]?.status).toBe('success');
+		});
+
+		it('supports $or condition', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 2 }, as: 'user' }, // standard tier
+				{
+					command: 'basic-features',
+					input: {},
+					when: {
+						$or: [
+							{ $eq: ['$steps.user.tier', 'premium'] },
+							{ $eq: ['$steps.user.tier', 'standard'] },
+						],
+					},
+				},
+			]);
+
+			expect(result.steps[1]?.status).toBe('success');
+		});
+
+		it('supports $not condition', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 2 }, as: 'user' },
+				{
+					command: 'basic-features',
+					input: {},
+					when: { $not: { $eq: ['$steps.user.tier', 'premium'] } },
+				},
+			]);
+
+			expect(result.steps[1]?.status).toBe('success');
+		});
+	});
+
+	describe('error handling', () => {
+		it('stops pipeline on failure by default', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 999 } }, // fails
+				{ command: 'order-list', input: { userId: '$prev.id' } },
+			]);
+
+			expect(result.steps[0]?.status).toBe('failure');
+			expect(result.steps[0]?.error?.code).toBe('NOT_FOUND');
+			expect(result.steps[1]?.status).toBe('skipped');
+		});
+
+		it('continues on failure with continueOnFailure option', async () => {
+			const result = await client.pipe({
+				steps: [
+					{ command: 'failing-command', input: {} },
+					{ command: 'user-get', input: { id: 1 } },
+				],
+				options: { continueOnFailure: true },
+			});
+
+			expect(result.steps[0]?.status).toBe('failure');
+			expect(result.steps[1]?.status).toBe('success');
+		});
+
+		it('returns unknown tool error for non-existent command', async () => {
+			const result = await client.pipe([{ command: 'non-existent', input: {} }]);
+
+			expect(result.steps[0]?.status).toBe('failure');
+			expect(result.steps[0]?.error?.code).toBe('UNKNOWN_TOOL');
+		});
+	});
+
+	describe('metadata aggregation', () => {
+		it('aggregates confidence using minimum (weakest link)', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 1 } }, // 0.95
+				{ command: 'order-list', input: { userId: '$prev.id' } }, // 0.90
+			]);
+
+			expect(result.metadata.confidence).toBe(0.9);
+		});
+
+		it('builds confidence breakdown with step details', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 1 }, as: 'user' },
+				{ command: 'order-list', input: { userId: '$prev.id' }, as: 'orders' },
+			]);
+
+			expect(result.metadata.confidenceBreakdown).toHaveLength(2);
+			expect(result.metadata.confidenceBreakdown[0]?.command).toBe('user-get');
+			expect(result.metadata.confidenceBreakdown[0]?.confidence).toBe(0.95);
+			expect(result.metadata.confidenceBreakdown[1]?.command).toBe('order-list');
+			expect(result.metadata.confidenceBreakdown[1]?.confidence).toBe(0.9);
+		});
+
+		it('aggregates reasoning from all steps', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 1 } },
+				{ command: 'order-list', input: { userId: '$prev.id' } },
+			]);
+
+			expect(result.metadata.reasoning).toHaveLength(2);
+			expect(result.metadata.reasoning[0]?.reasoning).toContain('database cache');
+			expect(result.metadata.reasoning[1]?.reasoning).toContain('primary database');
+		});
+
+		it('aggregates warnings from all steps', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 1 } },
+				{ command: 'order-list', input: { userId: '$prev.id' } },
+			]);
+
+			expect(result.metadata.warnings).toHaveLength(1);
+			expect(result.metadata.warnings[0]?.code).toBe('CACHE_STALE');
+			expect(result.metadata.warnings[0]?.stepIndex).toBe(1);
+		});
+
+		it('tracks execution time', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 1 } },
+				{ command: 'order-list', input: { userId: '$prev.id' } },
+			]);
+
+			expect(result.metadata.executionTimeMs).toBeGreaterThan(0);
+			expect(result.steps[0]?.executionTimeMs).toBeGreaterThan(0);
+		});
+
+		it('tracks completed vs total steps', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 1 } },
+				{ command: 'order-list', input: { userId: '$prev.id' } },
+			]);
+
+			expect(result.metadata.completedSteps).toBe(2);
+			expect(result.metadata.totalSteps).toBe(2);
+		});
+	});
+
+	describe('timeout handling', () => {
+		it('stops pipeline on timeout', async () => {
+			const result = await client.pipe({
+				steps: [
+					{ command: 'slow-command', input: {} },
+					{ command: 'user-get', input: { id: 1 } },
+				],
+				options: { timeoutMs: 10 },
+			});
+
+			// The first step may complete or be skipped depending on timing
+			// The key is that the pipeline respects the timeout
+			const hasTimeoutError = result.steps.some(
+				(s) => s.error?.code === 'TIMEOUT' || s.status === 'skipped'
+			);
+			expect(hasTimeoutError).toBe(true);
+		});
+	});
+
+	describe('step result access', () => {
+		it('provides individual step results', async () => {
+			const result = await client.pipe([
+				{ command: 'user-get', input: { id: 1 }, as: 'user' },
+				{ command: 'order-list', input: { userId: '$prev.id' }, as: 'orders' },
+			]);
+
+			expect(result.steps[0]?.data).toEqual({
+				id: 1,
+				name: 'Alice',
+				tier: 'premium',
+				email: 'alice@example.com',
+			});
+			expect(result.steps[1]?.data).toHaveProperty('orders');
+		});
+
+		it('includes step metadata in results', async () => {
+			const result = await client.pipe([{ command: 'user-get', input: { id: 1 } }]);
+
+			expect(result.steps[0]?.metadata?.confidence).toBe(0.95);
+			expect(result.steps[0]?.metadata?.reasoning).toBe('User found in database cache');
+		});
+	});
+});

@@ -75,3 +75,21 @@ export type {
 	McpToolCallParams,
 	McpToolCallResult,
 } from '@lushly-dev/afd-core';
+
+// Re-export pipeline types for client.pipe() usage
+export type {
+	PipelineRequest,
+	PipelineStep,
+	PipelineOptions,
+	PipelineResult,
+	PipelineMetadata,
+	PipelineContext,
+	PipelineCondition,
+	StepResult,
+	StepStatus,
+	StepConfidence,
+	StepReasoning,
+	PipelineWarning,
+	PipelineSource,
+	PipelineAlternative,
+} from '@lushly-dev/afd-core';
