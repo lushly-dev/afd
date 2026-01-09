@@ -4,6 +4,7 @@ This module contains the foundational types used across all AFD applications:
 - CommandResult: Standard response type for all commands
 - CommandError: Structured error with recovery guidance
 - Metadata types: Source, PlanStep, Alternative, Warning
+- Handoff types: HandoffResult, HandoffCredentials, HandoffMetadata
 """
 
 from afd.core.result import (
@@ -46,6 +47,18 @@ from afd.core.commands import (
     CommandRegistry,
     create_command_registry,
 )
+from afd.core.handoff import (
+    HandoffProtocol,
+    HandoffCredentials,
+    HandoffMetadata,
+    HandoffResult,
+    ReconnectPolicy,
+    is_handoff,
+    is_handoff_protocol,
+    is_handoff_command,
+    get_handoff_protocol,
+    create_handoff,
+)
 
 __all__ = [
     # Result types
@@ -84,4 +97,15 @@ __all__ = [
     "CommandContext",
     "CommandRegistry",
     "create_command_registry",
+    # Handoff types
+    "HandoffProtocol",
+    "HandoffCredentials",
+    "HandoffMetadata",
+    "HandoffResult",
+    "ReconnectPolicy",
+    "is_handoff",
+    "is_handoff_protocol",
+    "is_handoff_command",
+    "get_handoff_protocol",
+    "create_handoff",
 ]

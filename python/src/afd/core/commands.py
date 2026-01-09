@@ -133,6 +133,8 @@ class CommandDefinition:
     mutation: bool = False
     execution_time: Optional[Literal["instant", "fast", "slow", "long-running"]] = None
     examples: Optional[List[Dict[str, Any]]] = None
+    handoff: bool = False
+    handoff_protocol: Optional[str] = None
 
 
 class CommandRegistry(Protocol):
