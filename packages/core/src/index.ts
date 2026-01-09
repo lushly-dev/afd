@@ -208,3 +208,34 @@ export {
 	resolveVariables,
 	evaluateCondition,
 } from './pipeline.js';
+
+// Platform utilities
+export {
+	isWindows,
+	isMac,
+	isLinux,
+	exec,
+	findUp,
+	getTempDir,
+	normalizePath,
+	ExecErrorCode,
+	createExecResult,
+	isExecError,
+} from './platform.js';
+export type { ExecOptions, ExecResult } from './platform.js';
+
+// Connectors
+export { GitHubConnector } from './connectors/github.js';
+export { PackageManagerConnector } from './connectors/package-manager.js';
+export type {
+	GitHubConnectorOptions,
+	IssueCreateOptions,
+	IssueFilters,
+	Issue,
+	PrCreateOptions,
+	PullRequest,
+} from './connectors/github.js';
+export type {
+	PackageManager,
+	PackageManagerConnectorOptions,
+} from './connectors/package-manager.js';
