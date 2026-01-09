@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { defineCommand, success } from '@afd/server';
+import { defineCommand, success } from '@lushly-dev/afd-server';
 import { store } from '../store/index.js';
 import type { TodoStats } from '../types.js';
 
