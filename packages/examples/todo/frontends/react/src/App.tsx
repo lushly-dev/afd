@@ -15,6 +15,7 @@ import { KeyboardHelp } from "./components/KeyboardHelp";
 import { useKeyboard } from "./hooks/useKeyboard";
 import type { KeyboardShortcut } from "./hooks/useKeyboard";
 import { useConfirm } from "./hooks/useConfirm";
+import { useTheme } from "./hooks/useTheme";
 import type { RemoteChanges } from "./components/Toast";
 import "./App.css";
 
@@ -66,6 +67,7 @@ const App: React.FC = () => {
   const { toasts, removeToast, showResultToast, showRemoteChanges } = useToast();
   const { entries: logEntries, log } = useCommandLog();
   const { state: confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
+  const { theme, toggleTheme } = useTheme();
 
   // Track previous todos for remote change detection
   const previousTodosRef = useRef<Map<string, Todo>>(new Map());
@@ -536,6 +538,8 @@ const App: React.FC = () => {
         onCreateList={handleCreateList}
         todayCount={todayCount}
         inboxCount={inboxCount}
+        theme={theme}
+        onThemeToggle={toggleTheme}
       />
 
       <div className="app-main">
