@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { defineCommand, success } from '@afd/server';
 import type { CommandError } from '@afd/core';
 import { store } from '../store/index.js';
-import type { Todo } from '../types.js';
+import type { Todo, Priority } from '../types.js';
 
 /**
  * Schema for a single todo item in a batch
@@ -17,7 +17,7 @@ import type { Todo } from '../types.js';
 const todoItemSchema = z.object({
 	title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
 	description: z.string().max(1000).optional(),
-	priority: z.enum(['low', 'medium', 'high']).default('medium'),
+	priority: z.number().int().min(0).max(3).default(2) as z.ZodType<Priority, z.ZodTypeDef, Priority>,
 });
 
 const inputSchema = z.object({

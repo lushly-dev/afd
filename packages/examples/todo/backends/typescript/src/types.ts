@@ -4,8 +4,19 @@
 
 /**
  * Priority levels for todos.
+ * 0 = none, 1 = low, 2 = medium, 3 = high
  */
-export type Priority = 'low' | 'medium' | 'high';
+export type Priority = 0 | 1 | 2 | 3;
+
+/**
+ * Human-readable labels for priority levels.
+ */
+export const PRIORITY_LABELS: Record<Priority, string> = {
+	0: 'none',
+	1: 'low',
+	2: 'medium',
+	3: 'high',
+};
 
 /**
  * Todo item.
@@ -56,11 +67,7 @@ export interface TodoStats {
 	overdue: number;
 
 	/** Breakdown by priority */
-	byPriority: {
-		low: number;
-		medium: number;
-		high: number;
-	};
+	byPriority: Record<Priority, number>;
 
 	/** Completion rate (0-1) */
 	completionRate: number;

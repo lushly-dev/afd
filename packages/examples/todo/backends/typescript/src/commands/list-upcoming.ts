@@ -9,12 +9,12 @@ import { z } from 'zod';
 import { defineCommand, success } from '@afd/server';
 import type { Alternative } from '@afd/core';
 import { store } from '../store/index.js';
-import type { Todo } from '../types.js';
+import type { Todo, Priority } from '../types.js';
 
 const inputSchema = z.object({
 	days: z.number().int().min(1).max(365).default(7).describe('Number of days to look ahead'),
 	includeCompleted: z.boolean().default(false).describe('Include completed items'),
-	priority: z.enum(['low', 'medium', 'high']).optional().describe('Filter by priority'),
+	priority: (z.number().int().min(0).max(3) as z.ZodType<Priority, z.ZodTypeDef, Priority>).optional().describe('Filter by priority'),
 	sortBy: z.enum(['dueDate', 'priority', 'title', 'createdAt']).default('dueDate'),
 	sortOrder: z.enum(['asc', 'desc']).default('asc'),
 	limit: z.number().int().min(1).max(100).default(20),
@@ -131,7 +131,7 @@ export const listUpcoming = defineCommand<typeof inputSchema, UpcomingResult>({
 
 		// Offer to filter by high priority
 		if (!input.priority && total > 10) {
-			const highPriority = allUpcoming.filter((t) => t.priority === 'high');
+			const highPriority = allUpcoming.filter((t) => t.priority === 3);
 			if (highPriority.length > 0 && highPriority.length < total) {
 				alternatives.push({
 					data: {
