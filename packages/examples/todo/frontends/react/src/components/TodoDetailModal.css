@@ -1,0 +1,164 @@
+.detail-modal {
+	background: var(--bg);
+	border-radius: 12px;
+	width: 90%;
+	max-width: 700px;
+	max-height: 90vh;
+	display: flex;
+	flex-direction: column;
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.detail-header {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 20px 24px;
+	border-bottom: 1px solid var(--border);
+}
+
+.detail-title-input {
+	flex: 1;
+	font-size: 20px;
+	font-weight: 600;
+	border: none;
+	background: transparent;
+	color: var(--text);
+	padding: 8px 0;
+}
+
+.detail-title-input:focus {
+	outline: none;
+}
+
+.detail-title-input::placeholder {
+	color: var(--text-muted);
+}
+
+.close-btn {
+	width: 36px;
+	height: 36px;
+	border: none;
+	background: transparent;
+	color: var(--text-muted);
+	font-size: 24px;
+	cursor: pointer;
+	border-radius: 6px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: all 0.2s;
+}
+
+.close-btn:hover {
+	background: var(--surface);
+	color: var(--text);
+}
+
+.detail-meta {
+	display: flex;
+	gap: 24px;
+	padding: 16px 24px;
+	background: var(--surface);
+	border-bottom: 1px solid var(--border);
+}
+
+.meta-item {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-size: 14px;
+}
+
+.meta-item label {
+	color: var(--text-muted);
+}
+
+.priority-select {
+	padding: 4px 8px;
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	background: var(--bg);
+	color: var(--text);
+	font-size: 14px;
+	cursor: pointer;
+}
+
+.priority-select:focus {
+	outline: none;
+	border-color: var(--accent);
+}
+
+.status-badge {
+	padding: 4px 10px;
+	border-radius: 12px;
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.status-badge.completed {
+	background: #10b98120;
+	color: #10b981;
+}
+
+.status-badge.pending {
+	background: #f59e0b20;
+	color: #f59e0b;
+}
+
+.detail-body {
+	flex: 1;
+	padding: 20px 24px;
+	overflow-y: auto;
+}
+
+.description-label {
+	display: block;
+	font-size: 14px;
+	font-weight: 500;
+	color: var(--text);
+	margin-bottom: 8px;
+}
+
+.detail-footer {
+	display: flex;
+	justify-content: flex-end;
+	gap: 12px;
+	padding: 16px 24px;
+	border-top: 1px solid var(--border);
+}
+
+.btn-secondary {
+	padding: 10px 20px;
+	border: 1px solid var(--border);
+	background: transparent;
+	color: var(--text);
+	border-radius: 6px;
+	font-size: 14px;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+	background: var(--surface);
+}
+
+.btn-primary {
+	padding: 10px 20px;
+	border: none;
+	background: var(--accent);
+	color: white;
+	border-radius: 6px;
+	font-size: 14px;
+	cursor: pointer;
+	transition: all 0.2s;
+}
+
+.btn-primary:hover:not(:disabled) {
+	opacity: 0.9;
+}
+
+.btn-primary:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
