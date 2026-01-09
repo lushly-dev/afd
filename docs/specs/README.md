@@ -9,7 +9,7 @@ Technical specifications for AFD features. These are living documents that evolv
 | [Rust Support](./rust-support/00-overview.md) | Rust as third language for AFD | [#15](https://github.com/lushly-dev/afd/issues/15) |
 | [Rust Distribution (Mint)](./rust-distribution/00-overview.md) | Multi-platform distribution framework | [#16](https://github.com/lushly-dev/afd/issues/16) |
 | [Design-to-Code](./design-to-code/00-overview.md) | Figma-to-AFD code generation | [#17](https://github.com/lushly-dev/afd/issues/17) |
-| [Handoff Pattern](./handoff-pattern.md) | Commands that bootstrap specialized protocols | [#18](https://github.com/lushly-dev/afd/issues/18) |
+| [Handoff Pattern](./handoff-pattern/00-overview.md) | Commands that bootstrap specialized protocols | [#18](https://github.com/lushly-dev/afd/issues/18) |
 
 ## Spec Structure
 
@@ -30,3 +30,4 @@ Completed/shipped specs are in [Archive/](./Archive/):
 - `multi-stack-examples/` - Todo example (shipped)
 - `performance/` - Performance optimizations
 - `afd_example_compliance.plan.md` - Example compliance (shipped)
+- `handoff-pattern-v1.md` - Original concept (superseded by full spec)
