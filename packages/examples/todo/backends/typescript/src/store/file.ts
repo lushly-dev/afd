@@ -101,6 +101,8 @@ export class FileStore {
     title: string;
     description?: string;
     priority?: Priority;
+    dueDate?: string;
+    tags?: string[];
   }): Todo {
     const todos = this.loadTodos();
 
@@ -110,6 +112,8 @@ export class FileStore {
       description: data.description,
       priority: data.priority ?? "medium",
       completed: false,
+      dueDate: data.dueDate,
+      tags: data.tags ?? [],
       createdAt: now(),
       updatedAt: now(),
     };
@@ -152,6 +156,24 @@ export class FileStore {
           t.title.toLowerCase().includes(search) ||
           t.description?.toLowerCase().includes(search)
       );
+    }
+
+    // Filter by tags (must have ALL specified tags)
+    if (filter.tags && filter.tags.length > 0) {
+      const filterTags = filter.tags.map((tag) => tag.toLowerCase());
+      results = results.filter((t) => {
+        const todoTags = (t.tags ?? []).map((tag) => tag.toLowerCase());
+        return filterTags.every((tag) => todoTags.includes(tag));
+      });
+    }
+
+    // Filter by any tag (must have AT LEAST ONE of the specified tags)
+    if (filter.anyTag && filter.anyTag.length > 0) {
+      const filterTags = filter.anyTag.map((tag) => tag.toLowerCase());
+      results = results.filter((t) => {
+        const todoTags = (t.tags ?? []).map((tag) => tag.toLowerCase());
+        return filterTags.some((tag) => todoTags.includes(tag));
+      });
     }
 
     // Sort
@@ -198,8 +220,8 @@ export class FileStore {
   update(
     id: string,
     data: Partial<
-      Pick<Todo, "title" | "description" | "priority" | "completed">
-    >
+      Pick<Todo, "title" | "description" | "priority" | "completed" | "tags">
+    > & { dueDate?: string | null }
   ): Todo | undefined {
     const todos = this.loadTodos();
     const todo = todos.get(id);
@@ -209,13 +231,18 @@ export class FileStore {
 
     // Filter out undefined values to avoid overwriting existing properties
     const filteredData: Partial<
-      Pick<Todo, "title" | "description" | "priority" | "completed">
+      Pick<Todo, "title" | "description" | "priority" | "completed" | "dueDate" | "tags">
     > = {};
     if (data.title !== undefined) filteredData.title = data.title;
     if (data.description !== undefined)
       filteredData.description = data.description;
     if (data.priority !== undefined) filteredData.priority = data.priority;
     if (data.completed !== undefined) filteredData.completed = data.completed;
+    if (data.tags !== undefined) filteredData.tags = data.tags;
+    // Handle dueDate: null clears it, undefined leaves it unchanged
+    if (data.dueDate !== undefined) {
+      filteredData.dueDate = data.dueDate === null ? undefined : data.dueDate;
+    }
 
     const updated: Todo = {
       ...todo,
@@ -498,5 +525,82 @@ export class FileStore {
    */
   clearLists(): void {
     this.saveLists(new Map());
+  }
+
+  // ==================== Tag Methods ====================
+
+  /**
+   * Add tags to a todo.
+   */
+  addTags(id: string, newTags: string[]): Todo | undefined {
+    const todos = this.loadTodos();
+    const todo = todos.get(id);
+    if (!todo) {
+      return undefined;
+    }
+
+    const existingTags = todo.tags ?? [];
+    const existingLower = existingTags.map((t) => t.toLowerCase());
+    const tagsToAdd = newTags.filter(
+      (t) => !existingLower.includes(t.toLowerCase())
+    );
+
+    const updated: Todo = {
+      ...todo,
+      tags: [...existingTags, ...tagsToAdd],
+      updatedAt: now(),
+    };
+
+    todos.set(id, updated);
+    this.saveTodos(todos);
+    return updated;
+  }
+
+  /**
+   * Remove tags from a todo.
+   */
+  removeTags(id: string, tagsToRemove: string[]): Todo | undefined {
+    const todos = this.loadTodos();
+    const todo = todos.get(id);
+    if (!todo) {
+      return undefined;
+    }
+
+    const removeSet = new Set(tagsToRemove.map((t) => t.toLowerCase()));
+    const updated: Todo = {
+      ...todo,
+      tags: (todo.tags ?? []).filter(
+        (t) => !removeSet.has(t.toLowerCase())
+      ),
+      updatedAt: now(),
+    };
+
+    todos.set(id, updated);
+    this.saveTodos(todos);
+    return updated;
+  }
+
+  /**
+   * Get all unique tags across all todos.
+   */
+  getAllTags(): { tag: string; count: number }[] {
+    const todos = this.loadTodos();
+    const tagCounts = new Map<string, { original: string; count: number }>();
+
+    for (const todo of todos.values()) {
+      for (const tag of todo.tags ?? []) {
+        const lower = tag.toLowerCase();
+        const existing = tagCounts.get(lower);
+        if (existing) {
+          existing.count++;
+        } else {
+          tagCounts.set(lower, { original: tag, count: 1 });
+        }
+      }
+    }
+
+    return Array.from(tagCounts.values())
+      .map(({ original, count }) => ({ tag: original, count }))
+      .sort((a, b) => b.count - a.count);
   }
 }

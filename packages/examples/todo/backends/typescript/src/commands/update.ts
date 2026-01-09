@@ -5,19 +5,21 @@
 import { z } from "zod";
 import { defineCommand, success, failure } from "@afd/server";
 import { store } from "../store/index.js";
-import type { Todo } from "../types.js";
+import type { Todo, Priority } from "../types.js";
+import { PRIORITY_LABELS } from "../types.js";
 
 const inputSchema = z.object({
   id: z.string().min(1, "Todo ID is required"),
   title: z.string().min(1).max(200).optional(),
   description: z.string().max(1000).optional(),
   completed: z.boolean().optional(),
-  priority: z.enum(["low", "medium", "high"]).optional(),
+  priority: (z.number().int().min(0).max(3) as z.ZodType<Priority>).optional(),
   dueDate: z
     .string()
     .datetime({ message: "Due date must be a valid ISO 8601 date-time" })
     .optional()
     .nullable(),
+  tags: z.array(z.string().min(1).max(50)).max(20).optional(),
 });
 
 export const updateTodo = defineCommand<typeof inputSchema, Todo>({
@@ -42,7 +44,7 @@ export const updateTodo = defineCommand<typeof inputSchema, Todo>({
         code: "NO_CHANGES",
         message: "No fields to update",
         suggestion:
-          "Provide at least one of: title, description, completed, priority, dueDate",
+          "Provide at least one of: title, description, completed, priority, dueDate, tags",
       });
     }
 
@@ -61,6 +63,7 @@ export const updateTodo = defineCommand<typeof inputSchema, Todo>({
       completed: updates.completed,
       priority: updates.priority,
       dueDate: updates.dueDate,
+      tags: updates.tags,
     });
 
     if (!updated) {
@@ -75,13 +78,16 @@ export const updateTodo = defineCommand<typeof inputSchema, Todo>({
     const changes: string[] = [];
     if (updates.title) changes.push(`title to "${updates.title}"`);
     if (updates.description !== undefined) changes.push("description");
-    if (updates.priority) changes.push(`priority to ${updates.priority}`);
+    if (updates.priority !== undefined) changes.push(`priority to ${PRIORITY_LABELS[updates.priority]}`);
     if (updates.dueDate !== undefined) {
       if (updates.dueDate === null) {
         changes.push("cleared due date");
       } else {
         changes.push(`due date to ${new Date(updates.dueDate).toLocaleDateString()}`);
       }
+    }
+    if (updates.tags !== undefined) {
+      changes.push(`tags to [${updates.tags.join(', ')}]`);
     }
 
     return success(updated, {
