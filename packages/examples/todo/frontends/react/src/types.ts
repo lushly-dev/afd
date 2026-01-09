@@ -18,6 +18,15 @@ export interface TodoStats {
   completionRate: number;
 }
 
+export interface List {
+  id: string;
+  name: string;
+  description?: string;
+  todoIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Source {
   type?: string;
   title?: string;
