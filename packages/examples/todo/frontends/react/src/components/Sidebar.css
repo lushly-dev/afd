@@ -1,0 +1,152 @@
+.sidebar {
+	width: 240px;
+	min-width: 240px;
+	background: var(--surface);
+	border-right: 1px solid var(--border);
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	overflow-y: auto;
+}
+
+.sidebar-nav {
+	padding: 1rem 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.sidebar-section {
+	padding: 0 0.75rem;
+}
+
+.sidebar-section + .sidebar-section {
+	margin-top: 1rem;
+	padding-top: 1rem;
+	border-top: 1px solid var(--border);
+}
+
+.sidebar-section-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.25rem 0.75rem;
+	margin-bottom: 0.5rem;
+	font-size: 0.75rem;
+	font-weight: 600;
+	text-transform: uppercase;
+	color: var(--text-muted);
+	letter-spacing: 0.05em;
+}
+
+.sidebar-add-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	background: transparent;
+	border: none;
+	border-radius: 4px;
+	color: var(--text-muted);
+	cursor: pointer;
+	transition: all 0.15s ease;
+}
+
+.sidebar-add-btn:hover {
+	background: var(--primary);
+	color: var(--accent);
+}
+
+.sidebar-item {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	width: 100%;
+	padding: 0.625rem 0.75rem;
+	background: transparent;
+	border: none;
+	border-radius: 8px;
+	color: var(--text);
+	font-size: 0.9rem;
+	cursor: pointer;
+	transition: all 0.15s ease;
+	text-align: left;
+}
+
+.sidebar-item:hover {
+	background: var(--primary);
+}
+
+.sidebar-item.active {
+	background: var(--accent);
+	color: white;
+}
+
+.sidebar-item.active .sidebar-icon {
+	color: white;
+}
+
+.sidebar-item.active .sidebar-count {
+	background: rgba(255, 255, 255, 0.2);
+	color: white;
+}
+
+.sidebar-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--text-muted);
+	flex-shrink: 0;
+}
+
+.sidebar-label {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.sidebar-count {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 20px;
+	height: 20px;
+	padding: 0 6px;
+	background: var(--primary);
+	border-radius: 10px;
+	font-size: 0.75rem;
+	font-weight: 500;
+	color: var(--text-muted);
+}
+
+.sidebar-lists {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.sidebar-empty {
+	padding: 0.5rem 0.75rem;
+	color: var(--text-muted);
+	font-size: 0.85rem;
+	font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+	.sidebar {
+		position: fixed;
+		left: -240px;
+		top: 0;
+		bottom: 0;
+		z-index: 100;
+		transition: left 0.3s ease;
+	}
+
+	.sidebar.open {
+		left: 0;
+	}
+}
