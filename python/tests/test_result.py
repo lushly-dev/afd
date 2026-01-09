@@ -155,6 +155,22 @@ class TestErrorHelper:
         )
         assert result.error.details == {"field": "email", "constraint": "format"}
 
+    def test_error_with_all_fields(self):
+        """Test error() helper with all fields (AFD compliance)."""
+        result = error(
+            "NOT_FOUND",
+            "Todo not found",
+            suggestion="Use todo.list to see available todos",
+            retryable=False,
+            details={"resource": "todo", "id": "abc123"},
+        )
+        assert result.success is False
+        assert result.error.code == "NOT_FOUND"
+        assert result.error.message == "Todo not found"
+        assert result.error.suggestion == "Use todo.list to see available todos"
+        assert result.error.retryable is False
+        assert result.error.details == {"resource": "todo", "id": "abc123"}
+
 
 class TestIsSuccess:
     """Tests for is_success() type guard."""

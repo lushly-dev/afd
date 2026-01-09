@@ -223,7 +223,7 @@ server = create_server(
 @server.command(name="todo.create", description="Create a new todo item", input_schema=CreateTodoInput, mutation=True)
 async def create_todo(input: CreateTodoInput) -> CommandResult[Todo]:
     if input.priority not in ["low", "medium", "high"]:
-        return error(code="INVALID_PRIORITY", message=f"Invalid priority: {input.priority}")
+        return error(code="INVALID_PRIORITY", message=f"Invalid priority: {input.priority}", suggestion="Use 'low', 'medium', or 'high'")
     
     todo = Todo(
         id=str(uuid.uuid4())[:8],
@@ -263,7 +263,7 @@ async def get_todo(input: IdInput) -> CommandResult[Todo]:
     todo_id = input.id
     current_todos = _get_todos()
     if not todo_id or todo_id not in current_todos:
-        return error(code="NOT_FOUND", message=f"Todo '{todo_id}' not found")
+        return error(code="NOT_FOUND", message=f"Todo '{todo_id}' not found", suggestion="Use todo.list to see available todos")
     return success(data=current_todos[todo_id])
 
 
@@ -271,7 +271,7 @@ async def get_todo(input: IdInput) -> CommandResult[Todo]:
 async def update_todo(input: UpdateTodoInput) -> CommandResult[Todo]:
     current_todos = _get_todos()
     if input.id not in current_todos:
-        return error(code="NOT_FOUND", message=f"Todo '{input.id}' not found")
+        return error(code="NOT_FOUND", message=f"Todo '{input.id}' not found", suggestion="Use todo.list to see available todos")
     
     todo = current_todos[input.id]
     if input.title is not None: todo.title = input.title
@@ -284,7 +284,7 @@ async def update_todo(input: UpdateTodoInput) -> CommandResult[Todo]:
         todo.completed = input.completed
     if input.priority is not None:
         if input.priority not in ["low", "medium", "high"]:
-            return error(code="INVALID_PRIORITY", message=f"Invalid priority: {input.priority}")
+            return error(code="INVALID_PRIORITY", message=f"Invalid priority: {input.priority}", suggestion="Use 'low', 'medium', or 'high'")
         todo.priority = input.priority
     
     todo.updatedAt = datetime.utcnow().isoformat() + "Z"
@@ -297,7 +297,7 @@ async def toggle_todo(input: IdInput) -> CommandResult[Todo]:
     todo_id = input.id
     current_todos = _get_todos()
     if not todo_id or todo_id not in current_todos:
-        return error(code="NOT_FOUND", message=f"Todo '{todo_id}' not found")
+        return error(code="NOT_FOUND", message=f"Todo '{todo_id}' not found", suggestion="Use todo.list to see available todos")
     
     todo = current_todos[todo_id]
     todo.completed = not todo.completed
@@ -316,7 +316,7 @@ async def delete_todo(input: IdInput) -> CommandResult[Dict[str, Any]]:
     todo_id = input.id
     current_todos = _get_todos()
     if not todo_id or todo_id not in current_todos:
-        return error(code="NOT_FOUND", message=f"Todo '{todo_id}' not found")
+        return error(code="NOT_FOUND", message=f"Todo '{todo_id}' not found", suggestion="Use todo.list to see available todos")
     
     deleted = current_todos[todo_id]
     _delete_todo(todo_id)
