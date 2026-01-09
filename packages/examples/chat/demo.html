@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AFD Chat Demo - Handoff Pattern</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #e0e0e0;
+      padding: 20px;
+    }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { 
+      text-align: center; 
+      margin-bottom: 10px;
+      background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .subtitle {
+      text-align: center;
+      color: #888;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+    .status {
+      text-align: center;
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      font-weight: 500;
+    }
+    .status.connected { background: rgba(0, 200, 100, 0.2); color: #00ff88; }
+    .status.disconnected { background: rgba(255, 50, 50, 0.2); color: #ff6b6b; }
+    .status.connecting { background: rgba(255, 200, 50, 0.2); color: #ffcc00; }
+    .join-form {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .join-form h3 { margin-bottom: 15px; color: #00d4ff; }
+    .form-row { display: flex; gap: 10px; margin-bottom: 10px; }
+    .chat-box {
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+      padding: 20px;
+      height: 350px;
+      overflow-y: auto;
+      margin-bottom: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .message {
+      padding: 10px 15px;
+      margin: 8px 0;
+      border-radius: 8px;
+      background: rgba(0, 212, 255, 0.1);
+      border-left: 3px solid #00d4ff;
+    }
+    .message.system {
+      background: rgba(123, 44, 191, 0.1);
+      border-left-color: #7b2cbf;
+      font-style: italic;
+    }
+    .message.error {
+      background: rgba(255, 50, 50, 0.1);
+      border-left-color: #ff6b6b;
+    }
+    .message .user { font-weight: 600; color: #00d4ff; }
+    .message .time { font-size: 0.8em; color: #888; margin-left: 10px; }
+    .input-area {
+      display: flex;
+      gap: 10px;
+    }
+    input, button, select {
+      padding: 12px 20px;
+      border-radius: 8px;
+      border: none;
+      font-size: 16px;
+    }
+    input, select {
+      flex: 1;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    input:focus, select:focus { outline: none; border-color: #00d4ff; }
+    button {
+      background: linear-gradient(90deg, #00d4ff, #7b2cbf);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .handoff-info {
+      margin-top: 20px;
+      padding: 15px;
+      background: rgba(0, 212, 255, 0.1);
+      border-radius: 8px;
+      font-size: 13px;
+    }
+    .handoff-info h4 { color: #00d4ff; margin-bottom: 10px; }
+    .handoff-info code {
+      background: rgba(0, 0, 0, 0.3);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .step { margin: 5px 0; }
+    .step-num {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      background: #7b2cbf;
+      color: white;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 20px;
+      font-size: 12px;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🚀 AFD Chat Demo</h1>
+    <p class="subtitle">Demonstrating the Handoff Pattern for real-time connections</p>
+    
+    <div id="status" class="status disconnected">Not connected</div>
+    
+    <div id="joinForm" class="join-form">
+      <h3>Step 1: Request Handoff Token</h3>
+      <div class="form-row">
+        <select id="room">
+          <option value="general">general</option>
+          <option value="random">random</option>
+          <option value="dev">dev</option>
+        </select>
+        <input type="text" id="nickname" placeholder="Your nickname" value="demo-user">
+        <button onclick="connect()">Connect</button>
+      </div>
+    </div>
+
+    <div id="chat" class="chat-box">
+      <div class="message system">👋 Welcome! Click Connect to join a chat room using the handoff pattern.</div>
+    </div>
+    
+    <div class="input-area">
+      <input type="text" id="message" placeholder="Type a message..." disabled onkeypress="if(event.key==='Enter')sendMessage()">
+      <button onclick="sendMessage()" id="sendBtn" disabled>Send</button>
+    </div>
+
+    <div class="handoff-info">
+      <h4>🔐 Handoff Pattern Flow</h4>
+      <div class="step"><span class="step-num">1</span>Client calls <code>chat-connect</code> command via HTTP</div>
+      <div class="step"><span class="step-num">2</span>Server returns <code>HandoffResult</code> with WebSocket URL + token</div>
+      <div class="step"><span class="step-num">3</span>Client connects to WebSocket using the token</div>
+      <div class="step"><span class="step-num">4</span>Real-time messages flow over WebSocket</div>
+    </div>
+  </div>
+
+  <script>
+    const chatBox = document.getElementById('chat');
+    const statusEl = document.getElementById('status');
+    const messageInput = document.getElementById('message');
+    const sendBtn = document.getElementById('sendBtn');
+    const joinForm = document.getElementById('joinForm');
+    
+    let ws = null;
+    let sessionToken = null;
+    
+    function addMessage(type, text) {
+      const div = document.createElement('div');
+      div.className = `message ${type === 'system' ? 'system' : type === 'error' ? 'error' : ''}`;
+      const time = new Date().toLocaleTimeString();
+      div.innerHTML = `<span class="user">${type}:</span><span class="time">${time}</span><pre style="margin-top:5px;white-space:pre-wrap;font-family:inherit">${text}</pre>`;
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    
+    async function connect() {
+      const room = document.getElementById('room').value;
+      const nickname = document.getElementById('nickname').value || 'anonymous';
+      
+      statusEl.className = 'status connecting';
+      statusEl.textContent = '🔄 Step 1: Calling chat-connect command...';
+      addMessage('system', `Calling chat-connect { room: "${room}", nickname: "${nickname}" }`);
+      
+      try {
+        // Step 1: Call chat-connect via HTTP to get handoff token
+        const response = await fetch('http://localhost:3200/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0',
+            id: 1,
+            method: 'chat-connect',
+            params: { roomId: room, nickname }
+          })
+        });
+        
+        const data = await response.json();
+        
+        if (data.error) {
+          throw new Error(data.error.message);
+        }
+        
+        const rawResult = data.result;
+        // Unwrap AFD success envelope
+        const result = rawResult.success ? rawResult.data : rawResult;
+        const wsUrl = `${result.endpoint}?token=${result.credentials.token}`;
+        addMessage('system', `✓ Received HandoffResult:\n  - protocol: ${result.protocol}\n  - endpoint: ${result.endpoint}\n  - token: ${result.credentials.token.substring(0,8)}...`);
+        
+        // Step 2: Connect to WebSocket using the handoff URL
+        statusEl.textContent = '🔄 Step 2: Connecting to WebSocket...';
+        
+        ws = new WebSocket(wsUrl);
+        
+        ws.onopen = () => {
+          statusEl.className = 'status connected';
+          statusEl.textContent = `✓ Connected to ${room} as ${nickname}`;
+          addMessage('system', '✓ WebSocket connected! You can now send messages.');
+          
+          messageInput.disabled = false;
+          sendBtn.disabled = false;
+          joinForm.style.display = 'none';
+        };
+        
+        ws.onclose = (e) => {
+          statusEl.className = 'status disconnected';
+          statusEl.textContent = `Disconnected (${e.code}: ${e.reason || 'closed'})`;
+          messageInput.disabled = true;
+          sendBtn.disabled = true;
+          joinForm.style.display = 'block';
+        };
+        
+        ws.onerror = () => {
+          addMessage('error', 'WebSocket error');
+        };
+        
+        ws.onmessage = (event) => {
+          try {
+            const msg = JSON.parse(event.data);
+            switch(msg.type) {
+              case 'welcome':
+                addMessage('system', `Welcome to ${msg.roomId}! Participants: ${msg.participants.join(', ')}`);
+                break;
+              case 'message':
+                addMessage(msg.sender, msg.text);
+                break;
+              case 'user_joined':
+                addMessage('system', `${msg.nickname} joined the room`);
+                break;
+              case 'user_left':
+                addMessage('system', `${msg.nickname} left the room`);
+                break;
+              case 'error':
+                addMessage('error', msg.message);
+                break;
+              default:
+                addMessage('system', JSON.stringify(msg));
+            }
+          } catch {
+            addMessage('server', event.data);
+          }
+        };
+        
+      } catch (err) {
+        statusEl.className = 'status disconnected';
+        statusEl.textContent = 'Connection failed';
+        addMessage('error', `Failed: ${err.message}\n\nMake sure the server is running with HTTP support on port 3000.`);
+      }
+    }
+    
+    function sendMessage() {
+      const text = messageInput.value.trim();
+      if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
+      
+      ws.send(JSON.stringify({ type: 'message', text }));
+      messageInput.value = '';
+    }
+  </script>
+</body>
+</html>
