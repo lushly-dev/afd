@@ -3,4 +3,5 @@ packages:
   - "packages/examples/_shared/*"
   - "packages/examples/todo/backends/*"
   - "packages/examples/todo/frontends/*"
+  - "packages/examples/todo-directclient/backend"
   - "packages/experiments/*/backend"
