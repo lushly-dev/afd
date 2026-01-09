@@ -26,6 +26,9 @@ export interface Todo {
 	/** Whether the todo is completed */
 	completed: boolean;
 
+	/** Due date (ISO 8601 date-time) */
+	dueDate?: string;
+
 	/** Creation timestamp */
 	createdAt: string;
 
@@ -48,6 +51,9 @@ export interface TodoStats {
 
 	/** Number of pending todos */
 	pending: number;
+
+	/** Number of overdue todos */
+	overdue: number;
 
 	/** Breakdown by priority */
 	byPriority: {
@@ -73,8 +79,17 @@ export interface TodoFilter {
 	/** Search in title/description */
 	search?: string;
 
+	/** Filter todos due before this date (ISO 8601) */
+	dueBefore?: string;
+
+	/** Filter todos due after this date (ISO 8601) */
+	dueAfter?: string;
+
+	/** Filter by overdue status (due date passed and not completed) */
+	overdue?: boolean;
+
 	/** Sort field */
-	sortBy?: 'createdAt' | 'updatedAt' | 'priority' | 'title';
+	sortBy?: 'createdAt' | 'updatedAt' | 'priority' | 'title' | 'dueDate';
 
 	/** Sort direction */
 	sortOrder?: 'asc' | 'desc';
