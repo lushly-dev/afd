@@ -748,6 +748,113 @@ The "honesty check" worked exactly as intended:
 4. **Test with complex data** - Object values, nested structures, edge cases
 5. **Type boundaries** - Use `any` internally, cast at API boundaries
 
+## Command Pipelines
+
+Pipelines enable declarative composition of commands where the output of one becomes the input of the next.
+
+### Pipeline Basics
+
+```typescript
+import { McpClient } from '@afd/client';
+
+const result = await client.pipe([
+  { command: 'user-get', input: { id: 123 }, as: 'user' },
+  { command: 'order-list', input: { userId: '$prev.id' } },
+  { command: 'order-summarize', input: {
+    orders: '$prev',
+    userName: '$steps.user.name'
+  }}
+]);
+```
+
+### Variable Resolution
+
+| Variable | Resolves to |
+|----------|------------|
+| `$prev` | Output of immediately previous step |
+| `$prev.field` | Specific field from previous output |
+| `$first` | Output of first step |
+| `$steps[n]` | Output of step at index n |
+| `$steps.alias` | Output of step with matching `as` alias |
+| `$input` | Original pipeline input |
+
+### Conditional Execution
+
+Skip steps based on runtime conditions:
+
+```typescript
+const result = await client.pipe([
+  { command: 'user-get', input: { id: 123 }, as: 'user' },
+  {
+    command: 'discount-apply',
+    input: { userId: '$steps.user.id' },
+    when: { $eq: ['$steps.user.tier', 'premium'] }  // Only for premium users
+  }
+]);
+```
+
+**Condition operators:**
+- `$exists` - Field exists and is not null
+- `$eq`, `$ne` - Equality checks
+- `$gt`, `$gte`, `$lt`, `$lte` - Numeric comparisons
+- `$and`, `$or`, `$not` - Logical operators
+
+### Confidence Aggregation
+
+Pipeline confidence uses the **weakest link** principle - the minimum confidence across all steps:
+
+```typescript
+const result = await client.pipe([
+  { command: 'data-fetch', input: { source: 'cache' } },      // 0.95 confidence
+  { command: 'data-transform', input: { data: '$prev' } },    // 0.99 confidence
+  { command: 'data-validate', input: { data: '$prev' } }      // 0.87 confidence
+]);
+
+// result.metadata.confidence === 0.87 (minimum)
+// result.metadata.confidenceBreakdown shows per-step values
+```
+
+### Error Handling
+
+By default, pipelines stop on first failure:
+
+```typescript
+const result = await client.pipe([
+  { command: 'user-get', input: { id: 999 } },  // Fails: NOT_FOUND
+  { command: 'order-list', input: { userId: '$prev.id' } }  // Skipped
+]);
+
+// result.steps[0].status === 'failure'
+// result.steps[0].error.suggestion === 'Check if user ID is correct...'
+// result.steps[1].status === 'skipped'
+```
+
+Use `continueOnFailure` to execute all steps regardless of failures:
+
+```typescript
+const result = await client.pipe({
+  steps: [
+    { command: 'cache-get', input: { key: 'data' } },
+    { command: 'api-fetch', input: { url: '/data' } }
+  ],
+  options: { continueOnFailure: true }
+});
+```
+
+### Metadata Propagation
+
+All AFD trust signals flow through the pipeline:
+
+| Field | Propagation Rule |
+|-------|------------------|
+| `confidence` | Minimum across all steps (weakest link) |
+| `reasoning` | Collected from all steps with attribution |
+| `warnings` | Collected from all steps with stepIndex |
+| `sources` | Collected from all steps with stepIndex |
+| `executionTimeMs` | Sum of all steps |
+
+See [Command Pipeline Spec](./docs/specs/command-pipeline/00-overview.md) for full details.
+
 ## Related Resources
 
 - **MCP** - Model Context Protocol (current agent communication standard)
@@ -758,6 +865,7 @@ The "honesty check" worked exactly as intended:
 - **[Production Considerations](./docs/production-considerations.md)** - Security, mutation safety, observability
 - **[Handoff Pattern Spec](./docs/specs/handoff-pattern/)** - Real-time protocol handoff pattern
 - **[DirectClient Guide](./docs/directclient-guide.md)** - In-process command execution
+- **[Command Pipeline Spec](./docs/specs/command-pipeline/00-overview.md)** - Declarative command chaining
 
 ## Contributing
 

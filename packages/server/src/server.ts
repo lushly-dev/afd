@@ -199,6 +199,15 @@ export interface McpServer {
     input: unknown,
     context?: CommandContext
   ): Promise<CommandResult>;
+
+  /**
+   * Execute a pipeline of chained commands directly (for testing).
+   * Enables multi-step workflows with variable resolution.
+   */
+  executePipeline(
+    request: PipelineRequest,
+    context?: CommandContext
+  ): Promise<PipelineResult>;
 }
 
 /**
@@ -1517,5 +1526,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
     },
 
     execute: executeCommand,
+
+    executePipeline,
   };
 }
