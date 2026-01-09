@@ -1,0 +1,5 @@
+{
+	"permissions": {
+		"allow": ["Bash(git -C \"D:\\\\Github\\\\Falkicon\\\\AFD\" log --oneline -20)"]
+	}
+}

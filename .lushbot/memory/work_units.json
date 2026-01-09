@@ -1,0 +1,21 @@
+[
+  {
+    "id": "work-46-AFD",
+    "issue_id": "46",
+    "spec_ids": [],
+    "started_at": "2026-01-09T00:53:50.778466",
+    "completed_at": null,
+    "status": "running",
+    "files_changed": [],
+    "decisions": [],
+    "commits": [],
+    "branch": "feat/issue-46",
+    "pr_number": null,
+    "pr_url": "",
+    "changelog_entry": "",
+    "parent_work_id": null,
+    "subtasks": [],
+    "title": "",
+    "handoffs": []
+  }
+]
