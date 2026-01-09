@@ -6,10 +6,16 @@
  */
 
 import { z } from 'zod';
-import { defineCommand, success } from '@afd/server';
-import type { Alternative } from '@afd/core';
+import { defineCommand, success } from '@lushly-dev/afd-server';
+import type { Alternative } from '@lushly-dev/afd-core';
 import { store } from '../store/index.js';
-import type { Todo, List } from '../types.js';
+import type { Todo, List, Priority } from '../types.js';
+
+const PRIORITY_MAP: Record<'low' | 'medium' | 'high', Priority> = {
+  low: 1,
+  medium: 2,
+  high: 3,
+};
 
 const inputSchema = z.object({
 	query: z.string().min(1).describe('Search query text'),
@@ -167,15 +173,13 @@ export const searchTodos = defineCommand<typeof inputSchema, SearchResult>({
 
 	async handler(input) {
 		const { query, scope, completed, priority, sortBy, sortOrder, limit, offset } = input;
+		const numericPriority: Priority | undefined = priority ? PRIORITY_MAP[priority] : undefined;
 		const lowerQuery = query.toLowerCase();
 		const results: SearchResultItem[] = [];
 
 		// Search todos
 		if (scope === 'all' || scope === 'todos') {
-			const todos = store.list({
-				completed,
-				priority,
-			});
+			const todos = store.list({ completed, priority: numericPriority });
 
 			for (const todo of todos) {
 				const matches: SearchMatch[] = [];
@@ -304,7 +308,7 @@ export const searchTodos = defineCommand<typeof inputSchema, SearchResult>({
 			const allScopeResults: SearchResultItem[] = [];
 
 			// Re-search in all scopes
-			const allTodos = store.list({ completed, priority });
+			const allTodos = store.list({ completed, priority: numericPriority });
 			for (const todo of allTodos) {
 				const matches: SearchMatch[] = [];
 				let relevance = 0;
@@ -362,7 +366,7 @@ export const searchTodos = defineCommand<typeof inputSchema, SearchResult>({
 
 		// If filtering by completed status, offer the opposite
 		if (completed !== undefined && scope !== 'lists') {
-			const oppositeTodos = store.list({ completed: !completed, priority });
+			const oppositeTodos = store.list({ completed: !completed, priority: numericPriority });
 			const oppositeResults: SearchResultItem[] = [];
 
 			for (const todo of oppositeTodos) {
