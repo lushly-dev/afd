@@ -84,7 +84,7 @@ async function createBulkTodos(count: number): Promise<string[]> {
 	for (let i = 0; i < count; i++) {
 		const result = await createTodo.handler({
 			title: `Bulk Todo ${i}`,
-			priority: ['low', 'medium', 'high'][i % 3] as 'low' | 'medium' | 'high',
+			priority: [1, 2, 3][i % 3] as 1 | 2 | 3,
 		}, {});
 		if (result.success && result.data) {
 			ids.push(result.data.id);
@@ -127,14 +127,14 @@ afterAll(() => {
 describe('Single Operation Performance', () => {
 	it(`todo-create < ${THRESHOLDS.create}ms`, async () => {
 		const result = await measure('todo-create', THRESHOLDS.create, () =>
-			createTodo.handler({ title: 'Perf test', priority: 'medium' }, {})
+			createTodo.handler({ title: 'Perf test', priority: 2 }, {})
 		);
 
 		expect(result.success).toBe(true);
 	});
 
 	it(`todo-get < ${THRESHOLDS.get}ms`, async () => {
-		const created = await createTodo.handler({ title: 'Find me', priority: 'medium' }, {});
+		const created = await createTodo.handler({ title: 'Find me', priority: 2 }, {});
 
 		const result = await measure('todo-get', THRESHOLDS.get, () =>
 			getTodo.handler({ id: created.data!.id }, {})
@@ -144,7 +144,7 @@ describe('Single Operation Performance', () => {
 	});
 
 	it(`todo-update < ${THRESHOLDS.update}ms`, async () => {
-		const created = await createTodo.handler({ title: 'Update me', priority: 'medium' }, {});
+		const created = await createTodo.handler({ title: 'Update me', priority: 2 }, {});
 
 		const result = await measure('todo-update', THRESHOLDS.update, () =>
 			updateTodo.handler({ id: created.data!.id, title: 'Updated' }, {})
@@ -154,7 +154,7 @@ describe('Single Operation Performance', () => {
 	});
 
 	it(`todo-toggle < ${THRESHOLDS.toggle}ms`, async () => {
-		const created = await createTodo.handler({ title: 'Toggle me', priority: 'medium' }, {});
+		const created = await createTodo.handler({ title: 'Toggle me', priority: 2 }, {});
 
 		const result = await measure('todo-toggle', THRESHOLDS.toggle, () =>
 			toggleTodo.handler({ id: created.data!.id }, {})
@@ -164,7 +164,7 @@ describe('Single Operation Performance', () => {
 	});
 
 	it(`todo-delete < ${THRESHOLDS.delete}ms`, async () => {
-		const created = await createTodo.handler({ title: 'Delete me', priority: 'medium' }, {});
+		const created = await createTodo.handler({ title: 'Delete me', priority: 2 }, {});
 
 		const result = await measure('todo-delete', THRESHOLDS.delete, () =>
 			deleteTodo.handler({ id: created.data!.id }, {})
@@ -201,7 +201,7 @@ describe('Query Performance', () => {
 	it(`todo-list filtered < ${THRESHOLDS.listFiltered}ms`, async () => {
 		const result = await measure('todo-list (filtered)', THRESHOLDS.listFiltered, () =>
 			listTodos.handler({
-				priority: 'high',
+				priority: 3,
 				completed: false,
 				sortBy: 'createdAt',
 				sortOrder: 'desc',
@@ -292,7 +292,7 @@ describe('Latency Percentiles', () => {
 		// Run 50 iterations
 		for (let i = 0; i < 50; i++) {
 			const start = performance.now();
-			await createTodo.handler({ title: `Latency test ${i}`, priority: 'medium' }, {});
+			await createTodo.handler({ title: `Latency test ${i}`, priority: 2 }, {});
 			durations.push(performance.now() - start);
 		}
 
@@ -325,7 +325,7 @@ describe('Latency Percentiles', () => {
 describe('Performance Metadata in Results', () => {
 	it('commands include executionTimeMs in metadata when run through server', async () => {
 		// This is tested at the server level, but we verify the structure here
-		const result = await createTodo.handler({ title: 'Test', priority: 'medium' }, {});
+		const result = await createTodo.handler({ title: 'Test', priority: 2 }, {});
 
 		expect(result.success).toBe(true);
 		// Note: executionTimeMs is added by the server, not the command itself

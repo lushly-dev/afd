@@ -46,8 +46,8 @@ describe('list-create', () => {
 
 	it('creates a list with todoIds', async () => {
 		// Create some todos first
-		const todo1 = await createTodo.handler({ title: 'Todo 1', priority: 'medium' }, {});
-		const todo2 = await createTodo.handler({ title: 'Todo 2', priority: 'high' }, {});
+		const todo1 = await createTodo.handler({ title: 'Todo 1', priority: 2 }, {});
+		const todo2 = await createTodo.handler({ title: 'Todo 2', priority: 3 }, {});
 
 		const result = await createList.handler({
 			name: 'Project List',
@@ -73,7 +73,7 @@ describe('list-create', () => {
 	});
 
 	it('includes todo count in reasoning when todoIds provided', async () => {
-		const todo = await createTodo.handler({ title: 'Test', priority: 'medium' }, {});
+		const todo = await createTodo.handler({ title: 'Test', priority: 2 }, {});
 		const result = await createList.handler({
 			name: 'With Todos',
 			todoIds: [todo.data!.id],
@@ -201,7 +201,7 @@ describe('list-update', () => {
 	});
 
 	it('updates list todoIds', async () => {
-		const todo = await createTodo.handler({ title: 'New Todo', priority: 'medium' }, {});
+		const todo = await createTodo.handler({ title: 'New Todo', priority: 2 }, {});
 		const created = await createList.handler({ name: 'Test List' }, {});
 
 		const result = await updateList.handler({

@@ -22,7 +22,7 @@ beforeEach(() => {
 
 describe('todo-complete', () => {
 	it('marks todo as completed', async () => {
-		const created = await createTodo.handler({ title: 'Complete me', priority: 'medium' }, {});
+		const created = await createTodo.handler({ title: 'Complete me', priority: 2 }, {});
 		const result = await completeTodo.handler({ id: created.data!.id }, {});
 
 		expect(result.success).toBe(true);
@@ -32,7 +32,7 @@ describe('todo-complete', () => {
 	});
 
 	it('returns ALREADY_COMPLETED for completed todo', async () => {
-		const created = await createTodo.handler({ title: 'Already done', priority: 'medium' }, {});
+		const created = await createTodo.handler({ title: 'Already done', priority: 2 }, {});
 		await completeTodo.handler({ id: created.data!.id }, {});
 		const result = await completeTodo.handler({ id: created.data!.id }, {});
 
@@ -50,7 +50,7 @@ describe('todo-complete', () => {
 	});
 
 	it('returns confidence of 1.0', async () => {
-		const created = await createTodo.handler({ title: 'Test', priority: 'medium' }, {});
+		const created = await createTodo.handler({ title: 'Test', priority: 2 }, {});
 		const result = await completeTodo.handler({ id: created.data!.id }, {});
 
 		expect(result.confidence).toBe(1.0);
@@ -63,7 +63,7 @@ describe('todo-complete', () => {
 
 describe('todo-uncomplete', () => {
 	it('marks todo as pending', async () => {
-		const created = await createTodo.handler({ title: 'Uncomplete me', priority: 'medium' }, {});
+		const created = await createTodo.handler({ title: 'Uncomplete me', priority: 2 }, {});
 		await completeTodo.handler({ id: created.data!.id }, {});
 		const result = await uncompleteTodo.handler({ id: created.data!.id }, {});
 
@@ -74,7 +74,7 @@ describe('todo-uncomplete', () => {
 	});
 
 	it('returns NOT_COMPLETED for pending todo', async () => {
-		const created = await createTodo.handler({ title: 'Still pending', priority: 'medium' }, {});
+		const created = await createTodo.handler({ title: 'Still pending', priority: 2 }, {});
 		const result = await uncompleteTodo.handler({ id: created.data!.id }, {});
 
 		expect(result.success).toBe(false);
@@ -91,7 +91,7 @@ describe('todo-uncomplete', () => {
 	});
 
 	it('returns confidence of 1.0', async () => {
-		const created = await createTodo.handler({ title: 'Test', priority: 'medium' }, {});
+		const created = await createTodo.handler({ title: 'Test', priority: 2 }, {});
 		await completeTodo.handler({ id: created.data!.id }, {});
 		const result = await uncompleteTodo.handler({ id: created.data!.id }, {});
 
@@ -105,7 +105,7 @@ describe('todo-uncomplete', () => {
 
 describe('complete/uncomplete interaction', () => {
 	it('can complete and uncomplete repeatedly', async () => {
-		const created = await createTodo.handler({ title: 'Toggle test', priority: 'medium' }, {});
+		const created = await createTodo.handler({ title: 'Toggle test', priority: 2 }, {});
 
 		// Complete
 		let result = await completeTodo.handler({ id: created.data!.id }, {});
@@ -122,7 +122,7 @@ describe('complete/uncomplete interaction', () => {
 	});
 
 	it('updates timestamps correctly', async () => {
-		const created = await createTodo.handler({ title: 'Timestamp test', priority: 'medium' }, {});
+		const created = await createTodo.handler({ title: 'Timestamp test', priority: 2 }, {});
 		const originalUpdatedAt = created.data!.updatedAt;
 
 		// Small delay to ensure timestamps differ
