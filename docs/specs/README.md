@@ -21,4 +21,12 @@ Each spec folder contains:
 
 - **[GitHub Issues](https://github.com/lushly-dev/afd/issues)** - Work tracking, acceptance criteria
 - **[GitHub Projects](https://github.com/orgs/lushly-dev/projects)** - Project boards
-- **[Archive](../PLAN/Archive/)** - Completed/obsolete documentation
+
+## Archive
+
+Completed/shipped specs are in [Archive/](./Archive/):
+- `in-process-binding/` - DirectClient (shipped)
+- `jtbd-testing/` - Testing framework (shipped)
+- `multi-stack-examples/` - Todo example (shipped)
+- `performance/` - Performance optimizations
+- `afd_example_compliance.plan.md` - Example compliance (shipped)
