@@ -39,6 +39,7 @@ pub mod batch;
 pub mod commands;
 pub mod errors;
 pub mod metadata;
+pub mod pipeline;
 pub mod result;
 pub mod streaming;
 
@@ -98,6 +99,20 @@ pub use streaming::{
     create_progress_chunk, create_progress_chunk_with_steps, is_complete_chunk, is_data_chunk,
     is_error_chunk, is_progress_chunk, is_stream_chunk, CompleteChunk, DataChunk, ErrorChunk,
     ProgressChunk, StreamCallbacks, StreamChunk, StreamOptions,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RE-EXPORTS: Pipeline types
+// ═══════════════════════════════════════════════════════════════════════════════
+
+pub use pipeline::{
+    aggregate_pipeline_alternatives, aggregate_pipeline_confidence, aggregate_pipeline_reasoning,
+    aggregate_pipeline_sources, aggregate_pipeline_warnings, build_confidence_breakdown,
+    create_pipeline, evaluate_condition, get_nested_value, is_pipeline_request, is_pipeline_result,
+    is_pipeline_step, resolve_variable, resolve_variables, PipelineAlternative, PipelineCondition,
+    PipelineContext, PipelineMetadata, PipelineOptions, PipelineRequest, PipelineResult,
+    PipelineSource, PipelineStep, PipelineWarning, StepConfidence, StepMetadata, StepReasoning,
+    StepResult, StepStatus,
 };
 
 /// Crate version.

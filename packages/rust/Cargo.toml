@@ -25,6 +25,7 @@ serde_json = "1.0"
 async-trait = "0.1"
 thiserror = "2.0"
 chrono = { version = "0.4", features = ["serde"] }
+regex = "1.10"
 
 # Native-only
 tokio = { version = "1.0", features = ["full"], optional = true }
