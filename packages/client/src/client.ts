@@ -94,8 +94,15 @@ export class McpClient {
 	};
 
 	constructor(config: McpClientConfig) {
+		// Resolve url from url or endpoint
+		const resolvedUrl = config.url ?? config.endpoint;
+		if (!resolvedUrl) {
+			throw new Error('Either url or endpoint must be provided');
+		}
+
 		this.config = {
-			url: config.url,
+			url: resolvedUrl,
+			endpoint: config.endpoint,
 			transport: config.transport ?? 'sse',
 			clientName: config.clientName ?? '@lushly-dev/afd-client',
 			clientVersion: config.clientVersion ?? '0.1.0',
