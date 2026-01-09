@@ -261,6 +261,35 @@ await client.pipe([
 | Storage | SQLite (via better-sqlite3) |
 | Dev server | Vite |
 
+## Tasks
+
+### Wave 1: Project Setup
+- [ ] **Project Setup** — Create demos/todo folder, package.json, Vite, AFD server, DirectClient connection
+- [ ] **Task Commands (CRUD)** — Implement task-create, task-update, task-delete, task-list commands (depends: Project Setup)
+- [ ] **List Commands** — Implement list-create, list-update, list-delete, list-list commands (depends: Project Setup)
+
+### Wave 2: Core Features
+- [ ] **Task Completion** — Implement task-complete, task-uncomplete commands (depends: Task Commands)
+- [ ] **Due Dates** — Add due date/time fields and filtering (depends: Task Commands)
+- [ ] **Basic UI Shell** — Sidebar with Inbox/Today/Lists, main task list view (depends: Task Commands)
+- [ ] **Today/Upcoming Views** — Filter tasks by due date (depends: Due Dates, Basic UI Shell)
+
+### Wave 3: Rich Features
+- [ ] **Subtasks** — Nested task hierarchy (depends: Task Commands)
+- [ ] **Tags/Labels** — Many-to-many tagging system (depends: Task Commands)
+- [ ] **Priority Levels** — 0-3 priority enum (depends: Task Commands)
+- [ ] **Search** — Full-text search across tasks (depends: Task Commands)
+
+### Wave 4: Notes
+- [ ] **Note Commands** — Implement note-create, note-update, note-delete, note-list (depends: Project Setup)
+- [ ] **Notes Folder View** — Separate view for notes (depends: Note Commands, Basic UI Shell)
+- [ ] **Markdown Editor** — Rich markdown editing for note content (depends: Note Commands)
+
+### Wave 5: Polish
+- [ ] **Dev Mode Drawer** — Trust signals, latency, raw JSON, command log (depends: Basic UI Shell)
+- [ ] **Keyboard Shortcuts** — Quick add, navigation, completion (depends: Basic UI Shell)
+- [ ] **Dark Mode** — Theme toggle (depends: Basic UI Shell)
+
 ---
 
 ## Phases
