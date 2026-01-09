@@ -15,6 +15,10 @@ import type {
 	McpToolCallParams,
 	McpToolCallResult,
 	McpToolsListResult,
+	PipelineOptions,
+	PipelineRequest,
+	PipelineResult,
+	PipelineStep,
 	StreamCallbacks,
 	StreamChunk,
 	StreamOptions,
@@ -448,6 +452,134 @@ export class McpClient {
 					message: err,
 					suggestion: 'Check the connection and try again',
 				},
+			};
+		}
+	}
+
+
+	/**
+	 * Execute a pipeline of chained commands.
+	 *
+	 * Pipelines enable declarative composition of commands where the output
+	 * of one becomes the input of the next via variable resolution.
+	 *
+	 * @param stepsOrRequest - Array of pipeline steps or full PipelineRequest
+	 * @param options - Optional pipeline options
+	 * @returns Pipeline result with aggregated metadata
+	 *
+	 * @example
+	 * ```typescript
+	 * const result = await client.pipe([
+	 *   { command: 'user-get', input: { id: 123 }, as: 'user' },
+	 *   { command: 'order-list', input: { userId: '$prev.id' } },
+	 *   { command: 'order-summarize', input: {
+	 *     orders: '$prev',
+	 *     userName: '$steps.user.name'
+	 *   }}
+	 * ]);
+	 *
+	 * console.log(`Confidence: ${(result.metadata.confidence * 100).toFixed(1)}%`);
+	 * console.log(`Completed: ${result.metadata.completedSteps}/${result.metadata.totalSteps}`);
+	 * ```
+	 */
+	async pipe<T = unknown>(
+		stepsOrRequest: PipelineStep[] | PipelineRequest,
+		options?: PipelineOptions
+	): Promise<PipelineResult<T>> {
+		const request: PipelineRequest = Array.isArray(stepsOrRequest)
+			? { steps: stepsOrRequest, options }
+			: stepsOrRequest;
+
+		try {
+			const result = await this.callTool('afd-pipe', request as unknown as Record<string, unknown>);
+
+			if (result.isError) {
+				const errorText = result.content
+					.filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+					.map((c) => c.text)
+					.join('\n');
+
+				// Return failed pipeline result
+				return {
+					data: undefined as T,
+					metadata: {
+						confidence: 0,
+						confidenceBreakdown: [],
+						reasoning: [],
+						warnings: [],
+						sources: [],
+						alternatives: [],
+						executionTimeMs: 0,
+						completedSteps: 0,
+						totalSteps: request.steps.length,
+					},
+					steps: request.steps.map((step, i) => ({
+						index: i,
+						alias: step.as,
+						command: step.command,
+						status: 'failure' as const,
+						error: {
+							code: 'PIPELINE_ERROR',
+							message: errorText || 'Pipeline execution failed',
+							suggestion: 'Check the pipeline steps and try again',
+						},
+						executionTimeMs: 0,
+					})),
+				};
+			}
+
+			// Parse pipeline result from response
+			const textContent = result.content
+				.filter((c): c is { type: 'text'; text: string } => c.type === 'text')
+				.map((c) => c.text)
+				.join('');
+
+			try {
+				return JSON.parse(textContent) as PipelineResult<T>;
+			} catch {
+				return {
+					data: undefined as T,
+					metadata: {
+						confidence: 0,
+						confidenceBreakdown: [],
+						reasoning: [],
+						warnings: [],
+						sources: [],
+						alternatives: [],
+						executionTimeMs: 0,
+						completedSteps: 0,
+						totalSteps: request.steps.length,
+					},
+					steps: [],
+				};
+			}
+		} catch (error) {
+			const err = error instanceof Error ? error.message : String(error);
+			return {
+				data: undefined as T,
+				metadata: {
+					confidence: 0,
+					confidenceBreakdown: [],
+					reasoning: [],
+					warnings: [],
+					sources: [],
+					alternatives: [],
+					executionTimeMs: 0,
+					completedSteps: 0,
+					totalSteps: request.steps.length,
+				},
+				steps: request.steps.map((step, i) => ({
+					index: i,
+					alias: step.as,
+					command: step.command,
+					status: 'failure' as const,
+					error: {
+						code: 'PIPELINE_ERROR',
+						message: err,
+						suggestion: 'Check the connection and try again',
+					},
+					executionTimeMs: 0,
+				})),
 			};
 		}
 	}
