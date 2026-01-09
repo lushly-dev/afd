@@ -40,6 +40,9 @@ export interface Todo {
 	/** Due date (ISO 8601 date-time) */
 	dueDate?: string;
 
+	/** Parent todo ID for subtasks (undefined for root-level todos) */
+	parentId?: string;
+
 	/** Creation timestamp */
 	createdAt: string;
 
@@ -94,6 +97,9 @@ export interface TodoFilter {
 
 	/** Filter by overdue status (due date passed and not completed) */
 	overdue?: boolean;
+
+	/** Filter by parent ID (null = root-level only, string = subtasks of that parent) */
+	parentId?: string | null;
 
 	/** Sort field */
 	sortBy?: 'createdAt' | 'updatedAt' | 'priority' | 'title' | 'dueDate';

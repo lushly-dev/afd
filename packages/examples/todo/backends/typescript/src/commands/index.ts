@@ -31,6 +31,11 @@ export { listUpcoming, type UpcomingResult } from './list-upcoming.js';
 // Search
 export { searchTodos, type SearchResult } from './search.js';
 
+// Subtask operations
+export { addSubtask } from './subtask-add.js';
+export { listSubtasks, type SubtaskListResult } from './subtask-list.js';
+export { moveSubtask } from './subtask-move.js';
+
 // Re-export as array for convenience
 import { createTodo } from './create.js';
 import { listTodos } from './list.js';
@@ -55,6 +60,10 @@ import { listToday } from './list-today.js';
 import { listUpcoming } from './list-upcoming.js';
 // Search
 import { searchTodos } from './search.js';
+// Subtask operations
+import { addSubtask } from './subtask-add.js';
+import { listSubtasks } from './subtask-list.js';
+import { moveSubtask } from './subtask-move.js';
 import type { ZodCommandDefinition } from '@afd/server';
 
 /**
@@ -87,4 +96,8 @@ export const allCommands = [
 	listUpcoming,
 	// Search
 	searchTodos,
+	// Subtask operations
+	addSubtask,
+	listSubtasks,
+	moveSubtask,
 ] as unknown as ZodCommandDefinition[];
