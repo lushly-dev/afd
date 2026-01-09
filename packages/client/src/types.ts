@@ -12,7 +12,7 @@ import type {
 /**
  * Transport type for MCP communication.
  */
-export type TransportType = 'sse' | 'http' | 'stdio' | 'direct';
+export type TransportType = 'sse' | 'http' | 'websocket' | 'stdio' | 'direct';
 
 /**
  * Client configuration options.
@@ -23,7 +23,14 @@ export interface McpClientConfig {
 	 * For SSE: http://localhost:3100/sse
 	 * For HTTP: http://localhost:3100/message
 	 */
-	url: string;
+	url?: string;
+
+	/**
+	 * Server endpoint (alias for url).
+	 * Preferred for browser SDK usage.
+	 * @example 'http://localhost:3100/message'
+	 */
+	endpoint?: string;
 
 	/**
 	 * Transport type to use.

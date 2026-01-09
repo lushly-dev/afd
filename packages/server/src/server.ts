@@ -894,6 +894,69 @@ export function createMcpServer(options: McpServerOptions): McpServer {
         return;
       }
 
+      // RPC endpoint - Simple JSON-RPC for browser clients
+      // This is a browser-friendly alternative to /message that calls commands directly
+      // Request format: { method: "command-name", params: {...}, id: 1 }
+      // Response format: { jsonrpc: "2.0", id: 1, result: CommandResult }
+      if (url.pathname === "/rpc" && req.method === "POST") {
+        let body = "";
+        for await (const chunk of req) {
+          body += chunk;
+        }
+
+        try {
+          const request = JSON.parse(body) as {
+            method: string;
+            params?: unknown;
+            id?: string | number;
+          };
+
+          const { method: commandName, params, id = null } = request;
+
+          if (!commandName || typeof commandName !== "string") {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(
+              JSON.stringify({
+                jsonrpc: "2.0",
+                id,
+                error: {
+                  code: -32600,
+                  message: "Invalid request: method is required",
+                },
+              })
+            );
+            return;
+          }
+
+          const result = await executeCommand(commandName, params ?? {}, {
+            traceId: `rpc-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          });
+
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id,
+              result,
+            })
+          );
+        } catch (error) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: null,
+              error: {
+                code: -32700,
+                message: "Parse error",
+              },
+            })
+          );
+        }
+
+        return;
+      }
+
       // Batch endpoint
       if (url.pathname === "/batch" && req.method === "POST") {
         let body = "";
