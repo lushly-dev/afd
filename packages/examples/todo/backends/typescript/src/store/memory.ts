@@ -35,6 +35,7 @@ export class TodoStore {
     title: string;
     description?: string;
     priority?: Priority;
+    dueDate?: string;
   }): Todo {
     const todo: Todo = {
       id: generateId(),
@@ -42,6 +43,7 @@ export class TodoStore {
       description: data.description,
       priority: data.priority ?? "medium",
       completed: false,
+      dueDate: data.dueDate,
       createdAt: now(),
       updatedAt: now(),
     };
@@ -83,6 +85,38 @@ export class TodoStore {
       );
     }
 
+    // Filter by due date - before
+    if (filter.dueBefore) {
+      const beforeDate = new Date(filter.dueBefore);
+      results = results.filter(
+        (t) => t.dueDate && new Date(t.dueDate) < beforeDate
+      );
+    }
+
+    // Filter by due date - after
+    if (filter.dueAfter) {
+      const afterDate = new Date(filter.dueAfter);
+      results = results.filter(
+        (t) => t.dueDate && new Date(t.dueDate) > afterDate
+      );
+    }
+
+    // Filter by overdue status
+    if (filter.overdue !== undefined) {
+      const currentTime = new Date();
+      if (filter.overdue) {
+        // Only overdue: has due date, not completed, and past due
+        results = results.filter(
+          (t) => t.dueDate && !t.completed && new Date(t.dueDate) < currentTime
+        );
+      } else {
+        // Not overdue: no due date, completed, or due date is in the future
+        results = results.filter(
+          (t) => !t.dueDate || t.completed || new Date(t.dueDate) >= currentTime
+        );
+      }
+    }
+
     // Sort
     const sortBy = filter.sortBy ?? "createdAt";
     const sortOrder = filter.sortOrder ?? "desc";
@@ -105,6 +139,13 @@ export class TodoStore {
         case "updatedAt":
           comparison = a.updatedAt.localeCompare(b.updatedAt);
           break;
+        case "dueDate":
+          // Todos without due dates sort to the end
+          if (!a.dueDate && !b.dueDate) comparison = 0;
+          else if (!a.dueDate) comparison = 1;
+          else if (!b.dueDate) comparison = -1;
+          else comparison = a.dueDate.localeCompare(b.dueDate);
+          break;
         case "createdAt":
         default:
           comparison = a.createdAt.localeCompare(b.createdAt);
@@ -126,9 +167,7 @@ export class TodoStore {
    */
   update(
     id: string,
-    data: Partial<
-      Pick<Todo, "title" | "description" | "priority" | "completed">
-    >
+    data: Partial<Pick<Todo, "title" | "description" | "priority" | "completed">> & { dueDate?: string | null }
   ): Todo | undefined {
     const todo = this.todos.get(id);
     if (!todo) {
@@ -136,11 +175,15 @@ export class TodoStore {
     }
 
     // Filter out undefined values to avoid overwriting existing properties
-    const filteredData: Partial<Pick<Todo, "title" | "description" | "priority" | "completed">> = {};
+    const filteredData: Partial<Pick<Todo, "title" | "description" | "priority" | "completed" | "dueDate">> = {};
     if (data.title !== undefined) filteredData.title = data.title;
     if (data.description !== undefined) filteredData.description = data.description;
     if (data.priority !== undefined) filteredData.priority = data.priority;
     if (data.completed !== undefined) filteredData.completed = data.completed;
+    // Handle dueDate: null clears it, undefined leaves it unchanged
+    if (data.dueDate !== undefined) {
+      filteredData.dueDate = data.dueDate === null ? undefined : data.dueDate;
+    }
 
     const updated: Todo = {
       ...todo,
@@ -210,11 +253,16 @@ export class TodoStore {
     const todos = Array.from(this.todos.values());
     const completed = todos.filter((t) => t.completed).length;
     const pending = todos.length - completed;
+    const currentTime = new Date();
+    const overdue = todos.filter(
+      (t) => t.dueDate && !t.completed && new Date(t.dueDate) < currentTime
+    ).length;
 
     return {
       total: todos.length,
       completed,
       pending,
+      overdue,
       byPriority: {
         low: todos.filter((t) => t.priority === "low").length,
         medium: todos.filter((t) => t.priority === "medium").length,
@@ -364,3 +412,15 @@ export class TodoStore {
     this.lists.clear();
   }
 }
+
+/**
+ * Singleton store instance for tests.
+ * When TODO_STORE_TYPE=memory, the store factory uses this instance
+ * to ensure tests and commands share the same store.
+ */
+export const memoryStore = new TodoStore();
+
+/**
+ * Alias for memoryStore for backwards compatibility with test imports.
+ */
+export const store = memoryStore;

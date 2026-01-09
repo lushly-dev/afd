@@ -11,6 +11,10 @@ const inputSchema = z.object({
 	title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
 	description: z.string().max(1000).optional(),
 	priority: z.enum(['low', 'medium', 'high']).default('medium'),
+	dueDate: z
+		.string()
+		.datetime({ message: 'Due date must be a valid ISO 8601 date-time' })
+		.optional(),
 });
 
 export const createTodo = defineCommand<typeof inputSchema, Todo>({
@@ -28,10 +32,12 @@ export const createTodo = defineCommand<typeof inputSchema, Todo>({
 			title: input.title,
 			description: input.description,
 			priority: input.priority,
+			dueDate: input.dueDate,
 		});
 
+		const dueDateText = input.dueDate ? `, due ${new Date(input.dueDate).toLocaleDateString()}` : '';
 		return success(todo, {
-			reasoning: `Created todo "${todo.title}" with ${input.priority} priority`,
+			reasoning: `Created todo "${todo.title}" with ${input.priority} priority${dueDateText}`,
 			confidence: 1.0,
 		});
 	},

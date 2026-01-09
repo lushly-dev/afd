@@ -13,6 +13,11 @@ const inputSchema = z.object({
   description: z.string().max(1000).optional(),
   completed: z.boolean().optional(),
   priority: z.enum(["low", "medium", "high"]).optional(),
+  dueDate: z
+    .string()
+    .datetime({ message: "Due date must be a valid ISO 8601 date-time" })
+    .optional()
+    .nullable(),
 });
 
 export const updateTodo = defineCommand<typeof inputSchema, Todo>({
@@ -28,14 +33,16 @@ export const updateTodo = defineCommand<typeof inputSchema, Todo>({
   async handler(input) {
     const { id, ...updates } = input;
 
-    // Check if there are any changes
-    const hasChanges = Object.values(updates).some((v) => v !== undefined);
+    // Check if there are any changes (null is a valid change for dueDate)
+    const hasChanges = Object.entries(updates).some(
+      ([key, v]) => v !== undefined || (key === "dueDate" && v === null)
+    );
     if (!hasChanges) {
       return failure({
         code: "NO_CHANGES",
         message: "No fields to update",
         suggestion:
-          "Provide at least one of: title, description, completed, priority",
+          "Provide at least one of: title, description, completed, priority, dueDate",
       });
     }
 
@@ -53,6 +60,7 @@ export const updateTodo = defineCommand<typeof inputSchema, Todo>({
       description: updates.description,
       completed: updates.completed,
       priority: updates.priority,
+      dueDate: updates.dueDate,
     });
 
     if (!updated) {
@@ -68,6 +76,13 @@ export const updateTodo = defineCommand<typeof inputSchema, Todo>({
     if (updates.title) changes.push(`title to "${updates.title}"`);
     if (updates.description !== undefined) changes.push("description");
     if (updates.priority) changes.push(`priority to ${updates.priority}`);
+    if (updates.dueDate !== undefined) {
+      if (updates.dueDate === null) {
+        changes.push("cleared due date");
+      } else {
+        changes.push(`due date to ${new Date(updates.dueDate).toLocaleDateString()}`);
+      }
+    }
 
     return success(updated, {
       reasoning: `Updated ${changes.join(", ")} for todo "${updated.title}"`,
