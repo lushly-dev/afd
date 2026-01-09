@@ -18,7 +18,8 @@ All active work is tracked in **GitHub Issues and Projects**.
 
 ## Archived Plans
 
-Completed and tracked plans are in:
+All completed and tracked plans are in [Archive/](./Archive/):
 
-- **[archive/plans/](../archive/plans/)** - Detailed plans (rust-support, rust-distribution, design-to-code, handoff-pattern)
-- **[Archive/](./Archive/)** - Older completed work (in-process-binding, multi-stack-examples, performance, jtbd-testing)
+- **Plans/** - Detailed plans (rust-support, rust-distribution, design-to-code, handoff-pattern)
+- **Older work** - in-process-binding, multi-stack-examples, performance, jtbd-testing
+- **afd_example_compliance.plan.md** - Completed example compliance work
