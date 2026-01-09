@@ -7,6 +7,8 @@ export { listTodos, type ListResult } from './list.js';
 export { getTodo } from './get.js';
 export { updateTodo } from './update.js';
 export { toggleTodo } from './toggle.js';
+export { completeTodo } from './complete.js';
+export { uncompleteTodo } from './uncomplete.js';
 export { deleteTodo, type DeleteResult } from './delete.js';
 export { clearCompleted, type ClearResult } from './clear.js';
 export { getStats } from './stats.js';
@@ -28,6 +30,8 @@ import { listTodos } from './list.js';
 import { getTodo } from './get.js';
 import { updateTodo } from './update.js';
 import { toggleTodo } from './toggle.js';
+import { completeTodo } from './complete.js';
+import { uncompleteTodo } from './uncomplete.js';
 import { deleteTodo } from './delete.js';
 import { clearCompleted } from './clear.js';
 import { getStats } from './stats.js';
@@ -52,6 +56,8 @@ export const allCommands = [
 	getTodo,
 	updateTodo,
 	toggleTodo,
+	completeTodo,
+	uncompleteTodo,
 	deleteTodo,
 	clearCompleted,
 	getStats,
