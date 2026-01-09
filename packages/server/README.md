@@ -363,7 +363,7 @@ Create an MCP server from commands.
 | `getCommands()` | Get registered commands |
 | `execute(name, input, context)` | Execute command directly |
 
-## Endpoints
+## HTTP Endpoints
 
 The server exposes these endpoints:
 
@@ -371,7 +371,64 @@ The server exposes these endpoints:
 |----------|--------|-------------|
 | `/sse` | GET | SSE connection for MCP clients |
 | `/message` | POST | JSON-RPC message endpoint |
+| `/rpc` | POST | Simple JSON-RPC for browser clients |
 | `/health` | GET | Health check |
+
+### Browser-Friendly `/rpc` Endpoint
+
+The `/rpc` endpoint provides a simple JSON-RPC interface for browser clients:
+
+```typescript
+// Request format
+{
+  method: "command-name",  // The command to execute
+  params: { ... },         // Input parameters
+  id: 1                    // Optional request ID
+}
+
+// Response format
+{
+  jsonrpc: "2.0",
+  id: 1,
+  result: CommandResult    // The AFD CommandResult
+}
+```
+
+### Browser Example (Vanilla JavaScript)
+
+```javascript
+async function callCommand(method, params) {
+  const response = await fetch('http://localhost:3100/rpc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ method, params, id: Date.now() }),
+  });
+
+  const { result, error } = await response.json();
+  if (error) throw new Error(error.message);
+  return result;
+}
+
+// Usage
+const result = await callCommand('greet', { name: 'World' });
+console.log(result.data.greeting); // "Hello, World!"
+```
+
+### CORS Configuration
+
+CORS is enabled by default for HTTP transport. Configure it in server options:
+
+```typescript
+const server = createMcpServer({
+  name: 'my-server',
+  version: '1.0.0',
+  commands: [greet],
+  transport: 'http',
+  port: 3100,
+  cors: true,      // Enable CORS (default: true)
+  devMode: true,   // Development mode enables permissive CORS
+});
+```
 
 ## Related
 
