@@ -115,3 +115,25 @@ export {
 	createAfdDocsCommand,
 	createAfdSchemaCommand,
 } from './bootstrap/index.js';
+
+// Handoff schemas
+export {
+	HandoffResultSchema,
+	HandoffCredentialsSchema,
+	HandoffMetadataSchema,
+	type HandoffCredentialsInput,
+	type HandoffCredentialsOutput,
+	type HandoffMetadataInput,
+	type HandoffMetadataOutput,
+	type HandoffResultInput,
+	type HandoffResultOutput,
+} from './handoff-schema.js';
+
+// Re-export handoff types from core for convenience
+export type {
+	HandoffResult,
+	HandoffCredentials,
+	HandoffMetadata,
+	HandoffProtocol,
+} from '@lushly-dev/afd-core';
+export { isHandoff, isHandoffProtocol } from '@lushly-dev/afd-core';
