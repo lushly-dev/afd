@@ -7,6 +7,7 @@ import { TodoStats } from "./components/TodoStats";
 import { ToastContainer, useToast } from "./components/Toast";
 import { CommandLog, useCommandLog } from "./components/CommandLog";
 import { ConfirmModal } from "./components/ConfirmModal";
+import { TodoDetailModal } from "./components/TodoDetailModal";
 import { TrustPanel } from "./components/TrustPanel";
 import { ErrorRecovery } from "./components/ErrorRecovery";
 import { Sidebar } from "./components/Sidebar";
@@ -14,6 +15,7 @@ import type { ViewType } from "./components/Sidebar";
 import { KeyboardHelp } from "./components/KeyboardHelp";
 import { useKeyboard } from "./hooks/useKeyboard";
 import type { KeyboardShortcut } from "./hooks/useKeyboard";
+import { DevModeDrawer } from "./components/DevModeDrawer";
 import { useConfirm } from "./hooks/useConfirm";
 import { useTheme } from "./hooks/useTheme";
 import type { RemoteChanges } from "./components/Toast";
@@ -44,6 +46,12 @@ const App: React.FC = () => {
 
   // Selection state for batch operations
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  // Dev mode drawer state
+  const [devDrawerOpen, setDevDrawerOpen] = useState(false);
+
+  // Detail modal state
+  const [detailTodo, setDetailTodo] = useState<Todo | null>(null);
 
   // Trust panel state
   const [lastResult, setLastResult] = useState<CommandResult<unknown> | null>(null);
@@ -345,6 +353,34 @@ const App: React.FC = () => {
     showResultToast(res, "todo-update");
   };
 
+  // View detail handler - opens modal with full todo details
+  const handleViewDetail = (id: string) => {
+    const todo = todos.find(t => t.id === id);
+    if (todo) {
+      setDetailTodo(todo);
+    }
+  };
+
+  // Save detail handler - updates todo with description/notes
+  const handleSaveDetail = async (id: string, updates: { title?: string; description?: string; priority?: Todo['priority'] }) => {
+    log(`Calling todo-update...`);
+    const args = { id, ...updates };
+    const res = await callTool<Todo>("todo-update", args);
+    trackOperation("todo-update", args, res as CommandResult<unknown>);
+    if (res.success) {
+      const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : "";
+      log(`✓ todo-update - ${res.reasoning || "Todo updated"}${time}`, "success");
+      // Update the detail modal with fresh data
+      if (res.data) {
+        setDetailTodo(res.data);
+      }
+      fetchData();
+    } else {
+      log(`✗ todo-update: ${res.error?.message}`, "error");
+    }
+    showResultToast(res, "todo-update");
+  };
+
   const handleClearCompleted = async () => {
     const confirmed = await confirm(
       "Clear Completed",
@@ -523,6 +559,18 @@ const App: React.FC = () => {
         onClose={() => setShowKeyboardHelp(false)}
         shortcuts={shortcuts}
       />
+      <DevModeDrawer
+        isOpen={devDrawerOpen}
+        onClose={() => setDevDrawerOpen(false)}
+        lastResult={lastResult}
+        lastCommandName={lastCommandName}
+        logEntries={logEntries}
+      />
+      <TodoDetailModal
+        todo={detailTodo}
+        onClose={() => setDetailTodo(null)}
+        onSave={handleSaveDetail}
+      />
 
       {/* Mobile sidebar overlay */}
       <div
@@ -571,6 +619,17 @@ const App: React.FC = () => {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="2" y="4" width="20" height="16" rx="2" ry="2" />
                 <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 16h8" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              className="dev-mode-btn"
+              onClick={() => setDevDrawerOpen(true)}
+              title="Open Dev Mode"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 20h9" />
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
               </svg>
             </button>
             <div className="connection-status">
@@ -669,6 +728,7 @@ const App: React.FC = () => {
                     onToggle={handleToggleTodo}
                     onDelete={handleDeleteTodo}
                     onEdit={handleEditTodo}
+                    onViewDetail={handleViewDetail}
                     selected={selectedIds.has(todo.id)}
                     onSelect={toggleSelection}
                     showSelect={true}
