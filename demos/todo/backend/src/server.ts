@@ -1,80 +1,56 @@
 /**
  * AFD Todo Demo - Server
- * 
- * Express server with AFD DirectClient for the rich Todo app.
+ *
+ * MCP server for the rich Todo app.
  */
-import express from 'express';
-import cors from 'cors';
-import { CommandRegistry, DirectClient } from '@lushly-dev/afd-core';
-import { registerCommands } from './commands.js';
+import Database from 'better-sqlite3';
+import { createMcpServer } from '@lushly-dev/afd-server';
 import { TaskStore } from './stores/task-store.js';
 import { ListStore } from './stores/list-store.js';
-import Database from 'better-sqlite3';
+import { createCommands } from './commands/index.js';
 
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
+const HOST = process.env.HOST || 'localhost';
 const DB_PATH = process.env.DB_PATH || './todo.db';
+const DEV_MODE = process.env.NODE_ENV === 'development';
 
 // Initialize database
 const db = new Database(DB_PATH);
 const taskStore = new TaskStore(DB_PATH);
 const listStore = new ListStore(db);
 
-// Initialize AFD
-const registry = new CommandRegistry();
-registerCommands(registry, taskStore, listStore);
+// Create commands
+const commands = createCommands(taskStore, listStore);
 
-const client = new DirectClient(registry);
-
-// Express app
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-// Health check
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Create MCP server
+const server = createMcpServer({
+	name: 'afd-todo-demo',
+	version: '0.1.0',
+	commands,
+	port: PORT,
+	host: HOST,
+	devMode: DEV_MODE,
+	cors: true,
+	transport: 'auto',
+	toolStrategy: 'individual',
+	onCommand(command, input, result) {
+		if (DEV_MODE) {
+			console.log(`[${new Date().toISOString()}] ${command}:`, result.success ? 'OK' : 'FAIL');
+		}
+	},
+	onError(error) {
+		console.error('[Server Error]', error);
+	},
 });
 
-// Execute command via DirectClient
-app.post('/execute', async (req, res) => {
-  const startTime = performance.now();
-  
-  try {
-    const { command, input } = req.body;
-    
-    if (!command) {
-      return res.status(400).json({ error: 'Missing command name' });
-    }
-
-    const result = await client.execute(command, input || {});
-    const latency = performance.now() - startTime;
-
-    res.json({
-      ...result,
-      _debug: {
-        latency: `${latency.toFixed(2)}ms`,
-        command,
-      },
-    });
-  } catch (error: any) {
-    const latency = performance.now() - startTime;
-    res.status(500).json({
-      error: error.message,
-      _debug: {
-        latency: `${latency.toFixed(2)}ms`,
-      },
-    });
-  }
-});
-
-// List available commands (for dev mode)
-app.get('/commands', (_req, res) => {
-  const commands = registry.listCommands();
-  res.json({ commands });
-});
-
-app.listen(PORT, () => {
-  console.log(`🚀 AFD Todo Demo running at http://localhost:${PORT}`);
-  console.log(`📝 Commands: ${registry.listCommands().map(c => c.name).join(', ')}`);
-  console.log(`💾 Database: ${DB_PATH}`);
+// Start server
+server.start().then(() => {
+	const transport = server.getTransport();
+	if (transport === 'http') {
+		console.log(`AFD Todo Demo running at http://${HOST}:${PORT}`);
+	} else {
+		console.error('AFD Todo Demo running in stdio mode');
+	}
+	console.error(`Commands: ${commands.map((c) => c.name).join(', ')}`);
+	console.error(`Database: ${DB_PATH}`);
 });
