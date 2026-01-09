@@ -156,3 +156,126 @@ export interface ListFilter {
 	/** Offset for pagination */
 	offset?: number;
 }
+
+/**
+ * A note item.
+ */
+export interface Note {
+	/** Unique identifier */
+	id: string;
+
+	/** Note title */
+	title: string;
+
+	/** Note content (markdown supported) */
+	content: string;
+
+	/** Parent folder ID (undefined for root-level notes) */
+	folderId?: string;
+
+	/** Creation timestamp */
+	createdAt: string;
+
+	/** Last update timestamp */
+	updatedAt: string;
+}
+
+/**
+ * A folder that groups notes together.
+ */
+export interface NoteFolder {
+	/** Unique identifier */
+	id: string;
+
+	/** Folder name */
+	name: string;
+
+	/** Optional description */
+	description?: string;
+
+	/** Creation timestamp */
+	createdAt: string;
+
+	/** Last update timestamp */
+	updatedAt: string;
+}
+
+/**
+ * Filter options for listing notes.
+ */
+export interface NoteFilter {
+	/** Search in title/content */
+	search?: string;
+
+	/** Filter by folder ID (null = root-level only, string = notes in that folder) */
+	folderId?: string | null;
+
+	/** Sort field */
+	sortBy?: 'createdAt' | 'updatedAt' | 'title';
+
+	/** Sort direction */
+	sortOrder?: 'asc' | 'desc';
+
+	/** Maximum results */
+	limit?: number;
+
+	/** Offset for pagination */
+	offset?: number;
+}
+
+/**
+ * Filter options for listing note folders.
+ */
+export interface NoteFolderFilter {
+	/** Search in name/description */
+	search?: string;
+
+	/** Sort field */
+	sortBy?: 'createdAt' | 'updatedAt' | 'name';
+
+	/** Sort direction */
+	sortOrder?: 'asc' | 'desc';
+
+	/** Maximum results */
+	limit?: number;
+
+	/** Offset for pagination */
+	offset?: number;
+}
+
+/**
+ * A note item.
+ */
+export interface Note {
+	id: string;
+	title: string;
+	content: string;
+	folderId?: string;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface NoteFolder {
+	id: string;
+	name: string;
+	description?: string;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface NoteFilter {
+	search?: string;
+	folderId?: string | null;
+	sortBy?: 'createdAt' | 'updatedAt' | 'title';
+	sortOrder?: 'asc' | 'desc';
+	limit?: number;
+	offset?: number;
+}
+
+export interface NoteFolderFilter {
+	search?: string;
+	sortBy?: 'createdAt' | 'updatedAt' | 'name';
+	sortOrder?: 'asc' | 'desc';
+	limit?: number;
+	offset?: number;
+}
