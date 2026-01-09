@@ -138,3 +138,12 @@ export {
 // Telemetry types
 export type { TelemetryEvent, TelemetrySink } from './telemetry.js';
 export { createTelemetryEvent, isTelemetryEvent } from './telemetry.js';
+
+// Handoff types
+export type {
+	HandoffResult,
+	HandoffCredentials,
+	HandoffMetadata,
+	HandoffProtocol,
+} from './handoff.js';
+export { isHandoff, isHandoffProtocol } from './handoff.js';
