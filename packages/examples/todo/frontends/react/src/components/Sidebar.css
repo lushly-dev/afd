@@ -128,6 +128,12 @@
 	gap: 2px;
 }
 
+.sidebar-footer {
+	margin-top: auto;
+	padding: 1rem;
+	border-top: 1px solid var(--border);
+}
+
 .sidebar-empty {
 	padding: 0.5rem 0.75rem;
 	color: var(--text-muted);
