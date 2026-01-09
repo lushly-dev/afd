@@ -22,9 +22,12 @@ import type { ZodCommandDefinition } from '@lushly-dev/afd-server';
 import { allCommands } from './commands/index.js';
 import { createWebSocketServer } from './ws-server.js';
 
+import { createHttpHandler } from './http-handler.js';
+
 // Configuration from environment
 const PORT = Number.parseInt(process.env.PORT ?? '3100', 10);
 const WS_PORT = Number.parseInt(process.env.WS_PORT ?? '3001', 10);
+const HTTP_PORT = Number.parseInt(process.env.HTTP_PORT ?? '3200', 10);
 const HOST = process.env.HOST ?? 'localhost';
 const LOG_LEVEL = process.env.LOG_LEVEL ?? 'info';
 const TRANSPORT = (process.env.TRANSPORT ?? 'auto') as 'auto' | 'http' | 'stdio';
@@ -76,7 +79,7 @@ async function main() {
 
 	if (isInteractive) {
 		console.error('Starting Chat App...');
-		console.error(`  MCP Server: todo-app v1.0.0`);
+		console.error(`  MCP Server: chat-app v1.0.0`);
 		console.error(
 			`  Mode: ${
 				DEV_MODE
@@ -93,6 +96,9 @@ async function main() {
 
 	// Start WebSocket server
 	const wss = createWebSocketServer(WS_PORT);
+	
+	// Start HTTP JSON-RPC server for browser demo
+	const httpServer = createHttpHandler(allCommands as unknown as ZodCommandDefinition[], HTTP_PORT);
 
 	if (isInteractive) {
 		console.error(`MCP Server running at ${server.getUrl()}`);
