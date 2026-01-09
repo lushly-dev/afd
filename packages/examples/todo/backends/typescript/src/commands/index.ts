@@ -24,6 +24,10 @@ export { updateList } from './list-update.js';
 export { deleteList, type ListDeleteResult } from './list-delete.js';
 export { listLists, type ListListResult } from './list-list.js';
 
+// Due date filtering
+export { listToday, type TodayResult } from './list-today.js';
+export { listUpcoming, type UpcomingResult } from './list-upcoming.js';
+
 // Re-export as array for convenience
 import { createTodo } from './create.js';
 import { listTodos } from './list.js';
@@ -43,6 +47,9 @@ import { createList } from './list-create.js';
 import { updateList } from './list-update.js';
 import { deleteList } from './list-delete.js';
 import { listLists } from './list-list.js';
+// Due date filtering
+import { listToday } from './list-today.js';
+import { listUpcoming } from './list-upcoming.js';
 import type { ZodCommandDefinition } from '@afd/server';
 
 /**
@@ -70,4 +77,7 @@ export const allCommands = [
 	updateList,
 	deleteList,
 	listLists,
+	// Due date filtering
+	listToday,
+	listUpcoming,
 ] as unknown as ZodCommandDefinition[];
