@@ -26,9 +26,9 @@ function now(): string {
  */
 export class TodoStore {
   private todos: Map<string, Todo> = new Map();
+  private lists: Map<string, List> = new Map();
   private notes: Map<string, Note> = new Map();
   private noteFolders: Map<string, NoteFolder> = new Map();
-  private lists: Map<string, List> = new Map();
 
   /**
    * Create a new todo.
@@ -288,9 +288,14 @@ export class TodoStore {
   }
 
   /**
-   * Clear all todos and lists (for testing).
+   * Clear all todos, lists, notes, and note folders (for testing).
    */
-  clear(): void { this.todos.clear(); this.lists.clear(); this.notes.clear(); this.noteFolders.clear(); }
+  clear(): void {
+    this.todos.clear();
+    this.lists.clear();
+    this.notes.clear();
+    this.noteFolders.clear();
+  }
 
   /**
    * Get count of todos.
@@ -493,7 +498,10 @@ export class TodoStore {
   /**
    * Clear all lists (for testing).
    */
-  clearLists(): void { this.lists.clear(); }
+  clearLists(): void {
+    this.lists.clear();
+  }
+
   // ==================== Note Methods ====================
 
   createNote(data: { title: string; content: string; folderId?: string }): Note {
@@ -554,9 +562,18 @@ export class TodoStore {
     return updated;
   }
 
-  deleteNote(id: string): boolean { return this.notes.delete(id); }
-  countNotes(): number { return this.notes.size; }
-  clearNotes(): void { this.notes.clear(); }
+  deleteNote(id: string): boolean {
+    return this.notes.delete(id);
+  }
+
+  countNotes(): number {
+    return this.notes.size;
+  }
+
+  clearNotes(): void {
+    this.notes.clear();
+  }
+
   getNotesInFolder(folderId: string): Note[] {
     return Array.from(this.notes.values()).filter((n) => n.folderId === folderId);
   }
@@ -575,7 +592,9 @@ export class TodoStore {
     return folder;
   }
 
-  getNoteFolder(id: string): NoteFolder | undefined { return this.noteFolders.get(id); }
+  getNoteFolder(id: string): NoteFolder | undefined {
+    return this.noteFolders.get(id);
+  }
 
   listNoteFolders(filter: NoteFolderFilter = {}): NoteFolder[] {
     let results = Array.from(this.noteFolders.values());
@@ -610,9 +629,17 @@ export class TodoStore {
     return updated;
   }
 
-  deleteNoteFolder(id: string): boolean { return this.noteFolders.delete(id); }
-  countNoteFolders(): number { return this.noteFolders.size; }
-  clearNoteFolders(): void { this.noteFolders.clear(); }
+  deleteNoteFolder(id: string): boolean {
+    return this.noteFolders.delete(id);
+  }
+
+  countNoteFolders(): number {
+    return this.noteFolders.size;
+  }
+
+  clearNoteFolders(): void {
+    this.noteFolders.clear();
+  }
 }
 
 /**
