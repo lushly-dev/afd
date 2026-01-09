@@ -32,9 +32,17 @@ import type {
 	McpRequest,
 	McpResponse,
 	McpTool,
+	HandoffResult,
 } from '@lushly-dev/afd-core';
-import { failure, validationError } from '@lushly-dev/afd-core';
+import { failure, validationError, isHandoff } from '@lushly-dev/afd-core';
 import type { Transport } from './transport.js';
+import type {
+	HandoffConnection,
+	HandoffConnectionOptions,
+	ReconnectingHandoffConnection,
+	ReconnectionOptions,
+} from './handoff.js';
+import { connectHandoff, createReconnectingHandoff } from './handoff.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // UNKNOWN TOOL ERROR TYPES
@@ -707,6 +715,35 @@ export class DirectClient {
 	 */
 	getSource(): string | undefined {
 		return this.options.source;
+	}
+
+	/**
+	 * Connect to a handoff endpoint using the appropriate protocol handler.
+	 *
+	 * @param handoff - The handoff result from a command
+	 * @param options - Connection options and callbacks
+	 * @returns A promise that resolves to a HandoffConnection
+	 * @throws Error if no handler is registered for the protocol
+	 */
+	async connectHandoff(
+		handoff: HandoffResult,
+		options: HandoffConnectionOptions = {}
+	): Promise<HandoffConnection> {
+		return connectHandoff(handoff, options);
+	}
+
+	/**
+	 * Create a reconnecting handoff connection with automatic retry logic.
+	 *
+	 * @param handoff - The initial handoff result
+	 * @param options - Reconnection options and callbacks
+	 * @returns A promise that resolves to a ReconnectingHandoffConnection
+	 */
+	async createReconnectingHandoff(
+		handoff: HandoffResult,
+		options: ReconnectionOptions = {}
+	): Promise<ReconnectingHandoffConnection> {
+		return createReconnectingHandoff(this, handoff, options);
 	}
 
 	/**
