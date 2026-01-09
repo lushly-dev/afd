@@ -29,6 +29,9 @@ export interface Todo {
 	/** Due date (ISO 8601 date-time) */
 	dueDate?: string;
 
+	/** Tags/labels for categorization */
+	tags: string[];
+
 	/** Creation timestamp */
 	createdAt: string;
 
@@ -87,6 +90,12 @@ export interface TodoFilter {
 
 	/** Filter by overdue status (due date passed and not completed) */
 	overdue?: boolean;
+
+	/** Filter by tags (todos must have ALL specified tags) */
+	tags?: string[];
+
+	/** Filter by any tag (todos must have AT LEAST ONE of specified tags) */
+	anyTag?: string[];
 
 	/** Sort field */
 	sortBy?: 'createdAt' | 'updatedAt' | 'priority' | 'title' | 'dueDate';
