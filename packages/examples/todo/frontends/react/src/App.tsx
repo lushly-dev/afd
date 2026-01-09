@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { Todo, TodoStats as ITodoStats, CommandResult, List } from "./types";
 import { callTool } from "./api";
 import { TodoItem } from "./components/TodoItem";
@@ -11,6 +11,9 @@ import { TrustPanel } from "./components/TrustPanel";
 import { ErrorRecovery } from "./components/ErrorRecovery";
 import { Sidebar } from "./components/Sidebar";
 import type { ViewType } from "./components/Sidebar";
+import { KeyboardHelp } from "./components/KeyboardHelp";
+import { useKeyboard } from "./hooks/useKeyboard";
+import type { KeyboardShortcut } from "./hooks/useKeyboard";
 import { useConfirm } from "./hooks/useConfirm";
 import type { RemoteChanges } from "./components/Toast";
 import "./App.css";
@@ -54,6 +57,11 @@ const App: React.FC = () => {
     message: string;
     suggestion?: string;
   }>({ isVisible: false, commandName: "", message: "" });
+
+  // Keyboard navigation state
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
 
   const { toasts, removeToast, showResultToast, showRemoteChanges } = useToast();
   const { entries: logEntries, log } = useCommandLog();
@@ -479,6 +487,24 @@ const App: React.FC = () => {
     return "Inbox";
   };
 
+  // Keyboard shortcuts
+  const shortcuts: KeyboardShortcut[] = useMemo(() => [
+    { key: "n", description: "Add new todo", action: () => titleInputRef.current?.focus() },
+    { key: "j", description: "Navigate to next todo", action: () => setFocusedIndex(i => Math.min(i + 1, filteredTodos.length - 1)) },
+    { key: "k", description: "Navigate to previous todo", action: () => setFocusedIndex(i => Math.max(i - 1, 0)) },
+    { key: " ", description: "Toggle focused todo", action: () => { if (focusedIndex >= 0 && filteredTodos[focusedIndex]) handleToggleTodo(filteredTodos[focusedIndex].id); }, when: () => focusedIndex >= 0 },
+    { key: "Enter", description: "Toggle focused todo", action: () => { if (focusedIndex >= 0 && filteredTodos[focusedIndex]) handleToggleTodo(filteredTodos[focusedIndex].id); }, when: () => focusedIndex >= 0 },
+    { key: "e", description: "Edit focused todo", action: () => { if (focusedIndex >= 0 && filteredTodos[focusedIndex]) handleEditTodo(filteredTodos[focusedIndex].id); }, when: () => focusedIndex >= 0 },
+    { key: "Delete", description: "Delete focused todo", action: () => { if (focusedIndex >= 0 && filteredTodos[focusedIndex]) handleDeleteTodo(filteredTodos[focusedIndex].id); }, when: () => focusedIndex >= 0 },
+    { key: "Backspace", description: "Delete focused todo", action: () => { if (focusedIndex >= 0 && filteredTodos[focusedIndex]) handleDeleteTodo(filteredTodos[focusedIndex].id); }, when: () => focusedIndex >= 0 },
+    { key: "Escape", description: "Clear focus", action: () => setFocusedIndex(-1) },
+    { key: "a", description: "Select all todos", action: () => toggleSelectAll() },
+    { key: "c", description: "Clear completed", action: () => { if (stats && stats.completed > 0) handleClearCompleted(); }, when: () => !!(stats && stats.completed > 0) },
+    { key: "?", description: "Show keyboard shortcuts", action: () => setShowKeyboardHelp(true) },
+  ], [filteredTodos, focusedIndex, stats]);
+
+  useKeyboard({ shortcuts });
+
   return (
     <div className="app-shell">
       <ToastContainer toasts={toasts} onRemove={removeToast} />
@@ -489,6 +515,11 @@ const App: React.FC = () => {
         warning={confirmState.warning}
         onConfirm={handleConfirm}
         onCancel={handleCancel}
+      />
+      <KeyboardHelp
+        isOpen={showKeyboardHelp}
+        onClose={() => setShowKeyboardHelp(false)}
+        shortcuts={shortcuts}
       />
 
       {/* Mobile sidebar overlay */}
@@ -526,9 +557,22 @@ const App: React.FC = () => {
               <span className="badge">AFD</span>
             </div>
           </div>
-          <div className="connection-status">
-            <span className={`status-dot ${connected ? "connected" : ""}`}></span>
-            <span>{connected ? "Connected" : "Disconnected"}</span>
+          <div className="header-right">
+            <button
+              type="button"
+              className="keyboard-help-btn"
+              onClick={() => setShowKeyboardHelp(true)}
+              title="Keyboard shortcuts (?)"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="4" width="20" height="16" rx="2" ry="2" />
+                <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 16h8" />
+              </svg>
+            </button>
+            <div className="connection-status">
+              <span className={`status-dot ${connected ? "connected" : ""}`}></span>
+              <span>{connected ? "Connected" : "Disconnected"}</span>
+            </div>
           </div>
         </header>
 
@@ -554,7 +598,7 @@ const App: React.FC = () => {
             />
           )}
 
-          <TodoForm onAdd={handleAddTodo} />
+          <TodoForm onAdd={handleAddTodo} titleInputRef={titleInputRef} />
 
           <div className="todo-list-card">
             <div className="filters">
@@ -614,7 +658,7 @@ const App: React.FC = () => {
               {filteredTodos.length === 0 && !loading ? (
                 <p className="empty-state">No todos yet. Add one above!</p>
               ) : (
-                filteredTodos.map((todo) => (
+                filteredTodos.map((todo, index) => (
                   <TodoItem
                     key={todo.id}
                     todo={todo}
@@ -624,6 +668,7 @@ const App: React.FC = () => {
                     selected={selectedIds.has(todo.id)}
                     onSelect={toggleSelection}
                     showSelect={true}
+                    focused={index === focusedIndex}
                   />
                 ))
               )}
@@ -639,7 +684,7 @@ const App: React.FC = () => {
             <a href="https://github.com/Falkicon/afd" target="_blank" rel="noopener noreferrer">
               Agent-First Development
             </a>
-            . Same commands work via CLI, MCP, and this UI.
+            . Same commands work via CLI, MCP, and this UI. Press <kbd>?</kbd> for keyboard shortcuts.
           </p>
         </footer>
       </div>

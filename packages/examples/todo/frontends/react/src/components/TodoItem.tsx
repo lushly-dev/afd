@@ -9,6 +9,7 @@ interface TodoItemProps {
   selected?: boolean;
   onSelect?: (id: string) => void;
   showSelect?: boolean;
+  focused?: boolean;
 }
 
 const formatDate = (isoString: string) => {
@@ -32,9 +33,10 @@ export const TodoItem: React.FC<TodoItemProps> = ({
   selected = false,
   onSelect,
   showSelect = false,
+  focused = false,
 }) => {
   return (
-    <div className={`todo-item ${todo.completed ? "completed" : ""}`}>
+    <div className={`todo-item ${todo.completed ? "completed" : ""} ${focused ? "focused" : ""}`}>
       {showSelect && (
         <input
           type="checkbox"
@@ -43,7 +45,7 @@ export const TodoItem: React.FC<TodoItemProps> = ({
           onChange={() => onSelect?.(todo.id)}
         />
       )}
-      <div 
+      <div
         className={`todo-checkbox ${todo.completed ? "checked" : ""}`}
         onClick={() => onToggle(todo.id)}
       />
