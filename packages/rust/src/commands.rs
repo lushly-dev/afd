@@ -14,6 +14,7 @@ use crate::batch::{
     BatchCommandResult, BatchRequest, BatchResult, BatchSummary, BatchTiming,
 };
 use crate::errors::CommandError;
+use crate::handoff::HandoffCommandLike;
 use crate::result::CommandResult;
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -287,6 +288,12 @@ pub struct CommandDefinition {
     /// Error codes this command may return.
     pub errors: Option<Vec<String>>,
 
+    /// Whether this is a handoff command.
+    pub handoff: bool,
+
+    /// Protocol for handoff commands (websocket, webrtc, sse, http-stream).
+    pub handoff_protocol: Option<String>,
+
     /// The command handler.
     handler: Arc<dyn CommandHandler>,
 
@@ -318,6 +325,8 @@ impl CommandDefinition {
             parameters,
             returns: None,
             errors: None,
+            handoff: false,
+            handoff_protocol: None,
             handler: Arc::new(handler),
             version: None,
             tags: None,
@@ -350,6 +359,31 @@ impl CommandDefinition {
         self
     }
 
+    /// Set tags for categorization.
+    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+        self.tags = Some(tags);
+        self
+    }
+
+    /// Set the version for this command.
+    pub fn with_version(mut self, version: impl Into<String>) -> Self {
+        self.version = Some(version.into());
+        self
+    }
+
+    /// Mark as a handoff command.
+    pub fn as_handoff(mut self) -> Self {
+        self.handoff = true;
+        self
+    }
+
+    /// Mark as a handoff command with a specific protocol.
+    pub fn as_handoff_with_protocol(mut self, protocol: impl Into<String>) -> Self {
+        self.handoff = true;
+        self.handoff_protocol = Some(protocol.into());
+        self
+    }
+
     /// Execute the command.
     pub async fn execute(
         &self,
@@ -357,6 +391,20 @@ impl CommandDefinition {
         context: CommandContext,
     ) -> CommandResult<serde_json::Value> {
         self.handler.execute(input, context).await
+    }
+}
+
+impl HandoffCommandLike for CommandDefinition {
+    fn is_handoff(&self) -> bool {
+        self.handoff
+    }
+
+    fn handoff_protocol(&self) -> Option<&str> {
+        self.handoff_protocol.as_deref()
+    }
+
+    fn tags(&self) -> Option<&[String]> {
+        self.tags.as_deref()
     }
 }
 
@@ -409,6 +457,15 @@ impl CommandRegistry {
         self.commands
             .values()
             .filter(|cmd| cmd.category.as_deref() == Some(category))
+            .cloned()
+            .collect()
+    }
+
+    /// Get all handoff commands.
+    pub fn list_handoff_commands(&self) -> Vec<Arc<CommandDefinition>> {
+        self.commands
+            .values()
+            .filter(|cmd| crate::handoff::is_handoff_command(cmd.as_ref()))
             .cloned()
             .collect()
     }
@@ -570,28 +627,20 @@ impl Default for CommandRegistry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpTool {
-    /// Tool name.
     pub name: String,
-    /// Tool description.
     pub description: String,
-    /// Input schema.
     pub input_schema: McpInputSchema,
 }
 
-/// MCP Input schema.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpInputSchema {
-    /// Always "object".
     #[serde(rename = "type")]
     pub schema_type: String,
-    /// Parameter properties.
     pub properties: HashMap<String, JsonSchema>,
-    /// Required parameter names.
     pub required: Vec<String>,
 }
 
-/// Convert a CommandDefinition to MCP tool format.
 pub fn command_to_mcp_tool(command: &CommandDefinition) -> McpTool {
     let mut properties = HashMap::new();
     let mut required = Vec::new();
@@ -623,7 +672,6 @@ pub fn command_to_mcp_tool(command: &CommandDefinition) -> McpTool {
     }
 }
 
-/// Create a new command registry.
 pub fn create_command_registry() -> CommandRegistry {
     CommandRegistry::new()
 }
@@ -695,5 +743,55 @@ mod tests {
         assert_eq!(tool.input_schema.required, vec!["name"]);
         assert!(tool.input_schema.properties.contains_key("name"));
         assert!(tool.input_schema.properties.contains_key("description"));
+    }
+
+    #[test]
+    fn test_handoff_command() {
+        let cmd = CommandDefinition::new(
+            "stream.connect",
+            "Connect to stream",
+            vec![],
+            TestHandler,
+        )
+        .as_handoff_with_protocol("websocket");
+
+        assert!(cmd.handoff);
+        assert_eq!(cmd.handoff_protocol, Some("websocket".to_string()));
+        assert!(crate::handoff::is_handoff_command(&cmd));
+    }
+
+    #[test]
+    fn test_list_handoff_commands() {
+        let mut registry = CommandRegistry::new();
+
+        let cmd1 = CommandDefinition::new(
+            "test.regular",
+            "Regular command",
+            vec![],
+            TestHandler,
+        );
+
+        let cmd2 = CommandDefinition::new(
+            "stream.connect",
+            "Connect to stream",
+            vec![],
+            TestHandler,
+        )
+        .as_handoff_with_protocol("websocket");
+
+        let cmd3 = CommandDefinition::new(
+            "events.subscribe",
+            "Subscribe to events",
+            vec![],
+            TestHandler,
+        )
+        .with_tags(vec!["handoff".to_string(), "events".to_string()]);
+
+        registry.register(cmd1).unwrap();
+        registry.register(cmd2).unwrap();
+        registry.register(cmd3).unwrap();
+
+        let handoff_commands = registry.list_handoff_commands();
+        assert_eq!(handoff_commands.len(), 2);
     }
 }
