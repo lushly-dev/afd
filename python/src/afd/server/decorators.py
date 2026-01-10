@@ -70,6 +70,8 @@ class CommandMetadata:
     tags: List[str] = field(default_factory=list)
     mutation: bool = False
     examples: List[Dict[str, Any]] = field(default_factory=list)
+    handoff: bool = False
+    handoff_protocol: Optional[str] = None
 
 
 def define_command(
@@ -80,6 +82,8 @@ def define_command(
     tags: Optional[List[str]] = None,
     mutation: bool = False,
     examples: Optional[List[Dict[str, Any]]] = None,
+    handoff: bool = False,
+    handoff_protocol: Optional[str] = None,
 ) -> Callable:
     """Decorator to define a command with metadata.
     
@@ -112,15 +116,24 @@ def define_command(
     """
     
     def decorator(func: Callable) -> Callable:
+        # Build tags list, adding handoff tags if needed
+        effective_tags = list(tags or [])
+        if handoff and "handoff" not in effective_tags:
+            effective_tags.append("handoff")
+        if handoff_protocol and f"handoff:{handoff_protocol}" not in effective_tags:
+            effective_tags.append(f"handoff:{handoff_protocol}")
+
         # Attach metadata to the function
         func.__afd_command__ = CommandMetadata(
             name=name,
             description=description,
             input_schema=input_schema,
             output_schema=output_schema,
-            tags=tags or [],
+            tags=effective_tags,
             mutation=mutation,
             examples=examples or [],
+            handoff=handoff,
+            handoff_protocol=handoff_protocol,
         )
         
         @wraps(func)
@@ -210,6 +223,8 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
         tags=metadata.tags,
         mutation=metadata.mutation,
         examples=metadata.examples,
+        handoff=metadata.handoff,
+        handoff_protocol=metadata.handoff_protocol,
     )
 
 
