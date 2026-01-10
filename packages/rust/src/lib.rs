@@ -36,8 +36,10 @@
 
 // Module declarations
 pub mod batch;
+pub mod bootstrap;
 pub mod commands;
 pub mod errors;
+pub mod handoff;
 pub mod metadata;
 pub mod pipeline;
 pub mod result;
@@ -113,6 +115,26 @@ pub use pipeline::{
     PipelineContext, PipelineMetadata, PipelineOptions, PipelineRequest, PipelineResult,
     PipelineSource, PipelineStep, PipelineWarning, StepConfidence, StepMetadata, StepReasoning,
     StepResult, StepStatus,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RE-EXPORTS: Bootstrap types
+// ═══════════════════════════════════════════════════════════════════════════════
+
+pub use bootstrap::{
+    get_bootstrap_commands, AfdDocsHandler, AfdHelpHandler, AfdSchemaHandler, CommandInfo,
+    DocsInput, DocsOutput, HelpInput, HelpOutput, SchemaFormat, SchemaInfo, SchemaInput,
+    SchemaOutput, BOOTSTRAP_CATEGORY, BOOTSTRAP_TAGS,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RE-EXPORTS: Handoff types
+// ═══════════════════════════════════════════════════════════════════════════════
+
+pub use handoff::{
+    get_handoff_protocol, get_handoff_ttl, is_handoff, is_handoff_command, is_handoff_expired,
+    is_handoff_protocol, HandoffCommandLike, HandoffCredentials, HandoffMetadata, HandoffProtocol,
+    HandoffResult, ReconnectPolicy,
 };
 
 /// Crate version.
