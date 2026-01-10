@@ -13,15 +13,32 @@ Server Example:
     >>> from afd.server import create_server
     >>> from afd import success
     >>> from pydantic import BaseModel
-    >>> 
+    >>>
     >>> server = create_server("my-app")
-    >>> 
+    >>>
     >>> class GreetInput(BaseModel):
     ...     name: str
-    >>> 
+    >>>
     >>> @server.command(name="greet", description="Greet someone")
     ... async def greet(input: GreetInput):
     ...     return success({"message": f"Hello, {input.name}!"})
+
+Handoff Example:
+    >>> from afd import create_handoff, is_handoff, success
+    >>> from afd.server import define_command
+    >>>
+    >>> @define_command(
+    ...     name="chat.connect",
+    ...     description="Connect to a chat room",
+    ...     handoff=True,
+    ...     handoff_protocol="websocket",
+    ... )
+    ... async def connect_chat(input):
+    ...     return success(create_handoff(
+    ...         protocol="websocket",
+    ...         endpoint="wss://chat.example.com/room/123",
+    ...         token="auth-token",
+    ...     ))
 """
 
 from afd.core.result import (
@@ -55,6 +72,18 @@ from afd.core.metadata import (
     create_step,
     update_step_status,
     create_warning,
+)
+from afd.core.handoff import (
+    HandoffProtocol,
+    HandoffCredentials,
+    HandoffMetadata,
+    HandoffResult,
+    ReconnectPolicy,
+    is_handoff,
+    is_handoff_protocol,
+    is_handoff_command,
+    get_handoff_protocol,
+    create_handoff,
 )
 
 __version__ = "0.1.0"
@@ -91,4 +120,15 @@ __all__ = [
     "create_step",
     "update_step_status",
     "create_warning",
+    # Handoff types
+    "HandoffProtocol",
+    "HandoffCredentials",
+    "HandoffMetadata",
+    "HandoffResult",
+    "ReconnectPolicy",
+    "is_handoff",
+    "is_handoff_protocol",
+    "is_handoff_command",
+    "get_handoff_protocol",
+    "create_handoff",
 ]
