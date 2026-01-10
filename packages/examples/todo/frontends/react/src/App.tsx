@@ -16,6 +16,7 @@ import { KeyboardHelp } from "./components/KeyboardHelp";
 import { useKeyboard } from "./hooks/useKeyboard";
 import type { KeyboardShortcut } from "./hooks/useKeyboard";
 import { DevModeDrawer } from "./components/DevModeDrawer";
+import { ChatSidebar } from "./components/ChatSidebar";
 import { useConfirm } from "./hooks/useConfirm";
 import { useTheme } from "./hooks/useTheme";
 import type { RemoteChanges } from "./components/Toast";
@@ -49,6 +50,9 @@ const App: React.FC = () => {
 
   // Dev mode drawer state
   const [devDrawerOpen, setDevDrawerOpen] = useState(false);
+
+  // Chat sidebar state
+  const [chatSidebarOpen, setChatSidebarOpen] = useState(true);
 
   // Detail modal state
   const [detailTodo, setDetailTodo] = useState<Todo | null>(null);
@@ -632,6 +636,14 @@ const App: React.FC = () => {
                 <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
               </svg>
             </button>
+            <button
+              type="button"
+              className="dev-mode-btn"
+              onClick={() => setChatSidebarOpen(!chatSidebarOpen)}
+              title={chatSidebarOpen ? "Hide AI Copilot" : "Show AI Copilot"}
+            >
+              <span style={{ fontSize: "14px" }}>🤖</span>
+            </button>
             <div className="connection-status">
               <span className={`status-dot ${connected ? "connected" : ""}`}></span>
               <span>{connected ? "Connected" : "Disconnected"}</span>
@@ -752,6 +764,13 @@ const App: React.FC = () => {
           </p>
         </footer>
       </div>
+
+      {/* AI Copilot Chat Sidebar */}
+      <ChatSidebar
+        isOpen={chatSidebarOpen}
+        onToggle={() => setChatSidebarOpen(!chatSidebarOpen)}
+        onTodosChanged={() => fetchData()}
+      />
     </div>
   );
 };
