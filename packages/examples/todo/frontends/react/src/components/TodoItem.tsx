@@ -6,6 +6,7 @@ interface TodoItemProps {
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onEdit: (id: string) => void;
+  onViewDetail?: (id: string) => void;
   selected?: boolean;
   onSelect?: (id: string) => void;
   showSelect?: boolean;
@@ -30,6 +31,7 @@ export const TodoItem: React.FC<TodoItemProps> = ({
   onToggle,
   onDelete,
   onEdit,
+  onViewDetail,
   selected = false,
   onSelect,
   showSelect = false,
@@ -49,7 +51,11 @@ export const TodoItem: React.FC<TodoItemProps> = ({
         className={`todo-checkbox ${todo.completed ? "checked" : ""}`}
         onClick={() => onToggle(todo.id)}
       />
-      <div className="todo-content">
+      <div
+        className="todo-content"
+        onClick={() => onViewDetail?.(todo.id)}
+        style={{ cursor: onViewDetail ? "pointer" : "default" }}
+      >
         <div className="todo-title">{todo.title}</div>
         <div className="todo-meta">
           <span className={`priority-badge priority-${todo.priority}`}>
