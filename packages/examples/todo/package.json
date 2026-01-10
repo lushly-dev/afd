@@ -10,7 +10,9 @@
     "dev:ts": "cd backends/typescript && pnpm dev",
     "dev:py": "cd backends/python && pnpm dev",
     "dev:web": "cd frontends/vanilla && npx serve .",
-    "dev:react": "cd frontends/react && pnpm dev"
+    "dev:react": "cd frontends/react && pnpm dev",
+    "dev:desktop": "cd frontends/desktop && pnpm tauri:dev",
+    "build:desktop": "cd frontends/desktop && pnpm tauri:build"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.0.1",
