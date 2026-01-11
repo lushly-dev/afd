@@ -44,3 +44,4 @@ coverage/
 !PLAN/**/*.plan.md
 !archive/**/*.plan.md
 .cursor/
+nul

@@ -1,0 +1,48 @@
+.command-log-card {
+  background: var(--surface);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--border);
+}
+
+.command-log-title {
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.command-log-panel {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  max-height: 200px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+.log-entry {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-entry.success {
+  color: var(--success);
+}
+
+.log-entry.error {
+  color: var(--error);
+}
+
+.log-entry .reasoning {
+  color: var(--text-muted);
+  font-style: italic;
+}
