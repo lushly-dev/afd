@@ -3,7 +3,7 @@
  */
 
 import { z } from 'zod';
-import { defineCommand, success, failure } from '@lushly-dev/afd-server';
+import { defineCommand, success, failure } from '@afd/server';
 import { store } from '../store/index.js';
 
 const inputSchema = z.object({

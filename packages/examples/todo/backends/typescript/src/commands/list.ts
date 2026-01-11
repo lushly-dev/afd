@@ -6,26 +6,16 @@
  */
 
 import { z } from 'zod';
-import { defineCommand, success } from '@lushly-dev/afd-server';
-import type { Alternative } from '@lushly-dev/afd-core';
+import { defineCommand, success } from '@afd/server';
+import type { Alternative } from '@afd/core';
 import { store } from '../store/index.js';
-import type { Todo, Priority } from '../types.js';
-import { PRIORITY_LABELS } from '../types.js';
+import type { Todo } from '../types.js';
 
 const inputSchema = z.object({
 	completed: z.boolean().optional(),
-	priority: (z.number().int().min(0).max(3) as z.ZodType<Priority, z.ZodTypeDef, Priority>).optional(),
+	priority: z.enum(['low', 'medium', 'high']).optional(),
 	search: z.string().optional(),
-	dueBefore: z
-		.string()
-		.datetime({ message: 'dueBefore must be a valid ISO 8601 date-time' })
-		.optional(),
-	dueAfter: z
-		.string()
-		.datetime({ message: 'dueAfter must be a valid ISO 8601 date-time' })
-		.optional(),
-	overdue: z.boolean().optional(),
-	sortBy: z.enum(['createdAt', 'updatedAt', 'priority', 'title', 'dueDate']).default('createdAt'),
+	sortBy: z.enum(['createdAt', 'updatedAt', 'priority', 'title']).default('createdAt'),
 	sortOrder: z.enum(['asc', 'desc']).default('desc'),
 	limit: z.number().int().min(1).max(100).default(20),
 	offset: z.number().int().min(0).default(0),
@@ -51,9 +41,6 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 			completed: input.completed,
 			priority: input.priority,
 			search: input.search,
-			dueBefore: input.dueBefore,
-			dueAfter: input.dueAfter,
-			overdue: input.overdue,
 			sortBy: input.sortBy,
 			sortOrder: input.sortOrder,
 			limit: input.limit,
@@ -65,9 +52,6 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 			completed: input.completed,
 			priority: input.priority,
 			search: input.search,
-			dueBefore: input.dueBefore,
-			dueAfter: input.dueAfter,
-			overdue: input.overdue,
 		});
 
 		const total = allMatching.length;
@@ -78,30 +62,16 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 		if (input.completed !== undefined) {
 			filters.push(input.completed ? 'completed' : 'pending');
 		}
-		if (input.priority !== undefined) {
-			filters.push(`${PRIORITY_LABELS[input.priority]} priority`);
+		if (input.priority) {
+			filters.push(`${input.priority} priority`);
 		}
 		if (input.search) {
 			filters.push(`matching "${input.search}"`);
 		}
-		if (input.dueBefore) {
-			filters.push(`due before ${new Date(input.dueBefore).toLocaleDateString()}`);
-		}
-		if (input.dueAfter) {
-			filters.push(`due after ${new Date(input.dueAfter).toLocaleDateString()}`);
-		}
-		if (input.overdue !== undefined) {
-			filters.push(input.overdue ? 'overdue' : 'not overdue');
-		}
 
 		const filterText = filters.length > 0 ? ` (${filters.join(', ')})` : '';
 		const isFiltered =
-			input.completed !== undefined ||
-			input.priority !== undefined ||
-			input.search !== undefined ||
-			input.dueBefore !== undefined ||
-			input.dueAfter !== undefined ||
-			input.overdue !== undefined;
+			input.completed !== undefined || input.priority !== undefined || input.search !== undefined;
 
 		// Build alternatives when filtering
 		// This demonstrates the AFD alternatives pattern - giving users other options

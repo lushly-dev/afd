@@ -3,10 +3,9 @@ import type { Priority } from "../types";
 
 interface TodoFormProps {
   onAdd: (title: string, priority: Priority, description?: string) => void;
-  titleInputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
-export const TodoForm: React.FC<TodoFormProps> = ({ onAdd, titleInputRef }) => {
+export const TodoForm: React.FC<TodoFormProps> = ({ onAdd }) => {
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<Priority>("medium");
   const [description, setDescription] = useState("");
@@ -23,7 +22,6 @@ export const TodoForm: React.FC<TodoFormProps> = ({ onAdd, titleInputRef }) => {
   return (
     <form onSubmit={handleSubmit} className="todo-form">
       <input
-        ref={titleInputRef}
         type="text"
         placeholder="What needs to be done?"
         value={title}
