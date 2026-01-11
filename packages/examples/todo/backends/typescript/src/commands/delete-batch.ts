@@ -5,8 +5,8 @@
  */
 
 import { z } from 'zod';
-import { defineCommand, success } from '@lushly-dev/afd-server';
-import type { CommandError } from '@lushly-dev/afd-core';
+import { defineCommand, success } from '@afd/server';
+import type { CommandError } from '@afd/core';
 import { store } from '../store/index.js';
 
 const inputSchema = z.object({

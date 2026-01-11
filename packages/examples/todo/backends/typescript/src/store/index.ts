@@ -9,7 +9,7 @@
  * Use "memory" for testing or isolated instances.
  */
 
-import { TodoStore, memoryStore } from "./memory.js";
+import { TodoStore } from "./memory.js";
 import { FileStore } from "./file.js";
 
 // Store type from environment (default: file for shared storage)
@@ -29,8 +29,7 @@ export type Store = TodoStore | FileStore;
 export function createStore(): Store {
   if (STORE_TYPE === "memory") {
     console.error("[Store] Using in-memory storage (isolated per process)");
-    // Use the singleton from memory.ts to ensure tests and commands share the same store
-    return memoryStore;
+    return new TodoStore();
   }
 
   const store = new FileStore(STORE_PATH);

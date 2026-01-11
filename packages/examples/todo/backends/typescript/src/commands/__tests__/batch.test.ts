@@ -29,9 +29,9 @@ describe('todo-createBatch', () => {
 		const result = await createBatch.handler(
 			{
 				todos: [
-					{ title: 'Task 1', priority: 3 },
-					{ title: 'Task 2', priority: 2 },
-					{ title: 'Task 3', priority: 1 },
+					{ title: 'Task 1', priority: 'high' },
+					{ title: 'Task 2', priority: 'medium' },
+					{ title: 'Task 3', priority: 'low' },
 				],
 			},
 			{}
@@ -51,16 +51,16 @@ describe('todo-createBatch', () => {
 		const result = await createBatch.handler(
 			{
 				todos: [
-					{ title: 'High priority', priority: 3 },
-					{ title: 'Low priority', priority: 1 },
+					{ title: 'High priority', priority: 'high' },
+					{ title: 'Low priority', priority: 'low' },
 				],
 			},
 			{}
 		);
 
 		expect(result.success).toBe(true);
-		expect(result.data?.succeeded[0].priority).toBe(3);
-		expect(result.data?.succeeded[1].priority).toBe(1);
+		expect(result.data?.succeeded[0].priority).toBe('high');
+		expect(result.data?.succeeded[1].priority).toBe('low');
 	});
 
 	it('defaults priority to medium', async () => {
@@ -72,13 +72,13 @@ describe('todo-createBatch', () => {
 		);
 
 		expect(result.success).toBe(true);
-		expect(result.data?.succeeded[0].priority).toBe(2);
+		expect(result.data?.succeeded[0].priority).toBe('medium');
 	});
 
 	it('includes description when provided', async () => {
 		const result = await createBatch.handler(
 			{
-				todos: [{ title: 'With description', description: 'Test description', priority: 2 }],
+				todos: [{ title: 'With description', description: 'Test description', priority: 'medium' }],
 			},
 			{}
 		);
@@ -90,7 +90,7 @@ describe('todo-createBatch', () => {
 	it('includes reasoning for full success', async () => {
 		const result = await createBatch.handler(
 			{
-				todos: [{ title: 'Task 1', priority: 2 }, { title: 'Task 2', priority: 2 }],
+				todos: [{ title: 'Task 1', priority: 'medium' }, { title: 'Task 2', priority: 'medium' }],
 			},
 			{}
 		);
@@ -102,8 +102,8 @@ describe('todo-createBatch', () => {
 		await createBatch.handler(
 			{
 				todos: [
-					{ title: 'Batch 1', priority: 3 },
-					{ title: 'Batch 2', priority: 2 },
+					{ title: 'Batch 1', priority: 'high' },
+					{ title: 'Batch 2', priority: 'medium' },
 				],
 			},
 			{}
@@ -130,9 +130,9 @@ describe('todo-createBatch', () => {
 describe('todo-deleteBatch', () => {
 	it('deletes multiple todos successfully', async () => {
 		// Create some todos first
-		const t1 = await createTodo.handler({ title: 'Delete 1', priority: 2 }, {});
-		const t2 = await createTodo.handler({ title: 'Delete 2', priority: 2 }, {});
-		const t3 = await createTodo.handler({ title: 'Keep', priority: 2 }, {});
+		const t1 = await createTodo.handler({ title: 'Delete 1', priority: 'medium' }, {});
+		const t2 = await createTodo.handler({ title: 'Delete 2', priority: 'medium' }, {});
+		const t3 = await createTodo.handler({ title: 'Keep', priority: 'medium' }, {});
 
 		const result = await deleteBatch.handler(
 			{
@@ -162,7 +162,7 @@ describe('todo-deleteBatch', () => {
 	});
 
 	it('handles partial failure with nonexistent IDs', async () => {
-		const t1 = await createTodo.handler({ title: 'Real', priority: 2 }, {});
+		const t1 = await createTodo.handler({ title: 'Real', priority: 'medium' }, {});
 
 		const result = await deleteBatch.handler(
 			{
@@ -180,7 +180,7 @@ describe('todo-deleteBatch', () => {
 	});
 
 	it('includes PARTIAL_SUCCESS warning for mixed results', async () => {
-		const t1 = await createTodo.handler({ title: 'Real', priority: 2 }, {});
+		const t1 = await createTodo.handler({ title: 'Real', priority: 'medium' }, {});
 
 		const result = await deleteBatch.handler(
 			{
@@ -195,7 +195,7 @@ describe('todo-deleteBatch', () => {
 	});
 
 	it('includes DESTRUCTIVE_BATCH warning', async () => {
-		const t1 = await createTodo.handler({ title: 'Delete me', priority: 2 }, {});
+		const t1 = await createTodo.handler({ title: 'Delete me', priority: 'medium' }, {});
 
 		const result = await deleteBatch.handler(
 			{
@@ -243,8 +243,8 @@ describe('todo-deleteBatch', () => {
 
 describe('todo-toggleBatch', () => {
 	it('toggles multiple todos', async () => {
-		const t1 = await createTodo.handler({ title: 'Toggle 1', priority: 2 }, {});
-		const t2 = await createTodo.handler({ title: 'Toggle 2', priority: 2 }, {});
+		const t1 = await createTodo.handler({ title: 'Toggle 1', priority: 'medium' }, {});
+		const t2 = await createTodo.handler({ title: 'Toggle 2', priority: 'medium' }, {});
 
 		const result = await toggleBatch.handler(
 			{
@@ -261,8 +261,8 @@ describe('todo-toggleBatch', () => {
 	});
 
 	it('sets all to completed with completed=true', async () => {
-		const t1 = await createTodo.handler({ title: 'Task 1', priority: 2 }, {});
-		const t2 = await createTodo.handler({ title: 'Task 2', priority: 2 }, {});
+		const t1 = await createTodo.handler({ title: 'Task 1', priority: 'medium' }, {});
+		const t2 = await createTodo.handler({ title: 'Task 2', priority: 'medium' }, {});
 
 		const result = await toggleBatch.handler(
 			{
@@ -279,8 +279,8 @@ describe('todo-toggleBatch', () => {
 
 	it('sets all to incomplete with completed=false', async () => {
 		// Create and complete todos first
-		const t1 = await createTodo.handler({ title: 'Task 1', priority: 2 }, {});
-		const t2 = await createTodo.handler({ title: 'Task 2', priority: 2 }, {});
+		const t1 = await createTodo.handler({ title: 'Task 1', priority: 'medium' }, {});
+		const t2 = await createTodo.handler({ title: 'Task 2', priority: 'medium' }, {});
 
 		// Mark them complete
 		await toggleBatch.handler({ ids: [t1.data!.id, t2.data!.id] }, {});
@@ -300,8 +300,8 @@ describe('todo-toggleBatch', () => {
 	});
 
 	it('handles mixed existing states in toggle mode', async () => {
-		const t1 = await createTodo.handler({ title: 'Task 1', priority: 2 }, {});
-		const t2 = await createTodo.handler({ title: 'Task 2', priority: 2 }, {});
+		const t1 = await createTodo.handler({ title: 'Task 1', priority: 'medium' }, {});
+		const t2 = await createTodo.handler({ title: 'Task 2', priority: 'medium' }, {});
 
 		// Complete just t1
 		await toggleBatch.handler({ ids: [t1.data!.id], completed: true }, {});
@@ -322,7 +322,7 @@ describe('todo-toggleBatch', () => {
 	});
 
 	it('handles partial failure with nonexistent IDs', async () => {
-		const t1 = await createTodo.handler({ title: 'Real', priority: 2 }, {});
+		const t1 = await createTodo.handler({ title: 'Real', priority: 'medium' }, {});
 
 		const result = await toggleBatch.handler(
 			{
@@ -338,7 +338,7 @@ describe('todo-toggleBatch', () => {
 	});
 
 	it('includes PARTIAL_SUCCESS warning for mixed results', async () => {
-		const t1 = await createTodo.handler({ title: 'Real', priority: 2 }, {});
+		const t1 = await createTodo.handler({ title: 'Real', priority: 'medium' }, {});
 
 		const result = await toggleBatch.handler(
 			{
@@ -372,7 +372,7 @@ describe('todo-toggleBatch', () => {
 
 describe('Batch AFD Compliance', () => {
 	it('batch commands return valid CommandResult structure', async () => {
-		const createResult = await createBatch.handler({ todos: [{ title: 'Test', priority: 2 }] }, {});
+		const createResult = await createBatch.handler({ todos: [{ title: 'Test', priority: 'medium' }] }, {});
 		const toggleResult = await toggleBatch.handler({ ids: [createResult.data!.succeeded[0].id] }, {});
 		const deleteResult = await deleteBatch.handler({ ids: [createResult.data!.succeeded[0].id] }, {});
 
@@ -386,7 +386,7 @@ describe('Batch AFD Compliance', () => {
 
 	it('batch results include summary statistics', async () => {
 		const result = await createBatch.handler(
-			{ todos: [{ title: 'Task 1', priority: 2 }, { title: 'Task 2', priority: 2 }] },
+			{ todos: [{ title: 'Task 1', priority: 'medium' }, { title: 'Task 2', priority: 'medium' }] },
 			{}
 		);
 
@@ -397,7 +397,7 @@ describe('Batch AFD Compliance', () => {
 	});
 
 	it('confidence reflects success rate', async () => {
-		const t1 = await createTodo.handler({ title: 'Real', priority: 2 }, {});
+		const t1 = await createTodo.handler({ title: 'Real', priority: 'medium' }, {});
 
 		// 1 success, 1 failure = 0.5 confidence
 		const result = await deleteBatch.handler({ ids: [t1.data!.id, 'fake'] }, {});

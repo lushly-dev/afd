@@ -42,7 +42,7 @@ describe('Todo Pipeline Integration', () => {
 			// Pipeline: Create todo → Toggle it to complete → Get final state
 			const request: PipelineRequest = {
 				steps: [
-					{ command: 'todo-create', input: { title: 'Pipeline task', priority: 3 }, as: 'created' },
+					{ command: 'todo-create', input: { title: 'Pipeline task', priority: 'high' }, as: 'created' },
 					{ command: 'todo-toggle', input: { id: '$steps.created.id' } },
 					{ command: 'todo-get', input: { id: '$steps.created.id' } },
 				],
@@ -58,7 +58,7 @@ describe('Todo Pipeline Integration', () => {
 			// Final data is the completed todo
 			expect(result.data).toMatchObject({
 				title: 'Pipeline task',
-				priority: 3,
+				priority: 'high',
 				completed: true,
 			});
 
@@ -71,9 +71,9 @@ describe('Todo Pipeline Integration', () => {
 			// Pipeline: Create 3 todos → Toggle one → Get stats
 			const request: PipelineRequest = {
 				steps: [
-					{ command: 'todo-create', input: { title: 'Task 1', priority: 3 }, as: 'todo1' },
-					{ command: 'todo-create', input: { title: 'Task 2', priority: 2 } },
-					{ command: 'todo-create', input: { title: 'Task 3', priority: 1 } },
+					{ command: 'todo-create', input: { title: 'Task 1', priority: 'high' }, as: 'todo1' },
+					{ command: 'todo-create', input: { title: 'Task 2', priority: 'medium' } },
+					{ command: 'todo-create', input: { title: 'Task 3', priority: 'low' } },
 					{ command: 'todo-toggle', input: { id: '$steps.todo1.id' } },
 					{ command: 'todo-stats', input: {} },
 				],
@@ -91,9 +91,9 @@ describe('Todo Pipeline Integration', () => {
 
 		it('lists and clears completed todos', async () => {
 			// Pre-seed some todos
-			await server.execute('todo-create', { title: 'Done 1', priority: 3 });
-			const t2 = await server.execute('todo-create', { title: 'Done 2', priority: 2 });
-			await server.execute('todo-create', { title: 'Pending', priority: 1 });
+			await server.execute('todo-create', { title: 'Done 1', priority: 'high' });
+			const t2 = await server.execute('todo-create', { title: 'Done 2', priority: 'medium' });
+			await server.execute('todo-create', { title: 'Pending', priority: 'low' });
 
 			// Complete one directly
 			await server.execute('todo-toggle', { id: (t2.data as { id: string }).id });
@@ -135,7 +135,7 @@ describe('Todo Pipeline Integration', () => {
 		it('resolves $prev to pass todo between steps', async () => {
 			const request: PipelineRequest = {
 				steps: [
-					{ command: 'todo-create', input: { title: 'Chained', priority: 2 } },
+					{ command: 'todo-create', input: { title: 'Chained', priority: 'medium' } },
 					{ command: 'todo-get', input: { id: '$prev.id' } },
 				],
 			};
@@ -151,8 +151,8 @@ describe('Todo Pipeline Integration', () => {
 		it('resolves $steps.alias for named references', async () => {
 			const request: PipelineRequest = {
 				steps: [
-					{ command: 'todo-create', input: { title: 'Original', priority: 1 }, as: 'original' },
-					{ command: 'todo-update', input: { id: '$steps.original.id', title: 'Updated via alias', priority: 3 } },
+					{ command: 'todo-create', input: { title: 'Original', priority: 'low' }, as: 'original' },
+					{ command: 'todo-update', input: { id: '$steps.original.id', title: 'Updated via alias', priority: 'high' } },
 					{ command: 'todo-get', input: { id: '$steps.original.id' } },
 				],
 			};
@@ -161,7 +161,7 @@ describe('Todo Pipeline Integration', () => {
 
 			expect(result.data).toMatchObject({
 				title: 'Updated via alias',
-				priority: 3,
+				priority: 'high',
 			});
 		});
 	});
@@ -212,7 +212,7 @@ describe('Todo Pipeline Integration', () => {
 		it('skips toggle when todo is already completed', async () => {
 			const request: PipelineRequest = {
 				steps: [
-					{ command: 'todo-create', input: { title: 'Test', priority: 2 }, as: 'todo' },
+					{ command: 'todo-create', input: { title: 'Test', priority: 'medium' }, as: 'todo' },
 					{ command: 'todo-toggle', input: { id: '$steps.todo.id' } }, // Complete it
 					{
 						command: 'todo-toggle',
@@ -235,11 +235,11 @@ describe('Todo Pipeline Integration', () => {
 		it('runs step only when condition is met', async () => {
 			const request: PipelineRequest = {
 				steps: [
-					{ command: 'todo-create', input: { title: 'High priority', priority: 3 }, as: 'todo' },
+					{ command: 'todo-create', input: { title: 'High priority', priority: 'high' }, as: 'todo' },
 					{
 						command: 'todo-update',
 						input: { id: '$steps.todo.id', title: 'URGENT: High priority' },
-						when: { $eq: ['$steps.todo.priority', 3] },
+						when: { $eq: ['$steps.todo.priority', 'high'] },
 					},
 				],
 			};
@@ -261,7 +261,7 @@ describe('Todo Pipeline Integration', () => {
 		it('aggregates reasoning from all steps', async () => {
 			const request: PipelineRequest = {
 				steps: [
-					{ command: 'todo-create', input: { title: 'Task', priority: 3 } },
+					{ command: 'todo-create', input: { title: 'Task', priority: 'high' } },
 					{ command: 'todo-toggle', input: { id: '$prev.id' } },
 					{ command: 'todo-stats', input: {} },
 				],
@@ -278,7 +278,7 @@ describe('Todo Pipeline Integration', () => {
 		it('tracks execution time for each step', async () => {
 			const request: PipelineRequest = {
 				steps: [
-					{ command: 'todo-create', input: { title: 'Timed', priority: 2 } },
+					{ command: 'todo-create', input: { title: 'Timed', priority: 'medium' } },
 					{ command: 'todo-stats', input: {} },
 				],
 			};
@@ -294,7 +294,7 @@ describe('Todo Pipeline Integration', () => {
 			// All todo commands return 1.0 confidence, so pipeline should also be 1.0
 			const request: PipelineRequest = {
 				steps: [
-					{ command: 'todo-create', input: { title: 'Test', priority: 2 } },
+					{ command: 'todo-create', input: { title: 'Test', priority: 'medium' } },
 					{ command: 'todo-stats', input: {} },
 				],
 			};
