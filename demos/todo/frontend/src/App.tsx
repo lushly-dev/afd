@@ -598,8 +598,7 @@ const App: React.FC = () => {
         onThemeToggle={toggleTheme}
       />
 
-      <div className="app-main">
-        <header className="app-header">
+      <header className="app-header">
           <div className="header-left">
             <button
               type="button"
@@ -655,6 +654,7 @@ const App: React.FC = () => {
           </div>
         </header>
 
+      <div className="app-main">
         <main className="app-content">
           <TodoStats stats={stats} />
 
@@ -757,17 +757,17 @@ const App: React.FC = () => {
 
           <CommandLog entries={logEntries} />
         </main>
-
-        <footer className="app-footer">
-          <p>
-            Built with{" "}
-            <a href="https://github.com/Falkicon/afd" target="_blank" rel="noopener noreferrer">
-              Agent-First Development
-            </a>
-            . Same commands work via CLI, MCP, and this UI. Press <kbd>?</kbd> for keyboard shortcuts.
-          </p>
-        </footer>
       </div>
+
+      <footer className="app-footer">
+        <p>
+          Built with{" "}
+          <a href="https://github.com/Falkicon/afd" target="_blank" rel="noopener noreferrer">
+            Agent-First Development
+          </a>
+          . Same commands work via CLI, MCP, and this UI. Press <kbd>?</kbd> for keyboard shortcuts.
+        </p>
+      </footer>
 
       {/* AI Copilot Chat Sidebar */}
       <ChatSidebar

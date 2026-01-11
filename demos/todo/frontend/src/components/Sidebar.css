@@ -1,4 +1,5 @@
 .sidebar {
+	grid-area: sidebar;
 	width: 240px;
 	min-width: 240px;
 	background: var(--surface);
@@ -7,6 +8,31 @@
 	flex-direction: column;
 	height: 100%;
 	overflow-y: auto;
+	position: relative;
+}
+
+/* Extend sidebar background into header row */
+.sidebar::before {
+	content: '';
+	position: absolute;
+	top: calc(-1 * var(--header-height, 69px));
+	left: 0;
+	right: 0;
+	height: var(--header-height, 69px);
+	background: var(--surface);
+	border-right: 1px solid var(--border);
+}
+
+/* Extend sidebar background into footer row */
+.sidebar::after {
+	content: '';
+	position: absolute;
+	bottom: calc(-1 * var(--footer-height, 57px));
+	left: 0;
+	right: 0;
+	height: var(--footer-height, 57px);
+	background: var(--surface);
+	border-right: 1px solid var(--border);
 }
 
 .sidebar-nav {

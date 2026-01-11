@@ -1,12 +1,38 @@
 /* AI Chat Sidebar */
 .chat-sidebar {
+  grid-area: chat;
   width: 380px;
   background: var(--surface);
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100%;
   flex-shrink: 0;
+  position: relative;
+}
+
+/* Extend chat sidebar background into header row */
+.chat-sidebar::before {
+  content: '';
+  position: absolute;
+  top: calc(-1 * var(--header-height, 69px));
+  left: 0;
+  right: 0;
+  height: var(--header-height, 69px);
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+
+/* Extend chat sidebar background into footer row */
+.chat-sidebar::after {
+  content: '';
+  position: absolute;
+  bottom: calc(-1 * var(--footer-height, 57px));
+  left: 0;
+  right: 0;
+  height: var(--footer-height, 57px);
+  background: var(--surface);
+  border-left: 1px solid var(--border);
 }
 
 .chat-sidebar-header {
