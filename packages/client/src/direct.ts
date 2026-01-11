@@ -981,7 +981,7 @@ export class DirectClient {
 			warnings: result.warnings,
 			sources: result.sources,
 			alternatives: result.alternatives,
-			executionTimeMs: result.executionTimeMs,
+			executionTimeMs: result.metadata?.executionTimeMs,
 		};
 	}
 

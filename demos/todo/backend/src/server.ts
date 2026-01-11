@@ -1,56 +1,139 @@
 /**
- * AFD Todo Demo - Server
+ * @fileoverview Todo app MCP server entry point
  *
- * MCP server for the rich Todo app.
+ * This file creates and starts an MCP server exposing all todo commands.
+ *
+ * Usage:
+ *   node dist/server.js
+ *
+ * Then connect with the AFD CLI:
+ *   afd connect http://localhost:3100/sse
+ *   afd tools
+ *   afd call todo.create '{"title": "My first todo"}'
  */
-import Database from 'better-sqlite3';
-import { createMcpServer } from '@lushly-dev/afd-server';
-import { TaskStore } from './stores/task-store.js';
-import { ListStore } from './stores/list-store.js';
-import { createCommands } from './commands/index.js';
 
-const PORT = Number(process.env.PORT) || 3001;
-const HOST = process.env.HOST || 'localhost';
-const DB_PATH = process.env.DB_PATH || './todo.db';
-const DEV_MODE = process.env.NODE_ENV === 'development';
+import { createMcpServer, createLoggingMiddleware, getBootstrapCommands } from "@lushly-dev/afd-server";
+import type { ZodCommandDefinition } from "@lushly-dev/afd-server";
+import { allCommands } from "./commands/index.js";
 
-// Initialize database
-const db = new Database(DB_PATH);
-const taskStore = new TaskStore(DB_PATH);
-const listStore = new ListStore(db);
+// Configuration from environment
+const PORT = parseInt(process.env.PORT ?? "3100", 10);
+const HOST = process.env.HOST ?? "localhost";
+const LOG_LEVEL = process.env.LOG_LEVEL ?? "info";
+// Transport mode: "auto" (default), "http" (for UI), or "stdio" (for MCP clients)
+const TRANSPORT = (process.env.TRANSPORT ?? "auto") as "auto" | "http" | "stdio";
 
-// Create commands
-const commands = createCommands(taskStore, listStore);
+/**
+ * Dev mode: enables verbose errors, permissive CORS, stack traces.
+ * Set NODE_ENV=development to enable, or NODE_ENV=production for secure defaults.
+ */
+const DEV_MODE = process.env.NODE_ENV === "development";
 
-// Create MCP server
-const server = createMcpServer({
-	name: 'afd-todo-demo',
-	version: '0.1.0',
-	commands,
-	port: PORT,
-	host: HOST,
-	devMode: DEV_MODE,
-	cors: true,
-	transport: 'auto',
-	toolStrategy: 'individual',
-	onCommand(command, input, result) {
-		if (DEV_MODE) {
-			console.log(`[${new Date().toISOString()}] ${command}:`, result.success ? 'OK' : 'FAIL');
-		}
-	},
-	onError(error) {
-		console.error('[Server Error]', error);
-	},
-});
+/**
+ * Create and configure the MCP server.
+ */
+function createServer() {
+  // Combine app commands with bootstrap tools (afd-help, afd-docs, afd-schema)
+  // Cast needed due to ZodCommandDefinition vs CommandDefinition type differences
+  const bootstrapCommands = getBootstrapCommands(
+    () => allCommands as unknown as import("@lushly-dev/afd-core").CommandDefinition[]
+  ) as unknown as ZodCommandDefinition[];
+  const allServerCommands = [...allCommands, ...bootstrapCommands];
 
-// Start server
-server.start().then(() => {
-	const transport = server.getTransport();
-	if (transport === 'http') {
-		console.log(`AFD Todo Demo running at http://${HOST}:${PORT}`);
-	} else {
-		console.error('AFD Todo Demo running in stdio mode');
-	}
-	console.error(`Commands: ${commands.map((c) => c.name).join(', ')}`);
-	console.error(`Database: ${DB_PATH}`);
+  return createMcpServer({
+    name: "todo-app",
+    version: "1.0.0",
+    commands: allServerCommands,
+    port: PORT,
+    host: HOST,
+    devMode: DEV_MODE,
+    // Transport mode from environment
+    transport: TRANSPORT,
+    // CORS follows devMode by default (permissive in dev, restrictive in prod)
+    // Explicitly set cors: true here for the UI to work in both modes
+    cors: true,
+
+    // Add logging middleware - verbose in dev mode
+    middleware:
+      DEV_MODE || LOG_LEVEL === "debug"
+        ? [createLoggingMiddleware({ logInput: true, logResult: true })]
+        : [createLoggingMiddleware()],
+
+    // Log command execution
+    onCommand(command, input, result) {
+      if (LOG_LEVEL === "debug") {
+        console.error(`[Command] ${command}:`, { input, result });
+      }
+    },
+
+    // Log errors
+    onError(error) {
+      console.error("[Error]", error);
+    },
+  });
+}
+
+/**
+ * Main entry point.
+ */
+async function main() {
+  const server = createServer();
+
+  // Only log startup messages if running interactively (TTY/HTTP mode)
+  // In stdio mode, stderr output can interfere with MCP protocol on some clients
+  const isInteractive = process.stdin.isTTY;
+
+  if (isInteractive) {
+    console.error("Starting Todo App MCP Server...");
+    console.error(`  Name: todo-app`);
+    console.error(`  Version: 1.0.0`);
+    console.error(
+      `  Mode: ${
+        DEV_MODE
+          ? "🔧 DEVELOPMENT (verbose errors, permissive CORS)"
+          : "🔒 PRODUCTION (secure defaults)"
+      }`
+    );
+    console.error(`  Commands: ${allCommands.length}`);
+    console.error("");
+  }
+
+  await server.start();
+
+  if (isInteractive) {
+    console.error(`Server running at ${server.getUrl()}`);
+    console.error("");
+    console.error("Connect with the AFD CLI:");
+    console.error(`  afd connect ${server.getUrl()}/sse`);
+    console.error("");
+    console.error("Or open the UI:");
+    console.error(`  Open ui/index.html in a browser`);
+    console.error("");
+    console.error("Available commands:");
+    for (const cmd of server.getCommands()) {
+      console.error(`  - ${cmd.name}: ${cmd.description}`);
+    }
+    console.error("");
+    console.error("Press Ctrl+C to stop.");
+  }
+
+
+  // Handle shutdown
+  process.on("SIGINT", async () => {
+    console.error("\nShutting down...");
+    await server.stop();
+    process.exit(0);
+  });
+
+  process.on("SIGTERM", async () => {
+    console.error("\nShutting down...");
+    await server.stop();
+    process.exit(0);
+  });
+}
+
+// Run
+main().catch((error) => {
+  console.error("Failed to start server:", error);
+  process.exit(1);
 });
