@@ -142,6 +142,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	const [filteredCommands, setFilteredCommands] = useState<SlashCommand[]>([]);
 	const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
 
+	// @mention autocomplete state
+	const [showMentions, setShowMentions] = useState(false);
+	const [filteredTodos, setFilteredTodos] = useState<Todo[]>([]);
+	const [selectedTodoIndex, setSelectedTodoIndex] = useState(0);
+
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const abortControllerRef = useRef<AbortController | null>(null);
@@ -199,16 +204,32 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	// Generate unique message ID
 	const generateId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
+	// Parse @mentions from text and return referenced todos
+	const parseReferencedTodos = useCallback((text: string): Todo[] => {
+		const mentionPattern = /@([^@\s]+)/g;
+		const matches = Array.from(text.matchAll(mentionPattern));
+		const referencedTodos: Todo[] = [];
+
+		for (const match of matches) {
+			const mentionedTitle = match[1];
+			const todo = todos.find(t => t.title === mentionedTitle);
+			if (todo && !referencedTodos.find(rt => rt.id === todo.id)) {
+				referencedTodos.push(todo);
+			}
+		}
+
+		return referencedTodos;
+	}, [todos]);
+
 	// Generate todos summary for context
-	const generateTodosSummary = useCallback(() => {
+	const generateTodosSummary = useCallback((message?: string) => {
 		if (todos.length === 0) {
 			return 'No todos found.';
 		}
 
 		const pending = todos.filter(t => !t.completed);
 		const completed = todos.filter(t => t.completed);
-		const highPriority = todos.filter(t => t.priority === 'high' || t.priority === 3);
-		const mediumPriority = todos.filter(t => t.priority === 'medium' || t.priority === 2);
+		const highPriority = todos.filter(t => t.priority === 'high');
 
 		const summary = [
 			`Total todos: ${todos.length}`,
@@ -219,17 +240,34 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 			summary.push(`High priority: ${highPriority.length}`);
 		}
 
-		if (pending.length > 0 && pending.length <= 5) {
+		// If message contains @mentions, include details of referenced todos
+		if (message) {
+			const referencedTodos = parseReferencedTodos(message);
+			if (referencedTodos.length > 0) {
+				summary.push('\nReferenced todos:');
+				referencedTodos.forEach(todo => {
+					const priorityText = todo.priority === 'high' ? ' (HIGH)' :
+										todo.priority === 'medium' ? ' (MED)' : ' (LOW)';
+					const statusText = todo.completed ? ' [COMPLETED]' : ' [PENDING]';
+					summary.push(`- ${todo.title}${priorityText}${statusText}`);
+					if (todo.description) {
+						summary.push(`  Description: ${todo.description}`);
+					}
+				});
+			}
+		}
+
+		if (pending.length > 0 && pending.length <= 5 && (!message || !parseReferencedTodos(message).length)) {
 			summary.push('\nPending todos:');
 			pending.forEach(todo => {
-				const priorityText = todo.priority === 'high' || todo.priority === 3 ? ' (HIGH)' :
-									todo.priority === 'medium' || todo.priority === 2 ? ' (MED)' : ' (LOW)';
+				const priorityText = todo.priority === 'high' ? ' (HIGH)' :
+									todo.priority === 'medium' ? ' (MED)' : ' (LOW)';
 				summary.push(`- ${todo.title}${priorityText}`);
 			});
 		}
 
 		return summary.join('\n');
-	}, [todos]);
+	}, [todos, parseReferencedTodos]);
 
 	// Toggle reasoning display
 	const toggleReasoning = () => {
@@ -258,13 +296,48 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 		return { isSlashCommand: false, partialCommand: '', filtered: [], position: -1 };
 	}, []);
 
-	// Update slash command autocomplete when input changes
+	// @mention detection and filtering
+	const detectMention = useCallback((input: string) => {
+		const cursorPosition = inputRef.current?.selectionStart ?? input.length;
+		const textBeforeCursor = input.slice(0, cursorPosition);
+		const lines = textBeforeCursor.split('\n');
+		const currentLine = lines[lines.length - 1];
+
+		// Check if current line has @ followed by word characters or spaces (partial todo title)
+		const mentionMatch = currentLine.match(/(?:^|\s)@([^@\s]*)$/);
+		if (mentionMatch) {
+			const partialTitle = mentionMatch[1];
+			const filtered = todos.filter(todo =>
+				todo.title.toLowerCase().includes(partialTitle.toLowerCase())
+			);
+			return { isMention: true, partialTitle, filtered, position: cursorPosition - mentionMatch[0].length + mentionMatch[0].indexOf('@') };
+		}
+
+		return { isMention: false, partialTitle: '', filtered: [], position: -1 };
+	}, [todos]);
+
+	// Update autocomplete when input changes
 	useEffect(() => {
-		const { isSlashCommand, filtered } = detectSlashCommand(inputValue);
-		setShowSlashCommands(isSlashCommand && filtered.length > 0);
-		setFilteredCommands(filtered);
+		const { isSlashCommand, filtered: commandsFiltered } = detectSlashCommand(inputValue);
+		const { isMention, filtered: todosFiltered } = detectMention(inputValue);
+
+		// Show slash commands if detected and available
+		setShowSlashCommands(isSlashCommand && commandsFiltered.length > 0);
+		setFilteredCommands(commandsFiltered);
 		setSelectedCommandIndex(0);
-	}, [inputValue, detectSlashCommand]);
+
+		// Show @mentions if detected and available
+		setShowMentions(isMention && todosFiltered.length > 0);
+		setFilteredTodos(todosFiltered);
+		setSelectedTodoIndex(0);
+
+		// Hide the other dropdown when one is active
+		if (isSlashCommand) {
+			setShowMentions(false);
+		} else if (isMention) {
+			setShowSlashCommands(false);
+		}
+	}, [inputValue, detectSlashCommand, detectMention]);
 
 	// Handle slash command selection
 	const selectSlashCommand = useCallback((command: SlashCommand) => {
@@ -287,6 +360,29 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 			}
 		}, 0);
 	}, [inputValue, detectSlashCommand]);
+
+	// Handle @mention selection
+	const selectMention = useCallback((todo: Todo) => {
+		const { position } = detectMention(inputValue);
+		if (position === -1) return;
+
+		const beforeMention = inputValue.slice(0, position);
+		const afterCursor = inputValue.slice(inputRef.current?.selectionStart ?? inputValue.length);
+		const mentionText = `@${todo.title}`;
+		const newValue = beforeMention + mentionText + afterCursor;
+
+		setInputValue(newValue);
+		setShowMentions(false);
+
+		// Focus input and position cursor after the inserted text
+		setTimeout(() => {
+			if (inputRef.current) {
+				const newCursorPosition = beforeMention.length + mentionText.length;
+				inputRef.current.focus();
+				inputRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+			}
+		}, 0);
+	}, [inputValue, detectMention]);
 
 	// Send message with streaming (with fallback to legacy)
 	const sendMessage = async () => {
@@ -330,7 +426,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 				body: JSON.stringify({
 					message,
 					context: {
-						todos: generateTodosSummary()
+						todos: generateTodosSummary(message)
 					}
 				}),
 				signal: abortController.signal,
@@ -530,7 +626,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 				body: JSON.stringify({
 					message,
 					context: {
-						todos: generateTodosSummary()
+						todos: generateTodosSummary(message)
 					}
 				}),
 				signal: abortController.signal,
@@ -618,6 +714,32 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 				case 'Escape':
 					e.preventDefault();
 					setShowSlashCommands(false);
+					return;
+			}
+		}
+
+		// Handle @mention navigation
+		if (showMentions && filteredTodos.length > 0) {
+			switch (e.key) {
+				case 'ArrowDown':
+					e.preventDefault();
+					setSelectedTodoIndex(prev =>
+						prev < filteredTodos.length - 1 ? prev + 1 : 0
+					);
+					return;
+				case 'ArrowUp':
+					e.preventDefault();
+					setSelectedTodoIndex(prev =>
+						prev > 0 ? prev - 1 : filteredTodos.length - 1
+					);
+					return;
+				case 'Enter':
+					e.preventDefault();
+					selectMention(filteredTodos[selectedTodoIndex]);
+					return;
+				case 'Escape':
+					e.preventDefault();
+					setShowMentions(false);
 					return;
 			}
 		}
@@ -856,11 +978,35 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 						</div>
 					)}
 
+					{/* @mention Autocomplete Dropdown */}
+					{showMentions && filteredTodos.length > 0 && (
+						<div className="mentions-dropdown">
+							{filteredTodos.map((todo, index) => (
+								<div
+									key={todo.id}
+									className={`mention-item ${
+										index === selectedTodoIndex ? 'selected' : ''
+									}`}
+									onClick={() => selectMention(todo)}
+									onMouseEnter={() => setSelectedTodoIndex(index)}
+								>
+									<div className="mention-todo-title">@{todo.title}</div>
+									<div className="mention-todo-meta">
+										{todo.completed ? 'Completed' : 'Pending'} •
+										{todo.priority === 'high' ? ' High' :
+										todo.priority === 'medium' ? ' Medium' : ' Low'} priority
+										{todo.description && ` • ${todo.description.slice(0, 50)}${todo.description.length > 50 ? '...' : ''}`}
+									</div>
+								</div>
+							))}
+						</div>
+					)}
+
 					<div className="chat-input-row">
 						<textarea
 							ref={inputRef}
 							className="chat-input"
-							placeholder="Ask AI to help... (Type / for commands, Shift+Enter for newlines)"
+							placeholder="Ask AI to help... (Type / for commands, @ for todos, Shift+Enter for newlines)"
 							value={inputValue}
 							onChange={handleInputChange}
 							onKeyDown={handleKeyPress}
