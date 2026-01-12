@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './ChatSidebar.css';
+import { MarkdownMessage } from './MarkdownMessage';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -62,7 +63,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 		'connecting'
 	);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
-	const inputRef = useRef<HTMLInputElement>(null);
+	const inputRef = useRef<HTMLTextAreaElement>(null);
 
 	// Scroll to bottom when new messages arrive
 	useEffect(() => {
@@ -75,6 +76,28 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 			inputRef.current?.focus();
 		}
 	}, [isOpen]);
+
+	// Auto-resize textarea
+	const adjustTextareaHeight = useCallback(() => {
+		const textarea = inputRef.current;
+		if (!textarea) return;
+
+		// Reset height to recalculate
+		textarea.style.height = 'auto';
+
+		// Calculate new height with max constraint
+		const scrollHeight = textarea.scrollHeight;
+		const maxHeight = 120; // ~5 lines at 24px line-height
+		const newHeight = Math.min(scrollHeight, maxHeight);
+
+		textarea.style.height = `${newHeight}px`;
+		textarea.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
+	}, []);
+
+	// Auto-resize when input value changes
+	useEffect(() => {
+		adjustTextareaHeight();
+	}, [inputValue, adjustTextareaHeight]);
 
 	// Check chat server health
 	const checkHealth = useCallback(async () => {
@@ -169,6 +192,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 		}
 	};
 
+	// Handle input change with auto-resize
+	const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+		setInputValue(e.target.value);
+		adjustTextareaHeight();
+	};
+
 	// Get status display text
 	const getStatusText = () => {
 		switch (connectionStatus) {
@@ -195,7 +224,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 				<div className="chat-messages">
 					{messages.map((msg) => (
 						<div key={msg.id} className={`chat-message ${msg.role}`}>
-							<div className="chat-message-content">{msg.content}</div>
+							<MarkdownMessage content={msg.content} className="chat-message-content" />
 
 							{/* Tool Executions */}
 							{msg.toolExecutions && msg.toolExecutions.length > 0 && (
@@ -237,15 +266,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 				{/* Input */}
 				<div className="chat-input-container">
 					<div className="chat-input-row">
-						<input
+						<textarea
 							ref={inputRef}
-							type="text"
 							className="chat-input"
-							placeholder="Ask AI to help with todos..."
+							placeholder="Ask AI to help with todos... (Shift+Enter for newlines)"
 							value={inputValue}
-							onChange={(e) => setInputValue(e.target.value)}
+							onChange={handleInputChange}
 							onKeyPress={handleKeyPress}
 							disabled={isLoading || connectionStatus === 'error'}
+							rows={1}
+							aria-label="Chat message input. Use Shift+Enter for new lines, Enter to send."
 						/>
 						<button
 							className="chat-send-btn"

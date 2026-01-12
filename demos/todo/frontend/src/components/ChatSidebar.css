@@ -211,6 +211,7 @@
 .chat-input-row {
   display: flex;
   gap: 0.5rem;
+  align-items: flex-end;
 }
 
 .chat-input {
@@ -221,6 +222,13 @@
   background: var(--primary);
   color: var(--text);
   font-size: 0.9rem;
+  font-family: inherit;
+  line-height: 1.4;
+  resize: none;
+  min-height: 44px;
+  max-height: 120px;
+  overflow-y: hidden;
+  transition: height 0.1s ease-out;
 }
 
 .chat-input:focus {
@@ -242,6 +250,8 @@
   font-weight: 500;
   cursor: pointer;
   transition: opacity 0.2s;
+  min-height: 44px;
+  align-self: flex-end;
 }
 
 .chat-send-btn:hover:not(:disabled) {
