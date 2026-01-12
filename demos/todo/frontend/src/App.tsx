@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { Todo, CommandResult, List } from "./types";
 import { useConvexTodos } from "./hooks/useConvexTodos";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { callTool } from "./api"; // Still needed for retry functionality
 import { TodoItem } from "./components/TodoItem";
 import { TodoForm } from "./components/TodoForm";
@@ -32,6 +33,9 @@ interface LastOperation {
 }
 
 const App: React.FC = () => {
+  // Authentication
+  const { signOut } = useAuthActions();
+
   // Use Convex for reactive todos data
   const { todos, stats, isLoading } = useConvexTodos();
   const [error] = useState<string | null>(null);
@@ -352,6 +356,18 @@ const App: React.FC = () => {
               title={chatSidebarOpen ? "Hide AI Copilot" : "Show AI Copilot"}
             >
               <span style={{ fontSize: "14px" }}>🤖</span>
+            </button>
+            <button
+              type="button"
+              className="logout-btn"
+              onClick={() => void signOut()}
+              title="Sign out"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16,17 21,12 16,7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
             </button>
             <div className="connection-status">
               <span className={`status-dot ${connected ? "connected" : ""}`}></span>
