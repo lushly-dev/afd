@@ -23,7 +23,7 @@ export const TodoStats: React.FC<TodoStatsProps> = ({ stats }) => {
         <span className="stat-label">Completed</span>
       </div>
       <div className="stat-item">
-        <span className="stat-value">{Math.round(stats.completionRate * 100)}%</span>
+        <span className="stat-value">{stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%</span>
         <span className="stat-label">Done</span>
       </div>
     </div>
