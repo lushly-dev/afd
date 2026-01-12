@@ -1,12 +1,15 @@
 import { useEffect } from 'react';
 import type { KeyboardShortcut } from '../hooks/useKeyboard';
 import { formatShortcut } from '../hooks/useKeyboard';
+import type { Theme } from '../hooks/useTheme';
 import './KeyboardHelp.css';
 
 interface KeyboardHelpProps {
 	isOpen: boolean;
 	onClose: () => void;
 	shortcuts: KeyboardShortcut[];
+	theme: Theme;
+	onToggleTheme: () => void;
 }
 
 function categorizeShortcuts(shortcuts: KeyboardShortcut[]) {
@@ -32,7 +35,7 @@ function categorizeShortcuts(shortcuts: KeyboardShortcut[]) {
 	return categories;
 }
 
-export const KeyboardHelp: React.FC<KeyboardHelpProps> = ({ isOpen, onClose, shortcuts }) => {
+export const KeyboardHelp: React.FC<KeyboardHelpProps> = ({ isOpen, onClose, shortcuts, theme, onToggleTheme }) => {
 	useEffect(() => {
 		if (!isOpen) return;
 		const handleKeyDown = (e: KeyboardEvent) => {
@@ -53,12 +56,32 @@ export const KeyboardHelp: React.FC<KeyboardHelpProps> = ({ isOpen, onClose, sho
 		<div className="keyboard-help-overlay" onClick={onClose}>
 			<div className="keyboard-help-modal" onClick={(e) => e.stopPropagation()}>
 				<div className="keyboard-help-header">
-					<h2>Keyboard Shortcuts</h2>
+					<h2>Settings</h2>
 					<button type="button" className="keyboard-help-close" onClick={onClose}>×</button>
+				</div>
+				
+				{/* Theme Toggle Section */}
+				<div className="keyboard-help-section">
+					<h3>Appearance</h3>
+					<div className="settings-row">
+						<span>Theme</span>
+						<button 
+							type="button" 
+							className="theme-toggle-btn"
+							onClick={onToggleTheme}
+						>
+							{theme === 'dark' ? '🌙 Dark' : '☀️ Light'}
+						</button>
+					</div>
+				</div>
+
+				{/* Keyboard Shortcuts Section */}
+				<div className="keyboard-help-section">
+					<h3>Keyboard Shortcuts</h3>
 				</div>
 				{categories.map((category) => (
 					<div key={category.name} className="keyboard-help-section">
-						<h3>{category.name}</h3>
+						<h4>{category.name}</h4>
 						<div className="keyboard-help-list">
 							{category.shortcuts.map((shortcut) => (
 								<div key={shortcut.key + shortcut.description} className="keyboard-help-item">

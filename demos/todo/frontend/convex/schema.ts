@@ -19,4 +19,30 @@ export default defineSchema({
     .index("by_createdAt", ["createdAt"])
     .index("by_user", ["userId"])
     .index("by_user_completed", ["userId", "completed"]),
+
+  lists: defineTable({
+    name: v.string(),
+    color: v.optional(v.string()),
+    todoIds: v.array(v.id("todos")),
+    userId: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_user", ["userId"]),
+
+  notes: defineTable({
+    title: v.string(),
+    content: v.string(),
+    folderId: v.optional(v.id("noteFolders")),
+    userId: v.id("users"),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_folder", ["folderId"]),
+
+  noteFolders: defineTable({
+    name: v.string(),
+    userId: v.id("users"),
+    createdAt: v.number(),
+  }).index("by_user", ["userId"]),
 });

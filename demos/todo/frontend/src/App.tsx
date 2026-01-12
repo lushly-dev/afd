@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import type { Todo, CommandResult, List, Note, NoteFolder } from "./types";
+import type { Todo, CommandResult, Note, NoteFolder } from "./types";
 import { useConvexTodos } from "./hooks/useConvexTodos";
+import { useConvexLists } from "./hooks/useConvexLists";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { callTool } from "./api"; // Still needed for retry functionality
 import { TodoItem } from "./components/TodoItem";
@@ -47,7 +48,7 @@ const App: React.FC = () => {
   // Sidebar and view state
   const [activeView, setActiveView] = useState<ViewType>("inbox");
   const [activeListId, setActiveListId] = useState<string | null>(null);
-  const [lists, setLists] = useState<List[]>([]);
+  const { lists, create: createList } = useConvexLists();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Notes state
@@ -92,18 +93,7 @@ const App: React.FC = () => {
 
   // Note: Removed remote change detection and connection health checks -
   // Convex handles real-time updates and connection management automatically
-
-  // Fetch lists
-  const fetchLists = useCallback(async () => {
-    try {
-      const res = await callTool<{ lists: List[] }>("list-list", {});
-      if (res.success && res.data) {
-        setLists(res.data.lists);
-      }
-    } catch (err) {
-      console.error("Failed to fetch lists:", err);
-    }
-  }, []);
+  // Lists are now handled by useConvexLists hook
 
   // Fetch notes
   const fetchNotes = useCallback(async () => {
@@ -129,12 +119,11 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Initial load - only fetch lists since todos/stats come from Convex
+  // Initial load - only fetch notes since todos/stats/lists come from Convex
   useEffect(() => {
-    fetchLists();
     fetchNotes();
     fetchNoteFolders();
-  }, [fetchLists, fetchNotes, fetchNoteFolders]);
+  }, [fetchNotes, fetchNoteFolders]);
 
   // Helper to track operation and show trust panel
   const trackOperation = (commandName: string, args: Record<string, unknown>, result: CommandResult<unknown>) => {
@@ -165,23 +154,18 @@ const App: React.FC = () => {
     setSidebarOpen(false);
   };
 
-  // Create list handler
+  // Create list handler (using Convex)
   const handleCreateList = async () => {
     const name = window.prompt("Enter list name:");
     if (!name) return;
 
-    log(`Calling list-create...`);
-    const args = { name };
-    const res = await callTool<List>("list-create", args);
-    trackOperation("list-create", args, res as CommandResult<unknown>);
-    if (res.success) {
-      const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : "";
-      log(`✓ list-create - ${res.reasoning || "List created"}${time}`, "success");
-      fetchLists();
-    } else {
-      log(`✗ list-create: ${res.error?.message}`, "error");
+    log(`Creating list...`);
+    try {
+      await createList({ name });
+      log(`✓ List created: ${name}`, "success");
+    } catch (err) {
+      log(`✗ Failed to create list: ${err}`, "error");
     }
-    showResultToast(res, "list-create");
   };
 
   // View detail handler - opens modal with full todo details
@@ -216,7 +200,7 @@ const App: React.FC = () => {
   };
 
   // Get active list for filtering
-  const activeList = activeListId ? lists.find(l => l.id === activeListId) : null;
+  const activeList = activeListId ? (lists ?? []).find(l => l._id === activeListId) : null;
 
   // Filter todos based on current view and filter
   const filteredTodos = todos.filter(todo => {
@@ -357,6 +341,8 @@ const App: React.FC = () => {
         isOpen={showKeyboardHelp}
         onClose={() => setShowKeyboardHelp(false)}
         shortcuts={shortcuts}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
       <DevModeDrawer
         isOpen={devDrawerOpen}
@@ -380,13 +366,11 @@ const App: React.FC = () => {
       <Sidebar
         activeView={activeView}
         activeListId={activeListId}
-        lists={lists}
+        lists={lists ?? []}
         onViewChange={handleViewChange}
         onCreateList={handleCreateList}
         todayCount={todayCount}
         inboxCount={inboxCount}
-        theme={theme}
-        onThemeToggle={toggleTheme}
       />
 
       <header className="app-header">
@@ -404,7 +388,6 @@ const App: React.FC = () => {
             </button>
             <div className="header-title">
               <h1>{getViewTitle()}</h1>
-              <span className="badge">AFD</span>
             </div>
           </div>
           <div className="header-right">
@@ -412,11 +395,11 @@ const App: React.FC = () => {
               type="button"
               className="keyboard-help-btn"
               onClick={() => setShowKeyboardHelp(true)}
-              title="Keyboard shortcuts (?)"
+              title="Settings"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="2" y="4" width="20" height="16" rx="2" ry="2" />
-                <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 16h8" />
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
               </svg>
             </button>
             <button
@@ -578,11 +561,7 @@ const App: React.FC = () => {
 
       <footer className="app-footer">
         <p>
-          Built with{" "}
-          <a href="https://github.com/Falkicon/afd" target="_blank" rel="noopener noreferrer">
-            Agent-First Development
-          </a>
-          . Same commands work via CLI, MCP, and this UI. Press <kbd>?</kbd> for keyboard shortcuts.
+          Press <kbd>?</kbd> for keyboard shortcuts.
         </p>
       </footer>
 

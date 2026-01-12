@@ -9,6 +9,10 @@
  */
 
 import type * as auth from "../auth.js";
+import type * as http from "../http.js";
+import type * as lists from "../lists.js";
+import type * as noteFolders from "../noteFolders.js";
+import type * as notes from "../notes.js";
 import type * as todos from "../todos.js";
 
 import type {
@@ -19,6 +23,10 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
+  http: typeof http;
+  lists: typeof lists;
+  noteFolders: typeof noteFolders;
+  notes: typeof notes;
   todos: typeof todos;
 }>;
 
