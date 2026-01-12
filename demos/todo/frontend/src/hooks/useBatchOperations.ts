@@ -2,27 +2,18 @@
  * @fileoverview Batch operations hook for todo selection and bulk actions
  *
  * Extracts batch operations from App.tsx to reduce god component size.
+ * Now uses Convex for reactive data operations.
  */
 
 import { useState, useCallback } from "react";
-import type { Todo, CommandResult } from "../types";
-import { callTool } from "../api";
+import type { Todo } from "../types";
+import { useConvexTodos } from "./useConvexTodos";
 
 interface UseBatchOperationsProps {
   /** Filtered todos to operate on */
   filteredTodos: Todo[];
   /** Callback to log operations */
   log: (message: string, status?: "success" | "error") => void;
-  /** Callback to track the last operation for recovery */
-  trackOperation: (
-    commandName: string,
-    args: Record<string, unknown>,
-    result: CommandResult<unknown>
-  ) => void;
-  /** Callback to show result toast */
-  showResultToast: (result: CommandResult<unknown>, commandName: string) => void;
-  /** Callback to refresh data after mutation */
-  fetchData: () => Promise<void>;
   /** Confirm dialog hook */
   confirm: (title: string, message: string, warning: string) => Promise<boolean>;
 }
@@ -39,12 +30,10 @@ interface BatchOperations {
 export function useBatchOperations({
   filteredTodos,
   log,
-  trackOperation,
-  showResultToast,
-  fetchData,
   confirm,
 }: UseBatchOperationsProps): BatchOperations {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const { batchToggle, batchDelete } = useConvexTodos();
 
   const toggleSelection = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -73,20 +62,21 @@ export function useBatchOperations({
   const handleToggleSelected = useCallback(async () => {
     if (selectedIds.size === 0) return;
 
-    log(`Calling todo-toggleBatch (${selectedIds.size} todos)...`);
-    const ids = Array.from(selectedIds);
-    const args = { ids };
-    const res = await callTool<{ results: unknown[] }>("todo-toggleBatch", args);
-    trackOperation("todo-toggleBatch", args, res as CommandResult<unknown>);
-    if (res.success) {
-      const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : "";
-      log(`✓ todo-toggleBatch - ${res.reasoning || `Toggled ${ids.length} todos`}${time}`, "success");
-      fetchData();
-    } else {
-      log(`✗ todo-toggleBatch: ${res.error?.message}`, "error");
+    try {
+      log(`Toggling ${selectedIds.size} selected todos...`);
+      const ids = Array.from(selectedIds);
+
+      // Determine what to set completed to based on majority state
+      const selectedTodos = filteredTodos.filter(t => selectedIds.has(t.id));
+      const completedCount = selectedTodos.filter(t => t.completed).length;
+      const shouldComplete = completedCount < selectedTodos.length / 2;
+
+      await batchToggle(ids, shouldComplete);
+      log(`✓ Toggled ${ids.length} todos successfully`, "success");
+    } catch (error) {
+      log(`✗ Failed to toggle selected todos: ${error}`, "error");
     }
-    showResultToast(res, "todo-toggleBatch");
-  }, [selectedIds, log, trackOperation, showResultToast, fetchData]);
+  }, [selectedIds, filteredTodos, batchToggle, log]);
 
   const handleDeleteSelected = useCallback(async () => {
     if (selectedIds.size === 0) return;
@@ -99,21 +89,17 @@ export function useBatchOperations({
 
     if (!confirmed) return;
 
-    log(`Calling todo-deleteBatch (${selectedIds.size} todos)...`);
-    const ids = Array.from(selectedIds);
-    const args = { ids };
-    const res = await callTool<{ results: unknown[] }>("todo-deleteBatch", args);
-    trackOperation("todo-deleteBatch", args, res as CommandResult<unknown>);
-    if (res.success) {
-      const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : "";
-      log(`✓ todo-deleteBatch - ${res.reasoning || `Deleted ${ids.length} todos`}${time}`, "success");
+    try {
+      log(`Deleting ${selectedIds.size} selected todos...`);
+      const ids = Array.from(selectedIds);
+
+      await batchDelete(ids);
       setSelectedIds(new Set());
-      fetchData();
-    } else {
-      log(`✗ todo-deleteBatch: ${res.error?.message}`, "error");
+      log(`✓ Deleted ${ids.length} todos successfully`, "success");
+    } catch (error) {
+      log(`✗ Failed to delete selected todos: ${error}`, "error");
     }
-    showResultToast(res, "todo-deleteBatch");
-  }, [selectedIds, log, trackOperation, showResultToast, fetchData, confirm]);
+  }, [selectedIds, batchDelete, log, confirm]);
 
   return {
     selectedIds,
