@@ -180,7 +180,8 @@
 }
 
 .chat-message.assistant {
-  background: var(--primary);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
   color: var(--text);
   align-self: flex-start;
   border-bottom-left-radius: 4px;
@@ -675,7 +676,7 @@ textarea.chat-input {
   left: 1rem;
   right: 1rem;
   margin-bottom: 0.5rem;
-  background: var(--primary);
+  background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
@@ -731,7 +732,7 @@ textarea.chat-input {
   left: 1rem;
   right: 1rem;
   margin-bottom: 0.5rem;
-  background: var(--primary);
+  background: var(--card-bg);
   border: 1px solid rgba(168, 85, 247, 0.3);
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
