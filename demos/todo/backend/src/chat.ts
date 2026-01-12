@@ -346,6 +346,48 @@ function getCommandProperties(name: string): Record<string, Schema> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// REASONING GENERATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Generate reasoning about what happened during the chat processing
+ */
+function generateReasoning(userMessage: string, toolExecutions: ToolExecution[], totalLatency: number): string {
+	const reasoning: string[] = [];
+
+	reasoning.push(`**User Request Analysis:**`);
+	reasoning.push(`The user asked: "${userMessage}"`);
+	reasoning.push('');
+
+	if (toolExecutions.length === 0) {
+		reasoning.push('**Processing:**');
+		reasoning.push('This request didn\'t require any tool executions. I processed it directly using my language model capabilities.');
+	} else {
+		reasoning.push('**Tool Execution Strategy:**');
+		reasoning.push(`I identified that this request required ${toolExecutions.length} tool execution${toolExecutions.length === 1 ? '' : 's'}:`);
+		reasoning.push('');
+
+		for (const exec of toolExecutions) {
+			reasoning.push(`• **${exec.name}** (${exec.latencyMs.toFixed(3)}ms)`);
+			reasoning.push(`  - Purpose: Execute todo operation`);
+			reasoning.push(`  - Result: ${exec.result && typeof exec.result === 'object' && 'success' in exec.result ?
+				(exec.result as any).success ? 'Success' : 'Error' : 'Completed'}`);
+		}
+		reasoning.push('');
+
+		reasoning.push('**Performance:**');
+		reasoning.push(`- Total tool execution time: ${toolExecutions.reduce((acc, exec) => acc + exec.latencyMs, 0).toFixed(3)}ms`);
+		reasoning.push(`- DirectClient efficiency: Each tool call averaged ${(toolExecutions.reduce((acc, exec) => acc + exec.latencyMs, 0) / toolExecutions.length).toFixed(3)}ms`);
+	}
+
+	reasoning.push('');
+	reasoning.push('**Response Generation:**');
+	reasoning.push(`I synthesized the results into a helpful response for the user, completing the entire request in ${totalLatency.toFixed(0)}ms.`);
+
+	return reasoning.join('\n');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN CHAT FUNCTION
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -512,6 +554,7 @@ export interface StreamingCallbacks {
 		totalToolLatencyMs: number;
 		modelLatencyMs: number;
 		requestId: string;
+		reasoning?: string;
 	}) => void;
 }
 
@@ -660,12 +703,16 @@ Be concise in your responses. After performing actions, briefly summarize what w
 		metrics.successCount++;
 		recordLatency(totalLatency);
 
+		// Generate reasoning about what happened
+		const reasoning = generateReasoning(userMessage, toolExecutions, totalLatency);
+
 		// Send final metadata
 		callbacks.onDone({
 			toolExecutions,
 			totalToolLatencyMs,
 			modelLatencyMs,
 			requestId,
+			reasoning,
 		});
 	} catch (error) {
 		// Handle categorized errors

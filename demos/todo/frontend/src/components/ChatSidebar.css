@@ -141,6 +141,104 @@
   border-bottom-color: rgba(255, 255, 255, 0.3);
 }
 
+/* Reasoning Toggle Button */
+.reasoning-toggle-btn {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  opacity: 0.6;
+}
+
+.reasoning-toggle-btn:hover {
+  opacity: 0.8;
+  background: rgba(var(--accent-rgb, 59, 130, 246), 0.1);
+}
+
+.reasoning-toggle-btn.active {
+  opacity: 1;
+  background: rgba(var(--accent-rgb, 59, 130, 246), 0.1);
+}
+
+/* Reasoning Section */
+.reasoning-section {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  background: rgba(var(--accent-rgb, 59, 130, 246), 0.05);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.reasoning-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.reasoning-header:hover {
+  background: rgba(var(--accent-rgb, 59, 130, 246), 0.1);
+}
+
+.reasoning-icon {
+  font-size: 1rem;
+}
+
+.reasoning-label {
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex: 1;
+}
+
+.reasoning-toggle {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.reasoning-toggle:hover {
+  background: rgba(var(--accent-rgb, 59, 130, 246), 0.2);
+  color: var(--accent);
+}
+
+.reasoning-content {
+  padding: 0.75rem;
+  border-top: 1px solid rgba(var(--accent-rgb, 59, 130, 246), 0.1);
+  animation: reasoningExpand 0.3s ease-out;
+}
+
+.reasoning-text {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+@keyframes reasoningExpand {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Tool Executions */
 .chat-tool-executions,
 .chat-live-tool-executions {

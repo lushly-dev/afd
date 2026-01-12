@@ -88,6 +88,7 @@ interface ChatMessage {
 	id: string;
 	role: 'user' | 'assistant' | 'system';
 	content: string;
+	reasoning?: string;
 	toolExecutions?: ToolExecution[];
 	liveToolExecutions?: LiveToolExecution[];
 	totalToolLatencyMs?: number;
@@ -126,6 +127,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>(
 		'connecting'
 	);
+
+	// Reasoning toggle state with localStorage persistence
+	const [showReasoning, setShowReasoning] = useState<boolean>(() => {
+		const stored = localStorage.getItem('chat-show-reasoning');
+		return stored ? JSON.parse(stored) : false;
+	});
 
 	// Slash command autocomplete state
 	const [showSlashCommands, setShowSlashCommands] = useState(false);
@@ -188,6 +195,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
 	// Generate unique message ID
 	const generateId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+	// Toggle reasoning display
+	const toggleReasoning = () => {
+		const newValue = !showReasoning;
+		setShowReasoning(newValue);
+		localStorage.setItem('chat-show-reasoning', JSON.stringify(newValue));
+	};
 
 	// Slash command detection and filtering
 	const detectSlashCommand = useCallback((input: string) => {
@@ -413,6 +427,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 												...msg,
 												content: currentContent,
 												toolExecutions,
+												reasoning: streamingMetadata.reasoning,
 												totalToolLatencyMs: streamingMetadata.totalToolLatencyMs,
 												modelLatencyMs: streamingMetadata.modelLatencyMs
 											}
@@ -598,6 +613,28 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 		return `${(elapsed / 1000).toFixed(1)}s`;
 	};
 
+	// Component for rendering reasoning with collapsible functionality
+	const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
+		const [collapsed, setCollapsed] = useState(true);
+
+		return (
+			<div className="reasoning-section">
+				<div className="reasoning-header" onClick={() => setCollapsed(!collapsed)}>
+					<span className="reasoning-icon">🧠</span>
+					<span className="reasoning-label">AI Reasoning</span>
+					<button className="reasoning-toggle" aria-label={collapsed ? 'Expand reasoning' : 'Collapse reasoning'}>
+						{collapsed ? '▶' : '▼'}
+					</button>
+				</div>
+				{!collapsed && (
+					<div className="reasoning-content">
+						<MarkdownMessage content={reasoning} className="reasoning-text" />
+					</div>
+				)}
+			</div>
+		);
+	};
+
 	// Component for rendering live tool execution
 	const LiveToolExecutionComponent: React.FC<{ tool: LiveToolExecution }> = ({ tool }) => {
 		const [collapsed, setCollapsed] = useState(true);
@@ -674,6 +711,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 				<header className="chat-sidebar-header">
 					<span className="chat-sidebar-header-icon">🤖</span>
 					<h2>AI Copilot</h2>
+					<button
+						className={`reasoning-toggle-btn ${showReasoning ? 'active' : ''}`}
+						onClick={toggleReasoning}
+						title={showReasoning ? 'Hide reasoning' : 'Show reasoning'}
+					>
+						🧠
+					</button>
 					<span className={`chat-sidebar-status ${connectionStatus}`}>{getStatusText()}</span>
 				</header>
 
@@ -682,6 +726,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 					{messages.map((msg) => (
 						<div key={msg.id} className={`chat-message ${msg.role}`}>
 							<MarkdownMessage content={msg.content} className="chat-message-content" />
+
+							{/* Reasoning Section - only show for assistant messages */}
+							{msg.role === 'assistant' && msg.reasoning && showReasoning && (
+								<ReasoningSection reasoning={msg.reasoning} />
+							)}
 
 							{/* Live Tool Executions */}
 							{msg.liveToolExecutions && msg.liveToolExecutions.length > 0 && (
