@@ -5,7 +5,7 @@ export const Login: React.FC = () => {
   const { signIn } = useAuthActions();
 
   const handleGitHubSignIn = () => {
-    void signIn("github");
+    void signIn("github", { redirectTo: window.location.origin });
   };
 
   return (

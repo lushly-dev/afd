@@ -1,35 +1,41 @@
-/* Dark theme (default) */
+/* Dark theme (default) - Myoso Design System */
 :root {
-  --bg: #1a1a2e;
-  --surface: #16213e;
-  --primary: #0f3460;
-  --accent: #e94560;
-  --text: #eaeaea;
-  --text-muted: #8b8b8b;
+  --bg: #1c1c1e;
+  --surface: #2c2c2e;
+  --primary: #DA8753;
+  --accent: #4679B0;
+  --text: #F0F1EF;
+  --text-muted: #9ca3af;
   --success: #4ade80;
-  --warning: #fbbf24;
+  --warning: #E4C240;
   --error: #f87171;
-  --border: #2a2a4a;
-  --card-bg: #16213e;
+  --border: #3a3a3c;
+  --card-bg: #2c2c2e;
   --danger: #f87171;
+  --light-grey: #F0F1EF;
+  --mid-grey: #DDDEDB;
+  --input-bg: #38383a;
   --header-height: 69px;
   --footer-height: 57px;
 }
 
-/* Light theme */
+/* Light theme - Myoso Design System */
 [data-theme="light"] {
-  --bg: #f5f5f7;
+  --bg: #F0F1EF;
   --surface: #ffffff;
-  --primary: #e8eef4;
-  --accent: #e94560;
-  --text: #1a1a2e;
+  --primary: #DA8753;
+  --accent: #4679B0;
+  --text: #1a1b26;
   --text-muted: #6b7280;
   --success: #22c55e;
-  --warning: #f59e0b;
+  --warning: #E4C240;
   --error: #ef4444;
-  --border: #e5e7eb;
+  --border: #DDDEDB;
   --card-bg: #ffffff;
   --danger: #ef4444;
+  --light-grey: #F0F1EF;
+  --mid-grey: #DDDEDB;
+  --input-bg: #e8e9e7;
 }
 
 * {
@@ -252,7 +258,7 @@ body {
 
 header {
   text-align: center;
-  margin-bottom: 2rem;
+  margin-bottom: 0;
 }
 
 h1 {
@@ -665,7 +671,7 @@ h1 {
 /* Footer */
 footer {
   text-align: center;
-  margin-top: 2rem;
+  margin-top: 0;
   padding-top: 1rem;
   border-top: 1px solid var(--border);
   color: var(--text-muted);
