@@ -500,6 +500,194 @@ Be concise in your responses. After performing actions, briefly summarize what w
 }
 
 /**
+ * Streaming callbacks interface
+ */
+export interface StreamingCallbacks {
+	onToken: (text: string) => void;
+	onToolStart: (name: string) => void;
+	onToolEnd: (name: string, result: unknown, latencyMs: number) => void;
+	onError: (message: string) => void;
+	onDone: (metadata: {
+		toolExecutions: ToolExecution[];
+		totalToolLatencyMs: number;
+		modelLatencyMs: number;
+		requestId: string;
+	}) => void;
+}
+
+/**
+ * Process a chat message with streaming updates
+ */
+export async function processChatStreaming(
+	userMessage: string,
+	callbacks: StreamingCallbacks
+): Promise<void> {
+	const requestId = `req-${Date.now()}-${++requestCounter}`;
+	const startTime = performance.now();
+
+	metrics.requestCount++;
+
+	if (!genAI) {
+		metrics.errorCount++;
+		metrics.errorsByType['config'] = (metrics.errorsByType['config'] || 0) + 1;
+		callbacks.onError('Gemini API key not configured. Set GOOGLE_API_KEY in .env');
+		return;
+	}
+
+	const toolExecutions: ToolExecution[] = [];
+	let totalToolLatencyMs = 0;
+
+	try {
+		const modelStart = performance.now();
+
+		// Create model call with retry wrapper
+		let response = await withRetry(
+			() =>
+				genAI.models.generateContent({
+					model: 'gemini-3-flash-preview',
+					contents: [{ role: 'user', parts: [{ text: userMessage }] }],
+					config: {
+						tools: [{ functionDeclarations: getToolDeclarations() }],
+						systemInstruction: `You are a helpful todo assistant. You can manage todos using the available tools.
+When the user asks you to do something with todos, use the appropriate tool.
+Available actions: create todos, list todos, toggle completion, update todos, get stats, search todos, clear completed.
+Be concise in your responses. After performing actions, briefly summarize what was done.`,
+					},
+				}),
+			{ maxRetries: MAX_RETRIES, baseDelayMs: BASE_RETRY_DELAY_MS, requestId }
+		);
+
+		let modelLatencyMs = performance.now() - modelStart;
+
+		// Process function calls in a loop
+		const messages: Content[] = [{ role: 'user', parts: [{ text: userMessage }] }];
+
+		while (response.candidates?.[0]?.content?.parts) {
+			const parts = response.candidates[0].content.parts;
+			const functionCalls = parts.filter(
+				(p: unknown) => (p as Record<string, unknown>).functionCall
+			);
+
+			if (functionCalls.length === 0) {
+				// No more function calls, stream the final response token by token
+				const textParts = parts.filter(
+					(p: unknown) => (p as Record<string, unknown>).text
+				);
+
+				if (textParts.length > 0) {
+					const fullText =
+						textParts.map((p: unknown) => (p as { text: string }).text).join('') ||
+						'Task completed successfully.';
+
+					// Stream tokens - simulate word-by-word streaming
+					const words = fullText.split(' ');
+					for (let i = 0; i < words.length; i++) {
+						const token = i === 0 ? words[i] : ' ' + words[i];
+						callbacks.onToken(token);
+						// Small delay to simulate streaming (remove in production if too slow)
+						await new Promise(resolve => setTimeout(resolve, 10));
+					}
+				}
+				break;
+			}
+
+			// Execute each function call via DirectClient
+			const functionResponses: Part[] = [];
+
+			for (const part of functionCalls) {
+				const fc = (part as { functionCall: { name: string; args: Record<string, unknown> } })
+					.functionCall;
+
+				// Convert underscore back to hyphen for command name
+				const commandName = fc.name.replace(/_/g, '-');
+
+				// Notify tool start
+				callbacks.onToolStart(commandName);
+
+				// Execute via DirectClient (the fast path!)
+				const start = performance.now();
+				const result = await directClient.call(commandName, fc.args || {});
+				const latencyMs = performance.now() - start;
+
+				totalToolLatencyMs += latencyMs;
+				metrics.toolCallCount++;
+
+				const toolExecution = {
+					name: commandName,
+					args: fc.args || {},
+					result: result.success ? result.data : result.error,
+					latencyMs,
+				};
+
+				toolExecutions.push(toolExecution);
+
+				// Notify tool completion
+				callbacks.onToolEnd(commandName, toolExecution.result, latencyMs);
+
+				functionResponses.push({
+					functionResponse: {
+						name: fc.name,
+						response: (result.success ? result.data : { error: result.error }) as Record<
+							string,
+							unknown
+						>,
+					},
+				});
+			}
+
+			// Add assistant's function calls and our responses to message history
+			messages.push({ role: 'model', parts: parts as Part[] });
+			messages.push({ role: 'user', parts: functionResponses });
+
+			// Get next response from model with retry
+			const nextStart = performance.now();
+			response = await withRetry(
+				() =>
+					genAI.models.generateContent({
+						model: 'gemini-3-flash-preview',
+						contents: messages,
+						config: {
+							tools: [{ functionDeclarations: getToolDeclarations() }],
+						},
+					}),
+				{ maxRetries: MAX_RETRIES, baseDelayMs: BASE_RETRY_DELAY_MS, requestId }
+			);
+			modelLatencyMs += performance.now() - nextStart;
+		}
+
+		// Record success metrics
+		const totalLatency = performance.now() - startTime;
+		metrics.successCount++;
+		recordLatency(totalLatency);
+
+		// Send final metadata
+		callbacks.onDone({
+			toolExecutions,
+			totalToolLatencyMs,
+			modelLatencyMs,
+			requestId,
+		});
+	} catch (error) {
+		// Handle categorized errors
+		if ((error as CategorizedError).category) {
+			const catError = error as CategorizedError;
+			metrics.errorCount++;
+			metrics.errorsByType[catError.category] = (metrics.errorsByType[catError.category] || 0) + 1;
+
+			console.error(`❌ [${requestId}] ${catError.category}: ${catError.message}`);
+			callbacks.onError(catError.userMessage);
+			return;
+		}
+
+		// Handle uncategorized errors
+		metrics.errorCount++;
+		metrics.errorsByType['unknown'] = (metrics.errorsByType['unknown'] || 0) + 1;
+		const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+		callbacks.onError(errorMessage);
+	}
+}
+
+/**
  * Check if Gemini is configured
  */
 export function isConfigured(): boolean {

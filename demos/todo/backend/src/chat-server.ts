@@ -14,8 +14,8 @@
  */
 
 import 'dotenv/config';
-import http from 'node:http';
-import { processChat, isConfigured, getMetrics } from './chat.js';
+import * as http from 'node:http';
+import { processChat, processChatStreaming, isConfigured, getMetrics } from './chat.js';
 import { DirectClient } from '@lushly-dev/afd-client';
 import { registry } from './registry.js';
 
@@ -300,6 +300,82 @@ const server = http.createServer(async (req, res) => {
 		return;
 	}
 
+	// Chat streaming endpoint
+	if (req.method === 'POST' && req.url === '/chat/stream') {
+		// Rate limit check (stricter for chat)
+		const rateCheck = checkRateLimit(`${clientIP}:chat`, RATE_LIMIT_CHAT);
+		if (!rateCheck.allowed) {
+			res.writeHead(429, {
+				'Content-Type': 'application/json',
+				'Retry-After': String(rateCheck.retryAfter),
+			});
+			res.end(JSON.stringify({ error: 'Rate limit exceeded', retryAfter: rateCheck.retryAfter }));
+			return;
+		}
+
+		try {
+			const parsed = (await parseBody(req)) as { message?: unknown };
+			const message = sanitizeMessage(parsed.message);
+
+			if (!message) {
+				res.writeHead(400, { 'Content-Type': 'application/json' });
+				res.end(JSON.stringify({ error: 'Message required' }));
+				return;
+			}
+
+			console.log(
+				`\n📨 Chat Stream [${clientIP}]: "${message.slice(0, 50)}${message.length > 50 ? '...' : ''}"`
+			);
+
+			// Setup SSE headers
+			res.writeHead(200, {
+				'Content-Type': 'text/event-stream',
+				'Cache-Control': 'no-cache',
+				'Connection': 'keep-alive',
+				'Access-Control-Allow-Origin': req.headers.origin || '*',
+			});
+
+			const start = performance.now();
+
+			// Process chat with streaming callback
+			try {
+				await processChatStreaming(message, {
+					onToken: (text: string) => {
+						res.write(`event: token\ndata: ${JSON.stringify({ text })}\n\n`);
+					},
+					onToolStart: (name: string) => {
+						res.write(`event: tool_start\ndata: ${JSON.stringify({ name })}\n\n`);
+					},
+					onToolEnd: (name: string, result: unknown, latencyMs: number) => {
+						res.write(`event: tool_end\ndata: ${JSON.stringify({ name, result, latencyMs })}\n\n`);
+					},
+					onError: (message: string) => {
+						res.write(`event: error\ndata: ${JSON.stringify({ message })}\n\n`);
+						res.end();
+					},
+					onDone: (metadata: unknown) => {
+						const totalMs = performance.now() - start;
+						console.log(`✅ Stream Response in ${totalMs.toFixed(0)}ms`);
+						res.write(`event: done\ndata: ${JSON.stringify(metadata)}\n\n`);
+						res.end();
+					},
+				});
+			} catch (error) {
+				console.error('❌ Chat stream error:', error);
+				const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+				res.write(`event: error\ndata: ${JSON.stringify({ message: errorMessage })}\n\n`);
+				res.end();
+			}
+		} catch (error) {
+			console.error('❌ Chat stream setup error:', error);
+			const message = error instanceof Error ? error.message : 'Unknown error';
+			const status = message.includes('too large') || message.includes('Invalid JSON') ? 400 : 500;
+			res.writeHead(status, { 'Content-Type': 'application/json' });
+			res.end(JSON.stringify({ error: message }));
+		}
+		return;
+	}
+
 	// Chat endpoint
 	if (req.method === 'POST' && req.url === '/chat') {
 		// Rate limit check (stricter for chat)
@@ -376,10 +452,11 @@ server.listen(PORT, () => {
 	console.log(`   • Rate limit (execute): ${RATE_LIMIT_EXECUTE}/min`);
 	console.log(`   • Max body size: ${MAX_BODY_SIZE} bytes`);
 	console.log(`\n   Endpoints:`);
-	console.log(`   POST /chat    - Send messages to Gemini + DirectClient`);
-	console.log(`   POST /execute - Execute commands directly`);
-	console.log(`   GET  /health  - Basic liveness check`);
-	console.log(`   GET  /ready   - Comprehensive readiness check`);
-	console.log(`   GET  /metrics - Request counts, latencies, error rates`);
+	console.log(`   POST /chat        - Send messages to Gemini + DirectClient`);
+	console.log(`   POST /chat/stream - Send messages with SSE streaming`);
+	console.log(`   POST /execute     - Execute commands directly`);
+	console.log(`   GET  /health      - Basic liveness check`);
+	console.log(`   GET  /ready       - Comprehensive readiness check`);
+	console.log(`   GET  /metrics     - Request counts, latencies, error rates`);
 	console.log(`\n   Press Ctrl+C to stop.\n`);
 });
