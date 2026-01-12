@@ -134,7 +134,8 @@ const App: React.FC = () => {
   // Check connection health
   const checkConnection = useCallback(async () => {
     try {
-      const response = await fetch("http://localhost:3100/health");
+      const apiUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3100";
+      const response = await fetch(`${apiUrl}/health`);
       const data = await response.json();
       setConnected(data.status === "ok");
       return data.status === "ok";

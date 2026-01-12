@@ -1,6 +1,7 @@
 import type { CommandResult } from "./types";
 
-const SERVER_URL = "http://localhost:3100";
+/** API server URL - configurable via VITE_API_URL env var */
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3100";
 let messageId = 0;
 
 export async function callTool<T>(
@@ -10,7 +11,7 @@ export async function callTool<T>(
   const id = ++messageId;
 
   try {
-    const response = await fetch(`${SERVER_URL}/message`, {
+    const response = await fetch(`${API_URL}/message`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

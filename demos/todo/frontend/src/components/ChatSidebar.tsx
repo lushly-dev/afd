@@ -45,7 +45,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	isOpen,
 	onToggle,
 	onTodosChanged,
-	chatServerUrl = 'http://localhost:3101',
+	chatServerUrl = import.meta.env.VITE_CHAT_URL ?? 'http://localhost:3101',
 }) => {
 	const [messages, setMessages] = useState<ChatMessage[]>([
 		{
