@@ -119,7 +119,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	// Generate unique message ID
 	const generateId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
-	// Send message to chat server
+	// Send message with streaming (with fallback to legacy)
 	const sendMessage = async () => {
 		const trimmedInput = inputValue.trim();
 		if (!trimmedInput || isLoading) return;
@@ -139,11 +139,197 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 		const abortController = new AbortController();
 		abortControllerRef.current = abortController;
 
+		// Try streaming first
+		const success = await tryStreamingChat(trimmedInput, abortController);
+
+		// If streaming failed, fall back to legacy endpoint
+		if (!success) {
+			console.log('📡 Falling back to legacy /chat endpoint');
+			await tryLegacyChat(trimmedInput, abortController);
+		}
+
+		setIsLoading(false);
+		abortControllerRef.current = null;
+	};
+
+	// Try streaming chat with SSE
+	const tryStreamingChat = async (message: string, abortController: AbortController): Promise<boolean> => {
+		try {
+			const response = await fetch(`${chatServerUrl}/chat/stream`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ message }),
+				signal: abortController.signal,
+			});
+
+			if (!response.ok) {
+				return false; // Fall back to legacy
+			}
+
+			const reader = response.body?.getReader();
+			if (!reader) {
+				return false;
+			}
+
+			// Initialize assistant message for streaming
+			const assistantMessageId = generateId();
+			let currentContent = '';
+			const toolExecutions: ToolExecution[] = [];
+			let streamingMetadata: any = {};
+			const toolsInProgress = new Map<string, number>(); // Track which tools are running
+
+			// Add initial empty assistant message
+			setMessages((prev) => [...prev, {
+				id: assistantMessageId,
+				role: 'assistant',
+				content: '',
+				toolExecutions: [],
+				timestamp: new Date(),
+			}]);
+
+			const decoder = new TextDecoder();
+			let currentEvent = '';
+
+			try {
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+
+					const chunk = decoder.decode(value);
+					const lines = chunk.split('\n');
+
+					for (const line of lines) {
+						if (line.startsWith('event: ')) {
+							currentEvent = line.slice(7).trim();
+							continue;
+						}
+
+						if (line.startsWith('data: ')) {
+							const dataStr = line.slice(6);
+							if (!dataStr.trim()) continue;
+
+							try {
+								const eventData = JSON.parse(dataStr);
+
+								if (currentEvent === 'token') {
+									// Append token to current content
+									currentContent += eventData.text;
+									setMessages((prev) => prev.map(msg =>
+										msg.id === assistantMessageId
+											? { ...msg, content: currentContent }
+											: msg
+									));
+								} else if (currentEvent === 'tool_start') {
+									// Mark tool as starting
+									const startTime = Date.now();
+									toolsInProgress.set(eventData.name, startTime);
+
+									// Update UI to show tool is running
+									setMessages((prev) => prev.map(msg =>
+										msg.id === assistantMessageId
+											? {
+												...msg,
+												content: currentContent + `\n\n🔧 Running ${eventData.name}...`
+											}
+											: msg
+									));
+								} else if (currentEvent === 'tool_end') {
+									// Tool completed
+									toolsInProgress.delete(eventData.name);
+
+									// Add to tool executions
+									const toolExecution: ToolExecution = {
+										name: eventData.name,
+										args: {}, // We don't get args back in the stream
+										result: eventData.result,
+										latencyMs: eventData.latencyMs,
+									};
+									toolExecutions.push(toolExecution);
+
+									// Remove the "Running..." text and update tool executions
+									const cleanContent = currentContent.replace(new RegExp(`\\n\\n🔧 Running ${eventData.name}...`, 'g'), '');
+									currentContent = cleanContent;
+
+									setMessages((prev) => prev.map(msg =>
+										msg.id === assistantMessageId
+											? {
+												...msg,
+												content: currentContent,
+												toolExecutions: [...toolExecutions]
+											}
+											: msg
+									));
+								} else if (currentEvent === 'done') {
+									// Stream completed successfully
+									streamingMetadata = eventData;
+
+									// Final update with all metadata
+									setMessages((prev) => prev.map(msg =>
+										msg.id === assistantMessageId
+											? {
+												...msg,
+												content: currentContent,
+												toolExecutions,
+												totalToolLatencyMs: streamingMetadata.totalToolLatencyMs,
+												modelLatencyMs: streamingMetadata.modelLatencyMs
+											}
+											: msg
+									));
+
+									// If tools were executed, notify parent to refresh todos
+									if (toolExecutions.length > 0 && onTodosChanged) {
+										onTodosChanged();
+									}
+								} else if (currentEvent === 'error') {
+									// Stream error
+									const errorMessage: ChatMessage = {
+										id: generateId(),
+										role: 'system',
+										content: `Error: ${eventData.message}`,
+										timestamp: new Date(),
+									};
+									setMessages((prev) => [...prev, errorMessage]);
+									return false;
+								}
+
+								// Reset current event after processing
+								currentEvent = '';
+							} catch (parseErr) {
+								console.warn('Failed to parse SSE data:', dataStr, parseErr);
+							}
+						}
+					}
+				}
+
+				return true; // Success
+			} finally {
+				reader.releaseLock();
+			}
+		} catch (err) {
+			// Handle abort error differently
+			if (err instanceof Error && err.name === 'AbortError') {
+				const cancelledMessage: ChatMessage = {
+					id: generateId(),
+					role: 'system',
+					content: 'Request cancelled by user',
+					timestamp: new Date(),
+				};
+				setMessages((prev) => [...prev, cancelledMessage]);
+				return true; // Don't fallback if user cancelled
+			}
+
+			console.warn('Streaming failed:', err);
+			return false; // Fall back to legacy
+		}
+	};
+
+	// Legacy chat endpoint as fallback
+	const tryLegacyChat = async (message: string, abortController: AbortController): Promise<void> => {
 		try {
 			const response = await fetch(`${chatServerUrl}/chat`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ message: trimmedInput }),
+				body: JSON.stringify({ message }),
 				signal: abortController.signal,
 			});
 
@@ -195,9 +381,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 				};
 				setMessages((prev) => [...prev, errorMessage]);
 			}
-		} finally {
-			setIsLoading(false);
-			abortControllerRef.current = null;
 		}
 	};
 
