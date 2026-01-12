@@ -112,6 +112,35 @@
   border-radius: 8px;
 }
 
+/* Markdown integration styles */
+.chat-message .markdown-message {
+  margin: 0;
+}
+
+/* Override markdown colors for better contrast in chat messages */
+.chat-message.user .markdown-message a {
+  color: rgba(255, 255, 255, 0.9);
+  border-bottom-color: rgba(255, 255, 255, 0.5);
+}
+
+.chat-message.user .markdown-message a:hover {
+  border-bottom-color: rgba(255, 255, 255, 0.9);
+}
+
+.chat-message.user .markdown-message .inline-code {
+  background: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.chat-message.user .markdown-message h1,
+.chat-message.user .markdown-message h2,
+.chat-message.user .markdown-message h3,
+.chat-message.user .markdown-message h4,
+.chat-message.user .markdown-message h5,
+.chat-message.user .markdown-message h6 {
+  border-bottom-color: rgba(255, 255, 255, 0.3);
+}
+
 /* Tool Executions */
 .chat-tool-executions {
   margin-top: 0.75rem;
