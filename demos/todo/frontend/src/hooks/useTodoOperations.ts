@@ -3,19 +3,21 @@
  *
  * Extracts todo operations from App.tsx to reduce god component size.
  * Provides all handlers for creating, reading, updating, and deleting todos.
- * Now uses Convex for reactive data operations.
+ * Now uses LocalStore for instant local updates, synced to Convex in background.
  */
 
 import { useCallback } from "react";
 import type { Todo } from "../types";
-import { useConvexTodos } from "./useConvexTodos";
+import type { LocalStore } from "./useLocalStore";
 
 interface UseTodoOperationsProps {
+  /** LocalStore instance for local-first operations */
+  localStore: LocalStore;
   /** Callback to log operations */
   log: (message: string, status?: "success" | "error") => void;
   /** Confirm dialog hook */
   confirm: (title: string, message: string, warning: string) => Promise<boolean>;
-  /** Current todos list */
+  /** Current todos list (from local store) */
   todos: Todo[];
 }
 
@@ -24,57 +26,50 @@ interface TodoOperations {
     title: string,
     priority?: string,
     description?: string
-  ) => Promise<void>;
-  handleToggleTodo: (id: string) => Promise<void>;
+  ) => void;
+  handleToggleTodo: (id: string) => void;
   handleDeleteTodo: (id: string) => Promise<void>;
-  handleEditTodo: (id: string) => Promise<void>;
+  handleEditTodo: (id: string) => void;
   handleSaveDetail: (
     id: string,
     updates: { title?: string; description?: string; priority?: Todo["priority"] }
-  ) => Promise<void>;
+  ) => void;
   handleClearCompleted: (completedCount: number) => Promise<void>;
 }
 
 export function useTodoOperations({
+  localStore,
   log,
   confirm,
   todos,
 }: UseTodoOperationsProps): TodoOperations {
-  const { create, update, toggle, remove, clearCompleted } = useConvexTodos();
-  const handleAddTodo = useCallback(
-    async (title: string, priority: string = "medium", description?: string) => {
-      try {
-        log(`Creating todo...`);
-        let priorityValue: "low" | "medium" | "high" = "medium";
-        const lowercasePriority = priority.toLowerCase();
-        if (lowercasePriority === "low") priorityValue = "low";
-        else if (lowercasePriority === "high") priorityValue = "high";
-        else if (lowercasePriority === "none") priorityValue = "low";
-        else priorityValue = "medium";
 
-        await create(title, {
-          description,
-          priority: priorityValue
-        });
-        log(`✓ Todo created successfully`, "success");
-      } catch (error) {
-        log(`✗ Failed to create todo: ${error}`, "error");
-      }
+  const handleAddTodo = useCallback(
+    (title: string, priority: string = "medium", description?: string) => {
+      log(`Creating todo...`);
+      let priorityValue: "low" | "medium" | "high" = "medium";
+      const lowercasePriority = priority.toLowerCase();
+      if (lowercasePriority === "low") priorityValue = "low";
+      else if (lowercasePriority === "high") priorityValue = "high";
+      else if (lowercasePriority === "none") priorityValue = "low";
+      else priorityValue = "medium";
+
+      localStore.createTodo(title, {
+        description,
+        priority: priorityValue
+      });
+      log(`✓ Todo created successfully`, "success");
     },
-    [create, log]
+    [localStore, log]
   );
 
   const handleToggleTodo = useCallback(
-    async (id: string) => {
-      try {
-        log(`Toggling todo...`);
-        await toggle(id);
-        log(`✓ Todo toggled successfully`, "success");
-      } catch (error) {
-        log(`✗ Failed to toggle todo: ${error}`, "error");
-      }
+    (id: string) => {
+      log(`Toggling todo...`);
+      localStore.toggleTodo(id);
+      log(`✓ Todo toggled successfully`, "success");
     },
-    [toggle, log]
+    [localStore, log]
   );
 
   const handleDeleteTodo = useCallback(
@@ -88,58 +83,38 @@ export function useTodoOperations({
 
       if (!confirmed) return;
 
-      try {
-        log(`Deleting todo...`);
-        await remove(id);
-        log(`✓ Todo deleted successfully`, "success");
-      } catch (error) {
-        log(`✗ Failed to delete todo: ${error}`, "error");
-      }
+      log(`Deleting todo...`);
+      localStore.deleteTodo(id);
+      log(`✓ Todo deleted successfully`, "success");
     },
-    [todos, remove, log, confirm]
+    [todos, localStore, log, confirm]
   );
 
   const handleEditTodo = useCallback(
-    async (id: string) => {
+    (id: string) => {
       const todo = todos.find((t) => t.id === id);
       if (!todo) return;
 
       const newTitle = window.prompt("Edit todo title:", todo.title);
       if (!newTitle || newTitle === todo.title) return;
 
-      try {
-        log(`Updating todo...`);
-        await update(id, { title: newTitle });
-        log(`✓ Todo updated successfully`, "success");
-      } catch (error) {
-        log(`✗ Failed to update todo: ${error}`, "error");
-      }
+      log(`Updating todo...`);
+      localStore.updateTodo(id, { title: newTitle });
+      log(`✓ Todo updated successfully`, "success");
     },
-    [todos, update, log]
+    [todos, localStore, log]
   );
 
   const handleSaveDetail = useCallback(
-    async (
+    (
       id: string,
       updates: { title?: string; description?: string; priority?: Todo["priority"] }
     ) => {
-      try {
-        log(`Updating todo details...`);
-        // Pass updates directly to Convex (priorities are already strings)
-        const convexUpdates: { title?: string; description?: string; priority?: "low" | "medium" | "high" } = {};
-        if (updates.title !== undefined) convexUpdates.title = updates.title;
-        if (updates.description !== undefined) convexUpdates.description = updates.description;
-        if (updates.priority !== undefined) {
-          convexUpdates.priority = updates.priority as "low" | "medium" | "high";
-        }
-
-        await update(id, convexUpdates);
-        log(`✓ Todo details updated successfully`, "success");
-      } catch (error) {
-        log(`✗ Failed to update todo details: ${error}`, "error");
-      }
+      log(`Updating todo details...`);
+      localStore.updateTodo(id, updates);
+      log(`✓ Todo details updated successfully`, "success");
     },
-    [update, log]
+    [localStore, log]
   );
 
   const handleClearCompleted = useCallback(
@@ -152,15 +127,11 @@ export function useTodoOperations({
 
       if (!confirmed) return;
 
-      try {
-        log(`Clearing completed todos...`);
-        await clearCompleted();
-        log(`✓ Completed todos cleared successfully`, "success");
-      } catch (error) {
-        log(`✗ Failed to clear completed todos: ${error}`, "error");
-      }
+      log(`Clearing completed todos...`);
+      localStore.clearCompleted();
+      log(`✓ Completed todos cleared successfully`, "success");
     },
-    [clearCompleted, log, confirm]
+    [localStore, log, confirm]
   );
 
   return {

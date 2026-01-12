@@ -2,14 +2,16 @@
  * @fileoverview Batch operations hook for todo selection and bulk actions
  *
  * Extracts batch operations from App.tsx to reduce god component size.
- * Now uses Convex for reactive data operations.
+ * Now uses LocalStore for instant local updates, synced to Convex in background.
  */
 
 import { useState, useCallback } from "react";
 import type { Todo } from "../types";
-import { useConvexTodos } from "./useConvexTodos";
+import type { LocalStore } from "./useLocalStore";
 
 interface UseBatchOperationsProps {
+  /** LocalStore instance for local-first operations */
+  localStore: LocalStore;
   /** Filtered todos to operate on */
   filteredTodos: Todo[];
   /** Callback to log operations */
@@ -23,17 +25,17 @@ interface BatchOperations {
   toggleSelection: (id: string) => void;
   toggleSelectAll: () => void;
   clearSelection: () => void;
-  handleToggleSelected: () => Promise<void>;
+  handleToggleSelected: () => void;
   handleDeleteSelected: () => Promise<void>;
 }
 
 export function useBatchOperations({
+  localStore,
   filteredTodos,
   log,
   confirm,
 }: UseBatchOperationsProps): BatchOperations {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const { batchToggle, batchDelete } = useConvexTodos();
 
   const toggleSelection = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -59,24 +61,20 @@ export function useBatchOperations({
     setSelectedIds(new Set());
   }, []);
 
-  const handleToggleSelected = useCallback(async () => {
+  const handleToggleSelected = useCallback(() => {
     if (selectedIds.size === 0) return;
 
-    try {
-      log(`Toggling ${selectedIds.size} selected todos...`);
-      const ids = Array.from(selectedIds);
+    log(`Toggling ${selectedIds.size} selected todos...`);
+    const ids = Array.from(selectedIds);
 
-      // Determine what to set completed to based on majority state
-      const selectedTodos = filteredTodos.filter(t => selectedIds.has(t.id));
-      const completedCount = selectedTodos.filter(t => t.completed).length;
-      const shouldComplete = completedCount < selectedTodos.length / 2;
+    // Determine what to set completed to based on majority state
+    const selectedTodos = filteredTodos.filter(t => selectedIds.has(t.id));
+    const completedCount = selectedTodos.filter(t => t.completed).length;
+    const shouldComplete = completedCount < selectedTodos.length / 2;
 
-      await batchToggle(ids, shouldComplete);
-      log(`✓ Toggled ${ids.length} todos successfully`, "success");
-    } catch (error) {
-      log(`✗ Failed to toggle selected todos: ${error}`, "error");
-    }
-  }, [selectedIds, filteredTodos, batchToggle, log]);
+    localStore.batchToggle(ids, shouldComplete);
+    log(`✓ Toggled ${ids.length} todos successfully`, "success");
+  }, [selectedIds, filteredTodos, localStore, log]);
 
   const handleDeleteSelected = useCallback(async () => {
     if (selectedIds.size === 0) return;
@@ -89,17 +87,13 @@ export function useBatchOperations({
 
     if (!confirmed) return;
 
-    try {
-      log(`Deleting ${selectedIds.size} selected todos...`);
-      const ids = Array.from(selectedIds);
+    log(`Deleting ${selectedIds.size} selected todos...`);
+    const ids = Array.from(selectedIds);
 
-      await batchDelete(ids);
-      setSelectedIds(new Set());
-      log(`✓ Deleted ${ids.length} todos successfully`, "success");
-    } catch (error) {
-      log(`✗ Failed to delete selected todos: ${error}`, "error");
-    }
-  }, [selectedIds, batchDelete, log, confirm]);
+    localStore.batchDelete(ids);
+    setSelectedIds(new Set());
+    log(`✓ Deleted ${ids.length} todos successfully`, "success");
+  }, [selectedIds, localStore, log, confirm]);
 
   return {
     selectedIds,

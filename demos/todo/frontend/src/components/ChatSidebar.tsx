@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import MarkdownMessage from './MarkdownMessage';
-import type { Todo } from '../types';
+import type { Todo, Priority } from '../types';
+import type { LocalStore } from '../hooks/useLocalStore';
 import './ChatSidebar.css';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -106,6 +107,7 @@ interface ChatSidebarProps {
 	onTodosChanged?: () => void;
 	chatServerUrl?: string;
 	todos?: Todo[];
+	localStore?: LocalStore;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -155,6 +157,67 @@ const clearChatHistory = () => {
 	}
 };
 
+/**
+ * Execute a todo action locally via the LocalStore
+ * This is called when a chat tool completes successfully
+ */
+const executeLocalAction = (
+	localStore: LocalStore | undefined,
+	toolName: string,
+	args: Record<string, unknown>,
+	result: unknown
+): void => {
+	if (!localStore) return;
+
+	try {
+		switch (toolName) {
+			case 'todo-create':
+				if (result && typeof result === 'object' && 'id' in result) {
+					// The chat server already created the todo in Convex
+					// We just need to add it to local store for instant UI update
+					const todoResult = result as { id: string; title?: string };
+					const title = (args.title as string) || todoResult.title || 'New Todo';
+					localStore.createTodo(title, {
+						description: args.description as string | undefined,
+						priority: (args.priority as 'low' | 'medium' | 'high') || 'medium',
+					});
+				}
+				break;
+
+			case 'todo-toggle':
+			case 'todo-complete':
+			case 'todo-uncomplete':
+				if (args.id) {
+					localStore.toggleTodo(args.id as string);
+				}
+				break;
+
+			case 'todo-update':
+				if (args.id) {
+					const { id, ...updates } = args;
+					localStore.updateTodo(id as string, updates as Partial<Pick<Todo, 'title' | 'description' | 'priority'>>);
+				}
+				break;
+
+			case 'todo-delete':
+				if (args.id) {
+					localStore.deleteTodo(args.id as string);
+				}
+				break;
+
+			case 'todo-clear':
+				localStore.clearCompleted();
+				break;
+
+			default:
+				// Not a todo action, ignore
+				break;
+		}
+	} catch (error) {
+		console.error('[executeLocalAction] Failed to execute local action:', toolName, error);
+	}
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -165,6 +228,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	onTodosChanged,
 	chatServerUrl = import.meta.env.VITE_CHAT_URL ?? 'http://localhost:3101',
 	todos = [],
+	localStore,
 }) => {
 	const [messages, setMessages] = useState<ChatMessage[]>(() => loadChatHistory());
 	const [isHistoryRestored, setIsHistoryRestored] = useState<boolean>(() => {
@@ -516,6 +580,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 			const toolExecutions: ToolExecution[] = [];
 			let streamingMetadata: any = {};
 			const toolsInProgress = new Map<string, number>(); // Track which tools are running
+			const toolArgs = new Map<string, Record<string, unknown>>(); // Track tool args for local execution
 			let toolCounter = 0; // Unique counter for tool IDs
 
 			// Add initial empty assistant message
@@ -565,6 +630,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 									toolCounter++; // Increment counter for unique ID
 									const toolId = `${eventData.name}-${startTime}-${toolCounter}`;
 									toolsInProgress.set(eventData.name, startTime);
+									toolArgs.set(eventData.name, eventData.args || {}); // Store args for local execution
 
 									// Create live tool execution
 									const liveTool: LiveToolExecution = {
@@ -587,8 +653,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 								} else if (currentEvent === 'tool_end') {
 									// Tool completed
 									const startTime = toolsInProgress.get(eventData.name);
+									const args = toolArgs.get(eventData.name) || {};
 									toolsInProgress.delete(eventData.name);
+									toolArgs.delete(eventData.name);
 									const endTime = Date.now();
+
+									// Execute local action for successful todo operations
+									if (!eventData.error) {
+										executeLocalAction(localStore, eventData.name, args, eventData.result);
+									}
 
 									// Add to tool executions
 									const toolExecution: ToolExecution = {

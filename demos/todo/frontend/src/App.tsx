@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { Todo, CommandResult, Note, NoteFolder } from "./types";
-import { useConvexTodos } from "./hooks/useConvexTodos";
+import { useLocalStore, computeStats } from "./hooks/useLocalStore";
+import { useConvexSync } from "./hooks/useConvexSync";
 import { useConvexLists } from "./hooks/useConvexLists";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { callTool } from "./api"; // Still needed for retry functionality
@@ -38,11 +39,17 @@ const App: React.FC = () => {
   // Authentication
   const { signOut } = useAuthActions();
 
-  // Use Convex for reactive todos data
-  const { todos, stats, isLoading } = useConvexTodos();
+  // Local-first store (source of truth)
+  const localStore = useLocalStore();
+  const todos = localStore.todos;
+  const stats = computeStats(todos);
+
+  // Convex sync (background sync to Convex)
+  const { isHydrated, pendingOperations } = useConvexSync(localStore);
+
   const [error] = useState<string | null>(null);
-  // Connected is true when we have data from Convex
-  const connected = todos !== undefined;
+  // Connected is true when we have data (either from local store or hydrated from Convex)
+  const connected = todos.length > 0 || isHydrated;
   const [filter, setFilter] = useState<FilterType>("all");
 
   // Sidebar and view state
@@ -119,7 +126,7 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Initial load - only fetch notes since todos/stats/lists come from Convex
+  // Initial load - only fetch notes since todos come from local store
   useEffect(() => {
     fetchNotes();
     fetchNoteFolders();
@@ -188,7 +195,6 @@ const App: React.FC = () => {
     if (res.success) {
       const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : "";
       log(`✓ ${lastOperation.command} - Retry successful${time}`, "success");
-      // Removed fetchData() - Convex automatically updates data
     } else {
       log(`✗ ${lastOperation.command}: Retry failed - ${res.error?.message}`, "error");
     }
@@ -217,7 +223,7 @@ const App: React.FC = () => {
     return true;
   });
 
-  // Todo operations using Convex
+  // Todo operations using LocalStore
   const {
     handleAddTodo,
     handleToggleTodo,
@@ -226,12 +232,13 @@ const App: React.FC = () => {
     handleSaveDetail,
     handleClearCompleted,
   } = useTodoOperations({
+    localStore,
     log,
     confirm,
     todos,
   });
 
-  // Batch operations using Convex
+  // Batch operations using LocalStore
   const {
     selectedIds,
     toggleSelection,
@@ -239,6 +246,7 @@ const App: React.FC = () => {
     handleToggleSelected,
     handleDeleteSelected,
   } = useBatchOperations({
+    localStore,
     filteredTodos,
     log,
     confirm,
@@ -435,7 +443,7 @@ const App: React.FC = () => {
             </button>
             <div className="connection-status">
               <span className={`status-dot ${connected ? "connected" : ""}`}></span>
-              <span>{connected ? "Connected" : "Disconnected"}</span>
+              <span>{connected ? (pendingOperations > 0 ? `Syncing (${pendingOperations})` : "Connected") : "Disconnected"}</span>
             </div>
           </div>
         </header>
@@ -528,11 +536,11 @@ const App: React.FC = () => {
               </div>
             )}
 
-            {isLoading && <div className="isLoading">Loading todos...</div>}
+            {!isHydrated && todos.length === 0 && <div className="isLoading">Loading todos...</div>}
             {error && <div className="error">{error}</div>}
 
             <div className="todo-list">
-              {filteredTodos.length === 0 && !isLoading ? (
+              {filteredTodos.length === 0 && isHydrated ? (
                 <p className="empty-state">No todos yet. Add one above!</p>
               ) : (
                 filteredTodos.map((todo, index) => (
@@ -569,8 +577,9 @@ const App: React.FC = () => {
       <ChatSidebar
         isOpen={chatSidebarOpen}
         onToggle={() => setChatSidebarOpen(!chatSidebarOpen)}
-        onTodosChanged={() => {}} // No longer needed - Convex automatically updates
+        onTodosChanged={() => {}} // No longer needed - local store is source of truth
         todos={todos}
+        localStore={localStore}
       />
     </div>
   );
