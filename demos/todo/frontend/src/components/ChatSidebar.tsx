@@ -7,6 +7,9 @@ import './ChatSidebar.css';
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════════════════════════
 
+const CHAT_HISTORY_KEY = 'chat-history';
+const MAX_HISTORY_MESSAGES = 50;
+
 interface SlashCommand {
 	name: string;
 	description: string;
@@ -106,6 +109,53 @@ interface ChatSidebarProps {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const getWelcomeMessage = (): ChatMessage => ({
+	id: 'welcome',
+	role: 'system',
+	content: 'Ask me to help manage your todos! Try: "Create 3 high-priority tasks" or "Show my stats"',
+	timestamp: new Date(),
+});
+
+const loadChatHistory = (): ChatMessage[] => {
+	try {
+		const stored = localStorage.getItem(CHAT_HISTORY_KEY);
+		if (stored) {
+			const parsed = JSON.parse(stored);
+			// Convert timestamp strings back to Date objects
+			const messages = parsed.map((msg: any) => ({
+				...msg,
+				timestamp: new Date(msg.timestamp)
+			}));
+			return messages;
+		}
+	} catch (error) {
+		console.warn('Failed to load chat history:', error);
+	}
+	return [getWelcomeMessage()];
+};
+
+const saveChatHistory = (messages: ChatMessage[]) => {
+	try {
+		// Keep only the last MAX_HISTORY_MESSAGES
+		const messagesToSave = messages.slice(-MAX_HISTORY_MESSAGES);
+		localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(messagesToSave));
+	} catch (error) {
+		console.warn('Failed to save chat history:', error);
+	}
+};
+
+const clearChatHistory = () => {
+	try {
+		localStorage.removeItem(CHAT_HISTORY_KEY);
+	} catch (error) {
+		console.warn('Failed to clear chat history:', error);
+	}
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -116,15 +166,15 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	chatServerUrl = import.meta.env.VITE_CHAT_URL ?? 'http://localhost:3101',
 	todos = [],
 }) => {
-	const [messages, setMessages] = useState<ChatMessage[]>([
-		{
-			id: 'welcome',
-			role: 'system',
-			content:
-				'Ask me to help manage your todos! Try: "Create 3 high-priority tasks" or "Show my stats"',
-			timestamp: new Date(),
-		},
-	]);
+	const [messages, setMessages] = useState<ChatMessage[]>(() => loadChatHistory());
+	const [isHistoryRestored, setIsHistoryRestored] = useState<boolean>(() => {
+		try {
+			const stored = localStorage.getItem(CHAT_HISTORY_KEY);
+			return stored !== null && JSON.parse(stored).length > 1; // More than just welcome message
+		} catch {
+			return false;
+		}
+	});
 	const [inputValue, setInputValue] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
 	const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>(
@@ -162,6 +212,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 			inputRef.current?.focus();
 		}
 	}, [isOpen]);
+
+	// Save messages to localStorage whenever they change
+	useEffect(() => {
+		saveChatHistory(messages);
+	}, [messages]);
 
 	// Auto-resize textarea based on content
 	const adjustTextareaHeight = useCallback(() => {
@@ -274,6 +329,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 		const newValue = !showReasoning;
 		setShowReasoning(newValue);
 		localStorage.setItem('chat-show-reasoning', JSON.stringify(newValue));
+	};
+
+	// Start a new chat session
+	const startNewChat = () => {
+		clearChatHistory();
+		setMessages([getWelcomeMessage()]);
+		setIsHistoryRestored(false);
+	};
+
+	// Clear all chat history
+	const clearAllHistory = () => {
+		clearChatHistory();
+		setMessages([getWelcomeMessage()]);
+		setIsHistoryRestored(false);
 	};
 
 	// Slash command detection and filtering
@@ -882,6 +951,20 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 						Context: {todos.length} todos
 					</span>
 					<button
+						className="new-chat-btn"
+						onClick={startNewChat}
+						title="Start new chat"
+					>
+						✨
+					</button>
+					<button
+						className="clear-history-btn"
+						onClick={clearAllHistory}
+						title="Clear all history"
+					>
+						🗑️
+					</button>
+					<button
 						className={`reasoning-toggle-btn ${showReasoning ? 'active' : ''}`}
 						onClick={toggleReasoning}
 						title={showReasoning ? 'Hide reasoning' : 'Show reasoning'}
@@ -890,6 +973,13 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 					</button>
 					<span className={`chat-sidebar-status ${connectionStatus}`}>{getStatusText()}</span>
 				</header>
+
+				{/* History Restored Indicator */}
+				{isHistoryRestored && (
+					<div className="history-restored-indicator">
+						📋 Continued from previous session
+					</div>
+				)}
 
 				{/* Messages */}
 				<div className="chat-messages">
