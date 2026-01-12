@@ -235,6 +235,7 @@
   padding: 1rem;
   border-top: 1px solid var(--border);
   background: var(--surface);
+  position: relative;
 }
 
 .chat-input-row {
@@ -305,6 +306,62 @@ textarea.chat-input {
 .chat-stop-btn:hover {
   opacity: 0.9;
   background: #dc2626; /* Slightly darker red on hover */
+}
+
+/* Slash Commands Autocomplete Dropdown */
+.slash-commands-dropdown {
+  position: absolute;
+  bottom: 100%;
+  left: 1rem;
+  right: 1rem;
+  margin-bottom: 0.5rem;
+  background: var(--primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 10;
+}
+
+.slash-command-item {
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background-color 0.15s ease;
+}
+
+.slash-command-item:last-child {
+  border-bottom: none;
+}
+
+.slash-command-item:hover,
+.slash-command-item.selected {
+  background: var(--accent);
+}
+
+.slash-command-item:hover .slash-command-name,
+.slash-command-item.selected .slash-command-name {
+  color: white;
+}
+
+.slash-command-item:hover .slash-command-description,
+.slash-command-item.selected .slash-command-description {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.slash-command-name {
+  font-weight: 600;
+  color: var(--accent);
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+  font-family: 'Monaco', 'Consolas', monospace;
+}
+
+.slash-command-description {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.3;
 }
 
 /* Toggle Button for Mobile */
