@@ -81,6 +81,56 @@
   color: var(--error);
 }
 
+/* New Chat and Clear History Buttons */
+.new-chat-btn,
+.clear-history-btn {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  opacity: 0.6;
+}
+
+.new-chat-btn:hover,
+.clear-history-btn:hover {
+  opacity: 0.8;
+  background: rgba(var(--accent-rgb, 59, 130, 246), 0.1);
+}
+
+.clear-history-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* History Restored Indicator */
+.history-restored-indicator {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  background: rgba(var(--accent-rgb, 59, 130, 246), 0.1);
+  border-left: 3px solid var(--accent);
+  padding: 0.5rem 1rem;
+  margin: 0 1rem;
+  border-radius: 0 4px 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-style: italic;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* Chat Messages Container */
 .chat-messages {
   flex: 1;
