@@ -3,6 +3,54 @@ import MarkdownMessage from './MarkdownMessage';
 import './ChatSidebar.css';
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface SlashCommand {
+	name: string;
+	description: string;
+	prompt: string;
+}
+
+const SLASH_COMMANDS: SlashCommand[] = [
+	{
+		name: '/todo',
+		description: 'Create a new todo item',
+		prompt: 'Create a new todo: ',
+	},
+	{
+		name: '/help',
+		description: 'Get help with available commands',
+		prompt: 'What commands are available and how do I use them?',
+	},
+	{
+		name: '/clear',
+		description: 'Clear the chat history',
+		prompt: 'Clear all messages from this chat',
+	},
+	{
+		name: '/stats',
+		description: 'Show todo statistics and overview',
+		prompt: 'Show me my todo statistics and overview',
+	},
+	{
+		name: '/priority',
+		description: 'Work with high priority todos',
+		prompt: 'Show me my high priority todos and help me prioritize: ',
+	},
+	{
+		name: '/complete',
+		description: 'Mark todos as completed',
+		prompt: 'Help me complete some todos: ',
+	},
+	{
+		name: '/search',
+		description: 'Search through todos',
+		prompt: 'Search my todos for: ',
+	},
+];
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -62,6 +110,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'error'>(
 		'connecting'
 	);
+
+	// Slash command autocomplete state
+	const [showSlashCommands, setShowSlashCommands] = useState(false);
+	const [filteredCommands, setFilteredCommands] = useState<SlashCommand[]>([]);
+	const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
+
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const abortControllerRef = useRef<AbortController | null>(null);
@@ -118,6 +172,56 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
 	// Generate unique message ID
 	const generateId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+	// Slash command detection and filtering
+	const detectSlashCommand = useCallback((input: string) => {
+		const cursorPosition = inputRef.current?.selectionStart ?? input.length;
+		const textBeforeCursor = input.slice(0, cursorPosition);
+		const lines = textBeforeCursor.split('\n');
+		const currentLine = lines[lines.length - 1];
+
+		// Check if current line starts with / and is at the beginning or after whitespace
+		const slashMatch = currentLine.match(/(?:^|\s)\/(\w*)$/);
+		if (slashMatch) {
+			const partialCommand = '/' + slashMatch[1];
+			const filtered = SLASH_COMMANDS.filter(cmd =>
+				cmd.name.toLowerCase().startsWith(partialCommand.toLowerCase())
+			);
+			return { isSlashCommand: true, partialCommand, filtered, position: cursorPosition - slashMatch[0].length + slashMatch[0].indexOf('/') };
+		}
+
+		return { isSlashCommand: false, partialCommand: '', filtered: [], position: -1 };
+	}, []);
+
+	// Update slash command autocomplete when input changes
+	useEffect(() => {
+		const { isSlashCommand, filtered } = detectSlashCommand(inputValue);
+		setShowSlashCommands(isSlashCommand && filtered.length > 0);
+		setFilteredCommands(filtered);
+		setSelectedCommandIndex(0);
+	}, [inputValue, detectSlashCommand]);
+
+	// Handle slash command selection
+	const selectSlashCommand = useCallback((command: SlashCommand) => {
+		const { position } = detectSlashCommand(inputValue);
+		if (position === -1) return;
+
+		const beforeSlash = inputValue.slice(0, position);
+		const afterCursor = inputValue.slice(inputRef.current?.selectionStart ?? inputValue.length);
+		const newValue = beforeSlash + command.prompt + afterCursor;
+
+		setInputValue(newValue);
+		setShowSlashCommands(false);
+
+		// Focus input and position cursor after the inserted text
+		setTimeout(() => {
+			if (inputRef.current) {
+				const newCursorPosition = beforeSlash.length + command.prompt.length;
+				inputRef.current.focus();
+				inputRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+			}
+		}, 0);
+	}, [inputValue, detectSlashCommand]);
 
 	// Send message with streaming (with fallback to legacy)
 	const sendMessage = async () => {
@@ -393,6 +497,33 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
 	// Handle input key press
 	const handleKeyPress = (e: React.KeyboardEvent) => {
+		// Handle slash command navigation
+		if (showSlashCommands && filteredCommands.length > 0) {
+			switch (e.key) {
+				case 'ArrowDown':
+					e.preventDefault();
+					setSelectedCommandIndex(prev =>
+						prev < filteredCommands.length - 1 ? prev + 1 : 0
+					);
+					return;
+				case 'ArrowUp':
+					e.preventDefault();
+					setSelectedCommandIndex(prev =>
+						prev > 0 ? prev - 1 : filteredCommands.length - 1
+					);
+					return;
+				case 'Enter':
+					e.preventDefault();
+					selectSlashCommand(filteredCommands[selectedCommandIndex]);
+					return;
+				case 'Escape':
+					e.preventDefault();
+					setShowSlashCommands(false);
+					return;
+			}
+		}
+
+		// Normal enter handling
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
 			if (!isLoading) {
@@ -474,17 +605,36 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
 				{/* Input */}
 				<div className="chat-input-container">
+					{/* Slash Command Autocomplete Dropdown */}
+					{showSlashCommands && filteredCommands.length > 0 && (
+						<div className="slash-commands-dropdown">
+							{filteredCommands.map((command, index) => (
+								<div
+									key={command.name}
+									className={`slash-command-item ${
+										index === selectedCommandIndex ? 'selected' : ''
+									}`}
+									onClick={() => selectSlashCommand(command)}
+									onMouseEnter={() => setSelectedCommandIndex(index)}
+								>
+									<div className="slash-command-name">{command.name}</div>
+									<div className="slash-command-description">{command.description}</div>
+								</div>
+							))}
+						</div>
+					)}
+
 					<div className="chat-input-row">
 						<textarea
 							ref={inputRef}
 							className="chat-input"
-							placeholder="Ask AI to help... (Shift+Enter for newlines)"
+							placeholder="Ask AI to help... (Type / for commands, Shift+Enter for newlines)"
 							value={inputValue}
 							onChange={handleInputChange}
 							onKeyDown={handleKeyPress}
 							disabled={isLoading || connectionStatus === 'error'}
 							rows={1}
-							aria-label="Chat message input. Shift+Enter for new lines, Enter to send."
+							aria-label="Chat message input. Type / for slash commands, Shift+Enter for new lines, Enter to send."
 						/>
 						{isLoading ? (
 							<button
