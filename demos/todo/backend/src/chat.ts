@@ -396,7 +396,7 @@ let requestCounter = 0;
 /**
  * Process a chat message with Gemini + DirectClient
  */
-export async function processChat(userMessage: string): Promise<ChatResponse> {
+export async function processChat(userMessage: string, todosContext?: string | null): Promise<ChatResponse> {
 	const requestId = `req-${Date.now()}-${++requestCounter}`;
 	const startTime = performance.now();
 
@@ -414,6 +414,22 @@ export async function processChat(userMessage: string): Promise<ChatResponse> {
 	try {
 		const modelStart = performance.now();
 
+		// Create system instruction with context
+		const systemInstruction = todosContext
+			? `You are a helpful todo assistant. You can manage todos using the available tools.
+When the user asks you to do something with todos, use the appropriate tool.
+Available actions: create todos, list todos, toggle completion, update todos, get stats, search todos, clear completed.
+Be concise in your responses. After performing actions, briefly summarize what was done.
+
+CURRENT TODO CONTEXT:
+${todosContext}
+
+Use this context to provide more relevant suggestions and responses.`
+			: `You are a helpful todo assistant. You can manage todos using the available tools.
+When the user asks you to do something with todos, use the appropriate tool.
+Available actions: create todos, list todos, toggle completion, update todos, get stats, search todos, clear completed.
+Be concise in your responses. After performing actions, briefly summarize what was done.`;
+
 		// Create model call with retry wrapper
 		let response = await withRetry(
 			() =>
@@ -422,10 +438,7 @@ export async function processChat(userMessage: string): Promise<ChatResponse> {
 					contents: [{ role: 'user', parts: [{ text: userMessage }] }],
 					config: {
 						tools: [{ functionDeclarations: getToolDeclarations() }],
-						systemInstruction: `You are a helpful todo assistant. You can manage todos using the available tools.
-When the user asks you to do something with todos, use the appropriate tool.
-Available actions: create todos, list todos, toggle completion, update todos, get stats, search todos, clear completed.
-Be concise in your responses. After performing actions, briefly summarize what was done.`,
+						systemInstruction,
 					},
 				}),
 			{ maxRetries: MAX_RETRIES, baseDelayMs: BASE_RETRY_DELAY_MS, requestId }
@@ -563,6 +576,7 @@ export interface StreamingCallbacks {
  */
 export async function processChatStreaming(
 	userMessage: string,
+	todosContext: string | null,
 	callbacks: StreamingCallbacks
 ): Promise<void> {
 	const requestId = `req-${Date.now()}-${++requestCounter}`;
@@ -583,6 +597,22 @@ export async function processChatStreaming(
 	try {
 		const modelStart = performance.now();
 
+		// Create system instruction with context
+		const systemInstruction = todosContext
+			? `You are a helpful todo assistant. You can manage todos using the available tools.
+When the user asks you to do something with todos, use the appropriate tool.
+Available actions: create todos, list todos, toggle completion, update todos, get stats, search todos, clear completed.
+Be concise in your responses. After performing actions, briefly summarize what was done.
+
+CURRENT TODO CONTEXT:
+${todosContext}
+
+Use this context to provide more relevant suggestions and responses.`
+			: `You are a helpful todo assistant. You can manage todos using the available tools.
+When the user asks you to do something with todos, use the appropriate tool.
+Available actions: create todos, list todos, toggle completion, update todos, get stats, search todos, clear completed.
+Be concise in your responses. After performing actions, briefly summarize what was done.`;
+
 		// Create model call with retry wrapper
 		let response = await withRetry(
 			() =>
@@ -591,10 +621,7 @@ export async function processChatStreaming(
 					contents: [{ role: 'user', parts: [{ text: userMessage }] }],
 					config: {
 						tools: [{ functionDeclarations: getToolDeclarations() }],
-						systemInstruction: `You are a helpful todo assistant. You can manage todos using the available tools.
-When the user asks you to do something with todos, use the appropriate tool.
-Available actions: create todos, list todos, toggle completion, update todos, get stats, search todos, clear completed.
-Be concise in your responses. After performing actions, briefly summarize what was done.`,
+						systemInstruction,
 					},
 				}),
 			{ maxRetries: MAX_RETRIES, baseDelayMs: BASE_RETRY_DELAY_MS, requestId }

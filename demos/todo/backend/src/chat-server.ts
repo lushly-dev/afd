@@ -314,8 +314,9 @@ const server = http.createServer(async (req, res) => {
 		}
 
 		try {
-			const parsed = (await parseBody(req)) as { message?: unknown };
+			const parsed = (await parseBody(req)) as { message?: unknown; context?: { todos?: string } };
 			const message = sanitizeMessage(parsed.message);
+			const todosContext = typeof parsed.context?.todos === 'string' ? parsed.context.todos : null;
 
 			if (!message) {
 				res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -339,7 +340,7 @@ const server = http.createServer(async (req, res) => {
 
 			// Process chat with streaming callback
 			try {
-				await processChatStreaming(message, {
+				await processChatStreaming(message, todosContext, {
 					onToken: (text: string) => {
 						res.write(`event: token\ndata: ${JSON.stringify({ text })}\n\n`);
 					},
@@ -390,8 +391,9 @@ const server = http.createServer(async (req, res) => {
 		}
 
 		try {
-			const parsed = (await parseBody(req)) as { message?: unknown };
+			const parsed = (await parseBody(req)) as { message?: unknown; context?: { todos?: string } };
 			const message = sanitizeMessage(parsed.message);
+			const todosContext = typeof parsed.context?.todos === 'string' ? parsed.context.todos : null;
 
 			if (!message) {
 				res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -404,7 +406,7 @@ const server = http.createServer(async (req, res) => {
 			);
 			const start = performance.now();
 
-			const response = await processChat(message);
+			const response = await processChat(message, todosContext);
 
 			const totalMs = performance.now() - start;
 			console.log(`✅ Response in ${totalMs.toFixed(0)}ms`);

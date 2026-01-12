@@ -775,6 +775,7 @@ const App: React.FC = () => {
         isOpen={chatSidebarOpen}
         onToggle={() => setChatSidebarOpen(!chatSidebarOpen)}
         onTodosChanged={() => fetchData()}
+        todos={todos}
       />
     </div>
   );

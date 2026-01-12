@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import MarkdownMessage from './MarkdownMessage';
+import type { Todo } from '../types';
 import './ChatSidebar.css';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -101,6 +102,7 @@ interface ChatSidebarProps {
 	onToggle: () => void;
 	onTodosChanged?: () => void;
 	chatServerUrl?: string;
+	todos?: Todo[];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -112,6 +114,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	onToggle,
 	onTodosChanged,
 	chatServerUrl = import.meta.env.VITE_CHAT_URL ?? 'http://localhost:3101',
+	todos = [],
 }) => {
 	const [messages, setMessages] = useState<ChatMessage[]>([
 		{
@@ -195,6 +198,38 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
 	// Generate unique message ID
 	const generateId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+	// Generate todos summary for context
+	const generateTodosSummary = useCallback(() => {
+		if (todos.length === 0) {
+			return 'No todos found.';
+		}
+
+		const pending = todos.filter(t => !t.completed);
+		const completed = todos.filter(t => t.completed);
+		const highPriority = todos.filter(t => t.priority === 'high' || t.priority === 3);
+		const mediumPriority = todos.filter(t => t.priority === 'medium' || t.priority === 2);
+
+		const summary = [
+			`Total todos: ${todos.length}`,
+			`Pending: ${pending.length}, Completed: ${completed.length}`,
+		];
+
+		if (highPriority.length > 0) {
+			summary.push(`High priority: ${highPriority.length}`);
+		}
+
+		if (pending.length > 0 && pending.length <= 5) {
+			summary.push('\nPending todos:');
+			pending.forEach(todo => {
+				const priorityText = todo.priority === 'high' || todo.priority === 3 ? ' (HIGH)' :
+									todo.priority === 'medium' || todo.priority === 2 ? ' (MED)' : ' (LOW)';
+				summary.push(`- ${todo.title}${priorityText}`);
+			});
+		}
+
+		return summary.join('\n');
+	}, [todos]);
 
 	// Toggle reasoning display
 	const toggleReasoning = () => {
@@ -292,7 +327,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 			const response = await fetch(`${chatServerUrl}/chat/stream`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ message }),
+				body: JSON.stringify({
+					message,
+					context: {
+						todos: generateTodosSummary()
+					}
+				}),
 				signal: abortController.signal,
 			});
 
@@ -487,7 +527,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 			const response = await fetch(`${chatServerUrl}/chat`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ message }),
+				body: JSON.stringify({
+					message,
+					context: {
+						todos: generateTodosSummary()
+					}
+				}),
 				signal: abortController.signal,
 			});
 
@@ -711,6 +756,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 				<header className="chat-sidebar-header">
 					<span className="chat-sidebar-header-icon">🤖</span>
 					<h2>AI Copilot</h2>
+					<span className="chat-context-indicator">
+						Context: {todos.length} todos
+					</span>
 					<button
 						className={`reasoning-toggle-btn ${showReasoning ? 'active' : ''}`}
 						onClick={toggleReasoning}

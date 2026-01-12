@@ -54,6 +54,17 @@
   margin: 0;
 }
 
+.chat-context-indicator {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding: 0.25rem 0.5rem;
+  background: var(--background);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  opacity: 0.8;
+  font-weight: normal;
+}
+
 .chat-sidebar-status {
   font-size: 0.75rem;
   color: var(--text-muted);
