@@ -4,7 +4,7 @@ import type { Theme } from "../hooks/useTheme";
 import { ThemeToggle } from "./ThemeToggle";
 import "./Sidebar.css";
 
-export type ViewType = "inbox" | "today" | "list";
+export type ViewType = "inbox" | "today" | "list" | "notes";
 
 export interface SidebarProps {
 	activeView: ViewType;
@@ -60,6 +60,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
 						</span>
 						<span className="sidebar-label">Today</span>
 						{todayCount > 0 && <span className="sidebar-count">{todayCount}</span>}
+					</button>
+					<button
+						type="button"
+						className={`sidebar-item ${activeView === "notes" ? "active" : ""}`}
+						onClick={() => onViewChange("notes")}
+					>
+						<span className="sidebar-icon">
+							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+								<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+								<polyline points="14 2 14 8 20 8" />
+							</svg>
+						</span>
+						<span className="sidebar-label">Notes</span>
 					</button>
 				</div>
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
-import type { Todo, CommandResult, List } from "./types";
+import type { Todo, CommandResult, List, Note, NoteFolder } from "./types";
 import { useConvexTodos } from "./hooks/useConvexTodos";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { callTool } from "./api"; // Still needed for retry functionality
@@ -19,6 +19,7 @@ import { useKeyboard } from "./hooks/useKeyboard";
 import type { KeyboardShortcut } from "./hooks/useKeyboard";
 import { DevModeDrawer } from "./components/DevModeDrawer";
 import { ChatSidebar } from "./components/ChatSidebar";
+import { NotesView } from "./components/NotesView";
 import { useConfirm } from "./hooks/useConfirm";
 import { useTheme } from "./hooks/useTheme";
 import { useTodoOperations } from "./hooks/useTodoOperations";
@@ -48,6 +49,11 @@ const App: React.FC = () => {
   const [activeListId, setActiveListId] = useState<string | null>(null);
   const [lists, setLists] = useState<List[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Notes state
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [noteFolders, setNoteFolders] = useState<NoteFolder[]>([]);
+  const [activeNoteFolderId, setActiveNoteFolderId] = useState<string | null>(null);
 
   // Selection state and operations handled by useBatchOperations hook
 
@@ -99,10 +105,36 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Fetch notes
+  const fetchNotes = useCallback(async () => {
+    try {
+      const res = await callTool<{ notes: Note[] }>("note-list", {});
+      if (res.success && res.data) {
+        setNotes(res.data.notes);
+      }
+    } catch (err) {
+      console.error("Failed to fetch notes:", err);
+    }
+  }, []);
+
+  // Fetch note folders
+  const fetchNoteFolders = useCallback(async () => {
+    try {
+      const res = await callTool<{ noteFolders: NoteFolder[] }>("notefolder-list", {});
+      if (res.success && res.data) {
+        setNoteFolders(res.data.noteFolders);
+      }
+    } catch (err) {
+      console.error("Failed to fetch note folders:", err);
+    }
+  }, []);
+
   // Initial load - only fetch lists since todos/stats come from Convex
   useEffect(() => {
     fetchLists();
-  }, [fetchLists]);
+    fetchNotes();
+    fetchNoteFolders();
+  }, [fetchLists, fetchNotes, fetchNoteFolders]);
 
   // Helper to track operation and show trust panel
   const trackOperation = (commandName: string, args: Record<string, unknown>, result: CommandResult<unknown>) => {
@@ -232,6 +264,52 @@ const App: React.FC = () => {
   const inboxCount = todos.filter(t => !t.completed).length;
   const todayCount = todos.filter(t => !t.completed).length; // Same as inbox for now
 
+  // Note operation handlers
+  const handleCreateNote = async () => {
+    log(`Calling note-create...`);
+    const args = { title: "New Note", content: "" };
+    const res = await callTool<Note>("note-create", args);
+    trackOperation("note-create", args, res as CommandResult<unknown>);
+    if (res.success) {
+      const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : "";
+      log(`✓ note-create - ${res.reasoning || "Note created"}${time}`, "success");
+      fetchNotes();
+    } else {
+      log(`✗ note-create: ${res.error?.message}`, "error");
+    }
+    showResultToast(res, "note-create");
+  };
+
+  const handleUpdateNote = async (id: string, updates: { title?: string; content?: string }) => {
+    log(`Calling note-update...`);
+    const args = { id, ...updates };
+    const res = await callTool<Note>("note-update", args);
+    trackOperation("note-update", args, res as CommandResult<unknown>);
+    if (res.success) {
+      const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : "";
+      log(`✓ note-update - ${res.reasoning || "Note updated"}${time}`, "success");
+      fetchNotes();
+    } else {
+      log(`✗ note-update: ${res.error?.message}`, "error");
+    }
+    showResultToast(res, "note-update");
+  };
+
+  const handleDeleteNote = async (id: string) => {
+    log(`Calling note-delete...`);
+    const args = { id };
+    const res = await callTool<void>("note-delete", args);
+    trackOperation("note-delete", args, res as CommandResult<unknown>);
+    if (res.success) {
+      const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : "";
+      log(`✓ note-delete - ${res.reasoning || "Note deleted"}${time}`, "success");
+      fetchNotes();
+    } else {
+      log(`✗ note-delete: ${res.error?.message}`, "error");
+    }
+    showResultToast(res, "note-delete");
+  };
+
   // Get view title
   const getViewTitle = () => {
     if (activeView === "list" && activeList) {
@@ -239,6 +317,9 @@ const App: React.FC = () => {
     }
     if (activeView === "today") {
       return "Today";
+    }
+    if (activeView === "notes") {
+      return "Notes";
     }
     return "Inbox";
   };
@@ -378,28 +459,40 @@ const App: React.FC = () => {
 
       <div className="app-main">
         <main className="app-content">
-          <TodoStats stats={stats} />
-
-          {showTrustPanel && lastResult && (
-            <TrustPanel
-              result={lastResult}
-              commandName={lastCommandName}
-              onClose={() => setShowTrustPanel(false)}
+          {activeView === "notes" ? (
+            <NotesView
+              notes={notes}
+              noteFolders={noteFolders}
+              activeNoteFolderId={activeNoteFolderId}
+              onCreateNote={handleCreateNote}
+              onUpdateNote={handleUpdateNote}
+              onDeleteNote={handleDeleteNote}
+              callTool={callTool}
             />
-          )}
+          ) : (
+            <>
+              <TodoStats stats={stats} />
 
-          {errorState.isVisible && (
-            <ErrorRecovery
-              isVisible={errorState.isVisible}
-              commandName={errorState.commandName}
-              errorMessage={errorState.message}
-              suggestion={errorState.suggestion}
-              onRetry={handleRetry}
-              onDismiss={handleDismissError}
-            />
-          )}
+              {showTrustPanel && lastResult && (
+                <TrustPanel
+                  result={lastResult}
+                  commandName={lastCommandName}
+                  onClose={() => setShowTrustPanel(false)}
+                />
+              )}
 
-          <TodoForm onAdd={handleAddTodo} titleInputRef={titleInputRef} />
+              {errorState.isVisible && (
+                <ErrorRecovery
+                  isVisible={errorState.isVisible}
+                  commandName={errorState.commandName}
+                  errorMessage={errorState.message}
+                  suggestion={errorState.suggestion}
+                  onRetry={handleRetry}
+                  onDismiss={handleDismissError}
+                />
+              )}
+
+              <TodoForm onAdd={handleAddTodo} titleInputRef={titleInputRef} />
 
           <div className="todo-list-card">
             <div className="filters">
@@ -478,6 +571,8 @@ const App: React.FC = () => {
           </div>
 
           <CommandLog entries={logEntries} />
+            </>
+          )}
         </main>
       </div>
 
