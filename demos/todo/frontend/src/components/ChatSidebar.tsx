@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './ChatSidebar.css';
+import { MarkdownMessage } from './MarkdownMessage';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -195,7 +196,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 				<div className="chat-messages">
 					{messages.map((msg) => (
 						<div key={msg.id} className={`chat-message ${msg.role}`}>
-							<div className="chat-message-content">{msg.content}</div>
+							<MarkdownMessage content={msg.content} className="chat-message-content" />
 
 							{/* Tool Executions */}
 							{msg.toolExecutions && msg.toolExecutions.length > 0 && (

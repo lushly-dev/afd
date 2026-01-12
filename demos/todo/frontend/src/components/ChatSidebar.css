@@ -310,3 +310,129 @@
     right: -100%;
   }
 }
+
+/* Markdown Message Styles */
+.markdown-message {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Markdown Headings */
+.markdown-h1, .markdown-h2, .markdown-h3,
+.markdown-h4, .markdown-h5, .markdown-h6 {
+  margin: 0.5rem 0 0.25rem 0;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.markdown-h1 { font-size: 1.2rem; }
+.markdown-h2 { font-size: 1.1rem; }
+.markdown-h3 { font-size: 1.05rem; }
+.markdown-h4, .markdown-h5, .markdown-h6 { font-size: 1rem; }
+
+/* Markdown Paragraphs */
+.markdown-p {
+  margin: 0.25rem 0;
+  line-height: 1.5;
+}
+
+.markdown-p:first-child {
+  margin-top: 0;
+}
+
+.markdown-p:last-child {
+  margin-bottom: 0;
+}
+
+/* Markdown Lists */
+.markdown-ul, .markdown-ol {
+  margin: 0.5rem 0;
+  padding-left: 1.5rem;
+}
+
+.markdown-li {
+  margin: 0.125rem 0;
+  line-height: 1.4;
+}
+
+/* Markdown Inline Code */
+.inline-code {
+  background: rgba(255, 255, 255, 0.1);
+  padding: 0.125rem 0.25rem;
+  border-radius: 3px;
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-size: 0.85em;
+}
+
+.chat-message.user .inline-code {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.chat-message.assistant .inline-code {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+/* Markdown Code Blocks */
+.markdown-code-block {
+  background: rgba(0, 0, 0, 0.8);
+  padding: 1rem;
+  border-radius: 6px;
+  margin: 0.5rem 0;
+  overflow-x: auto;
+  font-family: 'Monaco', 'Consolas', monospace;
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.markdown-code-block code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  color: #f8f8f2;
+}
+
+.chat-message.user .markdown-code-block {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.chat-message.assistant .markdown-code-block {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+/* Markdown Blockquotes */
+.markdown-blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 1rem;
+  margin: 0.5rem 0;
+  font-style: italic;
+  opacity: 0.8;
+}
+
+/* Markdown Links */
+.markdown-link {
+  color: inherit;
+  text-decoration: underline;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.markdown-link:hover {
+  opacity: 1;
+}
+
+/* Markdown Emphasis */
+.markdown-strong {
+  font-weight: 600;
+}
+
+.markdown-em {
+  font-style: italic;
+}
+
+/* Markdown Horizontal Rule */
+.markdown-hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 0.75rem 0;
+  opacity: 0.5;
+}
