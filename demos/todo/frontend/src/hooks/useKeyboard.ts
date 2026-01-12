@@ -18,20 +18,13 @@ export interface UseKeyboardOptions {
 
 export function useKeyboard({ shortcuts, enabled = true }: UseKeyboardOptions): void {
 	useEffect(() => {
-		if (!enabled) {
-			console.log('[useKeyboard] Disabled');
-			return;
-		}
-
-		console.log('[useKeyboard] Registering', shortcuts.length, 'shortcuts');
+		if (!enabled) return;
 
 		const handleKeyDown = (e: KeyboardEvent) => {
 			const target = e.target as HTMLElement;
-			console.log('[useKeyboard] Key pressed:', e.key, 'target:', target.tagName, 'shift:', e.shiftKey);
 			
 			if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
 				if (e.key === 'Escape') target.blur();
-				console.log('[useKeyboard] Ignoring - in input/textarea');
 				return;
 			}
 
@@ -44,17 +37,12 @@ export function useKeyboard({ shortcuts, enabled = true }: UseKeyboardOptions): 
 				const altMatches = !!shortcut.alt === e.altKey;
 
 				if (keyMatches && ctrlMatches && shiftMatches && altMatches) {
-					if (shortcut.when && !shortcut.when()) {
-						console.log('[useKeyboard] Matched', shortcut.key, 'but when() returned false');
-						continue;
-					}
-					console.log('[useKeyboard] Executing shortcut:', shortcut.key, shortcut.description);
+					if (shortcut.when && !shortcut.when()) continue;
 					e.preventDefault();
 					shortcut.action();
 					return;
 				}
 			}
-			console.log('[useKeyboard] No matching shortcut for:', e.key);
 		};
 
 		document.addEventListener('keydown', handleKeyDown);
