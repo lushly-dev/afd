@@ -5,6 +5,15 @@ import type { Id } from "../../convex/_generated/dataModel";
 // Re-export the Id type for use in components
 export type TodoId = Id<"todos">;
 
+// Type conversion helpers to replace unsafe assertions
+function toTodoId(id: string): TodoId {
+  return id as TodoId;
+}
+
+function toTodoIds(ids: string[]): TodoId[] {
+  return ids as TodoId[];
+}
+
 // Hook for reactive todos list with automatic updates
 export function useConvexTodos() {
   const convexTodos = useQuery(api.todos.list);
@@ -48,24 +57,24 @@ export function useConvexTodos() {
     },
     
     update: async (id: string, updates: { title?: string; description?: string; priority?: "low" | "medium" | "high" }) => {
-      return await updateMutation({ id: id as TodoId, ...updates });
+      return await updateMutation({ id: toTodoId(id), ...updates });
     },
 
     toggle: async (id: string) => {
-      return await toggleMutation({ id: id as TodoId });
+      return await toggleMutation({ id: toTodoId(id) });
     },
 
     remove: async (id: string) => {
-      return await removeMutation({ id: id as TodoId });
+      return await removeMutation({ id: toTodoId(id) });
     },
     
     // Batch operations
     batchToggle: async (ids: string[], completed: boolean) => {
-      return await batchToggleMutation({ ids: ids as TodoId[], completed });
+      return await batchToggleMutation({ ids: toTodoIds(ids), completed });
     },
 
     batchDelete: async (ids: string[]) => {
-      return await batchDeleteMutation({ ids: ids as TodoId[] });
+      return await batchDeleteMutation({ ids: toTodoIds(ids) });
     },
     
     clearCompleted: async () => {
