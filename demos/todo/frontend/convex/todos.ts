@@ -12,25 +12,31 @@ export const list = query({
   },
 });
 
-export const get = query({
-  args: { id: v.id("todos") },
-  handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
-  },
-});
-
 export const stats = query({
   args: {},
   handler: async (ctx) => {
-    const todos = await ctx.db.query("todos").collect();
-    const total = todos.length;
-    const completed = todos.filter((t) => t.completed).length;
-    const pending = total - completed;
+    // Use indexes for better performance - get completed and pending counts separately
+    const completedTodos = await ctx.db
+      .query("todos")
+      .withIndex("by_completed", (q) => q.eq("completed", true))
+      .collect();
+    const pendingTodos = await ctx.db
+      .query("todos")
+      .withIndex("by_completed", (q) => q.eq("completed", false))
+      .collect();
+
+    const completed = completedTodos.length;
+    const pending = pendingTodos.length;
+    const total = completed + pending;
+
+    // Calculate priority stats from both completed and pending todos
+    const allTodos = [...completedTodos, ...pendingTodos];
     const byPriority = {
-      high: todos.filter((t) => t.priority === "high").length,
-      medium: todos.filter((t) => t.priority === "medium").length,
-      low: todos.filter((t) => t.priority === "low").length,
+      high: allTodos.filter((t) => t.priority === "high").length,
+      medium: allTodos.filter((t) => t.priority === "medium").length,
+      low: allTodos.filter((t) => t.priority === "low").length,
     };
+
     return { total, completed, pending, byPriority };
   },
 });
