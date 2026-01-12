@@ -233,6 +233,15 @@
   cursor: not-allowed;
 }
 
+/* Textarea-specific styles for multi-line input */
+textarea.chat-input {
+  resize: none;
+  min-height: 42px;
+  max-height: 120px;
+  line-height: 1.4;
+  font-family: inherit;
+}
+
 .chat-send-btn {
   padding: 0.75rem 1rem;
   background: var(--accent);

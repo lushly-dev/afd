@@ -62,7 +62,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 		'connecting'
 	);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
-	const inputRef = useRef<HTMLInputElement>(null);
+	const inputRef = useRef<HTMLTextAreaElement>(null);
 
 	// Scroll to bottom when new messages arrive
 	useEffect(() => {
@@ -75,6 +75,27 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 			inputRef.current?.focus();
 		}
 	}, [isOpen]);
+
+	// Auto-resize textarea based on content
+	const adjustTextareaHeight = useCallback(() => {
+		const textarea = inputRef.current;
+		if (!textarea) return;
+
+		// Reset to auto to recalculate
+		textarea.style.height = 'auto';
+
+		// Calculate new height (max ~5 lines)
+		const maxHeight = 120;
+		const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+
+		textarea.style.height = `${newHeight}px`;
+		textarea.style.overflowY = textarea.scrollHeight > maxHeight ? 'auto' : 'hidden';
+	}, []);
+
+	// Auto-resize when input changes
+	useEffect(() => {
+		adjustTextareaHeight();
+	}, [inputValue, adjustTextareaHeight]);
 
 	// Check chat server health
 	const checkHealth = useCallback(async () => {
@@ -169,6 +190,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 		}
 	};
 
+	// Handle textarea change with auto-resize
+	const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+		setInputValue(e.target.value);
+		adjustTextareaHeight();
+	};
+
 	// Get status display text
 	const getStatusText = () => {
 		switch (connectionStatus) {
@@ -237,15 +264,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 				{/* Input */}
 				<div className="chat-input-container">
 					<div className="chat-input-row">
-						<input
+						<textarea
 							ref={inputRef}
-							type="text"
 							className="chat-input"
-							placeholder="Ask AI to help with todos..."
+							placeholder="Ask AI to help... (Shift+Enter for newlines)"
 							value={inputValue}
-							onChange={(e) => setInputValue(e.target.value)}
-							onKeyPress={handleKeyPress}
+							onChange={handleInputChange}
+							onKeyDown={handleKeyPress}
 							disabled={isLoading || connectionStatus === 'error'}
+							rows={1}
+							aria-label="Chat message input. Shift+Enter for new lines, Enter to send."
 						/>
 						<button
 							className="chat-send-btn"
