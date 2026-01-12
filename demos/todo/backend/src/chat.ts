@@ -68,7 +68,9 @@ const CONVEX_ENDPOINTS: Record<string, string> = {
 };
 
 /**
- * Call a Convex HTTP action for todo operations
+ * Handle todo operations locally (mock success)
+ * With local-first architecture, the frontend handles actual storage via LocalStore.
+ * The chat server just returns success and the frontend executes locally on tool_end.
  */
 async function callConvexAction(
   commandName: string,
@@ -78,28 +80,42 @@ async function callConvexAction(
   
   if (!endpoint) {
     // Fall back to DirectClient for non-todo commands
-    console.log(`[callConvexAction] No Convex endpoint for ${commandName}, using DirectClient`);
     return directClient.call(commandName, args);
   }
   
-  const url = `${CONVEX_URL}${endpoint}`;
-  console.log(`[callConvexAction] Calling Convex: ${url}`);
-  console.log(`[callConvexAction] Args:`, JSON.stringify(args));
+  // For todo commands: return mock success
+  // The frontend's executeLocalAction will handle actual storage via LocalStore
+  console.log(`[callConvexAction] Returning mock success for ${commandName}, frontend will handle via LocalStore`);
   
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(args),
-    });
-    
-    const result = await response.json();
-    console.log(`[callConvexAction] Response:`, JSON.stringify(result));
-    return result;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Convex call failed';
-    console.error(`[callConvexAction] Error:`, message);
-    return { success: false, error: { message } };
+  switch (commandName) {
+    case 'todo-create':
+      return { 
+        success: true, 
+        data: { 
+          id: `pending-${Date.now()}`,
+          title: args.title,
+          priority: args.priority || 'medium',
+          completed: false,
+        } 
+      };
+    case 'todo-list':
+      // Return empty list - frontend has the real data
+      return { success: true, data: { items: [], total: 0 } };
+    case 'todo-toggle':
+    case 'todo-complete':
+    case 'todo-uncomplete':
+      return { success: true, data: { id: args.id, toggled: true } };
+    case 'todo-update':
+      return { success: true, data: { id: args.id, updated: true } };
+    case 'todo-delete':
+      return { success: true, data: { id: args.id, deleted: true } };
+    case 'todo-stats':
+      // Return placeholder - frontend has real stats
+      return { success: true, data: { total: 0, completed: 0, pending: 0 } };
+    case 'todo-clear':
+      return { success: true, data: { cleared: true } };
+    default:
+      return { success: true, data: {} };
   }
 }
 
