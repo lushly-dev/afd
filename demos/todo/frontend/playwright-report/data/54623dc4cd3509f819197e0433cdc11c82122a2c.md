@@ -1,0 +1,130 @@
+# Page snapshot
+
+```yaml
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - heading "Dev Mode" [level=2] [ref=e6]
+      - button [ref=e7] [cursor=pointer]:
+        - img [ref=e8]
+    - generic [ref=e11]:
+      - button "Trust" [ref=e12] [cursor=pointer]
+      - button "Latency" [ref=e13] [cursor=pointer]
+      - button "JSON" [ref=e14] [cursor=pointer]
+      - button "Log" [ref=e15] [cursor=pointer]
+    - generic [ref=e17]: No command results yet
+  - complementary [ref=e18]:
+    - navigation [ref=e19]:
+      - generic [ref=e20]:
+        - button "Inbox 3" [ref=e21] [cursor=pointer]:
+          - img [ref=e23]
+          - generic [ref=e26]: Inbox
+          - generic [ref=e27]: "3"
+        - button "Today 3" [ref=e28] [cursor=pointer]:
+          - img [ref=e30]
+          - generic [ref=e33]: Today
+          - generic [ref=e34]: "3"
+      - generic [ref=e35]:
+        - generic [ref=e36]:
+          - generic [ref=e37]: Lists
+          - button "Create new list" [ref=e38] [cursor=pointer]:
+            - img [ref=e39]
+        - paragraph [ref=e43]: No lists yet
+    - button "Switch to light mode" [ref=e45] [cursor=pointer]:
+      - img [ref=e46]
+  - banner [ref=e56]:
+    - generic [ref=e58]:
+      - heading "Inbox" [level=1] [ref=e59]
+      - generic [ref=e60]: AFD
+    - generic [ref=e61]:
+      - button "Keyboard shortcuts (?)" [ref=e62] [cursor=pointer]:
+        - img [ref=e63]
+      - button "Open Dev Mode" [ref=e66] [cursor=pointer]:
+        - img [ref=e67]
+      - button "🤖" [ref=e70] [cursor=pointer]:
+        - generic [ref=e71]: 🤖
+      - generic [ref=e74]: Connected
+  - main [ref=e76]:
+    - generic [ref=e77]:
+      - generic [ref=e78]:
+        - generic [ref=e79]: "3"
+        - generic [ref=e80]: Total
+      - generic [ref=e81]:
+        - generic [ref=e82]: "3"
+        - generic [ref=e83]: Pending
+      - generic [ref=e84]:
+        - generic [ref=e85]: "0"
+        - generic [ref=e86]: Completed
+      - generic [ref=e87]:
+        - generic [ref=e88]: 0%
+        - generic [ref=e89]: Done
+    - generic [ref=e90]:
+      - textbox "What needs to be done?" [ref=e91]
+      - combobox [ref=e92] [cursor=pointer]:
+        - option "Low"
+        - option "Medium" [selected]
+        - option "High"
+      - button "Add" [ref=e93] [cursor=pointer]
+    - generic [ref=e94]:
+      - generic [ref=e95]:
+        - button "All" [ref=e96] [cursor=pointer]
+        - button "Pending" [ref=e97] [cursor=pointer]
+        - button "Completed" [ref=e98] [cursor=pointer]
+      - generic [ref=e100] [cursor=pointer]:
+        - checkbox "Select All (0/3)" [ref=e101]
+        - generic [ref=e102]: Select All (0/3)
+      - generic [ref=e103]:
+        - generic [ref=e104]:
+          - checkbox [ref=e105]
+          - generic [ref=e107] [cursor=pointer]:
+            - generic [ref=e108]: bake a cake
+            - generic [ref=e109]:
+              - generic [ref=e110]: "2"
+              - generic [ref=e111]: ·
+              - generic [ref=e112]: 5h ago
+          - generic [ref=e113]:
+            - button "Edit" [ref=e114] [cursor=pointer]
+            - button "Delete" [ref=e115] [cursor=pointer]
+        - generic [ref=e116]:
+          - checkbox [ref=e117]
+          - generic [ref=e119] [cursor=pointer]:
+            - generic [ref=e120]: This is a test
+            - generic [ref=e121]:
+              - generic [ref=e122]: "2"
+              - generic [ref=e123]: ·
+              - generic [ref=e124]: 5h ago
+          - generic [ref=e125]:
+            - button "Edit" [ref=e126] [cursor=pointer]
+            - button "Delete" [ref=e127] [cursor=pointer]
+        - generic [ref=e128]:
+          - checkbox [ref=e129]
+          - generic [ref=e131] [cursor=pointer]:
+            - generic [ref=e132]: Test Task
+            - generic [ref=e133]:
+              - generic [ref=e134]: "2"
+              - generic [ref=e135]: ·
+              - generic [ref=e136]: 5h ago
+          - generic [ref=e137]:
+            - button "Edit" [ref=e138] [cursor=pointer]
+            - button "Delete" [ref=e139] [cursor=pointer]
+    - generic [ref=e140]:
+      - heading "Command Log" [level=3] [ref=e141]
+      - generic [ref=e143]: "[7:24:35 PM] Initializing..."
+  - contentinfo [ref=e144]:
+    - paragraph [ref=e145]:
+      - text: Built with
+      - link "Agent-First Development" [ref=e146] [cursor=pointer]:
+        - /url: https://github.com/Falkicon/afd
+      - text: . Same commands work via CLI, MCP, and this UI. Press
+      - generic [ref=e147]: "?"
+      - text: for keyboard shortcuts.
+  - complementary [ref=e148]:
+    - generic [ref=e149]:
+      - generic [ref=e150]: 🤖
+      - heading "AI Copilot" [level=2] [ref=e151]
+      - generic [ref=e152]: Ready
+    - generic [ref=e155]: "Ask me to help manage your todos! Try: \"Create 3 high-priority tasks\" or \"Show my stats\""
+    - generic [ref=e157]:
+      - textbox "Ask AI to help with todos..." [active] [ref=e158]
+      - button "Send" [disabled] [ref=e159]
+```
