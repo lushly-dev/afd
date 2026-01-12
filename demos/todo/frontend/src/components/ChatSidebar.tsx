@@ -63,6 +63,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
+	const abortControllerRef = useRef<AbortController | null>(null);
 
 	// Scroll to bottom when new messages arrive
 	useEffect(() => {
@@ -133,11 +134,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 		setInputValue('');
 		setIsLoading(true);
 
+		// Create new AbortController for this request
+		const abortController = new AbortController();
+		abortControllerRef.current = abortController;
+
 		try {
 			const response = await fetch(`${chatServerUrl}/chat`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ message: trimmedInput }),
+				signal: abortController.signal,
 			});
 
 			const data: ChatResponse | { error: string } = await response.json();
@@ -170,15 +176,34 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 				}
 			}
 		} catch (err) {
-			const errorMessage: ChatMessage = {
-				id: generateId(),
-				role: 'system',
-				content: `Connection error: ${err instanceof Error ? err.message : 'Unknown error'}`,
-				timestamp: new Date(),
-			};
-			setMessages((prev) => [...prev, errorMessage]);
+			// Handle abort error differently
+			if (err instanceof Error && err.name === 'AbortError') {
+				const cancelledMessage: ChatMessage = {
+					id: generateId(),
+					role: 'system',
+					content: 'Request cancelled by user',
+					timestamp: new Date(),
+				};
+				setMessages((prev) => [...prev, cancelledMessage]);
+			} else {
+				const errorMessage: ChatMessage = {
+					id: generateId(),
+					role: 'system',
+					content: `Connection error: ${err instanceof Error ? err.message : 'Unknown error'}`,
+					timestamp: new Date(),
+				};
+				setMessages((prev) => [...prev, errorMessage]);
+			}
 		} finally {
 			setIsLoading(false);
+			abortControllerRef.current = null;
+		}
+	};
+
+	// Stop current request
+	const stopRequest = () => {
+		if (abortControllerRef.current) {
+			abortControllerRef.current.abort();
 		}
 	};
 
@@ -186,7 +211,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	const handleKeyPress = (e: React.KeyboardEvent) => {
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
-			sendMessage();
+			if (!isLoading) {
+				sendMessage();
+			}
 		}
 	};
 
@@ -275,13 +302,23 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 							rows={1}
 							aria-label="Chat message input. Shift+Enter for new lines, Enter to send."
 						/>
-						<button
-							className="chat-send-btn"
-							onClick={sendMessage}
-							disabled={isLoading || !inputValue.trim() || connectionStatus === 'error'}
-						>
-							Send
-						</button>
+						{isLoading ? (
+							<button
+								className="chat-stop-btn"
+								onClick={stopRequest}
+								title="Stop current request"
+							>
+								Stop
+							</button>
+						) : (
+							<button
+								className="chat-send-btn"
+								onClick={sendMessage}
+								disabled={!inputValue.trim() || connectionStatus === 'error'}
+							>
+								Send
+							</button>
+						)}
 					</div>
 				</div>
 			</aside>

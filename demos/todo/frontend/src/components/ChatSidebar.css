@@ -262,6 +262,22 @@ textarea.chat-input {
   cursor: not-allowed;
 }
 
+.chat-stop-btn {
+  padding: 0.75rem 1rem;
+  background: var(--error);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s, background-color 0.2s;
+}
+
+.chat-stop-btn:hover {
+  opacity: 0.9;
+  background: #dc2626; /* Slightly darker red on hover */
+}
+
 /* Toggle Button for Mobile */
 .chat-toggle-btn {
   display: none;
