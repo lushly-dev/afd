@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // QUERIES (Read operations)
@@ -8,21 +9,34 @@ import { query, mutation } from "./_generated/server";
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    return await ctx.db.query("todos").order("desc").collect();
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+    return await ctx.db
+      .query("todos")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .order("desc")
+      .collect();
   },
 });
 
 export const stats = query({
   args: {},
   handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
     // Use indexes for better performance - get completed and pending counts separately
     const completedTodos = await ctx.db
       .query("todos")
-      .withIndex("by_completed", (q) => q.eq("completed", true))
+      .withIndex("by_user_completed", (q) => q.eq("userId", userId).eq("completed", true))
       .collect();
     const pendingTodos = await ctx.db
       .query("todos")
-      .withIndex("by_completed", (q) => q.eq("completed", false))
+      .withIndex("by_user_completed", (q) => q.eq("userId", userId).eq("completed", false))
       .collect();
 
     const completed = completedTodos.length;
@@ -52,6 +66,11 @@ export const create = mutation({
     priority: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
   },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
     const now = Date.now();
     const id = await ctx.db.insert("todos", {
       title: args.title,
@@ -60,6 +79,7 @@ export const create = mutation({
       priority: args.priority ?? "medium",
       createdAt: now,
       updatedAt: now,
+      userId: userId,
     });
     return await ctx.db.get(id);
   },
@@ -73,10 +93,16 @@ export const update = mutation({
     priority: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
   },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
     const { id, ...updates } = args;
     const existing = await ctx.db.get(id);
     if (!existing) throw new Error("Todo not found");
-    
+    if (existing.userId !== userId) throw new Error("Unauthorized to update this todo");
+
     await ctx.db.patch(id, {
       ...updates,
       updatedAt: Date.now(),
@@ -88,9 +114,15 @@ export const update = mutation({
 export const toggle = mutation({
   args: { id: v.id("todos") },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
     const existing = await ctx.db.get(args.id);
     if (!existing) throw new Error("Todo not found");
-    
+    if (existing.userId !== userId) throw new Error("Unauthorized to toggle this todo");
+
     await ctx.db.patch(args.id, {
       completed: !existing.completed,
       updatedAt: Date.now(),
@@ -102,8 +134,15 @@ export const toggle = mutation({
 export const remove = mutation({
   args: { id: v.id("todos") },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
     const existing = await ctx.db.get(args.id);
     if (!existing) throw new Error("Todo not found");
+    if (existing.userId !== userId) throw new Error("Unauthorized to delete this todo");
+
     await ctx.db.delete(args.id);
     return { success: true, id: args.id };
   },
@@ -116,8 +155,17 @@ export const remove = mutation({
 export const batchToggle = mutation({
   args: { ids: v.array(v.id("todos")), completed: v.boolean() },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
     const results = [];
     for (const id of args.ids) {
+      const existing = await ctx.db.get(id);
+      if (!existing) throw new Error(`Todo ${id} not found`);
+      if (existing.userId !== userId) throw new Error(`Unauthorized to toggle todo ${id}`);
+
       await ctx.db.patch(id, { completed: args.completed, updatedAt: Date.now() });
       results.push(await ctx.db.get(id));
     }
@@ -128,7 +176,16 @@ export const batchToggle = mutation({
 export const batchDelete = mutation({
   args: { ids: v.array(v.id("todos")) },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
     for (const id of args.ids) {
+      const existing = await ctx.db.get(id);
+      if (!existing) throw new Error(`Todo ${id} not found`);
+      if (existing.userId !== userId) throw new Error(`Unauthorized to delete todo ${id}`);
+
       await ctx.db.delete(id);
     }
     return { success: true, count: args.ids.length };
@@ -138,9 +195,14 @@ export const batchDelete = mutation({
 export const clearCompleted = mutation({
   args: {},
   handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      throw new Error("Unauthorized");
+    }
+
     const completed = await ctx.db
       .query("todos")
-      .withIndex("by_completed", (q) => q.eq("completed", true))
+      .withIndex("by_user_completed", (q) => q.eq("userId", userId).eq("completed", true))
       .collect();
     for (const todo of completed) {
       await ctx.db.delete(todo._id);
