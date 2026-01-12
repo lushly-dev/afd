@@ -41,6 +41,23 @@ export interface PlanStep {
   status?: "pending" | "in-progress" | "complete" | "failed";
 }
 
+export interface Note {
+  id: string;
+  title: string;
+  content: string;
+  folderId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NoteFolder {
+  id: string;
+  name: string;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CommandResult<T> {
   success: boolean;
   data: T;
