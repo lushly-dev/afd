@@ -3,25 +3,16 @@
  *
  * Extracts todo operations from App.tsx to reduce god component size.
  * Provides all handlers for creating, reading, updating, and deleting todos.
+ * Now uses Convex for reactive data operations.
  */
 
 import { useCallback } from "react";
-import type { Todo, CommandResult } from "../types";
-import { callTool } from "../api";
+import type { Todo } from "../types";
+import { useConvexTodos } from "./useConvexTodos";
 
 interface UseTodoOperationsProps {
   /** Callback to log operations */
   log: (message: string, status?: "success" | "error") => void;
-  /** Callback to track the last operation for recovery */
-  trackOperation: (
-    commandName: string,
-    args: Record<string, unknown>,
-    result: CommandResult<unknown>
-  ) => void;
-  /** Callback to show result toast */
-  showResultToast: (result: CommandResult<unknown>, commandName: string) => void;
-  /** Callback to refresh data after mutation */
-  fetchData: () => Promise<void>;
   /** Confirm dialog hook */
   confirm: (title: string, message: string, warning: string) => Promise<boolean>;
   /** Current todos list */
@@ -46,50 +37,44 @@ interface TodoOperations {
 
 export function useTodoOperations({
   log,
-  trackOperation,
-  showResultToast,
-  fetchData,
   confirm,
   todos,
 }: UseTodoOperationsProps): TodoOperations {
+  const { create, update, toggle, remove, clearCompleted } = useConvexTodos();
   const handleAddTodo = useCallback(
     async (title: string, priority: string = "medium", description?: string) => {
-      // Convert priority string to number (0=none, 1=low, 2=medium, 3=high)
-      const priorityMap: Record<string, number> = { none: 0, low: 1, medium: 2, high: 3 };
-      const priorityNum = priorityMap[priority.toLowerCase()] ?? 2;
+      try {
+        log(`Creating todo...`);
+        let priorityValue: "low" | "medium" | "high" = "medium";
+        const lowercasePriority = priority.toLowerCase();
+        if (lowercasePriority === "low") priorityValue = "low";
+        else if (lowercasePriority === "high") priorityValue = "high";
+        else if (lowercasePriority === "none") priorityValue = "low";
+        else priorityValue = "medium";
 
-      log(`Calling todo-create...`);
-      const args = { title, priority: priorityNum, description };
-      const res = await callTool<Todo>("todo-create", args);
-      trackOperation("todo-create", args, res as CommandResult<unknown>);
-      if (res.success) {
-        const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : "";
-        log(`✓ todo-create - ${res.reasoning || "Todo created"}${time}`, "success");
-        fetchData();
-      } else {
-        log(`✗ todo-create: ${res.error?.message}`, "error");
+        await create(title, {
+          description,
+          priority: priorityValue
+        });
+        log(`✓ Todo created successfully`, "success");
+      } catch (error) {
+        log(`✗ Failed to create todo: ${error}`, "error");
       }
-      showResultToast(res, "todo-create");
     },
-    [log, trackOperation, showResultToast, fetchData]
+    [create, log]
   );
 
   const handleToggleTodo = useCallback(
     async (id: string) => {
-      log(`Calling todo-toggle...`);
-      const args = { id };
-      const res = await callTool<Todo>("todo-toggle", args);
-      trackOperation("todo-toggle", args, res as CommandResult<unknown>);
-      if (res.success) {
-        const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : "";
-        log(`✓ todo-toggle - ${res.reasoning || "Todo toggled"}${time}`, "success");
-        fetchData();
-      } else {
-        log(`✗ todo-toggle: ${res.error?.message}`, "error");
+      try {
+        log(`Toggling todo...`);
+        await toggle(id);
+        log(`✓ Todo toggled successfully`, "success");
+      } catch (error) {
+        log(`✗ Failed to toggle todo: ${error}`, "error");
       }
-      showResultToast(res, "todo-toggle");
     },
-    [log, trackOperation, showResultToast, fetchData]
+    [toggle, log]
   );
 
   const handleDeleteTodo = useCallback(
@@ -103,20 +88,15 @@ export function useTodoOperations({
 
       if (!confirmed) return;
 
-      log(`Calling todo-delete...`);
-      const args = { id };
-      const res = await callTool<{ id: string }>("todo-delete", args);
-      trackOperation("todo-delete", args, res as CommandResult<unknown>);
-      if (res.success) {
-        const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : "";
-        log(`✓ todo-delete - ${res.reasoning || "Todo deleted"}${time}`, "success");
-        fetchData();
-      } else {
-        log(`✗ todo-delete: ${res.error?.message}`, "error");
+      try {
+        log(`Deleting todo...`);
+        await remove(id);
+        log(`✓ Todo deleted successfully`, "success");
+      } catch (error) {
+        log(`✗ Failed to delete todo: ${error}`, "error");
       }
-      showResultToast(res, "todo-delete");
     },
-    [todos, log, trackOperation, showResultToast, fetchData, confirm]
+    [todos, remove, log, confirm]
   );
 
   const handleEditTodo = useCallback(
@@ -127,20 +107,15 @@ export function useTodoOperations({
       const newTitle = window.prompt("Edit todo title:", todo.title);
       if (!newTitle || newTitle === todo.title) return;
 
-      log(`Calling todo-update...`);
-      const args = { id, title: newTitle };
-      const res = await callTool<Todo>("todo-update", args);
-      trackOperation("todo-update", args, res as CommandResult<unknown>);
-      if (res.success) {
-        const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : "";
-        log(`✓ todo-update - ${res.reasoning || "Todo updated"}${time}`, "success");
-        fetchData();
-      } else {
-        log(`✗ todo-update: ${res.error?.message}`, "error");
+      try {
+        log(`Updating todo...`);
+        await update(id, { title: newTitle });
+        log(`✓ Todo updated successfully`, "success");
+      } catch (error) {
+        log(`✗ Failed to update todo: ${error}`, "error");
       }
-      showResultToast(res, "todo-update");
     },
-    [todos, log, trackOperation, showResultToast, fetchData]
+    [todos, update, log]
   );
 
   const handleSaveDetail = useCallback(
@@ -148,20 +123,23 @@ export function useTodoOperations({
       id: string,
       updates: { title?: string; description?: string; priority?: Todo["priority"] }
     ) => {
-      log(`Calling todo-update...`);
-      const args = { id, ...updates };
-      const res = await callTool<Todo>("todo-update", args);
-      trackOperation("todo-update", args, res as CommandResult<unknown>);
-      if (res.success) {
-        const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : "";
-        log(`✓ todo-update - ${res.reasoning || "Todo updated"}${time}`, "success");
-        fetchData();
-      } else {
-        log(`✗ todo-update: ${res.error?.message}`, "error");
+      try {
+        log(`Updating todo details...`);
+        // Pass updates directly to Convex (priorities are already strings)
+        const convexUpdates: { title?: string; description?: string; priority?: "low" | "medium" | "high" } = {};
+        if (updates.title !== undefined) convexUpdates.title = updates.title;
+        if (updates.description !== undefined) convexUpdates.description = updates.description;
+        if (updates.priority !== undefined) {
+          convexUpdates.priority = updates.priority as "low" | "medium" | "high";
+        }
+
+        await update(id, convexUpdates);
+        log(`✓ Todo details updated successfully`, "success");
+      } catch (error) {
+        log(`✗ Failed to update todo details: ${error}`, "error");
       }
-      showResultToast(res, "todo-update");
     },
-    [log, trackOperation, showResultToast, fetchData]
+    [update, log]
   );
 
   const handleClearCompleted = useCallback(
@@ -174,20 +152,15 @@ export function useTodoOperations({
 
       if (!confirmed) return;
 
-      log(`Calling todo-clear...`);
-      const args = {};
-      const res = await callTool<{ count: number }>("todo-clear", args);
-      trackOperation("todo-clear", args, res as CommandResult<unknown>);
-      if (res.success) {
-        const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : "";
-        log(`✓ todo-clear - ${res.reasoning || "Cleared completed"}${time}`, "success");
-        fetchData();
-      } else {
-        log(`✗ todo-clear: ${res.error?.message}`, "error");
+      try {
+        log(`Clearing completed todos...`);
+        await clearCompleted();
+        log(`✓ Completed todos cleared successfully`, "success");
+      } catch (error) {
+        log(`✗ Failed to clear completed todos: ${error}`, "error");
       }
-      showResultToast(res, "todo-clear");
     },
-    [log, trackOperation, showResultToast, fetchData, confirm]
+    [clearCompleted, log, confirm]
   );
 
   return {
