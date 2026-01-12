@@ -24,5 +24,21 @@
     "completed": false,
     "createdAt": "2026-01-11T22:20:08.084Z",
     "updatedAt": "2026-01-11T22:20:08.084Z"
+  },
+  {
+    "id": "todo-1768206729779-kfp9zwl",
+    "title": "showing carli the demo",
+    "priority": 2,
+    "completed": false,
+    "createdAt": "2026-01-12T08:32:09.779Z",
+    "updatedAt": "2026-01-12T08:32:09.779Z"
+  },
+  {
+    "id": "todo-1768206729780-rq5gemd",
+    "title": "testing the UI",
+    "priority": 2,
+    "completed": false,
+    "createdAt": "2026-01-12T08:32:09.780Z",
+    "updatedAt": "2026-01-12T08:32:09.780Z"
   }
 ]

@@ -1,41 +1,65 @@
 /* Dark theme (default) - Myoso Design System */
 :root {
-  --bg: #1c1c1e;
-  --surface: #2c2c2e;
-  --primary: #DA8753;
-  --accent: #4679B0;
-  --text: #F0F1EF;
-  --text-muted: #9ca3af;
-  --success: #4ade80;
-  --warning: #E4C240;
+  /* Background layers - warmer, softer */
+  --bg: #121214;
+  --surface: #1e1e21;
+  --card-bg: #262629;
+  --input-bg: #2e2e32;
+  
+  /* Brand colors - teal instead of indigo for better contrast */
+  --primary: #14b8a6;      /* Teal */
+  --primary-hover: #2dd4bf;
+  --accent: #06b6d4;       /* Cyan for highlights */
+  
+  /* Text */
+  --text: #fafafa;
+  --text-muted: #a1a1aa;
+  --text-subtle: #71717a;
+  --text-inverse: #121214; /* For text on colored backgrounds */
+  
+  /* Semantic colors */
+  --success: #22c55e;
+  --warning: #f59e0b;
   --error: #f87171;
-  --border: #3a3a3c;
-  --card-bg: #2c2c2e;
   --danger: #f87171;
-  --light-grey: #F0F1EF;
-  --mid-grey: #DDDEDB;
-  --input-bg: #38383a;
+  
+  /* Borders */
+  --border: #3f3f46;
+  --border-hover: #52525b;
+  
+  /* Layout */
   --header-height: 69px;
   --footer-height: 57px;
 }
 
 /* Light theme - Myoso Design System */
 [data-theme="light"] {
-  --bg: #F0F1EF;
+  /* Background layers */
+  --bg: #f5f5f5;
   --surface: #ffffff;
-  --primary: #DA8753;
-  --accent: #4679B0;
-  --text: #1a1b26;
-  --text-muted: #6b7280;
-  --success: #22c55e;
-  --warning: #E4C240;
-  --error: #ef4444;
-  --border: #DDDEDB;
   --card-bg: #ffffff;
-  --danger: #ef4444;
-  --light-grey: #F0F1EF;
-  --mid-grey: #DDDEDB;
-  --input-bg: #e8e9e7;
+  --input-bg: #e5e5e5;
+  
+  /* Brand colors */
+  --primary: #0d9488;      /* Teal */
+  --primary-hover: #14b8a6;
+  --accent: #0891b2;       /* Cyan for highlights */
+  
+  /* Text */
+  --text: #171717;
+  --text-muted: #525252;
+  --text-subtle: #a3a3a3;
+  --text-inverse: #ffffff;
+  
+  /* Semantic colors */
+  --success: #16a34a;
+  --warning: #d97706;
+  --error: #dc2626;
+  --danger: #dc2626;
+  
+  /* Borders */
+  --border: #d4d4d4;
+  --border-hover: #a3a3a3;
 }
 
 * {
@@ -226,7 +250,7 @@ body {
   padding: 0.15rem 0.4rem;
   font-size: 0.75rem;
   font-family: inherit;
-  background: var(--primary);
+  background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: 4px;
   color: var(--text);
@@ -355,7 +379,7 @@ h1 {
 .todo-form input {
   flex: 1;
   padding: 0.75rem 1rem;
-  background: var(--primary);
+  background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
@@ -369,7 +393,7 @@ h1 {
 
 .todo-form select {
   padding: 0.75rem 1rem;
-  background: var(--primary);
+  background: var(--input-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
@@ -429,7 +453,8 @@ h1 {
   align-items: center;
   gap: 1rem;
   padding: 0.75rem 1rem;
-  background: var(--primary);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
   border-radius: 8px;
   margin-bottom: 1rem;
   flex-wrap: wrap;
@@ -505,8 +530,8 @@ h1 {
   align-items: center;
   gap: 1rem;
   padding: 1rem;
-  background: var(--primary);
-  border: 2px solid transparent;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
   border-radius: 8px;
   transition: transform 0.1s, border-color 0.15s;
 }

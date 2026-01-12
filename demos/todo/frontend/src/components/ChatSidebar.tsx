@@ -516,6 +516,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 			const toolExecutions: ToolExecution[] = [];
 			let streamingMetadata: any = {};
 			const toolsInProgress = new Map<string, number>(); // Track which tools are running
+			let toolCounter = 0; // Unique counter for tool IDs
 
 			// Add initial empty assistant message
 			setMessages((prev) => [...prev, {
@@ -561,7 +562,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 								} else if (currentEvent === 'tool_start') {
 									// Mark tool as starting
 									const startTime = Date.now();
-									const toolId = `${eventData.name}-${startTime}`;
+									toolCounter++; // Increment counter for unique ID
+									const toolId = `${eventData.name}-${startTime}-${toolCounter}`;
 									toolsInProgress.set(eventData.name, startTime);
 
 									// Create live tool execution

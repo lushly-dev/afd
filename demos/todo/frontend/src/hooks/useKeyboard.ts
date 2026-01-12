@@ -18,28 +18,43 @@ export interface UseKeyboardOptions {
 
 export function useKeyboard({ shortcuts, enabled = true }: UseKeyboardOptions): void {
 	useEffect(() => {
-		if (!enabled) return;
+		if (!enabled) {
+			console.log('[useKeyboard] Disabled');
+			return;
+		}
+
+		console.log('[useKeyboard] Registering', shortcuts.length, 'shortcuts');
 
 		const handleKeyDown = (e: KeyboardEvent) => {
 			const target = e.target as HTMLElement;
+			console.log('[useKeyboard] Key pressed:', e.key, 'target:', target.tagName, 'shift:', e.shiftKey);
+			
 			if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
 				if (e.key === 'Escape') target.blur();
+				console.log('[useKeyboard] Ignoring - in input/textarea');
 				return;
 			}
 
 			for (const shortcut of shortcuts) {
 				const keyMatches = e.key.toLowerCase() === shortcut.key.toLowerCase();
 				const ctrlMatches = !!shortcut.ctrl === (e.ctrlKey || e.metaKey);
-				const shiftMatches = !!shortcut.shift === e.shiftKey;
+				// Only check shift if the shortcut explicitly requires it
+				// This allows shifted keys like ? to work without requiring shift: true in the shortcut
+				const shiftMatches = shortcut.shift ? e.shiftKey : true;
 				const altMatches = !!shortcut.alt === e.altKey;
 
 				if (keyMatches && ctrlMatches && shiftMatches && altMatches) {
-					if (shortcut.when && !shortcut.when()) continue;
+					if (shortcut.when && !shortcut.when()) {
+						console.log('[useKeyboard] Matched', shortcut.key, 'but when() returned false');
+						continue;
+					}
+					console.log('[useKeyboard] Executing shortcut:', shortcut.key, shortcut.description);
 					e.preventDefault();
 					shortcut.action();
 					return;
 				}
 			}
+			console.log('[useKeyboard] No matching shortcut for:', e.key);
 		};
 
 		document.addEventListener('keydown', handleKeyDown);
