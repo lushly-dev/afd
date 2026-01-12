@@ -160,7 +160,6 @@ export function useTodoOperations({
         log(`✗ todo-update: ${res.error?.message}`, "error");
       }
       showResultToast(res, "todo-update");
-      return res.data; // Return updated todo for modal
     },
     [log, trackOperation, showResultToast, fetchData]
   );

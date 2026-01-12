@@ -59,6 +59,21 @@ interface ToolExecution {
 	args: Record<string, unknown>;
 	result: unknown;
 	latencyMs: number;
+	status?: 'pending' | 'running' | 'success' | 'error';
+	startTime?: number;
+	error?: string;
+}
+
+interface LiveToolExecution {
+	id: string;
+	name: string;
+	args: Record<string, unknown>;
+	status: 'pending' | 'running' | 'success' | 'error';
+	startTime: number;
+	endTime?: number;
+	result?: unknown;
+	error?: string;
+	latencyMs?: number;
 }
 
 interface ChatResponse {
@@ -74,6 +89,7 @@ interface ChatMessage {
 	role: 'user' | 'assistant' | 'system';
 	content: string;
 	toolExecutions?: ToolExecution[];
+	liveToolExecutions?: LiveToolExecution[];
 	totalToolLatencyMs?: number;
 	modelLatencyMs?: number;
 	timestamp: Date;
@@ -326,20 +342,32 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 								} else if (currentEvent === 'tool_start') {
 									// Mark tool as starting
 									const startTime = Date.now();
+									const toolId = `${eventData.name}-${startTime}`;
 									toolsInProgress.set(eventData.name, startTime);
+
+									// Create live tool execution
+									const liveTool: LiveToolExecution = {
+										id: toolId,
+										name: eventData.name,
+										args: eventData.args || {},
+										status: 'running',
+										startTime,
+									};
 
 									// Update UI to show tool is running
 									setMessages((prev) => prev.map(msg =>
 										msg.id === assistantMessageId
 											? {
 												...msg,
-												content: currentContent + `\n\n🔧 Running ${eventData.name}...`
+												liveToolExecutions: [...(msg.liveToolExecutions || []), liveTool]
 											}
 											: msg
 									));
 								} else if (currentEvent === 'tool_end') {
 									// Tool completed
+									const startTime = toolsInProgress.get(eventData.name);
 									toolsInProgress.delete(eventData.name);
+									const endTime = Date.now();
 
 									// Add to tool executions
 									const toolExecution: ToolExecution = {
@@ -347,19 +375,30 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 										args: {}, // We don't get args back in the stream
 										result: eventData.result,
 										latencyMs: eventData.latencyMs,
+										status: eventData.error ? 'error' : 'success',
+										startTime,
+										error: eventData.error,
 									};
 									toolExecutions.push(toolExecution);
-
-									// Remove the "Running..." text and update tool executions
-									const cleanContent = currentContent.replace(new RegExp(`\\n\\n🔧 Running ${eventData.name}...`, 'g'), '');
-									currentContent = cleanContent;
 
 									setMessages((prev) => prev.map(msg =>
 										msg.id === assistantMessageId
 											? {
 												...msg,
 												content: currentContent,
-												toolExecutions: [...toolExecutions]
+												toolExecutions: [...toolExecutions],
+												liveToolExecutions: (msg.liveToolExecutions || []).map(liveTool =>
+													liveTool.name === eventData.name
+														? {
+															...liveTool,
+															status: eventData.error ? 'error' : 'success',
+															endTime,
+															result: eventData.result,
+															error: eventData.error,
+															latencyMs: eventData.latencyMs,
+														}
+														: liveTool
+												)
 											}
 											: msg
 									));
@@ -550,6 +589,84 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 		}
 	};
 
+	// Get elapsed time for running tools
+	const getElapsedTime = (startTime: number): string => {
+		const elapsed = Date.now() - startTime;
+		if (elapsed < 1000) {
+			return `${elapsed}ms`;
+		}
+		return `${(elapsed / 1000).toFixed(1)}s`;
+	};
+
+	// Component for rendering live tool execution
+	const LiveToolExecutionComponent: React.FC<{ tool: LiveToolExecution }> = ({ tool }) => {
+		const [collapsed, setCollapsed] = useState(true);
+		const [elapsedTime, setElapsedTime] = useState<string>('');
+
+		// Update elapsed time for running tools
+		useEffect(() => {
+			if (tool.status === 'running') {
+				const interval = setInterval(() => {
+					setElapsedTime(getElapsedTime(tool.startTime));
+				}, 100);
+				return () => clearInterval(interval);
+			} else {
+				setElapsedTime('');
+			}
+		}, [tool.status, tool.startTime]);
+
+		const getStatusIcon = () => {
+			switch (tool.status) {
+				case 'running':
+					return <span className="tool-status-icon running">⚡</span>;
+				case 'success':
+					return <span className="tool-status-icon success">✓</span>;
+				case 'error':
+					return <span className="tool-status-icon error">✗</span>;
+				default:
+					return <span className="tool-status-icon pending">○</span>;
+			}
+		};
+
+		const hasArgs = Object.keys(tool.args).length > 0;
+
+		return (
+			<div className={`live-tool-execution ${tool.status}`}>
+				<div className="live-tool-header">
+					{getStatusIcon()}
+					<span className="live-tool-name">{tool.name}</span>
+					<div className="live-tool-timing">
+						{tool.status === 'running' && elapsedTime && (
+							<span className="live-tool-elapsed">{elapsedTime}</span>
+						)}
+						{tool.latencyMs !== undefined && (
+							<span className="live-tool-latency">{tool.latencyMs.toFixed(3)}ms</span>
+						)}
+					</div>
+					{hasArgs && (
+						<button
+							className="live-tool-args-toggle"
+							onClick={() => setCollapsed(!collapsed)}
+							title={collapsed ? 'Show arguments' : 'Hide arguments'}
+						>
+							{collapsed ? '▶' : '▼'}
+						</button>
+					)}
+				</div>
+				{hasArgs && !collapsed && (
+					<div className="live-tool-args">
+						<pre>{JSON.stringify(tool.args, null, 2)}</pre>
+					</div>
+				)}
+				{tool.error && (
+					<div className="live-tool-error">
+						Error: {tool.error}
+					</div>
+				)}
+			</div>
+		);
+	};
+
 	return (
 		<>
 			{/* Sidebar */}
@@ -566,8 +683,18 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 						<div key={msg.id} className={`chat-message ${msg.role}`}>
 							<MarkdownMessage content={msg.content} className="chat-message-content" />
 
-							{/* Tool Executions */}
-							{msg.toolExecutions && msg.toolExecutions.length > 0 && (
+							{/* Live Tool Executions */}
+							{msg.liveToolExecutions && msg.liveToolExecutions.length > 0 && (
+								<div className="chat-live-tool-executions">
+									<div className="chat-tool-executions-header">Tools:</div>
+									{msg.liveToolExecutions.map((tool) => (
+										<LiveToolExecutionComponent key={tool.id} tool={tool} />
+									))}
+								</div>
+							)}
+
+							{/* Tool Executions (Legacy/Final) */}
+							{msg.toolExecutions && msg.toolExecutions.length > 0 && !msg.liveToolExecutions && (
 								<div className="chat-tool-executions">
 									<div className="chat-tool-executions-header">Tools executed:</div>
 									{msg.toolExecutions.map((exec, idx) => (
@@ -576,13 +703,21 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 											<span className="chat-tool-latency">{exec.latencyMs.toFixed(3)}ms</span>
 										</div>
 									))}
-									<div className="chat-latency-summary">
+								</div>
+							)}
+
+							{/* Latency Summary */}
+							{(msg.modelLatencyMs !== undefined || msg.totalToolLatencyMs !== undefined) && (
+								<div className="chat-latency-summary">
+									{msg.modelLatencyMs !== undefined && (
 										<span>🧠 Gemini: {msg.modelLatencyMs?.toFixed(0)}ms</span>
+									)}
+									{msg.totalToolLatencyMs !== undefined && (
 										<span>
 											⚡ DirectClient:{' '}
 											<span className="highlight">{msg.totalToolLatencyMs?.toFixed(3)}ms</span>
 										</span>
-									</div>
+									)}
 								</div>
 							)}
 						</div>
