@@ -322,7 +322,7 @@ const App: React.FC = () => {
     { key: "a", description: "Select all todos", action: () => toggleSelectAll() },
     { key: "c", description: "Clear completed", action: () => { if (stats && stats.completed > 0) handleClearCompleted(stats.completed); }, when: () => !!(stats && stats.completed > 0) },
     { key: "?", description: "Show keyboard shortcuts", action: () => setShowKeyboardHelp(true) },
-  ], [filteredTodos, focusedIndex, stats]);
+  ], [filteredTodos, focusedIndex, stats, handleToggleTodo, handleEditTodo, handleDeleteTodo, handleClearCompleted, toggleSelectAll]);
 
   useKeyboard({ shortcuts });
 

@@ -23,6 +23,7 @@ import {
 	type Part,
 	type FunctionDeclaration,
 } from '@google/genai';
+// DirectClient kept for MCP compatibility, but todo actions now go through Convex
 import { DirectClient } from '@lushly-dev/afd-client';
 import { registry } from './registry.js';
 
@@ -41,8 +42,66 @@ if (!apiKey) {
 
 const genAI = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-// DirectClient for zero-overhead command execution
+// DirectClient for non-todo commands (MCP compatibility)
 const directClient = new DirectClient(registry);
+
+// Convex URL for todo operations
+const CONVEX_URL = process.env.CONVEX_URL || 'https://gentle-ermine-359.convex.site';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CONVEX HTTP CLIENT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Map of command names to Convex endpoints
+ */
+const CONVEX_ENDPOINTS: Record<string, string> = {
+  'todo-create': '/api/todos/create',
+  'todo-list': '/api/todos/list',
+  'todo-toggle': '/api/todos/toggle',
+  'todo-complete': '/api/todos/toggle',
+  'todo-uncomplete': '/api/todos/toggle',
+  'todo-update': '/api/todos/update',
+  'todo-delete': '/api/todos/delete',
+  'todo-stats': '/api/todos/stats',
+  'todo-clear': '/api/todos/clear-completed',
+};
+
+/**
+ * Call a Convex HTTP action for todo operations
+ */
+async function callConvexAction(
+  commandName: string,
+  args: Record<string, unknown>
+): Promise<{ success: boolean; data?: unknown; error?: { message: string } }> {
+  const endpoint = CONVEX_ENDPOINTS[commandName];
+  
+  if (!endpoint) {
+    // Fall back to DirectClient for non-todo commands
+    console.log(`[callConvexAction] No Convex endpoint for ${commandName}, using DirectClient`);
+    return directClient.call(commandName, args);
+  }
+  
+  const url = `${CONVEX_URL}${endpoint}`;
+  console.log(`[callConvexAction] Calling Convex: ${url}`);
+  console.log(`[callConvexAction] Args:`, JSON.stringify(args));
+  
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(args),
+    });
+    
+    const result = await response.json();
+    console.log(`[callConvexAction] Response:`, JSON.stringify(result));
+    return result;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Convex call failed';
+    console.error(`[callConvexAction] Error:`, message);
+    return { success: false, error: { message } };
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // METRICS
@@ -472,7 +531,7 @@ Be concise in your responses. After performing actions, briefly summarize what w
 
 				// Execute via DirectClient (the fast path!)
 				const start = performance.now();
-				const result = await directClient.call(commandName, fc.args || {});
+				const result = await callConvexAction(commandName, fc.args || {});
 				const latencyMs = performance.now() - start;
 
 				totalToolLatencyMs += latencyMs;
@@ -676,7 +735,7 @@ Be concise in your responses. After performing actions, briefly summarize what w
 
 				// Execute via DirectClient (the fast path!)
 				const start = performance.now();
-				const result = await directClient.call(commandName, fc.args || {});
+				const result = await callConvexAction(commandName, fc.args || {});
 				const latencyMs = performance.now() - start;
 
 				totalToolLatencyMs += latencyMs;
