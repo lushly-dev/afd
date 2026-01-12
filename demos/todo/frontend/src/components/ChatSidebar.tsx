@@ -946,6 +946,46 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 		);
 	};
 
+	// Component for rendering tools section with collapsible functionality
+	const ToolsSection: React.FC<{ 
+		liveTools?: LiveToolExecution[];
+		toolExecutions?: ToolExecution[];
+	}> = ({ liveTools, toolExecutions }) => {
+		const [collapsed, setCollapsed] = useState(true);
+		
+		// Count total tools
+		const liveCount = liveTools?.length || 0;
+		const legacyCount = toolExecutions?.length || 0;
+		const totalCount = liveCount + legacyCount;
+		
+		if (totalCount === 0) return null;
+
+		return (
+			<div className="tools-section">
+				<div className="tools-header" onClick={() => setCollapsed(!collapsed)}>
+					<span className="tools-icon">⚙️</span>
+					<span className="tools-label">Tools ({totalCount})</span>
+					<button className="tools-toggle" aria-label={collapsed ? 'Expand tools' : 'Collapse tools'}>
+						{collapsed ? '▶' : '▼'}
+					</button>
+				</div>
+				{!collapsed && (
+					<div className="tools-content">
+						{liveTools && liveTools.map((tool) => (
+							<LiveToolExecutionComponent key={tool.id} tool={tool} />
+						))}
+						{toolExecutions && !liveTools && toolExecutions.map((exec, idx) => (
+							<div key={idx} className="chat-tool-exec">
+								<span className="chat-tool-name">{exec.name}</span>
+								<span className="chat-tool-latency">{exec.latencyMs.toFixed(3)}ms</span>
+							</div>
+						))}
+					</div>
+				)}
+			</div>
+		);
+	};
+
 	// Component for rendering live tool execution
 	const LiveToolExecutionComponent: React.FC<{ tool: LiveToolExecution }> = ({ tool }) => {
 		const [collapsed, setCollapsed] = useState(true);
@@ -1067,27 +1107,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 								<ReasoningSection reasoning={msg.reasoning} />
 							)}
 
-							{/* Live Tool Executions */}
-							{msg.liveToolExecutions && msg.liveToolExecutions.length > 0 && (
-								<div className="chat-live-tool-executions">
-									<div className="chat-tool-executions-header">Tools:</div>
-									{msg.liveToolExecutions.map((tool) => (
-										<LiveToolExecutionComponent key={tool.id} tool={tool} />
-									))}
-								</div>
-							)}
-
-							{/* Tool Executions (Legacy/Final) */}
-							{msg.toolExecutions && msg.toolExecutions.length > 0 && !msg.liveToolExecutions && (
-								<div className="chat-tool-executions">
-									<div className="chat-tool-executions-header">Tools executed:</div>
-									{msg.toolExecutions.map((exec, idx) => (
-										<div key={idx} className="chat-tool-exec">
-											<span className="chat-tool-name">{exec.name}</span>
-											<span className="chat-tool-latency">{exec.latencyMs.toFixed(3)}ms</span>
-										</div>
-									))}
-								</div>
+							{/* Tools Section - collapsible */}
+							{msg.role === 'assistant' && (msg.liveToolExecutions?.length || msg.toolExecutions?.length) && (
+								<ToolsSection 
+									liveTools={msg.liveToolExecutions}
+									toolExecutions={msg.toolExecutions}
+								/>
 							)}
 
 							{/* Latency Summary */}

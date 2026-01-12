@@ -249,8 +249,8 @@
 
 /* Reasoning Section */
 .reasoning-section {
-  margin-top: 0.75rem;
-  padding-top: 0.75rem;
+  margin-top: 0.5rem;
+  padding-top: 0;
   border-top: 1px solid var(--border);
   background: rgba(var(--accent-rgb, 59, 130, 246), 0.05);
   border-radius: 8px;
@@ -261,7 +261,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
+  padding: 0.2rem 0.2rem;
   cursor: pointer;
   transition: background-color 0.2s ease;
 }
@@ -288,7 +288,7 @@
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 0.8rem;
+  font-size: 0.5rem;
   padding: 0.25rem;
   border-radius: 4px;
   transition: all 0.2s ease;
@@ -313,6 +313,75 @@
 }
 
 @keyframes reasoningExpand {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Tools Section - collapsible like reasoning */
+.tools-section {
+  margin-top: 0.5rem;
+  padding-top: 0;
+  border-top: 1px solid var(--border);
+  background: rgba(34, 197, 94, 0.05);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tools-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0.4rem;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.tools-header:hover {
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.tools-icon {
+  font-size: 0.9rem;
+}
+
+.tools-label {
+  color: var(--success);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  flex: 1;
+}
+
+.tools-toggle {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.5rem;
+  padding: 0.25rem;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+.tools-toggle:hover {
+  background: rgba(34, 197, 94, 0.2);
+  color: var(--success);
+}
+
+.tools-content {
+  padding: 0.5rem;
+  border-top: 1px solid rgba(34, 197, 94, 0.1);
+  animation: toolsExpand 0.3s ease-out;
+}
+
+@keyframes toolsExpand {
   0% {
     opacity: 0;
     transform: translateY(-10px);
@@ -363,9 +432,10 @@
 .live-tool-execution {
   background: rgba(var(--accent-rgb, 59, 130, 246), 0.05);
   border: 1px solid rgba(var(--accent-rgb, 59, 130, 246), 0.15);
-  border-radius: 8px;
-  margin-bottom: 0.5rem;
-  padding: 0.75rem;
+  border-radius: 20px;
+  margin-bottom: 0.2rem;
+  padding: 0.2rem;
+  padding-right: 10px;
   transition: all 0.3s ease;
 }
 
