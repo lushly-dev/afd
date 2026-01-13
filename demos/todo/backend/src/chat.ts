@@ -144,7 +144,7 @@ async function callConvexAction(
       return { success: true, data: { id: args.id, ...args } };
     
     case 'todo-delete':
-      return { success: true, data: { id: args.id, deleted: true } };
+      return { success: true, data: { id: args.id, title: args.title, deleted: true } };
     
     case 'todo-clear':
       return { success: true, data: { cleared: true } };

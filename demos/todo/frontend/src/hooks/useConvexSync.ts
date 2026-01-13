@@ -86,10 +86,14 @@ export function useConvexSync(localStore: LocalStore): UseConvexSyncResult {
         switch (op.type) {
           case 'create':
             if (op.data && op.data.title) {
-              await create(op.data.title, {
+              const newConvexId = await create(op.data.title, {
                 description: op.data.description,
                 priority: op.data.priority,
               });
+              // Replace local temp ID with Convex ID
+              if (newConvexId && op.todoId) {
+                localStore.updateTodoId(op.todoId, String(newConvexId));
+              }
             }
             break;
             
