@@ -1,7 +1,7 @@
 import type { CommandResult } from "./types";
 
 /** API server URL - configurable via VITE_API_URL env var */
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3101";
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:3100";
 let messageId = 0;
 
 export async function callTool<T>(
