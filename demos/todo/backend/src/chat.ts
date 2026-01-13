@@ -68,9 +68,11 @@ const CONVEX_ENDPOINTS: Record<string, string> = {
 };
 
 /**
- * Handle todo operations locally (mock success)
- * With local-first architecture, the frontend handles actual storage via LocalStore.
- * The chat server just returns success and the frontend executes locally on tool_end.
+ * Handle todo operations via Convex HTTP API for reads, mock for writes.
+ * 
+ * - Read operations (list, stats, search): Query Convex for real data
+ * - Write operations (create, toggle, update, delete): Return mock success,
+ *   frontend executes locally via LocalStore and syncs to Convex
  */
 async function callConvexAction(
   commandName: string,
@@ -83,41 +85,52 @@ async function callConvexAction(
     return directClient.call(commandName, args);
   }
   
-  // For todo commands: return mock success
-  // The frontend's executeLocalAction will handle actual storage via LocalStore
-  console.log(`[callConvexAction] Returning mock success for ${commandName}, frontend will handle via LocalStore`);
+  // READ operations: Query Convex for real data
+  const readCommands = ['todo-list', 'todo-stats', 'todo-search'];
+  if (readCommands.includes(commandName)) {
+    try {
+      console.log(`[callConvexAction] Querying Convex for ${commandName}`);
+      const response = await fetch(`${CONVEX_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(args),
+      });
+      
+      if (!response.ok) {
+        console.error(`[callConvexAction] Convex error: ${response.status}`);
+        return { success: false, error: { message: `Convex error: ${response.status}` } };
+      }
+      
+      const data = await response.json();
+      return { success: true, data };
+    } catch (error) {
+      console.error(`[callConvexAction] Convex fetch failed:`, error);
+      return { success: false, error: { message: 'Failed to fetch from Convex' } };
+    }
+  }
   
-  switch (commandName) {
-    case 'todo-create':
-      return { 
-        success: true, 
-        data: { 
-          id: `pending-${Date.now()}`,
-          title: args.title,
-          priority: args.priority || 'medium',
-          completed: false,
-        } 
-      };
-    case 'todo-list':
-      // Return empty list - frontend has the real data
-      return { success: true, data: { items: [], total: 0 } };
-    case 'todo-toggle':
-    case 'todo-complete':
-    case 'todo-uncomplete':
-      return { success: true, data: { id: args.id, toggled: true } };
-    case 'todo-update':
-      return { success: true, data: { id: args.id, updated: true } };
-    case 'todo-delete':
-      return { success: true, data: { id: args.id, deleted: true } };
-    case 'todo-stats':
-      // Return placeholder - frontend has real stats
-      return { success: true, data: { total: 0, completed: 0, pending: 0 } };
-    case 'todo-clear':
-      return { success: true, data: { cleared: true } };
-    default:
-      return { success: true, data: {} };
+  // WRITE operations: Also go through Convex for consistency (no race conditions)
+  try {
+    console.log(`[callConvexAction] Writing to Convex: ${commandName}`);
+    const response = await fetch(`${CONVEX_URL}${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(args),
+    });
+    
+    if (!response.ok) {
+      console.error(`[callConvexAction] Convex write error: ${response.status}`);
+      return { success: false, error: { message: `Convex error: ${response.status}` } };
+    }
+    
+    const data = await response.json();
+    return { success: true, data };
+  } catch (error) {
+    console.error(`[callConvexAction] Convex write failed:`, error);
+    return { success: false, error: { message: 'Failed to write to Convex' } };
   }
 }
+
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // METRICS

@@ -108,6 +108,7 @@ interface ChatSidebarProps {
 	chatServerUrl?: string;
 	todos?: Todo[];
 	localStore?: LocalStore;
+	onConnectionStatusChange?: (status: 'connecting' | 'connected' | 'error') => void;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -167,55 +168,17 @@ const executeLocalAction = (
 	args: Record<string, unknown>,
 	result: unknown
 ): void => {
-	if (!localStore) return;
-
-	try {
-		switch (toolName) {
-			case 'todo-create':
-				if (result && typeof result === 'object' && 'id' in result) {
-					// The chat server already created the todo in Convex
-					// We just need to add it to local store for instant UI update
-					const todoResult = result as { id: string; title?: string };
-					const title = (args.title as string) || todoResult.title || 'New Todo';
-					localStore.createTodo(title, {
-						description: args.description as string | undefined,
-						priority: (args.priority as 'low' | 'medium' | 'high') || 'medium',
-					});
-				}
-				break;
-
-			case 'todo-toggle':
-			case 'todo-complete':
-			case 'todo-uncomplete':
-				if (args.id) {
-					localStore.toggleTodo(args.id as string);
-				}
-				break;
-
-			case 'todo-update':
-				if (args.id) {
-					const { id, ...updates } = args;
-					localStore.updateTodo(id as string, updates as Partial<Pick<Todo, 'title' | 'description' | 'priority'>>);
-				}
-				break;
-
-			case 'todo-delete':
-				if (args.id) {
-					localStore.deleteTodo(args.id as string);
-				}
-				break;
-
-			case 'todo-clear':
-				localStore.clearCompleted();
-				break;
-
-			default:
-				// Not a todo action, ignore
-				break;
-		}
-	} catch (error) {
-		console.error('[executeLocalAction] Failed to execute local action:', toolName, error);
-	}
+	// All todo operations now go through Convex directly.
+	// The useConvexSync hook will hydrate LocalStore from Convex,
+	// so we don't need to duplicate the action here.
+	// This prevents race conditions and duplicate todos.
+	
+	// Just log for debugging
+	console.log(`[executeLocalAction] Tool completed: ${toolName}`, { args, result });
+	
+	// Note: If we need instant UI updates before Convex sync,
+	// we could add the todo here using the Convex ID from result.
+	// For now, let Convex subscription handle it.
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -229,6 +192,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	chatServerUrl = import.meta.env.VITE_CHAT_URL ?? 'http://localhost:3101',
 	todos = [],
 	localStore,
+	onConnectionStatusChange,
 }) => {
 	const [messages, setMessages] = useState<ChatMessage[]>(() => loadChatHistory());
 	const [isHistoryRestored, setIsHistoryRestored] = useState<boolean>(() => {
@@ -319,6 +283,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 		const interval = setInterval(checkHealth, 10000);
 		return () => clearInterval(interval);
 	}, [checkHealth]);
+
+	// Notify parent of connection status changes
+	useEffect(() => {
+		onConnectionStatusChange?.(connectionStatus);
+	}, [connectionStatus, onConnectionStatusChange]);
 
 	// Generate unique message ID
 	const generateId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -925,26 +894,29 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	};
 
 	// Component for rendering reasoning with collapsible functionality
-	const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
-		const [collapsed, setCollapsed] = useState(true);
+const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
+	const [collapsed, setCollapsed] = useState(true);
 
-		return (
-			<div className="reasoning-section">
-				<div className="reasoning-header" onClick={() => setCollapsed(!collapsed)}>
-					<span className="reasoning-icon">🧠</span>
-					<span className="reasoning-label">AI Reasoning</span>
-					<button className="reasoning-toggle" aria-label={collapsed ? 'Expand reasoning' : 'Collapse reasoning'}>
-						{collapsed ? '▶' : '▼'}
-					</button>
-				</div>
-				{!collapsed && (
-					<div className="reasoning-content">
-						<MarkdownMessage content={reasoning} className="reasoning-text" />
-					</div>
-				)}
+	// Don't render if no reasoning content
+	if (!reasoning || !reasoning.trim()) return null;
+
+	return (
+		<div className="reasoning-section">
+			<div className="reasoning-header" onClick={() => setCollapsed(!collapsed)}>
+				<span className="reasoning-icon">🧠</span>
+				<span className="reasoning-label">Reasoning</span>
+				<button className="reasoning-toggle" aria-label={collapsed ? 'Expand reasoning' : 'Collapse reasoning'}>
+					{collapsed ? '▶' : '▼'}
+				</button>
 			</div>
-		);
-	};
+			{!collapsed && (
+				<div className="reasoning-content">
+					<MarkdownMessage content={reasoning} className="reasoning-text" />
+				</div>
+			)}
+		</div>
+	);
+};
 
 	// Component for rendering tools section with collapsible functionality
 	const ToolsSection: React.FC<{ 
@@ -1060,33 +1032,28 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 			{/* Sidebar */}
 			<aside className={`chat-sidebar ${isOpen ? 'open' : ''}`}>
 				<header className="chat-sidebar-header">
-					<span className="chat-sidebar-header-icon">🤖</span>
-					<h2>AI Copilot</h2>
+					<h2>Myoso</h2>
 					<span className="chat-context-indicator">
-						Context: {todos.length} todos
+						{todos.length} todos
 					</span>
-					<button
-						className="new-chat-btn"
-						onClick={startNewChat}
-						title="Start new chat"
-					>
-						✨
-					</button>
-					<button
-						className="clear-history-btn"
-						onClick={clearAllHistory}
-						title="Clear all history"
-					>
-						🗑️
-					</button>
-					<button
-						className={`reasoning-toggle-btn ${showReasoning ? 'active' : ''}`}
-						onClick={toggleReasoning}
-						title={showReasoning ? 'Hide reasoning' : 'Show reasoning'}
-					>
-						🧠
-					</button>
-					<span className={`chat-sidebar-status ${connectionStatus}`}>{getStatusText()}</span>
+					<div className="chat-header-actions">
+						<button
+							className="chat-header-btn"
+							onClick={startNewChat}
+							title="New chat"
+						>
+							+
+						</button>
+						{/* History panel - coming soon
+						<button
+							className="chat-header-btn history-btn"
+							onClick={() => {}}
+							title="Chat history"
+						>
+							📜
+						</button>
+						*/}
+					</div>
 				</header>
 
 				{/* History Restored Indicator */}
@@ -1102,8 +1069,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 						<div key={msg.id} className={`chat-message ${msg.role}`}>
 							<MarkdownMessage content={msg.content} className="chat-message-content" />
 
-							{/* Reasoning Section - only show for assistant messages */}
-							{msg.role === 'assistant' && msg.reasoning && showReasoning && (
+							{/* Reasoning Section - always show if present */}
+							{msg.role === 'assistant' && msg.reasoning && (
 								<ReasoningSection reasoning={msg.reasoning} />
 							)}
 
@@ -1196,7 +1163,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 						<textarea
 							ref={inputRef}
 							className="chat-input"
-							placeholder="Ask AI to help... (Type / for commands, @ for todos, Shift+Enter for newlines)"
+							placeholder="Type / for commands, @ for todos..."
 							value={inputValue}
 							onChange={handleInputChange}
 							onKeyDown={handleKeyPress}
@@ -1204,6 +1171,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 							rows={1}
 							aria-label="Chat message input. Type / for slash commands, Shift+Enter for new lines, Enter to send."
 						/>
+					</div>
+					<div className="chat-options-row">
+						<button
+							className={`chat-option-btn ${showReasoning ? 'active' : ''}`}
+							onClick={toggleReasoning}
+							title={showReasoning ? 'Hide reasoning' : 'Show reasoning'}
+						>
+							🧠 Reasoning
+						</button>
+						<span className="chat-model-selector">
+							⚡ Gemini 3 Flash
+						</span>
+						<div className="chat-options-spacer" />
 						{isLoading ? (
 							<button
 								className="chat-stop-btn"
@@ -1229,9 +1209,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 			<button
 				className={`chat-toggle-btn ${isOpen ? 'hidden' : ''}`}
 				onClick={onToggle}
-				title="Open AI Copilot"
+				title="Open Myoso"
 			>
-				🤖
+				💬
 			</button>
 		</>
 	);
