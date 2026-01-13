@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Backend API URL (default: http://localhost:3101) */
+  /** Backend API URL (default: http://localhost:3100) */
   readonly VITE_API_URL: string;
   /** Chat server URL (default: http://localhost:3101) */
   readonly VITE_CHAT_URL: string;

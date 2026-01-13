@@ -17,7 +17,7 @@ import type { ZodCommandDefinition } from "@lushly-dev/afd-server";
 import { allCommands } from "./commands/index.js";
 
 // Configuration from environment
-const PORT = parseInt(process.env.PORT ?? "3101", 10);
+const PORT = parseInt(process.env.PORT ?? "3100", 10);
 const HOST = process.env.HOST ?? "localhost";
 const LOG_LEVEL = process.env.LOG_LEVEL ?? "info";
 // Transport mode: "auto" (default), "http" (for UI), or "stdio" (for MCP clients)
