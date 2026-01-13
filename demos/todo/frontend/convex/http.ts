@@ -328,4 +328,133 @@ http.route({
   }),
 });
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// AGENT SESSIONS API (For lushx MCP server)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// POST /api/sessions/create
+http.route({
+  path: "/api/sessions/create",
+  method: "OPTIONS",
+  handler: httpAction(async () => {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+    });
+  }),
+});
+
+http.route({
+  path: "/api/sessions/create",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const body = await parseBody(request) as {
+        agentId?: string;
+        workflow?: string;
+        issue?: string;
+        pane?: number;
+      };
+
+      if (!body.agentId || !body.workflow) {
+        return jsonResponse({ success: false, error: { message: "agentId and workflow required" } }, 400);
+      }
+
+      const result = await ctx.runMutation(api.agentSessions.create, {
+        agentId: body.agentId,
+        workflow: body.workflow,
+        issue: body.issue,
+        pane: body.pane,
+      });
+
+      return jsonResponse({ success: true, data: result });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      return jsonResponse({ success: false, error: { message } }, 500);
+    }
+  }),
+});
+
+// POST /api/sessions/status
+http.route({
+  path: "/api/sessions/status",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const body = await parseBody(request) as { agentId?: string };
+
+      if (!body.agentId) {
+        return jsonResponse({ success: false, error: { message: "agentId required" } }, 400);
+      }
+
+      const result = await ctx.runQuery(api.agentSessions.getStatus, {
+        agentId: body.agentId,
+      });
+
+      return jsonResponse({ success: true, data: result });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      return jsonResponse({ success: false, error: { message } }, 500);
+    }
+  }),
+});
+
+// POST /api/sessions/list
+http.route({
+  path: "/api/sessions/list",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const body = await parseBody(request) as {
+        state?: "running" | "paused" | "stopped" | "complete";
+        limit?: number;
+      };
+
+      const result = await ctx.runQuery(api.agentSessions.list, {
+        state: body.state,
+        limit: body.limit,
+      });
+
+      return jsonResponse({ success: true, data: result });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      return jsonResponse({ success: false, error: { message } }, 500);
+    }
+  }),
+});
+
+// POST /api/sessions/update
+http.route({
+  path: "/api/sessions/update",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    try {
+      const body = await parseBody(request) as {
+        agentId?: string;
+        state?: "running" | "paused" | "stopped" | "complete";
+        outputLines?: number;
+      };
+
+      if (!body.agentId) {
+        return jsonResponse({ success: false, error: { message: "agentId required" } }, 400);
+      }
+
+      const result = await ctx.runMutation(api.agentSessions.updateStatus, {
+        agentId: body.agentId,
+        state: body.state,
+        outputLines: body.outputLines,
+      });
+
+      return jsonResponse({ success: true, data: result });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      return jsonResponse({ success: false, error: { message } }, 500);
+    }
+  }),
+});
+
 export default http;
