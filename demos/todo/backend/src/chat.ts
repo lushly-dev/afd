@@ -109,25 +109,48 @@ async function callConvexAction(
     }
   }
   
-  // WRITE operations: Also go through Convex for consistency (no race conditions)
-  try {
-    console.log(`[callConvexAction] Writing to Convex: ${commandName}`);
-    const response = await fetch(`${CONVEX_URL}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(args),
-    });
+  // WRITE operations: Return mock success for local-first architecture.
+  // Frontend's executeLocalAction creates in LocalStore (instant UI).
+  // LocalStore syncs to Convex in background via ConvexSync.
+  // This gives instant feedback while maintaining data consistency.
+  
+  console.log(`[callConvexAction] Local-first mock for ${commandName}:`, args);
+  
+  // Generate a temporary ID for new todos (LocalStore will assign real ID)
+  const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  
+  // Return mock success with full data so executeLocalAction can use it
+  switch (commandName) {
+    case 'todo-create':
+      return {
+        success: true,
+        data: {
+          _id: tempId,
+          title: args.title,
+          description: args.description || '',
+          priority: args.priority || 'medium',
+          completed: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        },
+      };
     
-    if (!response.ok) {
-      console.error(`[callConvexAction] Convex write error: ${response.status}`);
-      return { success: false, error: { message: `Convex error: ${response.status}` } };
-    }
+    case 'todo-toggle':
+    case 'todo-complete':
+    case 'todo-uncomplete':
+      return { success: true, data: { id: args.id, toggled: true } };
     
-    const data = await response.json();
-    return { success: true, data };
-  } catch (error) {
-    console.error(`[callConvexAction] Convex write failed:`, error);
-    return { success: false, error: { message: 'Failed to write to Convex' } };
+    case 'todo-update':
+      return { success: true, data: { id: args.id, ...args } };
+    
+    case 'todo-delete':
+      return { success: true, data: { id: args.id, deleted: true } };
+    
+    case 'todo-clear':
+      return { success: true, data: { cleared: true } };
+    
+    default:
+      return { success: true, data: args };
   }
 }
 
