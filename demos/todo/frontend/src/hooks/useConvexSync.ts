@@ -10,6 +10,13 @@ import { useConvexTodos } from './useConvexTodos';
 import type { LocalStore } from './useLocalStore';
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// CONSTANTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** How often to sync pending operations to Convex */
+const SYNC_INTERVAL_MS = 2000;
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -165,7 +172,7 @@ export function useConvexSync(localStore: LocalStore): UseConvexSyncResult {
     processPendingOps();
     
     // Periodic sync every 2 seconds
-    const interval = setInterval(processPendingOps, 2000);
+    const interval = setInterval(processPendingOps, SYNC_INTERVAL_MS);
     
     return () => clearInterval(interval);
   }, [isHydrated, processPendingOps]);

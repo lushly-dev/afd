@@ -92,7 +92,7 @@ function addPendingOp(op: Omit<PendingOperation, 'id' | 'timestamp'>): void {
   const ops = getPendingOps();
   ops.push({
     ...op,
-    id: `op-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    id: `op-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
     timestamp: Date.now(),
   });
   setPendingOps(ops);
