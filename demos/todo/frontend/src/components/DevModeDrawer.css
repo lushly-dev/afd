@@ -69,6 +69,76 @@
 	color: var(--text);
 }
 
+/* Status row with connection badges and toggle */
+.dev-status-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.75rem 1.25rem;
+	border-bottom: 1px solid var(--border);
+	background: var(--bg);
+}
+
+.dev-status-badges {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.dev-connection-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.25rem 0.6rem;
+	font-size: 0.75rem;
+	font-weight: 500;
+	border-radius: var(--corner-radius);
+	background: var(--surface);
+	color: var(--text-muted);
+}
+
+.dev-connection-badge.connected {
+	color: var(--success);
+}
+
+.dev-connection-badge.disconnected {
+	color: var(--error);
+}
+
+.dev-status-dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: currentColor;
+}
+
+.dev-pending-badge {
+	display: inline-flex;
+	align-items: center;
+	padding: 0.25rem 0.6rem;
+	font-size: 0.7rem;
+	font-weight: 600;
+	border-radius: var(--corner-radius);
+	background: rgba(251, 191, 36, 0.15);
+	color: var(--warning);
+}
+
+.dev-toggle-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	font-size: 0.75rem;
+	color: var(--text-muted);
+	cursor: pointer;
+}
+
+.dev-toggle-checkbox {
+	width: 14px;
+	height: 14px;
+	cursor: pointer;
+	accent-color: var(--accent);
+}
+
 .dev-tabs {
 	display: flex;
 	gap: 0;

@@ -1,3 +1,10 @@
+References: 
+https://blog.cloudflare.com/code-mode/
+https://www.anthropic.com/engineering/advanced-tool-use
+https://cursor.com/blog/dynamic-context-discovery
+https://code.claude.com/docs/en/skills
+
+
 In this video, I'm going to be going
 0:01
 over progressive disclosure within Cloud

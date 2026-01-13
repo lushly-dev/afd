@@ -317,6 +317,29 @@ export const systemToggle = internalMutation({
   },
 });
 
+export const systemUpdate = internalMutation({
+  args: {
+    id: v.id("todos"),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    priority: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
+  },
+  handler: async (ctx, args) => {
+    const todo = await ctx.db.get(args.id);
+    if (!todo) {
+      throw new Error("Todo not found");
+    }
+    
+    const updates: Record<string, unknown> = { updatedAt: Date.now() };
+    if (args.title !== undefined) updates.title = args.title;
+    if (args.description !== undefined) updates.description = args.description;
+    if (args.priority !== undefined) updates.priority = args.priority;
+    
+    await ctx.db.patch(args.id, updates);
+    return await ctx.db.get(args.id);
+  },
+});
+
 export const systemDelete = internalMutation({
   args: {
     id: v.id("todos"),
@@ -324,5 +347,21 @@ export const systemDelete = internalMutation({
   handler: async (ctx, args) => {
     await ctx.db.delete(args.id);
     return { success: true };
+  },
+});
+
+export const systemClearCompleted = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const completed = await ctx.db
+      .query("todos")
+      .filter((q) => q.eq(q.field("completed"), true))
+      .collect();
+    
+    for (const todo of completed) {
+      await ctx.db.delete(todo._id);
+    }
+    
+    return { success: true, count: completed.length };
   },
 });

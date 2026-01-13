@@ -15,6 +15,7 @@ pnpm build
 pnpm -F @lushly-dev/afd-core build
 pnpm -F @lushly-dev/afd-server build
 pnpm -F @lushly-dev/afd-client build
+pnpm -F @lushly-dev/afd-adapters build
 
 # Run all tests
 pnpm test
@@ -51,9 +52,13 @@ packages/
 ├── client/     # @lushly-dev/afd-client - MCP client + DirectClient
 ├── cli/        # @lushly-dev/afd-cli - Command-line tool
 ├── testing/    # @lushly-dev/afd-testing - JTBD scenario runner
+├── adapters/   # @lushly-dev/afd-adapters - Frontend adapters for rendering CommandResult
 └── examples/
     ├── todo/                # Multi-stack example (TS, Python, Rust backends)
     └── todo-directclient/   # DirectClient + AI integration example
+
+demos/
+└── todo/       # Myoso - Local-first todo app with Convex + Gemini chat integration
 ```
 
 ### Core Types (`@lushly-dev/afd-core`)
@@ -146,9 +151,11 @@ Command Definition (Zod schema + handler)
 - Use `describe`/`it`/`expect` from 'vitest'
 
 ### Biome Linting
-- Tab indentation, single quotes, trailing commas
+- Tab indentation, single quotes, trailing commas (es5)
 - `noExplicitAny: error` - avoid `any` types
 - `useImportType: error` - use `import type { ... }` for type-only imports
+- `noUnusedImports: error`, `noUnusedVariables: error`
+- `useNodejsImportProtocol: error` - use `node:` prefix for Node.js builtins
 
 ## Pipeline Variable Resolution
 
@@ -163,9 +170,25 @@ When working with pipelines, these variables are available:
 | `$steps.alias` | Step by alias name |
 | `$input` | Original pipeline input |
 
+## Demos
+
+### Myoso (demos/todo)
+A local-first todo app demonstrating AFD with Convex real-time database and Gemini chat integration:
+- **MCP Server** (port 3100): Notes commands via `/message` endpoint
+- **Chat Server** (port 3101): AI chat via `/chat` SSE endpoint
+- **Frontend**: Vite + React with Zustand for optimistic updates
+
+```bash
+# Run the demo (from demos/todo)
+cd backend && npm install && npm run dev   # Terminal 1: MCP server
+cd backend && npm run chat                 # Terminal 2: Chat server
+cd frontend && npm install && npm run dev  # Terminal 3: Frontend
+```
+
 ## Related Documentation
 
 - **AGENTS.md**: Comprehensive AI agent context and patterns
 - **docs/philosophy.md**: Why AFD exists
 - **docs/command-schema-guide.md**: Command design patterns
 - **docs/specs/**: Specifications for handoff, pipelines, etc.
+- **docs/directclient-guide.md**: In-process command execution for co-located agents
