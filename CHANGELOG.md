@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - Myoso Local-First Architecture
+
+### Added
+
+- **Local-First Architecture** - Instant UI updates with background sync
+  - `useLocalStore` - Zustand-based optimistic state management
+  - `useConvexSync` - Background synchronization to Convex
+  - ID replacement after sync (local temp ID → Convex ID)
+  - Hydration deduplication to prevent duplicates on refresh
+
+- **Chat-Initiated CRUD** - All todo operations work via AI chat
+  - Backend returns mock success for writes (instant ~0.5ms)
+  - `executeLocalAction` creates/updates/deletes in LocalStore
+  - Reads still query Convex for accurate agent context
+
+- **Dual Server Architecture**
+  - MCP Server (`server.ts`) on port 3100 for Notes/JSON-RPC
+  - Chat Server (`chat-server.ts`) on port 3101 for AI chat SSE
+
+### Changed
+
+- Renamed demo from "Todo" to "Myoso"
+- Updated README with local-first architecture diagrams
+- Split backend into separate MCP and Chat servers
+
+### Fixed
+
+- Delete via chat now correctly gets ID from `result.id`
+- Port conflicts between MCP and Chat servers resolved
+
 
 ### [[Todo Demo] Project Setup](#46) (2026-01-09)
 
