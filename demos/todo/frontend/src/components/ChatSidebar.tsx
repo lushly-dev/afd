@@ -232,28 +232,19 @@ const executeLocalAction = (
 			case 'todo-delete': {
 				// ID can be in args OR result (backend returns it in result)
 				const resultObj = result as { id?: string; title?: string; data?: { id?: string; title?: string } } | undefined;
-				let todoId = args.id as string | undefined 
+				const todoId = args.id as string | undefined 
 					|| resultObj?.id 
 					|| resultObj?.data?.id;
 				const title = resultObj?.title || resultObj?.data?.title || args.title as string | undefined;
 				
-				console.log('[executeLocalAction] Delete debug:', {
-					argsId: args.id,
-					resultId: resultObj?.id,
-					resultTitle: title,
-					localStoreTodos: localStore.todos.map(t => ({ id: t.id, title: t.title })),
-				});
-				
 				// First try direct ID match
 				if (todoId && localStore.todos.find(t => t.id === todoId)) {
-					console.log('[executeLocalAction] Found by ID, deleting:', todoId);
 					localStore.deleteTodo(todoId);
 				} 
 				// Then try title match as fallback
 				else if (title) {
 					const foundId = findTodoByTitle(title);
 					if (foundId) {
-						console.log('[executeLocalAction] Found by title, deleting:', foundId);
 						localStore.deleteTodo(foundId);
 					} else {
 						console.warn('[executeLocalAction] Could not find todo by title:', title);
@@ -461,13 +452,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
 	// Start a new chat session
 	const startNewChat = () => {
-		clearChatHistory();
-		setMessages([getWelcomeMessage()]);
-		setIsHistoryRestored(false);
-	};
-
-	// Clear all chat history
-	const clearAllHistory = () => {
 		clearChatHistory();
 		setMessages([getWelcomeMessage()]);
 		setIsHistoryRestored(false);
@@ -1164,8 +1148,8 @@ const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
 						<div key={msg.id} className={`chat-message ${msg.role}`}>
 							<MarkdownMessage content={msg.content} className="chat-message-content" />
 
-							{/* Reasoning Section - always show if present */}
-							{msg.role === 'assistant' && msg.reasoning && (
+							{/* Reasoning Section - controlled by toggle */}
+							{msg.role === 'assistant' && showReasoning && msg.reasoning && (
 								<ReasoningSection reasoning={msg.reasoning} />
 							)}
 

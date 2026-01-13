@@ -136,9 +136,9 @@ function getSnapshot(): Todo[] {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function generateId(): string {
-  // Use crypto.randomUUID() for universally unique IDs
-  // This is supported in modern browsers and Node.js 19+
-  return crypto.randomUUID();
+  // Use local- prefix + UUID for proper local-vs-synced detection
+  // ConvexSync uses startsWith('local-') to identify local-only todos
+  return `local-${crypto.randomUUID()}`;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
