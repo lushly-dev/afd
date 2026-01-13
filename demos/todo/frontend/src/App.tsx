@@ -67,6 +67,11 @@ const App: React.FC = () => {
 
   // Dev mode drawer state
   const [devDrawerOpen, setDevDrawerOpen] = useState(false);
+  const [showCommandLog, setShowCommandLog] = useState(true);
+
+  // Backend health state
+  const [isBackendReady, setIsBackendReady] = useState(false);
+  const [isChatReady, setIsChatReady] = useState(false);
 
   // Chat sidebar state
   const [chatSidebarOpen, setChatSidebarOpen] = useState(true);
@@ -101,6 +106,21 @@ const App: React.FC = () => {
   // Note: Removed remote change detection and connection health checks -
   // Convex handles real-time updates and connection management automatically
   // Lists are now handled by useConvexLists hook
+
+  // Backend health check
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        const res = await fetch('http://localhost:3101/health');
+        setIsBackendReady(res.ok);
+      } catch {
+        setIsBackendReady(false);
+      }
+    };
+    checkBackend();
+    const interval = setInterval(checkBackend, 30000); // Check every 30s
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch notes
   const fetchNotes = useCallback(async () => {
@@ -358,6 +378,12 @@ const App: React.FC = () => {
         lastResult={lastResult}
         lastCommandName={lastCommandName}
         logEntries={logEntries}
+        isConvexReady={isHydrated}
+        isBackendReady={isBackendReady}
+        isChatReady={isChatReady}
+        pendingOperations={pendingOperations}
+        showCommandLog={showCommandLog}
+        onToggleCommandLog={() => setShowCommandLog(!showCommandLog)}
       />
       <TodoDetailModal
         todo={detailTodo}
@@ -561,7 +587,7 @@ const App: React.FC = () => {
             </div>
           </div>
 
-          <CommandLog entries={logEntries} />
+          {showCommandLog && <CommandLog entries={logEntries} />}
             </>
           )}
         </main>
@@ -580,6 +606,7 @@ const App: React.FC = () => {
         onTodosChanged={() => {}} // No longer needed - local store is source of truth
         todos={todos}
         localStore={localStore}
+        onConnectionStatusChange={(status) => setIsChatReady(status === 'connected')}
       />
     </div>
   );

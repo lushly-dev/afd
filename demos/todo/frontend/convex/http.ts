@@ -170,7 +170,7 @@ http.route({
         return jsonResponse({ success: false, error: { message: "ID required" } }, 400);
       }
       
-      const result = await ctx.runMutation(api.todos.toggle, { 
+      const result = await ctx.runMutation(internal.todos.systemToggle, { 
         id: body.id as any  // Convex ID type
       });
       
@@ -215,7 +215,7 @@ http.route({
       }
       
       const { id, ...updates } = body;
-      const result = await ctx.runMutation(api.todos.update, { 
+      const result = await ctx.runMutation(internal.todos.systemUpdate, { 
         id: id as any,  // Convex ID type
         ...updates
       });
@@ -255,7 +255,7 @@ http.route({
         return jsonResponse({ success: false, error: { message: "ID required" } }, 400);
       }
       
-      const result = await ctx.runMutation(api.todos.remove, { 
+      const result = await ctx.runMutation(internal.todos.systemDelete, { 
         id: body.id as any  // Convex ID type
       });
       
@@ -319,7 +319,7 @@ http.route({
   method: "POST",
   handler: httpAction(async (ctx) => {
     try {
-      const result = await ctx.runMutation(api.todos.clearCompleted);
+      const result = await ctx.runMutation(internal.todos.systemClearCompleted, {});
       return jsonResponse({ success: true, data: result });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";

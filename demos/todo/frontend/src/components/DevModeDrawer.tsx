@@ -9,6 +9,14 @@ interface DevModeDrawerProps {
 	lastResult: CommandResult<unknown> | null;
 	lastCommandName: string;
 	logEntries: LogEntry[];
+	// Connection status
+	isConvexReady: boolean;
+	isBackendReady: boolean;
+	isChatReady: boolean;
+	pendingOperations: number;
+	// Command log visibility
+	showCommandLog: boolean;
+	onToggleCommandLog: () => void;
 }
 
 type TabType = 'trust' | 'latency' | 'json' | 'log';
@@ -31,6 +39,12 @@ export const DevModeDrawer: React.FC<DevModeDrawerProps> = ({
 	lastResult,
 	lastCommandName,
 	logEntries,
+	isConvexReady,
+	isBackendReady,
+	isChatReady,
+	pendingOperations,
+	showCommandLog,
+	onToggleCommandLog,
 }) => {
 	const [activeTab, setActiveTab] = useState<TabType>('trust');
 
@@ -195,6 +209,36 @@ export const DevModeDrawer: React.FC<DevModeDrawerProps> = ({
 							<line x1="6" y1="6" x2="18" y2="18" />
 						</svg>
 					</button>
+				</div>
+				<div className="dev-status-row">
+					<div className="dev-status-badges">
+						<span className={`dev-connection-badge ${isBackendReady ? 'connected' : 'disconnected'}`}>
+							<span className="dev-status-dot" />
+							Backend
+						</span>
+						<span className={`dev-connection-badge ${isChatReady ? 'connected' : 'disconnected'}`}>
+							<span className="dev-status-dot" />
+							Chat
+						</span>
+						<span className={`dev-connection-badge ${isConvexReady ? 'connected' : 'disconnected'}`}>
+							<span className="dev-status-dot" />
+							Convex
+						</span>
+						{pendingOperations > 0 && (
+							<span className="dev-pending-badge">
+								{pendingOperations} pending
+							</span>
+						)}
+					</div>
+					<label className="dev-toggle-label">
+						<input
+							type="checkbox"
+							checked={showCommandLog}
+							onChange={onToggleCommandLog}
+							className="dev-toggle-checkbox"
+						/>
+						Show Log
+					</label>
 				</div>
 				<div className="dev-tabs">
 					{tabs.map((tab) => (

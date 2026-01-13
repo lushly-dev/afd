@@ -16,9 +16,10 @@
   --input-bg: #2e2e32;
   
   /* Brand colors */
-  --primary: #06b6d4;      /* Teal */
+  --primary: #16a5bf;      /* Teal */
   --primary-hover: #2dd4bf;
-  --accent: #06b6d4;       /* Cyan for highlights */
+  --accent: #16a5bf;       /* Cyan for highlights */
+  --accent-overlay: #1e889b;       /* Cyan for highlights */
   
   /* Text */
   --text: #fafafa;
@@ -39,6 +40,7 @@
   /* Layout constants */
   --header-height: 69px;
   --footer-height: 57px;
+  --corner-radius: 4px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════
