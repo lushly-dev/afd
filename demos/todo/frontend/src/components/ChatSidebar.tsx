@@ -168,17 +168,98 @@ const executeLocalAction = (
 	args: Record<string, unknown>,
 	result: unknown
 ): void => {
-	// All todo operations now go through Convex directly.
-	// The useConvexSync hook will hydrate LocalStore from Convex,
-	// so we don't need to duplicate the action here.
-	// This prevents race conditions and duplicate todos.
-	
-	// Just log for debugging
+	if (!localStore) return;
+
 	console.log(`[executeLocalAction] Tool completed: ${toolName}`, { args, result });
 	
-	// Note: If we need instant UI updates before Convex sync,
-	// we could add the todo here using the Convex ID from result.
-	// For now, let Convex subscription handle it.
+	// For writes, the backend returns mock success instantly.
+	// We update LocalStore to reflect the change in the UI.
+	// ConvexSync handles background persistence.
+	
+	// Helper to find todo ID by title (when chat uses Convex ID but LocalStore has local ID)
+	const findTodoByTitle = (title: string): string | null => {
+		const todo = localStore.todos.find(t => 
+			t.title.toLowerCase() === title.toLowerCase()
+		);
+		return todo?.id ?? null;
+	};
+	
+	try {
+		switch (toolName) {
+			case 'todo-create':
+				if (result && typeof result === 'object' && 'title' in result) {
+					// Create locally - ConvexSync will persist
+					localStore.createTodo((result as { title: string }).title || (args.title as string), {
+						description: args.description as string | undefined,
+						priority: (args.priority as 'low' | 'medium' | 'high') || 'medium',
+					});
+				}
+				break;
+
+			case 'todo-toggle':
+			case 'todo-complete':
+			case 'todo-uncomplete': {
+				// Try to find by ID first, then by title from result
+				let todoId = args.id as string | undefined;
+				if (!todoId || !localStore.todos.find(t => t.id === todoId)) {
+					// Chat returned Convex ID but we need local ID - search by title
+					const resultObj = result as { title?: string } | undefined;
+					if (resultObj?.title) {
+						todoId = findTodoByTitle(resultObj.title) ?? undefined;
+					}
+				}
+				if (todoId) {
+					localStore.toggleTodo(todoId);
+				}
+				break;
+			}
+
+			case 'todo-update': {
+				let todoId = args.id as string | undefined;
+				if (!todoId || !localStore.todos.find(t => t.id === todoId)) {
+					const resultObj = result as { title?: string } | undefined;
+					if (resultObj?.title) {
+						todoId = findTodoByTitle(resultObj.title) ?? undefined;
+					}
+				}
+				if (todoId) {
+					const { id, ...updates } = args;
+					localStore.updateTodo(todoId, updates as Partial<Pick<Todo, 'title' | 'description' | 'priority'>>);
+				}
+				break;
+			}
+
+			case 'todo-delete': {
+				// For delete, check result for title since chat queries by title
+				let todoId = args.id as string | undefined;
+				const resultObj = result as { title?: string; data?: { title?: string } } | undefined;
+				const title = resultObj?.title || resultObj?.data?.title || args.title as string | undefined;
+				
+				if (!todoId || !localStore.todos.find(t => t.id === todoId)) {
+					// Try to find by title
+					if (title) {
+						todoId = findTodoByTitle(title) ?? undefined;
+					}
+				}
+				
+				if (todoId) {
+					localStore.deleteTodo(todoId);
+				} else {
+					console.warn('[executeLocalAction] Could not find todo to delete:', { args, result });
+				}
+				break;
+			}
+
+			case 'todo-clear':
+				localStore.clearCompleted();
+				break;
+
+			default:
+				break;
+		}
+	} catch (error) {
+		console.error('[executeLocalAction] Failed to execute local action:', toolName, error);
+	}
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

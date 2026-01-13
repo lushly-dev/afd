@@ -37,6 +37,8 @@ export interface LocalStore {
   getPendingOperations: () => PendingOperation[];
   /** Mark operations as synced */
   markSynced: (operationIds: string[]) => void;
+  /** Update a todo's ID (used after syncing to Convex to use Convex ID) */
+  updateTodoId: (oldId: string, newId: string) => void;
 }
 
 export interface PendingOperation {
@@ -134,7 +136,9 @@ function getSnapshot(): Todo[] {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function generateId(): string {
-  return `local-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  // Use crypto.randomUUID() for universally unique IDs
+  // This is supported in modern browsers and Node.js 19+
+  return crypto.randomUUID();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -233,12 +237,24 @@ export function useLocalStore(): LocalStore {
   }, []);
 
   const hydrate = useCallback((serverTodos: Todo[]) => {
-    // Merge server data with local data
-    // Server data is source of truth for IDs that exist on server
-    // Local-only IDs (prefixed with 'local-') are preserved
+    // Merge server data with local data, avoiding duplicates
+    // Server data is source of truth for existing items
+    // Local-only items (created offline) are preserved if not on server
     const current = getTodos();
+    
+    // Build a map of server todos by title for dedup
+    const serverByTitle = new Map(serverTodos.map(t => [t.title.toLowerCase(), t]));
     const serverIds = new Set(serverTodos.map((t) => t.id));
-    const localOnly = current.filter((t) => t.id.startsWith('local-') && !serverIds.has(t.id));
+    
+    // Keep local items that aren't duplicates of server items
+    const localOnly = current.filter((t) => {
+      // Keep if local ID AND not a duplicate title on server
+      if (t.id.startsWith('local-') && !serverIds.has(t.id)) {
+        // Check if server has same title - if so, skip (server wins)
+        return !serverByTitle.has(t.title.toLowerCase());
+      }
+      return false;
+    });
     
     setTodos([...localOnly, ...serverTodos]);
   }, []);
@@ -253,6 +269,23 @@ export function useLocalStore(): LocalStore {
     setPendingOps(current.filter((op) => !idsToRemove.has(op.id)));
   }, []);
 
+  const updateTodoId = useCallback((oldId: string, newId: string) => {
+    // Replace local temp ID with Convex ID after successful sync
+    const current = getTodos();
+    const updated = current.map((todo) =>
+      todo.id === oldId ? { ...todo, id: newId } : todo
+    );
+    setTodos(updated);
+    
+    // Also update any pending operations that reference this ID
+    const ops = getPendingOps();
+    const updatedOps = ops.map((op) => ({
+      ...op,
+      todoId: op.todoId === oldId ? newId : op.todoId,
+    }));
+    setPendingOps(updatedOps);
+  }, []);
+
   return {
     todos,
     createTodo,
@@ -265,5 +298,6 @@ export function useLocalStore(): LocalStore {
     hydrate,
     getPendingOperations,
     markSynced,
+    updateTodoId,
   };
 }
