@@ -481,8 +481,10 @@ function generateReasoning(userMessage: string, toolExecutions: ToolExecution[],
 		for (const exec of toolExecutions) {
 			reasoning.push(`• **${exec.name}** (${exec.latencyMs.toFixed(3)}ms)`);
 			reasoning.push(`  - Purpose: Execute todo operation`);
-			reasoning.push(`  - Result: ${exec.result && typeof exec.result === 'object' && 'success' in exec.result ?
-				(exec.result as any).success ? 'Success' : 'Error' : 'Completed'}`);
+			const resultStatus = exec.result && typeof exec.result === 'object' && 'success' in exec.result
+				? ((exec.result as { success: boolean }).success ? 'Success' : 'Error')
+				: 'Completed';
+			reasoning.push(`  - Result: ${resultStatus}`);
 		}
 		reasoning.push('');
 

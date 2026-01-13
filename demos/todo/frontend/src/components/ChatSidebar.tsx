@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import MarkdownMessage from './MarkdownMessage';
-import type { Todo, Priority } from '../types';
+import type { Todo } from '../types';
 import type { LocalStore } from '../hooks/useLocalStore';
 import './ChatSidebar.css';
 
@@ -101,6 +101,9 @@ interface ChatMessage {
 	timestamp: Date;
 }
 
+// Stored message with timestamp as string (for JSON serialization)
+type StoredChatMessage = Omit<ChatMessage, 'timestamp'> & { timestamp: string };
+
 interface ChatSidebarProps {
 	isOpen: boolean;
 	onToggle: () => void;
@@ -128,7 +131,7 @@ const loadChatHistory = (): ChatMessage[] => {
 		if (stored) {
 			const parsed = JSON.parse(stored);
 			// Convert timestamp strings back to Date objects
-			const messages = parsed.map((msg: any) => ({
+			const messages = (parsed as StoredChatMessage[]).map((msg) => ({
 				...msg,
 				timestamp: new Date(msg.timestamp)
 			}));
