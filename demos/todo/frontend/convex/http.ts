@@ -5,7 +5,7 @@
  */
 import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { auth } from "./auth";
 
 const http = httpRouter();
@@ -72,18 +72,15 @@ http.route({
         return jsonResponse({ success: false, error: { message: "Title required" } }, 400);
       }
       
-      // For MVP: use a system user ID or the first user
-      // TODO: Add token forwarding for proper user context
-      const users = await ctx.runQuery(api.todos.list);
-      
-      // Create the todo
-      const result = await ctx.runMutation(api.todos.create, {
+      // Use internal mutation (bypasses auth)
+      const todo = await ctx.runMutation(internal.todos.systemCreate, {
         title: body.title,
-        priority: body.priority || "medium",
+        priority: body.priority,
         description: body.description,
+        userId: body.userId,
       });
       
-      return jsonResponse({ success: true, data: result });
+      return jsonResponse({ success: true, data: todo });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       return jsonResponse({ success: false, error: { message } }, 500);
@@ -116,20 +113,20 @@ http.route({
         completed?: boolean;
         priority?: string;
         limit?: number;
+        userId?: string;
       };
       
-      const todos = await ctx.runQuery(api.todos.list);
+      // Use internal query (bypasses auth)
+      const todos = await ctx.runQuery(internal.todos.systemList, {
+        userId: body.userId,
+        completed: body.completed,
+        limit: body.limit,
+      });
       
-      // Apply filters
+      // Apply priority filter (not in internal query for simplicity)
       let filtered = todos;
-      if (body.completed !== undefined) {
-        filtered = filtered.filter(t => t.completed === body.completed);
-      }
       if (body.priority) {
-        filtered = filtered.filter(t => t.priority === body.priority);
-      }
-      if (body.limit) {
-        filtered = filtered.slice(0, body.limit);
+        filtered = filtered.filter((t: { priority: string }) => t.priority === body.priority);
       }
       
       return jsonResponse({ 
@@ -291,7 +288,8 @@ http.route({
   method: "POST",
   handler: httpAction(async (ctx) => {
     try {
-      const stats = await ctx.runQuery(api.todos.stats);
+      // Use internal query (bypasses auth)
+      const stats = await ctx.runQuery(internal.todos.systemStats, {});
       return jsonResponse({ success: true, data: stats });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";

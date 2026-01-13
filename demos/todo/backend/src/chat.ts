@@ -46,7 +46,7 @@ const genAI = apiKey ? new GoogleGenAI({ apiKey }) : null;
 const directClient = new DirectClient(registry);
 
 // Convex URL for todo operations
-const CONVEX_URL = process.env.CONVEX_URL || 'https://gentle-ermine-359.convex.site';
+const CONVEX_URL = process.env.CONVEX_URL || 'https://adamant-pelican-217.convex.site';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONVEX HTTP CLIENT
