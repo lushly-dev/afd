@@ -230,20 +230,34 @@ const executeLocalAction = (
 			}
 
 			case 'todo-delete': {
-				// For delete, check result for title since chat queries by title
-				let todoId = args.id as string | undefined;
-				const resultObj = result as { title?: string; data?: { title?: string } } | undefined;
+				// ID can be in args OR result (backend returns it in result)
+				const resultObj = result as { id?: string; title?: string; data?: { id?: string; title?: string } } | undefined;
+				let todoId = args.id as string | undefined 
+					|| resultObj?.id 
+					|| resultObj?.data?.id;
 				const title = resultObj?.title || resultObj?.data?.title || args.title as string | undefined;
 				
-				if (!todoId || !localStore.todos.find(t => t.id === todoId)) {
-					// Try to find by title
-					if (title) {
-						todoId = findTodoByTitle(title) ?? undefined;
-					}
-				}
+				console.log('[executeLocalAction] Delete debug:', {
+					argsId: args.id,
+					resultId: resultObj?.id,
+					resultTitle: title,
+					localStoreTodos: localStore.todos.map(t => ({ id: t.id, title: t.title })),
+				});
 				
-				if (todoId) {
+				// First try direct ID match
+				if (todoId && localStore.todos.find(t => t.id === todoId)) {
+					console.log('[executeLocalAction] Found by ID, deleting:', todoId);
 					localStore.deleteTodo(todoId);
+				} 
+				// Then try title match as fallback
+				else if (title) {
+					const foundId = findTodoByTitle(title);
+					if (foundId) {
+						console.log('[executeLocalAction] Found by title, deleting:', foundId);
+						localStore.deleteTodo(foundId);
+					} else {
+						console.warn('[executeLocalAction] Could not find todo by title:', title);
+					}
 				} else {
 					console.warn('[executeLocalAction] Could not find todo to delete:', { args, result });
 				}
