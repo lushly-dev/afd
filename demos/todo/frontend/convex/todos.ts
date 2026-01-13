@@ -210,3 +210,119 @@ export const clearCompleted = mutation({
     return { success: true, count: completed.length };
   },
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INTERNAL QUERIES/MUTATIONS (For system/chat access - no auth required)
+// Used by HTTP endpoints for AI chat integration
+// ═══════════════════════════════════════════════════════════════════════════════
+
+import { internalQuery, internalMutation } from "./_generated/server";
+
+export const systemList = internalQuery({
+  args: {
+    userId: v.optional(v.string()),
+    completed: v.optional(v.boolean()),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    let todos;
+    if (args.userId) {
+      todos = await ctx.db
+        .query("todos")
+        .order("desc")
+        .collect();
+      // Filter by userId (as string comparison, since system may not have proper Id)
+      todos = todos.filter(t => String(t.userId) === args.userId);
+    } else {
+      // Return all todos (for system overview)
+      todos = await ctx.db.query("todos").order("desc").take(args.limit ?? 100);
+    }
+    
+    if (args.completed !== undefined) {
+      todos = todos.filter(t => t.completed === args.completed);
+    }
+    if (args.limit && todos.length > args.limit) {
+      todos = todos.slice(0, args.limit);
+    }
+    return todos;
+  },
+});
+
+export const systemStats = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const todos = await ctx.db.query("todos").collect();
+    const completed = todos.filter(t => t.completed).length;
+    const pending = todos.filter(t => !t.completed).length;
+    return {
+      total: todos.length,
+      completed,
+      pending,
+      byPriority: {
+        high: todos.filter(t => t.priority === "high").length,
+        medium: todos.filter(t => t.priority === "medium").length,
+        low: todos.filter(t => t.priority === "low").length,
+      },
+    };
+  },
+});
+
+export const systemCreate = internalMutation({
+  args: {
+    title: v.string(),
+    description: v.optional(v.string()),
+    priority: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
+    userId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    // For system creates, we need a valid user ID
+    // Get the first user if none specified
+    let userId = args.userId;
+    if (!userId) {
+      const users = await ctx.db.query("users").first();
+      userId = users?._id;
+    }
+    if (!userId) {
+      throw new Error("No users found - cannot create todo without user");
+    }
+    
+    const id = await ctx.db.insert("todos", {
+      title: args.title,
+      description: args.description,
+      completed: false,
+      priority: args.priority ?? "medium",
+      createdAt: now,
+      updatedAt: now,
+      userId: userId as any, // Allow string or Id
+    });
+    return await ctx.db.get(id);
+  },
+});
+
+export const systemToggle = internalMutation({
+  args: {
+    id: v.id("todos"),
+  },
+  handler: async (ctx, args) => {
+    const todo = await ctx.db.get(args.id);
+    if (!todo) {
+      throw new Error("Todo not found");
+    }
+    await ctx.db.patch(args.id, {
+      completed: !todo.completed,
+      updatedAt: Date.now(),
+    });
+    return await ctx.db.get(args.id);
+  },
+});
+
+export const systemDelete = internalMutation({
+  args: {
+    id: v.id("todos"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.delete(args.id);
+    return { success: true };
+  },
+});

@@ -45,4 +45,24 @@ export default defineSchema({
     userId: v.id("users"),
     createdAt: v.number(),
   }).index("by_user", ["userId"]),
+
+  // Agent sessions for lushx Control Center
+  agentSessions: defineTable({
+    agentId: v.string(), // Unique identifier (e.g., "agent-abc123")
+    workflow: v.string(), // e.g., "review", "feature"
+    issue: v.optional(v.string()), // GitHub issue reference
+    state: v.union(
+      v.literal("running"),
+      v.literal("paused"),
+      v.literal("stopped"),
+      v.literal("complete")
+    ),
+    pane: v.number(), // 0 for MVP (single pane)
+    outputLines: v.number(), // For progress tracking
+    createdAt: v.number(), // Timestamp
+    updatedAt: v.number(), // Last state change
+  })
+    .index("by_agentId", ["agentId"])
+    .index("by_state", ["state"])
+    .index("by_workflow", ["workflow"]),
 });
