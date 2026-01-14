@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import MarkdownMessage from './MarkdownMessage';
+import { ConfirmModal } from './ConfirmModal';
+import { useConfirm } from '../hooks/useConfirm';
 import type { Todo } from '../types';
 import type { LocalStore } from '../hooks/useLocalStore';
 import './ChatSidebar.css';
@@ -317,6 +319,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLTextAreaElement>(null);
 	const abortControllerRef = useRef<AbortController | null>(null);
+
+	// Confirmation dialog for destructive agent actions
+	const { state: confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
 
 	// Scroll to bottom when new messages arrive
 	useEffect(() => {
@@ -709,9 +714,41 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 									toolArgs.delete(eventData.name);
 									const endTime = Date.now();
 
-									// Execute local action for successful todo operations
+									// Handle local action execution (with confirmation for destructive actions)
 									if (!eventData.error) {
-										executeLocalAction(localStore, eventData.name, args, eventData.result);
+										const metadata = eventData.metadata as {
+											destructive?: boolean;
+											confirmPrompt?: string;
+											tags?: string[];
+										} | undefined;
+
+										if (metadata?.destructive) {
+											// Destructive action - prompt for confirmation
+											const toolDisplayName = eventData.name.replace(/-/g, ' ');
+											const confirmPrompt = metadata.confirmPrompt ||
+												`Are you sure you want to ${toolDisplayName}?`;
+
+											// Use IIFE for async confirmation
+											(async () => {
+												const confirmed = await confirm(
+													'Confirm Agent Action',
+													confirmPrompt,
+													'This action was performed by the AI assistant.'
+												);
+
+												if (confirmed) {
+													executeLocalAction(localStore, eventData.name, args, eventData.result);
+												} else {
+													// User cancelled - the action already happened on the backend
+													// Add a system message to inform the user
+													console.log('[ChatSidebar] User cancelled destructive action:', eventData.name);
+													// Note: Backend already executed, Convex sync will reconcile state
+												}
+											})();
+										} else {
+											// Non-destructive: execute immediately
+											executeLocalAction(localStore, eventData.name, args, eventData.result);
+										}
 									}
 
 									// Add to tool executions
@@ -1295,6 +1332,16 @@ const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
 			>
 				💬
 			</button>
+
+			{/* Confirmation dialog for destructive agent actions */}
+			<ConfirmModal
+				isOpen={confirmState.isOpen}
+				title={confirmState.title}
+				message={confirmState.message}
+				warning={confirmState.warning}
+				onConfirm={handleConfirm}
+				onCancel={handleCancel}
+			/>
 		</>
 	);
 };

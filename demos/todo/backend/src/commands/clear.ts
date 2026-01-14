@@ -26,6 +26,8 @@ export const clearCompleted = defineCommand<typeof inputSchema, ClearResult>({
   mutation: true,
   version: "1.0.0",
   input: inputSchema,
+  destructive: true,
+  confirmPrompt: 'All completed todos will be permanently deleted.',
 
   async handler(input: z.infer<typeof inputSchema>) {
     console.error(`[todo.clear] input:`, JSON.stringify(input));
