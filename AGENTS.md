@@ -334,6 +334,46 @@ afd/
 └── package.json
 ```
 
+## Python Package
+
+The `afd` Python package provides AFD primitives for Python applications:
+
+```bash
+pip install afd
+```
+
+### Usage
+
+```python
+from afd.core import CommandResult, success, error, Warning
+
+async def my_command(input: MyInput) -> CommandResult[MyOutput]:
+    return success(
+        data=MyOutput(...),
+        reasoning="Completed successfully",
+        suggestions=["Try this next"],
+    )
+```
+
+### Publishing to PyPI
+
+Releases are automated via GitHub Actions with **OIDC Trusted Publishing** (no tokens needed).
+
+**To release a new version:**
+
+1. Bump version in `python/pyproject.toml`
+2. Update `CHANGELOG.md`
+3. Commit and tag:
+   ```bash
+   git commit -am "chore: bump afd to v0.1.3"
+   git tag python-v0.1.3
+   git push origin main --tags
+   ```
+
+The workflow validates the tag matches `pyproject.toml`, runs tests, and publishes to PyPI.
+
+📖 See `.github/workflows/publish-python.yml` for details.
+
 ## Conformance Testing
 
 AFD promotes **Spec-First Development**. We use a shared conformance suite to ensure multiple implementations (e.g., TS and Python) behave identically.
