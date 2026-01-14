@@ -70,6 +70,20 @@ export interface ZodCommandOptions<
 	 * When specified, the command will also be tagged with 'handoff:{protocol}'.
 	 */
 	handoffProtocol?: 'websocket' | 'webrtc' | 'sse' | 'http-stream' | string;
+
+	/**
+	 * Whether this command performs destructive/irreversible actions.
+	 * When true, frontends SHOULD prompt for user confirmation before
+	 * applying the result locally.
+	 */
+	destructive?: boolean;
+
+	/**
+	 * Custom confirmation prompt message for destructive commands.
+	 * If not provided, frontends MAY use a generic confirmation message.
+	 * @example "Delete 'Buy groceries' permanently?"
+	 */
+	confirmPrompt?: string;
 }
 
 /**
@@ -120,6 +134,12 @@ export interface ZodCommandDefinition<
 
 	/** The specific handoff protocol this command uses */
 	handoffProtocol?: 'websocket' | 'webrtc' | 'sse' | 'http-stream' | string;
+
+	/** Whether this command is destructive (triggers confirmation UI) */
+	destructive?: boolean;
+
+	/** Custom confirmation prompt message */
+	confirmPrompt?: string;
 
 	/**
 	 * Convert to standard CommandDefinition format.
@@ -184,6 +204,8 @@ export function defineCommand<
 		errors: options.errors,
 		handoff: options.handoff,
 		handoffProtocol: options.handoffProtocol,
+		destructive: options.destructive,
+		confirmPrompt: options.confirmPrompt,
 
 		toCommandDefinition(): CommandDefinition<z.infer<TInput>, TOutput> {
 			return {

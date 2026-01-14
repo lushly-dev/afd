@@ -108,6 +108,7 @@ class CommandResult(BaseModel, Generic[T]):
     plan: Optional[List[PlanStep]] = None
     alternatives: Optional[List[Alternative[T]]] = None
     warnings: Optional[List[Warning]] = None
+    suggestions: Optional[List[str]] = None  # Helpful next steps for user
     
     # Execution metadata
     metadata: Optional[ResultMetadata] = None
@@ -122,6 +123,7 @@ def success(
     plan: Optional[List[PlanStep]] = None,
     alternatives: Optional[List[Alternative[T]]] = None,
     warnings: Optional[List[Warning]] = None,
+    suggestions: Optional[List[str]] = None,
     metadata: Optional[ResultMetadata] = None,
 ) -> CommandResult[T]:
     """Create a successful command result.
@@ -134,6 +136,7 @@ def success(
         plan: Steps in multi-step operation.
         alternatives: Other options considered.
         warnings: Non-fatal warnings.
+        suggestions: Helpful next steps for the user.
         metadata: Execution metadata.
         
     Returns:
@@ -155,6 +158,7 @@ def success(
         plan=plan,
         alternatives=alternatives,
         warnings=warnings,
+        suggestions=suggestions,
         metadata=metadata,
     )
 

@@ -24,6 +24,8 @@ export const deleteTodo = defineCommand<typeof inputSchema, DeleteResult>({
 	version: '1.0.0',
 	input: inputSchema,
 	errors: ['NOT_FOUND'],
+	destructive: true,
+	confirmPrompt: 'This todo will be permanently deleted.',
 
 	async handler(input) {
 		const existing = store.get(input.id);

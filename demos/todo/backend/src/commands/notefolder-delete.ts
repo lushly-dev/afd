@@ -20,11 +20,13 @@ export const deleteNoteFolder = defineCommand<typeof inputSchema, NoteFolderDele
 	name: 'notefolder-delete',
 	description: 'Delete a note folder (notes in the folder are moved to root)',
 	category: 'note',
-	tags: ['note', 'folder', 'delete', 'write'],
+	tags: ['note', 'folder', 'delete', 'write', 'destructive'],
 	mutation: true,
 	version: '1.0.0',
 	input: inputSchema,
 	errors: ['NOT_FOUND'],
+	destructive: true,
+	confirmPrompt: 'This folder will be permanently deleted. Notes will be moved to root.',
 
 	async handler(input) {
 		const folder = store.getNoteFolder(input.id);

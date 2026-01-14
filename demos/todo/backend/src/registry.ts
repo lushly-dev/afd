@@ -11,12 +11,26 @@ import type { CommandResult } from '@lushly-dev/afd-core';
 import { allCommands } from './commands/index.js';
 
 /**
+ * Command metadata for trust/safety checks.
+ */
+export interface CommandMetadata {
+	name: string;
+	description: string;
+	category?: string;
+	tags?: string[];
+	mutation?: boolean;
+	destructive?: boolean;
+	confirmPrompt?: string;
+}
+
+/**
  * Command definition with execute capability.
  */
 interface ExecutableCommand {
 	name: string;
 	description: string;
 	handler: (input: unknown) => Promise<CommandResult<unknown>>;
+	metadata: CommandMetadata;
 }
 
 /**
@@ -31,12 +45,21 @@ export class CommandRegistry {
 	private commands: Map<string, ExecutableCommand> = new Map();
 
 	constructor() {
-		// Register all commands
+		// Register all commands with metadata
 		for (const cmd of allCommands) {
 			this.commands.set(cmd.name, {
 				name: cmd.name,
 				description: cmd.description,
 				handler: cmd.handler as (input: unknown) => Promise<CommandResult<unknown>>,
+				metadata: {
+					name: cmd.name,
+					description: cmd.description,
+					category: cmd.category,
+					tags: cmd.tags,
+					mutation: cmd.mutation,
+					destructive: cmd.destructive,
+					confirmPrompt: cmd.confirmPrompt,
+				},
 			});
 		}
 	}
@@ -95,6 +118,15 @@ export class CommandRegistry {
 	 */
 	hasCommand(name: string): boolean {
 		return this.commands.has(name);
+	}
+
+	/**
+	 * Get command metadata for trust/safety checks.
+	 * Used by streaming layer to include metadata in tool_end events.
+	 */
+	getCommandMetadata(name: string): CommandMetadata | undefined {
+		const command = this.commands.get(name);
+		return command?.metadata;
 	}
 }
 

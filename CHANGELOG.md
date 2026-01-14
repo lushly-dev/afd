@@ -41,6 +41,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 **Features:**
 - **demos**: add Todo demo project structure
 
+## [0.1.2] - 2026-01-13 (Python Package)
+
+### Added
+
+- **Automated PyPI Publishing** - GitHub Actions workflow with OIDC Trusted Publishing
+  - No API tokens needed — uses GitHub OIDC for authentication
+  - Triggers on `python-v*` tag push or GitHub Release
+  - Version validation ensures tag matches `pyproject.toml`
+  - Full test suite runs before publish
+
+### Changed
+
+- Workflow file: `.github/workflows/publish-python.yml`
+- Requires GitHub Environment `pypi` for deployment protection
+
+## [0.1.1] - 2026-01-13 (Python Package)
+
+### Added
+
+- **`suggestions` field** - Added `suggestions: Optional[List[str]]` to `CommandResult` and `success()` helper
+  - Enables helpful next-step hints for users (e.g., "Use lora.activate to enable this LoRA")
+  - Discovered via Noisett dogfooding - their commands relied on this UX pattern
+
+### Changed
+
+- Published to PyPI: `pip install afd>=0.1.1`
+
 ## [0.1.2] - 2026-01-08
 
 ### Added

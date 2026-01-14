@@ -25,7 +25,7 @@ import {
 } from '@google/genai';
 // DirectClient kept for MCP compatibility, but todo actions now go through Convex
 import { DirectClient } from '@lushly-dev/afd-client';
-import { registry } from './registry.js';
+import { registry, type CommandMetadata } from './registry.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -673,7 +673,16 @@ Be concise in your responses. After performing actions, briefly summarize what w
 export interface StreamingCallbacks {
 	onToken: (text: string) => void;
 	onToolStart: (name: string) => void;
-	onToolEnd: (name: string, result: unknown, latencyMs: number) => void;
+	onToolEnd: (
+		name: string,
+		result: unknown,
+		latencyMs: number,
+		metadata?: {
+			destructive?: boolean;
+			confirmPrompt?: string;
+			tags?: string[];
+		}
+	) => void;
 	onError: (message: string) => void;
 	onDone: (metadata: {
 		toolExecutions: ToolExecution[];
@@ -804,8 +813,15 @@ Be concise in your responses. After performing actions, briefly summarize what w
 
 				toolExecutions.push(toolExecution);
 
-				// Notify tool completion
-				callbacks.onToolEnd(commandName, toolExecution.result, latencyMs);
+				// Get command metadata for trust/safety checks
+				const cmdMetadata = registry.getCommandMetadata(commandName);
+
+				// Notify tool completion with metadata
+				callbacks.onToolEnd(commandName, toolExecution.result, latencyMs, cmdMetadata ? {
+					destructive: cmdMetadata.destructive,
+					confirmPrompt: cmdMetadata.confirmPrompt,
+					tags: cmdMetadata.tags,
+				} : undefined);
 
 				functionResponses.push({
 					functionResponse: {

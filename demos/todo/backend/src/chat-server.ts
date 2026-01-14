@@ -347,8 +347,22 @@ const server = http.createServer(async (req, res) => {
 					onToolStart: (name: string) => {
 						res.write(`event: tool_start\ndata: ${JSON.stringify({ name })}\n\n`);
 					},
-					onToolEnd: (name: string, result: unknown, latencyMs: number) => {
-						res.write(`event: tool_end\ndata: ${JSON.stringify({ name, result, latencyMs })}\n\n`);
+					onToolEnd: (
+						name: string,
+						result: unknown,
+						latencyMs: number,
+						metadata?: { destructive?: boolean; confirmPrompt?: string; tags?: string[] }
+					) => {
+						res.write(`event: tool_end\ndata: ${JSON.stringify({
+							name,
+							result,
+							latencyMs,
+							metadata: metadata ? {
+								destructive: metadata.destructive,
+								confirmPrompt: metadata.confirmPrompt,
+								tags: metadata.tags,
+							} : undefined,
+						})}\n\n`);
 					},
 					onError: (message: string) => {
 						res.write(`event: error\ndata: ${JSON.stringify({ message })}\n\n`);
