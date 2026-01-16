@@ -4,8 +4,17 @@ description: >
   Agent-First Development (AFD) patterns for building software where AI agents
   are first-class users. Covers command design, CLI validation, MCP servers,
   CommandResult schemas, and testing strategies. Use when building agent-ready
-  apps, designing commands, or integrating MCP. Triggers: agent-first, AFD,
-  command-first, MCP server, CommandResult, CLI validation, afd call.
+  apps, designing commands, or integrating MCP.
+version: "2.0.0"
+category: core
+triggers:
+  - agent-first
+  - AFD
+  - command-first
+  - MCP server
+  - CommandResult
+  - CLI validation
+  - afd call
 ---
 
 # Agent-First Development (AFD)
@@ -28,6 +37,9 @@ Expert guidance for building software with the Agent-First Development methodolo
 | MCP server setup, transports | [references/mcp-integration.md](references/mcp-integration.md) |
 | Testing commands, performance | [references/testing.md](references/testing.md) |
 | CLI usage, validation workflow | [references/cli-validation.md](references/cli-validation.md) |
+| Command tags, bootstrap tools | [references/command-taxonomy.md](references/command-taxonomy.md) |
+| Real-time protocols, WebSocket | [references/handoff-pattern.md](references/handoff-pattern.md) |
+| JTBD scenarios, fixtures | [references/jtbd-scenarios.md](references/jtbd-scenarios.md) |
 
 ## Core Principles
 

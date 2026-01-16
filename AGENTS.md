@@ -1,917 +1,206 @@
-# Agent-First Development (AFD) - AI Agent Context
+# CLAUDE.md
 
-> **For AI Agents**: This document provides context for understanding and contributing to the AFD project.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## What is AFD?
+> **Documentation Policy**: Skills are the source of truth for detailed knowledge.
+> This file is a routing table. See [afd skill](skills/afd/) for core AFD patterns.
 
-**Agent-First Development** is a software development methodology where AI agents are treated as first-class users from day one. Instead of building UI first and adding API/agent access later, AFD inverts this:
+## Build & Test Commands
+
+```bash
+# Install dependencies
+pnpm install
+
+# Build all packages
+pnpm build
+
+# Build specific package
+pnpm -F @lushly-dev/afd-core build
+pnpm -F @lushly-dev/afd-server build
+pnpm -F @lushly-dev/afd-client build
+pnpm -F @lushly-dev/afd-adapters build
+
+# Run all tests
+pnpm test
+
+# Run tests for specific package
+pnpm -F @lushly-dev/afd-core test
+pnpm -F @lushly-dev/afd-server test
+
+# Run single test file
+cd packages/server && pnpm vitest run src/server.test.ts
+
+# Run tests in watch mode
+pnpm -F @lushly-dev/afd-server test:watch
+
+# Lint and format
+pnpm lint          # Check with Biome
+pnpm lint:fix      # Fix lint issues
+pnpm format        # Format code
+
+# Type checking
+pnpm typecheck
+```
+
+## Architecture Overview
+
+AFD (Agent-First Development) is a methodology where AI agents are first-class users. The architecture follows **Command-First**: all functionality is exposed as commands before any UI is built.
+
+### Package Structure
 
 ```
-Traditional:  UI → API → Agent Access (afterthought)
-Agent-First:  Commands → Validation → UI (surface)
+packages/
+├── core/       # @lushly-dev/afd-core - Foundational types
+├── server/     # @lushly-dev/afd-server - MCP server factory
+├── client/     # @lushly-dev/afd-client - MCP client + DirectClient
+├── cli/        # @lushly-dev/afd-cli - Command-line tool
+├── testing/    # @lushly-dev/afd-testing - JTBD scenario runner
+├── adapters/   # @lushly-dev/afd-adapters - Frontend adapters for rendering CommandResult
+└── examples/
+    ├── todo/                # Multi-stack example (TS, Python, Rust backends)
+    └── todo-directclient/   # DirectClient + AI integration example
+
+demos/
+└── todo/       # Myoso - Local-first todo app with Convex + Gemini chat integration
 ```
 
-## Core Philosophy
+### Core Types (`@lushly-dev/afd-core`)
 
-**"Agent" is like "Person"** - The underlying technology (MCP, function calling, etc.) will evolve, but the concept of an autonomous agent remains constant. AFD is technology-agnostic by design.
+The foundation - defines types used everywhere:
 
-**"The best UI is no UI"** - AFD applies UX design thinking to AI agents. Traditional apps are opaque to AI—capabilities locked behind visual interfaces. AFD inverts this: commands ARE the application, UI is just one possible surface. This enables fearless UI experimentation, future-proof architecture, and true human-AI collaboration.
-
-📖 See [docs/philosophy.md](./docs/philosophy.md) for the full vision.
-
-## Key Principles
-
-1. **Command-First** - All functionality is exposed as commands/tools before any UI is built
-2. **CLI Validation** - Commands are tested via CLI before investing in UI development
-3. **Honesty Check** - If it can't be done via CLI, the architecture is wrong
-4. **Dual Interface** - Same commands power both human UI and agent interactions
-5. **UX-Enabling Schemas** - Commands return data that enables good agent experiences
-
-## Command Taxonomy
-
-AFD commands use a **tag-based classification system** for filtering, grouping, and permission control.
-
-### Standard Tags
-
-| Category | Tags | Purpose |
-|----------|------|---------|
-| **Entity** | `todo`, `user`, `document` | Groups commands by domain |
-| **Action** | `create`, `read`, `update`, `delete`, `list`, `toggle` | CRUD operations |
-| **Scope** | `single`, `batch` | One item vs. multiple |
-| **Risk** | `destructive`, `safe` | Warns agents about irreversible actions |
-| **Access** | `bootstrap`, `admin`, `public` | Permission filtering |
-
-### Example Usage
+- **CommandResult<T>**: Standard result with `success`, `data`, `error`, plus UX fields (`confidence`, `reasoning`, `warnings`)
+- **CommandError**: Error with `code`, `message`, `suggestion` for actionable recovery
+- **PipelineRequest/PipelineResult**: Multi-step command chaining with variable resolution
+- **HandoffResult**: Protocol handoff for real-time connections (WebSocket, SSE)
+- **BatchResult**: Batch execution with aggregated confidence
 
 ```typescript
-defineCommand({
-  name: 'todo-delete',
-  category: 'todo',
-  tags: ['todo', 'delete', 'write', 'single', 'destructive'],
-  mutation: true,
-  // ...
-});
+// Always return CommandResult from handlers
+return success(data, { confidence: 0.95, reasoning: 'Cache hit' });
+return failure({ code: 'NOT_FOUND', message: '...', suggestion: 'Try...' });
 ```
 
-### Bootstrap Tools
+### Server Package (`@lushly-dev/afd-server`)
 
-Every AFD MCP server exposes three bootstrap tools for agent onboarding:
-
-| Tool | Description |
-|------|-------------|
-| `afd-help` | List commands with tag/category filtering |
-| `afd-docs` | Generate markdown documentation |
-| `afd-schema` | Export JSON schemas for all commands |
+Builds MCP servers from Zod-defined commands:
 
 ```typescript
-import { getBootstrapCommands } from '@afd/server';
-const bootstrapCmds = getBootstrapCommands(() => myCommands);
-```
+import { defineCommand, createMcpServer, success } from '@lushly-dev/afd-server';
 
-## Handoff Pattern
-
-The **handoff pattern** extends AFD's command-first architecture to support real-time, streaming, and high-frequency use cases. Commands bootstrap specialized protocol connections (WebSocket, WebRTC, SSE) without AFD owning the traffic.
-
-### When to Use Handoff
-
-| Traffic Type | Example | Why Commands Don't Fit |
-|--------------|---------|------------------------|
-| Real-time collaboration | Google Docs, Figma | Continuous CRDT operations |
-| High-frequency input | Drawing apps, games | 60Hz updates |
-| Event streams | Live feeds, Kafka | Unbounded, long-running |
-| Bidirectional comms | Video calls, chat | Simultaneous send/receive |
-
-### Handoff Command Definition
-
-Mark commands that return protocol handoffs with `handoff: true`:
-
-```typescript
-import { defineCommand, HandoffResult } from '@afd/server';
-
-const chatConnect = defineCommand({
-  name: 'chat-connect',
-  category: 'chat',
-  description: 'Connect to a chat room for real-time messaging',
-
-  // Mark as handoff command
-  handoff: true,
-
-  // Include capability tags for filtering
-  tags: ['chat', 'handoff', 'handoff:websocket'],
-
-  inputSchema: z.object({
-    roomId: z.string(),
-  }),
-
-  async handler(input, ctx) {
-    const session = await ctx.chatService.createSession(input);
-
-    return success<HandoffResult>({
-      protocol: 'websocket',
-      endpoint: `wss://chat.example.com/rooms/${input.roomId}`,
-      credentials: {
-        token: session.token,
-        sessionId: session.id,
-      },
-      metadata: {
-        expiresAt: session.expiresAt,
-        capabilities: ['text', 'typing', 'presence'],
-        reconnect: { allowed: true, maxAttempts: 5 },
-      },
-    });
+const myCommand = defineCommand({
+  name: 'domain-action',  // kebab-case naming
+  description: 'What it does',
+  input: z.object({ ... }),
+  mutation: false,  // true for state-changing commands
+  async handler(input, context) {
+    return success(result, { reasoning: 'why' });
   },
 });
-```
 
-### Handoff Capability Tags
-
-Use tags for agent filtering and discovery:
-
-| Tag | Meaning |
-|-----|---------|
-| `handoff` | Command returns a protocol handoff |
-| `handoff:websocket` | Uses WebSocket protocol |
-| `handoff:webrtc` | Uses WebRTC protocol |
-| `handoff:sse` | Uses Server-Sent Events |
-| `handoff:resumable` | Session can resume after disconnect |
-
-Agents filter commands by capability:
-
-```typescript
-const tools = await afdHelp({
-  tags: ['handoff:websocket'],
-  excludeTags: ['handoff:webrtc'],  // Can't handle WebRTC
+const server = createMcpServer({
+  name: 'my-server',
+  version: '1.0.0',
+  commands: [myCommand],
+  transport: 'auto',  // 'stdio' | 'http' | 'auto'
 });
 ```
 
-### Lifecycle Commands
+### Client Package (`@lushly-dev/afd-client`)
 
-Every handoff domain should implement standard lifecycle commands:
+Two client types:
 
-| Command | Purpose |
-|---------|---------|
-| `{domain}.connect` / `{domain}.start` | Initiate session, return `HandoffResult` |
-| `{domain}.status` | Query session state |
-| `{domain}.disconnect` / `{domain}.end` | Gracefully close session |
-| `{domain}.reconnect` | Resume disconnected session |
-
-Session states: `pending` → `active` → `disconnected` → `closed` / `expired`
-
-### Agent Fallback Pattern
-
-Most AI agents (L1/L2) cannot consume real-time protocols. Provide polling fallbacks:
-
-| Handoff Command | Fallback Command | Description |
-|-----------------|------------------|-------------|
-| `chat-connect` | `chat-poll` | Poll for messages periodically |
-| `events-subscribe` | `events-list` | List recent events |
-| `canvas-start` | `canvas-snapshot` | Get current state |
+1. **McpClient**: For network communication (SSE/HTTP)
+2. **DirectClient**: Zero-overhead in-process execution (~0.01ms vs 2-10ms)
 
 ```typescript
-// Fallback for agents without WebSocket capability
-const chatPoll = defineCommand({
-  name: 'chat-poll',
-  description: 'Poll for messages (agent-friendly fallback)',
-  tags: ['chat', 'read', 'agent-friendly'],
-
-  async handler(input, ctx) {
-    const messages = await ctx.chatService.getMessages({
-      roomId: input.roomId,
-      after: input.since,
-    });
-
-    return success({
-      messages,
-      hasMore: messages.length === input.limit,
-    }, {
-      _agentHints: {
-        nextAction: 'Poll again with since=lastMessageId',
-        pollInterval: 5000,
-      },
-    });
-  },
-});
-```
-
-📖 See [docs/specs/handoff-pattern/](./docs/specs/handoff-pattern/) for the complete specification.
-
-### MCP Tool Strategy
-
-Control how commands appear in IDE tool lists:
-
-```typescript
-createMcpServer({
-  name: 'my-app',
-  commands: [/* ... */],
-  toolStrategy: 'individual', // 'grouped' (default) | 'individual'
-});
-```
-
-- **grouped** (default): Commands consolidated by category (cleaner IDE UX)
-- **individual**: Each command = separate MCP tool (more precise schemas)
-
-## VS Code MCP Configuration
-
-The Todo example includes three backend implementations (TypeScript, Python, Rust). Configure them in `.vscode/mcp.json`:
-
-```jsonc
-{
-  "mcpServers": {
-    // TypeScript backend (stdio transport - auto-starts)
-    "afd-todo-ts": {
-      "command": "node",
-      "args": ["packages/examples/todo/backends/typescript/dist/server.js"],
-      "disabled": false
-    },
-    
-    // Python backend (stdio transport - auto-starts)
-    "afd-todo-python": {
-      "command": "python",
-      "args": ["-m", "todo_backend"],
-      "cwd": "packages/examples/todo/backends/python",
-      "disabled": true
-    },
-    
-    // Rust backend (HTTP/SSE transport - requires manual server start)
-    "afd-todo-rust": {
-      "url": "http://127.0.0.1:3100/sse",
-      "disabled": true
-    }
-  }
-}
-```
-
-### Transport Types
-
-| Backend | Transport | Auto-Start | Notes |
-|---------|-----------|------------|-------|
-| TypeScript | stdio | ✅ Yes | VS Code spawns the Node process |
-| Python | stdio | ✅ Yes | VS Code spawns Python |
-| Rust | HTTP/SSE | ❌ No | Must run `cargo run -- server` first |
-
-### Switching Backends
-
-1. **Enable ONE backend** at a time (they share the same tool names)
-2. **Reload VS Code** after changes (Command Palette → "MCP: Restart Servers")
-3. **For Rust**: Start the server manually before enabling
-
-> **Important**: Only enable one todo backend at a time. All three expose identical tool names (`todo-create`, `todo-list`, etc.), so having multiple enabled causes conflicts.
-
-### Transport Selection Guide
-
-Choose the right transport based on your deployment scenario:
-
-| Transport | Latency | Use When |
-|-----------|---------|----------|
-| **Direct** | ~0.01ms | Agent and app share the same runtime (tests, embedded agents) |
-| **stdio** | ~10-50ms | IDE integration, local development |
-| **HTTP/SSE** | ~20-100ms | Network communication, multi-process, production |
-
-#### Direct Transport (In-Process)
-
-When your agent runs in the same Node.js/Bun process as the application, use `DirectClient` for zero-overhead execution:
-
-```typescript
-import { DirectClient } from '@afd/client';
-import { registry } from '@my-app/commands';
-
+// DirectClient for co-located agents
 const client = new DirectClient(registry);
 const result = await client.call<Todo>('todo-create', { title: 'Fast!' });
-// ~0.03ms vs 2-10ms for MCP
-```
 
-**Best for**: Embedded AI agents (e.g., Gemini, OpenAI running in your Node process).
-
-**Trade-offs**: No process isolation, same runtime required, registry must be importable.
-
-**When to use DirectClient**:
-- ✅ LLM is co-located in the same process as your app
-- ✅ Agent makes many sequential tool calls (each saves ~2-10ms)
-- ❌ Not for tests (GitHub Actions, IDE) — use CLI/MCP instead
-- ❌ Not for remote agents — use HTTP/SSE
-
-**Security**: When exposing DirectClient over HTTP, apply hardening:
-- CORS lockdown, rate limiting, input validation, API key masking
-
-📖 See [DirectClient Guide](./docs/directclient-guide.md) for implementation details.
-
-📌 See `packages/examples/todo-directclient` for a complete AI Copilot example.
-
-## Repository Structure
-
-```
-afd/
-├── docs/
-│   ├── philosophy.md                # Why AFD: UX design for AI collaborators
-│   ├── command-schema-guide.md      # How to design commands for good UX
-│   ├── trust-through-validation.md  # Why CLI validation builds trust
-│   ├── implementation-phases.md     # 4-phase implementation roadmap
-│   ├── production-considerations.md # Security, observability, mutation safety
-│   └── directclient-guide.md        # DirectClient: when to use, security, hardening
-├── packages/
-│   ├── core/                        # Core types (CommandResult, errors, etc.)
-│   ├── server/                      # Zod-based MCP server factory
-│   ├── client/                      # MCP client + DirectClient
-│   ├── cli/                         # AFD command-line tool
-│   ├── testing/                     # Test utilities + JTBD scenario runner
-│   └── examples/
-│       ├── todo/                    # Multi-stack Todo example
-│       │   ├── backends/
-│       │   │   ├── typescript/      # Node.js + @afd/server (stdio)
-│       │   │   ├── python/          # Python + FastMCP (stdio)
-│       │   │   └── rust/            # Axum + HTTP/SSE transport
-│       │   ├── frontends/
-│       │   │   ├── vanilla/         # Vanilla JS frontend
-│       │   │   └── react/           # React frontend
-│       │   ├── scenarios/           # JTBD scenario YAML files
-│       │   └── fixtures/            # Pre-seeded test data (JSON)
-│       └── todo-directclient/       # DirectClient + AI Copilot example
-│           ├── backend/             # Chat server with Gemini integration
-│           └── frontend/            # Chat UI with tool execution display
-├── Agentic AI UX Design Principles/ # Reference: UX framework (for PMs/designers)
-├── AGENTS.md                        # This file - AI agent context
-├── README.md                        # Human-readable overview
-└── package.json
-```
-
-## Python Package
-
-The `afd` Python package provides AFD primitives for Python applications:
-
-```bash
-pip install afd
-```
-
-### Usage
-
-```python
-from afd.core import CommandResult, success, error, Warning
-
-async def my_command(input: MyInput) -> CommandResult[MyOutput]:
-    return success(
-        data=MyOutput(...),
-        reasoning="Completed successfully",
-        suggestions=["Try this next"],
-    )
-```
-
-### Publishing to PyPI
-
-Releases are automated via GitHub Actions with **OIDC Trusted Publishing** (no tokens needed).
-
-**To release a new version:**
-
-1. Bump version in `python/pyproject.toml`
-2. Update `CHANGELOG.md`
-3. Commit and tag:
-   ```bash
-   git commit -am "chore: bump afd to v0.1.3"
-   git tag python-v0.1.3
-   git push origin main --tags
-   ```
-
-The workflow validates the tag matches `pyproject.toml`, runs tests, and publishes to PyPI.
-
-📖 See `.github/workflows/publish-python.yml` for details.
-
-## Conformance Testing
-
-AFD promotes **Spec-First Development**. We use a shared conformance suite to ensure multiple implementations (e.g., TS and Python) behave identically.
-
-```bash
-# Run conformance tests for the Todo example
-cd packages/examples/todo
-npx tsx dx/run-conformance.ts ts  # Test TypeScript backend
-npx tsx dx/run-conformance.ts py  # Test Python backend
-```
-
-## JTBD Scenario Testing
-
-Test user journeys through YAML scenario files with fixtures and step references.
-
-### Scenario File Structure
-
-```yaml
-# scenarios/create-and-complete-todo.scenario.yaml
-scenario:
-  name: "Create and complete a todo"
-  tags: ["smoke", "crud"]
-
-setup:
-  fixture:
-    file: "fixtures/seeded-todos.json"
-
-steps:
-  - name: "Create todo"
-    command: todo.create
-    input:
-      title: "Buy groceries"
-    expect:
-      success: true
-      data:
-        title: "Buy groceries"
-
-  - name: "Complete todo"
-    command: todo.toggle
-    input:
-      id: "${{ steps[0].data.id }}"  # Reference previous step
-    expect:
-      success: true
-```
-
-### Step References
-
-Reference data from previous steps: `${{ steps[N].data.path }}`
-
-```yaml
-steps:
-  - name: "Create"
-    command: todo.create
-    input: { title: "Test" }
-    # Result: { data: { id: "todo-123" } }
-
-  - name: "Update"
-    command: todo.update
-    input:
-      id: "${{ steps[0].data.id }}"    # → "todo-123"
-      title: "Updated"
-```
-
-### Fixtures
-
-Pre-seed test data before scenario execution:
-
-```json
-// fixtures/seeded-todos.json
-{
-  "app": "todo",
-  "clearFirst": true,
-  "todos": [
-    { "title": "Existing todo", "priority": "high" }
-  ]
-}
-```
-
-### Running Scenarios
-
-```bash
-# Via conformance runner
-npx tsx dx/run-conformance.ts ts
-
-# Programmatically
-import { parseScenario, InProcessExecutor } from '@afd/testing';
-const scenario = parseScenario(yaml);
-const result = await executor.run(scenario);
-```
-
-### Dry Run Validation
-
-Validate scenarios without executing them:
-
-```typescript
-import { validateScenario } from '@afd/testing';
-
-const validation = validateScenario(scenario, {
-  availableCommands: ['todo.create', 'todo.get'],
-});
-
-if (!validation.valid) {
-  console.error(validation.errors);
-  // ["Unknown command 'todo.unknown' in step 3"]
-}
-```
-
-### Error Messages
-
-Failed assertions show expected vs actual values:
-
-```
-"2 assertions failed: data.total: expected 99, got 2; data.completed: expected true, got false"
-```
-
-### Scenario Commands (Phase 2)
-
-Batch operations for managing JTBD scenarios:
-
-```typescript
-import {
-  scenarioList,
-  scenarioEvaluate,
-  scenarioCoverage,
-  scenarioCreate,
-} from '@afd/testing';
-
-// List all scenarios with filtering
-const list = await scenarioList({
-  directory: './scenarios',
-  job: 'todo-management',
-  tags: ['smoke'],
-});
-
-// Batch evaluate with parallel execution
-const result = await scenarioEvaluate({
-  handler: myCommandHandler,
-  directory: './scenarios',
-  concurrency: 4,
-  format: 'junit',
-  output: './test-results.xml',
-});
-console.log(`Exit code: ${result.data.exitCode}`);
-
-// Calculate coverage against known commands
-const coverage = await scenarioCoverage({
-  directory: './scenarios',
-  knownCommands: ['todo.create', 'todo.list', 'todo.delete'],
-});
-console.log(`Coverage: ${coverage.data.summary.commands.coverage}%`);
-
-// Create scenario from template
-const created = await scenarioCreate({
-  name: 'todo-crud',
-  job: 'Manage todos',
-  template: 'crud',  // Generates create/read/update/delete steps
-  directory: './scenarios',
-});
-```
-
-### Agent Integration (Phase 3)
-
-MCP server and AI-friendly hints for agent integration:
-
-```typescript
-import { createMcpTestingServer, scenarioSuggest } from '@afd/testing';
-
-// Create MCP server exposing all scenario commands
-const server = createMcpTestingServer({
-  handler: async (command, input) => registry.execute(command, input),
-});
-
-// AI-powered scenario suggestions
-const suggestions = await scenarioSuggest({
-  context: 'changed-files',
-  files: ['src/commands/todo/create.ts'],
-});
-
-// Results include _agentHints for AI interpretation
-console.log(suggestions.data._agentHints);
-// { shouldRetry: false, nextSteps: [...], interpretationConfidence: 0.9 }
-```
-
-### App Adapters (Phase 4)
-
-Adapters enable the framework to work with different AFD applications:
-
-```typescript
-import { registerAdapter, detectAdapter, todoAdapter, createGenericAdapter } from '@afd/testing';
-
-// Register built-in adapter
-registerAdapter(todoAdapter);
-
-// Create custom adapter for your app
-const myAdapter = createGenericAdapter('myapp', {
-  commands: ['myapp.create', 'myapp.list'],
-  errors: ['NOT_FOUND', 'VALIDATION_ERROR'],
-});
-registerAdapter(myAdapter);
-
-// Auto-detect adapter from fixture
-const fixture = { app: 'todo', todos: [] };
-const adapter = detectAdapter(fixture);
-```
-
-See `packages/testing/README.md` for full documentation.
-
-## How to Use AFD CLI
-
-```bash
-# Connect to any MCP server
-afd connect <url>
-
-# List available tools/commands
-afd tools
-
-# Call a specific tool
-afd call <tool-name> [arguments]
-
-# Run command validation suite
-afd validate
-
-# Interactive shell mode
-afd shell
-```
-
-## Development Workflow
-
-When contributing to or using AFD methodology:
-
-```
-1. DEFINE
-   - Create CommandDefinition
-   - Define schema (inputs/outputs)
-   - Register in command registry
-
-2. VALIDATE
-   - Test via afd call <command>
-   - Verify all edge cases
-   - Add automated tests
-
-3. SURFACE
-   - Build UI component (optional)
-   - UI invokes the same command
-   - Integration testing
-```
-
-## For AI Agents Working on This Repo
-
-### When Adding Features
-
-1. **Define the command first** - Create the tool definition with clear schema
-2. **Test via CLI** - Validate it works before any UI work
-3. **Document the command** - Add to tool registry with description
-
-### When Fixing Bugs
-
-1. **Reproduce via CLI** - Can you trigger the bug without UI?
-2. **Fix at command layer** - The fix should work for both agents and humans
-3. **Verify via CLI** - Confirm fix works before checking UI
-
-### Code Conventions
-
-- Commands are the source of truth
-- UI components are thin wrappers that invoke commands
-- All state mutations happen through commands
-- Commands return structured results (success/failure + data)
-
-### Command Schema Design
-
-When creating commands, include UX-enabling fields:
-
-```typescript
-interface CommandResult<T> {
-  // Required
-  success: boolean;
-  data?: T;
-  error?: { code: string; message: string; suggestion?: string };
-
-  // Recommended for AI-powered commands
-  confidence?: number; // 0-1, enables confidence indicators
-  reasoning?: string; // Explains "why", enables transparency
-  sources?: Source[]; // Attribution for verification
-  plan?: PlanStep[]; // Multi-step visibility
-  alternatives?: Alternative<T>[]; // Other options considered
-}
-
-// Alternative type for consistency
-interface Alternative<T> {
-  data: T;
-  reason: string;
-  confidence?: number;
-}
-```
-
-**Why this matters**: These fields enable good agent UX:
-
-- `confidence` → User knows when to trust vs. verify
-- `reasoning` → User understands agent decisions
-- `sources` → User can verify information
-- `plan` → User sees what will happen before it happens
-
-See [docs/command-schema-guide.md](./docs/command-schema-guide.md) for detailed patterns.
-
-## Lessons Learned (Real-World Implementation)
-
-These lessons come from implementing AFD in:
-
-- **[Violet Design](https://github.com/Falkicon/dsas)** — Hierarchical design token management (TypeScript, 24 commands)
-- **[Noisett](https://github.com/Falkicon/Noisett)** — AI image generation (Python, 19 commands, **5 surfaces**)
-
-### Multi-Surface Validation (Noisett)
-
-**Achievement**: Noisett serves the same 19 commands through **5 different surfaces**:
-
-| Surface      | Technology   | Backend Changes |
-| ------------ | ------------ | --------------- |
-| CLI          | Python Click | —               |
-| MCP          | FastMCP      | —               |
-| REST API     | FastAPI      | —               |
-| Web UI       | Vanilla JS   | —               |
-| Figma Plugin | TypeScript   | **Zero** ✅     |
-
-The Figma plugin (Phase 7) required **zero backend changes** — it calls the same `/api/generate` and `/api/jobs/{id}` endpoints. This validates AFD's core promise: commands are the app, surfaces are interchangeable.
-
-**Key Insight**: The "honesty check" (can it be done via CLI?) proved correct. Before building the Figma plugin, we verified the CLI could generate images. Since it could, adding another surface was trivial.
-
-### TypeScript + Zod Generics
-
-**Challenge**: `CommandDefinition<TSchema, TOutput>` typing with optional fields and defaults.
-
-**Problem**: Zod distinguishes between `z.input<>` (what you pass in) and `z.output<>` (after transforms/defaults applied). Optional fields with `.default()` exist in output but not necessarily in input.
-
-```typescript
-// ❌ Wrong - handler receives raw input, not parsed
-async handler(input: z.output<typeof InputSchema>) {
-  // input.priority might be undefined!
-}
-
-// ✅ Correct - parse inside handler to apply defaults
-async handler(rawInput: z.input<typeof InputSchema>) {
-  const input = InputSchema.parse(rawInput);
-  // input.priority is guaranteed to have default value
-}
-```
-
-### Zod Union Ordering Matters
-
-**Challenge**: Complex union schemas can match unexpectedly.
-
-**Problem**: A permissive object schema in a union can match and strip properties from objects that should fall through to later union members.
-
-```typescript
-// ❌ Wrong - platform schema matches any object, strips unknown props
-const TokenValueSchema = z.union([
-  z.string(),
-  z.object({ web: z.string().optional(), ios: z.string().optional() }),
-  z.record(z.string(), z.unknown()), // Never reached for objects
-]);
-
-// ✅ Correct - strict mode + refinement prevents over-matching
-const TokenValueSchema = z.union([
-  z.string(),
-  z
-    .object({ web: z.string().optional(), ios: z.string().optional() })
-    .strict()
-    .refine((obj) => obj.web || obj.ios, "Need at least one platform"),
-  z.record(z.string(), z.unknown()), // Now correctly catches other objects
-]);
-```
-
-### Registry Type Constraints
-
-**Challenge**: Generic command registry that stores different command types.
-
-**Problem**: TypeScript's variance rules make it hard to store `CommandDefinition<SpecificSchema, SpecificOutput>` in a `Map<string, CommandDefinition<any, any>>`.
-
-```typescript
-// ✅ Solution - use 'any' internally, cast at boundaries
-class CommandRegistry {
-  private commands = new Map<string, CommandDefinition<any, any>>();
-
-  register<TSchema extends z.ZodType, TOutput>(
-    command: CommandDefinition<TSchema, TOutput>
-  ) {
-    this.commands.set(command.name, command as CommandDefinition<any, any>);
-  }
-
-  async execute<TOutput>(
-    name: string,
-    input: unknown
-  ): Promise<CommandResult<TOutput>> {
-    const command = this.commands.get(name);
-    return command.handler(input) as CommandResult<TOutput>;
-  }
-}
-```
-
-### CLI-First Benefits
-
-The "honesty check" worked exactly as intended:
-
-- Bugs discovered via `violet node create --name test` before any UI existed
-- Schema issues surfaced during `pnpm test` cycles
-- 89 tests catch regressions before UI development starts
-
-### Key Takeaways
-
-1. **Parse inside handlers** - Don't trust TypeScript to know Zod has applied defaults
-2. **Order unions carefully** - Most specific schemas first, most permissive last
-3. **Use `.strict()` on objects** - Prevents silent property stripping
-4. **Test with complex data** - Object values, nested structures, edge cases
-5. **Type boundaries** - Use `any` internally, cast at API boundaries
-
-## Command Pipelines
-
-Pipelines enable declarative composition of commands where the output of one becomes the input of the next.
-
-### Pipeline Basics
-
-```typescript
-import { McpClient } from '@afd/client';
-
+// Pipeline execution
 const result = await client.pipe([
-  { command: 'user-get', input: { id: 123 }, as: 'user' },
+  { command: 'user-get', input: { id: 1 }, as: 'user' },
   { command: 'order-list', input: { userId: '$prev.id' } },
-  { command: 'order-summarize', input: {
-    orders: '$prev',
-    userName: '$steps.user.name'
-  }}
 ]);
 ```
 
-### Variable Resolution
+### Data Flow
+
+```
+Command Definition (Zod schema + handler)
+         ↓
+    MCP Server (validates input, executes handler)
+         ↓
+    CommandResult (success/failure + metadata)
+         ↓
+    Client (McpClient or DirectClient)
+```
+
+## Key Conventions
+
+### Command Naming
+- Use `domain-action` format: `todo-create`, `user-get`, `order-list`
+- Commands are kebab-case, not dot-separated
+
+### CommandResult Fields
+- **Required**: `success`, `data` or `error`
+- **Recommended**: `reasoning` (explains what happened), `confidence` (0-1)
+- **Errors**: Always include `suggestion` for recovery guidance
+- **Mutations**: Include `warnings` for side effects
+
+### Testing Pattern
+- Tests use Vitest with explicit imports (not globals)
+- Place tests in `src/**/*.test.ts`
+- Use `describe`/`it`/`expect` from 'vitest'
+
+### Biome Linting
+- Tab indentation, single quotes, trailing commas (es5)
+- `noExplicitAny: error` - avoid `any` types
+- `useImportType: error` - use `import type { ... }` for type-only imports
+- `noUnusedImports: error`, `noUnusedVariables: error`
+- `useNodejsImportProtocol: error` - use `node:` prefix for Node.js builtins
+
+## Pipeline Variable Resolution
+
+When working with pipelines, these variables are available:
 
 | Variable | Resolves to |
-|----------|------------|
-| `$prev` | Output of immediately previous step |
-| `$prev.field` | Specific field from previous output |
-| `$first` | Output of first step |
-| `$steps[n]` | Output of step at index n |
-| `$steps.alias` | Output of step with matching `as` alias |
+|----------|-------------|
+| `$prev` | Previous step output |
+| `$prev.field` | Specific field from previous |
+| `$first` | First step output |
+| `$steps[n]` | Step at index n |
+| `$steps.alias` | Step by alias name |
 | `$input` | Original pipeline input |
 
-### Conditional Execution
+## Demos
 
-Skip steps based on runtime conditions:
+### Myoso (demos/todo)
+A local-first todo app demonstrating AFD with Convex real-time database and Gemini chat integration:
+- **MCP Server** (port 3100): Notes commands via `/message` endpoint
+- **Chat Server** (port 3101): AI chat via `/chat` SSE endpoint
+- **Frontend**: Vite + React with Zustand for optimistic updates
 
-```typescript
-const result = await client.pipe([
-  { command: 'user-get', input: { id: 123 }, as: 'user' },
-  {
-    command: 'discount-apply',
-    input: { userId: '$steps.user.id' },
-    when: { $eq: ['$steps.user.tier', 'premium'] }  // Only for premium users
-  }
-]);
+```bash
+# Run the demo (from demos/todo)
+cd backend && npm install && npm run dev   # Terminal 1: MCP server
+cd backend && npm run chat                 # Terminal 2: Chat server
+cd frontend && npm install && npm run dev  # Terminal 3: Frontend
 ```
 
-**Condition operators:**
-- `$exists` - Field exists and is not null
-- `$eq`, `$ne` - Equality checks
-- `$gt`, `$gte`, `$lt`, `$lte` - Numeric comparisons
-- `$and`, `$or`, `$not` - Logical operators
+## Skill Index
 
-### Confidence Aggregation
+| Skill | When to Use |
+|-------|-------------|
+| [afd](skills/afd/) | Core AFD patterns, command design, workflow |
+| [afd-developer](skills/afd-developer/) | AFD philosophy, honesty check, define-validate-surface |
+| [afd-python](skills/afd-python/) | Python implementation with Pydantic, FastMCP |
+| [afd-typescript](skills/afd-typescript/) | TypeScript patterns, Zod tips |
+| [afd-rust](skills/afd-rust/) | Rust implementation patterns |
+| [afd-directclient](skills/afd-directclient/) | In-process command execution |
 
-Pipeline confidence uses the **weakest link** principle - the minimum confidence across all steps:
+## Related Documentation
 
-```typescript
-const result = await client.pipe([
-  { command: 'data-fetch', input: { source: 'cache' } },      // 0.95 confidence
-  { command: 'data-transform', input: { data: '$prev' } },    // 0.99 confidence
-  { command: 'data-validate', input: { data: '$prev' } }      // 0.87 confidence
-]);
-
-// result.metadata.confidence === 0.87 (minimum)
-// result.metadata.confidenceBreakdown shows per-step values
-```
-
-### Error Handling
-
-By default, pipelines stop on first failure:
-
-```typescript
-const result = await client.pipe([
-  { command: 'user-get', input: { id: 999 } },  // Fails: NOT_FOUND
-  { command: 'order-list', input: { userId: '$prev.id' } }  // Skipped
-]);
-
-// result.steps[0].status === 'failure'
-// result.steps[0].error.suggestion === 'Check if user ID is correct...'
-// result.steps[1].status === 'skipped'
-```
-
-Use `continueOnFailure` to execute all steps regardless of failures:
-
-```typescript
-const result = await client.pipe({
-  steps: [
-    { command: 'cache-get', input: { key: 'data' } },
-    { command: 'api-fetch', input: { url: '/data' } }
-  ],
-  options: { continueOnFailure: true }
-});
-```
-
-### Metadata Propagation
-
-All AFD trust signals flow through the pipeline:
-
-| Field | Propagation Rule |
-|-------|------------------|
-| `confidence` | Minimum across all steps (weakest link) |
-| `reasoning` | Collected from all steps with attribution |
-| `warnings` | Collected from all steps with stepIndex |
-| `sources` | Collected from all steps with stepIndex |
-| `executionTimeMs` | Sum of all steps |
-
-See [Command Pipeline Spec](./docs/specs/command-pipeline/00-overview.md) for full details.
-
-## Related Resources
-
-- **MCP** - Model Context Protocol (current agent communication standard)
-- **[Philosophy](./docs/philosophy.md)** - Why AFD: UX design for AI collaborators
-- **[Command Schema Guide](./docs/command-schema-guide.md)** - Detailed command design patterns
-- **[Trust Through Validation](./docs/trust-through-validation.md)** - Why CLI validation matters
-- **[Implementation Phases](./docs/implementation-phases.md)** - 4-phase roadmap for AFD projects
-- **[Production Considerations](./docs/production-considerations.md)** - Security, mutation safety, observability
-- **[Handoff Pattern Spec](./docs/specs/handoff-pattern/)** - Real-time protocol handoff pattern
-- **[DirectClient Guide](./docs/directclient-guide.md)** - In-process command execution
-- **[Command Pipeline Spec](./docs/specs/command-pipeline/00-overview.md)** - Declarative command chaining
-
-## Contributing
-
-AI agents are encouraged to:
-
-1. Propose new commands via issues/PRs
-2. Improve command schemas for better agent usability
-3. Add examples showing AFD patterns
-4. Enhance documentation for both humans and agents
+- **docs/philosophy.md**: Why AFD exists
+- **docs/command-schema-guide.md**: Command design patterns
+- **docs/specs/**: Specifications for handoff, pipelines, etc.
