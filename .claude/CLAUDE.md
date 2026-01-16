@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Documentation Policy**: Skills are the source of truth for detailed knowledge.
+> This file is a routing table. See [afd skill](skills/afd/) for core AFD patterns.
+
 ## Build & Test Commands
 
 ```bash
@@ -185,10 +188,19 @@ cd backend && npm run chat                 # Terminal 2: Chat server
 cd frontend && npm install && npm run dev  # Terminal 3: Frontend
 ```
 
+## Skill Index
+
+| Skill | When to Use |
+|-------|-------------|
+| [afd](skills/afd/) | Core AFD patterns, command design, workflow |
+| [afd-developer](skills/afd-developer/) | AFD philosophy, honesty check, define-validate-surface |
+| [afd-python](skills/afd-python/) | Python implementation with Pydantic, FastMCP |
+| [afd-typescript](skills/afd-typescript/) | TypeScript patterns, Zod tips |
+| [afd-rust](skills/afd-rust/) | Rust implementation patterns |
+| [afd-directclient](skills/afd-directclient/) | In-process command execution |
+
 ## Related Documentation
 
-- **AGENTS.md**: Comprehensive AI agent context and patterns
 - **docs/philosophy.md**: Why AFD exists
 - **docs/command-schema-guide.md**: Command design patterns
 - **docs/specs/**: Specifications for handoff, pipelines, etc.
-- **docs/directclient-guide.md**: In-process command execution for co-located agents
