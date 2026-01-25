@@ -228,6 +228,9 @@ export interface CommandContext {
 	/** Signal for cancellation */
 	signal?: AbortSignal;
 
+	/** The interface invoking this command (for exposure checks) */
+	interface?: keyof ExposeOptions;
+
 	/** Custom context values */
 	[key: string]: unknown;
 }
@@ -272,6 +275,13 @@ export interface CommandRegistry {
 	 * @returns Commands matching the tag filter
 	 */
 	listByTags(tags: string[], mode: 'all' | 'any'): CommandDefinition[];
+
+	/**
+	 * Get commands exposed to a specific interface.
+	 * @param interfaceType - The interface to filter by (mcp, cli, palette, agent)
+	 * @returns Commands exposed to the specified interface
+	 */
+	listByExposure(interfaceType: keyof ExposeOptions): CommandDefinition[];
 
 	/**
 	 * Execute a command by name.
@@ -365,6 +375,13 @@ export function createCommandRegistry(): CommandRegistry {
 			});
 		},
 
+		listByExposure(interfaceType) {
+			return Array.from(commands.values()).filter((cmd) => {
+				const expose = cmd.expose ?? defaultExpose;
+				return expose[interfaceType] === true;
+			});
+		},
+
 		async execute<TOutput = unknown>(
 			name: string,
 			input: unknown,
@@ -380,6 +397,21 @@ export function createCommandRegistry(): CommandRegistry {
 						suggestion: `Use 'afd tools' to see available commands`,
 					},
 				};
+			}
+
+			// Check exposure if interface context is provided
+			if (context?.interface) {
+				const expose = command.expose ?? defaultExpose;
+				if (!expose[context.interface]) {
+					return {
+						success: false,
+						error: {
+							code: 'COMMAND_NOT_EXPOSED',
+							message: `Command '${name}' is not exposed to ${context.interface}`,
+							retryable: false,
+						},
+					};
+				}
 			}
 
 			try {
@@ -724,4 +756,20 @@ export function commandToMcpTool(command: CommandDefinition): {
 			required,
 		},
 	};
+}
+
+/**
+ * Check if a command is exposed to MCP.
+ */
+export function isMcpExposed(command: CommandDefinition): boolean {
+	const expose = command.expose ?? defaultExpose;
+	return expose.mcp === true;
+}
+
+/**
+ * Convert commands to MCP tools, filtering by MCP exposure.
+ * Only commands with `expose.mcp === true` will be included.
+ */
+export function commandsToMcpTools(commands: CommandDefinition[]): ReturnType<typeof commandToMcpTool>[] {
+	return commands.filter(isMcpExposed).map(commandToMcpTool);
 }
