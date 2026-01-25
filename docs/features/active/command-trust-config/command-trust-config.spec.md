@@ -1,9 +1,9 @@
 # Spec: Command Trust Config
 
 **Proposal:** [command-trust-config.proposal.md](./command-trust-config.proposal.md)
-**Status:** READY
+**Status:** COMPLETE
 **Created:** 2025-01
-**Last Updated:** 2025-01
+**Last Updated:** 2026-01
 **Effort:** M (1-3 days)
 
 ---
@@ -607,5 +607,5 @@ const handleCancelledDestructiveAction = useCallback(async (commandName: string)
 - [x] Cancelled actions rely on Convex sync (no explicit handler needed)
 
 ### Verification
-- [ ] Manual tests pass (agent delete flow, cancel flow)
-- [ ] Proposal updated to READY status
+- [x] Manual tests pass (agent delete flow, cancel flow)
+- [x] Proposal updated to IMPLEMENTED status
