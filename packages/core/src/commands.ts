@@ -25,6 +25,28 @@ import type {
 import { createCompleteChunk, createErrorChunk } from './streaming.js';
 
 /**
+ * Controls which interfaces a command is exposed to.
+ */
+export interface ExposeOptions {
+	/** Command palette (default: true) */
+	palette?: boolean;
+	/** External MCP agents (default: false — opt-in for security) */
+	mcp?: boolean;
+	/** In-app AI assistant (default: true) */
+	agent?: boolean;
+	/** Terminal/CLI (default: false) */
+	cli?: boolean;
+}
+
+/** Frozen to prevent accidental mutation */
+export const defaultExpose: Readonly<ExposeOptions> = Object.freeze({
+	palette: true, // User-facing: on by default
+	agent: true, // In-app AI: on by default
+	mcp: false, // External agents: opt-in (security)
+	cli: false, // Automation: opt-in
+});
+
+/**
  * JSON Schema subset for command parameter validation.
  */
 export interface JsonSchema {
@@ -171,6 +193,18 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	 * Used for agent filtering (e.g., find all WebSocket commands).
 	 */
 	handoffProtocol?: 'websocket' | 'webrtc' | 'sse' | 'http-stream' | string;
+
+	/**
+	 * Whether this command can be undone.
+	 * Implementation is consumer-specific (e.g., FAST-AF uses `${methodName}Undo()` convention).
+	 */
+	undoable?: boolean;
+
+	/**
+	 * Which interfaces this command is exposed to.
+	 * Defaults to `defaultExpose` if not specified.
+	 */
+	expose?: ExposeOptions;
 }
 
 /**

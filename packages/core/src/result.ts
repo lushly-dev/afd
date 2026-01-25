@@ -115,6 +115,22 @@ export interface CommandResult<T = unknown> {
 	 * Execution metadata for debugging and monitoring.
 	 */
 	metadata?: ResultMetadata;
+
+	// ═══════════════════════════════════════════════════════════════════════════
+	// UNDO FIELDS (For serializable undo over MCP)
+	// ═══════════════════════════════════════════════════════════════════════════
+
+	/**
+	 * Undo command name (for remote/serializable undo).
+	 * When present, indicates this operation can be reversed by calling the specified command.
+	 */
+	undoCommand?: string;
+
+	/**
+	 * Arguments to pass to the undo command.
+	 * Used with `undoCommand` for serialization over MCP (functions can't serialize).
+	 */
+	undoArgs?: Record<string, unknown>;
 }
 
 /**
