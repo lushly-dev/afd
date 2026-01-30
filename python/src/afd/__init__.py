@@ -95,6 +95,9 @@ from afd.direct import (
     CommandInfo,
     CommandDefinition,
     CommandParameter,
+    PipelineStep,
+    PipelineStepResult,
+    PipelineResult,
     create_direct_client,
     create_registry,
 )
@@ -154,6 +157,9 @@ __all__ = [
     "CommandInfo",
     "CommandDefinition",
     "CommandParameter",
+    "PipelineStep",
+    "PipelineStepResult",
+    "PipelineResult",
     "create_direct_client",
     "create_registry",
 ]

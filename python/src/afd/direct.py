@@ -105,6 +105,53 @@ class DirectCallContext:
     extra: Dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass
+class PipelineStep:
+    """A step in a command pipeline.
+    
+    Attributes:
+        command: Command name to execute
+        input: Arguments for the command (can include variable references)
+        alias: Name to store result as (for later reference)
+        when: Optional condition for execution (e.g., '$prev.success')
+    """
+    
+    command: str
+    input: Optional[Dict[str, Any]] = None
+    alias: Optional[str] = None
+    when: Optional[str] = None
+
+
+@dataclass
+class PipelineStepResult:
+    """Result of a single pipeline step."""
+    
+    command: str
+    alias: Optional[str]
+    result: CommandResult
+    duration_ms: float
+    skipped: bool = False
+
+
+@dataclass
+class PipelineResult:
+    """Result of executing a command pipeline.
+    
+    Attributes:
+        success: True if all steps succeeded
+        steps: Individual step results
+        outputs: Named outputs from steps with aliases
+        final: The final step's result
+        total_duration_ms: Total pipeline duration
+    """
+    
+    success: bool
+    steps: List[PipelineStepResult]
+    outputs: Dict[str, Any]
+    final: Optional[CommandResult]
+    total_duration_ms: float
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # UNKNOWN TOOL ERROR
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -518,6 +565,189 @@ class DirectClient:
         """Debug logging helper."""
         if self.options.debug:
             print(f"[DirectClient] {message}", data if data else "")
+    
+    async def pipe(
+        self,
+        steps: List[Union[PipelineStep, Dict[str, Any]]],
+        context: Optional[DirectCallContext] = None,
+    ) -> PipelineResult:
+        """Execute a pipeline of commands with variable resolution.
+        
+        Variables reference previous step outputs:
+        - $prev - Previous step's result.data
+        - $prev.field - Field from previous step's data
+        - $alias - Named step's result.data (via 'as' property)
+        - $alias.field - Field from named step's data
+        
+        Args:
+            steps: List of pipeline steps (dicts or PipelineStep objects)
+            context: Optional context for tracing
+        
+        Returns:
+            PipelineResult with all step results and outputs
+        
+        Example:
+            >>> result = await client.pipe([
+            ...     {'command': 'user.get', 'input': {'id': 123}, 'as': 'user'},
+            ...     {'command': 'order.list', 'input': {'user_id': '$user.id'}},
+            ... ])
+        """
+        start_time = time.perf_counter()
+        trace_id = (context.trace_id if context else None) or _generate_trace_id()
+        
+        self._debug(f"[{trace_id}] Starting pipeline with {len(steps)} steps")
+        
+        # Normalize steps to PipelineStep objects
+        normalized_steps = []
+        for step in steps:
+            if isinstance(step, dict):
+                normalized_steps.append(PipelineStep(
+                    command=step.get('command', ''),
+                    input=step.get('input'),
+                    alias=step.get('as') or step.get('alias'),
+                    when=step.get('when'),
+                ))
+            else:
+                normalized_steps.append(step)
+        
+        step_results: List[PipelineStepResult] = []
+        outputs: Dict[str, Any] = {}
+        prev_result: Optional[CommandResult] = None
+        all_success = True
+        
+        for i, step in enumerate(normalized_steps):
+            step_start = time.perf_counter()
+            
+            self._debug(f"[{trace_id}] Step {i+1}/{len(normalized_steps)}: {step.command}")
+            
+            # Check 'when' condition
+            if step.when:
+                should_run = self._evaluate_condition(step.when, prev_result, outputs)
+                if not should_run:
+                    self._debug(f"[{trace_id}] Skipped due to condition: {step.when}")
+                    step_results.append(PipelineStepResult(
+                        command=step.command,
+                        alias=step.alias,
+                        result=success({'skipped': True, 'reason': f'Condition not met: {step.when}'}),
+                        duration_ms=0,
+                        skipped=True,
+                    ))
+                    continue
+            
+            # Resolve variables in input
+            resolved_input = self._resolve_variables(step.input, prev_result, outputs)
+            
+            # Execute the command
+            result = await self.call(step.command, resolved_input, context)
+            
+            step_duration = (time.perf_counter() - step_start) * 1000
+            
+            step_results.append(PipelineStepResult(
+                command=step.command,
+                alias=step.alias,
+                result=result,
+                duration_ms=step_duration,
+            ))
+            
+            # Store in outputs if aliased
+            if step.alias:
+                outputs[step.alias] = result.data if result.success else None
+            
+            prev_result = result
+            
+            # Track overall success
+            if not result.success:
+                all_success = False
+                self._debug(f"[{trace_id}] Step failed: {step.command}")
+                break  # Stop pipeline on first failure
+        
+        total_duration = (time.perf_counter() - start_time) * 1000
+        
+        self._debug(f"[{trace_id}] Pipeline complete in {total_duration:.2f}ms, success={all_success}")
+        
+        return PipelineResult(
+            success=all_success,
+            steps=step_results,
+            outputs=outputs,
+            final=prev_result,
+            total_duration_ms=total_duration,
+        )
+    
+    def _resolve_variables(
+        self,
+        data: Optional[Dict[str, Any]],
+        prev_result: Optional[CommandResult],
+        outputs: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """Resolve variable references in input data.
+        
+        Supported patterns:
+        - $prev - Previous step's data
+        - $prev.field - Field from previous step
+        - $alias - Named step's data
+        - $alias.field.nested - Nested field access
+        """
+        if data is None:
+            return None
+        
+        def resolve_value(value: Any) -> Any:
+            if isinstance(value, str) and value.startswith('$'):
+                return self._resolve_reference(value[1:], prev_result, outputs)
+            elif isinstance(value, dict):
+                return {k: resolve_value(v) for k, v in value.items()}
+            elif isinstance(value, list):
+                return [resolve_value(v) for v in value]
+            return value
+        
+        return {k: resolve_value(v) for k, v in data.items()}
+    
+    def _resolve_reference(
+        self,
+        ref: str,
+        prev_result: Optional[CommandResult],
+        outputs: Dict[str, Any],
+    ) -> Any:
+        """Resolve a single variable reference."""
+        parts = ref.split('.')
+        root = parts[0]
+        path = parts[1:]
+        
+        # Get base value
+        if root == 'prev':
+            base = prev_result.data if prev_result else None
+        elif root in outputs:
+            base = outputs[root]
+        else:
+            return None  # Unknown reference
+        
+        # Navigate path
+        for part in path:
+            if isinstance(base, dict):
+                base = base.get(part)
+            elif hasattr(base, part):
+                base = getattr(base, part)
+            else:
+                return None
+        
+        return base
+    
+    def _evaluate_condition(
+        self,
+        condition: str,
+        prev_result: Optional[CommandResult],
+        outputs: Dict[str, Any],
+    ) -> bool:
+        """Evaluate a simple condition string.
+        
+        Supported patterns:
+        - $prev.success - Previous step succeeded
+        - $alias - Alias exists and is truthy
+        - $alias.field - Field is truthy
+        """
+        if condition.startswith('$'):
+            value = self._resolve_reference(condition[1:], prev_result, outputs)
+            return bool(value)
+        return True  # Default to run
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
