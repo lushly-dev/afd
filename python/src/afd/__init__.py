@@ -85,6 +85,19 @@ from afd.core.handoff import (
     get_handoff_protocol,
     create_handoff,
 )
+from afd.direct import (
+    DirectClient,
+    DirectRegistry,
+    SimpleRegistry,
+    DirectClientOptions,
+    DirectCallContext,
+    CommandContext,
+    CommandInfo,
+    CommandDefinition,
+    CommandParameter,
+    create_direct_client,
+    create_registry,
+)
 
 __version__ = "0.1.0"
 
@@ -131,4 +144,17 @@ __all__ = [
     "is_handoff_command",
     "get_handoff_protocol",
     "create_handoff",
+    # Direct execution
+    "DirectClient",
+    "DirectRegistry",
+    "SimpleRegistry",
+    "DirectClientOptions",
+    "DirectCallContext",
+    "CommandContext",
+    "CommandInfo",
+    "CommandDefinition",
+    "CommandParameter",
+    "create_direct_client",
+    "create_registry",
 ]
+
