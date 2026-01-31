@@ -60,9 +60,38 @@ packages/
     ├── todo/                # Multi-stack example (TS, Python, Rust backends)
     └── todo-directclient/   # DirectClient + AI integration example
 
+python/
+├── src/afd/              # Python AFD package (pip install afd)
+│   ├── core/             # CommandResult, errors, metadata
+│   ├── server/           # FastMCP-based server factory
+│   └── lushx_ext/        # Lushx extension (auto-registered)
+└── tests/
+
 demos/
 └── todo/       # Myoso - Local-first todo app with Convex + Gemini chat integration
 ```
+
+### Lushx Extension
+
+The Python package includes a lushx extension that auto-registers when `afd` is pip-installed:
+
+```bash
+# Install AFD (extension auto-registers)
+pip install -e python
+
+# Run AFD linter in any repo
+lushx dev afd-lint
+```
+
+**Lint rules provided:**
+| Rule | Language | Description |
+|------|----------|-------------|
+| `afd-command-result` | Python, Rust | Handlers must return CommandResult |
+| `afd-actionable-errors` | Python | error() calls need suggestion param |
+| `afd-no-direct-fetch` | Python, TS | No fetch/axios in UI components |
+| `afd-kebab-naming` | TypeScript | Command names must be kebab-case |
+| `afd-no-business-in-ui` | TypeScript | No data transforms in components |
+| `afd-layer-imports` | All | UI can't import from services directly |
 
 ### Core Types (`@lushly-dev/afd-core`)
 

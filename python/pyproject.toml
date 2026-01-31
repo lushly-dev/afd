@@ -62,6 +62,9 @@ dev = [
 [project.scripts]
 afd = "afd.cli:main"
 
+[project.entry-points."lushx.extensions"]
+afd = "afd.lushx_ext:register"
+
 [project.urls]
 Homepage = "https://github.com/Falkicon/afd"
 Documentation = "https://github.com/Falkicon/afd/tree/main/python"
