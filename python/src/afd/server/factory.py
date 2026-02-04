@@ -289,7 +289,8 @@ class MCPServer:
         # We need to create a function with a specific signature so FastMCP 
         # can correctly introspect it and generate the JSON schema.
         # Using a closure and exec is the most reliable way to do this dynamically.
-        handler_name = f"handler_{metadata.name.replace('.', '_')}"
+        safe_name = metadata.name.replace('.', '_').replace('-', '_')
+        handler_name = f"handler_{safe_name}"
         namespace = {
             "func": func,
             "json": json,
