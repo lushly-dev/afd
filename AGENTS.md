@@ -99,9 +99,12 @@ The foundation - defines types used everywhere:
 
 - **CommandResult<T>**: Standard result with `success`, `data`, `error`, plus UX fields (`confidence`, `reasoning`, `warnings`)
 - **CommandError**: Error with `code`, `message`, `suggestion` for actionable recovery
+- **CommandDefinition**: Full command schema with trust metadata (`destructive`, `confirmPrompt`, `undoable`, `expose`)
+- **ExposeOptions**: Interface exposure control (`palette`, `mcp`, `agent`, `cli`) with secure defaults
 - **PipelineRequest/PipelineResult**: Multi-step command chaining with variable resolution
 - **HandoffResult**: Protocol handoff for real-time connections (WebSocket, SSE)
 - **BatchResult**: Batch execution with aggregated confidence
+- **Platform Utils**: Cross-platform `exec()`, `findUp()`, connectors (`GitHubConnector`, `PackageManagerConnector`)
 
 ```typescript
 // Always return CommandResult from handlers
