@@ -149,6 +149,18 @@ The difference is in the output contract. A well-designed AFD command returns no
 
 This richness enables agents to make **informed decisions**, not just process data.
 
+## Documentation as a Derived Artifact
+
+In AFD, documentation is never maintained separately from commands. Commands declare their own metadata — name, description, parameters, tags, mutation flag, version — via `CommandDefinition`. The `afd-docs` bootstrap command generates human-readable documentation directly from the command registry.
+
+This means:
+- **Adding a command automatically adds its docs** — no separate file to update
+- **Docs are always accurate** — they're derived from the running system, not a stale wiki
+- **The command IS the API contract** — schema, validation, and documentation are one artifact
+- **Agents can self-discover** — `afd-help` and `afd-docs` are commands themselves, queryable at runtime
+
+Never maintain a separate documentation file for command behavior. If the docs are wrong, the command definition is wrong — fix it at the source.
+
 ## The Vision
 
 Imagine a future where:
