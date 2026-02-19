@@ -8,7 +8,7 @@
     "url": "https://github.com/lushly-dev/afd.git"
   },
   "author": "Falkicon",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=20.0.0",

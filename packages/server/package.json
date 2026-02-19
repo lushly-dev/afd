@@ -42,6 +42,11 @@
     "validation"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lushly-dev/afd.git",
+    "directory": "packages/server"
+  },
   "publishConfig": {
     "access": "public"
   }

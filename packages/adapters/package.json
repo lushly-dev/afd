@@ -42,7 +42,10 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Falkicon/AFD.git",
+    "url": "https://github.com/lushly-dev/afd.git",
     "directory": "packages/adapters"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

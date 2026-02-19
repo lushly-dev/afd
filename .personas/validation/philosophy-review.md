@@ -1,6 +1,6 @@
 # Persona Review: AFD Philosophy
 
-**Document Reviewed:** [docs/philosophy.md](file:///d:/Github/Falkicon/AFD/docs/philosophy.md)  
+**Document Reviewed:** [docs/philosophy.md](docs/philosophy.md)  
 **Date:** 2026-01-09  
 **Review Type:** Phase 3 Simulation (Initial Instantiation)
 

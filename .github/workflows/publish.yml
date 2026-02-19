@@ -1,4 +1,4 @@
-name: Publish Packages
+name: Publish TypeScript Packages
 
 on:
   release:
@@ -11,50 +11,50 @@ on:
         default: true
 
 jobs:
-  build:
+  build-and-publish:
+    name: Build & Publish
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
         with:
           version: 9
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          registry-url: 'https://npm.pkg.github.com'
-          scope: '@lushly-dev'
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile --ignore-scripts
+        run: pnpm install --frozen-lockfile
 
-      - name: Build packages
-        run: |
-          pnpm --filter @lushly-dev/afd-core build
-          pnpm --filter @lushly-dev/afd-client build
-          pnpm --filter @lushly-dev/afd-server build
-          pnpm --filter @lushly-dev/afd-testing build
-          pnpm --filter @lushly-dev/afd-cli build
+      - name: Lint
+        run: pnpm lint
 
-      - name: Run tests
-        run: pnpm --filter "@lushly-dev/*" test
+      - name: Type check
+        run: pnpm typecheck
 
-      - name: Publish packages
+      - name: Build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm test
+
+      - name: Publish packages (provenance)
         if: ${{ !inputs.dry_run }}
-        run: |
-          pnpm --filter "@lushly-dev/*" publish --access restricted --no-git-checks
+        run: pnpm --filter "@lushly-dev/*" publish --no-git-checks --provenance --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Dry run publish
+      - name: Dry run
         if: ${{ inputs.dry_run }}
         run: |
-          echo "Dry run - would publish these packages:"
-          pnpm -r exec -- sh -c 'echo "  $(cat package.json | jq -r .name)@$(cat package.json | jq -r .version)"'
+          echo "Dry run — would publish:"
+          pnpm --filter "@lushly-dev/*" -r exec -- sh -c 'echo "  $(cat package.json | jq -r .name)@$(cat package.json | jq -r .version)"'
