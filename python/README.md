@@ -146,8 +146,8 @@ AFD results include optional fields that enable rich agent experiences:
 ## Related
 
 - [AFD TypeScript](../packages/) - Original TypeScript implementation
-- [AFD Philosophy](../docs/philosophy.md) - Why AFD?
-- [Command Schema Guide](../docs/command-schema-guide.md) - Designing commands
+- [AFD Philosophy](../.claude/skills/afd-developer/references/philosophy.md) - Why AFD?
+- [Command Schema Guide](../.claude/skills/afd/references/command-schema.md) - Designing commands
 
 ## License
 

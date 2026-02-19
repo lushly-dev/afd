@@ -43,6 +43,9 @@ Expert guidance for building software with the Agent-First Development methodolo
 | JTBD scenarios, fixtures | [references/jtbd-scenarios.md](references/jtbd-scenarios.md) |
 | Telemetry middleware, sinks, monitoring | [references/telemetry.md](references/telemetry.md) |
 | External adapters, CLI/API bridging | [references/external-adapters.md](references/external-adapters.md) |
+| Destructive commands, confirmation UI | [references/command-trust-config.md](references/command-trust-config.md) |
+| Interface exposure, undo metadata | [references/command-exposure-undo.md](references/command-exposure-undo.md) |
+| Cross-platform exec, connectors | [references/platform-utils.md](references/platform-utils.md) |
 
 ## Core Principles
 
