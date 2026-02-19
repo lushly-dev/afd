@@ -66,9 +66,9 @@ afd = "afd.cli:main"
 afd = "afd.lushx_ext:register"
 
 [project.urls]
-Homepage = "https://github.com/Falkicon/afd"
-Documentation = "https://github.com/Falkicon/afd/tree/main/python"
-Repository = "https://github.com/Falkicon/afd"
+Homepage = "https://github.com/lushly-dev/afd"
+Documentation = "https://github.com/lushly-dev/afd/tree/main/python"
+Repository = "https://github.com/lushly-dev/afd"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/afd"]

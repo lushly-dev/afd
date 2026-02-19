@@ -233,6 +233,5 @@ cd frontend && npm install && npm run dev  # Terminal 3: Frontend
 
 ## Related Documentation
 
-- **docs/philosophy.md**: Why AFD exists
-- **docs/command-schema-guide.md**: Command design patterns
 - **docs/specs/**: Specifications for handoff, pipelines, etc.
+- All guides have been migrated to skills (see Skill Index above)

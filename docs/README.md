@@ -32,10 +32,10 @@ Features progress through three stages:
 
 ## Guides
 
-- [Philosophy](./guides/philosophy.md) — Why "commands first" matters
-- [Command Schema Guide](./guides/command-schema-guide.md) — Designing agent-friendly commands
-- [DirectClient Guide](./guides/directclient-guide.md) — In-process command execution
-- [Telemetry Guide](./guides/telemetry-guide.md) — Observability patterns
+Guides have been migrated to skills under `.claude/skills/`. See:
+- `afd-developer` skill — Philosophy, trust, implementation phases, production considerations
+- `afd` skill — Command schema design, telemetry, external adapters
+- `afd-directclient` skill — In-process command execution
 
 ## Workflow
 

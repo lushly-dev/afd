@@ -234,5 +234,5 @@ res.json({
 
 - `afd-typescript` - TypeScript command patterns
 - `afd-developer` - Core AFD methodology
-- `docs/directclient-guide.md` - Full guide
+- DirectClient guide content is included in this skill
 - `packages/examples/todo-directclient` - Working example

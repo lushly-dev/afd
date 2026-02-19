@@ -18,7 +18,7 @@ This enables:
 - **Human-AI collaboration** — Shared command language both can understand and verify
 - **Reductive design** — Systematically remove UI friction as AI capabilities grow
 
-**[Read the full philosophy →](./docs/philosophy.md)**
+**[Read the full philosophy →](./.claude/skills/afd-developer/references/philosophy.md)**
 
 ---
 
@@ -114,7 +114,7 @@ interface CommandResult<T> {
 }
 ```
 
-See [Command Schema Guide](./docs/command-schema-guide.md) for detailed patterns.
+See [Command Schema Guide](./.claude/skills/afd/references/command-schema.md) for detailed patterns.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -153,7 +153,7 @@ See [Command Schema Guide](./docs/command-schema-guide.md) for detailed patterns
 └─────────────────────────────────────────────────┘
 ```
 
-> **Note**: This is the per-command workflow. For the full 4-phase **project implementation roadmap** (Foundation → Expansion → Refinement → Ecosystem), see [Implementation Phases](./docs/implementation-phases.md).
+> **Note**: This is the per-command workflow. For the full 4-phase **project implementation roadmap** (Foundation → Expansion → Refinement → Ecosystem), see [Implementation Phases](./.claude/skills/afd-developer/references/implementation-phases.md).
 
 ## Why "Agent-First"?
 
@@ -184,7 +184,7 @@ AFD isn't just about making software work for agents—it's about enabling **goo
 | **Control & Intervention** | Commands are atomic, cancellable units |
 | **Error Recovery** | Commands have standardized, actionable errors |
 
-See [Trust Through Validation](./docs/trust-through-validation.md) for the full trust framework.
+See [Trust Through Validation](./.claude/skills/afd-developer/references/trust-validation.md) for the full trust framework.
 
 ## Getting Started
 
@@ -246,11 +246,11 @@ afd validate --category document
 
 | Guide | Description |
 |-------|-------------|
-| [Philosophy](./docs/philosophy.md) | **Why** AFD — UX design for AI collaborators |
-| [Command Schema Guide](./docs/command-schema-guide.md) | How to design commands that enable good agent UX |
-| [Trust Through Validation](./docs/trust-through-validation.md) | How CLI validation builds user trust |
-| [Implementation Phases](./docs/implementation-phases.md) | 4-phase roadmap for AFD projects |
-| [Production Considerations](./docs/production-considerations.md) | Security, mutation safety, and observability guidance |
+| [Philosophy](./.claude/skills/afd-developer/references/philosophy.md) | **Why** AFD — UX design for AI collaborators |
+| [Command Schema Guide](./.claude/skills/afd/references/command-schema.md) | How to design commands that enable good agent UX |
+| [Trust Through Validation](./.claude/skills/afd-developer/references/trust-validation.md) | How CLI validation builds user trust |
+| [Implementation Phases](./.claude/skills/afd-developer/references/implementation-phases.md) | 4-phase roadmap for AFD projects |
+| [Production Considerations](./.claude/skills/afd-developer/references/production-considerations.md) | Security, mutation safety, and observability guidance |
 
 ## Packages
 

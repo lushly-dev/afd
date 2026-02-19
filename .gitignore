@@ -32,8 +32,10 @@ venv/
 npm-debug.log*
 pnpm-debug.log*
 
-# Test coverage
+# Test coverage and reports
 coverage/
+test-results/
+playwright-report/
 
 # Environment
 .env

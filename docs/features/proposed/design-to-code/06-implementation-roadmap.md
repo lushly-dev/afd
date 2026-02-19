@@ -324,7 +324,7 @@
 
 ```bash
 # Clone AFD repo
-git clone https://github.com/Falkicon/afd.git
+git clone https://github.com/lushly-dev/afd.git
 cd afd
 
 # Install dependencies

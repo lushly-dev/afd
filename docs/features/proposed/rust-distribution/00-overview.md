@@ -264,7 +264,7 @@ These requirements are embedded across multiple parts:
 ```
                     ┌──────────────────┐
                     │   AFD (GitHub)   │
-                    │   Falkicon/afd   │
+                    │  lushly-dev/afd  │
                     ├──────────────────┤
                     │ packages/        │
                     │   core/     (TS) │

@@ -542,7 +542,7 @@ const App: React.FC = () => {
       <footer>
         <p>
           Built with{" "}
-          <a href="https://github.com/Falkicon/afd" target="_blank" rel="noopener noreferrer">
+          <a href="https://github.com/lushly-dev/afd" target="_blank" rel="noopener noreferrer">
             Agent-First Development
           </a>
           . Same commands work via CLI, MCP, and this UI.

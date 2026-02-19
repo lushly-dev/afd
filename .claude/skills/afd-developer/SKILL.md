@@ -14,6 +14,15 @@ description: >
 
 Expert guidance for building software with the Agent-First Development methodology.
 
+## Routing Logic
+
+| Request type | Load reference |
+|--------------|----------------|
+| Philosophy, UX design for agents, "why AFD" | [references/philosophy.md](references/philosophy.md) |
+| Trust, CLI validation rationale, honesty check | [references/trust-validation.md](references/trust-validation.md) |
+| Implementation phases, checklists, anti-patterns | [references/implementation-phases.md](references/implementation-phases.md) |
+| Production: security, observability, mutation safety | [references/production-considerations.md](references/production-considerations.md) |
+
 ## Core Philosophy
 
 **"The best UI is no UI"** - AFD inverts traditional development where UI is built first. Instead:
@@ -180,7 +189,7 @@ afd shell
 
 ## Resources
 
-- [Philosophy](./docs/philosophy.md) - UX design for AI collaborators
-- [Command Schema Guide](./docs/command-schema-guide.md) - Detailed patterns
-- [Trust Through Validation](./docs/trust-through-validation.md) - Why CLI validation matters
-- [AGENTS.md](./AGENTS.md) - AI agent context for this repo
+- [Philosophy](references/philosophy.md) - UX design for AI collaborators
+- [Trust Through Validation](references/trust-validation.md) - Why CLI validation matters
+- [Implementation Phases](references/implementation-phases.md) - Phased rollout with checklists
+- [Production Considerations](references/production-considerations.md) - Security, observability, mutation safety

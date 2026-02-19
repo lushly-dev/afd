@@ -134,7 +134,7 @@ See: [Mint Distribution Plan](../rust-distribution/00-overview.md)
 
 ## Related Resources
 
-- [AFD Repository](https://github.com/Falkicon/afd) — Agent-First Development methodology
+- [AFD Repository](https://github.com/lushly-dev/afd) — Agent-First Development methodology
 - [AFD Philosophy](../philosophy.md) — Why commands first
 - [Figma MCP Server](https://www.figma.com/developers/mcp) — Figma's Model Context Protocol
 - [Figma Make](https://www.figma.com/make) — AI-powered design-to-code

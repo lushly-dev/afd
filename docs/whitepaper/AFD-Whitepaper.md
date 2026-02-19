@@ -1251,12 +1251,12 @@ $ afd call document.create '{"title": "Test Document"}'
 
 | Resource | Link |
 |----------|------|
-| GitHub Repository | https://github.com/Falkicon/afd |
-| Philosophy Deep Dive | docs/philosophy.md |
-| Command Schema Guide | docs/command-schema-guide.md |
-| Trust Framework | docs/trust-through-validation.md |
-| Implementation Phases | docs/implementation-phases.md |
-| Production Considerations | docs/production-considerations.md |
+| GitHub Repository | https://github.com/lushly-dev/afd |
+| Philosophy Deep Dive | .claude/skills/afd-developer/references/philosophy.md |
+| Command Schema Guide | .claude/skills/afd/references/command-schema.md |
+| Trust Framework | .claude/skills/afd-developer/references/trust-validation.md |
+| Implementation Phases | .claude/skills/afd-developer/references/implementation-phases.md |
+| Production Considerations | .claude/skills/afd-developer/references/production-considerations.md |
 
 ---
 
@@ -1301,4 +1301,4 @@ AFD isn't just architecture. It's a bet: that the best interface is a shared lan
 
 ---
 
-*AFD is an open-source methodology developed by Jason Falk. Contributions welcome at https://github.com/Falkicon/afd*
+*AFD is an open-source methodology developed by Jason Falk. Contributions welcome at https://github.com/lushly-dev/afd*

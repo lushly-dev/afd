@@ -34,12 +34,15 @@ Expert guidance for building software with the Agent-First Development methodolo
 | Request type | Load reference |
 |--------------|----------------|
 | Command schemas, Zod patterns | [references/command-design.md](references/command-design.md) |
+| CommandResult interface, UX fields, batch patterns | [references/command-schema.md](references/command-schema.md) |
 | MCP server setup, transports | [references/mcp-integration.md](references/mcp-integration.md) |
 | Testing commands, performance | [references/testing.md](references/testing.md) |
 | CLI usage, validation workflow | [references/cli-validation.md](references/cli-validation.md) |
 | Command tags, bootstrap tools | [references/command-taxonomy.md](references/command-taxonomy.md) |
 | Real-time protocols, WebSocket | [references/handoff-pattern.md](references/handoff-pattern.md) |
 | JTBD scenarios, fixtures | [references/jtbd-scenarios.md](references/jtbd-scenarios.md) |
+| Telemetry middleware, sinks, monitoring | [references/telemetry.md](references/telemetry.md) |
+| External adapters, CLI/API bridging | [references/external-adapters.md](references/external-adapters.md) |
 
 ## Core Principles
 
@@ -147,6 +150,5 @@ return error('NOT_FOUND', `Item ${id} not found`, {
 
 ## Resources
 
-- **AFD Repository**: https://github.com/Falkicon/afd
-- **Guide**: [Web_Dev_Guide/20-agent-first-development.md](../../../Web_Dev_Guide/20-agent-first-development.md)
-- **Example App**: `../afd/packages/examples/todo-app/`
+- **AFD Repository**: https://github.com/lushly-dev/afd
+- **Example App**: `packages/examples/todo/`

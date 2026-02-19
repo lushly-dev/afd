@@ -74,4 +74,4 @@ MAX_BODY_SIZE=10240                  # 10KB
 ✅ **Use when**: An AI agent runs in the same process as your app  
 ❌ **Don't use when**: Tests (GitHub Actions), remote agents, cross-process
 
-See [DirectClient Guide](../../docs/directclient-guide.md) for details.
+See the `afd-directclient` skill for details.

@@ -88,5 +88,5 @@ AFD commands are **request-response**. But real applications need:
 
 ## Related
 
-- [DirectClient](../../../docs/directclient-guide.md) - In-process command execution
+- DirectClient - See `afd-directclient` skill for in-process command execution
 - [Mint Collaboration](./rust-distribution/05-collaboration-sync.md) - Real-time sync layer (builds on handoff)

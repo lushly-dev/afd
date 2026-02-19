@@ -72,7 +72,7 @@ AFD is a **methodology and toolkit**, not a complete security framework. The fol
 | **Secrets Management** | —                                             | Vault integration, env var security     |
 | **Rate Limiting**      | In-memory middleware (dev only)               | Distributed rate limiting (Redis, etc.) |
 
-See [docs/production-considerations.md](./docs/production-considerations.md) for implementation patterns.
+See [Production Considerations](./.claude/skills/afd-developer/references/production-considerations.md) for implementation patterns.
 
 ## Reporting a Vulnerability
 
