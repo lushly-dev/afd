@@ -57,9 +57,6 @@ importers:
 
   demos/todo/frontend:
     dependencies:
-      '@auth/core':
-        specifier: ^0.34.3
-        version: 0.34.3
       '@convex-dev/auth':
         specifier: ^0.0.90
         version: 0.0.90(@auth/core@0.34.3)(convex@1.31.4(react@19.2.3))(react@19.2.3)
