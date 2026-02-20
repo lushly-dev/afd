@@ -3,7 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { store } from '../../store/memory.js';
+import { store } from '../../store/index.js';
 import { clearCompleted } from '../clear.js';
 import { createTodo } from '../create.js';
 import { deleteTodo } from '../delete.js';

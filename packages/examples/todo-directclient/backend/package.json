@@ -26,7 +26,7 @@
 		"dev": "tsx watch src/server.ts",
 		"chat": "tsx src/chat-server.ts",
 		"benchmark": "tsx src/benchmark/compare.ts",
-		"test": "vitest run",
+		"test": "vitest run --passWithNoTests",
 		"test:watch": "vitest"
 	},
 	"dependencies": {

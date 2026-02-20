@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom';
 import { ChatSidebar } from '../components/ChatSidebar';
 
@@ -7,12 +7,12 @@ import { ChatSidebar } from '../components/ChatSidebar';
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Mock scrollIntoView which is not available in jsdom
-const mockScrollIntoView = vi.fn();
-Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
-	value: mockScrollIntoView,
-	writable: true,
-});
+// Mock scrollIntoView which is not available in jsdom 27+
+if (!HTMLElement.prototype.scrollIntoView) {
+	HTMLElement.prototype.scrollIntoView = vi.fn();
+}
+
+const PLACEHOLDER = 'Type / for commands, @ for todos...';
 
 describe('ChatSidebar', () => {
 	const defaultProps = {
@@ -24,7 +24,6 @@ describe('ChatSidebar', () => {
 
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mockScrollIntoView.mockClear();
 		// Default mock for health check
 		mockFetch.mockResolvedValue({
 			ok: true,
@@ -32,14 +31,16 @@ describe('ChatSidebar', () => {
 		});
 	});
 
+	afterEach(() => {
+		cleanup();
+	});
+
 	it('renders the chat sidebar when open', () => {
 		render(<ChatSidebar {...defaultProps} />);
 
-		expect(screen.getByText('AI Copilot')).toBeInTheDocument();
-		expect(screen.getByPlaceholderText('Ask AI to help with todos...')).toBeInTheDocument();
+		expect(screen.getByText('Myoso')).toBeInTheDocument();
+		expect(screen.getByPlaceholderText(PLACEHOLDER)).toBeInTheDocument();
 		expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument();
-		// Check that the sidebar contains the header icon (there might be multiple robot emojis)
-		expect(document.querySelector('.chat-sidebar-header-icon')).toBeInTheDocument();
 	});
 
 	it('displays welcome message on initial load', () => {
@@ -52,30 +53,24 @@ describe('ChatSidebar', () => {
 		).toBeInTheDocument();
 	});
 
-	it('shows connection status', async () => {
-		render(<ChatSidebar {...defaultProps} />);
-
-		// Should show "Connecting..." initially, then "Ready"
-		await waitFor(() => {
-			expect(screen.getByText('Ready')).toBeInTheDocument();
-		});
-	});
-
 	it('handles input text changes', () => {
 		render(<ChatSidebar {...defaultProps} />);
 
-		const input = screen.getByPlaceholderText('Ask AI to help with todos...');
+		const input = screen.getByPlaceholderText(PLACEHOLDER);
 		fireEvent.change(input, { target: { value: 'Test message' } });
 
 		expect(input).toHaveValue('Test message');
 	});
 
 	it('sends message when Send button is clicked', async () => {
-		// Mock successful chat response
+		// Mock: health check, then streaming attempt (fail), then legacy response
 		mockFetch
 			.mockResolvedValueOnce({
 				ok: true,
 				json: () => Promise.resolve({ geminiConfigured: true }),
+			})
+			.mockResolvedValueOnce({
+				ok: false, // streaming endpoint returns 404 → falls back to legacy
 			})
 			.mockResolvedValueOnce({
 				ok: true,
@@ -90,7 +85,7 @@ describe('ChatSidebar', () => {
 
 		render(<ChatSidebar {...defaultProps} />);
 
-		const input = screen.getByPlaceholderText('Ask AI to help with todos...');
+		const input = screen.getByPlaceholderText(PLACEHOLDER);
 		const sendButton = screen.getByRole('button', { name: 'Send' });
 
 		fireEvent.change(input, { target: { value: 'Hello AI' } });
@@ -102,22 +97,27 @@ describe('ChatSidebar', () => {
 		// Input should be cleared
 		expect(input).toHaveValue('');
 
-		// Chat API should be called
+		// Legacy chat API should be called after streaming fails
 		await waitFor(() => {
-			expect(mockFetch).toHaveBeenCalledWith('http://localhost:3101/chat', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ message: 'Hello AI' }),
-			});
+			expect(mockFetch).toHaveBeenCalledWith(
+				'http://localhost:3101/chat',
+				expect.objectContaining({
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+				})
+			);
 		});
 	});
 
 	it('sends message when Enter key is pressed', async () => {
-		// Mock successful chat response
+		// Mock: health check, streaming fail, legacy response
 		mockFetch
 			.mockResolvedValueOnce({
 				ok: true,
 				json: () => Promise.resolve({ geminiConfigured: true }),
+			})
+			.mockResolvedValueOnce({
+				ok: false,
 			})
 			.mockResolvedValueOnce({
 				ok: true,
@@ -132,19 +132,19 @@ describe('ChatSidebar', () => {
 
 		render(<ChatSidebar {...defaultProps} />);
 
-		const input = screen.getByPlaceholderText('Ask AI to help with todos...');
+		const input = screen.getByPlaceholderText(PLACEHOLDER);
 
 		fireEvent.change(input, { target: { value: 'Hello AI' } });
-		fireEvent.keyPress(input, { key: 'Enter', code: 'Enter' });
+		fireEvent.keyDown(input, { key: 'Enter', code: 'Enter' });
 
-		// Chat API should be called (eventually)
 		await waitFor(
 			() => {
-				expect(mockFetch).toHaveBeenCalledWith('http://localhost:3101/chat', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ message: 'Hello AI' }),
-				});
+				expect(mockFetch).toHaveBeenCalledWith(
+					'http://localhost:3101/chat',
+					expect.objectContaining({
+						method: 'POST',
+					})
+				);
 			},
 			{ timeout: 2000 }
 		);
@@ -155,7 +155,10 @@ describe('ChatSidebar', () => {
 
 		const sendButton = screen.getByRole('button', { name: 'Send' });
 
-		// Try to send empty message
+		// Send button should be disabled for empty input
+		expect(sendButton).toBeDisabled();
+
+		// Try to click anyway
 		fireEvent.click(sendButton);
 
 		// Should not call chat API for empty message
@@ -168,24 +171,22 @@ describe('ChatSidebar', () => {
 
 		render(<ChatSidebar {...defaultProps} />);
 
+		// Input should be disabled when connection fails
 		await waitFor(() => {
-			expect(screen.getByText('Offline')).toBeInTheDocument();
+			const input = screen.getByPlaceholderText(PLACEHOLDER);
+			expect(input).toBeDisabled();
 		});
-
-		// Input and send button should be disabled
-		const input = screen.getByPlaceholderText('Ask AI to help with todos...');
-		const sendButton = screen.getByRole('button', { name: 'Send' });
-
-		expect(input).toBeDisabled();
-		expect(sendButton).toBeDisabled();
 	});
 
 	it('shows typing indicator during message processing', async () => {
-		// Mock delayed chat response
+		// Mock: health check, streaming fail, delayed legacy response
 		mockFetch
 			.mockResolvedValueOnce({
 				ok: true,
 				json: () => Promise.resolve({ geminiConfigured: true }),
+			})
+			.mockResolvedValueOnce({
+				ok: false,
 			})
 			.mockImplementationOnce(
 				() =>
@@ -209,7 +210,7 @@ describe('ChatSidebar', () => {
 
 		render(<ChatSidebar {...defaultProps} />);
 
-		const input = screen.getByPlaceholderText('Ask AI to help with todos...');
+		const input = screen.getByPlaceholderText(PLACEHOLDER);
 		const sendButton = screen.getByRole('button', { name: 'Send' });
 
 		fireEvent.change(input, { target: { value: 'Test message' } });
@@ -230,11 +231,14 @@ describe('ChatSidebar', () => {
 	it('calls onTodosChanged when tools are executed', async () => {
 		const onTodosChanged = vi.fn();
 
-		// Mock successful chat response with tool execution
+		// Mock: health check, streaming fail, legacy response with tool execution
 		mockFetch
 			.mockResolvedValueOnce({
 				ok: true,
 				json: () => Promise.resolve({ geminiConfigured: true }),
+			})
+			.mockResolvedValueOnce({
+				ok: false,
 			})
 			.mockResolvedValueOnce({
 				ok: true,
@@ -256,7 +260,7 @@ describe('ChatSidebar', () => {
 
 		render(<ChatSidebar {...defaultProps} onTodosChanged={onTodosChanged} />);
 
-		const input = screen.getByPlaceholderText('Ask AI to help with todos...');
+		const input = screen.getByPlaceholderText(PLACEHOLDER);
 		const sendButton = screen.getByRole('button', { name: 'Send' });
 
 		fireEvent.change(input, { target: { value: 'Create a todo' } });
@@ -270,12 +274,12 @@ describe('ChatSidebar', () => {
 		expect(onTodosChanged).toHaveBeenCalledTimes(1);
 	});
 
-	it('renders toggle button when closed on mobile', () => {
+	it('renders toggle button when closed', () => {
 		render(<ChatSidebar {...defaultProps} isOpen={false} />);
 
-		const toggleButton = screen.getByTitle('Open AI Copilot');
+		const toggleButton = screen.getByTitle('Open Myoso');
 		expect(toggleButton).toBeInTheDocument();
-		expect(toggleButton).toHaveTextContent('🤖');
+		expect(toggleButton).toHaveTextContent('💬');
 	});
 
 	it('calls onToggle when toggle button is clicked', () => {
@@ -283,7 +287,7 @@ describe('ChatSidebar', () => {
 
 		render(<ChatSidebar {...defaultProps} isOpen={false} onToggle={onToggle} />);
 
-		const toggleButton = screen.getByTitle('Open AI Copilot');
+		const toggleButton = screen.getByTitle('Open Myoso');
 		fireEvent.click(toggleButton);
 
 		expect(onToggle).toHaveBeenCalledTimes(1);

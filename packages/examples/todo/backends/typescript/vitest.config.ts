@@ -5,5 +5,8 @@ export default defineConfig({
 		globals: true,
 		environment: 'node',
 		passWithNoTests: true,
+		env: {
+			TODO_STORE_TYPE: 'memory',
+		},
 	},
 });

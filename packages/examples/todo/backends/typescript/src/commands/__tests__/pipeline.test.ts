@@ -10,7 +10,7 @@
 import type { PipelineRequest } from '@lushly-dev/afd-core';
 import { createMcpServer, type McpServer } from '@lushly-dev/afd-server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { store } from '../../store/memory.js';
+import { store } from '../../store/index.js';
 import { allCommands } from '../index.js';
 
 describe('Todo Pipeline Integration', () => {

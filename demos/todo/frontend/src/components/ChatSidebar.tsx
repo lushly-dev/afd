@@ -121,6 +121,8 @@ interface ChatSidebarProps {
 // HELPER FUNCTIONS
 // ═══════════════════════════════════════════════════════════════════════════════
 
+const EMPTY_TODOS: Todo[] = [];
+
 const getWelcomeMessage = (): ChatMessage => ({
 	id: 'welcome',
 	role: 'system',
@@ -285,7 +287,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	onToggle,
 	onTodosChanged,
 	chatServerUrl = import.meta.env.VITE_CHAT_URL ?? 'http://localhost:3101',
-	todos = [],
+	todos = EMPTY_TODOS,
 	localStore,
 	onConnectionStatusChange,
 }) => {

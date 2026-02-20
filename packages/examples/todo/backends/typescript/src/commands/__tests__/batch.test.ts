@@ -5,7 +5,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import { store } from '../../store/memory.js';
+import { store } from '../../store/index.js';
 import { createTodo } from '../create.js';
 import { createBatch } from '../create-batch.js';
 import { deleteBatch } from '../delete-batch.js';
