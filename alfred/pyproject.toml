@@ -7,7 +7,7 @@ name = "alfred"
 version = "0.1.0"
 description = "AFD repo quality bot — deterministic tooling as MCP commands"
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [
     { name = "Falkicon", email = "falkicon@example.com" }
 ]
@@ -17,32 +17,33 @@ keywords = [
     "linting",
     "mcp",
     "agent",
+    "botcore",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Typing :: Typed",
 ]
 
 dependencies = [
+    "lushly-botcore>=0.1.0",
     "afd>=0.2.0",
 ]
 
 [project.optional-dependencies]
-server = [
-    "afd[server]",
+mcp = [
+    "lushly-botcore[mcp]",
 ]
 cli = [
     "click>=8.0",
     "rich>=13.0",
 ]
 dev = [
-    "alfred[server,cli]",
+    "alfred[mcp,cli]",
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
     "ruff>=0.1.0",
@@ -50,6 +51,9 @@ dev = [
 
 [project.scripts]
 alfred = "alfred.cli:main"
+
+[project.entry-points."botcore.plugins"]
+alfred = "alfred.plugin:AlfredPlugin"
 
 [project.urls]
 Repository = "https://github.com/lushly-dev/afd"
@@ -59,7 +63,7 @@ packages = ["src/alfred"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
