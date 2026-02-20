@@ -7,7 +7,6 @@
 | Folder | Purpose |
 |--------|---------|
 | [features/](./features/) | Feature proposals, specs, and assets |
-| [research/](./research/) | Industry analysis and design research |
 | [whitepaper/](./whitepaper/) | High-level vision and architecture documents |
 
 ## Features
