@@ -43,9 +43,19 @@ export const TodoItem: React.FC<TodoItemProps> = ({
 					onChange={() => onSelect?.(todo.id)}
 				/>
 			)}
+			{/* biome-ignore lint/a11y/useSemanticElements: Custom styled checkbox div */}
 			<div
 				className={`todo-checkbox ${todo.completed ? 'checked' : ''}`}
+				role="checkbox"
+				tabIndex={0}
+				aria-checked={todo.completed}
 				onClick={() => onToggle(todo.id)}
+				onKeyDown={(e) => {
+					if (e.key === 'Enter' || e.key === ' ') {
+						e.preventDefault();
+						onToggle(todo.id);
+					}
+				}}
 			/>
 			<div className="todo-content">
 				<div className="todo-title">{todo.title}</div>

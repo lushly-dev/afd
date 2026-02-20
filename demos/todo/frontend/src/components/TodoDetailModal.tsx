@@ -68,7 +68,17 @@ export const TodoDetailModal: React.FC<TodoDetailModalProps> = ({ todo, onClose,
 	};
 
 	return (
-		<div className="modal-overlay" onClick={handleClose}>
+		// biome-ignore lint/a11y/noStaticElementInteractions: Overlay div for click-outside-to-close pattern
+		<div
+			className="modal-overlay"
+			role="presentation"
+			onClick={handleClose}
+			onKeyDown={(e) => {
+				if (e.key === 'Escape') handleClose();
+			}}
+		>
+			{/* biome-ignore lint/a11y/useKeyWithClickEvents: stopPropagation on modal content prevents overlay close */}
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: stopPropagation on modal content prevents overlay close */}
 			<div className="detail-modal" onClick={(e) => e.stopPropagation()}>
 				<div className="detail-header">
 					<input
@@ -85,8 +95,9 @@ export const TodoDetailModal: React.FC<TodoDetailModalProps> = ({ todo, onClose,
 
 				<div className="detail-meta">
 					<div className="meta-item">
-						<label>Priority:</label>
+						<label htmlFor="detail-priority-select">Priority:</label>
 						<select
+							id="detail-priority-select"
 							value={priority}
 							onChange={(e) => handlePriorityChange(e.target.value as Todo['priority'])}
 							className="priority-select"
@@ -97,19 +108,19 @@ export const TodoDetailModal: React.FC<TodoDetailModalProps> = ({ todo, onClose,
 						</select>
 					</div>
 					<div className="meta-item">
-						<label>Status:</label>
+						<span>Status:</span>
 						<span className={`status-badge ${todo.completed ? 'completed' : 'pending'}`}>
 							{todo.completed ? 'Completed' : 'Pending'}
 						</span>
 					</div>
 					<div className="meta-item">
-						<label>Created:</label>
+						<span>Created:</span>
 						<span>{new Date(todo.createdAt).toLocaleDateString()}</span>
 					</div>
 				</div>
 
 				<div className="detail-body">
-					<label className="description-label">Notes</label>
+					<span className="description-label">Notes</span>
 					<MarkdownEditor
 						value={description}
 						onChange={handleDescriptionChange}

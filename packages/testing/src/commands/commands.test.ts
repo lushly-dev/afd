@@ -208,7 +208,8 @@ describe('scenario.evaluate', () => {
 
 		expect(result.success).toBe(true);
 		expect(result.data?.formattedOutput).toBeDefined();
-		const parsed = JSON.parse(result.data?.formattedOutput!);
+		const formattedOutput = result.data?.formattedOutput;
+		const parsed = JSON.parse(formattedOutput as string);
 		expect(parsed.summary).toBeDefined();
 	});
 });

@@ -60,7 +60,8 @@ export const deleteBatch = defineCommand<typeof inputSchema, BatchDeleteResult>(
 
 		// Process each ID
 		for (let i = 0; i < input.ids.length; i++) {
-			const id = input.ids[i]!;
+			const id = input.ids[i];
+			if (!id) continue;
 
 			// Check if todo exists first
 			const existing = store.get(id);

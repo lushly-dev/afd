@@ -28,7 +28,6 @@ import {
  */
 export class MockMcpServer {
 	private registry: CommandRegistry;
-	private initialized = false;
 	private serverInfo = {
 		name: 'MockMcpServer',
 		version: '0.1.0',
@@ -116,13 +115,10 @@ export class MockMcpServer {
 	 * Reset server state.
 	 */
 	reset(): void {
-		this.initialized = false;
 		this.requestLog = [];
 	}
 
 	private handleInitialize(request: McpRequest): McpResponse {
-		this.initialized = true;
-
 		return createMcpResponse(request.id, {
 			protocolVersion: '2024-11-05',
 			capabilities: {

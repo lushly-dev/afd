@@ -301,8 +301,10 @@ export function createToolRegistry(
 	const tools = generateTools();
 
 	// scenario.list
+	const listTool = tools.find((t) => t.name === 'scenario.list');
+	if (!listTool) throw new Error('Expected scenario.list tool');
 	registry.set('scenario.list', {
-		tool: tools.find((t) => t.name === 'scenario.list')!,
+		tool: listTool,
 		handler: async (input: unknown) => {
 			const parsed = validateInput<ScenarioListInput>(input);
 			const result = await scenarioList(parsed);
@@ -311,8 +313,10 @@ export function createToolRegistry(
 	});
 
 	// scenario.evaluate
+	const evaluateTool = tools.find((t) => t.name === 'scenario.evaluate');
+	if (!evaluateTool) throw new Error('Expected scenario.evaluate tool');
 	registry.set('scenario.evaluate', {
-		tool: tools.find((t) => t.name === 'scenario.evaluate')!,
+		tool: evaluateTool,
 		handler: async (input: unknown) => {
 			const parsed = validateInput<ScenarioEvaluateInput>(input);
 
@@ -338,8 +342,10 @@ export function createToolRegistry(
 	});
 
 	// scenario.coverage
+	const coverageTool = tools.find((t) => t.name === 'scenario.coverage');
+	if (!coverageTool) throw new Error('Expected scenario.coverage tool');
 	registry.set('scenario.coverage', {
-		tool: tools.find((t) => t.name === 'scenario.coverage')!,
+		tool: coverageTool,
 		handler: async (input: unknown) => {
 			const parsed = validateInput<ScenarioCoverageInput>(input, ['knownCommands']);
 			const result = await scenarioCoverage(parsed);
@@ -348,8 +354,10 @@ export function createToolRegistry(
 	});
 
 	// scenario.create
+	const createTool = tools.find((t) => t.name === 'scenario.create');
+	if (!createTool) throw new Error('Expected scenario.create tool');
 	registry.set('scenario.create', {
-		tool: tools.find((t) => t.name === 'scenario.create')!,
+		tool: createTool,
 		handler: async (input: unknown) => {
 			const parsed = validateInput<ScenarioCreateInput>(input, ['name', 'job']);
 			const result = await scenarioCreate(parsed);
@@ -358,8 +366,10 @@ export function createToolRegistry(
 	});
 
 	// scenario.suggest
+	const suggestTool = tools.find((t) => t.name === 'scenario.suggest');
+	if (!suggestTool) throw new Error('Expected scenario.suggest tool');
 	registry.set('scenario.suggest', {
-		tool: tools.find((t) => t.name === 'scenario.suggest')!,
+		tool: suggestTool,
 		handler: async (input: unknown) => {
 			const parsed = validateInput<ScenarioSuggestInput>(input, ['context']);
 			const result = await scenarioSuggest(parsed);

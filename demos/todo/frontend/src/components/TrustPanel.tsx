@@ -43,18 +43,18 @@ export const TrustPanel: React.FC<TrustPanelProps> = ({ result, commandName, onC
 		return null;
 	}
 
-	const confidencePercent = hasConfidence ? Math.round(result.confidence! * 100) : 0;
+	const confidencePercent = hasConfidence ? Math.round((result.confidence ?? 0) * 100) : 0;
 	const confidenceClass = hasConfidence
-		? result.confidence! >= 0.9
+		? (result.confidence ?? 0) >= 0.9
 			? ''
-			: result.confidence! >= 0.7
+			: (result.confidence ?? 0) >= 0.7
 				? 'medium'
 				: 'low'
 		: '';
 	const confidenceLabel = hasConfidence
-		? result.confidence! >= 0.9
+		? (result.confidence ?? 0) >= 0.9
 			? 'High confidence'
-			: result.confidence! >= 0.7
+			: (result.confidence ?? 0) >= 0.7
 				? 'Moderate confidence'
 				: 'Low confidence - verify results'
 		: '';
@@ -102,7 +102,7 @@ export const TrustPanel: React.FC<TrustPanelProps> = ({ result, commandName, onC
 					<div className="trust-section-title">Sources</div>
 					<div className="sources-list">
 						{result.sources?.map((source, idx) => (
-							<div key={idx} className="source-item">
+							<div key={source.url || source.title || `source-${idx}`} className="source-item">
 								<span className="source-icon">{getSourceIcon(source.type)}</span>
 								{source.url ? (
 									<a
@@ -132,7 +132,7 @@ export const TrustPanel: React.FC<TrustPanelProps> = ({ result, commandName, onC
 					<div className="trust-section-title">Execution Plan</div>
 					<div className="plan-steps">
 						{result.plan?.map((step, idx) => (
-							<div key={idx} className="plan-step">
+							<div key={step.name || step.action || `step-${idx}`} className="plan-step">
 								<div className={`plan-step-icon ${step.status || 'pending'}`}>
 									{getPlanStepIcon(step.status)}
 								</div>

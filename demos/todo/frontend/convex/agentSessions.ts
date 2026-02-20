@@ -54,7 +54,7 @@ export const list = query({
 		const sessions = args.state
 			? await ctx.db
 					.query('agentSessions')
-					.withIndex('by_state', (q) => q.eq('state', args.state!))
+					.withIndex('by_state', (q) => q.eq('state', args.state as string))
 					.order('desc')
 					.collect()
 			: await ctx.db.query('agentSessions').order('desc').collect();

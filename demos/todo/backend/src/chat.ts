@@ -197,8 +197,10 @@ function recordLatency(ms: number) {
 	metrics.totalLatencyMs += ms;
 	// Keep only last 100
 	if (metrics.latencies.length > 100) {
-		const removed = metrics.latencies.shift()!;
-		metrics.totalLatencyMs -= removed;
+		const removed = metrics.latencies.shift();
+		if (removed !== undefined) {
+			metrics.totalLatencyMs -= removed;
+		}
 	}
 }
 
@@ -793,7 +795,8 @@ Be concise in your responses. After performing actions, briefly summarize what w
 					// Stream tokens - simulate word-by-word streaming
 					const words = fullText.split(' ');
 					for (let i = 0; i < words.length; i++) {
-						const word = words[i]!;
+						const word = words[i];
+						if (!word) continue;
 						const token = i === 0 ? word : ` ${word}`;
 						callbacks.onToken(token);
 						// Small delay to simulate streaming (remove in production if too slow)

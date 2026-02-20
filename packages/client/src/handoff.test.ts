@@ -626,8 +626,9 @@ describe('Helper Functions', () => {
 			const ttl = getHandoffTTL(handoff);
 			expect(ttl).not.toBeNull();
 			// Allow some tolerance for execution time
-			expect(ttl!).toBeGreaterThan(3590000);
-			expect(ttl!).toBeLessThanOrEqual(3600000);
+			if (ttl === undefined) throw new Error('Expected ttl to be defined');
+			expect(ttl).toBeGreaterThan(3590000);
+			expect(ttl).toBeLessThanOrEqual(3600000);
 		});
 
 		it('should return 0 for expired handoff', () => {

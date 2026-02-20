@@ -1062,7 +1062,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
 		return (
 			<div className="reasoning-section">
-				<div className="reasoning-header" onClick={() => setCollapsed(!collapsed)}>
+				{/* biome-ignore lint/a11y/useSemanticElements: Custom styled collapsible header */}
+				<div
+					className="reasoning-header"
+					role="button"
+					tabIndex={0}
+					onClick={() => setCollapsed(!collapsed)}
+					onKeyDown={(e) => {
+						if (e.key === 'Enter' || e.key === ' ') {
+							e.preventDefault();
+							setCollapsed(!collapsed);
+						}
+					}}
+				>
 					<span className="reasoning-icon">🧠</span>
 					<span className="reasoning-label">Reasoning</span>
 					<button
@@ -1098,7 +1110,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
 		return (
 			<div className="tools-section">
-				<div className="tools-header" onClick={() => setCollapsed(!collapsed)}>
+				{/* biome-ignore lint/a11y/useSemanticElements: Custom styled collapsible header */}
+				<div
+					className="tools-header"
+					role="button"
+					tabIndex={0}
+					onClick={() => setCollapsed(!collapsed)}
+					onKeyDown={(e) => {
+						if (e.key === 'Enter' || e.key === ' ') {
+							e.preventDefault();
+							setCollapsed(!collapsed);
+						}
+					}}
+				>
 					<span className="tools-icon">⚙️</span>
 					<span className="tools-label">Tools ({totalCount})</span>
 					<button
@@ -1117,7 +1141,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 						{toolExecutions &&
 							!liveTools &&
 							toolExecutions.map((exec, idx) => (
-								<div key={idx} className="chat-tool-exec">
+								<div key={`${exec.name}-${idx}`} className="chat-tool-exec">
 									<span className="chat-tool-name">{exec.name}</span>
 									<span className="chat-tool-latency">{exec.latencyMs.toFixed(3)}ms</span>
 								</div>
@@ -1290,7 +1314,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 									className={`slash-command-item ${
 										index === selectedCommandIndex ? 'selected' : ''
 									}`}
+									role="option"
+									tabIndex={-1}
+									aria-selected={index === selectedCommandIndex}
 									onClick={() => selectSlashCommand(command)}
+									onKeyDown={(e) => {
+										if (e.key === 'Enter' || e.key === ' ') {
+											e.preventDefault();
+											selectSlashCommand(command);
+										}
+									}}
 									onMouseEnter={() => setSelectedCommandIndex(index)}
 								>
 									<div className="slash-command-name">{command.name}</div>
@@ -1307,7 +1340,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 								<div
 									key={todo.id}
 									className={`mention-item ${index === selectedTodoIndex ? 'selected' : ''}`}
+									role="option"
+									tabIndex={-1}
+									aria-selected={index === selectedTodoIndex}
 									onClick={() => selectMention(todo)}
+									onKeyDown={(e) => {
+										if (e.key === 'Enter' || e.key === ' ') {
+											e.preventDefault();
+											selectMention(todo);
+										}
+									}}
 									onMouseEnter={() => setSelectedTodoIndex(index)}
 								>
 									<div className="mention-todo-title">@{todo.title}</div>

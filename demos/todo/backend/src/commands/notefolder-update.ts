@@ -35,7 +35,14 @@ export const updateNoteFolder = defineCommand<typeof inputSchema, NoteFolder>({
 		const folder = store.updateNoteFolder(input.id, {
 			name: input.name,
 			description: input.description,
-		})!;
+		});
+		if (!folder) {
+			return failure({
+				code: 'NOT_FOUND',
+				message: `Folder not found after update: ${input.id}`,
+				suggestion: 'Check the folder ID or list all folders',
+			});
+		}
 		return success(folder, { reasoning: `Updated folder "${folder.name}"`, confidence: 1.0 });
 	},
 });

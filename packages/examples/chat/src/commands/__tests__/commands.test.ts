@@ -79,7 +79,8 @@ describe('chat-connect', () => {
 		// Session created with 'Anonymous' nickname
 		const sessionId = result.data?.credentials?.sessionId;
 		expect(sessionId).toBeDefined();
-		const session = chatService.getSession(sessionId!);
+		if (!sessionId) throw new Error('Expected sessionId');
+		const session = chatService.getSession(sessionId);
 		expect(session?.nickname).toBe('Anonymous');
 	});
 });
@@ -92,8 +93,9 @@ describe('chat-status', () => {
 			{}
 		);
 		const sessionId = connectResult.data?.credentials?.sessionId;
+		if (!sessionId) throw new Error('Expected sessionId');
 
-		const result = await chatStatus.handler({ sessionId: sessionId! }, {});
+		const result = await chatStatus.handler({ sessionId: sessionId }, {});
 
 		expect(result.success).toBe(true);
 		expect(result.data?.sessionId).toBe(sessionId);
@@ -118,8 +120,9 @@ describe('chat-disconnect', () => {
 			{}
 		);
 		const sessionId = connectResult.data?.credentials?.sessionId;
+		if (!sessionId) throw new Error('Expected sessionId');
 
-		const result = await chatDisconnect.handler({ sessionId: sessionId! }, {});
+		const result = await chatDisconnect.handler({ sessionId: sessionId }, {});
 
 		expect(result.success).toBe(true);
 		expect(result.data?.sessionId).toBe(sessionId);

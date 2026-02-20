@@ -27,7 +27,8 @@ steps:
 				expect(result.scenario.job).toBe('test-job');
 				expect(result.scenario.tags).toEqual(['smoke']);
 				expect(result.scenario.steps).toHaveLength(1);
-				const step = result.scenario.steps.at(0)!;
+				const step = result.scenario.steps.at(0);
+				if (!step) throw new Error('Expected step');
 				expect(step.command).toBe('test.command');
 				expect(step.expect.success).toBe(true);
 			}
@@ -56,7 +57,8 @@ steps:
 
 			expect(result.success).toBe(true);
 			if (result.success) {
-				const step = result.scenario.steps.at(0)!;
+				const step = result.scenario.steps.at(0);
+				if (!step) throw new Error('Expected step');
 				expect(step.command).toBe('todo.create');
 				expect(step.description).toBe('Create a todo');
 				expect(step.input).toEqual({ title: 'Buy groceries', priority: 'high' });
@@ -89,7 +91,8 @@ steps:
 
 			expect(result.success).toBe(true);
 			if (result.success) {
-				const step = result.scenario.steps.at(0)!;
+				const step = result.scenario.steps.at(0);
+				if (!step) throw new Error('Expected step');
 				expect(step.expect.success).toBe(false);
 				expect(step.expect.error).toEqual({
 					code: 'NOT_FOUND',

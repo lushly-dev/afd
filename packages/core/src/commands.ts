@@ -448,7 +448,8 @@ export function createCommandRegistry(): CommandRegistry {
 			if (parallelism === 1) {
 				// Sequential execution
 				for (let i = 0; i < request.commands.length; i++) {
-					const cmd = request.commands[i]!;
+					const cmd = request.commands[i];
+					if (!cmd) continue;
 
 					if (stopped) {
 						// Mark remaining as skipped
@@ -490,7 +491,8 @@ export function createCommandRegistry(): CommandRegistry {
 					if (options.timeout && performance.now() - startTime > options.timeout) {
 						// Mark remaining as skipped due to timeout
 						for (let j = i + 1; j < request.commands.length; j++) {
-							const remainingCmd = request.commands[j]!;
+							const remainingCmd = request.commands[j];
+							if (!remainingCmd) continue;
 							results.push({
 								id: remainingCmd.id ?? `cmd-${j}`,
 								index: j,
@@ -541,7 +543,8 @@ export function createCommandRegistry(): CommandRegistry {
 						stopped = true;
 						// Mark remaining as skipped
 						for (let j = i + parallelism; j < request.commands.length; j++) {
-							const remainingCmd = request.commands[j]!;
+							const remainingCmd = request.commands[j];
+							if (!remainingCmd) continue;
 							results.push({
 								id: remainingCmd.id ?? `cmd-${j}`,
 								index: j,

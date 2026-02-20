@@ -90,6 +90,7 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, class
 	return (
 		<div
 			className={`markdown-message ${className}`}
+			// biome-ignore lint/security/noDangerouslySetInnerHtml: intentional - renders parsed markdown HTML
 			dangerouslySetInnerHTML={{ __html: renderedHtml }}
 		/>
 	);

@@ -662,9 +662,9 @@ describe('DirectClient Performance', () => {
 		// Calculate statistics
 		const avgMs = latencies.reduce((a, b) => a + b, 0) / iterations;
 		const sortedLatencies = latencies.sort((a, b) => a - b);
-		const p50 = sortedLatencies[Math.floor(iterations * 0.5)]!;
-		const p95 = sortedLatencies[Math.floor(iterations * 0.95)]!;
-		const p99 = sortedLatencies[Math.floor(iterations * 0.99)]!;
+		const p50 = sortedLatencies[Math.floor(iterations * 0.5)] ?? 0;
+		const p95 = sortedLatencies[Math.floor(iterations * 0.95)] ?? 0;
+		const p99 = sortedLatencies[Math.floor(iterations * 0.99)] ?? 0;
 
 		// Issue #12 requirement: latency < 0.5ms for simple commands
 		expect(avgMs).toBeLessThan(0.5);

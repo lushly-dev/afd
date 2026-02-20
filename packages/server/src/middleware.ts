@@ -163,7 +163,15 @@ export function createRetryMiddleware(options: RetryOptions = {}): CommandMiddle
 			break;
 		}
 
-		return lastResult!;
+		if (!lastResult) {
+			const { failure } = await import('@lushly-dev/afd-core');
+			return failure({
+				code: 'RETRY_EXHAUSTED',
+				message: 'No result after retry attempts',
+				suggestion: 'Check the command implementation',
+			});
+		}
+		return lastResult;
 	};
 }
 
@@ -427,7 +435,15 @@ export function createTelemetryMiddleware(options: TelemetryOptions): CommandMid
 			}
 		}
 
-		return result!;
+		if (!result) {
+			const { failure } = await import('@lushly-dev/afd-core');
+			return failure({
+				code: 'TELEMETRY_NO_RESULT',
+				message: 'Command did not produce a result',
+				suggestion: 'Check the command implementation',
+			});
+		}
+		return result;
 	};
 }
 
@@ -528,7 +544,10 @@ export function composeMiddleware(...middlewares: CommandMiddleware[]): CommandM
 				return next();
 			}
 
-			const middleware = middlewares[index++]!;
+			const middleware = middlewares[index++];
+			if (!middleware) {
+				return next();
+			}
 			return middleware(commandName, input, context, dispatch);
 		};
 

@@ -128,7 +128,9 @@ function notifyListeners(): void {
 	// Update cache before notifying
 	cachedStorageValue = sessionStorage.getItem(STORAGE_KEY);
 	cachedTodos = getTodos();
-	listeners.forEach((listener) => listener());
+	for (const listener of listeners) {
+		listener();
+	}
 }
 
 function getSnapshot(): Todo[] {

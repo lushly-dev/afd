@@ -469,8 +469,10 @@ const App: React.FC = () => {
 			/>
 
 			{/* Mobile sidebar overlay */}
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: Overlay div for click-outside-to-close pattern */}
 			<div
 				className={`sidebar-overlay ${sidebarOpen ? 'visible' : ''}`}
+				role="presentation"
 				onClick={() => setSidebarOpen(false)}
 			/>
 

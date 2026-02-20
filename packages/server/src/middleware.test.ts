@@ -37,7 +37,8 @@ describe('createTelemetryMiddleware', () => {
 		expect(result.success).toBe(true);
 		expect(recordedEvents).toHaveLength(1);
 
-		const event = recordedEvents[0]!;
+		const event = recordedEvents[0];
+		if (!event) throw new Error('Expected event');
 		expect(event.commandName).toBe('test.command');
 		expect(event.success).toBe(true);
 		expect(event.traceId).toBe('trace-123');
@@ -57,7 +58,8 @@ describe('createTelemetryMiddleware', () => {
 		expect(result.success).toBe(false);
 		expect(recordedEvents).toHaveLength(1);
 
-		const event = recordedEvents[0]!;
+		const event = recordedEvents[0];
+		if (!event) throw new Error('Expected event');
 		expect(event.success).toBe(false);
 		expect(event.error).toEqual({ code: 'NOT_FOUND', message: 'Item not found' });
 	});
@@ -73,7 +75,8 @@ describe('createTelemetryMiddleware', () => {
 
 		expect(recordedEvents).toHaveLength(1);
 
-		const event = recordedEvents[0]!;
+		const event = recordedEvents[0];
+		if (!event) throw new Error('Expected event');
 		expect(event.success).toBe(false);
 		expect(event.error).toEqual({
 			code: 'UNHANDLED_ERROR',
@@ -239,7 +242,9 @@ describe('ConsoleTelemetrySink', () => {
 		});
 
 		expect(logs).toHaveLength(1);
-		const parsed = JSON.parse(logs[0]!);
+		const log = logs[0];
+		if (!log) throw new Error('Expected log entry');
+		const parsed = JSON.parse(log);
 		expect(parsed.commandName).toBe('test.command');
 		expect(parsed.success).toBe(true);
 		expect(parsed._prefix).toBe('[Telemetry]');

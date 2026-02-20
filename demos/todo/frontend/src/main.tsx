@@ -8,6 +8,7 @@ import { AppWithAuth } from './AppWithAuth.tsx';
 
 const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
 
+// biome-ignore lint/style/noNonNullAssertion: standard React entry point - root element guaranteed in index.html
 createRoot(document.getElementById('root')!).render(
 	<StrictMode>
 		<ConvexAuthProvider client={convex}>

@@ -88,8 +88,10 @@ function recordLatency(ms: number) {
 	metrics.totalLatencyMs += ms;
 	// Keep only last 100
 	if (metrics.latencies.length > 100) {
-		const removed = metrics.latencies.shift()!;
-		metrics.totalLatencyMs -= removed;
+		const removed = metrics.latencies.shift();
+		if (removed !== undefined) {
+			metrics.totalLatencyMs -= removed;
+		}
 	}
 }
 

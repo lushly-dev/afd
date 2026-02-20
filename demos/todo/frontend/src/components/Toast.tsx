@@ -66,7 +66,7 @@ const Toast: React.FC<ToastProps> = ({ toast, onRemove }) => {
 				{toast.warnings && toast.warnings.length > 0 && (
 					<div className="toast-warnings">
 						{toast.warnings.map((w, i) => (
-							<div key={i} className="toast-warning-item">
+							<div key={`${w.code}-${i}`} className="toast-warning-item">
 								⚠️ {w.message}
 							</div>
 						))}
@@ -203,7 +203,9 @@ export const useToast = () => {
 				});
 			}
 
-			notifications.forEach((n) => addToast(n));
+			for (const n of notifications) {
+				addToast(n);
+			}
 		},
 		[addToast]
 	);

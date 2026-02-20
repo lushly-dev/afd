@@ -71,7 +71,8 @@ export const createBatch = defineCommand<typeof inputSchema, BatchCreateResult>(
 
 		// Process each todo item
 		for (let i = 0; i < input.todos.length; i++) {
-			const item = input.todos[i]!;
+			const item = input.todos[i];
+			if (!item) continue;
 
 			try {
 				// Validate individual item (already validated by Zod, but demonstrates pattern)

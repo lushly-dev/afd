@@ -82,6 +82,11 @@ body {
 	color: var(--accent);
 }
 
+h1 {
+	font-size: 2rem;
+	margin-bottom: 0.5rem;
+}
+
 .header-title {
 	display: flex;
 	align-items: center;
@@ -161,6 +166,25 @@ body {
 	padding: 0;
 }
 
+/* Footer */
+footer {
+	text-align: center;
+	margin-top: 0;
+	padding-top: 1rem;
+	border-top: 1px solid var(--border);
+	color: var(--text-muted);
+	font-size: 0.85rem;
+}
+
+footer a {
+	color: var(--accent);
+	text-decoration: none;
+}
+
+footer a:hover {
+	text-decoration: underline;
+}
+
 .app-footer {
 	grid-area: footer;
 	padding: 1rem 1.5rem;
@@ -223,11 +247,6 @@ body {
 header {
 	text-align: center;
 	margin-bottom: 0;
-}
-
-h1 {
-	font-size: 2rem;
-	margin-bottom: 0.5rem;
 }
 
 .badge {
@@ -640,25 +659,6 @@ h1 {
 
 .error {
 	color: var(--error);
-}
-
-/* Footer */
-footer {
-	text-align: center;
-	margin-top: 0;
-	padding-top: 1rem;
-	border-top: 1px solid var(--border);
-	color: var(--text-muted);
-	font-size: 0.85rem;
-}
-
-footer a {
-	color: var(--accent);
-	text-decoration: none;
-}
-
-footer a:hover {
-	text-decoration: underline;
 }
 
 /* Responsive */

@@ -66,7 +66,17 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 	const categories = categorizeShortcuts(shortcuts);
 
 	return (
-		<div className="settings-overlay" onClick={onClose}>
+		// biome-ignore lint/a11y/noStaticElementInteractions: Overlay div for click-outside-to-close pattern
+		<div
+			className="settings-overlay"
+			role="presentation"
+			onClick={onClose}
+			onKeyDown={(e) => {
+				if (e.key === 'Escape') onClose();
+			}}
+		>
+			{/* biome-ignore lint/a11y/useKeyWithClickEvents: stopPropagation on modal content prevents overlay close */}
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: stopPropagation on modal content prevents overlay close */}
 			<div className="settings-modal" onClick={(e) => e.stopPropagation()}>
 				<div className="settings-header">
 					<h2>Settings</h2>

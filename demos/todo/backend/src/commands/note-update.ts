@@ -47,7 +47,14 @@ export const updateNote = defineCommand<typeof inputSchema, Note>({
 			title: input.title,
 			content: input.content,
 			folderId: input.folderId,
-		})!;
+		});
+		if (!note) {
+			return failure({
+				code: 'NOT_FOUND',
+				message: `Note not found after update: ${input.id}`,
+				suggestion: 'Check the note ID or list all notes',
+			});
+		}
 		return success(note, { reasoning: `Updated note "${note.title}"`, confidence: 1.0 });
 	},
 });

@@ -64,7 +64,17 @@ export const KeyboardHelp: React.FC<KeyboardHelpProps> = ({
 	const categories = categorizeShortcuts(shortcuts);
 
 	return (
-		<div className="keyboard-help-overlay" onClick={onClose}>
+		// biome-ignore lint/a11y/noStaticElementInteractions: Overlay div for click-outside-to-close pattern
+		<div
+			className="keyboard-help-overlay"
+			role="presentation"
+			onClick={onClose}
+			onKeyDown={(e) => {
+				if (e.key === 'Escape') onClose();
+			}}
+		>
+			{/* biome-ignore lint/a11y/useKeyWithClickEvents: stopPropagation on modal content prevents overlay close */}
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: stopPropagation on modal content prevents overlay close */}
 			<div className="keyboard-help-modal" onClick={(e) => e.stopPropagation()}>
 				<div className="keyboard-help-header">
 					<h2>Settings</h2>

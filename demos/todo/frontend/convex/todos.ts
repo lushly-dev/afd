@@ -1,6 +1,6 @@
 import { getAuthUserId } from '@convex-dev/auth/server';
 import { v } from 'convex/values';
-import type { Id } from './_generated/dataModel';
+import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query } from './_generated/server';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -226,7 +226,7 @@ export const systemList = internalQuery({
 		limit: v.optional(v.number()),
 	},
 	handler: async (ctx, args) => {
-		let todos;
+		let todos: Doc<'todos'>[];
 		if (args.userId) {
 			todos = await ctx.db.query('todos').order('desc').collect();
 			// Filter by userId (as string comparison, since system may not have proper Id)

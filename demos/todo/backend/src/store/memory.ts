@@ -329,7 +329,8 @@ export class TodoStore {
 		const stack = [parentId];
 
 		while (stack.length > 0) {
-			const currentId = stack.pop()!;
+			const currentId = stack.pop();
+			if (!currentId) break;
 			const children = this.getSubtasks(currentId);
 			for (const child of children) {
 				descendants.push(child);

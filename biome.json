@@ -37,7 +37,7 @@
 				"useExhaustiveDependencies": "warn"
 			},
 			"style": {
-				"noNonNullAssertion": "warn",
+				"noNonNullAssertion": "error",
 				"useConst": "error",
 				"useImportType": "error",
 				"useNodejsImportProtocol": "error"
@@ -45,19 +45,19 @@
 			"suspicious": {
 				"noExplicitAny": "error",
 				"noConfusingVoidType": "error",
-				"noNonNullAssertedOptionalChain": "warn",
-				"useIterableCallbackReturn": "warn",
-				"noTemplateCurlyInString": "warn",
-				"noImplicitAnyLet": "warn",
-				"noArrayIndexKey": "warn"
+				"noNonNullAssertedOptionalChain": "error",
+				"useIterableCallbackReturn": "error",
+				"noTemplateCurlyInString": "off",
+				"noImplicitAnyLet": "error",
+				"noArrayIndexKey": "error"
 			},
 			"a11y": {
-				"noStaticElementInteractions": "warn",
-				"useKeyWithClickEvents": "warn",
-				"noLabelWithoutControl": "warn"
+				"noStaticElementInteractions": "error",
+				"useKeyWithClickEvents": "error",
+				"noLabelWithoutControl": "error"
 			},
 			"security": {
-				"noDangerouslySetInnerHtml": "warn"
+				"noDangerouslySetInnerHtml": "error"
 			}
 		}
 	},

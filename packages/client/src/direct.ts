@@ -95,23 +95,28 @@ function calculateSimilarity(a: string, b: string): number {
 		matrix[i] = [i];
 	}
 
+	const firstRow = matrix[0];
+	if (!firstRow) return 0;
 	for (let j = 0; j <= bLower.length; j++) {
-		matrix[0]![j] = j;
+		firstRow[j] = j;
 	}
 
 	for (let i = 1; i <= aLower.length; i++) {
+		const currentRow = matrix[i];
+		const prevRow = matrix[i - 1];
+		if (!currentRow || !prevRow) continue;
 		for (let j = 1; j <= bLower.length; j++) {
 			const cost = aLower[i - 1] === bLower[j - 1] ? 0 : 1;
-			matrix[i]![j] = Math.min(
-				matrix[i - 1]?.[j]! + 1, // deletion
-				matrix[i]?.[j - 1]! + 1, // insertion
-				matrix[i - 1]?.[j - 1]! + cost // substitution
-			);
+			const deletion = prevRow[j] ?? 0;
+			const insertion = currentRow[j - 1] ?? 0;
+			const substitution = prevRow[j - 1] ?? 0;
+			currentRow[j] = Math.min(deletion + 1, insertion + 1, substitution + cost);
 		}
 	}
 
 	const maxLen = Math.max(aLower.length, bLower.length);
-	return maxLen === 0 ? 1 : 1 - matrix[aLower.length]?.[bLower.length]! / maxLen;
+	const distance = matrix[aLower.length]?.[bLower.length] ?? maxLen;
+	return maxLen === 0 ? 1 : 1 - distance / maxLen;
 }
 
 /**
@@ -820,7 +825,8 @@ export class DirectClient {
 
 		// Execute each step
 		for (let i = 0; i < stepDefs.length; i++) {
-			const stepDef = stepDefs[i]!;
+			const stepDef = stepDefs[i];
+			if (!stepDef) continue;
 			const stepStartTime = performance.now();
 
 			// Check timeout
@@ -928,7 +934,8 @@ export class DirectClient {
 					this.debug(`[${traceId}] Pipeline failed at step ${i}: ${result.error?.message}`);
 					// Mark remaining steps as skipped
 					for (let j = i + 1; j < stepDefs.length; j++) {
-						const skippedDef = stepDefs[j]!;
+						const skippedDef = stepDefs[j];
+						if (!skippedDef) continue;
 						stepResults.push({
 							index: j,
 							alias: skippedDef.as,

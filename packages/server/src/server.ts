@@ -363,7 +363,8 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 		// Apply middleware in reverse order
 		let next = runHandler;
 		for (let i = middleware.length - 1; i >= 0; i--) {
-			const mw = middleware[i]!;
+			const mw = middleware[i];
+			if (!mw) continue;
 			const currentNext = next;
 			next = () => mw(commandName, validation.data, context, currentNext);
 		}
@@ -415,7 +416,8 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 
 		// Execute commands sequentially
 		for (let i = 0; i < request.commands.length; i++) {
-			const cmd = request.commands[i]!;
+			const cmd = request.commands[i];
+			if (!cmd) continue;
 
 			if (stopped) {
 				results.push({
@@ -456,7 +458,8 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 			// Check timeout
 			if (options.timeout && performance.now() - startTime > options.timeout) {
 				for (let j = i + 1; j < request.commands.length; j++) {
-					const remainingCmd = request.commands[j]!;
+					const remainingCmd = request.commands[j];
+					if (!remainingCmd) continue;
 					results.push({
 						id: remainingCmd.id ?? `cmd-${j}`,
 						index: j,
@@ -532,7 +535,8 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 		let stopped = false;
 
 		for (let i = 0; i < request.steps.length; i++) {
-			const step = request.steps[i]!;
+			const step = request.steps[i];
+			if (!step) continue;
 			const stepStartTime = performance.now();
 
 			// Check if pipeline was stopped by a previous failure
@@ -604,7 +608,8 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 					stopped = true;
 					// Mark remaining steps as skipped
 					for (let j = i + 1; j < request.steps.length; j++) {
-						const remainingStep = request.steps[j]!;
+						const remainingStep = request.steps[j];
+						if (!remainingStep) continue;
 						stepResults.push({
 							index: j,
 							alias: remainingStep.as,
@@ -620,7 +625,8 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 			// Check timeout
 			if (options.timeoutMs && performance.now() - startTime > options.timeoutMs) {
 				for (let j = i + 1; j < request.steps.length; j++) {
-					const remainingStep = request.steps[j]!;
+					const remainingStep = request.steps[j];
+					if (!remainingStep) continue;
 					stepResults.push({
 						index: j,
 						alias: remainingStep.as,

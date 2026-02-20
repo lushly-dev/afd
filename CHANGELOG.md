@@ -66,6 +66,18 @@ AFD is now **Beta**. Stable and in active use across multiple projects. No syste
 
 ### Fixed
 
+- **Lint warning cleanup** — resolved all 159 biome warnings across 11 rules that were temporarily downgraded to `warn` after package upgrades (commit 99c922df). All rules promoted back to `error`:
+  - `noNonNullAssertion` (73) — replaced `!` assertions with null guards, `?? fallback`, or narrowing
+  - `noTemplateCurlyInString` (28) — set to `off` (all false positives from AFD `${{ }}` pipeline syntax)
+  - `noStaticElementInteractions` / `useKeyWithClickEvents` (30) — added ARIA roles, keyboard handlers
+  - `noArrayIndexKey` (10) — replaced index keys with stable composite keys
+  - `noNonNullAssertedOptionalChain` (5) — bounds-checked access in Levenshtein distance
+  - `noLabelWithoutControl` (4) — added `htmlFor` or changed to `<span>`
+  - `useIterableCallbackReturn` (3) — converted `forEach` to `for...of`
+  - `noDescendingSpecificity` (2) — reordered CSS rules
+  - `noUnusedPrivateClassMembers` (2) — removed dead code
+  - `noImplicitAnyLet` (1) — added type annotation
+  - `noDangerouslySetInnerHtml` (1) — suppressed with `biome-ignore` (intentional markdown rendering)
 - Hyphen handling in command names for MCP handler generation
 - Delete via chat now correctly gets ID from `result.id`
 - Port conflicts between MCP and Chat servers resolved

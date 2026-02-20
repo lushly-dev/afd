@@ -87,7 +87,8 @@ function formatZodIssue(issue: ZodIssue): ValidationError {
 export function formatValidationErrors(errors: ValidationError[]): string {
 	if (errors.length === 0) return 'No validation errors';
 	if (errors.length === 1) {
-		const err = errors[0]!;
+		const err = errors[0];
+		if (!err) return 'No validation errors';
 		return err.path === '(root)' ? err.message : `${err.path}: ${err.message}`;
 	}
 	return errors

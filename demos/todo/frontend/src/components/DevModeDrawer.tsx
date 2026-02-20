@@ -89,7 +89,7 @@ export const DevModeDrawer: React.FC<DevModeDrawerProps> = ({
 						<div className="dev-section-header">Sources ({lastResult.sources.length})</div>
 						<ul className="dev-sources-list">
 							{lastResult.sources.map((source, i) => (
-								<li key={i} className="dev-source-item">
+								<li key={source.url || `source-${i}`} className="dev-source-item">
 									<span className="dev-source-type">{source.type || 'unknown'}</span>
 									{source.title && <span className="dev-source-title">{source.title}</span>}
 									{source.relevance !== undefined && (
@@ -107,7 +107,10 @@ export const DevModeDrawer: React.FC<DevModeDrawerProps> = ({
 						<div className="dev-section-header">Execution Plan</div>
 						<ol className="dev-plan-list">
 							{lastResult.plan.map((step, i) => (
-								<li key={i} className={`dev-plan-step ${step.status || ''}`}>
+								<li
+									key={step.name || step.action || `step-${i}`}
+									className={`dev-plan-step ${step.status || ''}`}
+								>
 									<span className="dev-step-name">
 										{step.name || step.action || `Step ${i + 1}`}
 									</span>
@@ -125,7 +128,10 @@ export const DevModeDrawer: React.FC<DevModeDrawerProps> = ({
 						<div className="dev-section-header">Warnings ({lastResult.warnings.length})</div>
 						<ul className="dev-warnings-list">
 							{lastResult.warnings.map((warning, i) => (
-								<li key={i} className={`dev-warning-item ${warning.severity || ''}`}>
+								<li
+									key={`${warning.code}-${i}`}
+									className={`dev-warning-item ${warning.severity || ''}`}
+								>
 									<span className="dev-warning-code">{warning.code}</span>
 									<span className="dev-warning-msg">{warning.message}</span>
 								</li>
@@ -229,7 +235,15 @@ export const DevModeDrawer: React.FC<DevModeDrawerProps> = ({
 
 	return (
 		<>
-			<div className={`dev-drawer-overlay ${isOpen ? 'visible' : ''}`} onClick={onClose} />
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: Overlay div for click-outside-to-close pattern */}
+			<div
+				className={`dev-drawer-overlay ${isOpen ? 'visible' : ''}`}
+				role="presentation"
+				onClick={onClose}
+				onKeyDown={(e) => {
+					if (e.key === 'Escape') onClose();
+				}}
+			/>
 			<div className={`dev-drawer ${isOpen ? 'open' : ''}`}>
 				<div className="dev-drawer-header">
 					<h2 className="dev-drawer-title">Dev Mode</h2>

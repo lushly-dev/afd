@@ -266,7 +266,8 @@ export async function scenarioCoverage(
 						hasErrorTests: false,
 					});
 				}
-				const coverage = commandMap.get(cmd)!;
+				const coverage = commandMap.get(cmd);
+				if (!coverage) continue;
 				coverage.scenarioCount++;
 				coverage.usedIn.push(path);
 			}
@@ -299,7 +300,8 @@ export async function scenarioCoverage(
 						testedIn: [],
 					});
 				}
-				const coverage = errorMap.get(errorCode)!;
+				const coverage = errorMap.get(errorCode);
+				if (!coverage) continue;
 				coverage.scenarioCount++;
 				coverage.testedIn.push(path);
 			}
@@ -314,7 +316,8 @@ export async function scenarioCoverage(
 					avgSteps: 0,
 				});
 			}
-			const jobCoverage = jobMap.get(job)!;
+			const jobCoverage = jobMap.get(job);
+			if (!jobCoverage) continue;
 			jobCoverage.scenarioCount++;
 			// Merge tags
 			const scenarioTags = scenario.tags ?? [];

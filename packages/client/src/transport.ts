@@ -162,7 +162,6 @@ export class SseTransport implements Transport {
  */
 export class HttpTransport implements Transport {
 	private messageHandler: ((response: McpResponse) => void) | null = null;
-	private errorHandler: ((error: Error) => void) | null = null;
 	private closeHandler: (() => void) | null = null;
 	private connected = false;
 	private messageUrl: string;
@@ -245,8 +244,8 @@ export class HttpTransport implements Transport {
 		this.messageHandler = handler;
 	}
 
-	onError(handler: (error: Error) => void): void {
-		this.errorHandler = handler;
+	onError(_handler: (error: Error) => void): void {
+		// HttpTransport errors propagate via thrown exceptions in send()
 	}
 
 	onClose(handler: () => void): void {

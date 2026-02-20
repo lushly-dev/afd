@@ -417,7 +417,8 @@ export class FileStore {
 		const stack = [parentId];
 
 		while (stack.length > 0) {
-			const currentId = stack.pop()!;
+			const currentId = stack.pop();
+			if (!currentId) break;
 			const children = Array.from(todos.values()).filter((t) => t.parentId === currentId);
 			for (const child of children) {
 				descendants.push(child);

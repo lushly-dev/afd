@@ -472,7 +472,8 @@ export async function createReconnectingHandoff(
 		} catch (error) {
 			if (!closed && reconnectAttempt < maxAttempts) {
 				await attemptReconnect();
-				return currentConnection!;
+				if (!currentConnection) throw new Error('Connection not established');
+				return currentConnection;
 			}
 			throw error;
 		}
