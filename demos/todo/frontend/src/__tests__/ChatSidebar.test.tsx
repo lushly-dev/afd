@@ -150,7 +150,6 @@ describe('ChatSidebar', () => {
 	it('does not send empty messages', () => {
 		render(<ChatSidebar {...defaultProps} />);
 
-		const input = screen.getByPlaceholderText('Ask AI to help with todos...');
 		const sendButton = screen.getByRole('button', { name: 'Send' });
 
 		// Try to send empty message

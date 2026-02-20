@@ -1,10 +1,20 @@
 import { useState, useCallback } from "react";
 
+interface ConfirmOptions {
+  title: string;
+  message: string;
+  warning?: string;
+  confirmText?: string;
+  cancelText?: string;
+}
+
 interface ConfirmState {
   isOpen: boolean;
   title: string;
   message: string;
   warning?: string;
+  confirmText?: string;
+  cancelText?: string;
   resolve?: (value: boolean) => void;
 }
 
@@ -16,9 +26,17 @@ export const useConfirm = () => {
   });
 
   const confirm = useCallback(
-    (title: string, message: string, warning?: string): Promise<boolean> => {
+    (options: ConfirmOptions): Promise<boolean> => {
       return new Promise((resolve) => {
-        setState({ isOpen: true, title, message, warning, resolve });
+        setState({
+          isOpen: true,
+          title: options.title,
+          message: options.message,
+          warning: options.warning,
+          confirmText: options.confirmText,
+          cancelText: options.cancelText,
+          resolve,
+        });
       });
     },
     []

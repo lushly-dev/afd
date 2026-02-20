@@ -19,8 +19,6 @@ export interface CommandMetadata {
 	category?: string;
 	tags?: string[];
 	mutation?: boolean;
-	destructive?: boolean;
-	confirmPrompt?: string;
 }
 
 /**
@@ -57,8 +55,6 @@ export class CommandRegistry {
 					category: cmd.category,
 					tags: cmd.tags,
 					mutation: cmd.mutation,
-					destructive: cmd.destructive,
-					confirmPrompt: cmd.confirmPrompt,
 				},
 			});
 		}

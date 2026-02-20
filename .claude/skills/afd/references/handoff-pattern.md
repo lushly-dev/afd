@@ -16,7 +16,7 @@ The handoff pattern extends AFD's command-first architecture to support real-tim
 Mark commands that return protocol handoffs with `handoff: true`:
 
 ```typescript
-import { defineCommand, HandoffResult } from '@afd/server';
+import { defineCommand, HandoffResult } from '@lushly-dev/afd-server';
 
 const chatConnect = defineCommand({
   name: 'chat-connect',

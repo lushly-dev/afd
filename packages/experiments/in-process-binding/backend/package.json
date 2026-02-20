@@ -1,5 +1,6 @@
 {
   "name": "@afd/experiment-in-process",
+  "private": true,
   "version": "0.1.0",
   "description": "Experiment: In-process command binding for zero-transport-overhead execution",
   "type": "module",
@@ -40,9 +41,5 @@
     "typescript": "^5.4.0",
     "tsx": "^4.7.0",
     "vitest": "^1.4.0"
-  },
-  "publishConfig": {
-    "access": "restricted",
-    "registry": "https://npm.pkg.github.com"
   }
 }

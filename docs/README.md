@@ -7,8 +7,7 @@
 | Folder | Purpose |
 |--------|---------|
 | [features/](./features/) | Feature proposals, specs, and assets |
-| [guides/](./guides/) | Conceptual guides, schema patterns, philosophy |
-| [demos/](./demos/) | Research and documentation for demo applications |
+| [research/](./research/) | Industry analysis and design research |
 | [whitepaper/](./whitepaper/) | High-level vision and architecture documents |
 
 ## Features
@@ -23,10 +22,12 @@ Features progress through three stages:
 
 ### Active Features
 
-- [Platform Utils](./features/active/platform-utils/) — Cross-platform subprocess and connector utilities
+- [Auth Adapter](./features/active/auth-adapter/) — Authentication adapter pattern for AFD servers
 
 ### Recently Completed
 
+- [Command Trust Config](./features/complete/command-trust-config/) — Per-command trust levels and exposure control
+- [Command Exposure & Undo](./features/complete/command-exposure-undo/) — Command visibility and undo support
 - [Handoff Pattern](./features/complete/handoff-pattern/) — Real-time protocol handoff for streaming
 - [Command Pipeline](./features/complete/command-pipeline/) — Declarative command chaining
 

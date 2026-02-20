@@ -53,8 +53,6 @@ export const deleteBatch = defineCommand<typeof inputSchema, BatchDeleteResult>(
 	version: '1.0.0',
 	input: inputSchema,
 	errors: ['NOT_FOUND', 'PARTIAL_FAILURE'],
-	destructive: true,
-	confirmPrompt: 'These todos will be permanently deleted.',
 
 	async handler(input) {
 		const deletedIds: string[] = [];

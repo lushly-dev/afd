@@ -678,8 +678,6 @@ export interface StreamingCallbacks {
 		result: unknown,
 		latencyMs: number,
 		metadata?: {
-			destructive?: boolean;
-			confirmPrompt?: string;
 			tags?: string[];
 		}
 	) => void;
@@ -774,7 +772,8 @@ Be concise in your responses. After performing actions, briefly summarize what w
 					// Stream tokens - simulate word-by-word streaming
 					const words = fullText.split(' ');
 					for (let i = 0; i < words.length; i++) {
-						const token = i === 0 ? words[i] : ' ' + words[i];
+						const word = words[i]!;
+						const token = i === 0 ? word : ' ' + word;
 						callbacks.onToken(token);
 						// Small delay to simulate streaming (remove in production if too slow)
 						await new Promise(resolve => setTimeout(resolve, 10));
@@ -818,8 +817,6 @@ Be concise in your responses. After performing actions, briefly summarize what w
 
 				// Notify tool completion with metadata
 				callbacks.onToolEnd(commandName, toolExecution.result, latencyMs, cmdMetadata ? {
-					destructive: cmdMetadata.destructive,
-					confirmPrompt: cmdMetadata.confirmPrompt,
 					tags: cmdMetadata.tags,
 				} : undefined);
 

@@ -61,7 +61,7 @@ const App: React.FC = () => {
   // Notes state
   const [notes, setNotes] = useState<Note[]>([]);
   const [noteFolders, setNoteFolders] = useState<NoteFolder[]>([]);
-  const [activeNoteFolderId, setActiveNoteFolderId] = useState<string | null>(null);
+  const [activeNoteFolderId] = useState<string | null>(null);
 
   // Selection state and operations handled by useBatchOperations hook
 
@@ -232,7 +232,7 @@ const App: React.FC = () => {
   const filteredTodos = todos.filter(todo => {
     // View-based filtering
     if (activeView === "list" && activeList) {
-      if (!activeList.todoIds.includes(todo.id)) return false;
+      if (!(activeList.todoIds as string[]).includes(todo.id)) return false;
     }
     // Note: "today" view would filter by due date when implemented
     // For now, "inbox" and "today" show all todos

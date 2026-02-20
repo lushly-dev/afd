@@ -1,17 +1,17 @@
-# @afd/adapters
+# @lushly-dev/afd-adapters
 
 Frontend adapters for rendering AFD `CommandResult` data into styled HTML.
 
 ## Installation
 
 ```bash
-pnpm add @afd/adapters
+pnpm add @lushly-dev/afd-adapters
 ```
 
 ## Usage
 
 ```typescript
-import { WebAdapter } from '@afd/adapters';
+import { WebAdapter } from '@lushly-dev/afd-adapters';
 
 // Render package results from lint/test/build commands
 const result = await fetch('/api/execute', { command: 'lint' });
@@ -25,7 +25,7 @@ The adapters use CSS custom properties for theming. Include the default theme or
 
 ```css
 /* Option 1: Use the default theme */
-@import '@afd/adapters/css';
+@import '@lushly-dev/afd-adapters/css';
 
 /* Option 2: Define your own */
 :root {

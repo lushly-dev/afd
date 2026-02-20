@@ -53,15 +53,6 @@ export function setConfig<K extends keyof StoredConfig>(
 }
 
 /**
- * Get a configuration value.
- */
-export function getConfigValue<K extends keyof StoredConfig>(
-	key: K
-): StoredConfig[K] {
-	return store.get(key);
-}
-
-/**
  * Clear the configuration.
  */
 export function clearConfig(): void {

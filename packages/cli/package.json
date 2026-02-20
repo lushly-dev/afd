@@ -1,6 +1,6 @@
 {
   "name": "@lushly-dev/afd-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Command-line interface for Agent-First Development",
   "type": "module",
   "bin": {
@@ -36,10 +36,17 @@
   ],
   "author": "Falkicon",
   "license": "MIT",
+  "homepage": "https://github.com/lushly-dev/afd#readme",
+  "bugs": {
+    "url": "https://github.com/lushly-dev/afd/issues"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/lushly-dev/afd.git",
     "directory": "packages/cli"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   },
   "dependencies": {
     "@lushly-dev/afd-client": "workspace:*",

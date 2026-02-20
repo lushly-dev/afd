@@ -64,7 +64,7 @@ pnpm start
 
 If benchmarks confirm the performance gains:
 
-1. **Phase 2**: Add `DirectTransport` to `@afd/client`
+1. **Phase 2**: Add `DirectTransport` to `@lushly-dev/afd-client`
 2. **Phase 3**: Port pattern back to main todo example
 3. **Phase 4**: Document transport selection guidance
 

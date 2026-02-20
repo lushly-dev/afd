@@ -26,7 +26,7 @@ beforeEach(() => {
   store.clear();
 });
 
-describe('todo.create', () => {
+describe('todo-create', () => {
   it('creates todo with required fields', async () => {
     const result = await createTodo.handler(
       { title: 'Test', priority: 'medium' },
@@ -52,7 +52,7 @@ describe('todo.create', () => {
 ### Error Handling Tests
 
 ```typescript
-describe('todo.get', () => {
+describe('todo-get', () => {
   it('returns NOT_FOUND for missing todo', async () => {
     const result = await getTodo.handler(
       { id: 'nonexistent' },
@@ -65,7 +65,7 @@ describe('todo.get', () => {
   });
 });
 
-describe('todo.update', () => {
+describe('todo-update', () => {
   it('returns NO_CHANGES when nothing to update', async () => {
     const created = await createTodo.handler(
       { title: 'Test', priority: 'medium' },
@@ -168,7 +168,7 @@ describe('Performance', () => {
 
 ```typescript
 describe('Latency Percentiles', () => {
-  it('todo.create p50/p95/p99 within bounds', async () => {
+  it('todo-create p50/p95/p99 within bounds', async () => {
     const durations: number[] = [];
     
     for (let i = 0; i < 50; i++) {

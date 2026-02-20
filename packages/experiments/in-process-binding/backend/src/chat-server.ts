@@ -77,7 +77,7 @@ function getClientIP(req: http.IncomingMessage): string {
 	const forwarded = req.headers['x-forwarded-for'];
 	if (forwarded) {
 		const ips = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(',')[0];
-		return ips.trim();
+		return ips?.trim() ?? 'unknown';
 	}
 	return req.socket.remoteAddress || 'unknown';
 }

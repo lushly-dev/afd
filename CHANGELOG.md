@@ -5,9 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - Myoso Local-First Architecture
+## [0.2.0-beta] - 2026-02-20
+
+### 🟢 Beta Promotion
+
+AFD is now **Beta**. Stable and in active use across multiple projects. No systemic breaking changes expected; targeted fixes when required.
 
 ### Added
+
+- **Python DirectClient** - Zero-overhead in-process command execution for Python
+  - Same API as MCP client (`call`, `list_commands`, `has_command`)
+  - Exported DirectClient types from `afd.__init__`
+
+- **`pipe()` Pipeline Execution** - Declarative command chaining with variable resolution
+  - Chain commands with output-to-input mapping
+  - Variable interpolation between pipeline steps
+
+- **Command Exposure & Undo** (`@afd/core`)
+  - Exposure filtering and interface access control
+  - Per-command undo metadata support
+  - Command trust config marked COMPLETE
+
+- **AFD Linter Improvements** - Better accuracy for architecture validation
+
+- **TypeSpec Contracts Skill** - New skill documenting cross-layer schema sync pattern
+  - Prevents drift between TypeScript, Python, and Convex schemas
+  - CI integration patterns for pre-commit and GitHub Actions
+
+- **README Rewrite** - New narrative with mermaid diagrams
+  - "UX design for AI agents" hook
+  - Three diagrams: architecture comparison, registry fan-out, disruption timeline
+  - Full toolkit table covering all 8 packages across 3 languages
+  - Shields.io badges for project context
+  - Humanized prose (em-dash reduction, sentence variation, hedging removal)
+
+#### Myoso Demo: Local-First Architecture
 
 - **Local-First Architecture** - Instant UI updates with background sync
   - `useLocalStore` - Zustand-based optimistic state management
@@ -26,20 +58,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Bumped Python package to v0.2.0
 - Renamed demo from "Todo" to "Myoso"
-- Updated README with local-first architecture diagrams
-- Split backend into separate MCP and Chat servers
+- Migrated docs/guides/ content into skills references
+- Prepared repo for public release (cleaned build artifacts, junk files)
+- Added 'Documentation as a Derived Artifact' principle to philosophy
 
 ### Fixed
 
+- Hyphen handling in command names for MCP handler generation
 - Delete via chat now correctly gets ID from `result.id`
 - Port conflicts between MCP and Chat servers resolved
-
-
-### [[Todo Demo] Project Setup](#46) (2026-01-09)
-
-**Features:**
-- **demos**: add Todo demo project structure
 
 ## [0.1.2] - 2026-01-13 (Python Package)
 

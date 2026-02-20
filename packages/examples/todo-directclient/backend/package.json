@@ -1,5 +1,6 @@
 {
   "name": "@afd/example-todo-directclient",
+  "private": true,
   "version": "0.1.0",
   "description": "Example: Todo app with DirectClient + AI Copilot integration",
   "type": "module",

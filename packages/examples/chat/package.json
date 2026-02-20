@@ -1,5 +1,6 @@
 {
 	"name": "@afd/example-chat",
+	"private": true,
 	"version": "1.0.0",
 	"description": "Real-time chat example demonstrating the AFD handoff pattern for WebSocket connections",
 	"type": "module",

@@ -1,13 +1,13 @@
-# @afd/cli
+# @lushly-dev/afd-cli
 
 Command-line interface for Agent-First Development.
 
 ## Installation
 
 ```bash
-npm install -g @afd/cli
+npm install -g @lushly-dev/afd-cli
 # or
-pnpm add -g @afd/cli
+pnpm add -g @lushly-dev/afd-cli
 ```
 
 ## Usage

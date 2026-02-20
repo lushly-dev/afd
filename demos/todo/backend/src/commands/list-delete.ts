@@ -24,8 +24,6 @@ export const deleteList = defineCommand<typeof inputSchema, ListDeleteResult>({
 	version: '1.0.0',
 	input: inputSchema,
 	errors: ['NOT_FOUND'],
-	destructive: true,
-	confirmPrompt: 'This list and all its todos will be permanently deleted.',
 
 	async handler(input) {
 		const existing = store.getList(input.id);

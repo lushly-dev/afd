@@ -991,18 +991,6 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 		adjustTextareaHeight();
 	};
 
-	// Get status display text
-	const getStatusText = () => {
-		switch (connectionStatus) {
-			case 'connecting':
-				return 'Connecting...';
-			case 'connected':
-				return 'Ready';
-			case 'error':
-				return 'Offline';
-		}
-	};
-
 	// Get elapsed time for running tools
 	const getElapsedTime = (startTime: number): string => {
 		const elapsed = Date.now() - startTime;

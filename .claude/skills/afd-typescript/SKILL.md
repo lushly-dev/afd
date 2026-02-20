@@ -2,12 +2,12 @@
 name: afd-typescript
 description: >
   TypeScript implementation patterns for AFD commands using Zod schemas,
-  @afd/server, and @afd/core. Covers command definition, schema design,
+  @lushly-dev/afd-server, and @lushly-dev/afd-core. Covers command definition, schema design,
   error handling, MCP server setup, and testing. Use when: implementing
   commands in TypeScript, setting up MCP servers, writing Zod schemas,
   or debugging TypeScript AFD code.
   Triggers: typescript afd, ts command, zod schema, defineCommand,
-  @afd/server, @afd/core, typescript implementation.
+  @lushly-dev/afd-server, @lushly-dev/afd-core, typescript implementation.
 ---
 
 # AFD TypeScript Implementation
@@ -18,10 +18,10 @@ Patterns for implementing AFD commands in TypeScript.
 
 ```typescript
 // Core types
-import type { CommandResult, CommandError } from '@afd/core';
+import type { CommandResult, CommandError } from '@lushly-dev/afd-core';
 
 // Server utilities
-import { defineCommand, success, error, createMcpServer } from '@afd/server';
+import { defineCommand, success, error, createMcpServer } from '@lushly-dev/afd-server';
 
 // Schema validation
 import { z } from 'zod';
@@ -33,7 +33,7 @@ import { z } from 'zod';
 
 ```typescript
 import { z } from 'zod';
-import { defineCommand, success, error } from '@afd/server';
+import { defineCommand, success, error } from '@lushly-dev/afd-server';
 
 const inputSchema = z.object({
   title: z.string().min(1).max(200),
@@ -80,7 +80,7 @@ export const updateTodo = defineCommand({
     const todo = await store.get(input.id);
     if (!todo) {
       return error('NOT_FOUND', `Todo ${input.id} not found`, {
-        suggestion: 'Use todo.list to see available todos',
+        suggestion: 'Use todo-list to see available todos',
       });
     }
 
@@ -239,7 +239,7 @@ return error('NO_CHANGES', 'No fields to update', {
 ### Basic Server
 
 ```typescript
-import { createMcpServer } from '@afd/server';
+import { createMcpServer } from '@lushly-dev/afd-server';
 import { allCommands } from './commands/index.js';
 
 const server = createMcpServer({
@@ -262,7 +262,7 @@ import {
   createLoggingMiddleware,
   createTimingMiddleware,
   createRateLimitMiddleware,
-} from '@afd/server';
+} from '@lushly-dev/afd-server';
 
 const server = createMcpServer({
   name: 'my-app',
@@ -316,7 +316,7 @@ beforeEach(() => {
   store.clear();
 });
 
-describe('todo.create', () => {
+describe('todo-create', () => {
   it('creates todo with required fields', async () => {
     const result = await createTodo.handler(
       { title: 'Test', priority: 'medium' },
@@ -364,7 +364,7 @@ describe('AFD Compliance', () => {
 
 ```typescript
 describe('Performance', () => {
-  it('todo.create < 10ms', async () => {
+  it('todo-create < 10ms', async () => {
     const start = performance.now();
     await createTodo.handler({ title: 'Test' }, {});
     const duration = performance.now() - start;

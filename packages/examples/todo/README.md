@@ -203,39 +203,39 @@ The todo app exposes batch operations as dedicated commands:
 
 ```bash
 # Create multiple todos at once
-afd call todo.createBatch '{"todos": [{"title": "Task 1"}, {"title": "Task 2"}]}'
+afd call todo-createBatch '{"todos": [{"title": "Task 1"}, {"title": "Task 2"}]}'
 
 # Toggle multiple todos
-afd call todo.toggleBatch '{"ids": ["id1", "id2"]}'
+afd call todo-toggleBatch '{"ids": ["id1", "id2"]}'
 
 # Delete multiple todos
-afd call todo.deleteBatch '{"ids": ["id1", "id2"]}'
+afd call todo-deleteBatch '{"ids": ["id1", "id2"]}'
 ```
 
 These return partial success semantics with confidence scores based on success rate.
 
-### Transport-Level Batching (`@afd/core`)
+### Transport-Level Batching (`@lushly-dev/afd-core`)
 
 For calling multiple different commands in a single roundtrip, use the `afd.batch` tool:
 
 ```bash
 # Execute multiple different commands in one request
-afd batch 'todo.create:{"title":"Task 1"}' 'todo.list:{}' 'todo.stats:{}'
+afd batch 'todo-create:{"title":"Task 1"}' 'todo-list:{}' 'todo-stats:{}'
 ```
 
 Or via the client SDK:
 
 ```typescript
-import { AFDClient } from '@afd/client';
+import { McpClient } from '@lushly-dev/afd-client';
 
-const client = new AFDClient('http://localhost:3100/sse');
-await client.initialize();
+const client = new McpClient({ url: 'http://localhost:3100/sse' });
+await client.connect();
 
 const result = await client.batch({
   commands: [
-    { command: 'todo.create', input: { title: 'Task 1' } },
-    { command: 'todo.create', input: { title: 'Task 2' } },
-    { command: 'todo.list', input: {} }
+    { command: 'todo-create', input: { title: 'Task 1' } },
+    { command: 'todo-create', input: { title: 'Task 2' } },
+    { command: 'todo-list', input: {} }
   ],
   options: { stopOnError: false }
 });
@@ -246,16 +246,16 @@ console.log(result.confidence); // Aggregated confidence score
 
 ### Streaming (for long-running commands)
 
-The `@afd/core` streaming types enable progress updates for long-running operations:
+The `@lushly-dev/afd-core` streaming types enable progress updates for long-running operations:
 
 ```typescript
-import { AFDClient } from '@afd/client';
+import { McpClient } from '@lushly-dev/afd-client';
 
-const client = new AFDClient('http://localhost:3100/sse');
-await client.initialize();
+const client = new McpClient({ url: 'http://localhost:3100/sse' });
+await client.connect();
 
 // Stream with progress updates
-for await (const chunk of client.stream('todo.list', { limit: 1000 })) {
+for await (const chunk of client.stream('todo-list', { limit: 1000 })) {
   if (chunk.type === 'progress') {
     console.log(`Progress: ${chunk.progress * 100}%`);
   } else if (chunk.type === 'complete') {
@@ -264,7 +264,7 @@ for await (const chunk of client.stream('todo.list', { limit: 1000 })) {
 }
 
 // Or with callbacks
-const controller = client.streamWithCallbacks('todo.list', { limit: 1000 }, {
+const controller = client.streamWithCallbacks('todo-list', { limit: 1000 }, {
   onProgress: (chunk) => console.log(`${chunk.progress * 100}%`),
   onComplete: (chunk) => console.log('Done:', chunk.data),
   onError: (chunk) => console.error('Error:', chunk.error)
@@ -274,5 +274,5 @@ const controller = client.streamWithCallbacks('todo.list', { limit: 1000 }, {
 controller.abort();
 ```
 
-See `@afd/core/batch` and `@afd/core/streaming` for type definitions.
+See `@lushly-dev/afd-core/batch` and `@lushly-dev/afd-core/streaming` for type definitions.
 

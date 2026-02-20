@@ -6,6 +6,8 @@ interface ConfirmModalProps {
   title: string;
   message: string;
   warning?: string;
+  confirmText?: string;
+  cancelText?: string;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -15,6 +17,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   title,
   message,
   warning,
+  confirmText = "Confirm",
+  cancelText = "Cancel",
   onConfirm,
   onCancel,
 }) => {
@@ -48,10 +52,10 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         )}
         <div className="modal-actions">
           <button className="modal-btn secondary" onClick={onCancel}>
-            Cancel
+            {cancelText}
           </button>
           <button className="modal-btn primary" onClick={onConfirm}>
-            Confirm
+            {confirmText}
           </button>
         </div>
       </div>

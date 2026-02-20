@@ -51,15 +51,9 @@ export const list = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    let sessionsQuery = ctx.db.query("agentSessions");
-
-    if (args.state) {
-      sessionsQuery = sessionsQuery.withIndex("by_state", (q) =>
-        q.eq("state", args.state!)
-      );
-    }
-
-    const sessions = await sessionsQuery.order("desc").collect();
+    const sessions = args.state
+      ? await ctx.db.query("agentSessions").withIndex("by_state", (q) => q.eq("state", args.state!)).order("desc").collect()
+      : await ctx.db.query("agentSessions").order("desc").collect();
 
     // Apply limit if provided
     const limited = args.limit ? sessions.slice(0, args.limit) : sessions;

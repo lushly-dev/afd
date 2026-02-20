@@ -18,7 +18,7 @@ body:
     attributes:
       label: Steps to Reproduce
       description: |
-        1. Start the session with `@work`
+        1. Install package `...`
         2. Run command `...`
         3. See error `...`
     validations:
@@ -35,9 +35,9 @@ body:
     attributes:
       label: Environment Info
       description: |
-        - OS: [e.g. Windows]
-        - IDE: [e.g. Cursor, VS Code]
-        - `web-dev --version`: [...]
+        - OS: [e.g. macOS, Windows, Linux]
+        - Node.js version: [e.g. 20.x]
+        - Package version: [e.g. 0.1.1]
     validations:
       required: true
   - type: textarea

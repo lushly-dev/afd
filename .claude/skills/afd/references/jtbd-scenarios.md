@@ -76,7 +76,7 @@ npx tsx dx/run-conformance.ts py  # Test Python backend
 
 ```typescript
 // Programmatically
-import { parseScenario, InProcessExecutor } from '@afd/testing';
+import { parseScenario, InProcessExecutor } from '@lushly-dev/afd-testing';
 const scenario = parseScenario(yaml);
 const result = await executor.run(scenario);
 ```
@@ -86,15 +86,15 @@ const result = await executor.run(scenario);
 Validate scenarios without executing:
 
 ```typescript
-import { validateScenario } from '@afd/testing';
+import { validateScenario } from '@lushly-dev/afd-testing';
 
 const validation = validateScenario(scenario, {
-  availableCommands: ['todo.create', 'todo.get'],
+  availableCommands: ['todo-create', 'todo-get'],
 });
 
 if (!validation.valid) {
   console.error(validation.errors);
-  // ["Unknown command 'todo.unknown' in step 3"]
+  // ["Unknown command 'todo-unknown' in step 3"]
 }
 ```
 
@@ -105,7 +105,7 @@ import {
   scenarioList,
   scenarioEvaluate,
   scenarioCoverage,
-} from '@afd/testing';
+} from '@lushly-dev/afd-testing';
 
 // List scenarios
 const list = await scenarioList({
@@ -125,7 +125,7 @@ const result = await scenarioEvaluate({
 // Check coverage
 const coverage = await scenarioCoverage({
   directory: './scenarios',
-  knownCommands: ['todo.create', 'todo.list', 'todo.delete'],
+  knownCommands: ['todo-create', 'todo-list', 'todo-delete'],
 });
 console.log(`Coverage: ${coverage.data.summary.commands.coverage}%`);
 ```

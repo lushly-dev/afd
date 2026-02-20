@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createMcpServer, defineCommand } from "@afd/server";
+import { createMcpServer, defineCommand } from "@lushly-dev/afd-server";
 import { z } from "zod";
 
 // ═══════════════════════════════════════════════════════════════════════════════

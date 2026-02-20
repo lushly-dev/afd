@@ -4,7 +4,7 @@ Rust implementation of Agent-First Development core types.
 
 ## Overview
 
-This crate provides the same API as `@afd/core` (TypeScript) and `afd` (Python), enabling multi-language AFD applications with guaranteed type compatibility.
+This crate provides the same API as `@lushly-dev/afd-core` (TypeScript) and `afd` (Python), enabling multi-language AFD applications with guaranteed type compatibility.
 
 ## Installation
 

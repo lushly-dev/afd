@@ -24,8 +24,6 @@ export const deleteNote = defineCommand<typeof inputSchema, NoteDeleteResult>({
 	version: '1.0.0',
 	input: inputSchema,
 	errors: ['NOT_FOUND'],
-	destructive: true,
-	confirmPrompt: 'This note will be permanently deleted.',
 
 	async handler(input) {
 		const note = store.getNote(input.id);

@@ -1,1 +1,0 @@
-Work on GitHub issue #19: [Handoff] Core Types: HandoffResult in @afd/core. Read the spec at docs/specs/handoff-pattern/01-schema.md. Issue: https://github.com/lushly-dev/afd/issues/19. When complete: create branch feat/issue-19, run build and test, commit, push, and create PR that closes the issue.

@@ -56,7 +56,7 @@ All functionality is exposed as commands before any UI is built:
 ```typescript
 // Step 1: Define command
 const createItem = defineCommand({
-  name: 'item.create',
+  name: 'item-create',
   input: z.object({ title: z.string().min(1) }),
   async handler(input) {
     const item = await store.create(input);
@@ -65,7 +65,7 @@ const createItem = defineCommand({
 });
 
 // Step 2: Validate via CLI
-// afd call item.create '{"title": "Test"}'
+// afd call item-create '{"title": "Test"}'
 
 // Step 3: Build UI (only after CLI works)
 ```
@@ -139,11 +139,11 @@ return error('NOT_FOUND', `Item ${id} not found`, {
 
 | Package | Purpose |
 |---------|---------|
-| `@afd/core` | Core types (CommandResult, CommandError) |
-| `@afd/server` | Zod-based MCP server factory |
-| `@afd/client` | MCP client with SSE/HTTP transports |
-| `@afd/testing` | Test validators and helpers |
-| `@afd/cli` | Command-line interface |
+| `@lushly-dev/afd-core` | Core types (CommandResult, CommandError) |
+| `@lushly-dev/afd-server` | Zod-based MCP server factory |
+| `@lushly-dev/afd-client` | MCP client with SSE/HTTP transports |
+| `@lushly-dev/afd-testing` | Test validators and helpers |
+| `@lushly-dev/afd-cli` | Command-line interface |
 
 ## When to Escalate
 

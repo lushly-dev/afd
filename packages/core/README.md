@@ -1,13 +1,13 @@
-# @afd/core
+# @lushly-dev/afd-core
 
 Core types and utilities for Agent-First Development.
 
 ## Installation
 
 ```bash
-npm install @afd/core
+npm install @lushly-dev/afd-core
 # or
-pnpm add @afd/core
+pnpm add @lushly-dev/afd-core
 ```
 
 ## Overview
@@ -24,7 +24,7 @@ This package provides the foundational types used across all AFD packages:
 ### Creating Command Results
 
 ```typescript
-import { success, failure, type CommandResult } from '@afd/core';
+import { success, failure, type CommandResult } from '@lushly-dev/afd-core';
 
 // Successful result with UX-enabling fields
 const result: CommandResult<Document> = success(
@@ -48,7 +48,7 @@ const error = failure({
 ### Using Type Guards
 
 ```typescript
-import { isSuccess, isFailure } from '@afd/core';
+import { isSuccess, isFailure } from '@lushly-dev/afd-core';
 
 if (isSuccess(result)) {
   console.log(result.data); // TypeScript knows data exists
@@ -67,7 +67,7 @@ import {
   createCommandRegistry,
   success,
   validationError
-} from '@afd/core';
+} from '@lushly-dev/afd-core';
 
 interface CreateDocInput {
   title: string;
@@ -81,7 +81,7 @@ interface Document {
 }
 
 const createDocument: CommandDefinition<CreateDocInput, Document> = {
-  name: 'document.create',
+  name: 'document-create',
   description: 'Creates a new document',
   category: 'documents',
   parameters: [
@@ -105,7 +105,7 @@ const createDocument: CommandDefinition<CreateDocInput, Document> = {
 const registry = createCommandRegistry();
 registry.register(createDocument);
 
-const result = await registry.execute('document.create', { title: 'Test' });
+const result = await registry.execute('document-create', { title: 'Test' });
 ```
 
 ### Creating Errors
@@ -116,7 +116,7 @@ import {
   notFoundError,
   rateLimitError,
   createError
-} from '@afd/core';
+} from '@lushly-dev/afd-core';
 
 // Pre-built error factories
 const err1 = validationError('Invalid email format');
@@ -139,14 +139,14 @@ import {
   commandToMcpTool,
   type McpRequest,
   type McpTool
-} from '@afd/core';
+} from '@lushly-dev/afd-core';
 
 // Convert command to MCP tool format
 const tool: McpTool = commandToMcpTool(createDocument);
 
 // Create MCP request
 const request: McpRequest = createMcpRequest('tools/call', {
-  name: 'document.create',
+  name: 'document-create',
   arguments: { title: 'New Doc' }
 });
 ```

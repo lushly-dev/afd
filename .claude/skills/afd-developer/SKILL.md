@@ -150,11 +150,11 @@ afd shell
 
 | Package | Purpose |
 |---------|---------|
-| `@afd/core` | Core types (CommandResult, CommandError) |
-| `@afd/server` | Zod-based MCP server factory |
-| `@afd/client` | MCP client with SSE/HTTP transports |
-| `@afd/testing` | Test validators, JTBD scenarios |
-| `@afd/cli` | Command-line interface |
+| `@lushly-dev/afd-core` | Core types (CommandResult, CommandError) |
+| `@lushly-dev/afd-server` | Zod-based MCP server factory |
+| `@lushly-dev/afd-client` | MCP client with SSE/HTTP transports |
+| `@lushly-dev/afd-testing` | Test validators, JTBD scenarios |
+| `@lushly-dev/afd-cli` | Command-line interface |
 
 ## When Adding Features
 

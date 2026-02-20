@@ -1,13 +1,13 @@
-# @afd/client
+# @lushly-dev/afd-client
 
 MCP client library for Agent-First Development.
 
 ## Installation
 
 ```bash
-npm install @afd/client
+npm install @lushly-dev/afd-client
 # or
-pnpm add @afd/client
+pnpm add @lushly-dev/afd-client
 ```
 
 ## Overview
@@ -25,7 +25,7 @@ This package provides a client for connecting to MCP (Model Context Protocol) se
 ### Basic Connection
 
 ```typescript
-import { createClient } from '@afd/client';
+import { createClient } from '@lushly-dev/afd-client';
 
 // Create client
 const client = createClient({
@@ -47,14 +47,14 @@ await client.disconnect();
 ### Calling Commands
 
 ```typescript
-import { createClient, type CommandResult } from '@afd/client';
-import { isSuccess, isFailure } from '@afd/core';
+import { createClient, type CommandResult } from '@lushly-dev/afd-client';
+import { isSuccess, isFailure } from '@lushly-dev/afd-core';
 
 const client = createClient({ url: 'http://localhost:3100/sse' });
 await client.connect();
 
 // Call a command - returns CommandResult
-const result = await client.call<Document>('document.create', {
+const result = await client.call<Document>('document-create', {
   title: 'My Document',
   content: 'Hello, world!'
 });
@@ -119,7 +119,7 @@ For low-level access, use `callTool` which returns the raw MCP response:
 
 ```typescript
 // Raw MCP response
-const rawResult = await client.callTool('document.create', {
+const rawResult = await client.callTool('document-create', {
   title: 'Test'
 });
 
@@ -136,7 +136,7 @@ interface McpClientConfig {
 
   // Optional
   transport?: 'sse' | 'http';     // Default: 'sse'
-  clientName?: string;            // Default: '@afd/client'
+  clientName?: string;            // Default: '@lushly-dev/afd-client'
   clientVersion?: string;         // Default: '0.1.0'
   timeout?: number;               // Default: 30000 (30s)
   autoReconnect?: boolean;        // Default: true
@@ -176,7 +176,7 @@ const client = createClient({
 For co-located agents (same runtime as the application), use `createDirectClient` to bypass all transport overhead:
 
 ```typescript
-import { createDirectClient } from '@afd/client';
+import { createDirectClient } from '@lushly-dev/afd-client';
 import { registry } from '@my-app/commands';
 
 // Direct execution - ~0.03-0.1ms latency vs 2-10ms for MCP
@@ -247,8 +247,8 @@ const result = await client.call('todo-create', {});
 Your registry must implement:
 
 ```typescript
-import { DirectRegistry, CommandDefinition } from '@afd/client';
-import type { CommandResult, CommandContext } from '@afd/core';
+import { DirectRegistry, CommandDefinition } from '@lushly-dev/afd-client';
+import type { CommandResult, CommandContext } from '@lushly-dev/afd-core';
 
 class MyRegistry implements DirectRegistry {
   // Required methods
@@ -272,7 +272,7 @@ class MyRegistry implements DirectRegistry {
 The client wraps all errors in the standard `CommandResult` format:
 
 ```typescript
-const result = await client.call('document.get', { id: 'not-found' });
+const result = await client.call('document-get', { id: 'not-found' });
 
 if (isFailure(result)) {
   // Error contains:

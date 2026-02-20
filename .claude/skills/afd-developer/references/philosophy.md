@@ -72,4 +72,4 @@ The human brings strategic thinking, UX intuition, domain expertise, quality jud
 
 ---
 
-*AFD was developed by Jason Falk, informed by 30 years of web development and UX design experience -- applying the timeless principles of reductive design to the new challenge of human-AI collaboration.*
+*AFD was developed by [Jason Falk](https://github.com/Falkicon) — Principal Design & UX Engineering Leader at Microsoft, where he manages the central design team for Azure Data (including Microsoft Fabric) and leads AI adoption across the studio. Co-creator of [FAST](https://github.com/microsoft/fast) (7,400+ GitHub stars, powering Edge, Windows, VS Code, and .NET), Design Director for Microsoft Fabric through its v1 launch, and architect of the Microsoft Web Framework that unified UX across 100,000+ web pages. After 30 years of building interfaces, the pattern became clear: the most durable layer of any application isn't the UI. It's the commands underneath.*

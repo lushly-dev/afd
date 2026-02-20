@@ -8,7 +8,7 @@
  */
 
 import { useSyncExternalStore, useCallback } from 'react';
-import type { Todo, Priority } from '../types';
+import type { Todo, TodoStats, Priority } from '../types';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -145,12 +145,7 @@ function generateId(): string {
 // STATS COMPUTATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export function computeStats(todos: Todo[]): {
-  total: number;
-  completed: number;
-  pending: number;
-  byPriority: { high: number; medium: number; low: number };
-} {
+export function computeStats(todos: Todo[]): TodoStats {
   const completed = todos.filter((t) => t.completed).length;
   const pending = todos.length - completed;
 
@@ -158,6 +153,7 @@ export function computeStats(todos: Todo[]): {
     total: todos.length,
     completed,
     pending,
+    completionRate: todos.length > 0 ? completed / todos.length : 0,
     byPriority: {
       high: todos.filter((t) => t.priority === 'high').length,
       medium: todos.filter((t) => t.priority === 'medium').length,
@@ -180,8 +176,8 @@ export function useLocalStore(): LocalStore {
       description: options?.description || '',
       priority: options?.priority || 'medium',
       completed: false,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     const current = getTodos();
@@ -192,7 +188,7 @@ export function useLocalStore(): LocalStore {
   const updateTodo = useCallback((id: string, updates: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'completed'>>) => {
     const current = getTodos();
     const updated = current.map((todo) =>
-      todo.id === id ? { ...todo, ...updates, updatedAt: Date.now() } : todo
+      todo.id === id ? { ...todo, ...updates, updatedAt: new Date().toISOString() } : todo
     );
     setTodos(updated);
     addPendingOp({ type: 'update', todoId: id, data: updates });
@@ -201,7 +197,7 @@ export function useLocalStore(): LocalStore {
   const toggleTodo = useCallback((id: string) => {
     const current = getTodos();
     const updated = current.map((todo) =>
-      todo.id === id ? { ...todo, completed: !todo.completed, updatedAt: Date.now() } : todo
+      todo.id === id ? { ...todo, completed: !todo.completed, updatedAt: new Date().toISOString() } : todo
     );
     setTodos(updated);
     addPendingOp({ type: 'toggle', todoId: id });
@@ -223,7 +219,7 @@ export function useLocalStore(): LocalStore {
     const current = getTodos();
     const idSet = new Set(ids);
     const updated = current.map((todo) =>
-      idSet.has(todo.id) ? { ...todo, completed, updatedAt: Date.now() } : todo
+      idSet.has(todo.id) ? { ...todo, completed, updatedAt: new Date().toISOString() } : todo
     );
     setTodos(updated);
     addPendingOp({ type: 'batchToggle', todoIds: ids, data: { completed } });

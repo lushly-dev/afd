@@ -28,7 +28,7 @@ import { getStats } from './stats.js';
 import { createBatch } from './create-batch.js';
 import { deleteBatch } from './delete-batch.js';
 import { toggleBatch } from './toggle-batch.js';
-import type { ZodCommandDefinition } from '@afd/server';
+import type { ZodCommandDefinition } from '@lushly-dev/afd-server';
 
 /**
  * All todo commands as an array.

@@ -41,11 +41,11 @@ Generate consistent commit messages following Conventional Commits with AFD scop
 
 | Scope | When to use |
 |-------|-------------|
-| `core` | @afd/core package changes |
-| `server` | @afd/server package changes |
-| `client` | @afd/client package changes |
-| `cli` | @afd/cli package changes |
-| `testing` | @afd/testing package changes |
+| `core` | @lushly-dev/afd-core package changes |
+| `server` | @lushly-dev/afd-server package changes |
+| `client` | @lushly-dev/afd-client package changes |
+| `cli` | @lushly-dev/afd-cli package changes |
+| `testing` | @lushly-dev/afd-testing package changes |
 | `todo-ts` | TypeScript todo example |
 | `todo-py` | Python todo example |
 | `rust` | Rust crate changes |

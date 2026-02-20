@@ -35,7 +35,7 @@ Every AFD MCP server exposes three bootstrap tools for agent onboarding:
 | `afd-schema` | Export JSON schemas for all commands |
 
 ```typescript
-import { getBootstrapCommands } from '@afd/server';
+import { getBootstrapCommands } from '@lushly-dev/afd-server';
 const bootstrapCmds = getBootstrapCommands(() => myCommands);
 ```
 

@@ -1,13 +1,13 @@
-# @afd/server
+# @lushly-dev/afd-server
 
 Server-side utilities for building AFD-compliant MCP servers with Zod validation.
 
 ## Installation
 
 ```bash
-npm install @afd/server
+npm install @lushly-dev/afd-server
 # or
-pnpm add @afd/server
+pnpm add @lushly-dev/afd-server
 ```
 
 ## Features
@@ -24,7 +24,7 @@ pnpm add @afd/server
 
 ```typescript
 import { z } from 'zod';
-import { defineCommand, createMcpServer, success, failure } from '@afd/server';
+import { defineCommand, createMcpServer, success, failure } from '@lushly-dev/afd-server';
 
 // Define a command with Zod schema
 const greet = defineCommand({
@@ -132,10 +132,10 @@ console.log(`Server running at ${server.getUrl()}`);
 
 ```typescript
 import { z } from 'zod';
-import { defineCommand, success, failure } from '@afd/server';
+import { defineCommand, success, failure } from '@lushly-dev/afd-server';
 
 const createUser = defineCommand({
-  name: 'user.create',
+  name: 'user-create',
   description: 'Create a new user',
   category: 'users',
   mutation: true,
@@ -161,7 +161,7 @@ const createUser = defineCommand({
 
 ```typescript
 const getUser = defineCommand({
-  name: 'user.get',
+  name: 'user-get',
   description: 'Get a user by ID',
   category: 'users',
   errors: ['NOT_FOUND'],
@@ -177,7 +177,7 @@ const getUser = defineCommand({
       return failure({
         code: 'NOT_FOUND',
         message: `User with ID "${input.id}" not found`,
-        suggestion: 'Check the ID or use user.list to find available users',
+        suggestion: 'Check the ID or use user-list to find available users',
       });
     }
     
@@ -221,7 +221,7 @@ const server = createMcpServer({
 ### Logging
 
 ```typescript
-import { createLoggingMiddleware } from '@afd/server';
+import { createLoggingMiddleware } from '@lushly-dev/afd-server';
 
 const middleware = createLoggingMiddleware({
   log: console.log,        // Custom log function
@@ -233,7 +233,7 @@ const middleware = createLoggingMiddleware({
 ### Timing
 
 ```typescript
-import { createTimingMiddleware } from '@afd/server';
+import { createTimingMiddleware } from '@lushly-dev/afd-server';
 
 const middleware = createTimingMiddleware({
   slowThreshold: 1000,     // Warn if command takes > 1s
@@ -247,20 +247,20 @@ const middleware = createTimingMiddleware({
 
 ```typescript
 import { trace } from '@opentelemetry/api';
-import { createTracingMiddleware } from '@afd/server';
+import { createTracingMiddleware } from '@lushly-dev/afd-server';
 
 const tracer = trace.getTracer('my-app');
 
 const middleware = createTracingMiddleware({
   tracer,
-  spanPrefix: 'command',   // Span names: command.user.create, etc.
+  spanPrefix: 'command',   // Span names: command.user-create, etc.
 });
 ```
 
 ### Rate Limiting
 
 ```typescript
-import { createRateLimitMiddleware } from '@afd/server';
+import { createRateLimitMiddleware } from '@lushly-dev/afd-server';
 
 const middleware = createRateLimitMiddleware({
   maxRequests: 100,
@@ -272,7 +272,7 @@ const middleware = createRateLimitMiddleware({
 ### Custom Middleware
 
 ```typescript
-import type { CommandMiddleware } from '@afd/server';
+import type { CommandMiddleware } from '@lushly-dev/afd-server';
 
 const myMiddleware: CommandMiddleware = async (commandName, input, context, next) => {
   console.log(`Before: ${commandName}`);
@@ -285,7 +285,7 @@ const myMiddleware: CommandMiddleware = async (commandName, input, context, next
 ## Validation Utilities
 
 ```typescript
-import { validateInput, validateOrThrow, isValid, patterns } from '@afd/server';
+import { validateInput, validateOrThrow, isValid, patterns } from '@lushly-dev/afd-server';
 
 // Validate and get result
 const result = validateInput(schema, data);
@@ -324,7 +324,7 @@ Create a command definition with Zod schema.
 
 | Option | Type | Required | Description |
 |--------|------|----------|-------------|
-| `name` | string | Yes | Unique command name (e.g., `user.create`) |
+| `name` | string | Yes | Unique command name (e.g., `user-create`) |
 | `description` | string | Yes | Human-readable description |
 | `input` | ZodType | Yes | Zod schema for input validation |
 | `handler` | function | Yes | Command implementation |
@@ -432,7 +432,7 @@ const server = createMcpServer({
 
 ## Related
 
-- [@afd/core](../core) - Core types and helpers
-- [@afd/client](../client) - MCP client library
-- [@afd/cli](../cli) - Command-line interface
-- [Example: Todo App](../examples/todo-app) - Complete working example
+- [@lushly-dev/afd-core](../core) - Core types and helpers
+- [@lushly-dev/afd-client](../client) - MCP client library
+- [@lushly-dev/afd-cli](../cli) - Command-line interface
+- [Example: Todo App](../examples/todo/) - Complete working example

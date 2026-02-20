@@ -16,6 +16,7 @@ export interface TodoStats {
   completed: number;
   pending: number;
   completionRate: number;
+  byPriority?: { high: number; medium: number; low: number };
 }
 
 export interface List {

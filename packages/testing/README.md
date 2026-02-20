@@ -1,13 +1,13 @@
-# @afd/testing
+# @lushly-dev/afd-testing
 
 Testing utilities for Agent-First Development.
 
 ## Installation
 
 ```bash
-npm install @afd/testing --save-dev
+npm install @lushly-dev/afd-testing --save-dev
 # or
-pnpm add @afd/testing -D
+pnpm add @lushly-dev/afd-testing -D
 ```
 
 ## Overview
@@ -33,7 +33,7 @@ MCP server and tools for AI agent integration.
 Start an MCP server exposing all scenario commands:
 
 ```typescript
-import { createMcpTestingServer, runStdioServer } from '@afd/testing';
+import { createMcpTestingServer, runStdioServer } from '@lushly-dev/afd-testing';
 
 // Create server with command handler
 const server = createMcpTestingServer({
@@ -61,7 +61,7 @@ All scenario commands are exposed as MCP tools:
 All results include `_agentHints` for AI interpretation:
 
 ```typescript
-import { enhanceWithAgentHints } from '@afd/testing';
+import { enhanceWithAgentHints } from '@lushly-dev/afd-testing';
 
 const result = await scenarioEvaluate({ handler, directory });
 const enhanced = enhanceWithAgentHints(result, 'scenario.evaluate');
@@ -80,7 +80,7 @@ const enhanced = enhanceWithAgentHints(result, 'scenario.evaluate');
 AI-powered scenario suggestions based on context:
 
 ```typescript
-import { scenarioSuggest } from '@afd/testing';
+import { scenarioSuggest } from '@lushly-dev/afd-testing';
 
 // Suggest based on changed files
 const changed = await scenarioSuggest({
@@ -92,7 +92,7 @@ const changed = await scenarioSuggest({
 const uncovered = await scenarioSuggest({
   context: 'uncovered',
   directory: './scenarios',
-  knownCommands: ['todo.create', 'todo.list', 'todo.delete'],
+  knownCommands: ['todo-create', 'todo-list', 'todo-delete'],
 });
 
 // Suggest for failed scenarios
@@ -104,7 +104,7 @@ const failed = await scenarioSuggest({
 // Suggest test variations for a command
 const command = await scenarioSuggest({
   context: 'command',
-  command: 'todo.create',
+  command: 'todo-create',
   includeSkeleton: true,  // Include generated scenario YAML
 });
 
@@ -147,14 +147,14 @@ import {
   detectAdapter,
   todoAdapter,
   createGenericAdapter,
-} from '@afd/testing';
+} from '@lushly-dev/afd-testing';
 
 // Register built-in adapter
 registerAdapter(todoAdapter);
 
 // Create and register custom adapter
 const myAdapter = createGenericAdapter('myapp', {
-  commands: ['myapp.create', 'myapp.list'],
+  commands: ['myapp-create', 'myapp-list'],
   errors: ['NOT_FOUND', 'VALIDATION_ERROR'],
 });
 registerAdapter(myAdapter);
@@ -175,13 +175,13 @@ console.log(adapter?.name); // 'todo'
 ### Creating a Custom Adapter
 
 ```typescript
-import { createGenericAdapter, type AppAdapter } from '@afd/testing';
+import { createGenericAdapter, type AppAdapter } from '@lushly-dev/afd-testing';
 
 // Simple approach: use factory
 const myAdapter = createGenericAdapter('myapp', {
   version: '1.0.0',
   cliCommand: 'myapp-cli',
-  commands: ['myapp.create', 'myapp.list', 'myapp.delete'],
+  commands: ['myapp-create', 'myapp-list', 'myapp-delete'],
   errors: ['NOT_FOUND', 'INVALID_INPUT'],
   jobs: ['manage-items', 'cleanup'],
 });
@@ -205,7 +205,7 @@ const customAdapter: AppAdapter = {
     },
   },
   commands: {
-    list: () => ['custom.create', 'custom.delete'],
+    list: () => ['custom-create', 'custom-delete'],
   },
   errors: {
     list: () => ['ERROR_ONE', 'ERROR_TWO'],
@@ -225,7 +225,7 @@ Batch operations and management commands for JTBD scenarios.
 List and filter scenarios in a directory.
 
 ```typescript
-import { scenarioList } from '@afd/testing';
+import { scenarioList } from '@lushly-dev/afd-testing';
 
 // List all scenarios
 const result = await scenarioList({ directory: './scenarios' });
@@ -267,7 +267,7 @@ for (const s of result.data.scenarios) {
 Batch execute scenarios with parallel support and multiple output formats.
 
 ```typescript
-import { scenarioEvaluate } from '@afd/testing';
+import { scenarioEvaluate } from '@lushly-dev/afd-testing';
 
 // Basic evaluation
 const result = await scenarioEvaluate({
@@ -311,7 +311,7 @@ const junit = await scenarioEvaluate({
 Calculate coverage metrics across commands, errors, and jobs.
 
 ```typescript
-import { scenarioCoverage } from '@afd/testing';
+import { scenarioCoverage } from '@lushly-dev/afd-testing';
 
 // Basic coverage
 const result = await scenarioCoverage({
@@ -324,7 +324,7 @@ console.log(`Jobs covered: ${result.data.summary.jobs.count}`);
 // Coverage against known commands
 const detailed = await scenarioCoverage({
   directory: './scenarios',
-  knownCommands: ['todo.create', 'todo.list', 'todo.get', 'todo.update', 'todo.delete'],
+  knownCommands: ['todo-create', 'todo-list', 'todo-get', 'todo-update', 'todo-delete'],
   knownErrors: ['NOT_FOUND', 'VALIDATION_ERROR', 'UNAUTHORIZED'],
 });
 
@@ -349,7 +349,7 @@ console.log(markdown.data.formattedOutput);
 Generate scenario files from templates.
 
 ```typescript
-import { scenarioCreate, listTemplates } from '@afd/testing';
+import { scenarioCreate, listTemplates } from '@lushly-dev/afd-testing';
 
 // See available templates
 const templates = listTemplates();
@@ -391,8 +391,8 @@ const custom = await scenarioCreate({
   job: 'Custom workflow',
   directory: './scenarios',
   steps: [
-    { description: 'Step 1', command: 'action.first', expectSuccess: true },
-    { description: 'Step 2', command: 'action.second', expectData: { status: 'done' } },
+    { description: 'Step 1', command: 'action-first', expectSuccess: true },
+    { description: 'Step 2', command: 'action-second', expectData: { status: 'done' } },
   ],
 });
 ```
@@ -416,7 +416,7 @@ setup:
 
 steps:
   - name: "Create a new todo"
-    command: todo.create
+    command: todo-create
     input:
       title: "Buy groceries"
       priority: "high"
@@ -427,7 +427,7 @@ steps:
         completed: false
 
   - name: "Complete the todo"
-    command: todo.toggle
+    command: todo-toggle
     input:
       id: "${{ steps[0].data.id }}"  # Reference previous step
     expect:
@@ -436,7 +436,7 @@ steps:
         completed: true
 
   - name: "Delete the todo"
-    command: todo.delete
+    command: todo-delete
     input:
       id: "${{ steps[0].data.id }}"
     expect:
@@ -446,12 +446,12 @@ steps:
 ### Running Scenarios
 
 ```typescript
-import { parseScenario, InProcessExecutor, ConsoleReporter } from '@afd/testing';
+import { parseScenarioString, InProcessExecutor, TerminalReporter } from '@lushly-dev/afd-testing';
 import { readFile } from 'node:fs/promises';
 
 // Parse scenario file
 const yaml = await readFile('scenarios/my-scenario.yaml', 'utf-8');
-const parseResult = parseScenario(yaml);
+const parseResult = parseScenarioString(yaml);
 
 if (!parseResult.success) {
   console.error('Parse error:', parseResult.error);
@@ -471,7 +471,7 @@ const executor = new InProcessExecutor(
 const result = await executor.run(parseResult.scenario);
 
 // Report results
-const reporter = new ConsoleReporter();
+const reporter = new TerminalReporter();
 reporter.report([result]);
 
 // Exit with appropriate code
@@ -483,17 +483,17 @@ process.exit(result.status === 'passed' ? 0 : 1);
 Validate scenarios without executing them using `validateScenario()`:
 
 ```typescript
-import { parseScenario, validateScenario, InProcessExecutor } from '@afd/testing';
+import { parseScenarioString, validateScenario, InProcessExecutor } from '@lushly-dev/afd-testing';
 
 // Validate scenario structure before execution
 const validation = validateScenario(parseResult.scenario, {
-  availableCommands: ['todo.create', 'todo.get', 'todo.list', 'todo.toggle'],
+  availableCommands: ['todo-create', 'todo-get', 'todo-list', 'todo-toggle'],
   fixtures: fixtureIndex,  // Optional: Map<string, FixtureData>
 });
 
 if (!validation.valid) {
   console.error('Validation errors:', validation.errors);
-  // Example: ["Unknown command 'todo.unknown' in step 3"]
+  // Example: ["Unknown command 'todo-unknown' in step 3"]
   process.exit(1);
 }
 
@@ -599,7 +599,7 @@ setup:
 {
   "app": "custom",
   "setup": [
-    { "command": "custom.init", "input": { "key": "value" } }
+    { "command": "custom-init", "input": { "key": "value" } }
   ]
 }
 ```
@@ -609,7 +609,7 @@ setup:
 Use `loadFixture()` and `applyFixture()` for direct fixture handling:
 
 ```typescript
-import { loadFixture, applyFixture, AppliedCommand } from '@afd/testing';
+import { loadFixture, applyFixture, AppliedCommand } from '@lushly-dev/afd-testing';
 
 // Load fixture from file
 const fixture = await loadFixture('fixtures/test-data.json', {
@@ -626,8 +626,8 @@ const result = await applyFixture(fixture, async (command, input) => {
 // Result includes applied commands with full details
 console.log(result.appliedCommands);
 // [
-//   { command: 'store.clear', input: {} },
-//   { command: 'todo.create', input: { title: 'Test', priority: 'high' } }
+//   { command: 'store-clear', input: {} },
+//   { command: 'todo-create', input: { title: 'Test', priority: 'high' } }
 // ]
 console.log(`Applied ${result.appliedCommands.length} commands`);
 ```
@@ -661,25 +661,25 @@ input:
 ```yaml
 steps:
   - name: "Create user"
-    command: user.create
+    command: user-create
     input:
       email: "test@example.com"
     # Result: { data: { id: "user-123", email: "test@example.com" } }
 
   - name: "Create todo for user"
-    command: todo.create
+    command: todo-create
     input:
       title: "My todo"
       userId: "${{ steps[0].data.id }}"     # → "user-123"
     # Result: { data: { id: "todo-456" } }
 
   - name: "Get todo"
-    command: todo.get
+    command: todo-get
     input:
       id: "${{ steps[1].data.id }}"         # → "todo-456"
 
   - name: "Verify ownership"
-    command: todo.verify
+    command: todo-verify
     input:
       todoId: "${{ steps[1].data.id }}"     # → "todo-456"
       userId: "${{ steps[0].data.id }}"     # → "user-123"
@@ -722,7 +722,7 @@ expect:
 ### Testing Commands
 
 ```typescript
-import { testCommand, assertSuccess, assertHasReasoning } from '@afd/testing';
+import { testCommand, assertSuccess, assertHasReasoning } from '@lushly-dev/afd-testing';
 import { describe, it, expect } from 'vitest';
 import { myCommand } from './my-command';
 
@@ -758,7 +758,7 @@ describe('myCommand', () => {
 ### Validating Command Definitions
 
 ```typescript
-import { validateCommandDefinition, validateResult } from '@afd/testing';
+import { validateCommandDefinition, validateResult } from '@lushly-dev/afd-testing';
 
 // Validate a command definition
 const defValidation = validateCommandDefinition(myCommand);
@@ -777,7 +777,7 @@ const resultValidation = validateResult(result, {
 ### Testing Multiple Cases
 
 ```typescript
-import { testCommandMultiple } from '@afd/testing';
+import { testCommandMultiple } from '@lushly-dev/afd-testing';
 
 const results = await testCommandMultiple(myCommand.handler, [
   {
@@ -812,7 +812,7 @@ import {
   assertConfidence,
   assertHasSources,
   assertAiResult,
-} from '@afd/testing';
+} from '@lushly-dev/afd-testing';
 
 // Basic assertions
 assertSuccess(result); // Throws if not success
@@ -841,18 +841,18 @@ assertAiResult(result, {
 ### Using Mock Server
 
 ```typescript
-import { createMockServer, createMockCommand } from '@afd/testing';
+import { createMockServer, createMockCommand } from '@lushly-dev/afd-testing';
 
 // Create server with mock commands
 const server = createMockServer([
-  createMockCommand('document.get', (input) => ({
+  createMockCommand('document-get', (input) => ({
     id: input.id,
     title: 'Test Document',
   })),
 ]);
 
 // Add more commands
-server.register(createMockCommand('document.create', (input) => ({
+server.register(createMockCommand('document-create', (input) => ({
   id: 'new-id',
   title: input.title,
 })));
@@ -863,7 +863,7 @@ const response = await server.handleRequest({
   id: 1,
   method: 'tools/call',
   params: {
-    name: 'document.get',
+    name: 'document-get',
     arguments: { id: 'doc-123' },
   },
 });
@@ -881,23 +881,23 @@ import {
   createSuccessCommand,
   createFailureCommand,
   createTestRegistry,
-} from '@afd/testing';
+} from '@lushly-dev/afd-testing';
 
 // Simple mock that returns static data
-const getUser = createSuccessCommand('user.get', {
+const getUser = createSuccessCommand('user-get', {
   id: 'user-1',
   name: 'Test User',
 });
 
 // Mock with dynamic behavior
-const createDoc = createMockCommand('document.create', (input) => ({
+const createDoc = createMockCommand('document-create', (input) => ({
   id: `doc-${Date.now()}`,
   title: input.title,
   createdAt: new Date().toISOString(),
 }));
 
 // Mock that always fails
-const deleteProtected = createFailureCommand('protected.delete', {
+const deleteProtected = createFailureCommand('protected-delete', {
   code: 'FORBIDDEN',
   message: 'Cannot delete protected resource',
 });
@@ -906,7 +906,7 @@ const deleteProtected = createFailureCommand('protected.delete', {
 const registry = createTestRegistry([getUser, createDoc, deleteProtected]);
 
 // Execute commands
-const result = await registry.execute('document.create', { title: 'New Doc' });
+const result = await registry.execute('document-create', { title: 'New Doc' });
 ```
 
 ## Validation Rules
@@ -916,7 +916,7 @@ const result = await registry.execute('document.create', { title: 'New Doc' });
 | Rule | Severity | Description |
 |------|----------|-------------|
 | `MISSING_NAME` | Error | Command must have a name |
-| `INVALID_NAME_FORMAT` | Warning | Name should use dot notation |
+| `INVALID_NAME_FORMAT` | Warning | Name should use kebab-case (`domain-action`) |
 | `MISSING_DESCRIPTION` | Error | Command must have a description |
 | `SHORT_DESCRIPTION` | Warning | Description should be detailed |
 | `MISSING_PARAMETERS` | Error | Command must have parameters array |

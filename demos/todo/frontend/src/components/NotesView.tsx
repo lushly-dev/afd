@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import type { Note, NoteFolder, CommandResult } from '../types';
@@ -21,10 +21,8 @@ export const NotesView: React.FC<NotesViewProps> = ({
   onCreateNote,
   onUpdateNote,
   onDeleteNote,
-  callTool,
 }) => {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
-  const [editingTitle, setEditingTitle] = useState(false);
   const [titleValue, setTitleValue] = useState('');
   const [isDirty, setIsDirty] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'unsaved'>('saved');
@@ -41,7 +39,7 @@ export const NotesView: React.FC<NotesViewProps> = ({
   const editor = useEditor({
     extensions: [StarterKit],
     content: selectedNote?.content || '',
-    onUpdate: ({ editor }) => {
+    onUpdate: () => {
       setIsDirty(true);
       setSaveStatus('unsaved');
     },

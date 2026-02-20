@@ -14,14 +14,29 @@ Feature specifications organized by lifecycle stage.
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| [Platform Utils](./active/platform-utils/) | Cross-platform subprocess and connectors | In Progress |
+| [Auth Adapter](./active/auth-adapter/) | Authentication adapter pattern for AFD servers | In Progress |
 
 ## Complete Features
 
-| Feature | Description | Issue |
-|---------|-------------|-------|
-| [Handoff Pattern](./complete/handoff-pattern/) | Real-time protocol handoff | [#18](https://github.com/lushly-dev/afd/issues/18) |
-| [Command Pipeline](./complete/command-pipeline/) | Declarative command chaining | — |
+| Feature | Description |
+|---------|-------------|
+| [Command Trust Config](./complete/command-trust-config/) | Per-command trust levels and exposure control |
+| [Command Exposure & Undo](./complete/command-exposure-undo/) | Command visibility and undo support |
+| [Handoff Pattern](./complete/handoff-pattern/) | Real-time protocol handoff |
+| [Command Pipeline](./complete/command-pipeline/) | Declarative command chaining |
+
+## Proposed Features
+
+| Feature | Description |
+|---------|-------------|
+| [Platform Utils](./proposed/platform-utils/) | Cross-platform subprocess and connectors |
+| [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |
+| [Rust Distribution](./proposed/rust-distribution/) | Rust-based distribution layer |
+| [Rust Support](./proposed/rust-support/) | Rust language support for AFD |
+| [AFD PyPI Publishing](./proposed/afd-pypi-publishing/) | Python package publishing |
+| [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
+| [Code Client](./proposed/code-client/) | Code-based client research |
+| [Contextual Tool Loading](./proposed/contextual-tool-loading/) | Dynamic tool loading based on context |
 
 ## Feature Structure
 
@@ -36,4 +51,6 @@ feature-name/
 
 ## Workflow
 
-See [/review-proposal](/lushbot/.agent/workflows/review-proposal.md) and [/create-spec](/lushbot/.agent/workflows/create-spec.md) workflows.
+```
+Proposed → Review → Active → Implementation → Complete
+```

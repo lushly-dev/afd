@@ -25,8 +25,6 @@ export const deleteNoteFolder = defineCommand<typeof inputSchema, NoteFolderDele
 	version: '1.0.0',
 	input: inputSchema,
 	errors: ['NOT_FOUND'],
-	destructive: true,
-	confirmPrompt: 'This folder will be permanently deleted. Notes will be moved to root.',
 
 	async handler(input) {
 		const folder = store.getNoteFolder(input.id);

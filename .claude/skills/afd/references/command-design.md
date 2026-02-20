@@ -6,11 +6,11 @@ Patterns for designing AFD commands with Zod schemas.
 
 ```typescript
 import { z } from 'zod';
-import { defineCommand, success, error } from '@afd/server';
+import { defineCommand, success, error } from '@lushly-dev/afd-server';
 
 export const myCommand = defineCommand({
   // Identity
-  name: 'domain.action',           // e.g., 'todo.create', 'user.update'
+  name: 'domain-action',           // e.g., 'todo-create', 'user-update'
   description: 'What this command does',
   category: 'domain',              // Groups related commands
   version: '1.0.0',
@@ -137,7 +137,7 @@ Errors should be actionable:
 ```typescript
 // Not found
 return error('NOT_FOUND', `Todo ${input.id} not found`, {
-  suggestion: 'Use todo.list to see available todos',
+  suggestion: 'Use todo-list to see available todos',
 });
 
 // Validation error
@@ -152,7 +152,7 @@ return error('FORBIDDEN', 'You cannot modify this resource', {
 
 // Conflict
 return error('CONFLICT', 'Email already registered', {
-  suggestion: 'Use user.login instead, or reset password',
+  suggestion: 'Use user-login instead, or reset password',
 });
 
 // Rate limited
@@ -177,15 +177,15 @@ return error('RATE_LIMITED', 'Too many requests', {
 
 ### Command Names
 
-Format: `domain.action`
+Format: `domain-action` (kebab-case)
 
 ```
 ✅ Good:
-todo.create
-todo.list
-todo.update
-user.authenticate
-document.search
+todo-create
+todo-list
+todo-update
+user-authenticate
+document-search
 
 ❌ Bad:
 createTodo       (not namespaced)
@@ -193,16 +193,19 @@ todo_create      (wrong separator)
 TodoCreate       (not lowercase)
 ```
 
+> **Note**: Python AFD uses dot notation (`todo.create`) as an idiomatic convention.
+> TypeScript and Rust use kebab-case (`todo-create`).
+
 ### Categories
 
-Group related commands:
+Group related commands by domain prefix:
 
 ```typescript
 // All user commands
-'user.create', 'user.update', 'user.delete', 'user.list'
+'user-create', 'user-update', 'user-delete', 'user-list'
 
-// All document commands  
-'document.create', 'document.search', 'document.export'
+// All document commands
+'document-create', 'document-search', 'document-export'
 ```
 
 ## Context Object
@@ -223,7 +226,7 @@ async handler(input, context) {
 
 ```typescript
 import { z } from 'zod';
-import { defineCommand, success, error } from '@afd/server';
+import { defineCommand, success, error } from '@lushly-dev/afd-server';
 import { store } from '../store/memory.js';
 import type { Todo } from '../types.js';
 
@@ -234,7 +237,7 @@ const inputSchema = z.object({
 });
 
 export const createTodo = defineCommand<typeof inputSchema, Todo>({
-  name: 'todo.create',
+  name: 'todo-create',
   description: 'Create a new todo item',
   category: 'todo',
   mutation: true,

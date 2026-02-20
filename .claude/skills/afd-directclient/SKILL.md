@@ -29,7 +29,7 @@ DirectClient bypasses MCP transport for ~0.03ms command execution (vs ~2-10ms MC
 ## Basic Usage
 
 ```typescript
-import { DirectClient } from '@afd/client';
+import { DirectClient } from '@lushly-dev/afd-client';
 import { registry } from './registry.js';
 
 const client = new DirectClient(registry);
@@ -52,7 +52,7 @@ if (result.success) {
 
 ```typescript
 import { GoogleGenAI } from '@google/genai';
-import { DirectClient } from '@afd/client';
+import { DirectClient } from '@lushly-dev/afd-client';
 
 const directClient = new DirectClient(registry);
 

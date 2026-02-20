@@ -42,6 +42,9 @@ playwright-report/
 .env.local
 .env.*.local
 
+# Rust
+Cargo.lock
+
 # Misc
 *.plan.md
 !PLAN/**/*.plan.md
@@ -49,3 +52,4 @@ playwright-report/
 .cursor/
 nul
 tmpclaude-*
+tools-response.json

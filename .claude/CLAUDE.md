@@ -198,8 +198,11 @@ cd frontend && npm install && npm run dev  # Terminal 3: Frontend
 | [afd-typescript](skills/afd-typescript/) | TypeScript patterns, Zod tips |
 | [afd-rust](skills/afd-rust/) | Rust implementation patterns |
 | [afd-directclient](skills/afd-directclient/) | In-process command execution |
+| [afd-contracts](skills/afd-contracts/) | TypeSpec-based contract system for multi-layer API schema sync |
+| [commit-messages](skills/commit-messages/) | Conventional Commits format with AFD-specific scopes |
+| [pr-review](skills/pr-review/) | PR review using AFD standards |
 
 ## Related Documentation
 
-- **docs/specs/**: Specifications for handoff, pipelines, etc.
+- **docs/features/**: Feature proposals, specs, and archives (see `complete/`, `active/`, `proposed/`)
 - All guides have been migrated to skills (see Skill Index above)

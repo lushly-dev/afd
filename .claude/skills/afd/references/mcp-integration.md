@@ -7,7 +7,7 @@ Setting up Model Context Protocol servers and clients.
 ### Basic Server
 
 ```typescript
-import { createMcpServer } from '@afd/server';
+import { createMcpServer } from '@lushly-dev/afd-server';
 import { allCommands } from './commands/index.js';
 
 const server = createMcpServer({
@@ -30,7 +30,7 @@ import {
   createLoggingMiddleware,
   createTimingMiddleware,
   createRateLimitMiddleware,
-} from '@afd/server';
+} from '@lushly-dev/afd-server';
 
 const server = createMcpServer({
   name: 'my-app',
@@ -62,7 +62,7 @@ The server exposes these endpoints:
 ### HTTP Transport (Recommended)
 
 ```typescript
-import { McpClient, HttpTransport } from '@afd/client';
+import { McpClient, HttpTransport } from '@lushly-dev/afd-client';
 
 const client = new McpClient();
 await client.connect(new HttpTransport('http://localhost:3100/sse'));
@@ -72,7 +72,7 @@ const tools = await client.listTools();
 console.log(tools);
 
 // Call a tool
-const result = await client.call('todo.create', { 
+const result = await client.call('todo-create', { 
   title: 'Test',
   priority: 'high' 
 });
@@ -81,7 +81,7 @@ const result = await client.call('todo.create', {
 ### SSE Transport
 
 ```typescript
-import { McpClient, SseTransport } from '@afd/client';
+import { McpClient, SseTransport } from '@lushly-dev/afd-client';
 
 const client = new McpClient();
 await client.connect(new SseTransport('http://localhost:3100/sse'));
@@ -115,7 +115,7 @@ await client.reconnect();
   "id": 1,
   "method": "tools/call",
   "params": {
-    "name": "todo.create",
+    "name": "todo-create",
     "arguments": {
       "title": "Test todo",
       "priority": "high"
@@ -198,7 +198,7 @@ const server = createMcpServer({
 ### Logging Middleware
 
 ```typescript
-import { createLoggingMiddleware } from '@afd/server';
+import { createLoggingMiddleware } from '@lushly-dev/afd-server';
 
 const logging = createLoggingMiddleware({
   level: 'info',  // 'debug' | 'info' | 'warn' | 'error'
@@ -209,7 +209,7 @@ const logging = createLoggingMiddleware({
 ### Timing Middleware
 
 ```typescript
-import { createTimingMiddleware } from '@afd/server';
+import { createTimingMiddleware } from '@lushly-dev/afd-server';
 
 const timing = createTimingMiddleware();
 // Adds executionTimeMs to response metadata
@@ -218,7 +218,7 @@ const timing = createTimingMiddleware();
 ### Rate Limiting
 
 ```typescript
-import { createRateLimitMiddleware } from '@afd/server';
+import { createRateLimitMiddleware } from '@lushly-dev/afd-server';
 
 const rateLimit = createRateLimitMiddleware({
   maxRequests: 100,
@@ -229,7 +229,7 @@ const rateLimit = createRateLimitMiddleware({
 ### Custom Middleware
 
 ```typescript
-import type { CommandMiddleware } from '@afd/server';
+import type { CommandMiddleware } from '@lushly-dev/afd-server';
 
 const authMiddleware: CommandMiddleware = async (
   commandName,
@@ -277,7 +277,7 @@ curl http://localhost:3100/health
 
 ```typescript
 import { FASTElement, customElement, observable } from '@microsoft/fast-element';
-import { McpClient, HttpTransport } from '@afd/client';
+import { McpClient, HttpTransport } from '@lushly-dev/afd-client';
 
 @customElement({ name: 'app-root' })
 export class AppRoot extends FASTElement {
@@ -293,7 +293,7 @@ export class AppRoot extends FASTElement {
   }
   
   async createTodo(title: string) {
-    const result = await this.client.call('todo.create', { title });
+    const result = await this.client.call('todo-create', { title });
     if (result.success) {
       console.log('Created:', result.data);
     } else {
