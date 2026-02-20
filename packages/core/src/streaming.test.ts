@@ -1,7 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-	type StreamCallbacks,
-	type StreamChunk,
 	collectStreamData,
 	consumeStream,
 	createCompleteChunk,
@@ -13,8 +11,10 @@ import {
 	isDataChunk,
 	isErrorChunk,
 	isProgressChunk,
-	isStreamChunk,
 	isStreamableCommand,
+	isStreamChunk,
+	type StreamCallbacks,
+	type StreamChunk,
 } from './streaming.js';
 
 describe('createProgressChunk', () => {

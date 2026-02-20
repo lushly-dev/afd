@@ -2,8 +2,8 @@
  * @fileoverview notefolder-list command
  */
 
-import { z } from 'zod';
 import { defineCommand, success } from '@lushly-dev/afd-server';
+import { z } from 'zod';
 import { store } from '../store/index.js';
 import type { NoteFolder } from '../types.js';
 
@@ -39,8 +39,8 @@ export const listNoteFolders = defineCommand<typeof inputSchema, NoteFolderListR
 			offset: input.offset,
 		});
 		const total = store.countNoteFolders();
-		let reasoning = 'Found ' + folders.length + ' folders';
-		if (input.search) reasoning += ' matching "' + input.search + '"';
+		let reasoning = `Found ${folders.length} folders`;
+		if (input.search) reasoning += ` matching "${input.search}"`;
 		return success({ folders, total }, { reasoning, confidence: 1.0 });
 	},
 });

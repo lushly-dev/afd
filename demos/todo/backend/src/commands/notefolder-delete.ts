@@ -2,8 +2,8 @@
  * @fileoverview notefolder-delete command
  */
 
+import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
-import { defineCommand, success, failure } from '@lushly-dev/afd-server';
 import { store } from '../store/index.js';
 
 export interface NoteFolderDeleteResult {
@@ -29,13 +29,23 @@ export const deleteNoteFolder = defineCommand<typeof inputSchema, NoteFolderDele
 	async handler(input) {
 		const folder = store.getNoteFolder(input.id);
 		if (!folder) {
-			return failure({ code: 'NOT_FOUND', message: 'Folder not found: ' + input.id, suggestion: 'Check the folder ID or list all folders' });
+			return failure({
+				code: 'NOT_FOUND',
+				message: `Folder not found: ${input.id}`,
+				suggestion: 'Check the folder ID or list all folders',
+			});
 		}
 		const notesInFolder = store.getNotesInFolder(input.id);
 		for (const note of notesInFolder) {
 			store.updateNote(note.id, { folderId: null });
 		}
 		const deleted = store.deleteNoteFolder(input.id);
-		return success({ id: input.id, deleted, notesOrphaned: notesInFolder.length }, { reasoning: 'Deleted folder "' + folder.name + '", moved ' + notesInFolder.length + ' notes to root', confidence: 1.0 });
+		return success(
+			{ id: input.id, deleted, notesOrphaned: notesInFolder.length },
+			{
+				reasoning: `Deleted folder "${folder.name}", moved ${notesInFolder.length} notes to root`,
+				confidence: 1.0,
+			}
+		);
 	},
 });

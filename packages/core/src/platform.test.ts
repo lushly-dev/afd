@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-	ExecErrorCode,
 	createExecResult,
+	ExecErrorCode,
 	exec,
 	findUp,
 	getTempDir,

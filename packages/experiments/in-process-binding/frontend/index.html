@@ -444,7 +444,7 @@
                         <option value="high">High</option>
                         <option value="low">Low</option>
                     </select>
-                    <button onclick="createTodo()">Add</button>
+                    <button type="button" onclick="createTodo()">Add</button>
                 </div>
             </div>
 
@@ -455,8 +455,8 @@
                     <div class="empty">Loading...</div>
                 </div>
                 <div class="actions">
-                    <button class="secondary" onclick="refreshTodos()">Refresh</button>
-                    <button class="danger" onclick="clearTodos()">Clear All</button>
+                    <button type="button" class="secondary" onclick="refreshTodos()">Refresh</button>
+                    <button type="button" class="danger" onclick="clearTodos()">Clear All</button>
                 </div>
             </div>
 
@@ -514,7 +514,7 @@
         <div class="chat-input-container">
             <div class="chat-input-row">
                 <input type="text" id="chatInput" placeholder="Ask AI to help with todos...">
-                <button class="chat-send" onclick="sendChat()">Send</button>
+                <button type="button" class="chat-send" onclick="sendChat()">Send</button>
             </div>
         </div>
     </div>
@@ -522,7 +522,7 @@
     <script>
         const EXECUTE_URL = 'http://localhost:3201/execute';
         const CHAT_URL = 'http://localhost:3201/chat';
-        let requestId = 0;
+        const _requestId = 0;
 
         // ═══════════════════════════════════════════════════════════════
         // Commands via DirectClient (same registry as AI sidebar)
@@ -582,12 +582,12 @@
             }
         }
 
-        async function toggleTodo(id) {
+        async function _toggleTodo(id) {
             await callCommand('todo-toggle', { id });
             await refreshTodos();
         }
 
-        async function clearTodos() {
+        async function _clearTodos() {
             await callCommand('todo-clear', {});
             await refreshTodos();
         }
@@ -645,7 +645,7 @@
                 });
 
                 const data = await response.json();
-                const totalMs = performance.now() - start;
+                const _totalMs = performance.now() - start;
 
                 typing.classList.remove('visible');
 

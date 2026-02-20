@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom';
 import { ChatSidebar } from '../components/ChatSidebar';
 
@@ -138,13 +138,16 @@ describe('ChatSidebar', () => {
 		fireEvent.keyPress(input, { key: 'Enter', code: 'Enter' });
 
 		// Chat API should be called (eventually)
-		await waitFor(() => {
-			expect(mockFetch).toHaveBeenCalledWith('http://localhost:3101/chat', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ message: 'Hello AI' }),
-			});
-		}, { timeout: 2000 });
+		await waitFor(
+			() => {
+				expect(mockFetch).toHaveBeenCalledWith('http://localhost:3101/chat', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ message: 'Hello AI' }),
+				});
+			},
+			{ timeout: 2000 }
+		);
 	});
 
 	it('does not send empty messages', () => {

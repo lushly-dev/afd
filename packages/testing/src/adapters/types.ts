@@ -16,26 +16,26 @@ import type { CommandResult } from '@lushly-dev/afd-core';
  * Each app provides this to enable JTBD testing.
  */
 export interface AppAdapter {
-  /** Unique app identifier (e.g., 'violet', 'noisett', 'todo') */
-  name: string;
+	/** Unique app identifier (e.g., 'violet', 'noisett', 'todo') */
+	name: string;
 
-  /** App version for compatibility checking */
-  version: string;
+	/** App version for compatibility checking */
+	version: string;
 
-  /** CLI configuration */
-  cli: CliConfig;
+	/** CLI configuration */
+	cli: CliConfig;
 
-  /** Fixture handling configuration */
-  fixture: FixtureConfig;
+	/** Fixture handling configuration */
+	fixture: FixtureConfig;
 
-  /** Commands metadata */
-  commands: CommandsConfig;
+	/** Commands metadata */
+	commands: CommandsConfig;
 
-  /** Error codes metadata */
-  errors: ErrorsConfig;
+	/** Error codes metadata */
+	errors: ErrorsConfig;
 
-  /** Jobs/user-goals metadata */
-  jobs: JobsConfig;
+	/** Jobs/user-goals metadata */
+	jobs: JobsConfig;
 }
 
 // ============================================================================
@@ -46,20 +46,20 @@ export interface AppAdapter {
  * CLI execution configuration for an app.
  */
 export interface CliConfig {
-  /** CLI executable command (e.g., 'violet', 'noisett', 'node dist/server.js') */
-  command: string;
+	/** CLI executable command (e.g., 'violet', 'noisett', 'node dist/server.js') */
+	command: string;
 
-  /** Default arguments to include with every command */
-  defaultArgs?: string[];
+	/** Default arguments to include with every command */
+	defaultArgs?: string[];
 
-  /** How to pass JSON input to the CLI */
-  inputFormat: 'json-arg' | 'json-stdin' | 'flags';
+	/** How to pass JSON input to the CLI */
+	inputFormat: 'json-arg' | 'json-stdin' | 'flags';
 
-  /** Expected output format from CLI */
-  outputFormat: 'json' | 'text';
+	/** Expected output format from CLI */
+	outputFormat: 'json' | 'text';
 
-  /** Environment variables to set */
-  env?: Record<string, string>;
+	/** Environment variables to set */
+	env?: Record<string, string>;
 }
 
 // ============================================================================
@@ -70,34 +70,34 @@ export interface CliConfig {
  * Fixture handling for an app.
  */
 export interface FixtureConfig {
-  /** JSON Schema for validating fixture format */
-  schema?: object;
+	/** JSON Schema for validating fixture format */
+	schema?: object;
 
-  /**
-   * Apply fixture data to set up test state.
-   * Called before scenario execution.
-   */
-  apply: FixtureApplicator;
+	/**
+	 * Apply fixture data to set up test state.
+	 * Called before scenario execution.
+	 */
+	apply: FixtureApplicator;
 
-  /**
-   * Reset app state to clean slate.
-   * Called between scenarios or on cleanup.
-   */
-  reset: FixtureResetter;
+	/**
+	 * Reset app state to clean slate.
+	 * Called between scenarios or on cleanup.
+	 */
+	reset: FixtureResetter;
 
-  /**
-   * Validate fixture data against schema.
-   * Returns validation errors if any.
-   */
-  validate?: FixtureValidator;
+	/**
+	 * Validate fixture data against schema.
+	 * Returns validation errors if any.
+	 */
+	validate?: FixtureValidator;
 }
 
 /**
  * Function to apply fixture data.
  */
 export type FixtureApplicator = (
-  fixture: unknown,
-  context: AdapterContext
+	fixture: unknown,
+	context: AdapterContext
 ) => Promise<ApplyFixtureResult>;
 
 /**
@@ -108,38 +108,36 @@ export type FixtureResetter = (context: AdapterContext) => Promise<void>;
 /**
  * Function to validate fixture data.
  */
-export type FixtureValidator = (
-  fixture: unknown
-) => Promise<FixtureValidationResult>;
+export type FixtureValidator = (fixture: unknown) => Promise<FixtureValidationResult>;
 
 /**
  * Result of applying a fixture.
  */
 export interface ApplyFixtureResult {
-  /** Commands that were executed */
-  appliedCommands: AppliedCommand[];
-  /** Any warnings during application */
-  warnings?: string[];
+	/** Commands that were executed */
+	appliedCommands: AppliedCommand[];
+	/** Any warnings during application */
+	warnings?: string[];
 }
 
 /**
  * A command that was applied from a fixture.
  */
 export interface AppliedCommand {
-  /** Command name */
-  command: string;
-  /** Input passed to command */
-  input?: Record<string, unknown>;
-  /** Result of command execution */
-  result?: CommandResult<unknown>;
+	/** Command name */
+	command: string;
+	/** Input passed to command */
+	input?: Record<string, unknown>;
+	/** Result of command execution */
+	result?: CommandResult<unknown>;
 }
 
 /**
  * Result of fixture validation.
  */
 export interface FixtureValidationResult {
-  valid: boolean;
-  errors?: string[];
+	valid: boolean;
+	errors?: string[];
 }
 
 // ============================================================================
@@ -150,25 +148,25 @@ export interface FixtureValidationResult {
  * Commands metadata for an app.
  */
 export interface CommandsConfig {
-  /**
-   * Get list of available commands.
-   */
-  list: () => Promise<string[]> | string[];
+	/**
+	 * Get list of available commands.
+	 */
+	list: () => Promise<string[]> | string[];
 
-  /**
-   * Get JSON Schema for a command's input.
-   */
-  getSchema?: (command: string) => Promise<object> | object;
+	/**
+	 * Get JSON Schema for a command's input.
+	 */
+	getSchema?: (command: string) => Promise<object> | object;
 
-  /**
-   * Get command description.
-   */
-  getDescription?: (command: string) => string;
+	/**
+	 * Get command description.
+	 */
+	getDescription?: (command: string) => string;
 
-  /**
-   * Map file paths to related commands (for scenario.suggest).
-   */
-  mapFileToCommands?: (filePath: string) => string[];
+	/**
+	 * Map file paths to related commands (for scenario.suggest).
+	 */
+	mapFileToCommands?: (filePath: string) => string[];
 }
 
 // ============================================================================
@@ -179,20 +177,20 @@ export interface CommandsConfig {
  * Error codes metadata for an app.
  */
 export interface ErrorsConfig {
-  /**
-   * Get list of known error codes.
-   */
-  list: () => Promise<string[]> | string[];
+	/**
+	 * Get list of known error codes.
+	 */
+	list: () => Promise<string[]> | string[];
 
-  /**
-   * Get human-readable description for an error code.
-   */
-  getDescription?: (code: string) => string;
+	/**
+	 * Get human-readable description for an error code.
+	 */
+	getDescription?: (code: string) => string;
 
-  /**
-   * Check if an error is retryable.
-   */
-  isRetryable?: (code: string) => boolean;
+	/**
+	 * Check if an error is retryable.
+	 */
+	isRetryable?: (code: string) => boolean;
 }
 
 // ============================================================================
@@ -203,20 +201,20 @@ export interface ErrorsConfig {
  * Jobs (user goals) metadata for an app.
  */
 export interface JobsConfig {
-  /**
-   * Get list of defined jobs.
-   */
-  list: () => Promise<string[]> | string[];
+	/**
+	 * Get list of defined jobs.
+	 */
+	list: () => Promise<string[]> | string[];
 
-  /**
-   * Get human-readable description for a job.
-   */
-  getDescription?: (job: string) => string;
+	/**
+	 * Get human-readable description for a job.
+	 */
+	getDescription?: (job: string) => string;
 
-  /**
-   * Get related commands for a job.
-   */
-  getRelatedCommands?: (job: string) => string[];
+	/**
+	 * Get related commands for a job.
+	 */
+	getRelatedCommands?: (job: string) => string[];
 }
 
 // ============================================================================
@@ -227,25 +225,25 @@ export interface JobsConfig {
  * Context passed to adapter functions.
  */
 export interface AdapterContext {
-  /** CLI command to use */
-  cli: string;
+	/** CLI command to use */
+	cli: string;
 
-  /** Command handler for in-process execution */
-  handler?: CommandHandler;
+	/** Command handler for in-process execution */
+	handler?: CommandHandler;
 
-  /** Working directory */
-  cwd?: string;
+	/** Working directory */
+	cwd?: string;
 
-  /** Environment variables */
-  env?: Record<string, string>;
+	/** Environment variables */
+	env?: Record<string, string>;
 }
 
 /**
  * Command handler function type.
  */
 export type CommandHandler = (
-  command: string,
-  input: Record<string, unknown>
+	command: string,
+	input: Record<string, unknown>
 ) => Promise<CommandResult<unknown>>;
 
 // ============================================================================
@@ -256,39 +254,39 @@ export type CommandHandler = (
  * Adapter registry for managing multiple app adapters.
  */
 export interface AdapterRegistry {
-  /**
-   * Register an adapter.
-   */
-  register(adapter: AppAdapter): void;
+	/**
+	 * Register an adapter.
+	 */
+	register(adapter: AppAdapter): void;
 
-  /**
-   * Get adapter by name.
-   */
-  get(name: string): AppAdapter | undefined;
+	/**
+	 * Get adapter by name.
+	 */
+	get(name: string): AppAdapter | undefined;
 
-  /**
-   * List all registered adapters.
-   */
-  list(): AppAdapter[];
+	/**
+	 * List all registered adapters.
+	 */
+	list(): AppAdapter[];
 
-  /**
-   * Detect adapter from fixture data.
-   */
-  detect(fixture: unknown): AppAdapter | undefined;
+	/**
+	 * Detect adapter from fixture data.
+	 */
+	detect(fixture: unknown): AppAdapter | undefined;
 
-  /**
-   * Check if an adapter is registered.
-   */
-  has(name: string): boolean;
+	/**
+	 * Check if an adapter is registered.
+	 */
+	has(name: string): boolean;
 }
 
 /**
  * Options for creating an adapter registry.
  */
 export interface AdapterRegistryOptions {
-  /** Adapters to register initially */
-  adapters?: AppAdapter[];
+	/** Adapters to register initially */
+	adapters?: AppAdapter[];
 
-  /** Default adapter name to use when detection fails */
-  defaultAdapter?: string;
+	/** Default adapter name to use when detection fails */
+	defaultAdapter?: string;
 }

@@ -663,10 +663,7 @@ export function isNotCondition(condition: PipelineCondition): condition is Pipel
  * @param options - Optional pipeline options
  * @returns A PipelineRequest object
  */
-export function createPipeline(
-	steps: PipelineStep[],
-	options?: PipelineOptions
-): PipelineRequest {
+export function createPipeline(steps: PipelineStep[], options?: PipelineOptions): PipelineRequest {
 	return {
 		steps,
 		...(options && { options }),
@@ -702,7 +699,7 @@ export function aggregatePipelineReasoning(steps: StepResult[]): StepReasoning[]
 		.map((s) => ({
 			stepIndex: s.index,
 			command: s.command,
-			reasoning: s.metadata!.reasoning as string,
+			reasoning: s.metadata?.reasoning as string,
 		}));
 }
 
@@ -906,10 +903,7 @@ export function resolveVariable(ref: string, context: PipelineContext): unknown 
  * @param context - Pipeline execution context
  * @returns Input object with all variables resolved
  */
-export function resolveVariables(
-	input: unknown,
-	context: PipelineContext
-): unknown {
+export function resolveVariables(input: unknown, context: PipelineContext): unknown {
 	if (typeof input === 'string' && input.startsWith('$')) {
 		return resolveVariable(input, context);
 	}

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 test.describe('Chat Sidebar', () => {
 	test.beforeEach(async ({ page }) => {
@@ -119,7 +119,7 @@ test.describe('Chat Sidebar', () => {
 		// The input should be cleared after sending (if the chat server is available)
 		// or remain if there's a connection error - either is acceptable for a smoke test
 		// Just verify that the UI responded to the Enter key
-		const inputValue = await chatInput.inputValue();
+		const _inputValue = await chatInput.inputValue();
 		// For smoke test purposes, we just verify the interaction was processed
 		// The actual behavior depends on whether the chat server is running
 	});
@@ -195,9 +195,7 @@ test.describe('Chat Sidebar', () => {
 		await expect(messagesContainer).toBeVisible();
 
 		// Verify it has the expected CSS properties for scrolling
-		const overflowY = await messagesContainer.evaluate((el) =>
-			getComputedStyle(el).overflowY
-		);
+		const overflowY = await messagesContainer.evaluate((el) => getComputedStyle(el).overflowY);
 		expect(overflowY).toBe('auto');
 	});
 });

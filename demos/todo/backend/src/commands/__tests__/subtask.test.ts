@@ -2,7 +2,7 @@
  * @fileoverview Unit tests for subtask commands
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { store } from '../../store/memory.js';
 import { createTodo } from '../create.js';
 import { addSubtask } from '../subtask-add.js';
@@ -27,7 +27,7 @@ describe('subtask-add', () => {
 		const parent = await createTodo.handler({ title: 'Parent Task', priority: 2 }, {});
 		const result = await addSubtask.handler(
 			{
-				parentId: parent.data!.id,
+				parentId: parent.data?.id,
 				title: 'Subtask 1',
 				priority: 2,
 			},
@@ -36,7 +36,7 @@ describe('subtask-add', () => {
 
 		expect(result.success).toBe(true);
 		expect(result.data?.title).toBe('Subtask 1');
-		expect(result.data?.parentId).toBe(parent.data!.id);
+		expect(result.data?.parentId).toBe(parent.data?.id);
 		expect(result.data?.completed).toBe(false);
 		expect(result.reasoning).toContain('Subtask 1');
 		expect(result.reasoning).toContain('Parent Task');
@@ -47,7 +47,7 @@ describe('subtask-add', () => {
 		const dueDate = new Date(Date.now() + 86400000).toISOString();
 		const result = await addSubtask.handler(
 			{
-				parentId: parent.data!.id,
+				parentId: parent.data?.id,
 				title: 'Full Subtask',
 				description: 'A detailed description',
 				priority: 3,
@@ -82,7 +82,7 @@ describe('subtask-add', () => {
 		const parent = await createTodo.handler({ title: 'Parent', priority: 2 }, {});
 		const result = await addSubtask.handler(
 			{
-				parentId: parent.data!.id,
+				parentId: parent.data?.id,
 				title: 'Subtask',
 				priority: 2,
 			},
@@ -100,13 +100,13 @@ describe('subtask-add', () => {
 describe('subtask-list', () => {
 	it('lists all subtasks of a parent', async () => {
 		const parent = await createTodo.handler({ title: 'Parent Task', priority: 2 }, {});
-		await addSubtask.handler({ parentId: parent.data!.id, title: 'Subtask 1', priority: 2 }, {});
-		await addSubtask.handler({ parentId: parent.data!.id, title: 'Subtask 2', priority: 1 }, {});
-		await addSubtask.handler({ parentId: parent.data!.id, title: 'Subtask 3', priority: 3 }, {});
+		await addSubtask.handler({ parentId: parent.data?.id, title: 'Subtask 1', priority: 2 }, {});
+		await addSubtask.handler({ parentId: parent.data?.id, title: 'Subtask 2', priority: 1 }, {});
+		await addSubtask.handler({ parentId: parent.data?.id, title: 'Subtask 3', priority: 3 }, {});
 
 		const result = await listSubtasks.handler(
 			{
-				parentId: parent.data!.id,
+				parentId: parent.data?.id,
 				sortBy: 'createdAt',
 				sortOrder: 'desc',
 			},
@@ -116,23 +116,23 @@ describe('subtask-list', () => {
 		expect(result.success).toBe(true);
 		expect(result.data?.subtasks).toHaveLength(3);
 		expect(result.data?.total).toBe(3);
-		expect(result.data?.parent.id).toBe(parent.data!.id);
+		expect(result.data?.parent.id).toBe(parent.data?.id);
 	});
 
 	it('filters subtasks by completion status', async () => {
 		const parent = await createTodo.handler({ title: 'Parent Task', priority: 2 }, {});
 		const sub1 = await addSubtask.handler(
-			{ parentId: parent.data!.id, title: 'Subtask 1', priority: 2 },
+			{ parentId: parent.data?.id, title: 'Subtask 1', priority: 2 },
 			{}
 		);
-		await addSubtask.handler({ parentId: parent.data!.id, title: 'Subtask 2', priority: 2 }, {});
+		await addSubtask.handler({ parentId: parent.data?.id, title: 'Subtask 2', priority: 2 }, {});
 
 		// Complete one subtask
-		await toggleTodo.handler({ id: sub1.data!.id }, {});
+		await toggleTodo.handler({ id: sub1.data?.id }, {});
 
 		const pending = await listSubtasks.handler(
 			{
-				parentId: parent.data!.id,
+				parentId: parent.data?.id,
 				completed: false,
 				sortBy: 'createdAt',
 				sortOrder: 'desc',
@@ -141,7 +141,7 @@ describe('subtask-list', () => {
 		);
 		const completed = await listSubtasks.handler(
 			{
-				parentId: parent.data!.id,
+				parentId: parent.data?.id,
 				completed: true,
 				sortBy: 'createdAt',
 				sortOrder: 'desc',
@@ -160,7 +160,7 @@ describe('subtask-list', () => {
 
 		const result = await listSubtasks.handler(
 			{
-				parentId: parent.data!.id,
+				parentId: parent.data?.id,
 				sortBy: 'createdAt',
 				sortOrder: 'desc',
 			},
@@ -189,13 +189,13 @@ describe('subtask-list', () => {
 
 	it('sorts subtasks correctly', async () => {
 		const parent = await createTodo.handler({ title: 'Parent', priority: 2 }, {});
-		await addSubtask.handler({ parentId: parent.data!.id, title: 'Low', priority: 1 }, {});
-		await addSubtask.handler({ parentId: parent.data!.id, title: 'High', priority: 3 }, {});
-		await addSubtask.handler({ parentId: parent.data!.id, title: 'Medium', priority: 2 }, {});
+		await addSubtask.handler({ parentId: parent.data?.id, title: 'Low', priority: 1 }, {});
+		await addSubtask.handler({ parentId: parent.data?.id, title: 'High', priority: 3 }, {});
+		await addSubtask.handler({ parentId: parent.data?.id, title: 'Medium', priority: 2 }, {});
 
 		const result = await listSubtasks.handler(
 			{
-				parentId: parent.data!.id,
+				parentId: parent.data?.id,
 				sortBy: 'priority',
 				sortOrder: 'desc',
 			},
@@ -219,27 +219,27 @@ describe('subtask-move', () => {
 
 		const result = await moveSubtask.handler(
 			{
-				id: child.data!.id,
-				parentId: parent.data!.id,
+				id: child.data?.id,
+				parentId: parent.data?.id,
 			},
 			{}
 		);
 
 		expect(result.success).toBe(true);
-		expect(result.data?.parentId).toBe(parent.data!.id);
+		expect(result.data?.parentId).toBe(parent.data?.id);
 		expect(result.reasoning).toContain('Moved');
 	});
 
 	it('promotes a subtask to root level', async () => {
 		const parent = await createTodo.handler({ title: 'Parent Task', priority: 2 }, {});
 		const subtask = await addSubtask.handler(
-			{ parentId: parent.data!.id, title: 'Subtask', priority: 2 },
+			{ parentId: parent.data?.id, title: 'Subtask', priority: 2 },
 			{}
 		);
 
 		const result = await moveSubtask.handler(
 			{
-				id: subtask.data!.id,
+				id: subtask.data?.id,
 				parentId: null,
 			},
 			{}
@@ -255,20 +255,20 @@ describe('subtask-move', () => {
 		const parent1 = await createTodo.handler({ title: 'Parent 1', priority: 2 }, {});
 		const parent2 = await createTodo.handler({ title: 'Parent 2', priority: 2 }, {});
 		const subtask = await addSubtask.handler(
-			{ parentId: parent1.data!.id, title: 'Subtask', priority: 2 },
+			{ parentId: parent1.data?.id, title: 'Subtask', priority: 2 },
 			{}
 		);
 
 		const result = await moveSubtask.handler(
 			{
-				id: subtask.data!.id,
-				parentId: parent2.data!.id,
+				id: subtask.data?.id,
+				parentId: parent2.data?.id,
 			},
 			{}
 		);
 
 		expect(result.success).toBe(true);
-		expect(result.data?.parentId).toBe(parent2.data!.id);
+		expect(result.data?.parentId).toBe(parent2.data?.id);
 	});
 
 	it('returns NOT_FOUND when todo does not exist', async () => {
@@ -277,7 +277,7 @@ describe('subtask-move', () => {
 		const result = await moveSubtask.handler(
 			{
 				id: 'nonexistent-todo',
-				parentId: parent.data!.id,
+				parentId: parent.data?.id,
 			},
 			{}
 		);
@@ -291,7 +291,7 @@ describe('subtask-move', () => {
 
 		const result = await moveSubtask.handler(
 			{
-				id: todo.data!.id,
+				id: todo.data?.id,
 				parentId: 'nonexistent-parent',
 			},
 			{}
@@ -306,8 +306,8 @@ describe('subtask-move', () => {
 
 		const result = await moveSubtask.handler(
 			{
-				id: todo.data!.id,
-				parentId: todo.data!.id,
+				id: todo.data?.id,
+				parentId: todo.data?.id,
 			},
 			{}
 		);
@@ -320,19 +320,19 @@ describe('subtask-move', () => {
 	it('prevents circular reference (moving to descendant)', async () => {
 		const grandparent = await createTodo.handler({ title: 'Grandparent', priority: 2 }, {});
 		const parent = await addSubtask.handler(
-			{ parentId: grandparent.data!.id, title: 'Parent', priority: 2 },
+			{ parentId: grandparent.data?.id, title: 'Parent', priority: 2 },
 			{}
 		);
 		const child = await addSubtask.handler(
-			{ parentId: parent.data!.id, title: 'Child', priority: 2 },
+			{ parentId: parent.data?.id, title: 'Child', priority: 2 },
 			{}
 		);
 
 		// Try to move grandparent under child (its grandchild)
 		const result = await moveSubtask.handler(
 			{
-				id: grandparent.data!.id,
-				parentId: child.data!.id,
+				id: grandparent.data?.id,
+				parentId: child.data?.id,
 			},
 			{}
 		);
@@ -347,15 +347,15 @@ describe('subtask-move', () => {
 
 		const result = await moveSubtask.handler(
 			{
-				id: todo.data!.id,
-				parentId: parent.data!.id,
+				id: todo.data?.id,
+				parentId: parent.data?.id,
 			},
 			{}
 		);
 
 		expect(result.success).toBe(true);
 		expect(result.warnings).toBeDefined();
-		expect(result.warnings![0].code).toBe('HIERARCHY_CHANGED');
+		expect(result.warnings?.[0].code).toBe('HIERARCHY_CHANGED');
 	});
 });
 
@@ -367,34 +367,31 @@ describe('Nested Hierarchy', () => {
 	it('supports multiple levels of nesting', async () => {
 		const level1 = await createTodo.handler({ title: 'Level 1', priority: 2 }, {});
 		const level2 = await addSubtask.handler(
-			{ parentId: level1.data!.id, title: 'Level 2', priority: 2 },
+			{ parentId: level1.data?.id, title: 'Level 2', priority: 2 },
 			{}
 		);
 		const level3 = await addSubtask.handler(
-			{ parentId: level2.data!.id, title: 'Level 3', priority: 2 },
+			{ parentId: level2.data?.id, title: 'Level 3', priority: 2 },
 			{}
 		);
 
 		expect(level1.data?.parentId).toBeUndefined();
-		expect(level2.data?.parentId).toBe(level1.data!.id);
-		expect(level3.data?.parentId).toBe(level2.data!.id);
+		expect(level2.data?.parentId).toBe(level1.data?.id);
+		expect(level3.data?.parentId).toBe(level2.data?.id);
 	});
 
 	it('lists only direct children, not grandchildren', async () => {
 		const level1 = await createTodo.handler({ title: 'Level 1', priority: 2 }, {});
-		await addSubtask.handler({ parentId: level1.data!.id, title: 'Child 1', priority: 2 }, {});
+		await addSubtask.handler({ parentId: level1.data?.id, title: 'Child 1', priority: 2 }, {});
 		const child2 = await addSubtask.handler(
-			{ parentId: level1.data!.id, title: 'Child 2', priority: 2 },
+			{ parentId: level1.data?.id, title: 'Child 2', priority: 2 },
 			{}
 		);
-		await addSubtask.handler(
-			{ parentId: child2.data!.id, title: 'Grandchild', priority: 2 },
-			{}
-		);
+		await addSubtask.handler({ parentId: child2.data?.id, title: 'Grandchild', priority: 2 }, {});
 
 		const result = await listSubtasks.handler(
 			{
-				parentId: level1.data!.id,
+				parentId: level1.data?.id,
 				sortBy: 'createdAt',
 				sortOrder: 'desc',
 			},
@@ -402,7 +399,7 @@ describe('Nested Hierarchy', () => {
 		);
 
 		expect(result.data?.subtasks).toHaveLength(2);
-		expect(result.data?.subtasks.every((s) => s.parentId === level1.data!.id)).toBe(true);
+		expect(result.data?.subtasks.every((s) => s.parentId === level1.data?.id)).toBe(true);
 	});
 
 	it('store.getDescendants returns all nested children', () => {
@@ -445,9 +442,12 @@ describe('AFD Compliance for Subtasks', () => {
 		const parent = await createTodo.handler({ title: 'Parent', priority: 2 }, {});
 
 		const commands = [
-			() => addSubtask.handler({ parentId: parent.data!.id, title: 'Sub', priority: 2 }, {}),
+			() => addSubtask.handler({ parentId: parent.data?.id, title: 'Sub', priority: 2 }, {}),
 			() =>
-				listSubtasks.handler({ parentId: parent.data!.id, sortBy: 'createdAt', sortOrder: 'desc' }, {}),
+				listSubtasks.handler(
+					{ parentId: parent.data?.id, sortBy: 'createdAt', sortOrder: 'desc' },
+					{}
+				),
 		];
 
 		for (const cmd of commands) {
@@ -469,7 +469,7 @@ describe('AFD Compliance for Subtasks', () => {
 	it('subtask commands include confidence', async () => {
 		const parent = await createTodo.handler({ title: 'Parent', priority: 2 }, {});
 		const result = await addSubtask.handler(
-			{ parentId: parent.data!.id, title: 'Sub', priority: 2 },
+			{ parentId: parent.data?.id, title: 'Sub', priority: 2 },
 			{}
 		);
 
@@ -480,13 +480,13 @@ describe('AFD Compliance for Subtasks', () => {
 	it('subtask commands include reasoning', async () => {
 		const parent = await createTodo.handler({ title: 'Parent', priority: 2 }, {});
 		const result = await addSubtask.handler(
-			{ parentId: parent.data!.id, title: 'Sub', priority: 2 },
+			{ parentId: parent.data?.id, title: 'Sub', priority: 2 },
 			{}
 		);
 
 		expect(result.reasoning).toBeDefined();
 		expect(typeof result.reasoning).toBe('string');
-		expect(result.reasoning!.length).toBeGreaterThan(0);
+		expect(result.reasoning?.length).toBeGreaterThan(0);
 	});
 
 	it('subtask error results include suggestion', async () => {

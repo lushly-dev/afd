@@ -1,6 +1,7 @@
-import React, { useMemo } from 'react';
-import { marked } from 'marked';
 import hljs from 'highlight.js';
+import { marked } from 'marked';
+import type React from 'react';
+import { useMemo } from 'react';
 import 'highlight.js/styles/github-dark.css';
 import './MarkdownMessage.css';
 
@@ -53,8 +54,16 @@ export const MarkdownMessage: React.FC<MarkdownMessageProps> = ({ content, class
 		};
 
 		// Custom link renderer with security (external links in new tab)
-		renderer.link = ({ href, title, tokens }: { href: string; title?: string | null; tokens: any[] }) => {
-			const text = tokens.map((token: any) => token.text || token.raw).join('');
+		renderer.link = ({
+			href,
+			title,
+			tokens,
+		}: {
+			href: string;
+			title?: string | null;
+			tokens: Array<{ text?: string; raw: string }>;
+		}) => {
+			const text = tokens.map((token) => token.text || token.raw).join('');
 			const titleAttr = title ? ` title="${title}"` : '';
 			const isExternal = href.startsWith('http://') || href.startsWith('https://');
 			const targetAttr = isExternal ? ' target="_blank" rel="noopener noreferrer"' : '';

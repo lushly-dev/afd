@@ -5,16 +5,18 @@
  * Part of the Today/Upcoming views feature.
  */
 
-import { z } from 'zod';
-import { defineCommand, success } from '@lushly-dev/afd-server';
 import type { Alternative } from '@lushly-dev/afd-core';
+import { defineCommand, success } from '@lushly-dev/afd-server';
+import { z } from 'zod';
 import { store } from '../store/index.js';
-import type { Todo, Priority } from '../types.js';
+import type { Priority, Todo } from '../types.js';
 
 const inputSchema = z.object({
 	days: z.number().int().min(1).max(365).default(7).describe('Number of days to look ahead'),
 	includeCompleted: z.boolean().default(false).describe('Include completed items'),
-	priority: (z.number().int().min(0).max(3) as z.ZodType<Priority, z.ZodTypeDef, Priority>).optional().describe('Filter by priority'),
+	priority: (z.number().int().min(0).max(3) as z.ZodType<Priority, z.ZodTypeDef, Priority>)
+		.optional()
+		.describe('Filter by priority'),
 	sortBy: z.enum(['dueDate', 'priority', 'title', 'createdAt']).default('dueDate'),
 	sortOrder: z.enum(['asc', 'desc']).default('asc'),
 	limit: z.number().int().min(1).max(100).default(20),
@@ -48,9 +50,33 @@ export const listUpcoming = defineCommand<typeof inputSchema, UpcomingResult>({
 		const now = new Date();
 		const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 		const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-		const endOfTomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 23, 59, 59, 999);
-		const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7, 23, 59, 59, 999);
-		const endOfRange = new Date(now.getFullYear(), now.getMonth(), now.getDate() + input.days, 23, 59, 59, 999);
+		const endOfTomorrow = new Date(
+			now.getFullYear(),
+			now.getMonth(),
+			now.getDate() + 1,
+			23,
+			59,
+			59,
+			999
+		);
+		const endOfWeek = new Date(
+			now.getFullYear(),
+			now.getMonth(),
+			now.getDate() + 7,
+			23,
+			59,
+			59,
+			999
+		);
+		const endOfRange = new Date(
+			now.getFullYear(),
+			now.getMonth(),
+			now.getDate() + input.days,
+			23,
+			59,
+			59,
+			999
+		);
 
 		// Get all upcoming todos within the range
 		const allUpcoming = store.list({

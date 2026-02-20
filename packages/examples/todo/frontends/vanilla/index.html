@@ -905,8 +905,8 @@
           <span id="modalWarningText"></span>
         </div>
         <div class="modal-actions">
-          <button class="secondary" id="modalCancel">Cancel</button>
-          <button id="modalConfirm">Confirm</button>
+          <button type="button" class="secondary" id="modalCancel">Cancel</button>
+          <button type="button" id="modalConfirm">Confirm</button>
         </div>
       </div>
     </div>
@@ -950,7 +950,7 @@
             <span>Last Operation</span>
             <span id="trustCommand" style="color: var(--text-muted); font-weight: normal;"></span>
           </span>
-          <button class="trust-close" onclick="hideTrustPanel()">×</button>
+          <button type="button" class="trust-close" onclick="hideTrustPanel()">×</button>
         </div>
         <div class="trust-grid">
           <!-- Confidence -->
@@ -996,8 +996,8 @@
           <strong>💡 Suggestion:</strong> <span id="errorSuggestionText"></span>
         </div>
         <div class="error-recovery-actions">
-          <button onclick="retryLastOperation()" style="background: var(--accent); border: none; color: white;">🔄 Retry</button>
-          <button onclick="hideErrorRecovery()" class="secondary">Dismiss</button>
+          <button type="button" onclick="retryLastOperation()" style="background: var(--accent); border: none; color: white;">🔄 Retry</button>
+          <button type="button" onclick="hideErrorRecovery()" class="secondary">Dismiss</button>
         </div>
       </div>
 
@@ -1020,10 +1020,11 @@
 
       <div class="card">
         <div class="filters">
-          <button class="filter-btn active" data-filter="all">All</button>
-          <button class="filter-btn" data-filter="pending">Pending</button>
-          <button class="filter-btn" data-filter="completed">Completed</button>
+          <button type="button" class="filter-btn active" data-filter="all">All</button>
+          <button type="button" class="filter-btn" data-filter="pending">Pending</button>
+          <button type="button" class="filter-btn" data-filter="completed">Completed</button>
           <button
+            type="button"
             class="filter-btn secondary"
             id="clearCompleted"
             style="margin-left: auto"
@@ -1059,10 +1060,11 @@
             Select All
           </label>
           <div id="batchActions" style="display: none; gap: 0.5rem">
-            <button class="filter-btn" onclick="toggleSelected()">
+            <button type="button" class="filter-btn" onclick="toggleSelected()">
               Toggle Selected
             </button>
             <button
+              type="button"
               class="filter-btn"
               style="color: var(--error); border-color: var(--error)"
               onclick="deleteSelected()"

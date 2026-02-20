@@ -8,20 +8,13 @@
 import type {
 	BatchCommand,
 	BatchCommandResult,
-	BatchOptions,
 	BatchRequest,
 	BatchResult,
 	BatchTiming,
 } from './batch.js';
 import { createBatchResult, createFailedBatchResult } from './batch.js';
-import type { CommandError } from './errors.js';
 import type { CommandResult } from './result.js';
-import type {
-	CompleteChunk,
-	StreamCallbacks,
-	StreamChunk,
-	StreamOptions,
-} from './streaming.js';
+import type { StreamChunk, StreamOptions } from './streaming.js';
 import { createCompleteChunk, createErrorChunk } from './streaming.js';
 
 /**
@@ -243,9 +236,7 @@ export interface CommandRegistry {
 	 * Register a command.
 	 * @throws If a command with the same name already exists
 	 */
-	register<TInput = unknown, TOutput = unknown>(
-		command: CommandDefinition<TInput, TOutput>
-	): void;
+	register<TInput = unknown, TOutput = unknown>(command: CommandDefinition<TInput, TOutput>): void;
 
 	/**
 	 * Get a command by name.
@@ -302,9 +293,7 @@ export interface CommandRegistry {
 	 * @param request - Batch request containing commands and options
 	 * @returns BatchResult with all command results and aggregated metrics
 	 */
-	executeBatch<TOutput = unknown>(
-		request: BatchRequest
-	): Promise<BatchResult<TOutput>>;
+	executeBatch<TOutput = unknown>(request: BatchRequest): Promise<BatchResult<TOutput>>;
 
 	/**
 	 * Execute a command that yields streaming results.
@@ -433,9 +422,7 @@ export function createCommandRegistry(): CommandRegistry {
 			}
 		},
 
-		async executeBatch<TOutput = unknown>(
-			request: BatchRequest
-		): Promise<BatchResult<TOutput>> {
+		async executeBatch<TOutput = unknown>(request: BatchRequest): Promise<BatchResult<TOutput>> {
 			const startedAt = new Date().toISOString();
 			const startTime = performance.now();
 
@@ -579,10 +566,7 @@ export function createCommandRegistry(): CommandRegistry {
 
 			const timing: BatchTiming = {
 				totalMs: Math.round(totalMs * 100) / 100,
-				averageMs:
-					results.length > 0
-						? Math.round((totalMs / results.length) * 100) / 100
-						: 0,
+				averageMs: results.length > 0 ? Math.round((totalMs / results.length) * 100) / 100 : 0,
 				startedAt,
 				completedAt,
 			};
@@ -770,6 +754,8 @@ export function isMcpExposed(command: CommandDefinition): boolean {
  * Convert commands to MCP tools, filtering by MCP exposure.
  * Only commands with `expose.mcp === true` will be included.
  */
-export function commandsToMcpTools(commands: CommandDefinition[]): ReturnType<typeof commandToMcpTool>[] {
+export function commandsToMcpTools(
+	commands: CommandDefinition[]
+): ReturnType<typeof commandToMcpTool>[] {
 	return commands.filter(isMcpExposed).map(commandToMcpTool);
 }

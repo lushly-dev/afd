@@ -82,14 +82,12 @@ export class SseTransport implements Transport {
 						}
 					} catch (error) {
 						if (this.errorHandler) {
-							this.errorHandler(
-								error instanceof Error ? error : new Error(String(error))
-							);
+							this.errorHandler(error instanceof Error ? error : new Error(String(error)));
 						}
 					}
 				};
 
-				this.eventSource.onerror = (event) => {
+				this.eventSource.onerror = (_event) => {
 					const error = new Error('SSE connection error');
 					if (this.connected) {
 						// Connection was established but lost
@@ -170,7 +168,7 @@ export class HttpTransport implements Transport {
 	private messageUrl: string;
 
 	constructor(
-		private readonly url: string,
+		readonly url: string,
 		private readonly headers?: Record<string, string>
 	) {
 		// If URL ends with /sse, convert to /message

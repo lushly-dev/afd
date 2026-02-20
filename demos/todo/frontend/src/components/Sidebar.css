@@ -13,7 +13,7 @@
 
 /* Extend sidebar background into header row */
 .sidebar::before {
-	content: '';
+	content: "";
 	position: absolute;
 	top: calc(-1 * var(--header-height, 69px));
 	left: 0;
@@ -25,7 +25,7 @@
 
 /* Extend sidebar background into footer row */
 .sidebar::after {
-	content: '';
+	content: "";
 	position: absolute;
 	bottom: calc(-1 * var(--footer-height, 57px));
 	left: 0;

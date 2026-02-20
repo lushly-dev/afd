@@ -143,7 +143,7 @@
           <option value="dev">dev</option>
         </select>
         <input type="text" id="nickname" placeholder="Your nickname" value="demo-user">
-        <button onclick="connect()">Connect</button>
+        <button type="button" onclick="connect()">Connect</button>
       </div>
     </div>
 
@@ -153,7 +153,7 @@
     
     <div class="input-area">
       <input type="text" id="message" placeholder="Type a message..." disabled onkeypress="if(event.key==='Enter')sendMessage()">
-      <button onclick="sendMessage()" id="sendBtn" disabled>Send</button>
+      <button type="button" onclick="sendMessage()" id="sendBtn" disabled>Send</button>
     </div>
 
     <div class="handoff-info">
@@ -173,7 +173,7 @@
     const joinForm = document.getElementById('joinForm');
     
     let ws = null;
-    let sessionToken = null;
+    const _sessionToken = null;
     
     function addMessage(type, text) {
       const div = document.createElement('div');
@@ -184,7 +184,7 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
     
-    async function connect() {
+    async function _connect() {
       const room = document.getElementById('room').value;
       const nickname = document.getElementById('nickname').value || 'anonymous';
       
@@ -278,7 +278,7 @@
       }
     }
     
-    function sendMessage() {
+    function _sendMessage() {
       const text = messageInput.value.trim();
       if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
       

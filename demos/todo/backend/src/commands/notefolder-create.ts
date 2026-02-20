@@ -2,8 +2,8 @@
  * @fileoverview notefolder-create command
  */
 
-import { z } from 'zod';
 import { defineCommand, success } from '@lushly-dev/afd-server';
+import { z } from 'zod';
 import { store } from '../store/index.js';
 import type { NoteFolder } from '../types.js';
 
@@ -24,6 +24,6 @@ export const createNoteFolder = defineCommand<typeof inputSchema, NoteFolder>({
 
 	async handler(input) {
 		const folder = store.createNoteFolder({ name: input.name, description: input.description });
-		return success(folder, { reasoning: 'Created folder "' + folder.name + '"', confidence: 1.0 });
+		return success(folder, { reasoning: `Created folder "${folder.name}"`, confidence: 1.0 });
 	},
 });

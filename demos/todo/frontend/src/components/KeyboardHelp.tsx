@@ -21,7 +21,12 @@ function categorizeShortcuts(shortcuts: KeyboardShortcut[]) {
 		const desc = shortcut.description.toLowerCase();
 		if (desc.includes('navigate') || desc.includes('focus')) {
 			navigation.push(shortcut);
-		} else if (desc.includes('toggle') || desc.includes('delete') || desc.includes('edit') || desc.includes('clear')) {
+		} else if (
+			desc.includes('toggle') ||
+			desc.includes('delete') ||
+			desc.includes('edit') ||
+			desc.includes('clear')
+		) {
 			actions.push(shortcut);
 		} else {
 			global.push(shortcut);
@@ -35,7 +40,13 @@ function categorizeShortcuts(shortcuts: KeyboardShortcut[]) {
 	return categories;
 }
 
-export const KeyboardHelp: React.FC<KeyboardHelpProps> = ({ isOpen, onClose, shortcuts, theme, onToggleTheme }) => {
+export const KeyboardHelp: React.FC<KeyboardHelpProps> = ({
+	isOpen,
+	onClose,
+	shortcuts,
+	theme,
+	onToggleTheme,
+}) => {
 	useEffect(() => {
 		if (!isOpen) return;
 		const handleKeyDown = (e: KeyboardEvent) => {
@@ -57,19 +68,17 @@ export const KeyboardHelp: React.FC<KeyboardHelpProps> = ({ isOpen, onClose, sho
 			<div className="keyboard-help-modal" onClick={(e) => e.stopPropagation()}>
 				<div className="keyboard-help-header">
 					<h2>Settings</h2>
-					<button type="button" className="keyboard-help-close" onClick={onClose}>×</button>
+					<button type="button" className="keyboard-help-close" onClick={onClose}>
+						×
+					</button>
 				</div>
-				
+
 				{/* Theme Toggle Section */}
 				<div className="keyboard-help-section">
 					<h3>Appearance</h3>
 					<div className="settings-row">
 						<span>Theme</span>
-						<button 
-							type="button" 
-							className="theme-toggle-btn"
-							onClick={onToggleTheme}
-						>
+						<button type="button" className="theme-toggle-btn" onClick={onToggleTheme}>
 							{theme === 'dark' ? '🌙 Dark' : '☀️ Light'}
 						</button>
 					</div>

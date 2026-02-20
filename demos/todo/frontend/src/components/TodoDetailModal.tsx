@@ -78,7 +78,7 @@ export const TodoDetailModal: React.FC<TodoDetailModalProps> = ({ todo, onClose,
 						onChange={(e) => handleTitleChange(e.target.value)}
 						placeholder="Todo title"
 					/>
-					<button className="close-btn" onClick={handleClose}>
+					<button type="button" className="close-btn" onClick={handleClose}>
 						&times;
 					</button>
 				</div>
@@ -118,10 +118,10 @@ export const TodoDetailModal: React.FC<TodoDetailModalProps> = ({ todo, onClose,
 				</div>
 
 				<div className="detail-footer">
-					<button className="btn-secondary" onClick={handleClose}>
+					<button type="button" className="btn-secondary" onClick={handleClose}>
 						Cancel
 					</button>
-					<button className="btn-primary" onClick={handleSave} disabled={!hasChanges}>
+					<button type="button" className="btn-primary" onClick={handleSave} disabled={!hasChanges}>
 						Save Changes
 					</button>
 				</div>

@@ -11,61 +11,6 @@
  * @packageDocumentation
  */
 
-export { McpClient, createClient } from './client.js';
-export { createTransport, HttpTransport, SseTransport, type Transport } from './transport.js';
-export {
-	DirectTransport,
-	DirectClient,
-	createDirectClient,
-	type DirectRegistry,
-	type DirectClientOptions,
-	type DirectCallContext,
-	type UnknownToolError,
-	type CommandDefinition,
-	type CommandParameter,
-} from './direct.js';
-export type {
-	ClientStatus,
-	ConnectionState,
-	McpClientConfig,
-	McpClientEvents,
-	PendingRequest,
-	TransportType,
-} from './types.js';
-
-// Handoff protocol handlers and utilities
-export {
-	// Type guards (re-exported from core)
-	isHandoff,
-	isHandoffProtocol,
-	// Protocol handler registry
-	registerProtocolHandler,
-	unregisterProtocolHandler,
-	getProtocolHandler,
-	hasProtocolHandler,
-	listProtocolHandlers,
-	clearProtocolHandlers,
-	// Connection utilities
-	connectHandoff,
-	createReconnectingHandoff,
-	// Helper functions
-	buildAuthenticatedEndpoint,
-	parseHandoffEndpoint,
-	isHandoffExpired,
-	getHandoffTTL,
-	// Types
-	type HandoffResult,
-	type HandoffCredentials,
-	type HandoffMetadata,
-	type HandoffProtocol,
-	type HandoffConnectionState,
-	type HandoffConnection,
-	type HandoffConnectionOptions,
-	type ProtocolHandler,
-	type ReconnectionOptions,
-	type ReconnectingHandoffConnection,
-} from './handoff.js';
-
 // Re-export core types that are commonly used with client
 export type {
 	CommandResult,
@@ -75,3 +20,56 @@ export type {
 	McpToolCallParams,
 	McpToolCallResult,
 } from '@lushly-dev/afd-core';
+export { createClient, McpClient } from './client.js';
+export {
+	type CommandDefinition,
+	type CommandParameter,
+	createDirectClient,
+	type DirectCallContext,
+	DirectClient,
+	type DirectClientOptions,
+	type DirectRegistry,
+	DirectTransport,
+	type UnknownToolError,
+} from './direct.js';
+// Handoff protocol handlers and utilities
+export {
+	// Helper functions
+	buildAuthenticatedEndpoint,
+	clearProtocolHandlers,
+	// Connection utilities
+	connectHandoff,
+	createReconnectingHandoff,
+	getHandoffTTL,
+	getProtocolHandler,
+	type HandoffConnection,
+	type HandoffConnectionOptions,
+	type HandoffConnectionState,
+	type HandoffCredentials,
+	type HandoffMetadata,
+	type HandoffProtocol,
+	// Types
+	type HandoffResult,
+	hasProtocolHandler,
+	// Type guards (re-exported from core)
+	isHandoff,
+	isHandoffExpired,
+	isHandoffProtocol,
+	listProtocolHandlers,
+	type ProtocolHandler,
+	parseHandoffEndpoint,
+	type ReconnectingHandoffConnection,
+	type ReconnectionOptions,
+	// Protocol handler registry
+	registerProtocolHandler,
+	unregisterProtocolHandler,
+} from './handoff.js';
+export { createTransport, HttpTransport, SseTransport, type Transport } from './transport.js';
+export type {
+	ClientStatus,
+	ConnectionState,
+	McpClientConfig,
+	McpClientEvents,
+	PendingRequest,
+	TransportType,
+} from './types.js';

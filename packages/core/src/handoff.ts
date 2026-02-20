@@ -221,10 +221,7 @@ export function isHandoff(value: unknown): value is HandoffResult {
  * }
  * ```
  */
-export function isHandoffProtocol(
-	handoff: HandoffResult,
-	protocol: HandoffProtocol
-): boolean {
+export function isHandoffProtocol(handoff: HandoffResult, protocol: HandoffProtocol): boolean {
 	return handoff.protocol === protocol;
 }
 
@@ -291,9 +288,7 @@ export function isHandoffCommand(command: HandoffCommandLike): boolean {
  * }
  * ```
  */
-export function getHandoffProtocol(
-	command: HandoffCommandLike
-): HandoffProtocol | undefined {
+export function getHandoffProtocol(command: HandoffCommandLike): HandoffProtocol | undefined {
 	// Not a handoff command
 	if (!isHandoffCommand(command)) {
 		return undefined;

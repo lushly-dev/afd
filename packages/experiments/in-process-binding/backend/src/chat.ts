@@ -15,7 +15,14 @@
  * - Metrics collection for observability
  */
 
-import { GoogleGenAI, Type, type Schema, type Content, type Part, type FunctionDeclaration } from '@google/genai';
+import {
+	type Content,
+	type FunctionDeclaration,
+	GoogleGenAI,
+	type Part,
+	type Schema,
+	Type,
+} from '@google/genai';
 import { DirectClient } from '@lushly-dev/afd-client';
 import { registry } from './registry.js';
 
@@ -25,7 +32,7 @@ import { registry } from './registry.js';
 
 const MAX_RETRIES = parseInt(process.env.GEMINI_MAX_RETRIES ?? '3', 10);
 const BASE_RETRY_DELAY_MS = parseInt(process.env.GEMINI_RETRY_DELAY_MS ?? '1000', 10);
-const REQUEST_TIMEOUT_MS = parseInt(process.env.GEMINI_TIMEOUT_MS ?? '30000', 10);
+const _REQUEST_TIMEOUT_MS = parseInt(process.env.GEMINI_TIMEOUT_MS ?? '30000', 10);
 
 // Initialize Gemini client
 const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
@@ -163,7 +170,11 @@ function categorizeError(error: unknown): CategorizedError {
 	}
 
 	// Server errors
-	if (errorMessage.includes('500') || errorMessage.includes('503') || errorMessage.includes('502')) {
+	if (
+		errorMessage.includes('500') ||
+		errorMessage.includes('503') ||
+		errorMessage.includes('502')
+	) {
 		return {
 			category: 'server',
 			message: errorMessage,
@@ -214,7 +225,7 @@ async function withRetry<T>(
 			}
 
 			// Exponential backoff: 1s, 2s, 4s...
-			const delayMs = options.baseDelayMs * Math.pow(2, attempt);
+			const delayMs = options.baseDelayMs * 2 ** attempt;
 			console.log(
 				`⚠️  [${options.requestId}] Retry ${attempt + 1}/${options.maxRetries} after ${delayMs}ms (${lastError.category})`
 			);
@@ -324,7 +335,7 @@ export async function processChat(userMessage: string): Promise<ChatResponse> {
 
 	if (!genAI) {
 		metrics.errorCount++;
-		metrics.errorsByType['config'] = (metrics.errorsByType['config'] || 0) + 1;
+		metrics.errorsByType.config = (metrics.errorsByType.config || 0) + 1;
 		throw new Error('Gemini API key not configured. Set GOOGLE_API_KEY in .env');
 	}
 
@@ -354,13 +365,13 @@ Be concise in your responses.`,
 		let modelLatencyMs = performance.now() - modelStart;
 
 		// Process function calls in a loop
-		const messages: Content[] = [
-			{ role: 'user', parts: [{ text: userMessage }] },
-		];
+		const messages: Content[] = [{ role: 'user', parts: [{ text: userMessage }] }];
 
 		while (response.candidates?.[0]?.content?.parts) {
 			const parts = response.candidates[0].content.parts;
-			const functionCalls = parts.filter((p: unknown) => (p as Record<string, unknown>).functionCall);
+			const functionCalls = parts.filter(
+				(p: unknown) => (p as Record<string, unknown>).functionCall
+			);
 
 			if (functionCalls.length === 0) {
 				// No more function calls, we have the final response
@@ -371,7 +382,8 @@ Be concise in your responses.`,
 			const functionResponses: Part[] = [];
 
 			for (const part of functionCalls) {
-				const fc = (part as { functionCall: { name: string; args: Record<string, unknown> } }).functionCall;
+				const fc = (part as { functionCall: { name: string; args: Record<string, unknown> } })
+					.functionCall;
 
 				// Convert underscore back to hyphen for command name
 				const commandName = fc.name.replace(/_/g, '-');
@@ -394,7 +406,10 @@ Be concise in your responses.`,
 				functionResponses.push({
 					functionResponse: {
 						name: fc.name,
-						response: (result.success ? result.data : { error: result.error }) as Record<string, unknown>,
+						response: (result.success ? result.data : { error: result.error }) as Record<
+							string,
+							unknown
+						>,
 					},
 				});
 			}
@@ -452,7 +467,7 @@ Be concise in your responses.`,
 
 		// Handle uncategorized errors
 		metrics.errorCount++;
-		metrics.errorsByType['unknown'] = (metrics.errorsByType['unknown'] || 0) + 1;
+		metrics.errorsByType.unknown = (metrics.errorsByType.unknown || 0) + 1;
 		throw error;
 	}
 }

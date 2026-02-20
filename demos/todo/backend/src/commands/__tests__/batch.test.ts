@@ -4,13 +4,13 @@
  * Tests the AFD batch operation pattern with partial failure handling.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { store } from '../../store/memory.js';
 import { createTodo } from '../create.js';
 import { createBatch } from '../create-batch.js';
 import { deleteBatch } from '../delete-batch.js';
-import { toggleBatch } from '../toggle-batch.js';
 import { listTodos } from '../list.js';
+import { toggleBatch } from '../toggle-batch.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TEST SETUP
@@ -90,7 +90,10 @@ describe('todo-createBatch', () => {
 	it('includes reasoning for full success', async () => {
 		const result = await createBatch.handler(
 			{
-				todos: [{ title: 'Task 1', priority: 2 }, { title: 'Task 2', priority: 2 }],
+				todos: [
+					{ title: 'Task 1', priority: 2 },
+					{ title: 'Task 2', priority: 2 },
+				],
 			},
 			{}
 		);
@@ -136,7 +139,7 @@ describe('todo-deleteBatch', () => {
 
 		const result = await deleteBatch.handler(
 			{
-				ids: [t1.data!.id, t2.data!.id],
+				ids: [t1.data?.id, t2.data?.id],
 			},
 			{}
 		);
@@ -158,7 +161,7 @@ describe('todo-deleteBatch', () => {
 			{}
 		);
 		expect(list.data?.total).toBe(1);
-		expect(list.data?.todos[0].id).toBe(t3.data!.id);
+		expect(list.data?.todos[0].id).toBe(t3.data?.id);
 	});
 
 	it('handles partial failure with nonexistent IDs', async () => {
@@ -166,7 +169,7 @@ describe('todo-deleteBatch', () => {
 
 		const result = await deleteBatch.handler(
 			{
-				ids: [t1.data!.id, 'nonexistent-1', 'nonexistent-2'],
+				ids: [t1.data?.id, 'nonexistent-1', 'nonexistent-2'],
 			},
 			{}
 		);
@@ -184,7 +187,7 @@ describe('todo-deleteBatch', () => {
 
 		const result = await deleteBatch.handler(
 			{
-				ids: [t1.data!.id, 'fake-id'],
+				ids: [t1.data?.id, 'fake-id'],
 			},
 			{}
 		);
@@ -199,7 +202,7 @@ describe('todo-deleteBatch', () => {
 
 		const result = await deleteBatch.handler(
 			{
-				ids: [t1.data!.id],
+				ids: [t1.data?.id],
 			},
 			{}
 		);
@@ -248,7 +251,7 @@ describe('todo-toggleBatch', () => {
 
 		const result = await toggleBatch.handler(
 			{
-				ids: [t1.data!.id, t2.data!.id],
+				ids: [t1.data?.id, t2.data?.id],
 			},
 			{}
 		);
@@ -266,7 +269,7 @@ describe('todo-toggleBatch', () => {
 
 		const result = await toggleBatch.handler(
 			{
-				ids: [t1.data!.id, t2.data!.id],
+				ids: [t1.data?.id, t2.data?.id],
 				completed: true,
 			},
 			{}
@@ -283,12 +286,12 @@ describe('todo-toggleBatch', () => {
 		const t2 = await createTodo.handler({ title: 'Task 2', priority: 2 }, {});
 
 		// Mark them complete
-		await toggleBatch.handler({ ids: [t1.data!.id, t2.data!.id] }, {});
+		await toggleBatch.handler({ ids: [t1.data?.id, t2.data?.id] }, {});
 
 		// Now set them all to incomplete
 		const result = await toggleBatch.handler(
 			{
-				ids: [t1.data!.id, t2.data!.id],
+				ids: [t1.data?.id, t2.data?.id],
 				completed: false,
 			},
 			{}
@@ -304,19 +307,19 @@ describe('todo-toggleBatch', () => {
 		const t2 = await createTodo.handler({ title: 'Task 2', priority: 2 }, {});
 
 		// Complete just t1
-		await toggleBatch.handler({ ids: [t1.data!.id], completed: true }, {});
+		await toggleBatch.handler({ ids: [t1.data?.id], completed: true }, {});
 
 		// Now toggle both - t1 becomes incomplete, t2 becomes complete
 		const result = await toggleBatch.handler(
 			{
-				ids: [t1.data!.id, t2.data!.id],
+				ids: [t1.data?.id, t2.data?.id],
 			},
 			{}
 		);
 
 		expect(result.success).toBe(true);
-		const t1Result = result.data?.succeeded.find((t) => t.id === t1.data!.id);
-		const t2Result = result.data?.succeeded.find((t) => t.id === t2.data!.id);
+		const t1Result = result.data?.succeeded.find((t) => t.id === t1.data?.id);
+		const t2Result = result.data?.succeeded.find((t) => t.id === t2.data?.id);
 		expect(t1Result?.completed).toBe(false);
 		expect(t2Result?.completed).toBe(true);
 	});
@@ -326,7 +329,7 @@ describe('todo-toggleBatch', () => {
 
 		const result = await toggleBatch.handler(
 			{
-				ids: [t1.data!.id, 'fake-id'],
+				ids: [t1.data?.id, 'fake-id'],
 			},
 			{}
 		);
@@ -342,7 +345,7 @@ describe('todo-toggleBatch', () => {
 
 		const result = await toggleBatch.handler(
 			{
-				ids: [t1.data!.id, 'fake-id'],
+				ids: [t1.data?.id, 'fake-id'],
 			},
 			{}
 		);
@@ -373,8 +376,14 @@ describe('todo-toggleBatch', () => {
 describe('Batch AFD Compliance', () => {
 	it('batch commands return valid CommandResult structure', async () => {
 		const createResult = await createBatch.handler({ todos: [{ title: 'Test', priority: 2 }] }, {});
-		const toggleResult = await toggleBatch.handler({ ids: [createResult.data!.succeeded[0].id] }, {});
-		const deleteResult = await deleteBatch.handler({ ids: [createResult.data!.succeeded[0].id] }, {});
+		const toggleResult = await toggleBatch.handler(
+			{ ids: [createResult.data?.succeeded[0].id] },
+			{}
+		);
+		const deleteResult = await deleteBatch.handler(
+			{ ids: [createResult.data?.succeeded[0].id] },
+			{}
+		);
 
 		for (const result of [createResult, toggleResult, deleteResult]) {
 			expect(result).toHaveProperty('success');
@@ -386,7 +395,12 @@ describe('Batch AFD Compliance', () => {
 
 	it('batch results include summary statistics', async () => {
 		const result = await createBatch.handler(
-			{ todos: [{ title: 'Task 1', priority: 2 }, { title: 'Task 2', priority: 2 }] },
+			{
+				todos: [
+					{ title: 'Task 1', priority: 2 },
+					{ title: 'Task 2', priority: 2 },
+				],
+			},
 			{}
 		);
 
@@ -400,7 +414,7 @@ describe('Batch AFD Compliance', () => {
 		const t1 = await createTodo.handler({ title: 'Real', priority: 2 }, {});
 
 		// 1 success, 1 failure = 0.5 confidence
-		const result = await deleteBatch.handler({ ids: [t1.data!.id, 'fake'] }, {});
+		const result = await deleteBatch.handler({ ids: [t1.data?.id, 'fake'] }, {});
 
 		expect(result.confidence).toBe(0.5);
 	});

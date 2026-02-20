@@ -2,8 +2,8 @@
  * @fileoverview note-delete command
  */
 
+import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
-import { defineCommand, success, failure } from '@lushly-dev/afd-server';
 import { store } from '../store/index.js';
 
 export interface NoteDeleteResult {
@@ -28,9 +28,16 @@ export const deleteNote = defineCommand<typeof inputSchema, NoteDeleteResult>({
 	async handler(input) {
 		const note = store.getNote(input.id);
 		if (!note) {
-			return failure({ code: 'NOT_FOUND', message: 'Note not found: ' + input.id, suggestion: 'Check the note ID or list all notes' });
+			return failure({
+				code: 'NOT_FOUND',
+				message: `Note not found: ${input.id}`,
+				suggestion: 'Check the note ID or list all notes',
+			});
 		}
 		const deleted = store.deleteNote(input.id);
-		return success({ id: input.id, deleted }, { reasoning: 'Deleted note "' + note.title + '"', confidence: 1.0 });
+		return success(
+			{ id: input.id, deleted },
+			{ reasoning: `Deleted note "${note.title}"`, confidence: 1.0 }
+		);
 	},
 });

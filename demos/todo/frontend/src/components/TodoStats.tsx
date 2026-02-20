@@ -1,31 +1,33 @@
-import React from "react";
-import type { TodoStats as ITodoStats } from "../types";
+import type React from 'react';
+import type { TodoStats as ITodoStats } from '../types';
 
 interface TodoStatsProps {
-  stats: ITodoStats | null;
+	stats: ITodoStats | null;
 }
 
 export const TodoStats: React.FC<TodoStatsProps> = ({ stats }) => {
-  if (!stats) return null;
+	if (!stats) return null;
 
-  return (
-    <div className="todo-stats">
-      <div className="stat-item">
-        <span className="stat-value">{stats.total}</span>
-        <span className="stat-label">Total</span>
-      </div>
-      <div className="stat-item">
-        <span className="stat-value">{stats.pending}</span>
-        <span className="stat-label">Pending</span>
-      </div>
-      <div className="stat-item">
-        <span className="stat-value">{stats.completed}</span>
-        <span className="stat-label">Completed</span>
-      </div>
-      <div className="stat-item">
-        <span className="stat-value">{stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%</span>
-        <span className="stat-label">Done</span>
-      </div>
-    </div>
-  );
+	return (
+		<div className="todo-stats">
+			<div className="stat-item">
+				<span className="stat-value">{stats.total}</span>
+				<span className="stat-label">Total</span>
+			</div>
+			<div className="stat-item">
+				<span className="stat-value">{stats.pending}</span>
+				<span className="stat-label">Pending</span>
+			</div>
+			<div className="stat-item">
+				<span className="stat-value">{stats.completed}</span>
+				<span className="stat-label">Completed</span>
+			</div>
+			<div className="stat-item">
+				<span className="stat-value">
+					{stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0}%
+				</span>
+				<span className="stat-label">Done</span>
+			</div>
+		</div>
+	);
 };

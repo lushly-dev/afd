@@ -4,8 +4,8 @@
  * Connects to a chat room and returns a WebSocket handoff for real-time messaging.
  */
 
-import { createError } from '@lushly-dev/afd-core';
 import type { HandoffResult } from '@lushly-dev/afd-core';
+import { createError } from '@lushly-dev/afd-core';
 import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
 import { chatService } from '../services/chat.js';

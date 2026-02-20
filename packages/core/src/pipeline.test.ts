@@ -217,18 +217,48 @@ describe('createPipeline', () => {
 describe('aggregatePipelineConfidence', () => {
 	it('returns minimum confidence (weakest link)', () => {
 		const steps: StepResult[] = [
-			{ index: 0, command: 'a', status: 'success', executionTimeMs: 10, metadata: { confidence: 0.95 } },
-			{ index: 1, command: 'b', status: 'success', executionTimeMs: 10, metadata: { confidence: 0.80 } },
-			{ index: 2, command: 'c', status: 'success', executionTimeMs: 10, metadata: { confidence: 0.99 } },
+			{
+				index: 0,
+				command: 'a',
+				status: 'success',
+				executionTimeMs: 10,
+				metadata: { confidence: 0.95 },
+			},
+			{
+				index: 1,
+				command: 'b',
+				status: 'success',
+				executionTimeMs: 10,
+				metadata: { confidence: 0.8 },
+			},
+			{
+				index: 2,
+				command: 'c',
+				status: 'success',
+				executionTimeMs: 10,
+				metadata: { confidence: 0.99 },
+			},
 		];
 
-		expect(aggregatePipelineConfidence(steps)).toBe(0.80);
+		expect(aggregatePipelineConfidence(steps)).toBe(0.8);
 	});
 
 	it('ignores failed steps', () => {
 		const steps: StepResult[] = [
-			{ index: 0, command: 'a', status: 'success', executionTimeMs: 10, metadata: { confidence: 0.95 } },
-			{ index: 1, command: 'b', status: 'failure', executionTimeMs: 10, metadata: { confidence: 0.50 } },
+			{
+				index: 0,
+				command: 'a',
+				status: 'success',
+				executionTimeMs: 10,
+				metadata: { confidence: 0.95 },
+			},
+			{
+				index: 1,
+				command: 'b',
+				status: 'failure',
+				executionTimeMs: 10,
+				metadata: { confidence: 0.5 },
+			},
 		];
 
 		expect(aggregatePipelineConfidence(steps)).toBe(0.95);
@@ -237,10 +267,16 @@ describe('aggregatePipelineConfidence', () => {
 	it('defaults to 1.0 for steps without confidence', () => {
 		const steps: StepResult[] = [
 			{ index: 0, command: 'a', status: 'success', executionTimeMs: 10 },
-			{ index: 1, command: 'b', status: 'success', executionTimeMs: 10, metadata: { confidence: 0.90 } },
+			{
+				index: 1,
+				command: 'b',
+				status: 'success',
+				executionTimeMs: 10,
+				metadata: { confidence: 0.9 },
+			},
 		];
 
-		expect(aggregatePipelineConfidence(steps)).toBe(0.90);
+		expect(aggregatePipelineConfidence(steps)).toBe(0.9);
 	});
 
 	it('returns 0 when no successful steps', () => {
@@ -256,8 +292,20 @@ describe('aggregatePipelineConfidence', () => {
 describe('aggregatePipelineReasoning', () => {
 	it('collects reasoning from all successful steps', () => {
 		const steps: StepResult[] = [
-			{ index: 0, command: 'fetch', status: 'success', executionTimeMs: 10, metadata: { reasoning: 'Used cached data' } },
-			{ index: 1, command: 'transform', status: 'success', executionTimeMs: 10, metadata: { reasoning: 'Applied UTC normalization' } },
+			{
+				index: 0,
+				command: 'fetch',
+				status: 'success',
+				executionTimeMs: 10,
+				metadata: { reasoning: 'Used cached data' },
+			},
+			{
+				index: 1,
+				command: 'transform',
+				status: 'success',
+				executionTimeMs: 10,
+				metadata: { reasoning: 'Applied UTC normalization' },
+			},
 			{ index: 2, command: 'validate', status: 'success', executionTimeMs: 10 },
 		];
 
@@ -278,8 +326,20 @@ describe('aggregatePipelineReasoning', () => {
 
 	it('ignores failed steps', () => {
 		const steps: StepResult[] = [
-			{ index: 0, command: 'a', status: 'success', executionTimeMs: 10, metadata: { reasoning: 'OK' } },
-			{ index: 1, command: 'b', status: 'failure', executionTimeMs: 10, metadata: { reasoning: 'Failed' } },
+			{
+				index: 0,
+				command: 'a',
+				status: 'success',
+				executionTimeMs: 10,
+				metadata: { reasoning: 'OK' },
+			},
+			{
+				index: 1,
+				command: 'b',
+				status: 'failure',
+				executionTimeMs: 10,
+				metadata: { reasoning: 'Failed' },
+			},
 		];
 
 		const reasoning = aggregatePipelineReasoning(steps);
@@ -298,7 +358,9 @@ describe('aggregatePipelineWarnings', () => {
 				status: 'success',
 				executionTimeMs: 10,
 				metadata: {
-					warnings: [{ code: 'OUTDATED', message: 'Data is 6 months old', severity: 'info' as const }],
+					warnings: [
+						{ code: 'OUTDATED', message: 'Data is 6 months old', severity: 'info' as const },
+					],
 				},
 			},
 			{
@@ -307,7 +369,9 @@ describe('aggregatePipelineWarnings', () => {
 				status: 'success',
 				executionTimeMs: 10,
 				metadata: {
-					warnings: [{ code: 'PARTIAL', message: 'Some orders excluded', severity: 'warning' as const }],
+					warnings: [
+						{ code: 'PARTIAL', message: 'Some orders excluded', severity: 'warning' as const },
+					],
 				},
 			},
 		];
@@ -351,8 +415,21 @@ describe('aggregatePipelineSources', () => {
 describe('buildConfidenceBreakdown', () => {
 	it('builds breakdown from step results', () => {
 		const steps: StepResult[] = [
-			{ index: 0, alias: 'user', command: 'user-get', status: 'success', executionTimeMs: 10, metadata: { confidence: 0.95 } },
-			{ index: 1, command: 'order-list', status: 'success', executionTimeMs: 10, metadata: { confidence: 0.87, reasoning: 'Schema mismatch' } },
+			{
+				index: 0,
+				alias: 'user',
+				command: 'user-get',
+				status: 'success',
+				executionTimeMs: 10,
+				metadata: { confidence: 0.95 },
+			},
+			{
+				index: 1,
+				command: 'order-list',
+				status: 'success',
+				executionTimeMs: 10,
+				metadata: { confidence: 0.87, reasoning: 'Schema mismatch' },
+			},
 		];
 
 		const breakdown = buildConfidenceBreakdown(steps);
@@ -675,10 +752,7 @@ describe('evaluateCondition', () => {
 			expect(
 				evaluateCondition(
 					{
-						$or: [
-							{ $eq: ['$prev.status', 'inactive'] },
-							{ $exists: '$prev.nonexistent' },
-						],
+						$or: [{ $eq: ['$prev.status', 'inactive'] }, { $exists: '$prev.nonexistent' }],
 					},
 					context
 				)
@@ -699,10 +773,7 @@ describe('evaluateCondition', () => {
 				$and: [
 					{ $exists: '$prev.id' },
 					{
-						$or: [
-							{ $eq: ['$prev.tier', 'premium'] },
-							{ $gt: ['$prev.count', 10] },
-						],
+						$or: [{ $eq: ['$prev.tier', 'premium'] }, { $gt: ['$prev.count', 10] }],
 					},
 				],
 			};

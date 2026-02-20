@@ -58,7 +58,7 @@ export function ChatRoom({ roomId, nickname = 'Anonymous', client }: ChatRoomPro
 	// Auto-scroll to bottom when new messages arrive
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-	}, [messages]);
+	}, []);
 
 	// Connect to chat room
 	const connect = useCallback(async () => {
@@ -210,12 +210,12 @@ export function ChatRoom({ roomId, nickname = 'Anonymous', client }: ChatRoomPro
 					{connected ? (
 						<>
 							<span className="status-indicator connected" /> Connected
-							<button onClick={disconnect}>Disconnect</button>
+							<button type="button" onClick={disconnect}>Disconnect</button>
 						</>
 					) : (
 						<>
 							<span className="status-indicator disconnected" /> Disconnected
-							<button onClick={connect} disabled={connecting}>
+							<button type="button" onClick={connect} disabled={connecting}>
 								{connecting ? 'Connecting...' : 'Connect'}
 							</button>
 						</>

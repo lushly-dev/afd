@@ -15,8 +15,8 @@
 
 import 'dotenv/config';
 import * as http from 'node:http';
-import { processChat, processChatStreaming, isConfigured, getMetrics } from './chat.js';
 import { DirectClient } from '@lushly-dev/afd-client';
+import { getMetrics, isConfigured, processChat, processChatStreaming } from './chat.js';
 import { registry } from './registry.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -57,7 +57,7 @@ function validateApiKey(): void {
 	}
 
 	// Mask API key in logs (show only last 4 chars)
-	const masked = '***' + apiKey.slice(-4);
+	const masked = `***${apiKey.slice(-4)}`;
 	console.log(`✅ API Key configured: ${masked}`);
 }
 
@@ -332,7 +332,7 @@ const server = http.createServer(async (req, res) => {
 			res.writeHead(200, {
 				'Content-Type': 'text/event-stream',
 				'Cache-Control': 'no-cache',
-				'Connection': 'keep-alive',
+				Connection: 'keep-alive',
 				'Access-Control-Allow-Origin': req.headers.origin || '*',
 			});
 
@@ -353,16 +353,20 @@ const server = http.createServer(async (req, res) => {
 						latencyMs: number,
 						metadata?: { destructive?: boolean; confirmPrompt?: string; tags?: string[] }
 					) => {
-						res.write(`event: tool_end\ndata: ${JSON.stringify({
-							name,
-							result,
-							latencyMs,
-							metadata: metadata ? {
-								destructive: metadata.destructive,
-								confirmPrompt: metadata.confirmPrompt,
-								tags: metadata.tags,
-							} : undefined,
-						})}\n\n`);
+						res.write(
+							`event: tool_end\ndata: ${JSON.stringify({
+								name,
+								result,
+								latencyMs,
+								metadata: metadata
+									? {
+											destructive: metadata.destructive,
+											confirmPrompt: metadata.confirmPrompt,
+											tags: metadata.tags,
+										}
+									: undefined,
+							})}\n\n`
+						);
 					},
 					onError: (message: string) => {
 						res.write(`event: error\ndata: ${JSON.stringify({ message })}\n\n`);

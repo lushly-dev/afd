@@ -1,25 +1,25 @@
 {
-  "name": "@afd/example-todo-ts",
-  "private": true,
-  "version": "1.0.0",
-  "description": "Todo example - TypeScript backend implementing AFD patterns",
-  "type": "module",
-  "main": "dist/server.js",
-  "scripts": {
-    "build": "tsc",
-    "start": "node dist/server.js",
-    "dev": "tsx watch src/server.ts",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "dependencies": {
-    "@lushly-dev/afd-core": "workspace:*",
-    "@lushly-dev/afd-server": "workspace:*",
-    "zod": "^3.23.0"
-  },
-  "devDependencies": {
-    "typescript": "^5.4.0",
-    "tsx": "^4.7.0",
-    "vitest": "^1.4.0"
-  }
+	"name": "@afd/example-todo-ts",
+	"private": true,
+	"version": "1.0.0",
+	"description": "Todo example - TypeScript backend implementing AFD patterns",
+	"type": "module",
+	"main": "dist/server.js",
+	"scripts": {
+		"build": "tsc",
+		"start": "node dist/server.js",
+		"dev": "tsx watch src/server.ts",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"dependencies": {
+		"@lushly-dev/afd-core": "workspace:*",
+		"@lushly-dev/afd-server": "workspace:*",
+		"zod": "^3.23.0"
+	},
+	"devDependencies": {
+		"typescript": "^5.4.0",
+		"tsx": "^4.7.0",
+		"vitest": "^1.4.0"
+	}
 }

@@ -7,11 +7,11 @@
  * - Error handling in pipelines
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createMcpServer, type McpServer } from '@lushly-dev/afd-server';
 import type { PipelineRequest } from '@lushly-dev/afd-core';
-import { allCommands } from '../index.js';
+import { createMcpServer, type McpServer } from '@lushly-dev/afd-server';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { store } from '../../store/memory.js';
+import { allCommands } from '../index.js';
 
 describe('Todo Pipeline Integration', () => {
 	let server: McpServer;
@@ -42,7 +42,11 @@ describe('Todo Pipeline Integration', () => {
 			// Pipeline: Create todo → Toggle it to complete → Get final state
 			const request: PipelineRequest = {
 				steps: [
-					{ command: 'todo-create', input: { title: 'Pipeline task', priority: 'high' }, as: 'created' },
+					{
+						command: 'todo-create',
+						input: { title: 'Pipeline task', priority: 'high' },
+						as: 'created',
+					},
 					{ command: 'todo-toggle', input: { id: '$steps.created.id' } },
 					{ command: 'todo-get', input: { id: '$steps.created.id' } },
 				],
@@ -101,7 +105,17 @@ describe('Todo Pipeline Integration', () => {
 			// Pipeline: List → Clear completed → Get new stats
 			const request: PipelineRequest = {
 				steps: [
-					{ command: 'todo-list', input: { completed: true, sortBy: 'createdAt', sortOrder: 'desc', limit: 20, offset: 0 }, as: 'completed' },
+					{
+						command: 'todo-list',
+						input: {
+							completed: true,
+							sortBy: 'createdAt',
+							sortOrder: 'desc',
+							limit: 20,
+							offset: 0,
+						},
+						as: 'completed',
+					},
 					{ command: 'todo-clear', input: {} },
 					{ command: 'todo-stats', input: {} },
 				],
@@ -152,7 +166,10 @@ describe('Todo Pipeline Integration', () => {
 			const request: PipelineRequest = {
 				steps: [
 					{ command: 'todo-create', input: { title: 'Original', priority: 'low' }, as: 'original' },
-					{ command: 'todo-update', input: { id: '$steps.original.id', title: 'Updated via alias', priority: 'high' } },
+					{
+						command: 'todo-update',
+						input: { id: '$steps.original.id', title: 'Updated via alias', priority: 'high' },
+					},
 					{ command: 'todo-get', input: { id: '$steps.original.id' } },
 				],
 			};
@@ -235,7 +252,11 @@ describe('Todo Pipeline Integration', () => {
 		it('runs step only when condition is met', async () => {
 			const request: PipelineRequest = {
 				steps: [
-					{ command: 'todo-create', input: { title: 'High priority', priority: 'high' }, as: 'todo' },
+					{
+						command: 'todo-create',
+						input: { title: 'High priority', priority: 'high' },
+						as: 'todo',
+					},
 					{
 						command: 'todo-update',
 						input: { id: '$steps.todo.id', title: 'URGENT: High priority' },

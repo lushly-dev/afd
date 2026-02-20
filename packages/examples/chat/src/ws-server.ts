@@ -4,7 +4,7 @@
  * This server handles WebSocket connections after handoff from the chat-connect command.
  */
 
-import type { IncomingMessage } from 'http';
+import type { IncomingMessage } from 'node:http';
 import { type WebSocket, WebSocketServer } from 'ws';
 import { chatService } from './services/chat.js';
 import type { ChatClient } from './types.js';
@@ -22,7 +22,7 @@ class RoomManager {
 		if (!this.rooms.has(roomId)) {
 			this.rooms.set(roomId, new Map());
 		}
-		this.rooms.get(roomId)!.set(ws, client);
+		this.rooms.get(roomId)?.set(ws, client);
 	}
 
 	/**
@@ -174,7 +174,7 @@ export function createWebSocketServer(port = 3001): WebSocketServer {
 				const msg = JSON.parse(data.toString()) as ClientMessage;
 
 				switch (msg.type) {
-					case 'message':
+					case 'message': {
 						if (!msg.text) {
 							sendError(ws, 'Message text required');
 							return;
@@ -195,6 +195,7 @@ export function createWebSocketServer(port = 3001): WebSocketServer {
 							timestamp: saved.createdAt.getTime(),
 						});
 						break;
+					}
 
 					case 'typing':
 						roomManager.broadcast(

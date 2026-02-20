@@ -2,8 +2,8 @@
  * @fileoverview note-list command
  */
 
-import { z } from 'zod';
 import { defineCommand, success } from '@lushly-dev/afd-server';
+import { z } from 'zod';
 import { store } from '../store/index.js';
 import type { Note } from '../types.js';
 
@@ -41,8 +41,8 @@ export const listNotes = defineCommand<typeof inputSchema, NoteListResult>({
 			offset: input.offset,
 		});
 		const total = store.countNotes();
-		let reasoning = 'Found ' + notes.length + ' notes';
-		if (input.search) reasoning += ' matching "' + input.search + '"';
+		let reasoning = `Found ${notes.length} notes`;
+		if (input.search) reasoning += ` matching "${input.search}"`;
 		return success({ notes, total }, { reasoning, confidence: 1.0 });
 	},
 });

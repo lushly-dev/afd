@@ -1,33 +1,33 @@
 {
-  "$schema": "https://afd.dev/schemas/fixture/todo.json",
-  "app": "todo",
-  "version": "1.0.0",
-  "description": "Pre-seeded todos for testing list and filter operations",
-  "clearFirst": true,
-  "todos": [
-    {
-      "title": "Buy groceries",
-      "description": "Milk, eggs, bread",
-      "priority": "high",
-      "completed": false
-    },
-    {
-      "title": "Call mom",
-      "description": "Wish her happy birthday",
-      "priority": "medium",
-      "completed": false
-    },
-    {
-      "title": "Review PR",
-      "description": "Check the new feature implementation",
-      "priority": "high",
-      "completed": false
-    },
-    {
-      "title": "Pay bills",
-      "description": "Electricity and internet",
-      "priority": "low",
-      "completed": false
-    }
-  ]
+	"$schema": "https://afd.dev/schemas/fixture/todo.json",
+	"app": "todo",
+	"version": "1.0.0",
+	"description": "Pre-seeded todos for testing list and filter operations",
+	"clearFirst": true,
+	"todos": [
+		{
+			"title": "Buy groceries",
+			"description": "Milk, eggs, bread",
+			"priority": "high",
+			"completed": false
+		},
+		{
+			"title": "Call mom",
+			"description": "Wish her happy birthday",
+			"priority": "medium",
+			"completed": false
+		},
+		{
+			"title": "Review PR",
+			"description": "Check the new feature implementation",
+			"priority": "high",
+			"completed": false
+		},
+		{
+			"title": "Pay bills",
+			"description": "Electricity and internet",
+			"priority": "low",
+			"completed": false
+		}
+	]
 }

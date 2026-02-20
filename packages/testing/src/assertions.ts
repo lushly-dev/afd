@@ -20,9 +20,7 @@ export function assertSuccess<T>(
 		const errorMsg = result.error
 			? `${result.error.code}: ${result.error.message}`
 			: 'Unknown error';
-		throw new Error(
-			message ?? `Expected success but got failure: ${errorMsg}`
-		);
+		throw new Error(message ?? `Expected success but got failure: ${errorMsg}`);
 	}
 }
 
@@ -56,8 +54,7 @@ export function assertErrorCode<T>(
 
 	if (result.error.code !== expectedCode) {
 		throw new Error(
-			message ??
-				`Expected error code '${expectedCode}' but got '${result.error.code}'`
+			message ?? `Expected error code '${expectedCode}' but got '${result.error.code}'`
 		);
 	}
 }
@@ -73,15 +70,12 @@ export function assertConfidence<T>(
 	message?: string
 ): void {
 	if (result.confidence === undefined) {
-		throw new Error(
-			message ?? 'Expected confidence score but none was provided'
-		);
+		throw new Error(message ?? 'Expected confidence score but none was provided');
 	}
 
 	if (result.confidence < minConfidence) {
 		throw new Error(
-			message ??
-				`Expected confidence >= ${minConfidence} but got ${result.confidence}`
+			message ?? `Expected confidence >= ${minConfidence} but got ${result.confidence}`
 		);
 	}
 }
@@ -91,10 +85,7 @@ export function assertConfidence<T>(
  *
  * @throws If the result doesn't have reasoning
  */
-export function assertHasReasoning<T>(
-	result: CommandResult<T>,
-	message?: string
-): void {
+export function assertHasReasoning<T>(result: CommandResult<T>, message?: string): void {
 	if (!result.reasoning) {
 		throw new Error(message ?? 'Expected reasoning but none was provided');
 	}
@@ -116,8 +107,7 @@ export function assertHasSources<T>(
 
 	if (minSources !== undefined && result.sources.length < minSources) {
 		throw new Error(
-			message ??
-				`Expected at least ${minSources} sources but got ${result.sources.length}`
+			message ?? `Expected at least ${minSources} sources but got ${result.sources.length}`
 		);
 	}
 }
@@ -127,10 +117,7 @@ export function assertHasSources<T>(
  *
  * @throws If the result doesn't have a plan
  */
-export function assertHasPlan<T>(
-	result: CommandResult<T>,
-	message?: string
-): void {
+export function assertHasPlan<T>(result: CommandResult<T>, message?: string): void {
 	if (!result.plan || result.plan.length === 0) {
 		throw new Error(message ?? 'Expected plan but none was provided');
 	}
@@ -149,9 +136,7 @@ export function assertStepStatus<T>(
 
 	const step = result.plan?.find((s) => s.id === stepId);
 	if (!step) {
-		throw new Error(
-			message ?? `Plan step '${stepId}' not found`
-		);
+		throw new Error(message ?? `Plan step '${stepId}' not found`);
 	}
 
 	if (step.status !== expectedStatus) {
@@ -167,16 +152,11 @@ export function assertStepStatus<T>(
  *
  * @throws If the error doesn't have a suggestion
  */
-export function assertHasSuggestion<T>(
-	result: CommandResult<T>,
-	message?: string
-): void {
+export function assertHasSuggestion<T>(result: CommandResult<T>, message?: string): void {
 	assertFailure(result);
 
 	if (!result.error.suggestion) {
-		throw new Error(
-			message ?? 'Expected error to have a suggestion but none was provided'
-		);
+		throw new Error(message ?? 'Expected error to have a suggestion but none was provided');
 	}
 }
 
@@ -239,10 +219,7 @@ export function assertAiResult<T>(
 	}
 
 	// Alternatives may be required
-	if (
-		options?.requireAlternatives &&
-		(!result.alternatives || result.alternatives.length === 0)
-	) {
+	if (options?.requireAlternatives && (!result.alternatives || result.alternatives.length === 0)) {
 		throw new Error('AI result must include alternatives');
 	}
 }

@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import MarkdownMessage from './MarkdownMessage';
-import { ConfirmModal } from './ConfirmModal';
+import type React from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useConfirm } from '../hooks/useConfirm';
-import type { Todo } from '../types';
 import type { LocalStore } from '../hooks/useLocalStore';
+import type { Todo } from '../types';
+import { ConfirmModal } from './ConfirmModal';
+import MarkdownMessage from './MarkdownMessage';
 import './ChatSidebar.css';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -123,7 +124,8 @@ interface ChatSidebarProps {
 const getWelcomeMessage = (): ChatMessage => ({
 	id: 'welcome',
 	role: 'system',
-	content: 'Ask me to help manage your todos! Try: "Create 3 high-priority tasks" or "Show my stats"',
+	content:
+		'Ask me to help manage your todos! Try: "Create 3 high-priority tasks" or "Show my stats"',
 	timestamp: new Date(),
 });
 
@@ -135,7 +137,7 @@ const loadChatHistory = (): ChatMessage[] => {
 			// Convert timestamp strings back to Date objects
 			const messages = (parsed as StoredChatMessage[]).map((msg) => ({
 				...msg,
-				timestamp: new Date(msg.timestamp)
+				timestamp: new Date(msg.timestamp),
 			}));
 			return messages;
 		}
@@ -176,19 +178,17 @@ const executeLocalAction = (
 	if (!localStore) return;
 
 	console.log(`[executeLocalAction] Tool completed: ${toolName}`, { args, result });
-	
+
 	// For writes, the backend returns mock success instantly.
 	// We update LocalStore to reflect the change in the UI.
 	// ConvexSync handles background persistence.
-	
+
 	// Helper to find todo ID by title (when chat uses Convex ID but LocalStore has local ID)
 	const findTodoByTitle = (title: string): string | null => {
-		const todo = localStore.todos.find(t => 
-			t.title.toLowerCase() === title.toLowerCase()
-		);
+		const todo = localStore.todos.find((t) => t.title.toLowerCase() === title.toLowerCase());
 		return todo?.id ?? null;
 	};
-	
+
 	try {
 		switch (toolName) {
 			case 'todo-create':
@@ -206,7 +206,7 @@ const executeLocalAction = (
 			case 'todo-uncomplete': {
 				// Try to find by ID first, then by title from result
 				let todoId = args.id as string | undefined;
-				if (!todoId || !localStore.todos.find(t => t.id === todoId)) {
+				if (!todoId || !localStore.todos.find((t) => t.id === todoId)) {
 					// Chat returned Convex ID but we need local ID - search by title
 					const resultObj = result as { title?: string } | undefined;
 					if (resultObj?.title) {
@@ -221,7 +221,7 @@ const executeLocalAction = (
 
 			case 'todo-update': {
 				let todoId = args.id as string | undefined;
-				if (!todoId || !localStore.todos.find(t => t.id === todoId)) {
+				if (!todoId || !localStore.todos.find((t) => t.id === todoId)) {
 					const resultObj = result as { title?: string } | undefined;
 					if (resultObj?.title) {
 						todoId = findTodoByTitle(resultObj.title) ?? undefined;
@@ -229,23 +229,27 @@ const executeLocalAction = (
 				}
 				if (todoId) {
 					const { id, ...updates } = args;
-					localStore.updateTodo(todoId, updates as Partial<Pick<Todo, 'title' | 'description' | 'priority'>>);
+					localStore.updateTodo(
+						todoId,
+						updates as Partial<Pick<Todo, 'title' | 'description' | 'priority'>>
+					);
 				}
 				break;
 			}
 
 			case 'todo-delete': {
 				// ID can be in args OR result (backend returns it in result)
-				const resultObj = result as { id?: string; title?: string; data?: { id?: string; title?: string } } | undefined;
-				const todoId = args.id as string | undefined 
-					|| resultObj?.id 
-					|| resultObj?.data?.id;
-				const title = resultObj?.title || resultObj?.data?.title || args.title as string | undefined;
-				
+				const resultObj = result as
+					| { id?: string; title?: string; data?: { id?: string; title?: string } }
+					| undefined;
+				const todoId = (args.id as string | undefined) || resultObj?.id || resultObj?.data?.id;
+				const title =
+					resultObj?.title || resultObj?.data?.title || (args.title as string | undefined);
+
 				// First try direct ID match
-				if (todoId && localStore.todos.find(t => t.id === todoId)) {
+				if (todoId && localStore.todos.find((t) => t.id === todoId)) {
 					localStore.deleteTodo(todoId);
-				} 
+				}
 				// Then try title match as fallback
 				else if (title) {
 					const foundId = findTodoByTitle(title);
@@ -326,7 +330,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	// Scroll to bottom when new messages arrive
 	useEffect(() => {
 		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-	}, [messages]);
+	}, []);
 
 	// Focus input when sidebar opens
 	useEffect(() => {
@@ -359,7 +363,7 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	// Auto-resize when input changes
 	useEffect(() => {
 		adjustTextareaHeight();
-	}, [inputValue, adjustTextareaHeight]);
+	}, [adjustTextareaHeight]);
 
 	// Check chat server health
 	const checkHealth = useCallback(async () => {
@@ -387,69 +391,83 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	const generateId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
 	// Parse @mentions from text and return referenced todos
-	const parseReferencedTodos = useCallback((text: string): Todo[] => {
-		const mentionPattern = /@([^@\s]+)/g;
-		const matches = Array.from(text.matchAll(mentionPattern));
-		const referencedTodos: Todo[] = [];
+	const parseReferencedTodos = useCallback(
+		(text: string): Todo[] => {
+			const mentionPattern = /@([^@\s]+)/g;
+			const matches = Array.from(text.matchAll(mentionPattern));
+			const referencedTodos: Todo[] = [];
 
-		for (const match of matches) {
-			const mentionedTitle = match[1];
-			const todo = todos.find(t => t.title === mentionedTitle);
-			if (todo && !referencedTodos.find(rt => rt.id === todo.id)) {
-				referencedTodos.push(todo);
+			for (const match of matches) {
+				const mentionedTitle = match[1];
+				const todo = todos.find((t) => t.title === mentionedTitle);
+				if (todo && !referencedTodos.find((rt) => rt.id === todo.id)) {
+					referencedTodos.push(todo);
+				}
 			}
-		}
 
-		return referencedTodos;
-	}, [todos]);
+			return referencedTodos;
+		},
+		[todos]
+	);
 
 	// Generate todos summary for context
-	const generateTodosSummary = useCallback((message?: string) => {
-		if (todos.length === 0) {
-			return 'No todos found.';
-		}
+	const generateTodosSummary = useCallback(
+		(message?: string) => {
+			if (todos.length === 0) {
+				return 'No todos found.';
+			}
 
-		const pending = todos.filter(t => !t.completed);
-		const completed = todos.filter(t => t.completed);
-		const highPriority = todos.filter(t => t.priority === 'high');
+			const pending = todos.filter((t) => !t.completed);
+			const completed = todos.filter((t) => t.completed);
+			const highPriority = todos.filter((t) => t.priority === 'high');
 
-		const summary = [
-			`Total todos: ${todos.length}`,
-			`Pending: ${pending.length}, Completed: ${completed.length}`,
-		];
+			const summary = [
+				`Total todos: ${todos.length}`,
+				`Pending: ${pending.length}, Completed: ${completed.length}`,
+			];
 
-		if (highPriority.length > 0) {
-			summary.push(`High priority: ${highPriority.length}`);
-		}
+			if (highPriority.length > 0) {
+				summary.push(`High priority: ${highPriority.length}`);
+			}
 
-		// If message contains @mentions, include details of referenced todos
-		if (message) {
-			const referencedTodos = parseReferencedTodos(message);
-			if (referencedTodos.length > 0) {
-				summary.push('\nReferenced todos:');
-				referencedTodos.forEach(todo => {
-					const priorityText = todo.priority === 'high' ? ' (HIGH)' :
-										todo.priority === 'medium' ? ' (MED)' : ' (LOW)';
-					const statusText = todo.completed ? ' [COMPLETED]' : ' [PENDING]';
-					summary.push(`- ${todo.title}${priorityText}${statusText}`);
-					if (todo.description) {
-						summary.push(`  Description: ${todo.description}`);
-					}
+			// If message contains @mentions, include details of referenced todos
+			if (message) {
+				const referencedTodos = parseReferencedTodos(message);
+				if (referencedTodos.length > 0) {
+					summary.push('\nReferenced todos:');
+					referencedTodos.forEach((todo) => {
+						const priorityText =
+							todo.priority === 'high'
+								? ' (HIGH)'
+								: todo.priority === 'medium'
+									? ' (MED)'
+									: ' (LOW)';
+						const statusText = todo.completed ? ' [COMPLETED]' : ' [PENDING]';
+						summary.push(`- ${todo.title}${priorityText}${statusText}`);
+						if (todo.description) {
+							summary.push(`  Description: ${todo.description}`);
+						}
+					});
+				}
+			}
+
+			if (
+				pending.length > 0 &&
+				pending.length <= 5 &&
+				(!message || !parseReferencedTodos(message).length)
+			) {
+				summary.push('\nPending todos:');
+				pending.forEach((todo) => {
+					const priorityText =
+						todo.priority === 'high' ? ' (HIGH)' : todo.priority === 'medium' ? ' (MED)' : ' (LOW)';
+					summary.push(`- ${todo.title}${priorityText}`);
 				});
 			}
-		}
 
-		if (pending.length > 0 && pending.length <= 5 && (!message || !parseReferencedTodos(message).length)) {
-			summary.push('\nPending todos:');
-			pending.forEach(todo => {
-				const priorityText = todo.priority === 'high' ? ' (HIGH)' :
-									todo.priority === 'medium' ? ' (MED)' : ' (LOW)';
-				summary.push(`- ${todo.title}${priorityText}`);
-			});
-		}
-
-		return summary.join('\n');
-	}, [todos, parseReferencedTodos]);
+			return summary.join('\n');
+		},
+		[todos, parseReferencedTodos]
+	);
 
 	// Toggle reasoning display
 	const toggleReasoning = () => {
@@ -475,35 +493,48 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 		// Check if current line starts with / and is at the beginning or after whitespace
 		const slashMatch = currentLine.match(/(?:^|\s)\/(\w*)$/);
 		if (slashMatch) {
-			const partialCommand = '/' + slashMatch[1];
-			const filtered = SLASH_COMMANDS.filter(cmd =>
+			const partialCommand = `/${slashMatch[1]}`;
+			const filtered = SLASH_COMMANDS.filter((cmd) =>
 				cmd.name.toLowerCase().startsWith(partialCommand.toLowerCase())
 			);
-			return { isSlashCommand: true, partialCommand, filtered, position: cursorPosition - slashMatch[0].length + slashMatch[0].indexOf('/') };
+			return {
+				isSlashCommand: true,
+				partialCommand,
+				filtered,
+				position: cursorPosition - slashMatch[0].length + slashMatch[0].indexOf('/'),
+			};
 		}
 
 		return { isSlashCommand: false, partialCommand: '', filtered: [], position: -1 };
 	}, []);
 
 	// @mention detection and filtering
-	const detectMention = useCallback((input: string) => {
-		const cursorPosition = inputRef.current?.selectionStart ?? input.length;
-		const textBeforeCursor = input.slice(0, cursorPosition);
-		const lines = textBeforeCursor.split('\n');
-		const currentLine = lines[lines.length - 1];
+	const detectMention = useCallback(
+		(input: string) => {
+			const cursorPosition = inputRef.current?.selectionStart ?? input.length;
+			const textBeforeCursor = input.slice(0, cursorPosition);
+			const lines = textBeforeCursor.split('\n');
+			const currentLine = lines[lines.length - 1];
 
-		// Check if current line has @ followed by word characters or spaces (partial todo title)
-		const mentionMatch = currentLine.match(/(?:^|\s)@([^@\s]*)$/);
-		if (mentionMatch) {
-			const partialTitle = mentionMatch[1];
-			const filtered = todos.filter(todo =>
-				todo.title.toLowerCase().includes(partialTitle.toLowerCase())
-			);
-			return { isMention: true, partialTitle, filtered, position: cursorPosition - mentionMatch[0].length + mentionMatch[0].indexOf('@') };
-		}
+			// Check if current line has @ followed by word characters or spaces (partial todo title)
+			const mentionMatch = currentLine.match(/(?:^|\s)@([^@\s]*)$/);
+			if (mentionMatch) {
+				const partialTitle = mentionMatch[1];
+				const filtered = todos.filter((todo) =>
+					todo.title.toLowerCase().includes(partialTitle.toLowerCase())
+				);
+				return {
+					isMention: true,
+					partialTitle,
+					filtered,
+					position: cursorPosition - mentionMatch[0].length + mentionMatch[0].indexOf('@'),
+				};
+			}
 
-		return { isMention: false, partialTitle: '', filtered: [], position: -1 };
-	}, [todos]);
+			return { isMention: false, partialTitle: '', filtered: [], position: -1 };
+		},
+		[todos]
+	);
 
 	// Update autocomplete when input changes
 	useEffect(() => {
@@ -529,49 +560,55 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	}, [inputValue, detectSlashCommand, detectMention]);
 
 	// Handle slash command selection
-	const selectSlashCommand = useCallback((command: SlashCommand) => {
-		const { position } = detectSlashCommand(inputValue);
-		if (position === -1) return;
+	const selectSlashCommand = useCallback(
+		(command: SlashCommand) => {
+			const { position } = detectSlashCommand(inputValue);
+			if (position === -1) return;
 
-		const beforeSlash = inputValue.slice(0, position);
-		const afterCursor = inputValue.slice(inputRef.current?.selectionStart ?? inputValue.length);
-		const newValue = beforeSlash + command.prompt + afterCursor;
+			const beforeSlash = inputValue.slice(0, position);
+			const afterCursor = inputValue.slice(inputRef.current?.selectionStart ?? inputValue.length);
+			const newValue = beforeSlash + command.prompt + afterCursor;
 
-		setInputValue(newValue);
-		setShowSlashCommands(false);
+			setInputValue(newValue);
+			setShowSlashCommands(false);
 
-		// Focus input and position cursor after the inserted text
-		setTimeout(() => {
-			if (inputRef.current) {
-				const newCursorPosition = beforeSlash.length + command.prompt.length;
-				inputRef.current.focus();
-				inputRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
-			}
-		}, 0);
-	}, [inputValue, detectSlashCommand]);
+			// Focus input and position cursor after the inserted text
+			setTimeout(() => {
+				if (inputRef.current) {
+					const newCursorPosition = beforeSlash.length + command.prompt.length;
+					inputRef.current.focus();
+					inputRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+				}
+			}, 0);
+		},
+		[inputValue, detectSlashCommand]
+	);
 
 	// Handle @mention selection
-	const selectMention = useCallback((todo: Todo) => {
-		const { position } = detectMention(inputValue);
-		if (position === -1) return;
+	const selectMention = useCallback(
+		(todo: Todo) => {
+			const { position } = detectMention(inputValue);
+			if (position === -1) return;
 
-		const beforeMention = inputValue.slice(0, position);
-		const afterCursor = inputValue.slice(inputRef.current?.selectionStart ?? inputValue.length);
-		const mentionText = `@${todo.title}`;
-		const newValue = beforeMention + mentionText + afterCursor;
+			const beforeMention = inputValue.slice(0, position);
+			const afterCursor = inputValue.slice(inputRef.current?.selectionStart ?? inputValue.length);
+			const mentionText = `@${todo.title}`;
+			const newValue = beforeMention + mentionText + afterCursor;
 
-		setInputValue(newValue);
-		setShowMentions(false);
+			setInputValue(newValue);
+			setShowMentions(false);
 
-		// Focus input and position cursor after the inserted text
-		setTimeout(() => {
-			if (inputRef.current) {
-				const newCursorPosition = beforeMention.length + mentionText.length;
-				inputRef.current.focus();
-				inputRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
-			}
-		}, 0);
-	}, [inputValue, detectMention]);
+			// Focus input and position cursor after the inserted text
+			setTimeout(() => {
+				if (inputRef.current) {
+					const newCursorPosition = beforeMention.length + mentionText.length;
+					inputRef.current.focus();
+					inputRef.current.setSelectionRange(newCursorPosition, newCursorPosition);
+				}
+			}, 0);
+		},
+		[inputValue, detectMention]
+	);
 
 	// Send message with streaming (with fallback to legacy)
 	const sendMessage = async () => {
@@ -607,7 +644,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	};
 
 	// Try streaming chat with SSE
-	const tryStreamingChat = async (message: string, abortController: AbortController): Promise<boolean> => {
+	const tryStreamingChat = async (
+		message: string,
+		abortController: AbortController
+	): Promise<boolean> => {
 		try {
 			const response = await fetch(`${chatServerUrl}/chat/stream`, {
 				method: 'POST',
@@ -615,8 +655,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 				body: JSON.stringify({
 					message,
 					context: {
-						todos: generateTodosSummary(message)
-					}
+						todos: generateTodosSummary(message),
+					},
 				}),
 				signal: abortController.signal,
 			});
@@ -634,19 +674,22 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 			const assistantMessageId = generateId();
 			let currentContent = '';
 			const toolExecutions: ToolExecution[] = [];
-			let streamingMetadata: any = {};
+			let streamingMetadata: Record<string, unknown> = {};
 			const toolsInProgress = new Map<string, number>(); // Track which tools are running
 			const toolArgs = new Map<string, Record<string, unknown>>(); // Track tool args for local execution
 			let toolCounter = 0; // Unique counter for tool IDs
 
 			// Add initial empty assistant message
-			setMessages((prev) => [...prev, {
-				id: assistantMessageId,
-				role: 'assistant',
-				content: '',
-				toolExecutions: [],
-				timestamp: new Date(),
-			}]);
+			setMessages((prev) => [
+				...prev,
+				{
+					id: assistantMessageId,
+					role: 'assistant',
+					content: '',
+					toolExecutions: [],
+					timestamp: new Date(),
+				},
+			]);
 
 			const decoder = new TextDecoder();
 			let currentEvent = '';
@@ -675,11 +718,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 								if (currentEvent === 'token') {
 									// Append token to current content
 									currentContent += eventData.text;
-									setMessages((prev) => prev.map(msg =>
-										msg.id === assistantMessageId
-											? { ...msg, content: currentContent }
-											: msg
-									));
+									setMessages((prev) =>
+										prev.map((msg) =>
+											msg.id === assistantMessageId ? { ...msg, content: currentContent } : msg
+										)
+									);
 								} else if (currentEvent === 'tool_start') {
 									// Mark tool as starting
 									const startTime = Date.now();
@@ -698,14 +741,16 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 									};
 
 									// Update UI to show tool is running
-									setMessages((prev) => prev.map(msg =>
-										msg.id === assistantMessageId
-											? {
-												...msg,
-												liveToolExecutions: [...(msg.liveToolExecutions || []), liveTool]
-											}
-											: msg
-									));
+									setMessages((prev) =>
+										prev.map((msg) =>
+											msg.id === assistantMessageId
+												? {
+														...msg,
+														liveToolExecutions: [...(msg.liveToolExecutions || []), liveTool],
+													}
+												: msg
+										)
+									);
 								} else if (currentEvent === 'tool_end') {
 									// Tool completed
 									const startTime = toolsInProgress.get(eventData.name);
@@ -716,17 +761,19 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
 									// Handle local action execution (with confirmation for destructive actions)
 									if (!eventData.error) {
-										const metadata = eventData.metadata as {
-											destructive?: boolean;
-											confirmPrompt?: string;
-											tags?: string[];
-										} | undefined;
+										const metadata = eventData.metadata as
+											| {
+													destructive?: boolean;
+													confirmPrompt?: string;
+													tags?: string[];
+											  }
+											| undefined;
 
 										if (metadata?.destructive) {
 											// Destructive action - prompt for confirmation
 											const toolDisplayName = eventData.name.replace(/-/g, ' ');
-											const confirmPrompt = metadata.confirmPrompt ||
-												`Are you sure you want to ${toolDisplayName}?`;
+											const confirmPrompt =
+												metadata.confirmPrompt || `Are you sure you want to ${toolDisplayName}?`;
 
 											// Use IIFE for async confirmation
 											(async () => {
@@ -741,7 +788,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 												} else {
 													// User cancelled - the action already happened on the backend
 													// Add a system message to inform the user
-													console.log('[ChatSidebar] User cancelled destructive action:', eventData.name);
+													console.log(
+														'[ChatSidebar] User cancelled destructive action:',
+														eventData.name
+													);
 													// Note: Backend already executed, Convex sync will reconcile state
 												}
 											})();
@@ -763,44 +813,48 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 									};
 									toolExecutions.push(toolExecution);
 
-									setMessages((prev) => prev.map(msg =>
-										msg.id === assistantMessageId
-											? {
-												...msg,
-												content: currentContent,
-												toolExecutions: [...toolExecutions],
-												liveToolExecutions: (msg.liveToolExecutions || []).map(liveTool =>
-													liveTool.name === eventData.name
-														? {
-															...liveTool,
-															status: eventData.error ? 'error' : 'success',
-															endTime,
-															result: eventData.result,
-															error: eventData.error,
-															latencyMs: eventData.latencyMs,
-														}
-														: liveTool
-												)
-											}
-											: msg
-									));
+									setMessages((prev) =>
+										prev.map((msg) =>
+											msg.id === assistantMessageId
+												? {
+														...msg,
+														content: currentContent,
+														toolExecutions: [...toolExecutions],
+														liveToolExecutions: (msg.liveToolExecutions || []).map((liveTool) =>
+															liveTool.name === eventData.name
+																? {
+																		...liveTool,
+																		status: eventData.error ? 'error' : 'success',
+																		endTime,
+																		result: eventData.result,
+																		error: eventData.error,
+																		latencyMs: eventData.latencyMs,
+																	}
+																: liveTool
+														),
+													}
+												: msg
+										)
+									);
 								} else if (currentEvent === 'done') {
 									// Stream completed successfully
 									streamingMetadata = eventData;
 
 									// Final update with all metadata
-									setMessages((prev) => prev.map(msg =>
-										msg.id === assistantMessageId
-											? {
-												...msg,
-												content: currentContent,
-												toolExecutions,
-												reasoning: streamingMetadata.reasoning,
-												totalToolLatencyMs: streamingMetadata.totalToolLatencyMs,
-												modelLatencyMs: streamingMetadata.modelLatencyMs
-											}
-											: msg
-									));
+									setMessages((prev) =>
+										prev.map((msg) =>
+											msg.id === assistantMessageId
+												? {
+														...msg,
+														content: currentContent,
+														toolExecutions,
+														reasoning: streamingMetadata.reasoning as string | undefined,
+														totalToolLatencyMs: streamingMetadata.totalToolLatencyMs as number | undefined,
+														modelLatencyMs: streamingMetadata.modelLatencyMs as number | undefined,
+													}
+												: msg
+										)
+									);
 
 									// If tools were executed, notify parent to refresh todos
 									if (toolExecutions.length > 0 && onTodosChanged) {
@@ -850,7 +904,10 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	};
 
 	// Legacy chat endpoint as fallback
-	const tryLegacyChat = async (message: string, abortController: AbortController): Promise<void> => {
+	const tryLegacyChat = async (
+		message: string,
+		abortController: AbortController
+	): Promise<void> => {
 		try {
 			const response = await fetch(`${chatServerUrl}/chat`, {
 				method: 'POST',
@@ -858,8 +915,8 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 				body: JSON.stringify({
 					message,
 					context: {
-						todos: generateTodosSummary(message)
-					}
+						todos: generateTodosSummary(message),
+					},
 				}),
 				signal: abortController.signal,
 			});
@@ -929,15 +986,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 			switch (e.key) {
 				case 'ArrowDown':
 					e.preventDefault();
-					setSelectedCommandIndex(prev =>
-						prev < filteredCommands.length - 1 ? prev + 1 : 0
-					);
+					setSelectedCommandIndex((prev) => (prev < filteredCommands.length - 1 ? prev + 1 : 0));
 					return;
 				case 'ArrowUp':
 					e.preventDefault();
-					setSelectedCommandIndex(prev =>
-						prev > 0 ? prev - 1 : filteredCommands.length - 1
-					);
+					setSelectedCommandIndex((prev) => (prev > 0 ? prev - 1 : filteredCommands.length - 1));
 					return;
 				case 'Enter':
 					e.preventDefault();
@@ -955,15 +1008,11 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 			switch (e.key) {
 				case 'ArrowDown':
 					e.preventDefault();
-					setSelectedTodoIndex(prev =>
-						prev < filteredTodos.length - 1 ? prev + 1 : 0
-					);
+					setSelectedTodoIndex((prev) => (prev < filteredTodos.length - 1 ? prev + 1 : 0));
 					return;
 				case 'ArrowUp':
 					e.preventDefault();
-					setSelectedTodoIndex(prev =>
-						prev > 0 ? prev - 1 : filteredTodos.length - 1
-					);
+					setSelectedTodoIndex((prev) => (prev > 0 ? prev - 1 : filteredTodos.length - 1));
 					return;
 				case 'Enter':
 					e.preventDefault();
@@ -1001,42 +1050,46 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 	};
 
 	// Component for rendering reasoning with collapsible functionality
-const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
-	const [collapsed, setCollapsed] = useState(true);
+	const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
+		const [collapsed, setCollapsed] = useState(true);
 
-	// Don't render if no reasoning content
-	if (!reasoning || !reasoning.trim()) return null;
+		// Don't render if no reasoning content
+		if (!reasoning || !reasoning.trim()) return null;
 
-	return (
-		<div className="reasoning-section">
-			<div className="reasoning-header" onClick={() => setCollapsed(!collapsed)}>
-				<span className="reasoning-icon">🧠</span>
-				<span className="reasoning-label">Reasoning</span>
-				<button className="reasoning-toggle" aria-label={collapsed ? 'Expand reasoning' : 'Collapse reasoning'}>
-					{collapsed ? '▶' : '▼'}
-				</button>
-			</div>
-			{!collapsed && (
-				<div className="reasoning-content">
-					<MarkdownMessage content={reasoning} className="reasoning-text" />
+		return (
+			<div className="reasoning-section">
+				<div className="reasoning-header" onClick={() => setCollapsed(!collapsed)}>
+					<span className="reasoning-icon">🧠</span>
+					<span className="reasoning-label">Reasoning</span>
+					<button
+						type="button"
+						className="reasoning-toggle"
+						aria-label={collapsed ? 'Expand reasoning' : 'Collapse reasoning'}
+					>
+						{collapsed ? '▶' : '▼'}
+					</button>
 				</div>
-			)}
-		</div>
-	);
-};
+				{!collapsed && (
+					<div className="reasoning-content">
+						<MarkdownMessage content={reasoning} className="reasoning-text" />
+					</div>
+				)}
+			</div>
+		);
+	};
 
 	// Component for rendering tools section with collapsible functionality
-	const ToolsSection: React.FC<{ 
+	const ToolsSection: React.FC<{
 		liveTools?: LiveToolExecution[];
 		toolExecutions?: ToolExecution[];
 	}> = ({ liveTools, toolExecutions }) => {
 		const [collapsed, setCollapsed] = useState(true);
-		
+
 		// Count total tools
 		const liveCount = liveTools?.length || 0;
 		const legacyCount = toolExecutions?.length || 0;
 		const totalCount = liveCount + legacyCount;
-		
+
 		if (totalCount === 0) return null;
 
 		return (
@@ -1044,21 +1097,27 @@ const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
 				<div className="tools-header" onClick={() => setCollapsed(!collapsed)}>
 					<span className="tools-icon">⚙️</span>
 					<span className="tools-label">Tools ({totalCount})</span>
-					<button className="tools-toggle" aria-label={collapsed ? 'Expand tools' : 'Collapse tools'}>
+					<button
+						type="button"
+						className="tools-toggle"
+						aria-label={collapsed ? 'Expand tools' : 'Collapse tools'}
+					>
 						{collapsed ? '▶' : '▼'}
 					</button>
 				</div>
 				{!collapsed && (
 					<div className="tools-content">
-						{liveTools && liveTools.map((tool) => (
+						{liveTools?.map((tool) => (
 							<LiveToolExecutionComponent key={tool.id} tool={tool} />
 						))}
-						{toolExecutions && !liveTools && toolExecutions.map((exec, idx) => (
-							<div key={idx} className="chat-tool-exec">
-								<span className="chat-tool-name">{exec.name}</span>
-								<span className="chat-tool-latency">{exec.latencyMs.toFixed(3)}ms</span>
-							</div>
-						))}
+						{toolExecutions &&
+							!liveTools &&
+							toolExecutions.map((exec, idx) => (
+								<div key={idx} className="chat-tool-exec">
+									<span className="chat-tool-name">{exec.name}</span>
+									<span className="chat-tool-latency">{exec.latencyMs.toFixed(3)}ms</span>
+								</div>
+							))}
 					</div>
 				)}
 			</div>
@@ -1112,6 +1171,7 @@ const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
 					</div>
 					{hasArgs && (
 						<button
+							type="button"
 							className="live-tool-args-toggle"
 							onClick={() => setCollapsed(!collapsed)}
 							title={collapsed ? 'Show arguments' : 'Hide arguments'}
@@ -1125,11 +1185,7 @@ const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
 						<pre>{JSON.stringify(tool.args, null, 2)}</pre>
 					</div>
 				)}
-				{tool.error && (
-					<div className="live-tool-error">
-						Error: {tool.error}
-					</div>
-				)}
+				{tool.error && <div className="live-tool-error">Error: {tool.error}</div>}
 			</div>
 		);
 	};
@@ -1140,15 +1196,9 @@ const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
 			<aside className={`chat-sidebar ${isOpen ? 'open' : ''}`}>
 				<header className="chat-sidebar-header">
 					<h2>Myoso</h2>
-					<span className="chat-context-indicator">
-						{todos.length} todos
-					</span>
+					<span className="chat-context-indicator">{todos.length} todos</span>
 					<div className="chat-header-actions">
-						<button
-							className="chat-header-btn"
-							onClick={startNewChat}
-							title="New chat"
-						>
+						<button type="button" className="chat-header-btn" onClick={startNewChat} title="New chat">
 							+
 						</button>
 						{/* History panel - coming soon
@@ -1165,9 +1215,7 @@ const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
 
 				{/* History Restored Indicator */}
 				{isHistoryRestored && (
-					<div className="history-restored-indicator">
-						📋 Continued from previous session
-					</div>
+					<div className="history-restored-indicator">📋 Continued from previous session</div>
 				)}
 
 				{/* Messages */}
@@ -1182,12 +1230,13 @@ const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
 							)}
 
 							{/* Tools Section - collapsible */}
-							{msg.role === 'assistant' && (msg.liveToolExecutions?.length || msg.toolExecutions?.length) && (
-								<ToolsSection 
-									liveTools={msg.liveToolExecutions}
-									toolExecutions={msg.toolExecutions}
-								/>
-							)}
+							{msg.role === 'assistant' &&
+								(msg.liveToolExecutions?.length || msg.toolExecutions?.length) && (
+									<ToolsSection
+										liveTools={msg.liveToolExecutions}
+										toolExecutions={msg.toolExecutions}
+									/>
+								)}
 
 							{/* Latency Summary */}
 							{(msg.modelLatencyMs !== undefined || msg.totalToolLatencyMs !== undefined) && (
@@ -1248,18 +1297,21 @@ const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
 							{filteredTodos.map((todo, index) => (
 								<div
 									key={todo.id}
-									className={`mention-item ${
-										index === selectedTodoIndex ? 'selected' : ''
-									}`}
+									className={`mention-item ${index === selectedTodoIndex ? 'selected' : ''}`}
 									onClick={() => selectMention(todo)}
 									onMouseEnter={() => setSelectedTodoIndex(index)}
 								>
 									<div className="mention-todo-title">@{todo.title}</div>
 									<div className="mention-todo-meta">
 										{todo.completed ? 'Completed' : 'Pending'} •
-										{todo.priority === 'high' ? ' High' :
-										todo.priority === 'medium' ? ' Medium' : ' Low'} priority
-										{todo.description && ` • ${todo.description.slice(0, 50)}${todo.description.length > 50 ? '...' : ''}`}
+										{todo.priority === 'high'
+											? ' High'
+											: todo.priority === 'medium'
+												? ' Medium'
+												: ' Low'}{' '}
+										priority
+										{todo.description &&
+											` • ${todo.description.slice(0, 50)}${todo.description.length > 50 ? '...' : ''}`}
 									</div>
 								</div>
 							))}
@@ -1281,26 +1333,22 @@ const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
 					</div>
 					<div className="chat-options-row">
 						<button
+							type="button"
 							className={`chat-option-btn ${showReasoning ? 'active' : ''}`}
 							onClick={toggleReasoning}
 							title={showReasoning ? 'Hide reasoning' : 'Show reasoning'}
 						>
 							🧠 Reasoning
 						</button>
-						<span className="chat-model-selector">
-							⚡ Gemini 3 Flash
-						</span>
+						<span className="chat-model-selector">⚡ Gemini 3 Flash</span>
 						<div className="chat-options-spacer" />
 						{isLoading ? (
-							<button
-								className="chat-stop-btn"
-								onClick={stopRequest}
-								title="Stop current request"
-							>
+							<button type="button" className="chat-stop-btn" onClick={stopRequest} title="Stop current request">
 								Stop
 							</button>
 						) : (
 							<button
+								type="button"
 								className="chat-send-btn"
 								onClick={sendMessage}
 								disabled={!inputValue.trim() || connectionStatus === 'error'}
@@ -1314,6 +1362,7 @@ const ReasoningSection: React.FC<{ reasoning: string }> = ({ reasoning }) => {
 
 			{/* Toggle Button (Mobile) */}
 			<button
+				type="button"
 				className={`chat-toggle-btn ${isOpen ? 'hidden' : ''}`}
 				onClick={onToggle}
 				title="Open Myoso"

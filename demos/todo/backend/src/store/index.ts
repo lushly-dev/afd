@@ -9,11 +9,11 @@
  * Use "memory" for testing or isolated instances.
  */
 
-import { TodoStore, memoryStore } from "./memory.js";
-import { FileStore } from "./file.js";
+import { FileStore } from './file.js';
+import { memoryStore, type TodoStore } from './memory.js';
 
 // Store type from environment (default: file for shared storage)
-const STORE_TYPE = process.env.TODO_STORE_TYPE ?? "file";
+const STORE_TYPE = process.env.TODO_STORE_TYPE ?? 'file';
 const STORE_PATH = process.env.TODO_STORE_PATH;
 
 /**
@@ -27,15 +27,15 @@ export type Store = TodoStore | FileStore;
  * @returns A TodoStore (memory) or FileStore (file) instance
  */
 export function createStore(): Store {
-  if (STORE_TYPE === "memory") {
-    console.error("[Store] Using in-memory storage (isolated per process)");
-    // Use the singleton from memory.ts to ensure tests and commands share the same store
-    return memoryStore;
-  }
+	if (STORE_TYPE === 'memory') {
+		console.error('[Store] Using in-memory storage (isolated per process)');
+		// Use the singleton from memory.ts to ensure tests and commands share the same store
+		return memoryStore;
+	}
 
-  const store = new FileStore(STORE_PATH);
-  console.error(`[Store] Using file storage (shared across processes)`);
-  return store;
+	const store = new FileStore(STORE_PATH);
+	console.error(`[Store] Using file storage (shared across processes)`);
+	return store;
 }
 
 /**
@@ -46,6 +46,6 @@ export function createStore(): Store {
  */
 export const store = createStore();
 
+export { FileStore } from './file.js';
 // Re-export types for convenience
-export { TodoStore } from "./memory.js";
-export { FileStore } from "./file.js";
+export { TodoStore } from './memory.js';

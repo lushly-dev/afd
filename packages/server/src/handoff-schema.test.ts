@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
-	HandoffResultSchema,
 	HandoffCredentialsSchema,
 	HandoffMetadataSchema,
+	HandoffResultSchema,
 } from './handoff-schema.js';
 import { defineCommand, success } from './index.js';
 

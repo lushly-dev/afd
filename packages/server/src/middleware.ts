@@ -45,9 +45,7 @@ export interface LoggingOptions {
  * });
  * ```
  */
-export function createLoggingMiddleware(
-	options: LoggingOptions = {}
-): CommandMiddleware {
+export function createLoggingMiddleware(options: LoggingOptions = {}): CommandMiddleware {
 	const { log = console.log, logInput = false, logResult = false } = options;
 
 	return async (commandName, input, context, next) => {
@@ -92,15 +90,13 @@ export interface TimingOptions {
 /**
  * Create a timing middleware that tracks execution duration.
  */
-export function createTimingMiddleware(
-	options: TimingOptions = {}
-): CommandMiddleware {
+export function createTimingMiddleware(options: TimingOptions = {}): CommandMiddleware {
 	const {
 		slowThreshold = 1000,
 		onSlow = (name, ms) => console.warn(`Slow command: ${name} took ${ms}ms`),
 	} = options;
 
-	return async (commandName, input, context, next) => {
+	return async (commandName, _input, _context, next) => {
 		const startTime = Date.now();
 		const result = await next();
 		const duration = Date.now() - startTime;
@@ -134,16 +130,14 @@ export interface RetryOptions {
 /**
  * Create a retry middleware for transient failures.
  */
-export function createRetryMiddleware(
-	options: RetryOptions = {}
-): CommandMiddleware {
+export function createRetryMiddleware(options: RetryOptions = {}): CommandMiddleware {
 	const {
 		maxRetries = 3,
 		retryDelay = 100,
 		shouldRetry = (code) => code === 'TRANSIENT_ERROR' || code === 'TIMEOUT',
 	} = options;
 
-	return async (commandName, input, context, next) => {
+	return async (_commandName, _input, _context, next) => {
 		let lastResult: CommandResult | undefined;
 		let attempts = 0;
 
@@ -190,10 +184,7 @@ export interface Span {
  * Tracer interface compatible with OpenTelemetry.
  */
 export interface Tracer {
-	startActiveSpan<T>(
-		name: string,
-		fn: (span: Span) => Promise<T>
-	): Promise<T>;
+	startActiveSpan<T>(name: string, fn: (span: Span) => Promise<T>): Promise<T>;
 }
 
 /**
@@ -224,12 +215,10 @@ export interface TracingOptions {
  * });
  * ```
  */
-export function createTracingMiddleware(
-	options: TracingOptions
-): CommandMiddleware {
+export function createTracingMiddleware(options: TracingOptions): CommandMiddleware {
 	const { tracer, spanPrefix = 'command' } = options;
 
-	return async (commandName, input, context, next) => {
+	return async (commandName, _input, context, next) => {
 		return tracer.startActiveSpan(`${spanPrefix}.${commandName}`, async (span) => {
 			span.setAttribute('command.name', commandName);
 			span.setAttribute('command.trace_id', context.traceId ?? 'none');
@@ -285,9 +274,7 @@ export interface RateLimitOptions {
 /**
  * Create a simple in-memory rate limiting middleware.
  */
-export function createRateLimitMiddleware(
-	options: RateLimitOptions
-): CommandMiddleware {
+export function createRateLimitMiddleware(options: RateLimitOptions): CommandMiddleware {
 	const { maxRequests, windowMs, keyFn = () => 'global' } = options;
 	const windows = new Map<string, { count: number; resetAt: number }>();
 
@@ -378,15 +365,8 @@ export interface TelemetryOptions {
  * });
  * ```
  */
-export function createTelemetryMiddleware(
-	options: TelemetryOptions
-): CommandMiddleware {
-	const {
-		sink,
-		includeInput = false,
-		includeMetadata = true,
-		filter = () => true,
-	} = options;
+export function createTelemetryMiddleware(options: TelemetryOptions): CommandMiddleware {
+	const { sink, includeInput = false, includeMetadata = true, filter = () => true } = options;
 
 	return async (commandName, input, context, next) => {
 		// Skip if filtered out
@@ -397,7 +377,7 @@ export function createTelemetryMiddleware(
 		const startedAt = new Date().toISOString();
 		const startTime = Date.now();
 
-		let result: CommandResult;
+		let result: CommandResult | undefined;
 		let thrownError: Error | undefined;
 
 		try {
@@ -415,21 +395,22 @@ export function createTelemetryMiddleware(
 				startedAt,
 				completedAt,
 				durationMs,
-				success: thrownError ? false : result!.success,
+				success: thrownError ? false : result?.success ?? false,
 				...(thrownError && {
 					error: {
 						code: 'UNHANDLED_ERROR',
 						message: thrownError.message,
 					},
 				}),
-				...(!thrownError && !result!.success && result!.error && { error: result!.error }),
+				...(!thrownError && !result?.success && result?.error && { error: result?.error }),
 				...(context.traceId && { traceId: context.traceId }),
 				...(includeInput && { input }),
-				...(!thrownError && result!.confidence !== undefined && { confidence: result!.confidence }),
-				...(!thrownError && includeMetadata && result!.metadata && { metadata: result!.metadata }),
-				...(!thrownError && result!.metadata?.commandVersion && {
-					commandVersion: result!.metadata.commandVersion as string,
-				}),
+				...(!thrownError && result?.confidence !== undefined && { confidence: result?.confidence }),
+				...(!thrownError && includeMetadata && result?.metadata && { metadata: result?.metadata }),
+				...(!thrownError &&
+					result?.metadata?.commandVersion && {
+						commandVersion: result?.metadata.commandVersion as string,
+					}),
 			});
 
 			// Record asynchronously - don't block command execution
@@ -538,9 +519,7 @@ function sleep(ms: number): Promise<void> {
 /**
  * Compose multiple middleware functions into one.
  */
-export function composeMiddleware(
-	...middlewares: CommandMiddleware[]
-): CommandMiddleware {
+export function composeMiddleware(...middlewares: CommandMiddleware[]): CommandMiddleware {
 	return async (commandName, input, context, next) => {
 		let index = 0;
 

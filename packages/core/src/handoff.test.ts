@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-	isHandoff,
-	isHandoffProtocol,
-	isHandoffCommand,
 	getHandoffProtocol,
 	type HandoffResult,
+	isHandoff,
+	isHandoffCommand,
+	isHandoffProtocol,
 } from './handoff.js';
 
 describe('isHandoff', () => {
@@ -344,15 +344,11 @@ describe('getHandoffProtocol', () => {
 	});
 
 	it('returns handoffProtocol property when present', () => {
-		expect(
-			getHandoffProtocol({ handoff: true, handoffProtocol: 'websocket' })
-		).toBe('websocket');
+		expect(getHandoffProtocol({ handoff: true, handoffProtocol: 'websocket' })).toBe('websocket');
 	});
 
 	it('returns protocol from handoff:{protocol} tag', () => {
-		expect(
-			getHandoffProtocol({ tags: ['handoff', 'handoff:sse'] })
-		).toBe('sse');
+		expect(getHandoffProtocol({ tags: ['handoff', 'handoff:sse'] })).toBe('sse');
 	});
 
 	it('prefers handoffProtocol property over tag', () => {
@@ -374,18 +370,14 @@ describe('getHandoffProtocol', () => {
 	});
 
 	it('works with custom protocols', () => {
-		expect(
-			getHandoffProtocol({ handoff: true, handoffProtocol: 'custom-proto' })
-		).toBe('custom-proto');
+		expect(getHandoffProtocol({ handoff: true, handoffProtocol: 'custom-proto' })).toBe(
+			'custom-proto'
+		);
 
-		expect(
-			getHandoffProtocol({ tags: ['handoff', 'handoff:my-protocol'] })
-		).toBe('my-protocol');
+		expect(getHandoffProtocol({ tags: ['handoff', 'handoff:my-protocol'] })).toBe('my-protocol');
 	});
 
 	it('extracts protocol correctly from tag with colons', () => {
-		expect(
-			getHandoffProtocol({ tags: ['handoff', 'handoff:http-stream'] })
-		).toBe('http-stream');
+		expect(getHandoffProtocol({ tags: ['handoff', 'handoff:http-stream'] })).toBe('http-stream');
 	});
 });

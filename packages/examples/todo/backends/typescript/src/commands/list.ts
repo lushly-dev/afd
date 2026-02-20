@@ -5,9 +5,9 @@
  * we also return the unfiltered result as an alternative option.
  */
 
-import { z } from 'zod';
-import { defineCommand, success } from '@lushly-dev/afd-server';
 import type { Alternative } from '@lushly-dev/afd-core';
+import { defineCommand, success } from '@lushly-dev/afd-server';
+import { z } from 'zod';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 

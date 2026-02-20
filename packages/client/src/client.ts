@@ -7,12 +7,9 @@ import type {
 	BatchOptions,
 	BatchResult,
 	CommandResult,
-	McpInitializeParams,
 	McpInitializeResult,
-	McpRequest,
 	McpResponse,
 	McpTool,
-	McpToolCallParams,
 	McpToolCallResult,
 	McpToolsListResult,
 	PipelineOptions,
@@ -24,14 +21,12 @@ import type {
 	StreamOptions,
 } from '@lushly-dev/afd-core';
 import {
-	createMcpErrorResponse,
 	createMcpRequest,
 	failure,
 	isCompleteChunk,
 	isDataChunk,
 	isErrorChunk,
 	isProgressChunk,
-	McpErrorCodes,
 	success,
 	wrapError,
 } from '@lushly-dev/afd-core';
@@ -145,11 +140,7 @@ export class McpClient {
 				);
 			}
 
-			this.transport = createTransport(
-				this.config.transport,
-				this.config.url,
-				this.config.headers
-			);
+			this.transport = createTransport(this.config.transport, this.config.url, this.config.headers);
 
 			// Set up transport handlers
 			this.transport.onMessage((response) => this.handleMessage(response));
@@ -192,7 +183,7 @@ export class McpClient {
 		}
 
 		// Reject all pending requests
-		for (const [id, pending] of this.pendingRequests) {
+		for (const [_id, pending] of this.pendingRequests) {
 			clearTimeout(pending.timeout);
 			pending.reject(new Error('Client disconnected'));
 		}
@@ -282,10 +273,7 @@ export class McpClient {
 	 * @param name - Command/tool name
 	 * @param args - Command arguments
 	 */
-	async call<T = unknown>(
-		name: string,
-		args?: Record<string, unknown>
-	): Promise<CommandResult<T>> {
+	async call<T = unknown>(name: string, args?: Record<string, unknown>): Promise<CommandResult<T>> {
 		try {
 			const result = await this.callTool(name, args);
 
@@ -455,7 +443,6 @@ export class McpClient {
 			};
 		}
 	}
-
 
 	/**
 	 * Execute a pipeline of chained commands.
@@ -674,7 +661,7 @@ export class McpClient {
 
 			const decoder = new TextDecoder();
 			let buffer = '';
-			let chunksReceived = 0;
+			let _chunksReceived = 0;
 
 			while (true) {
 				const { done, value } = await reader.read();
@@ -696,7 +683,7 @@ export class McpClient {
 
 						try {
 							const chunk = JSON.parse(data) as StreamChunk<T>;
-							chunksReceived++;
+							_chunksReceived++;
 							yield chunk;
 
 							// Stop on complete or error
@@ -806,10 +793,11 @@ export class McpClient {
 	 */
 	async request<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T> {
 		// Allow requests during 'connecting' (for initialize) and 'connected' states
-		const canRequest = this.transport && 
+		const canRequest =
+			this.transport &&
 			(this.state === 'connected' || this.state === 'connecting') &&
 			this.transport.isConnected();
-		
+
 		if (!canRequest || !this.transport) {
 			throw new Error('Not connected');
 		}
@@ -935,7 +923,7 @@ export class McpClient {
 		this.emit('reconnecting', this.reconnectAttempts, this.config.maxReconnectAttempts);
 
 		// Exponential backoff
-		const delay = this.config.reconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
+		const delay = this.config.reconnectDelay * 2 ** (this.reconnectAttempts - 1);
 
 		await new Promise((resolve) => setTimeout(resolve, delay));
 

@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import type React from 'react';
+import { useEffect } from 'react';
 import type { KeyboardShortcut } from '../hooks/useKeyboard';
 import { formatShortcut } from '../hooks/useKeyboard';
 import type { Theme } from '../hooks/useTheme';
@@ -22,7 +23,12 @@ function categorizeShortcuts(shortcuts: KeyboardShortcut[]) {
 		const desc = shortcut.description.toLowerCase();
 		if (desc.includes('navigate') || desc.includes('focus')) {
 			navigation.push(shortcut);
-		} else if (desc.includes('toggle') || desc.includes('delete') || desc.includes('edit') || desc.includes('clear')) {
+		} else if (
+			desc.includes('toggle') ||
+			desc.includes('delete') ||
+			desc.includes('edit') ||
+			desc.includes('clear')
+		) {
 			actions.push(shortcut);
 		} else {
 			global.push(shortcut);
@@ -36,12 +42,12 @@ function categorizeShortcuts(shortcuts: KeyboardShortcut[]) {
 	return categories;
 }
 
-export const SettingsModal: React.FC<SettingsModalProps> = ({ 
-    isOpen, 
-    onClose, 
-    shortcuts,
-    theme,
-    onThemeToggle
+export const SettingsModal: React.FC<SettingsModalProps> = ({
+	isOpen,
+	onClose,
+	shortcuts,
+	theme,
+	onThemeToggle,
 }) => {
 	useEffect(() => {
 		if (!isOpen) return;
@@ -64,36 +70,41 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 			<div className="settings-modal" onClick={(e) => e.stopPropagation()}>
 				<div className="settings-header">
 					<h2>Settings</h2>
-					<button type="button" className="settings-close" onClick={onClose}>×</button>
+					<button type="button" className="settings-close" onClick={onClose}>
+						×
+					</button>
 				</div>
-                
-                <div className="settings-section">
-                    <h3>Appearance</h3>
-                    <div className="settings-theme-row">
-                        <span>Theme</span>
-                        <ThemeToggle theme={theme} onToggle={onThemeToggle} />
-                    </div>
-                </div>
 
-                <div className="settings-divider" />
+				<div className="settings-section">
+					<h3>Appearance</h3>
+					<div className="settings-theme-row">
+						<span>Theme</span>
+						<ThemeToggle theme={theme} onToggle={onThemeToggle} />
+					</div>
+				</div>
+
+				<div className="settings-divider" />
 
 				<div className="settings-section">
 					<h3>Keyboard Shortcuts</h3>
-                    <div className="settings-shortcuts-container">
-                        {categories.map((category) => (
-                            <div key={category.name} className="settings-shortcut-category">
-                                <h4>{category.name}</h4>
-                                <div className="settings-shortcut-list">
-                                    {category.shortcuts.map((shortcut) => (
-                                        <div key={shortcut.key + shortcut.description} className="settings-shortcut-item">
-                                            <span className="settings-shortcut-description">{shortcut.description}</span>
-                                            <kbd className="settings-key">{formatShortcut(shortcut)}</kbd>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+					<div className="settings-shortcuts-container">
+						{categories.map((category) => (
+							<div key={category.name} className="settings-shortcut-category">
+								<h4>{category.name}</h4>
+								<div className="settings-shortcut-list">
+									{category.shortcuts.map((shortcut) => (
+										<div
+											key={shortcut.key + shortcut.description}
+											className="settings-shortcut-item"
+										>
+											<span className="settings-shortcut-description">{shortcut.description}</span>
+											<kbd className="settings-key">{formatShortcut(shortcut)}</kbd>
+										</div>
+									))}
+								</div>
+							</div>
+						))}
+					</div>
 				</div>
 			</div>
 		</div>

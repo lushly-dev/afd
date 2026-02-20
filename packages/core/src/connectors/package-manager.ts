@@ -2,7 +2,7 @@
  * @fileoverview Package manager connector for npm/pnpm operations.
  */
 
-import { exec, type ExecOptions, type ExecResult, isExecError } from '../platform.js';
+import { type ExecOptions, type ExecResult, exec, isExecError } from '../platform.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES

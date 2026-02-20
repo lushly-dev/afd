@@ -2,13 +2,9 @@
  * @fileoverview Tests for telemetry middleware
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { TelemetryEvent, TelemetrySink } from '@lushly-dev/afd-core';
-import {
-	createTelemetryMiddleware,
-	ConsoleTelemetrySink,
-} from './middleware.js';
-import type { CommandMiddleware } from './server.js';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ConsoleTelemetrySink, createTelemetryMiddleware } from './middleware.js';
 
 describe('createTelemetryMiddleware', () => {
 	let recordedEvents: TelemetryEvent[];
@@ -53,15 +49,10 @@ describe('createTelemetryMiddleware', () => {
 	it('records telemetry events for failed commands', async () => {
 		const middleware = createTelemetryMiddleware({ sink: mockSink });
 
-		const result = await middleware(
-			'test.command',
-			{},
-			{},
-			async () => ({
-				success: false,
-				error: { code: 'NOT_FOUND', message: 'Item not found' },
-			})
-		);
+		const result = await middleware('test.command', {}, {}, async () => ({
+			success: false,
+			error: { code: 'NOT_FOUND', message: 'Item not found' },
+		}));
 
 		expect(result.success).toBe(false);
 		expect(recordedEvents).toHaveLength(1);
@@ -101,7 +92,7 @@ describe('createTelemetryMiddleware', () => {
 			data: {},
 		}));
 
-		expect(recordedEvents[0]!.input).toEqual({ secret: 'value' });
+		expect(recordedEvents[0]?.input).toEqual({ secret: 'value' });
 	});
 
 	it('excludes input by default', async () => {
@@ -112,7 +103,7 @@ describe('createTelemetryMiddleware', () => {
 			data: {},
 		}));
 
-		expect(recordedEvents[0]!.input).toBeUndefined();
+		expect(recordedEvents[0]?.input).toBeUndefined();
 	});
 
 	it('excludes metadata when includeMetadata is false', async () => {
@@ -127,7 +118,7 @@ describe('createTelemetryMiddleware', () => {
 			metadata: { custom: 'data' },
 		}));
 
-		expect(recordedEvents[0]!.metadata).toBeUndefined();
+		expect(recordedEvents[0]?.metadata).toBeUndefined();
 	});
 
 	it('respects filter function', async () => {
@@ -149,7 +140,7 @@ describe('createTelemetryMiddleware', () => {
 		}));
 
 		expect(recordedEvents).toHaveLength(1);
-		expect(recordedEvents[0]!.commandName).toBe('public.command');
+		expect(recordedEvents[0]?.commandName).toBe('public.command');
 	});
 
 	it('handles async sinks', async () => {

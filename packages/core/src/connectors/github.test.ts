@@ -221,7 +221,9 @@ describe('GitHubConnector', () => {
 
 			const connector = new GitHubConnector();
 
-			await expect(connector.issueList('nonexistent/repo')).rejects.toThrow('Failed to list issues');
+			await expect(connector.issueList('nonexistent/repo')).rejects.toThrow(
+				'Failed to list issues'
+			);
 		});
 	});
 
@@ -242,7 +244,17 @@ describe('GitHubConnector', () => {
 			});
 
 			expect(mockExec).toHaveBeenCalledWith(
-				['gh', 'pr', 'create', '--title', 'My PR', '--body', 'PR description', '--head', 'feature-branch'],
+				[
+					'gh',
+					'pr',
+					'create',
+					'--title',
+					'My PR',
+					'--body',
+					'PR description',
+					'--head',
+					'feature-branch',
+				],
 				{}
 			);
 			expect(prNum).toBe(42);
@@ -308,9 +320,7 @@ describe('GitHubConnector', () => {
 	describe('prList', () => {
 		it('builds correct command for listing PRs', async () => {
 			mockExec.mockResolvedValue({
-				stdout: JSON.stringify([
-					{ number: 10, title: 'PR 1', state: 'OPEN', url: 'https://...' },
-				]),
+				stdout: JSON.stringify([{ number: 10, title: 'PR 1', state: 'OPEN', url: 'https://...' }]),
 				stderr: '',
 				exitCode: 0,
 				durationMs: 100,

@@ -2,12 +2,12 @@
  * @fileoverview Validate command
  */
 
-import type { Command } from 'commander';
+import { type ValidationResult, validateResult } from '@lushly-dev/afd-testing';
 import chalk from 'chalk';
+import type { Command } from 'commander';
 import ora from 'ora';
-import { getClient } from './connect.js';
 import { printError, printInfo, printSuccess, printWarning } from '../output.js';
-import { validateResult, type ValidationResult } from '@lushly-dev/afd-testing';
+import { getClient } from './connect.js';
 
 /**
  * Register the validate command.
@@ -141,10 +141,7 @@ export function registerValidateCommand(program: Command): void {
 				}
 			} catch (error) {
 				spinner.fail('Validation failed');
-				printError(
-					'Could not complete validation',
-					error instanceof Error ? error : undefined
-				);
+				printError('Could not complete validation', error instanceof Error ? error : undefined);
 				process.exit(1);
 			}
 		});

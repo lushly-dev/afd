@@ -2,14 +2,14 @@
  * @fileoverview Unit tests for due date filtering commands
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { store } from '../../store/index.js';
 import { createTodo } from '../create.js';
-import { updateTodo } from '../update.js';
 import { listTodos } from '../list.js';
 import { listToday } from '../list-today.js';
 import { listUpcoming } from '../list-upcoming.js';
 import { getStats } from '../stats.js';
+import { updateTodo } from '../update.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TEST SETUP
@@ -27,13 +27,13 @@ function getDateOffset(days: number): string {
 }
 
 // Helper to get start of today
-function getStartOfToday(): Date {
+function _getStartOfToday(): Date {
 	const now = new Date();
 	return new Date(now.getFullYear(), now.getMonth(), now.getDate());
 }
 
 // Helper to get end of today
-function getEndOfToday(): Date {
+function _getEndOfToday(): Date {
 	const now = new Date();
 	return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
 }
@@ -45,10 +45,7 @@ function getEndOfToday(): Date {
 describe('todo-create with dueDate', () => {
 	it('creates a todo with a due date', async () => {
 		const dueDate = getDateOffset(1);
-		const result = await createTodo.handler(
-			{ title: 'Due tomorrow', priority: 3, dueDate },
-			{}
-		);
+		const result = await createTodo.handler({ title: 'Due tomorrow', priority: 3, dueDate }, {});
 
 		expect(result.success).toBe(true);
 		expect(result.data?.dueDate).toBe(dueDate);
@@ -56,10 +53,7 @@ describe('todo-create with dueDate', () => {
 	});
 
 	it('creates a todo without a due date', async () => {
-		const result = await createTodo.handler(
-			{ title: 'No due date', priority: 2 },
-			{}
-		);
+		const result = await createTodo.handler({ title: 'No due date', priority: 2 }, {});
 
 		expect(result.success).toBe(true);
 		expect(result.data?.dueDate).toBeUndefined();
@@ -75,10 +69,7 @@ describe('todo-update with dueDate', () => {
 		const created = await createTodo.handler({ title: 'Test', priority: 2 }, {});
 		const dueDate = getDateOffset(3);
 
-		const result = await updateTodo.handler(
-			{ id: created.data!.id, dueDate },
-			{}
-		);
+		const result = await updateTodo.handler({ id: created.data?.id, dueDate }, {});
 
 		expect(result.success).toBe(true);
 		expect(result.data?.dueDate).toBe(dueDate);
@@ -87,15 +78,9 @@ describe('todo-update with dueDate', () => {
 
 	it('clears a due date by setting to null', async () => {
 		const dueDate = getDateOffset(1);
-		const created = await createTodo.handler(
-			{ title: 'Has due date', priority: 2, dueDate },
-			{}
-		);
+		const created = await createTodo.handler({ title: 'Has due date', priority: 2, dueDate }, {});
 
-		const result = await updateTodo.handler(
-			{ id: created.data!.id, dueDate: null },
-			{}
-		);
+		const result = await updateTodo.handler({ id: created.data?.id, dueDate: null }, {});
 
 		expect(result.success).toBe(true);
 		// dueDate should be cleared (either undefined or null)
@@ -112,9 +97,15 @@ describe('todo-list with due date filters', () => {
 	beforeEach(async () => {
 		// Create todos with various due dates
 		await createTodo.handler({ title: 'Overdue', priority: 3, dueDate: getDateOffset(-2) }, {});
-		await createTodo.handler({ title: 'Due today', priority: 2, dueDate: new Date().toISOString() }, {});
+		await createTodo.handler(
+			{ title: 'Due today', priority: 2, dueDate: new Date().toISOString() },
+			{}
+		);
 		await createTodo.handler({ title: 'Due tomorrow', priority: 1, dueDate: getDateOffset(1) }, {});
-		await createTodo.handler({ title: 'Due next week', priority: 2, dueDate: getDateOffset(7) }, {});
+		await createTodo.handler(
+			{ title: 'Due next week', priority: 2, dueDate: getDateOffset(7) },
+			{}
+		);
 		await createTodo.handler({ title: 'No due date', priority: 1 }, {});
 	});
 
@@ -123,13 +114,16 @@ describe('todo-list with due date filters', () => {
 		const startOfToday = new Date();
 		startOfToday.setHours(0, 0, 0, 0);
 
-		const result = await listTodos.handler({
-			dueBefore: startOfToday.toISOString(),
-			sortBy: 'dueDate',
-			sortOrder: 'asc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const result = await listTodos.handler(
+			{
+				dueBefore: startOfToday.toISOString(),
+				sortBy: 'dueDate',
+				sortOrder: 'asc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(result.success).toBe(true);
 		// Should include only overdue item (due before start of today)
@@ -138,13 +132,16 @@ describe('todo-list with due date filters', () => {
 	});
 
 	it('filters by dueAfter', async () => {
-		const result = await listTodos.handler({
-			dueAfter: getDateOffset(0),
-			sortBy: 'dueDate',
-			sortOrder: 'asc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const result = await listTodos.handler(
+			{
+				dueAfter: getDateOffset(0),
+				sortBy: 'dueDate',
+				sortOrder: 'asc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(result.success).toBe(true);
 		// Should include due today, tomorrow, and next week
@@ -152,13 +149,16 @@ describe('todo-list with due date filters', () => {
 	});
 
 	it('filters by overdue status', async () => {
-		const result = await listTodos.handler({
-			overdue: true,
-			sortBy: 'dueDate',
-			sortOrder: 'asc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const result = await listTodos.handler(
+			{
+				overdue: true,
+				sortBy: 'dueDate',
+				sortOrder: 'asc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(result.success).toBe(true);
 		expect(result.data?.todos.length).toBe(1);
@@ -166,12 +166,15 @@ describe('todo-list with due date filters', () => {
 	});
 
 	it('sorts by dueDate', async () => {
-		const result = await listTodos.handler({
-			sortBy: 'dueDate',
-			sortOrder: 'asc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const result = await listTodos.handler(
+			{
+				sortBy: 'dueDate',
+				sortOrder: 'asc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(result.success).toBe(true);
 		// First items should have earliest due dates
@@ -186,14 +189,17 @@ describe('todo-list with due date filters', () => {
 
 describe('todo-list-today', () => {
 	it('returns empty result when no todos due today', async () => {
-		const result = await listToday.handler({
-			includeOverdue: false,
-			includeCompleted: false,
-			sortBy: 'priority',
-			sortOrder: 'desc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const result = await listToday.handler(
+			{
+				includeOverdue: false,
+				includeCompleted: false,
+				sortBy: 'priority',
+				sortOrder: 'desc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(result.success).toBe(true);
 		expect(result.data?.todos).toHaveLength(0);
@@ -207,14 +213,17 @@ describe('todo-list-today', () => {
 		today.setHours(12, 0, 0, 0);
 		await createTodo.handler({ title: 'Due today', priority: 3, dueDate: today.toISOString() }, {});
 
-		const result = await listToday.handler({
-			includeOverdue: false,
-			includeCompleted: false,
-			sortBy: 'priority',
-			sortOrder: 'desc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const result = await listToday.handler(
+			{
+				includeOverdue: false,
+				includeCompleted: false,
+				sortBy: 'priority',
+				sortOrder: 'desc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(result.success).toBe(true);
 		expect(result.data?.todayCount).toBe(1);
@@ -223,25 +232,34 @@ describe('todo-list-today', () => {
 
 	it('includes overdue todos when flag is set', async () => {
 		// Create overdue todo
-		await createTodo.handler({ title: 'Overdue task', priority: 3, dueDate: getDateOffset(-2) }, {});
+		await createTodo.handler(
+			{ title: 'Overdue task', priority: 3, dueDate: getDateOffset(-2) },
+			{}
+		);
 
-		const withOverdue = await listToday.handler({
-			includeOverdue: true,
-			includeCompleted: false,
-			sortBy: 'priority',
-			sortOrder: 'desc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const withOverdue = await listToday.handler(
+			{
+				includeOverdue: true,
+				includeCompleted: false,
+				sortBy: 'priority',
+				sortOrder: 'desc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
-		const withoutOverdue = await listToday.handler({
-			includeOverdue: false,
-			includeCompleted: false,
-			sortBy: 'priority',
-			sortOrder: 'desc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const withoutOverdue = await listToday.handler(
+			{
+				includeOverdue: false,
+				includeCompleted: false,
+				sortBy: 'priority',
+				sortOrder: 'desc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(withOverdue.data?.overdueCount).toBe(1);
 		expect(withoutOverdue.data?.overdueCount).toBe(0);
@@ -251,14 +269,17 @@ describe('todo-list-today', () => {
 		// Create a future todo
 		await createTodo.handler({ title: 'Future task', priority: 2, dueDate: getDateOffset(3) }, {});
 
-		const result = await listToday.handler({
-			includeOverdue: false,
-			includeCompleted: false,
-			sortBy: 'priority',
-			sortOrder: 'desc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const result = await listToday.handler(
+			{
+				includeOverdue: false,
+				includeCompleted: false,
+				sortBy: 'priority',
+				sortOrder: 'desc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(result.success).toBe(true);
 		expect(result.data?.total).toBe(0);
@@ -274,14 +295,17 @@ describe('todo-list-today', () => {
 
 describe('todo-list-upcoming', () => {
 	it('returns empty result when no upcoming todos', async () => {
-		const result = await listUpcoming.handler({
-			days: 7,
-			includeCompleted: false,
-			sortBy: 'dueDate',
-			sortOrder: 'asc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const result = await listUpcoming.handler(
+			{
+				days: 7,
+				includeCompleted: false,
+				sortBy: 'dueDate',
+				sortOrder: 'asc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(result.success).toBe(true);
 		expect(result.data?.todos).toHaveLength(0);
@@ -294,17 +318,26 @@ describe('todo-list-upcoming', () => {
 		const today = new Date();
 		today.setHours(14, 0, 0, 0);
 		await createTodo.handler({ title: 'Due today', priority: 3, dueDate: today.toISOString() }, {});
-		await createTodo.handler({ title: 'Due in 3 days', priority: 2, dueDate: getDateOffset(3) }, {});
-		await createTodo.handler({ title: 'Due in 10 days', priority: 1, dueDate: getDateOffset(10) }, {});
+		await createTodo.handler(
+			{ title: 'Due in 3 days', priority: 2, dueDate: getDateOffset(3) },
+			{}
+		);
+		await createTodo.handler(
+			{ title: 'Due in 10 days', priority: 1, dueDate: getDateOffset(10) },
+			{}
+		);
 
-		const result = await listUpcoming.handler({
-			days: 7,
-			includeCompleted: false,
-			sortBy: 'dueDate',
-			sortOrder: 'asc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const result = await listUpcoming.handler(
+			{
+				days: 7,
+				includeCompleted: false,
+				sortBy: 'dueDate',
+				sortOrder: 'asc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(result.success).toBe(true);
 		// Should include today and 3 days, but not 10 days
@@ -321,16 +354,22 @@ describe('todo-list-upcoming', () => {
 
 		await createTodo.handler({ title: 'Today 1', priority: 3, dueDate: today.toISOString() }, {});
 		await createTodo.handler({ title: 'Today 2', priority: 2, dueDate: today.toISOString() }, {});
-		await createTodo.handler({ title: 'Tomorrow', priority: 1, dueDate: tomorrow.toISOString() }, {});
+		await createTodo.handler(
+			{ title: 'Tomorrow', priority: 1, dueDate: tomorrow.toISOString() },
+			{}
+		);
 
-		const result = await listUpcoming.handler({
-			days: 7,
-			includeCompleted: false,
-			sortBy: 'dueDate',
-			sortOrder: 'asc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const result = await listUpcoming.handler(
+			{
+				days: 7,
+				includeCompleted: false,
+				sortBy: 'dueDate',
+				sortOrder: 'asc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(result.success).toBe(true);
 		expect(result.data?.breakdown.today).toBe(2);
@@ -338,18 +377,24 @@ describe('todo-list-upcoming', () => {
 	});
 
 	it('filters by priority', async () => {
-		await createTodo.handler({ title: 'High priority', priority: 3, dueDate: getDateOffset(1) }, {});
+		await createTodo.handler(
+			{ title: 'High priority', priority: 3, dueDate: getDateOffset(1) },
+			{}
+		);
 		await createTodo.handler({ title: 'Low priority', priority: 1, dueDate: getDateOffset(1) }, {});
 
-		const result = await listUpcoming.handler({
-			days: 7,
-			includeCompleted: false,
-			priority: 3,
-			sortBy: 'dueDate',
-			sortOrder: 'asc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const result = await listUpcoming.handler(
+			{
+				days: 7,
+				includeCompleted: false,
+				priority: 3,
+				sortBy: 'dueDate',
+				sortOrder: 'asc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(result.success).toBe(true);
 		expect(result.data?.todos).toHaveLength(1);
@@ -359,30 +404,39 @@ describe('todo-list-upcoming', () => {
 	it('supports pagination', async () => {
 		// Create multiple upcoming todos
 		for (let i = 1; i <= 5; i++) {
-			await createTodo.handler({
-				title: `Task ${i}`,
-				priority: 2,
-				dueDate: getDateOffset(i),
-			}, {});
+			await createTodo.handler(
+				{
+					title: `Task ${i}`,
+					priority: 2,
+					dueDate: getDateOffset(i),
+				},
+				{}
+			);
 		}
 
-		const page1 = await listUpcoming.handler({
-			days: 7,
-			includeCompleted: false,
-			sortBy: 'dueDate',
-			sortOrder: 'asc',
-			limit: 2,
-			offset: 0,
-		}, {});
+		const page1 = await listUpcoming.handler(
+			{
+				days: 7,
+				includeCompleted: false,
+				sortBy: 'dueDate',
+				sortOrder: 'asc',
+				limit: 2,
+				offset: 0,
+			},
+			{}
+		);
 
-		const page2 = await listUpcoming.handler({
-			days: 7,
-			includeCompleted: false,
-			sortBy: 'dueDate',
-			sortOrder: 'asc',
-			limit: 2,
-			offset: 2,
-		}, {});
+		const page2 = await listUpcoming.handler(
+			{
+				days: 7,
+				includeCompleted: false,
+				sortBy: 'dueDate',
+				sortOrder: 'asc',
+				limit: 2,
+				offset: 2,
+			},
+			{}
+		);
 
 		expect(page1.data?.todos).toHaveLength(2);
 		expect(page1.data?.hasMore).toBe(true);
@@ -413,14 +467,17 @@ describe('todo-stats with overdue count', () => {
 
 	it('does not count completed todos as overdue', async () => {
 		// Create and complete an overdue todo
-		const created = await createTodo.handler({
-			title: 'Completed overdue',
-			priority: 3,
-			dueDate: getDateOffset(-2),
-		}, {});
+		const created = await createTodo.handler(
+			{
+				title: 'Completed overdue',
+				priority: 3,
+				dueDate: getDateOffset(-2),
+			},
+			{}
+		);
 
 		// Toggle to completed using the store directly
-		store.toggle(created.data!.id);
+		store.toggle(created.data?.id);
 
 		const result = await getStats.handler({}, {});
 

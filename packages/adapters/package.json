@@ -1,60 +1,60 @@
 {
-  "name": "@lushly-dev/afd-adapters",
-  "version": "0.1.1",
-  "description": "Frontend adapters for rendering AFD CommandResult to styled HTML",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
-    "./css": "./css/afd-theme.css"
-  },
-  "files": [
-    "dist",
-    "css"
-  ],
-  "scripts": {
-    "build": "tsc",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "lint": "biome check src/",
-    "format": "biome format --write src/"
-  },
-  "dependencies": {},
-  "devDependencies": {
-    "@lushly-dev/afd-core": "workspace:*",
-    "typescript": "^5.3.0",
-    "vitest": "^1.6.0"
-  },
-  "peerDependencies": {
-    "@lushly-dev/afd-core": ">=0.1.0"
-  },
-  "keywords": [
-    "afd",
-    "adapters",
-    "frontend",
-    "rendering",
-    "command-result"
-  ],
-  "author": "Falkicon",
-  "license": "MIT",
-  "homepage": "https://github.com/lushly-dev/afd#readme",
-  "bugs": {
-    "url": "https://github.com/lushly-dev/afd/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/lushly-dev/afd.git",
-    "directory": "packages/adapters"
-  },
-  "engines": {
-    "node": ">=20.0.0"
-  },
-  "sideEffects": false,
-  "publishConfig": {
-    "access": "public"
-  }
+	"name": "@lushly-dev/afd-adapters",
+	"version": "0.1.1",
+	"description": "Frontend adapters for rendering AFD CommandResult to styled HTML",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./css": "./css/afd-theme.css"
+	},
+	"files": [
+		"dist",
+		"css"
+	],
+	"scripts": {
+		"build": "tsc",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"lint": "biome check src/",
+		"format": "biome format --write src/"
+	},
+	"dependencies": {},
+	"devDependencies": {
+		"@lushly-dev/afd-core": "workspace:*",
+		"typescript": "^5.3.0",
+		"vitest": "^1.6.0"
+	},
+	"peerDependencies": {
+		"@lushly-dev/afd-core": ">=0.1.0"
+	},
+	"keywords": [
+		"afd",
+		"adapters",
+		"frontend",
+		"rendering",
+		"command-result"
+	],
+	"author": "Falkicon",
+	"license": "MIT",
+	"homepage": "https://github.com/lushly-dev/afd#readme",
+	"bugs": {
+		"url": "https://github.com/lushly-dev/afd/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "packages/adapters"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	},
+	"sideEffects": false,
+	"publishConfig": {
+		"access": "public"
+	}
 }

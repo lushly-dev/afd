@@ -13,16 +13,15 @@
  *   afd call chat-connect '{"roomId": "general", "nickname": "CLI-User"}'
  */
 
+import type { ZodCommandDefinition } from '@lushly-dev/afd-server';
 import {
 	createLoggingMiddleware,
 	createMcpServer,
 	getBootstrapCommands,
 } from '@lushly-dev/afd-server';
-import type { ZodCommandDefinition } from '@lushly-dev/afd-server';
 import { allCommands } from './commands/index.js';
-import { createWebSocketServer } from './ws-server.js';
-
 import { createHttpHandler } from './http-handler.js';
+import { createWebSocketServer } from './ws-server.js';
 
 // Configuration from environment
 const PORT = Number.parseInt(process.env.PORT ?? '3100', 10);
@@ -96,9 +95,12 @@ async function main() {
 
 	// Start WebSocket server
 	const wss = createWebSocketServer(WS_PORT);
-	
+
 	// Start HTTP JSON-RPC server for browser demo
-	const httpServer = createHttpHandler(allCommands as unknown as ZodCommandDefinition[], HTTP_PORT);
+	const _httpServer = createHttpHandler(
+		allCommands as unknown as ZodCommandDefinition[],
+		HTTP_PORT
+	);
 
 	if (isInteractive) {
 		console.error(`MCP Server running at ${server.getUrl()}`);

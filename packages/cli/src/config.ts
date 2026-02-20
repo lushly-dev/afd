@@ -45,10 +45,7 @@ export function getConfig(): StoredConfig {
 /**
  * Set a configuration value.
  */
-export function setConfig<K extends keyof StoredConfig>(
-	key: K,
-	value: StoredConfig[K]
-): void {
+export function setConfig<K extends keyof StoredConfig>(key: K, value: StoredConfig[K]): void {
 	store.set(key, value);
 }
 

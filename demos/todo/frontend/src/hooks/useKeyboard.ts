@@ -22,7 +22,7 @@ export function useKeyboard({ shortcuts, enabled = true }: UseKeyboardOptions): 
 
 		const handleKeyDown = (e: KeyboardEvent) => {
 			const target = e.target as HTMLElement;
-			
+
 			if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
 				if (e.key === 'Escape') target.blur();
 				return;

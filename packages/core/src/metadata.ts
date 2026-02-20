@@ -223,21 +223,14 @@ export interface Warning {
 /**
  * Create a new Source.
  */
-export function createSource(
-	type: string,
-	options?: Omit<Source, 'type'>
-): Source {
+export function createSource(type: string, options?: Omit<Source, 'type'>): Source {
 	return { type, ...options };
 }
 
 /**
  * Create a new PlanStep with pending status.
  */
-export function createStep(
-	id: string,
-	action: string,
-	description?: string
-): PlanStep {
+export function createStep(id: string, action: string, description?: string): PlanStep {
 	return {
 		id,
 		action,

@@ -92,11 +92,7 @@ class ChatService {
 	/**
 	 * Create a new chat session.
 	 */
-	createSession(options: {
-		roomId: string;
-		userId: string;
-		nickname: string;
-	}): Session {
+	createSession(options: { roomId: string; userId: string; nickname: string }): Session {
 		const session: Session = {
 			id: `sess_${generateId()}`,
 			roomId: options.roomId,
@@ -175,7 +171,7 @@ class ChatService {
 	/**
 	 * End a session explicitly.
 	 */
-	endSession(sessionId: string, options?: { reason?: string }): Session | undefined {
+	endSession(sessionId: string, _options?: { reason?: string }): Session | undefined {
 		return this.markDisconnected(sessionId);
 	}
 
@@ -241,11 +237,7 @@ class ChatService {
 	/**
 	 * Get messages for a room.
 	 */
-	getMessages(options: {
-		roomId: string;
-		after?: string;
-		limit?: number;
-	}): Message[] {
+	getMessages(options: { roomId: string; after?: string; limit?: number }): Message[] {
 		const limit = options.limit ?? 50;
 
 		let filtered = this.messages.filter((m) => m.roomId === options.roomId);

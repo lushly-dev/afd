@@ -1,128 +1,128 @@
 {
-  "tests": [
-    {
-      "name": "create_basic",
-      "description": "Create a todo with minimal fields",
-      "setup": [],
-      "command": "todo-create",
-      "input": { "title": "Test todo" },
-      "expect": {
-        "success": true,
-        "data.title": "Test todo",
-        "data.priority": "medium",
-        "data.completed": false
-      }
-    },
-    {
-      "name": "create_with_priority",
-      "description": "Create a todo with high priority",
-      "setup": [],
-      "command": "todo-create",
-      "input": { "title": "High priority task", "priority": "high" },
-      "expect": {
-        "success": true,
-        "data.title": "High priority task",
-        "data.priority": "high"
-      }
-    },
-    {
-      "name": "get_not_found",
-      "description": "Get non-existent todo returns NOT_FOUND",
-      "setup": [],
-      "command": "todo-get",
-      "input": { "id": "nonexistent" },
-      "expect": {
-        "success": false,
-        "error.code": "NOT_FOUND"
-      }
-    },
-    {
-      "name": "list_all",
-      "description": "List all todos",
-      "setup": [
-        { "command": "todo-create", "input": { "title": "Todo 1" } },
-        { "command": "todo-create", "input": { "title": "Todo 2" } }
-      ],
-      "command": "todo-list",
-      "input": {},
-      "expect": {
-        "success": true,
-        "data.total": 2,
-        "data.todos.length": 2
-      }
-    },
-    {
-      "name": "update_title",
-      "description": "Update a todo title",
-      "setup": [
-        {
-          "command": "todo-create",
-          "input": { "title": "Original title" },
-          "capture": "todo1"
-        }
-      ],
-      "command": "todo-update",
-      "input": { "id": "$todo1.id", "title": "Updated title" },
-      "expect": {
-        "success": true,
-        "data.title": "Updated title"
-      }
-    },
-    {
-      "name": "toggle_status",
-      "description": "Toggle a todo status",
-      "setup": [
-        {
-          "command": "todo-create",
-          "input": { "title": "Toggle me" },
-          "capture": "todo1"
-        }
-      ],
-      "command": "todo-toggle",
-      "input": { "id": "$todo1.id" },
-      "expect": {
-        "success": true,
-        "data.completed": true
-      }
-    },
-    {
-      "name": "delete_todo",
-      "description": "Delete a todo",
-      "setup": [
-        {
-          "command": "todo-create",
-          "input": { "title": "Delete me" },
-          "capture": "todo1"
-        }
-      ],
-      "command": "todo-delete",
-      "input": { "id": "$todo1.id" },
-      "expect": {
-        "success": true,
-        "data.deleted": true
-      }
-    },
-    {
-      "name": "stats_basic",
-      "description": "Get stats for todos",
-      "setup": [
-        {
-          "command": "todo-create",
-          "input": { "title": "Task 1", "priority": "high" }
-        },
-        {
-          "command": "todo-create",
-          "input": { "title": "Task 2", "priority": "low" }
-        }
-      ],
-      "command": "todo-stats",
-      "input": {},
-      "expect": {
-        "success": true,
-        "data.total": 2,
-        "data.byPriority.high": 1,
-        "data.byPriority.low": 1
-      }
-    }
-  ]
+	"tests": [
+		{
+			"name": "create_basic",
+			"description": "Create a todo with minimal fields",
+			"setup": [],
+			"command": "todo-create",
+			"input": { "title": "Test todo" },
+			"expect": {
+				"success": true,
+				"data.title": "Test todo",
+				"data.priority": "medium",
+				"data.completed": false
+			}
+		},
+		{
+			"name": "create_with_priority",
+			"description": "Create a todo with high priority",
+			"setup": [],
+			"command": "todo-create",
+			"input": { "title": "High priority task", "priority": "high" },
+			"expect": {
+				"success": true,
+				"data.title": "High priority task",
+				"data.priority": "high"
+			}
+		},
+		{
+			"name": "get_not_found",
+			"description": "Get non-existent todo returns NOT_FOUND",
+			"setup": [],
+			"command": "todo-get",
+			"input": { "id": "nonexistent" },
+			"expect": {
+				"success": false,
+				"error.code": "NOT_FOUND"
+			}
+		},
+		{
+			"name": "list_all",
+			"description": "List all todos",
+			"setup": [
+				{ "command": "todo-create", "input": { "title": "Todo 1" } },
+				{ "command": "todo-create", "input": { "title": "Todo 2" } }
+			],
+			"command": "todo-list",
+			"input": {},
+			"expect": {
+				"success": true,
+				"data.total": 2,
+				"data.todos.length": 2
+			}
+		},
+		{
+			"name": "update_title",
+			"description": "Update a todo title",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "Original title" },
+					"capture": "todo1"
+				}
+			],
+			"command": "todo-update",
+			"input": { "id": "$todo1.id", "title": "Updated title" },
+			"expect": {
+				"success": true,
+				"data.title": "Updated title"
+			}
+		},
+		{
+			"name": "toggle_status",
+			"description": "Toggle a todo status",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "Toggle me" },
+					"capture": "todo1"
+				}
+			],
+			"command": "todo-toggle",
+			"input": { "id": "$todo1.id" },
+			"expect": {
+				"success": true,
+				"data.completed": true
+			}
+		},
+		{
+			"name": "delete_todo",
+			"description": "Delete a todo",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "Delete me" },
+					"capture": "todo1"
+				}
+			],
+			"command": "todo-delete",
+			"input": { "id": "$todo1.id" },
+			"expect": {
+				"success": true,
+				"data.deleted": true
+			}
+		},
+		{
+			"name": "stats_basic",
+			"description": "Get stats for todos",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "Task 1", "priority": "high" }
+				},
+				{
+					"command": "todo-create",
+					"input": { "title": "Task 2", "priority": "low" }
+				}
+			],
+			"command": "todo-stats",
+			"input": {},
+			"expect": {
+				"success": true,
+				"data.total": 2,
+				"data.byPriority.high": 1,
+				"data.byPriority.low": 1
+			}
+		}
+	]
 }

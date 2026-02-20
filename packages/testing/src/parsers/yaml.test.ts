@@ -2,7 +2,7 @@
  * Tests for YAML scenario parser
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { parseScenarioString } from '../parsers/yaml.js';
 
 describe('YAML Parser', () => {

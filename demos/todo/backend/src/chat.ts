@@ -16,16 +16,16 @@
  */
 
 import {
-	GoogleGenAI,
-	Type,
-	type Schema,
 	type Content,
-	type Part,
 	type FunctionDeclaration,
+	GoogleGenAI,
+	type Part,
+	type Schema,
+	Type,
 } from '@google/genai';
 // DirectClient kept for MCP compatibility, but todo actions now go through Convex
 import { DirectClient } from '@lushly-dev/afd-client';
-import { registry, type CommandMetadata } from './registry.js';
+import { registry } from './registry.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -56,104 +56,103 @@ const CONVEX_URL = process.env.CONVEX_URL || 'https://adamant-pelican-217.convex
  * Map of command names to Convex endpoints
  */
 const CONVEX_ENDPOINTS: Record<string, string> = {
-  'todo-create': '/api/todos/create',
-  'todo-list': '/api/todos/list',
-  'todo-toggle': '/api/todos/toggle',
-  'todo-complete': '/api/todos/toggle',
-  'todo-uncomplete': '/api/todos/toggle',
-  'todo-update': '/api/todos/update',
-  'todo-delete': '/api/todos/delete',
-  'todo-stats': '/api/todos/stats',
-  'todo-clear': '/api/todos/clear-completed',
+	'todo-create': '/api/todos/create',
+	'todo-list': '/api/todos/list',
+	'todo-toggle': '/api/todos/toggle',
+	'todo-complete': '/api/todos/toggle',
+	'todo-uncomplete': '/api/todos/toggle',
+	'todo-update': '/api/todos/update',
+	'todo-delete': '/api/todos/delete',
+	'todo-stats': '/api/todos/stats',
+	'todo-clear': '/api/todos/clear-completed',
 };
 
 /**
  * Handle todo operations via Convex HTTP API for reads, mock for writes.
- * 
+ *
  * - Read operations (list, stats, search): Query Convex for real data
  * - Write operations (create, toggle, update, delete): Return mock success,
  *   frontend executes locally via LocalStore and syncs to Convex
  */
 async function callConvexAction(
-  commandName: string,
-  args: Record<string, unknown>
+	commandName: string,
+	args: Record<string, unknown>
 ): Promise<{ success: boolean; data?: unknown; error?: { message: string } }> {
-  const endpoint = CONVEX_ENDPOINTS[commandName];
-  
-  if (!endpoint) {
-    // Fall back to DirectClient for non-todo commands
-    return directClient.call(commandName, args);
-  }
-  
-  // READ operations: Query Convex for real data
-  const readCommands = ['todo-list', 'todo-stats', 'todo-search'];
-  if (readCommands.includes(commandName)) {
-    try {
-      console.log(`[callConvexAction] Querying Convex for ${commandName}`);
-      const response = await fetch(`${CONVEX_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(args),
-      });
-      
-      if (!response.ok) {
-        console.error(`[callConvexAction] Convex error: ${response.status}`);
-        return { success: false, error: { message: `Convex error: ${response.status}` } };
-      }
-      
-      const data = await response.json();
-      return { success: true, data };
-    } catch (error) {
-      console.error(`[callConvexAction] Convex fetch failed:`, error);
-      return { success: false, error: { message: 'Failed to fetch from Convex' } };
-    }
-  }
-  
-  // WRITE operations: Return mock success for local-first architecture.
-  // Frontend's executeLocalAction creates in LocalStore (instant UI).
-  // LocalStore syncs to Convex in background via ConvexSync.
-  // This gives instant feedback while maintaining data consistency.
-  
-  console.log(`[callConvexAction] Local-first mock for ${commandName}:`, args);
-  
-  // Generate a temporary ID for new todos (LocalStore will assign real ID)
-  const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  
-  // Return mock success with full data so executeLocalAction can use it
-  switch (commandName) {
-    case 'todo-create':
-      return {
-        success: true,
-        data: {
-          _id: tempId,
-          title: args.title,
-          description: args.description || '',
-          priority: args.priority || 'medium',
-          completed: false,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        },
-      };
-    
-    case 'todo-toggle':
-    case 'todo-complete':
-    case 'todo-uncomplete':
-      return { success: true, data: { id: args.id, toggled: true } };
-    
-    case 'todo-update':
-      return { success: true, data: { id: args.id, ...args } };
-    
-    case 'todo-delete':
-      return { success: true, data: { id: args.id, title: args.title, deleted: true } };
-    
-    case 'todo-clear':
-      return { success: true, data: { cleared: true } };
-    
-    default:
-      return { success: true, data: args };
-  }
-}
+	const endpoint = CONVEX_ENDPOINTS[commandName];
 
+	if (!endpoint) {
+		// Fall back to DirectClient for non-todo commands
+		return directClient.call(commandName, args);
+	}
+
+	// READ operations: Query Convex for real data
+	const readCommands = ['todo-list', 'todo-stats', 'todo-search'];
+	if (readCommands.includes(commandName)) {
+		try {
+			console.log(`[callConvexAction] Querying Convex for ${commandName}`);
+			const response = await fetch(`${CONVEX_URL}${endpoint}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(args),
+			});
+
+			if (!response.ok) {
+				console.error(`[callConvexAction] Convex error: ${response.status}`);
+				return { success: false, error: { message: `Convex error: ${response.status}` } };
+			}
+
+			const data = await response.json();
+			return { success: true, data };
+		} catch (error) {
+			console.error(`[callConvexAction] Convex fetch failed:`, error);
+			return { success: false, error: { message: 'Failed to fetch from Convex' } };
+		}
+	}
+
+	// WRITE operations: Return mock success for local-first architecture.
+	// Frontend's executeLocalAction creates in LocalStore (instant UI).
+	// LocalStore syncs to Convex in background via ConvexSync.
+	// This gives instant feedback while maintaining data consistency.
+
+	console.log(`[callConvexAction] Local-first mock for ${commandName}:`, args);
+
+	// Generate a temporary ID for new todos (LocalStore will assign real ID)
+	const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+	// Return mock success with full data so executeLocalAction can use it
+	switch (commandName) {
+		case 'todo-create':
+			return {
+				success: true,
+				data: {
+					_id: tempId,
+					title: args.title,
+					description: args.description || '',
+					priority: args.priority || 'medium',
+					completed: false,
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+				},
+			};
+
+		case 'todo-toggle':
+		case 'todo-complete':
+		case 'todo-uncomplete':
+			return { success: true, data: { id: args.id, toggled: true } };
+
+		case 'todo-update':
+			return { success: true, data: { id: args.id, ...args } };
+
+		case 'todo-delete':
+			return { success: true, data: { id: args.id, title: args.title, deleted: true } };
+
+		case 'todo-clear':
+			return { success: true, data: { cleared: true } };
+
+		default:
+			return { success: true, data: args };
+	}
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // METRICS
@@ -280,7 +279,11 @@ function categorizeError(error: unknown): CategorizedError {
 	}
 
 	// Server errors
-	if (errorMessage.includes('500') || errorMessage.includes('503') || errorMessage.includes('502')) {
+	if (
+		errorMessage.includes('500') ||
+		errorMessage.includes('503') ||
+		errorMessage.includes('502')
+	) {
 		return {
 			category: 'server',
 			message: errorMessage,
@@ -331,7 +334,7 @@ async function withRetry<T>(
 			}
 
 			// Exponential backoff: 1s, 2s, 4s...
-			const delayMs = options.baseDelayMs * Math.pow(2, attempt);
+			const delayMs = options.baseDelayMs * 2 ** attempt;
 			console.log(
 				`⚠️  [${options.requestId}] Retry ${attempt + 1}/${options.maxRetries} after ${delayMs}ms (${lastError.category})`
 			);
@@ -463,7 +466,11 @@ function getCommandProperties(name: string): Record<string, Schema> {
 /**
  * Generate reasoning about what happened during the chat processing
  */
-function generateReasoning(userMessage: string, toolExecutions: ToolExecution[], totalLatency: number): string {
+function generateReasoning(
+	userMessage: string,
+	toolExecutions: ToolExecution[],
+	totalLatency: number
+): string {
 	const reasoning: string[] = [];
 
 	reasoning.push(`**User Request Analysis:**`);
@@ -472,30 +479,43 @@ function generateReasoning(userMessage: string, toolExecutions: ToolExecution[],
 
 	if (toolExecutions.length === 0) {
 		reasoning.push('**Processing:**');
-		reasoning.push('This request didn\'t require any tool executions. I processed it directly using my language model capabilities.');
+		reasoning.push(
+			"This request didn't require any tool executions. I processed it directly using my language model capabilities."
+		);
 	} else {
 		reasoning.push('**Tool Execution Strategy:**');
-		reasoning.push(`I identified that this request required ${toolExecutions.length} tool execution${toolExecutions.length === 1 ? '' : 's'}:`);
+		reasoning.push(
+			`I identified that this request required ${toolExecutions.length} tool execution${toolExecutions.length === 1 ? '' : 's'}:`
+		);
 		reasoning.push('');
 
 		for (const exec of toolExecutions) {
 			reasoning.push(`• **${exec.name}** (${exec.latencyMs.toFixed(3)}ms)`);
 			reasoning.push(`  - Purpose: Execute todo operation`);
-			const resultStatus = exec.result && typeof exec.result === 'object' && 'success' in exec.result
-				? ((exec.result as { success: boolean }).success ? 'Success' : 'Error')
-				: 'Completed';
+			const resultStatus =
+				exec.result && typeof exec.result === 'object' && 'success' in exec.result
+					? (exec.result as { success: boolean }).success
+						? 'Success'
+						: 'Error'
+					: 'Completed';
 			reasoning.push(`  - Result: ${resultStatus}`);
 		}
 		reasoning.push('');
 
 		reasoning.push('**Performance:**');
-		reasoning.push(`- Total tool execution time: ${toolExecutions.reduce((acc, exec) => acc + exec.latencyMs, 0).toFixed(3)}ms`);
-		reasoning.push(`- DirectClient efficiency: Each tool call averaged ${(toolExecutions.reduce((acc, exec) => acc + exec.latencyMs, 0) / toolExecutions.length).toFixed(3)}ms`);
+		reasoning.push(
+			`- Total tool execution time: ${toolExecutions.reduce((acc, exec) => acc + exec.latencyMs, 0).toFixed(3)}ms`
+		);
+		reasoning.push(
+			`- DirectClient efficiency: Each tool call averaged ${(toolExecutions.reduce((acc, exec) => acc + exec.latencyMs, 0) / toolExecutions.length).toFixed(3)}ms`
+		);
 	}
 
 	reasoning.push('');
 	reasoning.push('**Response Generation:**');
-	reasoning.push(`I synthesized the results into a helpful response for the user, completing the entire request in ${totalLatency.toFixed(0)}ms.`);
+	reasoning.push(
+		`I synthesized the results into a helpful response for the user, completing the entire request in ${totalLatency.toFixed(0)}ms.`
+	);
 
 	return reasoning.join('\n');
 }
@@ -509,7 +529,10 @@ let requestCounter = 0;
 /**
  * Process a chat message with Gemini + DirectClient
  */
-export async function processChat(userMessage: string, todosContext?: string | null): Promise<ChatResponse> {
+export async function processChat(
+	userMessage: string,
+	todosContext?: string | null
+): Promise<ChatResponse> {
 	const requestId = `req-${Date.now()}-${++requestCounter}`;
 	const startTime = performance.now();
 
@@ -517,7 +540,7 @@ export async function processChat(userMessage: string, todosContext?: string | n
 
 	if (!genAI) {
 		metrics.errorCount++;
-		metrics.errorsByType['config'] = (metrics.errorsByType['config'] || 0) + 1;
+		metrics.errorsByType.config = (metrics.errorsByType.config || 0) + 1;
 		throw new Error('Gemini API key not configured. Set GOOGLE_API_KEY in .env');
 	}
 
@@ -662,7 +685,7 @@ Be concise in your responses. After performing actions, briefly summarize what w
 
 		// Handle uncategorized errors
 		metrics.errorCount++;
-		metrics.errorsByType['unknown'] = (metrics.errorsByType['unknown'] || 0) + 1;
+		metrics.errorsByType.unknown = (metrics.errorsByType.unknown || 0) + 1;
 		throw error;
 	}
 }
@@ -706,7 +729,7 @@ export async function processChatStreaming(
 
 	if (!genAI) {
 		metrics.errorCount++;
-		metrics.errorsByType['config'] = (metrics.errorsByType['config'] || 0) + 1;
+		metrics.errorsByType.config = (metrics.errorsByType.config || 0) + 1;
 		callbacks.onError('Gemini API key not configured. Set GOOGLE_API_KEY in .env');
 		return;
 	}
@@ -760,9 +783,7 @@ Be concise in your responses. After performing actions, briefly summarize what w
 
 			if (functionCalls.length === 0) {
 				// No more function calls, stream the final response token by token
-				const textParts = parts.filter(
-					(p: unknown) => (p as Record<string, unknown>).text
-				);
+				const textParts = parts.filter((p: unknown) => (p as Record<string, unknown>).text);
 
 				if (textParts.length > 0) {
 					const fullText =
@@ -773,10 +794,10 @@ Be concise in your responses. After performing actions, briefly summarize what w
 					const words = fullText.split(' ');
 					for (let i = 0; i < words.length; i++) {
 						const word = words[i]!;
-						const token = i === 0 ? word : ' ' + word;
+						const token = i === 0 ? word : ` ${word}`;
 						callbacks.onToken(token);
 						// Small delay to simulate streaming (remove in production if too slow)
-						await new Promise(resolve => setTimeout(resolve, 10));
+						await new Promise((resolve) => setTimeout(resolve, 10));
 					}
 				}
 				break;
@@ -816,9 +837,16 @@ Be concise in your responses. After performing actions, briefly summarize what w
 				const cmdMetadata = registry.getCommandMetadata(commandName);
 
 				// Notify tool completion with metadata
-				callbacks.onToolEnd(commandName, toolExecution.result, latencyMs, cmdMetadata ? {
-					tags: cmdMetadata.tags,
-				} : undefined);
+				callbacks.onToolEnd(
+					commandName,
+					toolExecution.result,
+					latencyMs,
+					cmdMetadata
+						? {
+								tags: cmdMetadata.tags,
+							}
+						: undefined
+				);
 
 				functionResponses.push({
 					functionResponse: {
@@ -881,7 +909,7 @@ Be concise in your responses. After performing actions, briefly summarize what w
 
 		// Handle uncategorized errors
 		metrics.errorCount++;
-		metrics.errorsByType['unknown'] = (metrics.errorsByType['unknown'] || 0) + 1;
+		metrics.errorsByType.unknown = (metrics.errorsByType.unknown || 0) + 1;
 		const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 		callbacks.onError(errorMessage);
 	}

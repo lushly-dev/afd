@@ -2,8 +2,8 @@
  * @fileoverview list-create command
  */
 
-import { z } from 'zod';
 import { defineCommand, success } from '@lushly-dev/afd-server';
+import { z } from 'zod';
 import { store } from '../store/index.js';
 import type { List } from '../types.js';
 

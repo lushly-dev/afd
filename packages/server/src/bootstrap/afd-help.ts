@@ -1,12 +1,12 @@
 /**
  * @fileoverview afd-help bootstrap command
- * 
+ *
  * List all available commands with tags and grouping.
  */
 
-import { z } from 'zod';
 import type { CommandDefinition } from '@lushly-dev/afd-core';
 import { success } from '@lushly-dev/afd-core';
+import { z } from 'zod';
 
 const inputSchema = z.object({
 	filter: z.string().optional().describe('Tag filter: e.g., "todo" or "read"'),
@@ -32,7 +32,7 @@ interface HelpOutput {
 
 /**
  * Create the afd-help bootstrap command.
- * 
+ *
  * @param getCommands - Function to get all registered commands
  */
 export function createAfdHelpCommand(
@@ -52,33 +52,34 @@ export function createAfdHelpCommand(
 
 		async handler(input: InputType) {
 			const allCommands = getCommands();
-			
+
 			// Filter by tag if provided
 			let commands = allCommands;
 			const filtered = !!input.filter;
-			
+
 			if (input.filter) {
 				const filterTag = input.filter.toLowerCase();
-				commands = allCommands.filter(cmd => 
-					cmd.tags?.some(tag => tag.toLowerCase().includes(filterTag)) ||
-					cmd.category?.toLowerCase().includes(filterTag) ||
-					cmd.name.toLowerCase().includes(filterTag)
+				commands = allCommands.filter(
+					(cmd) =>
+						cmd.tags?.some((tag) => tag.toLowerCase().includes(filterTag)) ||
+						cmd.category?.toLowerCase().includes(filterTag) ||
+						cmd.name.toLowerCase().includes(filterTag)
 				);
 			}
 
 			// Map to output format
-			const commandInfos: CommandInfo[] = commands.map(cmd => {
+			const commandInfos: CommandInfo[] = commands.map((cmd) => {
 				const info: CommandInfo = {
 					name: cmd.name,
 					description: cmd.description,
 				};
-				
+
 				if (input.format === 'full') {
 					info.category = cmd.category;
 					info.tags = cmd.tags;
 					info.mutation = cmd.mutation;
 				}
-				
+
 				return info;
 			});
 
@@ -100,7 +101,7 @@ export function createAfdHelpCommand(
 			};
 
 			return success(output, {
-				reasoning: filtered 
+				reasoning: filtered
 					? `Found ${commandInfos.length} commands matching "${input.filter}"`
 					: `Listing all ${commandInfos.length} available commands`,
 				confidence: 1.0,

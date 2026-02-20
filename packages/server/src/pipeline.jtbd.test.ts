@@ -12,11 +12,12 @@
  * 5. Alias references
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createMcpServer, type McpServer } from './server.js';
-import { z } from 'zod';
 import type { CommandResult, PipelineRequest } from '@lushly-dev/afd-core';
-import { success, failure } from '@lushly-dev/afd-core';
+import { failure, success } from '@lushly-dev/afd-core';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
+import { createMcpServer, type McpServer } from './server.js';
+import type { ZodCommandDefinition } from './schema.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // JTBD TEST FIXTURES & COMMANDS
@@ -42,7 +43,9 @@ const userGetCommand = {
 		properties: { id: { type: 'number' } },
 		required: ['id'],
 	},
-	handler: async (input: { id: number }): Promise<CommandResult<{ id: number; name: string; tier: string }>> => {
+	handler: async (input: {
+		id: number;
+	}): Promise<CommandResult<{ id: number; name: string; tier: string }>> => {
 		const user = fixtureUsers[input.id];
 		if (!user) {
 			return failure({
@@ -129,11 +132,8 @@ const dataValidateCommand = {
 		properties: { data: { type: 'string' } },
 		required: ['data'],
 	},
-	handler: async (input: { data: string }): Promise<CommandResult<{ valid: boolean }>> => {
-		return success(
-			{ valid: true },
-			{ confidence: 0.80, reasoning: 'Schema mismatch in 2 fields' }
-		);
+	handler: async (_input: { data: string }): Promise<CommandResult<{ valid: boolean }>> => {
+		return success({ valid: true }, { confidence: 0.8, reasoning: 'Schema mismatch in 2 fields' });
 	},
 };
 
@@ -151,11 +151,10 @@ const orderListCommand = {
 		properties: { userId: { type: 'number' } },
 		required: ['userId'],
 	},
-	handler: async (input: { userId: number }): Promise<CommandResult<{ orders: Array<{ id: string; total: number }> }>> => {
-		return success(
-			{ orders: [{ id: 'order-1', total: 100 }] },
-			{ confidence: 0.99 }
-		);
+	handler: async (_input: {
+		userId: number;
+	}): Promise<CommandResult<{ orders: Array<{ id: string; total: number }> }>> => {
+		return success({ orders: [{ id: 'order-1', total: 100 }] }, { confidence: 0.99 });
 	},
 };
 
@@ -173,7 +172,9 @@ const discountApplyCommand = {
 		properties: { userId: { type: 'number' } },
 		required: ['userId'],
 	},
-	handler: async (input: { userId: number }): Promise<CommandResult<{ discountApplied: boolean }>> => {
+	handler: async (_input: {
+		userId: number;
+	}): Promise<CommandResult<{ discountApplied: boolean }>> => {
 		return success({ discountApplied: true });
 	},
 };
@@ -192,11 +193,10 @@ const userPrefsCommand = {
 		properties: { id: { type: 'number' } },
 		required: ['id'],
 	},
-	handler: async (input: { id: number }): Promise<CommandResult<{ theme: string; notifications: boolean }>> => {
-		return success(
-			{ theme: 'dark', notifications: true },
-			{ confidence: 0.98 }
-		);
+	handler: async (_input: {
+		id: number;
+	}): Promise<CommandResult<{ theme: string; notifications: boolean }>> => {
+		return success({ theme: 'dark', notifications: true }, { confidence: 0.98 });
 	},
 };
 
@@ -258,7 +258,7 @@ describe('JTBD Pipeline Scenarios', () => {
 		server = createMcpServer({
 			name: 'jtbd-test-server',
 			version: '1.0.0',
-			commands: allCommands as any,
+			commands: allCommands as unknown as ZodCommandDefinition[],
 			transport: 'stdio',
 		});
 		await server.start();
@@ -301,7 +301,9 @@ describe('JTBD Pipeline Scenarios', () => {
 			const result = await server.executePipeline(request);
 
 			// expect: success: true
-			expect(result.steps.every((s) => s.status === 'success' || s.status === 'skipped')).toBe(true);
+			expect(result.steps.every((s) => s.status === 'success' || s.status === 'skipped')).toBe(
+				true
+			);
 			expect(result.metadata.completedSteps).toBe(2);
 
 			// expect: data.formatted: /User: .+/
@@ -344,7 +346,7 @@ describe('JTBD Pipeline Scenarios', () => {
 			expect(result.metadata.completedSteps).toBe(2);
 
 			// expect: metadata.confidence: 0.80
-			expect(result.metadata.confidence).toBe(0.80);
+			expect(result.metadata.confidence).toBe(0.8);
 
 			// expect: metadata.confidenceBreakdown[1].reasoning: /.*mismatch.*/
 			expect(result.metadata.confidenceBreakdown[1]?.reasoning).toMatch(/.*mismatch.*/i);

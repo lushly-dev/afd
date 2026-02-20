@@ -4,9 +4,9 @@
  * Demonstrates AFD batch delete pattern with warnings for destructive operations.
  */
 
-import { z } from 'zod';
-import { defineCommand, success } from '@lushly-dev/afd-server';
 import type { CommandError } from '@lushly-dev/afd-core';
+import { defineCommand, success } from '@lushly-dev/afd-server';
+import { z } from 'zod';
 import { store } from '../store/index.js';
 
 const inputSchema = z.object({

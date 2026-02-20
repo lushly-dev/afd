@@ -2,10 +2,10 @@
  * @fileoverview notefolder-get command
  */
 
+import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
-import { defineCommand, success, failure } from '@lushly-dev/afd-server';
 import { store } from '../store/index.js';
-import type { NoteFolder, Note } from '../types.js';
+import type { Note, NoteFolder } from '../types.js';
 
 interface NoteFolderWithNotes extends NoteFolder {
 	notes: Note[];
@@ -29,9 +29,23 @@ export const getNoteFolder = defineCommand<typeof inputSchema, NoteFolderWithNot
 	async handler(input) {
 		const folder = store.getNoteFolder(input.id);
 		if (!folder) {
-			return failure({ code: 'NOT_FOUND', message: 'Folder not found: ' + input.id, suggestion: 'Check the folder ID or list all folders' });
+			return failure({
+				code: 'NOT_FOUND',
+				message: `Folder not found: ${input.id}`,
+				suggestion: 'Check the folder ID or list all folders',
+			});
 		}
 		const notes = input.includeNotes ? store.getNotesInFolder(input.id) : [];
-		return success({ ...folder, notes }, { reasoning: 'Retrieved folder "' + folder.name + '"' + (input.includeNotes ? ' with ' + notes.length + ' notes' : ''), confidence: 1.0 });
+		return success(
+			{ ...folder, notes },
+			{
+				reasoning:
+					'Retrieved folder "' +
+					folder.name +
+					'"' +
+					(input.includeNotes ? ` with ${notes.length} notes` : ''),
+				confidence: 1.0,
+			}
+		);
 	},
 });

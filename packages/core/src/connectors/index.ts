@@ -2,7 +2,6 @@
  * @fileoverview Connector exports for CLI tool abstractions.
  */
 
-export { GitHubConnector } from './github.js';
 export type {
 	GitHubConnectorOptions,
 	Issue,
@@ -11,6 +10,6 @@ export type {
 	PrCreateOptions,
 	PullRequest,
 } from './github.js';
-
-export { PackageManagerConnector } from './package-manager.js';
+export { GitHubConnector } from './github.js';
 export type { PackageManager, PackageManagerConnectorOptions } from './package-manager.js';
+export { PackageManagerConnector } from './package-manager.js';

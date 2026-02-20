@@ -2,8 +2,8 @@
  * @fileoverview todo-complete command
  */
 
+import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
-import { defineCommand, success, failure } from '@lushly-dev/afd-server';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 
@@ -35,7 +35,8 @@ export const completeTodo = defineCommand<typeof inputSchema, Todo>({
 			return failure({
 				code: 'ALREADY_COMPLETED',
 				message: `Todo "${existing.title}" is already completed`,
-				suggestion: 'Use todo-uncomplete to mark it as pending, or todo-toggle to switch the status',
+				suggestion:
+					'Use todo-uncomplete to mark it as pending, or todo-toggle to switch the status',
 			});
 		}
 

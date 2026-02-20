@@ -9,8 +9,8 @@
  * - scenario.suggest - AI-powered suggestions (Phase 3)
  */
 
-export * from './list.js';
-export * from './evaluate.js';
 export * from './coverage.js';
 export * from './create.js';
+export * from './evaluate.js';
+export * from './list.js';
 export * from './suggest.js';

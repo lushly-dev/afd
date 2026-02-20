@@ -46,103 +46,100 @@
  * @packageDocumentation
  */
 
-// Re-export core helpers for convenience
-export { success, failure, isSuccess, isFailure } from '@lushly-dev/afd-core';
-
-// Schema and command definition
-export {
-	defineCommand,
-	zodToJsonSchema,
-	getRequiredFields,
-	isObjectSchema,
-	type ZodCommandOptions,
-	type ZodCommandDefinition,
-} from './schema.js';
-
-// Server factory
-export {
-	createMcpServer,
-	isStdinPiped,
-	type McpServerOptions,
-	type McpServer,
-	type McpTransport,
-	type CommandMiddleware,
-} from './server.js';
-
-// Validation utilities
-export {
-	validateInput,
-	validateInputEnhanced,
-	validateOrThrow,
-	isValid,
-	formatValidationErrors,
-	formatEnhancedValidationError,
-	ValidationException,
-	patterns,
-	optional,
-	withDefault,
-	type ValidationResult,
-	type ValidationError,
-	type SchemaInfo,
-	type EnhancedValidationResult,
-} from './validation.js';
-
-// Middleware
-export {
-	createLoggingMiddleware,
-	createTimingMiddleware,
-	createRetryMiddleware,
-	createTracingMiddleware,
-	createRateLimitMiddleware,
-	createTelemetryMiddleware,
-	composeMiddleware,
-	ConsoleTelemetrySink,
-	type LoggingOptions,
-	type TimingOptions,
-	type RetryOptions,
-	type TracingOptions,
-	type RateLimitOptions,
-	type TelemetryOptions,
-	type ConsoleTelemetrySinkOptions,
-	type Tracer,
-	type Span,
-} from './middleware.js';
-
 // Re-export telemetry types from core for convenience
-export type { TelemetryEvent, TelemetrySink } from '@lushly-dev/afd-core';
-export { createTelemetryEvent, isTelemetryEvent } from '@lushly-dev/afd-core';
-
-// Bootstrap tools
-export {
-	getBootstrapCommands,
-	createAfdHelpCommand,
-	createAfdDocsCommand,
-	createAfdSchemaCommand,
-} from './bootstrap/index.js';
-
-// Handoff schemas
-export {
-	HandoffResultSchema,
-	HandoffCredentialsSchema,
-	HandoffMetadataSchema,
-	type HandoffCredentialsInput,
-	type HandoffCredentialsOutput,
-	type HandoffMetadataInput,
-	type HandoffMetadataOutput,
-	type HandoffResultInput,
-	type HandoffResultOutput,
-} from './handoff-schema.js';
-
 // Re-export handoff types from core for convenience
 export type {
-	HandoffResult,
 	HandoffCredentials,
 	HandoffMetadata,
 	HandoffProtocol,
+	HandoffResult,
+	TelemetryEvent,
+	TelemetrySink,
 } from '@lushly-dev/afd-core';
+// Re-export core helpers for convenience
 export {
-	isHandoff,
-	isHandoffProtocol,
-	isHandoffCommand,
+	createTelemetryEvent,
+	failure,
 	getHandoffProtocol,
+	isFailure,
+	isHandoff,
+	isHandoffCommand,
+	isHandoffProtocol,
+	isSuccess,
+	isTelemetryEvent,
+	success,
 } from '@lushly-dev/afd-core';
+// Bootstrap tools
+export {
+	createAfdDocsCommand,
+	createAfdHelpCommand,
+	createAfdSchemaCommand,
+	getBootstrapCommands,
+} from './bootstrap/index.js';
+// Handoff schemas
+export {
+	type HandoffCredentialsInput,
+	type HandoffCredentialsOutput,
+	HandoffCredentialsSchema,
+	type HandoffMetadataInput,
+	type HandoffMetadataOutput,
+	HandoffMetadataSchema,
+	type HandoffResultInput,
+	type HandoffResultOutput,
+	HandoffResultSchema,
+} from './handoff-schema.js';
+// Middleware
+export {
+	ConsoleTelemetrySink,
+	type ConsoleTelemetrySinkOptions,
+	composeMiddleware,
+	createLoggingMiddleware,
+	createRateLimitMiddleware,
+	createRetryMiddleware,
+	createTelemetryMiddleware,
+	createTimingMiddleware,
+	createTracingMiddleware,
+	type LoggingOptions,
+	type RateLimitOptions,
+	type RetryOptions,
+	type Span,
+	type TelemetryOptions,
+	type TimingOptions,
+	type Tracer,
+	type TracingOptions,
+} from './middleware.js';
+// Schema and command definition
+export {
+	defineCommand,
+	getRequiredFields,
+	isObjectSchema,
+	type ZodCommandDefinition,
+	type ZodCommandOptions,
+	zodToJsonSchema,
+} from './schema.js';
+// Server factory
+export {
+	type CommandMiddleware,
+	createMcpServer,
+	isStdinPiped,
+	type McpServer,
+	type McpServerOptions,
+	type McpTransport,
+} from './server.js';
+// Validation utilities
+export {
+	type EnhancedValidationResult,
+	formatEnhancedValidationError,
+	formatValidationErrors,
+	isValid,
+	optional,
+	patterns,
+	type SchemaInfo,
+	type ValidationError,
+	ValidationException,
+	type ValidationResult,
+	validateInput,
+	validateInputEnhanced,
+	validateOrThrow,
+	withDefault,
+} from './validation.js';

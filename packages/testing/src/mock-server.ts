@@ -28,11 +28,11 @@ import {
  */
 export class MockMcpServer {
 	private registry: CommandRegistry;
+	private initialized = false;
 	private serverInfo = {
 		name: 'MockMcpServer',
 		version: '0.1.0',
 	};
-	private initialized = false;
 	private requestLog: Array<{ request: McpRequest; response: McpResponse }> = [];
 
 	constructor(commands?: CommandDefinition[]) {
@@ -142,11 +142,7 @@ export class MockMcpServer {
 		const params = request.params as McpToolCallParams | undefined;
 
 		if (!params?.name) {
-			return createMcpErrorResponse(
-				request.id,
-				McpErrorCodes.INVALID_PARAMS,
-				'Missing tool name'
-			);
+			return createMcpErrorResponse(request.id, McpErrorCodes.INVALID_PARAMS, 'Missing tool name');
 		}
 
 		const result = await this.registry.execute(params.name, params.arguments ?? {});

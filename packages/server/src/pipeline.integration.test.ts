@@ -10,11 +10,12 @@
  * - Timeout handling
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { createMcpServer, type McpServer } from './server.js';
-import { z } from 'zod';
 import type { CommandResult, PipelineRequest } from '@lushly-dev/afd-core';
-import { success, failure } from '@lushly-dev/afd-core';
+import { failure, success } from '@lushly-dev/afd-core';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
+import { createMcpServer, type McpServer } from './server.js';
+import type { ZodCommandDefinition } from './schema.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TEST COMMANDS
@@ -36,7 +37,9 @@ const userGetCommand = {
 		},
 		required: ['id'],
 	},
-	handler: async (input: { id: number }): Promise<CommandResult<{ id: number; name: string; tier: string }>> => {
+	handler: async (input: {
+		id: number;
+	}): Promise<CommandResult<{ id: number; name: string; tier: string }>> => {
 		if (input.id === 999) {
 			return failure({
 				code: 'NOT_FOUND',
@@ -67,7 +70,9 @@ const orderListCommand = {
 		},
 		required: ['userId'],
 	},
-	handler: async (input: { userId: number }): Promise<CommandResult<{ orders: Array<{ id: string; total: number }> }>> => {
+	handler: async (_input: {
+		userId: number;
+	}): Promise<CommandResult<{ orders: Array<{ id: string; total: number }> }>> => {
 		return success(
 			{
 				orders: [
@@ -78,7 +83,9 @@ const orderListCommand = {
 			{
 				confidence: 0.99,
 				reasoning: 'Orders fetched from database',
-				warnings: [{ code: 'STALE_DATA', message: 'Data may be up to 5 minutes old', severity: 'info' }],
+				warnings: [
+					{ code: 'STALE_DATA', message: 'Data may be up to 5 minutes old', severity: 'info' },
+				],
 			}
 		);
 	},
@@ -142,11 +149,10 @@ const discountApplyCommand = {
 		},
 		required: ['userId'],
 	},
-	handler: async (input: { userId: number }): Promise<CommandResult<{ discountApplied: boolean; percentage: number }>> => {
-		return success(
-			{ discountApplied: true, percentage: 10 },
-			{ confidence: 1.0 }
-		);
+	handler: async (_input: {
+		userId: number;
+	}): Promise<CommandResult<{ discountApplied: boolean; percentage: number }>> => {
+		return success({ discountApplied: true, percentage: 10 }, { confidence: 1.0 });
 	},
 };
 
@@ -167,7 +173,7 @@ const dataFetchCommand = {
 		required: ['source'],
 	},
 	handler: async (input: { source: string }): Promise<CommandResult<{ data: string }>> => {
-		const confidence = input.source === 'cache' ? 0.95 : 0.80;
+		const confidence = input.source === 'cache' ? 0.95 : 0.8;
 		return success({ data: `Data from ${input.source}` }, { confidence });
 	},
 };
@@ -188,11 +194,8 @@ const dataValidateCommand = {
 		},
 		required: ['data'],
 	},
-	handler: async (input: { data: string }): Promise<CommandResult<{ valid: boolean }>> => {
-		return success(
-			{ valid: true },
-			{ confidence: 0.75, reasoning: 'Schema mismatch in 2 fields' }
-		);
+	handler: async (_input: { data: string }): Promise<CommandResult<{ valid: boolean }>> => {
+		return success({ valid: true }, { confidence: 0.75, reasoning: 'Schema mismatch in 2 fields' });
 	},
 };
 
@@ -239,7 +242,7 @@ describe('Pipeline Integration Tests', () => {
 		server = createMcpServer({
 			name: 'pipeline-test-server',
 			version: '1.0.0',
-			commands: allCommands as any,
+			commands: allCommands as unknown as ZodCommandDefinition[],
 			transport: 'stdio',
 		});
 		await server.start();

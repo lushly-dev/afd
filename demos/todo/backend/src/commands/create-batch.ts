@@ -5,11 +5,11 @@
  * Creates multiple todos at once, reporting success/failure for each item.
  */
 
-import { z } from 'zod';
-import { defineCommand, success } from '@lushly-dev/afd-server';
 import type { CommandError } from '@lushly-dev/afd-core';
+import { defineCommand, success } from '@lushly-dev/afd-server';
+import { z } from 'zod';
 import { store } from '../store/index.js';
-import type { Todo, Priority } from '../types.js';
+import type { Priority, Todo } from '../types.js';
 
 /**
  * Schema for a single todo item in a batch
@@ -17,7 +17,11 @@ import type { Todo, Priority } from '../types.js';
 const todoItemSchema = z.object({
 	title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
 	description: z.string().max(1000).optional(),
-	priority: z.number().int().min(0).max(3).default(2) as z.ZodType<Priority, z.ZodTypeDef, Priority>,
+	priority: z.number().int().min(0).max(3).default(2) as z.ZodType<
+		Priority,
+		z.ZodTypeDef,
+		Priority
+	>,
 });
 
 const inputSchema = z.object({

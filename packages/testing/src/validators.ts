@@ -5,8 +5,8 @@
  * with all the expected fields for good agent UX.
  */
 
-import type { CommandDefinition, CommandError, CommandResult } from '@lushly-dev/afd-core';
-import { isCommandError, isFailure, isSuccess } from '@lushly-dev/afd-core';
+import type { CommandDefinition, CommandResult } from '@lushly-dev/afd-core';
+import { isCommandError } from '@lushly-dev/afd-core';
 
 /**
  * Validation result.
@@ -233,9 +233,7 @@ export function validateError(error: unknown): ValidationResult {
 /**
  * Validate a command definition.
  */
-export function validateCommandDefinition(
-	command: CommandDefinition
-): ValidationResult {
+export function validateCommandDefinition(command: CommandDefinition): ValidationResult {
 	const errors: ValidationError[] = [];
 	const warnings: ValidationWarning[] = [];
 

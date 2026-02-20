@@ -41,9 +41,13 @@ interface StatsResult {
 }
 
 async function main() {
-	console.log(`\n${c.bright}════════════════════════════════════════════════════════════════${c.reset}`);
+	console.log(
+		`\n${c.bright}════════════════════════════════════════════════════════════════${c.reset}`
+	);
 	console.log(`${c.bright}  DirectClient Demo - Zero Transport Overhead${c.reset}`);
-	console.log(`${c.bright}════════════════════════════════════════════════════════════════${c.reset}\n`);
+	console.log(
+		`${c.bright}════════════════════════════════════════════════════════════════${c.reset}\n`
+	);
 
 	// Create DirectClient with the experiment's registry
 	const client = new DirectClient(registry);
@@ -128,9 +132,15 @@ async function main() {
 	await client.call('todo-clear', {});
 	console.log('  ✓ Cleared all todos');
 
-	console.log(`\n${c.bright}════════════════════════════════════════════════════════════════${c.reset}`);
-	console.log(`${c.green}  Demo complete! DirectClient works with zero transport overhead.${c.reset}`);
-	console.log(`${c.bright}════════════════════════════════════════════════════════════════${c.reset}\n`);
+	console.log(
+		`\n${c.bright}════════════════════════════════════════════════════════════════${c.reset}`
+	);
+	console.log(
+		`${c.green}  Demo complete! DirectClient works with zero transport overhead.${c.reset}`
+	);
+	console.log(
+		`${c.bright}════════════════════════════════════════════════════════════════${c.reset}\n`
+	);
 }
 
 main().catch(console.error);

@@ -5,15 +5,15 @@
  * with automatic JSON Schema generation for MCP tool definitions.
  */
 
-import { z, type ZodType, type ZodTypeDef } from 'zod';
-import { zodToJsonSchema as zodToJson } from 'zod-to-json-schema';
 import type {
-	CommandResult,
 	CommandContext,
-	JsonSchema,
 	CommandDefinition,
 	CommandParameter,
+	CommandResult,
+	JsonSchema,
 } from '@lushly-dev/afd-core';
+import { type ZodType, type ZodTypeDef, z } from 'zod';
+import { zodToJsonSchema as zodToJson } from 'zod-to-json-schema';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -22,10 +22,7 @@ import type {
 /**
  * Options for defining a command with Zod schema.
  */
-export interface ZodCommandOptions<
-	TInput extends ZodType<unknown, ZodTypeDef, unknown>,
-	TOutput,
-> {
+export interface ZodCommandOptions<TInput extends ZodType<unknown, ZodTypeDef, unknown>, TOutput> {
 	/** Unique command name using dot notation (e.g., 'todo.create') */
 	name: string;
 
@@ -36,10 +33,7 @@ export interface ZodCommandOptions<
 	input: TInput;
 
 	/** Command handler function */
-	handler: (
-		input: z.infer<TInput>,
-		context: CommandContext
-	) => Promise<CommandResult<TOutput>>;
+	handler: (input: z.infer<TInput>, context: CommandContext) => Promise<CommandResult<TOutput>>;
 
 	/** Category for grouping related commands */
 	category?: string;
@@ -106,10 +100,7 @@ export interface ZodCommandDefinition<
 	jsonSchema: JsonSchema;
 
 	/** Command handler */
-	handler: (
-		input: z.infer<TInput>,
-		context: CommandContext
-	) => Promise<CommandResult<TOutput>>;
+	handler: (input: z.infer<TInput>, context: CommandContext) => Promise<CommandResult<TOutput>>;
 
 	/** Category for grouping */
 	category?: string;
@@ -175,20 +166,13 @@ export interface ZodCommandDefinition<
  * });
  * ```
  */
-export function defineCommand<
-	TInput extends ZodType<unknown, ZodTypeDef, unknown>,
-	TOutput,
->(
+export function defineCommand<TInput extends ZodType<unknown, ZodTypeDef, unknown>, TOutput>(
 	options: ZodCommandOptions<TInput, TOutput>
 ): ZodCommandDefinition<TInput, TOutput> {
 	const jsonSchema = zodToJsonSchema(options.input);
 
 	// Build tags with automatic handoff tags if handoff is enabled
-	const tags = buildHandoffTags(
-		options.tags,
-		options.handoff,
-		options.handoffProtocol
-	);
+	const tags = buildHandoffTags(options.tags, options.handoff, options.handoffProtocol);
 
 	return {
 		name: options.name,

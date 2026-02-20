@@ -1,12 +1,12 @@
 /**
  * @fileoverview afd-docs bootstrap command
- * 
+ *
  * Generate markdown documentation for commands.
  */
 
-import { z } from 'zod';
 import type { CommandDefinition } from '@lushly-dev/afd-core';
 import { success } from '@lushly-dev/afd-core';
+import { z } from 'zod';
 
 const inputSchema = z.object({
 	command: z.string().optional().describe('Specific command name, or omit for all'),
@@ -21,7 +21,7 @@ interface DocsOutput {
 
 /**
  * Create the afd-docs bootstrap command.
- * 
+ *
  * @param getCommands - Function to get all registered commands
  */
 export function createAfdDocsCommand(
@@ -40,10 +40,10 @@ export function createAfdDocsCommand(
 
 		async handler(input: InputType) {
 			const allCommands = getCommands();
-			
+
 			// Filter to specific command if provided
-			const commands = input.command 
-				? allCommands.filter(cmd => cmd.name === input.command)
+			const commands = input.command
+				? allCommands.filter((cmd) => cmd.name === input.command)
 				: allCommands;
 
 			if (input.command && commands.length === 0) {
@@ -80,7 +80,7 @@ export function createAfdDocsCommand(
 
 					// Tags
 					if (cmd.tags && cmd.tags.length > 0) {
-						lines.push(`**Tags:** ${cmd.tags.map(t => `\`${t}\``).join(', ')}`);
+						lines.push(`**Tags:** ${cmd.tags.map((t) => `\`${t}\``).join(', ')}`);
 						lines.push('');
 					}
 
@@ -98,7 +98,9 @@ export function createAfdDocsCommand(
 						lines.push('|------|------|----------|-------------|');
 						for (const param of cmd.parameters) {
 							const required = param.required ? 'Yes' : 'No';
-							lines.push(`| ${param.name} | ${param.type} | ${required} | ${param.description || ''} |`);
+							lines.push(
+								`| ${param.name} | ${param.type} | ${required} | ${param.description || ''} |`
+							);
 						}
 						lines.push('');
 					}
@@ -113,7 +115,7 @@ export function createAfdDocsCommand(
 			return success(
 				{ markdown, commandCount: commands.length },
 				{
-					reasoning: input.command 
+					reasoning: input.command
 						? `Generated documentation for "${input.command}"`
 						: `Generated documentation for ${commands.length} commands`,
 					confidence: 1.0,

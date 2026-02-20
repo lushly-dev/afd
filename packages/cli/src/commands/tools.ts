@@ -2,19 +2,19 @@
  * @fileoverview Tools command
  */
 
+import { createClient } from '@lushly-dev/afd-client';
 import type { Command } from 'commander';
 import ora from 'ora';
-import { createClient } from '@lushly-dev/afd-client';
-import { getClient, setClient } from './connect.js';
 import { getConfig } from '../config.js';
-import { printError, printTools, type OutputFormat } from '../output.js';
+import { type OutputFormat, printError, printTools } from '../output.js';
+import { getClient, setClient } from './connect.js';
 
 /**
  * Ensure we have a connected client, auto-connecting if needed.
  */
 async function ensureConnected() {
 	let client = getClient();
-	
+
 	if (client?.isConnected()) {
 		return client;
 	}
@@ -61,9 +61,7 @@ export function registerToolsCommand(program: Command): void {
 			const spinner = ora('Fetching tools...').start();
 
 			try {
-				let tools = options.refresh
-					? await client.refreshTools()
-					: client.getTools();
+				let tools = options.refresh ? await client.refreshTools() : client.getTools();
 
 				// Refresh if empty (first time)
 				if (tools.length === 0) {
@@ -72,19 +70,14 @@ export function registerToolsCommand(program: Command): void {
 
 				// Filter by category if specified
 				if (options.category) {
-					tools = tools.filter((t) =>
-						t.name.startsWith(`${options.category}.`)
-					);
+					tools = tools.filter((t) => t.name.startsWith(`${options.category}.`));
 				}
 
 				spinner.stop();
 				printTools(tools, { format: options.format as OutputFormat });
 			} catch (error) {
 				spinner.fail('Failed to fetch tools');
-				printError(
-					'Could not retrieve tools',
-					error instanceof Error ? error : undefined
-				);
+				printError('Could not retrieve tools', error instanceof Error ? error : undefined);
 				process.exit(1);
 			}
 		});

@@ -2,16 +2,16 @@
  * @fileoverview Unit tests for todo commands
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { store } from '../../store/memory.js';
-import { createTodo } from '../create.js';
-import { listTodos } from '../list.js';
-import { getTodo } from '../get.js';
-import { updateTodo } from '../update.js';
-import { toggleTodo } from '../toggle.js';
-import { deleteTodo } from '../delete.js';
 import { clearCompleted } from '../clear.js';
+import { createTodo } from '../create.js';
+import { deleteTodo } from '../delete.js';
+import { getTodo } from '../get.js';
+import { listTodos } from '../list.js';
 import { getStats } from '../stats.js';
+import { toggleTodo } from '../toggle.js';
+import { updateTodo } from '../update.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TEST SETUP
@@ -72,12 +72,15 @@ describe('todo-list', () => {
 	});
 
 	it('lists all todos', async () => {
-		const result = await listTodos.handler({
-			sortBy: 'createdAt',
-			sortOrder: 'desc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const result = await listTodos.handler(
+			{
+				sortBy: 'createdAt',
+				sortOrder: 'desc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(result.success).toBe(true);
 		expect(result.data?.todos).toHaveLength(3);
@@ -86,13 +89,16 @@ describe('todo-list', () => {
 	});
 
 	it('filters by priority', async () => {
-		const result = await listTodos.handler({
-			priority: 'high',
-			sortBy: 'createdAt',
-			sortOrder: 'desc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const result = await listTodos.handler(
+			{
+				priority: 'high',
+				sortBy: 'createdAt',
+				sortOrder: 'desc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(result.success).toBe(true);
 		expect(result.data?.todos).toHaveLength(1);
@@ -101,46 +107,61 @@ describe('todo-list', () => {
 
 	it('filters by completion status', async () => {
 		// Toggle one todo to completed
-		const list = await listTodos.handler({
-			sortBy: 'createdAt',
-			sortOrder: 'desc',
-			limit: 20,
-			offset: 0,
-		}, {});
-		await toggleTodo.handler({ id: list.data!.todos[0].id }, {});
+		const list = await listTodos.handler(
+			{
+				sortBy: 'createdAt',
+				sortOrder: 'desc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
+		await toggleTodo.handler({ id: list.data?.todos[0].id }, {});
 
-		const pending = await listTodos.handler({
-			completed: false,
-			sortBy: 'createdAt',
-			sortOrder: 'desc',
-			limit: 20,
-			offset: 0,
-		}, {});
-		const completed = await listTodos.handler({
-			completed: true,
-			sortBy: 'createdAt',
-			sortOrder: 'desc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const pending = await listTodos.handler(
+			{
+				completed: false,
+				sortBy: 'createdAt',
+				sortOrder: 'desc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
+		const completed = await listTodos.handler(
+			{
+				completed: true,
+				sortBy: 'createdAt',
+				sortOrder: 'desc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(pending.data?.todos).toHaveLength(2);
 		expect(completed.data?.todos).toHaveLength(1);
 	});
 
 	it('supports pagination', async () => {
-		const page1 = await listTodos.handler({
-			limit: 2,
-			offset: 0,
-			sortBy: 'createdAt',
-			sortOrder: 'desc',
-		}, {});
-		const page2 = await listTodos.handler({
-			limit: 2,
-			offset: 2,
-			sortBy: 'createdAt',
-			sortOrder: 'desc',
-		}, {});
+		const page1 = await listTodos.handler(
+			{
+				limit: 2,
+				offset: 0,
+				sortBy: 'createdAt',
+				sortOrder: 'desc',
+			},
+			{}
+		);
+		const page2 = await listTodos.handler(
+			{
+				limit: 2,
+				offset: 2,
+				sortBy: 'createdAt',
+				sortOrder: 'desc',
+			},
+			{}
+		);
 
 		expect(page1.data?.todos).toHaveLength(2);
 		expect(page1.data?.hasMore).toBe(true);
@@ -149,13 +170,16 @@ describe('todo-list', () => {
 	});
 
 	it('searches by title', async () => {
-		const result = await listTodos.handler({
-			search: 'Todo 2',
-			sortBy: 'createdAt',
-			sortOrder: 'desc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const result = await listTodos.handler(
+			{
+				search: 'Todo 2',
+				sortBy: 'createdAt',
+				sortOrder: 'desc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 
 		expect(result.data?.todos).toHaveLength(1);
 		expect(result.data?.todos[0].title).toBe('Todo 2');
@@ -169,7 +193,7 @@ describe('todo-list', () => {
 describe('todo-get', () => {
 	it('gets a todo by ID', async () => {
 		const created = await createTodo.handler({ title: 'Find me', priority: 'medium' }, {});
-		const result = await getTodo.handler({ id: created.data!.id }, {});
+		const result = await getTodo.handler({ id: created.data?.id }, {});
 
 		expect(result.success).toBe(true);
 		expect(result.data?.title).toBe('Find me');
@@ -191,14 +215,17 @@ describe('todo-get', () => {
 describe('todo-update', () => {
 	it('updates todo title', async () => {
 		const created = await createTodo.handler({ title: 'Original', priority: 'medium' }, {});
-		
+
 		// Small delay to ensure updatedAt differs
-		await new Promise(resolve => setTimeout(resolve, 5));
-		
-		const result = await updateTodo.handler({
-			id: created.data!.id,
-			title: 'Updated',
-		}, {});
+		await new Promise((resolve) => setTimeout(resolve, 5));
+
+		const result = await updateTodo.handler(
+			{
+				id: created.data?.id,
+				title: 'Updated',
+			},
+			{}
+		);
 
 		expect(result.success).toBe(true);
 		expect(result.data?.title).toBe('Updated');
@@ -208,20 +235,26 @@ describe('todo-update', () => {
 
 	it('updates todo priority', async () => {
 		const created = await createTodo.handler({ title: 'Test', priority: 'low' }, {});
-		const result = await updateTodo.handler({
-			id: created.data!.id,
-			priority: 'high',
-		}, {});
+		const result = await updateTodo.handler(
+			{
+				id: created.data?.id,
+				priority: 'high',
+			},
+			{}
+		);
 
 		expect(result.success).toBe(true);
 		expect(result.data?.priority).toBe('high');
 	});
 
 	it('returns NOT_FOUND for missing todo', async () => {
-		const result = await updateTodo.handler({
-			id: 'nonexistent',
-			title: 'New title',
-		}, {});
+		const result = await updateTodo.handler(
+			{
+				id: 'nonexistent',
+				title: 'New title',
+			},
+			{}
+		);
 
 		expect(result.success).toBe(false);
 		expect(result.error?.code).toBe('NOT_FOUND');
@@ -229,7 +262,7 @@ describe('todo-update', () => {
 
 	it('returns NO_CHANGES when nothing to update', async () => {
 		const created = await createTodo.handler({ title: 'Test', priority: 'medium' }, {});
-		const result = await updateTodo.handler({ id: created.data!.id }, {});
+		const result = await updateTodo.handler({ id: created.data?.id }, {});
 
 		expect(result.success).toBe(false);
 		expect(result.error?.code).toBe('NO_CHANGES');
@@ -243,7 +276,7 @@ describe('todo-update', () => {
 describe('todo-toggle', () => {
 	it('marks todo as completed', async () => {
 		const created = await createTodo.handler({ title: 'Toggle me', priority: 'medium' }, {});
-		const result = await toggleTodo.handler({ id: created.data!.id }, {});
+		const result = await toggleTodo.handler({ id: created.data?.id }, {});
 
 		expect(result.success).toBe(true);
 		expect(result.data?.completed).toBe(true);
@@ -253,8 +286,8 @@ describe('todo-toggle', () => {
 
 	it('marks todo as pending when toggled again', async () => {
 		const created = await createTodo.handler({ title: 'Toggle me', priority: 'medium' }, {});
-		await toggleTodo.handler({ id: created.data!.id }, {});
-		const result = await toggleTodo.handler({ id: created.data!.id }, {});
+		await toggleTodo.handler({ id: created.data?.id }, {});
+		const result = await toggleTodo.handler({ id: created.data?.id }, {});
 
 		expect(result.success).toBe(true);
 		expect(result.data?.completed).toBe(false);
@@ -277,19 +310,19 @@ describe('todo-toggle', () => {
 describe('todo-delete', () => {
 	it('deletes a todo', async () => {
 		const created = await createTodo.handler({ title: 'Delete me', priority: 'medium' }, {});
-		const result = await deleteTodo.handler({ id: created.data!.id }, {});
+		const result = await deleteTodo.handler({ id: created.data?.id }, {});
 
 		expect(result.success).toBe(true);
 		expect(result.data?.deleted).toBe(true);
 
 		// Verify it's gone
-		const get = await getTodo.handler({ id: created.data!.id }, {});
+		const get = await getTodo.handler({ id: created.data?.id }, {});
 		expect(get.success).toBe(false);
 	});
 
 	it('includes warning about permanence', async () => {
 		const created = await createTodo.handler({ title: 'Delete me', priority: 'medium' }, {});
-		const result = await deleteTodo.handler({ id: created.data!.id }, {});
+		const result = await deleteTodo.handler({ id: created.data?.id }, {});
 
 		expect(result.warnings).toBeDefined();
 		expect(result.warnings?.[0].code).toBe('PERMANENT');
@@ -314,8 +347,8 @@ describe('todo-clear', () => {
 		const t2 = await createTodo.handler({ title: 'Todo 2', priority: 'medium' }, {});
 		await createTodo.handler({ title: 'Todo 3', priority: 'medium' }, {});
 
-		await toggleTodo.handler({ id: t1.data!.id }, {});
-		await toggleTodo.handler({ id: t2.data!.id }, {});
+		await toggleTodo.handler({ id: t1.data?.id }, {});
+		await toggleTodo.handler({ id: t2.data?.id }, {});
 
 		const result = await clearCompleted.handler({}, {});
 
@@ -323,12 +356,15 @@ describe('todo-clear', () => {
 		expect(result.data?.cleared).toBe(2);
 
 		// Verify only pending remain
-		const list = await listTodos.handler({
-			sortBy: 'createdAt',
-			sortOrder: 'desc',
-			limit: 20,
-			offset: 0,
-		}, {});
+		const list = await listTodos.handler(
+			{
+				sortBy: 'createdAt',
+				sortOrder: 'desc',
+				limit: 20,
+				offset: 0,
+			},
+			{}
+		);
 		expect(list.data?.todos).toHaveLength(1);
 	});
 
@@ -365,7 +401,7 @@ describe('todo-stats', () => {
 		const t4 = await createTodo.handler({ title: 'Low', priority: 'low' }, {});
 
 		// Complete one
-		await toggleTodo.handler({ id: t4.data!.id }, {});
+		await toggleTodo.handler({ id: t4.data?.id }, {});
 
 		const result = await getStats.handler({}, {});
 
@@ -430,7 +466,7 @@ describe('AFD Compliance', () => {
 		expect(result.success).toBe(true);
 		expect(result.reasoning).toBeDefined();
 		expect(typeof result.reasoning).toBe('string');
-		expect(result.reasoning!.length).toBeGreaterThan(0);
+		expect(result.reasoning?.length).toBeGreaterThan(0);
 	});
 
 	it('error results include suggestion', async () => {
@@ -442,11 +478,11 @@ describe('AFD Compliance', () => {
 
 	it('mutation commands include warnings when appropriate', async () => {
 		const created = await createTodo.handler({ title: 'Test', priority: 'medium' }, {});
-		const result = await deleteTodo.handler({ id: created.data!.id }, {});
+		const result = await deleteTodo.handler({ id: created.data?.id }, {});
 
 		expect(result.warnings).toBeDefined();
-		expect(result.warnings!.length).toBeGreaterThan(0);
-		expect(result.warnings![0]).toHaveProperty('code');
-		expect(result.warnings![0]).toHaveProperty('message');
+		expect(result.warnings?.length).toBeGreaterThan(0);
+		expect(result.warnings?.[0]).toHaveProperty('code');
+		expect(result.warnings?.[0]).toHaveProperty('message');
 	});
 });

@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
-	createCommandRegistry,
 	type CommandDefinition,
+	commandsToMcpTools,
+	createCommandRegistry,
 	defaultExpose,
 	isMcpExposed,
-	commandsToMcpTools,
 } from './commands.js';
 import { success } from './result.js';
 
@@ -353,9 +353,7 @@ describe('commandsToMcpTools', () => {
 		const mcpCmd: CommandDefinition = {
 			name: 'mcp.tool',
 			description: 'MCP tool',
-			parameters: [
-				{ name: 'input', type: 'string', description: 'Input value', required: true },
-			],
+			parameters: [{ name: 'input', type: 'string', description: 'Input value', required: true }],
 			expose: { mcp: true },
 			handler: async () => success(null),
 		};

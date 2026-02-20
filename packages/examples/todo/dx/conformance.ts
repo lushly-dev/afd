@@ -1,5 +1,4 @@
-import fs from "fs/promises";
-import path from "path";
+import fs from 'node:fs/promises';
 
 /**
  * Conformance Test Runner
@@ -9,133 +8,132 @@ import path from "path";
  */
 
 interface TestCase {
-  name: string;
-  description: string;
-  setup: any[];
-  command: string;
-  input: any;
-  expect: Record<string, any>;
+	name: string;
+	description: string;
+	setup: Array<{ command: string; input: unknown; capture?: string }>;
+	command: string;
+	input: unknown;
+	expect: Record<string, unknown>;
 }
 
 interface TestResult {
-  name: string;
-  success: boolean;
-  error?: string;
-  actual?: any;
-  expected?: any;
+	name: string;
+	success: boolean;
+	error?: string;
+	actual?: unknown;
+	expected?: unknown;
 }
 
 export class ConformanceRunner {
-  private captured: Record<string, any> = {};
+	private captured: Record<string, unknown> = {};
 
-  constructor(private callTool: (name: string, args: any) => Promise<any>) {}
+	constructor(private callTool: (name: string, args: unknown) => Promise<{ success: boolean; data?: unknown; error?: { message: string } }>) {}
 
-  async run(specPath: string): Promise<TestResult[]> {
-    const spec = JSON.parse(await fs.readFile(specPath, "utf-8"));
-    const results: TestResult[] = [];
+	async run(specPath: string): Promise<TestResult[]> {
+		const spec = JSON.parse(await fs.readFile(specPath, 'utf-8'));
+		const results: TestResult[] = [];
 
-    for (const test of spec.tests as TestCase[]) {
-      try {
-        // 1. Reset state (Clear all)
-        await this.callTool("todo.clear", { all: true });
-        this.captured = {};
+		for (const test of spec.tests as TestCase[]) {
+			try {
+				// 1. Reset state (Clear all)
+				await this.callTool('todo.clear', { all: true });
+				this.captured = {};
 
-        // 2. Run setup
-        for (const step of test.setup) {
-          const input = this.resolveVariables(step.input);
-          const result = await this.callTool(step.command, input);
-          if (step.capture) {
-            this.captured[step.capture] = result.data;
-          }
-        }
+				// 2. Run setup
+				for (const step of test.setup) {
+					const input = this.resolveVariables(step.input);
+					const result = await this.callTool(step.command, input);
+					if (step.capture) {
+						this.captured[step.capture] = result.data;
+					}
+				}
 
-        // 3. Run command
-        const input = this.resolveVariables(test.input);
-        const actual = await this.callTool(test.command, input);
+				// 3. Run command
+				const input = this.resolveVariables(test.input);
+				const actual = await this.callTool(test.command, input);
 
-        // 4. Validate expectations
-        const errors = this.validate(actual, test.expect);
+				// 4. Validate expectations
+				const errors = this.validate(actual, test.expect);
 
-        results.push({
-          name: test.name,
-          success: errors.length === 0,
-          error: errors.join(", "),
-          actual,
-          expected: test.expect,
-        });
-      } catch (err: any) {
-        results.push({
-          name: test.name,
-          success: false,
-          error: err.message,
-        });
-      }
-    }
+				results.push({
+					name: test.name,
+					success: errors.length === 0,
+					error: errors.join(', '),
+					actual,
+					expected: test.expect,
+				});
+			} catch (err: unknown) {
+				const message = err instanceof Error ? err.message : String(err);
+				results.push({
+					name: test.name,
+					success: false,
+					error: message,
+				});
+			}
+		}
 
-    return results;
-  }
+		return results;
+	}
 
-  private resolveVariables(input: any): any {
-    if (typeof input === "string" && input.startsWith("$")) {
-      const parts = input.substring(1).split(".");
-      const key = parts[0] as string;
-      const path = parts.slice(1);
-      let val = this.captured[key];
-      for (const p of path) {
-        val = val?.[p];
-      }
-      return val;
-    }
+	private resolveVariables(input: unknown): unknown {
+		if (typeof input === 'string' && input.startsWith('$')) {
+			const parts = input.substring(1).split('.');
+			const key = parts[0] as string;
+			const path = parts.slice(1);
+			let val = this.captured[key];
+			for (const p of path) {
+				val = val?.[p];
+			}
+			return val;
+		}
 
-    if (Array.isArray(input)) {
-      return input.map((item) => this.resolveVariables(item));
-    }
+		if (Array.isArray(input)) {
+			return input.map((item) => this.resolveVariables(item));
+		}
 
-    if (typeof input === "object" && input !== null) {
-      const resolved: any = {};
-      for (const [k, v] of Object.entries(input)) {
-        resolved[k] = this.resolveVariables(v);
-      }
-      return resolved;
-    }
+		if (typeof input === 'object' && input !== null) {
+			const resolved: Record<string, unknown> = {};
+			for (const [k, v] of Object.entries(input)) {
+				resolved[k] = this.resolveVariables(v);
+			}
+			return resolved;
+		}
 
-    return input;
-  }
+		return input;
+	}
 
-  private validate(actual: any, expect: Record<string, any>): string[] {
-    const errors: string[] = [];
+	private validate(actual: unknown, expect: Record<string, unknown>): string[] {
+		const errors: string[] = [];
 
-    for (const [key, expectedValue] of Object.entries(expect)) {
-      const actualValue = this.getValue(actual, key);
+		for (const [key, expectedValue] of Object.entries(expect)) {
+			const actualValue = this.getValue(actual, key);
 
-      if (key.endsWith(".length")) {
-        if (actualValue !== expectedValue) {
-          errors.push(
-            `Expected ${key} to be ${expectedValue}, got ${actualValue}`
-          );
-        }
-        continue;
-      }
+			if (key.endsWith('.length')) {
+				if (actualValue !== expectedValue) {
+					errors.push(`Expected ${key} to be ${expectedValue}, got ${actualValue}`);
+				}
+				continue;
+			}
 
-      if (actualValue !== expectedValue) {
-        errors.push(
-          `Expected ${key} to be ${JSON.stringify(
-            expectedValue
-          )}, got ${JSON.stringify(actualValue)}`
-        );
-      }
-    }
+			if (actualValue !== expectedValue) {
+				errors.push(
+					`Expected ${key} to be ${JSON.stringify(
+						expectedValue
+					)}, got ${JSON.stringify(actualValue)}`
+				);
+			}
+		}
 
-    return errors;
-  }
+		return errors;
+	}
 
-  private getValue(obj: any, path: string): any {
-    const parts = path.split(".");
-    let current = obj;
-    for (const part of parts) {
-      if (current === undefined || current === null) return undefined;
-      current = current[part];
-    }
-    return current;
-  }
+	private getValue(obj: unknown, path: string): unknown {
+		const parts = path.split('.');
+		let current = obj;
+		for (const part of parts) {
+			if (current === undefined || current === null) return undefined;
+			current = (current as Record<string, unknown>)[part];
+		}
+		return current;
+	}
 }

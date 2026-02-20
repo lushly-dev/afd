@@ -12,145 +12,133 @@
  * @packageDocumentation
  */
 
-// Validators
+// Assertions
 export {
-	validateResult,
-	validateError,
-	validateCommandDefinition,
-	type ValidationResult,
-	type ValidationError,
-	type ValidationWarning,
-	type ResultValidationOptions,
-} from './validators.js';
-
+	assertAiResult,
+	assertConfidence,
+	assertErrorCode,
+	assertFailure,
+	assertHasPlan,
+	assertHasReasoning,
+	assertHasSources,
+	assertHasSuggestion,
+	assertRetryable,
+	assertStepStatus,
+	assertSuccess,
+} from './assertions.js';
+// Mock server
+export { createMockServer, MockMcpServer } from './mock-server.js';
 // Test helpers
 export {
+	type CommandTestResult,
+	createFailureCommand,
+	createMockCommand,
+	createSuccessCommand,
+	createTestContext,
+	createTestRegistry,
+	type TestContext,
 	testCommand,
 	testCommandDefinition,
 	testCommandMultiple,
-	createTestContext,
-	createMockCommand,
-	createSuccessCommand,
-	createFailureCommand,
-	createTestRegistry,
-	type TestContext,
-	type CommandTestResult,
 } from './test-helpers.js';
-
-// Assertions
+// Validators
 export {
-	assertSuccess,
-	assertFailure,
-	assertErrorCode,
-	assertConfidence,
-	assertHasReasoning,
-	assertHasSources,
-	assertHasPlan,
-	assertStepStatus,
-	assertHasSuggestion,
-	assertRetryable,
-	assertAiResult,
-} from './assertions.js';
-
-// Mock server
-export { MockMcpServer, createMockServer } from './mock-server.js';
+	type ResultValidationOptions,
+	type ValidationError,
+	type ValidationResult,
+	type ValidationWarning,
+	validateCommandDefinition,
+	validateError,
+	validateResult,
+} from './validators.js';
 
 // ============================================================================
 // Scenario Testing (JTBD)
 // ============================================================================
 
-// Scenario types
-export type {
-	Scenario,
-	Step,
-	Expectation,
-	FixtureConfig,
-	Verification,
-	AssertionMatcher,
-	AssertionValue,
-} from './types/scenario.js';
-
-export { isScenario, isAssertionMatcher } from './types/scenario.js';
-
-// Report types
-export type {
-	StepOutcome,
-	StepError,
-	StepResult,
-	AssertionResult,
-	ScenarioOutcome,
-	ScenarioResult,
-	VerificationResult,
-	VerificationQueryResult,
-	TestReport,
-	TestSummary,
-	EnvironmentInfo,
-} from './types/report.js';
-
-export {
-	createEmptySummary,
-	calculateSummary,
-	createStepError,
-	isStepResult,
-	isScenarioResult,
-} from './types/report.js';
-
 // YAML parser
-export type { ParseResult, ParseSuccess, ParseError } from './parsers/yaml.js';
+export type { ParseError, ParseResult, ParseSuccess } from './parsers/yaml.js';
 export {
-	parseScenarioString,
 	parseScenarioFile,
 	parseScenarioFiles,
+	parseScenarioString,
 } from './parsers/yaml.js';
-
-// Evaluator
-export type { EvaluationResult } from './runner/evaluator.js';
-export { evaluateResult } from './runner/evaluator.js';
-
 // CLI wrapper
 export type {
 	CliConfig,
+	ExecuteError,
 	ExecuteOptions,
 	ExecuteResult,
 	ExecuteSuccess,
-	ExecuteError,
 } from './runner/cli-wrapper.js';
 export { CliWrapper, createCliWrapper } from './runner/cli-wrapper.js';
-
+// Evaluator
+export type { EvaluationResult } from './runner/evaluator.js';
+export { evaluateResult } from './runner/evaluator.js';
 // Executor
 export type {
-	ExecutorConfig,
 	CommandHandler,
+	ExecutorConfig,
 	InProcessExecutorConfig,
 	ScenarioValidationResult,
 } from './runner/executor.js';
 export {
-	ScenarioExecutor,
-	InProcessExecutor,
 	createExecutor,
 	createInProcessExecutor,
+	InProcessExecutor,
+	ScenarioExecutor,
 	validateScenario,
 } from './runner/executor.js';
-
+// Fixture loader
+export type {
+	AppliedCommand,
+	ApplyFixtureOptions,
+	ApplyFixtureResult,
+	FixtureData,
+	LoadFixtureOptions,
+	LoadFixtureResult,
+} from './runner/fixture-loader.js';
+export { applyFixture, loadFixture } from './runner/fixture-loader.js';
 // Reporter
 export type { ReporterConfig } from './runner/reporter.js';
 export {
-	TerminalReporter,
-	createReporter,
 	createJsonReporter,
+	createReporter,
 	createVerboseReporter,
+	TerminalReporter,
 } from './runner/reporter.js';
-
-// Fixture loader
+// Report types
 export type {
-	FixtureData,
-	LoadFixtureResult,
-	LoadFixtureOptions,
-	AppliedCommand,
-	ApplyFixtureResult,
-	ApplyFixtureOptions,
-} from './runner/fixture-loader.js';
-export { loadFixture, applyFixture } from './runner/fixture-loader.js';
+	AssertionResult,
+	EnvironmentInfo,
+	ScenarioOutcome,
+	ScenarioResult,
+	StepError,
+	StepOutcome,
+	StepResult,
+	TestReport,
+	TestSummary,
+	VerificationQueryResult,
+	VerificationResult,
+} from './types/report.js';
+export {
+	calculateSummary,
+	createEmptySummary,
+	createStepError,
+	isScenarioResult,
+	isStepResult,
+} from './types/report.js';
+// Scenario types
+export type {
+	AssertionMatcher,
+	AssertionValue,
+	Expectation,
+	FixtureConfig,
+	Scenario,
+	Step,
+	Verification,
+} from './types/scenario.js';
+export { isAssertionMatcher, isScenario } from './types/scenario.js';
 
 // ============================================================================
 // App Adapters (Phase 4)
@@ -175,87 +163,77 @@ export type {
 	FixtureValidator,
 	JobsConfig,
 } from './adapters/index.js';
-
 // Registry
+// Generic adapter
+// Todo adapter
 export {
 	createAdapterRegistry,
+	createGenericAdapter,
+	createTodoAdapter,
 	detectAdapter,
+	type GenericAdapterOptions,
+	genericAdapter,
 	getAdapter,
 	getGlobalRegistry,
 	listAdapters,
 	registerAdapter,
 	resetGlobalRegistry,
 	setGlobalRegistry,
-} from './adapters/index.js';
-
-// Generic adapter
-export {
-	createGenericAdapter,
-	genericAdapter,
-	type GenericAdapterOptions,
-} from './adapters/index.js';
-
-// Todo adapter
-export {
-	createTodoAdapter,
-	todoAdapter,
 	type TodoFixture,
 	type TodoSeed,
+	todoAdapter,
 } from './adapters/index.js';
 
 // ============================================================================
 // Scenario Commands (Phase 2)
 // ============================================================================
 
-// scenario.list
-export type {
-	ScenarioListInput,
-	ScenarioListOutput,
-	ScenarioSummary,
-} from './commands/list.js';
-export { scenarioList, formatScenarioTable } from './commands/list.js';
-
-// scenario.evaluate
-export type {
-	ScenarioEvaluateInput,
-	ScenarioEvaluateOutput,
-} from './commands/evaluate.js';
-export {
-	scenarioEvaluate,
-	formatTerminal,
-	formatJunit,
-	formatMarkdown,
-} from './commands/evaluate.js';
-
 // scenario.coverage
 export type {
-	ScenarioCoverageInput,
-	ScenarioCoverageOutput,
 	CommandCoverage,
+	CoverageSummary,
 	ErrorCoverage,
 	JobCoverage,
-	CoverageSummary,
+	ScenarioCoverageInput,
+	ScenarioCoverageOutput,
 } from './commands/coverage.js';
 export {
-	scenarioCoverage,
-	formatCoverageTerminal,
 	formatCoverageMarkdown,
+	formatCoverageTerminal,
+	scenarioCoverage,
 } from './commands/coverage.js';
-
 // scenario.create
 export type {
 	ScenarioCreateInput,
 	ScenarioCreateOutput,
 	ScenarioStepInput,
 } from './commands/create.js';
-export { scenarioCreate, listTemplates } from './commands/create.js';
+export { listTemplates, scenarioCreate } from './commands/create.js';
+// scenario.evaluate
+export type {
+	ScenarioEvaluateInput,
+	ScenarioEvaluateOutput,
+} from './commands/evaluate.js';
+export {
+	formatJunit,
+	formatMarkdown,
+	formatTerminal,
+	scenarioEvaluate,
+} from './commands/evaluate.js';
+// scenario.list
+export type {
+	ScenarioListInput,
+	ScenarioListOutput,
+	ScenarioSummary,
+} from './commands/list.js';
+export { formatScenarioTable, scenarioList } from './commands/list.js';
 
 // scenario.suggest (Phase 3)
 export type {
-	SuggestionContext,
 	ScenarioSuggestInput,
 	ScenarioSuggestion,
 	ScenarioSuggestOutput,
+	SuggestionContext,
 } from './commands/suggest.js';
 export { scenarioSuggest } from './commands/suggest.js';
 
@@ -263,49 +241,47 @@ export { scenarioSuggest } from './commands/suggest.js';
 // MCP Integration (Phase 3)
 // ============================================================================
 
+// Agent Hints
+export {
+	type AgentEnhancedResult,
+	type AgentHints,
+	enhanceWithAgentHints,
+	generateAgentHints,
+	generateCoverageHints,
+	generateTestReportHints,
+} from './mcp/hints.js';
 // MCP Server
 export {
 	createMcpTestingServer,
-	runStdioServer,
-	type McpTestingServer,
-	type McpTestingServerOptions,
+	type JsonRpcError,
 	type JsonRpcRequest,
 	type JsonRpcResponse,
-	type JsonRpcError,
+	type McpTestingServer,
+	type McpTestingServerOptions,
+	runStdioServer,
 } from './mcp/server.js';
-
 // MCP Tools
 export {
-	generateTools,
 	createToolRegistry,
 	executeTool,
+	generateTools,
 	getTool,
 	type McpTool,
 	type RegisteredTool,
-	type ToolHandler,
 	type ToolExecutionContext,
+	type ToolHandler,
 } from './mcp/tools.js';
-
-// Agent Hints
-export {
-	generateAgentHints,
-	generateTestReportHints,
-	generateCoverageHints,
-	enhanceWithAgentHints,
-	type AgentHints,
-	type AgentEnhancedResult,
-} from './mcp/hints.js';
 
 // ============================================================================
 // Re-export core types commonly used in testing
 // ============================================================================
 
 export {
-	success,
-	failure,
-	isSuccess,
-	isFailure,
-	type CommandResult,
 	type CommandDefinition,
 	type CommandError,
+	type CommandResult,
+	failure,
+	isFailure,
+	isSuccess,
+	success,
 } from '@lushly-dev/afd-core';

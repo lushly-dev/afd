@@ -144,10 +144,7 @@ export function createError(
 /**
  * Create a validation error.
  */
-export function validationError(
-	message: string,
-	details?: Record<string, unknown>
-): CommandError {
+export function validationError(message: string, details?: Record<string, unknown>): CommandError {
 	return createError(ErrorCodes.VALIDATION_ERROR, message, {
 		suggestion: 'Check the input and try again',
 		retryable: false,
@@ -159,15 +156,11 @@ export function validationError(
  * Create a not found error.
  */
 export function notFoundError(resourceType: string, resourceId: string): CommandError {
-	return createError(
-		ErrorCodes.NOT_FOUND,
-		`${resourceType} with ID '${resourceId}' not found`,
-		{
-			suggestion: `Verify the ${resourceType.toLowerCase()} ID exists and try again`,
-			retryable: false,
-			details: { resourceType, resourceId },
-		}
-	);
+	return createError(ErrorCodes.NOT_FOUND, `${resourceType} with ID '${resourceId}' not found`, {
+		suggestion: `Verify the ${resourceType.toLowerCase()} ID exists and try again`,
+		retryable: false,
+		details: { resourceType, resourceId },
+	});
 }
 
 /**

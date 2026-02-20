@@ -2,13 +2,13 @@
  * @fileoverview Interactive shell command
  */
 
-import type { Command } from 'commander';
 import * as readline from 'node:readline';
-import chalk from 'chalk';
-import { getClient, setClient } from './connect.js';
 import { createClient } from '@lushly-dev/afd-client';
-import { printError, printResult, printTools, printStatus, printSuccess } from '../output.js';
+import chalk from 'chalk';
+import type { Command } from 'commander';
 import { getConfig, setConfig } from '../config.js';
+import { printError, printResult, printStatus, printSuccess, printTools } from '../output.js';
+import { getClient, setClient } from './connect.js';
 
 /**
  * Register the shell command.
@@ -34,10 +34,7 @@ export function registerShellCommand(program: Command): void {
 					printSuccess('Connected');
 					setConfig('serverUrl', url);
 				} catch (error) {
-					printError(
-						'Auto-connect failed',
-						error instanceof Error ? error : undefined
-					);
+					printError('Auto-connect failed', error instanceof Error ? error : undefined);
 				}
 				console.log();
 			}
@@ -62,10 +59,7 @@ export function registerShellCommand(program: Command): void {
 				try {
 					await processCommand(trimmed);
 				} catch (error) {
-					printError(
-						'Command failed',
-						error instanceof Error ? error : undefined
-					);
+					printError('Command failed', error instanceof Error ? error : undefined);
 				}
 
 				// Update prompt (connection status may have changed)
@@ -89,9 +83,9 @@ function getPrompt(): string {
 	const connected = client?.isConnected();
 
 	if (connected) {
-		return chalk.green('afd') + chalk.dim(':') + chalk.cyan('connected') + '> ';
+		return `${chalk.green('afd') + chalk.dim(':') + chalk.cyan('connected')}> `;
 	}
-	return chalk.yellow('afd') + '> ';
+	return `${chalk.yellow('afd')}> `;
 }
 
 /**
@@ -108,13 +102,14 @@ async function processCommand(input: string): Promise<void> {
 
 		case 'exit':
 		case 'quit':
-		case 'q':
+		case 'q': {
 			const client = getClient();
 			if (client) {
 				await client.disconnect();
 			}
 			process.exit(0);
 			break;
+		}
 
 		case 'connect':
 			await handleConnect(args);
@@ -157,15 +152,15 @@ async function processCommand(input: string): Promise<void> {
 function printHelp(): void {
 	console.log(chalk.bold('Available Commands:'));
 	console.log();
-	console.log('  ' + chalk.cyan('connect <url>') + '     Connect to an MCP server');
-	console.log('  ' + chalk.cyan('disconnect') + '        Disconnect from server');
-	console.log('  ' + chalk.cyan('status') + '            Show connection status');
-	console.log('  ' + chalk.cyan('tools') + '             List available tools');
-	console.log('  ' + chalk.cyan('call <name> [args]') + ' Call a tool');
-	console.log('  ' + chalk.cyan('<name> [args]') + '     Shorthand for call');
-	console.log('  ' + chalk.cyan('clear') + '             Clear the screen');
-	console.log('  ' + chalk.cyan('help') + '              Show this help');
-	console.log('  ' + chalk.cyan('exit') + '              Exit the shell');
+	console.log(`  ${chalk.cyan('connect <url>')}     Connect to an MCP server`);
+	console.log(`  ${chalk.cyan('disconnect')}        Disconnect from server`);
+	console.log(`  ${chalk.cyan('status')}            Show connection status`);
+	console.log(`  ${chalk.cyan('tools')}             List available tools`);
+	console.log(`  ${chalk.cyan('call <name> [args]')} Call a tool`);
+	console.log(`  ${chalk.cyan('<name> [args]')}     Shorthand for call`);
+	console.log(`  ${chalk.cyan('clear')}             Clear the screen`);
+	console.log(`  ${chalk.cyan('help')}              Show this help`);
+	console.log(`  ${chalk.cyan('exit')}              Exit the shell`);
 	console.log();
 	console.log(chalk.dim('Examples:'));
 	console.log(chalk.dim('  connect http://localhost:3100/sse'));
@@ -195,10 +190,7 @@ async function handleConnect(args: string[]): Promise<void> {
 		setConfig('serverUrl', url);
 		printSuccess(`Connected to ${url}`);
 	} catch (error) {
-		printError(
-			'Connection failed',
-			error instanceof Error ? error : undefined
-		);
+		printError('Connection failed', error instanceof Error ? error : undefined);
 	}
 }
 
@@ -299,7 +291,7 @@ async function handleCall(args: string[]): Promise<void> {
 					}
 				}
 			}
-		} catch (error) {
+		} catch (_error) {
 			printError('Invalid arguments. Use JSON or key=value format.');
 			return;
 		}
@@ -309,9 +301,6 @@ async function handleCall(args: string[]): Promise<void> {
 		const result = await client.call(name, parsedArgs);
 		printResult(result);
 	} catch (error) {
-		printError(
-			'Call failed',
-			error instanceof Error ? error : undefined
-		);
+		printError('Call failed', error instanceof Error ? error : undefined);
 	}
 }

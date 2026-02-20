@@ -4,35 +4,33 @@
  * Exports MCP server, tools, and agent hints for AI agent integration.
  */
 
-// Server
-export {
-  createMcpTestingServer,
-  runStdioServer,
-  type McpTestingServer,
-  type McpTestingServerOptions,
-  type JsonRpcRequest,
-  type JsonRpcResponse,
-  type JsonRpcError,
-} from './server.js';
-
-// Tools
-export {
-  generateTools,
-  createToolRegistry,
-  executeTool,
-  getTool,
-  type McpTool,
-  type RegisteredTool,
-  type ToolHandler,
-  type ToolExecutionContext,
-} from './tools.js';
-
 // Agent Hints
 export {
-  generateAgentHints,
-  generateTestReportHints,
-  generateCoverageHints,
-  enhanceWithAgentHints,
-  type AgentHints,
-  type AgentEnhancedResult,
+	type AgentEnhancedResult,
+	type AgentHints,
+	enhanceWithAgentHints,
+	generateAgentHints,
+	generateCoverageHints,
+	generateTestReportHints,
 } from './hints.js';
+// Server
+export {
+	createMcpTestingServer,
+	type JsonRpcError,
+	type JsonRpcRequest,
+	type JsonRpcResponse,
+	type McpTestingServer,
+	type McpTestingServerOptions,
+	runStdioServer,
+} from './server.js';
+// Tools
+export {
+	createToolRegistry,
+	executeTool,
+	generateTools,
+	getTool,
+	type McpTool,
+	type RegisteredTool,
+	type ToolExecutionContext,
+	type ToolHandler,
+} from './tools.js';

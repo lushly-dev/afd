@@ -36,10 +36,10 @@
  */
 
 import type {
-	HandoffResult,
 	HandoffCredentials,
 	HandoffMetadata,
 	HandoffProtocol,
+	HandoffResult,
 } from '@lushly-dev/afd-core';
 import { isHandoff, isHandoffProtocol } from '@lushly-dev/afd-core';
 import type { DirectClient } from './direct.js';
@@ -192,10 +192,7 @@ const protocolHandlers = new Map<string, ProtocolHandler>();
  * });
  * ```
  */
-export function registerProtocolHandler(
-	protocol: string,
-	handler: ProtocolHandler
-): void {
+export function registerProtocolHandler(protocol: string, handler: ProtocolHandler): void {
 	protocolHandlers.set(protocol, handler);
 }
 
@@ -285,8 +282,8 @@ export async function connectHandoff(
 	if (!handler) {
 		throw new Error(
 			`No protocol handler registered for '${handoff.protocol}'. ` +
-			`Available protocols: ${listProtocolHandlers().join(', ') || 'none'}. ` +
-			`Register a handler with registerProtocolHandler('${handoff.protocol}', handler).`
+				`Available protocols: ${listProtocolHandlers().join(', ') || 'none'}. ` +
+				`Register a handler with registerProtocolHandler('${handoff.protocol}', handler).`
 		);
 	}
 
@@ -454,8 +451,7 @@ export async function createReconnectingHandoff(
 
 					// Check if reconnection is allowed
 					const canReconnect =
-						handoff.metadata?.reconnect?.allowed !== false &&
-						reconnectAttempt < maxAttempts;
+						handoff.metadata?.reconnect?.allowed !== false && reconnectAttempt < maxAttempts;
 
 					if (canReconnect) {
 						await attemptReconnect();
@@ -499,7 +495,7 @@ export async function createReconnectingHandoff(
 
 		// Calculate exponential backoff with jitter
 		const delay = Math.min(
-			backoffMs * Math.pow(2, reconnectAttempt - 1) + Math.random() * 100,
+			backoffMs * 2 ** (reconnectAttempt - 1) + Math.random() * 100,
 			maxBackoffMs
 		);
 

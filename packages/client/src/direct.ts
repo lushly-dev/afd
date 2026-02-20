@@ -29,32 +29,30 @@
 import type {
 	CommandContext,
 	CommandResult,
+	HandoffResult,
 	McpRequest,
 	McpResponse,
 	McpTool,
-	HandoffResult,
-	PipelineRequest,
-	PipelineStep,
-	PipelineResult,
-	PipelineMetadata,
 	PipelineContext,
-	StepResult,
+	PipelineMetadata,
+	PipelineRequest,
+	PipelineResult,
+	PipelineStep,
 	ResultMetadata,
+	StepResult,
 } from '@lushly-dev/afd-core';
 import {
-	failure,
-	validationError,
-	isHandoff,
-	resolveVariables,
-	evaluateCondition,
+	aggregatePipelineAlternatives,
 	aggregatePipelineConfidence,
 	aggregatePipelineReasoning,
-	aggregatePipelineWarnings,
 	aggregatePipelineSources,
-	aggregatePipelineAlternatives,
+	aggregatePipelineWarnings,
 	buildConfidenceBreakdown,
+	evaluateCondition,
+	failure,
+	resolveVariables,
+	validationError,
 } from '@lushly-dev/afd-core';
-import type { Transport } from './transport.js';
 import type {
 	HandoffConnection,
 	HandoffConnectionOptions,
@@ -62,6 +60,7 @@ import type {
 	ReconnectionOptions,
 } from './handoff.js';
 import { connectHandoff, createReconnectingHandoff } from './handoff.js';
+import type { Transport } from './transport.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // UNKNOWN TOOL ERROR TYPES
@@ -104,15 +103,15 @@ function calculateSimilarity(a: string, b: string): number {
 		for (let j = 1; j <= bLower.length; j++) {
 			const cost = aLower[i - 1] === bLower[j - 1] ? 0 : 1;
 			matrix[i]![j] = Math.min(
-				matrix[i - 1]![j]! + 1, // deletion
-				matrix[i]![j - 1]! + 1, // insertion
-				matrix[i - 1]![j - 1]! + cost // substitution
+				matrix[i - 1]?.[j]! + 1, // deletion
+				matrix[i]?.[j - 1]! + 1, // insertion
+				matrix[i - 1]?.[j - 1]! + cost // substitution
 			);
 		}
 	}
 
 	const maxLen = Math.max(aLower.length, bLower.length);
-	return maxLen === 0 ? 1 : 1 - matrix[aLower.length]![bLower.length]! / maxLen;
+	return maxLen === 0 ? 1 : 1 - matrix[aLower.length]?.[bLower.length]! / maxLen;
 }
 
 /**
@@ -135,13 +134,9 @@ function findSimilarTools(
 /**
  * Create a structured unknown tool error.
  */
-function createUnknownToolError(
-	requestedTool: string,
-	availableTools: string[]
-): UnknownToolError {
+function createUnknownToolError(requestedTool: string, availableTools: string[]): UnknownToolError {
 	const suggestions = findSimilarTools(requestedTool, availableTools);
-	const hint =
-		suggestions.length > 0 ? `Did you mean '${suggestions[0]}'?` : null;
+	const hint = suggestions.length > 0 ? `Did you mean '${suggestions[0]}'?` : null;
 
 	return {
 		error: 'UNKNOWN_TOOL',
@@ -218,11 +213,7 @@ export interface DirectRegistry {
 	 * @param context - Optional command context for tracing/cancellation
 	 * @returns Command result
 	 */
-	execute<T>(
-		name: string,
-		input?: unknown,
-		context?: CommandContext
-	): Promise<CommandResult<T>>;
+	execute<T>(name: string, input?: unknown, context?: CommandContext): Promise<CommandResult<T>>;
 
 	/**
 	 * List available command names.
@@ -809,9 +800,7 @@ export class DirectClient {
 		const traceId = context?.traceId ?? generateTraceId();
 
 		// Normalize request
-		const pipelineRequest: PipelineRequest = Array.isArray(request)
-			? { steps: request }
-			: request;
+		const pipelineRequest: PipelineRequest = Array.isArray(request) ? { steps: request } : request;
 
 		const { steps: stepDefs, options = {} } = pipelineRequest;
 		const { continueOnFailure = false, timeoutMs } = options;
@@ -826,7 +815,7 @@ export class DirectClient {
 		};
 
 		const stepResults: StepResult[] = [];
-		let finalData: unknown = undefined;
+		let finalData: unknown;
 		let pipelineFailed = false;
 
 		// Execute each step

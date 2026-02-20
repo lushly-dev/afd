@@ -1,119 +1,121 @@
 .settings-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(0, 0, 0, 0.6);
+	backdrop-filter: blur(4px);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
 }
 
 .settings-modal {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  width: 90%;
-  max-width: 500px;
-  max-height: 85vh;
-  overflow-y: auto;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
-  padding: 1.5rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: 16px;
+	width: 90%;
+	max-width: 500px;
+	max-height: 85vh;
+	overflow-y: auto;
+	box-shadow:
+		0 20px 25px -5px rgba(0, 0, 0, 0.3),
+		0 10px 10px -5px rgba(0, 0, 0, 0.2);
+	padding: 1.5rem;
 }
 
 .settings-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.5rem;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 1.5rem;
 }
 
 .settings-header h2 {
-  margin: 0;
-  font-size: 1.5rem;
-  color: var(--text);
+	margin: 0;
+	font-size: 1.5rem;
+	color: var(--text);
 }
 
 .settings-close {
-  background: transparent;
-  border: none;
-  font-size: 1.5rem;
-  color: var(--text-muted);
-  cursor: pointer;
-  padding: 0.5rem;
-  line-height: 1;
+	background: transparent;
+	border: none;
+	font-size: 1.5rem;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 0.5rem;
+	line-height: 1;
 }
 
 .settings-close:hover {
-  color: var(--text);
+	color: var(--text);
 }
 
 .settings-section {
-  margin-bottom: 1.5rem;
+	margin-bottom: 1.5rem;
 }
 
 .settings-section h3 {
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-muted);
-  margin-bottom: 1rem;
+	font-size: 0.8rem;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+	color: var(--text-muted);
+	margin-bottom: 1rem;
 }
 
 .settings-theme-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem;
-  background: var(--primary);
-  border-radius: 8px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.75rem;
+	background: var(--primary);
+	border-radius: 8px;
 }
 
 .settings-divider {
-  height: 1px;
-  background: var(--border);
-  margin: 1.5rem 0;
+	height: 1px;
+	background: var(--border);
+	margin: 1.5rem 0;
 }
 
 .settings-shortcut-category {
-  margin-bottom: 1.25rem;
+	margin-bottom: 1.25rem;
 }
 
 .settings-shortcut-category h4 {
-  font-size: 0.9rem;
-  color: var(--text);
-  margin-bottom: 0.75rem;
+	font-size: 0.9rem;
+	color: var(--text);
+	margin-bottom: 0.75rem;
 }
 
 .settings-shortcut-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
 }
 
 .settings-shortcut-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 0.75rem;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 6px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.5rem 0.75rem;
+	background: rgba(255, 255, 255, 0.03);
+	border-radius: 6px;
 }
 
 .settings-shortcut-description {
-  font-size: 0.85rem;
-  color: var(--text-muted);
+	font-size: 0.85rem;
+	color: var(--text-muted);
 }
 
 .settings-key {
-  font-family: 'Monaco', 'Consolas', monospace;
-  font-size: 0.75rem;
-  padding: 0.2rem 0.4rem;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  color: var(--text);
+	font-family: "Monaco", "Consolas", monospace;
+	font-size: 0.75rem;
+	padding: 0.2rem 0.4rem;
+	background: var(--bg);
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	color: var(--text);
 }

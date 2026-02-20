@@ -4,17 +4,16 @@
  * These tests validate zero-overhead in-process command execution.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import { beforeEach, describe, expect, it } from 'vitest';
 import {
-	DirectClient,
-	DirectTransport,
-	createDirectClient,
-	type DirectRegistry,
-	type UnknownToolError,
 	type CommandDefinition,
-	type CommandParameter,
+	createDirectClient,
+	DirectClient,
+	type DirectRegistry,
+	DirectTransport,
+	type UnknownToolError,
 } from './direct.js';
-import type { CommandResult, CommandContext } from '@lushly-dev/afd-core';
 
 /**
  * Mock registry for testing - basic version without validation support
@@ -192,10 +191,9 @@ describe('DirectClient', () => {
 		});
 
 		it('executes toggle command', async () => {
-			const createResult = await client.call<{ id: string; completed: boolean }>(
-				'todo-create',
-				{ title: 'Toggle test' }
-			);
+			const createResult = await client.call<{ id: string; completed: boolean }>('todo-create', {
+				title: 'Toggle test',
+			});
 			const id = createResult.data?.id;
 
 			const toggleResult = await client.call<{ completed: boolean }>('todo-toggle', { id });
@@ -212,7 +210,7 @@ describe('DirectClient', () => {
 			const result = await client.call('unknown-command', {});
 
 			expect(result.success).toBe(false);
-			
+
 			// Check for UnknownToolError structure
 			const errorData = result.data as UnknownToolError;
 			expect(errorData.error).toBe('UNKNOWN_TOOL');
@@ -225,7 +223,7 @@ describe('DirectClient', () => {
 			const result = await client.call('todo-creat', {}); // typo
 
 			expect(result.success).toBe(false);
-			
+
 			const errorData = result.data as UnknownToolError;
 			expect(errorData.suggestions).toContain('todo-create');
 			expect(errorData.hint).toBe("Did you mean 'todo-create'?");

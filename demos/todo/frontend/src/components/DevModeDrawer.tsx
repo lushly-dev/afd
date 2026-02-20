@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import type React from 'react';
+import { useState } from 'react';
 import type { CommandResult } from '../types';
 import type { LogEntry } from './CommandLog';
 import './DevModeDrawer.css';
@@ -66,7 +67,13 @@ export const DevModeDrawer: React.FC<DevModeDrawerProps> = ({
 					<div className="dev-section-header">Confidence</div>
 					<div className="dev-confidence-row">
 						<div className="dev-confidence-meter">
-							<div className="dev-confidence-fill" style={{ width: `${confidence * 100}%`, backgroundColor: getConfidenceColor(confidence) }} />
+							<div
+								className="dev-confidence-fill"
+								style={{
+									width: `${confidence * 100}%`,
+									backgroundColor: getConfidenceColor(confidence),
+								}}
+							/>
 						</div>
 						<span className="dev-confidence-value">{Math.round(confidence * 100)}%</span>
 					</div>
@@ -85,7 +92,11 @@ export const DevModeDrawer: React.FC<DevModeDrawerProps> = ({
 								<li key={i} className="dev-source-item">
 									<span className="dev-source-type">{source.type || 'unknown'}</span>
 									{source.title && <span className="dev-source-title">{source.title}</span>}
-									{source.relevance !== undefined && <span className="dev-source-relevance">{Math.round(source.relevance * 100)}%</span>}
+									{source.relevance !== undefined && (
+										<span className="dev-source-relevance">
+											{Math.round(source.relevance * 100)}%
+										</span>
+									)}
 								</li>
 							))}
 						</ul>
@@ -97,9 +108,13 @@ export const DevModeDrawer: React.FC<DevModeDrawerProps> = ({
 						<ol className="dev-plan-list">
 							{lastResult.plan.map((step, i) => (
 								<li key={i} className={`dev-plan-step ${step.status || ''}`}>
-									<span className="dev-step-name">{step.name || step.action || `Step ${i + 1}`}</span>
+									<span className="dev-step-name">
+										{step.name || step.action || `Step ${i + 1}`}
+									</span>
 									{step.description && <span className="dev-step-desc">{step.description}</span>}
-									{step.status && <span className={`dev-step-status ${step.status}`}>{step.status}</span>}
+									{step.status && (
+										<span className={`dev-step-status ${step.status}`}>{step.status}</span>
+									)}
 								</li>
 							))}
 						</ol>
@@ -140,7 +155,18 @@ export const DevModeDrawer: React.FC<DevModeDrawerProps> = ({
 							<>
 								<span className="dev-latency-value">{formatTime(execTime)}</span>
 								<div className="dev-latency-bar">
-									<div className="dev-latency-fill" style={{ width: `${Math.min((execTime / 1000) * 100, 100)}%`, backgroundColor: execTime < 100 ? 'var(--success)' : execTime < 500 ? 'var(--warning)' : 'var(--error)' }} />
+									<div
+										className="dev-latency-fill"
+										style={{
+											width: `${Math.min((execTime / 1000) * 100, 100)}%`,
+											backgroundColor:
+												execTime < 100
+													? 'var(--success)'
+													: execTime < 500
+														? 'var(--warning)'
+														: 'var(--error)',
+										}}
+									/>
 								</div>
 							</>
 						) : (
@@ -190,10 +216,14 @@ export const DevModeDrawer: React.FC<DevModeDrawerProps> = ({
 
 	const renderTabContent = () => {
 		switch (activeTab) {
-			case 'trust': return renderTrustTab();
-			case 'latency': return renderLatencyTab();
-			case 'json': return renderJsonTab();
-			case 'log': return renderLogTab();
+			case 'trust':
+				return renderTrustTab();
+			case 'latency':
+				return renderLatencyTab();
+			case 'json':
+				return renderJsonTab();
+			case 'log':
+				return renderLogTab();
 		}
 	};
 
@@ -204,7 +234,15 @@ export const DevModeDrawer: React.FC<DevModeDrawerProps> = ({
 				<div className="dev-drawer-header">
 					<h2 className="dev-drawer-title">Dev Mode</h2>
 					<button type="button" className="dev-drawer-close" onClick={onClose}>
-						<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+						<svg
+							width="20"
+							height="20"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="2"
+						>
+							<title>Close Dev Mode</title>
 							<line x1="18" y1="6" x2="6" y2="18" />
 							<line x1="6" y1="6" x2="18" y2="18" />
 						</svg>
@@ -212,7 +250,9 @@ export const DevModeDrawer: React.FC<DevModeDrawerProps> = ({
 				</div>
 				<div className="dev-status-row">
 					<div className="dev-status-badges">
-						<span className={`dev-connection-badge ${isBackendReady ? 'connected' : 'disconnected'}`}>
+						<span
+							className={`dev-connection-badge ${isBackendReady ? 'connected' : 'disconnected'}`}
+						>
 							<span className="dev-status-dot" />
 							Backend
 						</span>
@@ -220,14 +260,14 @@ export const DevModeDrawer: React.FC<DevModeDrawerProps> = ({
 							<span className="dev-status-dot" />
 							Chat
 						</span>
-						<span className={`dev-connection-badge ${isConvexReady ? 'connected' : 'disconnected'}`}>
+						<span
+							className={`dev-connection-badge ${isConvexReady ? 'connected' : 'disconnected'}`}
+						>
 							<span className="dev-status-dot" />
 							Convex
 						</span>
 						{pendingOperations > 0 && (
-							<span className="dev-pending-badge">
-								{pendingOperations} pending
-							</span>
+							<span className="dev-pending-badge">{pendingOperations} pending</span>
 						)}
 					</div>
 					<label className="dev-toggle-label">
@@ -242,7 +282,12 @@ export const DevModeDrawer: React.FC<DevModeDrawerProps> = ({
 				</div>
 				<div className="dev-tabs">
 					{tabs.map((tab) => (
-						<button key={tab.id} type="button" className={`dev-tab ${activeTab === tab.id ? 'active' : ''}`} onClick={() => setActiveTab(tab.id)}>
+						<button
+							key={tab.id}
+							type="button"
+							className={`dev-tab ${activeTab === tab.id ? 'active' : ''}`}
+							onClick={() => setActiveTab(tab.id)}
+						>
 							{tab.label}
 						</button>
 					))}

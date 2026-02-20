@@ -2,8 +2,8 @@
  * @fileoverview list-delete command
  */
 
+import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
-import { defineCommand, success, failure } from '@lushly-dev/afd-server';
 import { store } from '../store/index.js';
 
 const inputSchema = z.object({

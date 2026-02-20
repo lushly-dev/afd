@@ -4,7 +4,7 @@
  * SECURITY: This connector NEVER logs stdout to prevent token exposure.
  */
 
-import { exec, type ExecOptions, type ExecResult, isExecError } from '../platform.js';
+import { type ExecOptions, type ExecResult, exec, isExecError } from '../platform.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -247,15 +247,7 @@ export class GitHubConnector {
 	 * @returns Array of pull requests
 	 */
 	async prList(repo: string, filters?: IssueFilters): Promise<PullRequest[]> {
-		const cmd: string[] = [
-			'gh',
-			'pr',
-			'list',
-			'--repo',
-			repo,
-			'--json',
-			'number,title,state,url',
-		];
+		const cmd: string[] = ['gh', 'pr', 'list', '--repo', repo, '--json', 'number,title,state,url'];
 
 		if (filters?.state && filters.state !== 'all') {
 			cmd.push('--state', filters.state);

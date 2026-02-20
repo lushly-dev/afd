@@ -1,13 +1,13 @@
 {
-  "name": "@afd/example-todo-vanilla",
-  "version": "1.0.0",
-  "description": "Todo example - Vanilla JS frontend",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "preview": "vite preview"
-  },
-  "devDependencies": {
-    "vite": "^5.2.0"
-  }
+	"name": "@afd/example-todo-vanilla",
+	"version": "1.0.0",
+	"description": "Todo example - Vanilla JS frontend",
+	"type": "module",
+	"scripts": {
+		"dev": "vite",
+		"preview": "vite preview"
+	},
+	"devDependencies": {
+		"vite": "^5.2.0"
+	}
 }

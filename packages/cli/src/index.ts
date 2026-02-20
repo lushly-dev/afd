@@ -5,5 +5,13 @@
  */
 
 export { createCli } from './cli.js';
-export { getConfig, setConfig, clearConfig, getConfigPath, type StoredConfig } from './config.js';
-export { printResult, printTools, printStatus, printError, printSuccess, type OutputFormat, type OutputOptions } from './output.js';
+export { clearConfig, getConfig, getConfigPath, type StoredConfig, setConfig } from './config.js';
+export {
+	type OutputFormat,
+	type OutputOptions,
+	printError,
+	printResult,
+	printStatus,
+	printSuccess,
+	printTools,
+} from './output.js';

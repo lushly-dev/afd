@@ -1,14 +1,14 @@
 {
-  "permissions": {
-    "allow": [
-      "Bash(git -C \"D:\\\\Github\\\\Falkicon\\\\AFD\" log --oneline -20)",
-      "Bash(pnpm -F @afd/todo-ts build:*)",
-      "Bash(pnpm:*)",
-      "Bash(git checkout:*)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git push:*)",
-      "Bash(gh pr create:*)"
-    ]
-  }
+	"permissions": {
+		"allow": [
+			"Bash(git -C \"D:\\\\Github\\\\Falkicon\\\\AFD\" log --oneline -20)",
+			"Bash(pnpm -F @afd/todo-ts build:*)",
+			"Bash(pnpm:*)",
+			"Bash(git checkout:*)",
+			"Bash(git add:*)",
+			"Bash(git commit:*)",
+			"Bash(git push:*)",
+			"Bash(gh pr create:*)"
+		]
+	}
 }

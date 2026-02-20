@@ -2,8 +2,8 @@
  * @fileoverview note-update command
  */
 
+import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
-import { defineCommand, success, failure } from '@lushly-dev/afd-server';
 import { store } from '../store/index.js';
 import type { Note } from '../types.js';
 
@@ -27,15 +27,27 @@ export const updateNote = defineCommand<typeof inputSchema, Note>({
 	async handler(input) {
 		const existing = store.getNote(input.id);
 		if (!existing) {
-			return failure({ code: 'NOT_FOUND', message: 'Note not found: ' + input.id, suggestion: 'Check the note ID or list all notes' });
+			return failure({
+				code: 'NOT_FOUND',
+				message: `Note not found: ${input.id}`,
+				suggestion: 'Check the note ID or list all notes',
+			});
 		}
 		if (input.folderId) {
 			const folder = store.getNoteFolder(input.folderId);
 			if (!folder) {
-				return failure({ code: 'FOLDER_NOT_FOUND', message: 'Folder not found: ' + input.folderId, suggestion: 'Create the folder first' });
+				return failure({
+					code: 'FOLDER_NOT_FOUND',
+					message: `Folder not found: ${input.folderId}`,
+					suggestion: 'Create the folder first',
+				});
 			}
 		}
-		const note = store.updateNote(input.id, { title: input.title, content: input.content, folderId: input.folderId })!;
-		return success(note, { reasoning: 'Updated note "' + note.title + '"', confidence: 1.0 });
+		const note = store.updateNote(input.id, {
+			title: input.title,
+			content: input.content,
+			folderId: input.folderId,
+		})!;
+		return success(note, { reasoning: `Updated note "${note.title}"`, confidence: 1.0 });
 	},
 });

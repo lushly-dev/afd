@@ -2,9 +2,9 @@
  * @fileoverview Output formatting utilities
  */
 
-import chalk from 'chalk';
 import type { CommandResult, McpTool } from '@lushly-dev/afd-core';
 import { isFailure, isSuccess } from '@lushly-dev/afd-core';
+import chalk from 'chalk';
 
 export type OutputFormat = 'json' | 'text' | 'table';
 
@@ -20,10 +20,7 @@ export interface OutputOptions {
 /**
  * Format and print a CommandResult.
  */
-export function printResult<T>(
-	result: CommandResult<T>,
-	options: OutputOptions = {}
-): void {
+export function printResult<T>(result: CommandResult<T>, options: OutputOptions = {}): void {
 	const { format = 'text', verbose = false } = options;
 
 	if (format === 'json') {
@@ -45,7 +42,11 @@ export function printResult<T>(
 		if (result.confidence !== undefined) {
 			const confidenceBar = getConfidenceBar(result.confidence);
 			console.log();
-			console.log(chalk.dim('Confidence:'), confidenceBar, `${Math.round(result.confidence * 100)}%`);
+			console.log(
+				chalk.dim('Confidence:'),
+				confidenceBar,
+				`${Math.round(result.confidence * 100)}%`
+			);
 		}
 
 		if (result.reasoning && verbose) {
@@ -57,7 +58,9 @@ export function printResult<T>(
 			console.log();
 			console.log(chalk.dim('Sources:'));
 			for (const source of result.sources) {
-				console.log(`  - ${source.title || source.type}${source.location ? ` (${source.location})` : ''}`);
+				console.log(
+					`  - ${source.title || source.type}${source.location ? ` (${source.location})` : ''}`
+				);
 			}
 		}
 
@@ -92,10 +95,7 @@ export function printResult<T>(
 /**
  * Format a list of tools.
  */
-export function printTools(
-	tools: McpTool[],
-	options: OutputOptions = {}
-): void {
+export function printTools(tools: McpTool[], options: OutputOptions = {}): void {
 	const { format = 'text' } = options;
 
 	if (format === 'json') {

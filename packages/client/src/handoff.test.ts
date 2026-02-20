@@ -5,28 +5,27 @@
  * and reconnection logic.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DirectClient, type DirectRegistry } from './direct.js';
 import {
-	registerProtocolHandler,
-	unregisterProtocolHandler,
-	getProtocolHandler,
-	hasProtocolHandler,
-	listProtocolHandlers,
+	buildAuthenticatedEndpoint,
 	clearProtocolHandlers,
 	connectHandoff,
 	createReconnectingHandoff,
-	buildAuthenticatedEndpoint,
-	parseHandoffEndpoint,
-	isHandoffExpired,
 	getHandoffTTL,
-	isHandoff,
-	isHandoffProtocol,
+	getProtocolHandler,
 	type HandoffResult,
-	type HandoffConnection,
+	hasProtocolHandler,
+	isHandoff,
+	isHandoffExpired,
+	isHandoffProtocol,
+	listProtocolHandlers,
 	type ProtocolHandler,
+	parseHandoffEndpoint,
+	registerProtocolHandler,
+	unregisterProtocolHandler,
 } from './handoff.js';
-import { DirectClient, type DirectRegistry } from './direct.js';
-import type { CommandResult, CommandContext } from '@lushly-dev/afd-core';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TEST FIXTURES
@@ -87,8 +86,8 @@ function createMockHandler(options?: {
 				if (!closed) {
 					state = 'disconnected';
 					connectionOptions.onDisconnect?.(
-						options.simulateDisconnect!.code,
-						options.simulateDisconnect!.reason
+						options.simulateDisconnect?.code,
+						options.simulateDisconnect?.reason
 					);
 				}
 			}, options.simulateDisconnect.delay);
@@ -521,10 +520,9 @@ describe('Helper Functions', () => {
 		});
 
 		it('should preserve existing query parameters', () => {
-			const result = buildAuthenticatedEndpoint(
-				'wss://example.com/socket?room=123',
-				{ token: 'my-token-123' }
-			);
+			const result = buildAuthenticatedEndpoint('wss://example.com/socket?room=123', {
+				token: 'my-token-123',
+			});
 			expect(result).toBe('wss://example.com/socket?room=123&token=my-token-123');
 		});
 
@@ -581,7 +579,7 @@ describe('Helper Functions', () => {
 			const handoff = createMockHandoff({
 				metadata: { capabilities: ['test'] },
 			});
-			delete handoff.metadata!.expiresAt;
+			delete handoff.metadata?.expiresAt;
 
 			expect(isHandoffExpired(handoff)).toBe(false);
 		});
@@ -612,7 +610,7 @@ describe('Helper Functions', () => {
 			const handoff = createMockHandoff({
 				metadata: { capabilities: ['test'] },
 			});
-			delete handoff.metadata!.expiresAt;
+			delete handoff.metadata?.expiresAt;
 
 			expect(getHandoffTTL(handoff)).toBeNull();
 		});

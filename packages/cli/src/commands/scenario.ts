@@ -2,31 +2,29 @@
  * @fileoverview Scenario command - run JTBD test scenarios
  */
 
-import type { Command } from 'commander';
-import { glob } from 'glob';
-import chalk from 'chalk';
-import ora from 'ora';
-import { resolve, relative } from 'node:path';
-import { printError, printInfo, printSuccess, printWarning } from '../output.js';
-import {
-	parseScenarioFile,
-	InProcessExecutor,
-	TerminalReporter,
-	calculateSummary,
-	type ScenarioResult,
-	type TestReport,
-} from '@lushly-dev/afd-testing';
-import type { Scenario, Step } from '@lushly-dev/afd-testing';
+import { relative, resolve } from 'node:path';
 import { createClient, type McpClient } from '@lushly-dev/afd-client';
 import type { CommandResult } from '@lushly-dev/afd-core';
+import type { Scenario, Step } from '@lushly-dev/afd-testing';
+import {
+	calculateSummary,
+	InProcessExecutor,
+	parseScenarioFile,
+	type ScenarioResult,
+	TerminalReporter,
+	type TestReport,
+} from '@lushly-dev/afd-testing';
+import chalk from 'chalk';
+import type { Command } from 'commander';
+import { glob } from 'glob';
+import ora from 'ora';
+import { printError, printInfo, printSuccess, printWarning } from '../output.js';
 
 /**
  * Register the scenario command.
  */
 export function registerScenarioCommand(program: Command): void {
-	const scenarioCmd = program
-		.command('scenario')
-		.description('Run JTBD test scenarios');
+	const scenarioCmd = program.command('scenario').description('Run JTBD test scenarios');
 
 	// afd scenario run <path>
 	scenarioCmd
@@ -110,7 +108,7 @@ export function registerScenarioCommand(program: Command): void {
 
 				const connectSpinner = ora('Connecting to server...').start();
 				let client: McpClient | null = null;
-				
+
 				try {
 					client = createClient({
 						url: options.server,
@@ -121,16 +119,16 @@ export function registerScenarioCommand(program: Command): void {
 					connectSpinner.succeed('Connected to server');
 				} catch (error) {
 					connectSpinner.fail('Failed to connect to server');
-					printError(
-						'Could not connect to MCP server',
-						error instanceof Error ? error : undefined
-					);
+					printError('Could not connect to MCP server', error instanceof Error ? error : undefined);
 					process.exit(1);
 				}
 
 				// Create in-process executor that uses the client
 				const executor = new InProcessExecutor({
-					handler: async (command: string, input?: Record<string, unknown>): Promise<CommandResult<unknown>> => {
+					handler: async (
+						command: string,
+						input?: Record<string, unknown>
+					): Promise<CommandResult<unknown>> => {
 						if (!client) {
 							return {
 								success: false,
@@ -184,10 +182,7 @@ export function registerScenarioCommand(program: Command): void {
 					result.scenarioPath = relative(cwd, scenarioPath);
 					results.push(result);
 
-					if (
-						options.stopOnFailure &&
-						(result.outcome === 'fail' || result.outcome === 'error')
-					) {
+					if (options.stopOnFailure && (result.outcome === 'fail' || result.outcome === 'error')) {
 						stopExecution = true;
 					}
 				}
@@ -364,10 +359,7 @@ steps:
 				printInfo('Edit the file to match your API commands, then run:');
 				console.log(chalk.cyan(`  afd scenario run ${options.output}`));
 			} catch (error) {
-				printError(
-					'Failed to create scenario file',
-					error instanceof Error ? error : undefined
-				);
+				printError('Failed to create scenario file', error instanceof Error ? error : undefined);
 				process.exit(1);
 			}
 		});

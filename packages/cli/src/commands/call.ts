@@ -2,19 +2,19 @@
  * @fileoverview Call command
  */
 
+import { createClient } from '@lushly-dev/afd-client';
 import type { Command } from 'commander';
 import ora from 'ora';
-import { createClient } from '@lushly-dev/afd-client';
-import { getClient, setClient } from './connect.js';
 import { getConfig } from '../config.js';
-import { printError, printResult, type OutputFormat } from '../output.js';
+import { type OutputFormat, printError, printResult } from '../output.js';
+import { getClient, setClient } from './connect.js';
 
 /**
  * Ensure we have a connected client, auto-connecting if needed.
  */
 async function ensureConnected() {
 	let client = getClient();
-	
+
 	if (client?.isConnected()) {
 		return client;
 	}
@@ -71,7 +71,7 @@ export function registerCallCommand(program: Command): void {
 						// Parse key=value pairs
 						parsedArgs = parseKeyValuePairs(args);
 					}
-				} catch (error) {
+				} catch (_error) {
 					printError('Invalid arguments format. Use JSON or key=value pairs.');
 					process.exit(1);
 				}
@@ -94,10 +94,7 @@ export function registerCallCommand(program: Command): void {
 				}
 			} catch (error) {
 				spinner.fail(`Failed to call ${name}`);
-				printError(
-					'Command execution failed',
-					error instanceof Error ? error : undefined
-				);
+				printError('Command execution failed', error instanceof Error ? error : undefined);
 				process.exit(1);
 			}
 		});

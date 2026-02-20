@@ -8,10 +8,10 @@
  *   TODO_STORE_PATH - Path to the JSON file (default: ./data/todos.json)
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import type { Todo, TodoFilter, TodoStats, Priority } from "../types.js";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import type { Priority, Todo, TodoFilter, TodoStats } from '../types.js';
 
 // Get the directory of this file for consistent path resolution
 const __filename = fileURLToPath(import.meta.url);
@@ -21,299 +21,289 @@ const __dirname = dirname(__filename);
  * Generate a unique ID.
  */
 function generateId(): string {
-  return `todo-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+	return `todo-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
 /**
  * Get current ISO timestamp.
  */
 function now(): string {
-  return new Date().toISOString();
+	return new Date().toISOString();
 }
 
 /**
  * File-based todo store with JSON persistence.
  */
 export class FileStore {
-  private filePath: string;
+	private filePath: string;
 
-  constructor(filePath?: string) {
-    // Default path: packages/examples/todo/data/todos.json
-    // From this file: store/file.ts → src/ → typescript/ → backends/ → todo/ → data/
-    this.filePath = filePath ?? resolve(__dirname, "..", "..", "..", "..", "data", "todos.json");
+	constructor(filePath?: string) {
+		// Default path: packages/examples/todo/data/todos.json
+		// From this file: store/file.ts → src/ → typescript/ → backends/ → todo/ → data/
+		this.filePath = filePath ?? resolve(__dirname, '..', '..', '..', '..', 'data', 'todos.json');
 
-    // Ensure the directory exists
-    const dir = dirname(this.filePath);
-    if (!existsSync(dir)) {
-      mkdirSync(dir, { recursive: true });
-    }
+		// Ensure the directory exists
+		const dir = dirname(this.filePath);
+		if (!existsSync(dir)) {
+			mkdirSync(dir, { recursive: true });
+		}
 
-    // Initialize empty file if it doesn't exist
-    if (!existsSync(this.filePath)) {
-      this.saveTodos(new Map());
-    }
-  }
+		// Initialize empty file if it doesn't exist
+		if (!existsSync(this.filePath)) {
+			this.saveTodos(new Map());
+		}
+	}
 
-  /**
-   * Load todos from file.
-   */
-  private loadTodos(): Map<string, Todo> {
-    try {
-      const data = readFileSync(this.filePath, "utf-8");
-      const parsed = JSON.parse(data);
+	/**
+	 * Load todos from file.
+	 */
+	private loadTodos(): Map<string, Todo> {
+		try {
+			const data = readFileSync(this.filePath, 'utf-8');
+			const parsed = JSON.parse(data);
 
-      // Handle both array format and object format
-      if (Array.isArray(parsed)) {
-        const map = new Map<string, Todo>();
-        for (const todo of parsed) {
-          map.set(todo.id, todo);
-        }
-        return map;
-      }
+			// Handle both array format and object format
+			if (Array.isArray(parsed)) {
+				const map = new Map<string, Todo>();
+				for (const todo of parsed) {
+					map.set(todo.id, todo);
+				}
+				return map;
+			}
 
-      // Object format: { "id": todo }
-      return new Map(Object.entries(parsed));
-    } catch {
-      return new Map();
-    }
-  }
+			// Object format: { "id": todo }
+			return new Map(Object.entries(parsed));
+		} catch {
+			return new Map();
+		}
+	}
 
-  /**
-   * Save todos to file.
-   */
-  private saveTodos(todos: Map<string, Todo>): void {
-    // Save as array for better readability
-    const data = Array.from(todos.values());
-    writeFileSync(this.filePath, JSON.stringify(data, null, 2), "utf-8");
-  }
+	/**
+	 * Save todos to file.
+	 */
+	private saveTodos(todos: Map<string, Todo>): void {
+		// Save as array for better readability
+		const data = Array.from(todos.values());
+		writeFileSync(this.filePath, JSON.stringify(data, null, 2), 'utf-8');
+	}
 
-  /**
-   * Create a new todo.
-   */
-  create(data: {
-    title: string;
-    description?: string;
-    priority?: Priority;
-  }): Todo {
-    const todos = this.loadTodos();
+	/**
+	 * Create a new todo.
+	 */
+	create(data: { title: string; description?: string; priority?: Priority }): Todo {
+		const todos = this.loadTodos();
 
-    const todo: Todo = {
-      id: generateId(),
-      title: data.title,
-      description: data.description,
-      priority: data.priority ?? "medium",
-      completed: false,
-      createdAt: now(),
-      updatedAt: now(),
-    };
+		const todo: Todo = {
+			id: generateId(),
+			title: data.title,
+			description: data.description,
+			priority: data.priority ?? 'medium',
+			completed: false,
+			createdAt: now(),
+			updatedAt: now(),
+		};
 
-    todos.set(todo.id, todo);
-    this.saveTodos(todos);
-    return todo;
-  }
+		todos.set(todo.id, todo);
+		this.saveTodos(todos);
+		return todo;
+	}
 
-  /**
-   * Get a todo by ID.
-   */
-  get(id: string): Todo | undefined {
-    const todos = this.loadTodos();
-    return todos.get(id);
-  }
+	/**
+	 * Get a todo by ID.
+	 */
+	get(id: string): Todo | undefined {
+		const todos = this.loadTodos();
+		return todos.get(id);
+	}
 
-  /**
-   * List todos with optional filtering.
-   */
-  list(filter: TodoFilter = {}): Todo[] {
-    const todos = this.loadTodos();
-    let results = Array.from(todos.values());
+	/**
+	 * List todos with optional filtering.
+	 */
+	list(filter: TodoFilter = {}): Todo[] {
+		const todos = this.loadTodos();
+		let results = Array.from(todos.values());
 
-    // Filter by completion status
-    if (filter.completed !== undefined) {
-      results = results.filter((t) => t.completed === filter.completed);
-    }
+		// Filter by completion status
+		if (filter.completed !== undefined) {
+			results = results.filter((t) => t.completed === filter.completed);
+		}
 
-    // Filter by priority
-    if (filter.priority) {
-      results = results.filter((t) => t.priority === filter.priority);
-    }
+		// Filter by priority
+		if (filter.priority) {
+			results = results.filter((t) => t.priority === filter.priority);
+		}
 
-    // Search in title/description
-    if (filter.search) {
-      const search = filter.search.toLowerCase();
-      results = results.filter(
-        (t) =>
-          t.title.toLowerCase().includes(search) ||
-          t.description?.toLowerCase().includes(search)
-      );
-    }
+		// Search in title/description
+		if (filter.search) {
+			const search = filter.search.toLowerCase();
+			results = results.filter(
+				(t) =>
+					t.title.toLowerCase().includes(search) || t.description?.toLowerCase().includes(search)
+			);
+		}
 
-    // Sort
-    const sortBy = filter.sortBy ?? "createdAt";
-    const sortOrder = filter.sortOrder ?? "desc";
-    const priorityOrder: Record<Priority, number> = {
-      high: 3,
-      medium: 2,
-      low: 1,
-    };
+		// Sort
+		const sortBy = filter.sortBy ?? 'createdAt';
+		const sortOrder = filter.sortOrder ?? 'desc';
+		const priorityOrder: Record<Priority, number> = {
+			high: 3,
+			medium: 2,
+			low: 1,
+		};
 
-    results.sort((a, b) => {
-      let comparison = 0;
+		results.sort((a, b) => {
+			let comparison = 0;
 
-      switch (sortBy) {
-        case "priority":
-          comparison = priorityOrder[a.priority] - priorityOrder[b.priority];
-          break;
-        case "title":
-          comparison = a.title.localeCompare(b.title);
-          break;
-        case "updatedAt":
-          comparison = a.updatedAt.localeCompare(b.updatedAt);
-          break;
-        case "createdAt":
-        default:
-          comparison = a.createdAt.localeCompare(b.createdAt);
-      }
+			switch (sortBy) {
+				case 'priority':
+					comparison = priorityOrder[a.priority] - priorityOrder[b.priority];
+					break;
+				case 'title':
+					comparison = a.title.localeCompare(b.title);
+					break;
+				case 'updatedAt':
+					comparison = a.updatedAt.localeCompare(b.updatedAt);
+					break;
+				default:
+					comparison = a.createdAt.localeCompare(b.createdAt);
+			}
 
-      return sortOrder === "asc" ? comparison : -comparison;
-    });
+			return sortOrder === 'asc' ? comparison : -comparison;
+		});
 
-    // Pagination
-    const offset = filter.offset ?? 0;
-    const limit = filter.limit ?? 100;
-    results = results.slice(offset, offset + limit);
+		// Pagination
+		const offset = filter.offset ?? 0;
+		const limit = filter.limit ?? 100;
+		results = results.slice(offset, offset + limit);
 
-    return results;
-  }
+		return results;
+	}
 
-  /**
-   * Update a todo.
-   */
-  update(
-    id: string,
-    data: Partial<
-      Pick<Todo, "title" | "description" | "priority" | "completed">
-    >
-  ): Todo | undefined {
-    const todos = this.loadTodos();
-    const todo = todos.get(id);
-    if (!todo) {
-      return undefined;
-    }
+	/**
+	 * Update a todo.
+	 */
+	update(
+		id: string,
+		data: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'completed'>>
+	): Todo | undefined {
+		const todos = this.loadTodos();
+		const todo = todos.get(id);
+		if (!todo) {
+			return undefined;
+		}
 
-    // Filter out undefined values to avoid overwriting existing properties
-    const filteredData: Partial<
-      Pick<Todo, "title" | "description" | "priority" | "completed">
-    > = {};
-    if (data.title !== undefined) filteredData.title = data.title;
-    if (data.description !== undefined)
-      filteredData.description = data.description;
-    if (data.priority !== undefined) filteredData.priority = data.priority;
-    if (data.completed !== undefined) filteredData.completed = data.completed;
+		// Filter out undefined values to avoid overwriting existing properties
+		const filteredData: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'completed'>> =
+			{};
+		if (data.title !== undefined) filteredData.title = data.title;
+		if (data.description !== undefined) filteredData.description = data.description;
+		if (data.priority !== undefined) filteredData.priority = data.priority;
+		if (data.completed !== undefined) filteredData.completed = data.completed;
 
-    const updated: Todo = {
-      ...todo,
-      ...filteredData,
-      updatedAt: now(),
-    };
+		const updated: Todo = {
+			...todo,
+			...filteredData,
+			updatedAt: now(),
+		};
 
-    // Handle completedAt timestamp
-    if (data.completed !== undefined) {
-      if (data.completed && !todo.completed) {
-        updated.completedAt = now();
-      } else if (!data.completed && todo.completed) {
-        updated.completedAt = undefined;
-      }
-    }
+		// Handle completedAt timestamp
+		if (data.completed !== undefined) {
+			if (data.completed && !todo.completed) {
+				updated.completedAt = now();
+			} else if (!data.completed && todo.completed) {
+				updated.completedAt = undefined;
+			}
+		}
 
-    todos.set(id, updated);
-    this.saveTodos(todos);
-    return updated;
-  }
+		todos.set(id, updated);
+		this.saveTodos(todos);
+		return updated;
+	}
 
-  /**
-   * Toggle todo completion status.
-   */
-  toggle(id: string): Todo | undefined {
-    const todos = this.loadTodos();
-    const todo = todos.get(id);
-    if (!todo) {
-      return undefined;
-    }
+	/**
+	 * Toggle todo completion status.
+	 */
+	toggle(id: string): Todo | undefined {
+		const todos = this.loadTodos();
+		const todo = todos.get(id);
+		if (!todo) {
+			return undefined;
+		}
 
-    const completed = !todo.completed;
-    const updated: Todo = {
-      ...todo,
-      completed,
-      completedAt: completed ? now() : undefined,
-      updatedAt: now(),
-    };
+		const completed = !todo.completed;
+		const updated: Todo = {
+			...todo,
+			completed,
+			completedAt: completed ? now() : undefined,
+			updatedAt: now(),
+		};
 
-    todos.set(id, updated);
-    this.saveTodos(todos);
-    return updated;
-  }
+		todos.set(id, updated);
+		this.saveTodos(todos);
+		return updated;
+	}
 
-  /**
-   * Delete a todo.
-   */
-  delete(id: string): boolean {
-    const todos = this.loadTodos();
-    const existed = todos.delete(id);
-    if (existed) {
-      this.saveTodos(todos);
-    }
-    return existed;
-  }
+	/**
+	 * Delete a todo.
+	 */
+	delete(id: string): boolean {
+		const todos = this.loadTodos();
+		const existed = todos.delete(id);
+		if (existed) {
+			this.saveTodos(todos);
+		}
+		return existed;
+	}
 
-  /**
-   * Clear completed todos.
-   */
-  clearCompleted(): { cleared: number; remaining: number } {
-    const todos = this.loadTodos();
-    let cleared = 0;
-    for (const [id, todo] of todos) {
-      if (todo.completed) {
-        todos.delete(id);
-        cleared++;
-      }
-    }
-    this.saveTodos(todos);
-    return { cleared, remaining: todos.size };
-  }
+	/**
+	 * Clear completed todos.
+	 */
+	clearCompleted(): { cleared: number; remaining: number } {
+		const todos = this.loadTodos();
+		let cleared = 0;
+		for (const [id, todo] of todos) {
+			if (todo.completed) {
+				todos.delete(id);
+				cleared++;
+			}
+		}
+		this.saveTodos(todos);
+		return { cleared, remaining: todos.size };
+	}
 
-  /**
-   * Get todo statistics.
-   */
-  getStats(): TodoStats {
-    const todos = this.loadTodos();
-    const allTodos = Array.from(todos.values());
-    const completed = allTodos.filter((t) => t.completed).length;
-    const pending = allTodos.length - completed;
+	/**
+	 * Get todo statistics.
+	 */
+	getStats(): TodoStats {
+		const todos = this.loadTodos();
+		const allTodos = Array.from(todos.values());
+		const completed = allTodos.filter((t) => t.completed).length;
+		const pending = allTodos.length - completed;
 
-    return {
-      total: allTodos.length,
-      completed,
-      pending,
-      byPriority: {
-        low: allTodos.filter((t) => t.priority === "low").length,
-        medium: allTodos.filter((t) => t.priority === "medium").length,
-        high: allTodos.filter((t) => t.priority === "high").length,
-      },
-      completionRate: allTodos.length > 0 ? completed / allTodos.length : 0,
-    };
-  }
+		return {
+			total: allTodos.length,
+			completed,
+			pending,
+			byPriority: {
+				low: allTodos.filter((t) => t.priority === 'low').length,
+				medium: allTodos.filter((t) => t.priority === 'medium').length,
+				high: allTodos.filter((t) => t.priority === 'high').length,
+			},
+			completionRate: allTodos.length > 0 ? completed / allTodos.length : 0,
+		};
+	}
 
-  /**
-   * Clear all todos (for testing).
-   */
-  clear(): void {
-    this.saveTodos(new Map());
-  }
+	/**
+	 * Clear all todos (for testing).
+	 */
+	clear(): void {
+		this.saveTodos(new Map());
+	}
 
-  /**
-   * Get count of todos.
-   */
-  count(): number {
-    return this.loadTodos().size;
-  }
+	/**
+	 * Get count of todos.
+	 */
+	count(): number {
+		return this.loadTodos().size;
+	}
 }

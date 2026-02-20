@@ -5,16 +5,18 @@
  * we also return the unfiltered result as an alternative option.
  */
 
-import { z } from 'zod';
-import { defineCommand, success } from '@lushly-dev/afd-server';
 import type { Alternative } from '@lushly-dev/afd-core';
+import { defineCommand, success } from '@lushly-dev/afd-server';
+import { z } from 'zod';
 import { store } from '../store/index.js';
-import type { Todo, Priority } from '../types.js';
+import type { Priority, Todo } from '../types.js';
 import { PRIORITY_LABELS } from '../types.js';
 
 const inputSchema = z.object({
 	completed: z.boolean().optional(),
-	priority: (z.number().int().min(0).max(3) as z.ZodType<Priority, z.ZodTypeDef, Priority>).optional(),
+	priority: (
+		z.number().int().min(0).max(3) as z.ZodType<Priority, z.ZodTypeDef, Priority>
+	).optional(),
 	search: z.string().optional(),
 	dueBefore: z
 		.string()

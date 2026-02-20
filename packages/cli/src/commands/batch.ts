@@ -123,7 +123,7 @@ export function registerBatchCommand(program: Command): void {
 			};
 
 			const spinner = ora(`Executing batch of ${commands.length} command(s)...`).start();
-			const startTime = Date.now();
+			const _startTime = Date.now();
 
 			try {
 				const result = await client.batch(commands, batchOptions);

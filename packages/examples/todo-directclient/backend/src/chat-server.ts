@@ -14,9 +14,9 @@
  */
 
 import 'dotenv/config';
-import http from 'http';
-import { processChat, isConfigured, getMetrics, type ChatResponse } from './chat.js';
+import http from 'node:http';
 import { DirectClient } from '@lushly-dev/afd-client';
+import { getMetrics, isConfigured, processChat } from './chat.js';
 import { registry } from './registry.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -57,7 +57,7 @@ function validateApiKey(): void {
 	}
 
 	// Mask API key in logs (show only last 4 chars)
-	const masked = '***' + apiKey.slice(-4);
+	const masked = `***${apiKey.slice(-4)}`;
 	console.log(`✅ API Key configured: ${masked}`);
 }
 
@@ -323,7 +323,9 @@ const server = http.createServer(async (req, res) => {
 				return;
 			}
 
-			console.log(`\n📨 Chat [${clientIP}]: "${message.slice(0, 50)}${message.length > 50 ? '...' : ''}"`);
+			console.log(
+				`\n📨 Chat [${clientIP}]: "${message.slice(0, 50)}${message.length > 50 ? '...' : ''}"`
+			);
 			const start = performance.now();
 
 			const response = await processChat(message);
@@ -331,7 +333,9 @@ const server = http.createServer(async (req, res) => {
 			const totalMs = performance.now() - start;
 			console.log(`✅ Response in ${totalMs.toFixed(0)}ms`);
 			console.log(`   Model: ${response.modelLatencyMs.toFixed(0)}ms`);
-			console.log(`   Tools: ${response.totalToolLatencyMs.toFixed(3)}ms (${response.toolExecutions.length} calls)`);
+			console.log(
+				`   Tools: ${response.totalToolLatencyMs.toFixed(3)}ms (${response.toolExecutions.length} calls)`
+			);
 
 			for (const exec of response.toolExecutions) {
 				console.log(`     → ${exec.name}: ${exec.latencyMs.toFixed(3)}ms`);
@@ -365,7 +369,9 @@ server.listen(PORT, () => {
 	console.log(`\n🤖 AI Chat Server running at http://localhost:${PORT}`);
 	console.log(`   Gemini configured: ${isConfigured() ? '✅ Yes' : '❌ No (set GOOGLE_API_KEY)'}`);
 	console.log(`\n   Security:`);
-	console.log(`   • CORS: ${ALLOWED_ORIGINS.includes('*') ? 'Open (dev mode)' : ALLOWED_ORIGINS.join(', ')}`);
+	console.log(
+		`   • CORS: ${ALLOWED_ORIGINS.includes('*') ? 'Open (dev mode)' : ALLOWED_ORIGINS.join(', ')}`
+	);
 	console.log(`   • Rate limit (chat): ${RATE_LIMIT_CHAT}/min`);
 	console.log(`   • Rate limit (execute): ${RATE_LIMIT_EXECUTE}/min`);
 	console.log(`   • Max body size: ${MAX_BODY_SIZE} bytes`);

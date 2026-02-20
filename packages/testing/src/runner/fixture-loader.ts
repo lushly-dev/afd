@@ -8,9 +8,9 @@
  * - Inline overrides
  */
 
-import { readFile } from "node:fs/promises";
-import { resolve, dirname } from "node:path";
-import type { FixtureConfig } from "../types/scenario.js";
+import { readFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
+import type { FixtureConfig } from '../types/scenario.js';
 
 // ============================================================================
 // Types
@@ -21,63 +21,63 @@ import type { FixtureConfig } from "../types/scenario.js";
  * App-specific fixtures extend this with their own fields.
  */
 export interface FixtureData {
-  /** Schema identifier */
-  $schema?: string;
+	/** Schema identifier */
+	$schema?: string;
 
-  /** Target application */
-  app?: string;
+	/** Target application */
+	app?: string;
 
-  /** Fixture format version */
-  version?: string;
+	/** Fixture format version */
+	version?: string;
 
-  /** Human-readable description */
-  description?: string;
+	/** Human-readable description */
+	description?: string;
 
-  /** App-specific data */
-  [key: string]: unknown;
+	/** App-specific data */
+	[key: string]: unknown;
 }
 
 /**
  * Applied command with its input data.
  */
 export interface AppliedCommand {
-  /** Command name */
-  command: string;
+	/** Command name */
+	command: string;
 
-  /** Input data passed to command (if any) */
-  input?: Record<string, unknown>;
+	/** Input data passed to command (if any) */
+	input?: Record<string, unknown>;
 }
 
 /**
  * Result from loading a fixture.
  */
 export type LoadFixtureResult =
-  | { success: true; data: FixtureData; path: string }
-  | { success: false; error: string; path?: string };
+	| { success: true; data: FixtureData; path: string }
+	| { success: false; error: string; path?: string };
 
 /**
  * Result from applying a fixture.
  */
 export interface ApplyFixtureResult {
-  /** Whether application succeeded */
-  success: boolean;
+	/** Whether application succeeded */
+	success: boolean;
 
-  /** Error message if failed */
-  error?: string;
+	/** Error message if failed */
+	error?: string;
 
-  /** Commands that were applied with their inputs */
-  appliedCommands: AppliedCommand[];
+	/** Commands that were applied with their inputs */
+	appliedCommands: AppliedCommand[];
 }
 
 /**
  * Options for fixture loading.
  */
 export interface LoadFixtureOptions {
-  /** Base directory for resolving relative paths */
-  basePath?: string;
+	/** Base directory for resolving relative paths */
+	basePath?: string;
 
-  /** Validate fixture structure */
-  validate?: boolean;
+	/** Validate fixture structure */
+	validate?: boolean;
 }
 
 // ============================================================================
@@ -103,93 +103,93 @@ export interface LoadFixtureOptions {
  * ```
  */
 export async function loadFixture(
-  config: FixtureConfig,
-  options: LoadFixtureOptions = {}
+	config: FixtureConfig,
+	options: LoadFixtureOptions = {}
 ): Promise<LoadFixtureResult> {
-  const basePath = options.basePath ?? process.cwd();
+	const basePath = options.basePath ?? process.cwd();
 
-  try {
-    // 1. Load the main fixture file
-    const fixturePath = resolve(basePath, config.file);
-    const mainData = await loadJsonFile(fixturePath);
+	try {
+		// 1. Load the main fixture file
+		const fixturePath = resolve(basePath, config.file);
+		const mainData = await loadJsonFile(fixturePath);
 
-    if (!mainData.success) {
-      return mainData;
-    }
+		if (!mainData.success) {
+			return mainData;
+		}
 
-    let mergedData = mainData.data;
+		let mergedData = mainData.data;
 
-    // 2. If there's a base fixture, load and merge it
-    if (config.base) {
-      const baseFixturePath = resolve(dirname(fixturePath), config.base);
-      const baseData = await loadJsonFile(baseFixturePath);
+		// 2. If there's a base fixture, load and merge it
+		if (config.base) {
+			const baseFixturePath = resolve(dirname(fixturePath), config.base);
+			const baseData = await loadJsonFile(baseFixturePath);
 
-      if (!baseData.success) {
-        return {
-          success: false,
-          error: `Failed to load base fixture: ${baseData.error}`,
-          path: baseFixturePath,
-        };
-      }
+			if (!baseData.success) {
+				return {
+					success: false,
+					error: `Failed to load base fixture: ${baseData.error}`,
+					path: baseFixturePath,
+				};
+			}
 
-      // Base is applied first, then main fixture overrides
-      mergedData = deepMerge(baseData.data, mergedData);
-    }
+			// Base is applied first, then main fixture overrides
+			mergedData = deepMerge(baseData.data, mergedData);
+		}
 
-    // 3. Apply inline overrides
-    if (config.overrides) {
-      mergedData = deepMerge(mergedData, config.overrides as FixtureData);
-    }
+		// 3. Apply inline overrides
+		if (config.overrides) {
+			mergedData = deepMerge(mergedData, config.overrides as FixtureData);
+		}
 
-    return {
-      success: true,
-      data: mergedData,
-      path: fixturePath,
-    };
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
+		return {
+			success: true,
+			data: mergedData,
+			path: fixturePath,
+		};
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : String(err),
+		};
+	}
 }
 
 /**
  * Load a JSON file and parse it.
  */
 async function loadJsonFile(filePath: string): Promise<LoadFixtureResult> {
-  try {
-    const content = await readFile(filePath, "utf-8");
-    const data = JSON.parse(content) as FixtureData;
+	try {
+		const content = await readFile(filePath, 'utf-8');
+		const data = JSON.parse(content) as FixtureData;
 
-    return {
-      success: true,
-      data,
-      path: filePath,
-    };
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return {
-        success: false,
-        error: `Fixture file not found: ${filePath}`,
-        path: filePath,
-      };
-    }
+		return {
+			success: true,
+			data,
+			path: filePath,
+		};
+	} catch (err) {
+		if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+			return {
+				success: false,
+				error: `Fixture file not found: ${filePath}`,
+				path: filePath,
+			};
+		}
 
-    if (err instanceof SyntaxError) {
-      return {
-        success: false,
-        error: `Invalid JSON in fixture file: ${err.message}`,
-        path: filePath,
-      };
-    }
+		if (err instanceof SyntaxError) {
+			return {
+				success: false,
+				error: `Invalid JSON in fixture file: ${err.message}`,
+				path: filePath,
+			};
+		}
 
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      path: filePath,
-    };
-  }
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : String(err),
+			path: filePath,
+		};
+	}
 }
 
 /**
@@ -197,59 +197,56 @@ async function loadJsonFile(filePath: string): Promise<LoadFixtureResult> {
  * Arrays are replaced, not concatenated.
  */
 function deepMerge<T extends Record<string, unknown>>(target: T, source: T): T {
-  const result = { ...target };
+	const result = { ...target };
 
-  for (const key of Object.keys(source)) {
-    const sourceValue = source[key];
-    const targetValue = result[key];
+	for (const key of Object.keys(source)) {
+		const sourceValue = source[key];
+		const targetValue = result[key];
 
-    if (
-      isPlainObject(sourceValue) &&
-      isPlainObject(targetValue)
-    ) {
-      // Recursively merge nested objects
-      result[key as keyof T] = deepMerge(
-        targetValue as Record<string, unknown>,
-        sourceValue as Record<string, unknown>
-      ) as T[keyof T];
-    } else {
-      // Override with source value (including arrays)
-      result[key as keyof T] = sourceValue as T[keyof T];
-    }
-  }
+		if (isPlainObject(sourceValue) && isPlainObject(targetValue)) {
+			// Recursively merge nested objects
+			result[key as keyof T] = deepMerge(
+				targetValue as Record<string, unknown>,
+				sourceValue as Record<string, unknown>
+			) as T[keyof T];
+		} else {
+			// Override with source value (including arrays)
+			result[key as keyof T] = sourceValue as T[keyof T];
+		}
+	}
 
-  return result;
+	return result;
 }
 
 /**
  * Check if value is a plain object (not array, null, etc.)
  */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    !Array.isArray(value) &&
-    Object.getPrototypeOf(value) === Object.prototype
-  );
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		!Array.isArray(value) &&
+		Object.getPrototypeOf(value) === Object.prototype
+	);
 }
 
 // ============================================================================
 // Fixture Application
 // ============================================================================
 
-import type { AppAdapter, AdapterContext } from "../adapters/types.js";
-import { detectAdapter } from "../adapters/registry.js";
+import { detectAdapter } from '../adapters/registry.js';
+import type { AdapterContext, AppAdapter } from '../adapters/types.js';
 
 /**
  * Options for applying a fixture.
  */
 export interface ApplyFixtureOptions {
-  /** Specific adapter to use (overrides detection) */
-  adapter?: AppAdapter;
-  /** Working directory */
-  cwd?: string;
-  /** Environment variables */
-  env?: Record<string, string>;
+	/** Specific adapter to use (overrides detection) */
+	adapter?: AppAdapter;
+	/** Working directory */
+	cwd?: string;
+	/** Environment variables */
+	env?: Record<string, string>;
 }
 
 /**
@@ -269,165 +266,168 @@ export interface ApplyFixtureOptions {
  * @returns Result of fixture application
  */
 export async function applyFixture(
-  data: FixtureData,
-  handler: (command: string, input?: Record<string, unknown>) => Promise<unknown>,
-  options: ApplyFixtureOptions = {}
+	data: FixtureData,
+	handler: (command: string, input?: Record<string, unknown>) => Promise<unknown>,
+	options: ApplyFixtureOptions = {}
 ): Promise<ApplyFixtureResult> {
-  const appliedCommands: AppliedCommand[] = [];
+	const appliedCommands: AppliedCommand[] = [];
 
-  try {
-    // Try to use adapter if available
-    const adapter = options.adapter ?? detectAdapter(data);
-    
-    if (adapter) {
-      const context: AdapterContext = {
-        cli: adapter.cli.command,
-        handler: async (cmd, input) => {
-          const result = await handler(cmd, input);
-          return { success: true, data: result } as import("@lushly-dev/afd-core").CommandResult<unknown>;
-        },
-        cwd: options.cwd,
-        env: options.env,
-      };
-      
-      const adapterResult = await adapter.fixture.apply(data, context);
-      return {
-        success: true,
-        appliedCommands: adapterResult.appliedCommands.map(cmd => ({
-          command: cmd.command,
-          input: cmd.input,
-        })),
-      };
-    }
+	try {
+		// Try to use adapter if available
+		const adapter = options.adapter ?? detectAdapter(data);
 
-    // Fallback to legacy app-specific handling
-    const app = data.app ?? "generic";
+		if (adapter) {
+			const context: AdapterContext = {
+				cli: adapter.cli.command,
+				handler: async (cmd, input) => {
+					const result = await handler(cmd, input);
+					return {
+						success: true,
+						data: result,
+					} as import('@lushly-dev/afd-core').CommandResult<unknown>;
+				},
+				cwd: options.cwd,
+				env: options.env,
+			};
 
-    switch (app) {
-      case "todo":
-        return await applyTodoFixture(data, handler, appliedCommands);
+			const adapterResult = await adapter.fixture.apply(data, context);
+			return {
+				success: true,
+				appliedCommands: adapterResult.appliedCommands.map((cmd) => ({
+					command: cmd.command,
+					input: cmd.input,
+				})),
+			};
+		}
 
-      case "violet":
-        return await applyVioletFixture(data, handler, appliedCommands);
+		// Fallback to legacy app-specific handling
+		const app = data.app ?? 'generic';
 
-      default:
-        // Generic fixture: look for 'setup' commands array
-        if (Array.isArray(data.setup)) {
-          for (const cmd of data.setup) {
-            if (typeof cmd === "object" && cmd.command) {
-              const input = cmd.input as Record<string, unknown> | undefined;
-              await handler(cmd.command as string, input);
-              appliedCommands.push({ command: cmd.command as string, input });
-            }
-          }
-        }
-        return { success: true, appliedCommands };
-    }
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-      appliedCommands,
-    };
-  }
+		switch (app) {
+			case 'todo':
+				return await applyTodoFixture(data, handler, appliedCommands);
+
+			case 'violet':
+				return await applyVioletFixture(data, handler, appliedCommands);
+
+			default:
+				// Generic fixture: look for 'setup' commands array
+				if (Array.isArray(data.setup)) {
+					for (const cmd of data.setup) {
+						if (typeof cmd === 'object' && cmd.command) {
+							const input = cmd.input as Record<string, unknown> | undefined;
+							await handler(cmd.command as string, input);
+							appliedCommands.push({ command: cmd.command as string, input });
+						}
+					}
+				}
+				return { success: true, appliedCommands };
+		}
+	} catch (err) {
+		return {
+			success: false,
+			error: err instanceof Error ? err.message : String(err),
+			appliedCommands,
+		};
+	}
 }
 
 /**
  * Apply todo app fixture.
  */
 async function applyTodoFixture(
-  data: FixtureData,
-  handler: (command: string, input?: Record<string, unknown>) => Promise<unknown>,
-  appliedCommands: AppliedCommand[]
+	data: FixtureData,
+	handler: (command: string, input?: Record<string, unknown>) => Promise<unknown>,
+	appliedCommands: AppliedCommand[]
 ): Promise<ApplyFixtureResult> {
-  // Clear existing todos first
-  if (data.clearFirst !== false) {
-    const input = { all: true };
-    await handler("todo.clear", input);
-    appliedCommands.push({ command: "todo.clear", input });
-  }
+	// Clear existing todos first
+	if (data.clearFirst !== false) {
+		const input = { all: true };
+		await handler('todo.clear', input);
+		appliedCommands.push({ command: 'todo.clear', input });
+	}
 
-  // Create todos from fixture
-  const todos = data.todos as Array<Record<string, unknown>> | undefined;
-  if (todos && Array.isArray(todos)) {
-    for (const todo of todos) {
-      const input = {
-        title: todo.title,
-        description: todo.description,
-        priority: todo.priority ?? "medium",
-      };
-      await handler("todo.create", input);
-      appliedCommands.push({ command: "todo.create", input });
+	// Create todos from fixture
+	const todos = data.todos as Array<Record<string, unknown>> | undefined;
+	if (todos && Array.isArray(todos)) {
+		for (const todo of todos) {
+			const input = {
+				title: todo.title,
+				description: todo.description,
+				priority: todo.priority ?? 'medium',
+			};
+			await handler('todo.create', input);
+			appliedCommands.push({ command: 'todo.create', input });
 
-      // If todo is completed, toggle it
-      if (todo.completed) {
-        // Note: We can't easily toggle by ID here without tracking created IDs
-        // This is a limitation - fixtures work best with predictable state
-      }
-    }
-  }
+			// If todo is completed, toggle it
+			if (todo.completed) {
+				// Note: We can't easily toggle by ID here without tracking created IDs
+				// This is a limitation - fixtures work best with predictable state
+			}
+		}
+	}
 
-  return { success: true, appliedCommands };
+	return { success: true, appliedCommands };
 }
 
 /**
  * Apply Violet (design token) app fixture.
  */
 async function applyVioletFixture(
-  data: FixtureData,
-  handler: (command: string, input?: Record<string, unknown>) => Promise<unknown>,
-  appliedCommands: AppliedCommand[]
+	data: FixtureData,
+	handler: (command: string, input?: Record<string, unknown>) => Promise<unknown>,
+	appliedCommands: AppliedCommand[]
 ): Promise<ApplyFixtureResult> {
-  // Create nodes first
-  const nodes = data.nodes as Array<Record<string, unknown>> | undefined;
-  if (nodes && Array.isArray(nodes)) {
-    for (const node of nodes) {
-      const input = {
-        id: node.id,
-        name: node.name,
-        type: node.type,
-        parentId: node.parentId,
-        includes: node.includes,
-        tags: node.tags,
-      };
-      await handler("node.create", input);
-      appliedCommands.push({ command: "node.create", input });
-    }
-  }
+	// Create nodes first
+	const nodes = data.nodes as Array<Record<string, unknown>> | undefined;
+	if (nodes && Array.isArray(nodes)) {
+		for (const node of nodes) {
+			const input = {
+				id: node.id,
+				name: node.name,
+				type: node.type,
+				parentId: node.parentId,
+				includes: node.includes,
+				tags: node.tags,
+			};
+			await handler('node.create', input);
+			appliedCommands.push({ command: 'node.create', input });
+		}
+	}
 
-  // Apply operations (token add/override/subtract)
-  const operations = data.operations as Array<Record<string, unknown>> | undefined;
-  if (operations && Array.isArray(operations)) {
-    for (const op of operations) {
-      const opType = op.type as string;
-      const command = `token.${opType}`;
-      const input = {
-        node: op.nodeId,
-        token: op.token,
-        value: op.value,
-        from: op.sourceNodeId,
-        ancestor: op.ancestorId,
-      };
-      await handler(command, input);
-      appliedCommands.push({ command, input });
-    }
-  }
+	// Apply operations (token add/override/subtract)
+	const operations = data.operations as Array<Record<string, unknown>> | undefined;
+	if (operations && Array.isArray(operations)) {
+		for (const op of operations) {
+			const opType = op.type as string;
+			const command = `token.${opType}`;
+			const input = {
+				node: op.nodeId,
+				token: op.token,
+				value: op.value,
+				from: op.sourceNodeId,
+				ancestor: op.ancestorId,
+			};
+			await handler(command, input);
+			appliedCommands.push({ command, input });
+		}
+	}
 
-  // Set constraints
-  const constraints = data.constraints as Array<Record<string, unknown>> | undefined;
-  if (constraints && Array.isArray(constraints)) {
-    for (const constraint of constraints) {
-      const input = {
-        node: constraint.nodeId,
-        id: constraint.id,
-        type: constraint.type,
-        tokens: constraint.tokens,
-        ...constraint, // Pass through other constraint-specific fields
-      };
-      await handler("constraints.set", input);
-      appliedCommands.push({ command: "constraints.set", input });
-    }
-  }
+	// Set constraints
+	const constraints = data.constraints as Array<Record<string, unknown>> | undefined;
+	if (constraints && Array.isArray(constraints)) {
+		for (const constraint of constraints) {
+			const input = {
+				node: constraint.nodeId,
+				id: constraint.id,
+				type: constraint.type,
+				tokens: constraint.tokens,
+				...constraint, // Pass through other constraint-specific fields
+			};
+			await handler('constraints.set', input);
+			appliedCommands.push({ command: 'constraints.set', input });
+		}
+	}
 
-  return { success: true, appliedCommands };
+	return { success: true, appliedCommands };
 }

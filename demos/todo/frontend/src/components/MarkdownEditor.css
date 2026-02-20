@@ -85,9 +85,15 @@
 	color: var(--text);
 }
 
-.markdown-preview h1 { font-size: 1.5em; }
-.markdown-preview h2 { font-size: 1.3em; }
-.markdown-preview h3 { font-size: 1.1em; }
+.markdown-preview h1 {
+	font-size: 1.5em;
+}
+.markdown-preview h2 {
+	font-size: 1.3em;
+}
+.markdown-preview h3 {
+	font-size: 1.1em;
+}
 
 .markdown-preview p {
 	margin: 0.5em 0;

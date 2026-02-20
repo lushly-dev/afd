@@ -1,20 +1,20 @@
 /**
  * @fileoverview Performance tests for todo commands
- * 
+ *
  * These tests establish baseline response times and detect regressions.
  * AFD commands should be fast since they're called by both UI and agents.
  */
 
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { store } from '../../store/memory.js';
-import { createTodo } from '../create.js';
-import { listTodos } from '../list.js';
-import { getTodo } from '../get.js';
-import { updateTodo } from '../update.js';
-import { toggleTodo } from '../toggle.js';
-import { deleteTodo } from '../delete.js';
 import { clearCompleted } from '../clear.js';
+import { createTodo } from '../create.js';
+import { deleteTodo } from '../delete.js';
+import { getTodo } from '../get.js';
+import { listTodos } from '../list.js';
 import { getStats } from '../stats.js';
+import { toggleTodo } from '../toggle.js';
+import { updateTodo } from '../update.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PERFORMANCE THRESHOLDS (in milliseconds)
@@ -57,11 +57,7 @@ const results: PerformanceResult[] = [];
 /**
  * Measure command execution time.
  */
-async function measure<T>(
-	command: string,
-	threshold: number,
-	fn: () => Promise<T>
-): Promise<T> {
+async function measure<T>(command: string, threshold: number, fn: () => Promise<T>): Promise<T> {
 	const start = performance.now();
 	const result = await fn();
 	const duration = performance.now() - start;
@@ -82,10 +78,13 @@ async function measure<T>(
 async function createBulkTodos(count: number): Promise<string[]> {
 	const ids: string[] = [];
 	for (let i = 0; i < count; i++) {
-		const result = await createTodo.handler({
-			title: `Bulk Todo ${i}`,
-			priority: ['low', 'medium', 'high'][i % 3] as 'low' | 'medium' | 'high',
-		}, {});
+		const result = await createTodo.handler(
+			{
+				title: `Bulk Todo ${i}`,
+				priority: ['low', 'medium', 'high'][i % 3] as 'low' | 'medium' | 'high',
+			},
+			{}
+		);
 		if (result.success && result.data) {
 			ids.push(result.data.id);
 		}
@@ -104,7 +103,7 @@ beforeEach(() => {
 afterAll(() => {
 	// Print performance summary
 	console.log('\n📊 Performance Summary\n');
-	console.log('Command'.padEnd(20) + 'Duration'.padEnd(12) + 'Threshold'.padEnd(12) + 'Status');
+	console.log(`${'Command'.padEnd(20) + 'Duration'.padEnd(12) + 'Threshold'.padEnd(12)}Status`);
 	console.log('─'.repeat(56));
 
 	for (const r of results) {
@@ -114,7 +113,7 @@ afterAll(() => {
 		console.log(`${r.command.padEnd(20)}${durationStr}${thresholdStr}${status}`);
 	}
 
-	const passed = results.filter(r => r.passed).length;
+	const passed = results.filter((r) => r.passed).length;
 	const total = results.length;
 	console.log('─'.repeat(56));
 	console.log(`\n${passed}/${total} within threshold\n`);
@@ -137,7 +136,7 @@ describe('Single Operation Performance', () => {
 		const created = await createTodo.handler({ title: 'Find me', priority: 'medium' }, {});
 
 		const result = await measure('todo-get', THRESHOLDS.get, () =>
-			getTodo.handler({ id: created.data!.id }, {})
+			getTodo.handler({ id: created.data?.id }, {})
 		);
 
 		expect(result.success).toBe(true);
@@ -147,7 +146,7 @@ describe('Single Operation Performance', () => {
 		const created = await createTodo.handler({ title: 'Update me', priority: 'medium' }, {});
 
 		const result = await measure('todo-update', THRESHOLDS.update, () =>
-			updateTodo.handler({ id: created.data!.id, title: 'Updated' }, {})
+			updateTodo.handler({ id: created.data?.id, title: 'Updated' }, {})
 		);
 
 		expect(result.success).toBe(true);
@@ -157,7 +156,7 @@ describe('Single Operation Performance', () => {
 		const created = await createTodo.handler({ title: 'Toggle me', priority: 'medium' }, {});
 
 		const result = await measure('todo-toggle', THRESHOLDS.toggle, () =>
-			toggleTodo.handler({ id: created.data!.id }, {})
+			toggleTodo.handler({ id: created.data?.id }, {})
 		);
 
 		expect(result.success).toBe(true);
@@ -167,7 +166,7 @@ describe('Single Operation Performance', () => {
 		const created = await createTodo.handler({ title: 'Delete me', priority: 'medium' }, {});
 
 		const result = await measure('todo-delete', THRESHOLDS.delete, () =>
-			deleteTodo.handler({ id: created.data!.id }, {})
+			deleteTodo.handler({ id: created.data?.id }, {})
 		);
 
 		expect(result.success).toBe(true);
@@ -186,12 +185,15 @@ describe('Query Performance', () => {
 
 	it(`todo-list (20 items) < ${THRESHOLDS.list}ms`, async () => {
 		const result = await measure('todo-list', THRESHOLDS.list, () =>
-			listTodos.handler({
-				sortBy: 'createdAt',
-				sortOrder: 'desc',
-				limit: 20,
-				offset: 0,
-			}, {})
+			listTodos.handler(
+				{
+					sortBy: 'createdAt',
+					sortOrder: 'desc',
+					limit: 20,
+					offset: 0,
+				},
+				{}
+			)
 		);
 
 		expect(result.success).toBe(true);
@@ -200,23 +202,24 @@ describe('Query Performance', () => {
 
 	it(`todo-list filtered < ${THRESHOLDS.listFiltered}ms`, async () => {
 		const result = await measure('todo-list (filtered)', THRESHOLDS.listFiltered, () =>
-			listTodos.handler({
-				priority: 'high',
-				completed: false,
-				sortBy: 'createdAt',
-				sortOrder: 'desc',
-				limit: 20,
-				offset: 0,
-			}, {})
+			listTodos.handler(
+				{
+					priority: 'high',
+					completed: false,
+					sortBy: 'createdAt',
+					sortOrder: 'desc',
+					limit: 20,
+					offset: 0,
+				},
+				{}
+			)
 		);
 
 		expect(result.success).toBe(true);
 	});
 
 	it(`todo-stats < ${THRESHOLDS.stats}ms`, async () => {
-		const result = await measure('todo-stats', THRESHOLDS.stats, () =>
-			getStats.handler({}, {})
-		);
+		const result = await measure('todo-stats', THRESHOLDS.stats, () => getStats.handler({}, {}));
 
 		expect(result.success).toBe(true);
 		expect(result.data?.total).toBe(20);
@@ -268,12 +271,15 @@ describe('Bulk Operation Performance', () => {
 		await createBulkTodos(100);
 
 		const result = await measure('bulk list (100)', THRESHOLDS.bulkList, () =>
-			listTodos.handler({
-				sortBy: 'createdAt',
-				sortOrder: 'desc',
-				limit: 100,
-				offset: 0,
-			}, {})
+			listTodos.handler(
+				{
+					sortBy: 'createdAt',
+					sortOrder: 'desc',
+					limit: 100,
+					offset: 0,
+				},
+				{}
+			)
 		);
 
 		expect(result.success).toBe(true);
@@ -303,13 +309,30 @@ describe('Latency Percentiles', () => {
 		const p95 = durations[Math.floor(durations.length * 0.95)];
 		const p99 = durations[Math.floor(durations.length * 0.99)];
 
-		console.log(`\n  todo-create latency: p50=${p50.toFixed(2)}ms, p95=${p95.toFixed(2)}ms, p99=${p99.toFixed(2)}ms`);
+		console.log(
+			`\n  todo-create latency: p50=${p50.toFixed(2)}ms, p95=${p95.toFixed(2)}ms, p99=${p99.toFixed(2)}ms`
+		);
 
 		// Record in results
 		results.push(
-			{ command: 'create p50', duration: Math.round(p50 * 100) / 100, threshold: 5, passed: p50 <= 5 },
-			{ command: 'create p95', duration: Math.round(p95 * 100) / 100, threshold: 15, passed: p95 <= 15 },
-			{ command: 'create p99', duration: Math.round(p99 * 100) / 100, threshold: 25, passed: p99 <= 25 }
+			{
+				command: 'create p50',
+				duration: Math.round(p50 * 100) / 100,
+				threshold: 5,
+				passed: p50 <= 5,
+			},
+			{
+				command: 'create p95',
+				duration: Math.round(p95 * 100) / 100,
+				threshold: 15,
+				passed: p95 <= 15,
+			},
+			{
+				command: 'create p99',
+				duration: Math.round(p99 * 100) / 100,
+				threshold: 25,
+				passed: p99 <= 25,
+			}
 		);
 
 		expect(p50).toBeLessThan(10);

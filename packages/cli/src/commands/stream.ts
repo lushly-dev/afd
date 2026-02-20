@@ -4,7 +4,7 @@
  * Execute a command with streaming results and real-time progress.
  */
 
-import { type McpClient, createClient } from '@lushly-dev/afd-client';
+import { createClient, type McpClient } from '@lushly-dev/afd-client';
 import type { StreamChunk } from '@lushly-dev/afd-core';
 import { isCompleteChunk, isDataChunk, isErrorChunk, isProgressChunk } from '@lushly-dev/afd-core';
 import chalk from 'chalk';

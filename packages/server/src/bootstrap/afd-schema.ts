@@ -1,12 +1,12 @@
 /**
  * @fileoverview afd-schema bootstrap command
- * 
+ *
  * Export JSON schemas for all commands.
  */
 
-import { z } from 'zod';
 import type { CommandDefinition } from '@lushly-dev/afd-core';
 import { success } from '@lushly-dev/afd-core';
+import { z } from 'zod';
 
 const inputSchema = z.object({
 	format: z.enum(['json', 'typescript']).default('json').describe('Output format'),
@@ -28,7 +28,7 @@ interface SchemaOutput {
 
 /**
  * Create the afd-schema bootstrap command.
- * 
+ *
  * @param getCommands - Function to get all registered commands
  * @param getJsonSchema - Function to get JSON schema for a command
  */
@@ -43,17 +43,15 @@ export function createAfdSchemaCommand(
 		tags: ['bootstrap', 'read', 'safe'],
 		mutation: false,
 		version: '1.0.0',
-		parameters: [
-			{ name: 'format', type: 'string', required: false, description: 'Output format' },
-		],
+		parameters: [{ name: 'format', type: 'string', required: false, description: 'Output format' }],
 
 		async handler(input: InputType) {
 			const commands = getCommands();
-			
-			const schemas: SchemaInfo[] = commands.map(cmd => {
+
+			const schemas: SchemaInfo[] = commands.map((cmd) => {
 				// Try to get JSON schema from the command or use getJsonSchema function
 				let schema: Record<string, unknown> = {};
-				
+
 				if (getJsonSchema) {
 					schema = getJsonSchema(cmd);
 				} else if ('jsonSchema' in cmd && cmd.jsonSchema) {
@@ -63,19 +61,22 @@ export function createAfdSchemaCommand(
 					schema = {
 						type: 'object',
 						properties: Object.fromEntries(
-							cmd.parameters.map(p => [
+							cmd.parameters.map((p) => [
 								p.name,
 								{
-									type: p.type === 'string' ? 'string' : 
-									      p.type === 'number' ? 'number' :
-									      p.type === 'boolean' ? 'boolean' : 'any',
+									type:
+										p.type === 'string'
+											? 'string'
+											: p.type === 'number'
+												? 'number'
+												: p.type === 'boolean'
+													? 'boolean'
+													: 'any',
 									description: p.description,
-								}
+								},
 							])
 						),
-						required: cmd.parameters
-							.filter(p => p.required)
-							.map(p => p.name),
+						required: cmd.parameters.filter((p) => p.required).map((p) => p.name),
 					};
 				}
 

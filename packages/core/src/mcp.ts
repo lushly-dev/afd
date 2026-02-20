@@ -125,10 +125,7 @@ export interface McpToolCallResult {
 /**
  * MCP content types.
  */
-export type McpContent =
-	| McpTextContent
-	| McpImageContent
-	| McpResourceContent;
+export type McpContent = McpTextContent | McpImageContent | McpResourceContent;
 
 export interface McpTextContent {
 	type: 'text';
@@ -213,10 +210,7 @@ let requestId = 0;
 /**
  * Create an MCP request.
  */
-export function createMcpRequest(
-	method: string,
-	params?: Record<string, unknown>
-): McpRequest {
+export function createMcpRequest(method: string, params?: Record<string, unknown>): McpRequest {
 	return {
 		jsonrpc: '2.0',
 		id: ++requestId,

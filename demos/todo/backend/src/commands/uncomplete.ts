@@ -2,8 +2,8 @@
  * @fileoverview todo-uncomplete command
  */
 
+import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
-import { defineCommand, success, failure } from '@lushly-dev/afd-server';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 
@@ -35,7 +35,8 @@ export const uncompleteTodo = defineCommand<typeof inputSchema, Todo>({
 			return failure({
 				code: 'NOT_COMPLETED',
 				message: `Todo "${existing.title}" is not completed`,
-				suggestion: 'Use todo-complete to mark it as completed, or todo-toggle to switch the status',
+				suggestion:
+					'Use todo-complete to mark it as completed, or todo-toggle to switch the status',
 			});
 		}
 

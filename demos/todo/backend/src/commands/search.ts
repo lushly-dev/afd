@@ -5,16 +5,16 @@
  * Provides search highlighting, relevance scoring, and search suggestions.
  */
 
-import { z } from 'zod';
-import { defineCommand, success } from '@lushly-dev/afd-server';
 import type { Alternative } from '@lushly-dev/afd-core';
+import { defineCommand, success } from '@lushly-dev/afd-server';
+import { z } from 'zod';
 import { store } from '../store/index.js';
-import type { Todo, List, Priority } from '../types.js';
+import type { List, Priority, Todo } from '../types.js';
 
 const PRIORITY_MAP: Record<'low' | 'medium' | 'high', Priority> = {
-  low: 1,
-  medium: 2,
-  high: 3,
+	low: 1,
+	medium: 2,
+	high: 3,
 };
 
 const inputSchema = z.object({
@@ -268,7 +268,6 @@ export const searchTodos = defineCommand<typeof inputSchema, SearchResult>({
 				case 'updatedAt':
 					comparison = a.item.updatedAt.localeCompare(b.item.updatedAt);
 					break;
-				case 'createdAt':
 				default:
 					comparison = a.item.createdAt.localeCompare(b.item.createdAt);
 			}

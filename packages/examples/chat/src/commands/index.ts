@@ -3,11 +3,11 @@
  */
 
 export { chatConnect } from './connect.js';
-export { chatStatus } from './status.js';
 export { chatDisconnect } from './disconnect.js';
 export { chatPoll } from './poll.js';
 export { chatRooms } from './rooms.js';
 export { chatSend } from './send.js';
+export { chatStatus } from './status.js';
 
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server';
 // Re-export as array for convenience

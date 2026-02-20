@@ -162,12 +162,7 @@ export interface Verification {
 /**
  * Special assertion values for flexible matching.
  */
-export type AssertionValue =
-	| string
-	| number
-	| boolean
-	| null
-	| AssertionMatcher;
+export type AssertionValue = string | number | boolean | null | AssertionMatcher;
 
 /**
  * Matchers for complex assertions.

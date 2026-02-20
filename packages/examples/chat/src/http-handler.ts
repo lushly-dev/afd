@@ -4,7 +4,11 @@
  * Adds a JSON-RPC POST endpoint for testing the handoff pattern from browsers.
  */
 
-import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from 'http';
+import {
+	createServer as createHttpServer,
+	type IncomingMessage,
+	type ServerResponse,
+} from 'node:http';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server';
 
 /**
@@ -14,7 +18,7 @@ export function createHttpHandler(
 	commands: ZodCommandDefinition[],
 	port = 3200
 ): ReturnType<typeof createHttpServer> {
-	const commandMap = new Map(commands.map(cmd => [cmd.name, cmd]));
+	const commandMap = new Map(commands.map((cmd) => [cmd.name, cmd]));
 
 	const server = createHttpServer(async (req: IncomingMessage, res: ServerResponse) => {
 		// CORS headers
@@ -47,11 +51,13 @@ export function createHttpHandler(
 			const command = commandMap.get(method);
 			if (!command) {
 				res.writeHead(200, { 'Content-Type': 'application/json' });
-				res.end(JSON.stringify({
-					jsonrpc: '2.0',
-					id,
-					error: { code: -32601, message: `Method not found: ${method}` }
-				}));
+				res.end(
+					JSON.stringify({
+						jsonrpc: '2.0',
+						id,
+						error: { code: -32601, message: `Method not found: ${method}` },
+					})
+				);
 				return;
 			}
 
@@ -60,18 +66,22 @@ export function createHttpHandler(
 			const result = await command.handler(params ?? {}, ctx);
 
 			res.writeHead(200, { 'Content-Type': 'application/json' });
-			res.end(JSON.stringify({
-				jsonrpc: '2.0',
-				id,
-				result
-			}));
+			res.end(
+				JSON.stringify({
+					jsonrpc: '2.0',
+					id,
+					result,
+				})
+			);
 		} catch (error) {
 			res.writeHead(200, { 'Content-Type': 'application/json' });
-			res.end(JSON.stringify({
-				jsonrpc: '2.0',
-				id: null,
-				error: { code: -32700, message: error instanceof Error ? error.message : 'Parse error' }
-			}));
+			res.end(
+				JSON.stringify({
+					jsonrpc: '2.0',
+					id: null,
+					error: { code: -32700, message: error instanceof Error ? error.message : 'Parse error' },
+				})
+			);
 		}
 	});
 

@@ -13,229 +13,219 @@
  * @packageDocumentation
  */
 
-// Result types
-export type { CommandResult, ResultMetadata } from './result.js';
-export { success, failure, isSuccess, isFailure } from './result.js';
-
+// Batch types
+export type {
+	BatchCommand,
+	BatchCommandResult,
+	BatchOptions,
+	BatchRequest,
+	BatchResult,
+	BatchSummary,
+	BatchTiming,
+} from './batch.js';
+export {
+	calculateBatchConfidence,
+	createBatchRequest,
+	createBatchResult,
+	createFailedBatchResult,
+	isBatchCommand,
+	isBatchRequest,
+	isBatchResult,
+} from './batch.js';
+// Command types
+export type {
+	CommandContext,
+	CommandDefinition,
+	CommandHandler,
+	CommandParameter,
+	CommandRegistry,
+	JsonSchema,
+} from './commands.js';
+export { commandToMcpTool, createCommandRegistry } from './commands.js';
+export type {
+	GitHubConnectorOptions,
+	Issue,
+	IssueCreateOptions,
+	IssueFilters,
+	PrCreateOptions,
+	PullRequest,
+} from './connectors/github.js';
+// Connectors
+export { GitHubConnector } from './connectors/github.js';
+export type {
+	PackageManager,
+	PackageManagerConnectorOptions,
+} from './connectors/package-manager.js';
+export { PackageManagerConnector } from './connectors/package-manager.js';
 // Error types
 export type { CommandError, ErrorCode } from './errors.js';
 export {
-	ErrorCodes,
 	createError,
-	validationError,
+	ErrorCodes,
+	internalError,
+	isCommandError,
 	notFoundError,
 	rateLimitError,
 	timeoutError,
-	internalError,
+	validationError,
 	wrapError,
-	isCommandError,
 } from './errors.js';
+// Handoff types
+export type {
+	HandoffCredentials,
+	HandoffMetadata,
+	HandoffProtocol,
+	HandoffResult,
+} from './handoff.js';
+export {
+	getHandoffProtocol,
+	isHandoff,
+	isHandoffCommand,
+	isHandoffProtocol,
+} from './handoff.js';
 
+// MCP types
+export type {
+	McpClientCapabilities,
+	McpContent,
+	McpError,
+	McpErrorCode,
+	McpImageContent,
+	McpInitializeParams,
+	McpInitializeResult,
+	McpNotification,
+	McpRequest,
+	McpResourceContent,
+	McpResponse,
+	McpServerCapabilities,
+	McpTextContent,
+	McpTool,
+	McpToolCallParams,
+	McpToolCallResult,
+	McpToolsListResult,
+} from './mcp.js';
+export {
+	createMcpErrorResponse,
+	createMcpRequest,
+	createMcpResponse,
+	isMcpNotification,
+	isMcpRequest,
+	isMcpResponse,
+	McpErrorCodes,
+	textContent,
+} from './mcp.js';
 // Metadata types
 export type {
-	Source,
+	Alternative,
 	PlanStep,
 	PlanStepStatus,
-	Alternative,
+	Source,
 	Warning,
 } from './metadata.js';
 export {
 	createSource,
 	createStep,
-	updateStepStatus,
 	createWarning,
+	updateStepStatus,
 } from './metadata.js';
-
-// Command types
-export type {
-	JsonSchema,
-	CommandParameter,
-	CommandDefinition,
-	CommandHandler,
-	CommandContext,
-	CommandRegistry,
-} from './commands.js';
-export { createCommandRegistry, commandToMcpTool } from './commands.js';
-
-// Batch types
-export type {
-	BatchCommand,
-	BatchOptions,
-	BatchRequest,
-	BatchCommandResult,
-	BatchSummary,
-	BatchTiming,
-	BatchResult,
-} from './batch.js';
-export {
-	createBatchRequest,
-	createBatchResult,
-	createFailedBatchResult,
-	calculateBatchConfidence,
-	isBatchRequest,
-	isBatchResult,
-	isBatchCommand,
-} from './batch.js';
-
-// Streaming types
-export type {
-	ProgressChunk,
-	DataChunk,
-	CompleteChunk,
-	ErrorChunk,
-	StreamChunk,
-	StreamOptions,
-	StreamCallbacks,
-	StreamableCommand,
-} from './streaming.js';
-export {
-	createProgressChunk,
-	createDataChunk,
-	createCompleteChunk,
-	createErrorChunk,
-	isProgressChunk,
-	isDataChunk,
-	isCompleteChunk,
-	isErrorChunk,
-	isStreamChunk,
-	isStreamableCommand,
-	consumeStream,
-	collectStreamData,
-	createTimeoutController,
-} from './streaming.js';
-
-// MCP types
-export type {
-	McpRequest,
-	McpResponse,
-	McpError,
-	McpNotification,
-	McpTool,
-	McpToolsListResult,
-	McpToolCallParams,
-	McpToolCallResult,
-	McpContent,
-	McpTextContent,
-	McpImageContent,
-	McpResourceContent,
-	McpServerCapabilities,
-	McpClientCapabilities,
-	McpInitializeParams,
-	McpInitializeResult,
-	McpErrorCode,
-} from './mcp.js';
-export {
-	McpErrorCodes,
-	createMcpRequest,
-	createMcpResponse,
-	createMcpErrorResponse,
-	textContent,
-	isMcpRequest,
-	isMcpResponse,
-	isMcpNotification,
-} from './mcp.js';
-
-// Telemetry types
-export type { TelemetryEvent, TelemetrySink } from './telemetry.js';
-export { createTelemetryEvent, isTelemetryEvent } from './telemetry.js';
-
-// Handoff types
-export type {
-	HandoffResult,
-	HandoffCredentials,
-	HandoffMetadata,
-	HandoffProtocol,
-} from './handoff.js';
-export {
-	isHandoff,
-	isHandoffProtocol,
-	isHandoffCommand,
-	getHandoffProtocol,
-} from './handoff.js';
-
 // Pipeline types
 export type {
-	PipelineRequest,
-	PipelineStep,
-	PipelineOptions,
+	PipelineAlternative,
 	PipelineCondition,
-	PipelineConditionExists,
+	PipelineConditionAnd,
 	PipelineConditionEq,
-	PipelineConditionNe,
+	PipelineConditionExists,
 	PipelineConditionGt,
 	PipelineConditionGte,
 	PipelineConditionLt,
 	PipelineConditionLte,
-	PipelineConditionAnd,
-	PipelineConditionOr,
+	PipelineConditionNe,
 	PipelineConditionNot,
-	PipelineResult,
+	PipelineConditionOr,
+	PipelineContext,
 	PipelineMetadata,
+	PipelineOptions,
+	PipelineRequest,
+	PipelineResult,
+	PipelineSource,
+	PipelineStep,
+	PipelineWarning,
 	StepConfidence,
 	StepReasoning,
-	PipelineWarning,
-	PipelineSource,
-	PipelineAlternative,
 	StepResult,
 	StepStatus,
-	PipelineContext,
 } from './pipeline.js';
 export {
-	isPipelineRequest,
-	isPipelineStep,
-	isPipelineResult,
-	isPipelineCondition,
-	isExistsCondition,
+	aggregatePipelineAlternatives,
+	aggregatePipelineConfidence,
+	aggregatePipelineReasoning,
+	aggregatePipelineSources,
+	aggregatePipelineWarnings,
+	buildConfidenceBreakdown,
+	createPipeline,
+	evaluateCondition,
+	getNestedValue,
+	isAndCondition,
 	isEqCondition,
-	isNeCondition,
+	isExistsCondition,
 	isGtCondition,
 	isGteCondition,
 	isLtCondition,
 	isLteCondition,
-	isAndCondition,
-	isOrCondition,
+	isNeCondition,
 	isNotCondition,
-	createPipeline,
-	aggregatePipelineConfidence,
-	aggregatePipelineReasoning,
-	aggregatePipelineWarnings,
-	aggregatePipelineSources,
-	aggregatePipelineAlternatives,
-	buildConfidenceBreakdown,
-	getNestedValue,
-	resolveVariable,
+	isOrCondition,
+	isPipelineCondition,
+	isPipelineRequest,
+	isPipelineResult,
+	isPipelineStep,
 	resolveReference,
+	resolveVariable,
 	resolveVariables,
-	evaluateCondition,
 } from './pipeline.js';
-
+export type { ExecOptions, ExecResult } from './platform.js';
 // Platform utilities
 export {
-	isWindows,
-	isMac,
-	isLinux,
+	createExecResult,
+	ExecErrorCode,
 	exec,
 	findUp,
 	getTempDir,
-	normalizePath,
-	ExecErrorCode,
-	createExecResult,
 	isExecError,
+	isLinux,
+	isMac,
+	isWindows,
+	normalizePath,
 } from './platform.js';
-export type { ExecOptions, ExecResult } from './platform.js';
-
-// Connectors
-export { GitHubConnector } from './connectors/github.js';
-export { PackageManagerConnector } from './connectors/package-manager.js';
+// Result types
+export type { CommandResult, ResultMetadata } from './result.js';
+export { failure, isFailure, isSuccess, success } from './result.js';
+// Streaming types
 export type {
-	GitHubConnectorOptions,
-	IssueCreateOptions,
-	IssueFilters,
-	Issue,
-	PrCreateOptions,
-	PullRequest,
-} from './connectors/github.js';
-export type {
-	PackageManager,
-	PackageManagerConnectorOptions,
-} from './connectors/package-manager.js';
+	CompleteChunk,
+	DataChunk,
+	ErrorChunk,
+	ProgressChunk,
+	StreamableCommand,
+	StreamCallbacks,
+	StreamChunk,
+	StreamOptions,
+} from './streaming.js';
+export {
+	collectStreamData,
+	consumeStream,
+	createCompleteChunk,
+	createDataChunk,
+	createErrorChunk,
+	createProgressChunk,
+	createTimeoutController,
+	isCompleteChunk,
+	isDataChunk,
+	isErrorChunk,
+	isProgressChunk,
+	isStreamableCommand,
+	isStreamChunk,
+} from './streaming.js';
+// Telemetry types
+export type { TelemetryEvent, TelemetrySink } from './telemetry.js';
+export { createTelemetryEvent, isTelemetryEvent } from './telemetry.js';

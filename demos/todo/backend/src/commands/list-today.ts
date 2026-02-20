@@ -5,9 +5,9 @@
  * Part of the Today/Upcoming views feature.
  */
 
-import { z } from 'zod';
-import { defineCommand, success } from '@lushly-dev/afd-server';
 import type { Alternative } from '@lushly-dev/afd-core';
+import { defineCommand, success } from '@lushly-dev/afd-server';
+import { z } from 'zod';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 
@@ -62,7 +62,7 @@ export const listToday = defineCommand<typeof inputSchema, TodayResult>({
 			: [];
 
 		// Combine and sort
-		let combinedTodos = [...overdueTodos, ...todayTodos];
+		const combinedTodos = [...overdueTodos, ...todayTodos];
 
 		// Sort combined results
 		combinedTodos.sort((a, b) => {
@@ -80,7 +80,6 @@ export const listToday = defineCommand<typeof inputSchema, TodayResult>({
 					else if (!b.dueDate) comparison = -1;
 					else comparison = a.dueDate.localeCompare(b.dueDate);
 					break;
-				case 'createdAt':
 				default:
 					comparison = a.createdAt.localeCompare(b.createdAt);
 			}

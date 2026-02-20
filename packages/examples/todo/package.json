@@ -1,23 +1,23 @@
 {
-  "name": "@afd/example-todo",
-  "version": "1.0.0",
-  "private": true,
-  "type": "module",
-  "description": "Multi-stack Todo example with AFD patterns",
-  "scripts": {
-    "test:conformance:ts": "ts-node dx/run-conformance.ts --backend ts",
-    "test:conformance:py": "ts-node dx/run-conformance.ts --backend py",
-    "dev:ts": "cd backends/typescript && pnpm dev",
-    "dev:py": "cd backends/python && pnpm dev",
-    "dev:web": "cd frontends/vanilla && npx serve .",
-    "dev:react": "cd frontends/react && pnpm dev",
-    "dev:desktop": "cd frontends/desktop && pnpm tauri:dev",
-    "build:desktop": "cd frontends/desktop && pnpm tauri:build"
-  },
-  "devDependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.1",
-    "ts-node": "^10.9.2",
-    "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
-  }
+	"name": "@afd/example-todo",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"description": "Multi-stack Todo example with AFD patterns",
+	"scripts": {
+		"test:conformance:ts": "ts-node dx/run-conformance.ts --backend ts",
+		"test:conformance:py": "ts-node dx/run-conformance.ts --backend py",
+		"dev:ts": "cd backends/typescript && pnpm dev",
+		"dev:py": "cd backends/python && pnpm dev",
+		"dev:web": "cd frontends/vanilla && npx serve .",
+		"dev:react": "cd frontends/react && pnpm dev",
+		"dev:desktop": "cd frontends/desktop && pnpm tauri:dev",
+		"build:desktop": "cd frontends/desktop && pnpm tauri:build"
+	},
+	"devDependencies": {
+		"@modelcontextprotocol/sdk": "^1.0.1",
+		"ts-node": "^10.9.2",
+		"tsx": "^4.7.0",
+		"typescript": "^5.3.3"
+	}
 }
