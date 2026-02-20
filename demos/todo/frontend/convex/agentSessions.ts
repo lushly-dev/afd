@@ -54,7 +54,8 @@ export const list = query({
 		const sessions = args.state
 			? await ctx.db
 					.query('agentSessions')
-					.withIndex('by_state', (q) => q.eq('state', args.state as string))
+					// biome-ignore lint/style/noNonNullAssertion: narrowed by outer ternary (args.state is truthy here)
+					.withIndex('by_state', (q) => q.eq('state', args.state!))
 					.order('desc')
 					.collect()
 			: await ctx.db.query('agentSessions').order('desc').collect();
