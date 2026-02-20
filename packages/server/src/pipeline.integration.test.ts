@@ -14,8 +14,8 @@ import type { CommandResult, PipelineRequest } from '@lushly-dev/afd-core';
 import { failure, success } from '@lushly-dev/afd-core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createMcpServer, type McpServer } from './server.js';
 import type { ZodCommandDefinition } from './schema.js';
+import { createMcpServer, type McpServer } from './server.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TEST COMMANDS

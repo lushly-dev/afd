@@ -39,7 +39,10 @@ async function run() {
 
 	const runner = new ConformanceRunner(async (name, args) => {
 		console.log(`Calling tool: ${name}`, args);
-		const result = (await client.callTool({ name, arguments: args as Record<string, unknown> })) as { content: Array<{ text: string }> };
+		const result = (await client.callTool({
+			name,
+			arguments: args as Record<string, unknown>,
+		})) as { content: Array<{ text: string }> };
 		const text = result.content[0]?.text;
 		try {
 			return text ? JSON.parse(text) : result;

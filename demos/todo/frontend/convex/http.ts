@@ -5,8 +5,8 @@
  */
 import { httpRouter } from 'convex/server';
 import { api, internal } from './_generated/api';
-import { httpAction } from './_generated/server';
 import type { Id } from './_generated/dataModel';
+import { httpAction } from './_generated/server';
 import { auth } from './auth';
 
 const http = httpRouter();

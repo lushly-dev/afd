@@ -210,7 +210,9 @@ export function ChatRoom({ roomId, nickname = 'Anonymous', client }: ChatRoomPro
 					{connected ? (
 						<>
 							<span className="status-indicator connected" /> Connected
-							<button type="button" onClick={disconnect}>Disconnect</button>
+							<button type="button" onClick={disconnect}>
+								Disconnect
+							</button>
 						</>
 					) : (
 						<>

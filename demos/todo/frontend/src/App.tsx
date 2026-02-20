@@ -677,10 +677,18 @@ const App: React.FC = () => {
 										</label>
 										{selectedIds.size > 0 && (
 											<div className="batch-actions">
-												<button type="button" className="batch-btn toggle" onClick={handleToggleSelected}>
+												<button
+													type="button"
+													className="batch-btn toggle"
+													onClick={handleToggleSelected}
+												>
 													Toggle Selected
 												</button>
-												<button type="button" className="batch-btn delete" onClick={handleDeleteSelected}>
+												<button
+													type="button"
+													className="batch-btn delete"
+													onClick={handleDeleteSelected}
+												>
 													Delete Selected
 												</button>
 											</div>

@@ -395,7 +395,7 @@ export function createTelemetryMiddleware(options: TelemetryOptions): CommandMid
 				startedAt,
 				completedAt,
 				durationMs,
-				success: thrownError ? false : result?.success ?? false,
+				success: thrownError ? false : (result?.success ?? false),
 				...(thrownError && {
 					error: {
 						code: 'UNHANDLED_ERROR',

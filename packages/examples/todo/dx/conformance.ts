@@ -27,7 +27,12 @@ interface TestResult {
 export class ConformanceRunner {
 	private captured: Record<string, unknown> = {};
 
-	constructor(private callTool: (name: string, args: unknown) => Promise<{ success: boolean; data?: unknown; error?: { message: string } }>) {}
+	constructor(
+		private callTool: (
+			name: string,
+			args: unknown
+		) => Promise<{ success: boolean; data?: unknown; error?: { message: string } }>
+	) {}
 
 	async run(specPath: string): Promise<TestResult[]> {
 		const spec = JSON.parse(await fs.readFile(specPath, 'utf-8'));

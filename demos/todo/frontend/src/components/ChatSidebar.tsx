@@ -849,7 +849,9 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 														content: currentContent,
 														toolExecutions,
 														reasoning: streamingMetadata.reasoning as string | undefined,
-														totalToolLatencyMs: streamingMetadata.totalToolLatencyMs as number | undefined,
+														totalToolLatencyMs: streamingMetadata.totalToolLatencyMs as
+															| number
+															| undefined,
 														modelLatencyMs: streamingMetadata.modelLatencyMs as number | undefined,
 													}
 												: msg
@@ -1198,7 +1200,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 					<h2>Myoso</h2>
 					<span className="chat-context-indicator">{todos.length} todos</span>
 					<div className="chat-header-actions">
-						<button type="button" className="chat-header-btn" onClick={startNewChat} title="New chat">
+						<button
+							type="button"
+							className="chat-header-btn"
+							onClick={startNewChat}
+							title="New chat"
+						>
 							+
 						</button>
 						{/* History panel - coming soon
@@ -1343,7 +1350,12 @@ export const ChatSidebar: React.FC<ChatSidebarProps> = ({
 						<span className="chat-model-selector">⚡ Gemini 3 Flash</span>
 						<div className="chat-options-spacer" />
 						{isLoading ? (
-							<button type="button" className="chat-stop-btn" onClick={stopRequest} title="Stop current request">
+							<button
+								type="button"
+								className="chat-stop-btn"
+								onClick={stopRequest}
+								title="Stop current request"
+							>
 								Stop
 							</button>
 						) : (

@@ -44,7 +44,20 @@
 			},
 			"suspicious": {
 				"noExplicitAny": "error",
-				"noConfusingVoidType": "error"
+				"noConfusingVoidType": "error",
+				"noNonNullAssertedOptionalChain": "warn",
+				"useIterableCallbackReturn": "warn",
+				"noTemplateCurlyInString": "warn",
+				"noImplicitAnyLet": "warn",
+				"noArrayIndexKey": "warn"
+			},
+			"a11y": {
+				"noStaticElementInteractions": "warn",
+				"useKeyWithClickEvents": "warn",
+				"noLabelWithoutControl": "warn"
+			},
+			"security": {
+				"noDangerouslySetInnerHtml": "warn"
 			}
 		}
 	},

@@ -64,8 +64,12 @@ export const TodoItem: React.FC<TodoItemProps> = ({
 				</div>
 			</div>
 			<div className="todo-actions">
-				<button type="button" onClick={() => onEdit(todo.id)}>Edit</button>
-				<button type="button" onClick={() => onDelete(todo.id)}>Delete</button>
+				<button type="button" onClick={() => onEdit(todo.id)}>
+					Edit
+				</button>
+				<button type="button" onClick={() => onDelete(todo.id)}>
+					Delete
+				</button>
 			</div>
 		</div>
 	);

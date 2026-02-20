@@ -71,7 +71,9 @@ describe('WebAdapter', () => {
 		});
 
 		it('handles missing data gracefully', () => {
-			const result = WebAdapter.renderPackageResults(null as unknown as Parameters<typeof WebAdapter.renderPackageResults>[0]);
+			const result = WebAdapter.renderPackageResults(
+				null as unknown as Parameters<typeof WebAdapter.renderPackageResults>[0]
+			);
 			expect(result).toBe('<pre>No results</pre>');
 		});
 

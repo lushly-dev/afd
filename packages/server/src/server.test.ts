@@ -10,8 +10,8 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { createMcpServer, isStdinPiped, type McpServer } from './server.js';
 import { defineCommand } from './schema.js';
+import { createMcpServer, isStdinPiped, type McpServer } from './server.js';
 
 // Simple test command
 const testCommand = defineCommand({

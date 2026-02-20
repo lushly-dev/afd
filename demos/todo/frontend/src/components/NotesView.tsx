@@ -148,7 +148,9 @@ export const NotesView: React.FC<NotesViewProps> = ({
 					{filteredNotes.length === 0 ? (
 						<div className="notes-empty">
 							<p>No notes yet</p>
-							<button type="button" onClick={onCreateNote}>Create your first note</button>
+							<button type="button" onClick={onCreateNote}>
+								Create your first note
+							</button>
 						</div>
 					) : (
 						filteredNotes.map((note) => (
@@ -228,7 +230,9 @@ export const NotesView: React.FC<NotesViewProps> = ({
 							</svg>
 						</div>
 						<p>Select a note or create a new one</p>
-						<button type="button" onClick={onCreateNote}>New Note</button>
+						<button type="button" onClick={onCreateNote}>
+							New Note
+						</button>
 					</div>
 				)}
 			</div>

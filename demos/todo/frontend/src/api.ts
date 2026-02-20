@@ -4,7 +4,10 @@ import type { CommandResult } from './types';
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3100';
 let messageId = 0;
 
-export async function callTool<T>(name: string, args: Record<string, unknown> = {}): Promise<CommandResult<T>> {
+export async function callTool<T>(
+	name: string,
+	args: Record<string, unknown> = {}
+): Promise<CommandResult<T>> {
 	const id = ++messageId;
 
 	try {
