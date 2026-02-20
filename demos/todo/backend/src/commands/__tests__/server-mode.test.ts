@@ -6,7 +6,7 @@
  * - Development mode provides verbose errors and permissive CORS
  */
 
-import { createMcpServer, defineCommand } from '@afd/server';
+import { createMcpServer, defineCommand } from '@lushly-dev/afd-server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 

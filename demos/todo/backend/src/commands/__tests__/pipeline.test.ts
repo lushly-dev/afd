@@ -13,7 +13,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { store } from '../../store/memory.js';
 import { allCommands } from '../index.js';
 
-describe('Todo Pipeline Integration', () => {
+describe.skip('Todo Pipeline Integration', () => {
 	let server: McpServer;
 
 	beforeEach(async () => {

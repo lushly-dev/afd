@@ -97,8 +97,10 @@ describe('todo-list with due date filters', () => {
 	beforeEach(async () => {
 		// Create todos with various due dates
 		await createTodo.handler({ title: 'Overdue', priority: 3, dueDate: getDateOffset(-2) }, {});
+		const todayEod = new Date();
+		todayEod.setHours(23, 59, 59, 0);
 		await createTodo.handler(
-			{ title: 'Due today', priority: 2, dueDate: new Date().toISOString() },
+			{ title: 'Due today', priority: 2, dueDate: todayEod.toISOString() },
 			{}
 		);
 		await createTodo.handler({ title: 'Due tomorrow', priority: 1, dueDate: getDateOffset(1) }, {});
