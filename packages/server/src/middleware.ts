@@ -208,6 +208,19 @@ export interface TimingOptions {
 
 /**
  * Create a timing middleware that tracks execution duration.
+ *
+ * @example
+ * ```typescript
+ * const server = createMcpServer({
+ *   // ...
+ *   middleware: [
+ *     createTimingMiddleware({
+ *       slowThreshold: 500,
+ *       onSlow: (name, ms) => logger.warn(`Slow command: ${name} (${ms}ms)`),
+ *     }),
+ *   ],
+ * });
+ * ```
  */
 export function createTimingMiddleware(options: TimingOptions = {}): CommandMiddleware {
 	const {
@@ -248,6 +261,20 @@ export interface RetryOptions {
 
 /**
  * Create a retry middleware for transient failures.
+ *
+ * @example
+ * ```typescript
+ * const server = createMcpServer({
+ *   // ...
+ *   middleware: [
+ *     createRetryMiddleware({
+ *       maxRetries: 3,
+ *       retryDelay: 200,
+ *       shouldRetry: (code) => code === 'TRANSIENT_ERROR' || code === 'TIMEOUT',
+ *     }),
+ *   ],
+ * });
+ * ```
  */
 export function createRetryMiddleware(options: RetryOptions = {}): CommandMiddleware {
 	const {
@@ -400,6 +427,20 @@ export interface RateLimitOptions {
 
 /**
  * Create a simple in-memory rate limiting middleware.
+ *
+ * @example
+ * ```typescript
+ * const server = createMcpServer({
+ *   // ...
+ *   middleware: [
+ *     createRateLimitMiddleware({
+ *       maxRequests: 100,
+ *       windowMs: 60_000, // 100 requests per minute
+ *       keyFn: (ctx) => ctx.traceId ?? 'global',
+ *     }),
+ *   ],
+ * });
+ * ```
  */
 export function createRateLimitMiddleware(options: RateLimitOptions): CommandMiddleware {
 	const { maxRequests, windowMs, keyFn = () => 'global' } = options;

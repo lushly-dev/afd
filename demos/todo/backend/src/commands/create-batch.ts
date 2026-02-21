@@ -1,5 +1,5 @@
 /**
- * @fileoverview todo.createBatch command
+ * @fileoverview todo.create-batch command
  *
  * Demonstrates AFD batch operation pattern with partial failure handling.
  * Creates multiple todos at once, reporting success/failure for each item.
@@ -60,7 +60,7 @@ export interface BatchCreateResult {
 }
 
 export const createBatch = defineCommand<typeof inputSchema, BatchCreateResult>({
-	name: 'todo-createBatch',
+	name: 'todo-create-batch',
 	description: 'Create multiple todos at once with partial failure support',
 	category: 'todo',
 	tags: ['todo', 'create', 'write', 'batch'],

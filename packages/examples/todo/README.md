@@ -189,9 +189,9 @@ The source of truth for this example is the [test-cases.json](./spec/test-cases.
 | `todo-delete` | Delete a todo |
 | `todo-clear` | Clear completed todos |
 | `todo-stats` | Get statistics |
-| `todo-createBatch` | Create multiple todos |
-| `todo-toggleBatch` | Toggle multiple todos |
-| `todo-deleteBatch` | Delete multiple todos |
+| `todo-create-batch` | Create multiple todos |
+| `todo-toggle-batch` | Toggle multiple todos |
+| `todo-delete-batch` | Delete multiple todos |
 
 ## Performance Features
 
@@ -203,13 +203,13 @@ The todo app exposes batch operations as dedicated commands:
 
 ```bash
 # Create multiple todos at once
-afd call todo-createBatch '{"todos": [{"title": "Task 1"}, {"title": "Task 2"}]}'
+afd call todo-create-batch '{"todos": [{"title": "Task 1"}, {"title": "Task 2"}]}'
 
 # Toggle multiple todos
-afd call todo-toggleBatch '{"ids": ["id1", "id2"]}'
+afd call todo-toggle-batch '{"ids": ["id1", "id2"]}'
 
 # Delete multiple todos
-afd call todo-deleteBatch '{"ids": ["id1", "id2"]}'
+afd call todo-delete-batch '{"ids": ["id1", "id2"]}'
 ```
 
 These return partial success semantics with confidence scores based on success rate.

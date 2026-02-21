@@ -360,22 +360,22 @@ const App: React.FC = () => {
 	const handleToggleSelected = async () => {
 		if (selectedIds.size === 0) return;
 
-		log(`Calling todo-toggleBatch (${selectedIds.size} todos)...`);
+		log(`Calling todo-toggle-batch (${selectedIds.size} todos)...`);
 		const ids = Array.from(selectedIds);
 		const args = { ids };
-		const res = await callTool<{ results: unknown[] }>('todo-toggleBatch', args);
-		trackOperation('todo-toggleBatch', args, res as CommandResult<unknown>);
+		const res = await callTool<{ results: unknown[] }>('todo-toggle-batch', args);
+		trackOperation('todo-toggle-batch', args, res as CommandResult<unknown>);
 		if (res.success) {
 			const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : '';
 			log(
-				`✓ todo-toggleBatch - ${res.reasoning || `Toggled ${ids.length} todos`}${time}`,
+				`✓ todo-toggle-batch - ${res.reasoning || `Toggled ${ids.length} todos`}${time}`,
 				'success'
 			);
 			fetchData();
 		} else {
-			log(`✗ todo-toggleBatch: ${res.error?.message}`, 'error');
+			log(`✗ todo-toggle-batch: ${res.error?.message}`, 'error');
 		}
-		showResultToast(res, 'todo-toggleBatch');
+		showResultToast(res, 'todo-toggle-batch');
 	};
 
 	const handleDeleteSelected = async () => {
@@ -391,23 +391,23 @@ const App: React.FC = () => {
 
 		if (!confirmed) return;
 
-		log(`Calling todo-deleteBatch (${selectedIds.size} todos)...`);
+		log(`Calling todo-delete-batch (${selectedIds.size} todos)...`);
 		const ids = Array.from(selectedIds);
 		const args = { ids };
-		const res = await callTool<{ results: unknown[] }>('todo-deleteBatch', args);
-		trackOperation('todo-deleteBatch', args, res as CommandResult<unknown>);
+		const res = await callTool<{ results: unknown[] }>('todo-delete-batch', args);
+		trackOperation('todo-delete-batch', args, res as CommandResult<unknown>);
 		if (res.success) {
 			const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : '';
 			log(
-				`✓ todo-deleteBatch - ${res.reasoning || `Deleted ${ids.length} todos`}${time}`,
+				`✓ todo-delete-batch - ${res.reasoning || `Deleted ${ids.length} todos`}${time}`,
 				'success'
 			);
 			setSelectedIds(new Set());
 			fetchData();
 		} else {
-			log(`✗ todo-deleteBatch: ${res.error?.message}`, 'error');
+			log(`✗ todo-delete-batch: ${res.error?.message}`, 'error');
 		}
-		showResultToast(res, 'todo-deleteBatch');
+		showResultToast(res, 'todo-delete-batch');
 	};
 
 	// Error recovery retry

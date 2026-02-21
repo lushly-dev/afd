@@ -332,6 +332,7 @@ export class DirectTransport implements Transport {
 			}
 
 			if (request.method === 'tools/call') {
+				// SAFETY: When method is 'tools/call', params conforms to ToolCallParams per the MCP protocol spec.
 				const params = request.params as unknown as ToolCallParams;
 				return await this.handleToolCall(requestId, params);
 			}

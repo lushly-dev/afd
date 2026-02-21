@@ -1,5 +1,5 @@
 /**
- * @fileoverview todo.toggleBatch command
+ * @fileoverview todo.toggle-batch command
  *
  * Demonstrates AFD batch toggle pattern with optional override.
  * Can either toggle each item's status or set all to a specific value.
@@ -56,7 +56,7 @@ export interface BatchToggleResult {
 }
 
 export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>({
-	name: 'todo-toggleBatch',
+	name: 'todo-toggle-batch',
 	description: 'Toggle completion status of multiple todos, or set all to a specific state',
 	category: 'todo',
 	tags: ['todo', 'toggle', 'write', 'batch'],

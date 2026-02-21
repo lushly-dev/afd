@@ -59,9 +59,9 @@ interface CommandResult<T> {
 6. `todo.delete`: Delete a todo
 7. `todo.clear`: Clear all completed todos
 8. `todo.stats`: Get todo statistics
-9. `todo.createBatch`: Create multiple todos
-10. `todo.deleteBatch`: Delete multiple todos
-11. `todo.toggleBatch`: Toggle multiple todos
+9. `todo.create-batch`: Create multiple todos
+10. `todo.delete-batch`: Delete multiple todos
+11. `todo.toggle-batch`: Toggle multiple todos
 
 ## Error Codes
 

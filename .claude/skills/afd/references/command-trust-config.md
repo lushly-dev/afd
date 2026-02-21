@@ -107,7 +107,7 @@ Use both approaches: `destructive: true` for static config, `severity: 'caution'
 |---------|---------------|
 | `todo-delete` | "This todo will be permanently deleted." |
 | `todo-clear` | "All completed todos will be permanently deleted." |
-| `todo-deleteBatch` | "These todos will be permanently deleted." |
+| `todo-delete-batch` | "These todos will be permanently deleted." |
 | `list-delete` | "This list and all its todos will be permanently deleted." |
 | `note-delete` | "This note will be permanently deleted." |
 | `notefolder-delete` | "This folder and all its notes will be permanently deleted." |

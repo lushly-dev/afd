@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1-beta] - 2026-02-20
+
+### Breaking Changes
+
+- **Batch command names renamed to kebab-case** — All batch commands now follow the `domain-action` kebab-case convention:
+  - `todo-createBatch` → `todo-create-batch`
+  - `todo-toggleBatch` → `todo-toggle-batch`
+  - `todo-deleteBatch` → `todo-delete-batch`
+
+  **Migration:** Update any client code, MCP tool calls, CLI scripts, or configuration that references the old camelCase names. Search for `createBatch`, `toggleBatch`, `deleteBatch` and replace with `create-batch`, `toggle-batch`, `delete-batch` in command name strings.
+
+### Added
+
+- **CI coverage reporting** — Tests now run with `vitest --coverage` in CI
+  - Added `@vitest/coverage-v8` dependency
+  - Added `test:coverage` script to root `package.json`
+  - Coverage reports uploaded as artifacts on Node 22.x runs
+
+- **JSDoc `@example` blocks on middleware factories** — Added usage examples to:
+  - `createRetryMiddleware` — retry config with `shouldRetry` filter
+  - `createRateLimitMiddleware` — rate limit with per-client key function
+  - `createTimingMiddleware` — slow command warning with custom threshold
+
+### Changed
+
+- **`as unknown` casts annotated with `// SAFETY:` comments** — All 8 casts in production code now document why the cast is necessary:
+  - `schema.ts` — zod-to-json-schema type bridge
+  - `registry.ts` — generic type variance for bootstrap commands
+  - `client.ts` — JSON parse fallback and pipeline serialization
+  - `direct.ts` — MCP protocol method dispatch
+  - `cli/batch.ts` — flexible input format support
+
+---
+
 ## [0.2.0-beta] - 2026-02-20
 
 ### 🟢 Beta Promotion

@@ -356,7 +356,7 @@ async def todo_stats(input: EmptyInput) -> CommandResult[Dict[str, Any]]:
     })
 
 
-@server.command(name="todo.createBatch", description="Create multiple todos", input_schema=BatchCreateInput, mutation=True)
+@server.command(name="todo.create-batch", description="Create multiple todos", input_schema=BatchCreateInput, mutation=True)
 async def create_batch(input: BatchCreateInput) -> CommandResult[Dict[str, Any]]:
     created = []
     for t_in in input.todos:
@@ -371,7 +371,7 @@ async def create_batch(input: BatchCreateInput) -> CommandResult[Dict[str, Any]]
     return success(data={"succeeded": created, "failed": []}, reasoning=f"Created {len(created)} todos")
 
 
-@server.command(name="todo.deleteBatch", description="Delete multiple todos", input_schema=BatchDeleteInput, mutation=True)
+@server.command(name="todo.delete-batch", description="Delete multiple todos", input_schema=BatchDeleteInput, mutation=True)
 async def delete_batch(input: BatchDeleteInput) -> CommandResult[Dict[str, Any]]:
     current_todos = _get_todos()
     deleted = []
@@ -382,7 +382,7 @@ async def delete_batch(input: BatchDeleteInput) -> CommandResult[Dict[str, Any]]
     return success(data={"deletedIds": deleted, "failed": []}, reasoning=f"Deleted {len(deleted)} todos")
 
 
-@server.command(name="todo.toggleBatch", description="Toggle multiple todos", input_schema=BatchToggleInput, mutation=True)
+@server.command(name="todo.toggle-batch", description="Toggle multiple todos", input_schema=BatchToggleInput, mutation=True)
 async def toggle_batch(input: BatchToggleInput) -> CommandResult[Dict[str, Any]]:
     current_todos = _get_todos()
     updated = []

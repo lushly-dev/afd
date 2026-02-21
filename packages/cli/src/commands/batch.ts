@@ -89,7 +89,8 @@ export function registerBatchCommand(program: Command): void {
 
 				// Normalize command format
 				commands = commands.map((cmd, i) => {
-					// Support alternative input formats
+					// SAFETY: Support alternative input formats (name/args instead of command/input).
+					// The cast allows accessing non-standard fields that may exist on user-provided objects.
 					const cmdAny = cmd as unknown as Record<string, unknown>;
 					return {
 						id: cmd.id ?? `cmd-${i}`,

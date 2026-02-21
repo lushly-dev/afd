@@ -52,9 +52,9 @@ TODO_STORE_PATH=/path/to/todos.json pnpm start
 | `todo-delete`      | mutation | Delete a todo             |
 | `todo-clear`       | mutation | Clear all completed todos |
 | `todo-stats`       | query    | Get todo statistics       |
-| `todo-createBatch` | mutation | Create multiple todos     |
-| `todo-deleteBatch` | mutation | Delete multiple todos     |
-| `todo-toggleBatch` | mutation | Toggle multiple todos     |
+| `todo-create-batch` | mutation | Create multiple todos     |
+| `todo-delete-batch` | mutation | Delete multiple todos     |
+| `todo-toggle-batch` | mutation | Toggle multiple todos     |
 
 ## Conformance
 

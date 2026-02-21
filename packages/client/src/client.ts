@@ -308,7 +308,8 @@ export class McpClient {
 				// Wrap raw data in a success result
 				return success(data as T);
 			} catch {
-				// Return raw text as data
+				// SAFETY: JSON parsing failed, so we return the raw text. The caller expects T but
+				// will receive a string — acceptable as a best-effort fallback for non-JSON responses.
 				return success(textContent as unknown as T);
 			}
 		} catch (error) {
@@ -478,6 +479,8 @@ export class McpClient {
 			: stepsOrRequest;
 
 		try {
+			// SAFETY: PipelineRequest is a plain object that serializes correctly as Record<string, unknown>
+			// for the MCP tool call wire format.
 			const result = await this.callTool('afd-pipe', request as unknown as Record<string, unknown>);
 
 			if (result.isError) {

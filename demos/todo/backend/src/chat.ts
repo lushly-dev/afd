@@ -433,7 +433,7 @@ function getCommandProperties(name: string): Record<string, Schema> {
 			return {
 				query: { type: Type.STRING, description: 'Search query' },
 			};
-		case 'todo-createBatch':
+		case 'todo-create-batch':
 			return {
 				items: {
 					type: Type.ARRAY,
@@ -447,8 +447,8 @@ function getCommandProperties(name: string): Record<string, Schema> {
 					},
 				},
 			};
-		case 'todo-toggleBatch':
-		case 'todo-deleteBatch':
+		case 'todo-toggle-batch':
+		case 'todo-delete-batch':
 			return {
 				ids: {
 					type: Type.ARRAY,

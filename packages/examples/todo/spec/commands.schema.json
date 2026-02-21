@@ -265,7 +265,7 @@
 				]
 			}
 		},
-		"todo.createBatch": {
+		"todo.create-batch": {
 			"input": {
 				"type": "object",
 				"properties": {
@@ -314,7 +314,7 @@
 				]
 			}
 		},
-		"todo.deleteBatch": {
+		"todo.delete-batch": {
 			"input": {
 				"type": "object",
 				"properties": {
@@ -352,7 +352,7 @@
 				]
 			}
 		},
-		"todo.toggleBatch": {
+		"todo.toggle-batch": {
 			"input": {
 				"type": "object",
 				"properties": {

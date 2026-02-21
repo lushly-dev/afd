@@ -257,7 +257,8 @@ export function zodToJsonSchema(schema: ZodType): JsonSchema {
 	if (typeof result === 'object' && result !== null) {
 		// Remove $schema if present
 		const { $schema, ...rest } = result as Record<string, unknown>;
-		// Ensure we have a valid JsonSchema with at least a type
+		// SAFETY: zod-to-json-schema returns a valid JSON Schema object; after removing $schema,
+		// the remaining properties conform to JsonSchema but TypeScript can't infer that from Record<string, unknown>.
 		const jsonSchema = rest as unknown as JsonSchema;
 		if (!jsonSchema.type) {
 			// Default to object if type is not present

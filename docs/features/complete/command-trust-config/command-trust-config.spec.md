@@ -595,7 +595,7 @@ const handleCancelledDestructiveAction = useCallback(async (commandName: string)
 ### Destructive Commands
 - [x] `todo-delete` command has `destructive: true`
 - [x] `todo-clear` command has `destructive: true`
-- [x] `todo-deleteBatch` command has `destructive: true`
+- [x] `todo-delete-batch` command has `destructive: true`
 - [x] `list-delete` command has `destructive: true`
 - [x] `note-delete` command has `destructive: true`
 - [x] `notefolder-delete` command has `destructive: true`

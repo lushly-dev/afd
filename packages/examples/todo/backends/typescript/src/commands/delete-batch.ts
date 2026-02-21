@@ -1,5 +1,5 @@
 /**
- * @fileoverview todo.deleteBatch command
+ * @fileoverview todo.delete-batch command
  *
  * Demonstrates AFD batch delete pattern with warnings for destructive operations.
  */
@@ -45,7 +45,7 @@ export interface BatchDeleteResult {
 }
 
 export const deleteBatch = defineCommand<typeof inputSchema, BatchDeleteResult>({
-	name: 'todo-deleteBatch',
+	name: 'todo-delete-batch',
 	description: 'Delete multiple todos at once',
 	category: 'todo',
 	tags: ['todo', 'delete', 'write', 'batch', 'destructive'],

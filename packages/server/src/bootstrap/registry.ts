@@ -22,6 +22,8 @@ export function getBootstrapCommands(
 		getJsonSchema?: (cmd: CommandDefinition) => Record<string, unknown>;
 	}
 ): CommandDefinition[] {
+	// SAFETY: Each creator returns CommandDefinition<SpecificInput, SpecificOutput>, which is structurally
+	// compatible with CommandDefinition but TypeScript's invariant generics require the double cast.
 	return [
 		createAfdHelpCommand(getCommands) as unknown as CommandDefinition,
 		createAfdDocsCommand(getCommands) as unknown as CommandDefinition,

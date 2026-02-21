@@ -265,9 +265,9 @@ const TODO_COMMANDS = [
 	'todo.delete',
 	'todo.clear',
 	'todo.stats',
-	'todo.createBatch',
-	'todo.deleteBatch',
-	'todo.toggleBatch',
+	'todo.create-batch',
+	'todo.delete-batch',
+	'todo.toggle-batch',
 ];
 
 const TODO_COMMAND_DESCRIPTIONS: Record<string, string> = {
@@ -279,9 +279,9 @@ const TODO_COMMAND_DESCRIPTIONS: Record<string, string> = {
 	'todo.delete': 'Delete a todo by ID',
 	'todo.clear': 'Clear all completed todos',
 	'todo.stats': 'Get statistics about todos',
-	'todo.createBatch': 'Create multiple todos at once',
-	'todo.deleteBatch': 'Delete multiple todos at once',
-	'todo.toggleBatch': 'Toggle multiple todos at once',
+	'todo.create-batch': 'Create multiple todos at once',
+	'todo.delete-batch': 'Delete multiple todos at once',
+	'todo.toggle-batch': 'Toggle multiple todos at once',
 };
 
 const TODO_COMMAND_SCHEMAS: Record<string, object> = {
@@ -334,7 +334,7 @@ const TODO_COMMAND_SCHEMAS: Record<string, object> = {
 	},
 	'todo.clear': { type: 'object' },
 	'todo.stats': { type: 'object' },
-	'todo.createBatch': {
+	'todo.create-batch': {
 		type: 'object',
 		properties: {
 			todos: {
@@ -352,12 +352,12 @@ const TODO_COMMAND_SCHEMAS: Record<string, object> = {
 		},
 		required: ['todos'],
 	},
-	'todo.deleteBatch': {
+	'todo.delete-batch': {
 		type: 'object',
 		properties: { ids: { type: 'array', items: { type: 'string' } } },
 		required: ['ids'],
 	},
-	'todo.toggleBatch': {
+	'todo.toggle-batch': {
 		type: 'object',
 		properties: {
 			ids: { type: 'array', items: { type: 'string' } },
@@ -405,7 +405,7 @@ const TODO_JOB_DESCRIPTIONS: Record<string, string> = {
 const TODO_JOB_COMMANDS: Record<string, string[]> = {
 	'manage-daily-tasks': ['todo.create', 'todo.update', 'todo.toggle', 'todo.delete'],
 	'track-progress': ['todo.stats', 'todo.list'],
-	'batch-operations': ['todo.createBatch', 'todo.deleteBatch', 'todo.toggleBatch', 'todo.clear'],
+	'batch-operations': ['todo.create-batch', 'todo.delete-batch', 'todo.toggle-batch', 'todo.clear'],
 	'prioritize-work': ['todo.list', 'todo.update'],
 };
 
@@ -426,7 +426,7 @@ function mapTodoFileToCommands(filePath: string): string[] {
 		'delete.ts': ['todo.delete'],
 		'clear.ts': ['todo.clear'],
 		'stats.ts': ['todo.stats'],
-		'batch.ts': ['todo.createBatch', 'todo.deleteBatch', 'todo.toggleBatch'],
+		'batch.ts': ['todo.create-batch', 'todo.delete-batch', 'todo.toggle-batch'],
 		'store.ts': TODO_COMMANDS,
 		'types.ts': TODO_COMMANDS,
 		'index.ts': TODO_COMMANDS,

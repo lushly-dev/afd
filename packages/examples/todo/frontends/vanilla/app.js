@@ -986,7 +986,7 @@ async function _deleteSelected() {
 
 	if (!confirmed) return;
 
-	const result = await callTool('todo-deleteBatch', {
+	const result = await callTool('todo-delete-batch', {
 		ids: Array.from(selectedIds),
 	});
 	if (result.success) {
@@ -998,7 +998,7 @@ async function _deleteSelected() {
 async function _toggleSelected() {
 	if (selectedIds.size === 0) return;
 
-	const result = await callTool('todo-toggleBatch', {
+	const result = await callTool('todo-toggle-batch', {
 		ids: Array.from(selectedIds),
 	});
 	if (result.success) {
