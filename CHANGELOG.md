@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3-beta] - 2026-02-20
+
+### Added
+
+- **Automated release pipeline with Changesets** — Replaces manual `publish.yml` workflow with Changesets-based versioning automation
+  - `@changesets/cli` and `@changesets/changelog-github` added as workspace devDependencies
+  - `.changeset/config.json` — Fixed versioning (all `@lushly-dev/*` packages share one version), public access, GitHub PR-linked changelogs
+  - `.github/workflows/release.yml` — On push to `main`: build, test, then create a version PR (if changesets exist) or publish to npm (if version PR was merged)
+  - `pnpm changeset` script — Shortcut for creating new changesets
+  - `pnpm run release` script — Build + publish with provenance (called by the GitHub Action)
+
+### Removed
+
+- `.github/workflows/publish.yml` — Replaced by `release.yml` with Changesets automation
+
+---
+
 ## [0.2.2-beta] - 2026-02-20
 
 ### Breaking Changes
