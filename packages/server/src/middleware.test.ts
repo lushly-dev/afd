@@ -2,9 +2,14 @@
  * @fileoverview Tests for telemetry middleware
  */
 
-import type { TelemetryEvent, TelemetrySink } from '@lushly-dev/afd-core';
+import type { CommandMiddleware, TelemetryEvent, TelemetrySink } from '@lushly-dev/afd-core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { ConsoleTelemetrySink, createTelemetryMiddleware } from './middleware.js';
+import {
+	ConsoleTelemetrySink,
+	createAutoTraceIdMiddleware,
+	createTelemetryMiddleware,
+	defaultMiddleware,
+} from './middleware.js';
 
 describe('createTelemetryMiddleware', () => {
 	let recordedEvents: TelemetryEvent[];
@@ -345,5 +350,172 @@ describe('ConsoleTelemetrySink', () => {
 		const sink = new ConsoleTelemetrySink();
 		// Should not throw
 		sink.flush();
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// createAutoTraceIdMiddleware Tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('createAutoTraceIdMiddleware', () => {
+	it('generates traceId when undefined', async () => {
+		const middleware = createAutoTraceIdMiddleware();
+		const context: Record<string, unknown> = {};
+
+		await middleware('test-cmd', {}, context, async () => ({
+			success: true,
+			data: {},
+		}));
+
+		expect(context.traceId).toBeDefined();
+		expect(typeof context.traceId).toBe('string');
+		expect((context.traceId as string).length).toBeGreaterThan(0);
+	});
+
+	it('preserves existing traceId', async () => {
+		const middleware = createAutoTraceIdMiddleware();
+		const context = { traceId: 'existing-trace-id' };
+
+		await middleware('test-cmd', {}, context, async () => ({
+			success: true,
+			data: {},
+		}));
+
+		expect(context.traceId).toBe('existing-trace-id');
+	});
+
+	it('generates traceId when empty string', async () => {
+		const middleware = createAutoTraceIdMiddleware();
+		const context = { traceId: '' };
+
+		await middleware('test-cmd', {}, context, async () => ({
+			success: true,
+			data: {},
+		}));
+
+		expect(context.traceId).not.toBe('');
+		expect((context.traceId as string).length).toBeGreaterThan(0);
+	});
+
+	it('uses custom generate function', async () => {
+		let counter = 0;
+		const middleware = createAutoTraceIdMiddleware({
+			generate: () => `custom-${++counter}`,
+		});
+
+		const context1: Record<string, unknown> = {};
+		const context2: Record<string, unknown> = {};
+
+		await middleware('cmd-1', {}, context1, async () => ({ success: true, data: {} }));
+		await middleware('cmd-2', {}, context2, async () => ({ success: true, data: {} }));
+
+		expect(context1.traceId).toBe('custom-1');
+		expect(context2.traceId).toBe('custom-2');
+	});
+
+	it('passes through next() result', async () => {
+		const middleware = createAutoTraceIdMiddleware();
+		const expectedResult = {
+			success: true as const,
+			data: { value: 42 },
+			confidence: 0.99,
+		};
+
+		const result = await middleware('test-cmd', {}, {}, async () => expectedResult);
+
+		expect(result).toBe(expectedResult);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// defaultMiddleware Tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('defaultMiddleware', () => {
+	it('returns 3 middleware by default', () => {
+		const stack = defaultMiddleware();
+		expect(stack).toHaveLength(3);
+		for (const mw of stack) {
+			expect(typeof mw).toBe('function');
+		}
+	});
+
+	it('returns empty array when all disabled', () => {
+		const stack = defaultMiddleware({
+			logging: false,
+			timing: false,
+			traceId: false,
+		});
+		expect(stack).toHaveLength(0);
+	});
+
+	it('disables logging individually', () => {
+		const stack = defaultMiddleware({ logging: false });
+		expect(stack).toHaveLength(2);
+	});
+
+	it('disables timing individually', () => {
+		const stack = defaultMiddleware({ timing: false });
+		expect(stack).toHaveLength(2);
+	});
+
+	it('disables traceId individually', () => {
+		const stack = defaultMiddleware({ traceId: false });
+		expect(stack).toHaveLength(2);
+	});
+
+	it('passes custom options through to factories', () => {
+		const logs: string[] = [];
+		const slowWarnings: Array<{ name: string; ms: number }> = [];
+
+		const stack = defaultMiddleware({
+			logging: { log: (msg) => logs.push(msg) },
+			timing: {
+				slowThreshold: 1,
+				onSlow: (name, ms) => slowWarnings.push({ name, ms }),
+			},
+			traceId: { generate: () => 'custom-trace' },
+		});
+
+		expect(stack).toHaveLength(3);
+	});
+
+	it('traceId is set before logging sees it', async () => {
+		const seenTraceIds: Array<string | undefined> = [];
+
+		// Custom logging that captures the traceId at log time
+		const loggingMiddleware: CommandMiddleware = async (_commandName, _input, context, next) => {
+			seenTraceIds.push(context.traceId as string | undefined);
+			return next();
+		};
+
+		// Build a stack where traceId middleware runs first
+		const stack = defaultMiddleware({
+			logging: false,
+			timing: false,
+		});
+		// stack = [autoTraceId]
+		// Add our custom logging after
+		stack.push(loggingMiddleware);
+
+		// Run the chain
+		const context: Record<string, unknown> = {};
+		let next: () => Promise<{ success: true; data: Record<string, never> }> = async () => ({
+			success: true as const,
+			data: {},
+		});
+		for (let i = stack.length - 1; i >= 0; i--) {
+			const mw = stack[i];
+			if (!mw) continue;
+			const currentNext = next;
+			next = () => mw('test-cmd', {}, context, currentNext);
+		}
+
+		await next();
+
+		// The logging middleware should have seen a traceId
+		expect(seenTraceIds).toHaveLength(1);
+		expect(seenTraceIds[0]).toBeDefined();
+		expect(typeof seenTraceIds[0]).toBe('string');
 	});
 });

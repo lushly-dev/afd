@@ -12,6 +12,7 @@ import type {
 	BatchResult,
 	BatchTiming,
 	CommandContext,
+	CommandMiddleware,
 	CommandResult,
 	PipelineContext,
 	PipelineMetadata,
@@ -155,15 +156,7 @@ export interface McpServerOptions {
 	groupByFn?: (command: ZodCommandDefinition) => string | undefined;
 }
 
-/**
- * Middleware function type.
- */
-export type CommandMiddleware = (
-	commandName: string,
-	input: unknown,
-	context: CommandContext,
-	next: () => Promise<CommandResult>
-) => Promise<CommandResult>;
+export type { CommandMiddleware } from '@lushly-dev/afd-core';
 
 /**
  * MCP Server instance.

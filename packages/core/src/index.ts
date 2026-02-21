@@ -37,6 +37,7 @@ export type {
 	CommandContext,
 	CommandDefinition,
 	CommandHandler,
+	CommandMiddleware,
 	CommandParameter,
 	CommandRegistry,
 	JsonSchema,

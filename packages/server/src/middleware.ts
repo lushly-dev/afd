@@ -7,12 +7,131 @@
 
 import type {
 	CommandContext,
+	CommandMiddleware,
 	CommandResult,
 	TelemetryEvent,
 	TelemetrySink,
 } from '@lushly-dev/afd-core';
 import { createTelemetryEvent } from '@lushly-dev/afd-core';
-import type { CommandMiddleware } from './server.js';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTO TRACE ID MIDDLEWARE
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Options for auto trace ID middleware.
+ */
+export interface TraceIdOptions {
+	/**
+	 * Function to generate trace IDs.
+	 * Default: () => crypto.randomUUID()
+	 */
+	generate?: () => string;
+}
+
+/**
+ * Create a middleware that auto-generates `context.traceId` when not present.
+ *
+ * Named "Auto" to distinguish from `createTracingMiddleware` which creates
+ * OpenTelemetry spans. This middleware only ensures a traceId exists in context
+ * so that the base handler can propagate it to `result.metadata.traceId`.
+ *
+ * Must be outermost middleware so that logging and timing see the generated traceId.
+ *
+ * @example
+ * ```typescript
+ * const server = createMcpServer({
+ *   middleware: [createAutoTraceIdMiddleware()],
+ * });
+ * ```
+ */
+export function createAutoTraceIdMiddleware(options: TraceIdOptions = {}): CommandMiddleware {
+	const { generate = () => crypto.randomUUID() } = options;
+
+	return async (_commandName, _input, context, next) => {
+		if (!context.traceId) {
+			context.traceId = generate();
+		}
+		return next();
+	};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// DEFAULT MIDDLEWARE FACTORY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Options for the default middleware bundle.
+ */
+export interface DefaultMiddlewareOptions {
+	/**
+	 * Logging options, or `false` to disable logging middleware entirely.
+	 * Default: enabled with default LoggingOptions.
+	 */
+	logging?: LoggingOptions | false;
+
+	/**
+	 * Timing (slow-command warning) options, or `false` to disable.
+	 * Default: enabled with 1000ms threshold.
+	 */
+	timing?: TimingOptions | false;
+
+	/**
+	 * Trace ID auto-generation options, or `false` to disable.
+	 * Default: enabled with crypto.randomUUID().
+	 */
+	traceId?: TraceIdOptions | false;
+}
+
+/**
+ * Returns a pre-configured array of middleware covering common
+ * observability needs: trace ID generation, structured logging,
+ * and slow-command warnings.
+ *
+ * Designed to complement — not duplicate — the base handler's
+ * built-in executionTimeMs, commandVersion, and traceId propagation.
+ *
+ * **Note:** The logging/timing middleware duration measures the full
+ * middleware + handler chain, which is broader than
+ * `result.metadata.executionTimeMs` (handler-only).
+ *
+ * @example Zero-config
+ * ```typescript
+ * const server = createMcpServer({
+ *   middleware: defaultMiddleware(),
+ * });
+ * ```
+ *
+ * @example Selective disable
+ * ```typescript
+ * defaultMiddleware({ timing: false, logging: false });
+ * // Returns [autoTraceIdMiddleware] only
+ * ```
+ */
+export function defaultMiddleware(options: DefaultMiddlewareOptions = {}): CommandMiddleware[] {
+	const stack: CommandMiddleware[] = [];
+
+	// 1. Trace ID (outermost — ensures ID exists for logging/timing)
+	if (options.traceId !== false) {
+		stack.push(
+			createAutoTraceIdMiddleware(options.traceId === undefined ? undefined : options.traceId)
+		);
+	}
+
+	// 2. Logging
+	if (options.logging !== false) {
+		stack.push(
+			createLoggingMiddleware(options.logging === undefined ? undefined : options.logging)
+		);
+	}
+
+	// 3. Timing (slow-command warnings)
+	if (options.timing !== false) {
+		stack.push(createTimingMiddleware(options.timing === undefined ? undefined : options.timing));
+	}
+
+	return stack;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LOGGING MIDDLEWARE

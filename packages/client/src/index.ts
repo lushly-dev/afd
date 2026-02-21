@@ -13,6 +13,7 @@
 
 // Re-export core types that are commonly used with client
 export type {
+	CommandMiddleware,
 	CommandResult,
 	McpRequest,
 	McpResponse,

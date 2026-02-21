@@ -4,7 +4,7 @@
  * These tests validate zero-overhead in-process command execution.
  */
 
-import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
 	type CommandDefinition,
@@ -729,5 +729,77 @@ describe('DirectClient Performance', () => {
 		console.log(`  DirectClient average: ${avgMs.toFixed(4)}ms`);
 		console.log(`  Typical MCP HTTP:     ~2-5ms (10-50x slower)`);
 		console.log(`  Typical MCP SSE:      ~5-10ms (25-100x slower)`);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DirectClient Middleware Tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('DirectClient middleware', () => {
+	let registry: MockRegistry;
+
+	beforeEach(() => {
+		registry = new MockRegistry();
+	});
+
+	it('executes middleware in correct order (onion pattern)', async () => {
+		const order: string[] = [];
+
+		const mw1: CommandMiddleware = async (_name, _input, _ctx, next) => {
+			order.push('mw1-before');
+			const result = await next();
+			order.push('mw1-after');
+			return result;
+		};
+
+		const mw2: CommandMiddleware = async (_name, _input, _ctx, next) => {
+			order.push('mw2-before');
+			const result = await next();
+			order.push('mw2-after');
+			return result;
+		};
+
+		const client = createDirectClient(registry, { middleware: [mw1, mw2] });
+		await client.call('todo-list', {});
+
+		expect(order).toEqual(['mw1-before', 'mw2-before', 'mw2-after', 'mw1-after']);
+	});
+
+	it('middleware can modify context', async () => {
+		const mw: CommandMiddleware = async (_name, _input, context, next) => {
+			context.traceId = 'middleware-trace';
+			return next();
+		};
+
+		const client = createDirectClient(registry, { middleware: [mw] });
+		await client.call('todo-list', {});
+
+		expect(registry.lastContext?.traceId).toBe('middleware-trace');
+	});
+
+	it('no middleware = zero-overhead path (existing behavior)', async () => {
+		const client = createDirectClient(registry);
+
+		const result = await client.call<{ items: unknown[]; total: number }>('todo-list', {});
+
+		expect(result.success).toBe(true);
+		expect(result.data?.total).toBe(0);
+	});
+
+	it('middleware applies to each call() invocation', async () => {
+		let callCount = 0;
+
+		const mw: CommandMiddleware = async (_name, _input, _ctx, next) => {
+			callCount++;
+			return next();
+		};
+
+		const client = createDirectClient(registry, { middleware: [mw] });
+		await client.call('todo-list', {});
+		await client.call('todo-list', {});
+		await client.call('todo-list', {});
+
+		expect(callCount).toBe(3);
 	});
 });

@@ -28,6 +28,7 @@
 
 import type {
 	CommandContext,
+	CommandMiddleware,
 	CommandResult,
 	HandoffResult,
 	McpRequest,
@@ -177,6 +178,13 @@ export interface DirectClientOptions {
 	 * Default: true
 	 */
 	validateInputs?: boolean;
+
+	/**
+	 * Middleware to run before command execution.
+	 * Executes in onion pattern (same as server middleware).
+	 * When empty or omitted, the zero-overhead path is preserved.
+	 */
+	middleware?: CommandMiddleware[];
 }
 
 /**
@@ -607,8 +615,9 @@ function generateTraceId(): string {
  * ```
  */
 export class DirectClient {
-	private readonly options: Required<Omit<DirectClientOptions, 'source'>> & {
+	private readonly options: Required<Omit<DirectClientOptions, 'source' | 'middleware'>> & {
 		source?: string;
+		middleware: CommandMiddleware[];
 	};
 
 	constructor(
@@ -619,6 +628,7 @@ export class DirectClient {
 			source: options.source,
 			debug: options.debug ?? false,
 			validateInputs: options.validateInputs ?? true,
+			middleware: options.middleware ?? [],
 		};
 	}
 
@@ -691,8 +701,24 @@ export class DirectClient {
 			commandContext.source = this.options.source;
 		}
 
-		// Execute the command
-		const result = await this.registry.execute<T>(name, args, commandContext);
+		// Execute the command (with middleware if configured)
+		let result: CommandResult<T>;
+
+		if (this.options.middleware.length > 0) {
+			// Build onion chain around registry.execute()
+			let next: () => Promise<CommandResult> = () =>
+				this.registry.execute<T>(name, args, commandContext);
+			for (let i = this.options.middleware.length - 1; i >= 0; i--) {
+				const mw = this.options.middleware[i];
+				if (!mw) continue;
+				const currentNext = next;
+				next = () => mw(name, args ?? {}, commandContext, currentNext);
+			}
+			result = (await next()) as CommandResult<T>;
+		} else {
+			// Zero-overhead path: no middleware
+			result = await this.registry.execute<T>(name, args, commandContext);
+		}
 
 		if (this.options.debug) {
 			const duration = performance.now() - startTime;

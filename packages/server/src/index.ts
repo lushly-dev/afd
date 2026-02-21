@@ -48,7 +48,9 @@
 
 // Re-export telemetry types from core for convenience
 // Re-export handoff types from core for convenience
+// Server factory
 export type {
+	CommandMiddleware,
 	HandoffCredentials,
 	HandoffMetadata,
 	HandoffProtocol,
@@ -93,18 +95,22 @@ export {
 	ConsoleTelemetrySink,
 	type ConsoleTelemetrySinkOptions,
 	composeMiddleware,
+	createAutoTraceIdMiddleware,
 	createLoggingMiddleware,
 	createRateLimitMiddleware,
 	createRetryMiddleware,
 	createTelemetryMiddleware,
 	createTimingMiddleware,
 	createTracingMiddleware,
+	type DefaultMiddlewareOptions,
+	defaultMiddleware,
 	type LoggingOptions,
 	type RateLimitOptions,
 	type RetryOptions,
 	type Span,
 	type TelemetryOptions,
 	type TimingOptions,
+	type TraceIdOptions,
 	type Tracer,
 	type TracingOptions,
 } from './middleware.js';
@@ -117,9 +123,7 @@ export {
 	type ZodCommandOptions,
 	zodToJsonSchema,
 } from './schema.js';
-// Server factory
 export {
-	type CommandMiddleware,
 	createMcpServer,
 	isStdinPiped,
 	type McpServer,

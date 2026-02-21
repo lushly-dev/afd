@@ -229,6 +229,20 @@ export interface CommandContext {
 }
 
 /**
+ * Middleware function type for intercepting command execution.
+ *
+ * Middleware wraps command execution in an onion pattern — each middleware
+ * calls `next()` to invoke the next layer, and can inspect/modify the
+ * result on the way back out.
+ */
+export type CommandMiddleware = (
+	commandName: string,
+	input: unknown,
+	context: CommandContext,
+	next: () => Promise<CommandResult>
+) => Promise<CommandResult>;
+
+/**
  * Registry for managing command definitions.
  */
 export interface CommandRegistry {
