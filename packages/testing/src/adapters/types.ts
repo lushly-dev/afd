@@ -164,7 +164,7 @@ export interface CommandsConfig {
 	getDescription?: (command: string) => string;
 
 	/**
-	 * Map file paths to related commands (for scenario.suggest).
+	 * Map file paths to related commands (for scenario-suggest).
 	 */
 	mapFileToCommands?: (filePath: string) => string[];
 }

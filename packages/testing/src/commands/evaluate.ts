@@ -1,5 +1,5 @@
 /**
- * @lushly-dev/afd-testing - scenario.evaluate command
+ * @lushly-dev/afd-testing - scenario-evaluate command
  *
  * Batch execution of scenarios with parallel support, fail-fast, and multiple output formats.
  */
@@ -22,7 +22,7 @@ import { scenarioList } from './list.js';
 // ============================================================================
 
 /**
- * Input for scenario.evaluate command.
+ * Input for scenario-evaluate command.
  */
 export interface ScenarioEvaluateInput {
 	/** Command handler for in-process execution */
@@ -63,7 +63,7 @@ export interface ScenarioEvaluateInput {
 }
 
 /**
- * Output for scenario.evaluate command.
+ * Output for scenario-evaluate command.
  */
 export interface ScenarioEvaluateOutput {
 	/** Test report */

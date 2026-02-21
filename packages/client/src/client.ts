@@ -331,9 +331,9 @@ export class McpClient {
 	 * @example
 	 * ```typescript
 	 * const result = await client.batch([
-	 *   { name: 'todo.create', input: { title: 'First' } },
-	 *   { name: 'todo.create', input: { title: 'Second' } },
-	 *   { name: 'todo.list', input: {} }
+	 *   { name: 'todo-create', input: { title: 'First' } },
+	 *   { name: 'todo-create', input: { title: 'Second' } },
+	 *   { name: 'todo-list', input: {} }
 	 * ], { stopOnError: false });
 	 *
 	 * console.log(`${result.summary.successCount}/${result.summary.total} succeeded`);

@@ -3,7 +3,14 @@
  */
 
 import { StatusType } from './css-variables.js';
-import type { PackageResults, RenderOptions } from './types.js';
+import type {
+	CommandErrorInput,
+	CommandResultInput,
+	PackageResults,
+	PipelineStepInput,
+	RenderOptions,
+	WarningInput,
+} from './types.js';
 import { escapeHtml, styledSpan } from './utils.js';
 
 /**
@@ -121,5 +128,152 @@ export const WebAdapter = {
 
 		// Fallback to JSON display
 		return `<pre>${escapeHtml(JSON.stringify(result.data, null, 2))}</pre>`;
+	},
+
+	/**
+	 * Render a CommandError with code, message, and optional suggestion.
+	 */
+	renderCommandError(error: CommandErrorInput): string {
+		const lines: string[] = [];
+
+		lines.push(styledSpan(`[${error.code}] ${error.message}`, StatusType.FAILURE, true));
+
+		if (error.suggestion) {
+			lines.push(styledSpan(`Suggestion: ${error.suggestion}`, StatusType.INFO));
+		}
+
+		if (error.details) {
+			lines.push(styledSpan(`Details: ${JSON.stringify(error.details)}`, StatusType.MUTED));
+		}
+
+		return `<pre>${lines.join('<br>')}</pre>`;
+	},
+
+	/**
+	 * Render a confidence indicator (0-1 scale).
+	 */
+	renderConfidence(confidence: number, reasoning?: string): string {
+		const pct = Math.round(confidence * 100);
+		const barWidth = 20;
+		const filled = Math.round(confidence * barWidth);
+		const bar = '\u2588'.repeat(filled) + '\u2591'.repeat(barWidth - filled);
+
+		let status: (typeof StatusType)[keyof typeof StatusType];
+		if (confidence >= 0.8) {
+			status = StatusType.SUCCESS;
+		} else if (confidence >= 0.5) {
+			status = StatusType.WARNING;
+		} else {
+			status = StatusType.FAILURE;
+		}
+
+		const lines: string[] = [];
+		lines.push(`${styledSpan(`Confidence: ${pct}%`, status, true)} ${styledSpan(bar, status)}`);
+
+		if (reasoning) {
+			lines.push(styledSpan(reasoning, StatusType.MUTED));
+		}
+
+		return `<pre>${lines.join('<br>')}</pre>`;
+	},
+
+	/**
+	 * Render a list of warnings.
+	 */
+	renderWarnings(warnings: WarningInput[]): string {
+		if (warnings.length === 0) return '';
+
+		const lines: string[] = [];
+		lines.push(styledSpan(`${warnings.length} warning(s):`, StatusType.WARNING, true));
+
+		for (const warning of warnings) {
+			const prefix = warning.code ? `[${warning.code}] ` : '';
+			lines.push(styledSpan(`  \u26A0 ${prefix}${warning.message}`, StatusType.WARNING));
+		}
+
+		return `<pre>${lines.join('<br>')}</pre>`;
+	},
+
+	/**
+	 * Render pipeline step progress.
+	 */
+	renderPipelineSteps(steps: PipelineStepInput[]): string {
+		if (steps.length === 0) return '<pre>No pipeline steps</pre>';
+
+		const lines: string[] = [];
+		const succeeded = steps.filter((s) => s.status === 'success').length;
+		const failed = steps.filter((s) => s.status === 'failure').length;
+		const skipped = steps.filter((s) => s.status === 'skipped').length;
+
+		lines.push(styledSpan(`Pipeline: ${steps.length} steps`, StatusType.NEUTRAL, true));
+		lines.push('');
+
+		for (const step of steps) {
+			let icon: string;
+			let status: (typeof StatusType)[keyof typeof StatusType];
+
+			if (step.status === 'success') {
+				icon = '\u2713';
+				status = StatusType.SUCCESS;
+			} else if (step.status === 'failure') {
+				icon = '\u2717';
+				status = StatusType.FAILURE;
+			} else {
+				icon = '\u2014';
+				status = StatusType.MUTED;
+			}
+
+			const alias = step.alias ? ` (${step.alias})` : '';
+			const time =
+				step.executionTimeMs !== undefined ? ` ${step.executionTimeMs.toFixed(1)}ms` : '';
+			lines.push(styledSpan(`  ${icon} ${step.command}${alias}${time}`, status));
+
+			if (step.status === 'failure' && step.error) {
+				lines.push(styledSpan(`    ${step.error.message ?? 'Unknown error'}`, StatusType.FAILURE));
+			}
+		}
+
+		lines.push('');
+		const summaryParts: string[] = [];
+		if (succeeded > 0) summaryParts.push(styledSpan(`${succeeded} passed`, StatusType.SUCCESS));
+		if (failed > 0) summaryParts.push(styledSpan(`${failed} failed`, StatusType.FAILURE));
+		if (skipped > 0) summaryParts.push(styledSpan(`${skipped} skipped`, StatusType.MUTED));
+		lines.push(summaryParts.join(', '));
+
+		return `<pre>${lines.join('<br>')}</pre>`;
+	},
+
+	/**
+	 * Render a full CommandResult with all metadata sections.
+	 */
+	renderCommandResult(result: CommandResultInput): string {
+		const sections: string[] = [];
+
+		// Error section
+		if (!result.success && result.error) {
+			sections.push(this.renderCommandError(result.error));
+		}
+
+		// Success data
+		if (result.success && result.data !== undefined) {
+			const data = result.data as PackageResults | undefined;
+			if (data?.packages && Array.isArray(data.packages)) {
+				sections.push(this.renderPackageResults(data));
+			} else {
+				sections.push(`<pre>${escapeHtml(JSON.stringify(result.data, null, 2))}</pre>`);
+			}
+		}
+
+		// Confidence
+		if (result.confidence !== undefined) {
+			sections.push(this.renderConfidence(result.confidence, result.reasoning));
+		}
+
+		// Warnings
+		if (result.warnings && result.warnings.length > 0) {
+			sections.push(this.renderWarnings(result.warnings));
+		}
+
+		return sections.join('\n');
 	},
 };

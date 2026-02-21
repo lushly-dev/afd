@@ -803,3 +803,190 @@ describe('DirectClient middleware', () => {
 		expect(callCount).toBe(3);
 	});
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Pipeline Tests
+// ═══════════════════════════════════════════════════════════════════════════
+
+describe('DirectClient pipeline', () => {
+	let registry: MockRegistry;
+	let client: DirectClient;
+
+	beforeEach(() => {
+		registry = new MockRegistry();
+		client = new DirectClient(registry);
+	});
+
+	it('executes a simple two-step pipeline', async () => {
+		const result = await client.pipe([
+			{ command: 'todo-create', input: { title: 'Pipeline Todo' } },
+			{ command: 'todo-list', input: {} },
+		]);
+
+		expect(result.steps).toHaveLength(2);
+		expect(result.steps[0]?.status).toBe('success');
+		expect(result.steps[1]?.status).toBe('success');
+		expect(result.data).toBeDefined();
+	});
+
+	it('resolves $prev variable between steps', async () => {
+		const result = await client.pipe([
+			{ command: 'todo-create', input: { title: 'First' }, as: 'created' },
+			{ command: 'todo-get', input: { id: '$prev.id' } },
+		]);
+
+		expect(result.steps).toHaveLength(2);
+		expect(result.steps[0]?.status).toBe('success');
+		expect(result.steps[1]?.status).toBe('success');
+		// The second step should have retrieved the todo created in step 1
+		const getData = result.data as { id: string; title: string };
+		expect(getData.title).toBe('First');
+	});
+
+	it('resolves $steps alias variable', async () => {
+		const result = await client.pipe([
+			{ command: 'todo-create', input: { title: 'Aliased' }, as: 'created' },
+			{ command: 'todo-create', input: { title: 'Second' } },
+			{ command: 'todo-get', input: { id: '$steps.created.id' } },
+		]);
+
+		expect(result.steps).toHaveLength(3);
+		expect(result.steps[2]?.status).toBe('success');
+		const getData = result.data as { id: string; title: string };
+		expect(getData.title).toBe('Aliased');
+	});
+
+	it('stops on failure by default', async () => {
+		const result = await client.pipe([
+			{ command: 'todo-get', input: { id: 'non-existent' } },
+			{ command: 'todo-list', input: {} },
+		]);
+
+		expect(result.steps).toHaveLength(2);
+		expect(result.steps[0]?.status).toBe('failure');
+		expect(result.steps[1]?.status).toBe('skipped');
+	});
+
+	it('continues on failure when continueOnFailure is true', async () => {
+		const result = await client.pipe({
+			steps: [
+				{ command: 'todo-get', input: { id: 'non-existent' } },
+				{ command: 'todo-create', input: { title: 'After failure' } },
+			],
+			options: { continueOnFailure: true },
+		});
+
+		expect(result.steps).toHaveLength(2);
+		expect(result.steps[0]?.status).toBe('failure');
+		expect(result.steps[1]?.status).toBe('success');
+	});
+
+	it('skips steps when condition is not met', async () => {
+		const result = await client.pipe([
+			{ command: 'todo-create', input: { title: 'Test' }, as: 'todo' },
+			{
+				command: 'todo-delete',
+				input: { id: '$steps.todo.id' },
+				when: { $eq: ['$steps.todo.completed', true] },
+			},
+		]);
+
+		expect(result.steps).toHaveLength(2);
+		expect(result.steps[0]?.status).toBe('success');
+		// Todo is not completed (false), so delete should be skipped
+		expect(result.steps[1]?.status).toBe('skipped');
+	});
+
+	it('executes steps when condition is met', async () => {
+		// Create and toggle to complete
+		const result = await client.pipe([
+			{ command: 'todo-create', input: { title: 'Test' }, as: 'created' },
+			{ command: 'todo-toggle', input: { id: '$steps.created.id' }, as: 'toggled' },
+			{
+				command: 'todo-delete',
+				input: { id: '$steps.created.id' },
+				when: { $eq: ['$steps.toggled.completed', true] },
+			},
+		]);
+
+		expect(result.steps).toHaveLength(3);
+		expect(result.steps[2]?.status).toBe('success');
+	});
+
+	it('respects pipeline timeout', async () => {
+		// Create a slow registry that delays
+		const slowRegistry: DirectRegistry = {
+			execute: async <T>(_name: string): Promise<CommandResult<T>> => {
+				await new Promise((resolve) => setTimeout(resolve, 50));
+				return { success: true, data: {} as T };
+			},
+			listCommandNames: () => ['slow-cmd'],
+			listCommands: () => [{ name: 'slow-cmd', description: 'Slow' }],
+			hasCommand: () => true,
+		};
+
+		const slowClient = new DirectClient(slowRegistry);
+
+		const result = await slowClient.pipe({
+			steps: [
+				{ command: 'slow-cmd', input: {} },
+				{ command: 'slow-cmd', input: {} },
+				{ command: 'slow-cmd', input: {} },
+			],
+			options: { timeoutMs: 80 },
+		});
+
+		// At least the first step should succeed, but not all three
+		const successSteps = result.steps.filter((s) => s.status === 'success');
+		const skippedSteps = result.steps.filter((s) => s.status === 'skipped');
+
+		expect(successSteps.length).toBeGreaterThan(0);
+		expect(skippedSteps.length).toBeGreaterThan(0);
+	});
+
+	it('aggregates pipeline metadata', async () => {
+		const result = await client.pipe([
+			{ command: 'todo-create', input: { title: 'First' } },
+			{ command: 'todo-create', input: { title: 'Second' } },
+			{ command: 'todo-list', input: {} },
+		]);
+
+		expect(result.metadata).toBeDefined();
+		expect(result.metadata.completedSteps).toBe(3);
+		expect(result.metadata.totalSteps).toBe(3);
+		expect(result.metadata.executionTimeMs).toBeGreaterThan(0);
+	});
+
+	it('handles concurrent pipeline calls', async () => {
+		const [result1, result2] = await Promise.all([
+			client.pipe([
+				{ command: 'todo-create', input: { title: 'Pipeline A' } },
+				{ command: 'todo-list', input: {} },
+			]),
+			client.pipe([
+				{ command: 'todo-create', input: { title: 'Pipeline B' } },
+				{ command: 'todo-list', input: {} },
+			]),
+		]);
+
+		expect(result1.steps).toHaveLength(2);
+		expect(result2.steps).toHaveLength(2);
+		expect(result1.steps[0]?.status).toBe('success');
+		expect(result2.steps[0]?.status).toBe('success');
+	});
+
+	it('returns empty pipeline result for no steps', async () => {
+		const result = await client.pipe([]);
+
+		expect(result.steps).toHaveLength(0);
+		expect(result.metadata.completedSteps).toBe(0);
+		expect(result.metadata.totalSteps).toBe(0);
+	});
+
+	it('propagates traceId to pipeline steps', async () => {
+		await client.pipe([{ command: 'todo-list', input: {} }], { traceId: 'pipeline-trace-123' });
+
+		// The trace ID should have been propagated with step suffix
+		expect(registry.lastContext?.traceId).toBe('pipeline-trace-123-step-0');
+	});
+});

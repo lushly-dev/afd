@@ -294,7 +294,7 @@ describe('HandoffResultSchema', () => {
 describe('defineCommand with handoff', () => {
 	it('creates command with handoff: true', () => {
 		const cmd = defineCommand({
-			name: 'chat.connect',
+			name: 'chat-connect',
 			description: 'Connect to chat room',
 			input: z.object({ roomId: z.string() }),
 			handoff: true,
@@ -309,7 +309,7 @@ describe('defineCommand with handoff', () => {
 
 	it('creates command with handoff and protocol', () => {
 		const cmd = defineCommand({
-			name: 'chat.connect',
+			name: 'chat-connect',
 			description: 'Connect to chat room',
 			input: z.object({ roomId: z.string() }),
 			handoff: true,
@@ -327,7 +327,7 @@ describe('defineCommand with handoff', () => {
 
 	it('preserves existing tags when adding handoff tags', () => {
 		const cmd = defineCommand({
-			name: 'chat.connect',
+			name: 'chat-connect',
 			description: 'Connect to chat room',
 			input: z.object({ roomId: z.string() }),
 			tags: ['realtime', 'streaming'],
@@ -346,7 +346,7 @@ describe('defineCommand with handoff', () => {
 
 	it('does not add handoff tags when handoff is false', () => {
 		const cmd = defineCommand({
-			name: 'chat.list',
+			name: 'chat-list',
 			description: 'List chat rooms',
 			input: z.object({}),
 			handoff: false,
@@ -361,7 +361,7 @@ describe('defineCommand with handoff', () => {
 
 	it('does not add handoff tags when handoff is undefined', () => {
 		const cmd = defineCommand({
-			name: 'chat.list',
+			name: 'chat-list',
 			description: 'List chat rooms',
 			input: z.object({}),
 			tags: ['list'],
@@ -379,7 +379,7 @@ describe('defineCommand with handoff', () => {
 
 		for (const protocol of protocols) {
 			const cmd = defineCommand({
-				name: `stream.${protocol}`,
+				name: `stream-${protocol}`,
 				description: `Connect via ${protocol}`,
 				input: z.object({}),
 				handoff: true,
@@ -396,7 +396,7 @@ describe('defineCommand with handoff', () => {
 
 	it('supports custom protocols', () => {
 		const cmd = defineCommand({
-			name: 'stream.custom',
+			name: 'stream-custom',
 			description: 'Connect via custom protocol',
 			input: z.object({}),
 			handoff: true,
@@ -415,7 +415,7 @@ describe('defineCommand with handoff', () => {
 
 	it('includes handoff properties in toCommandDefinition()', () => {
 		const cmd = defineCommand({
-			name: 'chat.connect',
+			name: 'chat-connect',
 			description: 'Connect to chat room',
 			input: z.object({ roomId: z.string() }),
 			handoff: true,
@@ -435,7 +435,7 @@ describe('defineCommand with handoff', () => {
 
 	it('does not duplicate handoff tag if already present', () => {
 		const cmd = defineCommand({
-			name: 'chat.connect',
+			name: 'chat-connect',
 			description: 'Connect to chat room',
 			input: z.object({}),
 			tags: ['handoff'], // Already has handoff tag

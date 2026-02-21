@@ -54,7 +54,7 @@ export interface RegisteredTool<TInput = unknown, TOutput = unknown> {
  * Options for tool execution.
  */
 export interface ToolExecutionContext {
-	/** Command handler for scenario.evaluate */
+	/** Command handler for scenario-evaluate */
 	commandHandler?: (name: string, input: unknown) => Promise<CommandResult<unknown>>;
 
 	/** Working directory for file operations */
@@ -71,7 +71,7 @@ export interface ToolExecutionContext {
 export function generateTools(): McpTool[] {
 	return [
 		{
-			name: 'scenario.list',
+			name: 'scenario-list',
 			description:
 				'List JTBD (Jobs-to-be-Done) scenario files. Returns scenario names, jobs, tags, and metadata. Use to discover available test scenarios before running them.',
 			inputSchema: {
@@ -99,7 +99,7 @@ export function generateTools(): McpTool[] {
 			},
 		},
 		{
-			name: 'scenario.evaluate',
+			name: 'scenario-evaluate',
 			description:
 				'Execute JTBD scenarios and return detailed test results. Runs scenarios against a command handler, supports parallel execution, and outputs in multiple formats (json, junit, markdown).',
 			inputSchema: {
@@ -150,7 +150,7 @@ export function generateTools(): McpTool[] {
 			},
 		},
 		{
-			name: 'scenario.coverage',
+			name: 'scenario-coverage',
 			description:
 				'Analyze test coverage of JTBD scenarios against known commands. Shows which commands are tested, untested, and calculates coverage percentage.',
 			inputSchema: {
@@ -180,7 +180,7 @@ export function generateTools(): McpTool[] {
 			},
 		},
 		{
-			name: 'scenario.create',
+			name: 'scenario-create',
 			description:
 				'Generate a new JTBD scenario file from a template. Creates properly structured YAML with job definition, setup, and steps.',
 			inputSchema: {
@@ -219,7 +219,7 @@ export function generateTools(): McpTool[] {
 			},
 		},
 		{
-			name: 'scenario.suggest',
+			name: 'scenario-suggest',
 			description:
 				'Get AI-powered scenario suggestions based on context. Supports multiple strategies: changed-files (suggest based on modified code), uncovered (suggest for untested commands), failed (suggest based on recent failures), command (suggest for a specific command), natural (natural language query).',
 			inputSchema: {
@@ -300,22 +300,22 @@ export function createToolRegistry(
 	const registry = new Map<string, RegisteredTool>();
 	const tools = generateTools();
 
-	// scenario.list
-	const listTool = tools.find((t) => t.name === 'scenario.list');
-	if (!listTool) throw new Error('Expected scenario.list tool');
-	registry.set('scenario.list', {
+	// scenario-list
+	const listTool = tools.find((t) => t.name === 'scenario-list');
+	if (!listTool) throw new Error('Expected scenario-list tool');
+	registry.set('scenario-list', {
 		tool: listTool,
 		handler: async (input: unknown) => {
 			const parsed = validateInput<ScenarioListInput>(input);
 			const result = await scenarioList(parsed);
-			return enhanceWithAgentHints('scenario.list', result);
+			return enhanceWithAgentHints('scenario-list', result);
 		},
 	});
 
-	// scenario.evaluate
-	const evaluateTool = tools.find((t) => t.name === 'scenario.evaluate');
-	if (!evaluateTool) throw new Error('Expected scenario.evaluate tool');
-	registry.set('scenario.evaluate', {
+	// scenario-evaluate
+	const evaluateTool = tools.find((t) => t.name === 'scenario-evaluate');
+	if (!evaluateTool) throw new Error('Expected scenario-evaluate tool');
+	registry.set('scenario-evaluate', {
 		tool: evaluateTool,
 		handler: async (input: unknown) => {
 			const parsed = validateInput<ScenarioEvaluateInput>(input);
@@ -330,50 +330,50 @@ export function createToolRegistry(
 						suggestion: 'Provide a commandHandler in the MCP server context',
 					},
 				};
-				return enhanceWithAgentHints('scenario.evaluate', errorResult);
+				return enhanceWithAgentHints('scenario-evaluate', errorResult);
 			}
 
 			const result = await scenarioEvaluate({
 				...parsed,
 				handler: context.commandHandler,
 			});
-			return enhanceWithAgentHints('scenario.evaluate', result);
+			return enhanceWithAgentHints('scenario-evaluate', result);
 		},
 	});
 
-	// scenario.coverage
-	const coverageTool = tools.find((t) => t.name === 'scenario.coverage');
-	if (!coverageTool) throw new Error('Expected scenario.coverage tool');
-	registry.set('scenario.coverage', {
+	// scenario-coverage
+	const coverageTool = tools.find((t) => t.name === 'scenario-coverage');
+	if (!coverageTool) throw new Error('Expected scenario-coverage tool');
+	registry.set('scenario-coverage', {
 		tool: coverageTool,
 		handler: async (input: unknown) => {
 			const parsed = validateInput<ScenarioCoverageInput>(input, ['knownCommands']);
 			const result = await scenarioCoverage(parsed);
-			return enhanceWithAgentHints('scenario.coverage', result);
+			return enhanceWithAgentHints('scenario-coverage', result);
 		},
 	});
 
-	// scenario.create
-	const createTool = tools.find((t) => t.name === 'scenario.create');
-	if (!createTool) throw new Error('Expected scenario.create tool');
-	registry.set('scenario.create', {
+	// scenario-create
+	const createTool = tools.find((t) => t.name === 'scenario-create');
+	if (!createTool) throw new Error('Expected scenario-create tool');
+	registry.set('scenario-create', {
 		tool: createTool,
 		handler: async (input: unknown) => {
 			const parsed = validateInput<ScenarioCreateInput>(input, ['name', 'job']);
 			const result = await scenarioCreate(parsed);
-			return enhanceWithAgentHints('scenario.create', result);
+			return enhanceWithAgentHints('scenario-create', result);
 		},
 	});
 
-	// scenario.suggest
-	const suggestTool = tools.find((t) => t.name === 'scenario.suggest');
-	if (!suggestTool) throw new Error('Expected scenario.suggest tool');
-	registry.set('scenario.suggest', {
+	// scenario-suggest
+	const suggestTool = tools.find((t) => t.name === 'scenario-suggest');
+	if (!suggestTool) throw new Error('Expected scenario-suggest tool');
+	registry.set('scenario-suggest', {
 		tool: suggestTool,
 		handler: async (input: unknown) => {
 			const parsed = validateInput<ScenarioSuggestInput>(input, ['context']);
 			const result = await scenarioSuggest(parsed);
-			return enhanceWithAgentHints('scenario.suggest', result);
+			return enhanceWithAgentHints('scenario-suggest', result);
 		},
 	});
 

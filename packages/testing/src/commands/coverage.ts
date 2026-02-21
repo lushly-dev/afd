@@ -1,5 +1,5 @@
 /**
- * @lushly-dev/afd-testing - scenario.coverage command
+ * @lushly-dev/afd-testing - scenario-coverage command
  *
  * Generate coverage metrics for scenarios across multiple dimensions:
  * - Commands: Which commands are being tested
@@ -17,7 +17,7 @@ import { scenarioList } from './list.js';
 // ============================================================================
 
 /**
- * Input for scenario.coverage command.
+ * Input for scenario-coverage command.
  */
 export interface ScenarioCoverageInput {
 	/** Base directory for scenarios */
@@ -137,7 +137,7 @@ export interface CoverageSummary {
 }
 
 /**
- * Output for scenario.coverage command.
+ * Output for scenario-coverage command.
  */
 export interface ScenarioCoverageOutput {
 	/** Overall summary */

@@ -15,7 +15,7 @@ import { createMcpServer, isStdinPiped, type McpServer } from './server.js';
 
 // Simple test command
 const testCommand = defineCommand({
-	name: 'test.echo',
+	name: 'test-echo',
 	description: 'Echo the input',
 	category: 'test',
 	version: '1.0.0',
@@ -168,7 +168,7 @@ describe('HTTP transport server', () => {
 
 		await server.start();
 
-		const result = await server.execute('test.echo', { message: 'hello' });
+		const result = await server.execute('test-echo', { message: 'hello' });
 		expect(result.success).toBe(true);
 		expect(result.data).toEqual({ echo: 'hello' });
 	});
@@ -208,7 +208,7 @@ describe('Stdio transport server', () => {
 
 		await server.start();
 
-		const result = await server.execute('test.echo', { message: 'test' });
+		const result = await server.execute('test-echo', { message: 'test' });
 		expect(result.success).toBe(true);
 		expect(result.data).toEqual({ echo: 'test' });
 	});

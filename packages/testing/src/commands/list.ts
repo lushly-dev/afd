@@ -1,5 +1,5 @@
 /**
- * @lushly-dev/afd-testing - scenario.list command
+ * @lushly-dev/afd-testing - scenario-list command
  *
  * Lists available scenarios with filtering by job, tags, and status.
  */
@@ -15,7 +15,7 @@ import type { Scenario } from '../types/scenario.js';
 // ============================================================================
 
 /**
- * Input for scenario.list command.
+ * Input for scenario-list command.
  */
 export interface ScenarioListInput {
 	/** Base directory to search for scenarios (default: current directory) */
@@ -79,7 +79,7 @@ export interface ScenarioSummary {
 }
 
 /**
- * Output for scenario.list command.
+ * Output for scenario-list command.
  */
 export interface ScenarioListOutput {
 	/** Total count of matching scenarios */

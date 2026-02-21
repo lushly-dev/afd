@@ -120,8 +120,8 @@ describe('MCP Server', () => {
 
 		expect(tools).toBeInstanceOf(Array);
 		expect(tools.length).toBe(5); // list, evaluate, coverage, create, suggest
-		expect(tools.map((t) => t.name)).toContain('scenario.list');
-		expect(tools.map((t) => t.name)).toContain('scenario.suggest');
+		expect(tools.map((t) => t.name)).toContain('scenario-list');
+		expect(tools.map((t) => t.name)).toContain('scenario-suggest');
 	});
 });
 
@@ -136,11 +136,11 @@ describe('MCP Tools', () => {
 
 			expect(tools).toHaveLength(5);
 			expect(tools.map((t) => t.name)).toEqual([
-				'scenario.list',
-				'scenario.evaluate',
-				'scenario.coverage',
-				'scenario.create',
-				'scenario.suggest',
+				'scenario-list',
+				'scenario-evaluate',
+				'scenario-coverage',
+				'scenario-create',
+				'scenario-suggest',
 			]);
 		});
 
@@ -157,10 +157,10 @@ describe('MCP Tools', () => {
 
 	describe('getTool', () => {
 		it('should return tool by name', () => {
-			const tool = getTool('scenario.list');
+			const tool = getTool('scenario-list');
 
 			expect(tool).toBeDefined();
-			expect(tool?.name).toBe('scenario.list');
+			expect(tool?.name).toBe('scenario-list');
 		});
 
 		it('should return undefined for unknown tool', () => {
@@ -175,8 +175,8 @@ describe('MCP Tools', () => {
 			const registry = createToolRegistry();
 
 			expect(registry.size).toBe(5);
-			expect(registry.has('scenario.list')).toBe(true);
-			expect(registry.has('scenario.suggest')).toBe(true);
+			expect(registry.has('scenario-list')).toBe(true);
+			expect(registry.has('scenario-suggest')).toBe(true);
 		});
 	});
 
@@ -232,9 +232,9 @@ describe('Agent Hints', () => {
 
 		it('should include related commands for scenario commands', () => {
 			const result = success({ scenarios: [] });
-			const hints = generateAgentHints('scenario.list', result);
+			const hints = generateAgentHints('scenario-list', result);
 
-			expect(hints.relatedCommands).toContain('scenario.evaluate');
+			expect(hints.relatedCommands).toContain('scenario-evaluate');
 		});
 	});
 
@@ -345,10 +345,10 @@ describe('Agent Hints', () => {
 });
 
 // ============================================================================
-// scenario.suggest Tests
+// scenario-suggest Tests
 // ============================================================================
 
-describe('scenario.suggest', () => {
+describe('scenario-suggest', () => {
 	describe('context: command', () => {
 		it('should suggest scenarios for a specific command', async () => {
 			const result = await scenarioSuggest({

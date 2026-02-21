@@ -42,7 +42,7 @@ export type {
 	CommandRegistry,
 	JsonSchema,
 } from './commands.js';
-export { commandToMcpTool, createCommandRegistry } from './commands.js';
+export { commandToMcpTool, createCommandRegistry, validateCommandName } from './commands.js';
 export type {
 	GitHubConnectorOptions,
 	Issue,

@@ -29,6 +29,7 @@
 		"zod-to-json-schema": "^3.23.5"
 	},
 	"devDependencies": {
+		"@lushly-dev/afd-client": "workspace:*",
 		"typescript": "^5.4.0",
 		"vitest": "^1.6.0"
 	},

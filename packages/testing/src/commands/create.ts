@@ -1,5 +1,5 @@
 /**
- * @lushly-dev/afd-testing - scenario.create command
+ * @lushly-dev/afd-testing - scenario-create command
  *
  * Create new scenario files from templates or scratch.
  */
@@ -15,7 +15,7 @@ import type { Expectation, FixtureConfig, Scenario, Step } from '../types/scenar
 // ============================================================================
 
 /**
- * Input for scenario.create command.
+ * Input for scenario-create command.
  */
 export interface ScenarioCreateInput {
 	/** Scenario name */
@@ -73,7 +73,7 @@ export interface ScenarioStepInput {
 }
 
 /**
- * Output for scenario.create command.
+ * Output for scenario-create command.
  */
 export interface ScenarioCreateOutput {
 	/** Path to created scenario file */

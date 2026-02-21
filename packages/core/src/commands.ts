@@ -12,6 +12,39 @@ import type {
 	BatchResult,
 	BatchTiming,
 } from './batch.js';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// COMMAND NAME VALIDATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Regex for valid command names: `domain-action` format.
+ * At least two segments, all lowercase, separated by hyphens.
+ *
+ * Valid: `todo-create`, `user-get`, `todo-create-batch`
+ * Invalid: `todoCreate`, `TODO-CREATE`, `create`, `todo_create`
+ */
+const COMMAND_NAME_PATTERN = /^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$/;
+
+/**
+ * Validate that a command name follows the `domain-action` kebab-case convention.
+ *
+ * @param name - The command name to validate
+ * @returns An object with `valid` and optional `reason` if invalid
+ */
+export function validateCommandName(name: string): { valid: boolean; reason?: string } {
+	if (!name) {
+		return { valid: false, reason: 'Command name must not be empty' };
+	}
+	if (!COMMAND_NAME_PATTERN.test(name)) {
+		return {
+			valid: false,
+			reason: `Command name '${name}' must use kebab-case with at least two segments (e.g., 'domain-action'). Got '${name}'.`,
+		};
+	}
+	return { valid: true };
+}
+
 import { createBatchResult, createFailedBatchResult } from './batch.js';
 import type { CommandResult } from './result.js';
 import type { StreamChunk, StreamOptions } from './streaming.js';
@@ -95,7 +128,7 @@ export interface CommandParameter {
  * @example
  * ```typescript
  * const createDocument: CommandDefinition<CreateDocInput, Document> = {
- *   name: 'document.create',
+ *   name: 'document-create',
  *   description: 'Creates a new document',
  *   category: 'documents',
  *   parameters: [
@@ -115,9 +148,9 @@ export interface CommandParameter {
  */
 export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	/**
-	 * Unique command name using dot notation.
+	 * Unique command name using kebab-case.
 	 *
-	 * Convention: `category.action` (e.g., 'document.create', 'user.update')
+	 * Convention: `domain-action` (e.g., 'todo-create', 'user-get', 'todo-create-batch')
 	 */
 	name: string;
 

@@ -1059,7 +1059,7 @@ export class DirectClient {
  * import { registry } from './commands';
  *
  * const client = createDirectClient(registry);
- * const result = await client.call('plant.get', { id: 'tomato-123' });
+ * const result = await client.call('plant-get', { id: 'tomato-123' });
  * // ~0.03-0.1ms latency vs ~2-10ms for MCP
  * ```
  *

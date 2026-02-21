@@ -74,7 +74,7 @@ export const HandoffMetadataSchema = z.object({
  * import { defineCommand } from '@lushly-dev/afd-server';
  *
  * const connectChat = defineCommand({
- *   name: 'chat.connect',
+ *   name: 'chat-connect',
  *   description: 'Connect to a chat room',
  *   handoff: true,
  *   input: z.object({ roomId: z.string() }),

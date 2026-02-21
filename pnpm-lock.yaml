@@ -421,6 +421,9 @@ importers:
         specifier: ^3.23.5
         version: 3.25.1(zod@3.25.76)
     devDependencies:
+      '@lushly-dev/afd-client':
+        specifier: workspace:*
+        version: link:../client
       typescript:
         specifier: ^5.4.0
         version: 5.9.3

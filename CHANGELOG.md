@@ -5,6 +5,94 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2-beta] - 2026-02-20
+
+### Breaking Changes
+
+- **Scenario tool names renamed to kebab-case** (`@lushly-dev/afd-testing`) — All MCP tool names in the testing package now use kebab-case:
+  - `scenario.list` → `scenario-list`
+  - `scenario.evaluate` → `scenario-evaluate`
+  - `scenario.coverage` → `scenario-coverage`
+  - `scenario.create` → `scenario-create`
+  - `scenario.suggest` → `scenario-suggest`
+
+  **Migration:** Update any MCP tool calls or agent configurations that reference the old dot-notation names. Search for `scenario.list`, `scenario.evaluate`, etc. and replace with the kebab-case equivalents.
+
+- **Test fixture command names renamed to kebab-case** (`@lushly-dev/afd-server`) — Test commands used in server and example tests now use kebab-case:
+  - `test.echo` → `test-echo`, `test.throw` → `test-throw`, `test.success` → `test-success`, `test.validate` → `test-validate`
+  - `chat.connect` → `chat-connect`, `chat.list` → `chat-list`, `stream.custom` → `stream-custom`
+
+  **Migration:** Only affects you if you copied test fixtures from the AFD codebase into your own tests. Search for dot-notation command names and replace with kebab-case.
+
+### Added
+
+- **`validateCommandName()` function** (`@lushly-dev/afd-core`) — Programmatic enforcement of the `domain-action` kebab-case naming convention
+  - Pattern: `/^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$/` (at least two segments, all lowercase)
+  - Returns `{ valid: boolean; reason?: string }` for structured error handling
+  - Called in `defineCommand()` — logs a warning for non-conforming names
+  - Exported from `@lushly-dev/afd-core`
+
+- **Cross-transport parity tests** (`@lushly-dev/afd-server`) — 26 tests verifying identical CommandResult behavior across DirectClient and MCP server transports
+  - Success result parity (data, confidence, reasoning)
+  - Error result parity (error codes, messages, suggestions)
+  - Input validation parity (type errors, missing fields)
+  - Metadata propagation (warnings, traceId, executionTimeMs)
+  - Unknown command handling with documented intentional differences
+  - Handler exception handling across transports
+  - stdio vs http transport equivalence (3 tests)
+  - Documents intentional transport-specific differences:
+    - Server uses `COMMAND_NOT_FOUND`, DirectClient uses `UNKNOWN_TOOL` for unknown commands
+    - Server hides error details in non-devMode (security), DirectClient exposes them
+    - DirectClient provides structured `UnknownToolError` data for agent recovery
+
+- **DirectClient pipeline tests** (`@lushly-dev/afd-client`) — 12 new tests for the `pipe()` method covering:
+  - Simple multi-step pipelines
+  - `$prev` and `$steps.alias` variable resolution
+  - Stop-on-failure and continue-on-failure modes
+  - Conditional step execution (`when` clauses)
+  - Pipeline timeout behavior
+  - Metadata aggregation, concurrent calls, traceId propagation
+
+- **CLI integration tests** (`@lushly-dev/afd-cli`) — 14 new tests covering:
+  - Program name, version, and all 10 registered commands
+  - Command-specific options (format, strict, verbose)
+  - Output formatting: success/failure results, confidence bars, warnings, JSON format
+  - Tool listing: text format, JSON format, empty list
+
+- **WebAdapter renderers** (`@lushly-dev/afd-adapters`) — 5 new HTML rendering methods + 17 tests:
+  - `renderCommandError()` — error code, message, suggestion, details with XSS escaping
+  - `renderConfidence()` — visual progress bar with percentage, color thresholds (green/yellow/red), reasoning
+  - `renderWarnings()` — warning list with codes and CSS variable theming
+  - `renderPipelineSteps()` — step progress with status icons, timing, and summary
+  - `renderCommandResult()` — full CommandResult with all metadata sections
+  - New types exported: `CommandErrorInput`, `WarningInput`, `PipelineStepInput`, `CommandResultInput`
+
+### Changed
+
+- **All dot-notation command names migrated to kebab-case** — JSDoc examples, test fixtures, and internal references across the entire codebase now use the `domain-action` naming convention consistently
+  - Updated JSDoc in `schema.ts`, `handoff-schema.ts`, `commands.ts`, `client.ts`, `direct.ts`
+  - Updated test fixtures in `server.test.ts`, `handoff-schema.test.ts`, `server-mode.test.ts`
+  - Updated MCP hints parser in `hints.ts` — category extraction now splits on `-` instead of `.`
+
+### Fixed
+
+- **Hints category parsing** (`@lushly-dev/afd-testing`) — `generateAgentHints()` was splitting command names on `.` to extract the category, which broke after the kebab-case migration. Now correctly splits on `-`.
+
+### Test Coverage
+
+| Package | Tests | Status |
+|---------|-------|--------|
+| @lushly-dev/afd-core | 283 | Pass |
+| @lushly-dev/afd-server | 135 | Pass |
+| @lushly-dev/afd-client | 97 | Pass |
+| @lushly-dev/afd-testing | 169 | Pass |
+| @lushly-dev/afd-adapters | 29 | Pass |
+| @lushly-dev/afd-cli | 14 | Pass |
+| examples/todo (TS) | 90 | Pass |
+| examples/chat | 22 | Pass |
+
+---
+
 ## [0.2.1-beta] - 2026-02-20
 
 ### Breaking Changes

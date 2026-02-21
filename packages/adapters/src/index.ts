@@ -15,6 +15,14 @@
  */
 
 export { AFD_CSS_VARIABLES, STATUS_COLORS, StatusType } from './css-variables.js';
-export type { PackageResult, PackageResults, RenderOptions } from './types.js';
+export type {
+	CommandErrorInput,
+	CommandResultInput,
+	PackageResult,
+	PackageResults,
+	PipelineStepInput,
+	RenderOptions,
+	WarningInput,
+} from './types.js';
 export { escapeHtml, styledSpan } from './utils.js';
 export { WebAdapter } from './web-adapter.js';

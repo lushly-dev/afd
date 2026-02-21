@@ -98,10 +98,10 @@ function cleanupTestScenarios() {
 }
 
 // ============================================================================
-// scenario.list tests
+// scenario-list tests
 // ============================================================================
 
-describe('scenario.list', () => {
+describe('scenario-list', () => {
 	beforeEach(() => {
 		setupTestScenarios();
 	});
@@ -153,10 +153,10 @@ describe('scenario.list', () => {
 });
 
 // ============================================================================
-// scenario.evaluate tests
+// scenario-evaluate tests
 // ============================================================================
 
-describe('scenario.evaluate', () => {
+describe('scenario-evaluate', () => {
 	beforeEach(() => {
 		setupTestScenarios();
 	});
@@ -275,10 +275,10 @@ describe('formatters', () => {
 });
 
 // ============================================================================
-// scenario.coverage tests
+// scenario-coverage tests
 // ============================================================================
 
-describe('scenario.coverage', () => {
+describe('scenario-coverage', () => {
 	beforeEach(() => {
 		setupTestScenarios();
 	});
@@ -324,10 +324,10 @@ describe('scenario.coverage', () => {
 });
 
 // ============================================================================
-// scenario.create tests
+// scenario-create tests
 // ============================================================================
 
-describe('scenario.create', () => {
+describe('scenario-create', () => {
 	const OUTPUT_DIR = path.join(__dirname, '__test_output__');
 
 	beforeEach(() => {

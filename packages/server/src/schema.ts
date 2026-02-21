@@ -12,6 +12,7 @@ import type {
 	CommandResult,
 	JsonSchema,
 } from '@lushly-dev/afd-core';
+import { validateCommandName } from '@lushly-dev/afd-core';
 import { type ZodType, type ZodTypeDef, z } from 'zod';
 import { zodToJsonSchema as zodToJson } from 'zod-to-json-schema';
 
@@ -23,7 +24,7 @@ import { zodToJsonSchema as zodToJson } from 'zod-to-json-schema';
  * Options for defining a command with Zod schema.
  */
 export interface ZodCommandOptions<TInput extends ZodType<unknown, ZodTypeDef, unknown>, TOutput> {
-	/** Unique command name using dot notation (e.g., 'todo.create') */
+	/** Unique command name in kebab-case (e.g., 'todo-create') */
 	name: string;
 
 	/** Human-readable description of what the command does */
@@ -151,7 +152,7 @@ export interface ZodCommandDefinition<
  * import { defineCommand, success } from '@lushly-dev/afd-server';
  *
  * const createTodo = defineCommand({
- *   name: 'todo.create',
+ *   name: 'todo-create',
  *   description: 'Create a new todo item',
  *   category: 'todo',
  *   mutation: true,
@@ -169,6 +170,11 @@ export interface ZodCommandDefinition<
 export function defineCommand<TInput extends ZodType<unknown, ZodTypeDef, unknown>, TOutput>(
 	options: ZodCommandOptions<TInput, TOutput>
 ): ZodCommandDefinition<TInput, TOutput> {
+	const nameCheck = validateCommandName(options.name);
+	if (!nameCheck.valid) {
+		console.warn(`[AFD] ${nameCheck.reason}`);
+	}
+
 	const jsonSchema = zodToJsonSchema(options.input);
 
 	// Build tags with automatic handoff tags if handoff is enabled

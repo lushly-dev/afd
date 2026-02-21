@@ -5,6 +5,7 @@ import {
 	createCommandRegistry,
 	defaultExpose,
 	isMcpExposed,
+	validateCommandName,
 } from './commands.js';
 import { success } from './result.js';
 
@@ -392,6 +393,58 @@ describe('commandsToMcpTools', () => {
 		const tools = commandsToMcpTools([cmd]);
 
 		expect(tools).toHaveLength(0);
+	});
+});
+
+describe('validateCommandName', () => {
+	it('accepts valid kebab-case names', () => {
+		expect(validateCommandName('todo-create').valid).toBe(true);
+		expect(validateCommandName('user-get').valid).toBe(true);
+		expect(validateCommandName('todo-create-batch').valid).toBe(true);
+		expect(validateCommandName('afd-help').valid).toBe(true);
+		expect(validateCommandName('order-list').valid).toBe(true);
+	});
+
+	it('rejects empty names', () => {
+		const result = validateCommandName('');
+		expect(result.valid).toBe(false);
+		expect(result.reason).toContain('empty');
+	});
+
+	it('rejects single-segment names', () => {
+		expect(validateCommandName('create').valid).toBe(false);
+		expect(validateCommandName('todo').valid).toBe(false);
+	});
+
+	it('rejects camelCase names', () => {
+		expect(validateCommandName('todo-createBatch').valid).toBe(false);
+		expect(validateCommandName('todoCreate').valid).toBe(false);
+	});
+
+	it('rejects uppercase names', () => {
+		expect(validateCommandName('TODO-CREATE').valid).toBe(false);
+		expect(validateCommandName('Todo-Create').valid).toBe(false);
+	});
+
+	it('rejects dot notation names', () => {
+		expect(validateCommandName('todo.create').valid).toBe(false);
+	});
+
+	it('rejects underscore names', () => {
+		expect(validateCommandName('todo_create').valid).toBe(false);
+	});
+
+	it('allows numbers in segments', () => {
+		expect(validateCommandName('v2-migrate').valid).toBe(true);
+		expect(validateCommandName('todo-create2').valid).toBe(true);
+	});
+
+	it('rejects names starting with numbers', () => {
+		expect(validateCommandName('2todo-create').valid).toBe(false);
+	});
+
+	it('rejects names with consecutive hyphens', () => {
+		expect(validateCommandName('todo--create').valid).toBe(false);
 	});
 });
 

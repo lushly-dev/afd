@@ -39,3 +39,47 @@ export interface RenderOptions {
 	 */
 	maxOutputLength?: number;
 }
+
+/**
+ * A CommandError with optional suggestion for recovery.
+ */
+export interface CommandErrorInput {
+	code: string;
+	message: string;
+	suggestion?: string;
+	details?: unknown;
+}
+
+/**
+ * A warning from a command result.
+ */
+export interface WarningInput {
+	code?: string;
+	message: string;
+}
+
+/**
+ * A pipeline step result for rendering progress.
+ */
+export interface PipelineStepInput {
+	index: number;
+	command: string;
+	alias?: string;
+	status: 'success' | 'failure' | 'skipped';
+	executionTimeMs?: number;
+	error?: { code?: string; message?: string };
+}
+
+/**
+ * Full CommandResult shape for the adapter to render.
+ */
+export interface CommandResultInput {
+	success: boolean;
+	data?: unknown;
+	error?: CommandErrorInput;
+	confidence?: number;
+	reasoning?: string;
+	warnings?: WarningInput[];
+	sources?: Array<{ label: string; url?: string }>;
+	alternatives?: Array<{ command: string; description: string }>;
+}

@@ -188,7 +188,7 @@ export {
 // Scenario Commands (Phase 2)
 // ============================================================================
 
-// scenario.coverage
+// scenario-coverage
 export type {
 	CommandCoverage,
 	CoverageSummary,
@@ -202,14 +202,14 @@ export {
 	formatCoverageTerminal,
 	scenarioCoverage,
 } from './commands/coverage.js';
-// scenario.create
+// scenario-create
 export type {
 	ScenarioCreateInput,
 	ScenarioCreateOutput,
 	ScenarioStepInput,
 } from './commands/create.js';
 export { listTemplates, scenarioCreate } from './commands/create.js';
-// scenario.evaluate
+// scenario-evaluate
 export type {
 	ScenarioEvaluateInput,
 	ScenarioEvaluateOutput,
@@ -220,7 +220,7 @@ export {
 	formatTerminal,
 	scenarioEvaluate,
 } from './commands/evaluate.js';
-// scenario.list
+// scenario-list
 export type {
 	ScenarioListInput,
 	ScenarioListOutput,
@@ -228,7 +228,7 @@ export type {
 } from './commands/list.js';
 export { formatScenarioTable, scenarioList } from './commands/list.js';
 
-// scenario.suggest (Phase 3)
+// scenario-suggest (Phase 3)
 export type {
 	ScenarioSuggestInput,
 	ScenarioSuggestion,

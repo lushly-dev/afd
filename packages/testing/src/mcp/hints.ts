@@ -89,7 +89,7 @@ export function generateTestReportHints(report: TestReport): AgentHints {
 			`Review ${failedScenarios.length} failed scenario(s)`,
 			'Run with --verbose for detailed step output'
 		);
-		hints.relatedCommands.push('scenario.suggest --context failed');
+		hints.relatedCommands.push('scenario-suggest --context failed');
 
 		// Extract error types from failed steps
 		const errorTypes = new Set<string>();
@@ -153,10 +153,10 @@ export function generateCoverageHints(
 
 	if (untestedCommands.length > 0) {
 		hints.untestedCommands = untestedCommands;
-		hints.relatedCommands.push('scenario.create --template crud');
+		hints.relatedCommands.push('scenario-create --template crud');
 		hints.nextSteps.push(
 			`${untestedCommands.length} command(s) have no test coverage`,
-			'Consider using scenario.create to generate test templates'
+			'Consider using scenario-create to generate test templates'
 		);
 
 		// Prioritize high-value commands
@@ -219,26 +219,26 @@ function shouldRetryCommand<T>(result: CommandResult<T>): boolean {
 function getRelatedCommands<T>(commandName: string, result: CommandResult<T>): string[] {
 	const related: string[] = [];
 
-	// Parse command category (e.g., "scenario" from "scenario.list")
-	const [category] = commandName.split('.');
+	// Parse command category (e.g., "scenario" from "scenario-list")
+	const [category] = commandName.split('-');
 
 	// Suggest related scenario commands
 	if (category === 'scenario') {
-		if (commandName === 'scenario.list') {
-			related.push('scenario.evaluate', 'scenario.coverage');
-		} else if (commandName === 'scenario.evaluate') {
-			related.push('scenario.coverage', 'scenario.suggest');
-		} else if (commandName === 'scenario.coverage') {
-			related.push('scenario.suggest', 'scenario.create');
-		} else if (commandName === 'scenario.create') {
-			related.push('scenario.evaluate');
+		if (commandName === 'scenario-list') {
+			related.push('scenario-evaluate', 'scenario-coverage');
+		} else if (commandName === 'scenario-evaluate') {
+			related.push('scenario-coverage', 'scenario-suggest');
+		} else if (commandName === 'scenario-coverage') {
+			related.push('scenario-suggest', 'scenario-create');
+		} else if (commandName === 'scenario-create') {
+			related.push('scenario-evaluate');
 		}
 	}
 
 	// On failure, suggest diagnostic commands
 	if (!result.success) {
-		if (!related.includes('scenario.suggest')) {
-			related.push('scenario.suggest --context failed');
+		if (!related.includes('scenario-suggest')) {
+			related.push('scenario-suggest --context failed');
 		}
 	}
 
@@ -253,15 +253,15 @@ function suggestNextSteps<T>(commandName: string, result: CommandResult<T>): str
 
 	if (result.success) {
 		// Success suggestions
-		if (commandName === 'scenario.list') {
-			steps.push('Run scenario.evaluate to execute listed scenarios');
-		} else if (commandName === 'scenario.create') {
+		if (commandName === 'scenario-list') {
+			steps.push('Run scenario-evaluate to execute listed scenarios');
+		} else if (commandName === 'scenario-create') {
 			steps.push('Edit the generated scenario to add specific test cases');
-			steps.push('Run scenario.evaluate to test the new scenario');
-		} else if (commandName === 'scenario.evaluate') {
-			steps.push('Run scenario.coverage to check test coverage');
-		} else if (commandName === 'scenario.coverage') {
-			steps.push('Use scenario.suggest to find gaps');
+			steps.push('Run scenario-evaluate to test the new scenario');
+		} else if (commandName === 'scenario-evaluate') {
+			steps.push('Run scenario-coverage to check test coverage');
+		} else if (commandName === 'scenario-coverage') {
+			steps.push('Use scenario-suggest to find gaps');
 			steps.push('Create scenarios for untested commands');
 		}
 	} else {

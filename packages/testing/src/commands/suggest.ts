@@ -1,5 +1,5 @@
 /**
- * @fileoverview scenario.suggest command
+ * @fileoverview scenario-suggest command
  *
  * AI-powered scenario suggestions based on context.
  * Supports multiple suggestion strategies:
@@ -26,7 +26,7 @@ import { scenarioList } from './list.js';
 export type SuggestionContext = 'changed-files' | 'uncovered' | 'failed' | 'command' | 'natural';
 
 /**
- * Input for scenario.suggest command.
+ * Input for scenario-suggest command.
  */
 export interface ScenarioSuggestInput {
 	/** Context type for suggestions */
@@ -84,7 +84,7 @@ export interface ScenarioSuggestion {
 }
 
 /**
- * Output from scenario.suggest command.
+ * Output from scenario-suggest command.
  */
 export interface ScenarioSuggestOutput {
 	/** Suggestions */
