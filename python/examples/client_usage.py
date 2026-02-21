@@ -38,7 +38,7 @@ async def main():
     )
     
     transport.register_tool(
-        name="math.add",
+        name="math-add",
         handler=add_numbers,
         description="Add two numbers",
     )
@@ -72,8 +72,8 @@ async def main():
     print(f"  Data: {result.data}")
     print()
     
-    print("Calling 'math.add' tool...")
-    result = await transport.call_tool("math.add", {"a": 42, "b": 58})
+    print("Calling 'math-add' tool...")
+    result = await transport.call_tool("math-add", {"a": 42, "b": 58})
     print(f"  Success: {result.success}")
     print(f"  Data: {result.data}")
     print()

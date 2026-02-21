@@ -54,7 +54,7 @@ class CommandMetadata:
     """Metadata for a decorated command.
     
     Attributes:
-        name: Command name (e.g., "item.create").
+        name: Command name (e.g., "item-create").
         description: Human-readable description.
         input_schema: Pydantic model for input validation.
         output_schema: Pydantic model for output (optional).
@@ -91,7 +91,7 @@ def define_command(
     with an MCP server. The decorator attaches metadata for schema generation.
     
     Args:
-        name: Command name (use dot notation, e.g., "item.create").
+        name: Command name (use kebab-case, e.g., "item-create").
         description: Human-readable description of what the command does.
         input_schema: Pydantic model class for validating input.
         output_schema: Pydantic model class for the output (optional).
@@ -104,7 +104,7 @@ def define_command(
     
     Example:
         >>> @define_command(
-        ...     name="user.create",
+        ...     name="user-create",
         ...     description="Create a new user",
         ...     input_schema=CreateUserInput,
         ...     output_schema=User,

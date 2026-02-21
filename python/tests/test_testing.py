@@ -316,11 +316,11 @@ class TestMockServerFixture:
     @pytest.mark.asyncio
     async def test_register_and_execute_command(self, mock_server):
         """Should register and execute commands."""
-        @mock_server.command("test.ping")
+        @mock_server.command("test-ping")
         async def ping(input):
             return success("pong")
         
-        result = await mock_server.execute("test.ping", {})
+        result = await mock_server.execute("test-ping", {})
         assert result.success
         assert result.data == "pong"
     
@@ -333,12 +333,12 @@ class TestMockServerFixture:
     
     def test_has_command(self, mock_server):
         """Should check if command exists."""
-        @mock_server.command("test.exists")
+        @mock_server.command("test-exists")
         async def exists(input):
             return success(True)
         
-        assert mock_server.has("test.exists")
-        assert not mock_server.has("test.not_exists")
+        assert mock_server.has("test-exists")
+        assert not mock_server.has("test-not_exists")
     
     def test_list_commands(self, mock_server):
         """Should list registered commands."""
@@ -371,11 +371,11 @@ class TestIsolatedRegistryFixture:
             return success("test")
         
         definition = CommandDefinition(
-            name="isolated.test",
+            name="isolated-test",
             description="Test command",
             handler=test_handler,
             parameters=[],
         )
         isolated_registry.register(definition)
         
-        assert isolated_registry.has("isolated.test")
+        assert isolated_registry.has("isolated-test")

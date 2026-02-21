@@ -8,13 +8,13 @@ Example:
     >>> from my_app import registry
     >>>
     >>> client = DirectClient(registry)
-    >>> result = await client.call('todo.create', {'title': 'Fast!'})
+    >>> result = await client.call('todo-create', {'title': 'Fast!'})
     >>> # ~0.1ms latency vs 10-100ms for MCP
 
 Pipeline Example:
     >>> result = await client.pipe([
-    ...     {'command': 'user.get', 'input': {'id': 123}, 'as': 'user'},
-    ...     {'command': 'order.list', 'input': {'user_id': '$user.id'}},
+    ...     {'command': 'user-get', 'input': {'id': 123}, 'as': 'user'},
+    ...     {'command': 'order-list', 'input': {'user_id': '$user.id'}},
     ... ])
 """
 
@@ -426,13 +426,13 @@ class DirectClient:
     
     Example:
         >>> client = DirectClient(registry)
-        >>> result = await client.call('todo.create', {'title': 'Fast task'})
+        >>> result = await client.call('todo-create', {'title': 'Fast task'})
         >>> print(result.data)
     
     Pipeline Example:
         >>> result = await client.pipe([
-        ...     {'command': 'user.get', 'input': {'id': 123}, 'as': 'user'},
-        ...     {'command': 'order.list', 'input': {'user_id': '$user.id'}},
+        ...     {'command': 'user-get', 'input': {'id': 123}, 'as': 'user'},
+        ...     {'command': 'order-list', 'input': {'user_id': '$user.id'}},
         ... ])
     """
     
@@ -588,8 +588,8 @@ class DirectClient:
         
         Example:
             >>> result = await client.pipe([
-            ...     {'command': 'user.get', 'input': {'id': 123}, 'as': 'user'},
-            ...     {'command': 'order.list', 'input': {'user_id': '$user.id'}},
+            ...     {'command': 'user-get', 'input': {'id': 123}, 'as': 'user'},
+            ...     {'command': 'order-list', 'input': {'user_id': '$user.id'}},
             ... ])
         """
         start_time = time.perf_counter()
@@ -787,7 +787,7 @@ def create_direct_client(
     
     Example:
         >>> client = create_direct_client(registry, source='api-server')
-        >>> result = await client.call('user.get', {'id': 123})
+        >>> result = await client.call('user-get', {'id': 123})
     """
     return DirectClient(
         registry,

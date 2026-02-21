@@ -82,17 +82,17 @@ class TestCommandDefinition:
 
     def test_basic_definition(self):
         cmd = CommandDefinition(
-            name="test.command",
+            name="test-command",
             description="A test command",
             handler=self._dummy_handler,
         )
-        assert cmd.name == "test.command"
+        assert cmd.name == "test-command"
         assert cmd.description == "A test command"
         assert cmd.mutation is False
 
     def test_full_definition(self):
         cmd = CommandDefinition(
-            name="document.create",
+            name="document-create",
             description="Creates a new document",
             handler=self._dummy_handler,
             category="documents",
@@ -138,24 +138,24 @@ class TestCommandRegistry:
     def test_register_command(self):
         registry = create_command_registry()
         cmd = CommandDefinition(
-            name="test.command",
+            name="test-command",
             description="Test",
             handler=self._handler_one,
         )
         registry.register(cmd)
-        assert registry.has("test.command") is True
+        assert registry.has("test-command") is True
 
     def test_get_command(self):
         registry = create_command_registry()
         cmd = CommandDefinition(
-            name="test.get",
+            name="test-get",
             description="Test get",
             handler=self._handler_one,
         )
         registry.register(cmd)
-        retrieved = registry.get("test.get")
+        retrieved = registry.get("test-get")
         assert retrieved is not None
-        assert retrieved.name == "test.get"
+        assert retrieved.name == "test-get"
 
     def test_get_nonexistent_returns_none(self):
         registry = create_command_registry()
@@ -164,43 +164,43 @@ class TestCommandRegistry:
     def test_has_command(self):
         registry = create_command_registry()
         cmd = CommandDefinition(
-            name="test.has",
+            name="test-has",
             description="Test has",
             handler=self._handler_one,
         )
         registry.register(cmd)
-        assert registry.has("test.has") is True
+        assert registry.has("test-has") is True
         assert registry.has("nonexistent") is False
 
     def test_list_commands(self):
         registry = create_command_registry()
-        cmd1 = CommandDefinition(name="a.cmd", description="A", handler=self._handler_one)
-        cmd2 = CommandDefinition(name="b.cmd", description="B", handler=self._handler_two)
+        cmd1 = CommandDefinition(name="a-cmd", description="A", handler=self._handler_one)
+        cmd2 = CommandDefinition(name="b-cmd", description="B", handler=self._handler_two)
         registry.register(cmd1)
         registry.register(cmd2)
 
         commands = registry.list()
         assert len(commands) == 2
         names = [c.name for c in commands]
-        assert "a.cmd" in names
-        assert "b.cmd" in names
+        assert "a-cmd" in names
+        assert "b-cmd" in names
 
     def test_list_by_category(self):
         registry = create_command_registry()
         cmd1 = CommandDefinition(
-            name="docs.create",
+            name="docs-create",
             description="Create doc",
             handler=self._handler_one,
             category="documents",
         )
         cmd2 = CommandDefinition(
-            name="docs.delete",
+            name="docs-delete",
             description="Delete doc",
             handler=self._handler_two,
             category="documents",
         )
         cmd3 = CommandDefinition(
-            name="users.list",
+            name="users-list",
             description="List users",
             handler=self._handler_one,
             category="users",
@@ -235,13 +235,13 @@ class TestCommandRegistry:
             return success({"title": input.get("title", "untitled")})
 
         cmd = CommandDefinition(
-            name="exec.test",
+            name="exec-test",
             description="Test execution",
             handler=handler,
         )
         registry.register(cmd)
 
-        result = await registry.execute("exec.test", {"title": "My Doc"})
+        result = await registry.execute("exec-test", {"title": "My Doc"})
         assert result.success is True
         assert result.data == {"title": "My Doc"}
 
@@ -279,12 +279,12 @@ class TestCommandToMcpTool:
 
     def test_basic_conversion(self):
         cmd = CommandDefinition(
-            name="test.tool",
+            name="test-tool",
             description="A test tool",
             handler=self._handler,
         )
         tool = command_to_mcp_tool(cmd)
-        assert tool["name"] == "test.tool"
+        assert tool["name"] == "test-tool"
         assert tool["description"] == "A test tool"
         assert tool["inputSchema"]["type"] == "object"
         assert tool["inputSchema"]["properties"] == {}
@@ -292,7 +292,7 @@ class TestCommandToMcpTool:
 
     def test_conversion_with_parameters(self):
         cmd = CommandDefinition(
-            name="with.params",
+            name="with-params",
             description="Has params",
             handler=self._handler,
             parameters=[

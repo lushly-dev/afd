@@ -51,9 +51,9 @@ def mock_transport():
     transport.connect = AsyncMock()
     transport.disconnect = AsyncMock()
     transport.list_tools = AsyncMock(return_value=[
-        ToolInfo(name="user.create", description="Create a user"),
-        ToolInfo(name="user.list", description="List users"),
-        ToolInfo(name="doc.get", description="Get a document"),
+        ToolInfo(name="user-create", description="Create a user"),
+        ToolInfo(name="user-list", description="List users"),
+        ToolInfo(name="doc-get", description="Get a document"),
     ])
     transport.call_tool = AsyncMock(return_value={
         "success": True,
@@ -170,8 +170,8 @@ class TestToolsCommand:
         mock_transport.connect = AsyncMock()
         mock_transport.disconnect = AsyncMock()
         mock_transport.list_tools = AsyncMock(return_value=[
-            ToolInfo(name="user.create", description="Create a user"),
-            ToolInfo(name="user.list", description="List all users"),
+            ToolInfo(name="user-create", description="Create a user"),
+            ToolInfo(name="user-list", description="List all users"),
         ])
         
         with patch.object(_cli_main_module, "_get_transport", return_value=mock_transport):
@@ -179,7 +179,7 @@ class TestToolsCommand:
         
         assert result.exit_code == 0
         assert "Available Tools" in result.output
-        assert "user.create" in result.output
+        assert "user-create" in result.output
 
     def test_tools_no_connection(self, runner, temp_state_file):
         """Should error when not connected."""
@@ -194,23 +194,23 @@ class TestCallCommand:
     def test_call_with_server(self, runner, temp_state_file, mock_transport):
         """Should call tool on specified server."""
         with patch("afd.cli.main._get_transport", return_value=mock_transport):
-            result = runner.invoke(cli, ["call", "user.create", '{"name": "Alice"}', "-s", "mock"])
+            result = runner.invoke(cli, ["call", "user-create", '{"name": "Alice"}', "-s", "mock"])
             assert result.exit_code == 0
             mock_transport.call_tool.assert_called_once()
 
     def test_call_invalid_json(self, runner, temp_state_file):
         """Should error on invalid JSON args."""
         _save_state({"server": "mock"})
-        result = runner.invoke(cli, ["call", "user.create", "not json"])
+        result = runner.invoke(cli, ["call", "user-create", "not json"])
         assert result.exit_code == 1
         assert "Invalid JSON" in result.output
 
     def test_call_default_empty_args(self, runner, temp_state_file, mock_transport):
         """Should use empty object for missing args."""
         with patch("afd.cli.main._get_transport", return_value=mock_transport):
-            result = runner.invoke(cli, ["call", "user.list", "-s", "mock"])
+            result = runner.invoke(cli, ["call", "user-list", "-s", "mock"])
             assert result.exit_code == 0
-            mock_transport.call_tool.assert_called_once_with("user.list", {})
+            mock_transport.call_tool.assert_called_once_with("user-list", {})
 
 
 class TestValidateCommand:
@@ -339,7 +339,7 @@ class TestCLIErrorHandling:
 
     def test_call_without_connection(self, runner, temp_state_file):
         """Should error when calling without connection."""
-        result = runner.invoke(cli, ["call", "user.create", "{}"])
+        result = runner.invoke(cli, ["call", "user-create", "{}"])
         assert result.exit_code == 1
         assert "No server connected" in result.output
 

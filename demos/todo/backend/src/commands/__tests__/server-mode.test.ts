@@ -19,7 +19,7 @@ import { z } from 'zod';
  */
 function createTestCommands() {
 	const throwingCommand = defineCommand({
-		name: 'test.throw',
+		name: 'test-throw',
 		description: 'A command that throws an error',
 		input: z.object({}),
 		async handler() {
@@ -28,7 +28,7 @@ function createTestCommands() {
 	});
 
 	const successCommand = defineCommand({
-		name: 'test.success',
+		name: 'test-success',
 		description: 'A command that succeeds',
 		input: z.object({
 			value: z.string(),
@@ -69,7 +69,7 @@ describe('Server devMode', () => {
 		});
 
 		it('includes stack traces in error responses', async () => {
-			const result = await server.execute('test.throw', {});
+			const result = await server.execute('test-throw', {});
 
 			expect(result.success).toBe(false);
 			expect(result.error?.code).toBe('COMMAND_EXECUTION_ERROR');
@@ -83,7 +83,7 @@ describe('Server devMode', () => {
 		});
 
 		it('includes detailed error message with sensitive info', async () => {
-			const result = await server.execute('test.throw', {});
+			const result = await server.execute('test-throw', {});
 
 			expect(result.success).toBe(false);
 			// Dev mode preserves the full error message including sensitive paths
@@ -91,7 +91,7 @@ describe('Server devMode', () => {
 		});
 
 		it('provides helpful suggestion in dev mode', async () => {
-			const result = await server.execute('test.throw', {});
+			const result = await server.execute('test-throw', {});
 
 			expect(result.success).toBe(false);
 			expect(result.error?.suggestion).toContain('Check the command implementation');
@@ -117,7 +117,7 @@ describe('Server devMode', () => {
 		});
 
 		it('does NOT include stack traces in error responses', async () => {
-			const result = await server.execute('test.throw', {});
+			const result = await server.execute('test-throw', {});
 
 			expect(result.success).toBe(false);
 			expect(result.error?.code).toBe('COMMAND_EXECUTION_ERROR');
@@ -126,7 +126,7 @@ describe('Server devMode', () => {
 		});
 
 		it('sanitizes error message (no sensitive info)', async () => {
-			const result = await server.execute('test.throw', {});
+			const result = await server.execute('test-throw', {});
 
 			expect(result.success).toBe(false);
 			// Production mode should return generic message
@@ -137,7 +137,7 @@ describe('Server devMode', () => {
 		});
 
 		it('provides user-friendly suggestion in production', async () => {
-			const result = await server.execute('test.throw', {});
+			const result = await server.execute('test-throw', {});
 
 			expect(result.success).toBe(false);
 			expect(result.error?.suggestion).toContain('Contact support');
@@ -163,7 +163,7 @@ describe('Server devMode', () => {
 		});
 
 		it('defaults to production behavior (secure by default)', async () => {
-			const result = await server.execute('test.throw', {});
+			const result = await server.execute('test-throw', {});
 
 			expect(result.success).toBe(false);
 			// Should behave like devMode: false
@@ -233,7 +233,7 @@ describe('Server devMode', () => {
 describe('Validation errors', () => {
 	it('returns validation errors with details', async () => {
 		const validationCommand = defineCommand({
-			name: 'test.validate',
+			name: 'test-validate',
 			description: 'A command with strict validation',
 			input: z.object({
 				email: z.string().email(),
@@ -253,7 +253,7 @@ describe('Validation errors', () => {
 		});
 		await server.start();
 
-		const result = await server.execute('test.validate', {
+		const result = await server.execute('test-validate', {
 			email: 'not-an-email',
 			age: -5,
 		});

@@ -6,11 +6,11 @@ in isolation with proper setup and teardown.
 
 Example:
     >>> def test_create_user(isolated_registry, mock_server):
-    ...     @mock_server.command("user.create")
+    ...     @mock_server.command("user-create")
     ...     async def create_user(input):
     ...         return success({"id": 1, "name": input["name"]})
     ...     
-    ...     result = await mock_server.execute("user.create", {"name": "Alice"})
+    ...     result = await mock_server.execute("user-create", {"name": "Alice"})
     ...     assert_success(result)
 """
 
@@ -86,7 +86,7 @@ def isolated_registry():
     Example:
         >>> def test_registry(isolated_registry):
         ...     isolated_registry.register(my_command_definition)
-        ...     assert isolated_registry.has("my.command")
+        ...     assert isolated_registry.has("my-command")
     
     Returns:
         A fresh CommandRegistry instance.
@@ -103,11 +103,11 @@ class MockServer:
     Example:
         >>> server = MockServer()
         >>> 
-        >>> @server.command("user.create")
+        >>> @server.command("user-create")
         >>> async def create_user(input):
         ...     return success({"id": 1, "name": input["name"]})
         >>> 
-        >>> result = await server.execute("user.create", {"name": "Alice"})
+        >>> result = await server.execute("user-create", {"name": "Alice"})
         >>> assert result.success
     """
     
@@ -120,7 +120,7 @@ class MockServer:
         """Decorator to register a command handler.
         
         Args:
-            name: Command name (e.g., "user.create").
+            name: Command name (e.g., "user-create").
         
         Returns:
             Decorator function.
@@ -158,7 +158,7 @@ class MockServer:
             Command result.
         
         Example:
-            >>> result = await server.execute("user.create", {"name": "Alice"})
+            >>> result = await server.execute("user-create", {"name": "Alice"})
         """
         if name not in self._commands:
             from afd.core import error
@@ -232,8 +232,8 @@ def temporary_command(
         Nothing.
     
     Example:
-        >>> with temporary_command(registry, "test.cmd", handler):
-        ...     result = await registry.execute("test.cmd", {})
+        >>> with temporary_command(registry, "test-cmd", handler):
+        ...     result = await registry.execute("test-cmd", {})
         ...     assert result.success
     """
     from afd.core import CommandDefinition, CommandParameter

@@ -28,7 +28,7 @@ Handoff Example:
     >>> from afd.server import define_command
     >>>
     >>> @define_command(
-    ...     name="chat.connect",
+    ...     name="chat-connect",
     ...     description="Connect to a chat room",
     ...     handoff=True,
     ...     handoff_protocol="websocket",

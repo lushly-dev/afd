@@ -405,7 +405,7 @@ class TestCommandDefinitionHandoff:
             pass
 
         cmd = CommandDefinition(
-            name="chat.connect",
+            name="chat-connect",
             description="Connect to chat",
             handler=handler,
             handoff=True,
@@ -422,7 +422,7 @@ class TestCommandDefinitionHandoff:
             pass
 
         cmd = CommandDefinition(
-            name="item.create",
+            name="item-create",
             description="Create item",
             handler=handler,
         )
@@ -438,7 +438,7 @@ class TestDecoratorHandoff:
         from afd.server.decorators import define_command, get_command_metadata
 
         @define_command(
-            name="chat.connect",
+            name="chat-connect",
             description="Connect to chat",
             handoff=True,
             handoff_protocol="websocket",
@@ -458,7 +458,7 @@ class TestDecoratorHandoff:
         from afd.server.decorators import define_command, get_command_metadata
 
         @define_command(
-            name="item.create",
+            name="item-create",
             description="Create item",
         )
         async def create_item(input):

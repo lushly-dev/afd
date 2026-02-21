@@ -156,7 +156,7 @@ class MCPServer:
         This combines @define_command with automatic registration.
         
         Args:
-            name: Command name (use dot notation).
+            name: Command name (use kebab-case).
             description: What the command does.
             input_schema: Pydantic model for input validation.
             output_schema: Pydantic model for output.
@@ -169,7 +169,7 @@ class MCPServer:
         
         Example:
             >>> @server.command(
-            ...     name="user.get",
+            ...     name="user-get",
             ...     description="Get a user by ID",
             ...     input_schema=GetUserInput,
             ... )

@@ -270,7 +270,7 @@ pub trait CommandHandler: Send + Sync {
 
 /// Full command definition with schema, handler, and metadata.
 pub struct CommandDefinition {
-    /// Unique command name using dot notation (e.g., 'document.create').
+    /// Unique command name using kebab-case (e.g., 'document-create').
     pub name: String,
 
     /// Human-readable description.
@@ -699,17 +699,17 @@ mod tests {
         let mut registry = CommandRegistry::new();
 
         let cmd = CommandDefinition::new(
-            "test.echo",
+            "test-echo",
             "Echoes input back",
             vec![CommandParameter::required_string("message", "Message to echo")],
             TestHandler,
         );
 
         registry.register(cmd).unwrap();
-        assert!(registry.has("test.echo"));
+        assert!(registry.has("test-echo"));
 
         let result = registry
-            .execute("test.echo", serde_json::json!({"message": "hello"}), None)
+            .execute("test-echo", serde_json::json!({"message": "hello"}), None)
             .await;
 
         assert!(result.success);
@@ -728,7 +728,7 @@ mod tests {
     #[test]
     fn test_command_to_mcp_tool() {
         let cmd = CommandDefinition::new(
-            "test.create",
+            "test-create",
             "Creates a test",
             vec![
                 CommandParameter::required_string("name", "Test name"),
@@ -739,7 +739,7 @@ mod tests {
 
         let tool = command_to_mcp_tool(&cmd);
 
-        assert_eq!(tool.name, "test.create");
+        assert_eq!(tool.name, "test-create");
         assert_eq!(tool.input_schema.required, vec!["name"]);
         assert!(tool.input_schema.properties.contains_key("name"));
         assert!(tool.input_schema.properties.contains_key("description"));
@@ -748,7 +748,7 @@ mod tests {
     #[test]
     fn test_handoff_command() {
         let cmd = CommandDefinition::new(
-            "stream.connect",
+            "stream-connect",
             "Connect to stream",
             vec![],
             TestHandler,
@@ -765,14 +765,14 @@ mod tests {
         let mut registry = CommandRegistry::new();
 
         let cmd1 = CommandDefinition::new(
-            "test.regular",
+            "test-regular",
             "Regular command",
             vec![],
             TestHandler,
         );
 
         let cmd2 = CommandDefinition::new(
-            "stream.connect",
+            "stream-connect",
             "Connect to stream",
             vec![],
             TestHandler,
@@ -780,7 +780,7 @@ mod tests {
         .as_handoff_with_protocol("websocket");
 
         let cmd3 = CommandDefinition::new(
-            "events.subscribe",
+            "events-subscribe",
             "Subscribe to events",
             vec![],
             TestHandler,

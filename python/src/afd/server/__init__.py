@@ -18,7 +18,7 @@ Example:
     >>> server = create_server("my-app")
     >>>
     >>> @server.command(
-    ...     name="item.create",
+    ...     name="item-create",
     ...     description="Create a new item",
     ...     input_schema=CreateInput,
     ...     output_schema=CreateOutput,

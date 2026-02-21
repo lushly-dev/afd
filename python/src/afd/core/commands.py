@@ -12,7 +12,7 @@ Example:
     >>> 
     >>> registry = create_command_registry()
     >>> registry.register(CommandDefinition(
-    ...     name="my.command",
+    ...     name="my-command",
     ...     description="Does something useful",
     ...     handler=my_handler,
     ... ))
@@ -88,7 +88,7 @@ class CommandDefinition:
     """Full command definition with schema, handler, and metadata.
     
     Attributes:
-        name: Unique command name using dot notation (category.action).
+        name: Unique command name using kebab-case (domain-action).
         description: Human-readable description of what the command does.
         handler: The async command implementation.
         category: Category for grouping related commands.
@@ -105,7 +105,7 @@ class CommandDefinition:
         ...     return success({"id": "doc-123", "title": input.get("title")})
         >>> 
         >>> cmd = CommandDefinition(
-        ...     name="document.create",
+        ...     name="document-create",
         ...     description="Creates a new document",
         ...     handler=create_doc,
         ...     category="documents",
@@ -276,7 +276,7 @@ def create_command_registry() -> CommandRegistry:
     Example:
         >>> registry = create_command_registry()
         >>> registry.register(my_command)
-        >>> result = await registry.execute("my.command", {"arg": "value"})
+        >>> result = await registry.execute("my-command", {"arg": "value"})
     """
     return _CommandRegistryImpl()
 
@@ -295,7 +295,7 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
     Example:
         >>> tool = command_to_mcp_tool(my_command)
         >>> tool["name"]
-        'my.command'
+        'my-command'
     """
     properties: Dict[str, Dict[str, Any]] = {}
     required: List[str] = []

@@ -43,13 +43,13 @@ class TestDefineCommand:
     """Tests for @define_command decorator."""
 
     def test_basic_decorator(self):
-        @define_command(name="test.cmd", description="Test command")
+        @define_command(name="test-cmd", description="Test command")
         async def test_cmd(input):
             return success({"result": "ok"})
 
         assert has_command_metadata(test_cmd)
         metadata = get_command_metadata(test_cmd)
-        assert metadata.name == "test.cmd"
+        assert metadata.name == "test-cmd"
         assert metadata.description == "Test command"
 
     def test_decorator_with_schemas(self):
@@ -68,7 +68,7 @@ class TestDefineCommand:
 
     def test_decorator_with_tags(self):
         @define_command(
-            name="tagged.cmd",
+            name="tagged-cmd",
             description="Tagged command",
             tags=["category:test", "priority:high"],
         )
@@ -80,7 +80,7 @@ class TestDefineCommand:
 
     def test_decorator_with_mutation(self):
         @define_command(
-            name="mutating.cmd",
+            name="mutating-cmd",
             description="Mutating command",
             mutation=True,
         )
@@ -92,7 +92,7 @@ class TestDefineCommand:
 
     def test_decorator_with_examples(self):
         @define_command(
-            name="example.cmd",
+            name="example-cmd",
             description="With examples",
             examples=[
                 {"name": "John"},
@@ -157,7 +157,7 @@ class TestCommandToDefinition:
 
     def test_converts_decorated_function(self):
         @define_command(
-            name="convert.test",
+            name="convert-test",
             description="Test conversion",
             input_schema=GreetInput,
             tags=["test"],
@@ -169,14 +169,14 @@ class TestCommandToDefinition:
         definition = command_to_definition(convert_test)
 
         assert definition is not None
-        assert definition.name == "convert.test"
+        assert definition.name == "convert-test"
         assert definition.description == "Test conversion"
         assert definition.tags == ["test"]
         assert definition.mutation is True
 
     def test_extracts_parameters_from_schema(self):
         @define_command(
-            name="params.test",
+            name="params-test",
             description="Parameter extraction",
             input_schema=CreateItemInput,
         )
@@ -320,7 +320,7 @@ class TestServerIntegration:
         items = {}
 
         @server.command(
-            name="item.create",
+            name="item-create",
             description="Create an item",
             input_schema=CreateItemInput,
             output_schema=CreateItemOutput,
@@ -333,7 +333,7 @@ class TestServerIntegration:
             return success(item.model_dump(), reasoning="Item created successfully")
 
         @server.command(
-            name="item.list",
+            name="item-list",
             description="List all items",
         )
         async def list_items(input):
@@ -343,15 +343,15 @@ class TestServerIntegration:
             )
 
         # Create items
-        result1 = await server.execute("item.create", {"name": "Widget", "value": 100})
+        result1 = await server.execute("item-create", {"name": "Widget", "value": 100})
         assert result1.success is True
         assert result1.data["name"] == "Widget"
 
-        result2 = await server.execute("item.create", {"name": "Gadget", "value": 200})
+        result2 = await server.execute("item-create", {"name": "Gadget", "value": 200})
         assert result2.success is True
 
         # List items
-        result3 = await server.execute("item.list", {})
+        result3 = await server.execute("item-list", {})
         assert result3.success is True
         assert len(result3.data["items"]) == 2
         assert result3.reasoning == "Found 2 items"

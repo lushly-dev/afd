@@ -386,12 +386,12 @@ mod tests {
 
     #[test]
     fn test_batch_command_creation() {
-        let cmd = BatchCommand::new("1", "todo.create", serde_json::json!({"title": "Test"}))
+        let cmd = BatchCommand::new("1", "todo-create", serde_json::json!({"title": "Test"}))
             .with_priority(10)
             .with_tags(vec!["important".to_string()]);
 
         assert_eq!(cmd.id, "1");
-        assert_eq!(cmd.command, "todo.create");
+        assert_eq!(cmd.command, "todo-create");
         assert_eq!(cmd.priority, Some(10));
     }
 
