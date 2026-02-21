@@ -109,7 +109,7 @@ fn create_user(email: &str) -> CommandResult<User> {
         return failure(CommandError::new(
             "CONFLICT",
             format!("Email '{}' already registered", email),
-            Some("Use user.login instead, or reset password"),
+            Some("Use user-login instead, or reset password"),
         ));
     }
     // ... create user
@@ -503,7 +503,7 @@ async fn test_command_execution() {
     registry.register(create_test_command()).unwrap();
 
     let result = registry.execute(
-        "test.echo",
+        "test-echo",
         serde_json::json!({"message": "hello"}),
         None,
     ).await;

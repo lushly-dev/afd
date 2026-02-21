@@ -230,9 +230,23 @@ res.json({
 | MCP (HTTP)    | ~2-5ms      | Cross-process |
 | MCP (SSE)     | ~5-10ms     | Remote agents |
 
+## Pipeline Execution
+
+DirectClient supports `pipe()` for declarative command chaining:
+
+```typescript
+const result = await client.pipe([
+  { command: 'user-get', input: { id: 1 }, as: 'user' },
+  { command: 'order-list', input: { userId: '$prev.id' } },
+]);
+```
+
+Variable resolution: `$prev`, `$prev.field`, `$first`, `$steps[n]`, `$steps.alias`, `$input`.
+
+Options: `continueOnFailure`, `when` clauses for conditional steps, and `timeout`.
+
 ## Related
 
 - `afd-typescript` - TypeScript command patterns
 - `afd-developer` - Core AFD methodology
-- DirectClient guide content is included in this skill
-- `packages/examples/todo-directclient` - Working example
+- [Myoso](https://github.com/lushly-dev/myoso) - Standalone app with DirectClient + Gemini chat integration

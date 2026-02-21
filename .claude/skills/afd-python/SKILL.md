@@ -551,6 +551,21 @@ async def list_todos(input: ListTodosInput) -> CommandResult[Dict[str, Any]]:
     ...
 ```
 
+## DirectClient (Python)
+
+Zero-overhead in-process command execution, same API as MCP client:
+
+```python
+from afd import DirectClient
+
+client = DirectClient(registry)
+result = await client.call('todo-create', {'title': 'Fast!'})
+commands = await client.list_commands()
+exists = client.has_command('todo-create')
+```
+
+Use DirectClient when the AI agent runs in the same Python process.
+
 ## Related Skills
 
 - `afd-developer` - Core AFD methodology

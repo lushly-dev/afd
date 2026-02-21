@@ -6,6 +6,4 @@ packages:
   - "packages/examples/todo/frontends/*"
   - "packages/examples/todo-directclient/backend"
   - "packages/experiments/*/backend"
-  - "demos/todo/backend"
-  - "demos/todo/frontend"
 

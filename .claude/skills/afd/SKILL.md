@@ -139,10 +139,11 @@ return error('NOT_FOUND', `Item ${id} not found`, {
 
 | Package | Purpose |
 |---------|---------|
-| `@lushly-dev/afd-core` | Core types (CommandResult, CommandError) |
+| `@lushly-dev/afd-core` | Core types (CommandResult, CommandError, validateCommandName) |
 | `@lushly-dev/afd-server` | Zod-based MCP server factory |
-| `@lushly-dev/afd-client` | MCP client with SSE/HTTP transports |
-| `@lushly-dev/afd-testing` | Test validators and helpers |
+| `@lushly-dev/afd-client` | MCP client with SSE/HTTP transports + DirectClient |
+| `@lushly-dev/afd-testing` | JTBD scenario runner, test validators |
+| `@lushly-dev/afd-adapters` | Frontend adapters for rendering CommandResult |
 | `@lushly-dev/afd-cli` | Command-line interface |
 
 ## When to Escalate

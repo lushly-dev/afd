@@ -134,14 +134,11 @@ fi
     fi
 ```
 
-## lushbot Integration
+## Lushx Integration
 
 ```bash
 # Check for stale contracts
-lush dev action=afd-lint
-
-# Scaffold new TypeSpec setup
-lush scaffold typespec
+lushx dev afd-lint
 ```
 
 ## Reference Implementation

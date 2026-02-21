@@ -66,9 +66,6 @@ python/
 │   ├── server/           # FastMCP-based server factory
 │   └── lushx_ext/        # Lushx extension (auto-registered)
 └── tests/
-
-demos/
-└── todo/       # Myoso - Local-first todo app with Convex + Gemini chat integration
 ```
 
 ### Lushx Extension
@@ -205,21 +202,6 @@ When working with pipelines, these variables are available:
 | `$steps.alias` | Step by alias name |
 | `$input` | Original pipeline input |
 
-## Demos
-
-### Myoso (demos/todo)
-A local-first todo app demonstrating AFD with Convex real-time database and Gemini chat integration:
-- **MCP Server** (port 3100): Notes commands via `/message` endpoint
-- **Chat Server** (port 3101): AI chat via `/chat` SSE endpoint
-- **Frontend**: Vite + React with Zustand for optimistic updates
-
-```bash
-# Run the demo (from demos/todo)
-cd backend && npm install && npm run dev   # Terminal 1: MCP server
-cd backend && npm run chat                 # Terminal 2: Chat server
-cd frontend && npm install && npm run dev  # Terminal 3: Frontend
-```
-
 ## Skill Index
 
 | Skill | When to Use |
@@ -229,7 +211,8 @@ cd frontend && npm install && npm run dev  # Terminal 3: Frontend
 | [afd-python](skills/afd-python/) | Python implementation with Pydantic, FastMCP |
 | [afd-typescript](skills/afd-typescript/) | TypeScript patterns, Zod tips |
 | [afd-rust](skills/afd-rust/) | Rust implementation patterns |
-| [afd-directclient](skills/afd-directclient/) | In-process command execution |
+| [afd-directclient](skills/afd-directclient/) | In-process command execution, pipe() pipelines |
+| [afd-contracts](skills/afd-contracts/) | TypeSpec-based contract system for multi-layer API schema sync |
 
 ## Related Documentation
 

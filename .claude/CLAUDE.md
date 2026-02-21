@@ -59,9 +59,6 @@ packages/
 └── examples/
     ├── todo/                # Multi-stack example (TS, Python, Rust backends)
     └── todo-directclient/   # DirectClient + AI integration example
-
-demos/
-└── todo/       # Myoso - Local-first todo app with Convex + Gemini chat integration
 ```
 
 ### Core Types (`@lushly-dev/afd-core`)
@@ -172,21 +169,6 @@ When working with pipelines, these variables are available:
 | `$steps[n]` | Step at index n |
 | `$steps.alias` | Step by alias name |
 | `$input` | Original pipeline input |
-
-## Demos
-
-### Myoso (demos/todo)
-A local-first todo app demonstrating AFD with Convex real-time database and Gemini chat integration:
-- **MCP Server** (port 3100): Notes commands via `/message` endpoint
-- **Chat Server** (port 3101): AI chat via `/chat` SSE endpoint
-- **Frontend**: Vite + React with Zustand for optimistic updates
-
-```bash
-# Run the demo (from demos/todo)
-cd backend && npm install && npm run dev   # Terminal 1: MCP server
-cd backend && npm run chat                 # Terminal 2: Chat server
-cd frontend && npm install && npm run dev  # Terminal 3: Frontend
-```
 
 ## Skill Index
 
