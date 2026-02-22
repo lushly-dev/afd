@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Surface validation (semantic quality analysis)** (`@lushly-dev/afd-testing`) — Cross-command analysis that detects semantic collisions, naming ambiguities, schema overlaps, and prompt injection risks. New `validateCommandSurface()` function with 8 rules:
+  - `similar-descriptions` — Cosine similarity detection for command descriptions (configurable threshold)
+  - `schema-overlap` — Shared input field detection between command pairs
+  - `naming-convention` — Kebab-case `domain-action` naming enforcement
+  - `naming-collision` — Separator-normalized collision detection (e.g., `user-create` vs `userCreate`)
+  - `missing-category` — Commands without category assignment
+  - `description-injection` — Prompt injection pattern scanning (4 built-in patterns)
+  - `description-quality` — Description length and action verb presence checks
+  - `orphaned-category` — Categories with only a single command
+  - Suppression system: rule-level (`"rule"`) and pair-level (`"rule:cmdA:cmdB"`) finding suppression
+  - Strict mode: treat warnings as errors
+  - Input normalization: accepts both `ZodCommandDefinition[]` and `CommandDefinition[]`
+  - 52 new tests covering all rules, similarity engine, schema overlap, injection detection, and integration scenarios
+
+- **CLI `--surface` flag** (`@lushly-dev/afd-cli`) — Surface validation mode for the `afd validate` command:
+  - `afd validate --surface` — Run cross-command surface validation
+  - `--similarity-threshold <n>` — Custom similarity threshold (default 0.7)
+  - `--skip-category <name>` — Skip category during validation (repeatable)
+  - `--suppress <rule>` — Suppress a rule or rule:cmdA:cmdB pair (repeatable)
+  - `--strict` — Treat warnings as errors (reuses existing flag)
+  - `--verbose` — Show detailed findings with suggestions and evidence
+
+### Fixed
+
+- **`validateCommandDefinition()` naming regex** (`@lushly-dev/afd-testing`) — Changed from dot-notation pattern (`/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*$/`) to kebab-case (`/^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$/`) to align with `@lushly-dev/afd-core`'s `COMMAND_NAME_PATTERN`
+
+---
+
 ## [0.2.3-beta] - 2026-02-20
 
 ### Added

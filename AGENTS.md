@@ -54,7 +54,7 @@ packages/
 ├── server/     # @lushly-dev/afd-server - MCP server factory
 ├── client/     # @lushly-dev/afd-client - MCP client + DirectClient
 ├── cli/        # @lushly-dev/afd-cli - Command-line tool
-├── testing/    # @lushly-dev/afd-testing - JTBD scenario runner
+├── testing/    # @lushly-dev/afd-testing - JTBD scenario runner + surface validation
 ├── adapters/   # @lushly-dev/afd-adapters - Frontend adapters for rendering CommandResult
 └── examples/
     ├── todo/                # Multi-stack example (TS, Python, Rust backends)

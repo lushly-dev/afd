@@ -273,6 +273,44 @@ export {
 } from './mcp/tools.js';
 
 // ============================================================================
+// Surface Validation (Semantic Quality)
+// ============================================================================
+
+export type {
+	DescriptionQualityOptions,
+	InjectionMatch,
+	InjectionPattern,
+	SchemaOverlapResult,
+	SimilarityMatrix,
+	SimilarityOptions,
+	SimilarityPair,
+	SurfaceCommand,
+	SurfaceFinding,
+	SurfaceRule,
+	SurfaceValidationOptions,
+	SurfaceValidationResult,
+	SurfaceValidationSummary,
+} from './surface/index.js';
+export {
+	buildSimilarityMatrix,
+	checkDescriptionInjection,
+	checkDescriptionQuality,
+	checkInjection,
+	checkMissingCategory,
+	checkNamingCollision,
+	checkNamingConvention,
+	checkOrphanedCategory,
+	checkSchemaOverlap,
+	checkSimilarDescriptions,
+	commandParametersToJsonSchema,
+	compareSchemas,
+	cosineSimilarity,
+	DESCRIPTION_VERBS,
+	INJECTION_PATTERNS,
+	validateCommandSurface,
+} from './surface/index.js';
+
+// ============================================================================
 // Re-export core types commonly used in testing
 // ============================================================================
 
