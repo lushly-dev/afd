@@ -26,6 +26,8 @@ const result = validateCommandSurface(commands, {
   strict: false,                   // true = warnings count as errors
   suppressions: [],                // Suppress specific findings
   additionalInjectionPatterns: [], // Custom injection patterns
+  checkSchemaComplexity: true,     // Score input schema complexity
+  schemaComplexityThreshold: 13,   // Score threshold for warnings
 });
 ```
 
@@ -57,7 +59,7 @@ interface SurfaceFinding {
 }
 ```
 
-## 8 Validation Rules
+## 9 Validation Rules
 
 ### 1. Similar Descriptions (`similar-descriptions`)
 **Severity:** Warning
@@ -111,6 +113,30 @@ Checks that descriptions are:
 
 Flags categories with only one command, which may indicate misclassification.
 
+### 9. Schema Complexity (`schema-complexity`)
+**Severity:** Warning (high/critical) or Info (medium)
+
+Scores each command's input schema complexity and flags schemas likely to cause agent input errors. Dimensions scored: field count, nesting depth, unions (oneOf/anyOf), intersections (allOf), enum/pattern/bound constraints, and optional field ratio.
+
+Weighted formula: `fields(×1) + depth(×3) + unions(×5) + intersections(×2) + enums(×1) + patterns(×2) + bounds(×1) + optionalRatio`
+
+| Tier | Score | Finding |
+|------|-------|---------|
+| Low | 0-5 | No finding |
+| Medium | 6-12 | Info |
+| High | 13-20 | Warning |
+| Critical | 21+ | Warning |
+
+Never produces `error` severity. Nullable wrappers (`anyOf: [T, { type: 'null' }]`) are excluded from union counting. `const` (from `z.literal()`) is not counted as enum.
+
+```typescript
+// Use computeComplexity() directly for schema analysis
+import { computeComplexity } from '@lushly-dev/afd-testing';
+
+const result = computeComplexity(jsonSchema);
+// { score: 15, tier: 'high', breakdown: { fields: 6, depth: 1, unions: 1, ... } }
+```
+
 ## Suppression System
 
 Suppress findings at the rule level or for specific command pairs:
@@ -119,6 +145,7 @@ Suppress findings at the rule level or for specific command pairs:
 const result = validateCommandSurface(commands, {
   suppressions: [
     'missing-category',                          // All missing-category findings
+    'schema-complexity:auth-sign-in',            // Single command suppression
     'similar-descriptions:user-get:user-fetch',  // Only this pair (order-independent)
   ],
 });

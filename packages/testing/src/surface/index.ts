@@ -15,17 +15,22 @@ export {
 	checkNamingCollision,
 	checkNamingConvention,
 	checkOrphanedCategory,
+	checkSchemaComplexity,
 	checkSchemaOverlap,
 	checkSimilarDescriptions,
 	DESCRIPTION_VERBS,
 } from './rules.js';
 
+// Schema complexity
+export { computeComplexity } from './schema-complexity.js';
 // Schema overlap
 export { commandParametersToJsonSchema, compareSchemas } from './schema-overlap.js';
 // Similarity engine
 export { buildSimilarityMatrix, cosineSimilarity } from './similarity.js';
 // Types
 export type {
+	ComplexityBreakdown,
+	ComplexityResult,
 	DescriptionQualityOptions,
 	InjectionMatch,
 	InjectionPattern,

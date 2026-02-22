@@ -31,10 +31,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `description-injection` — Prompt injection pattern scanning (4 built-in patterns)
   - `description-quality` — Description length and action verb presence checks
   - `orphaned-category` — Categories with only a single command
-  - Suppression system: rule-level (`"rule"`) and pair-level (`"rule:cmdA:cmdB"`) finding suppression
+  - `schema-complexity` — Weighted scoring of input schema complexity (fields, depth, unions, intersections, constraints, optional ratio) with tiered findings (low/medium/high/critical)
+  - Suppression system: rule-level (`"rule"`), command-level (`"rule:command"`), and pair-level (`"rule:cmdA:cmdB"`) finding suppression
   - Strict mode: treat warnings as errors
   - Input normalization: accepts both `ZodCommandDefinition[]` and `CommandDefinition[]`
-  - 52 new tests covering all rules, similarity engine, schema overlap, injection detection, and integration scenarios
+  - 65 tests covering all rules, similarity engine, schema overlap, injection detection, schema complexity, and integration scenarios
 
 - **CLI `--surface` flag** (`@lushly-dev/afd-cli`) — Surface validation mode for the `afd validate` command:
   - `afd validate --surface` — Run cross-command surface validation

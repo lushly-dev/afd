@@ -61,6 +61,7 @@ console.log(result.findings);       // SurfaceFinding[] with rule, severity, mes
 | `description-injection` | Error | Descriptions containing prompt injection patterns |
 | `description-quality` | Warning | Descriptions that are too short or missing action verbs |
 | `orphaned-category` | Info | Categories containing only one command |
+| `schema-complexity` | Warning/Info | Input schemas too complex for agents (unions, nesting, constraints) |
 
 ### Options
 
@@ -77,6 +78,8 @@ interface SurfaceValidationOptions {
   strict?: boolean;                    // Treat warnings as errors
   suppressions?: string[];             // Suppress specific findings
   additionalInjectionPatterns?: InjectionPattern[];
+  checkSchemaComplexity?: boolean;    // Default: true
+  schemaComplexityThreshold?: number; // Default: 13 (warning threshold)
 }
 ```
 
@@ -88,6 +91,7 @@ Suppress findings at the rule level or for specific command pairs:
 const result = validateCommandSurface(commands, {
   suppressions: [
     'missing-category',                        // Suppress all missing-category findings
+    'schema-complexity:auth-sign-in',           // Suppress for a single command
     'similar-descriptions:user-get:user-fetch', // Suppress only this pair (order-independent)
   ],
 });
@@ -1042,6 +1046,7 @@ const result = await registry.execute('document-create', { title: 'New Doc' });
 | `description-injection` | Error | Description contains prompt injection patterns |
 | `description-quality` | Warning | Description too short or missing action verb |
 | `orphaned-category` | Info | Category contains only one command |
+| `schema-complexity` | Warning/Info | Input schema too complex for agents (scored by fields, depth, unions, constraints) |
 
 ## License
 

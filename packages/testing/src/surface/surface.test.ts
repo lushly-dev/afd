@@ -7,9 +7,11 @@ import {
 	checkNamingCollision,
 	checkNamingConvention,
 	checkOrphanedCategory,
+	checkSchemaComplexity,
 	checkSchemaOverlap,
 	checkSimilarDescriptions,
 } from './rules.js';
+import { computeComplexity } from './schema-complexity.js';
 import { commandParametersToJsonSchema, compareSchemas } from './schema-overlap.js';
 import { buildSimilarityMatrix, cosineSimilarity } from './similarity.js';
 import type { SurfaceCommand } from './types.js';
@@ -916,5 +918,325 @@ describe('validateCommandSurface', () => {
 			expect(finding.commands.length).toBeGreaterThan(0);
 			expect(finding.suggestion).toBeTruthy();
 		}
+	});
+
+	it('schema-complexity integrates with suppressions', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'complex-cmd',
+				description: 'Creates a complex thing with many options and settings',
+				category: 'test',
+				jsonSchema: {
+					type: 'object',
+					properties: {
+						mode: { type: 'string', enum: ['a', 'b', 'c'] },
+						target: { type: 'string', pattern: '^[a-z]+$' },
+						config: {
+							type: 'object',
+							properties: {
+								nested: {
+									type: 'object',
+									properties: {
+										deep: { type: 'string' },
+									},
+								},
+							},
+						},
+						items: { type: 'array', items: { type: 'string' } },
+						limit: { type: 'number', minimum: 0, maximum: 100 },
+						tag: { type: 'string' },
+					},
+				},
+			},
+		];
+		const result = validateCommandSurface(commands, {
+			suppressions: ['schema-complexity:complex-cmd'],
+		});
+		const complexityFindings = result.findings.filter((f) => f.rule === 'schema-complexity');
+		expect(complexityFindings.length).toBeGreaterThanOrEqual(1);
+		expect(complexityFindings.every((f) => f.suppressed)).toBe(true);
+	});
+
+	it('schema-complexity can be disabled via option', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'complex-cmd',
+				description: 'Creates a complex thing with many options and settings',
+				category: 'test',
+				jsonSchema: {
+					type: 'object',
+					properties: {
+						a: { type: 'string' },
+						b: { type: 'string' },
+						c: { type: 'string' },
+						d: { type: 'string' },
+						e: { type: 'string' },
+						f: { type: 'string' },
+						g: { type: 'string' },
+					},
+				},
+			},
+		];
+		const result = validateCommandSurface(commands, {
+			checkSchemaComplexity: false,
+		});
+		expect(result.summary.rulesEvaluated).not.toContain('schema-complexity');
+		const complexityFindings = result.findings.filter((f) => f.rule === 'schema-complexity');
+		expect(complexityFindings).toHaveLength(0);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCHEMA COMPLEXITY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('computeComplexity', () => {
+	it('scores flat schema as low', () => {
+		const schema = {
+			type: 'object',
+			properties: {
+				id: { type: 'string' },
+				name: { type: 'string' },
+			},
+			required: ['id', 'name'],
+		};
+		const result = computeComplexity(schema);
+		expect(result.score).toBeLessThanOrEqual(5);
+		expect(result.tier).toBe('low');
+		expect(result.breakdown.fields).toBe(2);
+		expect(result.breakdown.depth).toBe(1);
+		expect(result.breakdown.unions).toBe(0);
+		expect(result.breakdown.optionalRatio).toBe(0);
+	});
+
+	it('scores discriminated union via oneOf as high', () => {
+		const schema = {
+			oneOf: [
+				{
+					type: 'object',
+					properties: {
+						method: { const: 'credentials' },
+						email: { type: 'string' },
+						password: { type: 'string' },
+					},
+					required: ['method', 'email'],
+				},
+				{
+					type: 'object',
+					properties: {
+						method: { const: 'oauth' },
+						provider: { type: 'string' },
+						scopes: { type: 'array', items: { type: 'string' } },
+						redirectTo: { type: 'string' },
+					},
+					required: ['method', 'provider'],
+				},
+			],
+		};
+		const result = computeComplexity(schema);
+		expect(result.score).toBeGreaterThanOrEqual(13);
+		expect(result.tier).toBe('high');
+		expect(result.breakdown.unions).toBe(1);
+		expect(result.breakdown.fields).toBe(6); // method, email, password, provider, scopes, redirectTo
+	});
+
+	it('treats nullable anyOf as non-union', () => {
+		const schema = {
+			type: 'object',
+			properties: {
+				name: {
+					anyOf: [{ type: 'string' }, { type: 'null' }],
+				},
+			},
+			required: ['name'],
+		};
+		const result = computeComplexity(schema);
+		expect(result.breakdown.unions).toBe(0);
+	});
+
+	it('tracks nested object depth', () => {
+		const schema = {
+			type: 'object',
+			properties: {
+				address: {
+					type: 'object',
+					properties: {
+						street: { type: 'string' },
+						city: { type: 'string' },
+					},
+				},
+			},
+		};
+		const result = computeComplexity(schema);
+		expect(result.breakdown.depth).toBe(2);
+		expect(result.breakdown.fields).toBe(3); // address, street, city
+	});
+
+	it('counts enum and pattern constraints', () => {
+		const schema = {
+			type: 'object',
+			properties: {
+				status: { type: 'string', enum: ['active', 'inactive'] },
+				code: { type: 'string', pattern: '^[A-Z]{3}$' },
+			},
+			required: ['status', 'code'],
+		};
+		const result = computeComplexity(schema);
+		expect(result.breakdown.enums).toBe(1);
+		expect(result.breakdown.patterns).toBe(1);
+	});
+
+	it('graduates optional ratio at 0%, 50%, 100%', () => {
+		// 0% optional (all required)
+		const allRequired = computeComplexity({
+			type: 'object',
+			properties: {
+				a: { type: 'string' },
+				b: { type: 'string' },
+			},
+			required: ['a', 'b'],
+		});
+		expect(allRequired.breakdown.optionalRatio).toBe(0);
+
+		// 50% optional
+		const halfOptional = computeComplexity({
+			type: 'object',
+			properties: {
+				a: { type: 'string' },
+				b: { type: 'string' },
+			},
+			required: ['a'],
+		});
+		expect(halfOptional.breakdown.optionalRatio).toBe(2); // floor(0.5 * 4) = 2
+
+		// 100% optional (none required)
+		const allOptional = computeComplexity({
+			type: 'object',
+			properties: {
+				a: { type: 'string' },
+				b: { type: 'string' },
+			},
+		});
+		expect(allOptional.breakdown.optionalRatio).toBe(4); // floor(1.0 * 4) = 4
+	});
+
+	it('counts allOf as intersection', () => {
+		const schema = {
+			allOf: [
+				{
+					type: 'object',
+					properties: { name: { type: 'string' } },
+					required: ['name'],
+				},
+				{
+					type: 'object',
+					properties: { age: { type: 'number' } },
+					required: ['age'],
+				},
+			],
+		};
+		const result = computeComplexity(schema);
+		expect(result.breakdown.intersections).toBe(1);
+		expect(result.breakdown.fields).toBe(2);
+	});
+
+	it('tracks deep nesting 3+ levels', () => {
+		const schema = {
+			type: 'object',
+			properties: {
+				level1: {
+					type: 'object',
+					properties: {
+						level2: {
+							type: 'object',
+							properties: {
+								value: { type: 'string' },
+							},
+						},
+					},
+				},
+			},
+		};
+		const result = computeComplexity(schema);
+		expect(result.breakdown.depth).toBe(3);
+		expect(result.breakdown.depth * 3).toBe(9); // depth weight
+	});
+
+	it('adds depth for objects inside arrays, not for the array itself', () => {
+		const schema = {
+			type: 'object',
+			properties: {
+				items: {
+					type: 'array',
+					items: {
+						type: 'object',
+						properties: {
+							name: { type: 'string' },
+						},
+					},
+				},
+			},
+		};
+		const result = computeComplexity(schema);
+		// root object = depth 1, array transparent, inner object = depth 2
+		expect(result.breakdown.depth).toBe(2);
+		expect(result.breakdown.fields).toBe(2); // items, name
+	});
+});
+
+describe('checkSchemaComplexity', () => {
+	it('produces no finding for low-complexity schema', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'todo-get',
+				description: 'Retrieves a todo item by ID',
+				jsonSchema: {
+					type: 'object',
+					properties: {
+						id: { type: 'string' },
+					},
+					required: ['id'],
+				},
+			},
+		];
+		const findings = checkSchemaComplexity(commands, 13);
+		expect(findings).toHaveLength(0);
+	});
+
+	it('produces warning for complex schema', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'auth-sign-in',
+				description: 'Sign in with credentials or OAuth provider',
+				jsonSchema: {
+					oneOf: [
+						{
+							type: 'object',
+							properties: {
+								method: { const: 'credentials' },
+								email: { type: 'string' },
+								password: { type: 'string' },
+							},
+							required: ['method', 'email'],
+						},
+						{
+							type: 'object',
+							properties: {
+								method: { const: 'oauth' },
+								provider: { type: 'string' },
+								scopes: { type: 'array', items: { type: 'string' } },
+								redirectTo: { type: 'string' },
+							},
+							required: ['method', 'provider'],
+						},
+					],
+				},
+			},
+		];
+		const findings = checkSchemaComplexity(commands, 13);
+		expect(findings).toHaveLength(1);
+		expect(findings[0]?.severity).toBe('warning');
+		expect(findings[0]?.rule).toBe('schema-complexity');
+		expect((findings[0]?.evidence as Record<string, unknown>)?.score).toBe(15);
 	});
 });
