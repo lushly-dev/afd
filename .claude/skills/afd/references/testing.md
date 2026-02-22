@@ -333,7 +333,7 @@ if (!result.valid) {
 }
 ```
 
-### 8 Validation Rules
+### 9 Validation Rules
 
 | Rule | Severity | What it detects |
 |------|----------|-----------------|
@@ -345,6 +345,7 @@ if (!result.valid) {
 | `description-injection` | Error | Prompt injection patterns in descriptions |
 | `description-quality` | Warning | Descriptions too short or missing action verbs |
 | `orphaned-category` | Info | Categories with only one command |
+| `schema-complexity` | Warning/Info | Input schemas too complex for agents (fields, depth, unions, constraints) |
 
 ### CLI Usage
 

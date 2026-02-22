@@ -144,12 +144,13 @@ type SurfaceRule =
   | 'missing-category'
   | 'description-injection'
   | 'description-quality'
-  | 'orphaned-category';
+  | 'orphaned-category'
+  | 'schema-complexity';
 ```
 
 ### FR-3: Validation Rules
 
-Eight rules, each independently configurable:
+Nine rules, each independently configurable:
 
 | Rule | Severity | What it detects |
 |------|----------|-----------------|
@@ -161,6 +162,7 @@ Eight rules, each independently configurable:
 | `description-injection` | error | Descriptions containing imperative instructions, system prompt fragments, or role-override language |
 | `description-quality` | warning | Descriptions shorter than 20 characters or missing a verb |
 | `orphaned-category` | info | A category with only one command (may indicate misclassification). Informational only — single-command categories are legitimate for utilities like `health-check`. Use `suppressions` to allowlist known singletons. |
+| `schema-complexity` | warning/info | Input schema complexity scored across 8 dimensions (fields, depth, unions, intersections, enums, patterns, bounds, optional ratio). Tiered: low (0-5, no finding), medium (6-12, info), high (13-20, warning), critical (21+, warning). Never produces error. |
 
 ### FR-4: Description Similarity Analysis
 

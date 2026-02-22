@@ -180,6 +180,7 @@ Surface validation detects:
 - Prompt injection patterns in descriptions
 - Description quality issues (too short, missing verbs)
 - Orphaned categories (single command)
+- Schema complexity (unions, nesting, constraints that cause agent input errors)
 
 ## Validation Checklist
 
