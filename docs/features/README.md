@@ -25,6 +25,7 @@ Feature specifications organized by lifecycle stage.
 | [Command Exposure & Undo](./complete/command-exposure-undo/) | Command visibility and undo support |
 | [Handoff Pattern](./complete/handoff-pattern/) | Real-time protocol handoff |
 | [Command Pipeline](./complete/command-pipeline/) | Declarative command chaining |
+| [Middleware Defaults](./complete/middleware-defaults/) | Zero-config observability bundle (`defaultMiddleware()`) |
 
 ## Proposed Features
 

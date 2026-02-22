@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`defaultMiddleware()` factory** (`@lushly-dev/afd-server`) — Returns a pre-configured `CommandMiddleware[]` bundle covering the three most common observability needs:
+  - **Auto trace ID** — `createAutoTraceIdMiddleware()` generates `context.traceId` via `crypto.randomUUID()` when not already present; supports custom `generate()` function
+  - **Structured logging** — `createLoggingMiddleware()` logs command execution start/completion with trace ID correlation
+  - **Slow-command warnings** — `createTimingMiddleware()` fires `onSlow` callback when execution exceeds configurable threshold (default: 1000ms)
+  - Zero-config: `middleware: defaultMiddleware()` gives all three out of the box
+  - Selective disable: pass `false` to any option (`logging: false`, `timing: false`, `traceId: false`)
+  - Composable: spread into middleware array alongside custom middleware (`[...defaultMiddleware(), myCustomMiddleware]`)
+  - New types exported: `DefaultMiddlewareOptions`, `TraceIdOptions`, `LoggingOptions`, `TimingOptions`
+
+---
+
 ## [0.2.3-beta] - 2026-02-20
 
 ### Added

@@ -128,7 +128,7 @@ return failure({ code: 'NOT_FOUND', message: '...', suggestion: 'Try...' });
 Builds MCP servers from Zod-defined commands:
 
 ```typescript
-import { defineCommand, createMcpServer, success } from '@lushly-dev/afd-server';
+import { defineCommand, createMcpServer, defaultMiddleware, success } from '@lushly-dev/afd-server';
 
 const myCommand = defineCommand({
   name: 'domain-action',  // kebab-case naming
@@ -144,6 +144,7 @@ const server = createMcpServer({
   name: 'my-server',
   version: '1.0.0',
   commands: [myCommand],
+  middleware: defaultMiddleware(),  // Trace IDs, logging, slow-command warnings
   transport: 'auto',  // 'stdio' | 'http' | 'auto'
 });
 ```

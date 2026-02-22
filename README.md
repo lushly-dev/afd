@@ -136,7 +136,7 @@ AFD ships as packages across **TypeScript, Python, and Rust**, all sharing the s
 | **afd** *(Python)* | Pydantic-based `CommandResult`, FastMCP server, decorator-based command definition |
 | **afd** *(Rust)* | `CommandResult` types, `CommandRegistry`, batch/stream support, WASM-compatible |
 
-Features like [command trust config](./docs/features/complete/command-trust-config/), [exposure & undo](./docs/features/complete/command-exposure-undo/), [command pipelines](./docs/features/complete/command-pipeline/), and [real-time handoff](./docs/features/complete/handoff-pattern/) are already shipped. TypeSpec-based [cross-layer contract sync](./.claude/skills/afd-contracts/SKILL.md) prevents schema drift between codebases.
+Features like [command trust config](./docs/features/complete/command-trust-config/), [exposure & undo](./docs/features/complete/command-exposure-undo/), [command pipelines](./docs/features/complete/command-pipeline/), [real-time handoff](./docs/features/complete/handoff-pattern/), and [middleware defaults](./docs/features/complete/middleware-defaults/) (zero-config observability) are already shipped. TypeSpec-based [cross-layer contract sync](./.claude/skills/afd-contracts/SKILL.md) prevents schema drift between codebases.
 
 **[Read the full philosophy →](./.claude/skills/afd-developer/references/philosophy.md)**
 

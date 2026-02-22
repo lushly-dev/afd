@@ -24,7 +24,7 @@ pnpm add @lushly-dev/afd-server
 
 ```typescript
 import { z } from 'zod';
-import { defineCommand, createMcpServer, success, failure } from '@lushly-dev/afd-server';
+import { defineCommand, createMcpServer, defaultMiddleware, success, failure } from '@lushly-dev/afd-server';
 
 // Define a command with Zod schema
 const greet = defineCommand({
@@ -35,12 +35,12 @@ const greet = defineCommand({
     name: z.string().min(1, 'Name is required'),
     formal: z.boolean().default(false),
   }),
-  
+
   async handler(input) {
-    const greeting = input.formal 
-      ? `Good day, ${input.name}.` 
+    const greeting = input.formal
+      ? `Good day, ${input.name}.`
       : `Hello, ${input.name}!`;
-    
+
     return success({ greeting }, {
       reasoning: `Generated ${input.formal ? 'formal' : 'casual'} greeting`,
       confidence: 1.0,
@@ -53,6 +53,7 @@ const server = createMcpServer({
   name: 'my-server',
   version: '1.0.0',
   commands: [greet],
+  middleware: defaultMiddleware(),  // Trace IDs, logging, slow-command warnings
   port: 3100,
 });
 
@@ -194,18 +195,15 @@ const server = createMcpServer({
   name: 'my-server',
   version: '1.0.0',
   commands: [cmd1, cmd2, cmd3],
-  
+
   // Optional
   port: 3100,              // Default: 3100
   host: 'localhost',       // Default: localhost
   cors: true,              // Enable CORS (default: true)
-  
-  // Middleware
-  middleware: [
-    createLoggingMiddleware(),
-    createTimingMiddleware({ slowThreshold: 1000 }),
-  ],
-  
+
+  // Middleware — zero-config observability
+  middleware: defaultMiddleware(),
+
   // Callbacks
   onCommand(command, input, result) {
     console.log(`Executed ${command}:`, result.success);
@@ -217,6 +215,34 @@ const server = createMcpServer({
 ```
 
 ## Middleware
+
+### Default Middleware (Recommended)
+
+`defaultMiddleware()` returns a pre-configured stack of three middleware covering common observability needs:
+
+1. **Auto Trace ID** — generates `context.traceId` via `crypto.randomUUID()` when not present
+2. **Structured Logging** — logs command start/completion with trace ID correlation
+3. **Slow-Command Warnings** — warns when commands exceed a configurable threshold (default: 1000ms)
+
+```typescript
+import { defaultMiddleware } from '@lushly-dev/afd-server';
+
+// Zero-config — all three enabled
+middleware: defaultMiddleware()
+
+// Selective disable
+middleware: defaultMiddleware({ timing: false })
+
+// Custom options
+middleware: defaultMiddleware({
+  logging: { logInput: true },
+  timing: { slowThreshold: 500, onSlow: (name, ms) => logger.warn(`${name}: ${ms}ms`) },
+  traceId: { generate: () => `custom-${Date.now()}` },
+})
+
+// Compose with custom middleware
+middleware: [...defaultMiddleware(), myAuthMiddleware, myRateLimiter]
+```
 
 ### Logging
 
@@ -351,6 +377,16 @@ Create an MCP server from commands.
 | `middleware` | array | No | Middleware functions |
 | `onCommand` | function | No | Command execution callback |
 | `onError` | function | No | Error callback |
+
+### defaultMiddleware(options?)
+
+Returns a pre-configured `CommandMiddleware[]` with trace ID generation, logging, and timing.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `logging` | `LoggingOptions \| false` | enabled | Structured logging config, or `false` to disable |
+| `timing` | `TimingOptions \| false` | enabled (1000ms) | Slow-command warning config, or `false` to disable |
+| `traceId` | `TraceIdOptions \| false` | enabled (UUID) | Trace ID auto-generation config, or `false` to disable |
 
 ### Server Methods
 
