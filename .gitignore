@@ -49,6 +49,7 @@ Cargo.lock
 *.plan.md
 !PLAN/**/*.plan.md
 !archive/**/*.plan.md
+.claude/worktrees/
 .cursor/
 nul
 tmpclaude-*

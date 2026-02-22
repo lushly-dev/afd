@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "alfred": {
+      "command": "D:/Github/lushly-dev/lushbot/.venv/Scripts/python.exe",
+      "args": ["-m", "alfred.mcp_server"]
+    }
+  }
+}

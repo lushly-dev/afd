@@ -66,7 +66,21 @@ python/
 │   ├── server/           # FastMCP-based server factory
 │   └── lushx_ext/        # Lushx extension (auto-registered)
 └── tests/
+
+alfred/                   # AFD quality bot (deterministic compliance checks)
+├── src/alfred/           # 3 commands: lint, parity, quality
+└── tests/                # 22 tests
 ```
+
+### Alfred (Quality Bot)
+
+Deterministic architecture compliance checks so agents skip expensive reasoning. Three commands available via CLI (`alfred <cmd>`), MCP server, and botcore plugin:
+
+- **`alfred lint`** — Validates AFD architecture rules (6 lint rules across Python/TS/Rust)
+- **`alfred parity`** — Detects API surface drift between TypeScript, Python, and Rust packages
+- **`alfred quality`** — Checks command description quality (length, imperative voice, duplicates)
+
+See [alfred/AGENTS.md](alfred/AGENTS.md) for full command reference, lint rules, and development setup.
 
 ### Lushx Extension
 
