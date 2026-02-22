@@ -1,0 +1,92 @@
+{
+	"name": "@lushly-dev/afd-auth",
+	"version": "0.1.0",
+	"description": "Provider-agnostic authentication adapter for AFD applications",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./react": {
+			"types": "./dist/react.d.ts",
+			"import": "./dist/react.js"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"clean": "rm -rf dist"
+	},
+	"dependencies": {
+		"@lushly-dev/afd-core": "workspace:*"
+	},
+	"peerDependencies": {
+		"@lushly-dev/afd-server": "workspace:*",
+		"zod": "^3.23.8",
+		"react": "^18.0.0 || ^19.0.0",
+		"@convex-dev/auth": ">=0.0.90",
+		"better-auth": "^1.0.0"
+	},
+	"peerDependenciesMeta": {
+		"@lushly-dev/afd-server": {
+			"optional": true
+		},
+		"zod": {
+			"optional": true
+		},
+		"react": {
+			"optional": true
+		},
+		"@convex-dev/auth": {
+			"optional": true
+		},
+		"better-auth": {
+			"optional": true
+		}
+	},
+	"devDependencies": {
+		"@lushly-dev/afd-server": "workspace:*",
+		"@testing-library/react": "^16.0.0",
+		"@types/react": "^19.0.0",
+		"jsdom": "^25.0.0",
+		"react": "^19.0.0",
+		"react-dom": "^19.0.0",
+		"typescript": "^5.4.0",
+		"vitest": "^1.6.0",
+		"zod": "^3.23.8"
+	},
+	"keywords": [
+		"afd",
+		"agent-first",
+		"auth",
+		"authentication",
+		"adapter"
+	],
+	"author": "Falkicon",
+	"license": "MIT",
+	"homepage": "https://github.com/lushly-dev/afd#readme",
+	"bugs": {
+		"url": "https://github.com/lushly-dev/afd/issues"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "packages/auth"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	},
+	"sideEffects": false,
+	"publishConfig": {
+		"access": "public"
+	}
+}

@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0-beta] - 2026-02-22
+
+### Added
+
+- **`@lushly-dev/afd-auth`** — New provider-agnostic authentication adapter package
+  - **Core types**: `AuthAdapter` interface, `AuthSessionState` discriminated union (3 states: `unauthenticated` | `loading` | `authenticated`), `Session`, `User`, `SignInOptions` (credentials | oauth)
+  - **`AuthAdapterError`** class with static factories (`invalidCredentials`, `tokenExpired`, `providerError`, `networkError`, `refreshFailed`) and retryable flags
+  - **`MockAuthAdapter`** for testing — configurable delay, test helpers (`_reset`, `_setUser`, `_setLoading`, `_triggerError`, `_getListenerCount`)
+  - **`BetterAuthAdapter`** — bridges `better-auth` nanostore subscriptions to `AuthAdapter` callback pattern
+  - **`useConvexAuthAdapter()`** React hook — bridges `@convex-dev/auth` hooks with synthetic session and dev-mode warnings
+  - **`createAuthMiddleware()`** — `CommandMiddleware` that gates commands behind authentication with `exclude` option for public commands
+  - **`createAuthCommands()`** — AFD command wrappers (`auth-sign-in`, `auth-sign-out`, `auth-session-get`) with proper `expose` settings (sign-in/out exclude MCP; session-get includes MCP)
+  - **`SessionSync`** class — multi-tab session synchronization with BroadcastChannel primary + localStorage fallback, refresh lock coordination, visibility change handler, configurable timing, SSR-safe
+  - **React hooks** via `@lushly-dev/afd-auth/react` sub-path export — `createAuthHooks(adapter)` returns `useAuth`, `useSession` (via `useSyncExternalStore`), `useUser`
+  - Zero React dependency on main entrypoint; React only pulled in via `/react` sub-path
+  - All peer dependencies optional (`@lushly-dev/afd-server`, `zod`, `react`, `@convex-dev/auth`, `better-auth`)
+
+### Test Coverage
+
+| Package | Tests | Status |
+|---------|-------|--------|
+| @lushly-dev/afd-core | 283 | Pass |
+| @lushly-dev/afd-server | 135 | Pass |
+| @lushly-dev/afd-client | 97 | Pass |
+| @lushly-dev/afd-testing | 169 | Pass |
+| @lushly-dev/afd-adapters | 29 | Pass |
+| @lushly-dev/afd-cli | 14 | Pass |
+| **@lushly-dev/afd-auth** | **57** | **Pass** |
+| examples/todo (TS) | 90 | Pass |
+| examples/chat | 22 | Pass |
+
+---
+
 ## [0.2.3-beta] - 2026-02-20
 
 ### Added
