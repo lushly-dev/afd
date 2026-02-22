@@ -47,6 +47,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Input normalization: accepts both `ZodCommandDefinition[]` and `CommandDefinition[]`
   - 65 tests covering all rules, similarity engine, schema overlap, injection detection, schema complexity, and integration scenarios
 
+- **Showcase demos** (`packages/examples/showcase`) — Interactive scripts demonstrating AFD features in composition
+  - **Pipeline demo** (`demo:pipeline`) — 6 sections: basic `$prev` chaining, aliased `$steps.alias` cross-references, conditional `when` clauses, error propagation, continue-on-failure, timeout handling
+  - **Expose & trust demo** (`demo:expose`) — 7 sections: default expose values, surface visibility matrix, registry filtering by interface, interface-gated execution (`COMMAND_NOT_EXPOSED`), trust metadata (`destructive`, `confirmPrompt`), undo metadata on CommandResult, agent decision flow
+
 - **CLI `--surface` flag** (`@lushly-dev/afd-cli`) — Surface validation mode for the `afd validate` command:
   - `afd validate --surface` — Run cross-command surface validation
   - `--similarity-threshold <n>` — Custom similarity threshold (default 0.7)
@@ -63,6 +67,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Selective disable: pass `false` to any option (`logging: false`, `timing: false`, `traceId: false`)
   - Composable: spread into middleware array alongside custom middleware (`[...defaultMiddleware(), myCustomMiddleware]`)
   - New types exported: `DefaultMiddlewareOptions`, `TraceIdOptions`, `LoggingOptions`, `TimingOptions`
+
+### Changed
+
+- **Experiments → Examples restructure** — Graduated `experiments/` directory to `examples/showcase`
+  - `experiments/feature-playground` → `examples/showcase` (renamed, scripts changed from `test:*` to `demo:*`)
+  - `experiments/in-process-binding` deleted (value absorbed into `examples/todo-directclient`)
+  - Workspace config updated to reference new path
 
 ### Fixed
 
