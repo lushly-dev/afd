@@ -1086,6 +1086,32 @@ describe('computeComplexity', () => {
 		expect(result.breakdown.patterns).toBe(1);
 	});
 
+	it('counts format as a pattern constraint', () => {
+		const schema = {
+			type: 'object',
+			properties: {
+				email: { type: 'string', format: 'email' },
+				code: { type: 'string', pattern: '^[A-Z]{3}$' },
+			},
+			required: ['email', 'code'],
+		};
+		const result = computeComplexity(schema);
+		expect(result.breakdown.patterns).toBe(2); // 1 format + 1 pattern
+	});
+
+	it('counts each bound separately', () => {
+		const schema = {
+			type: 'object',
+			properties: {
+				age: { type: 'number', minimum: 0, maximum: 120 },
+				name: { type: 'string', minLength: 1, maxLength: 100 },
+			},
+			required: ['age', 'name'],
+		};
+		const result = computeComplexity(schema);
+		expect(result.breakdown.bounds).toBe(4); // min+max for age, minLength+maxLength for name
+	});
+
 	it('graduates optional ratio at 0%, 50%, 100%', () => {
 		// 0% optional (all required)
 		const allRequired = computeComplexity({
@@ -1238,5 +1264,30 @@ describe('checkSchemaComplexity', () => {
 		expect(findings[0]?.severity).toBe('warning');
 		expect(findings[0]?.rule).toBe('schema-complexity');
 		expect((findings[0]?.evidence as Record<string, unknown>)?.score).toBe(15);
+	});
+
+	it('threshold controls severity, not emission', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'medium-cmd',
+				description: 'A command with medium complexity schema',
+				jsonSchema: {
+					type: 'object',
+					properties: {
+						a: { type: 'string' },
+						b: { type: 'string' },
+						c: { type: 'string' },
+						d: { type: 'string' },
+						e: { type: 'string' },
+						f: { type: 'string' },
+						g: { type: 'string' },
+					},
+				},
+			},
+		];
+		// With a high threshold, medium-tier findings should be info (not warning)
+		const findings = checkSchemaComplexity(commands, 20);
+		expect(findings).toHaveLength(1);
+		expect(findings[0]?.severity).toBe('info');
 	});
 });

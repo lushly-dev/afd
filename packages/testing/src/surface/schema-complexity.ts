@@ -5,6 +5,7 @@
  * Higher scores indicate schemas that are more likely to cause agent input errors.
  */
 
+import type { JsonSchema } from '@lushly-dev/afd-core';
 import type { ComplexityBreakdown, ComplexityResult } from './types.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -12,29 +13,19 @@ import type { ComplexityBreakdown, ComplexityResult } from './types.js';
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Broader JSON Schema node that includes `oneOf`/`anyOf`/`allOf` fields
- * which exist at runtime but aren't in the core `JsonSchema` type.
+ * Extends core `JsonSchema` with `type` optional (for composition-only nodes
+ * like bare `oneOf`/`anyOf` wrappers) and recursive self-references.
  */
-interface JsonSchemaNode {
+interface JsonSchemaNode
+	extends Omit<JsonSchema, 'type' | 'required' | 'properties' | 'items' | 'oneOf' | 'anyOf' | 'allOf' | 'not'> {
 	type?: string;
-	properties?: Record<string, JsonSchemaNode>;
 	required?: string[];
+	properties?: Record<string, JsonSchemaNode>;
 	items?: JsonSchemaNode;
 	oneOf?: JsonSchemaNode[];
 	anyOf?: JsonSchemaNode[];
 	allOf?: JsonSchemaNode[];
-	enum?: unknown[];
-	const?: unknown;
-	pattern?: string;
-	format?: string;
-	minimum?: number;
-	maximum?: number;
-	exclusiveMinimum?: number;
-	exclusiveMaximum?: number;
-	minLength?: number;
-	maxLength?: number;
-	minItems?: number;
-	maxItems?: number;
+	not?: JsonSchemaNode;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -156,19 +147,18 @@ function walk(node: JsonSchemaNode, state: WalkerState, depth: number): void {
 	if (node.pattern) {
 		state.patterns++;
 	}
-
-	if (
-		node.minimum !== undefined ||
-		node.maximum !== undefined ||
-		node.exclusiveMinimum !== undefined ||
-		node.exclusiveMaximum !== undefined ||
-		node.minLength !== undefined ||
-		node.maxLength !== undefined ||
-		node.minItems !== undefined ||
-		node.maxItems !== undefined
-	) {
-		state.bounds++;
+	if (node.format) {
+		state.patterns++;
 	}
+
+	if (node.minimum !== undefined) state.bounds++;
+	if (node.maximum !== undefined) state.bounds++;
+	if (node.exclusiveMinimum !== undefined) state.bounds++;
+	if (node.exclusiveMaximum !== undefined) state.bounds++;
+	if (node.minLength !== undefined) state.bounds++;
+	if (node.maxLength !== undefined) state.bounds++;
+	if (node.minItems !== undefined) state.bounds++;
+	if (node.maxItems !== undefined) state.bounds++;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

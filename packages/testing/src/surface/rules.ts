@@ -441,25 +441,23 @@ export function checkSchemaComplexity(
 
 		if (result.tier === 'low') continue;
 
-		const severity = result.tier === 'medium' ? 'info' : 'warning';
+		const severity = result.score >= threshold ? 'warning' : 'info';
 
-		if (result.score >= threshold || result.tier === 'medium') {
-			findings.push({
-				rule: 'schema-complexity',
-				severity,
-				message: `Command "${cmd.name}" has ${result.tier} schema complexity (score: ${result.score})`,
-				commands: [cmd.name],
-				suggestion:
-					result.tier === 'medium'
-						? 'Consider simplifying the input schema if agents struggle with this command.'
-						: 'Simplify the input schema by reducing unions, nesting depth, or splitting into multiple commands.',
-				evidence: {
-					score: result.score,
-					tier: result.tier,
-					breakdown: result.breakdown,
-				},
-			});
-		}
+		findings.push({
+			rule: 'schema-complexity',
+			severity,
+			message: `Command "${cmd.name}" has ${result.tier} schema complexity (score: ${result.score})`,
+			commands: [cmd.name],
+			suggestion:
+				result.tier === 'medium'
+					? 'Consider simplifying the input schema if agents struggle with this command.'
+					: 'Simplify the input schema by reducing unions, nesting depth, or splitting into multiple commands.',
+			evidence: {
+				score: result.score,
+				tier: result.tier,
+				breakdown: result.breakdown,
+			},
+		});
 	}
 
 	return findings;

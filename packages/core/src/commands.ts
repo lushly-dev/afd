@@ -91,8 +91,12 @@ export interface JsonSchema {
 	additionalProperties?: boolean | JsonSchema;
 	minimum?: number;
 	maximum?: number;
+	exclusiveMinimum?: number;
+	exclusiveMaximum?: number;
 	minLength?: number;
 	maxLength?: number;
+	minItems?: number;
+	maxItems?: number;
 	pattern?: string;
 	format?: string;
 	/** Exactly one schema must match — used for discriminated unions (`z.discriminatedUnion()`) */
