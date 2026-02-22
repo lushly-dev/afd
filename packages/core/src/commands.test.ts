@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest';
 import {
 	type CommandDefinition,
 	commandsToMcpTools,
+	commandToMcpTool,
 	createCommandRegistry,
 	defaultExpose,
 	isMcpExposed,
 	validateCommandName,
 } from './commands.js';
-import { success } from './result.js';
+import { failure, success } from './result.js';
 
 describe('createCommandRegistry', () => {
 	describe('listByTags', () => {
@@ -458,5 +459,436 @@ describe('defaultExpose', () => {
 
 	it('is frozen', () => {
 		expect(Object.isFrozen(defaultExpose)).toBe(true);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// NEW TESTS: Registry CRUD, execute error paths, batch, stream, commandToMcpTool
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('createCommandRegistry - register', () => {
+	it('throws on duplicate registration', () => {
+		const registry = createCommandRegistry();
+		const cmd: CommandDefinition = {
+			name: 'dup-cmd',
+			description: 'First',
+			parameters: [],
+			handler: async () => success(null),
+		};
+		registry.register(cmd);
+		expect(() => registry.register(cmd)).toThrow("Command 'dup-cmd' is already registered");
+	});
+});
+
+describe('createCommandRegistry - get/has/list/listByCategory', () => {
+	it('get returns command by name', () => {
+		const registry = createCommandRegistry();
+		const cmd: CommandDefinition = {
+			name: 'my-cmd',
+			description: 'test',
+			parameters: [],
+			handler: async () => success(null),
+		};
+		registry.register(cmd);
+		expect(registry.get('my-cmd')).toBe(cmd);
+	});
+
+	it('get returns undefined for unknown command', () => {
+		const registry = createCommandRegistry();
+		expect(registry.get('nonexistent-cmd')).toBeUndefined();
+	});
+
+	it('has returns true for registered commands', () => {
+		const registry = createCommandRegistry();
+		const cmd: CommandDefinition = {
+			name: 'exists-cmd',
+			description: 'test',
+			parameters: [],
+			handler: async () => success(null),
+		};
+		registry.register(cmd);
+		expect(registry.has('exists-cmd')).toBe(true);
+		expect(registry.has('nope-cmd')).toBe(false);
+	});
+
+	it('list returns all registered commands', () => {
+		const registry = createCommandRegistry();
+		const cmd1: CommandDefinition = {
+			name: 'cmd-one',
+			description: 'one',
+			parameters: [],
+			handler: async () => success(null),
+		};
+		const cmd2: CommandDefinition = {
+			name: 'cmd-two',
+			description: 'two',
+			parameters: [],
+			handler: async () => success(null),
+		};
+		registry.register(cmd1);
+		registry.register(cmd2);
+		expect(registry.list()).toHaveLength(2);
+	});
+
+	it('listByCategory filters by category', () => {
+		const registry = createCommandRegistry();
+		const cmd1: CommandDefinition = {
+			name: 'cat-one',
+			description: 'one',
+			category: 'alpha',
+			parameters: [],
+			handler: async () => success(null),
+		};
+		const cmd2: CommandDefinition = {
+			name: 'cat-two',
+			description: 'two',
+			category: 'beta',
+			parameters: [],
+			handler: async () => success(null),
+		};
+		registry.register(cmd1);
+		registry.register(cmd2);
+		expect(registry.listByCategory('alpha')).toHaveLength(1);
+		expect(registry.listByCategory('alpha')[0]?.name).toBe('cat-one');
+		expect(registry.listByCategory('gamma')).toHaveLength(0);
+	});
+});
+
+describe('createCommandRegistry - execute error paths', () => {
+	it('returns COMMAND_NOT_FOUND for missing command', async () => {
+		const registry = createCommandRegistry();
+		const result = await registry.execute('not-found', {});
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe('COMMAND_NOT_FOUND');
+	});
+
+	it('catches handler exceptions and returns COMMAND_EXECUTION_ERROR', async () => {
+		const registry = createCommandRegistry();
+		const cmd: CommandDefinition = {
+			name: 'throw-cmd',
+			description: 'throws',
+			parameters: [],
+			handler: async () => {
+				throw new Error('handler exploded');
+			},
+		};
+		registry.register(cmd);
+		const result = await registry.execute('throw-cmd', {});
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe('COMMAND_EXECUTION_ERROR');
+		expect(result.error?.message).toContain('handler exploded');
+	});
+
+	it('catches non-Error throws', async () => {
+		const registry = createCommandRegistry();
+		const cmd: CommandDefinition = {
+			name: 'throw-string',
+			description: 'throws string',
+			parameters: [],
+			handler: async () => {
+				throw 'string error';
+			},
+		};
+		registry.register(cmd);
+		const result = await registry.execute('throw-string', {});
+		expect(result.success).toBe(false);
+		expect(result.error?.message).toBe('string error');
+	});
+});
+
+describe('createCommandRegistry - executeBatch', () => {
+	function makeRegistry() {
+		const registry = createCommandRegistry();
+		registry.register({
+			name: 'pass-cmd',
+			description: 'passes',
+			parameters: [],
+			handler: async (input) => success(input),
+		});
+		registry.register({
+			name: 'fail-cmd',
+			description: 'fails',
+			parameters: [],
+			handler: async () => failure({ code: 'FAIL', message: 'intentional' }),
+		});
+		return registry;
+	}
+
+	it('rejects empty batch', async () => {
+		const registry = makeRegistry();
+		const result = await registry.executeBatch({ commands: [] });
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe('INVALID_BATCH_REQUEST');
+	});
+
+	it('executes sequential batch successfully', async () => {
+		const registry = makeRegistry();
+		const result = await registry.executeBatch({
+			commands: [
+				{ command: 'pass-cmd', input: { a: 1 } },
+				{ command: 'pass-cmd', input: { b: 2 } },
+			],
+		});
+		expect(result.success).toBe(true);
+		expect(result.results).toHaveLength(2);
+		expect(result.summary.successCount).toBe(2);
+		expect(result.timing.totalMs).toBeGreaterThanOrEqual(0);
+	});
+
+	it('stopOnError skips remaining commands', async () => {
+		const registry = makeRegistry();
+		const result = await registry.executeBatch({
+			commands: [
+				{ command: 'fail-cmd', input: {} },
+				{ command: 'pass-cmd', input: {} },
+			],
+			options: { stopOnError: true },
+		});
+		expect(result.results).toHaveLength(2);
+		expect(result.results[0]?.result.success).toBe(false);
+		expect(result.results[1]?.result.error?.code).toBe('COMMAND_SKIPPED');
+	});
+
+	it('uses custom IDs when provided', async () => {
+		const registry = makeRegistry();
+		const result = await registry.executeBatch({
+			commands: [{ id: 'custom-1', command: 'pass-cmd', input: {} }],
+		});
+		expect(result.results[0]?.id).toBe('custom-1');
+	});
+
+	it('generates default IDs when not provided', async () => {
+		const registry = makeRegistry();
+		const result = await registry.executeBatch({
+			commands: [{ command: 'pass-cmd', input: {} }],
+		});
+		expect(result.results[0]?.id).toBe('cmd-0');
+	});
+
+	it('executes parallel batch', async () => {
+		const registry = makeRegistry();
+		const result = await registry.executeBatch({
+			commands: [
+				{ command: 'pass-cmd', input: { a: 1 } },
+				{ command: 'pass-cmd', input: { b: 2 } },
+				{ command: 'pass-cmd', input: { c: 3 } },
+			],
+			options: { parallelism: 2 },
+		});
+		expect(result.success).toBe(true);
+		expect(result.results).toHaveLength(3);
+		expect(result.summary.successCount).toBe(3);
+	});
+
+	it('parallel batch stopOnError skips remaining', async () => {
+		const registry = makeRegistry();
+		const result = await registry.executeBatch({
+			commands: [
+				{ command: 'fail-cmd', input: {} },
+				{ command: 'pass-cmd', input: {} },
+				{ command: 'pass-cmd', input: {} },
+				{ command: 'pass-cmd', input: {} },
+			],
+			options: { parallelism: 2, stopOnError: true },
+		});
+		// First batch of 2 runs (fail + pass), then remaining skipped
+		const skipped = result.results.filter((r) => r.result.error?.code === 'COMMAND_SKIPPED');
+		expect(skipped.length).toBe(2);
+	});
+
+	it('timeout skips remaining commands', async () => {
+		const registry = createCommandRegistry();
+		registry.register({
+			name: 'slow-cmd',
+			description: 'slow',
+			parameters: [],
+			handler: async () => {
+				await new Promise((r) => setTimeout(r, 50));
+				return success('done');
+			},
+		});
+		const result = await registry.executeBatch({
+			commands: [
+				{ command: 'slow-cmd', input: {} },
+				{ command: 'slow-cmd', input: {} },
+				{ command: 'slow-cmd', input: {} },
+			],
+			options: { timeout: 10 },
+		});
+		const timeouts = result.results.filter((r) => r.result.error?.code === 'BATCH_TIMEOUT');
+		expect(timeouts.length).toBeGreaterThan(0);
+	});
+});
+
+describe('createCommandRegistry - executeStream', () => {
+	it('streams single result as one data chunk + complete', async () => {
+		const registry = createCommandRegistry();
+		registry.register({
+			name: 'single-cmd',
+			description: 'single',
+			parameters: [],
+			handler: async () => success({ value: 42 }),
+		});
+
+		const chunks = [];
+		for await (const chunk of registry.executeStream('single-cmd', {})) {
+			chunks.push(chunk);
+		}
+		expect(chunks).toHaveLength(2);
+		expect(chunks[0]?.type).toBe('data');
+		expect(chunks[1]?.type).toBe('complete');
+	});
+
+	it('streams array results as multiple data chunks', async () => {
+		const registry = createCommandRegistry();
+		registry.register({
+			name: 'array-cmd',
+			description: 'array',
+			parameters: [],
+			handler: async () => success([1, 2, 3]),
+		});
+
+		const chunks = [];
+		for await (const chunk of registry.executeStream('array-cmd', {})) {
+			chunks.push(chunk);
+		}
+		// 3 data chunks + 1 complete
+		expect(chunks).toHaveLength(4);
+		expect(chunks[0]?.type).toBe('data');
+		expect(chunks[1]?.type).toBe('data');
+		expect(chunks[2]?.type).toBe('data');
+		expect(chunks[3]?.type).toBe('complete');
+	});
+
+	it('emits error chunk for missing command', async () => {
+		const registry = createCommandRegistry();
+		const chunks = [];
+		for await (const chunk of registry.executeStream('missing-cmd', {})) {
+			chunks.push(chunk);
+		}
+		expect(chunks).toHaveLength(1);
+		expect(chunks[0]?.type).toBe('error');
+	});
+
+	it('emits error chunk when already aborted', async () => {
+		const registry = createCommandRegistry();
+		registry.register({
+			name: 'abort-test',
+			description: 'test',
+			parameters: [],
+			handler: async () => success('ok'),
+		});
+
+		const controller = new AbortController();
+		controller.abort();
+
+		const chunks = [];
+		for await (const chunk of registry.executeStream(
+			'abort-test',
+			{},
+			{
+				signal: controller.signal,
+			}
+		)) {
+			chunks.push(chunk);
+		}
+		expect(chunks).toHaveLength(1);
+		expect(chunks[0]?.type).toBe('error');
+		if (chunks[0]?.type === 'error') {
+			expect(chunks[0].error.code).toBe('STREAM_ABORTED');
+		}
+	});
+
+	it('emits error chunk for handler exceptions', async () => {
+		const registry = createCommandRegistry();
+		registry.register({
+			name: 'throw-stream',
+			description: 'throws',
+			parameters: [],
+			handler: async () => {
+				throw new Error('stream error');
+			},
+		});
+
+		const chunks = [];
+		for await (const chunk of registry.executeStream('throw-stream', {})) {
+			chunks.push(chunk);
+		}
+		// The execute method catches the error, so it comes back as command error,
+		// then stream emits error chunk
+		expect(chunks).toHaveLength(1);
+		expect(chunks[0]?.type).toBe('error');
+	});
+});
+
+describe('commandToMcpTool', () => {
+	it('converts parameters to inputSchema', () => {
+		const cmd: CommandDefinition = {
+			name: 'test-tool',
+			description: 'A test tool',
+			parameters: [
+				{ name: 'title', type: 'string', description: 'The title', required: true },
+				{ name: 'count', type: 'number', description: 'A count', required: false },
+			],
+			handler: async () => success(null),
+		};
+
+		const tool = commandToMcpTool(cmd);
+		expect(tool.name).toBe('test-tool');
+		expect(tool.description).toBe('A test tool');
+		expect(tool.inputSchema.type).toBe('object');
+		expect(tool.inputSchema.required).toEqual(['title']);
+		expect(tool.inputSchema.properties.title).toEqual({
+			type: 'string',
+			description: 'The title',
+		});
+		expect(tool.inputSchema.properties.count).toEqual({
+			type: 'number',
+			description: 'A count',
+		});
+	});
+
+	it('uses custom schema when provided', () => {
+		const customSchema = { type: 'string' as const, description: 'custom', minLength: 1 };
+		const cmd: CommandDefinition = {
+			name: 'custom-schema',
+			description: 'test',
+			parameters: [
+				{
+					name: 'input',
+					type: 'string',
+					description: 'Input',
+					required: true,
+					schema: customSchema,
+				},
+			],
+			handler: async () => success(null),
+		};
+
+		const tool = commandToMcpTool(cmd);
+		expect(tool.inputSchema.properties.input).toBe(customSchema);
+	});
+
+	it('includes default and enum in schema', () => {
+		const cmd: CommandDefinition = {
+			name: 'enum-cmd',
+			description: 'test',
+			parameters: [
+				{
+					name: 'format',
+					type: 'string',
+					description: 'Output format',
+					required: false,
+					default: 'json',
+					enum: ['json', 'csv'],
+				},
+			],
+			handler: async () => success(null),
+		};
+
+		const tool = commandToMcpTool(cmd);
+		const prop = tool.inputSchema.properties.format;
+		expect(prop.default).toBe('json');
+		expect(prop.enum).toEqual(['json', 'csv']);
 	});
 });
