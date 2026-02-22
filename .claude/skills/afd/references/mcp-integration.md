@@ -25,23 +25,22 @@ server.listen(PORT, () => {
 ### With Middleware
 
 ```typescript
-import { 
+import {
   createMcpServer,
-  createLoggingMiddleware,
-  createTimingMiddleware,
+  defaultMiddleware,
   createRateLimitMiddleware,
 } from '@lushly-dev/afd-server';
 
+// Recommended: use defaultMiddleware() for zero-config observability
 const server = createMcpServer({
   name: 'my-app',
   version: '1.0.0',
   commands: allCommands,
   middleware: [
-    createLoggingMiddleware({ level: 'info' }),
-    createTimingMiddleware(),
-    createRateLimitMiddleware({ 
-      maxRequests: 100, 
-      windowMs: 60000 
+    ...defaultMiddleware(),  // Trace IDs, logging, slow-command warnings
+    createRateLimitMiddleware({
+      maxRequests: 100,
+      windowMs: 60000
     }),
   ],
 });
@@ -195,14 +194,33 @@ const server = createMcpServer({
 
 ## Middleware
 
+### Default Middleware (Recommended)
+
+```typescript
+import { defaultMiddleware } from '@lushly-dev/afd-server';
+
+// Zero-config: trace IDs, logging, slow-command warnings
+middleware: defaultMiddleware()
+
+// Selective disable
+middleware: defaultMiddleware({ timing: false })
+
+// Custom options + compose with additional middleware
+middleware: [
+  ...defaultMiddleware({ timing: { slowThreshold: 500 } }),
+  createRateLimitMiddleware({ maxRequests: 100, windowMs: 60000 }),
+]
+```
+
 ### Logging Middleware
 
 ```typescript
 import { createLoggingMiddleware } from '@lushly-dev/afd-server';
 
 const logging = createLoggingMiddleware({
-  level: 'info',  // 'debug' | 'info' | 'warn' | 'error'
-  logger: console,
+  log: console.log,
+  logInput: false,   // Don't log sensitive input
+  logResult: false,
 });
 ```
 
@@ -211,8 +229,10 @@ const logging = createLoggingMiddleware({
 ```typescript
 import { createTimingMiddleware } from '@lushly-dev/afd-server';
 
-const timing = createTimingMiddleware();
-// Adds executionTimeMs to response metadata
+const timing = createTimingMiddleware({
+  slowThreshold: 1000,  // Warn if > 1s
+  onSlow: (name, ms) => console.warn(`Slow: ${name} (${ms}ms)`),
+});
 ```
 
 ### Rate Limiting

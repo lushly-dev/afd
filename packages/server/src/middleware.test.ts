@@ -4,12 +4,15 @@
 
 import type { CommandMiddleware, TelemetryEvent, TelemetrySink } from '@lushly-dev/afd-core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import {
 	ConsoleTelemetrySink,
 	createAutoTraceIdMiddleware,
 	createTelemetryMiddleware,
 	defaultMiddleware,
 } from './middleware.js';
+import { defineCommand } from './schema.js';
+import { createMcpServer } from './server.js';
 
 describe('createTelemetryMiddleware', () => {
 	let recordedEvents: TelemetryEvent[];
@@ -413,6 +416,18 @@ describe('createAutoTraceIdMiddleware', () => {
 		expect(context2.traceId).toBe('custom-2');
 	});
 
+	it('propagates error when generate() throws', async () => {
+		const middleware = createAutoTraceIdMiddleware({
+			generate: () => {
+				throw new Error('Generator failed');
+			},
+		});
+
+		await expect(
+			middleware('test-cmd', {}, {}, async () => ({ success: true, data: {} }))
+		).rejects.toThrow('Generator failed');
+	});
+
 	it('passes through next() result', async () => {
 		const middleware = createAutoTraceIdMiddleware();
 		const expectedResult = {
@@ -517,5 +532,62 @@ describe('defaultMiddleware', () => {
 		expect(seenTraceIds).toHaveLength(1);
 		expect(seenTraceIds[0]).toBeDefined();
 		expect(typeof seenTraceIds[0]).toBe('string');
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// defaultMiddleware Integration Tests
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('defaultMiddleware integration', () => {
+	it('auto-generates traceId, logs, and warns on slow commands via createMcpServer', async () => {
+		const logs: string[] = [];
+		const slowWarnings: Array<{ name: string; ms: number }> = [];
+
+		const slowCommand = defineCommand({
+			name: 'slow-op',
+			description: 'A slow operation for testing',
+			input: z.object({}),
+			handler: async () => {
+				await new Promise((resolve) => setTimeout(resolve, 60));
+				return { success: true as const, data: { done: true } };
+			},
+		});
+
+		const server = createMcpServer({
+			name: 'integration-test',
+			version: '1.0.0',
+			commands: [slowCommand],
+			transport: 'stdio',
+			middleware: defaultMiddleware({
+				logging: { log: (msg) => logs.push(msg) },
+				timing: {
+					slowThreshold: 10,
+					onSlow: (name, ms) => slowWarnings.push({ name, ms }),
+				},
+			}),
+		});
+
+		const result = await server.execute('slow-op', {});
+
+		// Trace ID is auto-generated and propagated to metadata
+		expect(result.success).toBe(true);
+		expect(result.metadata?.traceId).toBeDefined();
+		expect(typeof result.metadata?.traceId).toBe('string');
+		expect((result.metadata?.traceId as string).length).toBeGreaterThan(0);
+
+		// Logging middleware emitted output
+		expect(logs.length).toBeGreaterThanOrEqual(2); // at least "Executing" + "Completed"
+		expect(logs.some((l) => l.includes('Executing: slow-op'))).toBe(true);
+		expect(logs.some((l) => l.includes('Completed: slow-op'))).toBe(true);
+		// Logs include the generated traceId (not "no-trace")
+		expect(logs.every((l) => !l.includes('[no-trace]'))).toBe(true);
+
+		// Timing middleware fired slow-command warning
+		expect(slowWarnings).toHaveLength(1);
+		expect(slowWarnings[0]?.name).toBe('slow-op');
+		expect(slowWarnings[0]?.ms).toBeGreaterThanOrEqual(10);
+
+		await server.stop();
 	});
 });
