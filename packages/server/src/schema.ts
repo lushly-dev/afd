@@ -49,6 +49,9 @@ export interface ZodCommandOptions<TInput extends ZodType<unknown, ZodTypeDef, u
 	/** Tags for additional categorization */
 	tags?: string[];
 
+	/** Commands that should be called before this one. Metadata only — not enforced at runtime. */
+	requires?: string[];
+
 	/** Estimated execution time category */
 	executionTime?: 'instant' | 'fast' | 'slow' | 'long-running';
 
@@ -122,6 +125,9 @@ export interface ZodCommandDefinition<
 
 	/** Tags for categorization */
 	tags?: string[];
+
+	/** Commands that should be called before this one. Metadata only — not enforced at runtime. */
+	requires?: string[];
 
 	/** Execution time category */
 	executionTime?: 'instant' | 'fast' | 'slow' | 'long-running';
@@ -204,6 +210,7 @@ export function defineCommand<TInput extends ZodType<unknown, ZodTypeDef, unknow
 		mutation: options.mutation,
 		version: options.version,
 		tags,
+		requires: options.requires,
 		executionTime: options.executionTime,
 		errors: options.errors,
 		handoff: options.handoff,
@@ -220,6 +227,7 @@ export function defineCommand<TInput extends ZodType<unknown, ZodTypeDef, unknow
 				mutation: options.mutation,
 				version: options.version,
 				tags,
+				requires: options.requires,
 				executionTime: options.executionTime,
 				errors: options.errors,
 				handoff: options.handoff,

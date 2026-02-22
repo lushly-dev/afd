@@ -215,6 +215,9 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	 */
 	tags?: string[];
 
+	/** Commands that should be called before this one. Metadata only — not enforced at runtime. */
+	requires?: string[];
+
 	/**
 	 * Whether this command performs side effects.
 	 */

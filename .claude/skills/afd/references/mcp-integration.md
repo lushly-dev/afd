@@ -328,6 +328,24 @@ export class AppRoot extends FASTElement {
 }
 ```
 
+## Tool Metadata (`_meta`)
+
+When commands have `requires` or `mutation` set, the MCP `tools/list` response includes a `_meta` object on each tool:
+
+```json
+{
+  "name": "order-create",
+  "description": "Creates a new order",
+  "inputSchema": { "type": "object", "properties": { ... } },
+  "_meta": {
+    "requires": ["auth-sign-in"],
+    "mutation": true
+  }
+}
+```
+
+`_meta` is only emitted when there is content (no empty objects). Agents can read `_meta.requires` to plan command execution order without trial-and-error.
+
 ## Environment Variables
 
 | Variable | Default | Description |

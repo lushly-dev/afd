@@ -133,7 +133,9 @@ export type SurfaceRule =
 	| 'description-injection'
 	| 'description-quality'
 	| 'orphaned-category'
-	| 'schema-complexity';
+	| 'schema-complexity'
+	| 'unresolved-prerequisite'
+	| 'circular-prerequisite';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // INJECTION TYPES
@@ -311,4 +313,5 @@ export interface SurfaceCommand {
 	description: string;
 	category?: string;
 	jsonSchema?: JsonSchema;
+	requires?: string[];
 }

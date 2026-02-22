@@ -832,6 +832,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 				pipeTool,
 				...commands.map((cmd) => {
 					const { type: _type, ...restSchema } = cmd.jsonSchema;
+					const hasMeta = (cmd.requires && cmd.requires.length > 0) || cmd.mutation != null;
 					return {
 						name: cmd.name,
 						description: cmd.description,
@@ -839,6 +840,12 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 							type: 'object' as const,
 							...restSchema,
 						},
+						...(hasMeta && {
+							_meta: {
+								...(cmd.requires?.length && { requires: cmd.requires }),
+								...(cmd.mutation != null && { mutation: cmd.mutation }),
+							},
+						}),
 					};
 				}),
 			];

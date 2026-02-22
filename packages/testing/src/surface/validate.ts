@@ -6,6 +6,7 @@
 
 import type { CommandDefinition } from '@lushly-dev/afd-core';
 import {
+	checkCircularPrerequisites,
 	checkDescriptionInjection,
 	checkDescriptionQuality,
 	checkMissingCategory,
@@ -15,6 +16,7 @@ import {
 	checkSchemaComplexity,
 	checkSchemaOverlap,
 	checkSimilarDescriptions,
+	checkUnresolvedPrerequisites,
 } from './rules.js';
 import { commandParametersToJsonSchema } from './schema-overlap.js';
 import type {
@@ -67,12 +69,14 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 				description: string;
 				category?: string;
 				jsonSchema?: Record<string, unknown>;
+				requires?: string[];
 			};
 			return {
 				name: zod.name,
 				description: zod.description,
 				category: zod.category,
 				jsonSchema: zod.jsonSchema as SurfaceCommand['jsonSchema'],
+				requires: zod.requires,
 			};
 		}
 
@@ -82,6 +86,7 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 				description: cmd.description,
 				category: cmd.category,
 				jsonSchema: commandParametersToJsonSchema(cmd.parameters),
+				requires: cmd.requires,
 			};
 		}
 
@@ -91,6 +96,7 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 			name: String(generic.name ?? ''),
 			description: String(generic.description ?? ''),
 			category: generic.category as string | undefined,
+			requires: generic.requires as string[] | undefined,
 		};
 	});
 }
@@ -239,6 +245,14 @@ export function validateCommandSurface(
 		rulesEvaluated.push('schema-complexity');
 		allFindings.push(...checkSchemaComplexity(normalized, schemaComplexityThreshold));
 	}
+
+	// Always run: unresolved-prerequisite
+	rulesEvaluated.push('unresolved-prerequisite');
+	allFindings.push(...checkUnresolvedPrerequisites(normalized));
+
+	// Always run: circular-prerequisite
+	rulesEvaluated.push('circular-prerequisite');
+	allFindings.push(...checkCircularPrerequisites(normalized));
 
 	// Apply suppressions
 	let suppressedCount = 0;
