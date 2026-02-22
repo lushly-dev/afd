@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security reports
+    url: https://github.com/lushly-dev/AFD/security/advisories/new
+    about: Please report security vulnerabilities privately.
+  - name: Questions and discussions
+    url: https://github.com/lushly-dev/AFD/discussions
+    about: Ask questions and discuss ideas with the community.

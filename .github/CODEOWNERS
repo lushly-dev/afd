@@ -1,0 +1,10 @@
+# Default ownership for all files
+* @Falkicon
+
+# Docs and governance
+/docs/ @Falkicon
+/.github/ @Falkicon
+/AGENTS.md @Falkicon
+/README.md @Falkicon
+/CONTRIBUTING.md @Falkicon
+/SECURITY.md @Falkicon

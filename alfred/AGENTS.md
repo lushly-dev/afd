@@ -17,25 +17,25 @@ Alfred is a Python package that validates AFD codebases follow architectural con
 ```bash
 # Install with all extras
 cd alfred
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"
 
 # Run tests
-pytest tests/ -v
+uv run pytest tests/ -v
 
 # Run single test file
-pytest tests/test_lint.py -v
+uv run pytest tests/test_lint.py -v
 
 # Lint
-ruff check .
+uv run ruff check .
 
 # CLI
-alfred lint [--path PATH]
-alfred parity [--path PATH]
-alfred quality [--path PATH]
+uv run alfred lint [--path PATH]
+uv run alfred parity [--path PATH]
+uv run alfred quality [--path PATH]
 
 # MCP server
-python -m alfred.mcp_server          # stdio transport
-python -m alfred.mcp_server --sse    # SSE transport
+uv run python -m alfred.mcp_server          # stdio transport
+uv run python -m alfred.mcp_server --sse    # SSE transport
 ```
 
 ---

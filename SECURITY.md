@@ -79,8 +79,11 @@ See [Production Considerations](./.claude/skills/afd-developer/references/produc
 **For security vulnerabilities**, please:
 
 1. **Do NOT** open a public GitHub issue
-2. Email the maintainers directly (see CODEOWNERS or package.json)
-3. Include:
+2. Report privately via GitHub Security Advisories:
+  - https://github.com/lushly-dev/AFD/security/advisories/new
+3. If GitHub advisories are unavailable, open a maintainer contact in Discussions:
+  - https://github.com/lushly-dev/AFD/discussions
+4. Include:
    - Description of the vulnerability
    - Steps to reproduce
    - Potential impact

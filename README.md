@@ -1,15 +1,19 @@
 # AFD — Agent-First Development
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Status: Beta](https://img.shields.io/badge/Status-Beta-green.svg)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)](LICENSE)
+[![Status: Beta](https://img.shields.io/badge/Status-Beta-16a34a?style=flat-square)](#)
+[![Release](https://img.shields.io/github/v/release/lushly-dev/afd?display_name=tag&sort=semver&style=flat-square)](https://github.com/lushly-dev/afd/releases)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6.svg?logo=typescript&logoColor=white)](#)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](#)
 [![Rust](https://img.shields.io/badge/Rust-1.70+-DEA584.svg?logo=rust&logoColor=white)](#)
 [![Node](https://img.shields.io/badge/Node-%E2%89%A520-339933.svg?logo=node.js&logoColor=white)](#)
-[![MCP](https://img.shields.io/badge/MCP-Compatible-8B5CF6.svg)](#)
-[![Sponsor](https://img.shields.io/badge/Sponsor-pink?logo=githubsponsors)](https://github.com/sponsors/Falkicon)
+[![MCP](https://img.shields.io/badge/MCP-Compatible-8b5cf6?style=flat-square)](#)
+[![Companion: botcore](https://img.shields.io/badge/Companion-botcore-6d28d9?style=flat-square&logo=github)](https://github.com/lushly-dev/botcore)
+[![Sponsor](https://img.shields.io/badge/Sponsor-db2777?style=flat-square&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Falkicon)
 
-> 🟢 **Beta** · Stable and in use across multiple projects. No systemic breaking changes expected; targeted fixes when required. Feedback welcome!
+> 🟢 **Beta** · Stable and in active use across multiple projects. APIs are mostly stable; expect targeted iterative improvements. Feedback welcome!
+
+> **Reference pair:** AFD defines command-first architecture patterns; botcore provides the shared bot infrastructure and skills used to operate those patterns at scale. See https://github.com/lushly-dev/botcore.
 
 **What if we applied UX design thinking to AI agents?**
 
@@ -281,6 +285,12 @@ Commands run in isolation (no network, no database) to measure pure business log
 - [x] Performance testing framework
 - [ ] VS Code extension
 - [x] npm publish
+
+## Community
+
+- Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening a PR
+- Review [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) for community expectations
+- Report vulnerabilities via [SECURITY.md](./SECURITY.md)
 
 For AI agents contributing to this repo, see [AGENTS.md](AGENTS.md).
 
