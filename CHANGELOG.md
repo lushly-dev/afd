@@ -31,6 +31,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `--strict` — Treat warnings as errors (reuses existing flag)
   - `--verbose` — Show detailed findings with suggestions and evidence
 
+- **`defaultMiddleware()` factory** (`@lushly-dev/afd-server`) — Returns a pre-configured `CommandMiddleware[]` bundle covering the three most common observability needs:
+  - **Auto trace ID** — `createAutoTraceIdMiddleware()` generates `context.traceId` via `crypto.randomUUID()` when not already present; supports custom `generate()` function
+  - **Structured logging** — `createLoggingMiddleware()` logs command execution start/completion with trace ID correlation
+  - **Slow-command warnings** — `createTimingMiddleware()` fires `onSlow` callback when execution exceeds configurable threshold (default: 1000ms)
+  - Zero-config: `middleware: defaultMiddleware()` gives all three out of the box
+  - Selective disable: pass `false` to any option (`logging: false`, `timing: false`, `traceId: false`)
+  - Composable: spread into middleware array alongside custom middleware (`[...defaultMiddleware(), myCustomMiddleware]`)
+  - New types exported: `DefaultMiddlewareOptions`, `TraceIdOptions`, `LoggingOptions`, `TimingOptions`
+
 ### Fixed
 
 - **`validateCommandDefinition()` naming regex** (`@lushly-dev/afd-testing`) — Changed from dot-notation pattern (`/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*$/`) to kebab-case (`/^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$/`) to align with `@lushly-dev/afd-core`'s `COMMAND_NAME_PATTERN`

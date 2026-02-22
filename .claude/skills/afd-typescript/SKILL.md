@@ -259,24 +259,30 @@ server.listen(PORT, () => {
 ```typescript
 import {
   createMcpServer,
-  createLoggingMiddleware,
-  createTimingMiddleware,
+  defaultMiddleware,
   createRateLimitMiddleware,
 } from '@lushly-dev/afd-server';
 
+// Recommended: defaultMiddleware() gives trace IDs, logging, and slow-command warnings
 const server = createMcpServer({
   name: 'my-app',
   version: '1.0.0',
   commands: allCommands,
   middleware: [
-    createLoggingMiddleware({ level: 'info' }),
-    createTimingMiddleware(),
+    ...defaultMiddleware(),  // Trace IDs, logging, slow-command warnings
     createRateLimitMiddleware({ maxRequests: 100, windowMs: 60000 }),
   ],
-  cors: {
-    origin: ['http://localhost:5173'],
-    methods: ['GET', 'POST', 'OPTIONS'],
-  },
+});
+
+// Selective disable or custom options
+const server2 = createMcpServer({
+  name: 'my-app',
+  version: '1.0.0',
+  commands: allCommands,
+  middleware: defaultMiddleware({
+    logging: { logInput: true },
+    timing: { slowThreshold: 500 },
+  }),
 });
 ```
 

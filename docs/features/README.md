@@ -20,10 +20,12 @@ Feature specifications organized by lifecycle stage.
 
 | Feature | Description |
 |---------|-------------|
+| [AFD Bot (Alfred)](./complete/afd-bot/) | Deterministic repo quality agent with lint, parity, and quality commands |
 | [Command Trust Config](./complete/command-trust-config/) | Per-command trust levels and exposure control |
 | [Command Exposure & Undo](./complete/command-exposure-undo/) | Command visibility and undo support |
 | [Handoff Pattern](./complete/handoff-pattern/) | Real-time protocol handoff |
 | [Command Pipeline](./complete/command-pipeline/) | Declarative command chaining |
+| [Middleware Defaults](./complete/middleware-defaults/) | Zero-config observability bundle (`defaultMiddleware()`) |
 
 ## Proposed Features
 

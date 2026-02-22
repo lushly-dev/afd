@@ -181,8 +181,8 @@ When working with pipelines, these variables are available:
 | [afd-rust](skills/afd-rust/) | Rust implementation patterns |
 | [afd-directclient](skills/afd-directclient/) | In-process command execution |
 | [afd-contracts](skills/afd-contracts/) | TypeSpec-based contract system for multi-layer API schema sync |
-| [commit-messages](skills/commit-messages/) | Conventional Commits format with AFD-specific scopes |
-| [pr-review](skills/pr-review/) | PR review using AFD standards |
+
+> Additional shared skills (write-commits, review-code, humanize-content, manage-skills, etc.) are distributed via botcore. Run `skill_seed` to populate them.
 
 ## Related Documentation
 
