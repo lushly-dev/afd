@@ -222,9 +222,7 @@ export function computeComplexity(schema: Record<string, unknown>): ComplexityRe
 	walk(schema as unknown as JsonSchemaNode, state, 0);
 
 	const optionalRatio =
-		state.totalFieldCount > 0
-			? Math.floor((state.optionalCount / state.totalFieldCount) * 4)
-			: 0;
+		state.totalFieldCount > 0 ? Math.floor((state.optionalCount / state.totalFieldCount) * 4) : 0;
 
 	const breakdown: ComplexityBreakdown = {
 		fields: state.fieldNames.size,
