@@ -244,10 +244,10 @@ export function validateCommandDefinition(command: CommandDefinition): Validatio
 			message: 'Command must have a name',
 			code: 'MISSING_NAME',
 		});
-	} else if (!/^[a-z][a-z0-9]*(\.[a-z][a-z0-9]*)*$/.test(command.name)) {
+	} else if (!/^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$/.test(command.name)) {
 		warnings.push({
 			path: 'name',
-			message: 'Command name should use dot notation (e.g., "document.create")',
+			message: 'Command name should use kebab-case domain-action format (e.g., "todo-create")',
 			code: 'INVALID_NAME_FORMAT',
 		});
 	}

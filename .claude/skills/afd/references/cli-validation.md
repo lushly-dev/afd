@@ -157,6 +157,30 @@ afd call todo.get '{"id": "todo-xxx"}'
 # → success: false, error: { code: "NOT_FOUND" }
 ```
 
+### Step 7: Surface Validation
+
+```bash
+# Run cross-command semantic quality checks
+afd validate --surface
+
+# With custom similarity threshold
+afd validate --surface --similarity-threshold 0.8
+
+# Strict mode + verbose output
+afd validate --surface --strict --verbose
+
+# Skip categories and suppress rules
+afd validate --surface --skip-category internal --suppress missing-category
+```
+
+Surface validation detects:
+- Similar descriptions (cosine similarity above threshold)
+- Schema overlap (shared input fields)
+- Naming convention violations and collisions
+- Prompt injection patterns in descriptions
+- Description quality issues (too short, missing verbs)
+- Orphaned categories (single command)
+
 ## Validation Checklist
 
 Before building UI, verify:
