@@ -51,6 +51,7 @@
 // Server factory
 export type {
 	CommandMiddleware,
+	ExposeOptions,
 	HandoffCredentials,
 	HandoffMetadata,
 	HandoffProtocol,
@@ -61,6 +62,7 @@ export type {
 // Re-export core helpers for convenience
 export {
 	createTelemetryEvent,
+	defaultExpose,
 	failure,
 	getHandoffProtocol,
 	isFailure,

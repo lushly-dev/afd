@@ -10,6 +10,7 @@ import type {
 	CommandDefinition,
 	CommandParameter,
 	CommandResult,
+	ExposeOptions,
 	JsonSchema,
 } from '@lushly-dev/afd-core';
 import { validateCommandName } from '@lushly-dev/afd-core';
@@ -79,6 +80,13 @@ export interface ZodCommandOptions<TInput extends ZodType<unknown, ZodTypeDef, u
 	 * @example "Delete 'Buy groceries' permanently?"
 	 */
 	confirmPrompt?: string;
+
+	/**
+	 * Which interfaces this command is exposed to.
+	 * Controls visibility in command palette, MCP, agent, and CLI surfaces.
+	 * Defaults to `defaultExpose` if not specified.
+	 */
+	expose?: ExposeOptions;
 }
 
 /**
@@ -132,6 +140,12 @@ export interface ZodCommandDefinition<
 
 	/** Custom confirmation prompt message */
 	confirmPrompt?: string;
+
+	/**
+	 * Which interfaces this command is exposed to.
+	 * Controls visibility in command palette, MCP, agent, and CLI surfaces.
+	 */
+	expose?: ExposeOptions;
 
 	/**
 	 * Convert to standard CommandDefinition format.
@@ -196,6 +210,7 @@ export function defineCommand<TInput extends ZodType<unknown, ZodTypeDef, unknow
 		handoffProtocol: options.handoffProtocol,
 		destructive: options.destructive,
 		confirmPrompt: options.confirmPrompt,
+		expose: options.expose,
 
 		toCommandDefinition(): CommandDefinition<z.infer<TInput>, TOutput> {
 			return {
@@ -209,6 +224,7 @@ export function defineCommand<TInput extends ZodType<unknown, ZodTypeDef, unknow
 				errors: options.errors,
 				handoff: options.handoff,
 				handoffProtocol: options.handoffProtocol,
+				expose: options.expose,
 				parameters: jsonSchemaToParameters(jsonSchema),
 				returns: { type: 'object', description: 'Command result' },
 				handler: options.handler as (

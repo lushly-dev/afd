@@ -4,9 +4,8 @@
  * Requires optional peer dependencies: @lushly-dev/afd-server, zod
  */
 
-import type { CommandDefinition } from '@lushly-dev/afd-core';
 import { failure, success } from '@lushly-dev/afd-core';
-import { defineCommand } from '@lushly-dev/afd-server';
+import { type ZodCommandDefinition, defineCommand } from '@lushly-dev/afd-server';
 import { z } from 'zod';
 import { AuthAdapterError } from './errors.js';
 import type { AuthAdapter } from './types.js';
@@ -14,16 +13,17 @@ import type { AuthAdapter } from './types.js';
 /**
  * Create AFD command definitions for auth operations.
  *
- * Returns standard CommandDefinition[] that can be registered with a server.
+ * Returns ZodCommandDefinition[] that can be passed directly to `createMcpServer`.
  * Requires `@lushly-dev/afd-server` and `zod` as peer dependencies.
  */
-export function createAuthCommands(adapter: AuthAdapter): CommandDefinition[] {
+export function createAuthCommands(adapter: AuthAdapter): ZodCommandDefinition[] {
 	const signIn = defineCommand({
 		name: 'auth-sign-in',
 		description: 'Sign in with credentials or OAuth provider',
 		category: 'auth',
 		tags: ['auth', 'session'],
 		mutation: true,
+		expose: { palette: true, agent: true, cli: true, mcp: false },
 		input: z.discriminatedUnion('method', [
 			z.object({
 				method: z.literal('credentials'),
@@ -66,6 +66,7 @@ export function createAuthCommands(adapter: AuthAdapter): CommandDefinition[] {
 		mutation: true,
 		destructive: true,
 		confirmPrompt: 'Sign out of your account?',
+		expose: { palette: true, agent: true, cli: true, mcp: false },
 		input: z.object({}),
 		async handler() {
 			try {
@@ -93,6 +94,7 @@ export function createAuthCommands(adapter: AuthAdapter): CommandDefinition[] {
 		category: 'auth',
 		tags: ['auth', 'session'],
 		mutation: false,
+		expose: { palette: true, agent: true, cli: true, mcp: true },
 		input: z.object({}),
 		async handler() {
 			const session = adapter.getSession();
@@ -102,15 +104,6 @@ export function createAuthCommands(adapter: AuthAdapter): CommandDefinition[] {
 		},
 	});
 
-	// Convert to CommandDefinition and set expose
-	const signInDef = signIn.toCommandDefinition();
-	signInDef.expose = { palette: true, agent: true, cli: true, mcp: false };
-
-	const signOutDef = signOut.toCommandDefinition();
-	signOutDef.expose = { palette: true, agent: true, cli: true, mcp: false };
-
-	const sessionGetDef = sessionGet.toCommandDefinition();
-	sessionGetDef.expose = { palette: true, agent: true, cli: true, mcp: true };
-
-	return [signInDef, signOutDef, sessionGetDef] as CommandDefinition[];
+	// Cast needed for heterogeneous generic command arrays (same pattern as todo example)
+	return [signIn, signOut, sessionGet] as unknown as ZodCommandDefinition[];
 }

@@ -40,9 +40,10 @@ export type {
 	CommandMiddleware,
 	CommandParameter,
 	CommandRegistry,
+	ExposeOptions,
 	JsonSchema,
 } from './commands.js';
-export { commandToMcpTool, createCommandRegistry, validateCommandName } from './commands.js';
+export { commandToMcpTool, createCommandRegistry, defaultExpose, validateCommandName } from './commands.js';
 export type {
 	GitHubConnectorOptions,
 	Issue,

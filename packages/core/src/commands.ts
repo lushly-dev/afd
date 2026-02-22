@@ -73,7 +73,11 @@ export const defaultExpose: Readonly<ExposeOptions> = Object.freeze({
 });
 
 /**
- * JSON Schema subset for command parameter validation.
+ * JSON Schema 7 subset for command parameter validation.
+ *
+ * Includes composition keywords (`oneOf`, `anyOf`, `allOf`) needed for
+ * discriminated unions, non-discriminated unions, and intersections.
+ * These are produced by `zod-to-json-schema` with `target: 'jsonSchema7'`.
  */
 export interface JsonSchema {
 	type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null';
@@ -91,6 +95,16 @@ export interface JsonSchema {
 	maxLength?: number;
 	pattern?: string;
 	format?: string;
+	/** Exactly one schema must match — used for discriminated unions (`z.discriminatedUnion()`) */
+	oneOf?: JsonSchema[];
+	/** At least one schema must match — used for unions (`z.union()`) and nullable types */
+	anyOf?: JsonSchema[];
+	/** All schemas must match — used for intersections (`z.intersection()`) */
+	allOf?: JsonSchema[];
+	/** Schema must not match */
+	not?: JsonSchema;
+	/** Exact value match — used for discriminator literals (`z.literal()`) */
+	const?: unknown;
 }
 
 /**
