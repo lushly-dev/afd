@@ -1,16 +1,18 @@
 /**
  * Feature Playground — Full Run
  *
- * Exercises all 3 features together:
+ * Exercises all features together:
  * 1. Auth adapter (MockAuthAdapter + middleware + commands)
  * 2. Default middleware (traceId + logging + slow warnings)
  * 3. Surface validation (quality checks on the command set)
+ * 4. Schema complexity scoring (weighted input schema analysis)
+ * 5. Command prerequisites (requires field + cycle detection)
  */
 
 import { MockAuthAdapter, createAuthCommands, createAuthMiddleware } from '@lushly-dev/afd-auth';
 import { success } from '@lushly-dev/afd-core';
 import { createMcpServer, defaultMiddleware, defineCommand } from '@lushly-dev/afd-server';
-import { validateCommandSurface } from '@lushly-dev/afd-testing';
+import { computeComplexity, validateCommandSurface } from '@lushly-dev/afd-testing';
 import { z } from 'zod';
 
 const divider = (label: string) =>
@@ -54,6 +56,7 @@ async function run() {
 		name: 'todo-list',
 		description: 'List all todo items with optional status filter',
 		category: 'todos',
+		requires: ['auth-sign-in'],
 		input: z.object({
 			status: z.enum(['active', 'done', 'all']).optional().default('all'),
 		}),
@@ -72,6 +75,7 @@ async function run() {
 		name: 'report-generate',
 		description: 'Generate a summary report across all todos (slow operation)',
 		category: 'reports',
+		requires: ['todo-list'],
 		input: z.object({}),
 		async handler() {
 			await new Promise((resolve) => setTimeout(resolve, 120));
@@ -173,6 +177,41 @@ async function run() {
 		}
 	} else {
 		console.log('  No findings — clean surface! 🎉');
+	}
+
+	// ═══════════════════════════════════════════════════════════
+	// 6. SCHEMA COMPLEXITY
+	// ═══════════════════════════════════════════════════════════
+
+	divider('Schema Complexity: auth-sign-in breakdown');
+	const signInCmd = allCommands.find((c) => c.name === 'auth-sign-in');
+	if (signInCmd?.jsonSchema) {
+		const complexity = computeComplexity(signInCmd.jsonSchema as unknown as Record<string, unknown>);
+		console.log(`  Score: ${complexity.score}  Tier: ${complexity.tier}`);
+		console.log(`  Fields: ${complexity.breakdown.fields}  Depth: ${complexity.breakdown.depth}`);
+		console.log(`  Unions: ${complexity.breakdown.unions}  Patterns: ${complexity.breakdown.patterns}  Bounds: ${complexity.breakdown.bounds}`);
+	}
+
+	// ═══════════════════════════════════════════════════════════
+	// 7. COMMAND PREREQUISITES
+	// ═══════════════════════════════════════════════════════════
+
+	divider('Prerequisites: Dependency Chain');
+	for (const cmd of allCommands) {
+		const reqs = cmd.requires?.length ? ` → requires: [${cmd.requires.join(', ')}]` : '';
+		console.log(`  ${cmd.name}${reqs}`);
+	}
+
+	// Verify no unresolved or circular prerequisites in our command set
+	const prereqFindings = surfaceResult.findings.filter(
+		(f) => f.rule === 'unresolved-prerequisite' || f.rule === 'circular-prerequisite',
+	);
+	if (prereqFindings.length === 0) {
+		console.log('  ✅ No unresolved or circular prerequisites');
+	} else {
+		for (const f of prereqFindings) {
+			console.log(`  🔴 ${f.message}`);
+		}
 	}
 
 	await server.stop();

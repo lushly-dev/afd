@@ -1,61 +1,61 @@
-# Feature Playground
+# Feature Showcase
 
-> **Status**: 🧪 Experiment  
-> **Goal**: Manual testing sandbox for newly merged features
+> Runnable demos showing AFD features in action
 
 ## Features Covered
 
-| Feature | PR | Package |
-|---------|-----|---------|
-| Auth Adapter | #125 | `@lushly-dev/afd-auth` |
-| Default Middleware | #126 | `@lushly-dev/afd-server` |
-| Surface Validation | #127 | `@lushly-dev/afd-testing` |
+| Feature | Package |
+|---------|---------|
+| Auth Adapter | `@lushly-dev/afd-auth` |
+| Default Middleware | `@lushly-dev/afd-server` |
+| Surface Validation | `@lushly-dev/afd-testing` |
+| Schema Complexity Scoring | `@lushly-dev/afd-testing` |
+| Command Prerequisites | `@lushly-dev/afd-server`, `@lushly-dev/afd-testing` |
+| Pipelines | `@lushly-dev/afd-client`, `@lushly-dev/afd-core` |
+| Expose Options | `@lushly-dev/afd-core` |
+| Trust Metadata | `@lushly-dev/afd-server`, `@lushly-dev/afd-core` |
 
 ## Quick Start
 
 ```bash
-cd packages/experiments/feature-playground/backend
+cd packages/examples/showcase/backend
 pnpm install
-pnpm start       # Run the full playground
-pnpm test:auth   # Auth adapter only
-pnpm test:mw     # Middleware only
-pnpm test:surface # Surface validation only
+pnpm start            # Full end-to-end run
+pnpm demo:auth        # Auth adapter only
+pnpm demo:middleware   # Middleware only
+pnpm demo:surface     # Surface validation only
+pnpm demo:pipeline    # Pipeline chaining
+pnpm demo:expose      # Expose options + trust metadata
 ```
 
 ## What Each Script Does
 
 ### `playground.ts` (full run)
 
-A self-contained script that:
-1. Creates a mock auth adapter and signs in
-2. Builds an MCP server with auth middleware + defaultMiddleware (trace IDs, logging, slow warnings)
-3. Executes commands through the middleware stack — both authenticated and unauthenticated
-4. Runs surface validation on the registered command set
-5. Prints results with color-coded output
+End-to-end demo combining all features:
+1. Auth adapter — sign in, session state, auth-gated commands
+2. MCP server with defaultMiddleware (trace IDs, logging, slow warnings)
+3. Middleware stack — authenticated + unauthenticated command execution
+4. Surface validation — 11 rules across 6 commands
+5. Schema complexity scoring — breakdown of `auth-sign-in` (score 17, high)
+6. Command prerequisites — dependency chain validation
 
 ### `auth-demo.ts`
 
-Exercises auth adapter flows:
-- Sign in via credentials and OAuth
-- Auth-gated command middleware (reject when unauthenticated, pass when authenticated)
-- Session state transitions (loading → authenticated → unauthenticated)
-- Auth commands (`auth-sign-in`, `auth-sign-out`, `auth-session-get`)
+Auth adapter flows: credentials/OAuth sign-in, auth-gated middleware, session transitions, auth commands.
 
 ### `middleware-demo.ts`
 
-Exercises the default middleware stack:
-- Auto trace ID generation
-- Structured logging output
-- Slow command warnings (with configurable threshold)
-- Telemetry event recording
-- Custom middleware composition
+Default middleware stack: trace IDs, structured logging, slow command warnings, telemetry, custom middleware.
 
 ### `surface-demo.ts`
 
-Exercises surface validation:
-- Naming convention checks (kebab-case enforcement)
-- Similar description detection
-- Schema overlap detection
-- Prompt injection detection
-- Description quality checks
-- Suppression patterns
+All surface validation rules: naming conventions, similar descriptions, schema overlap, prompt injection, description quality, suppressions, schema complexity scoring (threshold/severity), and prerequisite validation (unresolved + circular detection).
+
+### `pipeline-demo.ts`
+
+Pipeline command chaining with DirectClient: `$prev` data passing, `$steps.alias` cross-references, conditional execution (`when` clauses), aggregated metadata (confidence breakdown, reasoning, warnings), error propagation vs `continueOnFailure`, and timeout handling.
+
+### `expose-trust-demo.ts`
+
+Visibility and safety: `ExposeOptions` (palette/agent/mcp/cli), `defaultExpose` secure defaults, registry filtering by interface, interface-gated execution (`COMMAND_NOT_EXPOSED`), trust metadata (`destructive`, `confirmPrompt`), undo metadata on `CommandResult`, and agent decision flows.

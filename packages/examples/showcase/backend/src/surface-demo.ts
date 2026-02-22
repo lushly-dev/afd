@@ -1,12 +1,13 @@
 /**
  * Surface Validation Demo
  *
- * Exercises: validateCommandSurface with various command sets
+ * Exercises: validateCommandSurface with various command sets,
+ * including schema-complexity scoring and command prerequisites.
  */
 
 import { success } from '@lushly-dev/afd-core';
 import { defineCommand } from '@lushly-dev/afd-server';
-import { validateCommandSurface } from '@lushly-dev/afd-testing';
+import { computeComplexity, validateCommandSurface } from '@lushly-dev/afd-testing';
 import { z } from 'zod';
 
 const divider = (label: string) =>
@@ -202,6 +203,170 @@ async function run() {
 	});
 	printResult(suppressedResult);
 	console.log(`  Suppressed count: ${suppressedResult.summary.suppressedCount}`);
+
+	// ── 7. Schema Complexity Scoring ────────────────────────────────────
+	divider('7. Schema Complexity Scoring');
+
+	// Use computeComplexity directly to see breakdown
+	const simpleSchema = {
+		type: 'object',
+		properties: { id: { type: 'string' } },
+		required: ['id'],
+	};
+	const simple = computeComplexity(simpleSchema);
+	console.log(`  Simple schema: score=${simple.score}, tier=${simple.tier}`);
+	console.log(`    Breakdown: ${JSON.stringify(simple.breakdown)}`);
+
+	const complexSchema = {
+		oneOf: [
+			{
+				type: 'object',
+				properties: {
+					method: { const: 'credentials' },
+					email: { type: 'string', format: 'email' },
+					password: { type: 'string', minLength: 8 },
+				},
+				required: ['method', 'email', 'password'],
+			},
+			{
+				type: 'object',
+				properties: {
+					method: { const: 'oauth' },
+					provider: { type: 'string' },
+					scopes: { type: 'array', items: { type: 'string' } },
+					redirectTo: { type: 'string', pattern: '^https://' },
+				},
+				required: ['method', 'provider'],
+			},
+		],
+	};
+	const complex = computeComplexity(complexSchema);
+	console.log(`\n  Auth schema: score=${complex.score}, tier=${complex.tier}`);
+	console.log(`    Breakdown: ${JSON.stringify(complex.breakdown)}`);
+	console.log(`    Unions: ${complex.breakdown.unions}, Patterns: ${complex.breakdown.patterns}, Bounds: ${complex.breakdown.bounds}`);
+
+	// Validate commands with complex schemas — threshold controls severity
+	const complexCommands = [
+		defineCommand({
+			name: 'auth-sign-in',
+			description: 'Sign in with credentials or OAuth provider authentication',
+			category: 'auth',
+			input: z.discriminatedUnion('method', [
+				z.object({ method: z.literal('credentials'), email: z.string().email(), password: z.string().min(8) }),
+				z.object({ method: z.literal('oauth'), provider: z.string(), scopes: z.array(z.string()).optional(), redirectTo: z.string().url().optional() }),
+			]),
+			handler: async () => success({ token: 'abc' }),
+		}),
+		defineCommand({
+			name: 'auth-sign-out',
+			description: 'Sign out and invalidate the current session token',
+			category: 'auth',
+			input: z.object({}),
+			handler: async () => success(null),
+		}),
+	];
+
+	console.log('\n  With threshold=13 (high+ gets warning):');
+	const complexResult = validateCommandSurface(complexCommands, { schemaComplexityThreshold: 13 });
+	for (const f of complexResult.findings.filter((f) => f.rule === 'schema-complexity')) {
+		console.log(`    ${f.severity === 'warning' ? '🟡' : '🔵'} ${f.message}`);
+	}
+
+	console.log('\n  With threshold=25 (all become info):');
+	const lenientResult = validateCommandSurface(complexCommands, { schemaComplexityThreshold: 25 });
+	for (const f of lenientResult.findings.filter((f) => f.rule === 'schema-complexity')) {
+		console.log(`    ${f.severity === 'warning' ? '🟡' : '🔵'} ${f.message}`);
+	}
+
+	// ── 8. Command Prerequisites ────────────────────────────────────────
+	divider('8. Command Prerequisites');
+
+	const prereqCommands = [
+		defineCommand({
+			name: 'session-start',
+			description: 'Start a new session and return a session token',
+			category: 'session',
+			input: z.object({ userId: z.string() }),
+			handler: async () => success({ sessionId: 's1' }),
+		}),
+		defineCommand({
+			name: 'cart-add',
+			description: 'Add an item to the shopping cart for the active session',
+			category: 'cart',
+			requires: ['session-start'],
+			input: z.object({ productId: z.string() }),
+			handler: async () => success({ cartId: 'c1' }),
+		}),
+		defineCommand({
+			name: 'cart-checkout',
+			description: 'Checkout the current cart and create a payment intent',
+			category: 'cart',
+			requires: ['cart-add'],
+			input: z.object({}),
+			handler: async () => success({ orderId: 'o1' }),
+		}),
+	];
+
+	console.log('  Commands with requires:');
+	for (const cmd of prereqCommands) {
+		const reqs = cmd.requires?.length ? ` → requires: [${cmd.requires.join(', ')}]` : '';
+		console.log(`    ${cmd.name}${reqs}`);
+	}
+
+	const prereqResult = validateCommandSurface(prereqCommands);
+	console.log(`\n  Valid chain: ${prereqResult.valid ? '✅' : '❌'} (no unresolved or circular)`);
+
+	// Unresolved prerequisite
+	const unresolvedCommands = [
+		defineCommand({
+			name: 'publish-post',
+			description: 'Publish a blog post to the public feed immediately',
+			category: 'blog',
+			requires: ['post-review'],
+			input: z.object({ postId: z.string() }),
+			handler: async () => success(null),
+		}),
+	];
+
+	const unresolvedResult = validateCommandSurface(unresolvedCommands);
+	console.log('\n  Unresolved requires:');
+	for (const f of unresolvedResult.findings.filter((f) => f.rule === 'unresolved-prerequisite')) {
+		console.log(`    🔴 ${f.message}`);
+	}
+
+	// Circular prerequisite
+	const circularCommands = [
+		defineCommand({
+			name: 'step-a',
+			description: 'Execute the first step of the circular workflow process',
+			category: 'workflow',
+			requires: ['step-c'],
+			input: z.object({}),
+			handler: async () => success(null),
+		}),
+		defineCommand({
+			name: 'step-b',
+			description: 'Execute the second step of the circular workflow process',
+			category: 'workflow',
+			requires: ['step-a'],
+			input: z.object({}),
+			handler: async () => success(null),
+		}),
+		defineCommand({
+			name: 'step-c',
+			description: 'Execute the third step of the circular workflow process',
+			category: 'workflow',
+			requires: ['step-b'],
+			input: z.object({}),
+			handler: async () => success(null),
+		}),
+	];
+
+	const circularResult = validateCommandSurface(circularCommands);
+	console.log('\n  Circular requires:');
+	for (const f of circularResult.findings.filter((f) => f.rule === 'circular-prerequisite')) {
+		console.log(`    🔴 ${f.message}`);
+	}
 
 	console.log('\n✅  Surface validation demo complete\n');
 }
