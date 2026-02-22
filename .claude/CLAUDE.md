@@ -56,7 +56,7 @@ packages/
 ├── server/     # @lushly-dev/afd-server - MCP server factory
 ├── client/     # @lushly-dev/afd-client - MCP client + DirectClient
 ├── cli/        # @lushly-dev/afd-cli - Command-line tool
-├── testing/    # @lushly-dev/afd-testing - JTBD scenario runner
+├── testing/    # @lushly-dev/afd-testing - JTBD scenario runner + surface validation
 ├── auth/       # @lushly-dev/afd-auth - Provider-agnostic auth adapter
 ├── adapters/   # @lushly-dev/afd-adapters - Frontend adapters for rendering CommandResult
 └── examples/
@@ -185,8 +185,8 @@ When working with pipelines, these variables are available:
 | [afd-auth](skills/afd-auth/) | Auth adapter, middleware, commands, session sync, React hooks |
 | [afd-directclient](skills/afd-directclient/) | In-process command execution |
 | [afd-contracts](skills/afd-contracts/) | TypeSpec-based contract system for multi-layer API schema sync |
-| [commit-messages](skills/commit-messages/) | Conventional Commits format with AFD-specific scopes |
-| [pr-review](skills/pr-review/) | PR review using AFD standards |
+
+> Additional shared skills (write-commits, review-code, humanize-content, manage-skills, etc.) are distributed via botcore. Run `skill_seed` to populate them.
 
 ## Related Documentation
 

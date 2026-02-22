@@ -304,6 +304,61 @@ describe('Integration', () => {
 });
 ```
 
+## Surface Validation
+
+Cross-command semantic quality analysis for large command sets (50+). Detects issues that make it hard for agents to pick the right tool.
+
+### Running Surface Validation
+
+```typescript
+import { validateCommandSurface } from '@lushly-dev/afd-testing';
+
+const result = validateCommandSurface(commands, {
+  similarityThreshold: 0.7,    // Flag description pairs above 70% similarity
+  schemaOverlapThreshold: 0.8, // Flag schema pairs sharing 80%+ fields
+  strict: false,               // true = warnings count as errors
+  suppressions: [
+    'missing-category',        // Suppress entire rule
+    'similar-descriptions:user-get:user-fetch', // Suppress specific pair
+  ],
+});
+
+if (!result.valid) {
+  for (const f of result.findings) {
+    if (!f.suppressed) {
+      console.log(`[${f.severity}] ${f.rule}: ${f.message}`);
+      console.log(`  Fix: ${f.suggestion}`);
+    }
+  }
+}
+```
+
+### 8 Validation Rules
+
+| Rule | Severity | What it detects |
+|------|----------|-----------------|
+| `similar-descriptions` | Warning | Command pairs with near-identical descriptions |
+| `schema-overlap` | Warning | Command pairs sharing most input fields |
+| `naming-convention` | Error | Names not matching kebab-case `domain-action` pattern |
+| `naming-collision` | Error | Names that collide when separators are removed |
+| `missing-category` | Info | Commands without a category |
+| `description-injection` | Error | Prompt injection patterns in descriptions |
+| `description-quality` | Warning | Descriptions too short or missing action verbs |
+| `orphaned-category` | Info | Categories with only one command |
+
+### CLI Usage
+
+```bash
+# Run surface validation against connected server
+afd validate --surface
+
+# Custom threshold + suppress rules
+afd validate --surface --similarity-threshold 0.8 --suppress missing-category
+
+# Strict mode with verbose output
+afd validate --surface --strict --verbose
+```
+
 ## Test Setup
 
 ### Vitest Config

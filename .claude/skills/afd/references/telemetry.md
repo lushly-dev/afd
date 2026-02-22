@@ -1,8 +1,69 @@
-# Telemetry Middleware
+# Telemetry & Observability Middleware
 
-Telemetry middleware captures execution data for every command invocation, enabling monitoring, debugging, and analytics.
+Middleware for monitoring, debugging, and analytics of command execution.
 
-## Quick Start
+## Quick Start — defaultMiddleware()
+
+The fastest way to add observability. Returns a pre-configured stack of three middleware: auto trace ID, structured logging, and slow-command warnings.
+
+```typescript
+import { createMcpServer, defaultMiddleware } from '@lushly-dev/afd-server';
+
+const server = createMcpServer({
+  name: 'my-app',
+  version: '1.0.0',
+  commands: [/* your commands */],
+  middleware: defaultMiddleware(),
+});
+```
+
+### Selective Disable
+
+```typescript
+// Disable timing warnings, keep logging + traceId
+defaultMiddleware({ timing: false })
+
+// Only trace IDs
+defaultMiddleware({ logging: false, timing: false })
+```
+
+### Custom Options
+
+```typescript
+defaultMiddleware({
+  logging: { log: myLogger.info, logInput: true },
+  timing: { slowThreshold: 500, onSlow: (name, ms) => alert(name, ms) },
+  traceId: { generate: () => `req-${Date.now()}` },
+})
+```
+
+### Compose with Custom Middleware
+
+```typescript
+middleware: [...defaultMiddleware(), rateLimiter, authMiddleware]
+```
+
+## Auto Trace ID Middleware
+
+`createAutoTraceIdMiddleware()` sets `context.traceId` when not already present. Uses `crypto.randomUUID()` by default. Must be outermost middleware so logging/timing see the trace ID.
+
+```typescript
+import { createAutoTraceIdMiddleware } from '@lushly-dev/afd-server';
+
+// Standalone usage (included in defaultMiddleware by default)
+const traceMiddleware = createAutoTraceIdMiddleware();
+
+// Custom generator
+const traceMiddleware = createAutoTraceIdMiddleware({
+  generate: () => `trace-${Date.now()}`,
+});
+```
+
+If `generate()` throws, the error propagates through the middleware chain.
+
+## Telemetry Middleware
+
+For detailed event capture beyond logging, use `createTelemetryMiddleware` with a `TelemetrySink`:
 
 ```typescript
 import {
@@ -16,6 +77,7 @@ const server = createMcpServer({
   version: '1.0.0',
   commands: [/* your commands */],
   middleware: [
+    ...defaultMiddleware(),
     createTelemetryMiddleware({
       sink: new ConsoleTelemetrySink(),
     }),

@@ -15,6 +15,7 @@ pnpm add @lushly-dev/afd-testing -D
 This package provides utilities for testing AFD commands:
 
 - **Validators**: Validate command results and definitions
+- **Surface Validation**: Cross-command semantic quality analysis (similarity, schema overlap, naming, injection detection)
 - **Test Helpers**: Easy command testing with validation
 - **Assertions**: Custom assertions for command results
 - **Mock Server**: In-memory MCP server for testing
@@ -23,6 +24,90 @@ This package provides utilities for testing AFD commands:
 - **Step References**: Dynamic references between scenario steps
 - **Scenario Commands**: List, evaluate, coverage, create, and suggest scenarios
 - **MCP Agent Integration**: Expose commands as MCP tools with agent hints
+
+## Surface Validation (Semantic Quality)
+
+Cross-command analysis that detects semantic collisions, naming ambiguities, schema overlaps, and prompt injection risks. Designed for command sets of 50+ where agents struggle to pick the right tool.
+
+### Basic Usage
+
+```typescript
+import { validateCommandSurface } from '@lushly-dev/afd-testing';
+
+const result = validateCommandSurface(commands, {
+  similarityThreshold: 0.7,
+  schemaOverlapThreshold: 0.8,
+  strict: false,
+});
+
+console.log(result.valid);          // true if no errors (or no errors+warnings in strict mode)
+console.log(result.summary);        // { commandCount, errorCount, warningCount, infoCount, ... }
+console.log(result.findings);       // SurfaceFinding[] with rule, severity, message, suggestion
+```
+
+### Input Types
+
+`validateCommandSurface()` accepts both `ZodCommandDefinition[]` (from `@lushly-dev/afd-server`) and `CommandDefinition[]` (from `@lushly-dev/afd-core`). Input is auto-detected via duck-typing.
+
+### Validation Rules
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| `similar-descriptions` | Warning | Command pairs with highly similar descriptions (cosine similarity) |
+| `schema-overlap` | Warning | Command pairs sharing a high percentage of input fields |
+| `naming-convention` | Error | Command names not matching kebab-case `domain-action` pattern |
+| `naming-collision` | Error | Command names that collide when separators are normalized |
+| `missing-category` | Info | Commands without a category field |
+| `description-injection` | Error | Descriptions containing prompt injection patterns |
+| `description-quality` | Warning | Descriptions that are too short or missing action verbs |
+| `orphaned-category` | Info | Categories containing only one command |
+
+### Options
+
+```typescript
+interface SurfaceValidationOptions {
+  similarityThreshold?: number;        // Default: 0.7 (70% similarity triggers warning)
+  schemaOverlapThreshold?: number;     // Default: 0.8 (80% field overlap triggers warning)
+  detectInjection?: boolean;           // Default: true
+  checkDescriptionQuality?: boolean;   // Default: true
+  minDescriptionLength?: number;       // Default: 20
+  enforceNaming?: boolean;             // Default: true
+  namingPattern?: RegExp;              // Default: /^[a-z][a-z0-9]*-[a-z][a-z0-9-]*$/
+  skipCategories?: string[];           // Categories to exclude from analysis
+  strict?: boolean;                    // Treat warnings as errors
+  suppressions?: string[];             // Suppress specific findings
+  additionalInjectionPatterns?: InjectionPattern[];
+}
+```
+
+### Suppressions
+
+Suppress findings at the rule level or for specific command pairs:
+
+```typescript
+const result = validateCommandSurface(commands, {
+  suppressions: [
+    'missing-category',                        // Suppress all missing-category findings
+    'similar-descriptions:user-get:user-fetch', // Suppress only this pair (order-independent)
+  ],
+});
+```
+
+### CLI Integration
+
+```bash
+# Run surface validation against a connected MCP server
+afd validate --surface
+
+# With custom threshold
+afd validate --surface --similarity-threshold 0.8
+
+# Skip categories and suppress rules
+afd validate --surface --skip-category internal --suppress missing-category
+
+# Strict mode (warnings = errors)
+afd validate --surface --strict --verbose
+```
 
 ## Agent Integration (Phase 3)
 
@@ -944,6 +1029,19 @@ const result = await registry.execute('document-create', { title: 'New Doc' });
 | `INVALID_ERROR_MESSAGE` | Error | Error message must be a string |
 | `MISSING_SUGGESTION` | Warning | Errors should have suggestions |
 | `MISSING_RETRYABLE` | Warning | Errors should indicate if retryable |
+
+### Surface Validation Rules
+
+| Rule | Severity | Description |
+|------|----------|-------------|
+| `similar-descriptions` | Warning | Command pair descriptions exceed similarity threshold |
+| `schema-overlap` | Warning | Command pair input schemas share too many fields |
+| `naming-convention` | Error | Command name doesn't match naming pattern |
+| `naming-collision` | Error | Command names collide when separators are removed |
+| `missing-category` | Info | Command has no category assigned |
+| `description-injection` | Error | Description contains prompt injection patterns |
+| `description-quality` | Warning | Description too short or missing action verb |
+| `orphaned-category` | Info | Category contains only one command |
 
 ## License
 

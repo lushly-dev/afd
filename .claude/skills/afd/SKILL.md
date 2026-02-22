@@ -26,7 +26,7 @@ Expert guidance for building software with the Agent-First Development methodolo
 1. **Command Design** — Define commands with Zod schemas, proper error handling, and UX-enabling metadata
 2. **CLI Validation** — Test commands via CLI before building UI
 3. **MCP Integration** — Set up MCP servers and connect clients
-4. **Testing** — Unit tests, performance tests, and AFD compliance checks
+4. **Testing** — Unit tests, performance tests, AFD compliance checks, and surface validation
 5. **FAST Element Integration** — Connect commands to FAST Element components
 
 ## Routing Logic
@@ -42,10 +42,12 @@ Expert guidance for building software with the Agent-First Development methodolo
 | Real-time protocols, WebSocket | [references/handoff-pattern.md](references/handoff-pattern.md) |
 | JTBD scenarios, fixtures | [references/jtbd-scenarios.md](references/jtbd-scenarios.md) |
 | Telemetry middleware, sinks, monitoring | [references/telemetry.md](references/telemetry.md) |
+| defaultMiddleware, auto trace ID, logging/timing defaults | [references/telemetry.md](references/telemetry.md) |
 | External adapters, CLI/API bridging | [references/external-adapters.md](references/external-adapters.md) |
 | Destructive commands, confirmation UI | [references/command-trust-config.md](references/command-trust-config.md) |
 | Interface exposure, undo metadata | [references/command-exposure-undo.md](references/command-exposure-undo.md) |
 | Cross-platform exec, connectors | [references/platform-utils.md](references/platform-utils.md) |
+| Surface validation, semantic quality | [references/surface-validation.md](references/surface-validation.md) |
 
 ## Core Principles
 
@@ -142,7 +144,7 @@ return error('NOT_FOUND', `Item ${id} not found`, {
 | `@lushly-dev/afd-core` | Core types (CommandResult, CommandError, validateCommandName) |
 | `@lushly-dev/afd-server` | Zod-based MCP server factory |
 | `@lushly-dev/afd-client` | MCP client with SSE/HTTP transports + DirectClient |
-| `@lushly-dev/afd-testing` | JTBD scenario runner, test validators |
+| `@lushly-dev/afd-testing` | JTBD scenario runner, surface validation, test validators |
 | `@lushly-dev/afd-adapters` | Frontend adapters for rendering CommandResult |
 | `@lushly-dev/afd-cli` | Command-line interface |
 

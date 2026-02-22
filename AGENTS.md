@@ -57,7 +57,7 @@ packages/
 ├── client/     # @lushly-dev/afd-client - MCP client + DirectClient
 ├── auth/       # @lushly-dev/afd-auth - Provider-agnostic auth adapter
 ├── cli/        # @lushly-dev/afd-cli - Command-line tool
-├── testing/    # @lushly-dev/afd-testing - JTBD scenario runner
+├── testing/    # @lushly-dev/afd-testing - JTBD scenario runner + surface validation
 ├── adapters/   # @lushly-dev/afd-adapters - Frontend adapters for rendering CommandResult
 └── examples/
     ├── todo/                # Multi-stack example (TS, Python, Rust backends)
@@ -131,7 +131,7 @@ return failure({ code: 'NOT_FOUND', message: '...', suggestion: 'Try...' });
 Builds MCP servers from Zod-defined commands:
 
 ```typescript
-import { defineCommand, createMcpServer, success } from '@lushly-dev/afd-server';
+import { defineCommand, createMcpServer, defaultMiddleware, success } from '@lushly-dev/afd-server';
 
 const myCommand = defineCommand({
   name: 'domain-action',  // kebab-case naming
@@ -147,6 +147,7 @@ const server = createMcpServer({
   name: 'my-server',
   version: '1.0.0',
   commands: [myCommand],
+  middleware: defaultMiddleware(),  // Trace IDs, logging, slow-command warnings
   transport: 'auto',  // 'stdio' | 'http' | 'auto'
 });
 ```

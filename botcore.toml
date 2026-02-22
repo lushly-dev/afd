@@ -1,0 +1,38 @@
+# Botcore configuration for the AFD repository.
+# Primary language is TypeScript; Python and Rust live in subdirectories.
+
+language = "typescript"
+linter = "biome"
+test_runner = "vitest"
+formatter = "biome"
+
+# Quality thresholds
+file_size_warn = 500
+file_size_error = 1000
+coverage_threshold = 80
+deps_max_major_behind = 1
+check_changelog = true
+check_agents = true
+
+[skills]
+# AFD-specific skills (afd-*) are local — skip them during seed so
+# botcore doesn't try to overwrite or flag them as unmanaged.
+skip = [
+    "afd",
+    "afd-contracts",
+    "afd-developer",
+    "afd-directclient",
+    "afd-python",
+    "afd-rust",
+    "afd-typescript",
+]
+
+# Per-package overrides for Python and Rust subdirectories
+[packages.python]
+coverage_paths = ["src/"]
+
+[packages.alfred]
+coverage_paths = ["src/"]
+
+[packages.rust]
+coverage_paths = ["src/"]

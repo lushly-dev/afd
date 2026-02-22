@@ -130,14 +130,14 @@ AFD ships as packages across **TypeScript, Python, and Rust**, all sharing the s
 | **@afd/core** | Core types — `CommandResult`, `CommandError`, batching, streaming |
 | **@afd/server** | Zod-based MCP server factory with middleware (logging, timing, rate limiting, telemetry) |
 | **@afd/client** | MCP client with SSE/HTTP transports + `DirectClient` for ~0.03ms in-process execution |
-| **@afd/testing** | JTBD scenario runner, coverage analysis, MCP agent integration, multi-app adapters |
+| **@afd/testing** | JTBD scenario runner, surface validation, coverage analysis, MCP agent integration |
 | **@afd/cli** | CLI for connecting, calling, validating, and exploring commands |
 | **@afd/auth** | Provider-agnostic auth adapter — middleware, commands, session sync, React hooks, adapters for Mock/Convex/BetterAuth |
 | **@afd/adapters** | Frontend adapters for rendering `CommandResult` → styled HTML with CSS variable theming |
 | **afd** *(Python)* | Pydantic-based `CommandResult`, FastMCP server, decorator-based command definition |
 | **afd** *(Rust)* | `CommandResult` types, `CommandRegistry`, batch/stream support, WASM-compatible |
 
-Features like [command trust config](./docs/features/complete/command-trust-config/), [exposure & undo](./docs/features/complete/command-exposure-undo/), [command pipelines](./docs/features/complete/command-pipeline/), and [real-time handoff](./docs/features/complete/handoff-pattern/) are already shipped. TypeSpec-based [cross-layer contract sync](./.claude/skills/afd-contracts/SKILL.md) prevents schema drift between codebases.
+Features like [command trust config](./docs/features/complete/command-trust-config/), [exposure & undo](./docs/features/complete/command-exposure-undo/), [command pipelines](./docs/features/complete/command-pipeline/), [real-time handoff](./docs/features/complete/handoff-pattern/), and [middleware defaults](./docs/features/complete/middleware-defaults/) (zero-config observability) are already shipped. TypeSpec-based [cross-layer contract sync](./.claude/skills/afd-contracts/SKILL.md) prevents schema drift between codebases.
 
 **[Read the full philosophy →](./.claude/skills/afd-developer/references/philosophy.md)**
 
@@ -212,7 +212,8 @@ afd validate --category document
 | `afd tools` | List available tools |
 | `afd tools --category <name>` | Filter tools by category |
 | `afd call <tool> [args]` | Call a tool with JSON args |
-| `afd validate` | Run command validation |
+| `afd validate` | Run per-command validation |
+| `afd validate --surface` | Run cross-command surface validation |
 | `afd shell` | Interactive mode |
 
 ## Documentation
@@ -246,6 +247,7 @@ pnpm test
 | **Unit Tests** | Command logic correctness | `**/commands/__tests__/commands.test.ts` |
 | **Performance Tests** | Response time baselines | `**/commands/__tests__/performance.test.ts` |
 | **AFD Compliance** | CommandResult structure validation | Included in unit tests |
+| **Surface Validation** | Cross-command semantic quality analysis | `afd validate --surface` |
 
 ### Performance Testing
 

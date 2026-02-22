@@ -6,11 +6,7 @@ Guide to identifying and correcting sentence-level and document-level patterns t
 
 ### The Em-Dash Problem
 
-AI models overuse em-dashes (—) as a structural crutch. They serve as convenient ways to:
-
-- Insert explanatory clauses
-- Create "thoughtful" pauses
-- Append additional context without new sentences
+AI models overuse em-dashes as a structural crutch to insert explanatory clauses, create "thoughtful" pauses, and append additional context without new sentences.
 
 **Detection:** Count em-dashes per document. More than 2-3 in a short piece suggests AI.
 
@@ -19,17 +15,17 @@ AI models overuse em-dashes (—) as a structural crutch. They serve as convenie
 - Replace with commas for light interruptions
 - Use parentheses for true asides
 - Create new sentences for substantial additions
-- Remove entirely if the clause isn't essential
+- Remove entirely if the clause is not essential
 
 **Example:**
 
-> ❌ The project—which had been in development for two years—finally launched—bringing with it a new era of productivity.
+> Before: The project -- which had been in development for two years -- finally launched -- bringing with it a new era of productivity.
 
-> ✅ The project launched after two years of development, bringing measurable productivity gains.
+> After: The project launched after two years of development, bringing measurable productivity gains.
 
 ### The Oxford Comma Rigidity
 
-AI consistently applies the Oxford comma because it reduces ambiguity mathematically. The pattern isn't wrong—it's the _unfailing consistency_ that's the tell.
+AI consistently applies the Oxford comma because it reduces ambiguity mathematically. The pattern is not wrong -- it is the unfailing consistency that is the tell.
 
 **Detection:** Check if every list uses Oxford comma, even in casual contexts.
 
@@ -41,13 +37,13 @@ AI consistently applies the Oxford comma because it reduces ambiguity mathematic
 
 **Example:**
 
-> ❌ She likes coffee, tea, and water. He prefers juice, soda, and milk. They enjoy breakfast, lunch, and dinner.
+> Before: She likes coffee, tea, and water. He prefers juice, soda, and milk. They enjoy breakfast, lunch, and dinner.
 
-> ✅ She likes coffee, tea and water. He prefers juice, soda, and milk. They all enjoy good food.
+> After: She likes coffee, tea and water. He prefers juice, soda, and milk. They all enjoy good food.
 
 ### The Colon Header Pattern
 
-AI loves the "Topic: Description" structure for every list item.
+AI uses "Topic: Description" structure for every list item.
 
 **Detection:**
 
@@ -75,7 +71,7 @@ AI loves the "Topic: Description" structure for every list item.
 
 ### The Uniform Length Problem (Low Burstiness)
 
-AI produces sentences of remarkably consistent length and complexity. Human writing has "bursts"—long explanations followed by short punches.
+AI produces sentences of remarkably consistent length and complexity. Human writing has bursts -- long explanations followed by short punches.
 
 **Detection:** Check standard deviation of sentence lengths. AI text clusters around the mean.
 
@@ -85,11 +81,11 @@ AI produces sentences of remarkably consistent length and complexity. Human writ
 
 **Human Pattern:**
 
-> The new system worked. Not just worked—it transformed how the team operated. Customer complaints dropped 40% in the first month. People actually liked using it.
+> The new system worked. Not just worked -- it transformed how the team operated. Customer complaints dropped 40% in the first month. People actually liked using it.
 
 **Remediation Techniques:**
 
-1. **Add fragments:** "Not just worked—it transformed everything."
+1. **Add fragments:** "Not just worked -- it transformed everything."
 2. **Vary dramatically:** Follow 25-word sentence with 5-word punch
 3. **Use questions:** "What changed? Everything."
 4. **Allow run-ons:** Occasional conversational run-ons feel human
@@ -118,9 +114,9 @@ Paradoxically, flawless grammar signals AI. Human writing contains:
 
 **Example:**
 
-> ❌ Additionally, the team achieved significant results. Furthermore, they exceeded all expectations.
+> Before: Additionally, the team achieved significant results. Furthermore, they exceeded all expectations.
 
-> ✅ The team achieved significant results. And exceeded expectations while doing it.
+> After: The team achieved significant results. And exceeded expectations while doing it.
 
 ### The Topic-Evidence-Conclusion Template
 
@@ -145,13 +141,7 @@ Every. Single. Paragraph.
 
 ### The Signposted Transitions
 
-AI loves explicit transition markers between every paragraph:
-
-- "Furthermore..."
-- "In addition..."
-- "Moreover..."
-- "Conversely..."
-- "On the other hand..."
+AI uses explicit transition markers between every paragraph: "Furthermore," "In addition," "Moreover," "Conversely," "On the other hand."
 
 **Detection:** Count transition words per page. More than 3-4 suggests AI.
 
@@ -175,20 +165,15 @@ Humans just start:
 
 ### The Explicit Conclusion
 
-AI signals endings explicitly:
+AI signals endings explicitly with "In conclusion," "To summarize," "In summary," "To wrap up."
 
-- "In conclusion..."
-- "To summarize..."
-- "In summary..."
-- "To wrap up..."
-
-**Remediation:** End naturally without announcement. The reader knows it's ending.
+**Remediation:** End naturally without announcement. The reader knows it is ending.
 
 ## Rhythm and Flow
 
 ### The Monotonous Cadence
 
-AI text has a metronomic quality—steady, predictable, even. Human writing has rhythm variation.
+AI text has a metronomic quality -- steady, predictable, even. Human writing has rhythm variation.
 
 **Test:** Read text aloud. Does it sound like a robot reading a teleprompter?
 
@@ -201,7 +186,7 @@ AI text has a metronomic quality—steady, predictable, even. Human writing has 
 
 ### The Safety Tone
 
-AI defaults to "neutral professional"—confident but bland, helpful but devoid of personality.
+AI defaults to "neutral professional" -- confident but bland, helpful but devoid of personality.
 
 **Characteristics:**
 
@@ -222,11 +207,11 @@ AI defaults to "neutral professional"—confident but bland, helpful but devoid 
 
 Before publishing, verify:
 
-- [ ] Em-dashes appear ≤2 times
+- [ ] Em-dashes appear no more than 2 times
 - [ ] Sentence lengths vary (short + long)
 - [ ] At least one sentence fragment exists
 - [ ] At least one sentence starts with "And" or "But"
-- [ ] Transition words appear <4 times
+- [ ] Transition words appear fewer than 4 times
 - [ ] No "In conclusion" or "To summarize"
 - [ ] No "In this article, we will..."
 - [ ] Paragraph lengths vary
