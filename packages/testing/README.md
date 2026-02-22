@@ -62,6 +62,8 @@ console.log(result.findings);       // SurfaceFinding[] with rule, severity, mes
 | `description-quality` | Warning | Descriptions that are too short or missing action verbs |
 | `orphaned-category` | Info | Categories containing only one command |
 | `schema-complexity` | Warning/Info | Input schemas too complex for agents (unions, nesting, constraints) |
+| `unresolved-prerequisite` | Error | `requires` entry references a command not in the surface |
+| `circular-prerequisite` | Error | Circular dependency cycle in the `requires` graph |
 
 ### Options
 
@@ -1047,6 +1049,8 @@ const result = await registry.execute('document-create', { title: 'New Doc' });
 | `description-quality` | Warning | Description too short or missing action verb |
 | `orphaned-category` | Info | Category contains only one command |
 | `schema-complexity` | Warning/Info | Input schema too complex for agents (scored by fields, depth, unions, constraints) |
+| `unresolved-prerequisite` | Error | `requires` entry references a command not in the surface |
+| `circular-prerequisite` | Error | Circular dependency cycle in the `requires` graph |
 
 ## License
 

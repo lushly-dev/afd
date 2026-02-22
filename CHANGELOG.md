@@ -22,6 +22,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Zero React dependency on main entrypoint; React only pulled in via `/react` sub-path
   - All peer dependencies optional (`@lushly-dev/afd-server`, `zod`, `react`, `@convex-dev/auth`, `better-auth`)
 
+- **Command prerequisites** (`@lushly-dev/afd-core`, `@lushly-dev/afd-server`, `@lushly-dev/afd-testing`) — Declare planning-order dependencies between commands via `requires?: string[]` so agents can reason about command ordering without trial-and-error
+  - `CommandDefinition.requires` field in `@lushly-dev/afd-core` — metadata only, not enforced at runtime
+  - `defineCommand({ requires: ['auth-sign-in'] })` in `@lushly-dev/afd-server` — threaded through `ZodCommandOptions`, `ZodCommandDefinition`, `defineCommand()`, and `toCommandDefinition()`
+  - MCP tool `_meta` — individual tool listings now emit `_meta.requires` and `_meta.mutation` when present, giving agents prerequisite info at discovery time
+  - `afd-help` full format — `requires` array included in help output
+  - 2 new surface validation rules in `@lushly-dev/afd-testing`:
+    - `unresolved-prerequisite` (error) — flags `requires` entries referencing commands not in the surface
+    - `circular-prerequisite` (error) — detects cycles in the `requires` dependency graph via DFS
+  - 11 new tests (8 unit + 3 integration) covering both rules
+
 - **Surface validation (semantic quality analysis)** (`@lushly-dev/afd-testing`) — Cross-command analysis that detects semantic collisions, naming ambiguities, schema overlaps, and prompt injection risks. New `validateCommandSurface()` function with 8 rules:
   - `similar-descriptions` — Cosine similarity detection for command descriptions (configurable threshold)
   - `schema-overlap` — Shared input field detection between command pairs
@@ -63,9 +73,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | Package | Tests | Status |
 |---------|-------|--------|
 | @lushly-dev/afd-core | 283 | Pass |
-| @lushly-dev/afd-server | 135 | Pass |
+| @lushly-dev/afd-server | 137 | Pass |
 | @lushly-dev/afd-client | 97 | Pass |
-| @lushly-dev/afd-testing | 169 | Pass |
+| @lushly-dev/afd-testing | 232 | Pass |
 | @lushly-dev/afd-adapters | 29 | Pass |
 | @lushly-dev/afd-cli | 14 | Pass |
 | **@lushly-dev/afd-auth** | **57** | **Pass** |

@@ -9,6 +9,7 @@
 export { checkInjection, INJECTION_PATTERNS } from './injection.js';
 // Rules (for direct use / testing)
 export {
+	checkCircularPrerequisites,
 	checkDescriptionInjection,
 	checkDescriptionQuality,
 	checkMissingCategory,
@@ -18,6 +19,7 @@ export {
 	checkSchemaComplexity,
 	checkSchemaOverlap,
 	checkSimilarDescriptions,
+	checkUnresolvedPrerequisites,
 	DESCRIPTION_VERBS,
 } from './rules.js';
 

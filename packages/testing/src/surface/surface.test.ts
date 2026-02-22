@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { checkInjection } from './injection.js';
 import {
+	checkCircularPrerequisites,
 	checkDescriptionInjection,
 	checkDescriptionQuality,
 	checkMissingCategory,
@@ -10,6 +11,7 @@ import {
 	checkSchemaComplexity,
 	checkSchemaOverlap,
 	checkSimilarDescriptions,
+	checkUnresolvedPrerequisites,
 } from './rules.js';
 import { computeComplexity } from './schema-complexity.js';
 import { commandParametersToJsonSchema, compareSchemas } from './schema-overlap.js';
@@ -984,6 +986,69 @@ describe('validateCommandSurface', () => {
 		const complexityFindings = result.findings.filter((f) => f.rule === 'schema-complexity');
 		expect(complexityFindings).toHaveLength(0);
 	});
+
+	it('detects unresolved prerequisites', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'order-create',
+				description: 'Creates a new order for the specified user account',
+				category: 'order',
+				requires: ['auth-sign-in'],
+			},
+			{
+				name: 'order-list',
+				description: 'Lists all orders for the authenticated user account',
+				category: 'order',
+			},
+		];
+		const result = validateCommandSurface(commands, { enforceNaming: false });
+		const prereqFindings = result.findings.filter((f) => f.rule === 'unresolved-prerequisite');
+		expect(prereqFindings).toHaveLength(1);
+		expect(prereqFindings[0]?.evidence?.missingCommand).toBe('auth-sign-in');
+		expect(result.valid).toBe(false);
+	});
+
+	it('detects circular prerequisites', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'cmd-alpha',
+				description: 'Executes the alpha step of the processing pipeline',
+				category: 'pipeline',
+				requires: ['cmd-beta'],
+			},
+			{
+				name: 'cmd-beta',
+				description: 'Executes the beta step of the processing pipeline',
+				category: 'pipeline',
+				requires: ['cmd-alpha'],
+			},
+		];
+		const result = validateCommandSurface(commands, { enforceNaming: false });
+		const circFindings = result.findings.filter((f) => f.rule === 'circular-prerequisite');
+		expect(circFindings).toHaveLength(1);
+		expect(result.valid).toBe(false);
+	});
+
+	it('passes valid requires with no prerequisite findings', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'auth-sign-in',
+				description: 'Authenticates the user with the given credentials',
+				category: 'auth',
+			},
+			{
+				name: 'order-create',
+				description: 'Creates a new order for the authenticated user account',
+				category: 'order',
+				requires: ['auth-sign-in'],
+			},
+		];
+		const result = validateCommandSurface(commands, { enforceNaming: false });
+		const prereqFindings = result.findings.filter(
+			(f) => f.rule === 'unresolved-prerequisite' || f.rule === 'circular-prerequisite'
+		);
+		expect(prereqFindings).toHaveLength(0);
+	});
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1238,5 +1303,128 @@ describe('checkSchemaComplexity', () => {
 		expect(findings[0]?.severity).toBe('warning');
 		expect(findings[0]?.rule).toBe('schema-complexity');
 		expect((findings[0]?.evidence as Record<string, unknown>)?.score).toBe(15);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PREREQUISITE RULES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('checkUnresolvedPrerequisites', () => {
+	it('returns no findings for valid requires', () => {
+		const commands: SurfaceCommand[] = [
+			{ name: 'auth-sign-in', description: 'Signs in the user with credentials' },
+			{
+				name: 'order-create',
+				description: 'Creates a new order for the user',
+				requires: ['auth-sign-in'],
+			},
+		];
+		const findings = checkUnresolvedPrerequisites(commands);
+		expect(findings).toHaveLength(0);
+	});
+
+	it('flags a missing prerequisite', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'order-create',
+				description: 'Creates a new order for the user',
+				requires: ['auth-sign-in'],
+			},
+		];
+		const findings = checkUnresolvedPrerequisites(commands);
+		expect(findings).toHaveLength(1);
+		expect(findings[0]?.rule).toBe('unresolved-prerequisite');
+		expect(findings[0]?.severity).toBe('error');
+		expect(findings[0]?.evidence?.missingCommand).toBe('auth-sign-in');
+	});
+
+	it('flags multiple missing prerequisites', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'order-create',
+				description: 'Creates a new order for the user',
+				requires: ['auth-sign-in', 'user-profile-load'],
+			},
+		];
+		const findings = checkUnresolvedPrerequisites(commands);
+		expect(findings).toHaveLength(2);
+	});
+
+	it('returns no findings when requires is absent', () => {
+		const commands: SurfaceCommand[] = [
+			{ name: 'todo-create', description: 'Creates a new todo item' },
+			{ name: 'todo-list', description: 'Lists all todo items' },
+		];
+		const findings = checkUnresolvedPrerequisites(commands);
+		expect(findings).toHaveLength(0);
+	});
+});
+
+describe('checkCircularPrerequisites', () => {
+	it('returns no findings when there is no cycle', () => {
+		const commands: SurfaceCommand[] = [
+			{ name: 'auth-sign-in', description: 'Signs in the user with credentials' },
+			{
+				name: 'order-create',
+				description: 'Creates a new order for the user',
+				requires: ['auth-sign-in'],
+			},
+		];
+		const findings = checkCircularPrerequisites(commands);
+		expect(findings).toHaveLength(0);
+	});
+
+	it('detects direct cycle A → B → A', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'cmd-alpha',
+				description: 'Executes the alpha processing step',
+				requires: ['cmd-beta'],
+			},
+			{
+				name: 'cmd-beta',
+				description: 'Executes the beta processing step',
+				requires: ['cmd-alpha'],
+			},
+		];
+		const findings = checkCircularPrerequisites(commands);
+		expect(findings).toHaveLength(1);
+		expect(findings[0]?.rule).toBe('circular-prerequisite');
+		expect(findings[0]?.severity).toBe('error');
+	});
+
+	it('detects multi-hop cycle A → B → C → A', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'cmd-alpha',
+				description: 'Executes the alpha processing step',
+				requires: ['cmd-beta'],
+			},
+			{
+				name: 'cmd-beta',
+				description: 'Executes the beta processing step',
+				requires: ['cmd-gamma'],
+			},
+			{
+				name: 'cmd-gamma',
+				description: 'Executes the gamma processing step',
+				requires: ['cmd-alpha'],
+			},
+		];
+		const findings = checkCircularPrerequisites(commands);
+		expect(findings).toHaveLength(1);
+	});
+
+	it('detects self-reference', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'cmd-self',
+				description: 'Executes and requires itself recursively',
+				requires: ['cmd-self'],
+			},
+		];
+		const findings = checkCircularPrerequisites(commands);
+		expect(findings).toHaveLength(1);
 	});
 });

@@ -45,6 +45,7 @@ export const createTodo = defineCommand({
   description: 'Create a new todo item',
   category: 'todo',
   mutation: true,
+  requires: ['auth-sign-in'],  // Planning-order dependency (metadata only)
   version: '1.0.0',
   input: inputSchema,
   errors: ['VALIDATION_ERROR'],

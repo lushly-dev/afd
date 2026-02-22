@@ -59,7 +59,7 @@ interface SurfaceFinding {
 }
 ```
 
-## 9 Validation Rules
+## 11 Validation Rules
 
 ### 1. Similar Descriptions (`similar-descriptions`)
 **Severity:** Warning
@@ -135,6 +135,30 @@ import { computeComplexity } from '@lushly-dev/afd-testing';
 
 const result = computeComplexity(jsonSchema);
 // { score: 15, tier: 'high', breakdown: { fields: 6, depth: 1, unions: 1, ... } }
+```
+
+### 10. Unresolved Prerequisite (`unresolved-prerequisite`)
+**Severity:** Error
+
+Flags `requires` entries that reference commands not present in the validated command set. Catches typos and stale references.
+
+```typescript
+// This would trigger if "auth-sign-in" is not registered:
+defineCommand({
+  name: 'order-create',
+  requires: ['auth-sign-in'],  // error if auth-sign-in not in surface
+  // ...
+});
+```
+
+### 11. Circular Prerequisite (`circular-prerequisite`)
+**Severity:** Error
+
+Detects cycles in the `requires` dependency graph using DFS. A cycle means no valid execution order exists.
+
+```typescript
+// A → B → C → A would trigger:
+// "Circular prerequisite chain: A → B → C → A"
 ```
 
 ## Suppression System

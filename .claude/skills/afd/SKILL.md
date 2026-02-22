@@ -47,6 +47,7 @@ Expert guidance for building software with the Agent-First Development methodolo
 | Destructive commands, confirmation UI | [references/command-trust-config.md](references/command-trust-config.md) |
 | Interface exposure, undo metadata | [references/command-exposure-undo.md](references/command-exposure-undo.md) |
 | Cross-platform exec, connectors | [references/platform-utils.md](references/platform-utils.md) |
+| Command prerequisites, `requires` field | [references/command-schema.md](references/command-schema.md) |
 | Surface validation, semantic quality | [references/surface-validation.md](references/surface-validation.md) |
 
 ## Core Principles

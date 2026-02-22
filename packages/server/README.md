@@ -358,6 +358,7 @@ Create a command definition with Zod schema.
 | `mutation` | boolean | No | Whether command has side effects |
 | `version` | string | No | Command version |
 | `tags` | string[] | No | Additional tags |
+| `requires` | string[] | No | Commands that should be called before this one (metadata only) |
 | `errors` | string[] | No | Possible error codes |
 
 ### createMcpServer(options)

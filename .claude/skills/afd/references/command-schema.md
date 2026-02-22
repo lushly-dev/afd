@@ -115,6 +115,26 @@ defineCommand({
 | **Risk** | `destructive`, `safe` | Agent safety hints |
 | **Access** | `bootstrap`, `admin`, `public` | Permission filtering |
 
+## Command Prerequisites
+
+Commands can declare planning-order dependencies via the `requires` field. This is metadata only — not enforced at runtime — and helps agents reason about execution order.
+
+```typescript
+defineCommand({
+  name: 'order-create',
+  description: 'Creates a new order for the authenticated user',
+  requires: ['auth-sign-in'],  // Agent should call auth-sign-in first
+  mutation: true,
+  input: z.object({ items: z.array(z.string()) }),
+  async handler(input) { /* ... */ },
+});
+```
+
+**Key rules:**
+- `requires` entries must reference commands registered in the same surface (validated by `unresolved-prerequisite` rule)
+- No circular dependencies allowed (validated by `circular-prerequisite` rule)
+- Prerequisites are exposed via MCP tool `_meta.requires` and `afd-help` full format
+
 ## Design Principles
 
 ### 1. Return Data for the UI You Want
