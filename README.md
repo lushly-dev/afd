@@ -132,6 +132,7 @@ AFD ships as packages across **TypeScript, Python, and Rust**, all sharing the s
 | **@afd/client** | MCP client with SSE/HTTP transports + `DirectClient` for ~0.03ms in-process execution |
 | **@afd/testing** | JTBD scenario runner, surface validation, coverage analysis, MCP agent integration |
 | **@afd/cli** | CLI for connecting, calling, validating, and exploring commands |
+| **@afd/auth** | Provider-agnostic auth adapter — middleware, commands, session sync, React hooks, adapters for Mock/Convex/BetterAuth |
 | **@afd/adapters** | Frontend adapters for rendering `CommandResult` → styled HTML with CSS variable theming |
 | **afd** *(Python)* | Pydantic-based `CommandResult`, FastMCP server, decorator-based command definition |
 | **afd** *(Rust)* | `CommandResult` types, `CommandRegistry`, batch/stream support, WASM-compatible |

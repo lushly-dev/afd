@@ -19,6 +19,7 @@ pnpm -F @lushly-dev/afd-core build
 pnpm -F @lushly-dev/afd-server build
 pnpm -F @lushly-dev/afd-client build
 pnpm -F @lushly-dev/afd-adapters build
+pnpm -F @lushly-dev/afd-auth build
 
 # Run all tests
 pnpm test
@@ -26,6 +27,7 @@ pnpm test
 # Run tests for specific package
 pnpm -F @lushly-dev/afd-core test
 pnpm -F @lushly-dev/afd-server test
+pnpm -F @lushly-dev/afd-auth test
 
 # Run single test file
 cd packages/server && pnpm vitest run src/server.test.ts
@@ -55,6 +57,7 @@ packages/
 ├── client/     # @lushly-dev/afd-client - MCP client + DirectClient
 ├── cli/        # @lushly-dev/afd-cli - Command-line tool
 ├── testing/    # @lushly-dev/afd-testing - JTBD scenario runner + surface validation
+├── auth/       # @lushly-dev/afd-auth - Provider-agnostic auth adapter
 ├── adapters/   # @lushly-dev/afd-adapters - Frontend adapters for rendering CommandResult
 └── examples/
     ├── todo/                # Multi-stack example (TS, Python, Rust backends)
@@ -179,6 +182,7 @@ When working with pipelines, these variables are available:
 | [afd-python](skills/afd-python/) | Python implementation with Pydantic, FastMCP |
 | [afd-typescript](skills/afd-typescript/) | TypeScript patterns, Zod tips |
 | [afd-rust](skills/afd-rust/) | Rust implementation patterns |
+| [afd-auth](skills/afd-auth/) | Auth adapter, middleware, commands, session sync, React hooks |
 | [afd-directclient](skills/afd-directclient/) | In-process command execution |
 | [afd-contracts](skills/afd-contracts/) | TypeSpec-based contract system for multi-layer API schema sync |
 
