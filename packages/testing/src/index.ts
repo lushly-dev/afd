@@ -277,6 +277,8 @@ export {
 // ============================================================================
 
 export type {
+	ComplexityBreakdown,
+	ComplexityResult,
 	DescriptionQualityOptions,
 	InjectionMatch,
 	InjectionPattern,
@@ -300,10 +302,12 @@ export {
 	checkNamingCollision,
 	checkNamingConvention,
 	checkOrphanedCategory,
+	checkSchemaComplexity,
 	checkSchemaOverlap,
 	checkSimilarDescriptions,
 	commandParametersToJsonSchema,
 	compareSchemas,
+	computeComplexity,
 	cosineSimilarity,
 	DESCRIPTION_VERBS,
 	INJECTION_PATTERNS,

@@ -5,6 +5,7 @@
  */
 
 import { checkInjection } from './injection.js';
+import { computeComplexity } from './schema-complexity.js';
 import { compareSchemas } from './schema-overlap.js';
 import { buildSimilarityMatrix } from './similarity.js';
 import type { InjectionPattern, SurfaceCommand, SurfaceFinding } from './types.js';
@@ -405,6 +406,58 @@ export function checkOrphanedCategory(commands: SurfaceCommand[]): SurfaceFindin
 				suggestion:
 					'Consider moving this command to a broader category, or suppress this finding if the singleton category is intentional.',
 				evidence: { category },
+			});
+		}
+	}
+
+	return findings;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RULE 9: SCHEMA COMPLEXITY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Score input schema complexity and flag commands exceeding the threshold.
+ *
+ * Tier logic:
+ * - low (0-5): no finding
+ * - medium (6-12): info
+ * - high (13-20): warning
+ * - critical (21+): warning
+ *
+ * Never produces `error` severity.
+ */
+export function checkSchemaComplexity(
+	commands: SurfaceCommand[],
+	threshold: number
+): SurfaceFinding[] {
+	const findings: SurfaceFinding[] = [];
+
+	for (const cmd of commands) {
+		if (!cmd.jsonSchema) continue;
+
+		const result = computeComplexity(cmd.jsonSchema as unknown as Record<string, unknown>);
+
+		if (result.tier === 'low') continue;
+
+		const severity = result.tier === 'medium' ? 'info' : 'warning';
+
+		if (result.score >= threshold || result.tier === 'medium') {
+			findings.push({
+				rule: 'schema-complexity',
+				severity,
+				message: `Command "${cmd.name}" has ${result.tier} schema complexity (score: ${result.score})`,
+				commands: [cmd.name],
+				suggestion:
+					result.tier === 'medium'
+						? 'Consider simplifying the input schema if agents struggle with this command.'
+						: 'Simplify the input schema by reducing unions, nesting depth, or splitting into multiple commands.',
+				evidence: {
+					score: result.score,
+					tier: result.tier,
+					breakdown: result.breakdown,
+				},
 			});
 		}
 	}

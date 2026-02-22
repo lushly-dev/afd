@@ -47,6 +47,12 @@ export interface SurfaceValidationOptions {
 
 	/** Additional injection patterns to check alongside built-in patterns */
 	additionalInjectionPatterns?: InjectionPattern[];
+
+	/** Enable schema complexity scoring. Default: true */
+	checkSchemaComplexity?: boolean;
+
+	/** Complexity score threshold for warning-level findings. Default: 13 */
+	schemaComplexityThreshold?: number;
 }
 
 /**
@@ -126,7 +132,8 @@ export type SurfaceRule =
 	| 'missing-category'
 	| 'description-injection'
 	| 'description-quality'
-	| 'orphaned-category';
+	| 'orphaned-category'
+	| 'schema-complexity';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // INJECTION TYPES
@@ -242,6 +249,53 @@ export interface DescriptionQualityOptions {
 
 	/** Additional verbs to accept beyond the built-in list */
 	additionalVerbs?: string[];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SCHEMA COMPLEXITY TYPES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Breakdown of individual complexity contributors for a command's input schema.
+ */
+export interface ComplexityBreakdown {
+	/** Total number of unique field names across the schema tree */
+	fields: number;
+
+	/** Maximum nesting depth of object types */
+	depth: number;
+
+	/** Number of oneOf/anyOf unions (excluding nullable wrappers) */
+	unions: number;
+
+	/** Number of intersection variants (allOf) */
+	intersections: number;
+
+	/** Number of enum constraints */
+	enums: number;
+
+	/** Number of pattern (regex) constraints */
+	patterns: number;
+
+	/** Number of numeric bound constraints (minimum, maximum, etc.) */
+	bounds: number;
+
+	/** Ratio score (0-4) based on proportion of optional fields */
+	optionalRatio: number;
+}
+
+/**
+ * Result of computing schema complexity for a single command.
+ */
+export interface ComplexityResult {
+	/** Weighted complexity score */
+	score: number;
+
+	/** Complexity tier: low (0-5), medium (6-12), high (13-20), critical (21+) */
+	tier: 'low' | 'medium' | 'high' | 'critical';
+
+	/** Individual contributor breakdown */
+	breakdown: ComplexityBreakdown;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

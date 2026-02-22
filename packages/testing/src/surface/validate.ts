@@ -12,6 +12,7 @@ import {
 	checkNamingCollision,
 	checkNamingConvention,
 	checkOrphanedCategory,
+	checkSchemaComplexity,
 	checkSchemaOverlap,
 	checkSimilarDescriptions,
 } from './rules.js';
@@ -103,6 +104,7 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
  *
  * Suppression format:
  * - `"rule"` — suppresses all findings of that rule
+ * - `"rule:command"` — suppresses findings for a single command
  * - `"rule:cmdA:cmdB"` — suppresses only that pair (order-independent)
  */
 function isSuppressed(finding: SurfaceFinding, suppressions: string[]): boolean {
@@ -112,8 +114,15 @@ function isSuppressed(finding: SurfaceFinding, suppressions: string[]): boolean 
 
 		if (rule !== finding.rule) continue;
 
-		// Rule-level suppression (no command pair specified)
+		// Rule-level suppression (no command specified)
 		if (parts.length === 1) return true;
+
+		// Single-command suppression
+		if (parts.length === 2) {
+			if (finding.commands.length === 1 && finding.commands[0] === parts[1]) {
+				return true;
+			}
+		}
 
 		// Pair-level suppression
 		if (parts.length === 3) {
@@ -166,6 +175,8 @@ export function validateCommandSurface(
 		strict = false,
 		suppressions = [],
 		additionalInjectionPatterns,
+		checkSchemaComplexity: checkComplexity = true,
+		schemaComplexityThreshold = 13,
 	} = options;
 
 	// Normalize input
@@ -222,6 +233,12 @@ export function validateCommandSurface(
 	// Always run: orphaned-category
 	rulesEvaluated.push('orphaned-category');
 	allFindings.push(...checkOrphanedCategory(normalized));
+
+	// Schema complexity (configurable)
+	if (checkComplexity) {
+		rulesEvaluated.push('schema-complexity');
+		allFindings.push(...checkSchemaComplexity(normalized, schemaComplexityThreshold));
+	}
 
 	// Apply suppressions
 	let suppressedCount = 0;
