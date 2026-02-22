@@ -50,7 +50,7 @@ Transform uniform sentences into varied rhythm:
 
 **After (varied 4-25 words):**
 
-> The project launched. Not just launched—it exceeded every metric we tracked. Team satisfaction jumped. Customer feedback? Overwhelmingly positive. Growth looks inevitable.
+> The project launched. Not just launched -- it exceeded every metric we tracked. Team satisfaction jumped. Customer feedback? Overwhelmingly positive. Growth looks inevitable.
 
 ### Vocabulary Variation
 
@@ -79,7 +79,7 @@ Replace abstract claims with concrete details.
 
 ### The Abstraction Problem
 
-AI defaults to abstract, unfalsifiable claims because they're "safe."
+AI defaults to abstract, unfalsifiable claims because they are "safe."
 
 **Before (abstract):**
 
@@ -87,24 +87,24 @@ AI defaults to abstract, unfalsifiable claims because they're "safe."
 
 **After (specific):**
 
-> The breach exposed 2.3 million records in 48 hours—exactly what proper encryption prevents.
+> The breach exposed 2.3 million records in 48 hours -- exactly what proper encryption prevents.
 
 ### Specificity Techniques
 
-1. **Add numbers:** "significant improvement" → "40% improvement"
-2. **Add names:** "industry leaders" → "Satya Nadella and Jensen Huang"
-3. **Add examples:** "various tools" → "Figma, VS Code, and Copilot"
-4. **Add timeframes:** "recently" → "last Tuesday"
-5. **Add consequences:** "important" → "saves 3 hours per week"
+1. **Add numbers:** "significant improvement" becomes "40% improvement"
+2. **Add names:** "industry leaders" becomes "Satya Nadella and Jensen Huang"
+3. **Add examples:** "various tools" becomes "Figma, VS Code, and Copilot"
+4. **Add timeframes:** "recently" becomes "last Tuesday"
+5. **Add consequences:** "important" becomes "saves 3 hours per week"
 
 ### Before/After Examples
 
-| Abstract                                 | Specific                                             |
-| ---------------------------------------- | ---------------------------------------------------- |
-| The team achieved significant results    | The team shipped 3 features ahead of schedule        |
-| Many users reported positive experiences | 847 users rated the feature 4.5/5                    |
-| The process was streamlined              | Processing time dropped from 6 hours to 45 minutes   |
-| Experts recommend this approach          | Nielsen Norman Group's 2024 research recommends this |
+| Abstract | Specific |
+|---|---|
+| The team achieved significant results | The team shipped 3 features ahead of schedule |
+| Many users reported positive experiences | 847 users rated the feature 4.5/5 |
+| The process was streamlined | Processing time dropped from 6 hours to 45 minutes |
+| Experts recommend this approach | Nielsen Norman Group's 2024 research recommends this |
 
 ## Strategy 4: Voice Injection
 
@@ -149,7 +149,7 @@ Break rigid AI patterns with intentional variation.
 
 ### Paragraph Restructuring
 
-**AI pattern:** Every paragraph = Topic → Evidence → Conclusion
+**AI pattern:** Every paragraph = Topic then Evidence then Conclusion
 
 **Human variation:**
 
@@ -173,7 +173,7 @@ Break rigid AI patterns with intentional variation.
 ```
 - Start with the biggest impact: the 40% efficiency gain
 - Team satisfaction improved too
-- And costs dropped—not by a little, by 15%
+- And costs dropped -- not by a little, by 15%
 ```
 
 ### Opening Restructuring
@@ -251,20 +251,20 @@ For each piece of content:
 
 ## Common Transformation Pairs
 
-| AI Version                     | Human Version           |
-| ------------------------------ | ----------------------- |
-| It is important to note that X | X                       |
-| delve into                     | look at, explore        |
-| rich tapestry of               | mix of, variety of      |
-| plays a crucial role           | matters, helps, affects |
-| in today's fast-paced world    | now, today              |
-| leverage best practices        | use what works          |
-| a stark reminder               | shows, proves           |
-| navigate challenges            | handle problems         |
-| foster collaboration           | build teamwork          |
-| seamless integration           | works together          |
-| cutting-edge technology        | new tech, modern tools  |
-| groundbreaking approach        | new approach            |
-| paramount importance           | critical, essential     |
-| Furthermore,                   | Also, Plus, And         |
-| In conclusion,                 | (end naturally)         |
+| AI Version | Human Version |
+|---|---|
+| It is important to note that X | X |
+| delve into | look at, explore |
+| rich tapestry of | mix of, variety of |
+| plays a crucial role | matters, helps, affects |
+| in today's fast-paced world | now, today |
+| leverage best practices | use what works |
+| a stark reminder | shows, proves |
+| navigate challenges | handle problems |
+| foster collaboration | build teamwork |
+| seamless integration | works together |
+| cutting-edge technology | new tech, modern tools |
+| groundbreaking approach | new approach |
+| paramount importance | critical, essential |
+| Furthermore, | Also, Plus, And |
+| In conclusion, | (end naturally) |
