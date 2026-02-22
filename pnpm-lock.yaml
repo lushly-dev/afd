@@ -302,6 +302,31 @@ importers:
         specifier: ^5.2.0
         version: 5.4.21(@types/node@25.3.0)
 
+  packages/experiments/feature-playground/backend:
+    dependencies:
+      '@lushly-dev/afd-auth':
+        specifier: workspace:*
+        version: link:../../../auth
+      '@lushly-dev/afd-core':
+        specifier: workspace:*
+        version: link:../../../core
+      '@lushly-dev/afd-server':
+        specifier: workspace:*
+        version: link:../../../server
+      '@lushly-dev/afd-testing':
+        specifier: workspace:*
+        version: link:../../../testing
+      zod:
+        specifier: ^3.23.8
+        version: 3.25.76
+    devDependencies:
+      tsx:
+        specifier: ^4.7.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/experiments/in-process-binding/backend:
     dependencies:
       '@google/genai':

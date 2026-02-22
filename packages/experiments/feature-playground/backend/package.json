@@ -1,0 +1,24 @@
+{
+	"name": "@afd/experiment-feature-playground",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"description": "Manual testing playground for auth, middleware, and surface validation features",
+	"scripts": {
+		"start": "tsx src/playground.ts",
+		"test:auth": "tsx src/auth-demo.ts",
+		"test:mw": "tsx src/middleware-demo.ts",
+		"test:surface": "tsx src/surface-demo.ts"
+	},
+	"dependencies": {
+		"@lushly-dev/afd-auth": "workspace:*",
+		"@lushly-dev/afd-core": "workspace:*",
+		"@lushly-dev/afd-server": "workspace:*",
+		"@lushly-dev/afd-testing": "workspace:*",
+		"zod": "^3.23.8"
+	},
+	"devDependencies": {
+		"tsx": "^4.7.0",
+		"typescript": "^5.9.3"
+	}
+}
