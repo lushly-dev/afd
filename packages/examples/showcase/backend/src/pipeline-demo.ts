@@ -10,8 +10,8 @@
  * 6. Timeout handling
  */
 
-import { createCommandRegistry, success, type CommandResult } from '@lushly-dev/afd-core';
 import { createDirectClient, type DirectRegistry } from '@lushly-dev/afd-client';
+import { type CommandResult, createCommandRegistry, success } from '@lushly-dev/afd-core';
 import { defineCommand } from '@lushly-dev/afd-server';
 
 const divider = (label: string) =>
@@ -37,7 +37,11 @@ const userGet = defineCommand({
 		if (!user) {
 			return {
 				success: false,
-				error: { code: 'NOT_FOUND', message: `User ${input.id} not found`, suggestion: 'Try id 1 or 2' },
+				error: {
+					code: 'NOT_FOUND',
+					message: `User ${input.id} not found`,
+					suggestion: 'Try id 1 or 2',
+				},
 			} as CommandResult<never>;
 		}
 		return success(user, { confidence: 1, reasoning: 'Matched by ID' });
@@ -52,8 +56,8 @@ const orderList = defineCommand({
 	async handler(input) {
 		const orders = [
 			{ id: 'ORD-1', userId: input.userId, total: 59.99, status: 'shipped' },
-			{ id: 'ORD-2', userId: input.userId, total: 149.00, status: 'delivered' },
-			{ id: 'ORD-3', userId: input.userId, total: 24.50, status: 'processing' },
+			{ id: 'ORD-2', userId: input.userId, total: 149.0, status: 'delivered' },
+			{ id: 'ORD-3', userId: input.userId, total: 24.5, status: 'processing' },
 		];
 		return success(orders, {
 			confidence: 0.95,
@@ -67,26 +71,31 @@ const orderSummarize = defineCommand({
 	description: 'Summarize a list of orders',
 	category: 'orders',
 	input: z.object({
-		orders: z.array(z.object({
-			id: z.string(),
-			total: z.number(),
-			status: z.string(),
-		})),
+		orders: z.array(
+			z.object({
+				id: z.string(),
+				total: z.number(),
+				status: z.string(),
+			})
+		),
 		userName: z.string(),
 	}),
 	async handler(input) {
 		const total = input.orders.reduce((sum, o) => sum + o.total, 0);
 		const shipped = input.orders.filter((o) => o.status === 'shipped').length;
-		return success({
-			userName: input.userName,
-			orderCount: input.orders.length,
-			totalSpent: total,
-			inTransit: shipped,
-		}, {
-			confidence: 0.9,
-			reasoning: 'Aggregated from order list',
-			warnings: [{ code: 'ESTIMATE', message: 'Totals exclude taxes and shipping' }],
-		});
+		return success(
+			{
+				userName: input.userName,
+				orderCount: input.orders.length,
+				totalSpent: total,
+				inTransit: shipped,
+			},
+			{
+				confidence: 0.9,
+				reasoning: 'Aggregated from order list',
+				warnings: [{ code: 'ESTIMATE', message: 'Totals exclude taxes and shipping' }],
+			}
+		);
 	},
 });
 
@@ -97,14 +106,17 @@ const discountApply = defineCommand({
 	input: z.object({ userId: z.number(), totalSpent: z.number() }),
 	async handler(input) {
 		const rate = input.totalSpent > 200 ? 0.15 : 0.1;
-		return success({
-			userId: input.userId,
-			discountRate: rate,
-			discountAmount: input.totalSpent * rate,
-		}, {
-			confidence: 0.85,
-			reasoning: `Applied ${rate * 100}% loyalty discount`,
-		});
+		return success(
+			{
+				userId: input.userId,
+				discountRate: rate,
+				discountAmount: input.totalSpent * rate,
+			},
+			{
+				confidence: 0.85,
+				reasoning: `Applied ${rate * 100}% loyalty discount`,
+			}
+		);
 	},
 });
 
@@ -171,8 +183,15 @@ async function run() {
 		{ command: 'order-list', input: { userId: '$prev.id' } },
 	]);
 
-	console.log('  Step 0 (user-get): Got user with id =', (basic.steps[0]?.data as { id: number })?.id);
-	console.log('  Step 1 (order-list): $prev.id resolved to user id, found', (basic.data as unknown[])?.length, 'orders');
+	console.log(
+		'  Step 0 (user-get): Got user with id =',
+		(basic.steps[0]?.data as { id: number })?.id
+	);
+	console.log(
+		'  Step 1 (order-list): $prev.id resolved to user id, found',
+		(basic.data as unknown[])?.length,
+		'orders'
+	);
 	console.log('  Pipeline confidence:', basic.metadata.confidence, '(weakest link)');
 
 	// ═══════════════════════════════════════════════════════════
@@ -187,17 +206,26 @@ async function run() {
 		{
 			command: 'order-summarize',
 			input: {
-				orders: '$steps.orders',       // Reference by alias
-				userName: '$steps.user.name',  // Cross-reference earlier step
+				orders: '$steps.orders', // Reference by alias
+				userName: '$steps.user.name', // Cross-reference earlier step
 			},
 		},
 	]);
 
-	const summary = aliased.data as { userName: string; orderCount: number; totalSpent: number; inTransit: number };
-	console.log(`  ${summary.userName}: ${summary.orderCount} orders, $${summary.totalSpent.toFixed(2)} total, ${summary.inTransit} in transit`);
+	const summary = aliased.data as {
+		userName: string;
+		orderCount: number;
+		totalSpent: number;
+		inTransit: number;
+	};
+	console.log(
+		`  ${summary.userName}: ${summary.orderCount} orders, $${summary.totalSpent.toFixed(2)} total, ${summary.inTransit} in transit`
+	);
 	console.log('  Confidence breakdown:');
 	for (const c of aliased.metadata.confidenceBreakdown) {
-		console.log(`    Step ${c.step} (${c.command}${c.alias ? ` as "${c.alias}"` : ''}): ${c.confidence}`);
+		console.log(
+			`    Step ${c.step} (${c.command}${c.alias ? ` as "${c.alias}"` : ''}): ${c.confidence}`
+		);
 	}
 	console.log('  Aggregated reasoning:');
 	for (const r of aliased.metadata.reasoning) {
@@ -234,8 +262,12 @@ async function run() {
 
 	const premiumDiscount = premiumPipeline.data as { discountRate: number; discountAmount: number };
 	console.log('  Premium user (Alice):');
-	console.log(`    Discount applied: ${premiumDiscount.discountRate * 100}% = -$${premiumDiscount.discountAmount.toFixed(2)}`);
-	console.log(`    Steps: ${premiumPipeline.metadata.completedSteps}/${premiumPipeline.metadata.totalSteps} completed`);
+	console.log(
+		`    Discount applied: ${premiumDiscount.discountRate * 100}% = -$${premiumDiscount.discountAmount.toFixed(2)}`
+	);
+	console.log(
+		`    Steps: ${premiumPipeline.metadata.completedSteps}/${premiumPipeline.metadata.totalSteps} completed`
+	);
 
 	// Free user (id=2, tier='free') — discount step skipped
 	const freePipeline = await client.pipe([
@@ -257,7 +289,9 @@ async function run() {
 	console.log('  Free user (Bob):');
 	console.log(`    Discount step status: ${skippedStep?.status} (condition not met)`);
 	console.log(`    Final data: order summary (last successful step)`);
-	console.log(`    Steps: ${freePipeline.metadata.completedSteps}/${freePipeline.metadata.totalSteps} completed`);
+	console.log(
+		`    Steps: ${freePipeline.metadata.completedSteps}/${freePipeline.metadata.totalSteps} completed`
+	);
 
 	// ═══════════════════════════════════════════════════════════
 	// 4. ERROR PROPAGATION — pipeline stops on failure
@@ -267,17 +301,22 @@ async function run() {
 
 	const errorPipeline = await client.pipe([
 		{ command: 'user-get', input: { id: 1 }, as: 'user' },
-		{ command: 'payment-charge', input: { amount: 100 } },  // This fails
-		{ command: 'order-list', input: { userId: '$steps.user.id' } },  // Skipped
+		{ command: 'payment-charge', input: { amount: 100 } }, // This fails
+		{ command: 'order-list', input: { userId: '$steps.user.id' } }, // Skipped
 	]);
 
 	for (const step of errorPipeline.steps) {
-		const detail = step.status === 'failure'
-			? ` — ${step.error?.code}: ${step.error?.message}`
-			: step.status === 'skipped' ? ' (skipped due to prior failure)' : '';
+		const detail =
+			step.status === 'failure'
+				? ` — ${step.error?.code}: ${step.error?.message}`
+				: step.status === 'skipped'
+					? ' (skipped due to prior failure)'
+					: '';
 		console.log(`  Step ${step.index} (${step.command}): ${step.status}${detail}`);
 	}
-	console.log(`  Completed: ${errorPipeline.metadata.completedSteps}/${errorPipeline.metadata.totalSteps}`);
+	console.log(
+		`  Completed: ${errorPipeline.metadata.completedSteps}/${errorPipeline.metadata.totalSteps}`
+	);
 
 	// ═══════════════════════════════════════════════════════════
 	// 5. CONTINUE ON FAILURE — collect all results
@@ -288,8 +327,8 @@ async function run() {
 	const resilientPipeline = await client.pipe({
 		steps: [
 			{ command: 'user-get', input: { id: 1 }, as: 'user' },
-			{ command: 'payment-charge', input: { amount: 100 } },  // Fails but continues
-			{ command: 'order-list', input: { userId: '$steps.user.id' } },  // Still runs
+			{ command: 'payment-charge', input: { amount: 100 } }, // Fails but continues
+			{ command: 'order-list', input: { userId: '$steps.user.id' } }, // Still runs
 		],
 		options: { continueOnFailure: true },
 	});
@@ -297,7 +336,9 @@ async function run() {
 	for (const step of resilientPipeline.steps) {
 		console.log(`  Step ${step.index} (${step.command}): ${step.status}`);
 	}
-	console.log(`  Completed: ${resilientPipeline.metadata.completedSteps}/${resilientPipeline.metadata.totalSteps}`);
+	console.log(
+		`  Completed: ${resilientPipeline.metadata.completedSteps}/${resilientPipeline.metadata.totalSteps}`
+	);
 	console.log(`  Final data available: ${resilientPipeline.data != null}`);
 
 	// ═══════════════════════════════════════════════════════════
@@ -309,7 +350,7 @@ async function run() {
 	const timeoutPipeline = await client.pipe({
 		steps: [
 			{ command: 'user-get', input: { id: 1 } },
-			{ command: 'analytics-compute', input: { userId: 1 } },  // 300ms — exceeds timeout
+			{ command: 'analytics-compute', input: { userId: 1 } }, // 300ms — exceeds timeout
 		],
 		options: { timeoutMs: 50 },
 	});

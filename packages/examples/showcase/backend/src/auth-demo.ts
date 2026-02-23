@@ -4,13 +4,16 @@
  * Exercises: MockAuthAdapter, createAuthMiddleware, createAuthCommands
  */
 
-import { MockAuthAdapter, createAuthCommands, createAuthMiddleware } from '@lushly-dev/afd-auth';
+import { createAuthCommands, createAuthMiddleware, MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { success } from '@lushly-dev/afd-core';
 import { createMcpServer, defineCommand } from '@lushly-dev/afd-server';
 import { z } from 'zod';
 
 const log = (label: string, data: unknown) =>
-	console.log(`\n${'═'.repeat(60)}\n  ${label}\n${'═'.repeat(60)}\n`, JSON.stringify(data, null, 2));
+	console.log(
+		`\n${'═'.repeat(60)}\n  ${label}\n${'═'.repeat(60)}\n`,
+		JSON.stringify(data, null, 2)
+	);
 
 async function run() {
 	console.log('\n🔐  Auth Adapter Demo\n');
@@ -31,7 +34,7 @@ async function run() {
 			const authState = context.auth as { user: { email: string } };
 			return success(
 				{ message: `Hello ${authState.user.email}, here is secret data` },
-				{ confidence: 1, reasoning: 'Authenticated user' },
+				{ confidence: 1, reasoning: 'Authenticated user' }
 			);
 		},
 	});

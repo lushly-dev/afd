@@ -9,7 +9,7 @@
  * 5. Command prerequisites (requires field + cycle detection)
  */
 
-import { MockAuthAdapter, createAuthCommands, createAuthMiddleware } from '@lushly-dev/afd-auth';
+import { createAuthCommands, createAuthMiddleware, MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { success } from '@lushly-dev/afd-core';
 import { createMcpServer, defaultMiddleware, defineCommand } from '@lushly-dev/afd-server';
 import { computeComplexity, validateCommandSurface } from '@lushly-dev/afd-testing';
@@ -47,7 +47,7 @@ async function run() {
 			const user = (context.auth as { user: { id: string } })?.user;
 			return success(
 				{ id: crypto.randomUUID().slice(0, 8), title: input.title, owner: user?.id },
-				{ confidence: 1, reasoning: 'Created in-memory' },
+				{ confidence: 1, reasoning: 'Created in-memory' }
 			);
 		},
 	});
@@ -66,7 +66,7 @@ async function run() {
 					{ id: '1', title: 'Write tests', status: 'active' },
 					{ id: '2', title: 'Ship feature', status: 'done' },
 				],
-				{ reasoning: 'Returned mock data' },
+				{ reasoning: 'Returned mock data' }
 			);
 		},
 	});
@@ -79,10 +79,13 @@ async function run() {
 		input: z.object({}),
 		async handler() {
 			await new Promise((resolve) => setTimeout(resolve, 120));
-			return success({ totalTodos: 42, completionRate: 0.73 }, {
-				confidence: 0.9,
-				reasoning: 'Aggregated from all records',
-			});
+			return success(
+				{ totalTodos: 42, completionRate: 0.73 },
+				{
+					confidence: 0.9,
+					reasoning: 'Aggregated from all records',
+				}
+			);
 		},
 	});
 
@@ -159,14 +162,16 @@ async function run() {
 	// 5. SURFACE VALIDATION
 	// ═══════════════════════════════════════════════════════════
 
-	divider('Surface Validation: This Server\'s Commands');
+	divider("Surface Validation: This Server's Commands");
 
 	// Validate the command surface we just built
 	const surfaceResult = validateCommandSurface(allCommands);
 
 	console.log(`  Valid: ${surfaceResult.valid ? '✅' : '❌'}`);
 	console.log(`  Commands analyzed: ${surfaceResult.summary.commandCount}`);
-	console.log(`  Errors: ${surfaceResult.summary.errorCount}  Warnings: ${surfaceResult.summary.warningCount}  Info: ${surfaceResult.summary.infoCount}`);
+	console.log(
+		`  Errors: ${surfaceResult.summary.errorCount}  Warnings: ${surfaceResult.summary.warningCount}  Info: ${surfaceResult.summary.infoCount}`
+	);
 	console.log(`  Duration: ${surfaceResult.summary.durationMs}ms`);
 
 	if (surfaceResult.findings.length > 0) {
@@ -186,10 +191,14 @@ async function run() {
 	divider('Schema Complexity: auth-sign-in breakdown');
 	const signInCmd = allCommands.find((c) => c.name === 'auth-sign-in');
 	if (signInCmd?.jsonSchema) {
-		const complexity = computeComplexity(signInCmd.jsonSchema as unknown as Record<string, unknown>);
+		const complexity = computeComplexity(
+			signInCmd.jsonSchema as unknown as Record<string, unknown>
+		);
 		console.log(`  Score: ${complexity.score}  Tier: ${complexity.tier}`);
 		console.log(`  Fields: ${complexity.breakdown.fields}  Depth: ${complexity.breakdown.depth}`);
-		console.log(`  Unions: ${complexity.breakdown.unions}  Patterns: ${complexity.breakdown.patterns}  Bounds: ${complexity.breakdown.bounds}`);
+		console.log(
+			`  Unions: ${complexity.breakdown.unions}  Patterns: ${complexity.breakdown.patterns}  Bounds: ${complexity.breakdown.bounds}`
+		);
 	}
 
 	// ═══════════════════════════════════════════════════════════
@@ -204,7 +213,7 @@ async function run() {
 
 	// Verify no unresolved or circular prerequisites in our command set
 	const prereqFindings = surfaceResult.findings.filter(
-		(f) => f.rule === 'unresolved-prerequisite' || f.rule === 'circular-prerequisite',
+		(f) => f.rule === 'unresolved-prerequisite' || f.rule === 'circular-prerequisite'
 	);
 	if (prereqFindings.length === 0) {
 		console.log('  ✅ No unresolved or circular prerequisites');
@@ -215,7 +224,9 @@ async function run() {
 	}
 
 	await server.stop();
-	console.log(`\n${'═'.repeat(60)}\n  ✅  All features exercised successfully\n${'═'.repeat(60)}\n`);
+	console.log(
+		`\n${'═'.repeat(60)}\n  ✅  All features exercised successfully\n${'═'.repeat(60)}\n`
+	);
 }
 
 run().catch(console.error);

@@ -5,7 +5,7 @@
  */
 
 import { failure, success } from '@lushly-dev/afd-core';
-import { type ZodCommandDefinition, defineCommand } from '@lushly-dev/afd-server';
+import { defineCommand, type ZodCommandDefinition } from '@lushly-dev/afd-server';
 import { z } from 'zod';
 import { AuthAdapterError } from './errors.js';
 import type { AuthAdapter } from './types.js';

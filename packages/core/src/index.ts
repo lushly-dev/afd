@@ -43,7 +43,12 @@ export type {
 	ExposeOptions,
 	JsonSchema,
 } from './commands.js';
-export { commandToMcpTool, createCommandRegistry, defaultExpose, validateCommandName } from './commands.js';
+export {
+	commandToMcpTool,
+	createCommandRegistry,
+	defaultExpose,
+	validateCommandName,
+} from './commands.js';
 export type {
 	GitHubConnectorOptions,
 	Issue,

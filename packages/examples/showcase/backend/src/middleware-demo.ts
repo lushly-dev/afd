@@ -31,7 +31,7 @@ async function run() {
 		async handler(input) {
 			return success(
 				{ key: input.key, value: 'fast-result' },
-				{ confidence: 0.99, reasoning: 'Cache hit' },
+				{ confidence: 0.99, reasoning: 'Cache hit' }
 			);
 		},
 	});
@@ -44,7 +44,7 @@ async function run() {
 			await new Promise((resolve) => setTimeout(resolve, 150));
 			return success(
 				{ type: input.type, rows: 42 },
-				{ confidence: 0.85, reasoning: 'Full computation' },
+				{ confidence: 0.85, reasoning: 'Full computation' }
 			);
 		},
 	});

@@ -2,7 +2,16 @@
 	"mcpServers": {
 		"alfred": {
 			"command": "uv",
-			"args": ["run", "--directory", "alfred", "--extra", "mcp", "python", "-m", "alfred.mcp_server"]
+			"args": [
+				"run",
+				"--directory",
+				"alfred",
+				"--extra",
+				"mcp",
+				"python",
+				"-m",
+				"alfred.mcp_server"
+			]
 		}
 	}
 }
