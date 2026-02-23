@@ -1,0 +1,22 @@
+# Enforce LF line endings for all text files (prevents CRLF/LF mismatch between Windows and CI)
+* text=auto eol=lf
+
+# Ensure these are always treated as text with LF
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.toml text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+
+# Binary files - no line ending conversion
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
