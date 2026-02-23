@@ -10,7 +10,7 @@
  * 6. Undo metadata on CommandResult
  */
 
-import { createCommandRegistry, defaultExpose, success, type CommandResult } from '@lushly-dev/afd-core';
+import { createCommandRegistry, defaultExpose, success } from '@lushly-dev/afd-core';
 import { defineCommand } from '@lushly-dev/afd-server';
 import { z } from 'zod';
 
@@ -29,12 +29,15 @@ const todoCreate = defineCommand({
 	input: z.object({ title: z.string() }),
 	// No expose = defaults (palette: true, agent: true, mcp: false, cli: false)
 	async handler(input) {
-		return success({ id: '1', title: input.title }, {
-			reasoning: 'Created in-memory',
-			// Undo metadata — tells the agent how to reverse this
-			undoCommand: 'todo-delete',
-			undoArgs: { id: '1' },
-		});
+		return success(
+			{ id: '1', title: input.title },
+			{
+				reasoning: 'Created in-memory',
+				// Undo metadata — tells the agent how to reverse this
+				undoCommand: 'todo-delete',
+				undoArgs: { id: '1' },
+			}
+		);
 	},
 });
 
@@ -43,7 +46,7 @@ const todoList = defineCommand({
 	description: 'List all todos',
 	category: 'todos',
 	input: z.object({}),
-	expose: { palette: true, agent: true, mcp: true, cli: true },  // Available everywhere
+	expose: { palette: true, agent: true, mcp: true, cli: true }, // Available everywhere
 	async handler() {
 		return success([{ id: '1', title: 'Demo' }]);
 	},
@@ -71,7 +74,7 @@ const adminReset = defineCommand({
 	destructive: true,
 	confirmPrompt: 'This will delete ALL data. Are you absolutely sure?',
 	input: z.object({ confirm: z.literal(true) }),
-	expose: { palette: false, agent: false, mcp: false, cli: true },  // CLI only
+	expose: { palette: false, agent: false, mcp: false, cli: true }, // CLI only
 	async handler() {
 		return success({ reset: true });
 	},
@@ -82,7 +85,7 @@ const internalHealthCheck = defineCommand({
 	description: 'Internal health check for monitoring',
 	category: 'internal',
 	input: z.object({}),
-	expose: { palette: false, agent: false, mcp: true, cli: false },  // MCP only (external monitoring)
+	expose: { palette: false, agent: false, mcp: true, cli: false }, // MCP only (external monitoring)
 	async handler() {
 		return success({ status: 'healthy', uptime: 12345 });
 	},
@@ -93,7 +96,7 @@ const agentAnalyze = defineCommand({
 	description: 'Analyze data for the AI assistant',
 	category: 'ai',
 	input: z.object({ query: z.string() }),
-	expose: { palette: false, agent: true, mcp: true, cli: false },  // Agent + MCP only
+	expose: { palette: false, agent: true, mcp: true, cli: false }, // Agent + MCP only
 	async handler(input) {
 		return success({ analysis: `Analysis of "${input.query}"`, confidence: 0.87 });
 	},
@@ -169,17 +172,29 @@ async function run() {
 	console.log(`    Error: ${mcpDenied.error?.code} — ${mcpDenied.error?.message}`);
 
 	// Same command from palette (palette: true by default) — allowed
-	const paletteAllowed = await registry.execute('todo-create', { title: 'test' }, { interface: 'palette' });
+	const paletteAllowed = await registry.execute(
+		'todo-create',
+		{ title: 'test' },
+		{ interface: 'palette' }
+	);
 	console.log('  todo-create via palette:');
 	console.log(`    Success: ${paletteAllowed.success}`);
 
 	// admin-reset: only CLI
-	const adminFromAgent = await registry.execute('admin-reset', { confirm: true }, { interface: 'agent' });
+	const adminFromAgent = await registry.execute(
+		'admin-reset',
+		{ confirm: true },
+		{ interface: 'agent' }
+	);
 	console.log('  admin-reset via agent:');
 	console.log(`    Success: ${adminFromAgent.success}`);
 	console.log(`    Error: ${adminFromAgent.error?.code}`);
 
-	const adminFromCli = await registry.execute('admin-reset', { confirm: true }, { interface: 'cli' });
+	const adminFromCli = await registry.execute(
+		'admin-reset',
+		{ confirm: true },
+		{ interface: 'cli' }
+	);
 	console.log('  admin-reset via CLI:');
 	console.log(`    Success: ${adminFromCli.success}`);
 
@@ -222,7 +237,9 @@ async function run() {
 	console.log(`    success: ${createResult.success}`);
 	console.log(`    data: ${JSON.stringify(createResult.data)}`);
 	console.log(`    undoCommand: ${createResult.undoCommand ?? '(none)'}`);
-	console.log(`    undoArgs: ${createResult.undoArgs ? JSON.stringify(createResult.undoArgs) : '(none)'}`);
+	console.log(
+		`    undoArgs: ${createResult.undoArgs ? JSON.stringify(createResult.undoArgs) : '(none)'}`
+	);
 
 	if (createResult.undoCommand) {
 		console.log('\n  Agent can reverse this by calling:');
@@ -246,7 +263,9 @@ async function run() {
 		console.log(`    1. Am I allowed?  expose.agent = ${expose.agent}`);
 		console.log(`    2. Is it safe?    destructive = ${zodCmd.destructive ?? false}`);
 		console.log(`    3. Need confirm?  "${zodCmd.confirmPrompt ?? 'none'}"`);
-		console.log(`    → Decision: ${expose.agent ? 'Can proceed' : 'Cannot use'}, ${zodCmd.destructive ? 'but MUST confirm with user first' : 'safe to execute'}`);
+		console.log(
+			`    → Decision: ${expose.agent ? 'Can proceed' : 'Cannot use'}, ${zodCmd.destructive ? 'but MUST confirm with user first' : 'safe to execute'}`
+		);
 	}
 
 	console.log(`\n${'═'.repeat(60)}\n  ✅  Expose & trust demo complete\n${'═'.repeat(60)}\n`);

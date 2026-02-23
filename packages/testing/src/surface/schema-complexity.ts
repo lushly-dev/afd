@@ -17,7 +17,10 @@ import type { ComplexityBreakdown, ComplexityResult } from './types.js';
  * like bare `oneOf`/`anyOf` wrappers) and recursive self-references.
  */
 interface JsonSchemaNode
-	extends Omit<JsonSchema, 'type' | 'required' | 'properties' | 'items' | 'oneOf' | 'anyOf' | 'allOf' | 'not'> {
+	extends Omit<
+		JsonSchema,
+		'type' | 'required' | 'properties' | 'items' | 'oneOf' | 'anyOf' | 'allOf' | 'not'
+	> {
 	type?: string;
 	required?: string[];
 	properties?: Record<string, JsonSchemaNode>;
