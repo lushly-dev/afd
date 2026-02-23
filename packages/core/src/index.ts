@@ -128,6 +128,7 @@ export type {
 	PlanStepStatus,
 	Source,
 	Warning,
+	WarningSeverity,
 } from './metadata.js';
 export {
 	createSource,
@@ -206,7 +207,7 @@ export {
 } from './platform.js';
 // Result types
 export type { CommandResult, ResultMetadata } from './result.js';
-export { failure, isFailure, isSuccess, success } from './result.js';
+export { error, failure, isFailure, isSuccess, success } from './result.js';
 // Streaming types
 export type {
 	CompleteChunk,

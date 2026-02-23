@@ -112,6 +112,15 @@ export interface CommandResult<T = unknown> {
 	warnings?: Warning[];
 
 	/**
+	 * Helpful next steps for the user.
+	 *
+	 * Enables: Guided exploration, discoverability
+	 *
+	 * @example ['Try todo-list to see all items', 'Use todo-update to modify']
+	 */
+	suggestions?: string[];
+
+	/**
 	 * Execution metadata for debugging and monitoring.
 	 */
 	metadata?: ResultMetadata;
@@ -191,6 +200,33 @@ export function failure<T = never>(
 		error,
 		...options,
 	};
+}
+
+/**
+ * Create a failed command result from code and message.
+ *
+ * Convenience wrapper that creates a CommandError and wraps it in failure().
+ * Matches the Python error() function signature.
+ *
+ * @param code - Machine-readable error code (SCREAMING_SNAKE_CASE)
+ * @param message - Human-readable error description
+ * @param options - Additional error fields
+ * @returns A CommandResult with success: false
+ */
+export function error<T = unknown>(
+	code: string,
+	message: string,
+	options?: {
+		suggestion?: string;
+		retryable?: boolean;
+		details?: Record<string, unknown>;
+	}
+): CommandResult<T> {
+	return failure({
+		code,
+		message,
+		...options,
+	});
 }
 
 /**
