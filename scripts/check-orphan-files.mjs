@@ -28,7 +28,10 @@ const SKIP_PACKAGES = new Set(['examples', 'rust']);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+let _warnings = 0;
+
 function warn(msg) {
+	_warnings++;
 	console.warn(`  ⚠ ${msg}`);
 }
 
@@ -106,11 +109,11 @@ function extractImports(content) {
 	// Match: dynamic import()
 	const dynamicRegex = /import\(\s*['"]([^'"]+)['"]\s*\)/g;
 
-	for (const m of content.matchAll(importRegex)) {
-		imports.push(m[1]);
+	for (const match of content.matchAll(importRegex)) {
+		imports.push(match[1]);
 	}
-	for (const m of content.matchAll(dynamicRegex)) {
-		imports.push(m[1]);
+	for (const match of content.matchAll(dynamicRegex)) {
+		imports.push(match[1]);
 	}
 	return imports;
 }
