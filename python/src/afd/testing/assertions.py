@@ -23,6 +23,7 @@ from afd.core import (
     is_failure,
     Source,
     PlanStep,
+    PlanStepStatus,
     Warning as AfdWarning,
     Alternative,
 )
@@ -289,6 +290,7 @@ def assert_has_plan(
         if isinstance(step, dict):
             converted_steps.append(PlanStep(
                 id=step.get("id", ""),
+                action=step.get("action", "unknown"),
                 title=step.get("title", ""),
                 description=step.get("description"),
                 status=step.get("status", "pending"),
@@ -393,5 +395,191 @@ def assert_has_alternatives(
         raise AssertionError(
             f"Expected at least {min_count} alternatives but got {len(converted_alts)}"
         )
-    
+
     return converted_alts
+
+
+def assert_has_suggestion(
+    result: Union[CommandResult[Any], Dict[str, Any]],
+    message: Optional[str] = None,
+) -> str:
+    """Assert that a failed result's error includes a suggestion.
+
+    Calls assert_error() first to ensure the result is a failure,
+    then checks that the error has a non-empty suggestion field.
+
+    Args:
+        result: Command result to check.
+        message: Optional custom failure message.
+
+    Returns:
+        The suggestion string.
+
+    Raises:
+        AssertionError: If the result is not a failure or has no suggestion.
+
+    Example:
+        >>> result = error("NOT_FOUND", "Missing", suggestion="Check the ID")
+        >>> suggestion = assert_has_suggestion(result)
+        >>> assert "Check" in suggestion
+    """
+    err = assert_error(result)
+
+    if not err.suggestion:
+        raise AssertionError(
+            message or "Expected error to have a suggestion but none was provided"
+        )
+
+    return err.suggestion
+
+
+def assert_retryable(
+    result: Union[CommandResult[Any], Dict[str, Any]],
+    expected: bool = True,
+    message: Optional[str] = None,
+) -> bool:
+    """Assert that a failed result's error has the expected retryable flag.
+
+    Calls assert_error() first to ensure the result is a failure,
+    then checks that error.retryable matches the expected value.
+
+    Args:
+        result: Command result to check.
+        expected: Expected retryable value (default True).
+        message: Optional custom failure message.
+
+    Returns:
+        The retryable value.
+
+    Raises:
+        AssertionError: If the result is not a failure or retryable doesn't match.
+
+    Example:
+        >>> result = error("TIMEOUT", "Timed out", retryable=True)
+        >>> assert_retryable(result, expected=True)
+    """
+    err = assert_error(result)
+
+    if err.retryable != expected:
+        raise AssertionError(
+            message
+            or f"Expected error.retryable to be {expected} but got {err.retryable}"
+        )
+
+    return err.retryable  # type: ignore[return-value]
+
+
+def assert_step_status(
+    result: Union[CommandResult[Any], Dict[str, Any]],
+    step_id: str,
+    expected_status: str,
+    message: Optional[str] = None,
+) -> PlanStep:
+    """Assert that a plan step has the expected status.
+
+    Calls assert_has_plan() first to ensure a plan exists,
+    then finds the step by ID and checks its status.
+
+    Args:
+        result: Command result to check.
+        step_id: The plan step ID to find.
+        expected_status: Expected status value (e.g. "pending", "complete").
+        message: Optional custom failure message.
+
+    Returns:
+        The matching PlanStep.
+
+    Raises:
+        AssertionError: If the plan is missing, step not found, or status mismatch.
+
+    Example:
+        >>> result = success("done", plan=[
+        ...     PlanStep(id="fetch", action="fetch", status="complete"),
+        ...     PlanStep(id="process", action="process", status="pending"),
+        ... ])
+        >>> step = assert_step_status(result, "fetch", "complete")
+        >>> assert step.action == "fetch"
+    """
+    steps = assert_has_plan(result)
+
+    step = next((s for s in steps if s.id == step_id), None)
+    if step is None:
+        raise AssertionError(
+            message or f"Plan step '{step_id}' not found"
+        )
+
+    # Normalize status comparison (handle PlanStepStatus enum vs string)
+    actual_status = step.status.value if isinstance(step.status, PlanStepStatus) else step.status
+    if actual_status != expected_status:
+        raise AssertionError(
+            message
+            or f"Expected step '{step_id}' to have status '{expected_status}' but got '{actual_status}'"
+        )
+
+    return step
+
+
+def assert_ai_result(
+    result: Union[CommandResult[Any], Dict[str, Any]],
+    *,
+    min_confidence: Optional[float] = None,
+    require_sources: bool = False,
+    require_alternatives: bool = False,
+) -> T:
+    """Composite assertion for AI-powered command results.
+
+    Validates that the result is successful and includes the fields
+    expected from an AI-powered command: confidence (required),
+    reasoning (required), and optionally sources and alternatives.
+
+    Args:
+        result: Command result to check.
+        min_confidence: Minimum confidence threshold.
+        require_sources: Whether sources are required.
+        require_alternatives: Whether alternatives are required.
+
+    Returns:
+        The data field from the result.
+
+    Raises:
+        AssertionError: If any required AI result field is missing or invalid.
+
+    Example:
+        >>> result = success(
+        ...     {"answer": "42"},
+        ...     confidence=0.95,
+        ...     reasoning="Computed from input",
+        ... )
+        >>> data = assert_ai_result(result, min_confidence=0.9)
+        >>> assert data["answer"] == "42"
+    """
+    data = assert_success(result)
+
+    # Confidence is required for AI results
+    confidence = result.get("confidence") if isinstance(result, dict) else result.confidence
+    if confidence is None:
+        raise AssertionError("AI result must include confidence score")
+
+    if min_confidence is not None and confidence < min_confidence:
+        raise AssertionError(
+            f"AI result confidence {confidence} is below minimum {min_confidence}"
+        )
+
+    # Reasoning is required for AI results
+    reasoning = result.get("reasoning") if isinstance(result, dict) else result.reasoning
+    if not reasoning:
+        raise AssertionError("AI result should include reasoning")
+
+    # Sources may be required
+    if require_sources:
+        sources = result.get("sources") if isinstance(result, dict) else result.sources
+        if not sources or len(sources) == 0:
+            raise AssertionError("AI result must include sources")
+
+    # Alternatives may be required
+    if require_alternatives:
+        alternatives = result.get("alternatives") if isinstance(result, dict) else result.alternatives
+        if not alternatives or len(alternatives) == 0:
+            raise AssertionError("AI result must include alternatives")
+
+    return data
