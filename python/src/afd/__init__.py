@@ -73,6 +73,13 @@ from afd.core.metadata import (
     update_step_status,
     create_warning,
 )
+from afd.core.telemetry import (
+    TelemetryEvent,
+    TelemetrySink,
+    ConsoleTelemetrySink,
+    create_telemetry_event,
+    is_telemetry_event,
+)
 from afd.core.handoff import (
     HandoffProtocol,
     HandoffCredentials,
@@ -136,6 +143,12 @@ __all__ = [
     "create_step",
     "update_step_status",
     "create_warning",
+    # Telemetry types
+    "TelemetryEvent",
+    "TelemetrySink",
+    "ConsoleTelemetrySink",
+    "create_telemetry_event",
+    "is_telemetry_event",
     # Handoff types
     "HandoffProtocol",
     "HandoffCredentials",
