@@ -1,0 +1,92 @@
+# Lefthook — Git Hooks for AFD
+# https://github.com/evilmartians/lefthook
+#
+# Setup:  pnpm install  (auto-installs hooks via prepare script)
+# Skip:   git commit --no-verify
+# Docs:   https://lefthook.dev/configuration/
+#
+# WARNING: parallel: true causes terminal buffer deadlocks on Windows when
+# multiple commands produce large stdout (Biome diffs, TS errors, sourcemap
+# warnings). Always use parallel: false for hooks that run in VS Code terminals.
+
+output:
+  - summary
+  - failure
+
+pre-commit:
+  # Sequential to prevent stdout interleaving deadlock on Windows.
+  # Biome --write can produce 100+ line diffs; typecheck dumps errors;
+  # both flood parallel terminal buffers and lock the VS Code terminal.
+  parallel: false
+  commands:
+    lint:
+      glob: "*.{ts,js,json}"
+      exclude: "{.claude/**,alfred/**}"
+      run: npx biome check --write {staged_files}
+      stage_fixed: true
+
+    portability:
+      glob: "*.{ts,js,json,md,yml,yaml}"
+      run: node scripts/check-portability.mjs {staged_files}
+
+    file-size:
+      glob: "*.ts"
+      run: node scripts/check-file-size.mjs {staged_files}
+
+    typecheck:
+      glob: "*.ts"
+      run: pnpm typecheck
+
+commit-msg:
+  commands:
+    commitlint:
+      run: npx commitlint --edit {1}
+
+pre-push:
+  # Sequential to prevent stdout interleaving deadlock on Windows
+  # (Biome diffs + TS errors flood parallel output buffers)
+  parallel: false
+  commands:
+    lint-all:
+      run: pnpm lint
+
+    test:
+      run: pnpm test
+
+    typecheck:
+      run: pnpm typecheck
+
+    portability:
+      run: node scripts/check-portability.mjs
+
+    file-size:
+      run: node scripts/check-file-size.mjs
+
+    orphan-files:
+      run: node scripts/check-orphan-files.mjs
+
+# On-demand quality gate — run with: npx lefthook run check
+check:
+  # Sequential for same Windows terminal deadlock prevention.
+  parallel: false
+  commands:
+    lint:
+      run: npx biome check .
+
+    typecheck:
+      run: pnpm typecheck
+
+    test:
+      run: pnpm test
+
+    build:
+      run: pnpm build
+
+    portability:
+      run: node scripts/check-portability.mjs
+
+    file-size:
+      run: node scripts/check-file-size.mjs
+
+    orphan-files:
+      run: node scripts/check-orphan-files.mjs

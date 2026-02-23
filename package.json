@@ -26,16 +26,20 @@
 		"test:coverage": "pnpm -r --no-bail test -- --coverage",
 		"test:watch": "pnpm -r --parallel test:watch",
 		"typecheck": "pnpm -r typecheck",
+		"check": "npx lefthook run check",
 		"changeset": "changeset",
 		"release": "pnpm build && pnpm --filter \"@lushly-dev/*\" publish --no-git-checks --provenance --access public",
-		"prepare": "pnpm build"
+		"prepare": "lefthook install"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.4",
+		"@commitlint/cli": "^19.8.1",
+		"@commitlint/config-conventional": "^19.8.1",
 		"@changesets/changelog-github": "^0.5.2",
 		"@changesets/cli": "^2.29.8",
 		"@types/node": "^25.3.0",
 		"@vitest/coverage-v8": "^4.0.18",
+		"lefthook": "^2.1.1",
 		"rimraf": "^6.1.3",
 		"typescript": "^5.9.3",
 		"vitest": "^4.0.18"
