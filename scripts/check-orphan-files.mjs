@@ -109,16 +109,11 @@ function extractImports(content) {
 	// Match: dynamic import()
 	const dynamicRegex = /import\(\s*['"]([^'"]+)['"]\s*\)/g;
 
-	let match;
-	match = importRegex.exec(content);
-	while (match !== null) {
+	for (const match of content.matchAll(importRegex)) {
 		imports.push(match[1]);
-		match = importRegex.exec(content);
 	}
-	match = dynamicRegex.exec(content);
-	while (match !== null) {
+	for (const match of content.matchAll(dynamicRegex)) {
 		imports.push(match[1]);
-		match = dynamicRegex.exec(content);
 	}
 	return imports;
 }
