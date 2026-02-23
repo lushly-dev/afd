@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Python testing parity** (#138) -- Complete testing assertion, helper, and validator parity with TypeScript `@lushly-dev/afd-testing`
+  - New assertions: `assert_has_suggestion()`, `assert_retryable()`, `assert_step_status()`, `assert_ai_result()`
+  - New `testing/helpers.py`: `test_command()`, `test_command_definition()`, `test_command_multiple()`, `create_mock_command()`, `create_success_command()`, `create_failure_command()`, `create_test_context()`
+  - New `testing/validators.py`: Non-throwing `validate_result()`, `validate_error()`, `validate_command_definition()` returning `ValidationResult` with errors and warnings
+  - Fixed `assert_has_plan()` dict-to-PlanStep conversion (missing `action` field)
 - **Lefthook git hooks** -- Pre-commit, commit-msg, pre-push, and on-demand quality gate hooks
   - `check-file-size.mjs` -- Warn >300 lines, error >500, hard cap 1000 with `// afd-override: max-lines=N` escape hatch
   - `check-portability.mjs` -- Detect machine-specific paths (drive letters, user homes, localhost)

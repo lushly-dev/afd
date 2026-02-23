@@ -113,6 +113,10 @@ class CommandResult(BaseModel, Generic[T]):
     # Execution metadata
     metadata: Optional[ResultMetadata] = None
 
+    # Undo fields (for serializable undo over MCP)
+    undo_command: Optional[str] = None
+    undo_args: Optional[dict[str, Any]] = None
+
 
 def success(
     data: T,
@@ -125,6 +129,8 @@ def success(
     warnings: Optional[List[Warning]] = None,
     suggestions: Optional[List[str]] = None,
     metadata: Optional[ResultMetadata] = None,
+    undo_command: Optional[str] = None,
+    undo_args: Optional[dict[str, Any]] = None,
 ) -> CommandResult[T]:
     """Create a successful command result.
     
@@ -138,7 +144,9 @@ def success(
         warnings: Non-fatal warnings.
         suggestions: Helpful next steps for the user.
         metadata: Execution metadata.
-        
+        undo_command: Command name for undoing this operation.
+        undo_args: Arguments to pass to the undo command.
+
     Returns:
         CommandResult with success=True.
     
@@ -160,6 +168,8 @@ def success(
         warnings=warnings,
         suggestions=suggestions,
         metadata=metadata,
+        undo_command=undo_command,
+        undo_args=undo_args,
     )
 
 

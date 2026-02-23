@@ -118,6 +118,7 @@ export const ErrorCodes = {
 	COMMAND_NOT_FOUND: 'COMMAND_NOT_FOUND',
 	INVALID_COMMAND_ARGS: 'INVALID_COMMAND_ARGS',
 	COMMAND_CANCELLED: 'COMMAND_CANCELLED',
+	COMMAND_EXECUTION_ERROR: 'COMMAND_EXECUTION_ERROR',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

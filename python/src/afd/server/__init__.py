@@ -64,6 +64,31 @@ from afd.server.middleware import (
     TelemetrySink,
     ConsoleTelemetrySink,
 )
+from afd.server.validation import (
+    ValidationError,
+    ValidationResult,
+    EnhancedValidationResult,
+    ValidationException,
+    validate_input,
+    validate_input_enhanced,
+    validate_or_throw,
+    is_valid,
+    format_validation_errors,
+    format_enhanced_validation_error,
+    UuidStr,
+    EmailStr,
+    PaginationParams,
+    SortParams,
+    SearchParams,
+    DateRangeParams,
+)
+from afd.server.handoff_schemas import (
+    HandoffCredentialsSchema,
+    HandoffMetadataSchema,
+    HandoffResultSchema,
+    ReconnectPolicySchema,
+    validate_handoff,
+)
 
 __all__ = [
     "create_server",
@@ -89,4 +114,28 @@ __all__ = [
     "TelemetryEvent",
     "TelemetrySink",
     "ConsoleTelemetrySink",
+    # Validation
+    "ValidationError",
+    "ValidationResult",
+    "EnhancedValidationResult",
+    "ValidationException",
+    "validate_input",
+    "validate_input_enhanced",
+    "validate_or_throw",
+    "is_valid",
+    "format_validation_errors",
+    "format_enhanced_validation_error",
+    # Validation patterns
+    "UuidStr",
+    "EmailStr",
+    "PaginationParams",
+    "SortParams",
+    "SearchParams",
+    "DateRangeParams",
+    # Handoff schemas
+    "HandoffCredentialsSchema",
+    "HandoffMetadataSchema",
+    "HandoffResultSchema",
+    "ReconnectPolicySchema",
+    "validate_handoff",
 ]
