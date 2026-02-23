@@ -20,6 +20,9 @@ pip install afd
 # With MCP server support
 pip install afd[server]
 
+# With MCP client (network transports)
+pip install afd[client]
+
 # With CLI
 pip install afd[cli]
 
@@ -134,12 +137,61 @@ AFD results include optional fields that enable rich agent experiences:
 | `alternatives` | Other options considered               |
 | `warnings`     | Non-fatal issues to surface            |
 
+## MCP Client (Network)
+
+Connect to remote MCP servers over SSE or HTTP:
+
+```python
+from afd import McpClient, McpClientConfig, create_client
+
+# Quick setup
+client = create_client("http://localhost:3100/sse")
+await client.connect()
+
+# Call a command (returns CommandResult)
+result = await client.call("todo-create", {"title": "Hello"})
+print(result.data)
+
+# Raw tool call (no CommandResult wrapping)
+raw = await client.call_tool("ping", {})
+
+# Batch execution
+batch_result = await client.batch([
+    {"name": "todo-create", "input": {"title": "First"}},
+    {"name": "todo-create", "input": {"title": "Second"}},
+])
+
+# Pipeline
+pipe_result = await client.pipe([
+    {"command": "user-get", "input": {"id": 1}, "as": "user"},
+    {"command": "order-list", "input": {"user_id": "$user.id"}},
+])
+
+# Stream results
+async for chunk in client.stream("long-task", {"query": "..."}):
+    print(chunk)
+
+await client.disconnect()
+```
+
+Use transports directly for lower-level control:
+
+```python
+from afd.transports import SseTransport, HttpTransport, create_transport
+
+transport = create_transport("sse", "http://localhost:3100/sse")
+await transport.connect()
+result = await transport.call_tool("ping", {})
+await transport.disconnect()
+```
+
 ## Packages
 
 | Extra       | Contents                                                             |
 | ----------- | -------------------------------------------------------------------- |
 | (core)      | `CommandResult`, `success()`, `error()`, error types, metadata types |
 | `[server]`  | MCP server factory, `@define_command`, `create_server()`             |
+| `[client]`  | `McpClient`, SSE/HTTP transports for remote MCP servers              |
 | `[cli]`     | Click-based CLI for connecting to MCP servers                        |
 | `[testing]` | `mock_server` fixture, assertions, `MockTransport`                   |
 

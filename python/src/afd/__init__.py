@@ -101,6 +101,12 @@ from afd.direct import (
     create_direct_client,
     create_registry,
 )
+from afd.client import (
+    McpClient,
+    McpClientConfig,
+    ClientStatus,
+    create_client,
+)
 
 __version__ = "0.2.0"
 
@@ -162,5 +168,10 @@ __all__ = [
     "PipelineResult",
     "create_direct_client",
     "create_registry",
+    # MCP Client (network)
+    "McpClient",
+    "McpClientConfig",
+    "ClientStatus",
+    "create_client",
 ]
 
