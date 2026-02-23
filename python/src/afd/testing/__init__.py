@@ -34,6 +34,24 @@ from afd.testing.fixtures import (
     mock_server,
     isolated_registry,
 )
+from afd.testing.scenarios import (
+    Scenario,
+    Step,
+    Expectation,
+    AssertionMatcher,
+    StepResult,
+    ScenarioResult,
+    TestSummary,
+    InProcessExecutor,
+    InProcessExecutorConfig,
+    validate_scenario,
+    parse_scenario,
+    parse_scenario_file,
+    parse_scenario_dir,
+    evaluate_result,
+    scenario_coverage,
+    TerminalReporter,
+)
 
 __all__ = [
     # Assertions
@@ -49,4 +67,21 @@ __all__ = [
     "command_context",
     "mock_server",
     "isolated_registry",
+    # Scenarios
+    "Scenario",
+    "Step",
+    "Expectation",
+    "AssertionMatcher",
+    "StepResult",
+    "ScenarioResult",
+    "TestSummary",
+    "InProcessExecutor",
+    "InProcessExecutorConfig",
+    "validate_scenario",
+    "parse_scenario",
+    "parse_scenario_file",
+    "parse_scenario_dir",
+    "evaluate_result",
+    "scenario_coverage",
+    "TerminalReporter",
 ]
