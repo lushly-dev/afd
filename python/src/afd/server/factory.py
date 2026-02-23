@@ -59,6 +59,7 @@ from afd.server.decorators import (
     get_command_metadata,
     has_command_metadata,
 )
+from afd.server.middleware import CommandMiddleware
 
 
 TInput = TypeVar("TInput", bound=BaseModel)
@@ -85,18 +86,20 @@ class MCPTransport(Protocol):
 @dataclass
 class ServerConfig:
     """Configuration for an AFD server.
-    
+
     Attributes:
         name: Server name (shown to clients).
         version: Server version string.
         description: Optional server description.
         transport: Transport implementation to use.
+        middleware: List of middleware functions to wrap command execution.
     """
-    
+
     name: str
     version: str = "1.0.0"
     description: Optional[str] = None
     transport: Optional[str] = "fastmcp"  # "fastmcp", "stdio", or custom
+    middleware: List[CommandMiddleware] = field(default_factory=list)
 
 
 class MCPServer:
@@ -117,7 +120,7 @@ class MCPServer:
     
     def __init__(self, config: ServerConfig):
         """Initialize the server.
-        
+
         Args:
             config: Server configuration.
         """
@@ -125,6 +128,7 @@ class MCPServer:
         self._registry = create_command_registry()
         self._commands: List[Callable] = []
         self._mcp_server = None
+        self._middleware: List[CommandMiddleware] = list(config.middleware)
     
     @property
     def name(self) -> str:
@@ -236,16 +240,34 @@ class MCPServer:
         context: Optional[CommandContext] = None,
     ) -> CommandResult:
         """Execute a command by name.
-        
+
+        Wraps the registry call with the configured middleware chain.
+
         Args:
             name: Command name.
             input: Command input.
             context: Optional execution context.
-        
+
         Returns:
             CommandResult from the command handler.
         """
-        return await self._registry.execute(name, input, context)
+        if context is None:
+            context = CommandContext()
+
+        if not self._middleware:
+            return await self._registry.execute(name, input, context)
+
+        # Build the middleware chain (innermost = registry.execute)
+        async def run_handler() -> CommandResult:
+            return await self._registry.execute(name, input, context)
+
+        next_fn = run_handler
+        for mw in reversed(self._middleware):
+            # Lambda factory avoids Python closure-in-loop bug
+            current_next = next_fn
+            next_fn = (lambda m, n: (lambda: m(name, input, context, n)))(mw, current_next)
+
+        return await next_fn()
     
     def _create_mcp_server(self):
         """Create the underlying MCP server instance."""
@@ -397,29 +419,31 @@ def create_server(
     name: str,
     version: str = "1.0.0",
     description: Optional[str] = None,
+    middleware: Optional[List[CommandMiddleware]] = None,
 ) -> MCPServer:
     """Create a new AFD MCP server.
-    
+
     This is the main entry point for building AFD applications.
-    
+
     Args:
         name: Server name (shown to MCP clients).
         version: Server version string.
         description: Optional description.
-    
+        middleware: List of middleware functions to wrap command execution.
+
     Returns:
         Configured MCPServer instance.
-    
+
     Example:
-        >>> from afd.server import create_server
+        >>> from afd.server import create_server, default_middleware
         >>> from afd import success
         >>> from pydantic import BaseModel
-        >>> 
-        >>> server = create_server("my-app", version="1.0.0")
-        >>> 
+        >>>
+        >>> server = create_server("my-app", version="1.0.0", middleware=default_middleware())
+        >>>
         >>> class EchoInput(BaseModel):
         ...     message: str
-        >>> 
+        >>>
         >>> @server.command(
         ...     name="echo",
         ...     description="Echo a message",
@@ -427,7 +451,7 @@ def create_server(
         ... )
         ... async def echo(input: EchoInput):
         ...     return success({"echo": input.message})
-        >>> 
+        >>>
         >>> # In production:
         >>> # server.run()
     """
@@ -435,5 +459,6 @@ def create_server(
         name=name,
         version=version,
         description=description,
+        middleware=middleware or [],
     )
     return MCPServer(config)
