@@ -64,7 +64,7 @@ class HandoffConnection(Protocol):
     Example:
         >>> class MyConnection:
         ...     async def connect(self): ...
-        ...     async def disconnect(self): ...
+        ...     async def close(self): ...
         ...     async def send(self, data): ...
         ...     def on_message(self, callback): ...
         ...     def on_error(self, callback): ...
@@ -83,7 +83,7 @@ class HandoffConnection(Protocol):
         """Establish the connection."""
         ...
 
-    async def disconnect(self) -> None:
+    async def close(self) -> None:
         """Close the connection."""
         ...
 
@@ -129,14 +129,14 @@ class HandoffConnectionOptions:
     """Options for connecting to a handoff endpoint.
 
     Attributes:
-        on_connect: Called when the connection is established.
+        on_connect: Called when the connection is established (receives the connection).
         on_message: Called when a message is received.
         on_disconnect: Called when the connection is closed.
         on_error: Called when an error occurs.
         on_state_change: Called when connection state changes.
     """
 
-    on_connect: Optional[Callable[[], None]] = None
+    on_connect: Optional[Callable[[Any], None]] = None
     on_message: Optional[Callable[[Any], None]] = None
     on_disconnect: Optional[Callable[[Optional[int], Optional[str]], None]] = None
     on_error: Optional[Callable[[Exception], None]] = None
@@ -236,7 +236,9 @@ async def connect_handoff(
             f"Register a handler with register_handoff_handler('{protocol}', handler)."
         )
 
-    return await handler(handoff, options or HandoffConnectionOptions())
+    connection = await handler(handoff, options or HandoffConnectionOptions())
+    await connection.connect()
+    return connection
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -270,7 +272,7 @@ class ReconnectionOptions:
     max_attempts: int = 5
     backoff_ms: int = 1000
     max_backoff_ms: int = 30000
-    on_connect: Optional[Callable[[], None]] = None
+    on_connect: Optional[Callable[[Any], None]] = None
     on_message: Optional[Callable[[Any], None]] = None
     on_disconnect: Optional[Callable[[Optional[int], Optional[str]], None]] = None
     on_error: Optional[Callable[[Exception], None]] = None
@@ -301,12 +303,38 @@ class ReconnectingHandoffConnection:
     ) -> None:
         self._client = client
         self._handoff = dict(handoff)
-        self._options = options
         self._connection: Optional[HandoffConnection] = None
         self._state = HandoffConnectionState.DISCONNECTED
         self._reconnect_attempt = 0
         self._is_reconnecting = False
         self._closed = False
+
+        # Resolve reconnection defaults from handoff metadata (TS parity)
+        metadata_reconnect = (handoff.get("metadata") or {}).get("reconnect") or {}
+        resolved = ReconnectionOptions(
+            reconnect_command=options.reconnect_command,
+            reconnect_args=options.reconnect_args,
+            session_id=options.session_id,
+            max_attempts=(
+                options.max_attempts
+                if options.max_attempts != 5
+                else metadata_reconnect.get("max_attempts", 5)
+            ),
+            backoff_ms=(
+                options.backoff_ms
+                if options.backoff_ms != 1000
+                else metadata_reconnect.get("backoff_ms", 1000)
+            ),
+            max_backoff_ms=options.max_backoff_ms,
+            on_connect=options.on_connect,
+            on_message=options.on_message,
+            on_disconnect=options.on_disconnect,
+            on_error=options.on_error,
+            on_state_change=options.on_state_change,
+            on_reconnect=options.on_reconnect,
+            on_reconnect_failed=options.on_reconnect_failed,
+        )
+        self._options = resolved
 
     @property
     def state(self) -> HandoffConnectionState:
@@ -352,14 +380,13 @@ class ReconnectingHandoffConnection:
         )
 
         self._connection = await connect_handoff(self._handoff, conn_options)
-        await self._connection.connect()
 
-    def _handle_connect(self) -> None:
+    def _handle_connect(self, _connection: Any = None) -> None:
         self._set_state(HandoffConnectionState.CONNECTED)
         self._reconnect_attempt = 0
         self._is_reconnecting = False
         if self._options.on_connect:
-            self._options.on_connect()
+            self._options.on_connect(self)
 
     def _handle_disconnect(
         self, code: Optional[int] = None, reason: Optional[str] = None
@@ -453,7 +480,7 @@ class ReconnectingHandoffConnection:
         self._closed = True
         self._is_reconnecting = False
         if self._connection:
-            await self._connection.disconnect()
+            await self._connection.close()
         self._set_state(HandoffConnectionState.DISCONNECTED)
 
     async def reconnect(self) -> None:
@@ -571,9 +598,9 @@ class _WebSocketConnection:
         if self._options.on_state_change:
             self._options.on_state_change(self._state)
         if self._options.on_connect:
-            self._options.on_connect()
+            self._options.on_connect(self)
 
-    async def disconnect(self) -> None:
+    async def close(self) -> None:
         if self._ws:
             await self._ws.close()
             self._ws = None
@@ -674,9 +701,9 @@ class _SseConnection:
         if self._options.on_state_change:
             self._options.on_state_change(self._state)
         if self._options.on_connect:
-            self._options.on_connect()
+            self._options.on_connect(self)
 
-    async def disconnect(self) -> None:
+    async def close(self) -> None:
         self._state = HandoffConnectionState.DISCONNECTED
         for cb in self._close_callbacks:
             cb()

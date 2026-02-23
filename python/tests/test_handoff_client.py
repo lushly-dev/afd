@@ -70,7 +70,7 @@ class MockConnection:
         self.connect_count += 1
         self._state = HandoffConnectionState.CONNECTED
 
-    async def disconnect(self) -> None:
+    async def close(self) -> None:
         self.disconnect_count += 1
         self._state = HandoffConnectionState.DISCONNECTED
 
