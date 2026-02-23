@@ -512,6 +512,68 @@ async def test_error_includes_suggestion():
     assert result.error.suggestion is not None
 ```
 
+### Testing Helpers
+
+Execute and validate commands with automatic timing:
+
+```python
+from afd.testing import test_command, test_command_multiple, create_mock_command
+
+# Run handler with timing + validation
+result = await test_command(my_handler, {"title": "Test"})
+assert result.is_success
+assert result.execution_time_ms >= 0
+assert result.validation.valid
+
+# Batch-test with expectations
+results = await test_command_multiple(my_handler, [
+    {"input": {"title": "OK"}, "expect_success": True},
+    {"input": {}, "expect_success": False, "expect_error": "VALIDATION_ERROR"},
+])
+assert all(r["passed"] for r in results)
+
+# Create mock commands for testing dependencies
+cmd = create_mock_command("user-get", lambda inp: {"id": inp["id"]})
+```
+
+### Validators
+
+Non-throwing validators for programmatic checks:
+
+```python
+from afd.testing import validate_result, validate_error, validate_command_definition
+from afd.testing import ResultValidationOptions
+
+# Validate result structure
+vr = validate_result(result)
+assert vr.valid  # True when no errors
+
+# Validate with stricter options
+vr = validate_result(result, ResultValidationOptions(require_confidence=True))
+for w in vr.warnings:
+    print(f"{w.code}: {w.message}")
+
+# Validate command definitions
+vr = validate_command_definition(my_command)
+assert vr.valid  # Checks kebab-case name, description, handler, parameters
+```
+
+### Additional Assertions
+
+```python
+from afd.testing import assert_has_suggestion, assert_retryable, assert_step_status, assert_ai_result
+
+# Error quality assertions
+assert_has_suggestion(error_result)        # Error has recovery suggestion
+assert_retryable(error_result, expected=False)  # Retryable flag matches
+
+# Plan step assertions
+assert_step_status(result, "fetch", "complete")  # Step has expected status
+
+# Composite AI result assertion
+assert_ai_result(result, min_confidence=0.9, require_sources=True)
+```
+
 ## Project Configuration
 
 ### pyproject.toml

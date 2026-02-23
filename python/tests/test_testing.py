@@ -10,6 +10,10 @@ from afd.testing import (
     assert_has_plan,
     assert_has_warnings,
     assert_has_alternatives,
+    assert_has_suggestion,
+    assert_retryable,
+    assert_step_status,
+    assert_ai_result,
     command_context,
     mock_server,
     isolated_registry,
@@ -21,6 +25,7 @@ from afd.core import (
     error,
     Source,
     PlanStep,
+    PlanStepStatus,
     Warning,
     Alternative,
 )
@@ -291,6 +296,237 @@ class TestAssertHasAlternatives:
         result = CommandResult(success=True, data="test")
         with pytest.raises(AssertionError):
             assert_has_alternatives(result)
+
+
+# ==============================================================================
+# Test assert_has_suggestion
+# ==============================================================================
+
+class TestAssertHasSuggestion:
+    """Tests for assert_has_suggestion helper."""
+
+    def test_returns_suggestion(self):
+        """Should return the suggestion string."""
+        result = error("NOT_FOUND", "Missing", suggestion="Check the ID")
+        suggestion = assert_has_suggestion(result)
+        assert suggestion == "Check the ID"
+
+    def test_raises_on_success(self):
+        """Should raise on a success result (not a failure)."""
+        result = success({"id": 1})
+        with pytest.raises(AssertionError):
+            assert_has_suggestion(result)
+
+    def test_raises_when_no_suggestion(self):
+        """Should raise when error has no suggestion."""
+        result = error("BROKEN", "Something broke")
+        with pytest.raises(AssertionError) as exc_info:
+            assert_has_suggestion(result)
+        assert "suggestion" in str(exc_info.value).lower()
+
+    def test_custom_message(self):
+        """Should use custom message when provided."""
+        result = error("BROKEN", "Something broke")
+        with pytest.raises(AssertionError) as exc_info:
+            assert_has_suggestion(result, message="Custom msg")
+        assert "Custom msg" in str(exc_info.value)
+
+    def test_works_with_dict_result(self):
+        """Should work with dict-based results."""
+        result = {
+            "success": False,
+            "error": {"code": "ERR", "message": "Bad", "suggestion": "Fix it"},
+        }
+        suggestion = assert_has_suggestion(result)
+        assert suggestion == "Fix it"
+
+
+# ==============================================================================
+# Test assert_retryable
+# ==============================================================================
+
+class TestAssertRetryable:
+    """Tests for assert_retryable helper."""
+
+    def test_retryable_true(self):
+        """Should pass when retryable matches expected True."""
+        result = error("TIMEOUT", "Timed out", retryable=True)
+        val = assert_retryable(result, expected=True)
+        assert val is True
+
+    def test_retryable_false(self):
+        """Should pass when retryable matches expected False."""
+        result = error("INVALID", "Bad input", retryable=False)
+        val = assert_retryable(result, expected=False)
+        assert val is False
+
+    def test_raises_on_mismatch(self):
+        """Should raise when retryable doesn't match."""
+        result = error("TIMEOUT", "Timed out", retryable=False)
+        with pytest.raises(AssertionError) as exc_info:
+            assert_retryable(result, expected=True)
+        assert "True" in str(exc_info.value)
+        assert "False" in str(exc_info.value)
+
+    def test_raises_on_success(self):
+        """Should raise on a success result."""
+        result = success({"id": 1})
+        with pytest.raises(AssertionError):
+            assert_retryable(result)
+
+    def test_default_expected_is_true(self):
+        """Default expected value should be True."""
+        result = error("TIMEOUT", "Timed out", retryable=True)
+        val = assert_retryable(result)
+        assert val is True
+
+
+# ==============================================================================
+# Test assert_step_status
+# ==============================================================================
+
+class TestAssertStepStatus:
+    """Tests for assert_step_status helper."""
+
+    def test_returns_matching_step(self):
+        """Should return the step when status matches."""
+        result = CommandResult(
+            success=True, data="test",
+            plan=[
+                PlanStep(id="fetch", action="fetch", status=PlanStepStatus.COMPLETE),
+                PlanStep(id="process", action="process", status=PlanStepStatus.PENDING),
+            ],
+        )
+        step = assert_step_status(result, "fetch", "complete")
+        assert step.id == "fetch"
+        assert step.action == "fetch"
+
+    def test_raises_when_step_not_found(self):
+        """Should raise when step ID doesn't exist."""
+        result = CommandResult(
+            success=True, data="test",
+            plan=[PlanStep(id="fetch", action="fetch", status=PlanStepStatus.PENDING)],
+        )
+        with pytest.raises(AssertionError) as exc_info:
+            assert_step_status(result, "missing", "pending")
+        assert "missing" in str(exc_info.value)
+
+    def test_raises_when_status_mismatch(self):
+        """Should raise when step status doesn't match."""
+        result = CommandResult(
+            success=True, data="test",
+            plan=[PlanStep(id="fetch", action="fetch", status=PlanStepStatus.PENDING)],
+        )
+        with pytest.raises(AssertionError) as exc_info:
+            assert_step_status(result, "fetch", "complete")
+        assert "complete" in str(exc_info.value)
+        assert "pending" in str(exc_info.value)
+
+    def test_raises_when_no_plan(self):
+        """Should raise when result has no plan."""
+        result = CommandResult(success=True, data="test")
+        with pytest.raises(AssertionError):
+            assert_step_status(result, "fetch", "pending")
+
+    def test_works_with_dict_plan(self):
+        """Should work with dict-based plan steps."""
+        result = {
+            "success": True,
+            "data": "test",
+            "plan": [{"id": "s1", "action": "fetch", "title": "Step 1", "status": "complete"}],
+        }
+        step = assert_step_status(result, "s1", "complete")
+        assert step.id == "s1"
+
+
+# ==============================================================================
+# Test assert_ai_result
+# ==============================================================================
+
+class TestAssertAiResult:
+    """Tests for assert_ai_result helper."""
+
+    def test_passes_with_valid_ai_result(self):
+        """Should pass with confidence and reasoning."""
+        result = CommandResult(
+            success=True, data={"answer": "42"},
+            confidence=0.95, reasoning="Computed from input",
+        )
+        data = assert_ai_result(result)
+        assert data["answer"] == "42"
+
+    def test_raises_when_no_confidence(self):
+        """Should raise when confidence is missing."""
+        result = CommandResult(
+            success=True, data={"answer": "42"},
+            reasoning="Because",
+        )
+        with pytest.raises(AssertionError) as exc_info:
+            assert_ai_result(result)
+        assert "confidence" in str(exc_info.value).lower()
+
+    def test_raises_when_no_reasoning(self):
+        """Should raise when reasoning is missing."""
+        result = CommandResult(
+            success=True, data={"answer": "42"},
+            confidence=0.9,
+        )
+        with pytest.raises(AssertionError) as exc_info:
+            assert_ai_result(result)
+        assert "reasoning" in str(exc_info.value).lower()
+
+    def test_min_confidence_threshold(self):
+        """Should raise when confidence below minimum."""
+        result = CommandResult(
+            success=True, data={"answer": "42"},
+            confidence=0.5, reasoning="Low confidence",
+        )
+        with pytest.raises(AssertionError) as exc_info:
+            assert_ai_result(result, min_confidence=0.8)
+        assert "0.5" in str(exc_info.value)
+        assert "0.8" in str(exc_info.value)
+
+    def test_require_sources(self):
+        """Should raise when sources required but missing."""
+        result = CommandResult(
+            success=True, data="test",
+            confidence=0.9, reasoning="Reason",
+        )
+        with pytest.raises(AssertionError) as exc_info:
+            assert_ai_result(result, require_sources=True)
+        assert "sources" in str(exc_info.value).lower()
+
+    def test_require_alternatives(self):
+        """Should raise when alternatives required but missing."""
+        result = CommandResult(
+            success=True, data="test",
+            confidence=0.9, reasoning="Reason",
+        )
+        with pytest.raises(AssertionError) as exc_info:
+            assert_ai_result(result, require_alternatives=True)
+        assert "alternatives" in str(exc_info.value).lower()
+
+    def test_passes_with_sources_and_alternatives(self):
+        """Should pass when all optional fields are provided."""
+        result = CommandResult(
+            success=True, data="test",
+            confidence=0.95, reasoning="Reason",
+            sources=[Source(type="url", title="Doc")],
+            alternatives=[Alternative(data="alt", reason="Another option")],
+        )
+        data = assert_ai_result(
+            result,
+            min_confidence=0.9,
+            require_sources=True,
+            require_alternatives=True,
+        )
+        assert data == "test"
+
+    def test_raises_on_failure_result(self):
+        """Should raise on a failure result."""
+        result = error("BROKEN", "Nope")
+        with pytest.raises(AssertionError):
+            assert_ai_result(result)
 
 
 # ==============================================================================
