@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Lefthook git hooks** -- Pre-commit, commit-msg, pre-push, and on-demand quality gate hooks
+  - `check-file-size.mjs` -- Warn >300 lines, error >500, hard cap 1000 with `// afd-override: max-lines=N` escape hatch
+  - `check-portability.mjs` -- Detect machine-specific paths (drive letters, user homes, localhost)
+  - `check-orphan-files.mjs` -- Find unreferenced `.ts` files across all packages
+  - `commitlint.config.js` -- Conventional commits enforcement with per-package scopes
+  - Pre-commit: Biome lint (staged), portability, file-size, typecheck
+  - Pre-push: Full lint, test, typecheck, portability, file-size, orphan-files
+  - On-demand `check`: All pre-push checks plus build
+
+### Changed
+
+- **README.md** -- Rewrote "What Makes This Different" section with side-by-side traditional CLI vs AFD structured output comparison
+- **CONTRIBUTING.md** -- Comprehensive rewrite covering AFD principles, lefthook setup, Python/Alfred prerequisites, and contribution workflow
+
 ## [0.2.0] - 2026-02-22
 
 ### Added

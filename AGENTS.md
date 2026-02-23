@@ -42,7 +42,31 @@ pnpm format        # Format code
 
 # Type checking
 pnpm typecheck
+
+# Quality gate (all checks)
+pnpm check
 ```
+
+## Git Hooks (Lefthook)
+
+Lefthook manages git hooks. Installed automatically via `pnpm install`.
+
+| Hook | Commands | Trigger |
+|------|----------|--------|
+| pre-commit | Biome lint (staged), portability, file-size, typecheck | `git commit` |
+| commit-msg | commitlint (conventional commits) | `git commit` |
+| pre-push | Full lint, test, typecheck, portability, file-size, orphan-files | `git push` |
+| check | All pre-push + build | `npx lefthook run check` |
+
+**Check scripts** (`scripts/`):
+
+| Script | What it checks |
+|--------|---------------|
+| `check-file-size.mjs` | Warn >300, error >500 lines. Escape: `// afd-override: max-lines=N` (cap 1000) |
+| `check-portability.mjs` | Machine-specific paths (drive letters, user homes). Escape: `// portability-ok: reason` |
+| `check-orphan-files.mjs` | Unreferenced `.ts` files across packages (warning only) |
+
+Skip hooks: `git commit --no-verify` / `git push --no-verify`
 
 ## Architecture Overview
 

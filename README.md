@@ -225,10 +225,12 @@ Features like [command trust config](./docs/features/complete/command-trust-conf
 ```bash
 # From source (private repo)
 cd afd
-pnpm install
+pnpm install    # Also installs Lefthook git hooks
 pnpm build
 node packages/cli/dist/bin.js --help
 ```
+
+> `pnpm check` runs all quality gates (lint, typecheck, test, build) manually.
 
 ### Connect to an MCP Server
 
