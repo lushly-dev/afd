@@ -298,6 +298,11 @@ def get_value_at_path(obj: Any, path: str) -> Any:
     """Get a value at a dot-notation path.
 
     Supports array index syntax like 'items[0]'.
+
+    Note: This is a Python enhancement over the TS evaluator which does NOT
+    support array indexing. The TS executor has array index support only in
+    its private getValueAtPath. Assertions using array paths will work in
+    Python but not in TS.
     """
     if obj is None:
         return None

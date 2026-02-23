@@ -380,5 +380,6 @@ def is_scenario(value: Any) -> bool:
         isinstance(value.get('name'), str)
         and isinstance(value.get('description'), str)
         and isinstance(value.get('job'), str)
+        and isinstance(value.get('tags', []), list)
         and isinstance(value.get('steps'), list)
     )
