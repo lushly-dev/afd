@@ -233,7 +233,7 @@ def create_batch_request(
     for index, cmd in enumerate(commands):
         batch_commands.append(
             BatchCommand(
-                id=cmd.get("id") or f"cmd-{index}",
+                id=cmd.get("id") if cmd.get("id") is not None else f"cmd-{index}",
                 command=cmd["command"],
                 input=cmd.get("input"),
             )
