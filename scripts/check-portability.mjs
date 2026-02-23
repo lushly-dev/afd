@@ -21,7 +21,7 @@
  * Excluded directories: alfred/, python/, packages/rust/ (own tooling)
  */
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 
 const CHECK_EXTENSIONS = new Set([
@@ -35,14 +35,7 @@ const CHECK_EXTENSIONS = new Set([
 	'.yaml',
 	'.yml',
 ]);
-const SKIP_DIRS = new Set([
-	'node_modules',
-	'dist',
-	'.git',
-	'coverage',
-	'alfred',
-	'python',
-]);
+const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'coverage', 'alfred', 'python']);
 const ESCAPE_HATCH = /portability-ok\s*:/i;
 const PATTERNS = [
 	{
@@ -78,7 +71,8 @@ const PATTERNS = [
 		severity: 'warn',
 		regex: /http:\/\/localhost:\d{4,5}/g,
 		message: 'Hardcoded localhost URL detected',
-		suggestion: 'Prefer configurable base URLs or documented setup defaults to avoid environment coupling.',
+		suggestion:
+			'Prefer configurable base URLs or documented setup defaults to avoid environment coupling.',
 	},
 ];
 
@@ -88,8 +82,7 @@ let checkedFiles = 0;
 
 function isSkippedPath(normalizedPath) {
 	// Skip packages/rust/ specifically (contains slash so check manually)
-	if (normalizedPath.includes('/packages/rust/') || normalizedPath.includes('\\packages\\rust\\'))
-		return true;
+	if (normalizedPath.includes('/packages/rust/') || normalizedPath.includes('\\packages\\rust\\')) return true;
 	return false;
 }
 
@@ -134,7 +127,7 @@ function getInputFiles() {
 	return files;
 }
 
-function isAllowed(filePath, line, patternId) {
+function isAllowed(filePath, _line, patternId) {
 	const normalized = normalize(filePath).replace(/\\/g, '/');
 	if (normalized.endsWith('.md')) return true;
 

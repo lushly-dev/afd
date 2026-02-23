@@ -18,7 +18,7 @@
  * Run via push:   git push (triggered by Lefthook)
  */
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -105,8 +105,7 @@ function isEntryPoint(filePath) {
 function extractImports(content) {
 	const imports = [];
 	// Match: import ... from '...' / import '...' / export ... from '...'
-	const importRegex =
-		/(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]/g;
+	const importRegex = /(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]/g;
 	// Match: dynamic import()
 	const dynamicRegex = /import\(\s*['"]([^'"]+)['"]\s*\)/g;
 
@@ -190,16 +189,12 @@ if (orphans.length === 0) {
 		`All ${sourceFiles.length} source files are referenced (${allFiles.length} total scanned across ${srcDirs.length} package(s))`
 	);
 } else {
-	console.warn(
-		`\n  Orphan files — not imported by any other source file:\n`
-	);
+	console.warn("\n  Orphan files — not imported by any other source file:\n");
 	for (const orphan of orphans) {
 		const rel = relative(process.cwd(), orphan).replace(/\\/g, '/');
 		warn(`${rel}`);
 	}
-	console.warn(
-		`\n  💡 ${orphans.length} orphan(s) found. These files are not imported anywhere.`
-	);
+	console.warn(`\n  💡 ${orphans.length} orphan(s) found. These files are not imported anywhere.`);
 	console.warn(
 		`     If intentional (entry points, dynamic imports), add them to isEntryPoint() in this script.`
 	);
