@@ -5,6 +5,7 @@ This module contains the foundational types used across all AFD applications:
 - CommandError: Structured error with recovery guidance
 - Metadata types: Source, PlanStep, Alternative, Warning
 - Handoff types: HandoffResult, HandoffCredentials, HandoffMetadata
+- Telemetry types: TelemetryEvent, TelemetrySink, ConsoleTelemetrySink
 """
 
 from afd.core.result import (
@@ -47,6 +48,13 @@ from afd.core.commands import (
     CommandContext,
     CommandRegistry,
     create_command_registry,
+)
+from afd.core.telemetry import (
+    TelemetryEvent,
+    TelemetrySink,
+    ConsoleTelemetrySink,
+    create_telemetry_event,
+    is_telemetry_event,
 )
 from afd.core.handoff import (
     HandoffProtocol,
@@ -99,6 +107,12 @@ __all__ = [
     "CommandContext",
     "CommandRegistry",
     "create_command_registry",
+    # Telemetry types
+    "TelemetryEvent",
+    "TelemetrySink",
+    "ConsoleTelemetrySink",
+    "create_telemetry_event",
+    "is_telemetry_event",
     # Handoff types
     "HandoffProtocol",
     "HandoffCredentials",

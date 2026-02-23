@@ -613,6 +613,39 @@ async def list_todos(input: ListTodosInput) -> CommandResult[Dict[str, Any]]:
     ...
 ```
 
+## Telemetry
+
+Track command execution with standardized events:
+
+```python
+from afd import create_telemetry_event, ConsoleTelemetrySink, is_telemetry_event
+
+# Create event (duration_ms auto-calculated from timestamps)
+event = create_telemetry_event(
+    command_name="todo-create",
+    started_at="2024-01-15T10:30:00.000Z",
+    completed_at="2024-01-15T10:30:00.150Z",
+    success=True,
+    trace_id="trace-abc123",
+)
+assert event.duration_ms == 150.0
+
+# Console sink (text or JSON format)
+sink = ConsoleTelemetrySink(format="json")
+sink.record(event)
+
+# Type guard
+assert is_telemetry_event(event) is True
+assert is_telemetry_event({"command_name": "test", ...}) is True
+
+# Custom sink (implements TelemetrySink protocol)
+class DatabaseSink:
+    def record(self, event):
+        db.insert("telemetry", event.model_dump(exclude_none=True))
+    def flush(self):
+        db.commit()
+```
+
 ## DirectClient (Python)
 
 Zero-overhead in-process command execution, same API as MCP client:

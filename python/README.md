@@ -199,6 +199,36 @@ AFD results include optional fields that enable rich agent experiences:
 | `alternatives` | Other options considered               |
 | `warnings`     | Non-fatal issues to surface            |
 
+### Telemetry
+
+Track command execution with standardized telemetry events:
+
+```python
+from afd import create_telemetry_event, ConsoleTelemetrySink
+
+# Create an event from execution data
+event = create_telemetry_event(
+    command_name="todo-create",
+    started_at="2024-01-15T10:30:00.000Z",
+    completed_at="2024-01-15T10:30:00.150Z",
+    success=True,
+    trace_id="trace-abc123",
+)
+# duration_ms is auto-calculated: 150.0
+
+# Log to console (text or JSON format)
+sink = ConsoleTelemetrySink(format="json")
+sink.record(event)
+
+# Implement a custom sink
+class MyMonitoringSink:
+    def record(self, event):
+        send_to_monitoring(event.model_dump(exclude_none=True))
+
+    def flush(self):
+        pass
+```
+
 ## Packages
 
 | Extra       | Contents                                                             |
