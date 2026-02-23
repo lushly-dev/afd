@@ -134,12 +134,54 @@ AFD results include optional fields that enable rich agent experiences:
 | `alternatives` | Other options considered               |
 | `warnings`     | Non-fatal issues to surface            |
 
+## Handoff Connections
+
+Connect to streaming protocols (WebSocket, SSE) returned by handoff commands:
+
+```bash
+# Install with client dependencies
+pip install afd[client]
+```
+
+```python
+from afd import (
+    connect_handoff,
+    create_reconnecting_handoff,
+    register_builtin_handlers,
+    HandoffConnectionOptions,
+    ReconnectionOptions,
+)
+from afd.core.handoff import is_handoff
+
+# Register built-in WebSocket and SSE handlers
+register_builtin_handlers()
+
+# Connect to a handoff result
+result = await client.call('chat-connect', {'room_id': 'room-123'})
+
+if result.success and is_handoff(result.data):
+    # Simple connection
+    conn = await connect_handoff(result.data, HandoffConnectionOptions(
+        on_message=lambda msg: print('Message:', msg),
+    ))
+
+    # Or with auto-reconnect
+    conn = await create_reconnecting_handoff(client, result.data,
+        ReconnectionOptions(
+            reconnect_command='chat-reconnect',
+            session_id=result.data.get('credentials', {}).get('session_id'),
+            on_reconnect=lambda n: print(f'Reconnecting (attempt {n})'),
+        ),
+    )
+```
+
 ## Packages
 
 | Extra       | Contents                                                             |
 | ----------- | -------------------------------------------------------------------- |
 | (core)      | `CommandResult`, `success()`, `error()`, error types, metadata types |
 | `[server]`  | MCP server factory, `@define_command`, `create_server()`             |
+| `[client]`  | Handoff connection handlers (WebSocket via `websockets`, SSE via `httpx`) |
 | `[cli]`     | Click-based CLI for connecting to MCP servers                        |
 | `[testing]` | `mock_server` fixture, assertions, `MockTransport`                   |
 

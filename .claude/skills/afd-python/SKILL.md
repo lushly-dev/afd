@@ -566,6 +566,59 @@ exists = client.has_command('todo-create')
 
 Use DirectClient when the AI agent runs in the same Python process.
 
+## Handoff Connections
+
+Connect to streaming protocols returned by handoff commands:
+
+```python
+from afd import (
+    connect_handoff,
+    create_reconnecting_handoff,
+    register_builtin_handlers,
+    register_handoff_handler,
+    HandoffConnectionOptions,
+    ReconnectionOptions,
+)
+from afd.core.handoff import is_handoff
+
+# Register built-in WebSocket + SSE handlers
+register_builtin_handlers()
+
+# Connect to a handoff result from a command
+result = await client.call('chat-connect', {'room_id': 'room-123'})
+if result.success and is_handoff(result.data):
+    conn = await connect_handoff(result.data, HandoffConnectionOptions(
+        on_message=lambda msg: print('Message:', msg),
+        on_error=lambda err: print('Error:', err),
+    ))
+
+    # With auto-reconnect via DirectClient
+    conn = await client.create_reconnecting_handoff(result.data,
+        ReconnectionOptions(
+            reconnect_command='chat-reconnect',
+            max_attempts=5,
+            backoff_ms=1000,
+        ),
+    )
+```
+
+### Custom Protocol Handlers
+
+```python
+# Register a custom protocol handler
+async def my_handler(handoff, options):
+    # Create and return a HandoffConnection
+    ...
+
+register_handoff_handler('my-protocol', my_handler)
+```
+
+### Install
+
+```bash
+pip install afd[client]  # adds websockets + httpx
+```
+
 ## Related Skills
 
 - `afd-developer` - Core AFD methodology

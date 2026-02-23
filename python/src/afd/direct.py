@@ -561,6 +561,44 @@ class DirectClient:
         
         return issues
     
+    async def connect_handoff(
+        self,
+        handoff: Dict[str, Any],
+        options: Optional[Any] = None,
+    ) -> Any:
+        """Connect to a handoff endpoint.
+
+        Convenience method that delegates to the handoff client module.
+
+        Args:
+            handoff: HandoffResult dict from a command.
+            options: HandoffConnectionOptions for callbacks.
+
+        Returns:
+            A HandoffConnection for the protocol.
+        """
+        from afd.handoff_client import connect_handoff as _connect_handoff
+        return await _connect_handoff(handoff, options)
+
+    async def create_reconnecting_handoff(
+        self,
+        handoff: Dict[str, Any],
+        options: Optional[Any] = None,
+    ) -> Any:
+        """Create a reconnecting handoff connection.
+
+        Convenience method that delegates to the handoff client module.
+
+        Args:
+            handoff: HandoffResult dict from a command.
+            options: ReconnectionOptions for reconnection behavior.
+
+        Returns:
+            A ReconnectingHandoffConnection with auto-reconnect.
+        """
+        from afd.handoff_client import create_reconnecting_handoff as _create
+        return await _create(self, handoff, options)
+
     def _debug(self, message: str, data: Any = None) -> None:
         """Debug logging helper."""
         if self.options.debug:

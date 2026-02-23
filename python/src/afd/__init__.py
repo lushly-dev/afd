@@ -101,6 +101,28 @@ from afd.direct import (
     create_direct_client,
     create_registry,
 )
+from afd.handoff_client import (
+    HandoffConnectionState,
+    HandoffConnection,
+    HandoffConnectionOptions,
+    ReconnectingHandoffConnection,
+    ReconnectionOptions,
+    connect_handoff,
+    create_reconnecting_handoff,
+    register_handoff_handler,
+    unregister_handoff_handler,
+    get_handoff_handler,
+    has_handoff_handler,
+    list_handoff_handlers,
+    clear_handoff_handlers,
+    build_authenticated_endpoint,
+    parse_handoff_endpoint,
+    is_handoff_expired,
+    get_handoff_ttl,
+    register_builtin_handlers,
+    WebSocketHandoffHandler,
+    SseHandoffHandler,
+)
 
 __version__ = "0.2.0"
 
@@ -162,5 +184,26 @@ __all__ = [
     "PipelineResult",
     "create_direct_client",
     "create_registry",
+    # Handoff client
+    "HandoffConnectionState",
+    "HandoffConnection",
+    "HandoffConnectionOptions",
+    "ReconnectingHandoffConnection",
+    "ReconnectionOptions",
+    "connect_handoff",
+    "create_reconnecting_handoff",
+    "register_handoff_handler",
+    "unregister_handoff_handler",
+    "get_handoff_handler",
+    "has_handoff_handler",
+    "list_handoff_handlers",
+    "clear_handoff_handlers",
+    "build_authenticated_endpoint",
+    "parse_handoff_endpoint",
+    "is_handoff_expired",
+    "get_handoff_ttl",
+    "register_builtin_handlers",
+    "WebSocketHandoffHandler",
+    "SseHandoffHandler",
 ]
 
