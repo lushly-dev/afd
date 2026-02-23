@@ -35,6 +35,7 @@ from typing import (
 
 from afd.core.result import CommandResult, error as result_error, success
 from afd.transports.base import (
+    ToolExecutionError,
     ToolInfo,
     TransportError,
     TransportState,
@@ -55,23 +56,34 @@ class McpClientConfig:
 
     Attributes:
         url: Server URL (e.g., ``http://localhost:3100/sse``).
+        endpoint: Alias for ``url`` (preferred in browser SDKs).
         transport: Transport type — ``"sse"`` or ``"http"``.
         auto_reconnect: Automatically reconnect on disconnect.
         max_reconnect_attempts: Maximum reconnection attempts.
         reconnect_delay: Base delay in seconds between attempts (exponential backoff).
         headers: Custom HTTP headers.
-        timeout: Request timeout in seconds.
+        timeout: Request timeout in seconds (Python convention; TS uses milliseconds).
+        client_name: Client name sent in the MCP initialize handshake.
+        client_version: Client version sent in the MCP initialize handshake.
         debug: Enable debug logging.
     """
 
     url: str = ""
+    endpoint: Optional[str] = None
     transport: Literal["sse", "http"] = "sse"
     auto_reconnect: bool = True
     max_reconnect_attempts: int = 5
     reconnect_delay: float = 1.0
     headers: Dict[str, str] = field(default_factory=dict)
     timeout: float = 30.0
+    client_name: str = "afd-python-client"
+    client_version: str = "0.2.0"
     debug: bool = False
+
+    @property
+    def resolved_url(self) -> str:
+        """Return ``url`` or ``endpoint``, preferring ``url``."""
+        return self.url or self.endpoint or ""
 
 
 @dataclass
@@ -81,16 +93,22 @@ class ClientStatus:
     Attributes:
         state: Current transport state.
         url: Server URL (None when disconnected).
+        server_info: Server info from MCP initialize handshake.
+        capabilities: Server capabilities from MCP initialize handshake.
         connected_at: Timestamp of connection.
         reconnect_attempts: Number of reconnection attempts since last connect.
         tools_count: Number of cached tools.
+        pending_requests: Number of in-flight requests.
     """
 
     state: TransportState = TransportState.DISCONNECTED
     url: Optional[str] = None
+    server_info: Optional[Dict[str, Any]] = None
+    capabilities: Optional[Dict[str, Any]] = None
     connected_at: Optional[datetime] = None
     reconnect_attempts: int = 0
     tools_count: int = 0
+    pending_requests: int = 0
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -146,7 +164,7 @@ class McpClient:
             ValueError: If no URL is configured.
         """
         if self._transport and self._transport.state == TransportState.CONNECTED:
-            return
+            raise RuntimeError("Already connected")
 
         if self._transport is None:
             self._transport = _create_transport(self._config)
@@ -236,6 +254,12 @@ class McpClient:
 
             return success(data)
 
+        except ToolExecutionError as exc:
+            return result_error(
+                code="TOOL_ERROR",
+                message=str(exc),
+                suggestion="Check the command input and try again",
+            )
         except TransportError as exc:
             return result_error(
                 code="TRANSPORT_ERROR",
@@ -438,7 +462,9 @@ class McpClient:
         )
         return ClientStatus(
             state=state,
-            url=self._config.url if state != TransportState.DISCONNECTED else None,
+            url=self._config.resolved_url if state != TransportState.DISCONNECTED else None,
+            server_info=getattr(self._transport, '_server_info', None) if self._transport else None,
+            capabilities=getattr(self._transport, '_capabilities', None) if self._transport else None,
             connected_at=self._connected_at,
             reconnect_attempts=self._reconnect_attempts,
             tools_count=len(self._tools),
@@ -466,24 +492,29 @@ class McpClient:
 
 def _create_transport(config: McpClientConfig) -> Any:
     """Create a transport instance from config."""
-    if not config.url:
-        raise ValueError("McpClientConfig.url is required")
+    url = config.resolved_url
+    if not url:
+        raise ValueError("McpClientConfig.url (or endpoint) is required")
 
     if config.transport == "http":
         from afd.transports.http import HttpTransport
 
         return HttpTransport(
-            config.url,
+            url,
             headers=config.headers or None,
             timeout=config.timeout,
+            client_name=config.client_name,
+            client_version=config.client_version,
         )
     else:
         from afd.transports.sse import SseTransport
 
         return SseTransport(
-            config.url,
+            url,
             headers=config.headers or None,
             timeout=config.timeout,
+            client_name=config.client_name,
+            client_version=config.client_version,
         )
 
 

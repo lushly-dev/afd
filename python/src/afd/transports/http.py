@@ -38,8 +38,10 @@ class HttpTransport(_HttpBasedTransport):
         *,
         headers: Optional[Dict[str, str]] = None,
         timeout: float = 30.0,
+        client_name: str = "afd-python-client",
+        client_version: str = "0.2.0",
     ) -> None:
-        super().__init__(url, headers=headers, timeout=timeout)
+        super().__init__(url, headers=headers, timeout=timeout, client_name=client_name, client_version=client_version)
 
     async def connect(self) -> None:
         """Establish connection: create HTTP client, run health check, initialize MCP."""

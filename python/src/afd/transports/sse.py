@@ -41,10 +41,12 @@ class SseTransport(_HttpBasedTransport):
         *,
         headers: Optional[Dict[str, str]] = None,
         timeout: float = 30.0,
+        client_name: str = "afd-python-client",
+        client_version: str = "0.2.0",
         on_close: Optional[Callable[[], None]] = None,
         on_error: Optional[Callable[[Exception], None]] = None,
     ) -> None:
-        super().__init__(url, headers=headers, timeout=timeout)
+        super().__init__(url, headers=headers, timeout=timeout, client_name=client_name, client_version=client_version)
         self._sse_task: Optional[asyncio.Task[None]] = None
         self._on_close = on_close
         self._on_error = on_error

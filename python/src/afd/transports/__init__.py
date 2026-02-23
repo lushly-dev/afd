@@ -26,6 +26,7 @@ from afd.transports.base import (
     TransportState,
     ToolInfo,
     TransportError,
+    ToolExecutionError,
     ConnectionError,
     ToolNotFoundError,
 )
@@ -67,6 +68,7 @@ __all__ = [
     "TransportState",
     "ToolInfo",
     "TransportError",
+    "ToolExecutionError",
     "ConnectionError",
     "ToolNotFoundError",
     "FastMCPTransport",

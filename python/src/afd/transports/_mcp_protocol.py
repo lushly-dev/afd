@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-from afd.transports.base import ToolInfo, TransportError, TransportState
+from afd.transports.base import ToolExecutionError, ToolInfo, TransportError, TransportState
 
 # MCP protocol version matching the TS client
 MCP_PROTOCOL_VERSION = "2024-11-05"
@@ -33,14 +33,20 @@ class _HttpBasedTransport:
         *,
         headers: Optional[Dict[str, str]] = None,
         timeout: float = 30.0,
+        client_name: str = "afd-python-client",
+        client_version: str = "0.2.0",
     ) -> None:
         self._url = url
         self._headers = headers or {}
         self._timeout = timeout
+        self._client_name = client_name
+        self._client_version = client_version
         self._state = TransportState.DISCONNECTED
         self._client: Optional[httpx.AsyncClient] = None
         self._message_url: str = self._derive_message_url(url)
         self._request_counter = itertools.count(1)
+        self._server_info: Optional[Dict[str, Any]] = None
+        self._capabilities: Optional[Dict[str, Any]] = None
 
     @property
     def state(self) -> TransportState:
@@ -108,11 +114,14 @@ class _HttpBasedTransport:
             "protocolVersion": MCP_PROTOCOL_VERSION,
             "capabilities": {},
             "clientInfo": {
-                "name": "afd-python-client",
-                "version": "0.2.0",
+                "name": self._client_name,
+                "version": self._client_version,
             },
         })
-        return result or {}
+        init_result = result or {}
+        self._server_info = init_result.get("serverInfo")
+        self._capabilities = init_result.get("capabilities")
+        return init_result
 
     async def call_tool(
         self,
@@ -167,14 +176,14 @@ class _HttpBasedTransport:
         if result is None:
             return None
 
-        # Check for isError flag
+        # Check for isError flag — tool-level error, not transport
         if isinstance(result, dict) and result.get("isError"):
             texts = [
                 c["text"]
                 for c in result.get("content", [])
                 if c.get("type") == "text"
             ]
-            raise TransportError(
+            raise ToolExecutionError(
                 " ".join(texts) or "Tool execution failed"
             )
 
