@@ -76,6 +76,7 @@ def create_test_context(
         "extra": {"environment": "test"},
     }
     if overrides:
+        overrides = dict(overrides)
         if "extra" in overrides and "extra" in defaults:
             defaults["extra"] = {**defaults["extra"], **overrides.pop("extra")}
         defaults.update(overrides)
