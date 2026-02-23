@@ -79,7 +79,64 @@ Because commands carry no UI dependency, they're portable. The same command set 
 
 ## What Makes This Different
 
-AFD is not "API-first with a new name." Commands return structured metadata that enables **good agent experiences**, not just data:
+Most tools give agents data. AFD gives agents **judgment**.
+
+Here's the same operation — fetching a user — from a typical MCP tool versus an AFD command. Look at what the agent has to work with in each case:
+
+**Typical MCP tool response:**
+```json
+{
+  "id": 42,
+  "name": "Jane Doe",
+  "email": "jane@example.com",
+  "role": "admin"
+}
+```
+
+The agent got data. But now it's on its own. Was the lookup reliable? Is this from a cache or a live query? Should it do something next? If the user wasn't found, it gets a generic error string and has to guess what went wrong. Every decision after this response requires the agent to *infer* context the system already had.
+
+**AFD command response:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": 42,
+    "name": "Jane Doe",
+    "email": "jane@example.com",
+    "role": "admin"
+  },
+  "confidence": 0.85,
+  "reasoning": "Matched by email (case-insensitive). 2 accounts share this domain.",
+  "warnings": [{ "message": "User has elevated privileges — mutations require confirmation" }],
+  "suggestions": ["Use user-permissions to review role assignments"]
+}
+```
+
+Same data. Completely different agent experience. Now the agent knows:
+
+| Metadata | What the agent learns |
+|----------|----------------------|
+| `confidence: 0.85` | "This match isn't certain — I should verify before acting on it" |
+| `reasoning` | "It matched by email, not exact ID — and there are similar accounts" |
+| `warnings` | "This is an admin user — I need to be careful with mutations" |
+| `suggestions` | "There's a logical next step the system is recommending" |
+
+And when things fail, the difference is even more dramatic:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "No user with email 'jdoe@example.com'",
+    "suggestion": "Use user-search with partial match — try 'jane' or 'doe'"
+  }
+}
+```
+
+Instead of a 404 and a blank wall, the agent gets a specific recovery path. It doesn't have to reason about *what to try next* — the system already knows.
+
+This is `CommandResult`:
 
 ```typescript
 interface CommandResult<T> {
@@ -87,27 +144,17 @@ interface CommandResult<T> {
   data?: T;
   error?: CommandError;
 
-  // UX-enabling metadata
-  confidence?: number;      // How reliable is this result?
-  reasoning?: string;       // Why did the system do this?
-  suggestions?: string[];   // What should happen next?
+  confidence?: number;      // Should the agent trust this result?
+  reasoning?: string;       // What happened and why?
+  suggestions?: string[];   // What should the agent do next?
   warnings?: Warning[];     // Side effects to be aware of
-  sources?: Source[];       // Where did this come from?
-  plan?: PlanStep[];        // What steps are involved?
+  sources?: Source[];       // Where did this data come from?
+  plan?: PlanStep[];        // What steps were or will be taken?
   alternatives?: T[];       // What other options exist?
 }
 ```
 
-Errors aren't just codes. They include **recovery guidance**:
-
-```typescript
-return error('NOT_FOUND', `Item ${id} not found`, {
-  suggestion: 'Use item-list to see available items',
-  retryable: false,
-});
-```
-
-Confidence calibration, transparency, plan visibility, actionable error recovery. The same principles that build trust in human UX, expressed as structured data that agents can act on.
+Confidence calibration, transparency, plan visibility, actionable error recovery — the same principles that build trust in human UX, expressed as structured data that agents can act on. Not "API-first with a new name." A fundamentally different contract between your software and the agents using it.
 
 ## Riding the Wave
 
