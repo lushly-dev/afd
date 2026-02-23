@@ -13,11 +13,13 @@ import json
 import logging
 import time
 
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import (
     Any,
     Awaitable,
     Callable,
+    ContextManager,
     Dict,
     List,
     Optional,
@@ -159,13 +161,13 @@ class Span(Protocol):
 
 @runtime_checkable
 class Tracer(Protocol):
-    """Tracer interface compatible with OpenTelemetry."""
+    """Tracer interface compatible with OpenTelemetry Python SDK.
 
-    async def start_active_span(
-        self,
-        name: str,
-        fn: Callable[[Span], Awaitable[Any]],
-    ) -> Any: ...
+    Uses context manager pattern (start_as_current_span) matching the
+    real OpenTelemetry Python API, not the JS callback pattern.
+    """
+
+    def start_as_current_span(self, name: str) -> ContextManager[Span]: ...
 
 
 # =============================================================================
@@ -383,7 +385,7 @@ def create_tracing_middleware(
         context: CommandContext,
         next_fn: NextFn,
     ) -> CommandResult[Any]:
-        async def span_fn(span: Span) -> CommandResult[Any]:
+        with tracer.start_as_current_span(f"{span_prefix}.{command_name}") as span:
             span.set_attribute("command.name", command_name)
             span.set_attribute("command.trace_id", context.trace_id or "none")
 
@@ -400,7 +402,6 @@ def create_tracing_middleware(
                 if result.confidence is not None:
                     span.set_attribute("command.confidence", result.confidence)
 
-                span.end()
                 return result
             except Exception as exc:
                 span.set_attribute("error", True)
@@ -408,12 +409,7 @@ def create_tracing_middleware(
                     "code": 2,
                     "message": str(exc),
                 })
-                span.end()
                 raise
-
-        return await tracer.start_active_span(
-            f"{span_prefix}.{command_name}", span_fn
-        )
 
     return middleware
 
@@ -610,15 +606,11 @@ def compose_middleware(*middlewares: CommandMiddleware) -> CommandMiddleware:
         context: CommandContext,
         next_fn: NextFn,
     ) -> CommandResult[Any]:
-        index = 0
-
-        async def dispatch() -> CommandResult[Any]:
-            nonlocal index
-            if index >= len(middlewares):
+        async def dispatch(i: int = 0) -> CommandResult[Any]:
+            if i >= len(middlewares):
                 return await next_fn()
-            mw = middlewares[index]
-            index += 1
-            return await mw(command_name, input, context, dispatch)
+            mw = middlewares[i]
+            return await mw(command_name, input, context, lambda: dispatch(i + 1))
 
         return await dispatch()
 

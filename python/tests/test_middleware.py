@@ -1,6 +1,7 @@
 """Tests for the middleware module."""
 
 import asyncio
+from contextlib import contextmanager
 import json
 
 import pytest
@@ -356,11 +357,15 @@ class MockTracer:
     def __init__(self):
         self.spans = []
 
-    async def start_active_span(self, name, fn):
+    @contextmanager
+    def start_as_current_span(self, name):
         span = MockSpan()
         span.name = name
         self.spans.append(span)
-        return await fn(span)
+        try:
+            yield span
+        finally:
+            span.end()
 
 
 class TestTracingMiddleware:
