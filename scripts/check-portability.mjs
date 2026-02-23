@@ -21,7 +21,7 @@
  * Excluded directories: alfred/, python/, packages/rust/ (own tooling)
  */
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { extname, join, normalize, resolve } from 'node:path';
 
 const CHECK_EXTENSIONS = new Set([
@@ -35,14 +35,7 @@ const CHECK_EXTENSIONS = new Set([
 	'.yaml',
 	'.yml',
 ]);
-const SKIP_DIRS = new Set([
-	'node_modules',
-	'dist',
-	'.git',
-	'coverage',
-	'alfred',
-	'python',
-]);
+const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'coverage', 'alfred', 'python']);
 const ESCAPE_HATCH = /portability-ok\s*:/i;
 const PATTERNS = [
 	{
@@ -50,40 +43,35 @@ const PATTERNS = [
 		severity: 'error',
 		regex: /(?:^|[\s"'`(=])([A-Za-z]:\\[^'"`\s)]+)/g,
 		message: 'Windows absolute path detected',
-		suggestion:
-			'Use repo-relative paths or aliases instead of machine-specific drive paths.',
+		suggestion: 'Use repo-relative paths or aliases instead of machine-specific drive paths.',
 	},
 	{
 		id: 'windows-user-home',
 		severity: 'error',
 		regex: /C:\\Users\\[^\\'"`\s)]+/g,
 		message: 'Windows user-home absolute path detected',
-		suggestion:
-			'Use environment variables or relative paths instead of user profile paths.',
+		suggestion: 'Use environment variables or relative paths instead of user profile paths.',
 	},
 	{
 		id: 'unix-user-home',
 		severity: 'error',
 		regex: /(?:^|[\s"'`(=])(\/home\/[A-Za-z0-9._-]+(?:\/|\b))/g,
 		message: 'Unix home-directory absolute path detected',
-		suggestion:
-			'Use relative paths or environment variables instead of home-directory paths.',
+		suggestion: 'Use relative paths or environment variables instead of home-directory paths.',
 	},
 	{
 		id: 'mac-user-home',
 		severity: 'error',
 		regex: /(?:^|[\s"'`(=])(\/Users\/[A-Za-z0-9._-]+(?:\/|\b))/g,
 		message: 'macOS user-directory absolute path detected',
-		suggestion:
-			'Use relative paths or environment variables instead of user-directory paths.',
+		suggestion: 'Use relative paths or environment variables instead of user-directory paths.',
 	},
 	{
 		id: 'localhost-url',
 		severity: 'warn',
 		regex: /http:\/\/localhost:\d{4,5}/g,
 		message: 'Hardcoded localhost URL detected',
-		suggestion:
-			'Prefer configurable base URLs or documented setup defaults to avoid environment coupling.',
+		suggestion: 'Prefer configurable base URLs or documented setup defaults to avoid environment coupling.',
 	},
 ];
 
@@ -93,10 +81,7 @@ let checkedFiles = 0;
 
 function isSkippedPath(normalizedPath) {
 	// Skip packages/rust/ specifically (contains slash so check manually)
-	if (
-		normalizedPath.includes('/packages/rust/') ||
-		normalizedPath.includes('\\packages\\rust\\')
-	)
+	if (normalizedPath.includes('/packages/rust/') || normalizedPath.includes('\\packages\\rust\\'))
 		return true;
 	return false;
 }
@@ -135,28 +120,19 @@ function getInputFiles() {
 	for (const root of roots) {
 		collectFiles(resolve(root), files);
 	}
-	for (const file of [
-		'AGENTS.md',
-		'README.md',
-		'SETUP.md',
-		'CHANGELOG.md',
-		'CONTRIBUTING.md',
-	]) {
+	for (const file of ['AGENTS.md', 'README.md', 'SETUP.md', 'CHANGELOG.md', 'CONTRIBUTING.md']) {
 		const fullPath = resolve(file);
 		if (existsSync(fullPath)) files.push(fullPath);
 	}
 	return files;
 }
 
-function isAllowed(filePath, line, patternId) {
+function isAllowed(filePath, _line, patternId) {
 	const normalized = normalize(filePath).replace(/\\/g, '/');
 	if (normalized.endsWith('.md')) return true;
 
 	if (patternId === 'localhost-url') {
-		if (
-			normalized.endsWith('/vite.config.ts') ||
-			normalized.endsWith('/vitest.config.ts')
-		) {
+		if (normalized.endsWith('/vite.config.ts') || normalized.endsWith('/vitest.config.ts')) {
 			return true;
 		}
 	}
@@ -165,10 +141,7 @@ function isAllowed(filePath, line, patternId) {
 }
 
 function report(filePath, lineNum, severity, message, excerpt, suggestion) {
-	const name = normalize(filePath).replace(
-		process.cwd().replace(/\\/g, '/'),
-		'.'
-	);
+	const name = normalize(filePath).replace(process.cwd().replace(/\\/g, '/'), '.');
 	const label = severity === 'error' ? '✘' : '⚠';
 	if (severity === 'error') {
 		errors++;
@@ -230,9 +203,7 @@ if (warnings > 0) {
 	console.warn(`\n⚠  ${warnings} portability warning(s)`);
 }
 if (errors > 0) {
-	console.error(
-		`❌ ${errors} portability error(s) across ${checkedFiles} file(s) checked`
-	);
+	console.error(`❌ ${errors} portability error(s) across ${checkedFiles} file(s) checked`);
 	process.exit(1);
 }
 process.exit(0);
