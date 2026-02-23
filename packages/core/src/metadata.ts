@@ -189,6 +189,15 @@ export interface Alternative<T> {
  * };
  * ```
  */
+/**
+ * Severity levels for warnings.
+ *
+ * - 'info': Informational, no action needed
+ * - 'warning': Something to be aware of
+ * - 'caution': May need attention before proceeding
+ */
+export type WarningSeverity = 'info' | 'warning' | 'caution';
+
 export interface Warning {
 	/**
 	 * Machine-readable warning code.
@@ -203,12 +212,8 @@ export interface Warning {
 
 	/**
 	 * Severity level for UI treatment.
-	 *
-	 * - 'info': Informational, no action needed
-	 * - 'warning': Something to be aware of
-	 * - 'caution': May need attention before proceeding
 	 */
-	severity?: 'info' | 'warning' | 'caution';
+	severity?: WarningSeverity;
 
 	/**
 	 * Additional context or details.
@@ -260,7 +265,7 @@ export function updateStepStatus(
 export function createWarning(
 	code: string,
 	message: string,
-	severity: Warning['severity'] = 'warning'
+	severity: WarningSeverity = 'warning'
 ): Warning {
 	return { code, message, severity };
 }

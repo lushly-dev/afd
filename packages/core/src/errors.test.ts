@@ -146,6 +146,12 @@ describe('wrapError', () => {
 	});
 });
 
+describe('ErrorCodes', () => {
+	it('includes COMMAND_EXECUTION_ERROR', () => {
+		expect(ErrorCodes.COMMAND_EXECUTION_ERROR).toBe('COMMAND_EXECUTION_ERROR');
+	});
+});
+
 describe('isCommandError', () => {
 	it('returns true for valid CommandError objects', () => {
 		expect(isCommandError({ code: 'ERR', message: 'msg' })).toBe(true);
