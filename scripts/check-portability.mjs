@@ -148,7 +148,7 @@ function getInputFiles() {
 	return files;
 }
 
-function isAllowed(filePath, line, patternId) {
+function isAllowed(filePath, _line, patternId) {
 	const normalized = normalize(filePath).replace(/\\/g, '/');
 	if (normalized.endsWith('.md')) return true;
 

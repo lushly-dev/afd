@@ -18,7 +18,7 @@
  * Run via push:   git push (triggered by Lefthook)
  */
 
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
@@ -28,10 +28,7 @@ const SKIP_PACKAGES = new Set(['examples', 'rust']);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-let warnings = 0;
-
 function warn(msg) {
-	warnings++;
 	console.warn(`  ⚠ ${msg}`);
 }
 
@@ -110,12 +107,15 @@ function extractImports(content) {
 	// Match: dynamic import()
 	const dynamicRegex = /import\(\s*['"]([^'"]+)['"]\s*\)/g;
 
-	let match;
-	while ((match = importRegex.exec(content)) !== null) {
+	let match = importRegex.exec(content);
+	while (match !== null) {
 		imports.push(match[1]);
+		match = importRegex.exec(content);
 	}
-	while ((match = dynamicRegex.exec(content)) !== null) {
+	match = dynamicRegex.exec(content);
+	while (match !== null) {
 		imports.push(match[1]);
+		match = dynamicRegex.exec(content);
 	}
 	return imports;
 }

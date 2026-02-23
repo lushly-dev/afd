@@ -77,8 +77,7 @@ function shouldSkip(filePath) {
 	}
 
 	// Skip node_modules anywhere in path
-	if (normalized.includes('/node_modules/') || normalized.includes('\\node_modules\\'))
-		return true;
+	if (normalized.includes('/node_modules/') || normalized.includes('\\node_modules\\')) return true;
 
 	return false;
 }
