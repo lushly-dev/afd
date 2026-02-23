@@ -5,6 +5,7 @@ This module contains the foundational types used across all AFD applications:
 - CommandError: Structured error with recovery guidance
 - Metadata types: Source, PlanStep, Alternative, Warning
 - Handoff types: HandoffResult, HandoffCredentials, HandoffMetadata
+- Telemetry types: TelemetryEvent, TelemetrySink, ConsoleTelemetrySink
 """
 
 from afd.core.result import (
@@ -34,6 +35,7 @@ from afd.core.metadata import (
     PlanStepStatus,
     Alternative,
     Warning,
+    WarningSeverity,
     create_source,
     create_step,
     update_step_status,
@@ -47,6 +49,13 @@ from afd.core.commands import (
     CommandRegistry,
     create_command_registry,
 )
+from afd.core.telemetry import (
+    TelemetryEvent,
+    TelemetrySink,
+    ConsoleTelemetrySink,
+    create_telemetry_event,
+    is_telemetry_event,
+)
 from afd.core.handoff import (
     HandoffProtocol,
     HandoffCredentials,
@@ -58,6 +67,45 @@ from afd.core.handoff import (
     is_handoff_command,
     get_handoff_protocol,
     create_handoff,
+)
+from afd.core.batch import (
+    BatchCommand,
+    BatchOptions,
+    BatchRequest,
+    BatchCommandResult,
+    BatchSummary,
+    BatchTiming,
+    BatchWarning,
+    BatchResult,
+    create_batch_request,
+    calculate_batch_confidence,
+    create_batch_result,
+    create_failed_batch_result,
+    is_batch_request,
+    is_batch_result,
+    is_batch_command,
+)
+from afd.core.streaming import (
+    ProgressChunk,
+    DataChunk,
+    CompleteChunk,
+    ErrorChunk,
+    StreamChunk,
+    StreamOptions,
+    StreamCallbacks,
+    StreamableCommand,
+    create_progress_chunk,
+    create_data_chunk,
+    create_complete_chunk,
+    create_error_chunk,
+    is_progress_chunk,
+    is_data_chunk,
+    is_complete_chunk,
+    is_error_chunk,
+    is_stream_chunk,
+    is_streamable_command,
+    consume_stream,
+    collect_stream_data,
 )
 
 __all__ = [
@@ -86,6 +134,7 @@ __all__ = [
     "PlanStepStatus",
     "Alternative",
     "Warning",
+    "WarningSeverity",
     "create_source",
     "create_step",
     "update_step_status",
@@ -97,6 +146,12 @@ __all__ = [
     "CommandContext",
     "CommandRegistry",
     "create_command_registry",
+    # Telemetry types
+    "TelemetryEvent",
+    "TelemetrySink",
+    "ConsoleTelemetrySink",
+    "create_telemetry_event",
+    "is_telemetry_event",
     # Handoff types
     "HandoffProtocol",
     "HandoffCredentials",
@@ -108,4 +163,41 @@ __all__ = [
     "is_handoff_command",
     "get_handoff_protocol",
     "create_handoff",
+    # Batch types
+    "BatchCommand",
+    "BatchOptions",
+    "BatchRequest",
+    "BatchCommandResult",
+    "BatchSummary",
+    "BatchTiming",
+    "BatchWarning",
+    "BatchResult",
+    "create_batch_request",
+    "calculate_batch_confidence",
+    "create_batch_result",
+    "create_failed_batch_result",
+    "is_batch_request",
+    "is_batch_result",
+    "is_batch_command",
+    # Streaming types
+    "ProgressChunk",
+    "DataChunk",
+    "CompleteChunk",
+    "ErrorChunk",
+    "StreamChunk",
+    "StreamOptions",
+    "StreamCallbacks",
+    "StreamableCommand",
+    "create_progress_chunk",
+    "create_data_chunk",
+    "create_complete_chunk",
+    "create_error_chunk",
+    "is_progress_chunk",
+    "is_data_chunk",
+    "is_complete_chunk",
+    "is_error_chunk",
+    "is_stream_chunk",
+    "is_streamable_command",
+    "consume_stream",
+    "collect_stream_data",
 ]
