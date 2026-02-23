@@ -28,7 +28,10 @@ const SKIP_PACKAGES = new Set(['examples', 'rust']);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+let _warnings = 0;
+
 function warn(msg) {
+	_warnings++;
 	console.warn(`  ⚠ ${msg}`);
 }
 
