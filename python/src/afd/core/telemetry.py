@@ -99,8 +99,8 @@ class TelemetrySink(Protocol):
         """Flush any pending events to storage.
 
         Called during graceful shutdown to ensure all events are persisted.
+        Optional — implementations may omit this method (matches TS parity).
         """
-        ...
 
 
 class ConsoleTelemetrySink:
