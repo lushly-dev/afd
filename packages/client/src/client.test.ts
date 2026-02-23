@@ -1,47 +1,5 @@
-import type { McpRequest, McpResponse } from '@lushly-dev/afd-core';
 import { describe, expect, it, vi } from 'vitest';
 import { McpClient } from './client.js';
-import type { Transport } from './transport.js';
-
-/**
- * Create a mock transport for testing McpClient without network.
- */
-function _createMockTransport(overrides?: Partial<Transport>): Transport & {
-	messageHandler: ((response: McpResponse) => void) | null;
-	errorHandler: ((error: Error) => void) | null;
-	closeHandler: (() => void) | null;
-	sendMock: ReturnType<typeof vi.fn>;
-} {
-	let messageHandler: ((response: McpResponse) => void) | null = null;
-	let errorHandler: ((error: Error) => void) | null = null;
-	let closeHandler: (() => void) | null = null;
-	let connected = false;
-
-	const sendMock = vi.fn<(req: McpRequest) => Promise<McpResponse>>();
-
-	const transport: Transport = {
-		connect: vi.fn(async () => {
-			connected = true;
-		}),
-		disconnect: vi.fn(() => {
-			connected = false;
-		}),
-		send: sendMock,
-		isConnected: () => connected,
-		onMessage: (handler) => {
-			messageHandler = handler;
-		},
-		onError: (handler) => {
-			errorHandler = handler;
-		},
-		onClose: (handler) => {
-			closeHandler = handler;
-		},
-		...overrides,
-	};
-
-	return Object.assign(transport, { messageHandler, errorHandler, closeHandler, sendMock });
-}
 
 describe('McpClient - constructor', () => {
 	it('throws without url or endpoint', () => {

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createTransport, HttpTransport, SseTransport } from './transport.js';
 
 describe('createTransport', () => {
@@ -52,6 +52,10 @@ describe('SseTransport', () => {
 });
 
 describe('HttpTransport', () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it('converts /sse URL to /message', () => {
 		const transport = new HttpTransport('http://localhost:3100/sse');
 		expect(transport.url).toBe('http://localhost:3100/sse');
@@ -98,86 +102,69 @@ describe('HttpTransport', () => {
 	});
 
 	it('connect marks as connected (fallback path)', async () => {
-		// Mock fetch to simulate failed health check
-		const originalFetch = globalThis.fetch;
-		globalThis.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
+		vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
 
-		try {
-			const transport = new HttpTransport('http://localhost:3100/message');
-			await transport.connect();
-			// Fallback: marks as connected even if health check fails
-			expect(transport.isConnected()).toBe(true);
-		} finally {
-			globalThis.fetch = originalFetch;
-		}
+		const transport = new HttpTransport('http://localhost:3100/message');
+		await transport.connect();
+		// Fallback: marks as connected even if health check fails
+		expect(transport.isConnected()).toBe(true);
 	});
 
 	it('connect marks as connected on successful health check', async () => {
-		const originalFetch = globalThis.fetch;
-		globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
 
-		try {
-			const transport = new HttpTransport('http://localhost:3100/message');
-			await transport.connect();
-			expect(transport.isConnected()).toBe(true);
-		} finally {
-			globalThis.fetch = originalFetch;
-		}
+		const transport = new HttpTransport('http://localhost:3100/message');
+		await transport.connect();
+		expect(transport.isConnected()).toBe(true);
 	});
 
 	it('send throws on non-ok response', async () => {
-		const originalFetch = globalThis.fetch;
-		globalThis.fetch = vi.fn().mockResolvedValue({
-			ok: false,
-			status: 500,
-			statusText: 'Internal Server Error',
-		});
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({
+				ok: false,
+				status: 500,
+				statusText: 'Internal Server Error',
+			})
+		);
 
-		try {
-			const transport = new HttpTransport('http://localhost:3100/message');
-			await expect(transport.send({ jsonrpc: '2.0', id: 1, method: 'test' })).rejects.toThrow(
-				'HTTP error: 500 Internal Server Error'
-			);
-		} finally {
-			globalThis.fetch = originalFetch;
-		}
+		const transport = new HttpTransport('http://localhost:3100/message');
+		await expect(transport.send({ jsonrpc: '2.0', id: 1, method: 'test' })).rejects.toThrow(
+			'HTTP error: 500 Internal Server Error'
+		);
 	});
 
 	it('send throws on invalid MCP response', async () => {
-		const originalFetch = globalThis.fetch;
-		globalThis.fetch = vi.fn().mockResolvedValue({
-			ok: true,
-			json: async () => ({ not: 'an mcp response' }),
-		});
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({ not: 'an mcp response' }),
+			})
+		);
 
-		try {
-			const transport = new HttpTransport('http://localhost:3100/message');
-			await expect(transport.send({ jsonrpc: '2.0', id: 1, method: 'test' })).rejects.toThrow(
-				'Invalid MCP response received'
-			);
-		} finally {
-			globalThis.fetch = originalFetch;
-		}
+		const transport = new HttpTransport('http://localhost:3100/message');
+		await expect(transport.send({ jsonrpc: '2.0', id: 1, method: 'test' })).rejects.toThrow(
+			'Invalid MCP response received'
+		);
 	});
 
 	it('send returns valid MCP response and dispatches to message handler', async () => {
 		const validResponse = { jsonrpc: '2.0', id: 1, result: { tools: [] } };
-		const originalFetch = globalThis.fetch;
-		globalThis.fetch = vi.fn().mockResolvedValue({
-			ok: true,
-			json: async () => validResponse,
-		});
+		vi.stubGlobal(
+			'fetch',
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => validResponse,
+			})
+		);
 
-		try {
-			const transport = new HttpTransport('http://localhost:3100/message');
-			const messageHandler = vi.fn();
-			transport.onMessage(messageHandler);
+		const transport = new HttpTransport('http://localhost:3100/message');
+		const messageHandler = vi.fn();
+		transport.onMessage(messageHandler);
 
-			const response = await transport.send({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
-			expect(response.result).toEqual({ tools: [] });
-			expect(messageHandler).toHaveBeenCalledWith(validResponse);
-		} finally {
-			globalThis.fetch = originalFetch;
-		}
+		const response = await transport.send({ jsonrpc: '2.0', id: 1, method: 'tools/list' });
+		expect(response.result).toEqual({ tools: [] });
+		expect(messageHandler).toHaveBeenCalledWith(validResponse);
 	});
 });
