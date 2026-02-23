@@ -36,7 +36,7 @@ T = TypeVar("T")
 # TYPES
 # ═══════════════════════════════════════════════════════════════════════════════
 
-UUID_REGEX = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+UUID_REGEX = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
 
 
 @dataclass
@@ -263,7 +263,7 @@ def format_enhanced_validation_error(
 
     Args:
         errors: List of validation errors.
-        schema_info: Optional dict with expectedFields, unexpectedFields, missingFields.
+        schema_info: Optional dict with expected_fields, unexpected_fields, missing_fields.
 
     Returns:
         Formatted string with all available context.
