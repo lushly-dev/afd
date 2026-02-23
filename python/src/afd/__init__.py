@@ -147,6 +147,12 @@ from afd.direct import (
     create_direct_client,
     create_registry,
 )
+from afd.client import (
+    McpClient,
+    McpClientConfig,
+    ClientStatus,
+    create_client,
+)
 from afd.handoff_client import (
     HandoffConnectionState,
     HandoffConnection,
@@ -273,6 +279,11 @@ __all__ = [
     "PipelineResult",
     "create_direct_client",
     "create_registry",
+    # MCP Client (network)
+    "McpClient",
+    "McpClientConfig",
+    "ClientStatus",
+    "create_client",
     # Handoff client
     "HandoffConnectionState",
     "HandoffConnection",

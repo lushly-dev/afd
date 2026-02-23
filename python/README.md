@@ -20,6 +20,9 @@ pip install afd
 # With MCP server support
 pip install afd[server]
 
+# With MCP client (network transports)
+pip install afd[client]
+
 # With CLI
 pip install afd[cli]
 
@@ -229,6 +232,54 @@ class MyMonitoringSink:
         pass
 ```
 
+## MCP Client (Network)
+
+Connect to remote MCP servers over SSE or HTTP:
+
+```python
+from afd import McpClient, McpClientConfig, create_client
+
+# Quick setup
+client = create_client("http://localhost:3100/sse")
+await client.connect()
+
+# Call a command (returns CommandResult)
+result = await client.call("todo-create", {"title": "Hello"})
+print(result.data)
+
+# Raw tool call (no CommandResult wrapping)
+raw = await client.call_tool("ping", {})
+
+# Batch execution
+batch_result = await client.batch([
+    {"name": "todo-create", "input": {"title": "First"}},
+    {"name": "todo-create", "input": {"title": "Second"}},
+])
+
+# Pipeline
+pipe_result = await client.pipe([
+    {"command": "user-get", "input": {"id": 1}, "as": "user"},
+    {"command": "order-list", "input": {"user_id": "$user.id"}},
+])
+
+# Stream results
+async for chunk in client.stream("long-task", {"query": "..."}):
+    print(chunk)
+
+await client.disconnect()
+```
+
+Use transports directly for lower-level control:
+
+```python
+from afd.transports import SseTransport, HttpTransport, create_transport
+
+transport = create_transport("sse", "http://localhost:3100/sse")
+await transport.connect()
+result = await transport.call_tool("ping", {})
+await transport.disconnect()
+```
+
 ## Handoff Connections
 
 Connect to streaming protocols (WebSocket, SSE) returned by handoff commands:
@@ -276,7 +327,7 @@ if result.success and is_handoff(result.data):
 | ----------- | -------------------------------------------------------------------- |
 | (core)      | `CommandResult`, `success()`, `error()`, error types, metadata types |
 | `[server]`  | MCP server factory, `@define_command`, `create_server()`             |
-| `[client]`  | Handoff connection handlers (WebSocket via `websockets`, SSE via `httpx`) |
+| `[client]`  | `McpClient`, SSE/HTTP transports, handoff connection handlers       |
 | `[cli]`     | Click-based CLI for connecting to MCP servers                        |
 | `[testing]` | Assertions, helpers, validators, `mock_server` fixture, `MockTransport` |
 
