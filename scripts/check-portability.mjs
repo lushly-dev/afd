@@ -82,7 +82,8 @@ let checkedFiles = 0;
 
 function isSkippedPath(normalizedPath) {
 	// Skip packages/rust/ specifically (contains slash so check manually)
-	if (normalizedPath.includes('/packages/rust/') || normalizedPath.includes('\\packages\\rust\\')) return true;
+	if (normalizedPath.includes('/packages/rust/') || normalizedPath.includes('\\packages\\rust\\'))
+		return true;
 	return false;
 }
 

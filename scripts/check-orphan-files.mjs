@@ -28,10 +28,10 @@ const SKIP_PACKAGES = new Set(['examples', 'rust']);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-let warnings = 0;
+let _warnings = 0;
 
 function warn(msg) {
-	warnings++;
+	_warnings++;
 	console.warn(`  ⚠ ${msg}`);
 }
 
@@ -109,11 +109,10 @@ function extractImports(content) {
 	// Match: dynamic import()
 	const dynamicRegex = /import\(\s*['"]([^'"]+)['"]\s*\)/g;
 
-	let match;
-	while ((match = importRegex.exec(content)) !== null) {
+	for (const match of content.matchAll(importRegex)) {
 		imports.push(match[1]);
 	}
-	while ((match = dynamicRegex.exec(content)) !== null) {
+	for (const match of content.matchAll(dynamicRegex)) {
 		imports.push(match[1]);
 	}
 	return imports;
@@ -189,7 +188,7 @@ if (orphans.length === 0) {
 		`All ${sourceFiles.length} source files are referenced (${allFiles.length} total scanned across ${srcDirs.length} package(s))`
 	);
 } else {
-	console.warn("\n  Orphan files — not imported by any other source file:\n");
+	console.warn(`\n  Orphan files — not imported by any other source file:\n`);
 	for (const orphan of orphans) {
 		const rel = relative(process.cwd(), orphan).replace(/\\/g, '/');
 		warn(`${rel}`);
