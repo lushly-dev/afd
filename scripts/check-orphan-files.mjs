@@ -28,7 +28,10 @@ const SKIP_PACKAGES = new Set(['examples', 'rust']);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+let _warnings = 0;
+
 function warn(msg) {
+	_warnings++;
 	console.warn(`  ⚠ ${msg}`);
 }
 
@@ -102,20 +105,15 @@ function isEntryPoint(filePath) {
 function extractImports(content) {
 	const imports = [];
 	// Match: import ... from '...' / import '...' / export ... from '...'
-	const importRegex =
-		/(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]/g;
+	const importRegex = /(?:import|export)\s+(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]/g;
 	// Match: dynamic import()
 	const dynamicRegex = /import\(\s*['"]([^'"]+)['"]\s*\)/g;
 
-	let match = importRegex.exec(content);
-	while (match !== null) {
+	for (const match of content.matchAll(importRegex)) {
 		imports.push(match[1]);
-		match = importRegex.exec(content);
 	}
-	match = dynamicRegex.exec(content);
-	while (match !== null) {
+	for (const match of content.matchAll(dynamicRegex)) {
 		imports.push(match[1]);
-		match = dynamicRegex.exec(content);
 	}
 	return imports;
 }
@@ -190,16 +188,12 @@ if (orphans.length === 0) {
 		`All ${sourceFiles.length} source files are referenced (${allFiles.length} total scanned across ${srcDirs.length} package(s))`
 	);
 } else {
-	console.warn(
-		`\n  Orphan files — not imported by any other source file:\n`
-	);
+	console.warn(`\n  Orphan files — not imported by any other source file:\n`);
 	for (const orphan of orphans) {
 		const rel = relative(process.cwd(), orphan).replace(/\\/g, '/');
 		warn(`${rel}`);
 	}
-	console.warn(
-		`\n  💡 ${orphans.length} orphan(s) found. These files are not imported anywhere.`
-	);
+	console.warn(`\n  💡 ${orphans.length} orphan(s) found. These files are not imported anywhere.`);
 	console.warn(
 		`     If intentional (entry points, dynamic imports), add them to isEntryPoint() in this script.`
 	);
