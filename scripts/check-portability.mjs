@@ -71,7 +71,8 @@ const PATTERNS = [
 		severity: 'warn',
 		regex: /http:\/\/localhost:\d{4,5}/g,
 		message: 'Hardcoded localhost URL detected',
-		suggestion: 'Prefer configurable base URLs or documented setup defaults to avoid environment coupling.',
+		suggestion:
+			'Prefer configurable base URLs or documented setup defaults to avoid environment coupling.',
 	},
 ];
 
