@@ -20,6 +20,8 @@ pnpm -F @lushly-dev/afd-server build
 pnpm -F @lushly-dev/afd-client build
 pnpm -F @lushly-dev/afd-adapters build
 pnpm -F @lushly-dev/afd-auth build
+pnpm -F @lushly-dev/afd-cli build
+pnpm -F @lushly-dev/afd-testing build
 
 # Run all tests
 pnpm test
@@ -27,13 +29,18 @@ pnpm test
 # Run tests for specific package
 pnpm -F @lushly-dev/afd-core test
 pnpm -F @lushly-dev/afd-server test
+pnpm -F @lushly-dev/afd-client test
 pnpm -F @lushly-dev/afd-auth test
+pnpm -F @lushly-dev/afd-testing test
 
 # Run single test file
 cd packages/server && pnpm vitest run src/server.test.ts
 
 # Run tests in watch mode
 pnpm -F @lushly-dev/afd-server test:watch
+
+# Run tests with coverage
+pnpm test:coverage
 
 # Lint and format
 pnpm lint          # Check with Biome
@@ -45,11 +52,24 @@ pnpm typecheck
 
 # Quality gate (all checks)
 pnpm check
+
+# Python tests (alfred)
+cd alfred && uv run pytest tests/ -v
+
+# Python tests (afd)
+cd python && pip install -e ".[dev]" && pytest tests/ -v
 ```
+
+## Engine Requirements
+
+- **Node.js**: >=20.0.0
+- **pnpm**: >=9.0.0 (packageManager: pnpm@10.30.1)
+- **Python**: >=3.10 (afd package), >=3.11 (alfred)
+- **TypeScript**: ~5.9.x (strict mode, ES2022 target, NodeNext modules)
 
 ## Git Hooks (Lefthook)
 
-Lefthook manages git hooks. Installed automatically via `pnpm install`.
+Lefthook manages git hooks. Installed automatically via `pnpm install` (prepare script).
 
 | Hook | Commands | Trigger |
 |------|----------|--------|
@@ -57,6 +77,8 @@ Lefthook manages git hooks. Installed automatically via `pnpm install`.
 | commit-msg | commitlint (conventional commits) | `git commit` |
 | pre-push | Full lint, test, typecheck, portability, file-size, orphan-files | `git push` |
 | check | All pre-push + build | `npx lefthook run check` |
+
+All hooks run **sequentially** (not parallel) to prevent terminal buffer deadlocks on Windows.
 
 **Check scripts** (`scripts/`):
 
@@ -68,6 +90,33 @@ Lefthook manages git hooks. Installed automatically via `pnpm install`.
 
 Skip hooks: `git commit --no-verify` / `git push --no-verify`
 
+### Conventional Commits
+
+Commit messages are validated by commitlint. Required format: `type(scope): subject`
+
+**Allowed types**: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`, `build`, `ci`
+
+**Allowed scopes**: `core`, `server`, `client`, `auth`, `cli`, `testing`, `adapters`, `examples`, `alfred`, `python`, `rust`, `deps`
+
+- Subject max 72 characters, no period at end
+- No sentence-case, start-case, pascal-case, or upper-case subjects
+- Unscoped commits are also valid
+
+## CI/CD
+
+### GitHub Actions Workflows
+
+| Workflow | Trigger | What it does |
+|----------|---------|-------------|
+| `ci.yml` | Push to main, PRs to main | Lint, typecheck, build, test with coverage on Node 20.x and 22.x |
+| `release.yml` | Push to main | Changesets-based release — creates version PR or publishes to npm |
+| `publish-python.yml` | GitHub Release or `python-v*` tag | Tests, builds, and publishes Python package to PyPI via OIDC |
+
+### Release Pipeline
+
+- **TypeScript packages**: Changesets (`pnpm changeset`) manages versioning. All `@lushly-dev/*` packages are in a fixed version group.
+- **Python package**: Tagged releases with `python-v*` pattern. Uses PyPI Trusted Publishing (OIDC).
+
 ## Architecture Overview
 
 AFD (Agent-First Development) is a methodology where AI agents are first-class users. The architecture follows **Command-First**: all functionality is exposed as commands before any UI is built.
@@ -76,28 +125,49 @@ AFD (Agent-First Development) is a methodology where AI agents are first-class u
 
 ```
 packages/
-├── core/       # @lushly-dev/afd-core - Foundational types
-├── server/     # @lushly-dev/afd-server - MCP server factory
-├── client/     # @lushly-dev/afd-client - MCP client + DirectClient
-├── auth/       # @lushly-dev/afd-auth - Provider-agnostic auth adapter
-├── cli/        # @lushly-dev/afd-cli - Command-line tool
-├── testing/    # @lushly-dev/afd-testing - JTBD scenario runner + surface validation
-├── adapters/   # @lushly-dev/afd-adapters - Frontend adapters for rendering CommandResult
+├── core/       # @lushly-dev/afd-core      v0.1.1 - Foundational types and utilities
+├── server/     # @lushly-dev/afd-server     v0.1.1 - MCP server factory (Zod + middleware)
+├── client/     # @lushly-dev/afd-client     v0.1.1 - MCP client + DirectClient
+├── auth/       # @lushly-dev/afd-auth       v0.1.0 - Provider-agnostic auth adapter
+├── cli/        # @lushly-dev/afd-cli        v0.1.1 - Command-line tool
+├── testing/    # @lushly-dev/afd-testing    v0.1.1 - JTBD scenario runner + surface validation
+├── adapters/   # @lushly-dev/afd-adapters   v0.1.1 - Frontend adapters for CommandResult
+├── rust/       # afd (crate)                v0.1.0 - Core types for Rust (native + WASM)
 └── examples/
+    ├── chat/                # Handoff pattern demo (WebSocket real-time chat)
+    ├── showcase/            # Feature demos (auth, middleware, pipelines, expose/trust)
     ├── todo/                # Multi-stack example (TS, Python, Rust backends)
     └── todo-directclient/   # DirectClient + AI integration example
 
-python/
-├── src/afd/              # Python AFD package (pip install afd)
-│   ├── core/             # CommandResult, errors, metadata
-│   ├── server/           # FastMCP-based server factory
-│   └── lushx_ext/        # Lushx extension (auto-registered)
+python/                      # Python AFD package (pip install afd) v0.2.0
+├── src/afd/
+│   ├── core/                # CommandResult, errors, metadata, pipeline, handoff
+│   ├── server/              # FastMCP-based server factory with decorators
+│   ├── transports/          # Transport layer (base, FastMCP, mock)
+│   ├── testing/             # Assertions and fixtures
+│   ├── cli/                 # Click-based CLI
+│   ├── lushx_ext/           # Lushx extension (auto-registered linters)
+│   └── direct.py            # Direct client
 └── tests/
 
-alfred/                   # AFD quality bot (deterministic compliance checks)
-├── src/alfred/           # 3 commands: lint, parity, quality
-└── tests/                # 22 tests
+alfred/                      # AFD quality bot v0.1.0
+├── src/alfred/
+│   ├── commands/            # lint, parity, quality
+│   ├── cli.py               # Click CLI
+│   ├── plugin.py            # Botcore plugin (auto-discovered)
+│   └── mcp_server.py        # MCP server entry point
+└── tests/                   # 22 tests
 ```
+
+### Workspace Configuration
+
+The pnpm workspace (`pnpm-workspace.yaml`) includes:
+- `packages/*` — all core packages
+- `packages/examples/_shared/*` — shared example utilities
+- `packages/examples/chat` — chat example
+- `packages/examples/todo/backends/*` and `frontends/*` — todo backends/frontends
+- `packages/examples/todo-directclient/backend` — directclient example
+- `packages/examples/showcase/backend` — showcase demos
 
 ### Alfred (Quality Bot)
 
@@ -106,6 +176,8 @@ Deterministic architecture compliance checks so agents skip expensive reasoning.
 - **`alfred lint`** — Validates AFD architecture rules (6 lint rules across Python/TS/Rust)
 - **`alfred parity`** — Detects API surface drift between TypeScript, Python, and Rust packages
 - **`alfred quality`** — Checks command description quality (length, imperative voice, duplicates)
+
+Alfred is configured as an MCP server in `.claude/mcp.json` (runs via `uv`).
 
 See [alfred/AGENTS.md](alfred/AGENTS.md) for full command reference, lint rules, and development setup.
 
@@ -133,16 +205,19 @@ lushx dev afd-lint
 
 ### Core Types (`@lushly-dev/afd-core`)
 
-The foundation - defines types used everywhere:
+The foundation — defines types used across all packages:
 
 - **CommandResult<T>**: Standard result with `success`, `data`, `error`, plus UX fields (`confidence`, `reasoning`, `warnings`)
 - **CommandError**: Error with `code`, `message`, `suggestion` for actionable recovery
 - **CommandDefinition**: Full command schema with trust metadata (`destructive`, `confirmPrompt`, `undoable`, `expose`)
 - **ExposeOptions**: Interface exposure control (`palette`, `mcp`, `agent`, `cli`) with secure defaults
-- **PipelineRequest/PipelineResult**: Multi-step command chaining with variable resolution
+- **PipelineRequest/PipelineResult**: Multi-step command chaining with variable resolution and conditions
 - **HandoffResult**: Protocol handoff for real-time connections (WebSocket, SSE)
 - **BatchResult**: Batch execution with aggregated confidence
-- **Platform Utils**: Cross-platform `exec()`, `findUp()`, connectors (`GitHubConnector`, `PackageManagerConnector`)
+- **StreamChunk**: Streaming results with progress feedback (data, progress, error, complete chunks)
+- **TelemetryEvent/TelemetrySink**: Observability types
+- **Platform Utils**: Cross-platform `exec()`, `findUp()`, `normalizePath()`, OS detection (`isWindows`, `isMac`, `isLinux`)
+- **Connectors**: `GitHubConnector` (issues, PRs), `PackageManagerConnector` (npm/pnpm/yarn)
 
 ```typescript
 // Always return CommandResult from handlers
@@ -176,6 +251,8 @@ const server = createMcpServer({
 });
 ```
 
+**Key exports**: `defineCommand`, `createMcpServer`, `defaultMiddleware`, `success`, `failure`, validation utilities (`validateInput`, `validateOrThrow`, `patterns`), middleware factories (`createLoggingMiddleware`, `createRateLimitMiddleware`, `createRetryMiddleware`, `createTracingMiddleware`, `createTelemetryMiddleware`), bootstrap commands (`getBootstrapCommands`), handoff schemas.
+
 ### Client Package (`@lushly-dev/afd-client`)
 
 Two client types:
@@ -195,6 +272,30 @@ const result = await client.pipe([
 ]);
 ```
 
+### Auth Package (`@lushly-dev/afd-auth`)
+
+Provider-agnostic authentication adapter with:
+
+- **AuthAdapter interface**: Discriminated union session states
+- **Auth middleware**: For auth-gated commands
+- **React hooks**: `useAuth()` hook via `@lushly-dev/afd-auth/react` export
+- **Session sync**: Multi-tab session synchronization
+- **Provider support**: Convex Auth, Better Auth (both optional peer deps)
+
+### Testing Package (`@lushly-dev/afd-testing`)
+
+- **JTBD scenario runner**: Job-to-be-done test scenarios
+- **Surface validation**: Semantic quality analysis, schema complexity scoring
+- **Assertions and fixtures**: Test helpers for CommandResult validation
+
+### Rust Package (`packages/rust/`)
+
+Core AFD types implemented in Rust with dual target support:
+
+- **Native**: Full `tokio` async runtime
+- **WASM**: `wasm-bindgen` for browser/edge deployment
+- Mirrors core TypeScript types: `CommandResult`, `CommandError`, `Pipeline`, `Handoff`, `Batch`, `Streaming`
+
 ### Data Flow
 
 ```
@@ -212,6 +313,7 @@ Command Definition (Zod schema + handler)
 ### Command Naming
 - Use `domain-action` format: `todo-create`, `user-get`, `order-list`
 - Commands are kebab-case, not dot-separated
+- Validated by `validateCommandName()` and `afd-kebab-naming` lint rule
 
 ### CommandResult Fields
 - **Required**: `success`, `data` or `error`
@@ -223,13 +325,48 @@ Command Definition (Zod schema + handler)
 - Tests use Vitest with explicit imports (not globals)
 - Place tests in `src/**/*.test.ts`
 - Use `describe`/`it`/`expect` from 'vitest'
+- Python tests use pytest with pytest-asyncio (`asyncio_mode = "auto"`)
+- Rust tests use `#[tokio::test]` with `pretty_assertions`
 
 ### Biome Linting
-- Tab indentation, single quotes, trailing commas (es5)
-- `noExplicitAny: error` - avoid `any` types
-- `useImportType: error` - use `import type { ... }` for type-only imports
-- `noUnusedImports: error`, `noUnusedVariables: error`
-- `useNodejsImportProtocol: error` - use `node:` prefix for Node.js builtins
+
+Configuration in `biome.json`:
+
+**Formatter**:
+- Tab indentation, line width 100, LF line endings
+- Single quotes, trailing commas (es5), semicolons always
+
+**Linter rules** (all `error` unless noted):
+- `noExplicitAny` — avoid `any` types
+- `noImplicitAnyLet` — no untyped `let` declarations
+- `useImportType` — use `import type { ... }` for type-only imports
+- `noUnusedImports`, `noUnusedVariables` — clean imports
+- `useNodejsImportProtocol` — use `node:` prefix for Node.js builtins
+- `noNonNullAssertion` — no `!` assertions
+- `noConfusingVoidType` — no confusing `void` usage
+- `noArrayIndexKey` — no array index as React key
+- `useConst` — prefer `const` over `let`
+- `useLiteralKeys` — prefer literal object keys
+- `useExhaustiveDependencies` — React hooks deps (`warn`)
+- **a11y**: `noStaticElementInteractions`, `useKeyWithClickEvents`, `noLabelWithoutControl`
+- **security**: `noDangerouslySetInnerHtml`
+
+**Excluded from Biome**: `node_modules`, `dist`, `*.plan.md`, `_generated`, `alfred/`
+
+### TypeScript Configuration
+
+Root `tsconfig.json` settings:
+- `target`: ES2022, `module`: NodeNext, `moduleResolution`: NodeNext
+- `strict`: true, `noUncheckedIndexedAccess`: true
+- `verbatimModuleSyntax`: true — enforces explicit `import type`
+- `declaration`: true, `declarationMap`: true, `sourceMap`: true
+- All packages extend root config
+
+### Python Configuration
+
+**Ruff** (linter): line-length 100, selects E, F, I, N, W, UP, B, C4, SIM
+**mypy**: strict mode, Python 3.10 target
+**pytest**: asyncio auto mode, tests in `tests/`, src in `src/`
 
 ## Pipeline Variable Resolution
 
@@ -259,5 +396,6 @@ When working with pipelines, these variables are available:
 
 ## Related Documentation
 
-- **docs/specs/**: Specifications for handoff, pipelines, etc.
-- All guides have been migrated to skills (see Skill Index above)
+- **docs/features/**: Feature lifecycle — `proposed/`, `active/`, `complete/`
+- **docs/whitepaper/**: AFD Whitepaper
+- **alfred/AGENTS.md**: Alfred quality bot command reference
