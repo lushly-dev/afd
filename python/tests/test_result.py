@@ -204,6 +204,35 @@ class TestIsFailure:
         assert is_failure(result) is False
 
 
+class TestUndoFields:
+    """Tests for undo_command and undo_args fields."""
+
+    def test_undo_fields_on_command_result(self):
+        result: CommandResult[dict] = CommandResult(
+            success=True,
+            data={"id": "123"},
+            undo_command="todo-delete",
+            undo_args={"id": "123"},
+        )
+        assert result.undo_command == "todo-delete"
+        assert result.undo_args == {"id": "123"}
+
+    def test_undo_fields_default_to_none(self):
+        result = CommandResult(success=True, data={})
+        assert result.undo_command is None
+        assert result.undo_args is None
+
+    def test_undo_fields_through_success_factory(self):
+        result = success(
+            {"id": "456"},
+            undo_command="item-delete",
+            undo_args={"id": "456"},
+        )
+        assert result.success is True
+        assert result.undo_command == "item-delete"
+        assert result.undo_args == {"id": "456"}
+
+
 class TestResultMetadata:
     """Tests for ResultMetadata type."""
 

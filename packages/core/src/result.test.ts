@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { failure, isFailure, isSuccess, success } from './result.js';
+import { error, failure, isFailure, isSuccess, success } from './result.js';
 
 describe('success', () => {
 	it('creates a successful result with data', () => {
@@ -8,6 +8,15 @@ describe('success', () => {
 		expect(result.success).toBe(true);
 		expect(result.data).toEqual({ id: '123', name: 'Test' });
 		expect(result.error).toBeUndefined();
+	});
+
+	it('includes suggestions field', () => {
+		const result = success('data', {
+			suggestions: ['Try todo-list', 'Use todo-update'],
+		});
+
+		expect(result.success).toBe(true);
+		expect(result.suggestions).toEqual(['Try todo-list', 'Use todo-update']);
 	});
 
 	it('includes optional UX-enabling fields', () => {
@@ -48,6 +57,37 @@ describe('failure', () => {
 
 		expect(result.warnings).toHaveLength(1);
 		expect(result.metadata?.traceId).toBe('trace-123');
+	});
+});
+
+describe('error', () => {
+	it('creates a failure result with code and message', () => {
+		const result = error('NOT_FOUND', 'Resource not found');
+
+		expect(result.success).toBe(false);
+		expect(result.error).toBeDefined();
+		expect(result.error?.code).toBe('NOT_FOUND');
+		expect(result.error?.message).toBe('Resource not found');
+	});
+
+	it('includes optional suggestion', () => {
+		const result = error('NOT_FOUND', 'Not found', {
+			suggestion: 'Check the ID',
+		});
+
+		expect(result.error?.suggestion).toBe('Check the ID');
+	});
+
+	it('includes all optional fields', () => {
+		const result = error('VALIDATION_ERROR', 'Invalid input', {
+			suggestion: 'Fix the input',
+			retryable: false,
+			details: { field: 'email' },
+		});
+
+		expect(result.error?.suggestion).toBe('Fix the input');
+		expect(result.error?.retryable).toBe(false);
+		expect(result.error?.details).toEqual({ field: 'email' });
 	});
 });
 

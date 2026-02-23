@@ -52,6 +52,7 @@ client = [
 testing = [
     "pytest>=8.0",
     "pytest-asyncio>=0.23",
+    "pyyaml>=6.0",
 ]
 all = [
     "afd[server,cli,client,testing]",
@@ -95,3 +96,6 @@ warn_unused_ignores = true
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["src"]
+filterwarnings = [
+    "ignore::pytest.PytestCollectionWarning",
+]
