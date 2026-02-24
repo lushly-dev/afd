@@ -848,14 +848,27 @@ h3 {
 		overflow-x: hidden;
 	}
 
+	/* Dark sections go edge-to-edge on mobile — no side gutters */
+	.section--dark {
+		padding-left: 0;
+		padding-right: 0;
+	}
+
+	.section--dark > * {
+		padding-left: var(--space-inset);
+		padding-right: var(--space-inset);
+	}
+
 	/* Hero — more breathing room below nav */
 	.hero {
 		padding-top: 8rem;
 	}
 
 	.inset-frame {
-		margin: var(--space-sm);
-		padding: var(--space-xl) var(--space-lg);
+		margin: 0;
+		padding: var(--space-xl) var(--space-inset);
+		border-left: 0;
+		border-right: 0;
 	}
 
 	/* Diagrams/images — full width, no shrinking */
