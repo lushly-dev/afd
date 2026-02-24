@@ -823,3 +823,77 @@ h3 {
 		text-align: center;
 	}
 }
+
+@media (max-width: 768px) {
+	/* Prevent code blocks from blowing out the layout */
+	.code-block {
+		padding: var(--space-md);
+		font-size: var(--text-xs);
+		max-width: 100%;
+		box-sizing: border-box;
+	}
+
+	.code-block pre {
+		white-space: pre-wrap;
+		word-break: break-word;
+	}
+
+	/* Constrain all sections and frames */
+	.section {
+		padding: var(--space-section) var(--space-inset);
+		overflow-x: hidden;
+	}
+
+	.inset-frame {
+		margin: var(--space-sm);
+		padding: var(--space-xl) var(--space-lg);
+	}
+
+	/* Diagrams/images — full width, no shrinking */
+	.diagram__svg {
+		width: 100% !important;
+		max-width: 100% !important;
+		height: auto;
+	}
+
+	.diagram--judgment .diagram__svg {
+		width: 100vw;
+	}
+
+	.hero-bg {
+		width: 100vw;
+		opacity: 0.3;
+	}
+
+	/* Cards — reduce padding */
+	.structural-card {
+		padding: var(--space-lg);
+	}
+
+	/* Comparison cards — tighter */
+	.comparison-card {
+		padding: var(--space-md);
+	}
+
+	/* Error comparison grid gap */
+	.error-comparison {
+		gap: var(--space-md);
+	}
+
+	/* Footer */
+	.footer {
+		margin: var(--space-sm);
+		padding: var(--space-xl);
+	}
+
+	/* Hero subtitle */
+	.hero-subtitle {
+		font-size: var(--text-lg);
+	}
+
+	/* Button — full width on mobile */
+	.btn {
+		width: 100%;
+		text-align: center;
+	}
+}
