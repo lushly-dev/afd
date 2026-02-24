@@ -814,6 +814,9 @@ h3 {
 	.grid-3 {
 		grid-template-columns: 1fr;
 	}
+	.grid-3 {
+		gap: var(--space-lg);
+	}
 	.nav-links {
 		display: none;
 	}
