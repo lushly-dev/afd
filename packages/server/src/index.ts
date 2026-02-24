@@ -134,13 +134,19 @@ export {
 } from './server.js';
 // Validation utilities
 export {
+	type DateRange,
 	type EnhancedValidationResult,
 	formatEnhancedValidationError,
 	formatValidationErrors,
 	isValid,
 	optional,
+	type Pagination,
+	type PaginationInput,
 	patterns,
 	type SchemaInfo,
+	type Search,
+	type Sorting,
+	type SortingInput,
 	type ValidationError,
 	ValidationException,
 	type ValidationResult,

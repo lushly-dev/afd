@@ -179,7 +179,41 @@ export const patterns = {
 		limit: z.number().int().min(1).max(100).default(20),
 		offset: z.number().int().nonnegative().default(0),
 	}),
+	sorting: z.object({
+		sortBy: z.string().min(1),
+		sortDirection: z.enum(['asc', 'desc']).default('asc'),
+	}),
+	search: z.object({
+		query: z.string().min(1),
+		fields: z.array(z.string().min(1)).optional(),
+	}),
+	dateRange: z.object({
+		startDate: z.string().datetime(),
+		endDate: z.string().datetime(),
+	}),
 };
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// INFERRED TYPES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Inferred input type for pagination schema (before defaults applied). */
+export type PaginationInput = z.input<typeof patterns.pagination>;
+
+/** Inferred output type for pagination schema (after defaults applied). */
+export type Pagination = z.output<typeof patterns.pagination>;
+
+/** Inferred input type for sorting schema (before defaults applied). */
+export type SortingInput = z.input<typeof patterns.sorting>;
+
+/** Inferred output type for sorting schema (after defaults applied). */
+export type Sorting = z.output<typeof patterns.sorting>;
+
+/** Inferred type for search schema. */
+export type Search = z.infer<typeof patterns.search>;
+
+/** Inferred type for date range schema. */
+export type DateRange = z.infer<typeof patterns.dateRange>;
 
 export function optional<T extends ZodType>(schema: T) {
 	return schema.optional();
