@@ -870,12 +870,21 @@ h3 {
 
 	/* Cards — reduce padding */
 	.structural-card {
-		padding: var(--space-lg);
+		padding: var(--space-md);
 	}
 
 	/* Comparison cards — tighter */
 	.comparison-card {
-		padding: var(--space-md);
+		padding: var(--space-sm);
+	}
+
+	/* Paragraph text — scale down */
+	body {
+		font-size: var(--text-md);
+	}
+
+	.section-lead {
+		font-size: var(--text-md);
 	}
 
 	/* Error comparison grid gap */
