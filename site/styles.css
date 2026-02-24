@@ -848,6 +848,11 @@ h3 {
 		overflow-x: hidden;
 	}
 
+	/* Hero — more breathing room below nav */
+	.hero {
+		padding-top: 8rem;
+	}
+
 	.inset-frame {
 		margin: var(--space-sm);
 		padding: var(--space-xl) var(--space-lg);
