@@ -861,14 +861,19 @@ h3 {
 
 	/* Hero — more breathing room below nav */
 	.hero {
-		padding-top: 8rem;
+		padding-top: 10rem;
 	}
 
 	.inset-frame {
 		margin: 0;
-		padding: var(--space-xl) var(--space-inset);
+		padding: var(--space-xl) 0;
 		border-left: 0;
 		border-right: 0;
+	}
+
+	.inset-frame > * {
+		padding-left: var(--space-md);
+		padding-right: var(--space-md);
 	}
 
 	/* Diagrams/images — full width, no shrinking */
