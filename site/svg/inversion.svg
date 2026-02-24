@@ -1,0 +1,21 @@
+<svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+	<!-- Command Block / Terminal (Solid, bold) -->
+	<path d="M 5,25 L 65,15 L 75,75 L 15,85 Z" fill="#07bcbf" />
+	<!-- Terminal ">_" details -->
+	<path d="M 20,40 L 35,50 L 20,60" fill="none" stroke="#F4F0EA" stroke-width="4" stroke-linecap="square" stroke-linejoin="miter" />
+	<path d="M 40,65 L 55,62" stroke="#F4F0EA" stroke-width="4" stroke-linecap="square" />
+
+	<!-- Connection Arrow -->
+	<path d="M 75,48 L 105,43" stroke="#F4F0EA" stroke-width="6" stroke-linecap="square" />
+	<polygon points="100,35 120,41 103,53" fill="#F4F0EA" />
+
+	<!-- UI Layer as thin wrapper -->
+	<path d="M 125,15 L 185,5 L 195,85 L 135,95 Z" fill="none" stroke="#F4F0EA" stroke-width="4" />
+	<path d="M 128,30 L 186,20" fill="none" stroke="#F4F0EA" stroke-width="4" />
+	<circle cx="140" cy="22" r="3" fill="#F4F0EA" />
+	<circle cx="150" cy="20" r="3" fill="#F4F0EA" />
+
+	<!-- UI content lines -->
+	<path d="M 140,45 L 175,40" stroke="#F4F0EA" stroke-width="4" />
+	<path d="M 145,65 L 170,60" stroke="#F4F0EA" stroke-width="4" />
+</svg>

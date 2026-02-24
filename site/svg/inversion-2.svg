@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 671.35 207.65">
+  <!-- Generator: Adobe Illustrator 30.2.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 1)  -->
+  <defs>
+    <style>
+      .st0 {
+        stroke-dasharray: 8 4;
+      }
+
+      .st0, .st1, .st2, .st3, .st4, .st5, .st6, .st7, .st8, .st9, .st10 {
+        fill: none;
+      }
+
+      .st0, .st1, .st3, .st5, .st8, .st9 {
+        stroke-width: 4px;
+      }
+
+      .st0, .st1, .st6, .st9, .st10 {
+        stroke: #07bcbf;
+      }
+
+      .st11, .st2, .st7, .st8, .st12 {
+        isolation: isolate;
+      }
+
+      .st11, .st7, .st8 {
+        opacity: .6;
+      }
+
+      .st11, .st13, .st12 {
+        fill: #f4f0ea;
+      }
+
+      .st2 {
+        opacity: .5;
+      }
+
+      .st2, .st3, .st4, .st5, .st7, .st8 {
+        stroke: #f4f0ea;
+      }
+
+      .st2, .st6, .st10 {
+        stroke-miterlimit: 4;
+      }
+
+      .st2, .st10 {
+        stroke-width: 2.64px;
+      }
+
+      .st4 {
+        stroke-width: 3.96px;
+      }
+
+      .st14 {
+        fill: #e53935;
+      }
+
+      .st5 {
+        stroke-linecap: square;
+      }
+
+      .st6 {
+        stroke-width: 3.96px;
+      }
+
+      .st7 {
+        stroke-dasharray: 2 6;
+        stroke-width: 2px;
+      }
+
+      .st15 {
+        fill: #fff;
+        opacity: .15;
+      }
+
+      .st8 {
+        stroke-dasharray: 6 4;
+      }
+
+      .st9 {
+        stroke-dasharray: 10 5;
+      }
+
+      .st12 {
+        opacity: .1;
+      }
+    </style>
+  </defs>
+  <g>
+    <polygon class="st15" points="27.61 30.97 227 33.06 224.77 166.54 23.77 166.61 27.61 30.97"/>
+    <line class="st0" x1="38.4" y1="56.81" x2="139.39" y2="51.8"/>
+    <line class="st1" x1="38.26" y1="72.66" x2="174.58" y2="66.14"/>
+    <line class="st9" x1="39.4" y1="89.9" x2="110.05" y2="86.89"/>
+  </g>
+  <g>
+    <line class="st8" x1="203.52" y1="101.91" x2="242.67" y2="100.01"/>
+    <polygon class="st11" points="239.85 110.32 249.85 100.32 239.85 90.32 239.85 110.32"/>
+  </g>
+  <g>
+    <polygon class="st14" points="253.22 41.08 439.09 36.87 434.48 161.74 257.91 164.97 253.22 41.08"/>
+    <path class="st5" d="M282.68,88.13l17.58,14.19-16.28,12.53"/>
+    <line class="st3" x1="303.63" y1="114.85" x2="323.82" y2="113.79"/>
+    <path class="st5" d="M382.93,117.08l20-30"/>
+    <path class="st5" d="M382.93,86.85l21.03,29.29"/>
+  </g>
+  <g>
+    <line class="st8" x1="425.45" y1="105.21" x2="464.7" y2="104.43"/>
+    <polygon class="st11" points="462.57 114.9 473.04 105.4 463.54 94.93 462.57 114.9"/>
+  </g>
+  <g>
+    <polygon class="st4" points="483.07 37.9 637.61 34.09 637.24 162.94 475.68 169.4 483.07 37.9"/>
+    <polygon class="st12" points="483.07 37.9 636.57 35.13 637.38 61.88 483.67 62.4 483.07 37.9"/>
+    <path class="st13" d="M491.17,47.37c1.66,0,3,1.34,3,4.23s-1.34,4.23-3,4.23-3-1.34-3-4.23,1.34-4.23,3-4.23Z"/>
+    <path class="st13" d="M502.15,47.07c1.66,0,3,1.34,3,4.23s-1.34,4.23-3,4.23-3-1.34-3-4.23,1.34-4.23,3-4.23Z"/>
+    <path class="st13" d="M513.58,45.13c1.66,0,3,1.34,3,4.23s-1.34,4.23-3,4.23-3-1.34-3-4.23,1.34-4.23,3-4.23Z"/>
+    <polygon class="st10" points="495.89 75.78 597.46 72.17 595.87 98.47 494.3 102.08 495.89 75.78"/>
+    <line class="st6" x1="504.68" y1="88.02" x2="545.15" y2="84.46"/>
+    <polygon class="st2" points="493 118.41 517.97 116.83 516.36 144.29 491.4 145.88 493 118.41"/>
+    <polygon class="st2" points="543.47 118.31 563.44 116.49 564.23 142.58 544.26 144.4 543.47 118.31"/>
+    <polygon class="st2" points="589.81 118.31 612.17 116.27 610.57 142.58 590.6 144.4 589.81 118.31"/>
+  </g>
+  <polygon class="st7" points="8.04 5.91 655.7 5.91 652.91 201.39 14.95 194.44 8.04 5.91"/>
+</svg>

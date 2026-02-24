@@ -1,0 +1,17 @@
+<svg viewBox="0 0 600 150" xmlns="http://www.w3.org/2000/svg">
+	<!-- Define -->
+	<polygon points="10,40 150,50 145,100 5,90" fill="#181818" stroke="#F4F0EA" stroke-width="3" />
+	<text x="80" y="80" font-family="'JetBrains Mono', monospace" font-size="18" fill="#F4F0EA" font-weight="bold" text-anchor="middle">DEFINE</text>
+
+	<!-- Validate -->
+	<polygon points="230,55 370,45 365,95 225,105" fill="#E53935" />
+	<text x="300" y="80" font-family="'JetBrains Mono', monospace" font-size="18" fill="#181818" font-weight="bold" text-anchor="middle">VALIDATE</text>
+
+	<!-- Surface -->
+	<polygon points="450,45 590,55 585,105 445,95" fill="#07bcbf" />
+	<text x="520" y="85" font-family="'JetBrains Mono', monospace" font-size="18" fill="#F4F0EA" font-weight="bold" text-anchor="middle">SURFACE</text>
+
+	<!-- Arrows -->
+	<line x1="160" y1="75" x2="210" y2="75" stroke="#F4F0EA" stroke-width="5" stroke-dasharray="10 5" stroke-linecap="square" />
+	<line x1="380" y1="75" x2="430" y2="75" stroke="#F4F0EA" stroke-width="5" stroke-dasharray="10 5" stroke-linecap="square" />
+</svg>

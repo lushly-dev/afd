@@ -1,0 +1,24 @@
+<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+	<!-- Core Chunk -->
+	<polygon points="110,110 190,105 180,185 105,190" fill="#E53935" />
+	<text x="145" y="155" font-family="'Archivo Black', sans-serif" font-size="20" fill="#F4F0EA" font-weight="bold" text-anchor="middle">CORE</text>
+
+	<polygon points="60,60 250,50 260,240 40,250" fill="none" stroke="#181818" stroke-width="2" stroke-dasharray="12 8" />
+
+	<!-- Language Nodes -->
+	<polygon points="120,40 170,35 180,80 130,85" fill="#181818" stroke="#07bcbf" stroke-width="4" />
+	<text x="150" y="65" font-family="'JetBrains Mono', monospace" font-size="14" fill="#F4F0EA" font-weight="bold" text-anchor="middle">TS</text>
+
+	<polygon points="40,120 90,110 100,165 45,170" fill="#181818" />
+	<text x="70" y="150" font-family="'JetBrains Mono', monospace" font-size="14" fill="#F4F0EA" font-weight="bold" text-anchor="middle">PY</text>
+
+	<polygon points="210,130 260,115 270,175 205,185" fill="#181818" />
+	<text x="235" y="155" font-family="'JetBrains Mono', monospace" font-size="14" fill="#F4F0EA" font-weight="bold" text-anchor="middle">RS</text>
+
+	<!-- MCP Node -->
+	<polygon points="120,220 180,210 190,270 115,280" fill="#F4F0EA" stroke="#07bcbf" stroke-width="4" />
+	<text x="150" y="255" font-family="'JetBrains Mono', monospace" font-size="14" fill="#181818" font-weight="bold" text-anchor="middle">MCP</text>
+
+	<!-- Core to MCP line -->
+	<line x1="145" y1="185" x2="150" y2="215" stroke="#181818" stroke-width="4" />
+</svg>

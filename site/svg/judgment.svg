@@ -1,0 +1,23 @@
+<svg viewBox="0 0 300 150" xmlns="http://www.w3.org/2000/svg">
+	<!-- Chunky nodes -->
+	<polygon points="10,10 90,15 85,55 5,50" fill="none" stroke="#181818" stroke-width="3" />
+	<text x="45" y="38" font-family="'JetBrains Mono', monospace" font-size="16" fill="#181818" font-weight="bold" text-anchor="middle">DATA</text>
+
+	<polygon points="15,100 95,95 85,135 5,145" fill="none" stroke="#07bcbf" stroke-width="4" />
+	<text x="45" y="125" font-family="'JetBrains Mono', monospace" font-size="16" fill="#07bcbf" font-weight="bold" text-anchor="middle">CONF</text>
+
+	<polygon points="210,5 290,10 295,45 205,55" fill="none" stroke="#E53935" stroke-width="4" />
+	<text x="250" y="35" font-family="'JetBrains Mono', monospace" font-size="16" fill="#E53935" font-weight="bold" text-anchor="middle">REASON</text>
+
+	<polygon points="205,100 295,90 285,140 215,145" fill="none" stroke="#181818" stroke-width="3" />
+	<text x="250" y="125" font-family="'JetBrains Mono', monospace" font-size="16" fill="#181818" font-weight="bold" text-anchor="middle">PLAN</text>
+
+	<polygon points="120,50 180,45 170,105 130,95" fill="#181818" />
+	<text x="150" y="80" font-family="'JetBrains Mono', monospace" font-size="20" fill="#F4F0EA" font-weight="bold" text-anchor="middle">AI</text>
+
+	<!-- Connecting Lines -->
+	<line x1="90" y1="35" x2="130" y2="60" stroke="#181818" stroke-width="3" stroke-dasharray="6 6" />
+	<line x1="85" y1="115" x2="140" y2="90" stroke="#07bcbf" stroke-width="4" stroke-dasharray="8 8" />
+	<line x1="210" y1="30" x2="165" y2="60" stroke="#E53935" stroke-width="4" stroke-dasharray="8 8" />
+	<line x1="215" y1="120" x2="160" y2="90" stroke="#181818" stroke-width="3" stroke-dasharray="6 6" />
+</svg>

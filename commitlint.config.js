@@ -21,6 +21,7 @@ export default {
 				'alfred',
 				'python',
 				'rust',
+				'site',
 				'deps',
 			],
 		],

@@ -1,0 +1,66 @@
+<svg viewBox="0 0 800 340" xmlns="http://www.w3.org/2000/svg">
+	<style>
+		@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&amp;family=Archivo+Black&amp;display=swap');
+	</style>
+
+	<!-- CommandResult manifest block — tilted, heavy -->
+	<polygon points="20,30 310,15 300,295 10,310" fill="#181818" />
+	<polygon points="25,35 305,20 296,290 16,305" fill="none" stroke="#F4F0EA" stroke-width="1.5" stroke-dasharray="4 3" />
+
+	<!-- Header bar -->
+	<polygon points="30,38 300,24 297,60 27,74" fill="#E53935" />
+	<text x="162" y="56" font-family="'Archivo Black', sans-serif" font-size="16" fill="#F4F0EA" text-anchor="middle" letter-spacing="2">COMMAND RESULT</text>
+
+	<!-- Field rows -->
+	<!-- success -->
+	<line x1="35" y1="95" x2="290" y2="82" stroke="#F4F0EA" stroke-width="1" opacity="0.2" />
+	<text x="45" y="92" font-family="'JetBrains Mono', monospace" font-size="11" fill="#F4F0EA" opacity="0.5">success</text>
+	<text x="160" y="92" font-family="'JetBrains Mono', monospace" font-size="13" fill="#07bcbf" font-weight="bold">true ✓</text>
+
+	<!-- data -->
+	<line x1="38" y1="130" x2="288" y2="117" stroke="#F4F0EA" stroke-width="1" opacity="0.2" />
+	<text x="48" y="125" font-family="'JetBrains Mono', monospace" font-size="11" fill="#F4F0EA" opacity="0.5">data</text>
+	<text x="160" y="125" font-family="'JetBrains Mono', monospace" font-size="12" fill="#F4F0EA" font-weight="bold">{ id: 42, role: "admin" }</text>
+
+	<!-- confidence -->
+	<line x1="40" y1="165" x2="286" y2="152" stroke="#F4F0EA" stroke-width="1" opacity="0.2" />
+	<text x="50" y="160" font-family="'JetBrains Mono', monospace" font-size="11" fill="#07bcbf" font-weight="bold">confidence</text>
+	<rect x="160" y="147" width="105" height="14" fill="none" stroke="#07bcbf" stroke-width="2" />
+	<rect x="162" y="149" width="87" height="10" fill="#07bcbf" opacity="0.8" />
+	<text x="280" y="160" font-family="'JetBrains Mono', monospace" font-size="12" fill="#07bcbf" font-weight="bold">0.85</text>
+
+	<!-- reasoning -->
+	<line x1="42" y1="200" x2="284" y2="187" stroke="#F4F0EA" stroke-width="1" opacity="0.2" />
+	<text x="52" y="195" font-family="'JetBrains Mono', monospace" font-size="11" fill="#E53935" font-weight="bold">reasoning</text>
+	<text x="160" y="195" font-family="'JetBrains Mono', monospace" font-size="11" fill="#F4F0EA">"Matched by email."</text>
+
+	<!-- suggestions -->
+	<line x1="44" y1="235" x2="282" y2="222" stroke="#F4F0EA" stroke-width="1" opacity="0.2" />
+	<text x="54" y="230" font-family="'JetBrains Mono', monospace" font-size="11" fill="#F4F0EA" opacity="0.5">suggestions</text>
+	<polygon points="160,220 285,215 283,240 158,245" fill="none" stroke="#F4F0EA" stroke-width="1.5" stroke-dasharray="3 3" />
+	<text x="170" y="235" font-family="'JetBrains Mono', monospace" font-size="10" fill="#F4F0EA">"Review role assignments"</text>
+
+	<!-- warnings badge -->
+	<polygon points="46,258 155,252 153,278 44,284" fill="#E53935" opacity="0.15" />
+	<polygon points="46,258 155,252 153,278 44,284" fill="none" stroke="#E53935" stroke-width="1.5" />
+	<text x="56" y="273" font-family="'JetBrains Mono', monospace" font-size="10" fill="#E53935" font-weight="bold">⚠ Elevated privileges</text>
+
+	<!-- Flow arrow to agent -->
+	<line x1="310" y1="170" x2="480" y2="170" stroke="#F4F0EA" stroke-width="4" />
+	<line x1="395" y1="170" x2="480" y2="170" stroke="#07bcbf" stroke-width="4" />
+	<polygon points="475,155 505,170 475,185" fill="#07bcbf" />
+
+	<!-- Agent block -->
+	<polygon points="510,100 780,100 780,240 510,240" fill="#181818" />
+	<polygon points="515,105 775,105 775,235 515,235" fill="none" stroke="#07bcbf" stroke-width="3" />
+
+	<!-- Agent eye -->
+	<path d="M 615,150 Q 645,125 675,150 Q 645,175 615,150 Z" fill="none" stroke="#07bcbf" stroke-width="3" />
+	<circle cx="645" cy="150" r="8" fill="#07bcbf" />
+	<circle cx="645" cy="150" r="3" fill="#181818" />
+
+	<!-- Agent label -->
+	<text x="645" y="195" font-family="'Archivo Black', sans-serif" font-size="24" fill="#F4F0EA" text-anchor="middle" letter-spacing="2">AGENT</text>
+	<text x="645" y="215" font-family="'JetBrains Mono', monospace" font-size="12" fill="#07bcbf" text-anchor="middle">Receives structured context</text>
+	<text x="645" y="230" font-family="'JetBrains Mono', monospace" font-size="12" fill="#07bcbf" text-anchor="middle">instead of raw strings</text>
+</svg>

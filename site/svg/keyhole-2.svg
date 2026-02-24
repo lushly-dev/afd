@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="0 0 455.22 186">
+  <!-- Generator: Adobe Illustrator 30.2.1, SVG Export Plug-In . SVG Version: 2.1.1 Build 1)  -->
+  <defs>
+    <style>
+      .st0 {
+        fill: #181818;
+      }
+
+      .st1 {
+        opacity: .5;
+      }
+
+      .st1, .st2, .st3, .st4, .st5, .st6, .st7, .st8, .st9 {
+        fill: none;
+      }
+
+      .st1, .st3, .st5, .st10, .st9 {
+        isolation: isolate;
+      }
+
+      .st1, .st6, .st7, .st9 {
+        stroke: #e53935;
+      }
+
+      .st1, .st9 {
+        stroke-dasharray: 2 2;
+      }
+
+      .st11 {
+        fill: #2a2a2a;
+      }
+
+      .st12 {
+        fill: #07bcbf;
+      }
+
+      .st2, .st3 {
+        stroke: #07bcbf;
+        stroke-width: 4px;
+      }
+
+      .st3 {
+        stroke-dasharray: 2 3;
+      }
+
+      .st3, .st5, .st9 {
+        opacity: .4;
+      }
+
+      .st4 {
+        stroke: #2a2a2a;
+      }
+
+      .st4, .st5, .st6, .st7, .st9 {
+        stroke-width: 2px;
+      }
+
+      .st13, .st10 {
+        fill: #e53935;
+      }
+
+      .st5 {
+        stroke-dasharray: 2 4;
+      }
+
+      .st5, .st8 {
+        stroke: #f4f0ea;
+      }
+
+      .st7 {
+        stroke-dasharray: 4 2;
+      }
+
+      .st14 {
+        fill: #f4f0ea;
+      }
+
+      .st8 {
+        stroke-linecap: round;
+        stroke-width: 3px;
+      }
+
+      .st10 {
+        opacity: .1;
+      }
+    </style>
+  </defs>
+  <polygon class="st10" points="360.57 92.3 172.43 77.3 172.43 107.3 360.57 92.3"/>
+  <polygon class="st0" points="3.04 2.3 168.04 2.3 168.04 182.3 3.04 182.3 3.04 2.3"/>
+  <rect class="st4" x="13.04" y="12.3" width="145" height="40"/>
+  <rect class="st11" x="18.04" y="17.3" width="55" height="10"/>
+  <rect class="st11" x="18.04" y="32.3" width="95" height="5"/>
+  <rect class="st4" x="13.04" y="62.3" width="145" height="40"/>
+  <circle class="st11" cx="138.04" cy="82.3" r="10"/>
+  <rect class="st4" x="13.04" y="112.3" width="145" height="60"/>
+  <rect class="st11" x="18.04" y="117.3" width="135" height="5"/>
+  <rect class="st11" x="18.04" y="127.3" width="135" height="5"/>
+  <rect class="st11" x="18.04" y="137.3" width="95" height="5"/>
+  <rect class="st14" x="163.04" y="70.3" width="9.39" height="43"/>
+  <line class="st3" x1="88.04" y1="92.3" x2="168.04" y2="92.3"/>
+  <circle class="st12" cx="88.04" cy="92.3" r="3"/>
+  <line class="st9" x1="128.04" y1="82.3" x2="168.04" y2="82.3"/>
+  <line class="st5" x1="148.04" y1="102.3" x2="168.04" y2="102.3"/>
+  <line class="st2" x1="181.7" y1="92.3" x2="268.7" y2="92.3"/>
+  <line class="st7" x1="177.52" y1="92.3" x2="370.57" y2="92.3"/>
+  <polygon class="st13" points="182.52 87.3 172.52 92.3 182.52 97.3 182.52 87.3"/>
+  <polygon class="st8" points="370.57 72.3 449.35 92.3 370.57 112.3 360.57 92.3 370.57 72.3"/>
+  <line class="st1" x1="359.87" y1="92.3" x2="172.43" y2="77.3"/>
+  <line class="st1" x1="360.57" y1="92.3" x2="172.43" y2="107.3"/>
+  <circle class="st13" cx="377.28" cy="92.3" r="4"/>
+  <circle class="st14" cx="421" cy="92.3" r="2"/>
+  <line class="st6" x1="375.26" y1="92.3" x2="421" y2="92.3"/>
+</svg>
