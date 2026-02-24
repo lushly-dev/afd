@@ -40,6 +40,13 @@ from afd.testing.scenarios.reporter import (
     create_reporter,
     create_verbose_reporter,
 )
+from afd.testing.scenarios.commands import (
+    scenario_coverage_command,
+    scenario_create_command,
+    scenario_evaluate_command,
+    scenario_list_command,
+    scenario_suggest_command,
+)
 from afd.testing.scenarios.types import (
     AssertionMatcher,
     AssertionResult,
@@ -116,4 +123,10 @@ __all__ = [
     'create_reporter',
     'create_json_reporter',
     'create_verbose_reporter',
+    # Commands
+    'scenario_list_command',
+    'scenario_evaluate_command',
+    'scenario_coverage_command',
+    'scenario_create_command',
+    'scenario_suggest_command',
 ]

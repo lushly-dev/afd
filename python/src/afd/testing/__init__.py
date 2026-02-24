@@ -79,6 +79,44 @@ from afd.testing.validators import (
     validate_error,
     validate_command_definition,
 )
+# New modules
+from afd.testing.cli_wrapper import (
+    CliConfig as CliWrapperConfig,
+    CliWrapper,
+    ExecuteError,
+    ExecuteOptions,
+    ExecuteResult,
+    ExecuteSuccess,
+    create_cli_wrapper,
+)
+from afd.testing.mcp import (
+    AgentEnhancedResult,
+    AgentHints,
+    McpTestingServer,
+    McpTestingServerOptions,
+    create_mcp_testing_server,
+    enhance_with_agent_hints,
+    generate_agent_hints,
+    generate_coverage_hints,
+    generate_test_report_hints,
+    generate_tools,
+)
+from afd.testing.adapters import (
+    AdapterRegistry,
+    AppAdapter,
+    create_adapter_registry,
+    detect_adapter,
+    get_adapter,
+    get_global_registry,
+    list_adapters,
+    register_adapter,
+    reset_global_registry,
+)
+from afd.testing.surface import (
+    SurfaceValidationOptions,
+    SurfaceValidationResult,
+    validate_command_surface,
+)
 
 __all__ = [
     # Assertions
@@ -132,4 +170,38 @@ __all__ = [
     "validate_result",
     "validate_error",
     "validate_command_definition",
+    # CLI Wrapper
+    "CliWrapper",
+    "CliWrapperConfig",
+    "ExecuteSuccess",
+    "ExecuteError",
+    "ExecuteResult",
+    "ExecuteOptions",
+    "create_cli_wrapper",
+    # Agent Hints
+    "AgentHints",
+    "AgentEnhancedResult",
+    "generate_agent_hints",
+    "generate_test_report_hints",
+    "generate_coverage_hints",
+    "enhance_with_agent_hints",
+    # MCP Server
+    "McpTestingServer",
+    "McpTestingServerOptions",
+    "create_mcp_testing_server",
+    "generate_tools",
+    # Adapter Registry
+    "AppAdapter",
+    "AdapterRegistry",
+    "create_adapter_registry",
+    "register_adapter",
+    "get_adapter",
+    "list_adapters",
+    "detect_adapter",
+    "get_global_registry",
+    "reset_global_registry",
+    # Surface Validation
+    "SurfaceValidationOptions",
+    "SurfaceValidationResult",
+    "validate_command_surface",
 ]
