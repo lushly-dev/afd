@@ -100,6 +100,32 @@ export interface BatchRequest {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
+ * A typed warning from a command within a batch execution.
+ *
+ * Carries the originating command ID for attribution, following
+ * the same pattern as PipelineWarning carries stepIndex.
+ *
+ * @example
+ * ```typescript
+ * const warning: BatchWarning = {
+ *   commandId: 'cmd-0',
+ *   code: 'RATE_LIMIT_APPROACHING',
+ *   message: 'Command is nearing rate limit threshold',
+ * };
+ * ```
+ */
+export interface BatchWarning {
+	/** ID of the command that generated this warning */
+	commandId: string;
+
+	/** Machine-readable warning code (SCREAMING_SNAKE_CASE) */
+	code: string;
+
+	/** Human-readable warning message */
+	message: string;
+}
+
+/**
  * Result of a single command within a batch.
  *
  * Extends the standard CommandResult with batch-specific metadata.
@@ -238,11 +264,7 @@ export interface BatchResult<T = unknown> {
 	/**
 	 * Warnings from any of the commands.
 	 */
-	warnings?: Array<{
-		commandId: string;
-		code: string;
-		message: string;
-	}>;
+	warnings?: BatchWarning[];
 
 	/**
 	 * Error if the batch itself failed to execute.

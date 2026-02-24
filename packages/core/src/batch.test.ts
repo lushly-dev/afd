@@ -3,6 +3,7 @@ import {
 	type BatchCommand,
 	type BatchCommandResult,
 	type BatchTiming,
+	type BatchWarning,
 	calculateBatchConfidence,
 	createBatchRequest,
 	createBatchResult,
@@ -235,6 +236,51 @@ describe('type guards', () => {
 			expect(isBatchResult({ success: true })).toBe(false);
 			expect(isBatchResult({ success: true, results: 'not array' })).toBe(false);
 		});
+	});
+});
+
+describe('BatchWarning', () => {
+	it('is usable as a typed warning in batch results', () => {
+		const warning: BatchWarning = {
+			commandId: 'cmd-0',
+			code: 'RATE_LIMIT_APPROACHING',
+			message: 'Command is nearing rate limit threshold',
+		};
+
+		expect(warning.commandId).toBe('cmd-0');
+		expect(warning.code).toBe('RATE_LIMIT_APPROACHING');
+		expect(warning.message).toBe('Command is nearing rate limit threshold');
+	});
+
+	it('is compatible with createBatchResult warnings', () => {
+		const results: BatchCommandResult[] = [
+			{
+				id: 'cmd-0',
+				index: 0,
+				command: 'test',
+				durationMs: 10,
+				result: {
+					success: true,
+					data: {},
+					warnings: [{ code: 'WARN_TEST', message: 'Test warning', severity: 'info' as const }],
+				},
+			},
+		];
+
+		const timing: BatchTiming = {
+			totalMs: 10,
+			averageMs: 10,
+			startedAt: '2024-01-01T00:00:00.000Z',
+			completedAt: '2024-01-01T00:00:00.010Z',
+		};
+
+		const result = createBatchResult(results, timing);
+
+		expect(result.warnings).toHaveLength(1);
+		const w = result.warnings?.[0] as BatchWarning;
+		expect(w.commandId).toBe('cmd-0');
+		expect(w.code).toBe('WARN_TEST');
+		expect(w.message).toBe('Test warning');
 	});
 });
 

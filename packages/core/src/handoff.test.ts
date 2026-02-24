@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+	createHandoff,
 	getHandoffProtocol,
 	type HandoffResult,
 	isHandoff,
 	isHandoffCommand,
 	isHandoffProtocol,
+	isReconnectPolicy,
+	type ReconnectPolicy,
 } from './handoff.js';
 
 describe('isHandoff', () => {
@@ -379,5 +382,150 @@ describe('getHandoffProtocol', () => {
 
 	it('extracts protocol correctly from tag with colons', () => {
 		expect(getHandoffProtocol({ tags: ['handoff', 'handoff:http-stream'] })).toBe('http-stream');
+	});
+});
+
+describe('isReconnectPolicy', () => {
+	it('returns true for valid minimal policy', () => {
+		const policy: ReconnectPolicy = { allowed: true };
+		expect(isReconnectPolicy(policy)).toBe(true);
+	});
+
+	it('returns true for full policy', () => {
+		const policy: ReconnectPolicy = {
+			allowed: true,
+			maxAttempts: 5,
+			backoffMs: 1000,
+		};
+		expect(isReconnectPolicy(policy)).toBe(true);
+	});
+
+	it('returns true when allowed is false', () => {
+		expect(isReconnectPolicy({ allowed: false })).toBe(true);
+	});
+
+	it('returns false for null', () => {
+		expect(isReconnectPolicy(null)).toBe(false);
+	});
+
+	it('returns false for undefined', () => {
+		expect(isReconnectPolicy(undefined)).toBe(false);
+	});
+
+	it('returns false for non-object', () => {
+		expect(isReconnectPolicy('string')).toBe(false);
+		expect(isReconnectPolicy(123)).toBe(false);
+	});
+
+	it('returns false when allowed is missing', () => {
+		expect(isReconnectPolicy({ maxAttempts: 5 })).toBe(false);
+	});
+
+	it('returns false when allowed is wrong type', () => {
+		expect(isReconnectPolicy({ allowed: 'yes' })).toBe(false);
+	});
+
+	it('returns false when maxAttempts is wrong type', () => {
+		expect(isReconnectPolicy({ allowed: true, maxAttempts: 'five' })).toBe(false);
+	});
+
+	it('returns false when backoffMs is wrong type', () => {
+		expect(isReconnectPolicy({ allowed: true, backoffMs: 'slow' })).toBe(false);
+	});
+});
+
+describe('createHandoff', () => {
+	it('creates minimal handoff with protocol and endpoint', () => {
+		const handoff = createHandoff('websocket', 'wss://example.com/chat');
+
+		expect(handoff.protocol).toBe('websocket');
+		expect(handoff.endpoint).toBe('wss://example.com/chat');
+		expect(handoff.credentials).toBeUndefined();
+		expect(handoff.metadata).toBeUndefined();
+	});
+
+	it('creates handoff with credentials', () => {
+		const handoff = createHandoff('websocket', 'wss://example.com/chat', {
+			credentials: {
+				token: 'abc123',
+				sessionId: 'session-xyz',
+			},
+		});
+
+		expect(handoff.credentials?.token).toBe('abc123');
+		expect(handoff.credentials?.sessionId).toBe('session-xyz');
+	});
+
+	it('creates handoff with metadata', () => {
+		const handoff = createHandoff('sse', 'https://example.com/stream', {
+			metadata: {
+				capabilities: ['text', 'presence'],
+				description: 'Real-time stream',
+			},
+		});
+
+		expect(handoff.metadata?.capabilities).toEqual(['text', 'presence']);
+		expect(handoff.metadata?.description).toBe('Real-time stream');
+	});
+
+	it('applies default reconnect policy when reconnect is true', () => {
+		const handoff = createHandoff('websocket', 'wss://example.com/chat', {
+			metadata: {
+				reconnect: true,
+			},
+		});
+
+		expect(handoff.metadata?.reconnect).toBeDefined();
+		expect(handoff.metadata?.reconnect?.allowed).toBe(true);
+		expect(handoff.metadata?.reconnect?.maxAttempts).toBe(3);
+		expect(handoff.metadata?.reconnect?.backoffMs).toBe(1000);
+	});
+
+	it('uses custom reconnect policy when provided', () => {
+		const customPolicy: ReconnectPolicy = {
+			allowed: true,
+			maxAttempts: 10,
+			backoffMs: 2000,
+		};
+
+		const handoff = createHandoff('websocket', 'wss://example.com/chat', {
+			metadata: {
+				reconnect: customPolicy,
+			},
+		});
+
+		expect(handoff.metadata?.reconnect).toEqual(customPolicy);
+	});
+
+	it('omits reconnect from metadata when not provided', () => {
+		const handoff = createHandoff('websocket', 'wss://example.com/chat', {
+			metadata: {
+				description: 'No reconnect',
+			},
+		});
+
+		expect(handoff.metadata?.reconnect).toBeUndefined();
+	});
+
+	it('produces valid HandoffResult (passes isHandoff)', () => {
+		const handoff = createHandoff('websocket', 'wss://example.com/chat', {
+			credentials: { token: 'abc' },
+			metadata: {
+				reconnect: true,
+				capabilities: ['text'],
+			},
+		});
+
+		expect(isHandoff(handoff)).toBe(true);
+	});
+
+	it('supports all standard protocols', () => {
+		const protocols = ['websocket', 'webrtc', 'sse', 'http-stream'] as const;
+
+		for (const protocol of protocols) {
+			const handoff = createHandoff(protocol, 'https://example.com');
+			expect(handoff.protocol).toBe(protocol);
+			expect(isHandoff(handoff)).toBe(true);
+		}
 	});
 });

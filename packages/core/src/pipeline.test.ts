@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { CommandExecutor } from './pipeline-executor.js';
+import { executePipeline } from './pipeline-executor.js';
 import type {
 	PipelineCondition,
 	PipelineContext,
@@ -851,5 +853,274 @@ describe('resolveReference (backwards compatibility)', () => {
 
 		expect(resolveReference('$prev.id', context)).toBe(123);
 		expect(resolveVariable('$prev.id', context)).toBe(123);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CORE executePipeline TESTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('executePipeline', () => {
+	/** Mock command executor that returns canned results */
+	function createMockExecutor(
+		results: Record<
+			string,
+			(input: unknown) => {
+				success: boolean;
+				data?: unknown;
+				error?: { code: string; message: string };
+				confidence?: number;
+				reasoning?: string;
+				warnings?: Array<{
+					code: string;
+					message: string;
+					severity: 'info' | 'warning' | 'caution';
+				}>;
+				sources?: Array<{ type: string; id: string }>;
+				alternatives?: Array<{ data: unknown; reason: string }>;
+			}
+		>
+	): CommandExecutor {
+		return async (commandName, input, _ctx) => {
+			const handler = results[commandName];
+			if (!handler) {
+				return {
+					success: false,
+					error: { code: 'COMMAND_NOT_FOUND', message: `Unknown command: ${commandName}` },
+				};
+			}
+			return handler(input);
+		};
+	}
+
+	it('returns empty result for empty steps', async () => {
+		const executor = createMockExecutor({});
+		const result = await executePipeline({ steps: [] }, executor);
+
+		expect(result.steps).toHaveLength(0);
+		expect(result.metadata.totalSteps).toBe(0);
+		expect(result.metadata.completedSteps).toBe(0);
+		expect(result.metadata.confidence).toBe(0);
+	});
+
+	it('executes a single step', async () => {
+		const executor = createMockExecutor({
+			'user-get': () => ({
+				success: true,
+				data: { id: 1, name: 'Alice' },
+				confidence: 0.95,
+			}),
+		});
+
+		const result = await executePipeline(
+			{ steps: [{ command: 'user-get', input: { id: 1 } }] },
+			executor
+		);
+
+		expect(result.data).toEqual({ id: 1, name: 'Alice' });
+		expect(result.steps).toHaveLength(1);
+		expect(result.steps[0]?.status).toBe('success');
+		expect(result.metadata.completedSteps).toBe(1);
+		expect(result.metadata.totalSteps).toBe(1);
+		expect(result.metadata.confidence).toBe(0.95);
+	});
+
+	it('chains steps with $prev variable resolution', async () => {
+		const executor = createMockExecutor({
+			'user-get': () => ({
+				success: true,
+				data: { id: 1, name: 'Alice' },
+				confidence: 0.95,
+			}),
+			'order-list': (input) => ({
+				success: true,
+				data: { orders: [{ userId: (input as { userId: number }).userId }] },
+				confidence: 0.9,
+			}),
+		});
+
+		const result = await executePipeline(
+			{
+				steps: [
+					{ command: 'user-get', input: { id: 1 } },
+					{ command: 'order-list', input: { userId: '$prev.id' } },
+				],
+			},
+			executor
+		);
+
+		expect(result.steps).toHaveLength(2);
+		expect(result.steps[1]?.status).toBe('success');
+		expect(result.data).toEqual({ orders: [{ userId: 1 }] });
+		expect(result.metadata.confidence).toBe(0.9); // weakest link
+	});
+
+	it('supports aliased steps with $steps.alias', async () => {
+		const executor = createMockExecutor({
+			'user-get': () => ({
+				success: true,
+				data: { id: 1, name: 'Alice' },
+				confidence: 0.95,
+			}),
+			'order-list': () => ({
+				success: true,
+				data: { total: 5 },
+				confidence: 0.9,
+			}),
+			'order-summarize': (input) => ({
+				success: true,
+				data: {
+					summary: `${(input as { userName: string }).userName}: ${(input as { orderTotal: number }).orderTotal} orders`,
+				},
+				confidence: 0.85,
+			}),
+		});
+
+		const result = await executePipeline(
+			{
+				steps: [
+					{ command: 'user-get', input: { id: 1 }, as: 'user' },
+					{ command: 'order-list', input: { userId: '$prev.id' }, as: 'orders' },
+					{
+						command: 'order-summarize',
+						input: {
+							userName: '$steps.user.name',
+							orderTotal: '$steps.orders.total',
+						},
+					},
+				],
+			},
+			executor
+		);
+
+		expect(result.steps).toHaveLength(3);
+		expect(result.data).toEqual({ summary: 'Alice: 5 orders' });
+	});
+
+	it('skips steps when condition is false', async () => {
+		const executor = createMockExecutor({
+			'user-get': () => ({
+				success: true,
+				data: { id: 1, tier: 'standard' },
+				confidence: 0.95,
+			}),
+			'discount-apply': () => ({
+				success: true,
+				data: { discounted: true },
+				confidence: 1.0,
+			}),
+		});
+
+		const result = await executePipeline(
+			{
+				steps: [
+					{ command: 'user-get', input: { id: 1 } },
+					{
+						command: 'discount-apply',
+						input: {},
+						when: { $eq: ['$prev.tier', 'premium'] },
+					},
+				],
+			},
+			executor
+		);
+
+		expect(result.steps).toHaveLength(2);
+		expect(result.steps[1]?.status).toBe('skipped');
+		// Data should be from last successful step (user-get)
+		expect(result.data).toEqual({ id: 1, tier: 'standard' });
+	});
+
+	it('stops on first failure by default', async () => {
+		const executor = createMockExecutor({
+			'step-a': () => ({ success: true, data: 'a' }),
+			'step-b': () => ({
+				success: false,
+				error: { code: 'FAILED', message: 'Step B failed' },
+			}),
+			'step-c': () => ({ success: true, data: 'c' }),
+		});
+
+		const result = await executePipeline(
+			{
+				steps: [{ command: 'step-a' }, { command: 'step-b' }, { command: 'step-c' }],
+			},
+			executor
+		);
+
+		expect(result.steps[0]?.status).toBe('success');
+		expect(result.steps[1]?.status).toBe('failure');
+		expect(result.steps[2]?.status).toBe('skipped');
+		expect(result.metadata.completedSteps).toBe(1);
+	});
+
+	it('continues on failure when continueOnFailure is true', async () => {
+		const executor = createMockExecutor({
+			'step-a': () => ({ success: true, data: 'a' }),
+			'step-b': () => ({
+				success: false,
+				error: { code: 'FAILED', message: 'Step B failed' },
+			}),
+			'step-c': () => ({ success: true, data: 'c' }),
+		});
+
+		const result = await executePipeline(
+			{
+				steps: [{ command: 'step-a' }, { command: 'step-b' }, { command: 'step-c' }],
+				options: { continueOnFailure: true },
+			},
+			executor
+		);
+
+		expect(result.steps[0]?.status).toBe('success');
+		expect(result.steps[1]?.status).toBe('failure');
+		expect(result.steps[2]?.status).toBe('success');
+		expect(result.metadata.completedSteps).toBe(2);
+		// Final data is from last successful step
+		expect(result.data).toBe('c');
+	});
+
+	it('aggregates metadata from all steps', async () => {
+		const executor = createMockExecutor({
+			'step-a': () => ({
+				success: true,
+				data: 'a',
+				confidence: 0.9,
+				reasoning: 'Step A reasoning',
+				warnings: [{ code: 'WARN_A', message: 'Warning A', severity: 'info' as const }],
+				sources: [{ type: 'api', id: 'source-a' }],
+			}),
+			'step-b': () => ({
+				success: true,
+				data: 'b',
+				confidence: 0.8,
+				reasoning: 'Step B reasoning',
+				sources: [{ type: 'db', id: 'source-b' }],
+			}),
+		});
+
+		const result = await executePipeline(
+			{
+				steps: [{ command: 'step-a' }, { command: 'step-b' }],
+			},
+			executor
+		);
+
+		expect(result.metadata.confidence).toBe(0.8); // weakest link
+		expect(result.metadata.reasoning).toHaveLength(2);
+		expect(result.metadata.warnings).toHaveLength(1);
+		expect(result.metadata.sources).toHaveLength(2);
+		expect(result.metadata.confidenceBreakdown).toHaveLength(2);
+	});
+
+	it('produces valid PipelineResult', async () => {
+		const executor = createMockExecutor({
+			'test-cmd': () => ({ success: true, data: { ok: true }, confidence: 1.0 }),
+		});
+
+		const result = await executePipeline({ steps: [{ command: 'test-cmd' }] }, executor);
+
+		expect(isPipelineResult(result)).toBe(true);
+		expect(result.metadata.executionTimeMs).toBeGreaterThanOrEqual(0);
 	});
 });

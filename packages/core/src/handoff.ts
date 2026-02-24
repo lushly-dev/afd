@@ -19,6 +19,30 @@
 export type HandoffProtocol = 'websocket' | 'webrtc' | 'sse' | 'http-stream' | string;
 
 /**
+ * Named reconnect policy type for handoff metadata.
+ *
+ * Extracted as a first-class type so it can be validated, shared across
+ * packages, and consumed directly by handoff metadata and client reconnection logic.
+ *
+ * @example
+ * ```typescript
+ * const policy: ReconnectPolicy = {
+ *   allowed: true,
+ *   maxAttempts: 5,
+ *   backoffMs: 1000,
+ * };
+ * ```
+ */
+export interface ReconnectPolicy {
+	/** Whether reconnection is allowed */
+	allowed: boolean;
+	/** Maximum number of reconnection attempts */
+	maxAttempts?: number;
+	/** Base backoff time in milliseconds */
+	backoffMs?: number;
+}
+
+/**
  * Authentication credentials for the handoff connection.
  *
  * @example
@@ -70,14 +94,7 @@ export interface HandoffMetadata {
 	expiresAt?: string;
 
 	/** Reconnection policy */
-	reconnect?: {
-		/** Whether reconnection is allowed */
-		allowed: boolean;
-		/** Maximum number of reconnection attempts */
-		maxAttempts?: number;
-		/** Base backoff time in milliseconds */
-		backoffMs?: number;
-	};
+	reconnect?: ReconnectPolicy;
 
 	/** Human-readable description of the handoff */
 	description?: string;
@@ -114,8 +131,117 @@ export interface HandoffResult {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// FACTORY FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Default reconnect policy values.
+ */
+const DEFAULT_RECONNECT_POLICY: ReconnectPolicy = {
+	allowed: true,
+	maxAttempts: 3,
+	backoffMs: 1000,
+};
+
+/**
+ * Create a HandoffResult with sensible defaults.
+ *
+ * @param protocol - Protocol type for client dispatch
+ * @param endpoint - Full URL to connect to
+ * @param options - Optional credentials, metadata, and reconnect policy
+ * @returns A complete HandoffResult
+ *
+ * @example
+ * ```typescript
+ * // Minimal handoff
+ * const handoff = createHandoff('websocket', 'wss://example.com/chat');
+ *
+ * // With credentials and metadata
+ * const handoff = createHandoff('websocket', 'wss://example.com/chat', {
+ *   credentials: { token: 'abc123', sessionId: 'session-xyz' },
+ *   metadata: {
+ *     capabilities: ['text', 'presence'],
+ *     reconnect: { allowed: true, maxAttempts: 5, backoffMs: 2000 },
+ *   },
+ * });
+ *
+ * // With default reconnect policy
+ * const handoff = createHandoff('sse', 'https://example.com/stream', {
+ *   metadata: { reconnect: true },
+ * });
+ * ```
+ */
+export function createHandoff(
+	protocol: HandoffProtocol,
+	endpoint: string,
+	options?: {
+		credentials?: HandoffCredentials;
+		metadata?: Omit<HandoffMetadata, 'reconnect'> & {
+			/** Pass `true` for default reconnect policy, or provide a custom ReconnectPolicy */
+			reconnect?: boolean | ReconnectPolicy;
+		};
+	}
+): HandoffResult {
+	const result: HandoffResult = { protocol, endpoint };
+
+	if (options?.credentials) {
+		result.credentials = options.credentials;
+	}
+
+	if (options?.metadata) {
+		const { reconnect, ...rest } = options.metadata;
+		const metadata: HandoffMetadata = { ...rest };
+
+		if (reconnect === true) {
+			metadata.reconnect = { ...DEFAULT_RECONNECT_POLICY };
+		} else if (typeof reconnect === 'object') {
+			metadata.reconnect = reconnect;
+		}
+
+		result.metadata = metadata;
+	}
+
+	return result;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // TYPE GUARDS
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Type guard to check if a value is a valid ReconnectPolicy.
+ *
+ * @param value - Value to check
+ * @returns True if value is a ReconnectPolicy
+ *
+ * @example
+ * ```typescript
+ * if (isReconnectPolicy(handoff.metadata?.reconnect)) {
+ *   console.log(`Max attempts: ${handoff.metadata.reconnect.maxAttempts}`);
+ * }
+ * ```
+ */
+export function isReconnectPolicy(value: unknown): value is ReconnectPolicy {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+
+	const obj = value as Record<string, unknown>;
+
+	if (typeof obj.allowed !== 'boolean') {
+		return false;
+	}
+
+	if (obj.maxAttempts !== undefined && typeof obj.maxAttempts !== 'number') {
+		return false;
+	}
+
+	if (obj.backoffMs !== undefined && typeof obj.backoffMs !== 'number') {
+		return false;
+	}
+
+	return true;
+}
 
 /**
  * Type guard to check if a value is a HandoffResult.

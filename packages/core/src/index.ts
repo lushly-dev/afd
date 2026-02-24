@@ -22,6 +22,7 @@ export type {
 	BatchResult,
 	BatchSummary,
 	BatchTiming,
+	BatchWarning,
 } from './batch.js';
 export {
 	calculateBatchConfidence,
@@ -83,12 +84,15 @@ export type {
 	HandoffMetadata,
 	HandoffProtocol,
 	HandoffResult,
+	ReconnectPolicy,
 } from './handoff.js';
 export {
+	createHandoff,
 	getHandoffProtocol,
 	isHandoff,
 	isHandoffCommand,
 	isHandoffProtocol,
+	isReconnectPolicy,
 } from './handoff.js';
 
 // MCP types
@@ -191,6 +195,9 @@ export {
 	resolveVariable,
 	resolveVariables,
 } from './pipeline.js';
+// Pipeline executor
+export type { CommandExecutor } from './pipeline-executor.js';
+export { executePipeline } from './pipeline-executor.js';
 export type { ExecOptions, ExecResult } from './platform.js';
 // Platform utilities
 export {
