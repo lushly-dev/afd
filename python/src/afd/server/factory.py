@@ -49,6 +49,8 @@ from afd.core.commands import (
     CommandContext,
     CommandDefinition,
     CommandRegistry,
+    DEFAULT_EXPOSE,
+    ExposeOptions,
     create_command_registry,
 )
 from afd.core.result import CommandResult
@@ -154,11 +156,12 @@ class MCPServer:
         tags: Optional[List[str]] = None,
         mutation: bool = False,
         examples: Optional[List[Dict[str, Any]]] = None,
+        expose: Optional[ExposeOptions] = None,
     ) -> Callable:
         """Decorator to register a command with this server.
-        
+
         This combines @define_command with automatic registration.
-        
+
         Args:
             name: Command name (use kebab-case).
             description: What the command does.
@@ -167,15 +170,17 @@ class MCPServer:
             tags: Tags for categorization.
             mutation: Whether command modifies state.
             examples: Example inputs.
-        
+            expose: Controls which interfaces this command is exposed to.
+
         Returns:
             Decorator function.
-        
+
         Example:
             >>> @server.command(
             ...     name="user-get",
             ...     description="Get a user by ID",
             ...     input_schema=GetUserInput,
+            ...     expose=ExposeOptions(mcp=True),
             ... )
             ... async def get_user(input: GetUserInput):
             ...     return success({"id": input.id, "name": "John"})
@@ -190,6 +195,7 @@ class MCPServer:
                 tags=tags,
                 mutation=mutation,
                 examples=examples,
+                expose=expose,
             )(func)
             
             # Register with our registry
@@ -270,18 +276,24 @@ class MCPServer:
         return await next_fn()
     
     def _create_mcp_server(self):
-        """Create the underlying MCP server instance."""
+        """Create the underlying MCP server instance.
+
+        Only commands with ``expose.mcp == True`` (or no explicit expose,
+        which defaults to ``DEFAULT_EXPOSE``) are registered as MCP tools.
+        """
         try:
             from mcp.server.fastmcp import FastMCP
-            
+
             self._mcp_server = FastMCP(self.config.name)
-            
-            # Register all commands as MCP tools
+
+            # Register commands as MCP tools, respecting expose options
             for cmd in self._commands:
                 metadata = get_command_metadata(cmd)
                 if metadata:
-                    self._register_mcp_tool(cmd, metadata)
-            
+                    expose = metadata.expose if metadata.expose is not None else DEFAULT_EXPOSE
+                    if expose.mcp:
+                        self._register_mcp_tool(cmd, metadata)
+
             return self._mcp_server
         except ImportError:
             raise ImportError(

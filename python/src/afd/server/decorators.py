@@ -42,7 +42,7 @@ from typing import (
 
 from pydantic import BaseModel
 
-from afd.core.commands import CommandDefinition, CommandParameter
+from afd.core.commands import CommandDefinition, CommandParameter, ExposeOptions
 from afd.core.result import CommandResult
 
 TInput = TypeVar("TInput", bound=BaseModel)
@@ -72,6 +72,7 @@ class CommandMetadata:
     examples: List[Dict[str, Any]] = field(default_factory=list)
     handoff: bool = False
     handoff_protocol: Optional[str] = None
+    expose: Optional[ExposeOptions] = None
 
 
 def define_command(
@@ -84,12 +85,13 @@ def define_command(
     examples: Optional[List[Dict[str, Any]]] = None,
     handoff: bool = False,
     handoff_protocol: Optional[str] = None,
+    expose: Optional[ExposeOptions] = None,
 ) -> Callable:
     """Decorator to define a command with metadata.
-    
+
     The decorated function becomes a command handler that can be registered
     with an MCP server. The decorator attaches metadata for schema generation.
-    
+
     Args:
         name: Command name (use kebab-case, e.g., "item-create").
         description: Human-readable description of what the command does.
@@ -98,10 +100,11 @@ def define_command(
         tags: Tags for categorization and filtering.
         mutation: Whether this command modifies state (default False).
         examples: Example inputs for documentation.
-    
+        expose: Controls which interfaces this command is exposed to.
+
     Returns:
         Decorator function that wraps the handler.
-    
+
     Example:
         >>> @define_command(
         ...     name="user-create",
@@ -109,6 +112,7 @@ def define_command(
         ...     input_schema=CreateUserInput,
         ...     output_schema=User,
         ...     mutation=True,
+        ...     expose=ExposeOptions(mcp=True, cli=True),
         ... )
         ... async def create_user(input: CreateUserInput) -> User:
         ...     # Implementation
@@ -134,6 +138,7 @@ def define_command(
             examples=examples or [],
             handoff=handoff,
             handoff_protocol=handoff_protocol,
+            expose=expose,
         )
         
         @wraps(func)
@@ -225,6 +230,7 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
         examples=metadata.examples,
         handoff=metadata.handoff,
         handoff_protocol=metadata.handoff_protocol,
+        expose=metadata.expose,
     )
 
 
