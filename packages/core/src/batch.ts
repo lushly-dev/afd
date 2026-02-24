@@ -100,6 +100,21 @@ export interface BatchRequest {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
+ * A warning surfaced from a command within a batch execution.
+ *
+ * Includes the originating `commandId` so consumers can attribute
+ * the warning to the specific command that produced it.
+ */
+export interface BatchWarning {
+	/** ID of the command that produced this warning */
+	commandId: string;
+	/** Machine-readable warning code */
+	code: string;
+	/** Human-readable warning message */
+	message: string;
+}
+
+/**
  * Result of a single command within a batch.
  *
  * Extends the standard CommandResult with batch-specific metadata.
@@ -238,11 +253,7 @@ export interface BatchResult<T = unknown> {
 	/**
 	 * Warnings from any of the commands.
 	 */
-	warnings?: Array<{
-		commandId: string;
-		code: string;
-		message: string;
-	}>;
+	warnings?: BatchWarning[];
 
 	/**
 	 * Error if the batch itself failed to execute.

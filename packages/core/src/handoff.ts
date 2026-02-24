@@ -19,6 +19,41 @@
 export type HandoffProtocol = 'websocket' | 'webrtc' | 'sse' | 'http-stream' | string;
 
 /**
+ * Named reconnection policy for handoff connections.
+ *
+ * Extracted as a first-class type so clients and servers can reference,
+ * validate, and default reconnect behaviour consistently.
+ *
+ * @example
+ * ```typescript
+ * const policy: ReconnectPolicy = {
+ *   allowed: true,
+ *   maxAttempts: 5,
+ *   backoffMs: 1000,
+ * };
+ * ```
+ */
+export interface ReconnectPolicy {
+	/** Whether reconnection is allowed */
+	allowed: boolean;
+	/** Maximum number of reconnection attempts */
+	maxAttempts?: number;
+	/** Base backoff time in milliseconds */
+	backoffMs?: number;
+}
+
+/**
+ * Default reconnect policy values.
+ *
+ * Used by {@link createHandoff} when no reconnect policy is provided.
+ */
+export const defaultReconnectPolicy: Readonly<Required<ReconnectPolicy>> = Object.freeze({
+	allowed: true,
+	maxAttempts: 3,
+	backoffMs: 1000,
+});
+
+/**
  * Authentication credentials for the handoff connection.
  *
  * @example
@@ -70,14 +105,7 @@ export interface HandoffMetadata {
 	expiresAt?: string;
 
 	/** Reconnection policy */
-	reconnect?: {
-		/** Whether reconnection is allowed */
-		allowed: boolean;
-		/** Maximum number of reconnection attempts */
-		maxAttempts?: number;
-		/** Base backoff time in milliseconds */
-		backoffMs?: number;
-	};
+	reconnect?: ReconnectPolicy;
 
 	/** Human-readable description of the handoff */
 	description?: string;
@@ -114,8 +142,93 @@ export interface HandoffResult {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// FACTORY FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Options for {@link createHandoff} factory function.
+ *
+ * All fields except `protocol` and `endpoint` are optional and have sensible
+ * defaults (e.g. reconnect defaults to {@link defaultReconnectPolicy}).
+ */
+export interface CreateHandoffOptions {
+	/** Protocol type for client dispatch */
+	protocol: HandoffProtocol;
+	/** Full URL to connect to */
+	endpoint: string;
+	/** Authentication credentials for the handoff */
+	credentials?: HandoffCredentials;
+	/** Metadata for client decision-making (reconnect defaults applied) */
+	metadata?: HandoffMetadata;
+}
+
+/**
+ * Create a HandoffResult with sensible defaults.
+ *
+ * If `metadata.reconnect` is not provided it defaults to
+ * {@link defaultReconnectPolicy} (`{ allowed: true, maxAttempts: 3, backoffMs: 1000 }`).
+ *
+ * @param options - Handoff configuration
+ * @returns A fully-populated HandoffResult
+ *
+ * @example
+ * ```typescript
+ * // Minimal — reconnect policy auto-applied
+ * const handoff = createHandoff({
+ *   protocol: 'websocket',
+ *   endpoint: 'wss://chat.example.com/rooms/123',
+ * });
+ *
+ * // With explicit reconnect override
+ * const handoff2 = createHandoff({
+ *   protocol: 'sse',
+ *   endpoint: 'https://api.example.com/events',
+ *   metadata: {
+ *     reconnect: { allowed: false },
+ *   },
+ * });
+ * ```
+ */
+export function createHandoff(options: CreateHandoffOptions): HandoffResult {
+	const { protocol, endpoint, credentials, metadata } = options;
+
+	return {
+		protocol,
+		endpoint,
+		...(credentials && { credentials }),
+		metadata: {
+			...metadata,
+			reconnect: metadata?.reconnect ?? { ...defaultReconnectPolicy },
+		},
+	};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // TYPE GUARDS
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Type guard to check if a value is a ReconnectPolicy.
+ *
+ * @param value - Value to check
+ * @returns True if value is a valid ReconnectPolicy
+ */
+export function isReconnectPolicy(value: unknown): value is ReconnectPolicy {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+	const obj = value as Record<string, unknown>;
+	if (typeof obj.allowed !== 'boolean') {
+		return false;
+	}
+	if (obj.maxAttempts !== undefined && typeof obj.maxAttempts !== 'number') {
+		return false;
+	}
+	if (obj.backoffMs !== undefined && typeof obj.backoffMs !== 'number') {
+		return false;
+	}
+	return true;
+}
 
 /**
  * Type guard to check if a value is a HandoffResult.
