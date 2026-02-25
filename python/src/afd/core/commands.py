@@ -36,6 +36,30 @@ from pydantic import BaseModel
 
 from afd.core.result import CommandResult
 
+
+@dataclass(frozen=True)
+class ExposeOptions:
+    """Controls which interfaces a command is exposed to.
+
+    Security-first defaults: palette and agent are on by default,
+    MCP and CLI are opt-in.
+
+    Attributes:
+        palette: Expose to command palette (default: True).
+        mcp: Expose to external MCP agents (default: False -- opt-in for security).
+        agent: Expose to in-app AI assistant (default: True).
+        cli: Expose to terminal/CLI (default: False).
+    """
+
+    palette: bool = True
+    mcp: bool = False
+    agent: bool = True
+    cli: bool = False
+
+
+DEFAULT_EXPOSE = ExposeOptions()
+"""Default exposure options. Frozen dataclass prevents accidental mutation."""
+
 TInput = TypeVar("TInput")
 TOutput = TypeVar("TOutput")
 
@@ -135,6 +159,7 @@ class CommandDefinition:
     examples: Optional[List[Dict[str, Any]]] = None
     handoff: bool = False
     handoff_protocol: Optional[str] = None
+    expose: Optional[ExposeOptions] = None
 
 
 class CommandRegistry(Protocol):
@@ -252,6 +277,30 @@ class _CommandRegistryImpl:
                     suggestion="List available commands to see valid options",
                 ),
             )
+
+        # Check exposure if interface context is provided
+        if context and context.extra.get("interface"):
+            interface = context.extra["interface"]
+            _VALID_INTERFACES = frozenset({"palette", "mcp", "agent", "cli"})
+            if interface not in _VALID_INTERFACES:
+                return CommandResult(
+                    success=False,
+                    error=CmdError(
+                        code="INVALID_INTERFACE",
+                        message=f"Unknown interface '{interface}'",
+                        suggestion=f"Valid interfaces: {', '.join(sorted(_VALID_INTERFACES))}",
+                    ),
+                )
+            expose = command.expose if command.expose is not None else DEFAULT_EXPOSE
+            if not getattr(expose, interface, False):
+                return CommandResult(
+                    success=False,
+                    error=CmdError(
+                        code="COMMAND_NOT_EXPOSED",
+                        message=f"Command '{name}' is not exposed to {interface}",
+                        suggestion="Check command exposure settings or use a different interface",
+                    ),
+                )
 
         try:
             result = await command.handler(input, context)
