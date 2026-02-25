@@ -80,6 +80,61 @@ from afd.testing.validators import (
     validate_command_definition,
 )
 
+# CLI Wrapper
+from afd.testing.cli_wrapper import (
+    CliWrapper,
+    CliConfig,
+    ExecuteResult,
+    ExecuteSuccess,
+    ExecuteError,
+    create_cli_wrapper,
+)
+
+# Agent Hints
+from afd.testing.hints import (
+    AgentHints,
+    AgentEnhancedResult,
+    generate_agent_hints,
+    generate_test_report_hints,
+    generate_coverage_hints,
+    enhance_with_agent_hints,
+)
+
+# Surface Validation
+from afd.testing.surface import (
+    validate_command_surface,
+    SurfaceValidationResult,
+    SurfaceFinding,
+    SurfaceValidationOptions,
+)
+
+# Adapters
+from afd.testing.adapters import (
+    AppAdapter,
+    create_adapter_registry,
+    register_adapter,
+    get_adapter,
+    list_adapters,
+    detect_adapter,
+    reset_global_registry,
+    create_generic_adapter,
+)
+
+# Scenario Commands
+from afd.testing.commands import (
+    scenario_list,
+    scenario_evaluate,
+    scenario_coverage_cmd,
+    scenario_create,
+    scenario_suggest,
+)
+
+# MCP Testing Server
+from afd.testing.mcp import (
+    McpTestingServer,
+    create_mcp_testing_server,
+)
+
 __all__ = [
     # Assertions
     "assert_success",
@@ -132,4 +187,41 @@ __all__ = [
     "validate_result",
     "validate_error",
     "validate_command_definition",
+    # CLI Wrapper
+    "CliWrapper",
+    "CliConfig",
+    "ExecuteResult",
+    "ExecuteSuccess",
+    "ExecuteError",
+    "create_cli_wrapper",
+    # Agent Hints
+    "AgentHints",
+    "AgentEnhancedResult",
+    "generate_agent_hints",
+    "generate_test_report_hints",
+    "generate_coverage_hints",
+    "enhance_with_agent_hints",
+    # Surface Validation
+    "validate_command_surface",
+    "SurfaceValidationResult",
+    "SurfaceFinding",
+    "SurfaceValidationOptions",
+    # Adapters
+    "AppAdapter",
+    "create_adapter_registry",
+    "register_adapter",
+    "get_adapter",
+    "list_adapters",
+    "detect_adapter",
+    "reset_global_registry",
+    "create_generic_adapter",
+    # Scenario Commands
+    "scenario_list",
+    "scenario_evaluate",
+    "scenario_coverage_cmd",
+    "scenario_create",
+    "scenario_suggest",
+    # MCP Testing Server
+    "McpTestingServer",
+    "create_mcp_testing_server",
 ]
