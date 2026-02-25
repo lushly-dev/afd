@@ -78,8 +78,7 @@ describe('executePipeline', () => {
 	it('stops on failure by default', async () => {
 		const executor = createMockExecutor({
 			'step-a': () => success({ ok: true }),
-			'step-b': () =>
-				failure({ code: 'FAIL', message: 'Step B failed', suggestion: 'Fix it' }),
+			'step-b': () => failure({ code: 'FAIL', message: 'Step B failed', suggestion: 'Fix it' }),
 			'step-c': () => success({ ok: true }),
 		});
 
@@ -224,10 +223,7 @@ describe('executePipeline', () => {
 
 		const result = await executePipeline(
 			{
-				steps: [
-					{ command: 'slow-step' },
-					{ command: 'step-after' },
-				],
+				steps: [{ command: 'slow-step' }, { command: 'step-after' }],
 				options: { timeoutMs: 10 },
 			},
 			executor

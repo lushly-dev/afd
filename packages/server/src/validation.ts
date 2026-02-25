@@ -180,7 +180,10 @@ export const patterns = {
 		offset: z.number().int().nonnegative().default(0),
 	}),
 	sorting: z.object({
-		sortBy: z.string().min(1).regex(/^[a-zA-Z_][a-zA-Z0-9_.]*$/, 'sortBy must be a valid identifier'),
+		sortBy: z
+			.string()
+			.min(1)
+			.regex(/^[a-zA-Z_][a-zA-Z0-9_.]*$/, 'sortBy must be a valid identifier'),
 		sortDirection: z.enum(['asc', 'desc']).default('asc'),
 	}),
 	search: z.object({

@@ -8,10 +8,9 @@ Port of packages/testing/src/commands/evaluate.ts
 
 from __future__ import annotations
 
-import asyncio
 import time
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any
 
 from afd.core.result import CommandResult, error, success
 from afd.testing.scenarios.executor import InProcessExecutor, InProcessExecutorConfig
