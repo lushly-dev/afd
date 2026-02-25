@@ -2,6 +2,7 @@
 
 import json
 from unittest.mock import AsyncMock
+from unittest.mock import patch
 
 import pytest
 
@@ -449,3 +450,24 @@ class TestCreateToolRegistry:
         result = await registry["scenario-evaluate"]({})
         assert result["success"] is False
         assert result["error"]["code"] == "HANDLER_NOT_CONFIGURED"
+
+    @pytest.mark.asyncio
+    async def test_evaluate_maps_stop_on_failure_alias(self):
+        """scenario-evaluate should map stopOnFailure to fail_fast."""
+        registry = create_tool_registry(command_handler=AsyncMock())
+
+        async def fake_evaluate(input):
+            return {"success": True, "data": {"fail_fast": input.get("fail_fast")}}
+
+        with patch("afd.testing.commands.evaluate.scenario_evaluate", side_effect=fake_evaluate):
+            result = await registry["scenario-evaluate"]({"stopOnFailure": True})
+
+        assert result["success"] is True
+        assert result["data"]["fail_fast"] is True
+
+    @pytest.mark.asyncio
+    async def test_coverage_accepts_known_commands_alias(self):
+        """scenario-coverage should accept known_commands alias."""
+        registry = create_tool_registry()
+        result = await registry["scenario-coverage"]({"known_commands": ["todo-list"]})
+        assert result["success"] is True

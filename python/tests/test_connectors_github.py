@@ -233,6 +233,21 @@ class TestGitHubConnector:
             assert prs[0].number == 5
             assert prs[0].state == "open"
 
+    async def test_pr_list_state_all_passes_flag(self):
+        gh = GitHubConnector()
+        captured_cmds = []
+
+        async def capture_exec(cmd, opts=None):
+            captured_cmds.append(cmd)
+            return create_exec_result("[]", "", 0, 10.0)
+
+        with patch("afd.connectors.github.exec_command", side_effect=capture_exec):
+            await gh.pr_list("owner/repo", IssueFilters(state="all"))
+
+        assert "--state" in captured_cmds[0]
+        state_idx = captured_cmds[0].index("--state")
+        assert captured_cmds[0][state_idx + 1] == "all"
+
     async def test_pr_list_failure(self):
         gh = GitHubConnector()
         mock = self._mock_exec(stderr="error", exit_code=1, error_code=ExecErrorCode.EXIT_CODE)

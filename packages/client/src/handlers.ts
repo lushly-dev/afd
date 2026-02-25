@@ -67,6 +67,20 @@ export const websocketHandler: ProtocolHandler = async (
 	const ws = new WebSocket(endpoint);
 
 	return new Promise<HandoffConnection>((resolve, reject) => {
+		let settled = false;
+		const resolveOnce = (connection: HandoffConnection) => {
+			if (!settled) {
+				settled = true;
+				resolve(connection);
+			}
+		};
+		const rejectOnce = (error: Error) => {
+			if (!settled) {
+				settled = true;
+				reject(error);
+			}
+		};
+
 		const connection: HandoffConnection = {
 			get state() {
 				return state;
@@ -94,7 +108,7 @@ export const websocketHandler: ProtocolHandler = async (
 			}
 			setState('connected');
 			options.onConnect?.(ws);
-			resolve(connection);
+			resolveOnce(connection);
 		};
 
 		ws.onmessage = (event) => {
@@ -112,11 +126,20 @@ export const websocketHandler: ProtocolHandler = async (
 			options.onError?.(error);
 			if (state === 'connecting') {
 				setState('failed');
-				reject(error);
+				rejectOnce(error);
 			}
 		};
 
 		ws.onclose = (event) => {
+			if (state === 'connecting') {
+				setState('failed');
+				const closeError = new Error(
+					`WebSocket closed before connection established (${event.code}: ${event.reason || 'no reason'})`
+				);
+				options.onError?.(closeError);
+				rejectOnce(closeError);
+				return;
+			}
 			setState('disconnected');
 			options.onDisconnect?.(event.code, event.reason);
 		};
@@ -300,6 +323,20 @@ function createEventSourceSse(
 	const eventSource = new EventSource(endpoint);
 
 	return new Promise<HandoffConnection>((resolve, reject) => {
+		let settled = false;
+		const resolveOnce = (connection: HandoffConnection) => {
+			if (!settled) {
+				settled = true;
+				resolve(connection);
+			}
+		};
+		const rejectOnce = (error: Error) => {
+			if (!settled) {
+				settled = true;
+				reject(error);
+			}
+		};
+
 		const connection: HandoffConnection = {
 			get state() {
 				return state;
@@ -321,7 +358,7 @@ function createEventSourceSse(
 		eventSource.onopen = () => {
 			setState('connected');
 			options.onConnect?.(eventSource);
-			resolve(connection);
+			resolveOnce(connection);
 		};
 
 		eventSource.onmessage = (event) => {
@@ -339,7 +376,7 @@ function createEventSourceSse(
 			if (state === 'connecting') {
 				setState('failed');
 				eventSource.close();
-				reject(error);
+				rejectOnce(error);
 			} else {
 				setState('disconnected');
 				options.onDisconnect?.();
