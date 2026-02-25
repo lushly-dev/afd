@@ -109,24 +109,11 @@ export async function executePipeline(
 
 	const stepResults: StepResult[] = [];
 	const options = request.options ?? {};
-	let stopped = false;
 
 	for (let i = 0; i < request.steps.length; i++) {
 		const step = request.steps[i];
 		if (!step) continue;
 		const stepStartTime = performance.now();
-
-		// Check if pipeline was stopped by a previous failure
-		if (stopped) {
-			stepResults.push({
-				index: i,
-				alias: step.as,
-				command: step.command,
-				status: 'skipped',
-				executionTimeMs: 0,
-			});
-			continue;
-		}
 
 		// Evaluate when condition if present
 		if (step.when && !evaluateCondition(step.when, pipelineContext)) {
@@ -182,7 +169,6 @@ export async function executePipeline(
 			stepResults.push(stepResult);
 
 			if (!options.continueOnFailure) {
-				stopped = true;
 				// Mark remaining steps as skipped
 				for (let j = i + 1; j < request.steps.length; j++) {
 					const remainingStep = request.steps[j];
@@ -213,6 +199,7 @@ export async function executePipeline(
 						code: 'PIPELINE_TIMEOUT',
 						message: `Pipeline timeout exceeded (${options.timeoutMs}ms)`,
 						retryable: true,
+						suggestion: 'Increase timeoutMs or reduce the number of pipeline steps',
 					},
 					executionTimeMs: 0,
 				});
