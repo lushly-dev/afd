@@ -180,17 +180,21 @@ export const patterns = {
 		offset: z.number().int().nonnegative().default(0),
 	}),
 	sorting: z.object({
-		sortBy: z.string().min(1),
+		sortBy: z.string().min(1).regex(/^[a-zA-Z_][a-zA-Z0-9_.]*$/, 'sortBy must be a valid identifier'),
 		sortDirection: z.enum(['asc', 'desc']).default('asc'),
 	}),
 	search: z.object({
 		query: z.string().min(1),
 		fields: z.array(z.string().min(1)).optional(),
 	}),
-	dateRange: z.object({
-		startDate: z.string().datetime(),
-		endDate: z.string().datetime(),
-	}),
+	dateRange: z
+		.object({
+			startDate: z.string().datetime(),
+			endDate: z.string().datetime(),
+		})
+		.refine((d) => d.startDate <= d.endDate, {
+			message: 'startDate must be before or equal to endDate',
+		}),
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

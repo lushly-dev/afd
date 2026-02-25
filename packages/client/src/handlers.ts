@@ -35,14 +35,13 @@ import type {
  *
  * Handles:
  * - Connection establishment with optional token authentication
- * - Custom header propagation via `credentials.headers` (subprotocol encoding)
  * - JSON message serialization/deserialization
  * - Connection lifecycle management
  *
  * Authentication flow:
- * 1. If `credentials.token` is present, appended as `?token=` query parameter
- * 2. If `credentials.headers` are present, encoded as WebSocket subprotocols
- *    (since browser WebSocket API does not support custom headers)
+ * 1. If `credentials.token` is present, sent as `{ type: 'auth', token }` message after connect
+ * 2. If `credentials.headers` are present, sent as `{ type: 'auth_headers', headers }` message
+ *    (avoids leaking tokens in URLs or subprotocol encoding)
  *
  * Runtime requirement: `WebSocket` global (browser or Node.js 21+/polyfill)
  */
@@ -64,23 +63,8 @@ export const websocketHandler: ProtocolHandler = async (
 		options.onStateChange?.(newState);
 	};
 
-	// Build endpoint URL with token authentication
-	let endpoint = handoff.endpoint;
-	if (handoff.credentials?.token) {
-		const url = new URL(endpoint);
-		url.searchParams.set('token', handoff.credentials.token);
-		endpoint = url.toString();
-	}
-
-	// Encode custom headers as subprotocols (browser WebSocket limitation)
-	const protocols: string[] = [];
-	if (handoff.credentials?.headers) {
-		for (const [key, value] of Object.entries(handoff.credentials.headers)) {
-			protocols.push(`${key}.${value}`);
-		}
-	}
-
-	const ws = protocols.length > 0 ? new WebSocket(endpoint, protocols) : new WebSocket(endpoint);
+	const endpoint = handoff.endpoint;
+	const ws = new WebSocket(endpoint);
 
 	return new Promise<HandoffConnection>((resolve, reject) => {
 		const connection: HandoffConnection = {
@@ -101,6 +85,13 @@ export const websocketHandler: ProtocolHandler = async (
 		};
 
 		ws.onopen = () => {
+			// Send auth token as first message after connection (avoids leaking token in URL/logs)
+			if (handoff.credentials?.token) {
+				ws.send(JSON.stringify({ type: 'auth', token: handoff.credentials.token }));
+			}
+			if (handoff.credentials?.headers) {
+				ws.send(JSON.stringify({ type: 'auth_headers', headers: handoff.credentials.headers }));
+			}
 			setState('connected');
 			options.onConnect?.(ws);
 			resolve(connection);

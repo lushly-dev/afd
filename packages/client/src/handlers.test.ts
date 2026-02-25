@@ -106,8 +106,7 @@ describe('websocketHandler', () => {
 		expect(onConnect).toHaveBeenCalledWith(mockWs);
 	});
 
-	it('should include token in endpoint URL', async () => {
-		let constructedUrl = '';
+	it('should send auth token as first message after connection', async () => {
 		const mockWs = {
 			onopen: null as (() => void) | null,
 			onmessage: null as ((event: { data: string }) => void) | null,
@@ -119,7 +118,6 @@ describe('websocketHandler', () => {
 
 		// @ts-expect-error — mock WebSocket constructor
 		globalThis.WebSocket = vi.fn((url: string) => {
-			constructedUrl = url;
 			setTimeout(() => mockWs.onopen?.(), 0);
 			return mockWs;
 		});
@@ -130,7 +128,9 @@ describe('websocketHandler', () => {
 
 		await websocketHandler(handoff, {});
 
-		expect(constructedUrl).toContain('token=my-secret-token');
+		expect(mockWs.send).toHaveBeenCalledWith(
+			JSON.stringify({ type: 'auth', token: 'my-secret-token' })
+		);
 	});
 
 	it('should forward messages via onMessage callback', async () => {

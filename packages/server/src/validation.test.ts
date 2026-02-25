@@ -309,7 +309,11 @@ describe('patterns', () => {
 		expect(patterns.sorting.safeParse({ sortBy: 'name', sortDirection: 'desc' }).success).toBe(
 			true
 		);
+		expect(patterns.sorting.safeParse({ sortBy: 'user.name' }).success).toBe(true);
+		expect(patterns.sorting.safeParse({ sortBy: '_created' }).success).toBe(true);
 		expect(patterns.sorting.safeParse({ sortBy: '' }).success).toBe(false);
+		expect(patterns.sorting.safeParse({ sortBy: 'name; DROP TABLE' }).success).toBe(false);
+		expect(patterns.sorting.safeParse({ sortBy: '1name' }).success).toBe(false);
 		expect(patterns.sorting.safeParse({ sortBy: 'name', sortDirection: 'invalid' }).success).toBe(
 			false
 		);
@@ -337,6 +341,12 @@ describe('patterns', () => {
 			patterns.dateRange.safeParse({
 				startDate: 'not-a-date',
 				endDate: '2024-12-31T23:59:59Z',
+			}).success
+		).toBe(false);
+		expect(
+			patterns.dateRange.safeParse({
+				startDate: '2024-12-31T23:59:59Z',
+				endDate: '2024-01-01T00:00:00Z',
 			}).success
 		).toBe(false);
 		expect(patterns.dateRange.safeParse({ startDate: '2024-01-01T00:00:00Z' }).success).toBe(false);
