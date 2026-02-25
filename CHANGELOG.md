@@ -9,11 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Python testing parity** (#138) -- Complete testing assertion, helper, and validator parity with TypeScript `@lushly-dev/afd-testing`
-  - New assertions: `assert_has_suggestion()`, `assert_retryable()`, `assert_step_status()`, `assert_ai_result()`
-  - New `testing/helpers.py`: `test_command()`, `test_command_definition()`, `test_command_multiple()`, `create_mock_command()`, `create_success_command()`, `create_failure_command()`, `create_test_context()`
-  - New `testing/validators.py`: Non-throwing `validate_result()`, `validate_error()`, `validate_command_definition()` returning `ValidationResult` with errors and warnings
-  - Fixed `assert_has_plan()` dict-to-PlanStep conversion (missing `action` field)
+- **Python–TypeScript parity** — Nine PRs bringing the Python `afd` package to full feature parity with the TypeScript implementation (#132–#140):
+  - **CommandResult standardization** (#144) — Cross-language alignment of `CommandResult` fields: added `sources`, `alternatives`, `plan` to Python; added `plan` field to TypeScript; shared field documentation
+  - **Testing parity** (#141) — Complete testing assertion, helper, and validator parity with TypeScript `@lushly-dev/afd-testing`
+    - New assertions: `assert_has_suggestion()`, `assert_retryable()`, `assert_step_status()`, `assert_ai_result()`
+    - New `testing/helpers.py`: `test_command()`, `test_command_definition()`, `test_command_multiple()`, `create_mock_command()`, `create_success_command()`, `create_failure_command()`, `create_test_context()`
+    - New `testing/validators.py`: Non-throwing `validate_result()`, `validate_error()`, `validate_command_definition()` returning `ValidationResult` with errors and warnings
+    - Fixed `assert_has_plan()` dict-to-PlanStep conversion (missing `action` field)
+  - **Core telemetry types** (#145) — `TelemetryEvent`, `TelemetrySink` protocol, `ConsoleTelemetrySink`, `create_telemetry_event()` with auto-calculated `duration_ms`
+  - **Batch execution and streaming** (#147) — `execute_batch()`, `BatchResult`, `StreamChunk` discriminated union, `execute_stream()` async generator, continue-on-failure and stop-on-error modes
+  - **Enhanced validation & handoff schemas** (#143) — `validate_input()`, `validate_input_enhanced()`, `validate_or_throw()`, `is_valid()`, pattern types (`UuidStr`, `EmailStr`), query param models (`PaginationParams`, `SortParams`, `SearchParams`, `DateRangeParams`), handoff schema validators
+  - **Middleware stack** (#142) — `compose_middleware()` with `CommandMiddleware` protocol, `default_middleware()` factory, built-in middleware: auto trace ID, logging, timing, retry, tracing, rate limiting, telemetry
+  - **JTBD scenario testing** (#146) — Scenario parser, evaluator, executor, coverage analysis, terminal reporter; `Scenario`, `Step`, `Expectation` types; `validate_scenario()`, `parse_scenario_file()`, `parse_scenario_dir()`
+  - **Handoff connection** (#148) — `connect_handoff()`, `create_reconnecting_handoff()`, `HandoffConnection` protocol, `ReconnectingHandoffConnection` with exponential backoff, built-in WebSocket and SSE handlers, `register_builtin_handlers()`
+  - **MCP client** (#149) — `McpClient` with `call()`, `call_tool()`, `batch()`, `pipe()`, `stream()`, `disconnect()`; `McpClientConfig` with endpoint/client_name/client_version; `ClientStatus` with server_info/capabilities; SSE and HTTP transports; `ToolExecutionError` for tool-level failures
 - **Lefthook git hooks** -- Pre-commit, commit-msg, pre-push, and on-demand quality gate hooks
   - `check-file-size.mjs` -- Warn >300 lines, error >500, hard cap 1000 with `// afd-override: max-lines=N` escape hatch
   - `check-portability.mjs` -- Detect machine-specific paths (drive letters, user homes, localhost)
@@ -27,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **README.md** -- Rewrote "What Makes This Different" section with side-by-side traditional CLI vs AFD structured output comparison
 - **CONTRIBUTING.md** -- Comprehensive rewrite covering AFD principles, lefthook setup, Python/Alfred prerequisites, and contribution workflow
+
+### Fixed
+
+- **CI build order** — Build step now runs before typecheck so workspace package references resolve correctly
+- **Biome lint** — Resolved lint errors in `scripts/*.mjs` check scripts; expanded lefthook lint glob to include `scripts/`
 
 ## [0.2.0] - 2026-02-22
 

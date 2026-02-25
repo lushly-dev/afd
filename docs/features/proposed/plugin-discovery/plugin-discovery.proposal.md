@@ -1,24 +1,58 @@
 # Feature Proposal: Plugin Discovery via Entry Points
 
-## 1. Summary
-Implement plugin discovery via package metadata entry points, allowing third-party packages to contribute commands without modifying the host application.
+## Summary
 
-## 2. Motivation
-Currently, commands are registered explicitly via arrays passed to `createMcpServer`. Adding a command requires updating the registration site. As the ecosystem grows, a zero-config plugin model where installing a package automatically makes its commands available becomes desirable.
+Enable opt-in plugin discovery so installed packages can contribute commands at server startup without modifying host registration code.
 
-## 3. Proposed Solution
-- Define a plugin protocol with two responsibilities: (1) register commands into a shared registry, and (2) optionally declare a config schema for validation.
-- Update the server factory to discover command packages at startup via a declared entry point group.
-- Walk discovered plugins, call their registration functions, and build the namespace.
-- Support both explicit registration (primary) and discovery (opt-in) to maintain debuggability.
+## Problem
 
-*Note: This feature is deferred until command sets exceed what explicit registration can comfortably manage (e.g., 50+ commands from multiple packages).*
+Explicit command registration scales poorly for ecosystems with many independently versioned command packages.
 
-## 4. Breaking Changes
-**Low.** The key contract `McpServerOptions.commands: ZodCommandDefinition[]` remains. Plugin discovery adds an alternative way to build that array. As long as explicit registration is supported and discovery doesn't silently overwrite explicit commands, the risk is low.
+## Scope
 
-## 5. Alternatives Considered
-- Sticking exclusively to explicit registration. This is safer and easier to debug but limits ecosystem extensibility in the long run.
+In scope:
+- Package metadata convention for plugin entrypoint.
+- Startup discovery and plugin loading.
+- Collision policy and diagnostics.
+- Opt-in configuration in server options.
 
-## 6. Specification
+Out of scope:
+- Remote plugin marketplace.
+- Runtime hot-reload of plugins.
+
+## Requirements
+
+- Discovery MUST be opt-in and disabled by default.
+- Explicitly registered commands MUST remain supported.
+- Plugin load failures MUST not crash server startup; failures are reported and skipped.
+- Command name collisions MUST follow configured conflict policy.
+- Plugin protocol version mismatch MUST return actionable diagnostics.
+- Plugin config SHOULD be schema-validated before registration.
+- Startup diagnostics SHOULD expose loaded, failed, and excluded plugins.
+
+## Architecture / Dataflow
+
+1. Read host dependencies and apply include/exclude rules.
+2. Resolve package metadata for plugin entry.
+3. Load plugin module and validate protocol contract.
+4. Register plugin contributions via constrained registry API.
+5. Merge with host commands using conflict policy.
+6. Emit diagnostics.
+
+## Edge Cases and Rollback
+
+- Invalid plugin export shape: skip plugin and report reason.
+- Duplicate command names across plugins: resolve per policy or fail fast.
+- Unsupported plugin protocol version: skip with upgrade suggestion.
+- Startup regression after enabling discovery: rollback by disabling plugin discovery option.
+
+## Acceptance Criteria
+
+- Host starts with discovery enabled and loads at least one plugin command.
+- Plugin failure does not block non-failing plugins.
+- Conflict policy is enforced and test-covered.
+- Diagnostics output lists plugin status and contributed command count.
+
+## Specification
+
 See [plugin-discovery.spec.md](./plugin-discovery.spec.md) for full design.

@@ -1,80 +1,62 @@
 # Chat History Panel
 
-> Proposal: Multi-session chat history with slide-out sidebar navigation
+Status: Proposed  
+Created: 2026-01-12  
+Updated: 2026-02-24
 
----
-status: captured
-created: 2026-01-12
-origin: Chat UI reorganization discussion
-effort: M (3-5 days)
----
+## Summary
+
+Add a history sidebar that supports multiple chat sessions, session switching, and persistent local history.
 
 ## Problem
 
-Currently there's only a single chat session with no way to start fresh conversations or browse previous ones. Users lose context when they need to reference past AI interactions.
+Single-session chat prevents users from starting clean workflows and revisiting earlier outcomes.
 
-## Proposed Solution
+## Scope
 
-**Slide-out History Sidebar** — accessible via 📜 icon in chat header:
+In scope:
+- Create, list, switch, and persist sessions.
+- Auto-title sessions from first user message.
+- Slide-out panel toggle in chat header.
 
-### Core Features
+Out of scope:
+- Cross-device sync in this phase.
+- Server-side history storage.
 
-| Feature | Description |
-|---------|-------------|
-| Multi-session support | Each [+] creates a new session |
-| Session list | Scrollable list with title + timestamp |
-| Session switching | Click to load, auto-saves current |
-| Session titles | Auto-generated from first message |
+## Requirements
 
-### Data Model
+- The UI MUST support creating a new session without losing prior sessions.
+- The UI MUST persist session list and messages in local storage.
+- The UI MUST restore the last active session on reload.
+- Switching sessions MUST save current state before navigation.
+- Session titles SHOULD be generated from first user message and editable later.
+- The implementation MAY include a migration path for future remote storage.
 
-```typescript
-interface ChatSession {
-  id: string;
-  title: string;
-  createdAt: Date;
-  updatedAt: Date;
-  messages: ChatMessage[];
-}
-```
+## Architecture / Dataflow
 
-### Storage Strategy
+1. User creates or selects a session in sidebar.
+2. Session store updates `currentSessionId` and message list.
+3. State is persisted to local storage after changes.
+4. On app load, store hydrates sessions and restores active session.
 
-- **Phase 1**: localStorage with session index
-- **Phase 2**: Convex-backed for cross-device sync
+## Edge Cases and Error States
 
-## UI Layout
+- Corrupt local storage payload: reset to empty state with user notice.
+- Missing active session id: fallback to most recently updated session.
+- Session delete of active session: switch to next available session or create blank.
+- Storage quota exceeded: stop writes and show non-blocking warning.
 
-```
-┌─────────────────────┬──────────────────────┐
-│ Myoso        [+] [📜]│ Chat History         │
-├─────────────────────┤──────────────────────│
-│                     │ 📝 Create todos      │
-│  [Chat messages...] │    Today, 12:30 PM   │
-│                     │──────────────────────│
-│                     │ 📝 List my tasks     │
-│                     │    Yesterday         │
-├─────────────────────┤                      │
-│ [Input area...]     │                      │
-└─────────────────────┴──────────────────────┘
-```
+## Acceptance Criteria
 
-## Implementation Plan
+- User can create 3 sessions, switch between them, and see independent message histories.
+- Reload preserves sessions and active selection.
+- Invalid storage payload is handled gracefully without crash.
+- Session creation and switching works without network dependency.
 
-- [ ] Add `ChatSession` type and session storage utils
-- [ ] Create `ChatHistoryPanel` component
-- [ ] Add session state management (current, list)
-- [ ] Wire [+] button to create new session
-- [ ] Wire 📜 button to toggle history panel
-- [ ] Implement session switching with auto-save
-- [ ] Add session title extraction from first message
+## Task Breakdown
 
-## Benefits
-
-- Users can start fresh without losing history
-- Easy reference to past AI interactions
-- Foundation for cross-device sync (Phase 2)
-
----
-
-*Status: Captured — awaiting prioritization*
+1. Add session model and persistence utilities.
+2. Implement sidebar list and toggle.
+3. Add create/switch flows and title generation.
+4. Add hydration, recovery, and error handling.
+5. Add integration tests for persistence and switching.

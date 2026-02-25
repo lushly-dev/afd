@@ -48,7 +48,7 @@ class Todo(BaseModel):
     done: bool = False
 
 @define_command(
-    name="todo.create",
+    name="todo-create",
     description="Create a new todo item",
 )
 async def create_todo(title: str) -> CommandResult[Todo]:
@@ -70,7 +70,7 @@ server = create_server(
 )
 
 @server.command(
-    name="todo.create",
+    name="todo-create",
     description="Create a todo",
 )
 async def create_todo(input):
@@ -89,12 +89,12 @@ from afd.testing import assert_success
 
 # Use the mock_server fixture
 async def test_create_todo(mock_server):
-    @mock_server.command("todo.create")
+    @mock_server.command("todo-create")
     async def handler(input):
         from afd import success
         return success({"id": "1", "title": input["title"]})
 
-    result = await mock_server.execute("todo.create", {"title": "Test"})
+    result = await mock_server.execute("todo-create", {"title": "Test"})
 
     data = assert_success(result)
     assert data["title"] == "Test"
@@ -232,6 +232,30 @@ class MyMonitoringSink:
         pass
 ```
 
+### Middleware
+
+Add cross-cutting concerns to command execution:
+
+```python
+from afd.server import (
+    default_middleware,
+    compose_middleware,
+    create_logging_middleware,
+    create_timing_middleware,
+    create_retry_middleware,
+)
+
+# Zero-config: logging, timing, and auto trace ID
+middleware = default_middleware()
+
+# Or compose custom middleware stacks
+middleware = compose_middleware([
+    create_logging_middleware(),
+    create_timing_middleware(threshold_ms=500),
+    create_retry_middleware(max_retries=3),
+])
+```
+
 ## MCP Client (Network)
 
 Connect to remote MCP servers over SSE or HTTP:
@@ -329,7 +353,7 @@ if result.success and is_handoff(result.data):
 | `[server]`  | MCP server factory, `@define_command`, `create_server()`             |
 | `[client]`  | `McpClient`, SSE/HTTP transports, handoff connection handlers       |
 | `[cli]`     | Click-based CLI for connecting to MCP servers                        |
-| `[testing]` | Assertions, helpers, validators, `mock_server` fixture, `MockTransport` |
+| `[testing]` | Assertions, helpers, validators, scenario runner, `mock_server` fixture |
 
 ## Related
 

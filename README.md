@@ -185,7 +185,7 @@ AFD ships as packages across **TypeScript, Python, and Rust**, all sharing the s
 | **@afd/cli** | CLI for connecting, calling, validating, and exploring commands |
 | **@afd/auth** | Provider-agnostic auth adapter — middleware, commands, session sync, React hooks, adapters for Mock/Convex/BetterAuth |
 | **@afd/adapters** | Frontend adapters for rendering `CommandResult` → styled HTML with CSS variable theming |
-| **afd** *(Python)* | Pydantic-based `CommandResult`, FastMCP server, decorator-based command definition |
+| **afd** *(Python)* | Full TS parity — `CommandResult`, MCP server/client, middleware, validation, telemetry, batch/streaming, testing, handoff |
 | **afd** *(Rust)* | `CommandResult` types, `CommandRegistry`, batch/stream support, WASM-compatible |
 
 Features like [command trust config](./docs/features/complete/command-trust-config/), [exposure & undo](./docs/features/complete/command-exposure-undo/), [command pipelines](./docs/features/complete/command-pipeline/), [real-time handoff](./docs/features/complete/handoff-pattern/), and [middleware defaults](./docs/features/complete/middleware-defaults/) (zero-config observability) are already shipped. TypeSpec-based [cross-layer contract sync](./.claude/skills/afd-contracts/SKILL.md) prevents schema drift between codebases.

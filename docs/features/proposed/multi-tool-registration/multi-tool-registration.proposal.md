@@ -1,23 +1,66 @@
 # Feature Proposal: Multi-Tool Registration Automation
 
-## 1. Summary
-Create an `afd register` CLI command to automatically detect installed AI tools and write the appropriate MCP server configuration files.
+## Summary
 
-## 2. Motivation
-Currently, users must manually configure their AI tools (Claude Desktop, Cursor, VS Code, Windsurf, etc.) to connect to an AFD MCP server. This setup friction hinders the adoption of AFD servers.
+Create an `afd register` CLI command to detect installed AI tools and write the required MCP server configuration in each tool-specific format.
 
-## 3. Proposed Solution
-- Implement an `afd register` command in the CLI.
-- The command will detect installed AI tools and write the appropriate MCP server config.
-- Support both stdio and HTTP transports with appropriate defaults per tool.
-- Handle auth configuration (bearer tokens, API keys, environment variables).
-- Ensure the command is idempotent so it is safe to re-run after config changes.
+## Problem
 
-## 4. Breaking Changes
-**None.** This is a new CLI command and does not change any API surface.
+Manual per-tool JSON editing causes setup friction, onboarding failures, and inconsistent configurations.
 
-## 5. Alternatives Considered
-- Providing extensive documentation on manual configuration. While necessary, automation provides a significantly better developer experience.
+## Scope
 
-## 6. Specification
+In scope:
+- Detect supported tools and config locations.
+- Generate and merge MCP config entries.
+- Dry-run preview and idempotent apply.
+- Optional remove/unregister flow.
+
+Out of scope:
+- Managing third-party credential stores.
+- Unsupported tools without documented config formats.
+
+## Requirements
+
+- The command MUST detect supported tools and report confidence.
+- The command MUST generate valid tool-specific configuration structures.
+- The command MUST be idempotent when run repeatedly.
+- The command MUST support dry-run with a human-readable diff/preview.
+- Existing non-AFD entries MUST be preserved during merge.
+- The command SHOULD support manifest-driven team defaults.
+- The command SHOULD return explicit error codes and recovery suggestions.
+
+## Architecture / Dataflow
+
+1. Detect tools and config locations.
+2. Load manifest or infer defaults.
+3. Read existing config.
+4. Merge or remove AFD entry.
+5. Validate output and write atomically with backup/restore.
+
+## Edge Cases and Safety
+
+- Unsupported scope for a tool: fail with explicit scope-not-supported error.
+- Conflicting existing entry: prompt unless `--force` is set.
+- Invalid JSON/JSONC: fail safely and preserve original file unchanged.
+- Partial write failure: restore backup and report rollback performed.
+
+## Acceptance Criteria
+
+- Dry-run shows intended changes for each detected tool.
+- Apply writes valid config for at least VS Code and one additional tool.
+- Re-running apply does not duplicate entries.
+- Remove deletes only target AFD entry and preserves all others.
+- Error paths provide actionable suggestions.
+
+## Task Breakdown
+
+1. Detection layer.
+2. Manifest schema and validation.
+3. Per-tool writer/merger adapters.
+4. CLI command and subcommands.
+5. Tests for idempotency, merge safety, and rollback.
+
+## Specification
+
 See [multi-tool-registration.spec.md](./multi-tool-registration.spec.md) for the full technical specification.

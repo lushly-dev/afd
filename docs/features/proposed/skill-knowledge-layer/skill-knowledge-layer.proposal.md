@@ -2,25 +2,61 @@
 
 > **Spec:** [skill-knowledge-layer.spec.md](./skill-knowledge-layer.spec.md)
 
-## 1. Summary
-Introduce an optional command skill layer to bundle agent-facing documentation alongside commands, providing richer context than schemas alone.
+## Summary
 
-## 2. Motivation
-As command sets grow, agents need more than input schemas—they need guidance on when and why to use a command, what patterns work well, and what to avoid. Currently, AFD lacks a dedicated knowledge layer for this prose-based guidance.
+Add optional command skill documents co-located with commands to provide agent-facing usage guidance beyond schemas.
 
-## 3. Proposed Solution
-- Allow commands to have associated command skill documents (`.skill.md` files with YAML frontmatter).
-- Co-locate skill docs with commands in the source tree (not `.claude/skills/`, which serves a different purpose — see spec for details).
-- Make command skills discoverable alongside command definitions via the `skill-docs` bootstrap command.
-- Implement a validation pass to check quality (no orphans, no missing skills, naming, description completeness).
-- Focus content strictly on *agent guidance* — when/why/how to call commands.
+## Problem
 
-*Note: The three-tier ownership model from Botcore is deferred to avoid unnecessary complexity at this stage.*
+Command schemas describe structure but not strategy, sequencing, and anti-patterns.
 
-## 4. Breaking Changes
-**Low.** This is additive unless `ZodCommandDefinition` grows a required `skill` field. The `skill` field should remain optional. If a strict mode is introduced in the linter that requires skill docs, it must be opt-in to avoid breaking existing projects.
+## Scope
 
-## 5. Alternatives Considered
-- Relying solely on command descriptions. This is insufficient for complex workflows that require strategic guidance.
-- Maintaining separate documentation repositories, which often drift from the actual implementation.
-- Using the existing Claude Code skills system (`.claude/skills/`). Rejected because it serves a different audience (IDE developers vs runtime MCP agents) and mixing the two would bloat Claude Code's context.
+In scope:
+- Skill document format with frontmatter.
+- Command-to-skill linkage.
+- Discovery command for skill retrieval.
+- Validation pass for quality and coverage.
+
+Out of scope:
+- Mandatory skill docs for all commands.
+- Replacing existing editor-focused skill systems.
+
+## Requirements
+
+- Command skill support MUST be optional and non-breaking.
+- Skill docs MUST have parseable frontmatter with at least `name` and `description`.
+- The system MUST resolve skill references from source-tree paths.
+- Validation MUST detect missing frontmatter, broken refs, and orphaned docs.
+- Discovery output SHOULD support summary and full-body formats.
+- Teams MAY enforce coverage in strict mode.
+
+## Architecture / Dataflow
+
+1. Command definitions include optional skill reference.
+2. Loader discovers and parses skill documents.
+3. Resolver maps skills to commands/categories.
+4. Bootstrap command returns skill summaries/full content.
+5. Validation reports findings for CI gating.
+
+## Edge Cases and Error States
+
+- Missing skill file path: report broken reference.
+- Invalid frontmatter: report parse error with file target.
+- Duplicate coverage: warning with conflicting skill names.
+- Large skill body: warning based on configurable length threshold.
+
+## Acceptance Criteria
+
+- Commands without skills continue working unchanged.
+- At least one command-level and one category-level skill are discoverable.
+- Validation catches malformed and orphaned skills.
+- Discovery command returns both summary and full formats.
+
+## Task Breakdown
+
+1. Skill type and parser.
+2. Resolver and discovery utilities.
+3. Bootstrap command.
+4. Validator rules.
+5. CLI validation integration.

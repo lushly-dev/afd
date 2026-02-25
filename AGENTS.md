@@ -36,7 +36,7 @@ packages/
     ├── todo/                # Multi-stack example (TS, Python, Rust backends)
     └── todo-directclient/   # DirectClient + AI integration example
 
-python/  # Python AFD package (pip install afd) — CommandResult, errors, FastMCP server
+python/  # Python AFD package (pip install afd) — CommandResult, MCP server/client, middleware, validation, telemetry, batch/streaming, testing, handoff
 alfred/  # Quality bot — lint, parity, quality (see alfred/AGENTS.md)
 ```
 
