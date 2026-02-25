@@ -214,6 +214,7 @@ class TestRegistryExposureCheck:
         result = await registry.execute("internal-cmd", {}, ctx)
         assert result.success is False
         assert result.error.code == "COMMAND_NOT_EXPOSED"
+        assert result.error.suggestion is not None
 
     @pytest.mark.asyncio
     async def test_command_allowed_when_exposed(self):
@@ -293,6 +294,27 @@ class TestRegistryExposureCheck:
         ctx = CommandContext(extra={"interface": "agent"})
         result = await registry.execute("agent-cmd", {}, ctx)
         assert result.success is True
+
+    @pytest.mark.asyncio
+    async def test_invalid_interface_rejected(self):
+        """Unknown interface names are rejected before getattr."""
+        registry = create_command_registry()
+
+        async def handler(input, context=None):
+            return success({"ok": True})
+
+        cmd = CommandDefinition(
+            name="test-cmd",
+            description="Test",
+            handler=handler,
+        )
+        registry.register(cmd)
+
+        ctx = CommandContext(extra={"interface": "__class__"})
+        result = await registry.execute("test-cmd", {}, ctx)
+        assert result.success is False
+        assert result.error.code == "INVALID_INTERFACE"
+        assert "Valid interfaces" in result.error.suggestion
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

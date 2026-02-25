@@ -281,6 +281,16 @@ class _CommandRegistryImpl:
         # Check exposure if interface context is provided
         if context and context.extra.get("interface"):
             interface = context.extra["interface"]
+            _VALID_INTERFACES = frozenset({"palette", "mcp", "agent", "cli"})
+            if interface not in _VALID_INTERFACES:
+                return CommandResult(
+                    success=False,
+                    error=CmdError(
+                        code="INVALID_INTERFACE",
+                        message=f"Unknown interface '{interface}'",
+                        suggestion=f"Valid interfaces: {', '.join(sorted(_VALID_INTERFACES))}",
+                    ),
+                )
             expose = command.expose if command.expose is not None else DEFAULT_EXPOSE
             if not getattr(expose, interface, False):
                 return CommandResult(
@@ -288,6 +298,7 @@ class _CommandRegistryImpl:
                     error=CmdError(
                         code="COMMAND_NOT_EXPOSED",
                         message=f"Command '{name}' is not exposed to {interface}",
+                        suggestion="Check command exposure settings or use a different interface",
                     ),
                 )
 
