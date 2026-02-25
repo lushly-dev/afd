@@ -275,12 +275,7 @@ def create_tool_registry(
 			parsed["known_commands"] = parsed["knownCommands"]
 		if "known_commands" in parsed and "knownCommands" not in parsed:
 			parsed["knownCommands"] = parsed["known_commands"]
-		if (
-			"knownCommands" not in parsed
-			and "known_commands" not in parsed
-			or parsed.get("knownCommands") is None
-			and parsed.get("known_commands") is None
-		):
+		if "knownCommands" not in parsed and "known_commands" not in parsed:
 			raise ValueError("Missing required field: knownCommands")
 		result = scenario_coverage_cmd(parsed)
 		if isinstance(result, dict):
