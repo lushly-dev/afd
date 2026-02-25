@@ -43,15 +43,12 @@ server = [
 client = [
     "httpx>=0.27",
     "httpx-sse>=0.4",
+    "websockets>=12.0",
 ]
 cli = [
     "click>=8.0",
     "rich>=13.0",
     "afd[server]",  # CLI needs transports
-]
-client = [
-    "websockets>=12.0",
-    "httpx>=0.27",
 ]
 testing = [
     "pytest>=8.0",

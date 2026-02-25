@@ -328,7 +328,13 @@ class PackageManagerConnector:
         if self._pm in ("npm", "pnpm"):
             cmd: list[str] = [self._pm, "run", script]
         elif self._pm == "cargo":
-            # cargo doesn't have scripts, but `cargo run` is the equivalent
+            # cargo run is the closest equivalent to npm run
+            _CARGO_ALLOWED = frozenset({"run", "build", "test", "bench", "check", "clippy", "fmt"})
+            if script not in _CARGO_ALLOWED:
+                raise RuntimeError(
+                    f"cargo subcommand '{script}' is not allowed. "
+                    f"Allowed: {', '.join(sorted(_CARGO_ALLOWED))}"
+                )
             cmd = ["cargo", script]
         else:
             raise RuntimeError(f"run() is not supported for {self._pm}")

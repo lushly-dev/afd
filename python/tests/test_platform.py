@@ -220,19 +220,19 @@ class TestExecCommand:
         assert "non-empty" in result.stderr.lower()
 
     async def test_echo_command(self):
-        result = await exec_command(["echo", "hello world"])
-        assert result.stdout == "hello world"
+        result = await exec_command([sys.executable, "-c", "print('hello world')"])
+        assert result.stdout.strip() == "hello world"
         assert result.exit_code == 0
         assert result.error_code is None
         assert result.duration_ms >= 0
 
     async def test_exit_code_nonzero(self):
-        result = await exec_command(["false"])
+        result = await exec_command([sys.executable, "-c", "import sys; sys.exit(1)"])
         assert result.exit_code != 0
         assert result.error_code == ExecErrorCode.EXIT_CODE
 
     async def test_stderr_captured(self):
-        result = await exec_command(["ls", "/nonexistent_path_abc123"])
+        result = await exec_command([sys.executable, "-c", "import sys; sys.stderr.write('err msg'); sys.exit(1)"])
         assert result.exit_code != 0
         assert result.stderr != ""
 
@@ -243,25 +243,28 @@ class TestExecCommand:
 
     async def test_timeout_kills_process(self):
         result = await exec_command(
-            ["sleep", "10"],
+            [sys.executable, "-c", "import time; time.sleep(10)"],
             ExecOptions(timeout=100),
         )
         assert is_exec_error(result)
         assert result.error_code == ExecErrorCode.TIMEOUT
 
     async def test_cwd_option(self):
-        result = await exec_command(["pwd"], ExecOptions(cwd="/tmp"))
+        tmpdir = tempfile.gettempdir()
+        result = await exec_command(
+            [sys.executable, "-c", "import os; print(os.getcwd())"],
+            ExecOptions(cwd=tmpdir),
+        )
         assert result.exit_code == 0
-        # /tmp might resolve to /private/tmp on macOS
-        assert "tmp" in result.stdout.lower()
+        assert "tmp" in result.stdout.lower() or "temp" in result.stdout.lower()
 
     async def test_env_option(self):
         result = await exec_command(
-            ["env"],
+            [sys.executable, "-c", "import os; print(os.environ.get('AFD_TEST_VAR', ''))"],
             ExecOptions(env={"AFD_TEST_VAR": "test_value_123"}),
         )
         assert result.exit_code == 0
-        assert "AFD_TEST_VAR=test_value_123" in result.stdout
+        assert "test_value_123" in result.stdout
 
     async def test_debug_logging(self, capsys):
         await exec_command(["echo", "test"], ExecOptions(debug=True))
@@ -269,7 +272,7 @@ class TestExecCommand:
         assert "[exec] echo test" in captured.out
 
     async def test_duration_ms_measured(self):
-        result = await exec_command(["sleep", "0.05"])
+        result = await exec_command([sys.executable, "-c", "import time; time.sleep(0.05)"])
         assert result.duration_ms >= 40  # at least ~40ms for 50ms sleep
 
 
