@@ -51,24 +51,29 @@
 // Server factory
 export type {
 	CommandMiddleware,
+	CreateHandoffOptions,
 	ExposeOptions,
 	HandoffCredentials,
 	HandoffMetadata,
 	HandoffProtocol,
 	HandoffResult,
+	ReconnectPolicy,
 	TelemetryEvent,
 	TelemetrySink,
 } from '@lushly-dev/afd-core';
 // Re-export core helpers for convenience
 export {
+	createHandoff,
 	createTelemetryEvent,
 	defaultExpose,
+	defaultReconnectPolicy,
 	failure,
 	getHandoffProtocol,
 	isFailure,
 	isHandoff,
 	isHandoffCommand,
 	isHandoffProtocol,
+	isReconnectPolicy,
 	isSuccess,
 	isTelemetryEvent,
 	success,

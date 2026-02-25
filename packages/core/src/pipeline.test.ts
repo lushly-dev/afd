@@ -30,6 +30,7 @@ import {
 	resolveVariable,
 	resolveVariables,
 } from './pipeline.js';
+import { success } from './result.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPE GUARD TESTS

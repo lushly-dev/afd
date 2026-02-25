@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+	createHandoff,
+	defaultReconnectPolicy,
 	getHandoffProtocol,
 	type HandoffResult,
 	isHandoff,
 	isHandoffCommand,
 	isHandoffProtocol,
+	isReconnectPolicy,
+	type ReconnectPolicy,
 } from './handoff.js';
 
 describe('isHandoff', () => {
@@ -379,5 +383,130 @@ describe('getHandoffProtocol', () => {
 
 	it('extracts protocol correctly from tag with colons', () => {
 		expect(getHandoffProtocol({ tags: ['handoff', 'handoff:http-stream'] })).toBe('http-stream');
+	});
+});
+
+describe('ReconnectPolicy', () => {
+	it('has sensible defaults', () => {
+		expect(defaultReconnectPolicy).toEqual({
+			allowed: true,
+			maxAttempts: 3,
+			backoffMs: 1000,
+		});
+	});
+
+	it('defaults are frozen', () => {
+		expect(Object.isFrozen(defaultReconnectPolicy)).toBe(true);
+	});
+});
+
+describe('isReconnectPolicy', () => {
+	it('returns true for valid minimal policy', () => {
+		expect(isReconnectPolicy({ allowed: true })).toBe(true);
+		expect(isReconnectPolicy({ allowed: false })).toBe(true);
+	});
+
+	it('returns true for full policy', () => {
+		const policy: ReconnectPolicy = {
+			allowed: true,
+			maxAttempts: 5,
+			backoffMs: 2000,
+		};
+		expect(isReconnectPolicy(policy)).toBe(true);
+	});
+
+	it('returns false for null', () => {
+		expect(isReconnectPolicy(null)).toBe(false);
+	});
+
+	it('returns false for non-object', () => {
+		expect(isReconnectPolicy('yes')).toBe(false);
+		expect(isReconnectPolicy(42)).toBe(false);
+	});
+
+	it('returns false when allowed is missing', () => {
+		expect(isReconnectPolicy({ maxAttempts: 3 })).toBe(false);
+	});
+
+	it('returns false when allowed is wrong type', () => {
+		expect(isReconnectPolicy({ allowed: 'true' })).toBe(false);
+	});
+
+	it('returns false when maxAttempts is wrong type', () => {
+		expect(isReconnectPolicy({ allowed: true, maxAttempts: 'five' })).toBe(false);
+	});
+
+	it('returns false when backoffMs is wrong type', () => {
+		expect(isReconnectPolicy({ allowed: true, backoffMs: 'slow' })).toBe(false);
+	});
+});
+
+describe('createHandoff', () => {
+	it('creates minimal handoff with default reconnect', () => {
+		const handoff = createHandoff({
+			protocol: 'websocket',
+			endpoint: 'wss://example.com/chat',
+		});
+
+		expect(handoff.protocol).toBe('websocket');
+		expect(handoff.endpoint).toBe('wss://example.com/chat');
+		expect(handoff.credentials).toBeUndefined();
+		expect(handoff.metadata?.reconnect).toEqual({
+			allowed: true,
+			maxAttempts: 3,
+			backoffMs: 1000,
+		});
+	});
+
+	it('includes credentials when provided', () => {
+		const handoff = createHandoff({
+			protocol: 'websocket',
+			endpoint: 'wss://example.com/chat',
+			credentials: { token: 'abc123', sessionId: 'session-xyz' },
+		});
+
+		expect(handoff.credentials).toEqual({ token: 'abc123', sessionId: 'session-xyz' });
+	});
+
+	it('preserves explicit reconnect policy', () => {
+		const handoff = createHandoff({
+			protocol: 'sse',
+			endpoint: 'https://api.example.com/events',
+			metadata: {
+				reconnect: { allowed: false },
+			},
+		});
+
+		expect(handoff.metadata?.reconnect).toEqual({ allowed: false });
+	});
+
+	it('preserves other metadata alongside reconnect', () => {
+		const handoff = createHandoff({
+			protocol: 'websocket',
+			endpoint: 'wss://example.com/chat',
+			metadata: {
+				expectedLatency: 50,
+				capabilities: ['text', 'presence'],
+				description: 'Chat room',
+			},
+		});
+
+		expect(handoff.metadata?.expectedLatency).toBe(50);
+		expect(handoff.metadata?.capabilities).toEqual(['text', 'presence']);
+		expect(handoff.metadata?.description).toBe('Chat room');
+		expect(handoff.metadata?.reconnect).toEqual({
+			allowed: true,
+			maxAttempts: 3,
+			backoffMs: 1000,
+		});
+	});
+
+	it('produces a valid HandoffResult', () => {
+		const handoff = createHandoff({
+			protocol: 'websocket',
+			endpoint: 'wss://example.com/chat',
+		});
+
+		expect(isHandoff(handoff)).toBe(true);
 	});
 });

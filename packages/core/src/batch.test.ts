@@ -3,6 +3,7 @@ import {
 	type BatchCommand,
 	type BatchCommandResult,
 	type BatchTiming,
+	type BatchWarning,
 	calculateBatchConfidence,
 	createBatchRequest,
 	createBatchResult,
@@ -235,6 +236,40 @@ describe('type guards', () => {
 			expect(isBatchResult({ success: true })).toBe(false);
 			expect(isBatchResult({ success: true, results: 'not array' })).toBe(false);
 		});
+	});
+});
+
+describe('BatchWarning', () => {
+	it('is included in batch result when commands have warnings', () => {
+		const results: BatchCommandResult[] = [
+			{
+				id: 'cmd-0',
+				index: 0,
+				command: 'test',
+				result: {
+					success: true,
+					data: {},
+					warnings: [{ code: 'SLOW_QUERY', message: 'Query took > 1s' }],
+				},
+				durationMs: 10,
+			},
+		];
+
+		const timing: BatchTiming = {
+			totalMs: 10,
+			averageMs: 10,
+			startedAt: new Date().toISOString(),
+			completedAt: new Date().toISOString(),
+		};
+
+		const batchResult = createBatchResult(results, timing);
+		expect(batchResult.warnings).toHaveLength(1);
+
+		const warnings = batchResult.warnings ?? [];
+		const warning = warnings[0] as BatchWarning;
+		expect(warning.commandId).toBe('cmd-0');
+		expect(warning.code).toBe('SLOW_QUERY');
+		expect(warning.message).toBe('Query took > 1s');
 	});
 });
 
