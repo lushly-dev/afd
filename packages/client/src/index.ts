@@ -33,6 +33,8 @@ export {
 	DirectTransport,
 	type UnknownToolError,
 } from './direct.js';
+// Built-in protocol handlers
+export { builtinHandlers, sseHandler, websocketHandler } from './handlers.js';
 // Handoff protocol handlers and utilities
 export {
 	// Helper functions

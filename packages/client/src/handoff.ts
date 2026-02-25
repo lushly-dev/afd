@@ -1,3 +1,4 @@
+// afd-override: max-lines=700 — single-module cohesion: registry + connectHandoff + reconnection + helpers
 /**
  * @fileoverview Handoff Protocol Handlers & Utilities
  *
@@ -43,6 +44,7 @@ import type {
 } from '@lushly-dev/afd-core';
 import { isHandoff, isHandoffProtocol } from '@lushly-dev/afd-core';
 import type { DirectClient } from './direct.js';
+import { builtinHandlers } from './handlers.js';
 
 // Re-export core types and guards for convenience
 export { isHandoff, isHandoffProtocol };
@@ -277,12 +279,18 @@ export async function connectHandoff(
 	handoff: HandoffResult,
 	options: HandoffConnectionOptions = {}
 ): Promise<HandoffConnection> {
-	const handler = protocolHandlers.get(handoff.protocol);
+	// Prefer custom-registered handlers over built-in defaults
+	const handler = protocolHandlers.get(handoff.protocol) ?? builtinHandlers.get(handoff.protocol);
 
 	if (!handler) {
+		const available = [
+			...listProtocolHandlers(),
+			...Array.from(builtinHandlers.keys()).filter((k) => !protocolHandlers.has(k)),
+		];
+
 		throw new Error(
 			`No protocol handler registered for '${handoff.protocol}'. ` +
-				`Available protocols: ${listProtocolHandlers().join(', ') || 'none'}. ` +
+				`Available protocols: ${available.join(', ') || 'none'}. ` +
 				`Register a handler with registerProtocolHandler('${handoff.protocol}', handler).`
 		);
 	}

@@ -297,6 +297,61 @@ describe('patterns', () => {
 		expect(patterns.pagination.safeParse({ limit: 101 }).success).toBe(false);
 		expect(patterns.pagination.safeParse({ offset: -1 }).success).toBe(false);
 	});
+
+	it('sorting validates field name and direction', () => {
+		const result = patterns.sorting.safeParse({ sortBy: 'createdAt' });
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.sortBy).toBe('createdAt');
+			expect(result.data.sortDirection).toBe('asc');
+		}
+
+		expect(patterns.sorting.safeParse({ sortBy: 'name', sortDirection: 'desc' }).success).toBe(
+			true
+		);
+		expect(patterns.sorting.safeParse({ sortBy: 'user.name' }).success).toBe(true);
+		expect(patterns.sorting.safeParse({ sortBy: '_created' }).success).toBe(true);
+		expect(patterns.sorting.safeParse({ sortBy: '' }).success).toBe(false);
+		expect(patterns.sorting.safeParse({ sortBy: 'name; DROP TABLE' }).success).toBe(false);
+		expect(patterns.sorting.safeParse({ sortBy: '1name' }).success).toBe(false);
+		expect(patterns.sorting.safeParse({ sortBy: 'name', sortDirection: 'invalid' }).success).toBe(
+			false
+		);
+		expect(patterns.sorting.safeParse({}).success).toBe(false);
+	});
+
+	it('search validates query and optional fields', () => {
+		expect(patterns.search.safeParse({ query: 'hello' }).success).toBe(true);
+		expect(patterns.search.safeParse({ query: 'hello', fields: ['title', 'body'] }).success).toBe(
+			true
+		);
+		expect(patterns.search.safeParse({ query: '' }).success).toBe(false);
+		expect(patterns.search.safeParse({}).success).toBe(false);
+		expect(patterns.search.safeParse({ query: 'test', fields: [''] }).success).toBe(false);
+	});
+
+	it('dateRange validates ISO datetime pairs', () => {
+		expect(
+			patterns.dateRange.safeParse({
+				startDate: '2024-01-01T00:00:00Z',
+				endDate: '2024-12-31T23:59:59Z',
+			}).success
+		).toBe(true);
+		expect(
+			patterns.dateRange.safeParse({
+				startDate: 'not-a-date',
+				endDate: '2024-12-31T23:59:59Z',
+			}).success
+		).toBe(false);
+		expect(
+			patterns.dateRange.safeParse({
+				startDate: '2024-12-31T23:59:59Z',
+				endDate: '2024-01-01T00:00:00Z',
+			}).success
+		).toBe(false);
+		expect(patterns.dateRange.safeParse({ startDate: '2024-01-01T00:00:00Z' }).success).toBe(false);
+		expect(patterns.dateRange.safeParse({}).success).toBe(false);
+	});
 });
 
 describe('optional helper', () => {
