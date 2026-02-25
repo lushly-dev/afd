@@ -229,6 +229,29 @@ describe('websocketHandler', () => {
 		expect(onError).toHaveBeenCalled();
 	});
 
+	it('should reject when socket closes before open', async () => {
+		const mockWs = {
+			onopen: null as (() => void) | null,
+			onmessage: null as ((event: { data: string }) => void) | null,
+			onerror: null as ((event: unknown) => void) | null,
+			onclose: null as ((event: { code: number; reason: string }) => void) | null,
+			send: vi.fn(),
+			close: vi.fn(),
+		};
+
+		// @ts-expect-error — mock WebSocket constructor
+		globalThis.WebSocket = vi.fn(() => {
+			setTimeout(() => mockWs.onclose?.({ code: 1006, reason: 'abnormal close' }), 0);
+			return mockWs;
+		});
+
+		const onError = vi.fn();
+		await expect(websocketHandler(createMockHandoff(), { onError })).rejects.toThrow(
+			'WebSocket closed before connection established'
+		);
+		expect(onError).toHaveBeenCalled();
+	});
+
 	it('should JSON-serialize data on send', async () => {
 		const mockWs = {
 			onopen: null as (() => void) | null,

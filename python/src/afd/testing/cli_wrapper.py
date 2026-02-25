@@ -224,7 +224,19 @@ class CliWrapper:
 			parsed = json.loads(json_match.group(0))
 
 			if isinstance(parsed, dict) and "success" in parsed:
-				return (True, parsed)
+				if parsed.get("success") is True:
+					return (True, parsed)
+
+				error_obj = parsed.get("error") if isinstance(parsed.get("error"), dict) else {}
+				message = (
+					error_obj.get("message")
+					or stderr
+					or "Command returned success=false"
+				)
+				return (
+					False,
+					create_step_error("command_failed", message, actual=parsed),
+				)
 
 			return (True, {"success": exit_code == 0, "data": parsed})
 		except json.JSONDecodeError as err:

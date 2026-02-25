@@ -279,9 +279,18 @@ class _CommandRegistryImpl:
             )
 
         # Check exposure if interface context is provided
-        if context and context.extra.get("interface"):
+        if context and "interface" in context.extra:
             interface = context.extra["interface"]
             _VALID_INTERFACES = frozenset({"palette", "mcp", "agent", "cli"})
+            if not isinstance(interface, str) or not interface:
+                return CommandResult(
+                    success=False,
+                    error=CmdError(
+                        code="INVALID_INTERFACE",
+                        message=f"Unknown interface '{interface}'",
+                        suggestion=f"Valid interfaces: {', '.join(sorted(_VALID_INTERFACES))}",
+                    ),
+                )
             if interface not in _VALID_INTERFACES:
                 return CommandResult(
                     success=False,

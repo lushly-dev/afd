@@ -316,6 +316,36 @@ class TestRegistryExposureCheck:
         assert result.error.code == "INVALID_INTERFACE"
         assert "Valid interfaces" in result.error.suggestion
 
+    @pytest.mark.asyncio
+    async def test_non_string_interface_rejected(self):
+        """Non-string interface values should not cause crashes."""
+        registry = create_command_registry()
+
+        async def handler(input, context=None):
+            return success({"ok": True})
+
+        registry.register(CommandDefinition(name="test-cmd", description="Test", handler=handler))
+
+        ctx = CommandContext(extra={"interface": []})
+        result = await registry.execute("test-cmd", {}, ctx)
+        assert result.success is False
+        assert result.error.code == "INVALID_INTERFACE"
+
+    @pytest.mark.asyncio
+    async def test_empty_interface_rejected(self):
+        """Empty interface strings should be rejected as invalid."""
+        registry = create_command_registry()
+
+        async def handler(input, context=None):
+            return success({"ok": True})
+
+        registry.register(CommandDefinition(name="test-cmd", description="Test", handler=handler))
+
+        ctx = CommandContext(extra={"interface": ""})
+        result = await registry.execute("test-cmd", {}, ctx)
+        assert result.success is False
+        assert result.error.code == "INVALID_INTERFACE"
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PACKAGE EXPORTS

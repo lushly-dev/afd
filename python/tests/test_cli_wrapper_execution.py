@@ -214,7 +214,7 @@ class TestExecute:
 
 	@pytest.mark.asyncio
 	async def test_execute_with_json_command_result_failure(self, wrapper):
-		"""Should still return ExecuteSuccess when JSON has success=false (parse succeeds)."""
+		"""Should return ExecuteError when JSON reports success=false."""
 		json_output = json.dumps({
 			"success": False,
 			"error": {"code": "NOT_FOUND", "message": "Not found"},
@@ -230,9 +230,9 @@ class TestExecute:
 		with patch("afd.testing.cli_wrapper.asyncio.create_subprocess_exec", return_value=mock_proc):
 			result = await wrapper.execute("todo-get", {"id": 999})
 
-		# _parse_output returns (True, parsed) because 'success' key is in the dict
-		assert isinstance(result, ExecuteSuccess)
-		assert result.result["success"] is False
+		assert isinstance(result, ExecuteError)
+		assert result.error.type == "command_failed"
+		assert "Not found" in result.error.message
 
 
 # ==============================================================================

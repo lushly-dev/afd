@@ -251,6 +251,8 @@ def create_tool_registry(
 		from afd.testing.commands.evaluate import scenario_evaluate
 
 		parsed = _validate_input(input)
+		if "stopOnFailure" in parsed and "fail_fast" not in parsed:
+			parsed["fail_fast"] = parsed["stopOnFailure"]
 		if not command_handler:
 			error_result = {
 				"success": False,
@@ -268,7 +270,18 @@ def create_tool_registry(
 		return enhance_with_agent_hints("scenario-evaluate", result.model_dump() if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})
 
 	async def handle_coverage(input: Any) -> dict[str, Any]:
-		parsed = _validate_input(input, ["knownCommands"])
+		parsed = _validate_input(input)
+		if "knownCommands" in parsed and "known_commands" not in parsed:
+			parsed["known_commands"] = parsed["knownCommands"]
+		if "known_commands" in parsed and "knownCommands" not in parsed:
+			parsed["knownCommands"] = parsed["known_commands"]
+		if (
+			"knownCommands" not in parsed
+			and "known_commands" not in parsed
+			or parsed.get("knownCommands") is None
+			and parsed.get("known_commands") is None
+		):
+			raise ValueError("Missing required field: knownCommands")
 		result = scenario_coverage_cmd(parsed)
 		if isinstance(result, dict):
 			return enhance_with_agent_hints("scenario-coverage", result)

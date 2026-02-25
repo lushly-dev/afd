@@ -306,7 +306,7 @@ class GitHubConnector:
         ]
 
         if filters:
-            if filters.state and filters.state != "all":
+            if filters.state:
                 cmd.extend(["--state", filters.state])
             if filters.label:
                 cmd.extend(["--label", filters.label])
