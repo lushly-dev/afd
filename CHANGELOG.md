@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-02-27
+
 ### Added
 
 - **Python–TypeScript parity** — Nine PRs bringing the Python `afd` package to full feature parity with the TypeScript implementation (#132–#140):
