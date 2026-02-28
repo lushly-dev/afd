@@ -200,20 +200,10 @@ export {
 // Pipeline executor (separate module for file-size compliance)
 export type { CommandExecutor } from './pipeline-executor.js';
 export { executePipeline } from './pipeline-executor.js';
-export type { ExecOptions, ExecResult } from './platform.js';
-// Platform utilities
-export {
-	createExecResult,
-	ExecErrorCode,
-	exec,
-	findUp,
-	getTempDir,
-	isExecError,
-	isLinux,
-	isMac,
-	isWindows,
-	normalizePath,
-} from './platform.js';
+// Platform utilities — available via '@lushly-dev/afd-core/platform' subpath.
+// NOT re-exported from the barrel to avoid pulling Node.js builtins into browser bundles.
+// import { exec, findUp, isWindows } from '@lushly-dev/afd-core/platform';
+
 // Result types
 export type { CommandResult, ResultMetadata } from './result.js';
 export { error, failure, isFailure, isSuccess, success } from './result.js';

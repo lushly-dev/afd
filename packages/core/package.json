@@ -7,6 +7,10 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
+		},
+		"./platform": {
+			"types": "./dist/platform.d.ts",
+			"import": "./dist/platform.js"
 		}
 	},
 	"main": "./dist/index.js",
