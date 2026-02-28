@@ -66,21 +66,22 @@ pre-push:
       run: node scripts/check-orphan-files.mjs
 
 # On-demand quality gate — run with: npx lefthook run check
+# Mirrors the CI pipeline exactly so local `pnpm check` = remote CI.
 check:
   # Sequential for same Windows terminal deadlock prevention.
   parallel: false
   commands:
     lint:
-      run: npx biome check .
+      run: pnpm lint
+
+    build:
+      run: pnpm build
 
     typecheck:
       run: pnpm typecheck
 
     test:
-      run: pnpm test
-
-    build:
-      run: pnpm build
+      run: pnpm test:coverage
 
     portability:
       run: node scripts/check-portability.mjs
