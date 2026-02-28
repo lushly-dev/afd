@@ -1,6 +1,6 @@
 {
 	"name": "@afd/example-showcase",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"private": true,
 	"type": "module",
 	"description": "Runnable demos showing AFD features in action: auth, middleware, surface validation, schema complexity, prerequisites",

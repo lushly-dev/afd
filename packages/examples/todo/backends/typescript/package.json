@@ -1,7 +1,7 @@
 {
 	"name": "@afd/example-todo-ts",
 	"private": true,
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Todo example - TypeScript backend implementing AFD patterns",
 	"type": "module",
 	"main": "dist/server.js",
