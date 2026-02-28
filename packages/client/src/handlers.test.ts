@@ -28,6 +28,48 @@ function createMockHandoff(overrides?: Partial<HandoffResult>): HandoffResult {
 	};
 }
 
+/** Create a mock WebSocket instance and a constructor class that returns it. */
+function createMockWs(onConstruct?: (mockWs: ReturnType<typeof createMockWs>['mockWs']) => void) {
+	const mockWs = {
+		onopen: null as (() => void) | null,
+		onmessage: null as ((event: { data: string }) => void) | null,
+		onerror: null as ((event: unknown) => void) | null,
+		onclose: null as ((event: { code: number; reason: string }) => void) | null,
+		send: vi.fn(),
+		close: vi.fn(),
+	};
+
+	const MockWebSocket = class {
+		constructor() {
+			Object.assign(this, mockWs);
+			if (onConstruct) onConstruct(mockWs);
+			else setTimeout(() => mockWs.onopen?.(), 0);
+		}
+	} as unknown as typeof WebSocket;
+
+	return { mockWs, MockWebSocket };
+}
+
+/** Create a mock EventSource instance and a constructor class that returns it. */
+function createMockEs(onConstruct?: (mockEs: ReturnType<typeof createMockEs>['mockEs']) => void) {
+	const mockEs = {
+		onopen: null as (() => void) | null,
+		onmessage: null as ((event: { data: string }) => void) | null,
+		onerror: null as (() => void) | null,
+		close: vi.fn(),
+	};
+
+	const MockEventSource = class {
+		constructor() {
+			Object.assign(this, mockEs);
+			if (onConstruct) onConstruct(mockEs);
+			else setTimeout(() => mockEs.onopen?.(), 0);
+		}
+	} as unknown as typeof EventSource;
+
+	return { mockEs, MockEventSource };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // TESTS: Built-in Handler Registry
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -77,23 +119,8 @@ describe('websocketHandler', () => {
 	});
 
 	it('should connect using a mock WebSocket', async () => {
-		const mockWs = {
-			onopen: null as (() => void) | null,
-			onmessage: null as ((event: { data: string }) => void) | null,
-			onerror: null as ((event: unknown) => void) | null,
-			onclose: null as ((event: { code: number; reason: string }) => void) | null,
-			send: vi.fn(),
-			close: vi.fn(),
-		};
-
-		// @ts-expect-error — mock WebSocket constructor
-		globalThis.WebSocket = vi.fn(() => {
-			// Defer onopen to next tick so the promise handler is set up
-			setTimeout(() => {
-				mockWs.onopen?.();
-			}, 0);
-			return mockWs;
-		});
+		const { mockWs, MockWebSocket } = createMockWs();
+		globalThis.WebSocket = MockWebSocket;
 
 		const onConnect = vi.fn();
 		const handoff = createMockHandoff();
@@ -107,20 +134,8 @@ describe('websocketHandler', () => {
 	});
 
 	it('should send auth token as first message after connection', async () => {
-		const mockWs = {
-			onopen: null as (() => void) | null,
-			onmessage: null as ((event: { data: string }) => void) | null,
-			onerror: null as ((event: unknown) => void) | null,
-			onclose: null as ((event: { code: number; reason: string }) => void) | null,
-			send: vi.fn(),
-			close: vi.fn(),
-		};
-
-		// @ts-expect-error — mock WebSocket constructor
-		globalThis.WebSocket = vi.fn((url: string) => {
-			setTimeout(() => mockWs.onopen?.(), 0);
-			return mockWs;
-		});
+		const { mockWs, MockWebSocket } = createMockWs();
+		globalThis.WebSocket = MockWebSocket;
 
 		const handoff = createMockHandoff({
 			credentials: { token: 'my-secret-token' },
@@ -134,20 +149,8 @@ describe('websocketHandler', () => {
 	});
 
 	it('should forward messages via onMessage callback', async () => {
-		const mockWs = {
-			onopen: null as (() => void) | null,
-			onmessage: null as ((event: { data: string }) => void) | null,
-			onerror: null as ((event: unknown) => void) | null,
-			onclose: null as ((event: { code: number; reason: string }) => void) | null,
-			send: vi.fn(),
-			close: vi.fn(),
-		};
-
-		// @ts-expect-error — mock WebSocket constructor
-		globalThis.WebSocket = vi.fn(() => {
-			setTimeout(() => mockWs.onopen?.(), 0);
-			return mockWs;
-		});
+		const { mockWs, MockWebSocket } = createMockWs();
+		globalThis.WebSocket = MockWebSocket;
 
 		const onMessage = vi.fn();
 		await websocketHandler(createMockHandoff(), { onMessage });
@@ -159,20 +162,8 @@ describe('websocketHandler', () => {
 	});
 
 	it('should forward non-JSON messages as raw strings', async () => {
-		const mockWs = {
-			onopen: null as (() => void) | null,
-			onmessage: null as ((event: { data: string }) => void) | null,
-			onerror: null as ((event: unknown) => void) | null,
-			onclose: null as ((event: { code: number; reason: string }) => void) | null,
-			send: vi.fn(),
-			close: vi.fn(),
-		};
-
-		// @ts-expect-error — mock WebSocket constructor
-		globalThis.WebSocket = vi.fn(() => {
-			setTimeout(() => mockWs.onopen?.(), 0);
-			return mockWs;
-		});
+		const { mockWs, MockWebSocket } = createMockWs();
+		globalThis.WebSocket = MockWebSocket;
 
 		const onMessage = vi.fn();
 		await websocketHandler(createMockHandoff(), { onMessage });
@@ -183,20 +174,8 @@ describe('websocketHandler', () => {
 	});
 
 	it('should call onDisconnect when WebSocket closes', async () => {
-		const mockWs = {
-			onopen: null as (() => void) | null,
-			onmessage: null as ((event: { data: string }) => void) | null,
-			onerror: null as ((event: unknown) => void) | null,
-			onclose: null as ((event: { code: number; reason: string }) => void) | null,
-			send: vi.fn(),
-			close: vi.fn(),
-		};
-
-		// @ts-expect-error — mock WebSocket constructor
-		globalThis.WebSocket = vi.fn(() => {
-			setTimeout(() => mockWs.onopen?.(), 0);
-			return mockWs;
-		});
+		const { mockWs, MockWebSocket } = createMockWs();
+		globalThis.WebSocket = MockWebSocket;
 
 		const onDisconnect = vi.fn();
 		await websocketHandler(createMockHandoff(), { onDisconnect });
@@ -207,20 +186,10 @@ describe('websocketHandler', () => {
 	});
 
 	it('should reject on connection error during connecting phase', async () => {
-		const mockWs = {
-			onopen: null as (() => void) | null,
-			onmessage: null as ((event: { data: string }) => void) | null,
-			onerror: null as ((event: unknown) => void) | null,
-			onclose: null as ((event: { code: number; reason: string }) => void) | null,
-			send: vi.fn(),
-			close: vi.fn(),
-		};
-
-		// @ts-expect-error — mock WebSocket constructor
-		globalThis.WebSocket = vi.fn(() => {
-			setTimeout(() => mockWs.onerror?.(new Event('error')), 0);
-			return mockWs;
+		const { MockWebSocket } = createMockWs((ws) => {
+			setTimeout(() => ws.onerror?.(new Event('error')), 0);
 		});
+		globalThis.WebSocket = MockWebSocket;
 
 		const onError = vi.fn();
 		await expect(websocketHandler(createMockHandoff(), { onError })).rejects.toThrow(
@@ -230,20 +199,10 @@ describe('websocketHandler', () => {
 	});
 
 	it('should reject when socket closes before open', async () => {
-		const mockWs = {
-			onopen: null as (() => void) | null,
-			onmessage: null as ((event: { data: string }) => void) | null,
-			onerror: null as ((event: unknown) => void) | null,
-			onclose: null as ((event: { code: number; reason: string }) => void) | null,
-			send: vi.fn(),
-			close: vi.fn(),
-		};
-
-		// @ts-expect-error — mock WebSocket constructor
-		globalThis.WebSocket = vi.fn(() => {
-			setTimeout(() => mockWs.onclose?.({ code: 1006, reason: 'abnormal close' }), 0);
-			return mockWs;
+		const { MockWebSocket } = createMockWs((ws) => {
+			setTimeout(() => ws.onclose?.({ code: 1006, reason: 'abnormal close' }), 0);
 		});
+		globalThis.WebSocket = MockWebSocket;
 
 		const onError = vi.fn();
 		await expect(websocketHandler(createMockHandoff(), { onError })).rejects.toThrow(
@@ -253,20 +212,8 @@ describe('websocketHandler', () => {
 	});
 
 	it('should JSON-serialize data on send', async () => {
-		const mockWs = {
-			onopen: null as (() => void) | null,
-			onmessage: null as ((event: { data: string }) => void) | null,
-			onerror: null as ((event: unknown) => void) | null,
-			onclose: null as ((event: { code: number; reason: string }) => void) | null,
-			send: vi.fn(),
-			close: vi.fn(),
-		};
-
-		// @ts-expect-error — mock WebSocket constructor
-		globalThis.WebSocket = vi.fn(() => {
-			setTimeout(() => mockWs.onopen?.(), 0);
-			return mockWs;
-		});
+		const { mockWs, MockWebSocket } = createMockWs();
+		globalThis.WebSocket = MockWebSocket;
 
 		const connection = await websocketHandler(createMockHandoff(), {});
 		connection.send({ type: 'test' });
@@ -275,20 +222,8 @@ describe('websocketHandler', () => {
 	});
 
 	it('should throw when sending on non-connected state', async () => {
-		const mockWs = {
-			onopen: null as (() => void) | null,
-			onmessage: null as ((event: { data: string }) => void) | null,
-			onerror: null as ((event: unknown) => void) | null,
-			onclose: null as ((event: { code: number; reason: string }) => void) | null,
-			send: vi.fn(),
-			close: vi.fn(),
-		};
-
-		// @ts-expect-error — mock WebSocket constructor
-		globalThis.WebSocket = vi.fn(() => {
-			setTimeout(() => mockWs.onopen?.(), 0);
-			return mockWs;
-		});
+		const { mockWs, MockWebSocket } = createMockWs();
+		globalThis.WebSocket = MockWebSocket;
 
 		const connection = await websocketHandler(createMockHandoff(), {});
 
@@ -456,18 +391,8 @@ describe('sseHandler', () => {
 	});
 
 	it('should use EventSource when no credentials', async () => {
-		const mockEventSource = {
-			onopen: null as (() => void) | null,
-			onmessage: null as ((event: { data: string }) => void) | null,
-			onerror: null as (() => void) | null,
-			close: vi.fn(),
-		};
-
-		// @ts-expect-error — mock EventSource constructor
-		globalThis.EventSource = vi.fn(() => {
-			setTimeout(() => mockEventSource.onopen?.(), 0);
-			return mockEventSource;
-		});
+		const { mockEs: mockEventSource, MockEventSource } = createMockEs();
+		globalThis.EventSource = MockEventSource;
 
 		const onConnect = vi.fn();
 		const handoff = createMockHandoff({
@@ -483,18 +408,8 @@ describe('sseHandler', () => {
 	});
 
 	it('should forward EventSource messages via onMessage', async () => {
-		const mockEventSource = {
-			onopen: null as (() => void) | null,
-			onmessage: null as ((event: { data: string }) => void) | null,
-			onerror: null as (() => void) | null,
-			close: vi.fn(),
-		};
-
-		// @ts-expect-error — mock EventSource constructor
-		globalThis.EventSource = vi.fn(() => {
-			setTimeout(() => mockEventSource.onopen?.(), 0);
-			return mockEventSource;
-		});
+		const { mockEs: mockEventSource, MockEventSource } = createMockEs();
+		globalThis.EventSource = MockEventSource;
 
 		const onMessage = vi.fn();
 		const handoff = createMockHandoff({
@@ -511,18 +426,8 @@ describe('sseHandler', () => {
 	});
 
 	it('should close EventSource on connection.close()', async () => {
-		const mockEventSource = {
-			onopen: null as (() => void) | null,
-			onmessage: null as ((event: { data: string }) => void) | null,
-			onerror: null as (() => void) | null,
-			close: vi.fn(),
-		};
-
-		// @ts-expect-error — mock EventSource constructor
-		globalThis.EventSource = vi.fn(() => {
-			setTimeout(() => mockEventSource.onopen?.(), 0);
-			return mockEventSource;
-		});
+		const { mockEs: mockEventSource, MockEventSource } = createMockEs();
+		globalThis.EventSource = MockEventSource;
 
 		const handoff = createMockHandoff({
 			protocol: 'sse',
@@ -552,22 +457,9 @@ describe('connectHandoff built-in handler auto-selection', () => {
 	});
 
 	it('should fall back to built-in websocket handler when no custom registered', async () => {
-		// Mock WebSocket for the built-in handler
-		const mockWs = {
-			onopen: null as (() => void) | null,
-			onmessage: null as ((event: { data: string }) => void) | null,
-			onerror: null as ((event: unknown) => void) | null,
-			onclose: null as ((event: { code: number; reason: string }) => void) | null,
-			send: vi.fn(),
-			close: vi.fn(),
-		};
-
 		const originalWebSocket = globalThis.WebSocket;
-		// @ts-expect-error — mock WebSocket constructor
-		globalThis.WebSocket = vi.fn(() => {
-			setTimeout(() => mockWs.onopen?.(), 0);
-			return mockWs;
-		});
+		const { MockWebSocket } = createMockWs();
+		globalThis.WebSocket = MockWebSocket;
 
 		try {
 			const handoff = createMockHandoff({ protocol: 'websocket' });

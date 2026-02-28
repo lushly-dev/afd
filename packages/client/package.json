@@ -51,9 +51,10 @@
 	},
 	"devDependencies": {
 		"@types/eventsource": "^1.1.15",
+		"@vitest/coverage-v8": "^4.0.18",
 		"rimraf": "^6.0.1",
 		"typescript": "^5.7.2",
-		"vitest": "^2.1.8"
+		"vitest": "^4.0.18"
 	},
 	"publishConfig": {
 		"access": "public"

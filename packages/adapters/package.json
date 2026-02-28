@@ -26,8 +26,9 @@
 	"dependencies": {},
 	"devDependencies": {
 		"@lushly-dev/afd-core": "workspace:*",
+		"@vitest/coverage-v8": "^4.0.18",
 		"typescript": "^5.3.0",
-		"vitest": "^1.6.0"
+		"vitest": "^4.0.18"
 	},
 	"peerDependencies": {
 		"@lushly-dev/afd-core": ">=0.1.0"

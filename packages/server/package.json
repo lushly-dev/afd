@@ -30,8 +30,9 @@
 	},
 	"devDependencies": {
 		"@lushly-dev/afd-client": "workspace:*",
+		"@vitest/coverage-v8": "^4.0.18",
 		"typescript": "^5.4.0",
-		"vitest": "^1.6.0"
+		"vitest": "^4.0.18"
 	},
 	"keywords": [
 		"afd",
