@@ -49,9 +49,6 @@
 		"node": ">=20.0.0"
 	},
 	"sideEffects": false,
-	"dependencies": {
-		"find-up": "^8.0.0"
-	},
 	"devDependencies": {
 		"@types/node": "^22.10.2",
 		"@vitest/coverage-v8": "^4.0.18",

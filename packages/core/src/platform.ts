@@ -6,9 +6,9 @@
  */
 
 import { type ChildProcess, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { sep } from 'node:path';
-import { findUpSync } from 'find-up';
+import { dirname, join, sep } from 'node:path';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PLATFORM CONSTANTS
@@ -235,8 +235,14 @@ export function exec(cmd: string[], options: ExecOptions = {}): Promise<ExecResu
  * ```
  */
 export function findUp(filename: string, cwd?: string): string | null {
-	const result = findUpSync(filename, { cwd: cwd ?? process.cwd() });
-	return result ?? null;
+	let dir = cwd ?? process.cwd();
+	while (true) {
+		const candidate = join(dir, filename);
+		if (existsSync(candidate)) return candidate;
+		const parent = dirname(dir);
+		if (parent === dir) return null; // reached root
+		dir = parent;
+	}
 }
 
 /**
