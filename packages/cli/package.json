@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/afd-cli",
-	"version": "0.3.4",
+	"version": "0.4.0",
 	"description": "Command-line interface for Agent-First Development",
 	"type": "module",
 	"bin": {

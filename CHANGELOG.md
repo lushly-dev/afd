@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-02-28
+
 ### Added
 - **`@lushly-dev/local-db`** — New package: async data adapter with swappable backends
   - `DataAdapter` interface — stable contract for all storage operations (get, list, create, update, remove, batch, health)
