@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/afd-core",
-	"version": "0.3.3",
+	"version": "0.3.4",
 	"description": "Core types and utilities for Agent-First Development",
 	"type": "module",
 	"exports": {
