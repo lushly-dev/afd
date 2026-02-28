@@ -41,9 +41,10 @@ function createMockWs(onConstruct?: (mockWs: ReturnType<typeof createMockWs>['mo
 
 	const MockWebSocket = class {
 		constructor() {
-			Object.assign(this, mockWs);
 			if (onConstruct) onConstruct(mockWs);
 			else setTimeout(() => mockWs.onopen?.(), 0);
+			// biome-ignore lint/correctness/noConstructorReturn: mock constructor must return shared object
+			return mockWs as never;
 		}
 	} as unknown as typeof WebSocket;
 
@@ -61,9 +62,10 @@ function createMockEs(onConstruct?: (mockEs: ReturnType<typeof createMockEs>['mo
 
 	const MockEventSource = class {
 		constructor() {
-			Object.assign(this, mockEs);
 			if (onConstruct) onConstruct(mockEs);
 			else setTimeout(() => mockEs.onopen?.(), 0);
+			// biome-ignore lint/correctness/noConstructorReturn: mock constructor must return shared object
+			return mockEs as never;
 		}
 	} as unknown as typeof EventSource;
 
