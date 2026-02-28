@@ -22,6 +22,47 @@ user-invocable: true
 
 Release a new version — bump, changelog, build, test, tag, publish, GitHub Release.
 
+## AFD-Specific: Script-Driven Release
+
+The AFD monorepo uses `scripts/release.mjs` — a single script that handles the entire release process. No Changesets, no external version managers, no hidden state.
+
+### Quick Release
+
+```bash
+pnpm release patch       # 0.3.0 → 0.3.1
+pnpm release minor       # 0.3.0 → 0.4.0
+pnpm release major       # 0.3.0 → 1.0.0
+pnpm release 1.0.0       # explicit version
+pnpm release patch --dry-run  # preview without changes
+```
+
+The script:
+1. Verifies you're on `main` with a clean working tree
+2. Pulls latest from origin
+3. Bumps ALL `@lushly-dev/*` packages to the new version (fixed versioning)
+4. Updates `CHANGELOG.md` — moves `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD`
+5. Runs `pnpm check` (the full quality gate — lint, build, typecheck, test:coverage)
+6. Commits: `chore: release vX.Y.Z`
+7. Tags: `vX.Y.Z`
+
+Then push to publish:
+```bash
+git push origin main --tags
+```
+
+The Release workflow triggers on the `v*` tag, builds, tests, and publishes to npm with provenance.
+
+### Design Principles
+
+| Principle | Rationale |
+|-----------|-----------|
+| **Script owns versioning** | No external tool state to corrupt. The script IS the process. |
+| **Fixed versioning** | All `@lushly-dev/*` packages share one version. Simplifies compatibility. |
+| **Quality gate built in** | Release fails fast if lint, build, typecheck, or tests fail — before any commit. |
+| **Tag-triggered publish** | Release workflow only runs on `v*` tag push. Push to main never publishes. |
+| **No npm auth locally** | Publishing happens in CI with `NPM_TOKEN` secret. Local workflow ends at `git push --tags`. |
+| **Agent-compatible** | `do-release` skill + `pnpm release patch` = agents can release. |
+
 ## Workflow
 
 ### Step 1: Pre-Flight
@@ -94,20 +135,22 @@ git tag -a vX.Y.Z -m "Release vX.Y.Z"
 
 ### Step 7: Publish
 
-Publish to registries based on detected languages:
+For AFD: publishing happens automatically via GitHub Actions when the `v*` tag is pushed. The Release workflow runs `pnpm publish:npm` with the `NPM_TOKEN` secret.
+
+```bash
+# Push triggers the Release workflow
+git push origin main --tags
+```
+
+For other repos, publish to registries based on detected languages:
 
 | Language | Command | Notes |
 |----------|---------|-------|
-| TypeScript | `npm publish` or `pnpm publish` | Ensure `publishConfig` is set correctly |
+| TypeScript | `pnpm publish:npm` or `npm publish` | Ensure `publishConfig` and `access: public` are set |
 | Python | `hatch publish` or `twine upload dist/*` | Requires PyPI credentials |
 | Rust | `cargo publish` | Requires crates.io token |
 
-For monorepos, publish each changed package individually.
-
-**Important**: Verify authentication is configured before publishing. Check for:
-- npm: `npm whoami`
-- PyPI: `~/.pypirc` or `TWINE_USERNAME`/`TWINE_PASSWORD`
-- crates.io: `cargo login` status
+For monorepos, publish each public package. Private packages (`private: true`) are automatically skipped.
 
 ### Step 8: Push + GitHub Release
 

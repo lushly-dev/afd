@@ -49,7 +49,27 @@ Expert guidance for botcore's development command suite — language-aware linti
 
 ## Core Principles
 
-### 1. Language Dispatch Is Automatic
+### 1. Lefthook IS the CI Pipeline
+
+<rules>
+`pnpm check` runs the exact same steps as GitHub Actions CI. If it passes locally, CI passes remotely.
+The quality gate runs: lint → build → typecheck → test:coverage + portability, file-size, orphan-files.
+Never add a check to CI without adding it to lefthook's `check` group first.
+Never add a check to lefthook without verifying CI runs the same command.
+Drift between local and remote gates is a bug — the `check` group is the single source of truth.
+</rules>
+
+### 2. Three Enforcement Layers
+
+| Layer | When | Speed | What |
+|-------|------|-------|------|
+| **Pre-commit** | `git commit` | ~8s | Lint staged files, portability, file-size, typecheck |
+| **Pre-push** | `git push` | ~25s | Full lint, test, typecheck, portability, file-size, orphan-files |
+| **On-demand** (`pnpm check`) | Before release / manual | ~25s | Same as pre-push + build + test:coverage |
+
+Pre-commit catches formatting. Pre-push catches regressions. `pnpm check` catches everything CI would catch.
+
+### 3. Language Dispatch Is Automatic
 
 <rules>
 Dev commands read the `language`, `linter`, `test_runner`, and `formatter` from config.

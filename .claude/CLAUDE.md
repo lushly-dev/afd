@@ -16,7 +16,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `pnpm lint` | Biome lint check |
 | `pnpm lint:fix` | Auto-fix lint issues |
 | `pnpm typecheck` | TypeScript type checking |
-| `pnpm check` | Quality gate (lint + typecheck + test + build) |
+| `pnpm check` | Quality gate (lint + build + typecheck + test:coverage) — mirrors CI exactly |
+| `pnpm release patch` | Release: bump versions, update CHANGELOG, run quality gate, commit, tag |
+| `pnpm publish:npm` | Publish all @lushly-dev/* packages to npm |
 | `cd packages/server && pnpm vitest run src/server.test.ts` | Run single test file |
 
 ## Architecture
@@ -49,6 +51,25 @@ alfred/  # Quality bot — lint, parity, quality (see alfred/AGENTS.md)
 - **Imports**: Use `import type` for type-only, `node:` prefix for Node.js builtins
 - **Lint**: Biome — tab indent, single quotes, no `any`, no unused imports
 
+## Quality Gates & CI
+
+**Principle: lefthook IS the CI pipeline.** `pnpm check` runs the exact same steps as GitHub Actions CI. If it passes locally, CI passes remotely. No surprises.
+
+| Layer | When | What |
+|-------|------|------|
+| **Pre-commit** (lefthook) | `git commit` | Biome lint+fix, portability, file-size, typecheck |
+| **Pre-push** (lefthook) | `git push` | Full lint, test, typecheck, portability, file-size, orphan-files |
+| **Quality gate** (`pnpm check`) | On-demand / release script | lint → build → typecheck → test:coverage + portability, file-size, orphan-files |
+| **CI** (GitHub Actions) | Push to main / PR | Same as quality gate — safety net for skipped hooks |
+| **Release** (GitHub Actions) | Tag push `v*` | Build → test → publish to npm with provenance → GitHub Release |
+
+**Key rules:**
+- Always run `pnpm check` before pushing — catches everything CI would catch
+- Never use Changesets or external version managers — `scripts/release.mjs` owns versioning
+- All `@lushly-dev/*` packages share one version (fixed versioning)
+- Release workflow triggers on `v*` tag push, not branch push
+- Agent release flow: `pnpm release patch` → `git push origin main --tags`
+
 ## Skill Index
 
 | Skill | When to Use |
@@ -61,3 +82,5 @@ alfred/  # Quality bot — lint, parity, quality (see alfred/AGENTS.md)
 | [afd-auth](skills/afd-auth/) | Auth adapter, middleware, commands, session sync, React hooks |
 | [afd-directclient](skills/afd-directclient/) | DirectClient, pipe() pipelines, pipeline variable resolution |
 | [afd-contracts](skills/afd-contracts/) | TypeSpec-based contract system for multi-layer API schema sync |
+| [do-release](skills/do-release/) | Release workflow: version bump, changelog, quality gate, tag, publish |
+| [run-dev-checks](skills/run-dev-checks/) | Dev commands, quality gates, lefthook, CI alignment |
