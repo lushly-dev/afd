@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/afd-adapters",
-	"version": "0.3.2",
+	"version": "0.3.3",
 	"description": "Frontend adapters for rendering AFD CommandResult to styled HTML",
 	"type": "module",
 	"main": "./dist/index.js",
