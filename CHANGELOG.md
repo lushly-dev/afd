@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`@lushly-dev/local-db`** — New package: async data adapter with swappable backends
+  - `DataAdapter` interface — stable contract for all storage operations (get, list, create, update, remove, batch, health)
+  - `MemoryAdapter` — in-memory Maps for unit tests (filtering, sorting, pagination, batch)
+  - `HttpAdapter` — fetch-based REST client with table-to-path mapping and upsert detection
+  - `QueryParams` — filtering, sorting, pagination support
+  - `BatchOperation` / `BatchResult` — atomic multi-operation execution
+  - Factory functions: `createMemoryAdapter()`, `createHttpAdapter()`
+
 ## [0.3.4] - 2026-02-28
 
 ## [0.3.3] - 2026-02-28
