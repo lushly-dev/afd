@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { MemoryAdapter, createMemoryAdapter } from './memory-adapter.js';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { createMemoryAdapter, MemoryAdapter } from './memory-adapter.js';
 import type { DataAdapter } from './types.js';
 
 describe('MemoryAdapter', () => {
@@ -50,7 +50,7 @@ describe('MemoryAdapter', () => {
 				sort: 'value',
 				order: 'asc',
 			});
-			expect(result.data[0]!.value).toBe(10);
+			expect(result.data[0]?.value).toBe(10);
 		});
 
 		it('sorts descending', async () => {
@@ -58,7 +58,7 @@ describe('MemoryAdapter', () => {
 				sort: 'value',
 				order: 'desc',
 			});
-			expect(result.data[0]!.value).toBe(30);
+			expect(result.data[0]?.value).toBe(30);
 		});
 
 		it('returns empty for non-existent table', async () => {

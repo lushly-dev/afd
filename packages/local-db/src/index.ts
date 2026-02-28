@@ -15,6 +15,11 @@
  * @module @lushly-dev/local-db
  */
 
+// HTTP adapter
+export type { HttpAdapterOptions } from './http-adapter.js';
+export { createHttpAdapter, HttpAdapter } from './http-adapter.js';
+// Memory adapter
+export { createMemoryAdapter, MemoryAdapter } from './memory-adapter.js';
 // Types
 export type {
 	BatchOperation,
@@ -25,10 +30,3 @@ export type {
 	ListResult,
 	QueryParams,
 } from './types.js';
-
-// Memory adapter
-export { MemoryAdapter, createMemoryAdapter } from './memory-adapter.js';
-
-// HTTP adapter
-export type { HttpAdapterOptions } from './http-adapter.js';
-export { HttpAdapter, createHttpAdapter } from './http-adapter.js';

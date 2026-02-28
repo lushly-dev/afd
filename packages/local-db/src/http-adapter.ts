@@ -22,7 +22,13 @@ const DEFAULT_PATH_MAP: Record<string, string> = {
 };
 
 /** Tables that use PUT (upsert) instead of PATCH for updates. */
-const UPSERT_TABLES = new Set(['settings', 'flags', 'feature_flags', 'feature_data', 'keyboard_shortcuts']);
+const UPSERT_TABLES = new Set([
+	'settings',
+	'flags',
+	'feature_flags',
+	'feature_data',
+	'keyboard_shortcuts',
+]);
 
 export interface HttpAdapterOptions {
 	/** Custom table → path mappings (merged with defaults). */
@@ -130,9 +136,6 @@ export class HttpAdapter implements DataAdapter {
 }
 
 /** Convenience factory for creating an HttpAdapter. */
-export function createHttpAdapter(
-	baseUrl = '/api/v1',
-	options?: HttpAdapterOptions,
-): HttpAdapter {
+export function createHttpAdapter(baseUrl = '/api/v1', options?: HttpAdapterOptions): HttpAdapter {
 	return new HttpAdapter(baseUrl, options);
 }

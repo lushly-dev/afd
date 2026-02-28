@@ -21,7 +21,7 @@ export class MemoryAdapter implements DataAdapter {
 			for (const [table, rows] of Object.entries(initialData)) {
 				const map = new Map<string, Record<string, unknown>>();
 				for (const row of rows) {
-					const id = String(row['id'] ?? row['name'] ?? row['key'] ?? crypto.randomUUID());
+					const id = String(row.id ?? row.name ?? row.key ?? crypto.randomUUID());
 					map.set(id, { ...row, id });
 				}
 				this.tables.set(table, map);
@@ -30,10 +30,12 @@ export class MemoryAdapter implements DataAdapter {
 	}
 
 	private getTable(table: string): Map<string, Record<string, unknown>> {
-		if (!this.tables.has(table)) {
-			this.tables.set(table, new Map());
+		let t = this.tables.get(table);
+		if (!t) {
+			t = new Map();
+			this.tables.set(table, t);
 		}
-		return this.tables.get(table)!;
+		return t;
 	}
 
 	async get<T>(table: string, id: string): Promise<T | null> {
@@ -78,7 +80,7 @@ export class MemoryAdapter implements DataAdapter {
 	async create<T>(table: string, data: Partial<T>): Promise<T> {
 		const map = this.getTable(table);
 		const record = data as Record<string, unknown>;
-		const id = String(record['id'] ?? record['name'] ?? record['key'] ?? crypto.randomUUID());
+		const id = String(record.id ?? record.name ?? record.key ?? crypto.randomUUID());
 		const row = { ...record, id };
 		map.set(id, row);
 		return row as T;
@@ -105,7 +107,7 @@ export class MemoryAdapter implements DataAdapter {
 			try {
 				// Parse path: /table/id or /table
 				const parts = op.path.replace(/^\//, '').split('/');
-				const table = parts[0]!;
+				const table = parts[0] ?? '';
 				const id = parts.slice(1).join('/');
 
 				switch (op.method) {
@@ -119,11 +121,17 @@ export class MemoryAdapter implements DataAdapter {
 						}
 						break;
 					case 'POST':
-						results.push({ status: 201, data: await this.create(table, (op.body ?? {}) as Record<string, unknown>) });
+						results.push({
+							status: 201,
+							data: await this.create(table, (op.body ?? {}) as Record<string, unknown>),
+						});
 						break;
 					case 'PUT':
 					case 'PATCH':
-						results.push({ status: 200, data: await this.update(table, id, (op.body ?? {}) as Record<string, unknown>) });
+						results.push({
+							status: 200,
+							data: await this.update(table, id, (op.body ?? {}) as Record<string, unknown>),
+						});
 						break;
 					case 'DELETE':
 						await this.remove(table, id);
@@ -161,7 +169,7 @@ export class MemoryAdapter implements DataAdapter {
 
 /** Convenience factory for creating a MemoryAdapter. */
 export function createMemoryAdapter(
-	initialData?: Record<string, Record<string, unknown>[]>,
+	initialData?: Record<string, Record<string, unknown>[]>
 ): MemoryAdapter {
 	return new MemoryAdapter(initialData);
 }

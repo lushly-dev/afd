@@ -1,14 +1,12 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { HttpAdapter, createHttpAdapter } from './http-adapter.js';
+import { describe, expect, it, vi } from 'vitest';
+import { createHttpAdapter, HttpAdapter } from './http-adapter.js';
 import type { DataAdapter } from './types.js';
 
 function mockFetch(responses: Record<string, { status: number; body?: unknown }>) {
 	return vi.fn(async (url: string, init?: RequestInit) => {
 		const key = `${init?.method ?? 'GET'} ${url}`;
 		// Find matching response by checking if URL starts with any key
-		const match = Object.entries(responses).find(
-			([k]) => key.startsWith(k) || url.includes(k),
-		);
+		const match = Object.entries(responses).find(([k]) => key.startsWith(k) || url.includes(k));
 		const response = match?.[1] ?? { status: 404, body: { error: 'Not found' } };
 		return {
 			ok: response.status >= 200 && response.status < 300,
@@ -49,7 +47,7 @@ describe('HttpAdapter', () => {
 		});
 		const adapter = new HttpAdapter('/api/v1', { fetch });
 		await adapter.list('flags', { type: 'release', limit: 10 });
-		const url = fetch.mock.calls[0]![0] as string;
+		const url = fetch.mock.calls[0]?.[0] as string;
 		expect(url).toContain('type=release');
 		expect(url).toContain('limit=10');
 	});
@@ -61,7 +59,7 @@ describe('HttpAdapter', () => {
 		const adapter = new HttpAdapter('/api/v1', { fetch });
 		const result = await adapter.create('accounts', { name: 'test' });
 		expect(result).toEqual({ id: 'new', name: 'test' });
-		expect(fetch.mock.calls[0]![1]?.method).toBe('POST');
+		expect(fetch.mock.calls[0]?.[1]?.method).toBe('POST');
 	});
 
 	it('update uses PUT for upsert tables', async () => {
@@ -70,7 +68,7 @@ describe('HttpAdapter', () => {
 		});
 		const adapter = new HttpAdapter('/api/v1', { fetch });
 		await adapter.update('flags', 'release/test', { enabled: true });
-		expect(fetch.mock.calls[0]![1]?.method).toBe('PUT');
+		expect(fetch.mock.calls[0]?.[1]?.method).toBe('PUT');
 	});
 
 	it('update uses PATCH for regular tables', async () => {
@@ -79,7 +77,7 @@ describe('HttpAdapter', () => {
 		});
 		const adapter = new HttpAdapter('/api/v1', { fetch });
 		await adapter.update('accounts', 'u1', { name: 'updated' });
-		expect(fetch.mock.calls[0]![1]?.method).toBe('PATCH');
+		expect(fetch.mock.calls[0]?.[1]?.method).toBe('PATCH');
 	});
 
 	it('remove sends DELETE', async () => {
@@ -88,7 +86,7 @@ describe('HttpAdapter', () => {
 		});
 		const adapter = new HttpAdapter('/api/v1', { fetch });
 		await adapter.remove('accounts', 'u1');
-		expect(fetch.mock.calls[0]![1]?.method).toBe('DELETE');
+		expect(fetch.mock.calls[0]?.[1]?.method).toBe('DELETE');
 	});
 
 	it('throws on server error', async () => {
@@ -108,7 +106,7 @@ describe('HttpAdapter', () => {
 			pathMap: { my_table: '/custom-path' },
 		});
 		await adapter.list('my_table');
-		expect(fetch.mock.calls[0]![0] as string).toContain('/custom-path');
+		expect(fetch.mock.calls[0]?.[0] as string).toContain('/custom-path');
 	});
 });
 
