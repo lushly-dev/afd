@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/afd-auth",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"description": "Provider-agnostic authentication adapter for AFD applications",
 	"type": "module",
 	"main": "./dist/index.js",
