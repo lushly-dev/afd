@@ -1,6 +1,6 @@
 {
 	"name": "afd",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"private": true,
 	"description": "Agent-First Development - Build software where AI agents are first-class users",
 	"repository": {
@@ -28,7 +28,7 @@
 		"typecheck": "pnpm -r typecheck",
 		"check": "npx lefthook run check",
 		"changeset": "changeset",
-		"release": "pnpm build && pnpm --filter \"@lushly-dev/*\" publish --no-git-checks --provenance --access public",
+		"release": "pnpm build && changeset publish --no-git-tag --access public",
 		"prepare": "lefthook install"
 	},
 	"devDependencies": {
