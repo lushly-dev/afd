@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/afd-client",
-	"version": "0.3.1",
+	"version": "0.3.0",
 	"description": "MCP client library for Agent-First Development",
 	"type": "module",
 	"exports": {
