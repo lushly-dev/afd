@@ -246,6 +246,7 @@ const formatDoc = defineCommand({
 
 Commands without `contexts` are universal (always visible). See "Context Management" below for server-level context configuration.
 
+
 ## Server Configuration
 
 ```typescript
