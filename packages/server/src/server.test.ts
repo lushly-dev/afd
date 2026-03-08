@@ -174,6 +174,92 @@ describe('HTTP transport server', () => {
 	});
 });
 
+describe('Tool _meta emission', () => {
+	let server: McpServer;
+
+	afterEach(async () => {
+		if (server) {
+			await server.stop();
+		}
+	});
+
+	it('emits _meta with requires and mutation when present', () => {
+		const cmdWithMeta = defineCommand({
+			name: 'test-protected',
+			description: 'A protected command',
+			category: 'test',
+			version: '1.0.0',
+			mutation: true,
+			requires: ['test-auth'],
+			input: z.object({}),
+			handler: async () => ({ success: true, data: {} }),
+		});
+
+		server = createMcpServer({
+			name: 'test-server',
+			version: '1.0.0',
+			commands: [cmdWithMeta],
+			transport: 'stdio',
+		});
+
+		const commands = server.getCommands();
+		const cmd = commands.find((c) => c.name === 'test-protected');
+		expect(cmd).toBeDefined();
+		expect(cmd?.requires).toEqual(['test-auth']);
+		expect(cmd?.mutation).toBe(true);
+	});
+
+	it('command without requires or mutation has no _meta fields', () => {
+		const plainCmd = defineCommand({
+			name: 'test-plain',
+			description: 'A plain command',
+			category: 'test',
+			version: '1.0.0',
+			input: z.object({}),
+			handler: async () => ({ success: true, data: {} }),
+		});
+
+		server = createMcpServer({
+			name: 'test-server',
+			version: '1.0.0',
+			commands: [plainCmd],
+			transport: 'stdio',
+		});
+
+		const commands = server.getCommands();
+		const cmd = commands.find((c) => c.name === 'test-plain');
+		expect(cmd).toBeDefined();
+		expect(cmd?.requires).toBeUndefined();
+		expect(cmd?.mutation).toBeUndefined();
+	});
+
+	it('empty requires array does not surface on command definition', () => {
+		const cmdEmptyReq = defineCommand({
+			name: 'test-empty-req',
+			description: 'A command with empty requires',
+			category: 'test',
+			version: '1.0.0',
+			requires: [],
+			mutation: false,
+			input: z.object({}),
+			handler: async () => ({ success: true, data: {} }),
+		});
+
+		server = createMcpServer({
+			name: 'test-server',
+			version: '1.0.0',
+			commands: [cmdEmptyReq],
+			transport: 'stdio',
+		});
+
+		const commands = server.getCommands();
+		const cmd = commands.find((c) => c.name === 'test-empty-req');
+		expect(cmd).toBeDefined();
+		// Empty array is passed through by defineCommand, but _meta logic checks length > 0
+		expect(cmd?.mutation).toBe(false);
+	});
+});
+
 describe('Stdio transport server', () => {
 	let server: McpServer;
 

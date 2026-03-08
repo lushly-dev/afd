@@ -50,6 +50,7 @@ alfred/  # Quality bot — lint, parity, quality (see alfred/AGENTS.md)
 - **Testing**: Vitest with explicit imports, tests in `src/**/*.test.ts`
 - **Imports**: Use `import type` for type-only, `node:` prefix for Node.js builtins
 - **Lint**: Biome — tab indent, single quotes, no `any`, no unused imports
+- **Command Prerequisites**: Declare with `requires: ['command-name']` on `defineCommand()` — metadata only, not enforced at runtime. Exposed via MCP `_meta.requires` and `afd-help`
 
 ## Quality Gates & CI
 

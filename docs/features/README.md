@@ -14,7 +14,6 @@ Feature specifications organized by lifecycle stage.
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| [Command Prerequisites](./active/command-prerequisites/) | Declare planning-order dependencies between commands | In Progress |
 | [Output Shape Predictability](./active/output-shape-predictability/) | Consistent output schemas for agent consumption | In Progress |
 
 ## Complete Features
@@ -23,6 +22,7 @@ Feature specifications organized by lifecycle stage.
 |---------|-------------|
 | [AFD Bot (Alfred)](./complete/afd-bot/) | Deterministic repo quality agent with lint, parity, and quality commands |
 | [Auth Adapter](./complete/auth-adapter/) | Provider-agnostic authentication adapter for AFD servers |
+| [Command Prerequisites](./complete/command-prerequisites/) | Declarative `requires` field for planning-order dependencies |
 | [Command Trust Config](./complete/command-trust-config/) | Per-command trust levels and exposure control |
 | [Command Exposure & Undo](./complete/command-exposure-undo/) | Command visibility and undo support |
 | [Command Pipeline](./complete/command-pipeline/) | Declarative command chaining |

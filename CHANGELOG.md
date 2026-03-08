@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **MCP `_meta` exposure** — examples emitted in MCP tool `_meta` field for agent consumption via `tools/list`
   - **`afd-help` integration** — examples included in full-format output
   - **Surface validation: `schema-complexity` severity reduction** — commands with examples have complexity findings reduced from `warning` to `info`
+- **Command prerequisites** (`@lushly-dev/afd-server`, `@lushly-dev/afd-testing`) — Declarative `requires` field on command definitions for planning-order dependencies
+  - **`requires?: string[]`** on `defineCommand()` — declares commands that should be called before this one (metadata only, not enforced at runtime)
+  - **MCP `_meta` exposure** — `requires` and `mutation` emitted in MCP tool `_meta` field for agent consumption via `tools/list`
+  - **`afd-help` integration** — prerequisites shown in both full-format and brief-format output
+  - **Surface validation: `unresolved-prerequisite`** (error) — flags commands whose `requires` reference commands not registered in the surface
+  - **Surface validation: `circular-prerequisite`** (error) — detects cycles in the prerequisite dependency graph
 
 ## [0.4.0] - 2026-02-28
 

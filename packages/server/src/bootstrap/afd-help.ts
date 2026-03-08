@@ -76,11 +76,14 @@ export function createAfdHelpCommand(
 					description: cmd.description,
 				};
 
+				if (cmd.requires?.length) {
+					info.requires = cmd.requires;
+				}
+
 				if (input.format === 'full') {
 					info.category = cmd.category;
 					info.tags = cmd.tags;
 					info.mutation = cmd.mutation;
-					info.requires = cmd.requires;
 					info.examples = cmd.examples;
 				}
 
