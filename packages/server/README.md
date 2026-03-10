@@ -18,6 +18,7 @@ pnpm add @lushly-dev/afd-server
 - **Auto Transport Detection** - Automatically selects the right transport based on environment
 - **Built-in Validation** - Automatic input validation before handler execution
 - **Middleware System** - Logging, tracing, rate limiting, and custom middleware
+- **Command Prerequisites** - Declare `requires` dependencies so agents can plan execution order
 - **Full TypeScript Support** - Complete type inference from Zod schemas
 
 ## Quick Start
@@ -186,6 +187,23 @@ const getUser = defineCommand({
   },
 });
 ```
+
+### Command with Prerequisites
+
+```typescript
+const secretData = defineCommand({
+  name: 'secret-data',
+  description: 'Return sensitive data for the authenticated user',
+  requires: ['auth-sign-in'],  // Agent sees this before calling
+  input: z.object({}),
+
+  async handler(input, context) {
+    return success({ secret: '...' });
+  },
+});
+```
+
+Prerequisites are metadata — they tell agents what to call first but are not enforced at runtime (middleware handles enforcement). They appear in MCP tool `_meta` and `afd-help` output.
 
 ## Server Configuration
 

@@ -41,6 +41,16 @@ function makeMockCommands(): CommandDefinition[] {
 			parameters: [{ name: 'id', type: 'number', description: 'User ID', required: true }],
 			handler: async () => success(null),
 		},
+		{
+			name: 'todo-stats',
+			description: 'Get todo statistics',
+			category: 'todos',
+			tags: ['crud', 'read'],
+			mutation: false,
+			requires: ['todo-list'],
+			parameters: [],
+			handler: async () => success(null),
+		},
 	];
 }
 
@@ -62,9 +72,9 @@ describe('createAfdHelpCommand', () => {
 		const result = await cmd.handler({ format: 'brief' });
 
 		expect(result.success).toBe(true);
-		expect(result.data?.total).toBe(3);
+		expect(result.data?.total).toBe(4);
 		expect(result.data?.filtered).toBe(false);
-		expect(result.data?.commands).toHaveLength(3);
+		expect(result.data?.commands).toHaveLength(4);
 	});
 
 	it('filters by tag', async () => {
@@ -94,7 +104,7 @@ describe('createAfdHelpCommand', () => {
 		const result = await cmd.handler({ filter: 'todos', format: 'brief' });
 
 		expect(result.success).toBe(true);
-		expect(result.data?.total).toBe(2);
+		expect(result.data?.total).toBe(3);
 	});
 
 	it('brief format excludes extra fields', async () => {
@@ -127,8 +137,35 @@ describe('createAfdHelpCommand', () => {
 
 		const grouped = result.data?.groupedByCategory;
 		expect(grouped).toBeDefined();
-		expect(grouped?.todos).toHaveLength(2);
+		expect(grouped?.todos).toHaveLength(3);
 		expect(grouped?.users).toHaveLength(1);
+	});
+
+	it('full format includes requires', async () => {
+		const commands = makeMockCommands();
+		const cmd = createAfdHelpCommand(() => commands);
+		const result = await cmd.handler({ format: 'full' });
+
+		const statsCmd = result.data?.commands.find((c) => c.name === 'todo-stats');
+		expect(statsCmd?.requires).toEqual(['todo-list']);
+	});
+
+	it('brief format includes requires when present', async () => {
+		const commands = makeMockCommands();
+		const cmd = createAfdHelpCommand(() => commands);
+		const result = await cmd.handler({ format: 'brief' });
+
+		const statsCmd = result.data?.commands.find((c) => c.name === 'todo-stats');
+		expect(statsCmd?.requires).toEqual(['todo-list']);
+	});
+
+	it('brief format omits requires when absent', async () => {
+		const commands = makeMockCommands();
+		const cmd = createAfdHelpCommand(() => commands);
+		const result = await cmd.handler({ format: 'brief' });
+
+		const listCmd = result.data?.commands.find((c) => c.name === 'todo-list');
+		expect(listCmd?.requires).toBeUndefined();
 	});
 
 	it('uncategorized commands go to "uncategorized" group', async () => {
@@ -164,7 +201,7 @@ describe('createAfdDocsCommand', () => {
 		const result = await cmd.handler({});
 
 		expect(result.success).toBe(true);
-		expect(result.data?.commandCount).toBe(3);
+		expect(result.data?.commandCount).toBe(4);
 		expect(result.data?.markdown).toContain('# Command Documentation');
 		expect(result.data?.markdown).toContain('`todo-create`');
 		expect(result.data?.markdown).toContain('`user-get`');
@@ -248,9 +285,9 @@ describe('createAfdSchemaCommand', () => {
 		const result = await cmd.handler({ format: 'json' });
 
 		expect(result.success).toBe(true);
-		expect(result.data?.count).toBe(3);
+		expect(result.data?.count).toBe(4);
 		expect(result.data?.format).toBe('json');
-		expect(result.data?.schemas).toHaveLength(3);
+		expect(result.data?.schemas).toHaveLength(4);
 	});
 
 	it('builds basic schema from parameters', async () => {

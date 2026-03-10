@@ -14,6 +14,7 @@ export const getStats = defineCommand<typeof inputSchema, TodoStats>({
 	description: 'Get todo statistics',
 	category: 'todo',
 	tags: ['todo', 'stats', 'read', 'safe'],
+	requires: ['todo-list'],
 	mutation: false,
 	version: '1.0.0',
 	input: inputSchema,

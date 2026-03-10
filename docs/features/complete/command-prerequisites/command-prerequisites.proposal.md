@@ -3,7 +3,7 @@
 > Proposal: Declarative dependency graph between commands so agents and surface validation can reason about ordering
 
 ---
-status: reviewed
+status: complete
 created: 2026-02-22
 origin: Playground testing — auth middleware *enforced* that sign-in must precede protected commands, but nothing *told* the agent this upfront. Agent discovered the dependency only after hitting UNAUTHORIZED errors.
 effort: M (3-5 days)
