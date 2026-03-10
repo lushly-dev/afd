@@ -1,6 +1,6 @@
 /**
  * @fileoverview Shared MCP tool call routing — dispatches tool calls to the
- * appropriate execution function (batch, pipeline, grouped, or individual).
+ * appropriate execution function (batch, pipeline, call, lazy discovery, grouped, or individual).
  *
  * Used by both stdio and HTTP transports to eliminate routing duplication.
  */
@@ -13,7 +13,9 @@ import type {
 	PipelineRequest,
 	PipelineResult,
 } from '@lushly-dev/afd-core';
-import { isBatchRequest, isPipelineRequest } from '@lushly-dev/afd-core';
+import { findSimilarTools, isBatchRequest, isPipelineRequest } from '@lushly-dev/afd-core';
+import type { DetailInput, DiscoverInput } from './lazy-tools.js';
+import { executeDetail, executeDiscover } from './lazy-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -34,9 +36,13 @@ export interface ToolRouterDeps {
 	executeBatch: (request: BatchRequest, context?: CommandContext) => Promise<BatchResult>;
 	executePipeline: (request: PipelineRequest, context?: CommandContext) => Promise<PipelineResult>;
 	commands: ZodCommandDefinition[];
-	toolStrategy: 'individual' | 'grouped';
+	toolStrategy: 'individual' | 'grouped' | 'lazy';
 	groupByFn?: (command: ZodCommandDefinition) => string | undefined;
 	devMode: boolean;
+	/** All registered commands, including those outside the commands array */
+	allCommands?: ZodCommandDefinition[];
+	/** Set of command names exposed via the server's commands array */
+	exposedCommandNames?: Set<string>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -82,9 +88,89 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		toolStrategy,
 		groupByFn,
 		devMode,
+		allCommands,
+		exposedCommandNames,
 	} = deps;
 
 	return async function routeToolCall(toolName: string, args: unknown): Promise<ToolCallResult> {
+		// Handle afd-call (available in all strategies)
+		if (toolName === 'afd-call') {
+			const typedArgs = args as { command?: string; input?: unknown } | undefined;
+			const commandName = typedArgs?.command;
+			if (!commandName || typeof commandName !== 'string') {
+				return resultContent(
+					{
+						success: false,
+						error: {
+							code: 'VALIDATION_ERROR',
+							message: 'Missing required field: command',
+							suggestion: 'Provide { command: "command-name", input: {...} }',
+						},
+					},
+					true
+				);
+			}
+
+			// Check if command exists in the exposed commands
+			const cmd = commands.find((c) => c.name === commandName);
+			if (!cmd) {
+				// Check if it exists but isn't exposed
+				const allCmd = allCommands?.find((c) => c.name === commandName);
+				if (allCmd) {
+					return resultContent(
+						{
+							success: false,
+							error: {
+								code: 'COMMAND_NOT_EXPOSED',
+								message: `Command '${commandName}' exists but is not exposed via this server`,
+								suggestion:
+									"This command is registered but not included in the server's commands array.",
+							},
+						},
+						true
+					);
+				}
+				// Not found at all — suggest similar
+				const allNames = commands.map((c) => c.name);
+				const suggestions = findSimilarTools(commandName, allNames, 3);
+				const suggestionText =
+					suggestions.length > 0
+						? `Did you mean '${suggestions[0]}'? Use afd-discover to list all commands.`
+						: 'Use afd-discover to list all commands.';
+				return resultContent(
+					{
+						success: false,
+						error: {
+							code: 'COMMAND_NOT_FOUND',
+							message: `Command '${commandName}' not found`,
+							suggestion: suggestionText,
+						},
+					},
+					true
+				);
+			}
+
+			// Execute through the execution engine (full middleware chain)
+			const result = await executeCommand(commandName, typedArgs?.input ?? {}, {
+				traceId: `afd-call-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+			});
+			return resultContent(result, !result.success);
+		}
+
+		// Handle afd-discover (lazy strategy only)
+		if (toolName === 'afd-discover') {
+			const result = executeDiscover(commands, (args ?? {}) as DiscoverInput);
+			return resultContent(result, false);
+		}
+
+		// Handle afd-detail (lazy strategy only)
+		if (toolName === 'afd-detail') {
+			const exposedNames = exposedCommandNames ?? new Set(commands.map((c) => c.name));
+			const allCmds = allCommands ?? commands;
+			const result = executeDetail(allCmds, exposedNames, (args ?? {}) as DetailInput);
+			return resultContent(result, false);
+		}
+
 		// Handle built-in afd-batch tool
 		if (toolName === 'afd-batch') {
 			if (!isBatchRequest(args)) {

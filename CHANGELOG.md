@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Lazy Loading & Discovery** (`@lushly-dev/afd-server`, `@lushly-dev/afd-core`) — Third tool strategy (`toolStrategy: 'lazy'`) with `afd-discover`, `afd-detail`, and `afd-call` meta-tools. Keeps enumeration cost constant regardless of command count. `afd-call` universal dispatcher available in all strategies. Fuzzy matching extracted to `@lushly-dev/afd-core`.
 - **Schema examples** (`@lushly-dev/afd-core`, `@lushly-dev/afd-server`, `@lushly-dev/afd-testing`) — Attach concrete input examples to commands so agents can reference valid payloads instead of reverse-engineering JSON Schema
   - **`examples?: CommandExample[]`** on `defineCommand()` — type-safe examples validated against the Zod input schema at define-time (invalid examples throw immediately)
   - **`CommandExample<TInput>`** type in `@lushly-dev/afd-core` — `{ title: string; input: TInput }`

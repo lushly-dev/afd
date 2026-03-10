@@ -1,5 +1,5 @@
 /**
- * @fileoverview MCP tool list generation — individual and grouped strategies.
+ * @fileoverview MCP tool list generation — individual, grouped, and lazy strategies.
  */
 
 import type { ZodCommandDefinition } from './schema.js';
@@ -97,6 +97,62 @@ const pipeToolSchema = {
 	},
 };
 
+const callToolSchema = {
+	name: 'afd-call',
+	description:
+		'Invoke any command by name with runtime input validation. Works in all server strategies.',
+	inputSchema: {
+		type: 'object' as const,
+		properties: {
+			command: { type: 'string', description: 'Command name to invoke' },
+			input: {
+				type: 'object',
+				description: "Command input (validated against the command's own schema at runtime)",
+			},
+		},
+		required: ['command'],
+	},
+};
+
+const discoverToolSchema = {
+	name: 'afd-discover',
+	description:
+		'List available commands with optional filtering by category, tag, or search text. Returns compact summaries.',
+	inputSchema: {
+		type: 'object' as const,
+		properties: {
+			category: { type: 'string', description: 'Filter commands by category' },
+			tag: {
+				description: 'Filter by tag(s). String for single, array for multiple.',
+			},
+			tagMode: {
+				type: 'string',
+				enum: ['all', 'any'],
+				description: 'Tag matching mode (default: any)',
+			},
+			search: { type: 'string', description: 'Text search across names and descriptions' },
+			includeMutation: { type: 'boolean', description: 'Include mutation classification' },
+			limit: { type: 'number', description: 'Max results (1-200, default 50)' },
+			offset: { type: 'number', description: 'Results to skip for pagination' },
+		},
+	},
+};
+
+const detailToolSchema = {
+	name: 'afd-detail',
+	description: 'Get the full input schema and metadata for one or more commands by name.',
+	inputSchema: {
+		type: 'object' as const,
+		properties: {
+			command: {
+				description:
+					'Command name or names (exact match, kebab-case). String or array of strings (max 10).',
+			},
+		},
+		required: ['command'],
+	},
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // TOOLS LIST
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -106,14 +162,20 @@ const pipeToolSchema = {
  */
 export function getToolsList(
 	commands: ZodCommandDefinition[],
-	toolStrategy: 'individual' | 'grouped',
+	toolStrategy: 'individual' | 'grouped' | 'lazy',
 	groupByFn?: (command: ZodCommandDefinition) => string | undefined
 ) {
-	// Individual strategy: each command is its own tool
+	const builtInTools = [batchToolSchema, pipeToolSchema, callToolSchema];
+
+	// Lazy strategy: meta-tools + built-ins only
+	if (toolStrategy === 'lazy') {
+		return [discoverToolSchema, detailToolSchema, ...builtInTools];
+	}
+
+	// Individual strategy: each command is its own tool + built-ins
 	if (toolStrategy === 'individual') {
 		return [
-			batchToolSchema,
-			pipeToolSchema,
+			...builtInTools,
 			...commands.map((cmd) => {
 				const { type: _type, ...restSchema } = cmd.jsonSchema;
 				const hasMeta =
@@ -187,5 +249,5 @@ export function getToolsList(
 		};
 	});
 
-	return [batchToolSchema, pipeToolSchema, ...groupedTools];
+	return [...builtInTools, ...groupedTools];
 }
