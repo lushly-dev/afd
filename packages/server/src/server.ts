@@ -131,7 +131,8 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 				}));
 
 				mcpSdkServer.setRequestHandler(CallToolRequestSchema, async (request) => {
-					return routeToolCall(request.params.name, request.params.arguments ?? {});
+					// Spread into anonymous object for MCP SDK index signature compatibility
+					return { ...(await routeToolCall(request.params.name, request.params.arguments ?? {})) };
 				});
 
 				const stdioTransport = new StdioServerTransport();
