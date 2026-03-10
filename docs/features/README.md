@@ -15,6 +15,7 @@ Feature specifications organized by lifecycle stage.
 | Feature | Description | Status |
 |---------|-------------|--------|
 | [Output Shape Predictability](./active/output-shape-predictability/) | Consistent output schemas for agent consumption | In Progress |
+| [View State](./active/view-state/) | Unified UI view state management via commands | Planned |
 
 ## Complete Features
 

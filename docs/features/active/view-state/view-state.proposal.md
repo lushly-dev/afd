@@ -1,7 +1,10 @@
 ---
-Status: Planned
-Date: 2026-03-01
-Depends on: ["@lushly-dev/local-db"]
+status: planned
+created: 2026-03-01
+origin: fabric-ux-prototype — UI view state managed outside the command system, invisible to agents and tests
+effort: S (1-2 days for Option A docs, M 3-5 days for Option B package)
+package: "@lushly-dev/afd-view-state"
+depends-on: "@lushly-dev/local-db"
 ---
 
 # View State — AFD Command Pattern for UI State Management
