@@ -2,6 +2,9 @@
  * @fileoverview Command execution engine — single, batch, pipeline, and streaming execution.
  */
 
+// NOTE: This module is near the 500-line file-size cap. If adding execution
+// paths, consider extracting to a separate module (e.g., streaming.ts).
+
 import type {
 	BatchCommandResult,
 	BatchRequest,
