@@ -10,6 +10,7 @@ import {
 	checkDescriptionInjection,
 	checkDescriptionQuality,
 	checkMissingCategory,
+	checkMissingOutputSchema,
 	checkNamingCollision,
 	checkNamingConvention,
 	checkOrphanedCategory,
@@ -71,6 +72,7 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 				jsonSchema?: Record<string, unknown>;
 				requires?: string[];
 				examples?: SurfaceCommand['examples'];
+				outputJsonSchema?: Record<string, unknown>;
 			};
 			return {
 				name: zod.name,
@@ -79,6 +81,7 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 				jsonSchema: zod.jsonSchema as SurfaceCommand['jsonSchema'],
 				requires: zod.requires,
 				examples: zod.examples,
+				outputJsonSchema: zod.outputJsonSchema as SurfaceCommand['outputJsonSchema'],
 			};
 		}
 
@@ -257,6 +260,10 @@ export function validateCommandSurface(
 	// Always run: circular-prerequisite
 	rulesEvaluated.push('circular-prerequisite');
 	allFindings.push(...checkCircularPrerequisites(normalized));
+
+	// Always run: missing-output-schema
+	rulesEvaluated.push('missing-output-schema');
+	allFindings.push(...checkMissingOutputSchema(normalized));
 
 	// Apply suppressions
 	let suppressedCount = 0;

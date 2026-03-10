@@ -3,7 +3,7 @@
 > Proposal: Declare and validate command output schemas so agents know what they'll get back before calling
 
 ---
-status: reviewed
+status: complete
 created: 2026-02-22
 origin: Playground testing — agent called `todo-list` and received `CommandResult<Todo[]>`, but had to *infer* the shape of `Todo` from the response. When piping `todo-list` → `todo-update`, the agent guessed field names (`$prev.data[0].id`) without any schema guarantee. The `returns` field exists on `CommandDefinition` but is always hardcoded to `{ type: 'object', description: 'Command result' }` — a meaningless placeholder.
 effort: M (3-5 days)

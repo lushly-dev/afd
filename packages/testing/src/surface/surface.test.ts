@@ -5,6 +5,7 @@ import {
 	checkDescriptionInjection,
 	checkDescriptionQuality,
 	checkMissingCategory,
+	checkMissingOutputSchema,
 	checkNamingCollision,
 	checkNamingConvention,
 	checkOrphanedCategory,
@@ -1598,5 +1599,49 @@ describe('checkCircularPrerequisites', () => {
 		];
 		const findings = checkCircularPrerequisites(commands);
 		expect(findings).toHaveLength(1);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MISSING OUTPUT SCHEMA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('checkMissingOutputSchema', () => {
+	it('flags commands without output schema', () => {
+		const findings = checkMissingOutputSchema([{ name: 'todo-list', description: 'Lists todos' }]);
+		expect(findings).toHaveLength(1);
+		expect(findings[0]?.rule).toBe('missing-output-schema');
+		expect(findings[0]?.severity).toBe('info');
+	});
+
+	it('does not flag commands with output schema', () => {
+		const findings = checkMissingOutputSchema([
+			{
+				name: 'todo-list',
+				description: 'Lists todos',
+				outputJsonSchema: { type: 'array' },
+			},
+		]);
+		expect(findings).toHaveLength(0);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MISSING OUTPUT SCHEMA INTEGRATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('validateCommandSurface missing-output-schema integration', () => {
+	it('includes missing-output-schema in validation', () => {
+		const result = validateCommandSurface([
+			{
+				name: 'todo-list',
+				description: 'Lists all todo items',
+				jsonSchema: { type: 'object', properties: {} },
+			},
+		]);
+		const outputFindings = result.findings.filter((f) => f.rule === 'missing-output-schema');
+		expect(outputFindings).toHaveLength(1);
+		expect(outputFindings[0]?.severity).toBe('info');
+		expect(result.summary.rulesEvaluated).toContain('missing-output-schema');
 	});
 });

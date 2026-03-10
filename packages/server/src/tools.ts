@@ -119,7 +119,8 @@ export function getToolsList(
 				const hasMeta =
 					(cmd.requires && cmd.requires.length > 0) ||
 					cmd.mutation != null ||
-					(cmd.examples && cmd.examples.length > 0);
+					(cmd.examples && cmd.examples.length > 0) ||
+					cmd.outputJsonSchema != null;
 				return {
 					name: cmd.name,
 					description: cmd.description,
@@ -132,6 +133,7 @@ export function getToolsList(
 							...(cmd.requires?.length && { requires: cmd.requires }),
 							...(cmd.mutation != null && { mutation: cmd.mutation }),
 							...(cmd.examples?.length && { examples: cmd.examples }),
+							...(cmd.outputJsonSchema && { outputSchema: cmd.outputJsonSchema }),
 						},
 					}),
 				};

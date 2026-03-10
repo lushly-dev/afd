@@ -4,6 +4,7 @@
 
 import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TodoSchema } from '../schemas.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 
@@ -21,6 +22,7 @@ export const createTodo = defineCommand<typeof inputSchema, Todo>({
 	mutation: true,
 	version: '1.0.0',
 	input: inputSchema,
+	output: TodoSchema,
 	errors: ['VALIDATION_ERROR'],
 
 	async handler(input) {

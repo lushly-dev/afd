@@ -35,6 +35,13 @@ export interface ZodCommandOptions<TInput extends ZodType<unknown, ZodTypeDef, u
 	/** Zod schema for input validation */
 	input: TInput;
 
+	/**
+	 * Optional Zod schema describing the command's output data shape.
+	 * Used for agent introspection — not validated at runtime.
+	 * Describes the shape of `CommandResult.data`, not the full envelope.
+	 */
+	output?: ZodType<TOutput>;
+
 	/** Command handler function */
 	handler: (input: z.infer<TInput>, context: CommandContext) => Promise<CommandResult<TOutput>>;
 
@@ -163,6 +170,12 @@ export interface ZodCommandDefinition<
 	/** Concrete input examples validated against the input schema */
 	examples?: CommandExample<z.infer<TInput>>[];
 
+	/** Zod schema for output validation (optional) */
+	outputSchema?: ZodType;
+
+	/** JSON Schema for the output data shape (derived from outputSchema) */
+	outputJsonSchema?: JsonSchema;
+
 	/**
 	 * Convert to standard CommandDefinition format.
 	 */
@@ -206,6 +219,7 @@ export function defineCommand<TInput extends ZodType<unknown, ZodTypeDef, unknow
 	}
 
 	const jsonSchema = zodToJsonSchema(options.input);
+	const outputJsonSchema = options.output ? zodToJsonSchema(options.output) : undefined;
 
 	// Build tags with automatic handoff tags if handoff is enabled
 	const tags = buildHandoffTags(options.tags, options.handoff, options.handoffProtocol);
@@ -244,6 +258,8 @@ export function defineCommand<TInput extends ZodType<unknown, ZodTypeDef, unknow
 		confirmPrompt: options.confirmPrompt,
 		expose: options.expose,
 		examples: options.examples,
+		outputSchema: options.output,
+		outputJsonSchema,
 
 		toCommandDefinition(): CommandDefinition<z.infer<TInput>, TOutput> {
 			return {
@@ -261,7 +277,7 @@ export function defineCommand<TInput extends ZodType<unknown, ZodTypeDef, unknow
 				expose: options.expose,
 				examples: options.examples,
 				parameters: jsonSchemaToParameters(jsonSchema),
-				returns: { type: 'object', description: 'Command result' },
+				returns: outputJsonSchema ?? { type: 'object', description: 'Command result' },
 				handler: options.handler as (
 					input: unknown,
 					context?: CommandContext
