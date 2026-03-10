@@ -210,7 +210,12 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		if (toolName === 'afd-detail') {
 			const exposedNames = exposedCommandNames ?? new Set(commands.map((c) => c.name));
 			const allCmds = allCommands ?? commands;
-			const result = executeDetail(allCmds, exposedNames, (args ?? {}) as DetailInput);
+			// Filter by active context so agents cannot inspect commands outside their context
+			const activeContext = contextState?.getActive();
+			const contextFilteredCmds = activeContext
+				? allCmds.filter((cmd) => !cmd.contexts?.length || cmd.contexts.includes(activeContext))
+				: allCmds;
+			const result = executeDetail(contextFilteredCmds, exposedNames, (args ?? {}) as DetailInput);
 			return resultContent(result, false);
 		}
 
@@ -261,6 +266,27 @@ export function createToolRouter(deps: ToolRouterDeps) {
 
 			if (action && typeof action === 'string') {
 				const actualCommandName = `${toolName}-${action}`;
+
+				// Context check for grouped strategy
+				if (contextState) {
+					const activeContext = contextState.getActive();
+					const cmd = commands.find((c) => c.name === actualCommandName);
+					if (!isCommandAccessible(cmd, activeContext)) {
+						return resultContent(
+							{
+								success: false,
+								error: {
+									code: 'COMMAND_NOT_IN_CONTEXT',
+									message: `Command '${actualCommandName}' is not available in context '${activeContext}'`,
+									suggestion:
+										'Use afd-context-list to see available contexts, or afd-context-enter to switch.',
+								},
+							},
+							true
+						);
+					}
+				}
+
 				const result = await executeCommand(actualCommandName, commandParams, {
 					traceId: `trace-${Date.now()}-${Math.random().toString(36).slice(2)}`,
 				});

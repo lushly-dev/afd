@@ -51,6 +51,7 @@ interface DetailResult {
 	executionTime?: 'instant' | 'fast' | 'slow' | 'long-running';
 	errors?: string[];
 	inputSchema: JsonSchema;
+	outputSchema?: JsonSchema;
 	destructive?: boolean;
 	confirmPrompt?: string;
 	handoff?: boolean;
@@ -187,7 +188,9 @@ export function executeDetail(
 	input: DetailInput
 ): CommandResult<DetailEntry[]> {
 	const startTime = performance.now();
-	const names = Array.isArray(input.command) ? input.command : [input.command];
+	const rawNames = Array.isArray(input.command) ? input.command : [input.command];
+	// Enforce max 10 commands per detail request
+	const names = rawNames.slice(0, 10);
 	const commandMap = new Map(allRegisteredCommands.map((c) => [c.name, c]));
 	const allNames = allRegisteredCommands.map((c) => c.name);
 
@@ -220,6 +223,7 @@ export function executeDetail(
 			executionTime: cmd.executionTime,
 			errors: cmd.errors,
 			inputSchema: cmd.jsonSchema,
+			...(cmd.outputJsonSchema && { outputSchema: cmd.outputJsonSchema }),
 			destructive: cmd.destructive,
 			confirmPrompt: cmd.confirmPrompt,
 			handoff: cmd.handoff,

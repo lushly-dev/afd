@@ -97,6 +97,74 @@ describe('afd-call via server.execute', () => {
 	});
 });
 
+describe('afd-discover with context filtering via router', () => {
+	it('filters commands by active context in afd-discover', async () => {
+		const { createContextState } = await import('./bootstrap/afd-context.js');
+		const { createToolRouter } = await import('./tool-router.js');
+		const state = createContextState();
+		state.enter('todo');
+
+		const cmdA = defineCommand({
+			name: 'todo-list',
+			description: 'Lists todos',
+			input: z.object({}),
+			contexts: ['todo'],
+			handler: async () => ({ success: true as const, data: [] }),
+		});
+		const cmdB = defineCommand({
+			name: 'admin-reset',
+			description: 'Resets admin state',
+			input: z.object({}),
+			contexts: ['admin'],
+			handler: async () => ({ success: true as const, data: null }),
+		});
+		const cmdC = defineCommand({
+			name: 'app-help',
+			description: 'Shows help',
+			input: z.object({}),
+			handler: async () => ({ success: true as const, data: 'help' }),
+		});
+
+		const commands = [cmdA, cmdB, cmdC];
+		const router = createToolRouter({
+			executeCommand: async () => ({ success: true as const, data: null }),
+			executeBatch: async () => ({
+				success: true,
+				results: [],
+				timing: { totalMs: 0, averageMs: 0, startedAt: '', completedAt: '' },
+				metadata: { successCount: 0, failureCount: 0, totalCount: 0, confidence: 1 },
+				steps: [],
+			}),
+			executePipeline: async () => ({
+				data: undefined,
+				metadata: {
+					confidence: 0,
+					confidenceBreakdown: [],
+					reasoning: [],
+					warnings: [],
+					sources: [],
+					alternatives: [],
+					executionTimeMs: 0,
+					completedSteps: 0,
+					totalSteps: 0,
+				},
+				steps: [],
+			}),
+			commands,
+			toolStrategy: 'lazy',
+			devMode: false,
+			contextState: state,
+		});
+
+		const result = await router('afd-discover', {});
+		const parsed = JSON.parse(result.content[0]?.text ?? '{}');
+		const names = parsed.data?.commands?.map((c: { name: string }) => c.name) ?? [];
+		expect(names).toContain('todo-list');
+		expect(names).toContain('app-help');
+		expect(names).not.toContain('admin-reset');
+	});
+});
+
 describe('full discover -> detail -> call workflow', () => {
 	it('completes the discovery flow end-to-end', async () => {
 		const commands = createTestCommands();

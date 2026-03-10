@@ -191,4 +191,192 @@ describe('createToolRouter with context state', () => {
 		const result = await router('doc-view', { id: '1' });
 		expect(result.isError).toBe(false);
 	});
+
+	it('enforces context on afd-call', async () => {
+		const state = createContextState();
+		state.enter('print');
+		const router = createRouter(state);
+
+		const result = await router('afd-call', { command: 'doc-create', input: { title: 'Test' } });
+		expect(result.isError).toBe(true);
+		const parsed = JSON.parse(result.content[0]?.text ?? '{}');
+		expect(parsed.error.code).toBe('COMMAND_NOT_IN_CONTEXT');
+	});
+
+	it('allows afd-call for commands in active context', async () => {
+		const state = createContextState();
+		state.enter('document-editing');
+		const router = createRouter(state);
+
+		const result = await router('afd-call', { command: 'doc-create', input: { title: 'Test' } });
+		expect(result.isError).toBe(false);
+		const parsed = JSON.parse(result.content[0]?.text ?? '{}');
+		expect(parsed.success).toBe(true);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// afd-detail Context Filtering
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('afd-detail with context filtering', () => {
+	function createDetailRouter(contextState: ReturnType<typeof createContextState>) {
+		const commandMap = new Map(allCommands.map((c) => [c.name, c]));
+		return createToolRouter({
+			executeCommand: async (name, input) => {
+				const cmd = commandMap.get(name);
+				if (!cmd) {
+					return {
+						success: false as const,
+						error: { code: 'COMMAND_NOT_FOUND', message: `Command '${name}' not found` },
+					};
+				}
+				return cmd.handler(input, {});
+			},
+			executeBatch: async () => ({
+				success: true,
+				results: [],
+				timing: { totalMs: 0, averageMs: 0, startedAt: '', completedAt: '' },
+				metadata: { successCount: 0, failureCount: 0, totalCount: 0, confidence: 1 },
+				steps: [],
+			}),
+			executePipeline: async () => ({
+				data: undefined,
+				metadata: {
+					confidence: 0,
+					confidenceBreakdown: [],
+					reasoning: [],
+					warnings: [],
+					sources: [],
+					alternatives: [],
+					executionTimeMs: 0,
+					completedSteps: 0,
+					totalSteps: 0,
+				},
+				steps: [],
+			}),
+			commands: allCommands,
+			toolStrategy: 'lazy',
+			devMode: false,
+			allCommands,
+			exposedCommandNames: new Set(allCommands.map((c) => c.name)),
+			contextState,
+		});
+	}
+
+	it('filters out-of-context commands from afd-detail results', async () => {
+		const state = createContextState();
+		state.enter('document-editing');
+		const router = createDetailRouter(state);
+
+		// Request detail for a command NOT in the active context
+		const result = await router('afd-detail', { command: 'doc-print' });
+		const parsed = JSON.parse(result.content[0]?.text ?? '{}');
+		// doc-print is in 'print' context only — should be not-found from filtered perspective
+		const entry = parsed.data?.[0];
+		expect(entry?.found).toBe(false);
+		expect(entry?.error?.code).toBe('COMMAND_NOT_FOUND');
+	});
+
+	it('shows in-context commands in afd-detail', async () => {
+		const state = createContextState();
+		state.enter('document-editing');
+		const router = createDetailRouter(state);
+
+		const result = await router('afd-detail', { command: 'doc-create' });
+		const parsed = JSON.parse(result.content[0]?.text ?? '{}');
+		expect(parsed.data?.[0]?.found).toBe(true);
+		expect(parsed.data?.[0]?.name).toBe('doc-create');
+	});
+
+	it('shows universal commands in afd-detail regardless of context', async () => {
+		const state = createContextState();
+		state.enter('print');
+		const router = createDetailRouter(state);
+
+		const result = await router('afd-detail', { command: 'app-help' });
+		const parsed = JSON.parse(result.content[0]?.text ?? '{}');
+		expect(parsed.data?.[0]?.found).toBe(true);
+	});
+
+	it('shows all commands in afd-detail when no context active', async () => {
+		const state = createContextState();
+		const router = createDetailRouter(state);
+
+		const result = await router('afd-detail', {
+			command: ['doc-create', 'doc-print', 'app-help'],
+		});
+		const parsed = JSON.parse(result.content[0]?.text ?? '{}');
+		expect(parsed.data).toHaveLength(3);
+		expect(parsed.data?.every((e: { found: boolean }) => e.found)).toBe(true);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Grouped Strategy Context Enforcement
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('grouped strategy with context enforcement', () => {
+	function createGroupedRouter(contextState: ReturnType<typeof createContextState>) {
+		const commandMap = new Map(allCommands.map((c) => [c.name, c]));
+		return createToolRouter({
+			executeCommand: async (name, input) => {
+				const cmd = commandMap.get(name);
+				if (!cmd) {
+					return {
+						success: false as const,
+						error: { code: 'COMMAND_NOT_FOUND', message: `Command '${name}' not found` },
+					};
+				}
+				return cmd.handler(input, {});
+			},
+			executeBatch: async () => ({
+				success: true,
+				results: [],
+				timing: { totalMs: 0, averageMs: 0, startedAt: '', completedAt: '' },
+				metadata: { successCount: 0, failureCount: 0, totalCount: 0, confidence: 1 },
+				steps: [],
+			}),
+			executePipeline: async () => ({
+				data: undefined,
+				metadata: {
+					confidence: 0,
+					confidenceBreakdown: [],
+					reasoning: [],
+					warnings: [],
+					sources: [],
+					alternatives: [],
+					executionTimeMs: 0,
+					completedSteps: 0,
+					totalSteps: 0,
+				},
+				steps: [],
+			}),
+			commands: allCommands,
+			toolStrategy: 'grouped',
+			devMode: false,
+			contextState,
+		});
+	}
+
+	it('rejects grouped commands not in the active context', async () => {
+		const state = createContextState();
+		state.enter('print');
+		const router = createGroupedRouter(state);
+
+		// doc-create is in document-editing context, calling from 'print' should fail
+		const result = await router('doc', { action: 'create', params: { title: 'Test' } });
+		expect(result.isError).toBe(true);
+		const parsed = JSON.parse(result.content[0]?.text ?? '{}');
+		expect(parsed.error.code).toBe('COMMAND_NOT_IN_CONTEXT');
+	});
+
+	it('allows grouped commands in the active context', async () => {
+		const state = createContextState();
+		state.enter('document-editing');
+		const router = createGroupedRouter(state);
+
+		const result = await router('doc', { action: 'create', params: { title: 'Test' } });
+		expect(result.isError).toBe(false);
+	});
 });

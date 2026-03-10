@@ -14,14 +14,18 @@ export const myCommand = defineCommand({
   description: 'What this command does',
   category: 'domain',              // Groups related commands
   version: '1.0.0',
-  
+
   // Behavior
   mutation: true,                  // Does this change state?
-  
+
   // Schema
   input: z.object({...}),          // Zod schema for input validation
+  output: z.object({...}),         // Optional: output shape (agent introspection)
   errors: ['NOT_FOUND', 'VALIDATION_ERROR'],  // Expected error codes
-  
+
+  // Scoping
+  contexts: ['editing', 'admin'],  // Optional: restrict to specific contexts
+
   // Implementation
   async handler(input, context) {
     // Business logic here
@@ -222,13 +226,66 @@ async handler(input, context) {
 }
 ```
 
+## Output Schema
+
+Declare what a command returns so agents know the response shape before calling:
+
+```typescript
+const Todo = z.object({
+  id: z.string(),
+  title: z.string(),
+  done: z.boolean(),
+});
+
+export const listTodos = defineCommand({
+  name: 'todo-list',
+  description: 'List all todo items',
+  input: z.object({ filter: z.enum(['all', 'active', 'done']).optional() }),
+  output: Todo.array(),  // Agents see this in _meta.outputSchema and afd-detail
+  async handler(input) {
+    const todos = await store.list(input.filter);
+    return success(todos, { reasoning: `Found ${todos.length} todos` });
+  },
+});
+```
+
+- **Optional** — commands without `output` still work (backward compatible)
+- **Describes `data`** — the shape of `CommandResult.data`, not the full envelope
+- Exposed via MCP `_meta.outputSchema` and `toCommandDefinition().returns`
+- Agents use it to validate pipeline field references before execution
+
+## Context Scoping
+
+Restrict commands to specific contexts for large command sets:
+
+```typescript
+export const docFormat = defineCommand({
+  name: 'doc-format',
+  description: 'Format the current document selection',
+  contexts: ['document-editing'],  // Only visible in document-editing context
+  input: z.object({ style: z.string() }),
+  async handler(input) { ... },
+});
+```
+
+- Commands without `contexts` are **universal** (always visible)
+- Contexts are declared on commands and managed by `afd-context-enter`/`afd-context-exit`
+- Exposed via MCP `_meta.contexts`
+
 ## Complete Example
 
 ```typescript
 import { z } from 'zod';
 import { defineCommand, success, error } from '@lushly-dev/afd-server';
 import { store } from '../store/memory.js';
-import type { Todo } from '../types.js';
+
+const Todo = z.object({
+  id: z.string(),
+  title: z.string(),
+  description: z.string().optional(),
+  priority: z.enum(['low', 'medium', 'high']),
+  completed: z.boolean(),
+});
 
 const inputSchema = z.object({
   title: z.string().min(1, 'Title is required').max(200, 'Title too long'),
@@ -236,22 +293,24 @@ const inputSchema = z.object({
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
 });
 
-export const createTodo = defineCommand<typeof inputSchema, Todo>({
+export const createTodo = defineCommand({
   name: 'todo-create',
   description: 'Create a new todo item',
   category: 'todo',
   mutation: true,
   version: '1.0.0',
   input: inputSchema,
+  output: Todo,
+  contexts: ['task-management'],
   errors: ['VALIDATION_ERROR'],
-  
+
   async handler(input, context) {
     const todo = store.create({
       title: input.title,
       description: input.description,
       priority: input.priority,
     });
-    
+
     return success(todo, {
       reasoning: `Created todo "${todo.title}" with ${input.priority} priority`,
       confidence: 1.0,

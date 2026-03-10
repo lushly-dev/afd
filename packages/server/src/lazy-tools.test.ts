@@ -216,4 +216,86 @@ describe('afd-detail', () => {
 			expect(entry.callable).toBe(false);
 		}
 	});
+
+	it('enforces max 10 batch limit', () => {
+		const commands = createTestCommands();
+		const exposedNames = new Set(commands.map((c) => c.name));
+		// Request 15 commands — only first 10 should be processed
+		const names = Array.from({ length: 15 }, (_, i) => `cmd-${i}`);
+		const result = executeDetail(commands, exposedNames, { command: names });
+		expect(result.data).toHaveLength(10);
+	});
+
+	it('includes outputSchema when command has output', () => {
+		const cmd = defineCommand({
+			name: 'todo-get',
+			description: 'Gets a single todo by ID',
+			input: z.object({ id: z.string() }),
+			output: z.object({ id: z.string(), title: z.string(), done: z.boolean() }),
+			handler: async () => ({
+				success: true as const,
+				data: { id: '1', title: 'Test', done: false },
+			}),
+		});
+		const result = executeDetail([cmd], new Set(['todo-get']), { command: 'todo-get' });
+		const entry = result.data?.[0];
+		expect(entry?.found).toBe(true);
+		if (entry?.found) {
+			expect(entry.outputSchema).toBeDefined();
+			expect(entry.outputSchema?.type).toBe('object');
+			expect(entry.outputSchema?.properties?.id).toBeDefined();
+		}
+	});
+
+	it('omits outputSchema when command has no output', () => {
+		const commands = createTestCommands();
+		const exposedNames = new Set(commands.map((c) => c.name));
+		const result = executeDetail(commands, exposedNames, { command: 'todo-create' });
+		const entry = result.data?.[0];
+		expect(entry?.found).toBe(true);
+		if (entry?.found) {
+			expect(entry.outputSchema).toBeUndefined();
+		}
+	});
+
+	it('handles duplicate names in batch', () => {
+		const commands = createTestCommands();
+		const exposedNames = new Set(commands.map((c) => c.name));
+		const result = executeDetail(commands, exposedNames, {
+			command: ['todo-create', 'todo-create'],
+		});
+		expect(result.data).toHaveLength(2);
+		expect(result.data?.[0]?.name).toBe('todo-create');
+		expect(result.data?.[1]?.name).toBe('todo-create');
+	});
+});
+
+describe('afd-discover edge cases', () => {
+	it('returns zero results when no commands match filter', () => {
+		const result = executeDiscover(createTestCommands(), { category: 'nonexistent' });
+		expect(result.success).toBe(true);
+		expect(result.data?.commands).toHaveLength(0);
+		expect(result.data?.filtered).toBe(0);
+		expect(result.data?.returned).toBe(0);
+	});
+
+	it('returns empty when offset is beyond range', () => {
+		const result = executeDiscover(createTestCommands(), { offset: 100 });
+		expect(result.success).toBe(true);
+		expect(result.data?.commands).toHaveLength(0);
+		expect(result.data?.hasMore).toBe(false);
+	});
+
+	it('handles empty command set', () => {
+		const result = executeDiscover([], {});
+		expect(result.success).toBe(true);
+		expect(result.data?.total).toBe(0);
+		expect(result.data?.commands).toHaveLength(0);
+	});
+
+	it('clamps limit to minimum 1', () => {
+		const result = executeDiscover(createTestCommands(), { limit: 0 });
+		expect(result.success).toBe(true);
+		expect(result.data?.returned).toBe(1);
+	});
 });

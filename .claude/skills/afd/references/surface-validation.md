@@ -28,6 +28,7 @@ const result = validateCommandSurface(commands, {
   additionalInjectionPatterns: [], // Custom injection patterns
   checkSchemaComplexity: true,     // Score input schema complexity
   schemaComplexityThreshold: 13,   // Score threshold for warnings
+  configuredContexts: [],          // Context names — enables missing-context rule
 });
 ```
 
@@ -59,7 +60,7 @@ interface SurfaceFinding {
 }
 ```
 
-## 11 Validation Rules
+## 13 Validation Rules
 
 ### 1. Similar Descriptions (`similar-descriptions`)
 **Severity:** Warning
@@ -160,6 +161,41 @@ Detects cycles in the `requires` dependency graph using DFS. A cycle means no va
 // A → B → C → A would trigger:
 // "Circular prerequisite chain: A → B → C → A"
 ```
+
+### 12. Missing Output Schema (`missing-output-schema`)
+**Severity:** Info
+
+Flags commands that do not declare an `output` schema. Output schemas let agents introspect response shapes before calling, enabling pipeline field validation and better planning.
+
+```typescript
+// This would trigger (no output):
+defineCommand({
+  name: 'todo-list',
+  input: z.object({}),
+  handler: async () => success([]),
+});
+
+// This would NOT trigger:
+defineCommand({
+  name: 'todo-list',
+  input: z.object({}),
+  output: z.object({ id: z.string(), title: z.string() }).array(),
+  handler: async () => success([]),
+});
+```
+
+### 13. Missing Context (`missing-context`)
+**Severity:** Info
+
+Flags commands without a `contexts` array when the server has configured contexts. Only runs when `configuredContexts` is provided in options.
+
+```typescript
+const result = validateCommandSurface(commands, {
+  configuredContexts: ['editing', 'reading'],  // Enables this rule
+});
+```
+
+Commands without `contexts` are universal (always visible) — the finding is informational to help developers decide whether context scoping is intentional.
 
 ## Suppression System
 

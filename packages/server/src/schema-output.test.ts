@@ -146,4 +146,69 @@ describe('defineCommand output schema', () => {
 		});
 		expect(cmd.outputJsonSchema?.type).toBe('number');
 	});
+
+	it('handles scalar string output schema', () => {
+		const cmd = defineCommand({
+			name: 'todo-name',
+			description: 'Gets todo name',
+			input: z.object({ id: z.string() }),
+			output: z.string(),
+			handler: async () => ({ success: true, data: 'Test' }),
+		});
+		expect(cmd.outputJsonSchema?.type).toBe('string');
+		const def = cmd.toCommandDefinition();
+		expect(def.returns?.type).toBe('string');
+	});
+
+	it('handles boolean output schema', () => {
+		const cmd = defineCommand({
+			name: 'todo-exists',
+			description: 'Checks if todo exists',
+			input: z.object({ id: z.string() }),
+			output: z.boolean(),
+			handler: async () => ({ success: true, data: true }),
+		});
+		expect(cmd.outputJsonSchema?.type).toBe('boolean');
+	});
+
+	it('handles enum output schema', () => {
+		const cmd = defineCommand({
+			name: 'todo-status',
+			description: 'Gets todo status',
+			input: z.object({ id: z.string() }),
+			output: z.enum(['active', 'done', 'archived']),
+			handler: async () => ({ success: true, data: 'active' as const }),
+		});
+		expect(cmd.outputJsonSchema?.type).toBe('string');
+		expect(cmd.outputJsonSchema?.enum).toEqual(['active', 'done', 'archived']);
+	});
+
+	it('handles nullable output schema', () => {
+		const cmd = defineCommand({
+			name: 'todo-find',
+			description: 'Finds a todo or returns null',
+			input: z.object({ query: z.string() }),
+			output: z.object({ id: z.string() }).nullable(),
+			handler: async () => ({ success: true, data: null }),
+		});
+		expect(cmd.outputJsonSchema).toBeDefined();
+		// Nullable produces anyOf or type array in JSON Schema
+		const schema = cmd.outputJsonSchema;
+		const hasNullable =
+			schema?.anyOf ||
+			schema?.oneOf ||
+			(Array.isArray(schema?.type) && schema?.type.includes('null'));
+		expect(hasNullable).toBeTruthy();
+	});
+
+	it('handles empty object output schema', () => {
+		const cmd = defineCommand({
+			name: 'todo-clear',
+			description: 'Clears all todos',
+			input: z.object({}),
+			output: z.object({}),
+			handler: async () => ({ success: true, data: {} }),
+		});
+		expect(cmd.outputJsonSchema?.type).toBe('object');
+	});
 });

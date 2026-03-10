@@ -64,6 +64,8 @@ console.log(result.findings);       // SurfaceFinding[] with rule, severity, mes
 | `schema-complexity` | Warning/Info | Input schemas too complex for agents (unions, nesting, constraints) |
 | `unresolved-prerequisite` | Error | `requires` entry references a command not in the surface |
 | `circular-prerequisite` | Error | Circular dependency cycle in the `requires` graph |
+| `missing-output-schema` | Info | Command does not declare an `output` schema |
+| `missing-context` | Info | Command has no `contexts` array (when server has configured contexts) |
 
 ### Options
 
@@ -1051,6 +1053,8 @@ const result = await registry.execute('document-create', { title: 'New Doc' });
 | `schema-complexity` | Warning/Info | Input schema too complex for agents (scored by fields, depth, unions, constraints) |
 | `unresolved-prerequisite` | Error | `requires` entry references a command not in the surface |
 | `circular-prerequisite` | Error | Circular dependency cycle in the `requires` graph |
+| `missing-output-schema` | Info | Command does not declare an `output` schema |
+| `missing-context` | Info | Command has no `contexts` array (when server has configured contexts) |
 
 ## License
 

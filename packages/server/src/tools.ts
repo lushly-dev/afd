@@ -123,6 +123,7 @@ const discoverToolSchema = {
 		properties: {
 			category: { type: 'string', description: 'Filter commands by category' },
 			tag: {
+				type: 'string',
 				description: 'Filter by tag(s). String for single, array for multiple.',
 			},
 			tagMode: {
@@ -145,6 +146,7 @@ const detailToolSchema = {
 		type: 'object' as const,
 		properties: {
 			command: {
+				type: 'string',
 				description:
 					'Command name or names (exact match, kebab-case). String or array of strings (max 10).',
 			},

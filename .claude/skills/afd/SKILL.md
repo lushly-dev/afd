@@ -38,7 +38,9 @@ Expert guidance for building software with the Agent-First Development methodolo
 | MCP server setup, transports | [references/mcp-integration.md](references/mcp-integration.md) |
 | Testing commands, performance | [references/testing.md](references/testing.md) |
 | CLI usage, validation workflow | [references/cli-validation.md](references/cli-validation.md) |
-| Command tags, bootstrap tools | [references/command-taxonomy.md](references/command-taxonomy.md) |
+| Command tags, bootstrap tools, tool strategies | [references/command-taxonomy.md](references/command-taxonomy.md) |
+| Output schemas, context scoping | [references/command-design.md](references/command-design.md) |
+| Lazy discovery, `afd-call`, context management | [references/mcp-integration.md](references/mcp-integration.md) |
 | Real-time protocols, WebSocket | [references/handoff-pattern.md](references/handoff-pattern.md) |
 | JTBD scenarios, fixtures | [references/jtbd-scenarios.md](references/jtbd-scenarios.md) |
 | Telemetry middleware, sinks, monitoring | [references/telemetry.md](references/telemetry.md) |

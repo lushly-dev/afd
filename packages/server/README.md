@@ -205,6 +205,47 @@ const secretData = defineCommand({
 
 Prerequisites are metadata — they tell agents what to call first but are not enforced at runtime (middleware handles enforcement). They appear in MCP tool `_meta` and `afd-help` output.
 
+### Command with Output Schema
+
+Declare what a command returns so agents know the response shape before calling:
+
+```typescript
+const Todo = z.object({
+  id: z.string(),
+  title: z.string(),
+  done: z.boolean(),
+});
+
+const listTodos = defineCommand({
+  name: 'todo-list',
+  description: 'List all todo items',
+  input: z.object({ filter: z.enum(['all', 'active', 'done']).optional() }),
+  output: Todo.array(),  // Agents see this in _meta.outputSchema and afd-detail
+  async handler(input) {
+    const todos = await store.list(input.filter);
+    return success(todos, { reasoning: `Found ${todos.length} todos` });
+  },
+});
+```
+
+Output schemas are optional (backward compatible). They describe the shape of `CommandResult.data`, not the full envelope. No runtime output validation is performed.
+
+### Command with Context Scoping
+
+Restrict commands to specific contexts for large command sets:
+
+```typescript
+const formatDoc = defineCommand({
+  name: 'doc-format',
+  description: 'Format the current document',
+  contexts: ['editing'],  // Only visible when 'editing' context is active
+  input: z.object({ style: z.string() }),
+  async handler(input) { ... },
+});
+```
+
+Commands without `contexts` are universal (always visible). See "Context Management" below for server-level context configuration.
+
 ## Server Configuration
 
 ```typescript
@@ -376,6 +417,8 @@ Create a command definition with Zod schema.
 | `mutation` | boolean | No | Whether command has side effects |
 | `version` | string | No | Command version |
 | `tags` | string[] | No | Additional tags |
+| `output` | ZodType | No | Output schema — declares response `data` shape for agent introspection |
+| `contexts` | string[] | No | Restrict command to specific contexts (omit for universal) |
 | `requires` | string[] | No | Commands that should be called before this one (metadata only) |
 | `errors` | string[] | No | Possible error codes |
 
@@ -391,6 +434,8 @@ Create an MCP server from commands.
 | `transport` | `'stdio' \| 'http' \| 'auto'` | No | Transport protocol (default: `'auto'`) |
 | `port` | number | No | Port for HTTP transport (default: 3100) |
 | `host` | string | No | Host for HTTP transport (default: localhost) |
+| `toolStrategy` | `'individual' \| 'grouped' \| 'lazy'` | No | How commands appear as MCP tools (default: `'grouped'`) |
+| `contexts` | `{ name, description }[]` | No | Context scopes for dynamic tool filtering |
 | `devMode` | boolean | No | Enable development mode (default: false) |
 | `cors` | boolean | No | Enable CORS for HTTP transport (default: follows devMode) |
 | `middleware` | array | No | Middleware functions |
@@ -484,6 +529,53 @@ const server = createMcpServer({
   devMode: true,   // Development mode enables permissive CORS
 });
 ```
+
+## Lazy Strategy
+
+For servers with many commands, the `lazy` strategy exposes 5 meta-tools instead of listing all commands:
+
+```typescript
+const server = createMcpServer({
+  name: 'my-server',
+  version: '1.0.0',
+  commands: allCommands,
+  toolStrategy: 'lazy',
+});
+```
+
+Agents discover commands at runtime: `afd-discover` (filter/list) → `afd-detail` (get schemas) → `afd-call` (execute).
+
+| Meta-Tool | Description |
+|-----------|-------------|
+| `afd-discover` | List commands by category, tag, or search (paginated, max 200) |
+| `afd-detail` | Get full schema for 1–10 commands by name |
+| `afd-call` | Universal dispatcher — available in all strategies |
+| `afd-batch` | Execute multiple commands in one call |
+| `afd-pipe` | Pipeline execution with step references |
+
+## Context Management
+
+Dynamic context scoping filters which commands are visible:
+
+```typescript
+const server = createMcpServer({
+  name: 'my-server',
+  version: '1.0.0',
+  commands: allCommands,
+  contexts: [
+    { name: 'editing', description: 'Document editing tools' },
+    { name: 'reviewing', description: 'Review and approval tools' },
+  ],
+});
+```
+
+When contexts are configured, the server registers three additional bootstrap commands:
+
+- **`afd-context-list`** — Lists all contexts and the active context
+- **`afd-context-enter`** — Pushes a context onto the stack (filters visible tools)
+- **`afd-context-exit`** — Pops the current context (restores previous)
+
+Commands without `contexts` are always visible. Context commands themselves are always visible.
 
 ## Related
 
