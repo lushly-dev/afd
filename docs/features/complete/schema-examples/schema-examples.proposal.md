@@ -3,7 +3,7 @@
 > Proposal: Attach valid input examples to commands so agents can reference concrete payloads instead of inferring from schema alone
 
 ---
-status: captured
+status: complete
 created: 2026-02-22
 origin: Schema complexity scoring — the `auth-sign-in` command scores 17 (high complexity) due to its discriminated union input. The schema-complexity rule suggests "Add input examples to the description to guide agent usage" but there's no structured way to provide examples. Agents must reverse-engineer valid inputs from JSON Schema constraints (`oneOf`, `enum`, `pattern`) — exactly the kind of task where examples outperform specifications.
 effort: S (1-2 days)

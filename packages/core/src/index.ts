@@ -37,6 +37,7 @@ export {
 export type {
 	CommandContext,
 	CommandDefinition,
+	CommandExample,
 	CommandHandler,
 	CommandMiddleware,
 	CommandParameter,

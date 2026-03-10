@@ -1,3 +1,4 @@
+// afd-override: max-lines=900 — foundational types file: CommandDefinition, CommandResult, registry, middleware, expose, handoff all cohesive
 /**
  * @fileoverview Command definition and registry types
  *
@@ -138,6 +139,18 @@ export interface CommandParameter {
 }
 
 /**
+ * A concrete input example for a command.
+ * Used to help agents understand valid input shapes without reverse-engineering JSON Schema.
+ */
+export interface CommandExample<TInput = unknown> {
+	/** Short description of what this example demonstrates */
+	title: string;
+
+	/** A valid input payload */
+	input: TInput;
+}
+
+/**
  * Full command definition with schema, handler, and metadata.
  *
  * @template TInput - Type of the input parameters
@@ -252,6 +265,12 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	 * Defaults to `defaultExpose` if not specified.
 	 */
 	expose?: ExposeOptions;
+
+	/**
+	 * Concrete input examples to help agents construct valid payloads.
+	 * Each example is validated against the input schema at define-time.
+	 */
+	examples?: CommandExample<TInput>[];
 }
 
 /**

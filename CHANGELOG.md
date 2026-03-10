@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Schema examples** (`@lushly-dev/afd-core`, `@lushly-dev/afd-server`, `@lushly-dev/afd-testing`) — Attach concrete input examples to commands so agents can reference valid payloads instead of reverse-engineering JSON Schema
+  - **`examples?: CommandExample[]`** on `defineCommand()` — type-safe examples validated against the Zod input schema at define-time (invalid examples throw immediately)
+  - **`CommandExample<TInput>`** type in `@lushly-dev/afd-core` — `{ title: string; input: TInput }`
+  - **MCP `_meta` exposure** — examples emitted in MCP tool `_meta` field for agent consumption via `tools/list`
+  - **`afd-help` integration** — examples included in full-format output
+  - **Surface validation: `schema-complexity` severity reduction** — commands with examples have complexity findings reduced from `warning` to `info`
+
 ## [0.4.0] - 2026-02-28
 
 ### Added

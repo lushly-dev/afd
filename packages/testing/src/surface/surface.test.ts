@@ -987,6 +987,48 @@ describe('validateCommandSurface', () => {
 		expect(complexityFindings).toHaveLength(0);
 	});
 
+	it('schema-complexity severity reduced by examples in full validation', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'complex-cmd',
+				description: 'Creates a complex thing with many options and settings',
+				category: 'test',
+				jsonSchema: {
+					oneOf: [
+						{
+							type: 'object',
+							properties: {
+								mode: { const: 'a' },
+								email: { type: 'string' },
+								password: { type: 'string' },
+							},
+							required: ['mode', 'email'],
+						},
+						{
+							type: 'object',
+							properties: {
+								mode: { const: 'b' },
+								provider: { type: 'string' },
+								scopes: { type: 'array', items: { type: 'string' } },
+								redirectTo: { type: 'string' },
+							},
+							required: ['mode', 'provider'],
+						},
+					],
+				},
+				examples: [
+					{ title: 'Mode A', input: { mode: 'a', email: 'x@y.com', password: 's' } },
+					{ title: 'Mode B', input: { mode: 'b', provider: 'google' } },
+				],
+			},
+		];
+		const result = validateCommandSurface(commands);
+		const complexityFindings = result.findings.filter((f) => f.rule === 'schema-complexity');
+		expect(complexityFindings.length).toBeGreaterThanOrEqual(1);
+		// Examples reduce severity from warning to info
+		expect(complexityFindings.every((f) => f.severity === 'info')).toBe(true);
+	});
+
 	it('detects unresolved prerequisites', () => {
 		const commands: SurfaceCommand[] = [
 			{
@@ -1354,6 +1396,85 @@ describe('checkSchemaComplexity', () => {
 		const findings = checkSchemaComplexity(commands, 20);
 		expect(findings).toHaveLength(1);
 		expect(findings[0]?.severity).toBe('info');
+	});
+
+	it('reduces severity from warning to info when examples are present', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'auth-sign-in',
+				description: 'Sign in with credentials or OAuth provider',
+				jsonSchema: {
+					oneOf: [
+						{
+							type: 'object',
+							properties: {
+								method: { const: 'credentials' },
+								email: { type: 'string' },
+								password: { type: 'string' },
+							},
+							required: ['method', 'email'],
+						},
+						{
+							type: 'object',
+							properties: {
+								method: { const: 'oauth' },
+								provider: { type: 'string' },
+								scopes: { type: 'array', items: { type: 'string' } },
+								redirectTo: { type: 'string' },
+							},
+							required: ['method', 'provider'],
+						},
+					],
+				},
+				examples: [
+					{
+						title: 'Credentials',
+						input: { method: 'credentials', email: 'a@b.com', password: 'x' },
+					},
+					{ title: 'OAuth', input: { method: 'oauth', provider: 'google' } },
+				],
+			},
+		];
+		const findings = checkSchemaComplexity(commands, 13);
+		expect(findings).toHaveLength(1);
+		expect(findings[0]?.severity).toBe('info');
+		expect(findings[0]?.message).toContain('but provides examples');
+		expect((findings[0]?.evidence as Record<string, unknown>)?.hasExamples).toBe(true);
+	});
+
+	it('keeps warning severity when no examples are present', () => {
+		const commands: SurfaceCommand[] = [
+			{
+				name: 'auth-sign-in',
+				description: 'Sign in with credentials or OAuth provider',
+				jsonSchema: {
+					oneOf: [
+						{
+							type: 'object',
+							properties: {
+								method: { const: 'credentials' },
+								email: { type: 'string' },
+								password: { type: 'string' },
+							},
+							required: ['method', 'email'],
+						},
+						{
+							type: 'object',
+							properties: {
+								method: { const: 'oauth' },
+								provider: { type: 'string' },
+								scopes: { type: 'array', items: { type: 'string' } },
+								redirectTo: { type: 'string' },
+							},
+							required: ['method', 'provider'],
+						},
+					],
+				},
+			},
+		];
+		const findings = checkSchemaComplexity(commands, 13);
+		expect(findings).toHaveLength(1);
+		expect(findings[0]?.severity).toBe('warning');
 	});
 });
 

@@ -16,7 +16,6 @@ Feature specifications organized by lifecycle stage.
 |---------|-------------|--------|
 | [Command Prerequisites](./active/command-prerequisites/) | Declare planning-order dependencies between commands | In Progress |
 | [Output Shape Predictability](./active/output-shape-predictability/) | Consistent output schemas for agent consumption | In Progress |
-| [Schema Examples](./active/schema-examples/) | Example values in command schemas for agents | In Progress |
 
 ## Complete Features
 
@@ -31,6 +30,7 @@ Feature specifications organized by lifecycle stage.
 | [Lazy Loading & Discovery](./complete/lazy-loading-discovery/) | On-demand command registration and discovery |
 | [Middleware Defaults](./complete/middleware-defaults/) | Zero-config observability bundle (`defaultMiddleware()`) |
 | [Schema Complexity Scoring](./complete/schema-complexity-scoring/) | Weighted input schema complexity analysis |
+| [Schema Examples](./complete/schema-examples/) | Concrete input examples on commands for agent consumption |
 | [Semantic Quality Validation](./complete/semantic-quality-validation/) | Cross-command surface analysis for naming, schema overlap, injection |
 
 ## Proposed Features

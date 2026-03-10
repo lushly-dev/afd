@@ -1,3 +1,4 @@
+import { tmpdir } from 'node:os';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	createExecResult,
@@ -181,15 +182,8 @@ describe('getTempDir', () => {
 	});
 
 	it('returns expected temp directory', () => {
-		const tempDir = getTempDir();
-
-		if (isWindows) {
-			// Windows temp dir often contains 'Temp' or 'temp'
-			expect(tempDir.toLowerCase()).toMatch(/temp|tmp/);
-		} else {
-			// Unix-like systems typically use /tmp or similar
-			expect(tempDir).toMatch(/tmp/);
-		}
+		// getTempDir() wraps os.tmpdir()
+		expect(getTempDir()).toBe(tmpdir());
 	});
 });
 

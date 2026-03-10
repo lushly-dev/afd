@@ -4,7 +4,7 @@
  * List all available commands with tags and grouping.
  */
 
-import type { CommandDefinition } from '@lushly-dev/afd-core';
+import type { CommandDefinition, CommandExample } from '@lushly-dev/afd-core';
 import { success } from '@lushly-dev/afd-core';
 import { z } from 'zod';
 
@@ -22,6 +22,7 @@ interface CommandInfo {
 	tags?: string[];
 	mutation?: boolean;
 	requires?: string[];
+	examples?: CommandExample[];
 }
 
 interface HelpOutput {
@@ -80,6 +81,7 @@ export function createAfdHelpCommand(
 					info.tags = cmd.tags;
 					info.mutation = cmd.mutation;
 					info.requires = cmd.requires;
+					info.examples = cmd.examples;
 				}
 
 				return info;

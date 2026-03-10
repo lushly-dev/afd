@@ -8,6 +8,7 @@
 import type {
 	CommandContext,
 	CommandDefinition,
+	CommandExample,
 	CommandParameter,
 	CommandResult,
 	ExposeOptions,
@@ -90,6 +91,12 @@ export interface ZodCommandOptions<TInput extends ZodType<unknown, ZodTypeDef, u
 	 * Defaults to `defaultExpose` if not specified.
 	 */
 	expose?: ExposeOptions;
+
+	/**
+	 * Concrete input examples to help agents construct valid payloads.
+	 * Each example is validated against the input schema at define-time.
+	 */
+	examples?: CommandExample<z.infer<TInput>>[];
 }
 
 /**
@@ -153,6 +160,9 @@ export interface ZodCommandDefinition<
 	 */
 	expose?: ExposeOptions;
 
+	/** Concrete input examples validated against the input schema */
+	examples?: CommandExample<z.infer<TInput>>[];
+
 	/**
 	 * Convert to standard CommandDefinition format.
 	 */
@@ -200,6 +210,21 @@ export function defineCommand<TInput extends ZodType<unknown, ZodTypeDef, unknow
 	// Build tags with automatic handoff tags if handoff is enabled
 	const tags = buildHandoffTags(options.tags, options.handoff, options.handoffProtocol);
 
+	// Validate examples against input schema at define-time
+	if (options.examples) {
+		for (const example of options.examples) {
+			const parsed = options.input.safeParse(example.input);
+			if (!parsed.success) {
+				const issues = parsed.error.issues
+					.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+					.join(', ');
+				throw new Error(
+					`Example "${example.title}" for command "${options.name}" fails schema validation: ${issues}`
+				);
+			}
+		}
+	}
+
 	return {
 		name: options.name,
 		description: options.description,
@@ -218,6 +243,7 @@ export function defineCommand<TInput extends ZodType<unknown, ZodTypeDef, unknow
 		destructive: options.destructive,
 		confirmPrompt: options.confirmPrompt,
 		expose: options.expose,
+		examples: options.examples,
 
 		toCommandDefinition(): CommandDefinition<z.infer<TInput>, TOutput> {
 			return {
@@ -233,6 +259,7 @@ export function defineCommand<TInput extends ZodType<unknown, ZodTypeDef, unknow
 				handoff: options.handoff,
 				handoffProtocol: options.handoffProtocol,
 				expose: options.expose,
+				examples: options.examples,
 				parameters: jsonSchemaToParameters(jsonSchema),
 				returns: { type: 'object', description: 'Command result' },
 				handler: options.handler as (
