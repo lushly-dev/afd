@@ -5,7 +5,7 @@
  * overlapping schemas, and prompt injection risks.
  */
 
-import type { JsonSchema } from '@lushly-dev/afd-core';
+import type { CommandExample, JsonSchema } from '@lushly-dev/afd-core';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CORE TYPES
@@ -314,4 +314,5 @@ export interface SurfaceCommand {
 	category?: string;
 	jsonSchema?: JsonSchema;
 	requires?: string[];
+	examples?: CommandExample[];
 }

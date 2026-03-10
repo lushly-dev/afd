@@ -70,6 +70,7 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 				category?: string;
 				jsonSchema?: Record<string, unknown>;
 				requires?: string[];
+				examples?: SurfaceCommand['examples'];
 			};
 			return {
 				name: zod.name,
@@ -77,6 +78,7 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 				category: zod.category,
 				jsonSchema: zod.jsonSchema as SurfaceCommand['jsonSchema'],
 				requires: zod.requires,
+				examples: zod.examples,
 			};
 		}
 
@@ -87,6 +89,7 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 				category: cmd.category,
 				jsonSchema: commandParametersToJsonSchema(cmd.parameters),
 				requires: cmd.requires,
+				examples: cmd.examples,
 			};
 		}
 
@@ -97,6 +100,7 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 			description: String(generic.description ?? ''),
 			category: generic.category as string | undefined,
 			requires: generic.requires as string[] | undefined,
+			examples: generic.examples as SurfaceCommand['examples'],
 		};
 	});
 }

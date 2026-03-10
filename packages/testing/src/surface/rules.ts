@@ -1,3 +1,4 @@
+// afd-override: max-lines=600 — all surface validation rules in one module for co-location
 /**
  * @fileoverview Surface validation rules.
  *
@@ -423,8 +424,8 @@ export function checkOrphanedCategory(commands: SurfaceCommand[]): SurfaceFindin
  * Tier logic:
  * - low (0-5): no finding
  * - medium (6-12): info
- * - high (13-20): warning
- * - critical (21+): warning
+ * - high (13-20): warning (reduced to info if examples are present)
+ * - critical (21+): warning (reduced to info if examples are present)
  *
  * Never produces `error` severity.
  */
@@ -441,21 +442,27 @@ export function checkSchemaComplexity(
 
 		if (result.tier === 'low') continue;
 
-		const severity = result.score >= threshold ? 'warning' : 'info';
+		const hasExamples = cmd.examples && cmd.examples.length > 0;
+		const baseSeverity = result.score >= threshold ? 'warning' : 'info';
+		const severity = hasExamples && baseSeverity === 'warning' ? 'info' : baseSeverity;
 
 		findings.push({
 			rule: 'schema-complexity',
 			severity,
-			message: `Command "${cmd.name}" has ${result.tier} schema complexity (score: ${result.score})`,
+			message: hasExamples
+				? `Command "${cmd.name}" has ${result.tier} schema complexity (score: ${result.score}) but provides examples`
+				: `Command "${cmd.name}" has ${result.tier} schema complexity (score: ${result.score})`,
 			commands: [cmd.name],
-			suggestion:
-				result.tier === 'medium'
+			suggestion: hasExamples
+				? 'Schema is complex but examples mitigate this. Consider simplifying only if agents still struggle.'
+				: result.tier === 'medium'
 					? 'Consider simplifying the input schema if agents struggle with this command.'
 					: 'Simplify the input schema by reducing unions, nesting depth, or splitting into multiple commands.',
 			evidence: {
 				score: result.score,
 				tier: result.tier,
 				breakdown: result.breakdown,
+				...(hasExamples && { hasExamples: true }),
 			},
 		});
 	}
