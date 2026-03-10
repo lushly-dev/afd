@@ -98,6 +98,8 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 		onError,
 	});
 
+	const exposedCommandNames = new Set(commands.map((c) => c.name));
+
 	const routeToolCall = createToolRouter({
 		executeCommand: engine.executeCommand,
 		executeBatch: engine.executeBatch,
@@ -106,6 +108,8 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 		toolStrategy,
 		groupByFn,
 		devMode,
+		allCommands: commands,
+		exposedCommandNames,
 	});
 
 	const boundGetToolsList = () => getToolsList(commands, toolStrategy, groupByFn);

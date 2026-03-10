@@ -15,7 +15,6 @@ Feature specifications organized by lifecycle stage.
 | Feature | Description | Status |
 |---------|-------------|--------|
 | [Contextual Tool Loading](./active/contextual-tool-loading/) | Dynamic context scoping for large command sets | Spec Ready |
-| [Lazy Loading & Discovery](./active/lazy-loading-discovery/) | `afd-discover`/`afd-detail`/`afd-call` tool strategy | Spec Ready |
 | [View State](./active/view-state/) | Unified UI view state management via commands | Planned |
 | [Zero Chat Tools](./active/zero-chat-tools/) | Canvas-aware AFD commands for Zero chat agent | Spec Ready |
 
@@ -30,6 +29,7 @@ Feature specifications organized by lifecycle stage.
 | [Command Exposure & Undo](./complete/command-exposure-undo/) | Command visibility and undo support |
 | [Command Pipeline](./complete/command-pipeline/) | Declarative command chaining |
 | [Handoff Pattern](./complete/handoff-pattern/) | Real-time protocol handoff |
+| [Lazy Loading & Discovery](./complete/lazy-loading-discovery/) | `afd-discover`/`afd-detail`/`afd-call` tool strategy for lazy command enumeration |
 | [Middleware Defaults](./complete/middleware-defaults/) | Zero-config observability bundle (`defaultMiddleware()`) |
 | [Output Shape Predictability](./complete/output-shape-predictability/) | Optional `output` Zod schema for agent response shape introspection |
 | [Schema Complexity Scoring](./complete/schema-complexity-scoring/) | Weighted input schema complexity analysis |

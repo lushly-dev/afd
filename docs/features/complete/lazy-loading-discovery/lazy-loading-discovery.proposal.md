@@ -3,7 +3,7 @@
 > Proposal: A third tool strategy (`'lazy'`) that defers schema loading until the agent requests it
 
 ---
-status: reviewed
+status: complete
 created: 2026-01-15
 origin: Context window pressure — individual strategy loads every command schema at enumeration, consuming agent context. Grouped strategy reduces this but loses per-command schemas.
 effort: M (3-5 days)

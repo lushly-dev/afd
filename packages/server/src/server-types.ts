@@ -116,8 +116,9 @@ export interface McpServerOptions {
 	 * Tool strategy for MCP tool listing.
 	 * - "individual": Each command is exposed as a separate tool (default)
 	 * - "grouped": Commands are grouped by category into consolidated tools
+	 * - "lazy": Exposes afd-discover, afd-detail, and afd-call meta-tools instead of enumerating every command
 	 */
-	toolStrategy?: 'individual' | 'grouped';
+	toolStrategy?: 'individual' | 'grouped' | 'lazy';
 
 	/**
 	 * Custom function to derive group name from command.
