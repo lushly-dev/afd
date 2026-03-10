@@ -1,8 +1,8 @@
-// afd-override: max-lines=600 — all surface validation rules in one module for co-location
+// afd-override: max-lines=650 — all surface validation rules in one module for co-location
 /**
  * @fileoverview Surface validation rules.
  *
- * Eleven rule functions, each returning `SurfaceFinding[]`.
+ * Twelve rule functions, each returning `SurfaceFinding[]`.
  */
 
 import { checkInjection } from './injection.js';
@@ -504,6 +504,43 @@ export function checkUnresolvedPrerequisites(commands: SurfaceCommand[]): Surfac
 // RULE 11: CIRCULAR PREREQUISITES
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// RULE 12: MISSING CONTEXT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Flag commands without a `contexts` declaration when contexts are configured.
+ * Only fires when configuredContexts is non-empty.
+ */
+export function checkMissingContext(
+	commands: SurfaceCommand[],
+	configuredContexts: string[]
+): SurfaceFinding[] {
+	if (configuredContexts.length === 0) return [];
+
+	const findings: SurfaceFinding[] = [];
+
+	for (const cmd of commands) {
+		if (!cmd.contexts?.length) {
+			findings.push({
+				rule: 'missing-context',
+				severity: 'info',
+				message: `Command "${cmd.name}" has no contexts declaration`,
+				commands: [cmd.name],
+				suggestion:
+					'Add a contexts array to scope this command, or leave it without contexts to make it universally available.',
+				evidence: { configuredContexts },
+			});
+		}
+	}
+
+	return findings;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RULE 13: CIRCULAR PREREQUISITES
+// ═══════════════════════════════════════════════════════════════════════════════
+
 /**
  * Detect cycles in the `requires` dependency graph using DFS.
  */
@@ -562,6 +599,32 @@ export function checkCircularPrerequisites(commands: SurfaceCommand[]): SurfaceF
 	for (const cmd of commands) {
 		if (!visited.has(cmd.name)) {
 			dfs(cmd.name, []);
+		}
+	}
+
+	return findings;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RULE 12: MISSING OUTPUT SCHEMA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Flag commands without an output schema declaration.
+ */
+export function checkMissingOutputSchema(commands: SurfaceCommand[]): SurfaceFinding[] {
+	const findings: SurfaceFinding[] = [];
+
+	for (const cmd of commands) {
+		if (!cmd.outputJsonSchema) {
+			findings.push({
+				rule: 'missing-output-schema',
+				severity: 'info',
+				message: `Command "${cmd.name}" has no output schema — agents cannot predict response shape`,
+				commands: [cmd.name],
+				suggestion:
+					'Add an `output` Zod schema to help agents construct pipelines and process results.',
+			});
 		}
 	}
 

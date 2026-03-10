@@ -4,6 +4,7 @@
 
 import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TodoSchema } from '../schemas.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 
@@ -19,7 +20,9 @@ export const getTodo = defineCommand<typeof inputSchema, Todo>({
 	mutation: false,
 	version: '1.0.0',
 	input: inputSchema,
+	output: TodoSchema,
 	errors: ['NOT_FOUND'],
+	contexts: ['todo-editing', 'todo-reading'],
 
 	async handler(input) {
 		const todo = store.get(input.id);

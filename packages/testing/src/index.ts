@@ -299,6 +299,8 @@ export {
 	checkDescriptionQuality,
 	checkInjection,
 	checkMissingCategory,
+	checkMissingContext,
+	checkMissingOutputSchema,
 	checkNamingCollision,
 	checkNamingConvention,
 	checkOrphanedCategory,

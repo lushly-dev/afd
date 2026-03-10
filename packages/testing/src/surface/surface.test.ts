@@ -5,6 +5,8 @@ import {
 	checkDescriptionInjection,
 	checkDescriptionQuality,
 	checkMissingCategory,
+	checkMissingContext,
+	checkMissingOutputSchema,
 	checkNamingCollision,
 	checkNamingConvention,
 	checkOrphanedCategory,
@@ -1598,5 +1600,107 @@ describe('checkCircularPrerequisites', () => {
 		];
 		const findings = checkCircularPrerequisites(commands);
 		expect(findings).toHaveLength(1);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MISSING OUTPUT SCHEMA
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('checkMissingOutputSchema', () => {
+	it('flags commands without output schema', () => {
+		const findings = checkMissingOutputSchema([{ name: 'todo-list', description: 'Lists todos' }]);
+		expect(findings).toHaveLength(1);
+		expect(findings[0]?.rule).toBe('missing-output-schema');
+		expect(findings[0]?.severity).toBe('info');
+	});
+
+	it('does not flag commands with output schema', () => {
+		const findings = checkMissingOutputSchema([
+			{
+				name: 'todo-list',
+				description: 'Lists todos',
+				outputJsonSchema: { type: 'array' },
+			},
+		]);
+		expect(findings).toHaveLength(0);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MISSING OUTPUT SCHEMA INTEGRATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('validateCommandSurface missing-output-schema integration', () => {
+	it('includes missing-output-schema in validation', () => {
+		const result = validateCommandSurface([
+			{
+				name: 'todo-list',
+				description: 'Lists all todo items',
+				jsonSchema: { type: 'object', properties: {} },
+			},
+		]);
+		const outputFindings = result.findings.filter((f) => f.rule === 'missing-output-schema');
+		expect(outputFindings).toHaveLength(1);
+		expect(outputFindings[0]?.severity).toBe('info');
+		expect(result.summary.rulesEvaluated).toContain('missing-output-schema');
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RULE: MISSING CONTEXT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('checkMissingContext', () => {
+	it('flags commands without contexts when contexts are configured', () => {
+		const commands: SurfaceCommand[] = [
+			{ name: 'cmd-one', description: 'Command one without contexts' },
+			{ name: 'cmd-two', description: 'Command two without contexts' },
+		];
+		const findings = checkMissingContext(commands, ['editing', 'reading']);
+		expect(findings).toHaveLength(2);
+		expect(findings[0]?.rule).toBe('missing-context');
+		expect(findings[0]?.severity).toBe('info');
+		expect(findings[0]?.commands).toEqual(['cmd-one']);
+	});
+
+	it('does NOT fire when no contexts are configured', () => {
+		const commands: SurfaceCommand[] = [
+			{ name: 'cmd-one', description: 'Command one without contexts' },
+		];
+		const findings = checkMissingContext(commands, []);
+		expect(findings).toHaveLength(0);
+	});
+
+	it('does NOT fire for commands that have contexts', () => {
+		const commands: SurfaceCommand[] = [
+			{ name: 'cmd-one', description: 'Command one with contexts', contexts: ['editing'] },
+			{ name: 'cmd-two', description: 'Command two without contexts' },
+		];
+		const findings = checkMissingContext(commands, ['editing']);
+		expect(findings).toHaveLength(1);
+		expect(findings[0]?.commands).toEqual(['cmd-two']);
+	});
+
+	it('integrates with validateCommandSurface when configuredContexts is set', () => {
+		const commands: SurfaceCommand[] = [
+			{ name: 'cmd-one', description: 'Creates a new item in the database for editing' },
+			{
+				name: 'cmd-two',
+				description: 'Retrieves an item from the database for reading',
+				contexts: ['reading'],
+			},
+		];
+		const result = validateCommandSurface(commands, {
+			configuredContexts: ['editing', 'reading'],
+			enforceNaming: false,
+			detectInjection: false,
+			checkDescriptionQuality: false,
+			checkSchemaComplexity: false,
+		});
+		const contextFindings = result.findings.filter((f) => f.rule === 'missing-context');
+		expect(contextFindings).toHaveLength(1);
+		expect(contextFindings[0]?.commands).toEqual(['cmd-one']);
+		expect(result.summary.rulesEvaluated).toContain('missing-context');
 	});
 });

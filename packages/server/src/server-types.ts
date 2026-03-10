@@ -116,8 +116,9 @@ export interface McpServerOptions {
 	 * Tool strategy for MCP tool listing.
 	 * - "individual": Each command is exposed as a separate tool (default)
 	 * - "grouped": Commands are grouped by category into consolidated tools
+	 * - "lazy": Exposes afd-discover, afd-detail, and afd-call meta-tools instead of enumerating every command
 	 */
-	toolStrategy?: 'individual' | 'grouped';
+	toolStrategy?: 'individual' | 'grouped' | 'lazy';
 
 	/**
 	 * Custom function to derive group name from command.
@@ -125,6 +126,26 @@ export interface McpServerOptions {
 	 * Defaults to using command.category or first segment of command name.
 	 */
 	groupByFn?: (command: ZodCommandDefinition) => string | undefined;
+
+	/** Context configurations for tool scoping. When provided, enables context-based tool filtering. */
+	contexts?: ContextConfig[];
+}
+
+/**
+ * Context configuration for tool scoping.
+ */
+export interface ContextConfig {
+	/** Context name (kebab-case) */
+	name: string;
+
+	/** Human-readable description */
+	description?: string;
+
+	/** Keywords that suggest this context */
+	triggers?: string[];
+
+	/** Higher = suggested first in listings */
+	priority?: number;
 }
 
 export type { CommandMiddleware } from '@lushly-dev/afd-core';

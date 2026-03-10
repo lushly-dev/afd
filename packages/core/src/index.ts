@@ -208,6 +208,8 @@ export { executePipeline } from './pipeline-executor.js';
 // Result types
 export type { CommandResult, ResultMetadata } from './result.js';
 export { error, failure, isFailure, isSuccess, success } from './result.js';
+// Similarity utilities
+export { calculateSimilarity, findSimilarTools } from './similarity.js';
 // Streaming types
 export type {
 	CompleteChunk,

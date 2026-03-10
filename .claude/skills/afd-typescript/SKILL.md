@@ -40,6 +40,13 @@ const inputSchema = z.object({
   priority: z.enum(['low', 'medium', 'high']).default('medium'),
 });
 
+const Todo = z.object({
+  id: z.string(),
+  title: z.string(),
+  priority: z.enum(['low', 'medium', 'high']),
+  completed: z.boolean(),
+});
+
 export const createTodo = defineCommand({
   name: 'todo-create',
   description: 'Create a new todo item',
@@ -48,6 +55,8 @@ export const createTodo = defineCommand({
   requires: ['auth-sign-in'],  // Planning-order dependency (metadata only)
   version: '1.0.0',
   input: inputSchema,
+  output: Todo,                // Output schema — agents see response shape before calling
+  contexts: ['task-management'],  // Only visible in task-management context
   errors: ['VALIDATION_ERROR'],
 
   async handler(input) {
@@ -252,6 +261,31 @@ const server = createMcpServer({
 const PORT = process.env.PORT ?? 3100;
 server.listen(PORT, () => {
   console.log(`MCP server running at http://localhost:${PORT}`);
+});
+```
+
+### Lazy Strategy (Large Command Sets)
+
+```typescript
+const server = createMcpServer({
+  name: 'my-app',
+  version: '1.0.0',
+  commands: allCommands,
+  toolStrategy: 'lazy',  // Exposes afd-discover, afd-detail, afd-call, afd-batch, afd-pipe
+});
+```
+
+### With Contexts
+
+```typescript
+const server = createMcpServer({
+  name: 'my-app',
+  version: '1.0.0',
+  commands: allCommands,
+  contexts: [
+    { name: 'editing', description: 'Document editing tools' },
+    { name: 'reviewing', description: 'Review and approval tools' },
+  ],
 });
 ```
 

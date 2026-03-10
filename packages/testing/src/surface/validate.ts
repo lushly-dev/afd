@@ -10,6 +10,8 @@ import {
 	checkDescriptionInjection,
 	checkDescriptionQuality,
 	checkMissingCategory,
+	checkMissingContext,
+	checkMissingOutputSchema,
 	checkNamingCollision,
 	checkNamingConvention,
 	checkOrphanedCategory,
@@ -71,6 +73,8 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 				jsonSchema?: Record<string, unknown>;
 				requires?: string[];
 				examples?: SurfaceCommand['examples'];
+				outputJsonSchema?: Record<string, unknown>;
+				contexts?: string[];
 			};
 			return {
 				name: zod.name,
@@ -79,6 +83,8 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 				jsonSchema: zod.jsonSchema as SurfaceCommand['jsonSchema'],
 				requires: zod.requires,
 				examples: zod.examples,
+				outputJsonSchema: zod.outputJsonSchema as SurfaceCommand['outputJsonSchema'],
+				contexts: zod.contexts,
 			};
 		}
 
@@ -90,6 +96,7 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 				jsonSchema: commandParametersToJsonSchema(cmd.parameters),
 				requires: cmd.requires,
 				examples: cmd.examples,
+				contexts: cmd.contexts,
 			};
 		}
 
@@ -101,6 +108,7 @@ function normalizeCommands(commands: unknown[]): SurfaceCommand[] {
 			category: generic.category as string | undefined,
 			requires: generic.requires as string[] | undefined,
 			examples: generic.examples as SurfaceCommand['examples'],
+			contexts: generic.contexts as string[] | undefined,
 		};
 	});
 }
@@ -187,6 +195,7 @@ export function validateCommandSurface(
 		additionalInjectionPatterns,
 		checkSchemaComplexity: checkComplexity = true,
 		schemaComplexityThreshold = 13,
+		configuredContexts = [],
 	} = options;
 
 	// Normalize input
@@ -257,6 +266,16 @@ export function validateCommandSurface(
 	// Always run: circular-prerequisite
 	rulesEvaluated.push('circular-prerequisite');
 	allFindings.push(...checkCircularPrerequisites(normalized));
+
+	// Always run: missing-output-schema
+	rulesEvaluated.push('missing-output-schema');
+	allFindings.push(...checkMissingOutputSchema(normalized));
+
+	// Missing context (only when contexts are configured)
+	if (configuredContexts.length > 0) {
+		rulesEvaluated.push('missing-context');
+		allFindings.push(...checkMissingContext(normalized, configuredContexts));
+	}
 
 	// Apply suppressions
 	let suppressedCount = 0;

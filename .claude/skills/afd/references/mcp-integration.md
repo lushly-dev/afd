@@ -330,7 +330,7 @@ export class AppRoot extends FASTElement {
 
 ## Tool Metadata (`_meta`)
 
-When commands have `requires` or `mutation` set, the MCP `tools/list` response includes a `_meta` object on each tool:
+When commands have metadata fields set, the MCP `tools/list` response includes a `_meta` object on each tool:
 
 ```json
 {
@@ -339,12 +339,102 @@ When commands have `requires` or `mutation` set, the MCP `tools/list` response i
   "inputSchema": { "type": "object", "properties": { ... } },
   "_meta": {
     "requires": ["auth-sign-in"],
-    "mutation": true
+    "mutation": true,
+    "examples": [{ "name": "Basic order", "input": { "item": "Widget" } }],
+    "outputSchema": { "type": "object", "properties": { "id": { "type": "string" } } },
+    "contexts": ["ordering"]
   }
 }
 ```
 
+| Field | Source | Purpose |
+|-------|--------|---------|
+| `requires` | `defineCommand({ requires })` | Planning-order dependencies |
+| `mutation` | `defineCommand({ mutation })` | Whether command changes state |
+| `examples` | `defineCommand({ examples })` | Example inputs for agent reference |
+| `outputSchema` | `defineCommand({ output })` | JSON Schema of response `data` shape |
+| `contexts` | `defineCommand({ contexts })` | Context scopes where command is visible |
+
 `_meta` is only emitted when there is content (no empty objects). Agents can read `_meta.requires` to plan command execution order without trial-and-error.
+
+## Lazy Strategy (Large Command Sets)
+
+For servers with many commands (50+), the `lazy` strategy exposes 5 meta-tools instead of enumerating all commands:
+
+```typescript
+const server = createMcpServer({
+  name: 'my-app',
+  version: '1.0.0',
+  commands: allCommands,
+  toolStrategy: 'lazy',
+});
+```
+
+### Discovery Workflow
+
+```
+Agent → afd-discover (filter/search) → afd-detail (get schemas) → afd-call (execute)
+```
+
+1. **`afd-discover`** — List commands with filtering (category, tag, search). Returns names + short descriptions. Paginated (default limit 50, max 200).
+2. **`afd-detail`** — Get full schema for 1–10 commands by name. Returns input schema, output schema, examples, prerequisites, and contexts.
+3. **`afd-call`** — Universal dispatcher. Accepts `{ command, input }` and runs the full middleware chain. Available in **all** strategies.
+
+### afd-call (Universal)
+
+`afd-call` works in all three strategies (individual, grouped, lazy):
+
+```typescript
+// Agent calls via afd-call
+await tools.call('afd-call', {
+  command: 'todo-create',
+  input: { title: 'Buy milk', priority: 'high' },
+});
+```
+
+On error, `afd-call` returns fuzzy suggestions for misspelled command names.
+
+## Context Management
+
+For large command sets, contexts dynamically scope which commands are visible:
+
+```typescript
+const server = createMcpServer({
+  name: 'my-app',
+  version: '1.0.0',
+  commands: allCommands,
+  contexts: [
+    { name: 'editing', description: 'Document editing tools' },
+    { name: 'reviewing', description: 'Review and approval tools' },
+  ],
+});
+```
+
+### Context Commands
+
+| Command | Description |
+|---------|-------------|
+| `afd-context-list` | List all configured contexts and the active context |
+| `afd-context-enter` | Enter a context (pushes to stack, filters visible tools) |
+| `afd-context-exit` | Exit current context (pops stack, restores previous) |
+
+### Command Context Scoping
+
+Commands declare which contexts they belong to:
+
+```typescript
+const formatDoc = defineCommand({
+  name: 'doc-format',
+  description: 'Format the current document',
+  contexts: ['editing'],  // Only visible in 'editing' context
+  // ...
+});
+```
+
+- Commands **without** `contexts` are universal (always visible)
+- Context commands (`afd-context-*`) are always visible regardless of active context
+- When no context is active, all commands are visible
+- Contexts use a stack — entering a new context pushes to stack, exiting pops
 
 ## Environment Variables
 

@@ -271,6 +271,12 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	 * Each example is validated against the input schema at define-time.
 	 */
 	examples?: CommandExample<TInput>[];
+
+	/**
+	 * Contexts this command belongs to. When context-based tool scoping is enabled,
+	 * only commands matching the active context (or commands without contexts) are visible.
+	 */
+	contexts?: string[];
 }
 
 /**

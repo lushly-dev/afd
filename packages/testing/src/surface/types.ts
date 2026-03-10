@@ -53,6 +53,9 @@ export interface SurfaceValidationOptions {
 
 	/** Complexity score threshold for warning-level findings. Default: 13 */
 	schemaComplexityThreshold?: number;
+
+	/** Configured context names. When non-empty, enables the missing-context rule. */
+	configuredContexts?: string[];
 }
 
 /**
@@ -130,12 +133,14 @@ export type SurfaceRule =
 	| 'naming-convention'
 	| 'naming-collision'
 	| 'missing-category'
+	| 'missing-context'
 	| 'description-injection'
 	| 'description-quality'
 	| 'orphaned-category'
 	| 'schema-complexity'
 	| 'unresolved-prerequisite'
-	| 'circular-prerequisite';
+	| 'circular-prerequisite'
+	| 'missing-output-schema';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // INJECTION TYPES
@@ -315,4 +320,6 @@ export interface SurfaceCommand {
 	jsonSchema?: JsonSchema;
 	requires?: string[];
 	examples?: CommandExample[];
+	outputJsonSchema?: JsonSchema;
+	contexts?: string[];
 }
