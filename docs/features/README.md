@@ -14,8 +14,11 @@ Feature specifications organized by lifecycle stage.
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| [Output Shape Predictability](./active/output-shape-predictability/) | Consistent output schemas for agent consumption | In Progress |
+| [Contextual Tool Loading](./active/contextual-tool-loading/) | Dynamic context scoping for large command sets | Spec Ready |
+| [Lazy Loading & Discovery](./active/lazy-loading-discovery/) | `afd-discover`/`afd-detail`/`afd-call` tool strategy | Spec Ready |
+| [Output Shape Predictability](./active/output-shape-predictability/) | Declare output schemas so agents know response shapes | Spec Ready |
 | [View State](./active/view-state/) | Unified UI view state management via commands | Planned |
+| [Zero Chat Tools](./active/zero-chat-tools/) | Canvas-aware AFD commands for Zero chat agent | Spec Ready |
 
 ## Complete Features
 
@@ -28,7 +31,6 @@ Feature specifications organized by lifecycle stage.
 | [Command Exposure & Undo](./complete/command-exposure-undo/) | Command visibility and undo support |
 | [Command Pipeline](./complete/command-pipeline/) | Declarative command chaining |
 | [Handoff Pattern](./complete/handoff-pattern/) | Real-time protocol handoff |
-| [Lazy Loading & Discovery](./complete/lazy-loading-discovery/) | On-demand command registration and discovery |
 | [Middleware Defaults](./complete/middleware-defaults/) | Zero-config observability bundle (`defaultMiddleware()`) |
 | [Schema Complexity Scoring](./complete/schema-complexity-scoring/) | Weighted input schema complexity analysis |
 | [Schema Examples](./complete/schema-examples/) | Concrete input examples on commands for agent consumption |
@@ -41,7 +43,6 @@ Feature specifications organized by lifecycle stage.
 | [AFD PyPI Publishing](./proposed/afd-pypi-publishing/) | Python package publishing to PyPI |
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
-| [Contextual Tool Loading](./proposed/contextual-tool-loading/) | Dynamic tool loading based on context |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |
 | [Multi-Tool Registration](./proposed/multi-tool-registration/) | Batch MCP tool registration |
 | [Platform Utils](./proposed/platform-utils/) | Cross-platform subprocess and connectors |
