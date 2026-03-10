@@ -8,6 +8,7 @@
 import type { Alternative } from '@lushly-dev/afd-core';
 import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TodoSchema } from '../schemas.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 
@@ -35,6 +36,11 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 	mutation: false,
 	version: '1.0.0',
 	input: inputSchema,
+	output: z.object({
+		todos: TodoSchema.array(),
+		total: z.number(),
+		hasMore: z.boolean(),
+	}),
 
 	async handler(input) {
 		const todos = store.list({

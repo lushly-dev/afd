@@ -16,7 +16,6 @@ Feature specifications organized by lifecycle stage.
 |---------|-------------|--------|
 | [Contextual Tool Loading](./active/contextual-tool-loading/) | Dynamic context scoping for large command sets | Spec Ready |
 | [Lazy Loading & Discovery](./active/lazy-loading-discovery/) | `afd-discover`/`afd-detail`/`afd-call` tool strategy | Spec Ready |
-| [Output Shape Predictability](./active/output-shape-predictability/) | Declare output schemas so agents know response shapes | Spec Ready |
 | [View State](./active/view-state/) | Unified UI view state management via commands | Planned |
 | [Zero Chat Tools](./active/zero-chat-tools/) | Canvas-aware AFD commands for Zero chat agent | Spec Ready |
 
@@ -32,6 +31,7 @@ Feature specifications organized by lifecycle stage.
 | [Command Pipeline](./complete/command-pipeline/) | Declarative command chaining |
 | [Handoff Pattern](./complete/handoff-pattern/) | Real-time protocol handoff |
 | [Middleware Defaults](./complete/middleware-defaults/) | Zero-config observability bundle (`defaultMiddleware()`) |
+| [Output Shape Predictability](./complete/output-shape-predictability/) | Optional `output` Zod schema for agent response shape introspection |
 | [Schema Complexity Scoring](./complete/schema-complexity-scoring/) | Weighted input schema complexity analysis |
 | [Schema Examples](./complete/schema-examples/) | Concrete input examples on commands for agent consumption |
 | [Semantic Quality Validation](./complete/semantic-quality-validation/) | Cross-command surface analysis for naming, schema overlap, injection |
