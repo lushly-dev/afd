@@ -3,10 +3,12 @@
 > Proposal: Dynamic tool scoping for complex applications with 100s-1000s of commands
 
 ---
-status: captured
+status: reviewed
 created: 2026-01-11
 origin: Discussion on scaling AFD command systems for Word/Figma-class applications
 effort: L (1-2 weeks)
+package: "@lushly-dev/afd-server"
+depends-on: lazy-loading-discovery
 ---
 
 ## Problem
@@ -56,11 +58,13 @@ Categories and tags are **metadata**. Context is **access control**.
 
 | Tool | Description |
 |------|-------------|
-| `afd-help` | List commands (existing) |
+| `afd-help` | List commands (bootstrap, opt-in) |
 | `afd-context-list` | List available contexts |
 | `afd-context-enter` | Load a context's tools |
 | `afd-context-exit` | Return to previous context |
 | `afd-context-suggest` | AI-powered context recommendation |
+
+> **Note**: `afd-help` is a bootstrap command (opt-in via `createMcpServer`), not a built-in tool. Context commands would be built-in tools, always registered when context scoping is enabled.
 
 ### 2. Default Context from UI State
 
@@ -90,7 +94,7 @@ Agent (has document-editing context):
 
 ### 4. Fuzzy Match Integration
 
-AFD already has fuzzy matching in `DirectClient` for typo recovery:
+AFD already has fuzzy matching in `DirectClient` (`packages/client/src/direct.ts`) for typo recovery:
 
 ```typescript
 // Agent calls "document x print" (not a real command)
@@ -139,6 +143,20 @@ defineCommand({
 });
 ```
 
+## MCP `_meta` Integration
+
+Context membership should be exposed via MCP tool `_meta`, alongside existing fields (`requires`, `mutation`, `examples`):
+
+```typescript
+_meta: {
+  mutation: true,
+  requires: ['auth-sign-in'],
+  contexts: ['document-editing', 'text-styling'],
+}
+```
+
+This lets agents inspect context membership without calling `afd-context-list`.
+
 ## API Design (Summary)
 
 ```typescript
@@ -170,29 +188,49 @@ interface ContextConfig {
 | Cross-context request | Agent guesses | Lazy loading pattern |
 | Typo recovery | Suggestions only | Suggestions + context hints |
 
+## Current Codebase Notes
+
+The following shipped features provide foundation:
+- **`_meta` on MCP tools** — Already emits `requires`, `mutation`, `examples` (in `tools.ts`). Adding `contexts` follows the same pattern.
+- **`expose` on commands** — Command exposure control (`palette`, `mcp`, `agent`, `cli`) is implemented. Context scoping is a complementary runtime layer.
+- **`afd-help` filtering** — Already supports tag/category filtering. Context filtering would be additive.
+- **Fuzzy matching** — `calculateSimilarity()` in `packages/client/src/direct.ts` needs extraction to core for reuse by context suggestion.
+- **`toolStrategy`** — Currently `'individual' | 'grouped'` in `McpServerOptions`. Lazy-loading-discovery adds `'lazy'`. Context scoping works with any strategy by filtering the command list before tool generation.
+
+## Dependencies
+
+This feature depends on **[Lazy Loading & Discovery](../lazy-loading-discovery/)**:
+- `afd-call` (universal dispatcher) enables context-filtered invocation
+- `afd-discover` respects active context (only lists commands in current context)
+- `toolStrategy: 'lazy'` provides the foundation for dynamic tool sets
+
 ## Implementation Plan
 
 ### Phase 1: Core Infrastructure
-- [ ] Add `contexts` field to CommandDefinition
+- [ ] Add `contexts?: string[]` to `CommandDefinition` and `ZodCommandOptions`
+- [ ] Add `contexts` to `_meta` emission in `tools.ts`
+- [ ] Add `ContextConfig` interface to core types
 - [ ] Implement `afd-context-list` command
-- [ ] Implement `afd-context-enter` command  
+- [ ] Implement `afd-context-enter` command
 - [ ] Implement `afd-context-exit` command
-- [ ] Update DirectClient to filter by active context
+- [ ] Update tool list generation to filter by active context
 
 ### Phase 2: Integration
 - [ ] Extend fuzzy match to suggest context switches
-- [ ] Add read-only scope enforcement
+- [ ] Add read-only scope enforcement (leverage existing `expose` + `mutation`)
 - [ ] Implement hierarchical context resolution
+- [ ] Update `afd-discover` / `afd-call` to respect active context
 
 ### Phase 3: Intelligence
 - [ ] Implement `afd-context-suggest` with keyword matching
-- [ ] Default context from UI state signal
+- [ ] Default context from UI state signal (integrates with view-state pattern)
 - [ ] Priority/weighting system
 
-### Phase 4: Demo & Documentation  
+### Phase 4: Demo & Documentation
 - [ ] Extend todo demo with contexts
 - [ ] Document context design patterns
 - [ ] Add conformance tests
+- [ ] Add `missing-context` surface validation rule (info severity)
 
 ## Open Questions
 
@@ -202,10 +240,7 @@ interface ContextConfig {
 
 ## Related Work
 
-- **Existing fuzzy match**: [DirectClient](file:///d:/Github/lushly-dev/AFD/packages/client/src/direct.test.ts#L224-L232)
-- **Tag-based filtering**: Already in `afd-help` command
-- **Corporate Context Service**: Same pattern for knowledge scoping (Vision docs)
-
----
-
-*Status: Draft — awaiting review*
+- **Existing fuzzy match**: `packages/client/src/direct.ts` — `calculateSimilarity()` and `findSimilarTools()`
+- **Tag-based filtering**: Already in `afd-help` bootstrap command
+- **View State pattern**: `docs/features/active/view-state/` — UI state commands could drive default context
+- **Lazy Loading & Discovery**: `docs/features/active/lazy-loading-discovery/` — prerequisite for this feature
