@@ -174,7 +174,7 @@ describe('HTTP transport server', () => {
 	});
 });
 
-describe('Tool _meta emission', () => {
+describe('Command definition passthrough', () => {
 	let server: McpServer;
 
 	afterEach(async () => {
@@ -257,6 +257,8 @@ describe('Tool _meta emission', () => {
 		expect(cmd).toBeDefined();
 		// Empty array is passed through by defineCommand, but _meta logic checks length > 0
 		expect(cmd?.mutation).toBe(false);
+		// Empty arrays are preserved on the definition but _meta emission in tools.ts checks length > 0
+		expect(cmd?.requires).toEqual([]);
 	});
 });
 
