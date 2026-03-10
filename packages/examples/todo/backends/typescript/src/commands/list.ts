@@ -41,6 +41,7 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 		total: z.number(),
 		hasMore: z.boolean(),
 	}),
+	contexts: ['todo-editing', 'todo-reading'],
 
 	async handler(input) {
 		const todos = store.list({

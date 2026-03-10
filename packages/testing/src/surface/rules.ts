@@ -504,6 +504,43 @@ export function checkUnresolvedPrerequisites(commands: SurfaceCommand[]): Surfac
 // RULE 11: CIRCULAR PREREQUISITES
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// RULE 12: MISSING CONTEXT
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Flag commands without a `contexts` declaration when contexts are configured.
+ * Only fires when configuredContexts is non-empty.
+ */
+export function checkMissingContext(
+	commands: SurfaceCommand[],
+	configuredContexts: string[]
+): SurfaceFinding[] {
+	if (configuredContexts.length === 0) return [];
+
+	const findings: SurfaceFinding[] = [];
+
+	for (const cmd of commands) {
+		if (!cmd.contexts?.length) {
+			findings.push({
+				rule: 'missing-context',
+				severity: 'info',
+				message: `Command "${cmd.name}" has no contexts declaration`,
+				commands: [cmd.name],
+				suggestion:
+					'Add a contexts array to scope this command, or leave it without contexts to make it universally available.',
+				evidence: { configuredContexts },
+			});
+		}
+	}
+
+	return findings;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RULE 13: CIRCULAR PREREQUISITES
+// ═══════════════════════════════════════════════════════════════════════════════
+
 /**
  * Detect cycles in the `requires` dependency graph using DFS.
  */

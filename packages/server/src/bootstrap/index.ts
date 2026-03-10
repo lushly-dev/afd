@@ -5,6 +5,13 @@
  * agent discovery and onboarding.
  */
 
+export {
+	type ContextState,
+	createAfdContextEnterCommand,
+	createAfdContextExitCommand,
+	createAfdContextListCommand,
+	createContextState,
+} from './afd-context.js';
 export { createAfdDocsCommand } from './afd-docs.js';
 export { createAfdHelpCommand } from './afd-help.js';
 export { createAfdSchemaCommand } from './afd-schema.js';

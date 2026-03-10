@@ -43,6 +43,7 @@ export interface ToolRouterDeps {
 	allCommands?: ZodCommandDefinition[];
 	/** Set of command names exposed via the server's commands array */
 	exposedCommandNames?: Set<string>;
+	contextState?: { getActive(): string | null };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -77,6 +78,23 @@ function resultContent(data: unknown, isError: boolean): ToolCallResult {
 }
 
 /**
+ * Check if a command is accessible in the current context.
+ * A command is accessible if:
+ * - No active context (everything visible)
+ * - Command has no contexts array (universal / backward compat)
+ * - Command's contexts include the active context
+ */
+function isCommandAccessible(
+	cmd: ZodCommandDefinition | undefined,
+	activeContext: string | null
+): boolean {
+	if (!activeContext) return true;
+	if (!cmd) return true; // Let execution handle not-found
+	if (!cmd.contexts?.length) return true;
+	return cmd.contexts.includes(activeContext);
+}
+
+/**
  * Create a tool call router that dispatches to the appropriate execution function.
  */
 export function createToolRouter(deps: ToolRouterDeps) {
@@ -90,6 +108,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		devMode,
 		allCommands,
 		exposedCommandNames,
+		contextState,
 	} = deps;
 
 	return async function routeToolCall(toolName: string, args: unknown): Promise<ToolCallResult> {
@@ -150,6 +169,25 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				);
 			}
 
+			// Context check: validate the command is accessible in current context
+			if (contextState) {
+				const activeContext = contextState.getActive();
+				if (!isCommandAccessible(cmd, activeContext)) {
+					return resultContent(
+						{
+							success: false,
+							error: {
+								code: 'COMMAND_NOT_IN_CONTEXT',
+								message: `Command '${commandName}' is not available in context '${activeContext}'`,
+								suggestion:
+									'Use afd-context-list to see available contexts, or afd-context-enter to switch.',
+							},
+						},
+						true
+					);
+				}
+			}
+
 			// Execute through the execution engine (full middleware chain)
 			const result = await executeCommand(commandName, typedArgs?.input ?? {}, {
 				traceId: `afd-call-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -159,7 +197,12 @@ export function createToolRouter(deps: ToolRouterDeps) {
 
 		// Handle afd-discover (lazy strategy only)
 		if (toolName === 'afd-discover') {
-			const result = executeDiscover(commands, (args ?? {}) as DiscoverInput);
+			// Filter by active context when context state is available
+			const activeContext = contextState?.getActive();
+			const discoverCommands = activeContext
+				? commands.filter((cmd) => !cmd.contexts?.length || cmd.contexts.includes(activeContext))
+				: commands;
+			const result = executeDiscover(discoverCommands, (args ?? {}) as DiscoverInput);
 			return resultContent(result, false);
 		}
 
@@ -255,6 +298,26 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		}
 
 		// Handle user-defined commands (individual mode or direct command calls)
+		// Context check: validate the command is accessible in current context
+		if (contextState) {
+			const activeContext = contextState.getActive();
+			const cmd = commands.find((c) => c.name === toolName);
+			if (!isCommandAccessible(cmd, activeContext)) {
+				return resultContent(
+					{
+						success: false,
+						error: {
+							code: 'COMMAND_NOT_IN_CONTEXT',
+							message: `Command '${toolName}' is not available in context '${activeContext}'`,
+							suggestion:
+								'Use afd-context-list to see available contexts, or afd-context-enter to switch.',
+						},
+					},
+					true
+				);
+			}
+		}
+
 		const result = await executeCommand(toolName, args ?? {}, {
 			traceId: `trace-${Date.now()}-${Math.random().toString(36).slice(2)}`,
 		});

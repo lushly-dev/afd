@@ -158,14 +158,31 @@ const detailToolSchema = {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
+ * Filter commands by active context.
+ * Includes commands whose `contexts` array includes the active context,
+ * plus commands with no `contexts` array (universal / backward compat).
+ */
+function filterByContext(
+	commands: ZodCommandDefinition[],
+	activeContext: string | null | undefined
+): ZodCommandDefinition[] {
+	if (!activeContext) return commands;
+	return commands.filter((cmd) => !cmd.contexts?.length || cmd.contexts.includes(activeContext));
+}
+
+/**
  * Get the tools list based on toolStrategy.
  */
 export function getToolsList(
 	commands: ZodCommandDefinition[],
 	toolStrategy: 'individual' | 'grouped' | 'lazy',
-	groupByFn?: (command: ZodCommandDefinition) => string | undefined
+	groupByFn?: (command: ZodCommandDefinition) => string | undefined,
+	activeContext?: string | null
 ) {
 	const builtInTools = [batchToolSchema, pipeToolSchema, callToolSchema];
+
+	// Filter by active context before strategy-specific generation
+	const filtered = filterByContext(commands, activeContext);
 
 	// Lazy strategy: meta-tools + built-ins only
 	if (toolStrategy === 'lazy') {
@@ -176,13 +193,14 @@ export function getToolsList(
 	if (toolStrategy === 'individual') {
 		return [
 			...builtInTools,
-			...commands.map((cmd) => {
+			...filtered.map((cmd) => {
 				const { type: _type, ...restSchema } = cmd.jsonSchema;
 				const hasMeta =
 					(cmd.requires && cmd.requires.length > 0) ||
 					cmd.mutation != null ||
 					(cmd.examples && cmd.examples.length > 0) ||
-					cmd.outputJsonSchema != null;
+					cmd.outputJsonSchema != null ||
+					(cmd.contexts && cmd.contexts.length > 0);
 				return {
 					name: cmd.name,
 					description: cmd.description,
@@ -196,6 +214,7 @@ export function getToolsList(
 							...(cmd.mutation != null && { mutation: cmd.mutation }),
 							...(cmd.examples?.length && { examples: cmd.examples }),
 							...(cmd.outputJsonSchema && { outputSchema: cmd.outputJsonSchema }),
+							...(cmd.contexts?.length && { contexts: cmd.contexts }),
 						},
 					}),
 				};
@@ -211,7 +230,7 @@ export function getToolsList(
 
 	// Group commands by their group key
 	const groups: Record<string, ZodCommandDefinition[]> = {};
-	for (const cmd of commands) {
+	for (const cmd of filtered) {
 		const group = getGroup(cmd) || 'general';
 		if (!groups[group]) {
 			groups[group] = [];
