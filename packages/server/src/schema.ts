@@ -97,6 +97,12 @@ export interface ZodCommandOptions<TInput extends ZodType<unknown, ZodTypeDef, u
 	 * Each example is validated against the input schema at define-time.
 	 */
 	examples?: CommandExample<z.infer<TInput>>[];
+
+	/**
+	 * Contexts this command belongs to. When context-based tool scoping is enabled,
+	 * only commands matching the active context (or commands without contexts) are visible.
+	 */
+	contexts?: string[];
 }
 
 /**
@@ -162,6 +168,9 @@ export interface ZodCommandDefinition<
 
 	/** Concrete input examples validated against the input schema */
 	examples?: CommandExample<z.infer<TInput>>[];
+
+	/** Contexts this command belongs to */
+	contexts?: string[];
 
 	/**
 	 * Convert to standard CommandDefinition format.
@@ -244,6 +253,7 @@ export function defineCommand<TInput extends ZodType<unknown, ZodTypeDef, unknow
 		confirmPrompt: options.confirmPrompt,
 		expose: options.expose,
 		examples: options.examples,
+		contexts: options.contexts,
 
 		toCommandDefinition(): CommandDefinition<z.infer<TInput>, TOutput> {
 			return {
@@ -260,6 +270,7 @@ export function defineCommand<TInput extends ZodType<unknown, ZodTypeDef, unknow
 				handoffProtocol: options.handoffProtocol,
 				expose: options.expose,
 				examples: options.examples,
+				contexts: options.contexts,
 				parameters: jsonSchemaToParameters(jsonSchema),
 				returns: { type: 'object', description: 'Command result' },
 				handler: options.handler as (

@@ -9,6 +9,7 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import { Server as McpSdkServer } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { createContextState } from './bootstrap/afd-context.js';
 import { createExecutionEngine } from './execution.js';
 import { createHttpHandler } from './http-handler.js';
 import type { ZodCommandDefinition } from './schema.js';
@@ -19,6 +20,7 @@ import { getToolsList } from './tools.js';
 
 export type {
 	CommandMiddleware,
+	ContextConfig,
 	McpServer,
 	McpServerOptions,
 	McpTransport,
@@ -63,7 +65,12 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 		onError,
 		toolStrategy = 'grouped',
 		groupByFn,
+		contexts,
 	} = options;
+
+	// ── Context state (when contexts are configured) ─────────────────────────
+
+	const contextState = contexts?.length ? createContextState() : undefined;
 
 	// ── Transport resolution ────────────────────────────────────────────────
 
@@ -106,9 +113,11 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 		toolStrategy,
 		groupByFn,
 		devMode,
+		contextState,
 	});
 
-	const boundGetToolsList = () => getToolsList(commands, toolStrategy, groupByFn);
+	const boundGetToolsList = () =>
+		getToolsList(commands, toolStrategy, groupByFn, contextState?.getActive());
 
 	// ── Server state ────────────────────────────────────────────────────────
 

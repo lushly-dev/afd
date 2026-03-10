@@ -20,6 +20,7 @@ export const getTodo = defineCommand<typeof inputSchema, Todo>({
 	version: '1.0.0',
 	input: inputSchema,
 	errors: ['NOT_FOUND'],
+	contexts: ['todo-editing', 'todo-reading'],
 
 	async handler(input) {
 		const todo = store.get(input.id);

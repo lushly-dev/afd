@@ -22,6 +22,7 @@ export const createTodo = defineCommand<typeof inputSchema, Todo>({
 	version: '1.0.0',
 	input: inputSchema,
 	errors: ['VALIDATION_ERROR'],
+	contexts: ['todo-editing'],
 
 	async handler(input) {
 		const todo = store.create({

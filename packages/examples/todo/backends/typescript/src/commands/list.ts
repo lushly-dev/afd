@@ -35,6 +35,7 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 	mutation: false,
 	version: '1.0.0',
 	input: inputSchema,
+	contexts: ['todo-editing', 'todo-reading'],
 
 	async handler(input) {
 		const todos = store.list({

@@ -125,6 +125,26 @@ export interface McpServerOptions {
 	 * Defaults to using command.category or first segment of command name.
 	 */
 	groupByFn?: (command: ZodCommandDefinition) => string | undefined;
+
+	/** Context configurations for tool scoping. When provided, enables context-based tool filtering. */
+	contexts?: ContextConfig[];
+}
+
+/**
+ * Context configuration for tool scoping.
+ */
+export interface ContextConfig {
+	/** Context name (kebab-case) */
+	name: string;
+
+	/** Human-readable description */
+	description?: string;
+
+	/** Keywords that suggest this context */
+	triggers?: string[];
+
+	/** Higher = suggested first in listings */
+	priority?: number;
 }
 
 export type { CommandMiddleware } from '@lushly-dev/afd-core';

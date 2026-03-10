@@ -80,9 +80,14 @@ export {
 } from '@lushly-dev/afd-core';
 // Bootstrap tools
 export {
+	type ContextState,
+	createAfdContextEnterCommand,
+	createAfdContextExitCommand,
+	createAfdContextListCommand,
 	createAfdDocsCommand,
 	createAfdHelpCommand,
 	createAfdSchemaCommand,
+	createContextState,
 	getBootstrapCommands,
 } from './bootstrap/index.js';
 // Handoff schemas
@@ -131,6 +136,7 @@ export {
 	zodToJsonSchema,
 } from './schema.js';
 export {
+	type ContextConfig,
 	createMcpServer,
 	isStdinPiped,
 	type McpServer,

@@ -13,6 +13,7 @@ export {
 	checkDescriptionInjection,
 	checkDescriptionQuality,
 	checkMissingCategory,
+	checkMissingContext,
 	checkNamingCollision,
 	checkNamingConvention,
 	checkOrphanedCategory,

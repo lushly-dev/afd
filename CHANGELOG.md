@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Contextual Tool Loading** (`@lushly-dev/afd-server`, `@lushly-dev/afd-testing`) — Dynamic context scoping for large command sets. Commands declare `contexts?: string[]` membership. Server manages an active context stack via `afd-context-list`, `afd-context-enter`, `afd-context-exit` commands. Tool lists and `afd-discover`/`afd-call` respect active context. Commands without contexts remain universal. New `missing-context` surface validation rule (info severity). MCP `_meta.contexts` emitted for tool metadata.
 - **Schema examples** (`@lushly-dev/afd-core`, `@lushly-dev/afd-server`, `@lushly-dev/afd-testing`) — Attach concrete input examples to commands so agents can reference valid payloads instead of reverse-engineering JSON Schema
   - **`examples?: CommandExample[]`** on `defineCommand()` — type-safe examples validated against the Zod input schema at define-time (invalid examples throw immediately)
   - **`CommandExample<TInput>`** type in `@lushly-dev/afd-core` — `{ title: string; input: TInput }`

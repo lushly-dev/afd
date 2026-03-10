@@ -37,6 +37,7 @@ export interface ToolRouterDeps {
 	toolStrategy: 'individual' | 'grouped';
 	groupByFn?: (command: ZodCommandDefinition) => string | undefined;
 	devMode: boolean;
+	contextState?: { getActive(): string | null };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -71,6 +72,23 @@ function resultContent(data: unknown, isError: boolean): ToolCallResult {
 }
 
 /**
+ * Check if a command is accessible in the current context.
+ * A command is accessible if:
+ * - No active context (everything visible)
+ * - Command has no contexts array (universal / backward compat)
+ * - Command's contexts include the active context
+ */
+function isCommandAccessible(
+	cmd: ZodCommandDefinition | undefined,
+	activeContext: string | null
+): boolean {
+	if (!activeContext) return true;
+	if (!cmd) return true; // Let execution handle not-found
+	if (!cmd.contexts?.length) return true;
+	return cmd.contexts.includes(activeContext);
+}
+
+/**
  * Create a tool call router that dispatches to the appropriate execution function.
  */
 export function createToolRouter(deps: ToolRouterDeps) {
@@ -82,6 +100,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		toolStrategy,
 		groupByFn,
 		devMode,
+		contextState,
 	} = deps;
 
 	return async function routeToolCall(toolName: string, args: unknown): Promise<ToolCallResult> {
@@ -169,6 +188,26 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		}
 
 		// Handle user-defined commands (individual mode or direct command calls)
+		// Context check: validate the command is accessible in current context
+		if (contextState) {
+			const activeContext = contextState.getActive();
+			const cmd = commands.find((c) => c.name === toolName);
+			if (!isCommandAccessible(cmd, activeContext)) {
+				return resultContent(
+					{
+						success: false,
+						error: {
+							code: 'COMMAND_NOT_IN_CONTEXT',
+							message: `Command '${toolName}' is not available in context '${activeContext}'`,
+							suggestion:
+								'Use afd-context-list to see available contexts, or afd-context-enter to switch.',
+						},
+					},
+					true
+				);
+			}
+		}
+
 		const result = await executeCommand(toolName, args ?? {}, {
 			traceId: `trace-${Date.now()}-${Math.random().toString(36).slice(2)}`,
 		});
