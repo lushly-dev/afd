@@ -25,6 +25,9 @@ import { defineCommand, success, error, createMcpServer } from '@lushly-dev/afd-
 
 // Schema validation
 import { z } from 'zod';
+
+// View state (UI state management via commands)
+import { ViewStateRegistry, createViewStateCommands } from '@lushly-dev/afd-view-state';
 ```
 
 ## Command Definition

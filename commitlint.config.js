@@ -17,6 +17,7 @@ export default {
 				'cli',
 				'testing',
 				'adapters',
+				'view-state',
 				'examples',
 				'alfred',
 				'python',

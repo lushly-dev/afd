@@ -1,5 +1,5 @@
 ---
-status: planned
+status: complete
 created: 2026-03-01
 origin: fabric-ux-prototype — UI view state managed outside the command system, invisible to agents and tests
 effort: S (1-2 days for Option A docs, M 3-5 days for Option B package)
@@ -104,4 +104,7 @@ Start with **Option A** (docs), promote to **Option B** when a second consumer v
 
 - `@lushly-dev/local-db` — DataAdapter interface used for persistence
 - AFD `defineCommand` — command pattern used for the 3 view-state commands
+- **Output schemas** — view-state commands should declare `output` so agents know response shapes before calling
+- **Context scoping** — consider whether view-state commands should be universal or scoped to a UI context via `contexts`
+- **Lazy discovery** — `afd-call` universal dispatcher works with view-state commands out of the box
 - fabric-ux-prototype PR (view-state-commands branch)

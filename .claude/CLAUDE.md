@@ -33,6 +33,7 @@ packages/
 ├── auth/       # @lushly-dev/afd-auth — Provider-agnostic auth adapter
 ├── cli/        # @lushly-dev/afd-cli — Command-line tool
 ├── testing/    # @lushly-dev/afd-testing — JTBD scenario runner + surface validation
+├── view-state/ # @lushly-dev/afd-view-state — UI view state management via commands
 ├── adapters/   # @lushly-dev/afd-adapters — Frontend adapters for rendering CommandResult
 └── examples/
     ├── todo/                # Multi-stack example (TS, Python, Rust backends)

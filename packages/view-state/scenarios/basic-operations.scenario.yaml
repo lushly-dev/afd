@@ -1,0 +1,42 @@
+# JTBD Scenario: View State Basic Operations
+# Tests core get/set/list workflow without persistence
+
+name: Basic View State Operations
+description: As an agent, I want to read and modify UI panel state so I can control the layout
+job: view-state-basic
+tags: [smoke, view-state, workflow]
+
+steps:
+  # Step 0: List when empty — should return zero states
+  - command: view-state-list
+    description: List all states before any are registered
+    expect:
+      success: true
+      data:
+        total: 0
+        states:
+          length: 0
+
+  # Step 1: Get unknown ID — should fail with helpful suggestion
+  - command: view-state-get
+    description: Attempt to get an unregistered state
+    input:
+      id: nonexistent-panel
+    expect:
+      success: false
+      error:
+        code: VIEW_STATE_NOT_FOUND
+        suggestion:
+          contains: view-state-list
+
+  # Step 2: Set unknown ID — should fail
+  - command: view-state-set
+    description: Attempt to set an unregistered state
+    input:
+      id: nonexistent-panel
+      state:
+        open: true
+    expect:
+      success: false
+      error:
+        code: VIEW_STATE_NOT_FOUND
