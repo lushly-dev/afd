@@ -51,6 +51,7 @@ Expert guidance for building software with the Agent-First Development methodolo
 | Cross-platform exec, connectors | [references/platform-utils.md](references/platform-utils.md) |
 | Command prerequisites, `requires` field | [references/command-schema.md](references/command-schema.md) |
 | Surface validation, semantic quality | [references/surface-validation.md](references/surface-validation.md) |
+| View state, UI panels, ViewStateRegistry | `packages/view-state/README.md` |
 
 ## Core Principles
 
@@ -149,7 +150,9 @@ return error('NOT_FOUND', `Item ${id} not found`, {
 | `@lushly-dev/afd-client` | MCP client with SSE/HTTP transports + DirectClient |
 | `@lushly-dev/afd-testing` | JTBD scenario runner, surface validation, test validators |
 | `@lushly-dev/afd-adapters` | Frontend adapters for rendering CommandResult |
+| `@lushly-dev/afd-view-state` | UI view state management via commands (ViewStateRegistry, createViewStateCommands) |
 | `@lushly-dev/afd-cli` | Command-line interface |
+| `@lushly-dev/local-db` | Async data adapter with swappable backends (Memory, HTTP) |
 
 ## When to Escalate
 

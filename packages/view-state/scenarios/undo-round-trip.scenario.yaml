@@ -1,0 +1,68 @@
+# JTBD Scenario: Undo Round-Trip
+# Tests that undoArgs from view-state-set correctly restores previous state
+
+name: Undo View State Change
+description: As an agent, I want to undo a layout change so the user can revert accidental modifications
+job: view-state-undo
+tags: [smoke, view-state, undo]
+
+steps:
+  # Step 0: Get baseline state
+  - command: view-state-get
+    description: Read initial sidebar state
+    input:
+      id: sidebar
+    expect:
+      success: true
+      data:
+        state:
+          collapsed: false
+          width: 240
+
+  # Step 1: Collapse the sidebar — capture undoArgs
+  - command: view-state-set
+    description: Collapse the sidebar
+    input:
+      id: sidebar
+      state:
+        collapsed: true
+        width: 48
+    expect:
+      success: true
+      data:
+        state:
+          collapsed: true
+          width: 48
+        previous:
+          collapsed: false
+          width: 240
+
+  # Step 2: Undo — restore using previous state from step 1
+  - command: view-state-set
+    description: Undo the collapse using previous state
+    input:
+      id: sidebar
+      state:
+        collapsed: false
+        width: 240
+    expect:
+      success: true
+      data:
+        state:
+          collapsed: false
+          width: 240
+        previous:
+          collapsed: true
+          width: 48
+
+  # Step 3: Verify state is back to original
+  - command: view-state-get
+    description: Confirm undo restored original state
+    input:
+      id: sidebar
+    expect:
+      success: true
+      data:
+        state:
+          collapsed: false
+          width: 240

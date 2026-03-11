@@ -1,0 +1,89 @@
+# JTBD Scenario: Agent Controls a Panel
+# Tests the core use case: agent opens a panel, switches tabs, then closes it
+
+name: Agent Controls Design Panel
+description: As an agent, I want to open a panel, switch its tab, and close it so the user sees the right content
+job: panel-control
+tags: [smoke, view-state, agent-ux]
+
+steps:
+  # Step 0: Get current panel state
+  - command: view-state-get
+    description: Read the initial panel state
+    input:
+      id: design-panel
+    expect:
+      success: true
+      data:
+        id: design-panel
+        state:
+          open: false
+          tab: design
+          width: 320
+
+  # Step 1: Open the panel
+  - command: view-state-set
+    description: Open the design panel
+    input:
+      id: design-panel
+      state:
+        open: true
+    expect:
+      success: true
+      data:
+        id: design-panel
+        state:
+          open: true
+          tab: design
+          width: 320
+        previous:
+          open: false
+          tab: design
+          width: 320
+
+  # Step 2: Switch tab and resize
+  - command: view-state-set
+    description: Switch to styles tab and widen panel
+    input:
+      id: design-panel
+      state:
+        tab: styles
+        width: 480
+    expect:
+      success: true
+      data:
+        id: design-panel
+        state:
+          open: true
+          tab: styles
+          width: 480
+        previous:
+          open: true
+          tab: design
+          width: 320
+
+  # Step 3: Verify final state
+  - command: view-state-get
+    description: Confirm all changes applied
+    input:
+      id: design-panel
+    expect:
+      success: true
+      data:
+        state:
+          open: true
+          tab: styles
+          width: 480
+
+  # Step 4: Close the panel
+  - command: view-state-set
+    description: Close the panel
+    input:
+      id: design-panel
+      state:
+        open: false
+    expect:
+      success: true
+      data:
+        state:
+          open: false

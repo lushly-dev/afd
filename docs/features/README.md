@@ -14,7 +14,6 @@ Feature specifications organized by lifecycle stage.
 
 | Feature | Description | Status |
 |---------|-------------|--------|
-| [View State](./active/view-state/) | Unified UI view state management via commands | Planned |
 | [Zero Chat Tools](./active/zero-chat-tools/) | Canvas-aware AFD commands for Zero chat agent | Spec Ready |
 
 ## Complete Features
@@ -35,6 +34,7 @@ Feature specifications organized by lifecycle stage.
 | [Schema Complexity Scoring](./complete/schema-complexity-scoring/) | Weighted input schema complexity analysis |
 | [Schema Examples](./complete/schema-examples/) | Concrete input examples on commands for agent consumption |
 | [Semantic Quality Validation](./complete/semantic-quality-validation/) | Cross-command surface analysis for naming, schema overlap, injection |
+| [View State](./active/view-state/) | Unified UI view state management via `@lushly-dev/afd-view-state` commands |
 
 ## Proposed Features
 

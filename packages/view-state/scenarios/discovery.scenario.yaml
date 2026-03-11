@@ -1,0 +1,42 @@
+# JTBD Scenario: Agent Discovers Available View States
+# Tests the discovery workflow: list all states, then inspect specific ones
+
+name: Discover and Inspect View States
+description: As an agent, I want to list all UI surfaces and inspect their state so I can understand the current layout
+job: view-state-discovery
+tags: [smoke, view-state, discovery]
+
+steps:
+  # Step 0: List all registered view states
+  - command: view-state-list
+    description: Discover all registered UI surfaces
+    expect:
+      success: true
+      data:
+        total: 2
+        states:
+          length: 2
+
+  # Step 1: Get the design panel state
+  - command: view-state-get
+    description: Inspect the design panel
+    input:
+      id: design-panel
+    expect:
+      success: true
+      data:
+        id: design-panel
+        state:
+          exists: true
+
+  # Step 2: Get the sidebar state
+  - command: view-state-get
+    description: Inspect the sidebar
+    input:
+      id: sidebar
+    expect:
+      success: true
+      data:
+        id: sidebar
+        state:
+          exists: true
