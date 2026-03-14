@@ -10,14 +10,6 @@ Feature specifications organized by lifecycle stage.
 | [active/](./active/) | Approved features in implementation |
 | [complete/](./complete/) | Shipped features (reference archive) |
 
-## Active Features
-
-| Feature | Description | Status |
-|---------|-------------|--------|
-| [Zero Chat Tools](./active/zero-chat-tools/) | Canvas-aware AFD commands for Zero chat agent | Spec Ready |
-| [Output Shape Predictability](./active/output-shape-predictability/) | Consistent output schemas for agent consumption | In Progress |
-| [Schema Examples](./active/schema-examples/) | Example values in command schemas for agents | In Progress |
-
 ## Complete Features
 
 | Feature | Description |
@@ -36,7 +28,7 @@ Feature specifications organized by lifecycle stage.
 | [Schema Complexity Scoring](./complete/schema-complexity-scoring/) | Weighted input schema complexity analysis |
 | [Schema Examples](./complete/schema-examples/) | Concrete input examples on commands for agent consumption |
 | [Semantic Quality Validation](./complete/semantic-quality-validation/) | Cross-command surface analysis for naming, schema overlap, injection |
-| [View State](./active/view-state/) | Unified UI view state management via `@lushly-dev/afd-view-state` commands |
+| [View State](./complete/view-state/) | Unified UI view state management via `@lushly-dev/afd-view-state` commands |
 
 ## Proposed Features
 
@@ -52,6 +44,7 @@ Feature specifications organized by lifecycle stage.
 | [Rust Distribution](./proposed/rust-distribution/) | Rust-based distribution layer |
 | [Rust Support](./proposed/rust-support/) | Rust language support for AFD |
 | [Skill Knowledge Layer](./proposed/skill-knowledge-layer/) | Skills as structured knowledge for agents |
+| [Zero Chat Tools](./proposed/zero-chat-tools/) | Canvas-aware AFD commands for Zero chat agent |
 
 ## Feature Structure
 
