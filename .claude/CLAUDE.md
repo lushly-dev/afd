@@ -17,8 +17,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `pnpm lint:fix` | Auto-fix lint issues |
 | `pnpm typecheck` | TypeScript type checking |
 | `pnpm check` | Quality gate (lint + build + typecheck + test:coverage) — mirrors CI exactly |
-| `pnpm release patch` | Release: bump versions, update CHANGELOG, run quality gate, commit, tag |
-| `pnpm publish:npm` | Publish all @lushly-dev/* packages to npm |
+| `pnpm changeset` | Create a changeset describing your change and its semver impact |
+| `pnpm version-packages` | Consume changesets, bump versions, update CHANGELOGs |
+| `pnpm publish:npm` | Build and publish all @lushly-dev/* packages to npm |
 | `cd packages/server && pnpm vitest run src/server.test.ts` | Run single test file |
 
 ## Architecture
@@ -63,14 +64,14 @@ alfred/  # Quality bot — lint, parity, quality (see alfred/AGENTS.md)
 | **Pre-push** (lefthook) | `git push` | Full lint, test, typecheck, portability, file-size, orphan-files |
 | **Quality gate** (`pnpm check`) | On-demand / release script | lint → build → typecheck → test:coverage + portability, file-size, orphan-files |
 | **CI** (GitHub Actions) | Push to main / PR | Same as quality gate — safety net for skipped hooks |
-| **Release** (GitHub Actions) | Tag push `v*` | Build → test → publish to npm with provenance → GitHub Release |
+| **Release** (GitHub Actions) | Push to main | Changesets action: opens version PR or publishes to npm |
 
 **Key rules:**
 - Always run `pnpm check` before pushing — catches everything CI would catch
-- Never use Changesets or external version managers — `scripts/release.mjs` owns versioning
-- All `@lushly-dev/*` packages share one version (fixed versioning)
-- Release workflow triggers on `v*` tag push, not branch push
-- Agent release flow: `pnpm release patch` → `git push origin main --tags`
+- Changesets manages versioning — run `pnpm changeset` to describe changes with each PR
+- All `@lushly-dev/*` packages share one version (fixed versioning via `"fixed"` config)
+- Release flow: merge PR with changesets → CI opens "Release" PR → merge it → CI publishes
+- Agent release flow: `pnpm changeset` → commit changeset file → merge to main
 
 ## Skill Index
 

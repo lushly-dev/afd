@@ -13,7 +13,8 @@
 			"!**/dist",
 			"!**/*.plan.md",
 			"!**/_generated",
-			"!**/alfred"
+			"!**/alfred",
+			"!**/site"
 		]
 	},
 	"formatter": {
