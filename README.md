@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)](LICENSE)
 [![Status: Beta](https://img.shields.io/badge/Status-Beta-16a34a?style=flat-square)](#)
-[![Release](https://img.shields.io/github/v/release/lushly-dev/afd?display_name=tag&sort=semver&style=flat-square)](https://github.com/lushly-dev/afd/releases)
+[![npm](https://img.shields.io/npm/v/@lushly-dev/afd-core?style=flat-square&label=npm)](https://www.npmjs.com/package/@lushly-dev/afd-core)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6.svg?logo=typescript&logoColor=white)](#)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](#)
 [![Rust](https://img.shields.io/badge/Rust-1.70+-DEA584.svg?logo=rust&logoColor=white)](#)
