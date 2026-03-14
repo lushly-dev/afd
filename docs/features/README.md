@@ -15,6 +15,8 @@ Feature specifications organized by lifecycle stage.
 | Feature | Description | Status |
 |---------|-------------|--------|
 | [Zero Chat Tools](./active/zero-chat-tools/) | Canvas-aware AFD commands for Zero chat agent | Spec Ready |
+| [Output Shape Predictability](./active/output-shape-predictability/) | Consistent output schemas for agent consumption | In Progress |
+| [Schema Examples](./active/schema-examples/) | Example values in command schemas for agents | In Progress |
 
 ## Complete Features
 
