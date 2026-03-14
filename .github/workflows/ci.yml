@@ -30,17 +30,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
-        run: pnpm lint
-
-      - name: Build
-        run: pnpm build
-
-      - name: Type check
-        run: pnpm typecheck
-
-      - name: Test with coverage
-        run: pnpm test:coverage
+      - name: Quality gate
+        run: pnpm check
 
       - name: Upload coverage
         if: matrix.node-version == '24.x'
