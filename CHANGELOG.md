@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-03-13
+
+### Changed
+- **BREAKING: Node.js 22+ required** — dropped Node 20 support, CI tests on 22.x and 24.x, `.nvmrc` pinned to 24
+- **BREAKING: Zod 4** — upgraded from Zod 3. `zod-to-json-schema` replaced with built-in `z.toJSONSchema()`. `ZodEffects` replaced by `ZodPipe` for transforms. Schema introspection uses `.unwrap()`/`.removeDefault()` instead of `._def.innerType`
+- **BREAKING: eventsource 4** — named import (`{ EventSource }` instead of default), custom `fetch` option for headers. `@types/eventsource` removed (types now bundled)
+- TypeScript target/lib bumped from ES2022 to ES2024
+- All major dependencies updated: commander 14, conf 15, glob 13, ora 9, jsdom 28, dotenv 17, vite 8, commitlint 20, `@types/node` 25
+- Release workflow migrated from custom `scripts/release.mjs` to `@changesets/cli`
+- CI workflow now calls `pnpm check` (lefthook quality gate) instead of individual steps — prevents local/CI desync
+- Refactored `direct.ts` — extracted `unknown-tool.ts` and `direct-validation.ts` into focused modules
+- Refactored `executor.ts` — extracted `validator.ts` for standalone scenario validation
+
+### Removed
+- `scripts/release.mjs` — replaced by `@changesets/cli`
+- `eslint` from React example — redundant with Biome (which covers React hooks rules natively)
+- `@types/eventsource` — eventsource 4 bundles its own types
+- `zod-to-json-schema` — replaced by Zod 4 built-in `z.toJSONSchema()`
+- Stale `package-lock.json` and unused Vite scaffold assets from React example
+
 ## [0.5.0] - 2026-03-11
 
 ### Added

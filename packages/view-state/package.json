@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/afd-view-state",
-	"version": "0.5.0",
+	"version": "0.6.0",
 	"description": "UI view state management via AFD commands — panels, sidebars, selections, tool modes",
 	"type": "module",
 	"exports": {

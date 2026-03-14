@@ -1,6 +1,6 @@
 {
 	"name": "afd",
-	"version": "0.5.0",
+	"version": "0.6.0",
 	"private": true,
 	"description": "Agent-First Development - Build software where AI agents are first-class users",
 	"repository": {
