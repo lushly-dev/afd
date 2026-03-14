@@ -12,42 +12,36 @@ Expanded reference for the full release procedure.
 - [ ] All CI checks passing on latest commit
 - [ ] No open blockers or release-blocking issues
 - [ ] Dependencies are current (no major version drift)
+- [ ] Pending changesets exist (`pnpm changeset status`)
 
 ## Version Bump
 
-- [ ] Determine increment: patch / minor / major
-- [ ] Bump version in `package.json` / `pyproject.toml` / `Cargo.toml`
-- [ ] For monorepos: bump each changed package
-- [ ] Version string is consistent across all config files
-- [ ] Lock files updated if needed (`pnpm install` / `cargo update`)
+- [ ] Run `pnpm version-packages` to consume changesets
+- [ ] All `@lushly-dev/*` packages bumped to same version (fixed versioning)
+- [ ] Lock file updated (`pnpm install` if needed)
 
 ## Changelog
 
-- [ ] `[Unreleased]` entries moved to version heading `[X.Y.Z] - YYYY-MM-DD`
-- [ ] Fresh `[Unreleased]` section added at top
-- [ ] Entries match actual changes (compare with `git log`)
+- [ ] CHANGELOG.md entries generated from changesets
 - [ ] Breaking changes prominently noted
 - [ ] Migration instructions included for breaking changes
 
 ## Build & Test
 
-- [ ] Clean build succeeds (all languages)
-- [ ] Full test suite passes (all languages)
+- [ ] Clean build succeeds: `pnpm build`
+- [ ] Full test suite passes: `pnpm test`
+- [ ] Quality gate passes: `pnpm check`
 - [ ] No new warnings introduced
-- [ ] Package artifacts generated correctly
 
 ## Publish
 
-- [ ] Authentication verified for all registries
-- [ ] npm: `npm publish` (or `pnpm publish`)
-- [ ] PyPI: `hatch publish` (or `twine upload dist/*`)
-- [ ] crates.io: `cargo publish`
-- [ ] Published version is installable
+- [ ] Push to main triggers CI Release workflow
+- [ ] Or manually: `pnpm publish:npm`
+- [ ] Published version is installable: `npm info @lushly-dev/afd-core`
 
 ## Git & GitHub
 
-- [ ] Release commit: `chore: release vX.Y.Z`
-- [ ] Annotated tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
-- [ ] Pushed to remote with tags: `git push origin main --tags`
-- [ ] GitHub Release created with changelog excerpt
+- [ ] Version bump committed: `chore: release packages`
+- [ ] Pushed to remote: `git push origin main`
+- [ ] GitHub Release created (automatic via changesets action)
 - [ ] Release notes accurate and formatted

@@ -20,48 +20,92 @@ user-invocable: true
 
 # Do Release
 
-Release a new version — bump, changelog, build, test, tag, publish, GitHub Release.
+Release a new version using Changesets — the automated versioning and changelog tool.
 
-## AFD-Specific: Script-Driven Release
+## AFD-Specific: Changesets-Driven Release
 
-The AFD monorepo uses `scripts/release.mjs` — a single script that handles the entire release process. No Changesets, no external version managers, no hidden state.
+The AFD monorepo uses [@changesets/cli](https://github.com/changesets/changesets) for versioning and changelog management. All `@lushly-dev/*` packages share one version (fixed versioning).
 
-### Quick Release
+### How Changesets Works
+
+1. **During development**: When you make a change worth releasing, create a changeset:
+   ```bash
+   pnpm changeset
+   ```
+   This prompts for the semver bump type and a description, then creates a markdown file in `.changeset/`.
+
+2. **At release time**: The GitHub Actions workflow (or manual command) consumes all changesets:
+   ```bash
+   pnpm version-packages    # bumps versions + updates CHANGELOGs
+   ```
+
+3. **Publishing**: CI handles this automatically, or manually:
+   ```bash
+   pnpm publish:npm          # build + publish to npm
+   ```
+
+### Automated CI Flow
+
+The Release workflow runs on every push to `main`:
+
+1. If pending changesets exist → opens a **"Release" PR** that bumps versions and updates CHANGELOGs
+2. When the Release PR is merged → publishes all bumped packages to npm with provenance
+
+No manual tagging or version bumping needed.
+
+### Manual Release (if needed)
 
 ```bash
-pnpm release patch       # 0.3.0 → 0.3.1
-pnpm release minor       # 0.3.0 → 0.4.0
-pnpm release major       # 0.3.0 → 1.0.0
-pnpm release 1.0.0       # explicit version
-pnpm release patch --dry-run  # preview without changes
+# 1. Ensure all changes have changesets
+pnpm changeset status
+
+# 2. Version bump + changelog update
+pnpm version-packages
+
+# 3. Commit the version bump
+git add -A
+git commit -m "chore: release packages"
+
+# 4. Push to trigger publish
+git push origin main
+
+# 5. Or publish locally
+pnpm publish:npm
 ```
-
-The script:
-1. Verifies you're on `main` with a clean working tree
-2. Pulls latest from origin
-3. Bumps ALL `@lushly-dev/*` packages to the new version (fixed versioning)
-4. Updates `CHANGELOG.md` — moves `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD`
-5. Runs `pnpm check` (the full quality gate — lint, build, typecheck, test:coverage)
-6. Commits: `chore: release vX.Y.Z`
-7. Tags: `vX.Y.Z`
-
-Then push to publish:
-```bash
-git push origin main --tags
-```
-
-The Release workflow triggers on the `v*` tag, builds, tests, and publishes to npm with provenance.
 
 ### Design Principles
 
 | Principle | Rationale |
 |-----------|-----------|
-| **Script owns versioning** | No external tool state to corrupt. The script IS the process. |
-| **Fixed versioning** | All `@lushly-dev/*` packages share one version. Simplifies compatibility. |
-| **Quality gate built in** | Release fails fast if lint, build, typecheck, or tests fail — before any commit. |
-| **Tag-triggered publish** | Release workflow only runs on `v*` tag push. Push to main never publishes. |
-| **No npm auth locally** | Publishing happens in CI with `NPM_TOKEN` secret. Local workflow ends at `git push --tags`. |
-| **Agent-compatible** | `do-release` skill + `pnpm release patch` = agents can release. |
+| **Changesets owns versioning** | Changelog entries accumulate per-PR; release notes write themselves. |
+| **Fixed versioning** | All `@lushly-dev/*` packages share one version via `"fixed"` config. |
+| **Quality gate in CI** | Build + test run before publish in the Release workflow. |
+| **No manual tagging** | Changesets action creates tags and GitHub Releases automatically. |
+| **No npm auth locally** | Publishing happens in CI with `NPM_TOKEN` secret. |
+| **Agent-compatible** | `pnpm changeset` → commit → merge = agents can contribute to releases. |
+
+### Creating a Changeset
+
+When making changes that should be released:
+
+```bash
+pnpm changeset
+```
+
+Choose the bump type:
+- **patch** — bug fixes, dependency updates, docs
+- **minor** — new features, non-breaking additions
+- **major** — breaking changes
+
+Write a concise description of what changed. The changeset file is committed with your PR.
+
+### Configuration
+
+Config lives in `.changeset/config.json`:
+- `"fixed": [["@lushly-dev/*"]]` — all published packages share one version
+- `"access": "public"` — packages are public on npm
+- `"ignore"` — example apps and root package are excluded from versioning
+- `"changelog"` — uses `@changesets/changelog-github` for PR links in changelogs
 
 ## Workflow
 
@@ -74,103 +118,43 @@ Verify the repo is ready for release:
 | On `main` or release branch | Yes | Switch to `main`: `git checkout main && git pull` |
 | Clean working tree | Yes | Commit or stash changes (consider `do-commit` first) |
 | All tests pass | Yes | Run full test suite, fix failures |
-| Up-to-date with remote | Yes | `git pull origin main` |
+| Pending changesets exist | Yes | Run `pnpm changeset` to create one |
 
-### Step 2: Version Bump
+### Step 2: Version + Changelog
 
-Determine the version increment from the argument (`patch`, `minor`, `major`). If no argument, analyze commits since last tag to suggest:
+```bash
+pnpm version-packages
+```
 
-| Commit pattern | Suggested bump |
-|---------------|---------------|
-| `fix:` only | patch |
-| `feat:` present | minor |
-| `BREAKING CHANGE:` or `!:` | major |
+This consumes all `.changeset/*.md` files, bumps versions in all `@lushly-dev/*` package.json files, and appends entries to each package's CHANGELOG.md.
 
-Bump version in all relevant files based on detected languages:
+### Step 3: Build + Test
 
-| Language | File(s) to update |
-|----------|-------------------|
-| TypeScript | `package.json` (and workspace `package.json` files) |
-| Python | `pyproject.toml` (`[project] version`) |
-| Rust | `Cargo.toml` (`[package] version`) |
+```bash
+pnpm check
+```
 
-For monorepos with multiple packages, bump each changed package.
-
-### Step 3: Changelog Finalize
-
-Update CHANGELOG.md:
-
-1. Move entries under `## [Unreleased]` to a new version heading: `## [X.Y.Z] - YYYY-MM-DD`
-2. Add a fresh empty `## [Unreleased]` section at the top
-3. Verify entries reflect actual changes (cross-reference with commits)
-4. Reference `manage-documentation` skill for changelog format conventions
-
-### Step 4: Build
-
-Run a clean build to verify everything compiles with the new version:
-
-| Language | Command |
-|----------|---------|
-| TypeScript | `pnpm build` or `npm run build` |
-| Python | `hatch build` or `python -m build` |
-| Rust | `cargo build --release` |
-
-### Step 5: Final Test
-
-Run the full test suite one more time after version bump and build:
-
-| Language | Command |
-|----------|---------|
-| TypeScript | `pnpm test` |
-| Python | `pytest` |
-| Rust | `cargo test` |
-
-### Step 6: Commit + Tag
+### Step 4: Commit + Push
 
 ```bash
 git add -A
-git commit -m "chore: release vX.Y.Z"
-git tag -a vX.Y.Z -m "Release vX.Y.Z"
+git commit -m "chore: release packages"
+git push origin main
 ```
 
-### Step 7: Publish
+### Step 5: Publish
 
-For AFD: publishing happens automatically via GitHub Actions when the `v*` tag is pushed. The Release workflow runs `pnpm publish:npm` with the `NPM_TOKEN` secret.
+CI publishes automatically when it detects version bumps on main. Or publish manually:
 
 ```bash
-# Push triggers the Release workflow
-git push origin main --tags
+pnpm publish:npm
 ```
 
-For other repos, publish to registries based on detected languages:
+### Step 6: Post-Release
 
-| Language | Command | Notes |
-|----------|---------|-------|
-| TypeScript | `pnpm publish:npm` or `npm publish` | Ensure `publishConfig` and `access: public` are set |
-| Python | `hatch publish` or `twine upload dist/*` | Requires PyPI credentials |
-| Rust | `cargo publish` | Requires crates.io token |
-
-For monorepos, publish each public package. Private packages (`private: true`) are automatically skipped.
-
-### Step 8: Push + GitHub Release
-
-```bash
-git push origin main --tags
-```
-
-Create a GitHub Release:
-
-```bash
-gh release create vX.Y.Z --title "vX.Y.Z" --notes-file <changelog-excerpt>
-```
-
-Extract the changelog section for this version as the release notes.
-
-### Step 9: Post-Release
-
-1. Print summary: version published, registries updated, release URL
-2. Remind about announcements (if applicable)
-3. Verify the package is available: `npm info <pkg>` / `pip install <pkg>==X.Y.Z --dry-run`
+1. Verify packages are available: `npm info @lushly-dev/afd-core`
+2. Check GitHub Release was created
+3. Announce if applicable
 
 ## Reference
 
