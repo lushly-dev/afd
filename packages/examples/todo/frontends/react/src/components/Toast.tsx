@@ -66,6 +66,7 @@ const Toast: React.FC<ToastProps> = ({ toast, onRemove }) => {
 				{toast.warnings && toast.warnings.length > 0 && (
 					<div className="toast-warnings">
 						{toast.warnings.map((w, i) => (
+							// biome-ignore lint/suspicious/noArrayIndexKey: warning codes may not be unique
 							<div key={`${w.code}-${i}`} className="toast-warning-item">
 								⚠️ {w.message}
 							</div>

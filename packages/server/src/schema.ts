@@ -15,8 +15,7 @@ import type {
 	JsonSchema,
 } from '@lushly-dev/afd-core';
 import { validateCommandName } from '@lushly-dev/afd-core';
-import { type ZodType, type ZodTypeDef, z } from 'zod';
-import { zodToJsonSchema as zodToJson } from 'zod-to-json-schema';
+import { type ZodType, z } from 'zod';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -25,7 +24,7 @@ import { zodToJsonSchema as zodToJson } from 'zod-to-json-schema';
 /**
  * Options for defining a command with Zod schema.
  */
-export interface ZodCommandOptions<TInput extends ZodType<unknown, ZodTypeDef, unknown>, TOutput> {
+export interface ZodCommandOptions<TInput extends ZodType, TOutput> {
 	/** Unique command name in kebab-case (e.g., 'todo-create') */
 	name: string;
 
@@ -115,10 +114,7 @@ export interface ZodCommandOptions<TInput extends ZodType<unknown, ZodTypeDef, u
 /**
  * A command definition that includes Zod schema for runtime validation.
  */
-export interface ZodCommandDefinition<
-	TInput extends ZodType<unknown, ZodTypeDef, unknown> = ZodType,
-	TOutput = unknown,
-> {
+export interface ZodCommandDefinition<TInput extends ZodType = ZodType, TOutput = unknown> {
 	/** Unique command name */
 	name: string;
 
@@ -219,7 +215,7 @@ export interface ZodCommandDefinition<
  * });
  * ```
  */
-export function defineCommand<TInput extends ZodType<unknown, ZodTypeDef, unknown>, TOutput>(
+export function defineCommand<TInput extends ZodType, TOutput>(
 	options: ZodCommandOptions<TInput, TOutput>
 ): ZodCommandDefinition<TInput, TOutput> {
 	const nameCheck = validateCommandName(options.name);
@@ -332,20 +328,12 @@ function buildHandoffTags(
  * @returns JSON Schema representation
  */
 export function zodToJsonSchema(schema: ZodType): JsonSchema {
-	const result = zodToJson(schema, {
-		$refStrategy: 'none',
-		target: 'jsonSchema7',
-	});
+	const result = z.toJSONSchema(schema, { target: 'draft-7' });
 
-	// The library returns a full JSON Schema document, extract the relevant part
 	if (typeof result === 'object' && result !== null) {
-		// Remove $schema if present
 		const { $schema, ...rest } = result as Record<string, unknown>;
-		// SAFETY: zod-to-json-schema returns a valid JSON Schema object; after removing $schema,
-		// the remaining properties conform to JsonSchema but TypeScript can't infer that from Record<string, unknown>.
 		const jsonSchema = rest as unknown as JsonSchema;
 		if (!jsonSchema.type) {
-			// Default to object if type is not present
 			return { type: 'object', ...rest } as JsonSchema;
 		}
 		return jsonSchema;

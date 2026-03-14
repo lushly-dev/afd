@@ -43,7 +43,7 @@ import type {
  * 2. If `credentials.headers` are present, sent as `{ type: 'auth_headers', headers }` message
  *    (avoids leaking tokens in URLs or subprotocol encoding)
  *
- * Runtime requirement: `WebSocket` global (browser or Node.js 21+/polyfill)
+ * Runtime requirement: `WebSocket` global (browser or Node.js 22+)
  */
 export const websocketHandler: ProtocolHandler = async (
 	handoff: HandoffResult,
@@ -51,8 +51,7 @@ export const websocketHandler: ProtocolHandler = async (
 ): Promise<HandoffConnection> => {
 	if (typeof WebSocket === 'undefined') {
 		throw new Error(
-			'WebSocket is not available in this runtime. ' +
-				'Use Node.js 21+ or install a WebSocket polyfill (e.g., ws).'
+			'WebSocket is not available in this runtime. ' + 'Use Node.js 22+ or a browser environment.'
 		);
 	}
 
@@ -204,7 +203,7 @@ async function createFetchBasedSse(
 	if (typeof fetch === 'undefined') {
 		throw new Error(
 			'fetch is not available in this runtime. ' +
-				'Use Node.js 18+ or a fetch polyfill for SSE with authentication headers.'
+				'Use Node.js 22+ or a browser environment for SSE with authentication headers.'
 		);
 	}
 

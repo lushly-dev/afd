@@ -46,24 +46,24 @@
 		"directory": "packages/cli"
 	},
 	"engines": {
-		"node": ">=20.0.0"
+		"node": ">=22.0.0"
 	},
 	"dependencies": {
 		"@lushly-dev/afd-client": "workspace:*",
 		"@lushly-dev/afd-core": "workspace:*",
 		"@lushly-dev/afd-testing": "workspace:*",
-		"chalk": "^5.4.1",
-		"commander": "^13.0.0",
-		"conf": "^13.0.1",
-		"glob": "^11.0.0",
-		"ora": "^8.1.1"
+		"chalk": "^5.6.2",
+		"commander": "^14.0.0",
+		"conf": "^15.0.0",
+		"glob": "^13.0.0",
+		"ora": "^9.0.0"
 	},
 	"devDependencies": {
-		"@types/node": "^22.10.2",
-		"@vitest/coverage-v8": "^4.0.18",
-		"rimraf": "^6.0.1",
-		"typescript": "^5.7.2",
-		"vitest": "^4.0.18"
+		"@types/node": "^25.5.0",
+		"@vitest/coverage-v8": "^4.1.0",
+		"rimraf": "^6.1.3",
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.0"
 	},
 	"publishConfig": {
 		"access": "public"

@@ -4,6 +4,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { failure, success } from '@lushly-dev/afd-core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { scenarioCoverage } from '../commands/coverage.js';
@@ -16,6 +17,8 @@ import {
 } from '../commands/evaluate.js';
 import { scenarioList } from '../commands/list.js';
 import type { CommandHandler } from '../runner/executor.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // ============================================================================
 // Test Fixtures

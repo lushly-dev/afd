@@ -42,19 +42,18 @@
 		"directory": "packages/client"
 	},
 	"engines": {
-		"node": ">=20.0.0"
+		"node": ">=22.0.0"
 	},
 	"sideEffects": false,
 	"dependencies": {
 		"@lushly-dev/afd-core": "workspace:*",
-		"eventsource": "^2.0.2"
+		"eventsource": "^4.0.0"
 	},
 	"devDependencies": {
-		"@types/eventsource": "^1.1.15",
-		"@vitest/coverage-v8": "^4.0.18",
-		"rimraf": "^6.0.1",
-		"typescript": "^5.7.2",
-		"vitest": "^4.0.18"
+		"@vitest/coverage-v8": "^4.1.0",
+		"rimraf": "^6.1.3",
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.0"
 	},
 	"publishConfig": {
 		"access": "public"

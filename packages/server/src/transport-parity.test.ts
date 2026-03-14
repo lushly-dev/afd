@@ -186,21 +186,20 @@ function createDirectRegistry(commands: typeof sharedCommands): DirectRegistry {
 function getZodBaseType(
 	schema: z.ZodTypeAny
 ): 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null' {
-	const typeName = schema._def?.typeName as string | undefined;
-	if (typeName === 'ZodString') return 'string';
-	if (typeName === 'ZodNumber') return 'number';
-	if (typeName === 'ZodBoolean') return 'boolean';
-	if (typeName === 'ZodArray') return 'array';
-	if (typeName === 'ZodNull') return 'null';
-	if (typeName === 'ZodOptional') {
-		return getZodBaseType((schema as z.ZodOptional<z.ZodTypeAny>)._def.innerType);
+	if (schema instanceof z.ZodString) return 'string';
+	if (schema instanceof z.ZodNumber) return 'number';
+	if (schema instanceof z.ZodBoolean) return 'boolean';
+	if (schema instanceof z.ZodArray) return 'array';
+	if (schema instanceof z.ZodNull) return 'null';
+	if (schema instanceof z.ZodOptional) {
+		return getZodBaseType((schema as z.ZodOptional<z.ZodTypeAny>).unwrap());
 	}
 	return 'object';
 }
 
 /** Check if a Zod schema is optional. */
 function isZodOptional(schema: z.ZodTypeAny): boolean {
-	return (schema._def?.typeName as string) === 'ZodOptional';
+	return schema instanceof z.ZodOptional;
 }
 
 function createDirectExecutor(client: DirectClient) {

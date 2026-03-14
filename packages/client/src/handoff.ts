@@ -46,9 +46,9 @@ import { isHandoff, isHandoffProtocol } from '@lushly-dev/afd-core';
 import type { DirectClient } from './direct.js';
 import { builtinHandlers } from './handlers.js';
 
+export type { HandoffCredentials, HandoffMetadata, HandoffProtocol, HandoffResult };
 // Re-export core types and guards for convenience
 export { isHandoff, isHandoffProtocol };
-export type { HandoffResult, HandoffCredentials, HandoffMetadata, HandoffProtocol };
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONNECTION TYPES

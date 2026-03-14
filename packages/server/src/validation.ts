@@ -2,7 +2,7 @@
  * @fileoverview Input validation utilities
  */
 
-import { type ZodError, type ZodIssue, type ZodType, z } from 'zod';
+import { type ZodError, type ZodIssue, type ZodType, type ZodTypeAny, z } from 'zod';
 
 export interface ValidationError {
 	path: string;
@@ -79,7 +79,6 @@ function formatZodIssue(issue: ZodIssue): ValidationError {
 	};
 	if (issue.code === 'invalid_type') {
 		error.expected = issue.expected;
-		error.received = issue.received;
 	}
 	return error;
 }
@@ -135,17 +134,20 @@ function extractSchemaInfo<T>(schema: ZodType<T>, input: unknown): SchemaInfo {
 
 function getSchemaShape<T>(schema: ZodType<T>): Record<string, ZodType> | null {
 	if (schema instanceof z.ZodObject) return schema.shape as Record<string, ZodType>;
-	if (schema instanceof z.ZodEffects) return getSchemaShape(schema._def.schema);
-	if (schema instanceof z.ZodOptional) return getSchemaShape(schema._def.innerType);
-	if (schema instanceof z.ZodNullable) return getSchemaShape(schema._def.innerType);
-	if (schema instanceof z.ZodDefault) return getSchemaShape(schema._def.innerType);
+	if (schema instanceof z.ZodPipe) return getSchemaShape(schema._def.in as ZodTypeAny);
+	if (schema instanceof z.ZodOptional)
+		return getSchemaShape((schema as z.ZodOptional<ZodTypeAny>).unwrap());
+	if (schema instanceof z.ZodNullable)
+		return getSchemaShape((schema as z.ZodNullable<ZodTypeAny>).unwrap());
+	if (schema instanceof z.ZodDefault)
+		return getSchemaShape((schema as z.ZodDefault<ZodTypeAny>).removeDefault());
 	return null;
 }
 
 function isRequiredField(schema: ZodType): boolean {
 	if (schema instanceof z.ZodOptional) return false;
 	if (schema instanceof z.ZodDefault) return false;
-	if (schema instanceof z.ZodEffects) return isRequiredField(schema._def.schema);
+	if (schema instanceof z.ZodPipe) return isRequiredField(schema._def.in as ZodTypeAny);
 	return true;
 }
 
@@ -226,5 +228,6 @@ export function optional<T extends ZodType>(schema: T) {
 	return schema.optional();
 }
 export function withDefault<T extends ZodType>(schema: T, defaultValue: z.infer<T>) {
-	return schema.default(defaultValue);
+	// biome-ignore lint/suspicious/noExplicitAny: zod 4's NoUndefined constraint doesn't infer through generic T
+	return schema.default(defaultValue as any);
 }

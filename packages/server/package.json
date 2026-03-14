@@ -24,15 +24,14 @@
 	},
 	"dependencies": {
 		"@lushly-dev/afd-core": "workspace:*",
-		"@modelcontextprotocol/sdk": "^1.24.0",
-		"zod": "^3.23.8",
-		"zod-to-json-schema": "^3.23.5"
+		"@modelcontextprotocol/sdk": "^1.27.1",
+		"zod": "^4.0.0"
 	},
 	"devDependencies": {
 		"@lushly-dev/afd-client": "workspace:*",
-		"@vitest/coverage-v8": "^4.0.18",
-		"typescript": "^5.4.0",
-		"vitest": "^4.0.18"
+		"@vitest/coverage-v8": "^4.1.0",
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.0"
 	},
 	"keywords": [
 		"afd",
@@ -54,7 +53,7 @@
 		"directory": "packages/server"
 	},
 	"engines": {
-		"node": ">=20.0.0"
+		"node": ">=22.0.0"
 	},
 	"sideEffects": false,
 	"publishConfig": {

@@ -26,7 +26,7 @@ export const HandoffCredentialsSchema = z.object({
 	/** Bearer token for authentication */
 	token: z.string().optional(),
 	/** Additional headers to include */
-	headers: z.record(z.string()).optional(),
+	headers: z.record(z.string(), z.string()).optional(),
 	/** Session ID for correlation */
 	sessionId: z.string().optional(),
 });

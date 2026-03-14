@@ -1,5 +1,5 @@
 import { defineCommand, failure, success } from '@lushly-dev/afd-server';
-import { z } from 'zod/v3';
+import { z } from 'zod';
 import type { ViewStateRegistry } from './registry.js';
 
 const stateSchema = z.record(z.string(), z.unknown());

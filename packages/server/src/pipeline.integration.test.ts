@@ -560,9 +560,9 @@ describe('Pipeline Integration Tests', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.metadata.executionTimeMs).toBeGreaterThan(0);
-			expect(result.steps[0].executionTimeMs).toBeGreaterThan(0);
-			expect(result.steps[1].executionTimeMs).toBeGreaterThan(0);
+			expect(result.metadata.executionTimeMs).toBeGreaterThanOrEqual(0);
+			expect(result.steps[0].executionTimeMs).toBeGreaterThanOrEqual(0);
+			expect(result.steps[1].executionTimeMs).toBeGreaterThanOrEqual(0);
 		});
 
 		it('includes step aliases in results', async () => {

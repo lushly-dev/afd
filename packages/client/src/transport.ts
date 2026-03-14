@@ -4,7 +4,7 @@
 
 import type { McpRequest, McpResponse } from '@lushly-dev/afd-core';
 import { isMcpResponse } from '@lushly-dev/afd-core';
-import EventSource from 'eventsource';
+import { EventSource } from 'eventsource';
 
 /**
  * Transport interface for MCP communication.
@@ -61,13 +61,22 @@ export class SseTransport implements Transport {
 	async connect(): Promise<void> {
 		return new Promise((resolve, reject) => {
 			try {
-				const options: EventSource.EventSourceInitDict = {};
-
-				if (this.headers) {
-					options.headers = this.headers;
-				}
-
-				this.eventSource = new EventSource(this.sseUrl, options);
+				const headers = this.headers;
+				this.eventSource = new EventSource(
+					this.sseUrl,
+					headers
+						? {
+								fetch: (input, init) =>
+									fetch(input, {
+										...init,
+										headers: {
+											...Object.fromEntries(new Headers(init?.headers).entries()),
+											...headers,
+										},
+									}),
+							}
+						: {}
+				);
 
 				this.eventSource.onopen = () => {
 					this.connected = true;

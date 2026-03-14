@@ -180,7 +180,7 @@ describe('ValidationException', () => {
 });
 
 describe('getSchemaShape edge cases', () => {
-	it('handles ZodEffects (transform/refine)', () => {
+	it('handles ZodPipe (transform)', () => {
 		const schema = z
 			.object({ name: z.string() })
 			.transform((data) => ({ ...data, upper: data.name.toUpperCase() }));
