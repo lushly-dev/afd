@@ -1,6 +1,7 @@
 # Botcore configuration for the AFD repository.
 # Primary language is TypeScript; Python and Rust live in subdirectories.
 
+botcore_version = "0.3.1"
 language = "typescript"
 linter = "biome"
 test_runner = "vitest"
