@@ -66,6 +66,11 @@ async function call(url: string, name: string, args: unknown) {
 	return JSON.parse(body.result.content[0].text);
 }
 
+// Before the fix these requests blocked the event loop for 5-22 s (quadratic fuzzy matching).
+// The bound is far below that but leaves room for JSON/HTTP cost on a busy CI runner,
+// where ~1 MB request bodies alone take 100-200 ms.
+const MAX_RESPONSE_MS = 1_000;
+
 async function timed<T>(run: () => Promise<T>): Promise<{ value: T; ms: number }> {
 	const start = performance.now();
 	const value = await run();
@@ -83,7 +88,7 @@ describe('fuzzy matching of untrusted command names', () => {
 		const name = 'x'.repeat(200 * 1024);
 		const { value: result, ms } = await timed(() => call(url, 'afd-call', { command: name }));
 
-		expect(ms).toBeLessThan(100);
+		expect(ms).toBeLessThan(MAX_RESPONSE_MS);
 		expect(result.success).toBe(false);
 		expect(result.error.code).toBe('COMMAND_NOT_FOUND');
 		expect(result.error.message).toBe(`Command '${'x'.repeat(128)}…' not found`);
@@ -97,7 +102,7 @@ describe('fuzzy matching of untrusted command names', () => {
 		const names = Array.from({ length: 10 }, (_, i) => String(i).repeat(87_900));
 		const { value: result, ms } = await timed(() => call(url, 'afd-detail', { command: names }));
 
-		expect(ms).toBeLessThan(100);
+		expect(ms).toBeLessThan(MAX_RESPONSE_MS);
 		expect(result.success).toBe(true);
 		expect(result.data).toHaveLength(10);
 		for (const [i, entry] of result.data.entries()) {
