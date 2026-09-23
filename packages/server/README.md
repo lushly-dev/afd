@@ -164,6 +164,32 @@ console.error(`Server running at ${server.getUrl()}`);
 
 ## Defining Commands
 
+### Browser-safe entry point: `@lushly-dev/afd-server/define`
+
+The root entry loads the MCP SDK, `node:http` and `node:tls`, so it cannot be
+bundled for the browser. Code that only defines commands (shared command
+modules, UI state packages, in-app agents) can import from the `/define`
+subpath instead. It exports `defineCommand`, the schema helpers
+(`zodToJsonSchema`, `getRequiredFields`, `isObjectSchema`), the result helpers
+(`success`, `failure`, `error`, `isSuccess`, `isFailure`), `defaultExpose` and
+the matching types, with no MCP SDK or Node.js builtin in its module graph:
+
+```typescript
+import { z } from 'zod';
+import { defineCommand, success } from '@lushly-dev/afd-server/define';
+
+export const panelOpen = defineCommand({
+  name: 'panel-open',
+  description: 'Open a panel',
+  input: z.object({ id: z.string() }),
+  async handler(input) {
+    return success({ id: input.id, open: true });
+  },
+});
+```
+
+The same functions are still exported from `@lushly-dev/afd-server`.
+
 ### Basic Command
 
 ```typescript

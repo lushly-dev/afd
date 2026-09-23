@@ -14,7 +14,7 @@ import type {
 	ExposeOptions,
 	JsonSchema,
 } from '@lushly-dev/afd-core';
-import { validateCommandName } from '@lushly-dev/afd-core';
+import { validateCommandName } from '@lushly-dev/afd-core/commands';
 import { type ZodType, z } from 'zod';
 
 // ═══════════════════════════════════════════════════════════════════════════════

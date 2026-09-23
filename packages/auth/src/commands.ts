@@ -4,8 +4,13 @@
  * Requires optional peer dependencies: @lushly-dev/afd-server, zod
  */
 
-import { failure, success } from '@lushly-dev/afd-core';
-import { defineCommand, type ZodCommandDefinition } from '@lushly-dev/afd-server';
+// The transport-free entry keeps this module free of the MCP SDK and Node builtins.
+import {
+	defineCommand,
+	failure,
+	success,
+	type ZodCommandDefinition,
+} from '@lushly-dev/afd-server/define';
 import { z } from 'zod';
 import { AuthAdapterError } from './errors.js';
 import type { AuthAdapter } from './types.js';
