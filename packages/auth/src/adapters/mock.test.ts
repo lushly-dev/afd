@@ -1,6 +1,10 @@
-import { describe, expect, expectTypeOf, it } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import type { AuthSessionState } from '../types.js';
 import { MockAuthAdapter } from './mock.js';
+
+afterEach(() => {
+	vi.restoreAllMocks();
+});
 
 describe('MockAuthAdapter', () => {
 	it('starts in unauthenticated state', () => {
@@ -143,6 +147,41 @@ describe('MockAuthAdapter', () => {
 		await adapter.signIn({ method: 'credentials', email: 'test@example.com' });
 		expect(count1).toBe(1);
 		expect(count2).toBe(1);
+	});
+
+	it('still notifies later listeners and resolves signOut when a listener throws', async () => {
+		const errors: unknown[] = [];
+		const adapter = new MockAuthAdapter({ onListenerError: (error) => errors.push(error) });
+		await adapter.signIn({ method: 'credentials', email: 'test@example.com' });
+		const failure = new Error('listener failed');
+		const seen: string[] = [];
+
+		adapter.onAuthStateChange(() => {
+			throw failure;
+		});
+		adapter.onAuthStateChange((state) => seen.push(state.status));
+
+		await expect(adapter.signOut()).resolves.toBeUndefined();
+		expect(adapter.getSession().status).toBe('unauthenticated');
+		expect(seen).toEqual(['unauthenticated']);
+		expect(errors).toEqual([failure]);
+	});
+
+	it('rethrows listener errors asynchronously without onListenerError', async () => {
+		const queued: Array<() => void> = [];
+		vi.spyOn(globalThis, 'queueMicrotask').mockImplementation((callback) => {
+			queued.push(callback);
+		});
+		const adapter = new MockAuthAdapter();
+		const failure = new Error('listener failed');
+		adapter.onAuthStateChange(() => {
+			throw failure;
+		});
+
+		await adapter.signIn({ method: 'credentials', email: 'test@example.com' });
+		expect(adapter.getSession().status).toBe('authenticated');
+		expect(queued).toHaveLength(1);
+		expect(() => queued[0]?.()).toThrow(failure);
 	});
 
 	it('provides type-safe discriminated union narrowing', () => {

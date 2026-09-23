@@ -3,21 +3,29 @@
  */
 
 import { AuthAdapterError } from '../errors.js';
+import { type ListenerErrorHandler, ListenerSet } from '../listeners.js';
 import type { AuthAdapter, AuthSessionState, SignInOptions, User } from '../types.js';
 import { LOADING, UNAUTHENTICATED } from '../types.js';
 
 export interface MockAuthAdapterOptions {
 	/** Simulated async delay in milliseconds (default: 0) */
 	delay?: number;
+	/**
+	 * Receives errors thrown by `onAuthStateChange` subscribers. Without it,
+	 * they are rethrown in a microtask. Either way the other subscribers still
+	 * run and the adapter method that changed the state does not reject.
+	 */
+	onListenerError?: ListenerErrorHandler;
 }
 
 export class MockAuthAdapter implements AuthAdapter {
 	private state: AuthSessionState = UNAUTHENTICATED;
-	private listeners = new Set<(state: AuthSessionState) => void>();
+	private readonly listeners: ListenerSet<AuthSessionState>;
 	private readonly delay: number;
 
 	constructor(options: MockAuthAdapterOptions = {}) {
 		this.delay = options.delay ?? 0;
+		this.listeners = new ListenerSet(options.onListenerError);
 	}
 
 	async signIn(options: SignInOptions): Promise<void> {
@@ -53,12 +61,7 @@ export class MockAuthAdapter implements AuthAdapter {
 	}
 
 	onAuthStateChange(callback: (state: AuthSessionState) => void): { unsubscribe: () => void } {
-		this.listeners.add(callback);
-		return {
-			unsubscribe: () => {
-				this.listeners.delete(callback);
-			},
-		};
+		return this.listeners.add(callback);
 	}
 
 	// ═══════════════════════════════════════════════════════════════════════════
@@ -112,9 +115,7 @@ export class MockAuthAdapter implements AuthAdapter {
 
 	private setState(state: AuthSessionState): void {
 		this.state = state;
-		for (const listener of this.listeners) {
-			listener(state);
-		}
+		this.listeners.emit(state);
 	}
 
 	private sleep(ms: number): Promise<void> {

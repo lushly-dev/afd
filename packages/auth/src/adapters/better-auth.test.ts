@@ -265,6 +265,27 @@ describe('BetterAuthAdapter', () => {
 		adapter.dispose();
 	});
 
+	it('keeps notifying later listeners when one throws', () => {
+		const { client, _emit } = createMockClient();
+		const errors: unknown[] = [];
+		const adapter = new BetterAuthAdapter({
+			client,
+			onListenerError: (error) => errors.push(error),
+		});
+		const failure = new Error('listener failed');
+		const seen: string[] = [];
+		adapter.onAuthStateChange(() => {
+			throw failure;
+		});
+		adapter.onAuthStateChange((state) => seen.push(state.status));
+
+		expect(() => _emit({ data: null, isPending: false })).not.toThrow();
+
+		expect(seen).toEqual(['unauthenticated']);
+		expect(errors).toEqual([failure]);
+		adapter.dispose();
+	});
+
 	it('supports unsubscribe', () => {
 		const { client, _emit } = createMockClient();
 		const adapter = new BetterAuthAdapter({ client });

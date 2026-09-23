@@ -117,6 +117,27 @@ describe('useConvexAuthAdapter', () => {
 		expect(opts._signOut).toHaveBeenCalled();
 	});
 
+	it('keeps notifying later listeners when one throws', () => {
+		const errors: unknown[] = [];
+		const opts = {
+			...createMockOptions({ isAuthenticated: true, user: mockUser }),
+			onListenerError: (error: unknown) => errors.push(error),
+		};
+		const { result, rerender } = renderHook(() => useConvexAuthAdapter(opts));
+		const failure = new Error('listener failed');
+		const seen: string[] = [];
+		result.current.onAuthStateChange(() => {
+			throw failure;
+		});
+		result.current.onAuthStateChange((state) => seen.push(state.status));
+
+		opts._state.isAuthenticated = false;
+		expect(() => rerender()).not.toThrow();
+
+		expect(seen).toEqual(['unauthenticated']);
+		expect(errors).toEqual([failure]);
+	});
+
 	it('supports onAuthStateChange subscribe/unsubscribe', () => {
 		const opts = createMockOptions();
 		const { result } = renderHook(() => useConvexAuthAdapter(opts));

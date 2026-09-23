@@ -12,6 +12,8 @@ export { MockAuthAdapter } from './adapters/mock.js';
 // Errors
 export type { AuthErrorCode } from './errors.js';
 export { AuthAdapterError } from './errors.js';
+// Listener error reporting
+export type { ListenerErrorHandler } from './listeners.js';
 // Middleware
 export { createAuthMiddleware } from './middleware.js';
 export type { SessionSyncOptions } from './session-sync.js';

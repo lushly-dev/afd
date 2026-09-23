@@ -5,7 +5,9 @@
  * This is a React hook — must be called inside a component.
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { type ListenerErrorHandler, ListenerSet, reportListenerError } from '../listeners.js';
+import { areSessionStatesEqual, areUsersEqual } from '../session-state.js';
 import type { AuthAdapter, AuthSessionState, SignInOptions, User } from '../types.js';
 import { LOADING, UNAUTHENTICATED } from '../types.js';
 
@@ -19,6 +21,12 @@ export interface ConvexAuthAdapterOptions {
 	useConvexAuth: () => { isAuthenticated: boolean; isLoading: boolean };
 	/** A Convex query hook that returns the current user, e.g. useQuery(api.users.me) */
 	meQuery: () => User | null | undefined;
+	/**
+	 * Receives errors thrown by `onAuthStateChange` subscribers. Without it,
+	 * they are rethrown in a microtask. Either way the other subscribers still
+	 * run.
+	 */
+	onListenerError?: ListenerErrorHandler;
 }
 
 /**
@@ -31,7 +39,14 @@ export function useConvexAuthAdapter(options: ConvexAuthAdapterOptions): AuthAda
 	const { isAuthenticated, isLoading } = options.useConvexAuth();
 	const me = options.meQuery();
 
-	const listenersRef = useRef(new Set<(state: AuthSessionState) => void>());
+	const onListenerErrorRef = useRef(options.onListenerError);
+	onListenerErrorRef.current = options.onListenerError;
+	const [listeners] = useState(
+		() =>
+			new ListenerSet<AuthSessionState>((error) =>
+				reportListenerError(error, onListenerErrorRef.current)
+			)
+	);
 	const stateRef = useRef<AuthSessionState>(LOADING);
 	const notifiedStateRef = useRef<AuthSessionState>(LOADING);
 
@@ -74,11 +89,9 @@ export function useConvexAuthAdapter(options: ConvexAuthAdapterOptions): AuthAda
 	useEffect(() => {
 		if (!areSessionStatesEqual(notifiedStateRef.current, currentState)) {
 			notifiedStateRef.current = currentState;
-			for (const listener of listenersRef.current) {
-				listener(currentState);
-			}
+			listeners.emit(currentState);
 		}
-	}, [currentState]);
+	}, [currentState, listeners]);
 
 	const signIn = useCallback(
 		async (opts: SignInOptions): Promise<void> => {
@@ -100,36 +113,10 @@ export function useConvexAuthAdapter(options: ConvexAuthAdapterOptions): AuthAda
 	}, []);
 
 	const onAuthStateChange = useCallback(
-		(callback: (state: AuthSessionState) => void): { unsubscribe: () => void } => {
-			listenersRef.current.add(callback);
-			return {
-				unsubscribe: () => {
-					listenersRef.current.delete(callback);
-				},
-			};
-		},
-		[]
+		(callback: (state: AuthSessionState) => void): { unsubscribe: () => void } =>
+			listeners.add(callback),
+		[listeners]
 	);
 
 	return { signIn, signOut, getSession, onAuthStateChange };
-}
-
-function areUsersEqual(left: User, right: User): boolean {
-	return (
-		left.id === right.id &&
-		left.email === right.email &&
-		left.name === right.name &&
-		left.image === right.image
-	);
-}
-
-function areSessionStatesEqual(left: AuthSessionState, right: AuthSessionState): boolean {
-	if (left.status !== right.status) return false;
-	if (left.status !== 'authenticated' || right.status !== 'authenticated') return true;
-
-	return (
-		left.session.id === right.session.id &&
-		left.session.expiresAt.getTime() === right.session.expiresAt.getTime() &&
-		areUsersEqual(left.user, right.user)
-	);
 }

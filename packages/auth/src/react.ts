@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useSyncExternalStore } from 'react';
+import { areSessionStatesEqual } from './session-state.js';
 import type { AuthAdapter, AuthSessionState, User } from './types.js';
 import { LOADING } from './types.js';
 
@@ -18,35 +19,12 @@ export interface AuthHooks {
 }
 
 /**
- * Providers are allowed to return a new object from getSession() on every
- * read. React's external-store contract requires the snapshot itself to be
- * cached, so compare the session's semantic values before replacing it.
- */
-function areSessionStatesEqual(a: AuthSessionState, b: AuthSessionState): boolean {
-	if (a.status !== b.status) return false;
-	if (a.status !== 'authenticated' || b.status !== 'authenticated') return true;
-
-	const aExpiresAt = a.session.expiresAt;
-	const bExpiresAt = b.session.expiresAt;
-	const expiresAtEqual =
-		aExpiresAt instanceof Date && bExpiresAt instanceof Date
-			? Object.is(aExpiresAt.getTime(), bExpiresAt.getTime())
-			: Object.is(aExpiresAt, bExpiresAt);
-
-	return (
-		a.session.id === b.session.id &&
-		expiresAtEqual &&
-		a.user.id === b.user.id &&
-		a.user.email === b.user.email &&
-		a.user.name === b.user.name &&
-		a.user.image === b.user.image
-	);
-}
-
-/**
  * Create React hooks bound to an auth adapter instance.
  */
 export function createAuthHooks(adapter: AuthAdapter): AuthHooks {
+	// Providers may return a new object from getSession() on every read, but
+	// React's external-store contract requires the snapshot itself to be cached,
+	// so compare the session's values before replacing it.
 	let cachedSnapshot: AuthSessionState | undefined;
 	const readSnapshot = (): AuthSessionState => {
 		const nextSnapshot = adapter.getSession();
