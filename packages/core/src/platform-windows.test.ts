@@ -41,12 +41,16 @@ function fakeChild(stdoutChunks: Buffer[] = [], code = 0): ChildProcess {
 }
 
 const windowsEnv = {
+	// portability-ok: Windows path fixture for spawn-escaping tests
 	ComSpec: 'C:\\Windows\\system32\\cmd.exe',
+	// portability-ok: Windows path fixture for spawn-escaping tests
 	Path: 'C:\\Program Files\\GitHub CLI;C:\\Program Files\\nodejs',
 	PATHEXT: '.COM;.EXE;.BAT;.CMD',
 };
 const existingFiles = new Set([
+	// portability-ok: Windows path fixture for spawn-escaping tests
 	'C:\\Program Files\\GitHub CLI\\gh.EXE',
+	// portability-ok: Windows path fixture for spawn-escaping tests
 	'C:\\Program Files\\nodejs\\npm.CMD',
 ]);
 
@@ -81,31 +85,39 @@ describe('exec spawn arguments', () => {
 	it('spawns a resolved .exe directly on Windows', async () => {
 		setPlatform('win32');
 		const args = ['issue', 'create', '--title=x & calc', '--body=a\nb'];
+		// portability-ok: Windows path fixture for spawn-escaping tests
 		await exec(['gh', ...args], { cwd: 'C:\\repo', env: windowsEnv });
 
 		expect(mockSpawn).toHaveBeenCalledWith(
+			// portability-ok: Windows path fixture for spawn-escaping tests
 			'C:\\Program Files\\GitHub CLI\\gh.EXE',
 			args,
+			// portability-ok: Windows path fixture for spawn-escaping tests
 			expect.objectContaining({ cwd: 'C:\\repo', shell: false, windowsVerbatimArguments: false })
 		);
 	});
 
 	it('runs a .cmd shim through cmd.exe with escaped arguments on Windows', async () => {
 		setPlatform('win32');
+		// portability-ok: Windows path fixture for spawn-escaping tests
 		await exec(['npm', 'install', 'x & calc'], { cwd: 'C:\\repo', env: windowsEnv });
 
 		expect(mockSpawn).toHaveBeenCalledWith(
+			// portability-ok: Windows path fixture for spawn-escaping tests
 			'C:\\Windows\\system32\\cmd.exe',
 			['/d', '/s', '/c', '"npm ^^^"install^^^" ^^^"x^^^ ^^^&^^^ calc^^^""'],
+			// portability-ok: Windows path fixture for spawn-escaping tests
 			expect.objectContaining({ cwd: 'C:\\repo', shell: false, windowsVerbatimArguments: true })
 		);
 	});
 
 	it('runs an unresolved command through cmd.exe with escaped arguments on Windows', async () => {
 		setPlatform('win32');
+		// portability-ok: Windows path fixture for spawn-escaping tests
 		await exec(['missing', '--title=%PATH% | calc'], { cwd: 'C:\\repo', env: windowsEnv });
 
 		expect(mockSpawn).toHaveBeenCalledWith(
+			// portability-ok: Windows path fixture for spawn-escaping tests
 			'C:\\Windows\\system32\\cmd.exe',
 			['/d', '/s', '/c', '"missing ^"--title=^%PATH^%^ ^|^ calc^""'],
 			expect.objectContaining({ shell: false, windowsVerbatimArguments: true })
@@ -114,6 +126,7 @@ describe('exec spawn arguments', () => {
 
 	it('returns SPAWN_FAILED instead of passing a line break through cmd.exe', async () => {
 		setPlatform('win32');
+		// portability-ok: Windows path fixture for spawn-escaping tests
 		const result = await exec(['npm', 'run', 'a\nb'], { cwd: 'C:\\repo', env: windowsEnv });
 
 		expect(result.errorCode).toBe(ExecErrorCode.SPAWN_FAILED);

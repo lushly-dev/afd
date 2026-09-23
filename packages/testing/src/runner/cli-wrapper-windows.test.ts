@@ -73,8 +73,10 @@ describe('CliWrapper spawn arguments', () => {
 	it('escapes every argument for cmd.exe on Windows', async () => {
 		setPlatform('win32');
 		const wrapper = new CliWrapper({
+			// portability-ok: Windows path fixture for spawn-escaping tests
 			cliPath: 'C:\\tools\\afd.cmd',
 			serverUrl: 'http://test.example/mcp',
+			// portability-ok: Windows path fixture for spawn-escaping tests
 			env: { ComSpec: 'C:\\Windows\\system32\\cmd.exe' },
 		});
 
@@ -82,11 +84,13 @@ describe('CliWrapper spawn arguments', () => {
 
 		expect(result.success).toBe(true);
 		expect(mockSpawn).toHaveBeenCalledWith(
+			// portability-ok: Windows path fixture for spawn-escaping tests
 			'C:\\Windows\\system32\\cmd.exe',
 			[
 				'/d',
 				'/s',
 				'/c',
+				// portability-ok: Windows path fixture for spawn-escaping tests
 				String.raw`"C:\tools\afd.cmd ^"call^" ^"todo-create^" ^"{\^"title\^":\^"x^ ^&^ calc^ \\\^"quoted\\\^"\^"}^" ^"--connect^" ^"http://test.example/mcp^" ^"--transport^" ^"http^" ^"--format^" ^"json^""`,
 			],
 			expect.objectContaining({ shell: false, windowsVerbatimArguments: true })

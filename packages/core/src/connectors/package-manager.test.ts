@@ -265,6 +265,7 @@ describe('PackageManagerConnector', () => {
 			'lodash"',
 			'foo\nbar',
 			'../local-dir',
+			// portability-ok: Windows path fixture for spawn-escaping tests
 			'C:\\pkgs\\evil.tgz',
 			'git+ssh://host/repo.git',
 			'https://example.com/pkg.tgz',
