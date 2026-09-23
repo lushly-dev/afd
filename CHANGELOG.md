@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Windows security:** `exec()` and the testing `CliWrapper` no longer spawn with `shell: true`. `.cmd`/`.bat` shims run through `cmd.exe` with every argument escaped, and `.exe` commands run directly. `GitHubConnector` passes `--flag=value` arguments, and `PackageManagerConnector` validates package and script names.
 - **CLI:** `afd validate` no longer executes tools unless `--execute` is given, and even then skips tools marked `mutation` or `destructive`. `connect`, `call`, `status`, `tools`, `batch`, and `stream` exit after printing instead of hanging over SSE. `--category` filters on `_meta.category`, and confidence bars no longer crash on values outside 0–1.
 - `@lushly-dev/afd-server` re-exports the core `error()` helper used throughout the docs. The TypeScript skills now show the required `expose: { mcp: true }` opt-in.
+- The Python `scenario-evaluate` command honors its documented `concurrency` and `timeout` options and reports each scenario's file path.
+- `@lushly-dev/afd-testing`: `MockMcpServer.register()` accepts typed commands, like `CommandRegistry.register()`.
+- Todo example: the Python backend is installable and conformant (kebab-case, MCP-exposed commands matching the TypeScript backend). The data file is no longer tracked in git; it is seeded from `data/todos.seed.json`, written atomically, and an unreadable file raises instead of being replaced with an empty store.
 
 ### Changed
 
@@ -45,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Regression tests across runtime, security, auth, CLI, database, execution controls, and repository tooling; dedicated Alfred CI checks.
 - A detailed review record at `docs/reviews/2026-09-05-review.md` (#194).
 - A follow-up quality review at `docs/reviews/2026-09-23-quality-review.md`, with Wave 0 fixes applied.
+- CI for Python (pytest on 3.10–3.12, bug-class ruff rules, clean-venv install smoke test per extra), Rust (fmt, clippy `-D warnings`, tests with and without default features, pinned toolchain), and todo conformance (32 cases against the TypeScript and Python backends).
+- Every package type-checks its test files; server, adapters and auth enforce coverage thresholds; a repository contract test keeps both, and SHA-pinned workflow actions, in place.
 
 ## [0.8.0] - 2026-07-07
 

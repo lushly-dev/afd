@@ -631,9 +631,10 @@ effective, and no test covers `BATCH_TIMEOUT` or `COMMAND_SKIPPED`.
 | H6, H7 | Fixed, with CLI end-to-end tests against a real server over SSE and HTTP. |
 | Theme 8: skills omit `expose` | Fixed in the TS skills; `error()` is now re-exported from `@lushly-dev/afd-server`. |
 
+**Wave 1 (quality gates) on the second review branch:** Python, Rust and conformance CI; test-inclusive typecheck in every package (292 test type errors fixed); coverage thresholds for server, adapters and auth; SHA-pinned actions; H17 fixed. Two further items surfaced: the Python server rejects missing/mistyped MCP arguments with a raw FastMCP error before AFD validation (`python/src/afd/server/factory.py` `_build_input_model`), and Python results serialize unset fields as `null` alongside snake_case keys.
+
 **Follow-ups found while fixing:**
 
-- Test files are excluded from every package's `tsc` run, and `server`, `auth` and `adapters` have no `typecheck` script. Existing test files contain type errors. Wave 1 should add a test-inclusive typecheck.
 - `afd-detail` with a missing or non-string `command` still throws a `TypeError` (TS). Middleware exceptions on direct Python tool calls still reach FastMCP with their text.
 - The TS server never emits `_meta.destructive`, so `afd validate --execute` can only skip `mutation: true` tools.
 - `connect --no-reconnect` is now a no-op in the CLI. The dotted-name grouping in `printTools` and the shell shorthand remain.
