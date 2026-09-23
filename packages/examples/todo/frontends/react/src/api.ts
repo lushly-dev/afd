@@ -50,8 +50,8 @@ export async function callTool<T>(name: string, args: unknown = {}): Promise<Com
  * @example
  * ```typescript
  * const result = await callBatch([
- *   { command: 'todo.create', input: { title: 'Task 1' } },
- *   { command: 'todo.list', input: {} }
+ *   { command: 'todo-create', input: { title: 'Task 1' } },
+ *   { command: 'todo-list', input: {} }
  * ]);
  * ```
  */

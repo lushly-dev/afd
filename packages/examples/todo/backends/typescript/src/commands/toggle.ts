@@ -1,5 +1,5 @@
 /**
- * @fileoverview todo.toggle command
+ * @fileoverview todo-toggle command
  */
 
 import { defineCommand, failure, success } from '@lushly-dev/afd-server';
@@ -28,7 +28,7 @@ export const toggleTodo = defineCommand<typeof inputSchema, Todo>({
 			return failure({
 				code: 'NOT_FOUND',
 				message: `Todo with ID "${input.id}" not found`,
-				suggestion: 'Use todo.list to see available todos',
+				suggestion: 'Use todo-list to see available todos',
 			});
 		}
 
@@ -38,7 +38,7 @@ export const toggleTodo = defineCommand<typeof inputSchema, Todo>({
 			return failure({
 				code: 'NOT_FOUND',
 				message: `Todo with ID "${input.id}" not found`,
-				suggestion: 'Use todo.list to see available todos',
+				suggestion: 'Use todo-list to see available todos',
 			});
 		}
 

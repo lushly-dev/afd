@@ -1,5 +1,5 @@
 /**
- * @fileoverview todo.clear command
+ * @fileoverview todo-clear command
  */
 
 import { defineCommand, success } from '@lushly-dev/afd-server';
@@ -26,10 +26,10 @@ export const clearCompleted = defineCommand<typeof inputSchema, ClearResult>({
 	input: inputSchema,
 
 	async handler(input: z.infer<typeof inputSchema>) {
-		console.error(`[todo.clear] input:`, JSON.stringify(input));
+		console.error(`[todo-clear] input:`, JSON.stringify(input));
 		if (input.all) {
 			const count = store.count();
-			console.error(`[todo.clear] Clearing all ${count} todos`);
+			console.error(`[todo-clear] Clearing all ${count} todos`);
 			store.clear();
 			return success(
 				{ cleared: count, remaining: 0 },

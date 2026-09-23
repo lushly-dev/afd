@@ -1,5 +1,5 @@
 /**
- * @fileoverview todo.get command
+ * @fileoverview todo-get command
  */
 
 import { defineCommand, failure, success } from '@lushly-dev/afd-server';
@@ -32,7 +32,7 @@ export const getTodo = defineCommand<typeof inputSchema, Todo>({
 			return failure({
 				code: 'NOT_FOUND',
 				message: `Todo with ID "${input.id}" not found`,
-				suggestion: 'Use todo.list to see available todos',
+				suggestion: 'Use todo-list to see available todos',
 			});
 		}
 
