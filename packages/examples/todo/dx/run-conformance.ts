@@ -2,7 +2,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { ConformanceRunner } from './conformance.js';
+import { ConformanceRunner, wireProblems } from './conformance.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -44,14 +44,20 @@ async function run() {
 		const result = (await client.callTool({
 			name,
 			arguments: args as Record<string, unknown>,
-		})) as { content: Array<{ text: string }> };
+		})) as { content: Array<{ text: string }>; isError?: boolean };
 		const text = result.content[0]?.text;
+		let parsed: unknown;
 		try {
-			return text ? JSON.parse(text) : result;
+			parsed = text ? JSON.parse(text) : result;
 		} catch (e) {
 			console.error(`Failed to parse JSON from tool ${name}. Raw text:`, text);
 			throw e;
 		}
+		const problems = wireProblems(parsed, result.isError === true);
+		if (problems.length > 0) {
+			throw new Error(`${name} broke the wire format (spec/wire): ${problems.join('; ')}`);
+		}
+		return parsed as { success: boolean; data?: unknown; error?: { message: string } };
 	});
 
 	const results = await runner.run(specPath);

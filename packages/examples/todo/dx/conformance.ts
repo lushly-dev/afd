@@ -165,3 +165,37 @@ function isExistsMatcher(value: unknown): value is { exists: boolean } {
 		typeof (value as { exists?: unknown }).exists === 'boolean'
 	);
 }
+
+/** Keys whose values are command payloads: their own keys and nulls are not checked. */
+const FREE_FORM_KEYS = new Set(['data', 'details', 'undoArgs']);
+
+/**
+ * Check a tool result against the cross-language wire format (spec/wire/README.md):
+ * `isError` matches `!success`, envelope keys are camelCase, and unset fields are
+ * omitted rather than `null`.
+ */
+export function wireProblems(body: unknown, isError: boolean): string[] {
+	const problems: string[] = [];
+	if (typeof body === 'object' && body !== null && 'success' in body) {
+		const { success } = body as { success: unknown };
+		if (typeof success === 'boolean' && isError === success) {
+			problems.push(`isError is ${isError} for a result with success: ${success}`);
+		}
+	}
+
+	const visit = (value: unknown, path: string): void => {
+		if (Array.isArray(value)) {
+			for (const [index, item] of value.entries()) visit(item, `${path}.${index}`);
+			return;
+		}
+		if (typeof value !== 'object' || value === null) return;
+		for (const [key, item] of Object.entries(value)) {
+			const keyPath = path ? `${path}.${key}` : key;
+			if (key.includes('_')) problems.push(`${keyPath} is not camelCase`);
+			if (item === null) problems.push(`${keyPath} is null (unset fields must be omitted)`);
+			if (!FREE_FORM_KEYS.has(key)) visit(item, keyPath);
+		}
+	};
+	visit(body, '');
+	return problems;
+}

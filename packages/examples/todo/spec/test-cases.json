@@ -177,6 +177,33 @@
 			}
 		},
 		{
+			"name": "create_missing_title",
+			"description": "A missing required field returns a structured VALIDATION_ERROR",
+			"setup": [],
+			"command": "todo-create",
+			"input": {},
+			"expect": {
+				"success": false,
+				"error.code": "VALIDATION_ERROR",
+				"error.suggestion": { "exists": true },
+				"error.details.missingFields.0": "title",
+				"error.details.errors.0.path": "title"
+			}
+		},
+		{
+			"name": "create_title_wrong_type",
+			"description": "A mistyped field returns a structured VALIDATION_ERROR, not a transport error",
+			"setup": [],
+			"command": "todo-create",
+			"input": { "title": 123 },
+			"expect": {
+				"success": false,
+				"error.code": "VALIDATION_ERROR",
+				"error.suggestion": { "exists": true },
+				"error.details.errors.0.path": "title"
+			}
+		},
+		{
 			"name": "get_existing",
 			"description": "Get a todo by ID",
 			"setup": [
