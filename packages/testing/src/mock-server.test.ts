@@ -30,11 +30,12 @@ describe('MockMcpServer', () => {
 	});
 
 	it('executes a tool and serializes successful results as MCP content', async () => {
-		const server = createMockServer([
+		const server = createMockServer();
+		server.register(
 			createMockCommand<{ name: string }, { greeting: string }>('user-greet', ({ name }) => ({
 				greeting: `Hello ${name}`,
-			})),
-		]);
+			}))
+		);
 
 		const response = await server.handleRequest(
 			request(3, 'tools/call', { name: 'user-greet', arguments: { name: 'Ada' } })

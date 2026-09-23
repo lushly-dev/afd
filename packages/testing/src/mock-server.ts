@@ -47,7 +47,7 @@ export class MockMcpServer {
 	/**
 	 * Register a command on the mock server.
 	 */
-	register(command: CommandDefinition): void {
+	register<TInput = unknown, TOutput = unknown>(command: CommandDefinition<TInput, TOutput>): void {
 		this.registry.register(command);
 	}
 
