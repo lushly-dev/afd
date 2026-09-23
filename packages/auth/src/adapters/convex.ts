@@ -58,13 +58,12 @@ export function useConvexAuthAdapter(options: ConvexAuthAdapterOptions): AuthAda
 	if (isLoading) {
 		nextState = LOADING;
 	} else if (isAuthenticated && me) {
+		// Convex refreshes its JWT internally and does not expose an expiry, so
+		// the session carries no expiresAt rather than an invented one.
 		const previousSession =
 			previousState.status === 'authenticated' && previousState.user.id === me.id
 				? previousState.session
-				: {
-						id: `convex-${me.id}`,
-						expiresAt: new Date(Date.now() + 86_400_000), // Synthetic — 24h
-					};
+				: { id: `convex-${me.id}` };
 		nextState = {
 			status: 'authenticated',
 			session: previousSession,
@@ -73,12 +72,6 @@ export function useConvexAuthAdapter(options: ConvexAuthAdapterOptions): AuthAda
 					? previousState.user
 					: me,
 		};
-		if (typeof process !== 'undefined' && process.env?.NODE_ENV === 'development') {
-			// Dev-only warning for synthetic expiresAt
-			console.debug(
-				'[afd-auth] Convex adapter uses synthetic expiresAt — token lifecycle managed by Convex internally'
-			);
-		}
 	} else {
 		nextState = UNAUTHENTICATED;
 	}

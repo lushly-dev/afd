@@ -55,6 +55,20 @@ describe('useConvexAuthAdapter', () => {
 		}
 	});
 
+	it('does not invent an expiry for the Convex session', () => {
+		vi.stubEnv('NODE_ENV', 'development');
+		const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+		const opts = createMockOptions({ isAuthenticated: true, user: mockUser });
+		const { result, rerender } = renderHook(() => useConvexAuthAdapter(opts));
+		rerender();
+
+		const session = result.current.getSession();
+		expect(session.status === 'authenticated' && session.session).toEqual({ id: 'convex-u1' });
+		expect(debug).not.toHaveBeenCalled();
+		debug.mockRestore();
+		vi.unstubAllEnvs();
+	});
+
 	it('notifies on same-status profile changes and keeps unchanged snapshots stable', () => {
 		const opts = createMockOptions({ isAuthenticated: true, user: mockUser });
 		const { result, rerender } = renderHook(() => useConvexAuthAdapter(opts));

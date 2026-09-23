@@ -4,7 +4,7 @@
 
 import { AuthAdapterError } from '../errors.js';
 import { type ListenerErrorHandler, ListenerSet } from '../listeners.js';
-import type { AuthAdapter, AuthSessionState, SignInOptions, User } from '../types.js';
+import type { AuthAdapter, AuthSessionState, Session, SignInOptions, User } from '../types.js';
 import { LOADING, UNAUTHENTICATED } from '../types.js';
 
 export interface MockAuthAdapterOptions {
@@ -72,12 +72,18 @@ export class MockAuthAdapter implements AuthAdapter {
 		this.setState(UNAUTHENTICATED);
 	}
 
-	_setUser(user: User): void {
+	/**
+	 * Sign in as `user`. The session expires in one hour unless `session`
+	 * overrides its fields, for example `{ expiresAt: new Date(0) }` for an
+	 * expired session or `{ expiresAt: undefined }` for one without an expiry.
+	 */
+	_setUser(user: User, session: Partial<Session> = {}): void {
 		this.setState({
 			status: 'authenticated',
 			session: {
 				id: `mock-session-${Date.now()}`,
 				expiresAt: new Date(Date.now() + 3600_000),
+				...session,
 			},
 			user,
 		});

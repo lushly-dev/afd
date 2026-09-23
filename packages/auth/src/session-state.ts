@@ -3,7 +3,7 @@
  * adapters, the middleware and the React hooks.
  */
 
-import type { AuthSessionState, User } from './types.js';
+import type { AuthSessionState, Session, User } from './types.js';
 
 export function areUsersEqual(left: User, right: User): boolean {
 	return (
@@ -34,4 +34,16 @@ function isSameInstant(left: Date | undefined, right: Date | undefined): boolean
 		return Object.is(left.getTime(), right.getTime());
 	}
 	return Object.is(left, right);
+}
+
+/**
+ * Whether a session has reached its expiry. A session without `expiresAt`
+ * does not expire here, because its provider manages the token lifetime. An
+ * `expiresAt` that is not a valid date counts as expired, so a malformed value
+ * fails closed.
+ */
+export function isSessionExpired(session: Session, now: number = Date.now()): boolean {
+	if (session.expiresAt === undefined) return false;
+	const expiresAt = new Date(session.expiresAt).getTime();
+	return !(expiresAt > now);
 }

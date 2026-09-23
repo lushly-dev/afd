@@ -96,6 +96,15 @@ describe('MockAuthAdapter', () => {
 		}
 	});
 
+	it('lets _setUser() override session fields', () => {
+		const adapter = new MockAuthAdapter();
+		const expiresAt = new Date(0);
+		adapter._setUser({ id: 'u1', email: 'jane@example.com' }, { id: 's1', expiresAt });
+
+		const state = adapter.getSession();
+		expect(state.status === 'authenticated' && state.session).toEqual({ id: 's1', expiresAt });
+	});
+
 	it('sets loading via _setLoading()', () => {
 		const adapter = new MockAuthAdapter();
 		adapter._setLoading();
@@ -195,7 +204,7 @@ describe('MockAuthAdapter', () => {
 				name?: string;
 				image?: string;
 			}>();
-			expectTypeOf(state.session).toEqualTypeOf<{ id: string; expiresAt: Date }>();
+			expectTypeOf(state.session).toEqualTypeOf<{ id: string; expiresAt?: Date }>();
 		}
 
 		if (state.status === 'unauthenticated') {

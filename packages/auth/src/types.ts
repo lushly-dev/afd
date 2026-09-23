@@ -11,7 +11,13 @@
 
 export interface Session {
 	id: string;
-	expiresAt: Date;
+	/**
+	 * When the session stops being valid. Omitted when the provider manages the
+	 * token lifetime itself and does not report an expiry (Convex).
+	 * `createAuthMiddleware` rejects a session whose `expiresAt` is at or before
+	 * the current time.
+	 */
+	expiresAt?: Date;
 }
 
 export interface User {
@@ -50,6 +56,9 @@ export type AuthSessionState =
 	| { status: 'unauthenticated'; session: null; user: null }
 	| { status: 'loading'; session: null; user: null }
 	| { status: 'authenticated'; session: Session; user: User };
+
+/** The `authenticated` member of {@link AuthSessionState}. */
+export type AuthenticatedSessionState = Extract<AuthSessionState, { status: 'authenticated' }>;
 
 /**
  * Constant for the unauthenticated state.
