@@ -151,6 +151,44 @@ const request: McpRequest = createMcpRequest('tools/call', {
 });
 ```
 
+### Pipelines
+
+`executePipeline` runs chained steps; the server's `afd-pipe` tool and `DirectClient.pipe` both use it.
+Variable references follow [`spec/pipeline-variables.md`](../../spec/pipeline-variables.md), which
+Python and Rust implement too:
+
+```typescript
+import { executePipeline } from '@lushly-dev/afd-core';
+
+const result = await executePipeline(
+  {
+    input: { userId: 'u-1' }, // any JSON value; steps read it as $input
+    steps: [
+      { command: 'user-get', input: { id: '$input.userId' }, as: 'user' },
+      { command: 'order-list', input: { userId: '$prev.id', currency: '$$USD' } },
+      { command: 'invoice-send', input: { email: '$steps.user.email' }, when: { $exists: '$prev.items[0]' } },
+    ],
+  },
+  (name, input, context) => registry.execute(name, input, context)
+);
+```
+
+- A string is a reference only when the **whole string** is `$prev`, `$first`, `$steps[N]`,
+  `$steps.<alias>` or `$input`, optionally followed by `.<path>` (`user.name`, `items[2]`, `items.2`).
+  `$prev` is the last successful step. Other strings (`$9.99`, `$HOME`) pass through unchanged,
+  `$$` sends a literal `$` (`'$$USD'` becomes `'$USD'`), and strings over 1024 characters are literals.
+- `$input` is the request's `input` field. **It is never the executor's `context`**; before this
+  change it resolved to that context, so trace IDs, auth or other host values could be copied into a
+  command input.
+- Paths follow only own keys of plain JSON objects and in-bounds array indices. `constructor`,
+  `__proto__`, any `__`-prefixed segment and array `length` never resolve.
+- An unresolved reference is omitted from an object and becomes `null` in an array. In `when`
+  conditions it is absent: `$exists` is false and every comparison with it is false.
+- Step inputs or a request `input` nested deeper than 64 levels fail with `VALIDATION_ERROR` before
+  any step runs. A malformed request fails with `INVALID_PIPELINE_REQUEST`.
+- Step data is copied (`structuredClone`) when it is recorded and when it is resolved, so a handler
+  that mutates its input cannot change another step's data.
+
 ## Types
 
 ### CommandResult<T>

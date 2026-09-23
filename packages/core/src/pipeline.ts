@@ -28,6 +28,19 @@ export interface PipelineRequest {
 	 * Pipeline-level options.
 	 */
 	options?: PipelineOptions;
+
+	/**
+	 * Input for the whole pipeline, available to steps as `$input` and `$input.<path>`.
+	 *
+	 * Any JSON value, nested at most 64 levels deep; request preflight rejects anything else
+	 * before a step runs. When omitted, `$input` references are unresolved (absent).
+	 *
+	 * **Behavior change:** `$input` used to resolve to the host's execution context (for
+	 * `DirectClient.pipe`, the caller's whole call context, including trace IDs and any auth or
+	 * custom values). It now resolves only to this field; the execution context is never
+	 * visible to pipeline references.
+	 */
+	input?: unknown;
 }
 
 /** A single step in a pipeline. */
@@ -40,13 +53,18 @@ export interface PipelineStep {
 	/**
 	 * Input for this step.
 	 *
-	 * Can reference outputs from previous steps using variables:
-	 * - `$prev` - Output of immediately previous step
-	 * - `$prev.field` - Specific field from previous output
-	 * - `$first` - Output of first step
-	 * - `$steps[n]` - Output of step at index n
-	 * - `$steps.alias` - Output of step with matching `as` alias
-	 * - `$input` - Original pipeline input
+	 * A string value is a reference when the whole string is one of these forms, each
+	 * optionally followed by `.<path>` (for example `$prev.user.name` or `$prev.items[0]`):
+	 * - `$prev` - Output of the last successful step
+	 * - `$first` - Output of the first step
+	 * - `$steps[n]` - Output of the step at index n
+	 * - `$steps.alias` - Output of the step with matching `as` alias
+	 * - `$input` - The pipeline request's own `input` field
+	 *
+	 * Other strings, such as `$9.99` or `$HOME`, are literals; start a string with `$$` to send
+	 * a literal that looks like a reference (`$$prev` becomes `$prev`). An unresolved reference
+	 * is omitted as an object property and becomes `null` in an array. Nesting deeper than 64
+	 * levels is rejected. See `spec/pipeline-variables.md`.
 	 */
 	input?: Record<string, unknown>;
 
@@ -446,9 +464,12 @@ export type StepStatus = 'success' | 'failure' | 'skipped';
  */
 export interface PipelineContext {
 	/**
-	 * Original pipeline input.
+	 * The pipeline request's `input` field, which `$input` resolves to.
+	 *
+	 * Never the host's execution context. Widened from `Record<string, unknown>` because the
+	 * request `input` may be any JSON value.
 	 */
-	pipelineInput?: Record<string, unknown>;
+	pipelineInput?: unknown;
 
 	/**
 	 * Result of the previous step.
@@ -721,245 +742,12 @@ export function buildConfidenceBreakdown(
 		}));
 }
 
-/**
- * Resolve a single variable reference to its value from pipeline context.
- *
- * Supports the following variable patterns:
- * - `$prev` - Output of immediately previous step
- * - `$prev.field.subfield` - Nested field from previous output
- * - `$first` - Output of first step
- * - `$first.field` - Field from first step output
- * - `$steps[n]` - Output of step at index n
- * - `$steps[n].field` - Field from step at index n
- * - `$steps.alias` - Output of step with matching `as` alias
- * - `$steps.alias.field` - Field from aliased step
- * - `$input` - Original pipeline input
- * - `$input.field` - Field from pipeline input
- *
- * @param ref - Variable reference (e.g., '$prev', '$prev.field', '$steps.alias.field')
- * @param context - Pipeline execution context
- * @returns The resolved value, or undefined if not found
- *
- * @example
- * ```typescript
- * // Simple $prev reference
- * resolveVariable('$prev', context);
- *
- * // Nested field access
- * resolveVariable('$prev.user.name', context);
- *
- * // Step by index
- * resolveVariable('$steps[0].data', context);
- *
- * // Step by alias
- * resolveVariable('$steps.userStep.id', context);
- * ```
- */
-export function resolveVariable(ref: string, context: PipelineContext): unknown {
-	if (!ref.startsWith('$')) {
-		return ref;
-	}
-
-	// $prev - previous step's data
-	if (ref === '$prev') {
-		return context.previousResult?.data;
-	}
-
-	// $first - first step's data
-	if (ref === '$first') {
-		return context.steps[0]?.data;
-	}
-
-	// $input - original pipeline input
-	if (ref === '$input') {
-		return context.pipelineInput;
-	}
-
-	// $steps[n] - step at index n
-	if (ref.startsWith('$steps[')) {
-		const match = ref.match(/^\$steps\[(\d+)\]/);
-		if (match && match[1] !== undefined) {
-			const index = parseInt(match[1], 10);
-			const step = context.steps[index];
-			const remaining = ref.slice(match[0].length);
-			if (remaining.startsWith('.')) {
-				return getNestedValue(step?.data, remaining.slice(1));
-			}
-			return step?.data;
-		}
-	}
-
-	// $steps.alias - step with alias
-	if (ref.startsWith('$steps.')) {
-		const rest = ref.slice(7); // Remove '$steps.'
-		const dotIndex = rest.indexOf('.');
-		const alias = dotIndex >= 0 ? rest.slice(0, dotIndex) : rest;
-		const step = context.steps.find((s) => s.alias === alias);
-		if (dotIndex >= 0) {
-			return getNestedValue(step?.data, rest.slice(dotIndex + 1));
-		}
-		return step?.data;
-	}
-
-	// $prev.field - field from previous step
-	if (ref.startsWith('$prev.')) {
-		return getNestedValue(context.previousResult?.data, ref.slice(6));
-	}
-
-	// $first.field - field from first step
-	if (ref.startsWith('$first.')) {
-		return getNestedValue(context.steps[0]?.data, ref.slice(7));
-	}
-
-	// $input.field - field from pipeline input
-	if (ref.startsWith('$input.')) {
-		return getNestedValue(context.pipelineInput, ref.slice(7));
-	}
-
-	return undefined;
-}
-
-/**
- * Resolve all variable references in an input object.
- *
- * @param input - Input object potentially containing variable references
- * @param context - Pipeline execution context
- * @returns Input object with all variables resolved
- */
-export function resolveVariables(input: unknown, context: PipelineContext): unknown {
-	if (typeof input === 'string' && input.startsWith('$')) {
-		return resolveVariable(input, context);
-	}
-
-	if (Array.isArray(input)) {
-		return input.map((item) => resolveVariables(item, context));
-	}
-
-	if (typeof input === 'object' && input !== null) {
-		return Object.fromEntries(
-			Object.entries(input).map(([key, value]) => [key, resolveVariables(value, context)])
-		);
-	}
-
-	return input;
-}
-
-/**
- * Get a nested value from an object using dot notation.
- *
- * @param obj - The object to traverse
- * @param path - Dot-separated path (e.g., 'user.profile.name')
- * @returns The value at the path, or undefined if not found
- *
- * @example
- * ```typescript
- * getNestedValue({ user: { name: 'Alice' } }, 'user.name'); // => 'Alice'
- * getNestedValue({ items: [1, 2, 3] }, 'items[1]'); // => 2
- * getNestedValue({}, 'missing.path'); // => undefined
- * ```
- */
-export function getNestedValue(obj: unknown, path: string): unknown {
-	if (obj === null || obj === undefined) {
-		return undefined;
-	}
-
-	const parts = path.split('.');
-	let current: unknown = obj;
-
-	for (const part of parts) {
-		if (current === null || current === undefined) {
-			return undefined;
-		}
-
-		// Handle array index notation (e.g., 'items[0]')
-		const arrayMatch = part.match(/^(\w+)\[(\d+)\]$/);
-		if (arrayMatch && arrayMatch[1] !== undefined && arrayMatch[2] !== undefined) {
-			const prop = arrayMatch[1];
-			const indexStr = arrayMatch[2];
-			const arr = (current as Record<string, unknown>)[prop];
-			if (!Array.isArray(arr)) {
-				return undefined;
-			}
-			current = arr[parseInt(indexStr, 10)];
-		} else {
-			current = (current as Record<string, unknown>)[part];
-		}
-	}
-
-	return current;
-}
-
-/**
- * Evaluate a pipeline condition against the current context.
- *
- * @param condition - The condition to evaluate
- * @param context - Pipeline execution context
- * @returns true if the condition is met, false otherwise
- */
-export function evaluateCondition(condition: PipelineCondition, context: PipelineContext): boolean {
-	if (isExistsCondition(condition)) {
-		const value = resolveVariable(condition.$exists, context);
-		return value !== undefined && value !== null;
-	}
-
-	if (isEqCondition(condition)) {
-		const [ref, expected] = condition.$eq;
-		const value = resolveVariable(ref, context);
-		return value === expected;
-	}
-
-	if (isNeCondition(condition)) {
-		const [ref, expected] = condition.$ne;
-		const value = resolveVariable(ref, context);
-		return value !== expected;
-	}
-
-	if (isGtCondition(condition)) {
-		const [ref, threshold] = condition.$gt;
-		const value = resolveVariable(ref, context);
-		return typeof value === 'number' && value > threshold;
-	}
-
-	if (isGteCondition(condition)) {
-		const [ref, threshold] = condition.$gte;
-		const value = resolveVariable(ref, context);
-		return typeof value === 'number' && value >= threshold;
-	}
-
-	if (isLtCondition(condition)) {
-		const [ref, threshold] = condition.$lt;
-		const value = resolveVariable(ref, context);
-		return typeof value === 'number' && value < threshold;
-	}
-
-	if (isLteCondition(condition)) {
-		const [ref, threshold] = condition.$lte;
-		const value = resolveVariable(ref, context);
-		return typeof value === 'number' && value <= threshold;
-	}
-
-	if (isAndCondition(condition)) {
-		return condition.$and.every((c) => evaluateCondition(c, context));
-	}
-
-	if (isOrCondition(condition)) {
-		return condition.$or.some((c) => evaluateCondition(c, context));
-	}
-
-	if (isNotCondition(condition)) {
-		return !evaluateCondition(condition.$not, context);
-	}
-
-	return false;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// BACKWARDS COMPATIBILITY ALIASES
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Alias for resolveVariable (backwards compatibility).
- *
- * @deprecated Use resolveVariable instead
- */
-export const resolveReference = resolveVariable;
+// Variable resolution lives in its own module (file-size convention); re-exported here so the
+// public API is unchanged. See spec/pipeline-variables.md.
+export {
+	evaluateCondition,
+	getNestedValue,
+	resolveReference,
+	resolveVariable,
+	resolveVariables,
+} from './pipeline-variables.js';

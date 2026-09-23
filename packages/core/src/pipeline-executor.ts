@@ -9,6 +9,7 @@
  * repository file-size convention.
  */
 
+import type { CommandError } from './errors.js';
 import type {
 	PipelineContext,
 	PipelineMetadata,
@@ -23,10 +24,9 @@ import {
 	aggregatePipelineSources,
 	aggregatePipelineWarnings,
 	buildConfidenceBreakdown,
-	evaluateCondition,
-	isPipelineRequest,
-	resolveVariables,
 } from './pipeline.js';
+import { copyPipelineData, evaluateCondition, resolveVariables } from './pipeline-variables.js';
+import { isPipelineRequest, pipelineLimitError } from './request-validation.js';
 import type { CommandResult } from './result.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -46,6 +46,38 @@ export type CommandExecutor = (
 	context: Record<string, unknown>
 ) => Promise<CommandResult>;
 
+const INVALID_REQUEST_ERROR: CommandError = {
+	code: 'INVALID_PIPELINE_REQUEST',
+	message: 'Invalid pipeline request envelope',
+	suggestion:
+		'Provide steps with nonempty command names, object inputs, valid conditions, and correctly typed options; input must be JSON',
+};
+
+const RESOLUTION_ERROR: CommandError = {
+	code: 'INTERNAL_ERROR',
+	message: 'Could not evaluate the step condition or resolve its input references',
+	suggestion: 'Check that earlier steps return plain JSON data, then retry',
+};
+
+/** A pipeline that ran no step: empty, or rejected by preflight with `error`. */
+function rejectedPipeline(error?: CommandError): PipelineResult {
+	return {
+		data: undefined,
+		metadata: {
+			confidence: 0,
+			confidenceBreakdown: [],
+			reasoning: [],
+			warnings: [],
+			sources: [],
+			alternatives: [],
+			executionTimeMs: 0,
+			completedSteps: 0,
+			totalSteps: 0,
+		},
+		steps: error ? [{ index: -1, command: '', status: 'failure', executionTimeMs: 0, error }] : [],
+	};
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // EXECUTOR
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -56,13 +88,24 @@ export type CommandExecutor = (
  * This is the core implementation used by both the MCP server and
  * any other host that needs pipeline semantics. It supports:
  * - Sequential step execution with `$prev`, `$first`, `$steps`, `$input` variable resolution
+ *   (see `spec/pipeline-variables.md`)
  * - Conditional steps via `when` clauses
  * - `continueOnFailure` and `timeoutMs` options
  * - Full metadata aggregation (confidence, reasoning, warnings, sources, alternatives)
  *
- * @param request - The pipeline request describing steps and options
+ * The request is validated before any step runs: a malformed envelope fails with
+ * `INVALID_PIPELINE_REQUEST`, and step inputs or a request `input` nested deeper than 64 levels
+ * fail with `VALIDATION_ERROR`. Each step's data is copied (`structuredClone`) as it enters the
+ * pipeline context and again when a reference resolves it, so a handler that mutates its input
+ * cannot change another step's data.
+ *
+ * **Behavior change:** `$input` resolves to `request.input`. It used to resolve to `context`,
+ * which exposed the host's trace IDs, auth and other execution values to pipeline references.
+ *
+ * @param request - The pipeline request describing steps, options and `input`
  * @param execute - Callback to execute a single command
- * @param context - Optional context passed to every command invocation
+ * @param context - Optional context passed to every command invocation; never visible to
+ *   `$input` or any other reference
  * @returns The aggregated pipeline result
  *
  * @example
@@ -83,43 +126,15 @@ export async function executePipeline(
 	const startTime = performance.now();
 	const pipelineId = request?.id ?? `pipeline-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-	// Validate the complete envelope before invoking any command.
+	// Validate the complete envelope and its limits before invoking any command.
 	const valid = isPipelineRequest(request);
-	if (!valid || request.steps.length === 0) {
-		return {
-			data: undefined,
-			metadata: {
-				confidence: 0,
-				confidenceBreakdown: [],
-				reasoning: [],
-				warnings: [],
-				sources: [],
-				alternatives: [],
-				executionTimeMs: 0,
-				completedSteps: 0,
-				totalSteps: 0,
-			},
-			steps: valid
-				? []
-				: [
-						{
-							index: -1,
-							command: '',
-							status: 'failure',
-							executionTimeMs: 0,
-							error: {
-								code: 'INVALID_PIPELINE_REQUEST',
-								message: 'Invalid pipeline request envelope',
-								suggestion:
-									'Provide steps with nonempty command names, object inputs, valid conditions, and correctly typed options',
-							},
-						},
-					],
-		};
-	}
+	if (!valid) return rejectedPipeline(INVALID_REQUEST_ERROR);
+	if (request.steps.length === 0) return rejectedPipeline();
+	const limitError = pipelineLimitError(request);
+	if (limitError) return rejectedPipeline(limitError);
 
 	const pipelineContext: PipelineContext = {
-		pipelineInput: context,
+		pipelineInput: copyPipelineData(request.input),
 		previousResult: undefined,
 		steps: [],
 	};
@@ -132,20 +147,26 @@ export async function executePipeline(
 		if (!step) continue;
 		const stepStartTime = performance.now();
 
-		// Evaluate when condition if present
-		if (!options.parallel && step.when && !evaluateCondition(step.when, pipelineContext)) {
-			stepResults.push({
-				index: i,
-				alias: step.as,
-				command: step.command,
-				status: 'skipped',
-				executionTimeMs: 0,
-			});
-			continue;
+		// Evaluate the when condition and resolve references inside the per-step error handling
+		let resolvedInput: unknown = {};
+		let resolutionFailure: CommandResult | undefined;
+		try {
+			if (!options.parallel && step.when && !evaluateCondition(step.when, pipelineContext)) {
+				stepResults.push({
+					index: i,
+					alias: step.as,
+					command: step.command,
+					status: 'skipped',
+					executionTimeMs: 0,
+				});
+				continue;
+			}
+			if (!options.parallel && step.input) {
+				resolvedInput = resolveVariables(step.input, pipelineContext);
+			}
+		} catch {
+			resolutionFailure = { success: false, error: RESOLUTION_ERROR };
 		}
-
-		// Resolve variables in step input
-		const resolvedInput = step.input ? resolveVariables(step.input, pipelineContext) : {};
 
 		// Execute the command
 		const remainingMs =
@@ -169,7 +190,9 @@ export async function executePipeline(
 		};
 		let result: CommandResult;
 		try {
-			if (options.parallel) {
+			if (resolutionFailure) {
+				result = resolutionFailure;
+			} else if (options.parallel) {
 				result = {
 					success: false,
 					error: {
@@ -221,7 +244,7 @@ export async function executePipeline(
 				alias: step.as,
 				command: step.command,
 				status: 'success',
-				data: result.data,
+				data: copyPipelineData(result.data),
 				executionTimeMs: Math.round(stepExecutionTimeMs * 100) / 100,
 				metadata: {
 					confidence: result.confidence,

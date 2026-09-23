@@ -1,6 +1,8 @@
 /** Complete envelope validation before a batch or pipeline can execute side effects. */
 import type { BatchCommand, BatchRequest } from './batch.js';
+import type { CommandError } from './errors.js';
 import type { PipelineRequest, PipelineStep } from './pipeline.js';
+import { isPlainObject, MAX_NESTING_DEPTH } from './pipeline-variables.js';
 
 function record(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -80,10 +82,67 @@ export function isPipelineStep(value: unknown): value is PipelineStep {
 		(value.when === undefined || condition(value.when))
 	);
 }
+function jsonLeaf(value: unknown, inArray: boolean): boolean {
+	return (
+		value === null ||
+		typeof value === 'string' ||
+		typeof value === 'boolean' ||
+		(typeof value === 'number' && Number.isFinite(value)) ||
+		(value === undefined && !inArray)
+	);
+}
+/**
+ * Walk nested arrays and plain objects without recursion. Returns `too-deep` when they nest
+ * more than {@link MAX_NESTING_DEPTH} levels (so cycles terminate), `invalid` when `json` is set
+ * and a value is not JSON (an `undefined` object property counts as omitted), and `ok` otherwise.
+ */
+function nesting(value: unknown, json: boolean): 'ok' | 'too-deep' | 'invalid' {
+	const pending = [{ value, depth: 0, inArray: true }];
+	for (let item = pending.pop(); item !== undefined; item = pending.pop()) {
+		const current = item.value;
+		if (Array.isArray(current) || isPlainObject(current)) {
+			if (item.depth >= MAX_NESTING_DEPTH) return 'too-deep';
+			const inArray = Array.isArray(current);
+			const children: unknown[] = Array.isArray(current)
+				? Array.from(current)
+				: Object.values(current);
+			for (const child of children) pending.push({ value: child, depth: item.depth + 1, inArray });
+		} else if (json && !jsonLeaf(current, item.inArray)) {
+			return 'invalid';
+		}
+	}
+	return 'ok';
+}
+function depthError(what: string, details: Record<string, unknown>): CommandError {
+	return {
+		code: 'VALIDATION_ERROR',
+		message: `${what} is nested deeper than ${MAX_NESTING_DEPTH} levels`,
+		suggestion: `Flatten it to at most ${MAX_NESTING_DEPTH} levels of nested objects and arrays and retry`,
+		retryable: false,
+		details: { ...details, maxDepth: MAX_NESTING_DEPTH },
+	};
+}
+/**
+ * Check pipeline limits that apply after the envelope is valid: step inputs and the request
+ * `input` may nest at most 64 levels. Returns a `VALIDATION_ERROR`, or undefined when within
+ * limits. Iterative, so deep or cyclic inputs never overflow the stack.
+ */
+export function pipelineLimitError(request: PipelineRequest): CommandError | undefined {
+	if (request.input !== undefined && nesting(request.input, true) === 'too-deep') {
+		return depthError('The pipeline input', { field: 'input' });
+	}
+	for (const [stepIndex, step] of request.steps.entries()) {
+		if (step.input !== undefined && nesting(step.input, false) === 'too-deep') {
+			return depthError(`The input of step ${stepIndex}`, { stepIndex });
+		}
+	}
+	return undefined;
+}
 export function isPipelineRequest(value: unknown): value is PipelineRequest {
 	if (
 		!record(value) ||
 		!optionalString(value.id) ||
+		(value.input !== undefined && nesting(value.input, true) === 'invalid') ||
 		!Array.isArray(value.steps) ||
 		!Array.from(value.steps).every(isPipelineStep)
 	)
