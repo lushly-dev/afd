@@ -21,11 +21,11 @@ import { chatStatus } from './status.js';
 /**
  * All chat commands as an array.
  */
-export const allCommands = [
+export const allCommands: ZodCommandDefinition[] = [
 	chatConnect,
 	chatStatus,
 	chatDisconnect,
 	chatPoll,
 	chatRooms,
 	chatSend,
-] as unknown as ZodCommandDefinition[];
+];

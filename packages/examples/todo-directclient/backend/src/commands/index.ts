@@ -25,7 +25,7 @@ import { updateTodo } from './update.js';
 /**
  * All todo commands as an array.
  */
-export const allCommands = [
+export const allCommands: ZodCommandDefinition[] = [
 	createTodo,
 	listTodos,
 	getTodo,
@@ -34,4 +34,4 @@ export const allCommands = [
 	deleteTodo,
 	clearCompleted,
 	getStats,
-] as unknown as ZodCommandDefinition[];
+];
