@@ -25,6 +25,7 @@ import {
 	executePipeline as executeCorePipeline,
 	failure,
 	isBatchRequest,
+	truncateName,
 } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from './schema.js';
 import { formatEnhancedValidationError, validateInputEnhanced } from './validation.js';
@@ -62,7 +63,7 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		if (!command) {
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
-				message: `Command '${commandName}' not found`,
+				message: `Command '${truncateName(commandName)}' not found`,
 				suggestion: `Available commands: ${Array.from(commandMap.keys()).join(', ')}`,
 			});
 		}

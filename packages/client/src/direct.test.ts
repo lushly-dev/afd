@@ -228,6 +228,20 @@ describe('DirectClient', () => {
 			expect(errorData.suggestions).toContain('todo-create');
 			expect(errorData.hint).toBe("Did you mean 'todo-create'?");
 		});
+
+		it('answers a 100 KB unknown name quickly with a truncated message', async () => {
+			const name = 'todo-'.repeat(20 * 1024);
+			const start = performance.now();
+			const result = await client.call(name, {});
+			expect(performance.now() - start).toBeLessThan(100);
+
+			expect(result.success).toBe(false);
+			expect(result.error?.code).toBe('UNKNOWN_TOOL');
+			expect(result.error?.message).toBe(`Tool '${name.slice(0, 128)}…' not found in registry`);
+			const errorData = result.data as UnknownToolError;
+			expect(errorData.suggestions).toEqual([]);
+			expect(errorData.hint).toBeNull();
+		});
 	});
 });
 
