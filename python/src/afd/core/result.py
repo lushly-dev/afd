@@ -17,18 +17,19 @@ Example:
 
 from typing import Any, Generic, List, Optional, TypeVar
 
-from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, field_serializer
+from pydantic import ConfigDict, Field, SerializerFunctionWrapHandler, field_serializer
 
 # CommandError is defined once, in afd.core.errors, and re-exported here so
 # ``afd.core.result.CommandError`` and ``afd.core.errors.CommandError`` are the
 # same class.
 from afd.core.errors import CommandError, _omit_unset_cause
 from afd.core.metadata import Alternative, PlanStep, Source, Warning
+from afd.core.wire import WIRE_MODEL_CONFIG, WireModel
 
 T = TypeVar("T")
 
 
-class ResultMetadata(BaseModel):
+class ResultMetadata(WireModel):
     """Execution metadata for debugging and monitoring.
     
     Attributes:
@@ -36,9 +37,12 @@ class ResultMetadata(BaseModel):
         command_version: Version of the command that produced this result.
         trace_id: Unique trace ID for debugging and correlation.
         timestamp: ISO timestamp when the command was executed.
+
+    Additional metadata fields are allowed and serialized under their own
+    names. The declared fields use camelCase on the wire (``executionTimeMs``).
     """
 
-    model_config = {"extra": "allow"}  # Allow additional metadata fields
+    model_config = ConfigDict(**WIRE_MODEL_CONFIG, extra="allow")
 
     execution_time_ms: Optional[float] = None
     command_version: Optional[str] = None
@@ -46,7 +50,7 @@ class ResultMetadata(BaseModel):
     timestamp: Optional[str] = None
 
 
-class CommandResult(BaseModel, Generic[T]):
+class CommandResult(WireModel, Generic[T]):
     """Standard response type for all AFD commands.
     
     All commands return this structure, enabling consistent handling across
@@ -71,6 +75,10 @@ class CommandResult(BaseModel, Generic[T]):
         ...     confidence=0.95,
         ...     reasoning="Document created with all required fields",
         ... )
+
+    Wire format: fields serialize as camelCase (``undoCommand``) and unset
+    fields are omitted; use :func:`afd.core.wire.to_wire`. Parsing accepts
+    camelCase and snake_case keys.
     """
 
     success: bool

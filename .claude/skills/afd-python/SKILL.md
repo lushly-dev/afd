@@ -397,6 +397,20 @@ if __name__ == "__main__":
     server.run()
 ```
 
+### Wire Format
+
+The server sends results in the cross-language wire format (`spec/wire/`), the same JSON
+as the TypeScript server:
+
+- keys are camelCase (`undoCommand`, `executionTimeMs`, `successCount`); Python attributes
+  stay snake_case, and parsing accepts both;
+- unset fields are omitted, never `null`;
+- failures are sent with MCP `isError: true`;
+- a missing or mistyped argument returns `VALIDATION_ERROR` with `details.errors`,
+  `details.expectedFields`/`missingFields`/`unexpectedFields` and a `suggestion`.
+
+Use `afd.core.wire.to_wire(result)` to produce the same JSON yourself.
+
 ### Tool Strategies and Bootstrap Tools
 
 Python servers support the same three discovery modes as the shared AFD surface:

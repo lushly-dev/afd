@@ -26,11 +26,12 @@ from collections.abc import Mapping
 from enum import Enum
 from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union
 
-from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, field_serializer
+from pydantic import BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, field_serializer
 
 from afd.core.errors import _omit_unset_cause
 from afd.core.metadata import Alternative, Source, Warning
 from afd.core.result import CommandError, CommandResult, ResultMetadata
+from afd.core.wire import WIRE_MODEL_CONFIG, WireModel
 
 T = TypeVar("T")
 
@@ -40,7 +41,7 @@ T = TypeVar("T")
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class PipelineStep(BaseModel):
+class PipelineStep(WireModel):
     """A single step in a pipeline.
 
     Attributes:
@@ -68,10 +69,8 @@ class PipelineStep(BaseModel):
     when: Optional["PipelineCondition"] = None
     stream: Optional[bool] = None
 
-    model_config = {"populate_by_name": True}
 
-
-class PipelineOptions(BaseModel):
+class PipelineOptions(WireModel):
     """Options for pipeline execution.
 
     Attributes:
@@ -87,10 +86,10 @@ class PipelineOptions(BaseModel):
     timeout_ms: Optional[int] = Field(default=None, ge=0)
     parallel: bool = False
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(**WIRE_MODEL_CONFIG, extra="forbid")
 
 
-class PipelineRequest(BaseModel):
+class PipelineRequest(WireModel):
     """Request to execute a pipeline of chained commands.
 
     Attributes:
@@ -221,7 +220,7 @@ class StepStatus(str, Enum):
     SKIPPED = "skipped"
 
 
-class StepConfidence(BaseModel):
+class StepConfidence(WireModel):
     """Confidence information for a single step."""
 
     step: int
@@ -231,7 +230,7 @@ class StepConfidence(BaseModel):
     reasoning: Optional[str] = None
 
 
-class StepReasoning(BaseModel):
+class StepReasoning(WireModel):
     """Reasoning from a single step."""
 
     step_index: int
@@ -252,7 +251,7 @@ class PipelineSource(Source):
     step_index: int
 
 
-class PipelineAlternative(BaseModel, Generic[T]):
+class PipelineAlternative(WireModel, Generic[T]):
     """Alternative suggested by a pipeline step."""
 
     data: T
@@ -262,7 +261,7 @@ class PipelineAlternative(BaseModel, Generic[T]):
     step_index: int
 
 
-class StepResult(BaseModel):
+class StepResult(WireModel):
     """Result of a single pipeline step."""
 
     index: int
@@ -282,19 +281,27 @@ class StepResult(BaseModel):
 
 
 class PipelineMetadata(ResultMetadata):
-    """Aggregated metadata from pipeline execution."""
+    """Aggregated metadata from pipeline execution.
+
+    On the wire the aggregated lists are named ``reasoning``, ``warnings``,
+    ``sources`` and ``alternatives``, as in TypeScript. In Python they are
+    ``reasoning_steps``, ``pipeline_warnings``, ``pipeline_sources`` and
+    ``pipeline_alternatives``; either name is accepted when parsing.
+    """
 
     confidence: float = 1.0
     confidence_breakdown: List[StepConfidence] = Field(default_factory=list)
-    reasoning_steps: List[StepReasoning] = Field(default_factory=list)
-    pipeline_warnings: List[PipelineWarning] = Field(default_factory=list)
-    pipeline_sources: List[PipelineSource] = Field(default_factory=list)
-    pipeline_alternatives: List[PipelineAlternative[Any]] = Field(default_factory=list)
+    reasoning_steps: List[StepReasoning] = Field(default_factory=list, alias="reasoning")
+    pipeline_warnings: List[PipelineWarning] = Field(default_factory=list, alias="warnings")
+    pipeline_sources: List[PipelineSource] = Field(default_factory=list, alias="sources")
+    pipeline_alternatives: List[PipelineAlternative[Any]] = Field(
+        default_factory=list, alias="alternatives"
+    )
     completed_steps: int = 0
     total_steps: int = 0
 
 
-class PipelineResult(BaseModel, Generic[T]):
+class PipelineResult(WireModel, Generic[T]):
     """Result of executing a pipeline."""
 
     data: Optional[T] = None
@@ -302,7 +309,7 @@ class PipelineResult(BaseModel, Generic[T]):
     steps: List[StepResult]
 
 
-class PipelineContext(BaseModel):
+class PipelineContext(WireModel):
     """Context available during pipeline execution."""
 
     pipeline_input: Optional[Dict[str, Any]] = None
@@ -622,15 +629,25 @@ def evaluate_condition(condition: PipelineCondition, context: PipelineContext) -
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _step_meta(step: StepResult, key: str) -> Any:
+    """Read a trust signal (confidence, reasoning, ...) from a step's metadata."""
+    if step.metadata is None:
+        return None
+    extra = step.metadata.model_extra or {}
+    if key in extra:
+        return extra[key]
+    if key in type(step.metadata).model_fields:
+        return getattr(step.metadata, key)
+    return None
+
+
 def aggregate_pipeline_confidence(steps: List[StepResult]) -> float:
     """Calculate aggregated confidence from step results (weakest link)."""
     confidences = []
     for s in steps:
         if s.status == StepStatus.SUCCESS:
-            if s.metadata and s.metadata.confidence is not None:
-                confidences.append(s.metadata.confidence)
-            else:
-                confidences.append(1.0)
+            confidence = _step_meta(s, "confidence")
+            confidences.append(confidence if confidence is not None else 1.0)
 
     return min(confidences) if confidences else 0.0
 
@@ -639,12 +656,13 @@ def aggregate_pipeline_reasoning(steps: List[StepResult]) -> List[StepReasoning]
     """Aggregate reasoning from all steps."""
     result = []
     for s in steps:
-        if s.status == StepStatus.SUCCESS and s.metadata and s.metadata.reasoning:
+        reasoning = _step_meta(s, "reasoning")
+        if s.status == StepStatus.SUCCESS and reasoning:
             result.append(
                 StepReasoning(
                     step_index=s.index,
                     command=s.command,
-                    reasoning=s.metadata.reasoning,
+                    reasoning=reasoning,
                 )
             )
     return result
@@ -654,18 +672,18 @@ def aggregate_pipeline_warnings(steps: List[StepResult]) -> List[PipelineWarning
     """Aggregate warnings from all steps."""
     warnings: List[PipelineWarning] = []
     for step in steps:
-        if step.metadata and step.metadata.warnings:
-            for warning in step.metadata.warnings:
-                warnings.append(
-                    PipelineWarning(
-                        code=warning.code,
-                        message=warning.message,
-                        severity=warning.severity,
-                        details=warning.details,
-                        step_index=step.index,
-                        step_alias=step.alias,
-                    )
+        for raw in _step_meta(step, "warnings") or []:
+            warning = raw if isinstance(raw, Warning) else Warning.model_validate(raw)
+            warnings.append(
+                PipelineWarning(
+                    code=warning.code,
+                    message=warning.message,
+                    severity=warning.severity,
+                    details=warning.details,
+                    step_index=step.index,
+                    step_alias=step.alias,
                 )
+            )
     return warnings
 
 
@@ -673,20 +691,20 @@ def aggregate_pipeline_sources(steps: List[StepResult]) -> List[PipelineSource]:
     """Aggregate sources from all steps."""
     sources: List[PipelineSource] = []
     for step in steps:
-        if step.metadata and step.metadata.sources:
-            for source in step.metadata.sources:
-                sources.append(
-                    PipelineSource(
-                        type=source.type,
-                        id=source.id,
-                        title=source.title,
-                        url=source.url,
-                        location=source.location,
-                        accessed_at=source.accessed_at,
-                        relevance=source.relevance,
-                        step_index=step.index,
-                    )
+        for raw in _step_meta(step, "sources") or []:
+            source = raw if isinstance(raw, Source) else Source.model_validate(raw)
+            sources.append(
+                PipelineSource(
+                    type=source.type,
+                    id=source.id,
+                    title=source.title,
+                    url=source.url,
+                    location=source.location,
+                    accessed_at=source.accessed_at,
+                    relevance=source.relevance,
+                    step_index=step.index,
                 )
+            )
     return sources
 
 
@@ -696,17 +714,17 @@ def aggregate_pipeline_alternatives(
     """Aggregate alternatives from all steps."""
     alternatives: List[PipelineAlternative[Any]] = []
     for step in steps:
-        if step.metadata and step.metadata.alternatives:
-            for alt in step.metadata.alternatives:
-                alternatives.append(
-                    PipelineAlternative(
-                        data=alt.data,
-                        reason=alt.reason,
-                        confidence=alt.confidence,
-                        label=alt.label,
-                        step_index=step.index,
-                    )
+        for raw in _step_meta(step, "alternatives") or []:
+            alt = raw if isinstance(raw, Alternative) else Alternative[Any].model_validate(raw)
+            alternatives.append(
+                PipelineAlternative(
+                    data=alt.data,
+                    reason=alt.reason,
+                    confidence=alt.confidence,
+                    label=alt.label,
+                    step_index=step.index,
                 )
+            )
     return alternatives
 
 
@@ -718,22 +736,9 @@ def build_confidence_breakdown(
     breakdown: List[StepConfidence] = []
     for s in steps:
         if s.status == StepStatus.SUCCESS:
-            confidence = 1.0
-            reasoning = None
-            if s.metadata:
-                # Access confidence from metadata extra fields or direct attribute
-                conf = getattr(s.metadata, "confidence", None)
-                if conf is not None:
-                    confidence = conf
-                elif s.metadata.model_extra and "confidence" in s.metadata.model_extra:
-                    confidence = s.metadata.model_extra["confidence"]
-
-                # Access reasoning from metadata extra fields
-                reason = getattr(s.metadata, "reasoning", None)
-                if reason is not None:
-                    reasoning = reason
-                elif s.metadata.model_extra and "reasoning" in s.metadata.model_extra:
-                    reasoning = s.metadata.model_extra["reasoning"]
+            conf = _step_meta(s, "confidence")
+            confidence = conf if conf is not None else 1.0
+            reasoning = _step_meta(s, "reasoning")
 
             alias = s.alias
             if not alias and step_defs and s.index < len(step_defs):

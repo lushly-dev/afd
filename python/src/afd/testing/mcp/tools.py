@@ -238,6 +238,7 @@ def create_tool_registry(
 	from afd.testing.commands.create import scenario_create
 	from afd.testing.commands.list import scenario_list
 	from afd.testing.commands.suggest import scenario_suggest
+	from afd.core.wire import to_wire
 	from afd.testing.hints import enhance_with_agent_hints
 
 	async def handle_list(input: Any) -> dict[str, Any]:
@@ -245,7 +246,7 @@ def create_tool_registry(
 		result = scenario_list(parsed)
 		if isinstance(result, dict):
 			return enhance_with_agent_hints("scenario-list", result)
-		return enhance_with_agent_hints("scenario-list", result.model_dump() if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})
+		return enhance_with_agent_hints("scenario-list", to_wire(result) if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})
 
 	async def handle_evaluate(input: Any) -> dict[str, Any]:
 		from afd.testing.commands.evaluate import scenario_evaluate
@@ -267,7 +268,7 @@ def create_tool_registry(
 		result = await scenario_evaluate(parsed)
 		if isinstance(result, dict):
 			return enhance_with_agent_hints("scenario-evaluate", result)
-		return enhance_with_agent_hints("scenario-evaluate", result.model_dump() if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})
+		return enhance_with_agent_hints("scenario-evaluate", to_wire(result) if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})
 
 	async def handle_coverage(input: Any) -> dict[str, Any]:
 		parsed = _validate_input(input)
@@ -280,21 +281,21 @@ def create_tool_registry(
 		result = scenario_coverage_cmd(parsed)
 		if isinstance(result, dict):
 			return enhance_with_agent_hints("scenario-coverage", result)
-		return enhance_with_agent_hints("scenario-coverage", result.model_dump() if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})
+		return enhance_with_agent_hints("scenario-coverage", to_wire(result) if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})
 
 	async def handle_create(input: Any) -> dict[str, Any]:
 		parsed = _validate_input(input, ["name", "job"])
 		result = scenario_create(parsed)
 		if isinstance(result, dict):
 			return enhance_with_agent_hints("scenario-create", result)
-		return enhance_with_agent_hints("scenario-create", result.model_dump() if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})
+		return enhance_with_agent_hints("scenario-create", to_wire(result) if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})
 
 	async def handle_suggest(input: Any) -> dict[str, Any]:
 		parsed = _validate_input(input, ["context"])
 		result = scenario_suggest(parsed)
 		if isinstance(result, dict):
 			return enhance_with_agent_hints("scenario-suggest", result)
-		return enhance_with_agent_hints("scenario-suggest", result.model_dump() if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})
+		return enhance_with_agent_hints("scenario-suggest", to_wire(result) if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})
 
 	return {
 		"scenario-list": handle_list,

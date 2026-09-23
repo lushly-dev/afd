@@ -206,6 +206,27 @@ AFD results include optional fields that enable rich agent experiences:
 | `alternatives` | Other options considered               |
 | `warnings`     | Non-fatal issues to surface            |
 
+### Wire Format
+
+Results cross language boundaries as JSON in the same shape as the TypeScript and
+Rust packages (see [`spec/wire`](../spec/wire/README.md)): keys are camelCase and
+unset fields are omitted, never `null`. Python attributes stay snake_case.
+
+```python
+from afd import CommandResult, success
+from afd.core.wire import to_wire
+
+to_wire(success({"id": "1"}, undo_command="todo-delete"))
+# {'success': True, 'data': {'id': '1'}, 'undoCommand': 'todo-delete'}
+
+# Parsing accepts camelCase and snake_case
+CommandResult.model_validate({"success": True, "undoCommand": "todo-delete"})
+```
+
+The MCP server sends failures with `isError: true`, and a missing or mistyped
+argument returns a `VALIDATION_ERROR` result with `details.errors`,
+`details.missingFields` and a `suggestion`.
+
 ### Telemetry
 
 Track command execution with standardized telemetry events:

@@ -1,8 +1,9 @@
 """Tests for the server module."""
 
+import json
+
 import pytest
 from pydantic import BaseModel
-from mcp.server.fastmcp.exceptions import ToolError
 
 from afd import success, error
 from afd.server import create_server, define_command, MCPServer
@@ -436,5 +437,11 @@ class TestServerIntegration:
         mcp = server._create_mcp_server()
         await server.call_tool("afd-context-enter", {"context": "reviewing"})
 
-        with pytest.raises(ToolError, match="not available in context 'reviewing'"):
-            await mcp.call_tool("doc-edit", {})
+        result = await mcp.call_tool("doc-edit", {})
+
+        assert result.isError is True
+        body = json.loads(result.content[0].text)
+        assert body["success"] is False
+        assert body["error"]["code"] == "COMMAND_NOT_IN_CONTEXT"
+        assert "not available in context 'reviewing'" in body["error"]["message"]
+        assert body["error"]["suggestion"]

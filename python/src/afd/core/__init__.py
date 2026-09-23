@@ -123,6 +123,7 @@ from afd.core.batch import (
     is_batch_result,
     is_batch_command,
 )
+from afd.core.wire import WireModel, to_wire, to_wire_json
 from afd.core.streaming import (
     ProgressChunk,
     DataChunk,
@@ -142,6 +143,7 @@ from afd.core.streaming import (
     is_error_chunk,
     is_stream_chunk,
     is_streamable_command,
+    parse_stream_chunk,
     consume_stream,
     collect_stream_data,
 )
@@ -273,6 +275,11 @@ __all__ = [
     "is_error_chunk",
     "is_stream_chunk",
     "is_streamable_command",
+    "parse_stream_chunk",
+    # Wire format
+    "WireModel",
+    "to_wire",
+    "to_wire_json",
     "consume_stream",
     "collect_stream_data",
 ]

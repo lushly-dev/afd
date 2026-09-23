@@ -10,9 +10,17 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional, Protocol, Type, TypeVar, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field, create_model
+from pydantic import BaseModel, ConfigDict, create_model
+from pydantic import ValidationError as PydanticValidationError
 
-from afd.core.batch import BatchCommandResult, BatchRequest, BatchTiming, create_batch_result, create_failed_batch_result
+from afd.core.batch import (
+    BatchCommandResult,
+    BatchRequest,
+    BatchResult,
+    BatchTiming,
+    create_batch_result,
+    create_failed_batch_result,
+)
 from afd.core.commands import (
     CommandContext,
     CommandDefinition,
@@ -23,8 +31,9 @@ from afd.core.commands import (
     create_command_registry,
 )
 from afd.core.errors import CommandError
-from afd.core.pipeline import PipelineRequest, execute_pipeline
+from afd.core.pipeline import PipelineRequest, PipelineResult, StepStatus, execute_pipeline
 from afd.core.result import CommandResult, error
+from afd.core.wire import to_wire
 from afd.server.bootstrap import ContextState, create_context_state, get_bootstrap_commands
 from afd.server.decorators import (
     CommandMetadata,
@@ -373,10 +382,15 @@ class MCPServer:
                     and registered.contexts
                     and active_context not in registered.contexts
                 ):
-                    from mcp.server.fastmcp.exceptions import ToolError
-
-                    raise ToolError(
-                        f"Command '{name}' is not available in context '{active_context}'"
+                    return _tool_call_result(
+                        error(
+                            "COMMAND_NOT_IN_CONTEXT",
+                            f"Command '{name}' is not available in context '{active_context}'",
+                            suggestion=(
+                                "Use afd-context-list to inspect contexts, "
+                                "or afd-context-enter to switch."
+                            ),
+                        )
                     )
 
             return await original_call_tool(
@@ -400,14 +414,15 @@ class MCPServer:
         if not isinstance(request, BatchRequest):
             payload = dict(request)
             options = dict(payload.get("options") or {})
-            if "stopOnError" in options and "stop_on_error" not in options:
-                options["stop_on_error"] = options.pop("stopOnError")
             if "timeoutMs" in options:
                 if "timeout" in options:
-                    raise ValueError("Specify only one of timeout or timeoutMs")
+                    return _invalid_batch("Specify only one of timeout or timeoutMs")
                 options["timeout"] = options.pop("timeoutMs")
             payload["options"] = options
-            request = BatchRequest.model_validate(payload)
+            try:
+                request = BatchRequest.model_validate(payload)
+            except PydanticValidationError as exc:
+                return _invalid_batch(_describe_validation_error(exc))
 
         options = request.options
         parallelism = options.parallelism if options else 1
@@ -585,60 +600,25 @@ class MCPServer:
             tool = self._create_fastmcp_tool(tool_definition)
             tool_manager._tools[tool.name] = tool
 
-    @staticmethod
-    def _schema_annotation(schema: Dict[str, Any]) -> Any:
-        schema_type = schema.get("type")
-        if schema_type == "string":
-            return str
-        if schema_type == "integer":
-            return int
-        if schema_type == "number":
-            return float
-        if schema_type == "boolean":
-            return bool
-        if schema_type == "array":
-            return list[Any]
-        if schema_type == "object" or schema.get("properties"):
-            return dict[str, Any]
-        return Any
-
     def _build_input_model(self, tool_name: str, schema: Dict[str, Any]) -> Type[BaseModel]:
+        """Build a FastMCP argument model that passes arguments through unchanged.
+
+        The advertised ``inputSchema`` is the command's schema, but FastMCP does
+        not validate against it: a missing or mistyped argument must reach the
+        command, whose own validation returns a structured VALIDATION_ERROR
+        result (as the TypeScript server does) instead of a raw FastMCP error.
+        """
         from mcp.server.fastmcp.utilities.func_metadata import ArgModelBase
 
-        properties = schema.get("properties", {})
-        required = set(schema.get("required", []))
-        model_fields: Dict[str, Any] = {}
+        class PassthroughArgs(ArgModelBase):
+            model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
 
-        for property_name, property_schema in properties.items():
-            annotation = self._schema_annotation(property_schema)
-            default = ... if property_name in required and "default" not in property_schema else property_schema.get("default")
-            if property_name not in required:
-                annotation = Optional[annotation]
-                if default is ...:
-                    default = None
-            model_fields[property_name] = (
-                annotation,
-                Field(default=default, description=property_schema.get("description")),
-            )
-
-        extra_mode = "allow" if schema.get("additionalProperties", True) else "forbid"
-
-        class ToolArgModelBase(ArgModelBase):
             def model_dump_one_level(self) -> dict[str, Any]:
-                kwargs = super().model_dump_one_level()
-                if self.model_extra:
-                    kwargs.update(self.model_extra)
-                return kwargs
-
-            model_config = ConfigDict(
-                arbitrary_types_allowed=True,
-                extra=extra_mode,
-            )
+                return dict(self.model_extra or {})
 
         return create_model(
             f"{tool_name.replace('-', '_')}_Input",
-            __base__=ToolArgModelBase,
-            **model_fields,
+            __base__=PassthroughArgs,
         )
 
     def _create_fastmcp_tool(self, tool_definition: Dict[str, Any]):
@@ -651,15 +631,14 @@ class MCPServer:
             input_schema,
         )
 
-        async def handler(**payload: Any) -> str:
-            result = await self.route_tool_call(tool_definition["name"], payload)
-            if isinstance(result, BaseModel):
-                data = result.model_dump(mode="json")
-            elif hasattr(result, "model_dump"):
-                data = result.model_dump()
-            else:
-                data = result
-            return json.dumps(data, default=str)
+        tool_name = tool_definition["name"]
+
+        async def handler(**payload: Any) -> Any:
+            try:
+                result = await self.route_tool_call(tool_name, payload)
+                return _tool_call_result(result)
+            except Exception as exc:
+                return _tool_call_result(self._internal_error(tool_name, exc))
 
         return Tool(
             fn=handler,
@@ -701,6 +680,59 @@ class MCPServer:
             await mcp.run_streamable_http_async()
         else:
             raise ValueError(f"Unknown transport: {transport}")
+
+
+def _is_error_result(result: Any) -> bool:
+    """Return the MCP ``isError`` flag for a routed tool result.
+
+    Matches the TypeScript server: a failed CommandResult or BatchResult, or a
+    pipeline with a failed step, is an error.
+    """
+    if isinstance(result, (CommandResult, BatchResult)):
+        return not result.success
+    if isinstance(result, PipelineResult):
+        return any(step.status == StepStatus.FAILURE for step in result.steps)
+    if isinstance(result, dict) and isinstance(result.get("success"), bool):
+        return not result["success"]
+    return False
+
+
+def _tool_call_result(result: Any) -> Any:
+    """Wrap a routed result in an MCP CallToolResult in the AFD wire format."""
+    from mcp.types import CallToolResult, TextContent
+
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(to_wire(result)))],
+        isError=_is_error_result(result),
+    )
+
+
+def _describe_validation_error(exc: PydanticValidationError) -> List[Dict[str, Any]]:
+    """Field paths and messages of a pydantic error, without input values."""
+    return [
+        {
+            "path": ".".join(str(part) for part in issue.get("loc", ())) or "(root)",
+            "message": issue.get("msg", "Invalid value"),
+            "code": issue.get("type", "validation_error"),
+        }
+        for issue in exc.errors()
+    ]
+
+
+def _invalid_batch(problem: Any) -> BatchResult:
+    """A failed BatchResult for a request whose envelope is invalid."""
+    return create_failed_batch_result(
+        CommandError(
+            code="INVALID_BATCH_REQUEST",
+            message="Invalid batch request",
+            suggestion=(
+                "Provide { commands: [{ command, input }], options: { stopOnError, "
+                "timeout (or timeoutMs), parallelism } }"
+            ),
+            retryable=False,
+            details={"errors": problem if isinstance(problem, list) else [{"message": problem}]},
+        )
+    )
 
 
 def create_server(

@@ -20,12 +20,14 @@ Example:
 from enum import Enum
 from typing import Any, Generic, List, Optional, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from afd.core.wire import WireModel
 
 T = TypeVar("T")
 
 
-class Source(BaseModel):
+class Source(WireModel):
     """Information source used by a command to produce its result.
     
     Enables: Attribution, verification, trust building.
@@ -67,7 +69,7 @@ class PlanStepStatus(str, Enum):
     SKIPPED = "skipped"
 
 
-class PlanStep(BaseModel):
+class PlanStep(WireModel):
     """A step in a multi-step plan or operation.
     
     Enables: Plan visualization, progress tracking, transparency.
@@ -104,7 +106,7 @@ class PlanStep(BaseModel):
     estimated_time_remaining_ms: Optional[int] = None
 
 
-class Alternative(BaseModel, Generic[T]):
+class Alternative(WireModel, Generic[T]):
     """An alternative result that was considered but not chosen.
     
     Enables: User choice, exploration, transparency about decisions.
@@ -138,7 +140,7 @@ class WarningSeverity(str, Enum):
     CAUTION = "caution"
 
 
-class Warning(BaseModel):
+class Warning(WireModel):
     """A non-fatal warning or notice to surface to the user.
     
     Enables: Proactive transparency, awareness of potential issues.
