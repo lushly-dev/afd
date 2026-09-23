@@ -42,6 +42,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Migration:** remotely callable TypeScript commands must declare `expose: { mcp: true }`; the server now enforces the existing MCP opt-in contract. Public examples include this declaration. See the server README for HTTP host and origin configuration.
 - Refresh dependency ranges and the lockfile to address known advisory matches (#199).
 - **Migration:** import React auth integrations from `@lushly-dev/afd-auth/react` and command construction from `@lushly-dev/afd-auth/commands`; core auth imports no longer load optional integrations (#222).
+- **Breaking (Python wire format):** results use the cross-language format checked by `spec/wire/*.json`: camelCase keys, unset fields omitted rather than `null`, and MCP `isError: true` on failures. Parsing still accepts snake_case. Error `details` keys are camelCase (`expectedFields`, `missingFields`, …).
+- **Breaking (pipelines, all languages):** variable references follow `spec/pipeline-variables.md`. `$input` is the request's own `input` field and never the host or caller context; `$`-prefixed literals such as `$9.99` pass through; `$$` escapes; paths follow only own JSON keys and in-bounds indices; unresolved references are omitted; `$eq`/`$ne` compare structurally; nesting deeper than 64 is rejected with `VALIDATION_ERROR`. Python DirectClient `$alias` references become `$steps.alias`.
+- **Breaking (Rust crate 0.1.0):** types serialize exactly like `@lushly-dev/afd-core` (metadata, batch, pipeline and stream shapes); batches continue on error by default; public structs are `#[non_exhaustive]` with builders; a panicking handler fails only its own batch command or pipeline step.
+- Python: a missing or mistyped MCP argument returns a structured `VALIDATION_ERROR`; `McpClient` keeps TypeScript failure details and all result fields and posts to `/message`; server telemetry goes to stderr.
 
 ### Added
 

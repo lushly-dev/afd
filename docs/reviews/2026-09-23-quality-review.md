@@ -633,6 +633,8 @@ effective, and no test covers `BATCH_TIMEOUT` or `COMMAND_SKIPPED`.
 
 **Wave 1 (quality gates) on the second review branch:** Python, Rust and conformance CI; test-inclusive typecheck in every package (292 test type errors fixed); coverage thresholds for server, adapters and auth; SHA-pinned actions; H17 fixed. Two further items surfaced: the Python server rejects missing/mistyped MCP arguments with a raw FastMCP error before AFD validation (`python/src/afd/server/factory.py` `_build_input_model`), and Python results serialize unset fields as `null` alongside snake_case keys.
 
+**Wave 2 (architecture) on the third review branch:** shared golden wire fixtures (`spec/wire`) round-tripped by TypeScript, Python and Rust (H12 and the Python wire drift fixed); one pipeline variable spec (`spec/pipeline-variables.md`) implemented in all three languages (Theme 3); per-session context and a `createContext` request hook (H3, Theme 4); JSON-RPC-conformant HTTP errors, notifications and capped SSE; input-mode schemas (H5); usable, validated bootstrap and meta-tools; `createDirectRegistry` for DirectClient; transport-free `@lushly-dev/afd-server/define` and core `/connectors` subpaths (Theme 9, root re-exports deprecated until the next major); the core registry shares the server's batch/stream executor (Theme 2); exposure resolves per flag everywhere.
+
 **Follow-ups found while fixing:**
 
 - `afd-detail` with a missing or non-string `command` still throws a `TypeError` (TS). Middleware exceptions on direct Python tool calls still reach FastMCP with their text.
