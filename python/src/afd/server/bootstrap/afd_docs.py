@@ -5,11 +5,12 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from afd.core.commands import CommandContext, CommandDefinition, CommandParameter
 from afd.core.result import CommandResult, success
 from afd.server.bootstrap.afd_context import BOOTSTRAP_EXPOSE
+from afd.server.validation import _input_validation_failure
 
 
 class AfdDocsInput(BaseModel):
@@ -132,7 +133,10 @@ def create_afd_docs_command(
         input: Any,
         context: Optional[CommandContext] = None,
     ) -> CommandResult[AfdDocsOutput]:
-        parsed_input = input if isinstance(input, AfdDocsInput) else AfdDocsInput(**(input or {}))
+        try:
+            parsed_input = input if isinstance(input, AfdDocsInput) else AfdDocsInput(**(input or {}))
+        except ValidationError as exc:
+            return _input_validation_failure(AfdDocsInput, input, exc)
         return await _afd_docs_handler(parsed_input, context, get_commands)
 
     return CommandDefinition(

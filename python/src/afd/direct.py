@@ -203,6 +203,11 @@ def _levenshtein_similarity(a: str, b: str) -> float:
     return 1.0 - matrix[len_a][len_b] / max_len
 
 
+# Untrusted tool names are capped before fuzzy matching (the Levenshtein
+# matrix is O(len(a) * len(b))) and before being echoed back.
+_MAX_TOOL_NAME_LENGTH = 128
+
+
 def _find_similar_tools(
     requested: str,
     available: List[str],
@@ -223,6 +228,7 @@ def _create_unknown_tool_error(
     available: List[str]
 ) -> UnknownToolError:
     """Create a structured unknown tool error."""
+    requested = requested[:_MAX_TOOL_NAME_LENGTH]
     suggestions = _find_similar_tools(requested, available)
     hint = f"Did you mean '{suggestions[0]}'?" if suggestions else None
     

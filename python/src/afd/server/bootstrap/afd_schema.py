@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from afd.core.commands import CommandContext, CommandDefinition, CommandParameter
 from afd.core.result import CommandResult, success
 from afd.server.bootstrap.afd_context import BOOTSTRAP_EXPOSE
+from afd.server.validation import _input_validation_failure
 
 
 class AfdSchemaInput(BaseModel):
@@ -175,7 +176,10 @@ def create_afd_schema_command(
         input: Any,
         context: Optional[CommandContext] = None,
     ) -> CommandResult[AfdSchemaOutput]:
-        parsed_input = input if isinstance(input, AfdSchemaInput) else AfdSchemaInput(**(input or {}))
+        try:
+            parsed_input = input if isinstance(input, AfdSchemaInput) else AfdSchemaInput(**(input or {}))
+        except ValidationError as exc:
+            return _input_validation_failure(AfdSchemaInput, input, exc)
         return await _afd_schema_handler(parsed_input, context, get_commands, get_json_schema)
 
     return CommandDefinition(

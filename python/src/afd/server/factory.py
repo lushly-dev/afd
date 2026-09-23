@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -40,6 +41,9 @@ from afd.server.types import ContextConfig, GroupByFn, ToolStrategy
 TInput = TypeVar("TInput", bound=BaseModel)
 TOutput = TypeVar("TOutput")
 
+# Never log to stdout: the stdio transport uses it for JSON-RPC.
+logger = logging.getLogger("afd.server")
+
 
 @runtime_checkable
 class MCPTransport(Protocol):
@@ -64,6 +68,7 @@ class ServerConfig:
     tool_strategy: ToolStrategy = "individual"
     contexts: List[ContextConfig] = field(default_factory=list)
     group_by: Optional[GroupByFn] = None
+    dev_mode: bool = False
 
 
 class MCPServer:
@@ -157,8 +162,12 @@ class MCPServer:
             if self.config.contexts:
                 options["get_contexts"] = self.list_contexts
                 options["context_state"] = self._context_state
+            # Discovery commands are served over MCP, so they only see
+            # MCP-exposed commands.
             self._bootstrap_commands = get_bootstrap_commands(
-                lambda: self.list_commands(include_bootstrap=True, context_filtered=True),
+                lambda: self.list_exposed_commands(
+                    interface="mcp", include_bootstrap=True, context_filtered=True
+                ),
                 options=options,
             )
         return list(self._bootstrap_commands)
@@ -245,12 +254,30 @@ class MCPServer:
 
         try:
             return await command.handler(input, context)
-        except Exception as exc:  # pragma: no cover - exercised via tests
+        except Exception as exc:
+            return self._internal_error(command.name, exc)
+
+    def _internal_error(self, command_name: str, exc: Exception) -> CommandResult:
+        """Log an unexpected exception and return a failure that is safe to send remotely.
+
+        The exception text is only returned when ``dev_mode`` is enabled.
+        """
+        logger.error(
+            "Command '%s' raised an unhandled exception",
+            command_name,
+            exc_info=exc,
+        )
+        if self.config.dev_mode:
             return error(
                 "COMMAND_EXECUTION_ERROR",
                 str(exc),
-                suggestion="Check the input parameters and try again.",
+                suggestion="Check the command implementation",
             )
+        return error(
+            "COMMAND_EXECUTION_ERROR",
+            "An internal error occurred",
+            suggestion="Contact support if this persists",
+        )
 
     async def _execute_command_direct(
         self,
@@ -420,14 +447,7 @@ class MCPServer:
                         ),
                     )
                 except Exception as exc:
-                    command_result = CommandResult(
-                        success=False,
-                        error=CommandError(
-                            code="COMMAND_EXECUTION_ERROR",
-                            message=str(exc),
-                            suggestion="Check the command implementation and retry",
-                        ),
-                    )
+                    command_result = self._internal_error(batch_command.command, exc)
                 duration_ms = (time.perf_counter() - command_start) * 1000
                 if options and options.stop_on_error and not command_result.success:
                     stopped = True
@@ -496,7 +516,10 @@ class MCPServer:
             request = PipelineRequest.model_validate(payload)
 
         async def executor(command_name: str, payload: Dict[str, Any]) -> CommandResult:
-            result = await self.execute(command_name, payload, context)
+            try:
+                result = await self.execute(command_name, payload, context)
+            except Exception as exc:
+                return self._internal_error(command_name, exc)
             if not isinstance(result, CommandResult):
                 raise TypeError(f"Pipeline step '{command_name}' did not return a CommandResult")
             return result
@@ -513,7 +536,9 @@ class MCPServer:
                 commands=commands,
                 tool_strategy=self.config.tool_strategy,
                 group_by_fn=self.config.group_by,
-                all_commands=self.list_commands(include_bootstrap=True, context_filtered=False),
+                # Only MCP-exposed commands are visible to MCP routing and
+                # discovery (afd-call, afd-detail), as in the TS server.
+                all_commands=commands,
                 exposed_command_names={command.name for command in commands},
                 context_state=self._context_state,
             )
@@ -687,8 +712,17 @@ def create_server(
     tool_strategy: ToolStrategy = "individual",
     contexts: Optional[List[ContextConfig]] = None,
     group_by: Optional[GroupByFn] = None,
+    dev_mode: bool = False,
 ) -> MCPServer:
-    """Create a new AFD MCP server."""
+    """Create a new AFD MCP server.
+
+    Args:
+        dev_mode: Development mode. When False (the default), a command that
+            raises returns the generic message "An internal error occurred"
+            instead of the exception text. The exception and its traceback are
+            logged to the ``afd.server`` logger either way. Mirrors the
+            TypeScript server's ``devMode`` option.
+    """
 
     normalized_contexts = [
         item
@@ -712,5 +746,6 @@ def create_server(
         tool_strategy=tool_strategy,
         contexts=normalized_contexts,
         group_by=group_by,
+        dev_mode=dev_mode,
     )
     return MCPServer(config)
