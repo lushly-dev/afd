@@ -242,6 +242,8 @@
         .log-time { color: #666; }
         .log-cmd { color: #00d9ff; }
         .log-latency { color: #00ff88; }
+        .log-ok { color: #00ff88; }
+        .log-fail { color: #ff4757; }
 
         .empty {
             text-align: center;
@@ -290,6 +292,11 @@
             display: flex;
             flex-direction: column;
             gap: 0.75rem;
+        }
+
+        .chat-text {
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
         }
 
         .chat-message {
@@ -444,7 +451,7 @@
                         <option value="high">High</option>
                         <option value="low">Low</option>
                     </select>
-                    <button type="button" onclick="createTodo()">Add</button>
+                    <button type="button" id="addTodo">Add</button>
                 </div>
             </div>
 
@@ -455,8 +462,8 @@
                     <div class="empty">Loading...</div>
                 </div>
                 <div class="actions">
-                    <button type="button" class="secondary" onclick="refreshTodos()">Refresh</button>
-                    <button type="button" class="danger" onclick="clearTodos()">Clear All</button>
+                    <button type="button" class="secondary" id="refreshTodos">Refresh</button>
+                    <button type="button" class="danger" id="clearTodos">Clear Completed</button>
                 </div>
             </div>
 
@@ -514,225 +521,11 @@
         <div class="chat-input-container">
             <div class="chat-input-row">
                 <input type="text" id="chatInput" placeholder="Ask AI to help with todos...">
-                <button type="button" class="chat-send" onclick="sendChat()">Send</button>
+                <button type="button" class="chat-send" id="sendChat">Send</button>
             </div>
         </div>
     </div>
 
-    <script>
-        const EXECUTE_URL = 'http://localhost:3201/execute';
-        const CHAT_URL = 'http://localhost:3201/chat';
-        const _requestId = 0;
-
-        // ═══════════════════════════════════════════════════════════════
-        // Commands via DirectClient (same registry as AI sidebar)
-        // ═══════════════════════════════════════════════════════════════
-
-        async function callCommand(name, args = {}) {
-            const start = performance.now();
-
-            try {
-                const response = await fetch(EXECUTE_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, args })
-                });
-
-                const result = await response.json();
-                const elapsed = result.latencyMs?.toFixed(3) ?? (performance.now() - start).toFixed(2);
-
-                addLog(name, elapsed, result?.success ?? false);
-                return result;
-            } catch (err) {
-                const elapsed = (performance.now() - start).toFixed(2);
-                addLog(name, elapsed, false);
-                return { success: false, error: { message: err.message } };
-            }
-        }
-
-        function addLog(command, latency, success) {
-            const log = document.getElementById('log');
-            if (log.querySelector('.empty')) log.innerHTML = '';
-
-            const time = new Date().toLocaleTimeString();
-            const entry = document.createElement('div');
-            entry.className = 'log-entry';
-            entry.innerHTML = `
-                <span class="log-time">${time}</span>
-                <span class="log-cmd">${command}</span>
-                <span class="log-latency" title="DirectClient execution time (in-process)">${latency}ms exec</span>
-                <span style="color: ${success ? '#00ff88' : '#ff4757'}">${success ? '✓' : '✗'}</span>
-            `;
-            log.insertBefore(entry, log.firstChild);
-        }
-
-        // ═══════════════════════════════════════════════════════════════
-        // Todo UI Functions
-        // ═══════════════════════════════════════════════════════════════
-
-        async function createTodo() {
-            const title = document.getElementById('todoTitle').value.trim();
-            if (!title) return;
-            const priority = document.getElementById('todoPriority').value;
-
-            const result = await callCommand('todo-create', { title, priority });
-            if (result?.success) {
-                document.getElementById('todoTitle').value = '';
-                await refreshTodos();
-            }
-        }
-
-        async function _toggleTodo(id) {
-            await callCommand('todo-toggle', { id });
-            await refreshTodos();
-        }
-
-        async function _clearTodos() {
-            await callCommand('todo-clear', {});
-            await refreshTodos();
-        }
-
-        async function refreshTodos() {
-            const [listResult, statsResult] = await Promise.all([
-                callCommand('todo-list', {}),
-                callCommand('todo-stats', {})
-            ]);
-
-            const list = document.getElementById('todosList');
-            const todos = listResult?.data?.todos ?? [];
-
-            if (todos.length === 0) {
-                list.innerHTML = '<div class="empty">No todos yet. Create one above!</div>';
-            } else {
-                list.innerHTML = todos.map(todo => `
-                    <div class="todo-item ${todo.completed ? 'completed' : ''}" onclick="toggleTodo('${todo.id}')">
-                        <div class="todo-checkbox ${todo.completed ? 'checked' : ''}"></div>
-                        <span class="todo-title">${todo.title}</span>
-                        <span class="priority-badge priority-${todo.priority || 'medium'}">${todo.priority || 'medium'}</span>
-                    </div>
-                `).join('');
-            }
-
-            const stats = statsResult?.data;
-            if (stats) {
-                document.getElementById('statTotal').textContent = stats.total;
-                document.getElementById('statCompleted').textContent = stats.completed;
-                document.getElementById('statPending').textContent = stats.pending;
-            }
-        }
-
-        // ═══════════════════════════════════════════════════════════════
-        // AI Chat (uses DirectClient on backend - zero overhead!)
-        // ═══════════════════════════════════════════════════════════════
-
-        async function sendChat() {
-            const input = document.getElementById('chatInput');
-            const message = input.value.trim();
-            if (!message) return;
-
-            input.value = '';
-            addChatMessage('user', message);
-
-            const typing = document.getElementById('typingIndicator');
-            typing.classList.add('visible');
-
-            try {
-                const start = performance.now();
-                const response = await fetch(CHAT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message })
-                });
-
-                const data = await response.json();
-                const _totalMs = performance.now() - start;
-
-                typing.classList.remove('visible');
-
-                if (data.error) {
-                    addChatMessage('system', `Error: ${data.error}`);
-                } else {
-                    addChatMessage('assistant', data.message, data.toolExecutions, data.totalToolLatencyMs, data.modelLatencyMs);
-                    // Refresh the todo list since AI may have changed things
-                    await refreshTodos();
-                }
-            } catch (err) {
-                typing.classList.remove('visible');
-                addChatMessage('system', `Connection error: ${err.message}`);
-            }
-        }
-
-        function addChatMessage(role, text, tools = [], toolLatency = 0, modelLatency = 0) {
-            const container = document.getElementById('chatMessages');
-            const msg = document.createElement('div');
-            msg.className = `chat-message ${role}`;
-
-            let html = text;
-
-            if (tools.length > 0) {
-                html += '<div class="tool-executions">';
-                html += '<strong>Tools executed:</strong>';
-                for (const t of tools) {
-                    html += `
-                        <div class="tool-exec">
-                            <span class="tool-name">${t.name}</span>
-                            <span class="tool-latency">${t.latencyMs.toFixed(3)}ms</span>
-                        </div>
-                    `;
-                }
-                html += `
-                    <div class="latency-summary" title="Model = Gemini API time, Tools = DirectClient in-process execution">
-                        🧠 Gemini: ${modelLatency.toFixed(0)}ms | 
-                        ⚡ DirectClient: <span class="highlight">${toolLatency.toFixed(3)}ms</span>
-                    </div>
-                `;
-                html += '</div>';
-            }
-
-            msg.innerHTML = html;
-            container.appendChild(msg);
-            container.scrollTop = container.scrollHeight;
-        }
-
-        // ═══════════════════════════════════════════════════════════════
-        // Status Checks
-        // ═══════════════════════════════════════════════════════════════
-
-        async function checkServers() {
-            // Check MCP server
-            try {
-                const r = await fetch('http://localhost:3200/health');
-                document.getElementById('serverStatus').classList.toggle('connected', r.ok);
-            } catch {
-                document.getElementById('serverStatus').classList.remove('connected');
-            }
-
-            // Check Chat server
-            try {
-                const r = await fetch('http://localhost:3201/health');
-                const data = await r.json();
-                const connected = r.ok && data.geminiConfigured;
-                document.getElementById('chatStatus').classList.toggle('connected', connected);
-                document.getElementById('aiStatus').textContent = connected ? 'Ready' : 'No API Key';
-            } catch {
-                document.getElementById('chatStatus').classList.remove('connected');
-                document.getElementById('aiStatus').textContent = 'Offline';
-            }
-        }
-
-        // Keyboard shortcuts
-        document.getElementById('todoTitle').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') createTodo();
-        });
-
-        document.getElementById('chatInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendChat();
-        });
-
-        // Init
-        checkServers();
-        refreshTodos();
-        setInterval(checkServers, 5000);
-    </script>
+    <script type="module" src="app.js"></script>
 </body>
 </html>
