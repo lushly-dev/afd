@@ -23,7 +23,7 @@
 		"build": "tsc",
 		"clean": "rimraf dist *.tsbuildinfo",
 		"dev": "tsc --watch",
-		"typecheck": "tsc --noEmit",
+		"typecheck": "tsc -p tsconfig.typecheck.json",
 		"test": "vitest run",
 		"test:watch": "vitest"
 	},
