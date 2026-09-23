@@ -168,3 +168,70 @@ describe('HttpTransport', () => {
 		expect(messageHandler).toHaveBeenCalledWith(validResponse);
 	});
 });
+
+describe('MCP session header', () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+
+	function reply(id: number, headers: Record<string, string> = {}, status = 200): Response {
+		const body = status === 200 ? JSON.stringify({ jsonrpc: '2.0', id, result: {} }) : '{}';
+		return new Response(body, { status, headers });
+	}
+
+	function sentSession(fetchMock: ReturnType<typeof vi.fn>, call: number): string | undefined {
+		const init = fetchMock.mock.calls[call]?.[1] as { headers: Record<string, string> };
+		return init.headers['Mcp-Session-Id'];
+	}
+
+	it.each([
+		['http', (url: string) => new HttpTransport(url)],
+		['sse', (url: string) => new SseTransport(url.replace('/message', '/sse'))],
+	] as const)('%s transport repeats the session issued by initialize', async (_name, create) => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(reply(1, { 'Mcp-Session-Id': 'session-1' }))
+			.mockResolvedValueOnce(reply(2));
+		vi.stubGlobal('fetch', fetchMock);
+		const transport = create('http://localhost:3100/message');
+		await transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize' });
+		await transport.send({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+		expect(sentSession(fetchMock, 0)).toBeUndefined();
+		expect(sentSession(fetchMock, 1)).toBe('session-1');
+
+		transport.disconnect();
+		fetchMock.mockResolvedValueOnce(reply(3));
+		await transport.send({ jsonrpc: '2.0', id: 3, method: 'tools/list' });
+		expect(sentSession(fetchMock, 2)).toBeUndefined();
+	});
+
+	it('starts a new session and retries once when the server forgot the session', async () => {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValueOnce(reply(1, { 'Mcp-Session-Id': 'old' }))
+			.mockResolvedValueOnce(reply(2, {}, 404))
+			.mockResolvedValueOnce(reply(1, { 'Mcp-Session-Id': 'new' }))
+			.mockResolvedValueOnce(reply(2));
+		vi.stubGlobal('fetch', fetchMock);
+		const transport = new HttpTransport('http://localhost:3100/message');
+		await transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize' });
+		const response = await transport.send({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+		expect(response.id).toBe(2);
+		expect(fetchMock).toHaveBeenCalledTimes(4);
+		expect(sentSession(fetchMock, 1)).toBe('old');
+		expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body)).method).toBe('initialize');
+		expect(sentSession(fetchMock, 2)).toBeUndefined();
+		expect(sentSession(fetchMock, 3)).toBe('new');
+	});
+
+	it('does not retry a 404 when no session was sent', async () => {
+		const fetchMock = vi.fn().mockResolvedValue(reply(1, {}, 404));
+		vi.stubGlobal('fetch', fetchMock);
+		const transport = new HttpTransport('http://localhost:3100/message');
+		await expect(transport.send({ jsonrpc: '2.0', id: 1, method: 'tools/list' })).rejects.toThrow(
+			'HTTP error: 404'
+		);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+});
