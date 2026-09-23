@@ -6,6 +6,7 @@
  * Fuzzy matching comes from `@lushly-dev/afd-core`.
  */
 
+import type { CommandResult } from '@lushly-dev/afd-core';
 import { findSimilarTools, truncateName } from '@lushly-dev/afd-core';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -47,4 +48,39 @@ export function createUnknownToolError(
 		suggestions,
 		hint,
 	};
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// TYPE GUARD
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Whether a `DirectClient.call()` result is the structured failure for an
+ * unknown command.
+ *
+ * `call<T>()` returns `CommandResult<T> | CommandResult<UnknownToolError>`, so
+ * checking `result.success` alone does not tell TypeScript which one it has.
+ * Rule out the unknown-tool case first; the result is then `CommandResult<T>`.
+ *
+ * @example
+ * ```typescript
+ * import { isSuccess } from '@lushly-dev/afd-core';
+ * import { isUnknownToolError } from '@lushly-dev/afd-client';
+ *
+ * const result = await client.call<Todo>('todo-create', { title: 'Test' });
+ * if (isUnknownToolError(result)) {
+ *   console.log(result.data?.suggestions); // UnknownToolError
+ * } else if (isSuccess(result)) {
+ *   console.log(result.data.id); // Todo
+ * }
+ * ```
+ */
+export function isUnknownToolError<T>(
+	result: CommandResult<T> | CommandResult<UnknownToolError>
+): result is CommandResult<UnknownToolError> {
+	if (result.success || result.error?.code !== 'UNKNOWN_TOOL') return false;
+	const data: unknown = result.data;
+	return (
+		typeof data === 'object' && data !== null && 'error' in data && data.error === 'UNKNOWN_TOOL'
+	);
 }

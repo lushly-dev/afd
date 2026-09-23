@@ -8,22 +8,12 @@
  * @example
  * ```typescript
  * import { createDirectClient } from '@lushly-dev/afd-client';
- * import { registry } from '@my-app/commands';
+ * import { createDirectRegistry } from '@lushly-dev/afd-server';
+ * import { commands } from '@my-app/commands';
  *
- * const client = createDirectClient(registry);
- * const result = await client.call('todo-create', { title: 'Fast!' });
- * // ~0.03-0.1ms latency vs 10-100ms for MCP
- * ```
- *
- * @example Context propagation
- * ```typescript
- * const client = createDirectClient(registry, {
- *   source: 'my-agent',
- *   debug: true,
- * });
- *
- * // traceId is auto-generated or can be passed per-call
- * const result = await client.call('command', args, { traceId: 'trace-123' });
+ * // Zod validation, middleware and expose.agent checks, in process
+ * const client = createDirectClient(createDirectRegistry(commands));
+ * const result = await client.call('todo-create', { title: 'Fast!' }, { timeout: 5000 });
  * ```
  */
 
@@ -39,7 +29,8 @@ import type {
 	PipelineResult,
 	PipelineStep,
 } from '@lushly-dev/afd-core';
-import { executePipeline, failure, validationError } from '@lushly-dev/afd-core';
+import { executePipeline, failure, truncateName, validationError } from '@lushly-dev/afd-core';
+import { runWithTimeout } from './direct-timeout.js';
 import type { CommandDefinition } from './direct-validation.js';
 import { validateInput } from './direct-validation.js';
 import type {
@@ -55,7 +46,7 @@ import { createUnknownToolError } from './unknown-tool.js';
 
 // Re-export extracted types for backward compatibility
 export type { CommandDefinition, CommandParameter } from './direct-validation.js';
-export type { UnknownToolError } from './unknown-tool.js';
+export { isUnknownToolError, type UnknownToolError } from './unknown-tool.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DIRECT CLIENT OPTIONS AND CONTEXT
@@ -88,6 +79,18 @@ export interface DirectClientOptions {
 	 * When empty or omitted, the zero-overhead path is preserved.
 	 */
 	middleware?: CommandMiddleware[];
+
+	/**
+	 * Restrict the commands this client may call. When it returns `false` (or
+	 * throws), `call()` and `pipe()` return a `COMMAND_NOT_ALLOWED` failure
+	 * without reaching the registry, and `listCommands()`, `listCommandNames()`
+	 * and `hasCommand()` leave the command out.
+	 *
+	 * This narrows what the registry offers; it does not replace exposure
+	 * checks. Pair it with `createDirectRegistry()` from `@lushly-dev/afd-server`,
+	 * which validates input and honours `expose.agent`.
+	 */
+	allow?: (commandName: string) => boolean;
 }
 
 /**
@@ -101,7 +104,11 @@ export interface DirectCallContext {
 	traceId?: string;
 
 	/**
-	 * Timeout in milliseconds for this call.
+	 * Timeout in milliseconds for this call (per step for `pipe()`).
+	 *
+	 * When it passes, the signal given to the command aborts and the call
+	 * resolves to a `TIMEOUT` failure, even if the command ignores the signal.
+	 * Values that are not positive finite numbers are ignored.
 	 */
 	timeout?: number;
 
@@ -119,7 +126,10 @@ export interface DirectCallContext {
 /**
  * Interface for command registries that support direct execution.
  *
- * Implement this interface in your application to enable direct transport.
+ * Prefer `createDirectRegistry(commands)` from `@lushly-dev/afd-server`: it
+ * validates input with each command's Zod schema, runs middleware and only
+ * offers commands exposed to agents. A hand-written registry that calls
+ * `command.handler(input)` skips all of that.
  */
 export interface DirectRegistry {
 	/**
@@ -404,16 +414,20 @@ function generateTraceId(): string {
  *
  * @example
  * ```typescript
- * import { createDirectClient } from '@lushly-dev/afd-client';
- * import { registry } from '@my-app/commands';
+ * import { isSuccess } from '@lushly-dev/afd-core';
+ * import { createDirectClient, isUnknownToolError } from '@lushly-dev/afd-client';
+ * import { createDirectRegistry } from '@lushly-dev/afd-server';
+ * import { commands } from '@my-app/commands';
  *
- * const client = createDirectClient(registry);
+ * const client = createDirectClient(createDirectRegistry(commands));
  *
  * // Type-safe command execution
  * const result = await client.call<Todo>('todo-create', { title: 'Test' });
  *
- * if (result.success) {
- *   console.log(result.data.id);
+ * if (isUnknownToolError(result)) {
+ *   console.log(result.data?.hint); // e.g. "Did you mean 'todo-create'?"
+ * } else if (isSuccess(result)) {
+ *   console.log(result.data.id); // result is CommandResult<Todo>
  * }
  * ```
  *
@@ -429,9 +443,12 @@ function generateTraceId(): string {
  * ```
  */
 export class DirectClient {
-	private readonly options: Required<Omit<DirectClientOptions, 'source' | 'middleware'>> & {
+	private readonly options: Required<
+		Omit<DirectClientOptions, 'source' | 'middleware' | 'allow'>
+	> & {
 		source?: string;
 		middleware: CommandMiddleware[];
+		allow?: (commandName: string) => boolean;
 	};
 
 	constructor(
@@ -443,7 +460,18 @@ export class DirectClient {
 			debug: options.debug ?? false,
 			validateInputs: options.validateInputs ?? true,
 			middleware: options.middleware ?? [],
+			allow: options.allow,
 		};
+	}
+
+	/** Whether the `allow` option lets this client call a command. A throwing predicate denies. */
+	private isAllowed(name: string): boolean {
+		if (!this.options.allow) return true;
+		try {
+			return this.options.allow(name) === true;
+		} catch {
+			return false;
+		}
 	}
 
 	/**
@@ -467,10 +495,19 @@ export class DirectClient {
 
 		this.debug(`[${traceId}] Calling ${name}`, args);
 
+		if (!this.isAllowed(name)) {
+			this.debug(`[${traceId}] Not allowed: ${name}`);
+			return failure<T>({
+				code: 'COMMAND_NOT_ALLOWED',
+				message: `Command '${truncateName(name)}' is not allowed for this client`,
+				suggestion: 'Call one of the commands returned by listCommandNames()',
+				retryable: false,
+			});
+		}
+
 		// Check if the command exists - return structured error if not
 		if (!this.registry.hasCommand(name)) {
-			const availableTools = this.registry.listCommandNames();
-			const unknownToolError = createUnknownToolError(name, availableTools);
+			const unknownToolError = createUnknownToolError(name, this.listCommandNames());
 
 			this.debug(`[${traceId}] Unknown command: ${name}`);
 
@@ -482,6 +519,8 @@ export class DirectClient {
 				error: {
 					code: 'UNKNOWN_TOOL',
 					message: unknownToolError.message,
+					suggestion:
+						unknownToolError.hint ?? 'Call one of the commands returned by listCommandNames()',
 				},
 			};
 		}
@@ -515,24 +554,11 @@ export class DirectClient {
 			commandContext.source = this.options.source;
 		}
 
-		// Execute the command (with middleware if configured)
-		let result: CommandResult<T>;
-
-		if (this.options.middleware.length > 0) {
-			// Build onion chain around registry.execute()
-			let next: () => Promise<CommandResult> = () =>
-				this.registry.execute<T>(name, args, commandContext);
-			for (let i = this.options.middleware.length - 1; i >= 0; i--) {
-				const mw = this.options.middleware[i];
-				if (!mw) continue;
-				const currentNext = next;
-				next = () => mw(name, args ?? {}, commandContext, currentNext);
-			}
-			result = (await next()) as CommandResult<T>;
-		} else {
-			// Zero-overhead path: no middleware
-			result = await this.registry.execute<T>(name, args, commandContext);
-		}
+		// Execute the command (with middleware if configured), enforcing context.timeout
+		const result = await runWithTimeout<T>(name, context?.timeout, context?.signal, (signal) => {
+			if (signal) commandContext.signal = signal;
+			return this.execute<T>(name, args, commandContext);
+		});
 
 		if (this.options.debug) {
 			const duration = performance.now() - startTime;
@@ -544,25 +570,42 @@ export class DirectClient {
 		return result;
 	}
 
+	/** Run the registry through the client middleware (none: the zero-overhead path). */
+	private async execute<T>(
+		name: string,
+		args: Record<string, unknown> | undefined,
+		commandContext: CommandContext
+	): Promise<CommandResult<T>> {
+		let next: () => Promise<CommandResult> = () =>
+			this.registry.execute<T>(name, args, commandContext);
+		for (let i = this.options.middleware.length - 1; i >= 0; i--) {
+			const mw = this.options.middleware[i];
+			if (!mw) continue;
+			const currentNext = next;
+			next = () => mw(name, args ?? {}, commandContext, currentNext);
+		}
+		return (await next()) as CommandResult<T>;
+	}
+
 	/**
-	 * List available commands.
+	 * List available commands (those the `allow` option permits).
 	 */
 	listCommands(): Array<{ name: string; description: string }> {
-		return this.registry.listCommands();
+		return this.registry.listCommands().filter((command) => this.isAllowed(command.name));
 	}
 
 	/**
-	 * List command names.
+	 * List command names (those the `allow` option permits).
 	 */
 	listCommandNames(): string[] {
-		return this.registry.listCommandNames();
+		return this.registry.listCommandNames().filter((name) => this.isAllowed(name));
 	}
 
 	/**
-	 * Check if a command exists.
+	 * Check if a command exists and the `allow` option permits it.
 	 */
 	hasCommand(name: string): boolean {
-		return this.registry.hasCommand(name);
+		return this.isAllowed(name) && this.registry.hasCommand(name);
 	}
 
 	/**
@@ -697,23 +740,18 @@ export class DirectClient {
  * @param options - Optional configuration for validation, context, and debugging
  * @returns A new DirectClient instance
  *
- * @example Basic usage
+ * @example
  * ```typescript
  * import { createDirectClient } from '@lushly-dev/afd-client';
- * import { registry } from './commands';
+ * import { createDirectRegistry } from '@lushly-dev/afd-server';
+ * import { commands } from './commands';
  *
- * const client = createDirectClient(registry);
+ * const client = createDirectClient(createDirectRegistry(commands), {
+ *   source: 'garden-api',
+ *   allow: (name) => name.startsWith('plant-'),
+ * });
  * const result = await client.call('plant-get', { id: 'tomato-123' });
  * // ~0.03-0.1ms latency vs ~2-10ms for MCP
- * ```
- *
- * @example With options
- * ```typescript
- * const client = createDirectClient(registry, {
- *   source: 'garden-api',
- *   debug: true,
- *   validateInputs: true,
- * });
  * ```
  */
 export function createDirectClient(
