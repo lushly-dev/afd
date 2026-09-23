@@ -160,10 +160,14 @@ export interface McpServerOptions {
 	onError?: (error: Error) => void;
 
 	/**
-	 * Tool strategy for MCP tool listing.
-	 * - "grouped": Commands are grouped by category into consolidated tools (default)
-	 * - "individual": Each command is exposed as a separate tool
-	 * - "lazy": Exposes afd-discover, afd-detail, and afd-call meta-tools instead of enumerating every command
+	 * Tool strategy for MCP tool listing. `afd-call`, `afd-batch` and `afd-pipe` are
+	 * listed in every strategy.
+	 * - "grouped" (default): one tool per group (category, or the first name segment)
+	 *   taking `{ action, params }`. Each grouped tool's `_meta.actions` carries every
+	 *   action's command name, input schema and metadata; small groups also inline the
+	 *   per-action schemas as `params.anyOf`. `afd-detail` is listed too.
+	 * - "individual": each command is its own tool, with its input schema and `_meta`
+	 * - "lazy": only the afd-discover and afd-detail meta-tools (plus the three above)
 	 *
 	 * @default "grouped"
 	 */
@@ -186,6 +190,15 @@ export interface McpServerOptions {
 	 * contexts, and re-entering the active context is a no-op.
 	 */
 	contexts?: ContextConfig[];
+
+	/**
+	 * Register the afd-help, afd-docs and afd-schema bootstrap tools (MCP-exposed).
+	 * They describe the MCP-exposed commands visible in the active context, including
+	 * built-ins. The names become reserved, so a command with one of them throws.
+	 *
+	 * @default false
+	 */
+	bootstrap?: boolean;
 }
 
 /**

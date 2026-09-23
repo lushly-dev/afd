@@ -4,16 +4,16 @@
  * List all available commands with tags and grouping.
  */
 
-import type { CommandDefinition, CommandExample } from '@lushly-dev/afd-core';
+import type { CommandExample } from '@lushly-dev/afd-core';
 import { success } from '@lushly-dev/afd-core';
 import { z } from 'zod';
+import { defineCommand, type ZodCommandDefinition } from '../schema.js';
+import { describableCommands, type GetDescribedCommands } from './described-command.js';
 
 const inputSchema = z.object({
 	filter: z.string().optional().describe('Tag filter: e.g., "todo" or "read"'),
 	format: z.enum(['brief', 'full']).default('brief').describe('Output format'),
 });
-
-type InputType = z.infer<typeof inputSchema>;
 
 interface CommandInfo {
 	name: string;
@@ -35,25 +35,25 @@ interface HelpOutput {
 /**
  * Create the afd-help bootstrap command.
  *
+ * Lists only MCP-exposed commands. `requires` is always included when set.
+ *
  * @param getCommands - Function to get all registered commands
  */
 export function createAfdHelpCommand(
-	getCommands: () => CommandDefinition[]
-): CommandDefinition<InputType, HelpOutput> {
-	return {
+	getCommands: GetDescribedCommands
+): ZodCommandDefinition<typeof inputSchema, HelpOutput> {
+	return defineCommand({
 		name: 'afd-help',
 		description: 'List all available commands with tags and grouping',
 		category: 'bootstrap',
 		tags: ['bootstrap', 'read', 'safe'],
 		mutation: false,
 		version: '1.0.0',
-		parameters: [
-			{ name: 'filter', type: 'string', required: false, description: 'Tag filter' },
-			{ name: 'format', type: 'string', required: false, description: 'Output format' },
-		],
+		expose: { mcp: true },
+		input: inputSchema,
 
-		async handler(input: InputType) {
-			const allCommands = getCommands();
+		async handler(input, context) {
+			const allCommands = describableCommands(getCommands, context);
 
 			// Filter by tag if provided
 			let commands = allCommands;
@@ -114,5 +114,5 @@ export function createAfdHelpCommand(
 				confidence: 1.0,
 			});
 		},
-	};
+	});
 }

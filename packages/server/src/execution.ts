@@ -28,6 +28,7 @@ import {
 	truncateName,
 } from '@lushly-dev/afd-core';
 import type { ContextState } from './bootstrap/afd-context.js';
+import { isAccessibleInContext, notInContextError } from './command-routing.js';
 import { resolveContextState } from './context-scope.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { EnhancedValidationResult } from './validation.js';
@@ -98,12 +99,8 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		}
 
 		const activeContext = resolveContextState(context, deps.contextState)?.getActive();
-		if (activeContext && command.contexts?.length && !command.contexts.includes(activeContext)) {
-			return failure({
-				code: 'COMMAND_NOT_IN_CONTEXT',
-				message: `Command '${commandName}' is not available in context '${activeContext}'`,
-				suggestion: 'Use afd-context-enter to switch contexts or afd-context-exit to leave.',
-			});
+		if (activeContext && !isAccessibleInContext(command, activeContext)) {
+			return failure(notInContextError(commandName, activeContext));
 		}
 		// Validate input with enhanced error messages. Schema callbacks (.refine,
 		// .superRefine, .transform, .preprocess) run here, so an exception they throw

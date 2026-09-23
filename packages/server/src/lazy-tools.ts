@@ -4,6 +4,8 @@
 
 import type { CommandResult, JsonSchema } from '@lushly-dev/afd-core';
 import { findSimilarTools, success, truncateName } from '@lushly-dev/afd-core';
+import { defaultCommandGroup } from './command-routing.js';
+import type { DetailInput, DiscoverInput } from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -25,20 +27,6 @@ interface DiscoverResult {
 	hasMore: boolean;
 	availableCategories: string[];
 	availableTags: string[];
-}
-
-export interface DiscoverInput {
-	category?: string;
-	tag?: string | string[];
-	tagMode?: 'all' | 'any';
-	search?: string;
-	includeMutation?: boolean;
-	limit?: number;
-	offset?: number;
-}
-
-export interface DetailInput {
-	command: string | string[];
 }
 
 interface DetailResult {
@@ -76,10 +64,6 @@ function truncateDescription(desc: string, max = 120): string {
 	const firstSentence = desc.split(/\.\s/)[0] ?? desc;
 	if (firstSentence.length <= max) return firstSentence;
 	return `${desc.slice(0, max - 1)}\u2026`;
-}
-
-function deriveCategory(cmd: ZodCommandDefinition): string {
-	return cmd.category || cmd.name.split('-')[0] || 'general';
 }
 
 function matchesSearch(cmd: ZodCommandDefinition, query: string): boolean {
@@ -121,7 +105,7 @@ export function executeDiscover(
 	const allCategories = new Set<string>();
 	const allTags = new Set<string>();
 	for (const cmd of commands) {
-		allCategories.add(deriveCategory(cmd));
+		allCategories.add(defaultCommandGroup(cmd));
 		for (const t of cmd.tags ?? []) {
 			allTags.add(t);
 		}
@@ -130,7 +114,7 @@ export function executeDiscover(
 	// Filter
 	let filtered = commands;
 	if (category) {
-		filtered = filtered.filter((cmd) => deriveCategory(cmd) === category);
+		filtered = filtered.filter((cmd) => defaultCommandGroup(cmd) === category);
 	}
 	if (tag) {
 		const tagArray = Array.isArray(tag) ? tag : [tag];
@@ -153,7 +137,7 @@ export function executeDiscover(
 	const summaries: CommandSummary[] = page.map((cmd) => ({
 		name: cmd.name,
 		description: truncateDescription(cmd.description),
-		category: deriveCategory(cmd),
+		category: defaultCommandGroup(cmd),
 		...(includeMutation && { mutation: cmd.mutation ?? false }),
 	}));
 

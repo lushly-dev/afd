@@ -4,15 +4,18 @@
  * Generate markdown documentation for commands.
  */
 
-import type { CommandDefinition } from '@lushly-dev/afd-core';
 import { success } from '@lushly-dev/afd-core';
 import { z } from 'zod';
+import { defineCommand, jsonSchemaToParameters, type ZodCommandDefinition } from '../schema.js';
+import {
+	type DescribedCommand,
+	describableCommands,
+	type GetDescribedCommands,
+} from './described-command.js';
 
 const inputSchema = z.object({
 	command: z.string().optional().describe('Specific command name, or omit for all'),
 });
-
-type InputType = z.infer<typeof inputSchema>;
 
 interface DocsOutput {
 	markdown: string;
@@ -22,24 +25,26 @@ interface DocsOutput {
 /**
  * Create the afd-docs bootstrap command.
  *
+ * Documents only MCP-exposed commands. Parameters come from `parameters`, or from
+ * `jsonSchema` for commands built with `defineCommand`.
+ *
  * @param getCommands - Function to get all registered commands
  */
 export function createAfdDocsCommand(
-	getCommands: () => CommandDefinition[]
-): CommandDefinition<InputType, DocsOutput> {
-	return {
+	getCommands: GetDescribedCommands
+): ZodCommandDefinition<typeof inputSchema, DocsOutput> {
+	return defineCommand({
 		name: 'afd-docs',
 		description: 'Get detailed documentation for commands',
 		category: 'bootstrap',
 		tags: ['bootstrap', 'read', 'safe'],
 		mutation: false,
 		version: '1.0.0',
-		parameters: [
-			{ name: 'command', type: 'string', required: false, description: 'Specific command name' },
-		],
+		expose: { mcp: true },
+		input: inputSchema,
 
-		async handler(input: InputType) {
-			const allCommands = getCommands();
+		async handler(input, context) {
+			const allCommands = describableCommands(getCommands, context);
 
 			// Filter to specific command if provided
 			const commands = input.command
@@ -59,7 +64,7 @@ export function createAfdDocsCommand(
 			lines.push('');
 
 			// Group by category
-			const byCategory: Record<string, CommandDefinition[]> = {};
+			const byCategory: Record<string, DescribedCommand[]> = {};
 			for (const cmd of commands) {
 				const category = cmd.category || 'General';
 				if (!byCategory[category]) {
@@ -91,12 +96,14 @@ export function createAfdDocsCommand(
 					}
 
 					// Parameters
-					if (cmd.parameters && cmd.parameters.length > 0) {
+					const parameters =
+						cmd.parameters ?? (cmd.jsonSchema ? jsonSchemaToParameters(cmd.jsonSchema) : []);
+					if (parameters.length > 0) {
 						lines.push('**Parameters:**');
 						lines.push('');
 						lines.push('| Name | Type | Required | Description |');
 						lines.push('|------|------|----------|-------------|');
-						for (const param of cmd.parameters) {
+						for (const param of parameters) {
 							const required = param.required ? 'Yes' : 'No';
 							lines.push(
 								`| ${param.name} | ${param.type} | ${required} | ${param.description || ''} |`
@@ -122,5 +129,5 @@ export function createAfdDocsCommand(
 				}
 			);
 		},
-	};
+	});
 }

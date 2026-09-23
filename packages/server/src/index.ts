@@ -89,6 +89,7 @@ export {
 	createAfdHelpCommand,
 	createAfdSchemaCommand,
 	createContextState,
+	type DescribedCommand,
 	getBootstrapCommands,
 } from './bootstrap/index.js';
 // Validating in-process registry for DirectClient
@@ -142,6 +143,7 @@ export {
 	isObjectSchema,
 	type ZodCommandDefinition,
 	type ZodCommandOptions,
+	type ZodToJsonSchemaOptions,
 	zodToJsonSchema,
 } from './schema.js';
 export {

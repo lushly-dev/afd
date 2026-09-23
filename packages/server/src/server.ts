@@ -18,6 +18,9 @@ import {
 	createAfdContextListCommand,
 	createContextState,
 } from './bootstrap/afd-context.js';
+import { getBootstrapCommands } from './bootstrap/registry.js';
+import { assertValidCommandNames } from './command-names.js';
+import { filterByContext } from './command-routing.js';
 import { resolveContextState } from './context-scope.js';
 import { createExecutionEngine } from './execution.js';
 import { createHttpHandler } from './http-handler.js';
@@ -60,7 +63,10 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		toolStrategy = 'grouped',
 		groupByFn,
 		contexts,
+		bootstrap = false,
 	} = options;
+
+	assertValidCommandNames(commands, { bootstrap, contexts: Boolean(contexts?.length) });
 
 	// stdio serves one client, so it uses this single state. HTTP callers each get a session
 	// state (or none), bound to their command context by the HTTP handler.
@@ -98,6 +104,14 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 			}
 			registeredCommands.push(command);
 		}
+	}
+	if (bootstrap) {
+		// afd-help/afd-docs/afd-schema describe what a remote agent can see and call:
+		// MCP-exposed commands in the active context (built-ins included).
+		// The caller's context state: the HTTP session's, or the single stdio state.
+		const describe = (context?: CommandContext) =>
+			filterByContext(remoteCommands, resolveContextState(context, contextState)?.getActive());
+		registeredCommands.push(...getBootstrapCommands(describe));
 	}
 	const commandMap = new Map<string, ZodCommandDefinition>();
 	for (const cmd of registeredCommands) {

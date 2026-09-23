@@ -21,9 +21,25 @@ import {
 	truncateName,
 } from '@lushly-dev/afd-core';
 import type { ContextState } from './bootstrap/afd-context.js';
+import {
+	commandAction,
+	commandGroup,
+	filterByContext,
+	type GroupByFn,
+	isAccessibleInContext,
+	notInContextError,
+} from './command-routing.js';
 import { resolveContextState } from './context-scope.js';
-import type { DetailInput, DiscoverInput } from './lazy-tools.js';
 import { executeDetail, executeDiscover } from './lazy-tools.js';
+import {
+	batchArgsSchema,
+	callArgsSchema,
+	checkMetaArgs,
+	detailArgsSchema,
+	discoverArgsSchema,
+	parseMetaArgs,
+	pipeArgsSchema,
+} from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -45,7 +61,7 @@ export interface ToolRouterDeps {
 	executePipeline: (request: PipelineRequest, context?: CommandContext) => Promise<PipelineResult>;
 	commands: ZodCommandDefinition[];
 	toolStrategy: 'individual' | 'grouped' | 'lazy';
-	groupByFn?: (command: ZodCommandDefinition) => string | undefined;
+	groupByFn?: GroupByFn;
 	devMode: boolean;
 	/** All registered commands, including those outside the commands array */
 	allCommands?: ZodCommandDefinition[];
@@ -87,20 +103,20 @@ function resultContent(data: unknown, isError: boolean): ToolCallResult {
 }
 
 /**
- * Check if a command is accessible in the current context.
- * A command is accessible if:
- * - No active context (everything visible)
- * - Command has no contexts array (universal / backward compat)
- * - Command's contexts include the active context
+ * The `COMMAND_NOT_IN_CONTEXT` tool result when `cmd` exists but is outside the
+ * active context; undefined otherwise (a missing command is left to execution).
  */
-function isCommandAccessible(
+function contextDenial(
 	cmd: ZodCommandDefinition | undefined,
-	activeContext: string | null
-): boolean {
-	if (!activeContext) return true;
-	if (!cmd) return true; // Let execution handle not-found
-	if (!cmd.contexts?.length) return true;
-	return cmd.contexts.includes(activeContext);
+	commandName: string,
+	contextState: ContextState | null | undefined
+): ToolCallResult | undefined {
+	const activeContext = contextState?.getActive();
+	if (!cmd || !activeContext || isAccessibleInContext(cmd, activeContext)) return undefined;
+	return resultContent(
+		{ success: false, error: notInContextError(commandName, activeContext) },
+		true
+	);
 }
 
 /**
@@ -138,21 +154,14 @@ export function createToolRouter(deps: ToolRouterDeps) {
 
 		// Handle afd-call (available in all strategies)
 		if (toolName === 'afd-call') {
-			const typedArgs = args as { command?: string; input?: unknown } | undefined;
-			const commandName = typedArgs?.command;
-			if (!commandName || typeof commandName !== 'string') {
-				return resultContent(
-					{
-						success: false,
-						error: {
-							code: 'VALIDATION_ERROR',
-							message: 'Missing required field: command',
-							suggestion: 'Provide { command: "command-name", input: {...} }',
-						},
-					},
-					true
-				);
-			}
+			const parsed = parseMetaArgs(
+				toolName,
+				callArgsSchema,
+				args,
+				'Provide { command: "command-name", input: {...} }'
+			);
+			if (!parsed.success) return resultContent(parsed.result, true);
+			const { command: commandName, input } = parsed.data;
 
 			// Check if command exists in the exposed commands
 			const cmd = commands.find((c) => c.name === commandName);
@@ -194,63 +203,63 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			}
 
 			// Context check: validate the command is accessible in current context
-			if (contextState) {
-				const activeContext = contextState.getActive();
-				if (!isCommandAccessible(cmd, activeContext)) {
-					return resultContent(
-						{
-							success: false,
-							error: {
-								code: 'COMMAND_NOT_IN_CONTEXT',
-								message: `Command '${commandName}' is not available in context '${activeContext}'`,
-								suggestion:
-									'Use afd-context-list to see available contexts, or afd-context-enter to switch.',
-							},
-						},
-						true
-					);
-				}
-			}
+			const denied = contextDenial(cmd, commandName, contextState);
+			if (denied) return denied;
 
 			// Execute through the execution engine (full middleware chain)
-			const result = await executeCommand(commandName, typedArgs?.input ?? {}, traced('afd-call'));
+			const result = await executeCommand(commandName, input ?? {}, traced('afd-call'));
 			return resultContent(result, !result.success);
 		}
 
-		// Handle afd-discover (lazy strategy only)
+		// Handle afd-discover (listed by the lazy strategy, routable in all)
 		if (toolName === 'afd-discover') {
+			const parsed = parseMetaArgs(
+				toolName,
+				discoverArgsSchema,
+				args,
+				'Provide optional { category, tag, tagMode, search, includeMutation, limit, offset }'
+			);
+			if (!parsed.success) return resultContent(parsed.result, true);
 			// Filter by active context when context state is available
-			const activeContext = contextState?.getActive();
-			const discoverCommands = activeContext
-				? commands.filter((cmd) => !cmd.contexts?.length || cmd.contexts.includes(activeContext))
-				: commands;
-			const result = executeDiscover(discoverCommands, (args ?? {}) as DiscoverInput);
+			const discoverCommands = filterByContext(commands, contextState?.getActive());
+			const result = executeDiscover(discoverCommands, parsed.data);
 			return resultContent(result, false);
 		}
 
-		// Handle afd-detail (lazy strategy only)
+		// Handle afd-detail (listed by the lazy and grouped strategies, routable in all)
 		if (toolName === 'afd-detail') {
+			const parsed = parseMetaArgs(
+				toolName,
+				detailArgsSchema,
+				args,
+				'Provide { command: "command-name" } or { command: ["name-1", "name-2"] } (max 10)'
+			);
+			if (!parsed.success) return resultContent(parsed.result, true);
 			const exposedNames = exposedCommandNames ?? new Set(commands.map((c) => c.name));
-			const allCmds = allCommands ?? commands;
 			// Filter by active context so agents cannot inspect commands outside their context
-			const activeContext = contextState?.getActive();
-			const contextFilteredCmds = activeContext
-				? allCmds.filter((cmd) => !cmd.contexts?.length || cmd.contexts.includes(activeContext))
-				: allCmds;
-			const result = executeDetail(contextFilteredCmds, exposedNames, (args ?? {}) as DetailInput);
+			const contextFilteredCmds = filterByContext(
+				allCommands ?? commands,
+				contextState?.getActive()
+			);
+			const result = executeDetail(contextFilteredCmds, exposedNames, parsed.data);
 			return resultContent(result, false);
 		}
 
 		// Handle built-in afd-batch tool
 		if (toolName === 'afd-batch') {
-			if (!isBatchRequest(args)) {
+			// The Zod schema pinpoints shape errors; isBatchRequest is the envelope check
+			// shared with POST /batch. Both report INVALID_BATCH_REQUEST.
+			const check = checkMetaArgs(batchArgsSchema, args);
+			if (!check.success || !isBatchRequest(args)) {
+				const usage = 'Provide { commands: [...] } with command objects';
 				return resultContent(
 					{
 						success: false,
 						error: {
 							code: 'INVALID_BATCH_REQUEST',
 							message: 'Invalid batch request format',
-							suggestion: 'Provide { commands: [...] } with command objects',
+							suggestion: check.success ? usage : `${check.suggestion}. ${usage}`,
+							...(!check.success && { details: { errors: check.errors } }),
 						},
 					},
 					true
@@ -262,7 +271,12 @@ export function createToolRouter(deps: ToolRouterDeps) {
 
 		// Handle built-in afd-pipe tool
 		if (toolName === 'afd-pipe') {
-			if (!isPipelineRequest(args)) {
+			// As for afd-batch: Zod pinpoints shape errors, and isPipelineRequest checks the
+			// whole envelope (including `when` conditions). Both report INVALID_PIPELINE_REQUEST.
+			const check = checkMetaArgs(pipeArgsSchema, args);
+			if (!check.success || !isPipelineRequest(args)) {
+				const usage =
+					'Provide steps with nonempty command names, object inputs, valid conditions, and correctly typed options; input must be JSON';
 				return resultContent(
 					{
 						...emptyPipelineResult,
@@ -275,8 +289,8 @@ export function createToolRouter(deps: ToolRouterDeps) {
 								error: {
 									code: 'INVALID_PIPELINE_REQUEST',
 									message: 'Invalid pipeline request envelope',
-									suggestion:
-										'Provide steps with nonempty command names, object inputs, valid conditions, and correctly typed options; input must be JSON',
+									suggestion: check.success ? usage : `${check.suggestion}. ${usage}`,
+									...(!check.success && { details: { errors: check.errors } }),
 								},
 							},
 						],
@@ -302,14 +316,10 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			}
 
 			if (action && typeof action === 'string') {
-				const candidates = commands.filter((command) => {
-					const group = groupByFn
-						? groupByFn(command) || 'general'
-						: command.category || command.name.split('-')[0] || 'general';
-					const parts = command.name.split('-');
-					const commandAction = parts.length > 1 ? parts.slice(1).join('-') : command.name;
-					return group === toolName && commandAction === action;
-				});
+				const candidates = commands.filter(
+					(command) =>
+						commandGroup(command, groupByFn) === toolName && commandAction(command) === action
+				);
 				if (candidates.length !== 1) {
 					return resultContent(
 						failure({
@@ -324,24 +334,8 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				const actualCommandName = candidates[0]?.name as string;
 
 				// Context check for grouped strategy
-				if (contextState) {
-					const activeContext = contextState.getActive();
-					const cmd = commands.find((c) => c.name === actualCommandName);
-					if (!isCommandAccessible(cmd, activeContext)) {
-						return resultContent(
-							{
-								success: false,
-								error: {
-									code: 'COMMAND_NOT_IN_CONTEXT',
-									message: `Command '${actualCommandName}' is not available in context '${activeContext}'`,
-									suggestion:
-										'Use afd-context-list to see available contexts, or afd-context-enter to switch.',
-								},
-							},
-							true
-						);
-					}
-				}
+				const denied = contextDenial(candidates[0], actualCommandName, contextState);
+				if (denied) return denied;
 
 				const result = await executeCommand(actualCommandName, commandParams, traced('trace'));
 				return resultContent(result, !result.success);
@@ -349,18 +343,10 @@ export function createToolRouter(deps: ToolRouterDeps) {
 
 			// In grouped mode, if tool is a known group but action is missing/invalid,
 			// return a helpful error instead of falling through
-			const defaultGroupFn = (c: ZodCommandDefinition): string =>
-				c.category || c.name.split('-')[0] || 'general';
-			const getGroup = groupByFn || defaultGroupFn;
+			const groupCommands = commands.filter((cmd) => commandGroup(cmd, groupByFn) === toolName);
 
-			const groupNames = new Set(commands.map((cmd) => getGroup(cmd) || 'general'));
-
-			if (groupNames.has(toolName)) {
-				const groupCommands = commands.filter((cmd) => (getGroup(cmd) || 'general') === toolName);
-				const availableActions = groupCommands.map((cmd) => {
-					const parts = cmd.name.split('-');
-					return parts.length > 1 ? parts.slice(1).join('-') : cmd.name;
-				});
+			if (groupCommands.length > 0) {
+				const availableActions = groupCommands.map(commandAction);
 
 				return resultContent(
 					{
@@ -379,24 +365,12 @@ export function createToolRouter(deps: ToolRouterDeps) {
 
 		// Handle user-defined commands (individual mode or direct command calls)
 		// Context check: validate the command is accessible in current context
-		if (contextState) {
-			const activeContext = contextState.getActive();
-			const cmd = commands.find((c) => c.name === toolName);
-			if (!isCommandAccessible(cmd, activeContext)) {
-				return resultContent(
-					{
-						success: false,
-						error: {
-							code: 'COMMAND_NOT_IN_CONTEXT',
-							message: `Command '${toolName}' is not available in context '${activeContext}'`,
-							suggestion:
-								'Use afd-context-list to see available contexts, or afd-context-enter to switch.',
-						},
-					},
-					true
-				);
-			}
-		}
+		const denied = contextDenial(
+			commands.find((c) => c.name === toolName),
+			toolName,
+			contextState
+		);
+		if (denied) return denied;
 
 		const result = await executeCommand(toolName, args ?? {}, traced('trace'));
 		return resultContent(result, !result.success);

@@ -3,179 +3,117 @@
  */
 
 import { isMcpExposed } from '@lushly-dev/afd-core';
+import { commandAction, commandGroup, filterByContext, type GroupByFn } from './command-routing.js';
+import {
+	batchTool,
+	type CommandToolMeta,
+	callTool,
+	detailTool,
+	discoverTool,
+	type GroupedToolAction,
+	type McpToolDefinition,
+	pipeTool,
+	type ToolInputSchema,
+} from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
 
+/**
+ * Largest serialized size (in characters) of a grouped tool's per-action parameter
+ * schemas that is inlined into `inputSchema.properties.params.anyOf`. Larger groups
+ * advertise only the generic `params` object; their schemas stay in `_meta.actions`
+ * and `afd-detail`, which keeps `tools/list` small.
+ */
+export const GROUPED_PARAMS_SCHEMA_BUDGET = 8_192;
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// BUILT-IN TOOL SCHEMAS
+// PER-COMMAND METADATA
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const batchToolSchema = {
-	name: 'afd-batch',
-	description: 'Execute multiple commands in a single batch request with partial success semantics',
-	inputSchema: {
-		type: 'object' as const,
-		properties: {
-			commands: {
-				type: 'array',
-				description: 'Array of commands to execute',
-				items: {
+/**
+ * The `_meta` fields of a command (category, requires, mutation, examples,
+ * outputSchema, contexts). Empty fields are omitted; returns undefined when none is set.
+ */
+function commandMeta(cmd: ZodCommandDefinition): CommandToolMeta | undefined {
+	const meta: CommandToolMeta = {
+		...(cmd.category != null && { category: cmd.category }),
+		...(cmd.requires?.length && { requires: cmd.requires }),
+		...(cmd.mutation != null && { mutation: cmd.mutation }),
+		...(cmd.examples?.length && { examples: cmd.examples }),
+		...(cmd.outputJsonSchema && { outputSchema: cmd.outputJsonSchema }),
+		...(cmd.contexts?.length && { contexts: cmd.contexts }),
+	};
+	return Object.keys(meta).length > 0 ? meta : undefined;
+}
+
+function commandInputSchema(cmd: ZodCommandDefinition): ToolInputSchema {
+	const { type: _type, ...restSchema } = cmd.jsonSchema;
+	return { type: 'object', ...restSchema };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// GROUPED STRATEGY
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * One consolidated tool for a group of commands.
+ *
+ * `_meta.actions` lists, for every action, the full command name, its input schema
+ * and its metadata, so agents can build `params` without trial and error. When the
+ * schemas are small, `params` also carries them as `anyOf` branches (one per action,
+ * titled with the action). Branches sit under `params` rather than at the top level
+ * because some MCP hosts reject top-level `oneOf`/`anyOf`/`allOf`, and `anyOf` is used
+ * rather than `oneOf` because actions often share a params shape (a `oneOf` would then
+ * reject valid calls).
+ */
+function groupedTool(groupName: string, groupCmds: ZodCommandDefinition[]): McpToolDefinition {
+	const actions = [...new Set(groupCmds.map(commandAction))];
+	const actionEntries = groupCmds.map(
+		(cmd): GroupedToolAction => ({
+			action: commandAction(cmd),
+			command: cmd.name,
+			description: cmd.description,
+			inputSchema: commandInputSchema(cmd),
+			...commandMeta(cmd),
+		})
+	);
+
+	const branches = groupCmds.map((cmd) => ({
+		...commandInputSchema(cmd),
+		title: commandAction(cmd),
+		description: `Parameters for action '${commandAction(cmd)}' (${cmd.name})`,
+	}));
+	const serialized = JSON.stringify(branches);
+	const inlineBranches =
+		serialized.length <= GROUPED_PARAMS_SCHEMA_BUDGET && !serialized.includes('"$ref"');
+
+	return {
+		name: groupName,
+		description: `${groupName} operations: ${actions.join(', ')}`,
+		inputSchema: {
+			type: 'object',
+			properties: {
+				action: {
+					type: 'string',
+					enum: actions,
+					description: `Action to perform: ${actions.join(' | ')}`,
+				},
+				params: {
 					type: 'object',
-					properties: {
-						id: {
-							type: 'string',
-							description: 'Optional client-provided ID for correlating results',
-						},
-						command: { type: 'string', description: 'The command name to execute' },
-						input: { type: 'object', description: 'Input parameters for the command' },
-					},
-					required: ['command'],
+					description: inlineBranches
+						? 'Parameters for the action: the anyOf branch titled with the action'
+						: "Parameters for the action: see _meta.actions[].inputSchema, or call afd-detail with the action's command name",
+					...(inlineBranches && { anyOf: branches }),
 				},
 			},
-			options: {
-				type: 'object',
-				description: 'Batch execution options',
-				properties: {
-					stopOnError: { type: 'boolean', description: 'Stop execution on first error' },
-					timeout: {
-						type: 'number',
-						description: 'Timeout in milliseconds for entire batch',
-					},
-				},
-			},
+			required: ['action'],
 		},
-		required: ['commands'],
-	},
-};
-
-const pipeToolSchema = {
-	name: 'afd-pipe',
-	description:
-		'Execute a pipeline of chained commands where the output of one becomes the input of the next',
-	inputSchema: {
-		type: 'object' as const,
-		properties: {
-			input: {
-				description:
-					'Optional pipeline input (any JSON value), available to steps as $input and $input.<path>',
-			},
-			steps: {
-				type: 'array',
-				description: 'Ordered list of pipeline steps to execute',
-				items: {
-					type: 'object',
-					properties: {
-						command: { type: 'string', description: 'Command name to execute' },
-						input: {
-							type: 'object',
-							description:
-								'Input parameters. A string value that is exactly $prev, $first, $steps[n], $steps.alias or $input, optionally followed by .path (e.g. $prev.items[0].id), is replaced by that data; unresolved references are omitted. Other strings are literals; start one with $$ to send a literal $ (e.g. $$prev).',
-						},
-						as: {
-							type: 'string',
-							description: "Optional alias for referencing this step's output",
-						},
-						when: {
-							type: 'object',
-							description:
-								"Optional condition for running this step (e.g., { $exists: '$prev.id' })",
-						},
-					},
-					required: ['command'],
-				},
-			},
-			options: {
-				type: 'object',
-				description: 'Pipeline execution options',
-				properties: {
-					continueOnFailure: {
-						type: 'boolean',
-						description: 'Continue on failure or stop immediately',
-					},
-					timeoutMs: {
-						type: 'number',
-						description: 'Timeout for entire pipeline in milliseconds',
-					},
-				},
-			},
-		},
-		required: ['steps'],
-	},
-};
-
-const callToolSchema = {
-	name: 'afd-call',
-	description:
-		'Invoke any command by name with runtime input validation. Works in all server strategies.',
-	inputSchema: {
-		type: 'object' as const,
-		properties: {
-			command: { type: 'string', description: 'Command name to invoke' },
-			input: {
-				type: 'object',
-				description: "Command input (validated against the command's own schema at runtime)",
-			},
-		},
-		required: ['command'],
-	},
-};
-
-const discoverToolSchema = {
-	name: 'afd-discover',
-	description:
-		'List available commands with optional filtering by category, tag, or search text. Returns compact summaries.',
-	inputSchema: {
-		type: 'object' as const,
-		properties: {
-			category: { type: 'string', description: 'Filter commands by category' },
-			tag: {
-				type: 'string',
-				description: 'Filter by tag(s). String for single, array for multiple.',
-			},
-			tagMode: {
-				type: 'string',
-				enum: ['all', 'any'],
-				description: 'Tag matching mode (default: any)',
-			},
-			search: { type: 'string', description: 'Text search across names and descriptions' },
-			includeMutation: { type: 'boolean', description: 'Include mutation classification' },
-			limit: { type: 'number', description: 'Max results (1-200, default 50)' },
-			offset: { type: 'number', description: 'Results to skip for pagination' },
-		},
-	},
-};
-
-const detailToolSchema = {
-	name: 'afd-detail',
-	description: 'Get the full input schema and metadata for one or more commands by name.',
-	inputSchema: {
-		type: 'object' as const,
-		properties: {
-			command: {
-				type: 'string',
-				description:
-					'Command name or names (exact match, kebab-case). String or array of strings (max 10).',
-			},
-		},
-		required: ['command'],
-	},
-};
+		_meta: { actions: actionEntries },
+	};
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TOOLS LIST
 // ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Filter commands by active context.
- * Includes commands whose `contexts` array includes the active context,
- * plus commands with no `contexts` array (universal / backward compat).
- */
-function filterByContext(
-	commands: ZodCommandDefinition[],
-	activeContext: string | null | undefined
-): ZodCommandDefinition[] {
-	if (!activeContext) return commands;
-	return commands.filter((cmd) => !cmd.contexts?.length || cmd.contexts.includes(activeContext));
-}
 
 /**
  * Get the tools list based on toolStrategy.
@@ -183,10 +121,15 @@ function filterByContext(
 export function getToolsList(
 	commands: ZodCommandDefinition[],
 	toolStrategy: 'individual' | 'grouped' | 'lazy',
-	groupByFn?: (command: ZodCommandDefinition) => string | undefined,
+	groupByFn?: GroupByFn,
 	activeContext?: string | null
-) {
-	const builtInTools = [batchToolSchema, pipeToolSchema, callToolSchema];
+): McpToolDefinition[] {
+	const builtInTools = [batchTool, pipeTool, callTool];
+
+	// Lazy strategy: meta-tools + built-ins only
+	if (toolStrategy === 'lazy') {
+		return [discoverTool, detailTool, ...builtInTools];
+	}
 
 	// Filter by active context before strategy-specific generation
 	const filtered = filterByContext(
@@ -194,93 +137,35 @@ export function getToolsList(
 		activeContext
 	);
 
-	// Lazy strategy: meta-tools + built-ins only
-	if (toolStrategy === 'lazy') {
-		return [discoverToolSchema, detailToolSchema, ...builtInTools];
-	}
-
 	// Individual strategy: each command is its own tool + built-ins
 	if (toolStrategy === 'individual') {
 		return [
 			...builtInTools,
 			...filtered.map((cmd) => {
-				const { type: _type, ...restSchema } = cmd.jsonSchema;
-				const hasMeta =
-					cmd.category != null ||
-					(cmd.requires && cmd.requires.length > 0) ||
-					cmd.mutation != null ||
-					(cmd.examples && cmd.examples.length > 0) ||
-					cmd.outputJsonSchema != null ||
-					(cmd.contexts && cmd.contexts.length > 0);
+				const meta = commandMeta(cmd);
 				return {
 					name: cmd.name,
 					description: cmd.description,
-					inputSchema: {
-						type: 'object' as const,
-						...restSchema,
-					},
-					...(hasMeta && {
-						_meta: {
-							...(cmd.category != null && { category: cmd.category }),
-							...(cmd.requires?.length && { requires: cmd.requires }),
-							...(cmd.mutation != null && { mutation: cmd.mutation }),
-							...(cmd.examples?.length && { examples: cmd.examples }),
-							...(cmd.outputJsonSchema && { outputSchema: cmd.outputJsonSchema }),
-							...(cmd.contexts?.length && { contexts: cmd.contexts }),
-						},
-					}),
+					inputSchema: commandInputSchema(cmd),
+					...(meta && { _meta: meta }),
 				};
 			}),
 		];
 	}
 
-	// Grouped strategy: commands grouped by category/entity
-	const defaultGroupFn = (cmd: ZodCommandDefinition): string => {
-		return cmd.category || cmd.name.split('-')[0] || 'general';
-	};
-	const getGroup = groupByFn || defaultGroupFn;
-
-	// Group commands by their group key
-	const groups: Record<string, ZodCommandDefinition[]> = Object.create(null);
+	// Grouped strategy: commands grouped by category/entity. afd-detail is listed
+	// because grouped tools only carry per-action schemas in _meta (or inline when small).
+	const groups = new Map<string, ZodCommandDefinition[]>();
 	for (const cmd of filtered) {
-		const group = getGroup(cmd) || 'general';
-		if (!groups[group]) {
-			groups[group] = [];
-		}
-		groups[group].push(cmd);
+		const group = commandGroup(cmd, groupByFn);
+		const members = groups.get(group);
+		if (members) members.push(cmd);
+		else groups.set(group, [cmd]);
 	}
 
-	// Create a consolidated tool for each group
-	const groupedTools = Object.entries(groups).map(([groupName, groupCmds]) => {
-		// Build action enum from command names
-		const actions = groupCmds.map((cmd) => {
-			// Extract action from command name (e.g., "todo-create" -> "create")
-			const parts = cmd.name.split('-');
-			return parts.length > 1 ? parts.slice(1).join('-') : cmd.name;
-		});
+	const groupedTools = Array.from(groups, ([groupName, groupCmds]) =>
+		groupedTool(groupName, groupCmds)
+	);
 
-		return {
-			name: groupName,
-			description: `${groupName} operations: ${actions.join(', ')}`,
-			inputSchema: {
-				type: 'object' as const,
-				properties: {
-					action: {
-						type: 'string',
-						enum: actions,
-						description: `Action to perform: ${actions.join(' | ')}`,
-					},
-					// Note: Full discriminated union would require merging all command schemas
-					// For now, we use a generic "params" object
-					params: {
-						type: 'object',
-						description: 'Parameters for the action (varies by action)',
-					},
-				},
-				required: ['action'],
-			},
-		};
-	});
-
-	return [...builtInTools, ...groupedTools];
+	return [...builtInTools, detailTool, ...groupedTools];
 }
