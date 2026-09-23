@@ -25,7 +25,7 @@ async function run() {
 			args: [path.join(__dirname, '../backends/typescript/dist/server.js')],
 			env: { ...process.env, PORT: '3101', TODO_STORE_TYPE: 'memory' },
 		});
-	} else if (target === 'py') {
+	} else {
 		transport = new StdioClientTransport({
 			command: 'uv',
 			args: ['run', '--project', path.join(__dirname, '../backends/python'), 'todo-server'],
