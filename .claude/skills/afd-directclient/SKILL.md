@@ -241,9 +241,35 @@ const result = await client.pipe([
 ]);
 ```
 
-Variable resolution: `$prev`, `$prev.field`, `$first`, `$steps[n]`, `$steps.alias`, `$input`.
+Variable resolution follows `spec/pipeline-variables.md`:
 
-Options: `continueOnFailure`, `when` clauses for conditional steps, and `timeout`.
+- References are whole strings: `$prev` (last successful step), `$first`, `$steps[n]`, `$steps.alias`
+  and `$input`, each optionally followed by `.path` (`$prev.items[0].id`, `$prev.items.0`).
+- `$input` is the request's own `input` field, passed as `client.pipe({ input, steps })`. It is **not**
+  the `context` argument of `pipe()`: that context still reaches each command, but no reference can read
+  it. (Before this change `$input` resolved to the caller's whole context, so auth or other secrets could
+  be copied into command inputs.)
+- Other `$` strings (`'$9.99'`, `'$HOME'`) are literals; `'$$prev'` sends the literal `'$prev'`.
+- Only own keys of plain JSON objects and in-bounds indices resolve; `constructor`, `__proto__` and
+  `__`-prefixed segments never do.
+- Unresolved references are omitted from objects, `null` in arrays, and make `when` comparisons false.
+- Inputs nested deeper than 64 levels fail with `VALIDATION_ERROR` before any command runs.
+- Step data is copied between steps, so a handler that mutates its input cannot change another step's data.
+
+```typescript
+const result = await client.pipe(
+  {
+    input: { userId: 1 },
+    steps: [
+      { command: 'user-get', input: { id: '$input.userId' }, as: 'user' },
+      { command: 'order-list', input: { userId: '$steps.user.id' } },
+    ],
+  },
+  { traceId: 'trace-123' } // reaches handlers as context; not visible to $input
+);
+```
+
+Options: `continueOnFailure`, `when` clauses for conditional steps, and `timeoutMs`.
 
 ## Related
 

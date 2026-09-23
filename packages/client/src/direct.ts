@@ -606,11 +606,22 @@ export class DirectClient {
 	 *
 	 * Pipelines allow declarative composition of commands where the output
 	 * of one step flows into the next. Supports variable resolution
-	 * ($prev, $first, $steps[n], $steps.alias), conditional execution,
-	 * and aggregated metadata (confidence, reasoning, warnings).
+	 * ($prev, $first, $steps[n], $steps.alias, $input), conditional execution,
+	 * and aggregated metadata (confidence, reasoning, warnings). Resolution follows
+	 * `spec/pipeline-variables.md`: other `$` strings are literals, `$$` escapes a
+	 * literal `$`, and unresolved references are omitted (or `null` in arrays).
 	 *
-	 * @param request - Pipeline request or array of steps
-	 * @param context - Optional call context for tracing
+	 * **Behavior change:** `$input` resolves to the request's own `input` field.
+	 * It used to resolve to `context`, so a step could copy trace IDs, auth or any
+	 * custom call-context value into a command input. `context` still reaches every
+	 * command's context, but no reference can read it. Pass pipeline data as
+	 * `pipe({ input, steps })` instead.
+	 *
+	 * Each step's data is copied as it is recorded and as it is resolved, so a
+	 * handler that mutates its input cannot change another step's data.
+	 *
+	 * @param request - Pipeline request (with optional `input`) or array of steps
+	 * @param context - Optional call context passed to each command; not visible to `$input`
 	 * @returns Pipeline result with final data and aggregated metadata
 	 *
 	 * @example Basic pipeline
@@ -631,10 +642,18 @@ export class DirectClient {
 	 *   { command: 'user-get', input: { id: 123 }, as: 'user' },
 	 *   {
 	 *     command: 'premium-features',
-	 *     input: { userId: '$user.id' },
-	 *     when: { $eq: ['$user.tier', 'premium'] }
+	 *     input: { userId: '$steps.user.id' },
+	 *     when: { $eq: ['$steps.user.tier', 'premium'] }
 	 *   }
 	 * ]);
+	 * ```
+	 *
+	 * @example Pipeline input
+	 * ```typescript
+	 * const result = await client.pipe({
+	 *   input: { userId: 123 },
+	 *   steps: [{ command: 'order-list', input: { userId: '$input.userId' } }],
+	 * });
 	 * ```
 	 */
 	async pipe<T = unknown>(

@@ -318,6 +318,7 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 
 	/**
 	 * Execute a pipeline of chained commands with variable resolution.
+	 * `$input` resolves to `request.input`; `context` is passed to commands, never to references.
 	 */
 	async function executePipeline(
 		request: PipelineRequest,

@@ -204,6 +204,9 @@ export interface McpServer {
 	/**
 	 * Execute a pipeline of chained commands directly (for testing).
 	 * Enables multi-step workflows with variable resolution.
+	 *
+	 * `context` reaches every command's context but is never visible to pipeline references:
+	 * `$input` resolves to `request.input` (see `spec/pipeline-variables.md`).
 	 */
 	executePipeline(request: PipelineRequest, context?: CommandContext): Promise<PipelineResult>;
 }

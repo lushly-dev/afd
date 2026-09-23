@@ -54,6 +54,10 @@ const pipeToolSchema = {
 	inputSchema: {
 		type: 'object' as const,
 		properties: {
+			input: {
+				description:
+					'Optional pipeline input (any JSON value), available to steps as $input and $input.<path>',
+			},
 			steps: {
 				type: 'array',
 				description: 'Ordered list of pipeline steps to execute',
@@ -64,7 +68,7 @@ const pipeToolSchema = {
 						input: {
 							type: 'object',
 							description:
-								'Input parameters, can reference $prev, $first, $steps[n], or $steps.alias',
+								'Input parameters. A string value that is exactly $prev, $first, $steps[n], $steps.alias or $input, optionally followed by .path (e.g. $prev.items[0].id), is replaced by that data; unresolved references are omitted. Other strings are literals; start one with $$ to send a literal $ (e.g. $$prev).',
 						},
 						as: {
 							type: 'string',

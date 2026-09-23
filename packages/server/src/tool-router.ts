@@ -262,7 +262,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 									code: 'INVALID_PIPELINE_REQUEST',
 									message: 'Invalid pipeline request envelope',
 									suggestion:
-										'Provide steps with nonempty command names, object inputs, valid conditions, and correctly typed options',
+										'Provide steps with nonempty command names, object inputs, valid conditions, and correctly typed options; input must be JSON',
 								},
 							},
 						],
