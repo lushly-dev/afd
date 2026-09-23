@@ -5,6 +5,10 @@ import fs from 'node:fs/promises';
  *
  * This script runs the shared test-cases.json against a target MCP server.
  * It ensures that all backends (TS, Python, etc.) behave identically.
+ *
+ * Each `expect` entry maps a dotted path in the CommandResult (array indexes and
+ * `.length` included, e.g. `data.todos.0.title`) to either an exact JSON value
+ * or `{ "exists": boolean }`, which checks presence without fixing the value.
  */
 
 interface TestCase {
@@ -36,9 +40,13 @@ export class ConformanceRunner {
 
 	async run(specPath: string): Promise<TestResult[]> {
 		const spec = JSON.parse(await fs.readFile(specPath, 'utf-8'));
+		const tests: TestCase[] = Array.isArray(spec.tests) ? spec.tests : [];
+		if (tests.length === 0) {
+			throw new Error(`No conformance tests found in ${specPath}`);
+		}
 		const results: TestResult[] = [];
 
-		for (const test of spec.tests as TestCase[]) {
+		for (const test of tests) {
 			try {
 				// 1. Reset state (Clear all)
 				const reset = await this.callTool('todo-clear', { all: true });
@@ -88,14 +96,8 @@ export class ConformanceRunner {
 
 	private resolveVariables(input: unknown): unknown {
 		if (typeof input === 'string' && input.startsWith('$')) {
-			const parts = input.substring(1).split('.');
-			const key = parts[0] as string;
-			const path = parts.slice(1);
-			let val = this.captured[key];
-			for (const p of path) {
-				val = val?.[p];
-			}
-			return val;
+			const [key = '', ...path] = input.substring(1).split('.');
+			return this.getValue(this.captured[key], path.join('.'));
 		}
 
 		if (Array.isArray(input)) {
@@ -119,9 +121,14 @@ export class ConformanceRunner {
 		for (const [key, expectedValue] of Object.entries(expect)) {
 			const actualValue = this.getValue(actual, key);
 
-			if (key.endsWith('.length')) {
-				if (actualValue !== expectedValue) {
-					errors.push(`Expected ${key} to be ${expectedValue}, got ${actualValue}`);
+			// Object expectations were compared by reference and could never pass;
+			// the only object form is the { exists } matcher.
+			if (isExistsMatcher(expectedValue)) {
+				const present = actualValue !== undefined && actualValue !== null;
+				if (present !== expectedValue.exists) {
+					errors.push(
+						`Expected ${key} to ${expectedValue.exists ? 'be present' : 'be absent'}, got ${JSON.stringify(actualValue)}`
+					);
 				}
 				continue;
 			}
@@ -139,12 +146,22 @@ export class ConformanceRunner {
 	}
 
 	private getValue(obj: unknown, path: string): unknown {
-		const parts = path.split('.');
+		if (path === '') return obj;
 		let current = obj;
-		for (const part of parts) {
+		for (const part of path.split('.')) {
 			if (current === undefined || current === null) return undefined;
 			current = (current as Record<string, unknown>)[part];
 		}
 		return current;
 	}
+}
+
+function isExistsMatcher(value: unknown): value is { exists: boolean } {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		!Array.isArray(value) &&
+		Object.keys(value).length === 1 &&
+		typeof (value as { exists?: unknown }).exists === 'boolean'
+	);
 }

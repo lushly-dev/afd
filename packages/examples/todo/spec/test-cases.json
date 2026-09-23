@@ -33,7 +33,8 @@
 			"input": { "id": "nonexistent" },
 			"expect": {
 				"success": false,
-				"error.code": "NOT_FOUND"
+				"error.code": "NOT_FOUND",
+				"error.suggestion": { "exists": true }
 			}
 		},
 		{
@@ -122,6 +123,408 @@
 				"data.total": 2,
 				"data.byPriority.high": 1,
 				"data.byPriority.low": 1
+			}
+		},
+		{
+			"name": "create_title_too_long",
+			"description": "Titles longer than 200 characters fail validation",
+			"setup": [],
+			"command": "todo-create",
+			"input": {
+				"title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+			},
+			"expect": {
+				"success": false,
+				"error.code": "VALIDATION_ERROR",
+				"error.suggestion": { "exists": true }
+			}
+		},
+		{
+			"name": "create_title_max_length",
+			"description": "A 200-character title is accepted",
+			"setup": [],
+			"command": "todo-create",
+			"input": {
+				"title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+			},
+			"expect": {
+				"success": true,
+				"data.title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+			}
+		},
+		{
+			"name": "create_empty_title",
+			"description": "An empty title fails validation",
+			"setup": [],
+			"command": "todo-create",
+			"input": { "title": "" },
+			"expect": {
+				"success": false,
+				"error.code": "VALIDATION_ERROR",
+				"error.suggestion": { "exists": true }
+			}
+		},
+		{
+			"name": "create_invalid_priority",
+			"description": "Priority must be low, medium or high",
+			"setup": [],
+			"command": "todo-create",
+			"input": { "title": "Bad priority", "priority": "urgent" },
+			"expect": {
+				"success": false,
+				"error.code": "VALIDATION_ERROR",
+				"error.suggestion": { "exists": true }
+			}
+		},
+		{
+			"name": "get_existing",
+			"description": "Get a todo by ID",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "Find me", "description": "Details" },
+					"capture": "todo1"
+				}
+			],
+			"command": "todo-get",
+			"input": { "id": "$todo1.id" },
+			"expect": {
+				"success": true,
+				"data.title": "Find me",
+				"data.description": "Details",
+				"data.completedAt": { "exists": false }
+			}
+		},
+		{
+			"name": "list_filter_completed",
+			"description": "Filter todos by completion status",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "Done" },
+					"capture": "todo1"
+				},
+				{ "command": "todo-create", "input": { "title": "Not done" } },
+				{ "command": "todo-toggle", "input": { "id": "$todo1.id" } }
+			],
+			"command": "todo-list",
+			"input": { "completed": true },
+			"expect": {
+				"success": true,
+				"data.total": 1,
+				"data.todos.0.title": "Done"
+			}
+		},
+		{
+			"name": "list_filter_priority",
+			"description": "Filter todos by priority",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "High", "priority": "high" }
+				},
+				{
+					"command": "todo-create",
+					"input": { "title": "Low", "priority": "low" }
+				}
+			],
+			"command": "todo-list",
+			"input": { "priority": "high" },
+			"expect": {
+				"success": true,
+				"data.total": 1,
+				"data.todos.0.title": "High"
+			}
+		},
+		{
+			"name": "list_pagination",
+			"description": "Limit and hasMore paginate the list",
+			"setup": [
+				{ "command": "todo-create", "input": { "title": "Todo 1" } },
+				{ "command": "todo-create", "input": { "title": "Todo 2" } },
+				{ "command": "todo-create", "input": { "title": "Todo 3" } }
+			],
+			"command": "todo-list",
+			"input": { "limit": 2 },
+			"expect": {
+				"success": true,
+				"data.total": 3,
+				"data.todos.length": 2,
+				"data.hasMore": true
+			}
+		},
+		{
+			"name": "list_limit_too_large",
+			"description": "limit is capped at 100",
+			"setup": [],
+			"command": "todo-list",
+			"input": { "limit": 101 },
+			"expect": {
+				"success": false,
+				"error.code": "VALIDATION_ERROR"
+			}
+		},
+		{
+			"name": "update_no_changes",
+			"description": "An update without fields returns NO_CHANGES",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "Unchanged" },
+					"capture": "todo1"
+				}
+			],
+			"command": "todo-update",
+			"input": { "id": "$todo1.id" },
+			"expect": {
+				"success": false,
+				"error.code": "NO_CHANGES",
+				"error.suggestion": { "exists": true }
+			}
+		},
+		{
+			"name": "update_not_found",
+			"description": "Updating a missing todo returns NOT_FOUND",
+			"setup": [],
+			"command": "todo-update",
+			"input": { "id": "nonexistent", "title": "New title" },
+			"expect": {
+				"success": false,
+				"error.code": "NOT_FOUND",
+				"error.suggestion": { "exists": true }
+			}
+		},
+		{
+			"name": "update_completed_sets_timestamp",
+			"description": "Marking a todo completed sets completedAt",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "Finish me" },
+					"capture": "todo1"
+				}
+			],
+			"command": "todo-update",
+			"input": { "id": "$todo1.id", "completed": true },
+			"expect": {
+				"success": true,
+				"data.completed": true,
+				"data.completedAt": { "exists": true }
+			}
+		},
+		{
+			"name": "toggle_back_to_pending",
+			"description": "Toggling twice clears completedAt",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "Toggle twice" },
+					"capture": "todo1"
+				},
+				{ "command": "todo-toggle", "input": { "id": "$todo1.id" } }
+			],
+			"command": "todo-toggle",
+			"input": { "id": "$todo1.id" },
+			"expect": {
+				"success": true,
+				"data.completed": false,
+				"data.completedAt": { "exists": false }
+			}
+		},
+		{
+			"name": "toggle_not_found",
+			"description": "Toggling a missing todo returns NOT_FOUND",
+			"setup": [],
+			"command": "todo-toggle",
+			"input": { "id": "nonexistent" },
+			"expect": {
+				"success": false,
+				"error.code": "NOT_FOUND",
+				"error.suggestion": { "exists": true }
+			}
+		},
+		{
+			"name": "delete_not_found",
+			"description": "Deleting a missing todo returns NOT_FOUND",
+			"setup": [],
+			"command": "todo-delete",
+			"input": { "id": "nonexistent" },
+			"expect": {
+				"success": false,
+				"error.code": "NOT_FOUND",
+				"error.suggestion": { "exists": true }
+			}
+		},
+		{
+			"name": "clear_completed",
+			"description": "Clear removes only completed todos by default",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "Done" },
+					"capture": "todo1"
+				},
+				{ "command": "todo-create", "input": { "title": "Pending" } },
+				{ "command": "todo-toggle", "input": { "id": "$todo1.id" } }
+			],
+			"command": "todo-clear",
+			"input": {},
+			"expect": {
+				"success": true,
+				"data.cleared": 1,
+				"data.remaining": 1
+			}
+		},
+		{
+			"name": "clear_all",
+			"description": "Clear with all: true removes every todo",
+			"setup": [
+				{ "command": "todo-create", "input": { "title": "One" } },
+				{ "command": "todo-create", "input": { "title": "Two" } }
+			],
+			"command": "todo-clear",
+			"input": { "all": true },
+			"expect": {
+				"success": true,
+				"data.cleared": 2,
+				"data.remaining": 0
+			}
+		},
+		{
+			"name": "stats_completion",
+			"description": "Stats count completed and pending todos",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "Done" },
+					"capture": "todo1"
+				},
+				{ "command": "todo-create", "input": { "title": "Pending" } },
+				{ "command": "todo-toggle", "input": { "id": "$todo1.id" } }
+			],
+			"command": "todo-stats",
+			"input": {},
+			"expect": {
+				"success": true,
+				"data.completed": 1,
+				"data.pending": 1,
+				"data.byPriority.medium": 2,
+				"data.completionRate": 0.5
+			}
+		},
+		{
+			"name": "create_batch",
+			"description": "Create several todos in one call",
+			"setup": [],
+			"command": "todo-create-batch",
+			"input": { "todos": [{ "title": "Batch 1" }, { "title": "Batch 2", "priority": "high" }] },
+			"expect": {
+				"success": true,
+				"data.succeeded.length": 2,
+				"data.succeeded.1.priority": "high",
+				"data.failed.length": 0,
+				"data.summary.total": 2,
+				"data.summary.successCount": 2,
+				"data.summary.failureCount": 0
+			}
+		},
+		{
+			"name": "create_batch_partial_failure",
+			"description": "A blank title fails its item without failing the batch",
+			"setup": [],
+			"command": "todo-create-batch",
+			"input": { "todos": [{ "title": "Valid" }, { "title": "   " }] },
+			"expect": {
+				"success": true,
+				"data.summary.successCount": 1,
+				"data.summary.failureCount": 1,
+				"data.failed.0.index": 1,
+				"data.failed.0.error.code": "VALIDATION_ERROR",
+				"data.failed.0.error.suggestion": { "exists": true },
+				"warnings.0.code": "PARTIAL_SUCCESS"
+			}
+		},
+		{
+			"name": "create_batch_empty",
+			"description": "A batch needs at least one todo",
+			"setup": [],
+			"command": "todo-create-batch",
+			"input": { "todos": [] },
+			"expect": {
+				"success": false,
+				"error.code": "VALIDATION_ERROR"
+			}
+		},
+		{
+			"name": "delete_batch_partial_failure",
+			"description": "Missing IDs are reported per item",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "Delete me" },
+					"capture": "todo1"
+				}
+			],
+			"command": "todo-delete-batch",
+			"input": { "ids": ["$todo1.id", "missing-id"] },
+			"expect": {
+				"success": true,
+				"data.deletedIds.length": 1,
+				"data.failed.0.id": "missing-id",
+				"data.failed.0.error.code": "NOT_FOUND",
+				"data.summary.successCount": 1,
+				"data.summary.failureCount": 1
+			}
+		},
+		{
+			"name": "toggle_batch_set_completed",
+			"description": "completed: true marks every todo completed",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "First" },
+					"capture": "todo1"
+				},
+				{
+					"command": "todo-create",
+					"input": { "title": "Second" },
+					"capture": "todo2"
+				},
+				{ "command": "todo-toggle", "input": { "id": "$todo2.id" } }
+			],
+			"command": "todo-toggle-batch",
+			"input": { "ids": ["$todo1.id", "$todo2.id"], "completed": true },
+			"expect": {
+				"success": true,
+				"data.succeeded.length": 2,
+				"data.summary.markedComplete": 2,
+				"data.summary.markedIncomplete": 0
+			}
+		},
+		{
+			"name": "toggle_batch_flip",
+			"description": "Without completed, each todo is toggled",
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "First" },
+					"capture": "todo1"
+				},
+				{
+					"command": "todo-create",
+					"input": { "title": "Second" },
+					"capture": "todo2"
+				},
+				{ "command": "todo-toggle", "input": { "id": "$todo2.id" } }
+			],
+			"command": "todo-toggle-batch",
+			"input": { "ids": ["$todo1.id", "$todo2.id"] },
+			"expect": {
+				"success": true,
+				"data.succeeded.0.completed": true,
+				"data.succeeded.1.completed": false,
+				"data.summary.markedComplete": 1,
+				"data.summary.markedIncomplete": 1
 			}
 		}
 	]
