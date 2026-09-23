@@ -40,11 +40,11 @@ dependencies = [
 server = [
     # AFD uses mcp.server.fastmcp: 1.19 is the first release whose Tool
     # accepts meta=, and mcp 2.x removed the module.
-    "mcp>=1.19,<2",
+    "mcp>=1.19,<3",
 ]
 client = [
     "httpx>=0.27",
-    "mcp>=1.19,<2",  # SseTransport uses mcp.client.sse
+    "mcp>=1.19,<3",  # SseTransport uses mcp.client.sse
     "websockets>=14",  # additional_headers= needs websockets 14+
 ]
 cli = [
