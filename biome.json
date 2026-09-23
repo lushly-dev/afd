@@ -14,7 +14,8 @@
 			"!**/*.plan.md",
 			"!**/_generated",
 			"!**/alfred",
-			"!**/site"
+			"!**/site",
+			"!spec/wire/*.json"
 		]
 	},
 	"formatter": {
