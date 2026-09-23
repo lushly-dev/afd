@@ -935,4 +935,19 @@ describe('commandToMcpTool', () => {
 		expect(prop?.default).toBe('json');
 		expect(prop?.enum).toEqual(['json', 'csv']);
 	});
+
+	it('accepts the integer type emitted by Zod for z.number().int()', () => {
+		const cmd: CommandDefinition = {
+			name: 'page-get',
+			description: 'test',
+			parameters: [{ name: 'limit', type: 'integer', description: 'Page size', default: 20 }],
+			handler: async () => success(null),
+		};
+
+		expect(commandToMcpTool(cmd).inputSchema.properties.limit).toEqual({
+			type: 'integer',
+			description: 'Page size',
+			default: 20,
+		});
+	});
 });

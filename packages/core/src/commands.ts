@@ -89,10 +89,11 @@ export function isExposedTo(
  *
  * Includes composition keywords (`oneOf`, `anyOf`, `allOf`) needed for
  * discriminated unions, non-discriminated unions, and intersections.
- * These are produced by `zod-to-json-schema` with `target: 'jsonSchema7'`.
+ * These are produced by Zod's `z.toJSONSchema()` with `target: 'draft-7'`,
+ * which emits `'integer'` for `z.number().int()`.
  */
 export interface JsonSchema {
-	type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null';
+	type: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'null';
 	description?: string;
 	/** For object schemas, array of required property names */
 	required?: string[] | boolean;
