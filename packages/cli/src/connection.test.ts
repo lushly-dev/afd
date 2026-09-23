@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
 		serverUrl: 'http://saved.example/mcp',
 		transport: 'sse' as const,
 		timeout: 4321,
-		autoReconnect: false,
+		autoReconnect: false as boolean,
 	},
 	createClient: vi.fn(),
 }));
@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@lushly-dev/afd-client', () => ({ createClient: mocks.createClient }));
 vi.mock('./config.js', () => ({ getConfig: () => mocks.config }));
 
-import { ensureConnected, getClient, setClient } from './connection.js';
+import { closeClient, ensureConnected, getClient, setClient } from './connection.js';
 
 function makeClient() {
 	return {
@@ -67,5 +67,57 @@ describe('ensureConnected', () => {
 
 		expect(await ensureConnected()).toBeNull();
 		expect(client.disconnect).toHaveBeenCalled();
+	});
+
+	it('never auto-reconnects, even when the saved connection enabled it', async () => {
+		mocks.createClient.mockReturnValue(makeClient());
+		mocks.config.autoReconnect = true;
+		try {
+			await ensureConnected();
+		} finally {
+			mocks.config.autoReconnect = false;
+		}
+
+		expect(mocks.createClient).toHaveBeenCalledWith(
+			expect.objectContaining({ autoReconnect: false })
+		);
+	});
+
+	it('disconnects the client it replaces', async () => {
+		const previous = makeClient();
+		const next = makeClient();
+		setClient(previous);
+		mocks.createClient.mockReturnValue(next);
+
+		expect(await ensureConnected()).toBe(next);
+		expect(previous.disconnect).toHaveBeenCalled();
+		expect(next.disconnect).not.toHaveBeenCalled();
+	});
+});
+
+describe('closeClient', () => {
+	beforeEach(() => {
+		setClient(null);
+	});
+
+	it('disconnects and forgets the active client', async () => {
+		const client = makeClient();
+		setClient(client);
+
+		await closeClient();
+
+		expect(client.disconnect).toHaveBeenCalledTimes(1);
+		expect(getClient()).toBeNull();
+	});
+
+	it('is a no-op without a client and ignores disconnect failures', async () => {
+		await expect(closeClient()).resolves.toBeUndefined();
+
+		const client = makeClient();
+		vi.mocked(client.disconnect).mockRejectedValue(new Error('already closed'));
+		setClient(client);
+
+		await expect(closeClient()).resolves.toBeUndefined();
+		expect(getClient()).toBeNull();
 	});
 });

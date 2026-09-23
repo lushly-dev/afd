@@ -226,10 +226,22 @@ describe('CLI command workflows', () => {
 		expect(process.exit).toHaveBeenCalledWith(1);
 	});
 
-	it('refreshes, filters, and prints tools', async () => {
+	it('refreshes, filters by _meta.category or kebab prefix, and prints tools', async () => {
 		const refreshTools = vi.fn().mockResolvedValue([
-			{ name: 'todo.create', description: 'Create', inputSchema: { type: 'object' } },
-			{ name: 'user.get', description: 'Get', inputSchema: { type: 'object' } },
+			{
+				name: 'todo-create',
+				description: 'Create',
+				inputSchema: { type: 'object' },
+				_meta: { category: 'todo' },
+			},
+			{ name: 'todo-legacy', description: 'Legacy', inputSchema: { type: 'object' } },
+			{
+				name: 'todo-export',
+				description: 'Export',
+				inputSchema: { type: 'object' },
+				_meta: { category: 'reports' },
+			},
+			{ name: 'user-get', description: 'Get', inputSchema: { type: 'object' } },
 		]);
 		mocks.ensureConnected.mockResolvedValue(
 			client({ getTools: vi.fn().mockReturnValue([]), refreshTools })
@@ -238,7 +250,10 @@ describe('CLI command workflows', () => {
 		await run('tools', '--category', 'todo', '--refresh', '--format', 'json');
 
 		expect(refreshTools).toHaveBeenCalled();
-		expect(console.log).toHaveBeenCalledWith(expect.stringContaining('todo.create'));
+		const printed = JSON.parse(String(vi.mocked(console.log).mock.calls.at(-1)?.[0])) as Array<{
+			name: string;
+		}>;
+		expect(printed.map((tool) => tool.name)).toEqual(['todo-create', 'todo-legacy']);
 	});
 
 	it('renders every text stream chunk and forwards parsed options', async () => {
@@ -322,10 +337,26 @@ describe('CLI command workflows', () => {
 	it('runs surface and per-command validation workflows', async () => {
 		const tools = [
 			{
-				name: 'todo.create',
-				description: 'Create',
+				name: 'todo-create',
+				description: 'Create a todo item',
 				inputSchema: { type: 'object' },
-				_meta: { category: 'todo', contexts: ['editing'] },
+				_meta: {
+					category: 'todo',
+					contexts: ['editing'],
+					examples: [{ title: 'Basic', input: { title: 'Buy milk' } }],
+				},
+			},
+			{
+				name: 'todo-clear',
+				description: 'Delete every todo item',
+				inputSchema: { type: 'object' },
+				_meta: { category: 'todo', mutation: true },
+			},
+			{
+				name: 'user-get',
+				description: 'Get a user by id',
+				inputSchema: { type: 'object' },
+				_meta: { category: 'user' },
 			},
 		];
 		const connected = client({ refreshTools: vi.fn().mockResolvedValue(tools) });
@@ -355,13 +386,80 @@ describe('CLI command workflows', () => {
 		mocks.validateResult.mockReturnValue({ valid: true, errors: [], warnings: [] });
 
 		await run('validate', '--surface', '--verbose', '--skip-category', 'internal');
-		await run('validate', '--category', 'todo');
-
 		expect(mocks.validateCommandSurface).toHaveBeenCalledWith(
 			expect.any(Array),
 			expect.objectContaining({ configuredContexts: ['editing'] })
 		);
-		expect(connected.call).toHaveBeenCalledWith('todo.create', {});
+
+		// Without --execute, nothing is called.
+		await run('validate', '--category', 'todo');
+		expect(connected.call).not.toHaveBeenCalled();
+		expect(mocks.validateResult).not.toHaveBeenCalled();
+		expect(process.exit).not.toHaveBeenCalled();
+
+		// With --execute, read-only tools get their example input; mutations are skipped.
+		await run('validate', '--category', 'todo', '--execute');
+		expect(connected.call).toHaveBeenCalledTimes(1);
+		expect(connected.call).toHaveBeenCalledWith('todo-create', { title: 'Buy milk' });
+		expect(console.log).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.stringContaining('todo-clear')
+		);
+		expect(console.log).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.stringContaining('skipped (mutation: true)')
+		);
+		expect(process.exit).not.toHaveBeenCalled();
+	});
+
+	it('never calls tools without --execute and fails on listing errors', async () => {
+		const connected = client({
+			refreshTools: vi.fn().mockResolvedValue([
+				{
+					name: 'db-reset',
+					description: 'Delete every record',
+					inputSchema: { type: 'object' },
+					_meta: { mutation: true },
+				},
+				{ name: 'no-description', inputSchema: { type: 'object' } },
+				{ name: 'bad-schema', description: 'Has a broken schema', inputSchema: { type: 'string' } },
+			]),
+		});
+		mocks.ensureConnected.mockResolvedValue(connected);
+
+		await run('validate', '--verbose');
+
+		expect(connected.call).not.toHaveBeenCalled();
+		const output = vi.mocked(console.log).mock.calls.flat().join('\n');
+		expect(output).toContain('description: Tool must have a description');
+		expect(output).toContain('inputSchema: inputSchema must be a JSON Schema');
+		expect(output).toContain('no tools were executed');
+		expect(process.exit).toHaveBeenCalledWith(1);
+	});
+
+	it('skips destructive tools under --execute and reports the skip even with warnings', async () => {
+		const connected = client({
+			refreshTools: vi.fn().mockResolvedValue([
+				{
+					name: 'file-purge',
+					description: 'Purge',
+					inputSchema: { type: 'object' },
+					_meta: { destructive: true },
+				},
+			]),
+		});
+		mocks.ensureConnected.mockResolvedValue(connected);
+
+		await run('validate', '--execute');
+
+		expect(connected.call).not.toHaveBeenCalled();
+		expect(console.log).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.stringContaining('skipped (destructive: true)')
+		);
+		expect(console.log).toHaveBeenCalledWith(
+			expect.stringContaining('not executed (mutation or destructive)')
+		);
 	});
 
 	it('validates, runs, and initializes scenario files', async () => {
@@ -475,8 +573,9 @@ describe('CLI command workflows', () => {
 	});
 
 	it('classifies per-command failures, warnings, successes, and thrown calls', async () => {
-		const tools = ['bad.result', 'warn.result', 'good.result', 'throw.result'].map((name) => ({
+		const tools = ['bad-result', 'warn-result', 'good-result', 'throw-result'].map((name) => ({
 			name,
+			description: `Return a ${name} envelope`,
 			inputSchema: { type: 'object' },
 		}));
 		const connected = client({
@@ -502,18 +601,24 @@ describe('CLI command workflows', () => {
 			})
 			.mockReturnValueOnce({ valid: true, errors: [], warnings: [] });
 
-		await run('validate', '--verbose');
+		await run('validate', '--execute', '--verbose');
 
+		expect(connected.call).toHaveBeenCalledTimes(4);
 		expect(process.exit).toHaveBeenCalledWith(1);
 		expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Validation Results:'));
+		expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Error: network down'));
 	});
 
 	it('treats warnings as failures in strict per-command validation', async () => {
 		mocks.ensureConnected.mockResolvedValue(
 			client({
-				refreshTools: vi
-					.fn()
-					.mockResolvedValue([{ name: 'warn.result', inputSchema: { type: 'object' } }]),
+				refreshTools: vi.fn().mockResolvedValue([
+					{
+						name: 'warn-result',
+						description: 'Return a warning envelope',
+						inputSchema: { type: 'object' },
+					},
+				]),
 			})
 		);
 		mocks.validateResult.mockReturnValue({
@@ -522,7 +627,7 @@ describe('CLI command workflows', () => {
 			warnings: [{ path: 'reasoning', message: 'recommended' }],
 		});
 
-		await run('validate', '--strict', '--verbose');
+		await run('validate', '--execute', '--strict', '--verbose');
 
 		expect(process.exit).toHaveBeenCalledWith(1);
 	});

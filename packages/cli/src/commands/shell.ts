@@ -9,6 +9,7 @@ import type { Command } from 'commander';
 import { getConfig, setConfig } from '../config.js';
 import { printError, printResult, printStatus, printSuccess, printTools } from '../output.js';
 import { getClient, setClient } from './connect.js';
+import { matchesCategory } from './tools.js';
 
 /**
  * Register the shell command.
@@ -46,31 +47,44 @@ export function registerShellCommand(program: Command): void {
 				prompt: getPrompt(),
 			});
 
-			rl.prompt();
-
-			rl.on('line', async (line) => {
+			let closed = false;
+			const handleLine = async (line: string): Promise<void> => {
 				const trimmed = line.trim();
-
-				if (!trimmed) {
-					rl.prompt();
-					return;
+				if (trimmed) {
+					try {
+						await processCommand(trimmed);
+					} catch (error) {
+						printError('Command failed', error instanceof Error ? error : undefined);
+					}
 				}
 
-				try {
-					await processCommand(trimmed);
-				} catch (error) {
-					printError('Command failed', error instanceof Error ? error : undefined);
-				}
-
+				if (closed) return;
 				// Update prompt (connection status may have changed)
 				rl.setPrompt(getPrompt());
 				rl.prompt();
+			};
+
+			rl.prompt();
+
+			// Run lines one at a time, so piped input keeps its order and closing
+			// the input waits for commands that are still queued or in flight.
+			let queue = Promise.resolve();
+			rl.on('line', (line) => {
+				queue = queue.then(() => handleLine(line));
+				return queue;
 			});
 
-			rl.on('close', () => {
-				console.log();
-				console.log('Goodbye!');
-				process.exit(0);
+			// The shell's lifetime is the command's lifetime: the CLI entry point
+			// disconnects the client only after this resolves.
+			await new Promise<void>((resolve) => {
+				rl.on('close', () => {
+					closed = true;
+					void queue.then(() => {
+						console.log();
+						console.log('Goodbye!');
+						resolve();
+					});
+				});
 			});
 		});
 }
@@ -247,7 +261,7 @@ async function handleTools(args: string[]): Promise<void> {
 	// Filter by category
 	const category = args[0];
 	if (category) {
-		tools = tools.filter((t) => t.name.startsWith(`${category}.`));
+		tools = tools.filter((t) => matchesCategory(t, category));
 	}
 
 	printTools(tools);

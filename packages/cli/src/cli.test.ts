@@ -8,11 +8,14 @@
  * - Output formatters handle all CommandResult shapes
  */
 
+import { stripVTControlCharacters } from 'node:util';
 import type { CommandResult } from '@lushly-dev/afd-core';
 import { describe, expect, it, vi } from 'vitest';
 import packageJson from '../package.json';
 import { createCli } from './cli.js';
 import {
+	getConfidenceBar,
+	getProgressBar,
 	printError,
 	printInfo,
 	printResult,
@@ -20,6 +23,7 @@ import {
 	printSuccess,
 	printTools,
 	printWarning,
+	renderBar,
 } from './output.js';
 
 describe('CLI program', () => {
@@ -84,6 +88,60 @@ describe('CLI program', () => {
 		const options = validateCmd?.options.map((o) => o.long);
 		expect(options).toContain('--strict');
 		expect(options).toContain('--verbose');
+	});
+
+	it('validate command only executes tools behind an explicit --execute flag', () => {
+		const validateCmd = createCli().commands.find((c) => c.name() === 'validate');
+		const execute = validateCmd?.options.find((o) => o.long === '--execute');
+
+		expect(execute?.defaultValue).toBeUndefined();
+		expect(execute?.description).toMatch(/mutation\/destructive/);
+		let help = '';
+		validateCmd
+			?.configureOutput({
+				writeOut: (text) => {
+					help += text;
+				},
+			})
+			.outputHelp();
+		expect(help).toContain('No tool is executed');
+		expect(help).toContain('_meta.examples[0].input');
+	});
+});
+
+describe('Bar rendering', () => {
+	const plain = (text: string) => text;
+	const cells = (bar: string) => stripVTControlCharacters(bar);
+
+	it('fills proportionally inside the 0-1 range', () => {
+		expect(cells(renderBar(0.5, 10, plain))).toBe('█████░░░░░');
+		expect(cells(renderBar(0, 4, plain))).toBe('░░░░');
+		expect(cells(renderBar(1, 4, plain))).toBe('████');
+	});
+
+	it('clamps out-of-range and non-finite values instead of throwing', () => {
+		expect(cells(renderBar(1.5, 10, plain))).toBe('██████████');
+		expect(cells(renderBar(-0.5, 10, plain))).toBe('░░░░░░░░░░');
+		expect(cells(renderBar(Number.NaN, 4, plain))).toBe('░░░░');
+		expect(cells(renderBar(Number.POSITIVE_INFINITY, 4, plain))).toBe('████');
+		expect(cells(renderBar(Number.NEGATIVE_INFINITY, 4, plain))).toBe('░░░░');
+	});
+
+	it('keeps confidence and progress bars at a fixed width for any value', () => {
+		for (const value of [-1, 0.2, 0.6, 0.9, 1.5]) {
+			expect(cells(getConfidenceBar(value))).toHaveLength(10);
+			expect(cells(getProgressBar(value))).toHaveLength(22);
+		}
+	});
+
+	it('prints results whose confidence is outside 0-1', () => {
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+		expect(() => printResult({ success: true, data: 'x', confidence: 1.5 })).not.toThrow();
+		expect(() => printResult({ success: true, data: 'x', confidence: -0.2 })).not.toThrow();
+		expect(logSpy.mock.calls.flat().join('\n')).toContain('150%');
+
+		logSpy.mockRestore();
 	});
 });
 

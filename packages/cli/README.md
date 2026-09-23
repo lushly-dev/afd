@@ -60,8 +60,11 @@ afd call document.list --connect http://localhost:3200/mcp --transport http --fo
 ### Validate Commands
 
 ```bash
-# Validate all commands on the connected server
+# Check the connected server's tool listing (executes nothing)
 afd validate
+
+# Also call read-only tools and validate their CommandResult envelopes
+afd validate --execute
 
 # Validate specific category
 afd validate --category document
@@ -72,6 +75,22 @@ afd validate --strict
 # Verbose output
 afd validate --verbose
 ```
+
+By default, `afd validate` never calls a tool. It checks what `tools/list`
+advertises: names, descriptions, input schemas, and `_meta.examples`.
+
+`--execute` also calls each tool and validates the returned `CommandResult`:
+
+- Tools whose `_meta` sets `mutation: true` or `destructive: true` are never
+  called. Each one is listed as `skipped` with the reason.
+- Each call uses `_meta.examples[0].input` when the server advertises an
+  example, and `{}` otherwise.
+- Tools without metadata are treated as safe to call. Only use `--execute`
+  against servers that mark their side-effecting commands.
+
+`--category <name>` matches the tool's `_meta.category`. Tools without a
+category match when their name starts with `<name>-` (for example, `todo`
+matches `todo-create`).
 
 ### Interactive Shell
 
@@ -102,7 +121,7 @@ afd:connected> exit
 | `status` | Show connection status |
 | `tools` | List available tools |
 | `call <name> [args]` | Call a tool with arguments |
-| `validate` | Validate command results |
+| `validate` | Validate the tool listing (and, with `--execute`, command results) |
 | `shell` | Start interactive mode |
 
 ## Options
@@ -126,7 +145,7 @@ afd:connected> exit
 
 | Option | Description |
 |--------|-------------|
-| `-c, --category <name>` | Filter by category |
+| `-c, --category <name>` | Filter by `_meta.category` (or `<name>-` name prefix) |
 | `-f, --format <format>` | Output format (json, text). Default: text |
 | `--refresh` | Force refresh from server |
 
@@ -144,7 +163,8 @@ afd:connected> exit
 
 | Option | Description |
 |--------|-------------|
-| `-c, --category <name>` | Validate only this category |
+| `-c, --category <name>` | Validate only tools whose `_meta.category` (or `<name>-` name prefix) matches |
+| `--execute` | Also call each tool and validate its result. Skips `mutation`/`destructive` tools |
 | `--strict` | Treat warnings as errors |
 | `-v, --verbose` | Show detailed results |
 
@@ -162,13 +182,18 @@ Stored settings:
 - `serverUrl`: Last connected server URL
 - `transport`: Last selected transport (`sse` or `http`)
 - `timeout`: Default timeout
-- `autoReconnect`: Whether the saved connection enables automatic reconnection
+- `autoReconnect`: The `--no-reconnect` choice from the last `connect`
 - `format`: Default output format
 - `debug`: Debug mode
 
 `tools`, `call`, `batch`, `stream`, `validate`, and `status` recreate this
 connection when they run in a later process. `disconnect` removes the saved
 connection.
+
+Every command except `shell` is one-shot: it connects without auto-reconnect
+and disconnects when it finishes, so it exits after printing its result over
+either transport. `shell` keeps its connection until you type `exit` or close
+its input.
 
 ## Output Formats
 
@@ -239,7 +264,7 @@ afd tools
 # Create something
 afd call document.create '{"title": "Test Doc"}'
 
-# Validate the server's command implementations
+# Validate the server's tool listing (add --execute to call read-only tools)
 afd validate
 
 # Interactive exploration

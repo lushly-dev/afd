@@ -267,7 +267,7 @@ afd validate --category document
 | `afd tools` | List available tools |
 | `afd tools --category <name>` | Filter tools by category |
 | `afd call <tool> [args]` | Call a tool with JSON args |
-| `afd validate` | Run per-command validation |
+| `afd validate` | Validate the tool listing (`--execute` also calls read-only tools) |
 | `afd validate --surface` | Run cross-command surface validation |
 | `afd shell` | Interactive mode |
 
