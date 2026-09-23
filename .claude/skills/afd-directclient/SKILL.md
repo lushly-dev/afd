@@ -2,10 +2,12 @@
 name: afd-directclient
 description: >
   DirectClient transport for zero-overhead command execution when AI agents
-  are co-located in the same Node.js process. Covers when to use, security
-  hardening, error handling, and observability patterns.
+  are co-located in the same Node.js process. Covers the validating
+  createDirectRegistry, when to use, security hardening, error handling, and
+  observability patterns.
   Triggers: directclient, in-process, zero overhead, co-located agent,
-  embedded agent, gemini integration, chat server.
+  embedded agent, gemini integration, chat server, createDirectRegistry,
+  DirectRegistry.
 ---
 
 # AFD DirectClient Patterns
@@ -26,10 +28,44 @@ DirectClient bypasses MCP transport for ~0.03ms command execution (vs ~2-10ms MC
 - Cross-process communication needed
 ```
 
+## The Registry: Always `createDirectRegistry`
+
+Build the registry with `createDirectRegistry` from `@lushly-dev/afd-server`.
+It runs every call through the same engine as `createMcpServer`:
+
+- **Zod validation** of the full input before the handler runs (nested objects,
+  wrong types, lengths, enums, defaults and transforms)
+- **Middleware** (logging, tracing, rate limiting, auth), plus `onCommand`/`onError`
+- **Error sanitization**: exception text stays out of results unless `devMode: true`
+- **Exposure**: only commands exposed to the chosen interface (`'agent'` by
+  default) are listed or run; others get `COMMAND_NOT_EXPOSED`
+
+```typescript
+// registry.ts
+import { createDirectRegistry } from '@lushly-dev/afd-server';
+import { allCommands } from './commands/index.js';
+
+export const registry = createDirectRegistry(allCommands, {
+  interface: 'agent',            // default
+  middleware: [/* same middleware as your MCP server */],
+});
+```
+
+❌ **Never hand-roll a registry** that calls `command.handler(input)`. It skips
+Zod validation (so `{ "title": { "nested": true } }` reaches your store), skips
+middleware, leaks exception messages, and lets the agent call commands you
+marked `expose: { agent: false }`.
+
+Exposure flags a command leaves out fall back to `defaultExpose` (`palette` and
+`agent` on, `mcp` and `cli` off). `expose: { mcp: true }` therefore stays
+available to in-app agents; use `expose: { agent: false }` for commands the AI
+must not run (for example destructive admin commands).
+
 ## Basic Usage
 
 ```typescript
-import { DirectClient } from '@lushly-dev/afd-client';
+import { isSuccess } from '@lushly-dev/afd-core';
+import { DirectClient, isUnknownToolError } from '@lushly-dev/afd-client';
 import { registry } from './registry.js';
 
 const client = new DirectClient(registry);
@@ -41,10 +77,39 @@ const result = await client.call<Todo>('todo-create', {
 });
 // ~0.03ms vs 2-10ms for MCP
 
-if (result.success) {
-  console.log('Created:', result.data);
+if (isUnknownToolError(result)) {
+  console.error('Unknown command:', result.data?.hint);
+} else if (isSuccess(result)) {
+  console.log('Created:', result.data.id); // CommandResult<Todo>
 } else {
   console.error('Error:', result.error);
+}
+```
+
+`call<T>()` returns `CommandResult<T> | CommandResult<UnknownToolError>`; rule
+out the unknown-tool case with `isUnknownToolError(result)` before reading
+`result.data` as `T`.
+
+### Narrowing What the Agent May Call
+
+```typescript
+const client = new DirectClient(registry, {
+  allow: (name) => name.startsWith('todo-') && name !== 'todo-clear',
+});
+// Refused names return COMMAND_NOT_ALLOWED and are hidden from
+// listCommands(), listCommandNames() and hasCommand().
+```
+
+### Timeouts and Cancellation
+
+```typescript
+const result = await client.call('report-build', input, {
+  timeout: 5_000,               // enforced; per step in pipe()
+  signal: request.signal,       // combined with the timeout
+});
+if (result.error?.code === 'TIMEOUT') {
+  // The handler's signal was aborted, but it may still have finished:
+  // check a mutation's effect before retrying.
 }
 ```
 
@@ -54,7 +119,7 @@ if (result.success) {
 import { GoogleGenAI } from '@google/genai';
 import { DirectClient } from '@lushly-dev/afd-client';
 
-const directClient = new DirectClient(registry);
+const directClient = new DirectClient(registry); // from createDirectRegistry
 
 // Execute function calls from Gemini
 for (const functionCall of response.functionCalls) {
@@ -84,21 +149,39 @@ function validateApiKey(): void {
 
 ### CORS Lockdown
 
+Default to an explicit localhost allowlist, never `*`, and never reflect an
+origin that is not on the list (including `null`). Bind the server to
+`127.0.0.1` unless it must be reachable from elsewhere.
+
 ```typescript
-const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS?.split(',') ?? ['*'];
+const ALLOWED_ORIGINS = new Set(
+  (process.env.ALLOWED_ORIGINS ?? 'http://localhost:5173,http://127.0.0.1:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
 
 function setCorsHeaders(req, res): boolean {
-  const origin = req.headers.origin || '';
-  if (!ALLOWED_ORIGINS.includes('*') && !ALLOWED_ORIGINS.includes(origin)) {
+  const origin = req.headers.origin;
+  if (origin === undefined) return true; // same-origin or non-browser client
+  if (!ALLOWED_ORIGINS.has(origin)) {
     res.writeHead(403);
+    res.end();
     return false;
   }
-  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Vary', 'Origin');
   return true;
 }
+
+server.listen(PORT, '127.0.0.1');
 ```
 
 ### Rate Limiting
+
+Key the limit on the socket address (`req.socket.remoteAddress`), not on
+`X-Forwarded-For`, unless a trusted proxy sets that header; clients can rotate
+it to bypass the limit. Prune expired entries so the map stays bounded.
 
 ```typescript
 const RATE_LIMIT = 30; // per minute
@@ -124,6 +207,9 @@ function checkRateLimit(ip: string): { allowed: boolean; retryAfter?: number } {
 ```
 
 ### Input Validation
+
+Command inputs are validated by `createDirectRegistry` (each command's Zod
+schema). At the HTTP boundary, also check the envelope:
 
 ```typescript
 // Validate command names (prevent injection)
@@ -270,6 +356,8 @@ const result = await client.pipe(
 ```
 
 Options: `continueOnFailure`, `when` clauses for conditional steps, and `timeoutMs`.
+Each step goes through `call()`, so `allow`, the registry's Zod validation and
+a `timeout` passed in the pipe context (applied per step) all hold for pipelines.
 
 ## Related
 

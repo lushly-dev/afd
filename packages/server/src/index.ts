@@ -91,6 +91,14 @@ export {
 	createContextState,
 	getBootstrapCommands,
 } from './bootstrap/index.js';
+// Validating in-process registry for DirectClient
+export {
+	createDirectRegistry,
+	type DirectCommandRegistry,
+	type DirectRegistryCommand,
+	type DirectRegistryOptions,
+	type ExposeInterface,
+} from './direct-registry.js';
 // Handoff schemas
 export {
 	type HandoffCredentialsInput,

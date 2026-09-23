@@ -447,6 +447,44 @@ const myMiddleware: CommandMiddleware = async (commandName, input, context, next
 };
 ```
 
+## In-Process Agents: `createDirectRegistry`
+
+For an AI agent in the same process, `DirectClient` from `@lushly-dev/afd-client`
+skips the transport. Give it a registry built with `createDirectRegistry`, not
+one that calls `command.handler(input)` directly: the registry runs every call
+through the same engine as `createMcpServer` (Zod input validation, middleware,
+error sanitization, `onCommand`/`onError`), and only lists and runs commands
+exposed to the chosen interface.
+
+```typescript
+import { createDirectClient } from '@lushly-dev/afd-client';
+import { createDirectRegistry, createLoggingMiddleware } from '@lushly-dev/afd-server';
+
+const registry = createDirectRegistry(commands, {
+  interface: 'agent',                    // default
+  middleware: [createLoggingMiddleware()],
+});
+const client = createDirectClient(registry);
+
+await client.call('todo-create', { title: { nested: true } });
+// → { success: false, error: { code: 'VALIDATION_ERROR', ... } }
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `interface` | `'agent'` | Interface served: `'agent'`, `'palette'`, `'mcp'` or `'cli'` |
+| `middleware` | `[]` | Middleware, as for `createMcpServer` |
+| `devMode` | `false` | Include exception messages and stacks in failures |
+| `onCommand`, `onError` | — | Hooks, as for `createMcpServer` |
+
+A command is exposed to the interface when its `expose` flag for it is `true`.
+Flags a command leaves out fall back to `defaultExpose` (`palette` and `agent`
+on, `mcp` and `cli` off), so `expose: { mcp: true }` stays available to agents.
+Set `expose: { agent: false }` to keep a command away from in-app agents.
+Commands that are registered but not exposed are left out of
+`listCommands()`/`hasCommand()`, and `execute()` returns `COMMAND_NOT_EXPOSED`
+for them. Duplicate command names throw.
+
 ## Validation Utilities
 
 ```typescript

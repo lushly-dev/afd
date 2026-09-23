@@ -7,22 +7,17 @@
  * Run: npx tsx demo-direct-client.ts
  */
 
-import { type CommandResult, DirectClient, type UnknownToolError } from '@lushly-dev/afd-client';
+import {
+	type CommandResult,
+	DirectClient,
+	isUnknownToolError,
+	type UnknownToolError,
+} from '@lushly-dev/afd-client';
 import { registry } from './src/registry.js';
-
-/** True when a DirectClient call named a tool the registry does not have. */
-function isUnknownToolError(value: unknown): value is UnknownToolError {
-	return (
-		typeof value === 'object' &&
-		value !== null &&
-		'error' in value &&
-		value.error === 'UNKNOWN_TOOL'
-	);
-}
 
 /** The command's data, or undefined when the call failed or named an unknown tool. */
 function dataOf<T>(result: CommandResult<T> | CommandResult<UnknownToolError>): T | undefined {
-	return isUnknownToolError(result.data) ? undefined : result.data;
+	return isUnknownToolError(result) ? undefined : result.data;
 }
 
 // ANSI colors

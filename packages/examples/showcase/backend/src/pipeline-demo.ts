@@ -10,9 +10,9 @@
  * 6. Timeout handling
  */
 
-import { createDirectClient, type DirectRegistry } from '@lushly-dev/afd-client';
-import { type CommandResult, createCommandRegistry, success } from '@lushly-dev/afd-core';
-import { defineCommand } from '@lushly-dev/afd-server';
+import { createDirectClient } from '@lushly-dev/afd-client';
+import { type CommandResult, success } from '@lushly-dev/afd-core';
+import { createDirectRegistry, defineCommand } from '@lushly-dev/afd-server';
 
 const divider = (label: string) =>
 	console.log(`\n${'═'.repeat(60)}\n  ${label}\n${'═'.repeat(60)}`);
@@ -152,24 +152,18 @@ const failingCommand = defineCommand({
 // REGISTRY + CLIENT
 // ═══════════════════════════════════════════════════════════
 
-const registry = createCommandRegistry();
-registry.register(userGet.toCommandDefinition());
-registry.register(orderList.toCommandDefinition());
-registry.register(orderSummarize.toCommandDefinition());
-registry.register(discountApply.toCommandDefinition());
-registry.register(slowCommand.toCommandDefinition());
-registry.register(failingCommand.toCommandDefinition());
+// createDirectRegistry validates each step's resolved input with the command's
+// Zod schema and only offers commands exposed to agents (all of these are, by default).
+const registry = createDirectRegistry([
+	userGet,
+	orderList,
+	orderSummarize,
+	discountApply,
+	slowCommand,
+	failingCommand,
+]);
 
-// Adapt core CommandRegistry to DirectRegistry interface
-const directRegistry: DirectRegistry = {
-	execute: (name, input, context) => registry.execute(name, input, context),
-	listCommandNames: () => registry.list().map((c) => c.name),
-	listCommands: () => registry.list().map((c) => ({ name: c.name, description: c.description })),
-	hasCommand: (name) => registry.has(name),
-	getCommand: (name) => registry.get(name),
-};
-
-const client = createDirectClient(directRegistry);
+const client = createDirectClient(registry);
 
 async function run() {
 	console.log('\n🔗  Pipeline Demo\n');
