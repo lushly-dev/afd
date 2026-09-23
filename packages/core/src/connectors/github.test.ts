@@ -44,7 +44,7 @@ describe('GitHubConnector', () => {
 			});
 
 			expect(mockExec).toHaveBeenCalledWith(
-				['gh', 'issue', 'create', '--title', 'Test Issue', '--body', 'Issue body'],
+				['gh', 'issue', 'create', '--title=Test Issue', '--body=Issue body'],
 				{}
 			);
 			expect(issueNum).toBe(123);
@@ -72,18 +72,12 @@ describe('GitHubConnector', () => {
 					'gh',
 					'issue',
 					'create',
-					'--title',
-					'Test Issue',
-					'--body',
-					'Issue body',
-					'--repo',
-					'owner/repo',
-					'--label',
-					'bug',
-					'--label',
-					'high-priority',
-					'--project',
-					'My Project',
+					'--title=Test Issue',
+					'--body=Issue body',
+					'--repo=owner/repo',
+					'--label=bug',
+					'--label=high-priority',
+					'--project=My Project',
 				],
 				{}
 			);
@@ -142,6 +136,36 @@ describe('GitHubConnector', () => {
 
 			expect(mockExec).toHaveBeenCalledWith(expect.any(Array), { debug: true });
 		});
+
+		it('keeps flag-like and shell-like values inside their own --flag=value argument', async () => {
+			mockExec.mockResolvedValue({
+				stdout: 'https://github.com/owner/repo/issues/7',
+				stderr: '',
+				exitCode: 0,
+				durationMs: 100,
+			});
+
+			const connector = new GitHubConnector();
+			await connector.issueCreate({
+				title: '--repo=attacker/repo',
+				body: '-b x & calc | "%PATH%"\nsecond line',
+				repo: 'owner/repo',
+				labels: ['--web'],
+			});
+
+			expect(mockExec).toHaveBeenCalledWith(
+				[
+					'gh',
+					'issue',
+					'create',
+					'--title=--repo=attacker/repo',
+					'--body=-b x & calc | "%PATH%"\nsecond line',
+					'--repo=owner/repo',
+					'--label=--web',
+				],
+				{}
+			);
+		});
 	});
 
 	describe('issueList', () => {
@@ -160,7 +184,7 @@ describe('GitHubConnector', () => {
 			const issues = await connector.issueList('owner/repo');
 
 			expect(mockExec).toHaveBeenCalledWith(
-				['gh', 'issue', 'list', '--repo', 'owner/repo', '--json', 'number,title,state,url'],
+				['gh', 'issue', 'list', '--repo=owner/repo', '--json=number,title,state,url'],
 				{}
 			);
 			expect(issues).toHaveLength(2);
@@ -193,18 +217,12 @@ describe('GitHubConnector', () => {
 					'gh',
 					'issue',
 					'list',
-					'--repo',
-					'owner/repo',
-					'--json',
-					'number,title,state,url',
-					'--state',
-					'open',
-					'--label',
-					'bug',
-					'--assignee',
-					'user1',
-					'--limit',
-					'10',
+					'--repo=owner/repo',
+					'--json=number,title,state,url',
+					'--state=open',
+					'--label=bug',
+					'--assignee=user1',
+					'--limit=10',
 				],
 				{}
 			);
@@ -244,17 +262,7 @@ describe('GitHubConnector', () => {
 			});
 
 			expect(mockExec).toHaveBeenCalledWith(
-				[
-					'gh',
-					'pr',
-					'create',
-					'--title',
-					'My PR',
-					'--body',
-					'PR description',
-					'--head',
-					'feature-branch',
-				],
+				['gh', 'pr', 'create', '--title=My PR', '--body=PR description', '--head=feature-branch'],
 				{}
 			);
 			expect(prNum).toBe(42);
@@ -282,16 +290,29 @@ describe('GitHubConnector', () => {
 					'gh',
 					'pr',
 					'create',
-					'--title',
-					'Draft PR',
-					'--body',
-					'WIP',
-					'--head',
-					'feature',
-					'--base',
-					'develop',
+					'--title=Draft PR',
+					'--body=WIP',
+					'--head=feature',
+					'--base=develop',
 					'--draft',
 				],
+				{}
+			);
+		});
+
+		it('keeps a flag-like title in its own --title=value argument', async () => {
+			mockExec.mockResolvedValue({
+				stdout: 'https://github.com/owner/repo/pull/5',
+				stderr: '',
+				exitCode: 0,
+				durationMs: 100,
+			});
+
+			const connector = new GitHubConnector();
+			await connector.prCreate({ title: '--draft', body: '--web', head: '-x' });
+
+			expect(mockExec).toHaveBeenCalledWith(
+				['gh', 'pr', 'create', '--title=--draft', '--body=--web', '--head=-x'],
 				{}
 			);
 		});
@@ -330,7 +351,7 @@ describe('GitHubConnector', () => {
 			const prs = await connector.prList('owner/repo');
 
 			expect(mockExec).toHaveBeenCalledWith(
-				['gh', 'pr', 'list', '--repo', 'owner/repo', '--json', 'number,title,state,url'],
+				['gh', 'pr', 'list', '--repo=owner/repo', '--json=number,title,state,url'],
 				{}
 			);
 			expect(prs).toHaveLength(1);

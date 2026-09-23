@@ -9,6 +9,10 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, sep } from 'node:path';
+import { prepareSpawn } from './windows-spawn.js';
+
+export type { PreparedSpawn, PrepareSpawnOptions } from './windows-spawn.js';
+export { prepareSpawn } from './windows-spawn.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PLATFORM CONSTANTS
@@ -93,6 +97,9 @@ export function isExecError(result: ExecResult): boolean {
 /**
  * Execute a command with cross-platform support.
  *
+ * Never uses `shell: true`. On Windows, `.cmd`/`.bat` commands (such as `npm`) run through
+ * cmd.exe with every argument escaped; see {@link prepareSpawn}.
+ *
  * @param cmd - Command as array of strings [command, ...args]
  * @param options - Execution options
  * @returns Promise resolving to ExecResult
@@ -132,10 +139,13 @@ export function exec(cmd: string[], options: ExecOptions = {}): Promise<ExecResu
 		let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
 		try {
-			const child: ChildProcess = spawn(command, args, {
+			const env = options.env ? { ...process.env, ...options.env } : process.env;
+			const invocation = prepareSpawn(command, args, { cwd: options.cwd, env });
+			const child: ChildProcess = spawn(invocation.command, invocation.args, {
 				cwd: options.cwd,
-				env: options.env ? { ...process.env, ...options.env } : process.env,
-				shell: isWindows,
+				env,
+				shell: false,
+				windowsVerbatimArguments: invocation.windowsVerbatimArguments,
 			});
 
 			// Handle timeout
@@ -146,12 +156,15 @@ export function exec(cmd: string[], options: ExecOptions = {}): Promise<ExecResu
 				}, options.timeout);
 			}
 
-			child.stdout?.on('data', (data: Buffer) => {
-				stdoutData += data.toString();
+			// Decode as a stream so multibyte characters split across chunks stay intact
+			child.stdout?.setEncoding('utf8');
+			child.stdout?.on('data', (data: string) => {
+				stdoutData += data;
 			});
 
-			child.stderr?.on('data', (data: Buffer) => {
-				stderrData += data.toString();
+			child.stderr?.setEncoding('utf8');
+			child.stderr?.on('data', (data: string) => {
+				stderrData += data;
 			});
 
 			child.on('error', (error: Error) => {
