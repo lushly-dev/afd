@@ -1,15 +1,16 @@
 /**
  * @fileoverview Command execution engine — single, batch, pipeline, and streaming execution.
+ *
+ * Single commands run here (validation, context, middleware, hooks). Batch,
+ * pipeline and stream execution delegate to the core executors
+ * (`executeBatch`, `executePipeline`, `executeStream`) with this engine's
+ * `executeCommand` as the callback, so their semantics are shared with the
+ * core registry and DirectClient.
  */
 
-// NOTE: This module is near the 500-line file-size cap. If adding execution
-// paths, consider extracting to a separate module (e.g., streaming.ts).
-
 import type {
-	BatchCommandResult,
 	BatchRequest,
 	BatchResult,
-	BatchTiming,
 	CommandContext,
 	CommandMiddleware,
 	CommandResult,
@@ -18,13 +19,11 @@ import type {
 	StreamChunk,
 } from '@lushly-dev/afd-core';
 import {
-	createBatchResult,
-	createCompleteChunk,
-	createErrorChunk,
-	createFailedBatchResult,
+	executeBatch as executeCoreBatch,
 	executePipeline as executeCorePipeline,
+	executeStream as executeCoreStream,
+	executionFailure,
 	failure,
-	isBatchRequest,
 	truncateName,
 } from '@lushly-dev/afd-core';
 import type { ContextState } from './bootstrap/afd-context.js';
@@ -89,6 +88,7 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		context: CommandContext = {}
 	): Promise<CommandResult> {
 		const command = commandMap.get(commandName);
+		const activeContext = resolveContextState(context, deps.contextState)?.getActive();
 
 		if (!command) {
 			return failure({
@@ -98,7 +98,6 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			});
 		}
 
-		const activeContext = resolveContextState(context, deps.contextState)?.getActive();
 		if (activeContext && !isAccessibleInContext(command, activeContext)) {
 			return failure(notInContextError(commandName, activeContext));
 		}
@@ -169,17 +168,9 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		try {
 			result = await next();
 		} catch (error) {
-			const err = toError(error);
-			reportError(err);
-			return failure({
-				code: 'COMMAND_EXECUTION_ERROR',
-				message: devMode ? err.message : 'An internal error occurred',
-				suggestion: devMode
-					? 'Check the command implementation'
-					: 'Contact support if this persists',
-				// Only include stack traces in dev mode to prevent information leakage
-				...(devMode ? { details: { stack: err.stack } } : {}),
-			});
+			reportError(error);
+			// The raw message and stack only in devMode, to prevent information leakage.
+			return executionFailure(error, devMode);
 		}
 
 		// Outside the try: a failing onCommand must not turn a completed command
@@ -190,130 +181,13 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 
 	/**
 	 * Execute multiple commands in a batch with partial success semantics.
+	 *
+	 * Delegates to the core `executeBatch()` with {@link executeCommand} as the
+	 * callback, so every entry gets the same validation, middleware, context and
+	 * error handling as a single call.
 	 */
-	async function executeBatch(
-		request: BatchRequest,
-		context: CommandContext = {}
-	): Promise<BatchResult> {
-		const startedAt = new Date().toISOString();
-		const startTime = performance.now();
-
-		// Validate request
-		if (!isBatchRequest(request) || request.commands.length === 0) {
-			return createFailedBatchResult(
-				{
-					code: 'INVALID_BATCH_REQUEST',
-					message: 'Invalid batch request envelope',
-					suggestion:
-						'Provide nonempty command names, optional string IDs, and valid boolean, timeout, and positive integer parallelism options',
-				},
-				{ startedAt }
-			);
-		}
-
-		const options = request.options ?? {};
-		const results: Array<BatchCommandResult | undefined> = new Array(request.commands.length);
-		let stopped = false;
-		let timedOut = false;
-		let nextIndex = 0;
-		const batchTraceId = context.traceId ?? `batch-${Date.now()}`;
-		const timeoutError = {
-			code: 'BATCH_TIMEOUT',
-			message: `Batch timeout exceeded (${options.timeout}ms)`,
-			suggestion: 'Increase timeout or reduce the number of batch commands',
-			retryable: true,
-		};
-
-		const worker = async (): Promise<void> => {
-			while (!stopped && !timedOut) {
-				const index = nextIndex++;
-				if (index >= request.commands.length) return;
-				const cmd = request.commands[index];
-				if (!cmd) continue;
-				const remainingMs =
-					options.timeout === undefined
-						? undefined
-						: options.timeout - (performance.now() - startTime);
-				const cmdStartTime = performance.now();
-				const controller = new AbortController();
-				const callerSignal = context.signal instanceof AbortSignal ? context.signal : undefined;
-				const signal = callerSignal
-					? AbortSignal.any([callerSignal, controller.signal])
-					: controller.signal;
-				let timer: ReturnType<typeof setTimeout> | undefined;
-				let result: CommandResult;
-				if (remainingMs !== undefined && remainingMs <= 0) {
-					timedOut = true;
-					result = { success: false, error: timeoutError };
-				} else {
-					const execution = executeCommand(cmd.command, cmd.input, {
-						...context,
-						signal,
-						traceId: `${batchTraceId}-${index}`,
-					});
-					result =
-						remainingMs === undefined
-							? await execution
-							: await Promise.race([
-									execution,
-									new Promise<CommandResult>((resolve) => {
-										timer = setTimeout(() => {
-											timedOut = true;
-											controller.abort();
-											resolve({ success: false, error: timeoutError });
-										}, remainingMs);
-									}),
-								]);
-				}
-				if (timer !== undefined) clearTimeout(timer);
-				results[index] = {
-					id: cmd.id ?? `cmd-${index}`,
-					index,
-					command: cmd.command,
-					result,
-					durationMs: Math.round((performance.now() - cmdStartTime) * 100) / 100,
-				};
-				if (!result.success && options.stopOnError) stopped = true;
-			}
-		};
-
-		const parallelism = Math.min(options.parallelism ?? 1, request.commands.length);
-		await Promise.all(Array.from({ length: parallelism }, () => worker()));
-		for (let index = 0; index < request.commands.length; index++) {
-			if (results[index]) continue;
-			const cmd = request.commands[index];
-			if (!cmd) continue;
-			results[index] = {
-				id: cmd.id ?? `cmd-${index}`,
-				index,
-				command: cmd.command,
-				result: timedOut
-					? { success: false, error: timeoutError }
-					: {
-							success: false,
-							error: {
-								code: 'COMMAND_SKIPPED',
-								message: 'Command skipped because batch execution stopped after a failure',
-								suggestion: 'Disable stopOnError to execute every command',
-							},
-						},
-				durationMs: 0,
-			};
-		}
-
-		const completedAt = new Date().toISOString();
-		const totalMs = performance.now() - startTime;
-
-		const timing: BatchTiming = {
-			totalMs: Math.round(totalMs * 100) / 100,
-			averageMs: results.length > 0 ? Math.round((totalMs / results.length) * 100) / 100 : 0,
-			startedAt,
-			completedAt,
-		};
-
-		return createBatchResult(results as BatchCommandResult[], timing, {
-			traceId: batchTraceId,
-		});
+	function executeBatch(request: BatchRequest, context: CommandContext = {}): Promise<BatchResult> {
+		return executeCoreBatch(request, executeCommand, context, { devMode });
 	}
 
 	/**
@@ -338,72 +212,20 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 	}
 
 	/**
-	 * Execute a command as a stream, yielding chunks.
+	 * Execute a command and stream its result.
+	 *
+	 * Delegates to the core `executeStream()` with {@link executeCommand} as the
+	 * callback. The command runs to completion first: an array result is then
+	 * emitted as one data chunk per item, any other result as a single data
+	 * chunk, followed by a complete chunk. `context.signal` cancels the stream
+	 * with a `STREAM_ABORTED` error chunk.
 	 */
-	async function* executeStream(
+	function executeStream(
 		commandName: string,
 		input: unknown,
 		context: CommandContext = {}
 	): AsyncGenerator<StreamChunk, void, unknown> {
-		const startTime = performance.now();
-		let chunksEmitted = 0;
-
-		try {
-			const result = await executeCommand(commandName, input, context);
-
-			if (!result.success) {
-				yield createErrorChunk(
-					result.error ?? {
-						code: 'COMMAND_FAILED',
-						message: 'Command execution failed',
-					},
-					chunksEmitted,
-					result.error?.retryable ?? false
-				);
-				return;
-			}
-
-			const data = result.data;
-
-			// If result is an array, emit each item as a chunk
-			if (Array.isArray(data)) {
-				for (let i = 0; i < data.length; i++) {
-					yield {
-						type: 'data',
-						data: data[i],
-						index: i,
-						isLast: i === data.length - 1,
-					};
-					chunksEmitted++;
-				}
-			} else {
-				yield {
-					type: 'data',
-					data: data,
-					index: 0,
-					isLast: true,
-				};
-				chunksEmitted++;
-			}
-
-			// Emit completion
-			const totalDurationMs = performance.now() - startTime;
-			yield createCompleteChunk(chunksEmitted, totalDurationMs, {
-				confidence: result.confidence,
-				reasoning: result.reasoning,
-				metadata: result.metadata,
-			});
-		} catch (error) {
-			yield createErrorChunk(
-				{
-					code: 'STREAM_ERROR',
-					message: devMode ? toError(error).message : 'Stream execution failed',
-					retryable: true,
-				},
-				chunksEmitted,
-				true
-			);
-		}
+		return executeCoreStream(commandName, input, executeCommand, context, { devMode });
 	}
 
 	return { executeCommand, executeBatch, executePipeline, executeStream };
