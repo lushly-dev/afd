@@ -4,7 +4,12 @@
  * These tests validate zero-overhead in-process command execution.
  */
 
-import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
+import type {
+	CommandContext,
+	CommandMiddleware,
+	CommandResult,
+	McpResponse,
+} from '@lushly-dev/afd-core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
 	type CommandDefinition,
@@ -14,6 +19,58 @@ import {
 	DirectTransport,
 	type UnknownToolError,
 } from './direct.js';
+
+type CallResult<T> = CommandResult<T> | CommandResult<UnknownToolError>;
+
+function isUnknownToolError(value: unknown): value is UnknownToolError {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'error' in value &&
+		value.error === 'UNKNOWN_TOOL'
+	);
+}
+
+/** The command's own data from a `call()` result, or undefined for an unknown tool. */
+function commandData<T>(result: CallResult<T>): T | undefined {
+	return isUnknownToolError(result.data) ? undefined : result.data;
+}
+
+/** The UnknownToolError payload from a `call()` result for a missing tool. */
+function unknownToolData(result: CallResult<unknown>): UnknownToolError {
+	if (!isUnknownToolError(result.data)) {
+		throw new Error(`Expected UnknownToolError data, got ${JSON.stringify(result.data)}`);
+	}
+	return result.data;
+}
+
+interface ToolCallContent {
+	isError: boolean;
+	content: Array<{ type: string; text: string }>;
+}
+
+/** Narrow an MCP `tools/call` response to its result content. */
+function toolCallContent(response: McpResponse): ToolCallContent {
+	const { result } = response;
+	if (
+		typeof result !== 'object' ||
+		result === null ||
+		!('isError' in result) ||
+		typeof result.isError !== 'boolean' ||
+		!('content' in result) ||
+		!Array.isArray(result.content)
+	) {
+		throw new Error(`Expected a tools/call result, got ${JSON.stringify(response)}`);
+	}
+	return { isError: result.isError, content: result.content };
+}
+
+/** Parse the JSON text of the first content item of a `tools/call` response. */
+function firstContentJson(response: McpResponse): unknown {
+	const [first] = toolCallContent(response).content;
+	if (!first) throw new Error('tools/call result has no content');
+	return JSON.parse(first.text);
+}
 
 /**
  * Mock registry for testing - basic version without validation support
@@ -167,8 +224,8 @@ describe('DirectClient', () => {
 			});
 
 			expect(result.success).toBe(true);
-			expect(result.data?.title).toBe('Test todo');
-			expect(result.data?.id).toBeDefined();
+			expect(commandData(result)?.title).toBe('Test todo');
+			expect(commandData(result)?.id).toBeDefined();
 		});
 
 		it('executes list command and returns items', async () => {
@@ -179,8 +236,8 @@ describe('DirectClient', () => {
 			const result = await client.call<{ items: unknown[]; total: number }>('todo-list', {});
 
 			expect(result.success).toBe(true);
-			expect(result.data?.total).toBe(2);
-			expect(result.data?.items).toHaveLength(2);
+			expect(commandData(result)?.total).toBe(2);
+			expect(commandData(result)?.items).toHaveLength(2);
 		});
 
 		it('handles not found errors correctly', async () => {
@@ -194,16 +251,16 @@ describe('DirectClient', () => {
 			const createResult = await client.call<{ id: string; completed: boolean }>('todo-create', {
 				title: 'Toggle test',
 			});
-			const id = createResult.data?.id;
+			const id = commandData(createResult)?.id;
 
 			const toggleResult = await client.call<{ completed: boolean }>('todo-toggle', { id });
 
 			expect(toggleResult.success).toBe(true);
-			expect(toggleResult.data?.completed).toBe(true);
+			expect(commandData(toggleResult)?.completed).toBe(true);
 
 			// Toggle again
 			const toggleResult2 = await client.call<{ completed: boolean }>('todo-toggle', { id });
-			expect(toggleResult2.data?.completed).toBe(false);
+			expect(commandData(toggleResult2)?.completed).toBe(false);
 		});
 
 		it('returns UnknownToolError for unknown commands', async () => {
@@ -212,7 +269,7 @@ describe('DirectClient', () => {
 			expect(result.success).toBe(false);
 
 			// Check for UnknownToolError structure
-			const errorData = result.data as UnknownToolError;
+			const errorData = unknownToolData(result);
 			expect(errorData.error).toBe('UNKNOWN_TOOL');
 			expect(errorData.requested_tool).toBe('unknown-command');
 			expect(errorData.available_tools).toContain('todo-create');
@@ -224,7 +281,7 @@ describe('DirectClient', () => {
 
 			expect(result.success).toBe(false);
 
-			const errorData = result.data as UnknownToolError;
+			const errorData = unknownToolData(result);
 			expect(errorData.suggestions).toContain('todo-create');
 			expect(errorData.hint).toBe("Did you mean 'todo-create'?");
 		});
@@ -238,7 +295,7 @@ describe('DirectClient', () => {
 			expect(result.success).toBe(false);
 			expect(result.error?.code).toBe('UNKNOWN_TOOL');
 			expect(result.error?.message).toBe(`Tool '${name.slice(0, 128)}…' not found in registry`);
-			const errorData = result.data as UnknownToolError;
+			const errorData = unknownToolData(result);
 			expect(errorData.suggestions).toEqual([]);
 			expect(errorData.hint).toBeNull();
 		});
@@ -291,9 +348,10 @@ describe('DirectTransport', () => {
 			});
 
 			expect(response.id).toBe(1);
-			expect(response.result).toBeDefined();
-			expect(response.result.protocolVersion).toBe('2024-11-05');
-			expect(response.result.serverInfo.name).toBe('direct-transport');
+			expect(response.result).toMatchObject({
+				protocolVersion: '2024-11-05',
+				serverInfo: { name: 'direct-transport' },
+			});
 		});
 	});
 
@@ -308,8 +366,8 @@ describe('DirectTransport', () => {
 				params: {},
 			});
 
-			expect(response.result.tools).toHaveLength(6);
-			expect(response.result.tools[0].name).toBe('todo-create');
+			expect(response.result).toHaveProperty('tools.length', 6);
+			expect(response.result).toHaveProperty('tools.0.name', 'todo-create');
 		});
 	});
 
@@ -327,12 +385,14 @@ describe('DirectTransport', () => {
 				},
 			});
 
-			expect(response.result.isError).toBe(false);
-			expect(response.result.content).toHaveLength(1);
+			const result = toolCallContent(response);
+			expect(result.isError).toBe(false);
+			expect(result.content).toHaveLength(1);
 
-			const content = JSON.parse(response.result.content[0].text);
-			expect(content.success).toBe(true);
-			expect(content.data.title).toBe('Transport test');
+			expect(firstContentJson(response)).toMatchObject({
+				success: true,
+				data: { title: 'Transport test' },
+			});
 		});
 
 		it('calls message handler after response', async () => {
@@ -382,9 +442,9 @@ describe('DirectTransport', () => {
 			};
 
 			const errorTransport = new DirectTransport(errorRegistry);
-			let errorCaught: Error | null = null;
+			const errorsCaught: Error[] = [];
 			errorTransport.onError((err) => {
-				errorCaught = err;
+				errorsCaught.push(err);
 			});
 
 			await errorTransport.connect();
@@ -397,7 +457,7 @@ describe('DirectTransport', () => {
 
 			expect(response.error).toBeDefined();
 			expect(response.error?.message).toBe('Intentional test error');
-			expect(errorCaught?.message).toBe('Intentional test error');
+			expect(errorsCaught[0]?.message).toBe('Intentional test error');
 		});
 
 		it('returns UnknownToolError via MCP for unknown tools', async () => {
@@ -411,13 +471,14 @@ describe('DirectTransport', () => {
 			});
 
 			// Should return as a result with isError=true, not as an MCP error
-			expect(response.result).toBeDefined();
-			expect(response.result.isError).toBe(true);
+			expect(toolCallContent(response).isError).toBe(true);
 
-			const content = JSON.parse(response.result.content[0].text);
-			expect(content.error).toBe('UNKNOWN_TOOL');
-			expect(content.requested_tool).toBe('nonexistent-tool');
-			expect(content.available_tools).toContain('todo-create');
+			const content = firstContentJson(response);
+			expect(content).toMatchObject({
+				error: 'UNKNOWN_TOOL',
+				requested_tool: 'nonexistent-tool',
+				available_tools: expect.arrayContaining(['todo-create']),
+			});
 		});
 	});
 });
@@ -798,7 +859,7 @@ describe('DirectClient middleware', () => {
 		const result = await client.call<{ items: unknown[]; total: number }>('todo-list', {});
 
 		expect(result.success).toBe(true);
-		expect(result.data?.total).toBe(0);
+		expect(commandData(result)?.total).toBe(0);
 	});
 
 	it('middleware applies to each call() invocation', async () => {

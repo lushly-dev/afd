@@ -344,7 +344,7 @@ describe('aggregatePipelineReasoning', () => {
 
 		const reasoning = aggregatePipelineReasoning(steps);
 		expect(reasoning).toHaveLength(1);
-		expect(reasoning[0].command).toBe('a');
+		expect(reasoning[0]?.command).toBe('a');
 	});
 });
 
@@ -379,11 +379,11 @@ describe('aggregatePipelineWarnings', () => {
 		const warnings = aggregatePipelineWarnings(steps);
 
 		expect(warnings).toHaveLength(2);
-		expect(warnings[0].stepIndex).toBe(0);
-		expect(warnings[0].stepAlias).toBe('user');
-		expect(warnings[0].code).toBe('OUTDATED');
-		expect(warnings[1].stepIndex).toBe(1);
-		expect(warnings[1].code).toBe('PARTIAL');
+		expect(warnings[0]?.stepIndex).toBe(0);
+		expect(warnings[0]?.stepAlias).toBe('user');
+		expect(warnings[0]?.code).toBe('OUTDATED');
+		expect(warnings[1]?.stepIndex).toBe(1);
+		expect(warnings[1]?.code).toBe('PARTIAL');
 	});
 });
 
@@ -407,8 +407,8 @@ describe('aggregatePipelineSources', () => {
 		const sources = aggregatePipelineSources(steps);
 
 		expect(sources).toHaveLength(2);
-		expect(sources[0].stepIndex).toBe(0);
-		expect(sources[0].title).toBe('Style Guide');
+		expect(sources[0]?.stepIndex).toBe(0);
+		expect(sources[0]?.title).toBe('Style Guide');
 	});
 });
 

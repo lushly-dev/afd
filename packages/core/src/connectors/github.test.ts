@@ -2,12 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GitHubConnector } from './github.js';
 
 // Mock the exec function from platform.ts
-vi.mock('../platform.js', () => ({
+vi.mock('../platform.js', async (importOriginal) => ({
+	...(await importOriginal<typeof import('../platform.js')>()),
 	exec: vi.fn(),
 	isExecError: vi.fn((result) => result.errorCode !== undefined),
 }));
 
-import { exec } from '../platform.js';
+import { ExecErrorCode, exec } from '../platform.js';
 
 const mockExec = vi.mocked(exec);
 
@@ -89,7 +90,7 @@ describe('GitHubConnector', () => {
 				stderr: 'Authentication failed',
 				exitCode: 1,
 				durationMs: 100,
-				errorCode: 'EXIT_CODE' as const,
+				errorCode: ExecErrorCode.EXIT_CODE,
 			});
 
 			const connector = new GitHubConnector();
@@ -234,7 +235,7 @@ describe('GitHubConnector', () => {
 				stderr: 'Repository not found',
 				exitCode: 1,
 				durationMs: 100,
-				errorCode: 'EXIT_CODE' as const,
+				errorCode: ExecErrorCode.EXIT_CODE,
 			});
 
 			const connector = new GitHubConnector();
@@ -323,7 +324,7 @@ describe('GitHubConnector', () => {
 				stderr: 'No commits between branches',
 				exitCode: 1,
 				durationMs: 100,
-				errorCode: 'EXIT_CODE' as const,
+				errorCode: ExecErrorCode.EXIT_CODE,
 			});
 
 			const connector = new GitHubConnector();
@@ -355,7 +356,7 @@ describe('GitHubConnector', () => {
 				{}
 			);
 			expect(prs).toHaveLength(1);
-			expect(prs[0].state).toBe('open');
+			expect(prs[0]?.state).toBe('open');
 		});
 
 		it('throws on exec error', async () => {
@@ -364,7 +365,7 @@ describe('GitHubConnector', () => {
 				stderr: 'Error',
 				exitCode: 1,
 				durationMs: 100,
-				errorCode: 'EXIT_CODE' as const,
+				errorCode: ExecErrorCode.EXIT_CODE,
 			});
 
 			const connector = new GitHubConnector();

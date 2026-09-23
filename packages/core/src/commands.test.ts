@@ -888,7 +888,7 @@ describe('commandToMcpTool', () => {
 
 		const tool = commandToMcpTool(cmd);
 		const prop = tool.inputSchema.properties.format;
-		expect(prop.default).toBe('json');
-		expect(prop.enum).toEqual(['json', 'csv']);
+		expect(prop?.default).toBe('json');
+		expect(prop?.enum).toEqual(['json', 'csv']);
 	});
 });

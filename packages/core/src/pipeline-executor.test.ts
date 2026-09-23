@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CommandExecutor } from './pipeline-executor.js';
 import { executePipeline } from './pipeline-executor.js';
+import type { CommandResult } from './result.js';
 import { failure, success } from './result.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -10,7 +11,7 @@ import { failure, success } from './result.js';
 describe('executePipeline', () => {
 	/** Simple executor that maps command names to results */
 	function createMockExecutor(
-		handlers: Record<string, (input: unknown) => ReturnType<CommandExecutor>>
+		handlers: Record<string, (input: unknown) => CommandResult | Promise<CommandResult>>
 	): CommandExecutor {
 		return async (name, input, _ctx) => {
 			const handler = handlers[name];
