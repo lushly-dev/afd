@@ -4,6 +4,7 @@
  */
 
 import type { CommandError } from '@lushly-dev/afd-core';
+import { findSimilarTools } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from './schema.js';
 
 /** Derives a grouped-strategy tool name from a command (`McpServerOptions.groupByFn`). */
@@ -59,6 +60,29 @@ export function filterByContext<T extends Contextual>(
 ): T[] {
 	if (!activeContext) return commands;
 	return commands.filter((command) => isAccessibleInContext(command, activeContext));
+}
+
+/** How many close matches a `COMMAND_NOT_FOUND` suggestion names at most. */
+const MAX_NOT_FOUND_MATCHES = 3;
+
+/**
+ * Recovery guidance for an unknown command name: at most
+ * {@link MAX_NOT_FOUND_MATCHES} close matches (bounded fuzzy matching; none for
+ * very long names) and a pointer to `afd-discover`. It never lists every
+ * command, which in lazy mode would load the whole surface into the agent's
+ * context on a single typo.
+ *
+ * @param commandName - The unknown name (untrusted; never echoed)
+ * @param commandNames - Names the caller may call
+ */
+export function notFoundSuggestion(commandName: string, commandNames: string[]): string {
+	const discover = 'Use afd-discover to list all commands.';
+	const [best, ...others] = findSimilarTools(commandName, commandNames, MAX_NOT_FOUND_MATCHES);
+	if (best === undefined) return discover;
+	const alsoClose = others.length
+		? ` Other close matches: ${others.map((name) => `'${name}'`).join(', ')}.`
+		: '';
+	return `Did you mean '${best}'?${alsoClose} ${discover}`;
 }
 
 /** The `COMMAND_NOT_IN_CONTEXT` error for a command outside the active context. */

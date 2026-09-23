@@ -3,8 +3,8 @@
  */
 
 import type { CommandResult, JsonSchema } from '@lushly-dev/afd-core';
-import { findSimilarTools, success, truncateName } from '@lushly-dev/afd-core';
-import { defaultCommandGroup } from './command-routing.js';
+import { success, truncateName } from '@lushly-dev/afd-core';
+import { defaultCommandGroup, notFoundSuggestion } from './command-routing.js';
 import type { DetailInput, DiscoverInput } from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
 
@@ -49,6 +49,7 @@ interface DetailResult {
 }
 
 interface DetailError {
+	/** The requested name, cut to 128 characters plus `…` when longer. */
 	name: string;
 	found: false;
 	error: { code: string; message: string; suggestion: string };
@@ -181,18 +182,14 @@ export function executeDetail(
 	const entries: DetailEntry[] = names.map((name) => {
 		const cmd = commandMap.get(name);
 		if (!cmd) {
-			const suggestions = findSimilarTools(name, allNames, 3);
-			const suggestionText =
-				suggestions.length > 0
-					? `Did you mean '${suggestions[0]}'? Use afd-discover to list all commands.`
-					: 'Use afd-discover to list all commands.';
 			return {
-				name,
+				// Echo a bounded name: an unknown name is untrusted and can be huge.
+				name: truncateName(name),
 				found: false as const,
 				error: {
 					code: 'COMMAND_NOT_FOUND',
 					message: `No command named '${truncateName(name)}'`,
-					suggestion: suggestionText,
+					suggestion: notFoundSuggestion(name, allNames),
 				},
 			};
 		}

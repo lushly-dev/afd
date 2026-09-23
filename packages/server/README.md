@@ -767,6 +767,12 @@ Agents discover commands at runtime: `afd-discover` (filter/list) → `afd-detai
 
 The meta-tools are routable in every strategy. Their arguments are validated against the schemas they advertise: invalid `afd-call`, `afd-discover` and `afd-detail` arguments return a `VALIDATION_ERROR` result (with `details.errors`), and invalid `afd-batch`/`afd-pipe` envelopes return `INVALID_BATCH_REQUEST`/`INVALID_PIPELINE_REQUEST`. A `null` argument to `afd-call`, `afd-discover` or `afd-detail` counts as omitted.
 
+Output is kept small so lazy discovery stays cheap:
+
+- Tool results are compact JSON (no indentation).
+- An unknown command name, whether called directly, through `afd-call`, `/rpc`, a batch entry or a pipeline step, returns `COMMAND_NOT_FOUND`. Its suggestion names at most three close matches callable in the active context and points to `afd-discover`, for example `Did you mean 'todo-create'? Other close matches: 'todo-update'. Use afd-discover to list all commands.` It never lists every command.
+- `afd-detail` entries for unknown names echo the requested name cut to 128 characters plus `…`. Found commands keep their exact name.
+
 ## Bootstrap Tools
 
 Set `bootstrap: true` to register three onboarding tools, exposed over MCP like any other command:

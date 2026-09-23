@@ -27,7 +27,12 @@ import {
 	truncateName,
 } from '@lushly-dev/afd-core';
 import type { ContextState } from './bootstrap/afd-context.js';
-import { isAccessibleInContext, notInContextError } from './command-routing.js';
+import {
+	filterByContext,
+	isAccessibleInContext,
+	notFoundSuggestion,
+	notInContextError,
+} from './command-routing.js';
 import { resolveContextState } from './context-scope.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { EnhancedValidationResult } from './validation.js';
@@ -91,10 +96,16 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		const activeContext = resolveContextState(context, deps.contextState)?.getActive();
 
 		if (!command) {
+			// A few close matches, never the whole list: in lazy mode that would load
+			// every command name into the agent's context on a single typo.
+			const candidates = filterByContext([...commandMap.values()], activeContext);
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
 				message: `Command '${truncateName(commandName)}' not found`,
-				suggestion: `Available commands: ${Array.from(commandMap.keys()).join(', ')}`,
+				suggestion: notFoundSuggestion(
+					commandName,
+					candidates.map((candidate) => candidate.name)
+				),
 			});
 		}
 

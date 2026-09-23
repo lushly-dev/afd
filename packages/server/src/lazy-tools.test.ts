@@ -258,6 +258,39 @@ describe('afd-detail', () => {
 		}
 	});
 
+	it('echoes unknown names cut to 128 characters and found names exactly', () => {
+		const longCommand = defineCommand({
+			name: `item-${'x'.repeat(200)}`,
+			description: 'A command with a long name',
+			input: z.object({}),
+			handler: async () => ({ success: true as const, data: null }),
+		});
+		const commands = [...createTestCommands(), longCommand];
+		const exposedNames = new Set(commands.map((c) => c.name));
+		const unknown = 'y'.repeat(88_000);
+		const result = executeDetail(commands, exposedNames, {
+			command: [unknown, 'z'.repeat(128), longCommand.name],
+		});
+
+		expect(result.data?.[0]).toMatchObject({ name: `${'y'.repeat(128)}…`, found: false });
+		expect(result.data?.[1]).toMatchObject({ name: 'z'.repeat(128), found: false });
+		expect(result.data?.[2]).toMatchObject({ name: longCommand.name, found: true });
+		expect(JSON.stringify(result).length).toBeLessThan(5_000);
+	});
+
+	it('suggests at most three close matches for an unknown name', () => {
+		const commands = createTestCommands();
+		const exposedNames = new Set(commands.map((c) => c.name));
+		const result = executeDetail(commands, exposedNames, { command: 'todo-lis' });
+		const entry = result.data?.[0];
+		expect(entry?.found).toBe(false);
+		if (entry && !entry.found) {
+			expect(entry.error.suggestion).toMatch(/^Did you mean 'todo-list'\?/);
+			expect(entry.error.suggestion).toContain('afd-discover');
+			expect(entry.error.suggestion).not.toContain('user-create');
+		}
+	});
+
 	it('handles duplicate names in batch', () => {
 		const commands = createTestCommands();
 		const exposedNames = new Set(commands.map((c) => c.name));
