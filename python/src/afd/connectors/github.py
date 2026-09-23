@@ -13,7 +13,7 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
-from afd.platform import ExecOptions, exec_command, is_exec_error
+from afd.platform import ExecOptions, ExecResult, exec_command, is_exec_error
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -332,13 +332,11 @@ class GitHubConnector:
             for pr in raw_prs
         ]
 
-    async def _exec_gh(self, cmd: list[str]) -> "ExecResult":
+    async def _exec_gh(self, cmd: list[str]) -> ExecResult:
         """Execute a gh command.
 
         SECURITY: Only passes debug flag for command logging, never logs stdout.
         """
-        from afd.platform import ExecResult
-
         exec_opts = ExecOptions()
         if self._options and self._options.debug:
             exec_opts.debug = True

@@ -51,6 +51,17 @@ class CommandError(BaseModel):
     cause: Optional[Union["CommandError", str]] = None
 
 
+def _omit_unset_cause(data: Any) -> Any:
+    """Drop an unset ``cause`` from a serialized CommandError.
+
+    ``CommandResult.error`` used to hold a CommandError without a ``cause``
+    field. Result serializers call this so their output keeps that shape.
+    """
+    if isinstance(data, dict) and data.get("cause") is None:
+        data.pop("cause", None)
+    return data
+
+
 class ErrorCodes:
     """Standard error codes for common scenarios.
     

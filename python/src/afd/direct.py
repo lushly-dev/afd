@@ -39,6 +39,7 @@ from typing import (
 
 from afd.core.result import CommandResult, failure, success
 from afd.core.errors import not_found_error, validation_error
+from afd.core.pipeline import get_nested_value
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -371,7 +372,7 @@ class SimpleRegistry:
         """Execute a command by name."""
         cmd = self._commands.get(name)
         if not cmd:
-            return failure(not_found_error(f"Command '{name}' not found"))
+            return failure(not_found_error("Command", name))
         
         try:
             result = await cmd.handler(**(args or {}))
@@ -758,16 +759,10 @@ class DirectClient:
         else:
             return None  # Unknown reference
         
-        # Navigate path
-        for part in path:
-            if isinstance(base, dict):
-                base = base.get(part)
-            elif hasattr(base, part):
-                base = getattr(base, part)
-            else:
-                return None
-        
-        return base
+        # Navigate path with the pipeline's data-only resolver (never getattr)
+        if not path:
+            return base
+        return get_nested_value(base, '.'.join(path))
     
     def _evaluate_condition(
         self,
