@@ -479,10 +479,15 @@ batch = await client.batch([
     {"command": "todo-create", "input": {"title": "Review docs"}},
 ])
 pipeline = await client.pipe([
-    {"command": "todo-create", "input": {"title": "Follow up"}},
-    {"command": "todo-get", "input": {"id": "$step1.data.id"}},
+    {"command": "todo-create", "input": {"title": "Follow up"}, "as": "todo"},
+    {"command": "todo-get", "input": {"id": "$steps.todo.id"}},
 ])
 ```
+
+Pipeline variables follow `spec/pipeline-variables.md` in every language: `$prev`,
+`$first`, `$steps[N]`, `$steps.<alias>` and `$input` (the request's `input` field), each
+optionally followed by a path (`$prev.items[0].id`). Other `$` strings are literals, `$$`
+escapes a literal `$`, and an unresolved reference is omitted from the step input.
 
 ```bash
 # Inspect tools and their metadata
@@ -863,6 +868,16 @@ client = DirectClient(registry)
 result = await client.call('todo-create', {'title': 'Fast!'})
 commands = await client.list_commands()
 exists = client.has_command('todo-create')
+
+# Same pipeline variables as afd-pipe
+piped = await client.pipe(
+    [
+        {'command': 'user-get', 'input': {'id': '$input.userId'}, 'as': 'user'},
+        {'command': 'order-list', 'input': {'userId': '$steps.user.id'},
+         'when': {'$exists': '$steps.user.id'}},
+    ],
+    input={'userId': 123},
+)
 ```
 
 Use DirectClient when the AI agent runs in the same Python process.

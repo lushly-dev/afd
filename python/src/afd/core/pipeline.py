@@ -19,18 +19,35 @@ Example:
 """
 
 import asyncio
-import dataclasses
-import re
 import time
-from collections.abc import Mapping
 from enum import Enum
-from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union
+from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar, Union
 
-from pydantic import BaseModel, ConfigDict, Field, SerializerFunctionWrapHandler, field_serializer
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    SerializerFunctionWrapHandler,
+    field_serializer,
+)
 
 from afd.core.errors import _omit_unset_cause
 from afd.core.metadata import Alternative, Source, Warning
 from afd.core.result import CommandError, CommandResult, ResultMetadata
+from afd.core.pipeline_variables import (
+    ABSENT,
+    MAX_INPUT_DEPTH,
+    MAX_REFERENCE_LENGTH,  # noqa: F401 - re-exported
+    VariableReference,
+    exceeds_depth,
+    get_nested_value,  # noqa: F401 - re-exported
+    is_number,
+    json_equals,
+    json_view,
+    resolve_input,
+    resolve_string,
+)
 from afd.core.wire import WIRE_MODEL_CONFIG, WireModel
 
 T = TypeVar("T")
@@ -97,7 +114,9 @@ class PipelineRequest(WireModel):
         steps: Ordered list of pipeline steps to execute. Steps are executed
             sequentially unless parallel is enabled.
         options: Pipeline-level options.
-        input: Optional input data available as $input in variable resolution.
+        input: Optional input data, referenced as ``$input`` in step inputs and
+            conditions. Nothing else (trace IDs, auth, host context) is
+            reachable through ``$input``.
 
     Example:
         >>> request = PipelineRequest(
@@ -310,11 +329,20 @@ class PipelineResult(WireModel, Generic[T]):
 
 
 class PipelineContext(WireModel):
-    """Context available during pipeline execution."""
+    """Context available during pipeline execution.
+
+    Attributes:
+        pipeline_input: The pipeline request's ``input`` (``$input``).
+        previous_result: The most recent successful step (``$prev``).
+        steps: Results of the steps run or skipped so far, by index.
+    """
 
     pipeline_input: Optional[Dict[str, Any]] = None
     previous_result: Optional[StepResult] = None
     steps: List[StepResult] = Field(default_factory=list)
+
+    # JSON views of step data, keyed by id(step): (step, view).
+    _views: Dict[int, Tuple[Any, Any]] = PrivateAttr(default_factory=dict)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -411,217 +439,249 @@ def create_pipeline(
     return PipelineRequest(steps=steps, options=options, input=input)
 
 
-def _as_plain_data(value: Any) -> Any:
-    """View pydantic models and dataclasses as plain data for path traversal."""
-    if isinstance(value, BaseModel):
-        return value.model_dump(mode="json")
-    if dataclasses.is_dataclass(value) and not isinstance(value, type):
-        return dataclasses.asdict(value)
-    return value
+# Variable resolution follows spec/pipeline-variables.md; the grammar and the
+# JSON-only traversal live in afd.core.pipeline_variables.
 
 
-def _get_path_segment(current: Any, segment: str) -> Any:
-    """Follow one path segment through mapping keys or list/tuple indices only."""
-    if segment.startswith("_"):
-        return None
-    current = _as_plain_data(current)
-    if isinstance(current, Mapping):
-        return current.get(segment)
-    if isinstance(current, (list, tuple)) and segment.isascii() and segment.isdigit():
-        index = int(segment)
-        return current[index] if index < len(current) else None
-    return None
+def _step_view(step: Optional[StepResult], context: PipelineContext) -> Any:
+    """JSON view of a successful step's data, or ABSENT for any other step."""
+    if step is None or step.status != StepStatus.SUCCESS or step.data is None:
+        return ABSENT
+    cached = context._views.get(id(step))
+    if cached is not None and cached[0] is step:
+        return cached[1]
+    view = json_view(step.data)
+    context._views[id(step)] = (step, view)
+    return view
 
 
-def get_nested_value(obj: Any, path: str) -> Any:
-    """Get a nested value from an object using dot notation.
-
-    Paths only follow mapping keys and list/tuple indices. Pydantic models and
-    dataclasses are read through their serialized form (the stored value is not
-    modified), attributes are never read, and segments starting with ``_``
-    resolve to ``None``. A path such as ``__class__.__init__.__globals__``
-    therefore cannot reach interpreter internals.
-    """
-    if obj is None:
-        return None
-
-    parts = path.split(".")
-    current = obj
-
-    for part in parts:
-        if current is None:
-            return None
-
-        array_match = re.match(r"^(\w+)\[(\d+)\]$", part)
-        if array_match:
-            arr = _get_path_segment(current, array_match.group(1))
-            if not isinstance(arr, (list, tuple)):
-                return None
-            current = _get_path_segment(arr, array_match.group(2))
-        else:
-            current = _get_path_segment(current, part)
-
-    return current
+def _lookup_root(reference: VariableReference, context: PipelineContext) -> Any:
+    """Return the JSON view of the data a reference starts from, or ABSENT."""
+    if reference.root == "prev":
+        return _step_view(context.previous_result, context)
+    if reference.root == "first":
+        return _step_view(context.steps[0] if context.steps else None, context)
+    if reference.root == "input":
+        if context.pipeline_input is None:
+            return ABSENT
+        return json_view(context.pipeline_input)
+    if reference.index is not None:
+        if reference.index < len(context.steps):
+            return _step_view(context.steps[reference.index], context)
+        return ABSENT
+    alias = reference.alias
+    if alias is None or alias.startswith("__"):
+        return ABSENT
+    step = next((s for s in context.steps if s.alias == alias), None)
+    return _step_view(step, context)
 
 
 def resolve_variable(ref: str, context: PipelineContext) -> Any:
-    """Resolve a single variable reference to its value from pipeline context."""
-    if not ref.startswith("$"):
-        return ref
+    """Resolve a single string from a step input or condition.
 
-    if ref == "$prev":
-        return context.previous_result.data if context.previous_result else None
+    Strings that are not references (``"$9.99"``, ``"$HOME"``, ``"text"``) are
+    returned unchanged, and ``"$$x"`` returns the literal ``"$x"``.
 
-    if ref == "$first":
-        return context.steps[0].data if context.steps else None
-
-    if ref == "$input":
-        return context.pipeline_input
-
-    if ref.startswith("$steps["):
-        match = re.match(r"^\$steps\[(\d+)\]", ref)
-        if match:
-            index = int(match.group(1))
-            if index < len(context.steps):
-                step = context.steps[index]
-                remaining = ref[len(match.group(0)) :]
-                if remaining.startswith("."):
-                    return get_nested_value(step.data, remaining[1:])
-                return step.data
-        return None
-
-    if ref.startswith("$steps."):
-        rest = ref[7:]
-        dot_index = rest.find(".")
-        alias = rest[:dot_index] if dot_index >= 0 else rest
-        step = next((s for s in context.steps if s.alias == alias), None)
-        if step:
-            if dot_index >= 0:
-                return get_nested_value(step.data, rest[dot_index + 1 :])
-            return step.data
-        return None
-
-    if ref.startswith("$prev."):
-        if context.previous_result:
-            return get_nested_value(context.previous_result.data, ref[6:])
-        return None
-
-    if ref.startswith("$first."):
-        if context.steps:
-            return get_nested_value(context.steps[0].data, ref[7:])
-        return None
-
-    if ref.startswith("$input."):
-        return get_nested_value(context.pipeline_input, ref[7:])
-
-    return None
+    Returns:
+        The resolved value, the literal, or None when the reference cannot be
+        resolved.
+    """
+    value = resolve_string(ref, lambda reference: _lookup_root(reference, context))
+    return None if value is ABSENT else value
 
 
 def resolve_variables(input: Any, context: PipelineContext) -> Any:
-    """Resolve all variable references in an input object."""
-    if isinstance(input, str) and input.startswith("$"):
-        return resolve_variable(input, context)
+    """Resolve every variable reference in a step input.
 
-    if isinstance(input, list):
-        return [resolve_variables(item, context) for item in input]
+    Unresolved references are omitted from objects and become None in lists.
 
-    if isinstance(input, dict):
-        return {key: resolve_variables(value, context) for key, value in input.items()}
+    Raises:
+        ValueError: If the input is nested deeper than MAX_INPUT_DEPTH levels.
+    """
+    if exceeds_depth(input):
+        raise ValueError(f"Input is nested deeper than {MAX_INPUT_DEPTH} levels")
+    value = resolve_input(input, lambda reference: _lookup_root(reference, context))
+    return None if value is ABSENT else value
 
-    return input
+
+_CONDITION_FIELDS: Dict[type, Tuple[str, str]] = {
+    PipelineConditionExists: ("$exists", "exists"),
+    PipelineConditionEq: ("$eq", "eq"),
+    PipelineConditionNe: ("$ne", "ne"),
+    PipelineConditionGt: ("$gt", "gt"),
+    PipelineConditionGte: ("$gte", "gte"),
+    PipelineConditionLt: ("$lt", "lt"),
+    PipelineConditionLte: ("$lte", "lte"),
+    PipelineConditionAnd: ("$and", "and_"),
+    PipelineConditionOr: ("$or", "or_"),
+    PipelineConditionNot: ("$not", "not_"),
+}
+
+_COMPARISONS: Dict[str, Callable[[Any, Any], bool]] = {
+    "$gt": lambda value, threshold: value > threshold,
+    "$gte": lambda value, threshold: value >= threshold,
+    "$lt": lambda value, threshold: value < threshold,
+    "$lte": lambda value, threshold: value <= threshold,
+}
+
+
+def _condition_parts(condition: Any) -> Optional[Tuple[str, Any]]:
+    """Return a condition's (operator, operand), for models and raw dicts."""
+    fields = _CONDITION_FIELDS.get(type(condition))
+    if fields is not None:
+        return fields[0], getattr(condition, fields[1])
+    if isinstance(condition, dict) and len(condition) == 1:
+        ((operator, operand),) = condition.items()
+        return operator, operand
+    return None
+
+
+def _is_ref_pair(operand: Any) -> bool:
+    return isinstance(operand, (list, tuple)) and len(operand) == 2 and isinstance(operand[0], str)
+
+
+def condition_error(condition: Any, depth: int = 1) -> Optional[str]:
+    """Describe why a ``when`` condition is malformed, or return None if it is valid."""
+    if depth > MAX_INPUT_DEPTH:
+        return f"conditions are nested deeper than {MAX_INPUT_DEPTH} levels"
+    parts = _condition_parts(condition)
+    if parts is None:
+        return "a condition is an object with exactly one operator"
+    operator, operand = parts
+    if operator == "$exists":
+        return None if isinstance(operand, str) else "$exists takes a reference string"
+    if operator in ("$eq", "$ne"):
+        return None if _is_ref_pair(operand) else f"{operator} takes [reference, value]"
+    if operator in _COMPARISONS:
+        if _is_ref_pair(operand) and is_number(operand[1]):
+            return None
+        return f"{operator} takes [reference, number]"
+    if operator in ("$and", "$or"):
+        if not isinstance(operand, (list, tuple)):
+            return f"{operator} takes a list of conditions"
+        for item in operand:
+            problem = condition_error(item, depth + 1)
+            if problem:
+                return problem
+        return None
+    if operator == "$not":
+        return condition_error(operand, depth + 1)
+    return f"unknown operator {operator!r}"
 
 
 def evaluate_condition(condition: PipelineCondition, context: PipelineContext) -> bool:
-    """Evaluate a pipeline condition against the current context."""
-    if isinstance(condition, PipelineConditionExists):
-        value = resolve_variable(condition.exists, context)
-        return value is not None
+    """Evaluate a pipeline condition against the current context.
 
-    if isinstance(condition, PipelineConditionEq):
-        ref, expected = condition.eq
-        value = resolve_variable(ref, context)
-        return value == expected
+    An unresolved reference is absent: ``$exists`` is False and every
+    comparison with an absent operand is False. Malformed conditions are False.
+    """
+    parts = _condition_parts(condition)
+    if parts is None:
+        return False
+    operator, operand = parts
 
-    if isinstance(condition, PipelineConditionNe):
-        ref, expected = condition.ne
-        value = resolve_variable(ref, context)
-        return value != expected
+    def lookup(reference: VariableReference) -> Any:
+        return _lookup_root(reference, context)
 
-    if isinstance(condition, PipelineConditionGt):
-        ref, threshold = condition.gt
-        value = resolve_variable(ref, context)
-        return isinstance(value, (int, float)) and value > threshold
+    if operator == "$exists":
+        if not isinstance(operand, str):
+            return False
+        value = resolve_string(operand, lookup)
+        return value is not ABSENT and value is not None
 
-    if isinstance(condition, PipelineConditionGte):
-        ref, threshold = condition.gte
-        value = resolve_variable(ref, context)
-        return isinstance(value, (int, float)) and value >= threshold
+    if operator in ("$eq", "$ne") or operator in _COMPARISONS:
+        if not _is_ref_pair(operand):
+            return False
+        value = resolve_string(operand[0], lookup)
+        if value is ABSENT:
+            return False
+        expected = operand[1]
+        if operator == "$eq":
+            return json_equals(value, expected)
+        if operator == "$ne":
+            return not json_equals(value, expected)
+        return (
+            is_number(value)
+            and is_number(expected)
+            and _COMPARISONS[operator](value, expected)
+        )
 
-    if isinstance(condition, PipelineConditionLt):
-        ref, threshold = condition.lt
-        value = resolve_variable(ref, context)
-        return isinstance(value, (int, float)) and value < threshold
+    if operator in ("$and", "$or"):
+        if not isinstance(operand, (list, tuple)):
+            return False
+        results = (evaluate_condition(item, context) for item in operand)
+        return all(results) if operator == "$and" else any(results)
 
-    if isinstance(condition, PipelineConditionLte):
-        ref, threshold = condition.lte
-        value = resolve_variable(ref, context)
-        return isinstance(value, (int, float)) and value <= threshold
-
-    if isinstance(condition, PipelineConditionAnd):
-        return all(evaluate_condition(c, context) for c in condition.and_)
-
-    if isinstance(condition, PipelineConditionOr):
-        return any(evaluate_condition(c, context) for c in condition.or_)
-
-    if isinstance(condition, PipelineConditionNot):
-        return not evaluate_condition(condition.not_, context)
-
-    # Handle raw dicts
-    if isinstance(condition, dict):
-        if "$exists" in condition:
-            value = resolve_variable(condition["$exists"], context)
-            return value is not None
-
-        if "$eq" in condition:
-            ref, expected = condition["$eq"]
-            value = resolve_variable(ref, context)
-            return value == expected
-
-        if "$ne" in condition:
-            ref, expected = condition["$ne"]
-            value = resolve_variable(ref, context)
-            return value != expected
-
-        if "$gt" in condition:
-            ref, threshold = condition["$gt"]
-            value = resolve_variable(ref, context)
-            return isinstance(value, (int, float)) and value > threshold
-
-        if "$gte" in condition:
-            ref, threshold = condition["$gte"]
-            value = resolve_variable(ref, context)
-            return isinstance(value, (int, float)) and value >= threshold
-
-        if "$lt" in condition:
-            ref, threshold = condition["$lt"]
-            value = resolve_variable(ref, context)
-            return isinstance(value, (int, float)) and value < threshold
-
-        if "$lte" in condition:
-            ref, threshold = condition["$lte"]
-            value = resolve_variable(ref, context)
-            return isinstance(value, (int, float)) and value <= threshold
-
-        if "$and" in condition:
-            return all(evaluate_condition(c, context) for c in condition["$and"])
-
-        if "$or" in condition:
-            return any(evaluate_condition(c, context) for c in condition["$or"])
-
-        if "$not" in condition:
-            return not evaluate_condition(condition["$not"], context)
+    if operator == "$not":
+        return not evaluate_condition(operand, context)
 
     return False
+
+
+def _input_too_deep_error() -> CommandError:
+    return CommandError(
+        code="VALIDATION_ERROR",
+        message=f"Pipeline input is nested deeper than {MAX_INPUT_DEPTH} levels",
+        suggestion=f"Reduce the nesting of the pipeline input to at most {MAX_INPUT_DEPTH} levels",
+        retryable=False,
+        details={"maxDepth": MAX_INPUT_DEPTH},
+    )
+
+
+def validate_pipeline_request(request: PipelineRequest) -> Optional[CommandError]:
+    """Check limits and conditions before any step runs.
+
+    Returns:
+        A VALIDATION_ERROR CommandError, or None when the request is valid.
+    """
+    if request.input is not None and exceeds_depth(request.input):
+        return _input_too_deep_error()
+    for index, step in enumerate(request.steps):
+        if step.input is not None and exceeds_depth(step.input):
+            return CommandError(
+                code="VALIDATION_ERROR",
+                message=f"Step {index} input is nested deeper than {MAX_INPUT_DEPTH} levels",
+                suggestion=(
+                    f"Reduce the nesting of the step input to at most {MAX_INPUT_DEPTH} levels"
+                ),
+                retryable=False,
+                details={"stepIndex": index, "maxDepth": MAX_INPUT_DEPTH},
+            )
+        if step.when is not None:
+            problem = condition_error(step.when)
+            if problem:
+                return CommandError(
+                    code="VALIDATION_ERROR",
+                    message=f"Step {index} has an invalid when condition: {problem}",
+                    suggestion=(
+                        "Use one operator per condition object: $exists, $eq, $ne, "
+                        "$gt, $gte, $lt, $lte, $and, $or or $not"
+                    ),
+                    retryable=False,
+                    details={"stepIndex": index},
+                )
+    return None
+
+
+def create_pipeline_failure(error: CommandError) -> "PipelineResult[Any]":
+    """A PipelineResult for a request rejected before any step ran.
+
+    It has the shape of the TypeScript server's invalid-request result: one
+    failed pseudo-step with index -1 that carries the error.
+    """
+    return PipelineResult(
+        data=None,
+        metadata=PipelineMetadata(confidence=0, execution_time_ms=0),
+        steps=[
+            StepResult(
+                index=-1,
+                command="",
+                status=StepStatus.FAILURE,
+                error=error,
+                execution_time_ms=0,
+            )
+        ],
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -820,6 +880,10 @@ async def execute_pipeline(
         ... ])
         >>> result = await execute_pipeline(request, registry.execute)
     """
+    invalid = validate_pipeline_request(request)
+    if invalid is not None:
+        return create_pipeline_failure(invalid)
+
     step_results: List[StepResult] = []
     pipeline_context = PipelineContext(
         pipeline_input=request.input,
@@ -932,6 +996,18 @@ async def execute_pipeline(
         execution_time_ms = (step_end_time - step_start_time) * 1000
 
         if result.success:
+            # Step metadata carries the result's trust signals, as in TypeScript.
+            step_metadata = {
+                key: value
+                for key, value in (
+                    ("confidence", result.confidence),
+                    ("reasoning", result.reasoning),
+                    ("warnings", result.warnings),
+                    ("sources", result.sources),
+                    ("alternatives", result.alternatives),
+                )
+                if value is not None
+            }
             step_result = StepResult(
                 index=i,
                 alias=step.as_,
@@ -939,22 +1015,7 @@ async def execute_pipeline(
                 status=StepStatus.SUCCESS,
                 data=result.data,
                 execution_time_ms=execution_time_ms,
-                metadata=ResultMetadata(
-                    confidence=result.confidence,
-                    reasoning=result.reasoning,
-                    sources=result.sources,
-                    warnings=result.warnings,
-                    alternatives=result.alternatives,
-                    execution_time_ms=execution_time_ms,
-                )
-                if (
-                    result.confidence is not None
-                    or result.reasoning is not None
-                    or result.sources is not None
-                    or result.warnings is not None
-                    or result.alternatives is not None
-                )
-                else None,
+                metadata=ResultMetadata(**step_metadata),
             )
         else:
             step_result = StepResult(
@@ -968,7 +1029,9 @@ async def execute_pipeline(
 
         step_results.append(step_result)
         pipeline_context.steps.append(step_result)
-        pipeline_context.previous_result = step_result
+        if step_result.status == StepStatus.SUCCESS:
+            # $prev is the data of the most recent successful step.
+            pipeline_context.previous_result = step_result
 
         # Stop on failure unless continue_on_failure is set
         if not result.success and not continue_on_failure:

@@ -305,10 +305,11 @@ batch_result = await client.batch([
     {"name": "todo-create", "input": {"title": "Second"}},
 ])
 
-# Pipeline
+# Pipeline (variables: $prev, $first, $steps[N], $steps.<alias>, $input;
+# see spec/pipeline-variables.md)
 pipe_result = await client.pipe([
     {"command": "user-get", "input": {"id": 1}, "as": "user"},
-    {"command": "order-list", "input": {"user_id": "$user.id"}},
+    {"command": "order-list", "input": {"user_id": "$steps.user.id"}},
 ])
 
 # Stream results

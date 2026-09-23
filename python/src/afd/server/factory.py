@@ -31,7 +31,13 @@ from afd.core.commands import (
     create_command_registry,
 )
 from afd.core.errors import CommandError
-from afd.core.pipeline import PipelineRequest, PipelineResult, StepStatus, execute_pipeline
+from afd.core.pipeline import (
+    PipelineRequest,
+    PipelineResult,
+    StepStatus,
+    create_pipeline_failure,
+    execute_pipeline,
+)
 from afd.core.result import CommandResult, error
 from afd.core.wire import to_wire
 from afd.server.bootstrap import ContextState, create_context_state, get_bootstrap_commands
@@ -521,14 +527,22 @@ class MCPServer:
         context: Optional[CommandContext] = None,
     ):
         if not isinstance(request, PipelineRequest):
-            payload = dict(request)
-            options = dict(payload.get("options") or {})
-            if "continueOnFailure" in options and "continue_on_failure" not in options:
-                options["continue_on_failure"] = options.pop("continueOnFailure")
-            if "timeoutMs" in options and "timeout_ms" not in options:
-                options["timeout_ms"] = options.pop("timeoutMs")
-            payload["options"] = options
-            request = PipelineRequest.model_validate(payload)
+            # Options accept camelCase (continueOnFailure, timeoutMs) and snake_case.
+            try:
+                request = PipelineRequest.model_validate(request)
+            except PydanticValidationError as exc:
+                return create_pipeline_failure(
+                    CommandError(
+                        code="INVALID_PIPELINE_REQUEST",
+                        message="Invalid pipeline request envelope",
+                        suggestion=(
+                            "Provide steps with nonempty command names, object inputs, "
+                            "valid conditions, and correctly typed options"
+                        ),
+                        retryable=False,
+                        details={"errors": _describe_validation_error(exc)},
+                    )
+                )
 
         async def executor(command_name: str, payload: Dict[str, Any]) -> CommandResult:
             try:
