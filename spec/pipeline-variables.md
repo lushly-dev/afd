@@ -54,10 +54,25 @@ failed step, `__` segment, no request `input`), it resolves to **absent**:
 In `when` conditions, an unresolved reference is absent: `$exists` is `false`, and comparisons with
 absent operands are `false`.
 
+## Resolution details
+
+- `$prev` is the `data` of the most recent **successful** step, not simply the previous step.
+- A key contains any characters except `.`, `[`, `]` and whitespace. Each segment has at most one
+  `[N]` suffix. A string using any other syntax is a literal: for example `$prev.a b`,
+  `$steps[0][1]` and `$steps.user[0]`.
+- A purely numeric segment is an own-key lookup on an object and an index on an array.
+- The `__` rule applies to aliases too: `$steps.__proto__` is unresolved.
+- `$$` unescaping applies at any string length. The 1024-character limit applies only to strings
+  that would otherwise be references.
+- `$exists` is `false` for `null` as well as absent values.
+- `$eq` and `$ne` compare **JSON values structurally** (deep equality of objects and arrays).
+  Objects are never compared by identity.
+
 ## Limits
 
-- Step inputs nested deeper than **64** levels are rejected before any step runs. The pipeline
-  returns a `VALIDATION_ERROR` failure and never overflows the stack.
+- Step inputs, and the request `input`, nested deeper than **64** levels are rejected before any
+  step runs. The outermost object or array counts as level 1. The pipeline returns a
+  `VALIDATION_ERROR` failure and never overflows the stack.
 - A reference string longer than **1024** characters is a literal (it is never resolved).
 
 ## Conformance
