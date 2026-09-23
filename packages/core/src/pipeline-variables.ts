@@ -277,6 +277,28 @@ function compare(
 	return value !== undefined && expected !== undefined && test(value, expected);
 }
 
+/** Structural equality of JSON values: objects and arrays compare by content, never identity. */
+function jsonEqual(a: unknown, b: unknown): boolean {
+	if (a === b) return true;
+	if (Array.isArray(a) || Array.isArray(b)) {
+		return (
+			Array.isArray(a) &&
+			Array.isArray(b) &&
+			a.length === b.length &&
+			a.every((item, i) => jsonEqual(item, b[i]))
+		);
+	}
+	if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+	const aKeys = Object.keys(a);
+	const bKeys = Object.keys(b);
+	return (
+		aKeys.length === bKeys.length &&
+		aKeys.every(
+			(key) => Object.hasOwn(b, key) && jsonEqual(Reflect.get(a, key), Reflect.get(b, key))
+		)
+	);
+}
+
 function numeric(value: unknown, expected: unknown, test: (a: number, b: number) => boolean) {
 	return typeof value === 'number' && typeof expected === 'number' && test(value, expected);
 }
@@ -286,7 +308,8 @@ function numeric(value: unknown, expected: unknown, test: (a: number, b: number)
  *
  * The first operand of every comparison is a reference. A string that is not a reference, or a
  * reference that cannot be resolved, is absent: `$exists` is false (as it is for `null`), and
- * `$eq`, `$ne`, `$gt`, `$gte`, `$lt` and `$lte` are false when either operand is absent.
+ * `$eq`, `$ne`, `$gt`, `$gte`, `$lt` and `$lte` are false when either operand is absent. `$eq` and
+ * `$ne` compare JSON values structurally.
  *
  * @param condition - The condition to evaluate
  * @param context - Pipeline execution context
@@ -297,8 +320,8 @@ export function evaluateCondition(condition: PipelineCondition, context: Pipelin
 		const value = operand(condition.$exists, context);
 		return value !== undefined && value !== null;
 	}
-	if ('$eq' in condition) return compare(condition.$eq, context, (a, b) => a === b);
-	if ('$ne' in condition) return compare(condition.$ne, context, (a, b) => a !== b);
+	if ('$eq' in condition) return compare(condition.$eq, context, jsonEqual);
+	if ('$ne' in condition) return compare(condition.$ne, context, (a, b) => !jsonEqual(a, b));
 	if ('$gt' in condition) {
 		return compare(condition.$gt, context, (a, b) => numeric(a, b, (x, y) => x > y));
 	}

@@ -351,4 +351,24 @@ describe('when conditions over unresolved references', () => {
 		expect(evaluateCondition({ $gte: ['$input.limits[1]', 20] }, context)).toBe(true);
 		expect(evaluateCondition({ $lt: ['$steps.user.name', 20] }, context)).toBe(false);
 	});
+
+	it('compares objects and arrays structurally, never by identity', () => {
+		expect(evaluateCondition({ $eq: ['$steps.user.tags', ['a', 'b', 'c']] }, context)).toBe(true);
+		expect(evaluateCondition({ $eq: ['$steps.user.tags', ['a', 'b']] }, context)).toBe(false);
+		expect(
+			evaluateCondition({ $eq: ['$steps.user.profile', { email: 'ada@example.com' }] }, context)
+		).toBe(true);
+		expect(
+			evaluateCondition(
+				{ $eq: ['$steps.user.profile', { email: 'ada@example.com', extra: 1 }] },
+				context
+			)
+		).toBe(false);
+		expect(
+			evaluateCondition({ $ne: ['$prev.items', [{ sku: 'x1' }, { sku: 'x2' }]] }, context)
+		).toBe(false);
+		expect(
+			evaluateCondition({ $eq: ['$prev.items', [{ sku: 'x2' }, { sku: 'x1' }]] }, context)
+		).toBe(false);
+	});
 });
