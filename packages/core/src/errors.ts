@@ -63,13 +63,20 @@ export interface CommandError {
 	/**
 	 * Additional technical details for debugging.
 	 *
-	 * May include stack traces, request IDs, timestamps, etc.
-	 * Avoid exposing sensitive information.
+	 * Request IDs, timestamps, resource identifiers, etc. Details are sent to
+	 * the caller, so avoid sensitive information: stack traces belong here only
+	 * in development (`devMode`).
 	 */
 	details?: Record<string, unknown>;
 
 	/**
-	 * Original error that caused this error, if any.
+	 * The `CommandError` that caused this error, if any.
+	 *
+	 * Serialized causes are always `CommandError`s. The core helpers never put a
+	 * native `Error` here as an enumerable property: `wrapError()` keeps only a
+	 * `CommandError` cause, and `internalError()` attaches its `Error` cause
+	 * non-enumerably, so it is available to in-process logging but never
+	 * serialized. The `Error` type is kept for compatibility.
 	 */
 	cause?: CommandError | Error;
 }
@@ -194,50 +201,102 @@ export function timeoutError(operationName: string, timeoutMs: number): CommandE
 	);
 }
 
-/**
- * Create an internal error (use sparingly - prefer specific errors).
- */
-export function internalError(message: string, cause?: Error): CommandError {
-	return createError(ErrorCodes.INTERNAL_ERROR, message, {
-		suggestion: 'Please try again. If this persists, contact support.',
-		retryable: true,
-		cause,
+const DEFAULT_SUGGESTION = 'Please try again. If this persists, contact support.';
+
+/** Define a property that in-process code can read but that is never serialized or spread. */
+function defineHidden(target: object, key: string, value: unknown): void {
+	Object.defineProperty(target, key, {
+		value,
+		enumerable: false,
+		writable: true,
+		configurable: true,
 	});
 }
 
 /**
+ * Create an internal error (use sparingly - prefer specific errors).
+ *
+ * The `cause` is attached as a non-enumerable property: `error.cause` still
+ * returns it for in-process logging, but it is never serialized, so a native
+ * error's own fields (such as a Node system error's `path`) cannot reach the
+ * caller.
+ */
+export function internalError(message: string, cause?: Error): CommandError {
+	const error = createError(ErrorCodes.INTERNAL_ERROR, message, {
+		suggestion: DEFAULT_SUGGESTION,
+		retryable: true,
+	});
+	if (cause !== undefined) {
+		defineHidden(error, 'cause', cause);
+	}
+	return error;
+}
+
+/**
+ * Whether a value is a native `Error`, including one from another realm.
+ */
+function isNativeError(value: unknown): value is Error {
+	return value instanceof Error || Object.prototype.toString.call(value) === '[object Error]';
+}
+
+/**
  * Wrap an unknown error in a CommandError.
+ *
+ * - A `CommandError` is returned unchanged.
+ * - A native `Error` becomes a new plain `CommandError` built only from its
+ *   `message` and, when present and correctly typed, its own `code`,
+ *   `suggestion` and `retryable` fields, so structured errors such as
+ *   `AuthAdapterError` keep their code. Every other field, such as a Node
+ *   system error's `errno`, `syscall` and `path`, is dropped. `cause` is set
+ *   only when the error's cause is itself a `CommandError`. The stack is never
+ *   put in `details`: it is kept on a non-enumerable `stack` property for
+ *   logging, and is not serialized.
+ * - Any other value becomes `UNKNOWN_ERROR` with its string form as the message.
  */
 export function wrapError(error: unknown): CommandError {
 	if (isCommandError(error)) {
 		return error;
 	}
 
-	if (error instanceof Error) {
-		return createError(ErrorCodes.INTERNAL_ERROR, error.message, {
-			suggestion: 'Please try again. If this persists, contact support.',
-			retryable: true,
-			cause: error,
-			details: { stack: error.stack },
+	if (isNativeError(error)) {
+		const fields = error as Error & { code?: unknown; suggestion?: unknown; retryable?: unknown };
+		const code =
+			typeof fields.code === 'string' && fields.code.length > 0
+				? fields.code
+				: ErrorCodes.INTERNAL_ERROR;
+		const wrapped = createError(code, error.message, {
+			suggestion: typeof fields.suggestion === 'string' ? fields.suggestion : DEFAULT_SUGGESTION,
+			retryable: typeof fields.retryable === 'boolean' ? fields.retryable : true,
 		});
+		if (isCommandError(error.cause)) {
+			wrapped.cause = error.cause;
+		}
+		if (error.stack !== undefined) {
+			defineHidden(wrapped, 'stack', error.stack);
+		}
+		return wrapped;
 	}
 
 	return createError(ErrorCodes.UNKNOWN_ERROR, String(error), {
-		suggestion: 'Please try again. If this persists, contact support.',
+		suggestion: DEFAULT_SUGGESTION,
 		retryable: true,
 	});
 }
 
 /**
  * Type guard to check if a value is a CommandError.
+ *
+ * A CommandError is a plain object with a string `code` and `message`. Native
+ * `Error` instances are rejected even when they carry a string `code`, as Node
+ * system errors (`ENOENT`, ...) do: they do not serialize as CommandErrors and
+ * their own fields can expose file paths. Convert them with `wrapError()`.
  */
 export function isCommandError(value: unknown): value is CommandError {
 	return (
 		typeof value === 'object' &&
 		value !== null &&
-		'code' in value &&
-		'message' in value &&
-		typeof (value as CommandError).code === 'string' &&
-		typeof (value as CommandError).message === 'string'
+		!isNativeError(value) &&
+		typeof (value as { code?: unknown }).code === 'string' &&
+		typeof (value as { message?: unknown }).message === 'string'
 	);
 }
