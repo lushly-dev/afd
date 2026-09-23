@@ -56,12 +56,12 @@ class HttpTransport(_HttpBasedTransport):
             # Health check (best-effort)
             health_url = self._derive_health_url(self._message_url)
             try:
-                resp = await self._client.get(
+                # The response is ignored: the health endpoint may not exist.
+                await self._client.get(
                     health_url,
                     headers=self._headers,
                     timeout=self._timeout,
                 )
-                # Ignore non-2xx — health endpoint may not exist
             except httpx.HTTPError:
                 pass
 

@@ -89,7 +89,7 @@ class _HttpBasedTransport:
                 timeout=self._timeout,
             )
         except httpx.HTTPError as exc:
-            raise TransportError(str(exc), cause=exc)
+            raise TransportError(str(exc), cause=exc) from exc
 
         if not response.is_success:
             raise TransportError(

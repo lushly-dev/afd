@@ -88,19 +88,19 @@ class FastMCPTransport:
             # Import FastMCP lazily
             try:
                 from mcp.server.fastmcp import FastMCP
-            except ImportError:
+            except ImportError as err:
                 raise ImportError(
                     "FastMCP not installed. Install with: pip install afd[server]"
-                )
+                ) from err
             
             # Create FastMCP instance
             self._mcp = FastMCP(self._server_name)
             self._state = TransportState.CONNECTED
             
-        except Exception as e:
+        except Exception:
             self._state = TransportState.ERROR
             raise
-    
+
     async def disconnect(self) -> None:
         """Disconnect (cleanup) the FastMCP server."""
         self._mcp = None
