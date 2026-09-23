@@ -6,6 +6,7 @@
  */
 
 import { createServer, type Server as HttpServer } from 'node:http';
+import type { CommandContext } from '@lushly-dev/afd-core';
 import { isMcpExposed } from '@lushly-dev/afd-core';
 import { Server as McpSdkServer } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
@@ -17,8 +18,10 @@ import {
 	createAfdContextListCommand,
 	createContextState,
 } from './bootstrap/afd-context.js';
+import { resolveContextState } from './context-scope.js';
 import { createExecutionEngine } from './execution.js';
 import { createHttpHandler } from './http-handler.js';
+import { createSessionStore } from './http-sessions.js';
 import { defineCommand, type ZodCommandDefinition } from './schema.js';
 import type { McpHandler, McpHandlerOptions, McpServer, McpServerOptions } from './server-types.js';
 import { isStdinPiped } from './server-types.js';
@@ -28,6 +31,7 @@ import { getToolsList } from './tools.js';
 export type {
 	CommandMiddleware,
 	ContextConfig,
+	CreateRequestContext,
 	McpHandler,
 	McpHandlerOptions,
 	McpServer,
@@ -58,7 +62,15 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		contexts,
 	} = options;
 
+	// stdio serves one client, so it uses this single state. HTTP callers each get a session
+	// state (or none), bound to their command context by the HTTP handler.
 	const contextState = contexts?.length ? createContextState() : undefined;
+	const sessions = contextState
+		? createSessionStore({
+				maxSessions: options.maxSessions,
+				idleTimeoutMs: options.sessionIdleTimeoutMs,
+			})
+		: undefined;
 
 	const registeredCommands = [...commands];
 	if (contextState && contexts) {
@@ -110,6 +122,9 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		contextState,
 	});
 	const exposedCommandNames = new Set(remoteCommands.map((c) => c.name));
+	const mutationNames = new Set(
+		remoteCommands.filter((command) => command.mutation === true).map((command) => command.name)
+	);
 
 	const routeToolCall = createToolRouter({
 		executeCommand: remoteEngine.executeCommand,
@@ -124,8 +139,13 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		contextState,
 	});
 
-	const boundGetToolsList = () =>
-		getToolsList(remoteCommands, toolStrategy, groupByFn, contextState?.getActive());
+	const boundGetToolsList = (context: CommandContext = {}) =>
+		getToolsList(
+			remoteCommands,
+			toolStrategy,
+			groupByFn,
+			resolveContextState(context, contextState)?.getActive()
+		);
 
 	const { handler, dispose } = createHttpHandler({
 		name,
@@ -137,11 +157,16 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		allowedHosts: options.allowedHosts,
 		allowedOrigins: options.allowedOrigins,
 		maxBodyBytes: options.maxBodyBytes,
+		maxSseConnections: options.maxSseConnections,
 		getToolsList: boundGetToolsList,
 		routeToolCall,
 		executeCommand: remoteEngine.executeCommand,
 		executeBatch: remoteEngine.executeBatch,
 		executeStream: remoteEngine.executeStream,
+		isMutation: (commandName) => mutationNames.has(commandName),
+		sessions,
+		createContext: options.createContext,
+		onError,
 	});
 
 	return {
@@ -217,6 +242,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 	const resolvedTransport = resolveTransport();
 	const useStdio = resolvedTransport === 'stdio';
 	const useHttp = resolvedTransport === 'http';
+	const autoDetected = stdio === undefined && transport === 'auto';
 
 	// ── Shared execution/runtime wiring ─────────────────────────────────────
 
@@ -257,12 +283,13 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 					tools: sharedRuntime.getToolsList(),
 				}));
 
-				mcpSdkServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+				mcpSdkServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
 					// Spread into anonymous object for MCP SDK index signature compatibility
 					return {
 						...(await sharedRuntime.routeToolCall(
 							request.params.name,
-							request.params.arguments ?? {}
+							request.params.arguments ?? {},
+							{ signal: extra.signal, interface: 'mcp' }
 						)),
 					};
 				});
@@ -270,6 +297,12 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 				const stdioTransport = new StdioServerTransport();
 				await mcpSdkServer.connect(stdioTransport);
 				isRunning = true;
+				// stdout carries MCP frames, so the notice goes to stderr.
+				console.error(
+					autoDetected
+						? `[${name}] MCP transport: stdio (auto-detected because stdin is not a TTY; set transport: 'http' to serve HTTP)`
+						: `[${name}] MCP transport: stdio`
+				);
 
 				if (!useHttp) return;
 			}
@@ -285,6 +318,9 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 						resolve();
 					});
 				});
+				console.error(
+					`[${name}] MCP transport: http at ${sharedRuntime.url}${autoDetected ? ' (auto-detected because stdin is a TTY)' : ''}`
+				);
 			}
 		},
 

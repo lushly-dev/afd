@@ -20,6 +20,8 @@ import {
 	isPipelineRequest,
 	truncateName,
 } from '@lushly-dev/afd-core';
+import type { ContextState } from './bootstrap/afd-context.js';
+import { resolveContextState } from './context-scope.js';
 import type { DetailInput, DiscoverInput } from './lazy-tools.js';
 import { executeDetail, executeDiscover } from './lazy-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
@@ -49,7 +51,8 @@ export interface ToolRouterDeps {
 	allCommands?: ZodCommandDefinition[];
 	/** Set of command names exposed via the server's commands array */
 	exposedCommandNames?: Set<string>;
-	contextState?: { getActive(): string | null };
+	/** Context state used when the call context carries none (stdio and tests). */
+	contextState?: ContextState;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -114,10 +117,25 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		devMode,
 		allCommands,
 		exposedCommandNames,
-		contextState,
 	} = deps;
 
-	return async function routeToolCall(toolName: string, args: unknown): Promise<ToolCallResult> {
+	/**
+	 * Route one tool call.
+	 *
+	 * @param callContext - Base `CommandContext` for commands this call runs (request values,
+	 *   `signal`, and the caller's context state); each execution adds its own `traceId`.
+	 */
+	return async function routeToolCall(
+		toolName: string,
+		args: unknown,
+		callContext: CommandContext = {}
+	): Promise<ToolCallResult> {
+		const contextState = resolveContextState(callContext, deps.contextState);
+		const traced = (prefix: string): CommandContext => ({
+			...callContext,
+			traceId: `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+		});
+
 		// Handle afd-call (available in all strategies)
 		if (toolName === 'afd-call') {
 			const typedArgs = args as { command?: string; input?: unknown } | undefined;
@@ -195,9 +213,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			}
 
 			// Execute through the execution engine (full middleware chain)
-			const result = await executeCommand(commandName, typedArgs?.input ?? {}, {
-				traceId: `afd-call-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-			});
+			const result = await executeCommand(commandName, typedArgs?.input ?? {}, traced('afd-call'));
 			return resultContent(result, !result.success);
 		}
 
@@ -240,9 +256,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 					true
 				);
 			}
-			const result = await executeBatch(args, {
-				traceId: `batch-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-			});
+			const result = await executeBatch(args, traced('batch'));
 			return resultContent(result, !result.success);
 		}
 
@@ -270,9 +284,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 					true
 				);
 			}
-			const result = await executePipeline(args, {
-				traceId: `pipeline-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-			});
+			const result = await executePipeline(args, traced('pipeline'));
 			const hasFailed = result.steps.some((s) => s.status === 'failure');
 			return resultContent(result, hasFailed);
 		}
@@ -331,9 +343,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 					}
 				}
 
-				const result = await executeCommand(actualCommandName, commandParams, {
-					traceId: `trace-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-				});
+				const result = await executeCommand(actualCommandName, commandParams, traced('trace'));
 				return resultContent(result, !result.success);
 			}
 
@@ -388,9 +398,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			}
 		}
 
-		const result = await executeCommand(toolName, args ?? {}, {
-			traceId: `trace-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-		});
+		const result = await executeCommand(toolName, args ?? {}, traced('trace'));
 		return resultContent(result, !result.success);
 	};
 }

@@ -79,13 +79,23 @@ async function post(
 async function readJson<T>(response: Response): Promise<T> {
 	return (await response.json()) as T;
 }
-async function call(url: string, name: string, args: unknown = {}) {
-	const response = await post(url, '/message', {
-		jsonrpc: '2.0',
-		id: 1,
-		method: 'tools/call',
-		params: { name, arguments: args },
-	});
+async function call(
+	url: string,
+	name: string,
+	args: unknown = {},
+	headers: Record<string, string> = {}
+) {
+	const response = await post(
+		url,
+		'/message',
+		{
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'tools/call',
+			params: { name, arguments: args },
+		},
+		headers
+	);
 	const body = await readJson<{ result: { content: [{ text: string }] } }>(response);
 	return JSON.parse(body.result.content[0].text);
 }
@@ -378,19 +388,23 @@ it('wires configured contexts through the public factory for all remote paths', 
 		contexts: [{ name: 'edit' }, { name: 'print' }],
 		toolStrategy: 'individual',
 	});
-	expect((await call(url, 'afd-context-enter', { context: 'edit' })).success).toBe(true);
-	const tools = await (await post(url, '/message', { method: 'tools/list' })).text();
+	const initialized = await post(url, '/message', { jsonrpc: '2.0', id: 0, method: 'initialize' });
+	const session = { 'Mcp-Session-Id': initialized.headers.get('mcp-session-id') ?? '' };
+	expect(session['Mcp-Session-Id']).not.toBe('');
+	expect((await call(url, 'afd-context-enter', { context: 'edit' }, session)).success).toBe(true);
+	const tools = await (await post(url, '/message', { method: 'tools/list' }, session)).text();
 	expect(tools).toContain('edit-run');
 	expect(tools).not.toContain('print-run');
 	expect(
-		(await call(url, 'afd-batch', { commands: [{ command: 'print-run' }] })).results[0].result.error
-			.code
+		(await call(url, 'afd-batch', { commands: [{ command: 'print-run' }] }, session)).results[0]
+			.result.error.code
 	).toBe('COMMAND_NOT_IN_CONTEXT');
 	expect(
-		(await call(url, 'afd-pipe', { steps: [{ command: 'print-run' }] })).steps[0].error.code
+		(await call(url, 'afd-pipe', { steps: [{ command: 'print-run' }] }, session)).steps[0].error
+			.code
 	).toBe('COMMAND_NOT_IN_CONTEXT');
-	expect((await call(url, 'afd-context-exit')).success).toBe(true);
-	expect((await call(url, 'print-run')).success).toBe(true);
+	expect((await call(url, 'afd-context-exit', {}, session)).success).toBe(true);
+	expect((await call(url, 'print-run', {}, session)).success).toBe(true);
 });
 
 it('preflights complete MCP and REST envelopes before any write handler', async () => {

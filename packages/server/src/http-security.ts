@@ -3,11 +3,19 @@ import type { IncomingMessage } from 'node:http';
 import { TLSSocket } from 'node:tls';
 
 export class HttpRequestError extends Error {
+	/** JSON-RPC error code used when the route speaks JSON-RPC (default: -32000 server error). */
+	readonly rpcCode: number;
+	/** Recovery guidance; a generic one is used when omitted. */
+	readonly suggestion?: string;
+
 	constructor(
 		readonly status: number,
-		message: string
+		message: string,
+		options: { rpcCode?: number; suggestion?: string } = {}
 	) {
 		super(message);
+		this.rpcCode = options.rpcCode ?? -32000;
+		this.suggestion = options.suggestion;
 	}
 }
 
@@ -94,7 +102,12 @@ export function readJsonBody(req: IncomingMessage, maxBytes: number): Promise<un
 			try {
 				resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
 			} catch {
-				reject(new HttpRequestError(400, 'Request body must be valid JSON'));
+				reject(
+					new HttpRequestError(400, 'Request body must be valid JSON', {
+						rpcCode: -32700,
+						suggestion: 'Send a UTF-8 JSON body',
+					})
+				);
 			}
 		};
 		const onError = () => fail(new HttpRequestError(400, 'Request body could not be read'));

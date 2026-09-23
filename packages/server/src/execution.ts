@@ -27,6 +27,8 @@ import {
 	isBatchRequest,
 	truncateName,
 } from '@lushly-dev/afd-core';
+import type { ContextState } from './bootstrap/afd-context.js';
+import { resolveContextState } from './context-scope.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { EnhancedValidationResult } from './validation.js';
 import { formatEnhancedValidationError, validateInputEnhanced } from './validation.js';
@@ -38,7 +40,8 @@ import { formatEnhancedValidationError, validateInputEnhanced } from './validati
 export interface ExecutionDeps {
 	commandMap: Map<string, ZodCommandDefinition>;
 	middleware: CommandMiddleware[];
-	contextState?: { getActive(): string | null };
+	/** Context state used when the command context carries none (stdio). */
+	contextState?: ContextState;
 	devMode: boolean;
 	onCommand?: (command: string, input: unknown, result: CommandResult) => void;
 	onError?: (error: Error) => void;
@@ -94,7 +97,7 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			});
 		}
 
-		const activeContext = deps.contextState?.getActive();
+		const activeContext = resolveContextState(context, deps.contextState)?.getActive();
 		if (activeContext && command.contexts?.length && !command.contexts.includes(activeContext)) {
 			return failure({
 				code: 'COMMAND_NOT_IN_CONTEXT',
@@ -324,7 +327,17 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		request: PipelineRequest,
 		context: CommandContext = {}
 	): Promise<PipelineResult> {
-		return executeCorePipeline(request, executeCommand, context);
+		// The core runner resolves `$input` against the context it is given, so it only gets the
+		// trace ID and signal. Request values (for example from `createContext`) must not be
+		// readable, or copyable into step inputs, by the pipeline author.
+		const runnerContext: CommandContext = {};
+		if (context.traceId !== undefined) runnerContext.traceId = context.traceId;
+		if (context.signal !== undefined) runnerContext.signal = context.signal;
+		return executeCorePipeline(
+			request,
+			(name, input, stepContext) => executeCommand(name, input, { ...context, ...stepContext }),
+			runnerContext
+		);
 	}
 
 	/**
