@@ -65,11 +65,11 @@ describe('report helpers', () => {
 	it('creates step errors with diagnostic details', () => {
 		const cause = new Error('socket closed');
 
-		expect(createStepError('command_failed', 'Call failed', { cause, exitCode: 2 })).toEqual({
+		expect(createStepError('command_failed', 'Call failed', { cause, path: 'data.id' })).toEqual({
 			type: 'command_failed',
 			message: 'Call failed',
 			cause,
-			exitCode: 2,
+			path: 'data.id',
 		});
 	});
 

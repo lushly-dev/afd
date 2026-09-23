@@ -35,7 +35,6 @@ describe('CliWrapper CLI contract', () => {
 
 	it('reports malformed JSON output', async () => {
 		const result = await wrapper.execute('malformed', {});
-		expect(result.success).toBe(false);
-		expect(result.error?.type).toBe('parse_error');
+		expect(result).toMatchObject({ success: false, error: { type: 'parse_error' } });
 	});
 });

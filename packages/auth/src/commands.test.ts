@@ -26,7 +26,7 @@ describe('createAuthCommands', () => {
 			const adapter = new MockAuthAdapter();
 			const signIn = findCommand(adapter, 'auth-sign-in');
 
-			const result = await signIn.handler({ method: 'credentials', email: 'test@example.com' });
+			const result = await signIn.handler({ method: 'credentials', email: 'test@example.com' }, {});
 
 			expect(result.success).toBe(true);
 			expect(adapter.getSession().status).toBe('authenticated');
@@ -36,7 +36,7 @@ describe('createAuthCommands', () => {
 			const adapter = new MockAuthAdapter();
 			const signIn = findCommand(adapter, 'auth-sign-in');
 
-			const result = await signIn.handler({ method: 'oauth', provider: 'github' });
+			const result = await signIn.handler({ method: 'oauth', provider: 'github' }, {});
 
 			expect(result.success).toBe(true);
 		});
@@ -60,7 +60,7 @@ describe('createAuthCommands', () => {
 			await adapter.signIn({ method: 'credentials', email: 'test@example.com' });
 
 			const signOut = findCommand(adapter, 'auth-sign-out');
-			const result = await signOut.handler({});
+			const result = await signOut.handler({}, {});
 
 			expect(result.success).toBe(true);
 			expect(adapter.getSession().status).toBe('unauthenticated');
@@ -84,7 +84,7 @@ describe('createAuthCommands', () => {
 			const adapter = new MockAuthAdapter();
 			const sessionGet = findCommand(adapter, 'auth-session-get');
 
-			const result = await sessionGet.handler({});
+			const result = await sessionGet.handler({}, {});
 
 			expect(result.success).toBe(true);
 			expect(result.data).toEqual(expect.objectContaining({ status: 'unauthenticated' }));

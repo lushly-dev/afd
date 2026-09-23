@@ -75,9 +75,8 @@ describe('buildSimilarityMatrix', () => {
 			{ name: 'c', description: 'Delete a database record' },
 		];
 		const matrix = buildSimilarityMatrix(commands);
-		for (let i = 1; i < matrix.pairs.length; i++) {
-			expect(matrix.pairs[i - 1]?.score).toBeGreaterThanOrEqual(matrix.pairs[i]?.score);
-		}
+		const scores = matrix.pairs.map((pair) => pair.score);
+		expect(scores).toEqual([...scores].sort((a, b) => b - a));
 	});
 
 	it('get() returns score for a specific pair', () => {
@@ -996,11 +995,12 @@ describe('validateCommandSurface', () => {
 				description: 'Creates a complex thing with many options and settings',
 				category: 'test',
 				jsonSchema: {
+					type: 'object',
 					oneOf: [
 						{
 							type: 'object',
 							properties: {
-								mode: { const: 'a' },
+								mode: { type: 'string', const: 'a' },
 								email: { type: 'string' },
 								password: { type: 'string' },
 							},
@@ -1009,7 +1009,7 @@ describe('validateCommandSurface', () => {
 						{
 							type: 'object',
 							properties: {
-								mode: { const: 'b' },
+								mode: { type: 'string', const: 'b' },
 								provider: { type: 'string' },
 								scopes: { type: 'array', items: { type: 'string' } },
 								redirectTo: { type: 'string' },
@@ -1124,7 +1124,7 @@ describe('computeComplexity', () => {
 				{
 					type: 'object',
 					properties: {
-						method: { const: 'credentials' },
+						method: { type: 'string', const: 'credentials' },
 						email: { type: 'string' },
 						password: { type: 'string' },
 					},
@@ -1133,7 +1133,7 @@ describe('computeComplexity', () => {
 				{
 					type: 'object',
 					properties: {
-						method: { const: 'oauth' },
+						method: { type: 'string', const: 'oauth' },
 						provider: { type: 'string' },
 						scopes: { type: 'array', items: { type: 'string' } },
 						redirectTo: { type: 'string' },
@@ -1344,11 +1344,12 @@ describe('checkSchemaComplexity', () => {
 				name: 'auth-sign-in',
 				description: 'Sign in with credentials or OAuth provider',
 				jsonSchema: {
+					type: 'object',
 					oneOf: [
 						{
 							type: 'object',
 							properties: {
-								method: { const: 'credentials' },
+								method: { type: 'string', const: 'credentials' },
 								email: { type: 'string' },
 								password: { type: 'string' },
 							},
@@ -1357,7 +1358,7 @@ describe('checkSchemaComplexity', () => {
 						{
 							type: 'object',
 							properties: {
-								method: { const: 'oauth' },
+								method: { type: 'string', const: 'oauth' },
 								provider: { type: 'string' },
 								scopes: { type: 'array', items: { type: 'string' } },
 								redirectTo: { type: 'string' },
@@ -1406,11 +1407,12 @@ describe('checkSchemaComplexity', () => {
 				name: 'auth-sign-in',
 				description: 'Sign in with credentials or OAuth provider',
 				jsonSchema: {
+					type: 'object',
 					oneOf: [
 						{
 							type: 'object',
 							properties: {
-								method: { const: 'credentials' },
+								method: { type: 'string', const: 'credentials' },
 								email: { type: 'string' },
 								password: { type: 'string' },
 							},
@@ -1419,7 +1421,7 @@ describe('checkSchemaComplexity', () => {
 						{
 							type: 'object',
 							properties: {
-								method: { const: 'oauth' },
+								method: { type: 'string', const: 'oauth' },
 								provider: { type: 'string' },
 								scopes: { type: 'array', items: { type: 'string' } },
 								redirectTo: { type: 'string' },
@@ -1450,11 +1452,12 @@ describe('checkSchemaComplexity', () => {
 				name: 'auth-sign-in',
 				description: 'Sign in with credentials or OAuth provider',
 				jsonSchema: {
+					type: 'object',
 					oneOf: [
 						{
 							type: 'object',
 							properties: {
-								method: { const: 'credentials' },
+								method: { type: 'string', const: 'credentials' },
 								email: { type: 'string' },
 								password: { type: 'string' },
 							},
@@ -1463,7 +1466,7 @@ describe('checkSchemaComplexity', () => {
 						{
 							type: 'object',
 							properties: {
-								method: { const: 'oauth' },
+								method: { type: 'string', const: 'oauth' },
 								provider: { type: 'string' },
 								scopes: { type: 'array', items: { type: 'string' } },
 								redirectTo: { type: 'string' },

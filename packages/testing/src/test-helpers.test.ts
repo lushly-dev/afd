@@ -23,7 +23,7 @@ describe('test helpers', () => {
 	it('executes and validates a successful handler with the supplied context', async () => {
 		const result = await testCommand(
 			async (input: { value: number }, context) =>
-				success({ value: input.value, traceId: context.traceId }),
+				success({ value: input.value, traceId: context?.traceId }),
 			{ value: 3 },
 			{ context: createTestContext({ traceId: 'trace-3' }) }
 		);

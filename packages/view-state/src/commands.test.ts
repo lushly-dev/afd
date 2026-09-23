@@ -1,3 +1,4 @@
+import type { ZodCommandDefinition } from '@lushly-dev/afd-server';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createViewStateCommands } from './commands.js';
 import { ViewStateRegistry } from './registry.js';
@@ -19,29 +20,41 @@ function createHandler(
 	return obj;
 }
 
+function commandNamed(commands: ZodCommandDefinition[], name: string): ZodCommandDefinition {
+	const command = commands.find((candidate) => candidate.name === name);
+	if (!command) throw new Error(`Command ${name} not found`);
+	return command;
+}
+
 describe('createViewStateCommands', () => {
 	let registry: ViewStateRegistry;
-	let commands: ReturnType<typeof createViewStateCommands>;
-	let get: (typeof commands)[0];
-	let set: (typeof commands)[1];
-	let list: (typeof commands)[2];
+	let get: ZodCommandDefinition;
+	let set: ZodCommandDefinition;
+	let list: ZodCommandDefinition;
 
 	beforeEach(() => {
 		registry = new ViewStateRegistry();
-		commands = createViewStateCommands(registry);
-		[get, set, list] = commands;
+		const commands = createViewStateCommands(registry);
+		expect(commands.map((command) => command.name)).toEqual([
+			'view-state-get',
+			'view-state-set',
+			'view-state-list',
+		]);
+		get = commandNamed(commands, 'view-state-get');
+		set = commandNamed(commands, 'view-state-set');
+		list = commandNamed(commands, 'view-state-list');
 	});
 
 	describe('view-state-get', () => {
 		it('returns state for a registered ID', async () => {
 			registry.register('panel', createHandler({ open: true, tab: 'design' }));
-			const result = await get.handler({ id: 'panel' }, {} as never);
+			const result = await get.handler({ id: 'panel' }, {});
 			expect(result.success).toBe(true);
 			expect(result.data).toEqual({ id: 'panel', state: { open: true, tab: 'design' } });
 		});
 
 		it('returns failure for unknown ID', async () => {
-			const result = await get.handler({ id: 'unknown' }, {} as never);
+			const result = await get.handler({ id: 'unknown' }, {});
 			expect(result.success).toBe(false);
 			expect(result.error?.code).toBe('VIEW_STATE_NOT_FOUND');
 			expect(result.error?.suggestion).toContain('view-state-list');
@@ -57,7 +70,7 @@ describe('createViewStateCommands', () => {
 	describe('view-state-set', () => {
 		it('returns current and previous state', async () => {
 			registry.register('panel', createHandler({ open: false, tab: 'design' }));
-			const result = await set.handler({ id: 'panel', state: { open: true } }, {} as never);
+			const result = await set.handler({ id: 'panel', state: { open: true } }, {});
 			expect(result.success).toBe(true);
 			expect(result.data).toEqual({
 				id: 'panel',
@@ -68,13 +81,13 @@ describe('createViewStateCommands', () => {
 
 		it('includes undoCommand and undoArgs', async () => {
 			registry.register('panel', createHandler({ open: false }));
-			const result = await set.handler({ id: 'panel', state: { open: true } }, {} as never);
+			const result = await set.handler({ id: 'panel', state: { open: true } }, {});
 			expect(result.undoCommand).toBe('view-state-set');
 			expect(result.undoArgs).toEqual({ id: 'panel', state: { open: false }, replace: true });
 		});
 
 		it('returns failure for unknown ID', async () => {
-			const result = await set.handler({ id: 'unknown', state: { open: true } }, {} as never);
+			const result = await set.handler({ id: 'unknown', state: { open: true } }, {});
 			expect(result.success).toBe(false);
 			expect(result.error?.code).toBe('VIEW_STATE_NOT_FOUND');
 		});
@@ -83,7 +96,7 @@ describe('createViewStateCommands', () => {
 			registry.register('panel', createHandler({ open: false, tab: 'design' }));
 
 			// Set
-			const setResult = await set.handler({ id: 'panel', state: { open: true } }, {} as never);
+			const setResult = await set.handler({ id: 'panel', state: { open: true } }, {});
 			expect(registry.get('panel')).toEqual({ open: true, tab: 'design' });
 
 			// Undo
@@ -93,7 +106,7 @@ describe('createViewStateCommands', () => {
 				replace: boolean;
 			};
 			expect(undoArgs.replace).toBe(true);
-			await set.handler(undoArgs, {} as never);
+			await set.handler(undoArgs, {});
 			expect(registry.get('panel')).toEqual({ open: false, tab: 'design' });
 		});
 
@@ -108,7 +121,7 @@ describe('createViewStateCommands', () => {
 					id: 'panel',
 					state: { temporary: true, options: { theme: 'dark' } },
 				},
-				{} as never
+				{}
 			);
 			expect(registry.get('panel')).toEqual({
 				open: false,
@@ -116,7 +129,7 @@ describe('createViewStateCommands', () => {
 				options: { theme: 'dark' },
 			});
 
-			await set.handler(setResult.undoArgs, {} as never);
+			await set.handler(setResult.undoArgs, {});
 			expect(registry.get('panel')).toEqual({
 				open: false,
 				options: { theme: 'light', density: 'compact' },
@@ -130,10 +143,7 @@ describe('createViewStateCommands', () => {
 			};
 			registry.register('legacy-panel', handler);
 
-			const result = await set.handler(
-				{ id: 'legacy-panel', state: { temporary: true } },
-				{} as never
-			);
+			const result = await set.handler({ id: 'legacy-panel', state: { temporary: true } }, {});
 			expect(result.undoCommand).toBeUndefined();
 			expect(result.undoArgs).toBeUndefined();
 			expect(result.warnings?.[0]?.code).toBe('VIEW_STATE_UNDO_UNAVAILABLE');
@@ -147,7 +157,7 @@ describe('createViewStateCommands', () => {
 
 			const result = await set.handler(
 				{ id: 'legacy-panel', state: { open: true }, replace: true },
-				{} as never
+				{}
 			);
 			expect(result.success).toBe(false);
 			expect(result.error?.code).toBe('VIEW_STATE_REPLACE_UNSUPPORTED');
@@ -164,14 +174,14 @@ describe('createViewStateCommands', () => {
 		it('returns all states with total', async () => {
 			registry.register('a', createHandler({ x: 1 }));
 			registry.register('b', createHandler({ y: 2 }));
-			const result = await list.handler({}, {} as never);
+			const result = await list.handler({}, {});
 			expect(result.success).toBe(true);
-			expect(result.data?.total).toBe(2);
-			expect(result.data?.states).toHaveLength(2);
+			expect(result.data).toMatchObject({ total: 2 });
+			expect(result.data).toHaveProperty('states.length', 2);
 		});
 
 		it('returns empty when none registered', async () => {
-			const result = await list.handler({}, {} as never);
+			const result = await list.handler({}, {});
 			expect(result.success).toBe(true);
 			expect(result.data).toEqual({ states: [], total: 0 });
 		});
