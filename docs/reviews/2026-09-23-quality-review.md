@@ -618,6 +618,31 @@ effective, and no test covers `BATCH_TIMEOUT` or `COMMAND_SKIPPED`.
 - Realign the Rust types; make the Python lint clean.
 - Refresh the example security defaults.
 
+## Remediation status
+
+**Wave 0 fixes on the review branch:**
+
+| Findings | Status |
+| --- | --- |
+| C1, C2, C3, H9, H10; H8 (missing import only) | Fixed with regression tests (Python 1,641 → 1,706 tests). Clean-venv base install verified. |
+| H1 (TS server, DirectClient, Rust; Python fuzzy matching capped) | Fixed. The 879 KB `afd-detail` request went from about 22 s to 33 ms. |
+| H2 | Fixed, with 18 route-level tests that fail on the old code. |
+| H4 | Fixed with a cross-spawn-style escaper and mocked Windows tests. **Not yet exercised on real Windows.** |
+| H6, H7 | Fixed, with CLI end-to-end tests against a real server over SSE and HTTP. |
+| Theme 8: skills omit `expose` | Fixed in the TS skills; `error()` is now re-exported from `@lushly-dev/afd-server`. |
+
+**Follow-ups found while fixing:**
+
+- Test files are excluded from every package's `tsc` run, and `server`, `auth` and `adapters` have no `typecheck` script. Existing test files contain type errors. Wave 1 should add a test-inclusive typecheck.
+- `afd-detail` with a missing or non-string `command` still throws a `TypeError` (TS). Middleware exceptions on direct Python tool calls still reach FastMCP with their text.
+- The TS server never emits `_meta.destructive`, so `afd validate --execute` can only skip `mutation: true` tools.
+- `connect --no-reconnect` is now a no-op in the CLI. The dotted-name grouping in `printTools` and the shell shorthand remain.
+- `mcp` must stay `<2` for the Python server (`mcp.server.fastmcp` was removed in 2.x).
+- A Windows reviewer should manually verify:
+  - `gh issue create` with a title containing `&`;
+  - global `npm.cmd`/`pnpm.cmd` installs;
+  - the testing `CliWrapper` against `.cmd` shims.
+
 ## Limits of this review
 
 This is a repository review, not a penetration test. Windows-specific
