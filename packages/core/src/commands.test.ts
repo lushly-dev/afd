@@ -5,6 +5,7 @@ import {
 	commandToMcpTool,
 	createCommandRegistry,
 	defaultExpose,
+	isExposedTo,
 	isMcpExposed,
 	validateCommandName,
 } from './commands.js';
@@ -220,14 +221,30 @@ describe('createCommandRegistry', () => {
 			expect(cliResults).toHaveLength(1);
 			expect(cliResults[0]?.name).toBe('cli.cmd');
 
-			// Default commands have palette and agent enabled
+			// Flags a command leaves out fall back to defaultExpose, so every command
+			// keeps the default palette and agent exposure.
 			const paletteResults = registry.listByExposure('palette');
-			expect(paletteResults).toHaveLength(1);
-			expect(paletteResults[0]?.name).toBe('default.cmd');
+			expect(paletteResults.map((cmd) => cmd.name)).toEqual(['mcp.cmd', 'cli.cmd', 'default.cmd']);
 
 			const agentResults = registry.listByExposure('agent');
-			expect(agentResults).toHaveLength(1);
-			expect(agentResults[0]?.name).toBe('default.cmd');
+			expect(agentResults.map((cmd) => cmd.name)).toEqual(['mcp.cmd', 'cli.cmd', 'default.cmd']);
+		});
+
+		it('hides a command from an interface only when that flag is false', () => {
+			const registry = createCommandRegistry();
+			registry.register({
+				name: 'internal.reset',
+				description: 'Not for agents',
+				parameters: [],
+				expose: { mcp: true, agent: false },
+				handler: async () => success(null),
+			});
+
+			expect(registry.listByExposure('agent')).toHaveLength(0);
+			expect(registry.listByExposure('mcp').map((cmd) => cmd.name)).toEqual(['internal.reset']);
+			expect(isExposedTo({ expose: { mcp: true } }, 'agent')).toBe(true);
+			expect(isExposedTo({ expose: { agent: false } }, 'agent')).toBe(false);
+			expect(isExposedTo({}, 'mcp')).toBe(false);
 		});
 
 		it('uses defaultExpose when expose is not specified', () => {

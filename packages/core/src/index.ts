@@ -54,6 +54,7 @@ export {
 	commandToMcpTool,
 	createCommandRegistry,
 	defaultExpose,
+	isExposedTo,
 	isMcpExposed,
 	validateCommandName,
 } from './commands.js';

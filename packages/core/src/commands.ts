@@ -72,6 +72,19 @@ export const defaultExpose: Readonly<ExposeOptions> = Object.freeze({
 });
 
 /**
+ * Whether a command is exposed to an interface.
+ *
+ * Each flag a command's `expose` leaves out falls back to {@link defaultExpose}, so
+ * `expose: { mcp: true }` keeps the default agent and palette exposure.
+ */
+export function isExposedTo(
+	command: { expose?: ExposeOptions },
+	interfaceType: keyof ExposeOptions
+): boolean {
+	return (command.expose?.[interfaceType] ?? defaultExpose[interfaceType]) === true;
+}
+
+/**
  * JSON Schema 7 subset for command parameter validation.
  *
  * Includes composition keywords (`oneOf`, `anyOf`, `allOf`) needed for
@@ -486,10 +499,7 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 		},
 
 		listByExposure(interfaceType) {
-			return Array.from(commands.values()).filter((cmd) => {
-				const expose = cmd.expose ?? defaultExpose;
-				return expose[interfaceType] === true;
-			});
+			return Array.from(commands.values()).filter((cmd) => isExposedTo(cmd, interfaceType));
 		},
 
 		async execute<TOutput = unknown>(
@@ -511,8 +521,7 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 
 			// Check exposure if interface context is provided
 			if (context?.interface) {
-				const expose = command.expose ?? defaultExpose;
-				if (expose[context.interface] !== true) {
+				if (!isExposedTo(command, context.interface)) {
 					return {
 						success: false,
 						error: {
@@ -611,8 +620,7 @@ export function commandToMcpTool(command: CommandDefinition): {
  * Check if a command is exposed to MCP.
  */
 export function isMcpExposed(command: Pick<CommandDefinition, 'expose'>): boolean {
-	const expose = command.expose ?? defaultExpose;
-	return expose.mcp === true;
+	return isExposedTo(command, 'mcp');
 }
 
 /**

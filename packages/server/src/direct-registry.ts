@@ -14,7 +14,7 @@ import type {
 	ExposeOptions,
 	JsonSchema,
 } from '@lushly-dev/afd-core';
-import { defaultExpose, failure } from '@lushly-dev/afd-core';
+import { failure, isExposedTo as isCoreExposedTo } from '@lushly-dev/afd-core';
 import { createExecutionEngine } from './execution.js';
 import type { ZodCommandDefinition } from './schema.js';
 
@@ -97,7 +97,7 @@ export function isExposedTo(
 	command: Pick<ZodCommandDefinition, 'expose'>,
 	iface: ExposeInterface
 ): boolean {
-	return (command.expose?.[iface] ?? defaultExpose[iface]) === true;
+	return isCoreExposedTo(command, iface);
 }
 
 /**
