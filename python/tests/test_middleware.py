@@ -732,6 +732,26 @@ class TestConsoleTelemetrySink:
 
         assert messages[0].startswith("[CMD]")
 
+    @pytest.mark.parametrize("json_mode", [False, True])
+    def test_default_output_is_stderr_not_stdout(self, capsys, json_mode):
+        # stdout carries JSON-RPC on the stdio transport; a telemetry line
+        # there corrupts the stream.
+        sink = ConsoleTelemetrySink(json_mode=json_mode)
+
+        sink.record(
+            TelemetryEvent(
+                command_name="test-cmd",
+                started_at="",
+                completed_at="",
+                duration_ms=0,
+                success=True,
+            )
+        )
+
+        captured = capsys.readouterr()
+        assert captured.out == ""
+        assert "test-cmd" in captured.err
+
 
 # =============================================================================
 # Compose Middleware

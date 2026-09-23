@@ -31,10 +31,8 @@ import { updateTodo } from './update.js';
 
 /**
  * All todo commands as an array.
- * Cast to unknown first to satisfy TypeScript's strict type checking
- * when mixing different generic command types.
  */
-export const allCommands = [
+export const allCommands: ZodCommandDefinition[] = [
 	createTodo,
 	listTodos,
 	getTodo,
@@ -47,4 +45,4 @@ export const allCommands = [
 	createBatch,
 	deleteBatch,
 	toggleBatch,
-] as unknown as ZodCommandDefinition[];
+];

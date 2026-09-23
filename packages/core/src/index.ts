@@ -33,6 +33,9 @@ export {
 	isBatchRequest,
 	isBatchResult,
 } from './batch.js';
+// Batch and stream executors (shared by the registry and hosts such as the MCP server)
+export type { ExecutorOptions } from './command-execution.js';
+export { executeBatch, executeStream, executionFailure } from './command-execution.js';
 // Command types
 export type {
 	CommandContext,
@@ -42,6 +45,7 @@ export type {
 	CommandMiddleware,
 	CommandParameter,
 	CommandRegistry,
+	CommandRegistryOptions,
 	ExposeOptions,
 	JsonSchema,
 } from './commands.js';
@@ -50,24 +54,42 @@ export {
 	commandToMcpTool,
 	createCommandRegistry,
 	defaultExpose,
+	isExposedTo,
 	isMcpExposed,
 	validateCommandName,
 } from './commands.js';
+// Connectors — deprecated root re-exports. The connectors spawn processes
+// (node:child_process), so re-exporting them here stops the root entry from
+// being bundled for the browser. Import them from '@lushly-dev/afd-core/connectors';
+// these re-exports will be removed in the next major version.
 export type {
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	GitHubConnectorOptions,
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	Issue,
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	IssueCreateOptions,
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	IssueFilters,
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	PrCreateOptions,
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	PullRequest,
 } from './connectors/github.js';
-// Connectors
-export { GitHubConnector } from './connectors/github.js';
+export {
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
+	GitHubConnector,
+} from './connectors/github.js';
 export type {
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	PackageManager,
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	PackageManagerConnectorOptions,
 } from './connectors/package-manager.js';
-export { PackageManagerConnector } from './connectors/package-manager.js';
+export {
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
+	PackageManagerConnector,
+} from './connectors/package-manager.js';
 // Error types
 export type { CommandError, ErrorCode } from './errors.js';
 export {
@@ -228,6 +250,7 @@ export type {
 	StreamCallbacks,
 	StreamChunk,
 	StreamOptions,
+	TimeoutController,
 } from './streaming.js';
 export {
 	collectStreamData,

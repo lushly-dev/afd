@@ -19,6 +19,7 @@ pnpm add @lushly-dev/afd-server
 - **Built-in Validation** - Automatic input validation before handler execution
 - **Middleware System** - Logging, tracing, rate limiting, and custom middleware
 - **Command Prerequisites** - Declare `requires` dependencies so agents can plan execution order
+- **Agent Discovery** - Grouped, individual or lazy tool strategies, `afd-detail`, and optional `afd-help`/`afd-docs`/`afd-schema` bootstrap tools
 - **Full TypeScript Support** - Complete type inference from Zod schemas
 
 ## Quick Start
@@ -67,7 +68,7 @@ console.error(`Server running at ${server.getUrl()}`);
 
 Remote invocation now enforces the core exposure contract: commands require `expose: { mcp: true }`. Omitting `expose`, omitting `expose.mcp`, or setting it to `false` keeps a command private. This applies to tool listing, discovery, direct MCP calls, `afd-call`, batch, pipelines, `/rpc`, and streaming. Existing applications should explicitly opt in their public commands. The server's in-process `execute()` and `executePipeline()` remain available for private commands.
 
-Configured `contexts` automatically register `afd-context-list`, `afd-context-enter`, and `afd-context-exit` against the server's shared context state. Active contexts scope all remote execution paths; context state belongs to the server instance.
+Configured `contexts` automatically register `afd-context-list`, `afd-context-enter`, and `afd-context-exit`. Active contexts scope all remote execution paths. Context state belongs to the client, not the server: stdio has one stack, and each HTTP session has its own (see [Context Management](#context-management)).
 
 ## Embedding In A Host-Controlled HTTP Server
 
@@ -90,7 +91,7 @@ createServer((req, res) => {
 }).listen(3100, '127.0.0.1');
 ```
 
-Call `handler.dispose()` when the embedding host shuts down to close active SSE/stream responses. The host still owns its listener and other connections.
+Call `handler.dispose()` when the embedding host shuts down to close active SSE/stream responses and drop HTTP sessions. The host still owns its listener and other connections.
 
 Use `createMcpServer()` for the batteries-included standalone server. Use `createMcpHandler()` when you need AFD to plug into an existing Node HTTP host.
 
@@ -113,6 +114,8 @@ const server = createMcpServer({
 // When stdin is piped (IDE/agent context): uses stdio
 // When stdin is a TTY (interactive context): uses HTTP
 ```
+
+> **Pitfall:** `auto` picks stdio whenever stdin is not a TTY. Under Docker without `-t`, systemd, pm2 or CI, the server therefore speaks stdio and the HTTP port never opens. Set `transport: 'http'` for any server that must listen on the network. `start()` logs the resolved transport to stderr, for example `[my-server] MCP transport: stdio (auto-detected because stdin is not a TTY; set transport: 'http' to serve HTTP)`.
 
 ### stdio Transport (IDE/Agent Integration)
 
@@ -162,6 +165,32 @@ console.error(`Server running at ${server.getUrl()}`);
 
 ## Defining Commands
 
+### Browser-safe entry point: `@lushly-dev/afd-server/define`
+
+The root entry loads the MCP SDK, `node:http` and `node:tls`, so it cannot be
+bundled for the browser. Code that only defines commands (shared command
+modules, UI state packages, in-app agents) can import from the `/define`
+subpath instead. It exports `defineCommand`, the schema helpers
+(`zodToJsonSchema`, `getRequiredFields`, `isObjectSchema`), the result helpers
+(`success`, `failure`, `error`, `isSuccess`, `isFailure`), `defaultExpose` and
+the matching types, with no MCP SDK or Node.js builtin in its module graph:
+
+```typescript
+import { z } from 'zod';
+import { defineCommand, success } from '@lushly-dev/afd-server/define';
+
+export const panelOpen = defineCommand({
+  name: 'panel-open',
+  description: 'Open a panel',
+  input: z.object({ id: z.string() }),
+  async handler(input) {
+    return success({ id: input.id, open: true });
+  },
+});
+```
+
+The same functions are still exported from `@lushly-dev/afd-server`.
+
 ### Basic Command
 
 ```typescript
@@ -190,6 +219,8 @@ const createUser = defineCommand({
   },
 });
 ```
+
+The advertised JSON Schema describes what a caller may **send** (Zod input mode): `role` has a default, so it is optional and only `email` and `name` are required. Input schemas may use `.transform()` and `.pipe()`; they are advertised by their input type (a `z.string().transform(Number)` field is a string), and the handler receives the transformed value. `output` schemas are generated in output mode. Integer fields (`z.number().int()`) are advertised as `type: 'integer'`. Examples are typed and validated as raw input, so they may omit defaulted fields.
 
 ### Command with Error Handling
 
@@ -235,7 +266,7 @@ const secretData = defineCommand({
 });
 ```
 
-Prerequisites are metadata — they tell agents what to call first but are not enforced at runtime (middleware handles enforcement). They appear in MCP tool `_meta` and `afd-help` output.
+Prerequisites are metadata — they tell agents what to call first but are not enforced at runtime (middleware handles enforcement). They appear in MCP tool `_meta` (per action in `_meta.actions` for grouped tools), in `afd-detail`, and in `afd-help` output when the server has `bootstrap: true`.
 
 ### Command with Output Schema
 
@@ -291,7 +322,13 @@ const server = createMcpServer({
   // Optional
   port: 3100,              // Default: 3100
   host: 'localhost',       // Default: localhost
-  cors: true,              // Enable CORS (default: true)
+  transport: 'http',       // Default: 'auto' (see the pitfall above)
+  cors: true,              // Send CORS headers (default: follows devMode)
+  toolStrategy: 'grouped', // Default: 'grouped' (see "Tool Strategies")
+  bootstrap: true,         // Add afd-help, afd-docs, afd-schema (default: false)
+
+  // Per-request context for HTTP calls (see "Request Context")
+  createContext: (req) => ({ clientIp: req.socket.remoteAddress ?? 'unknown' }),
 
   // Middleware — zero-config observability
   middleware: defaultMiddleware(),
@@ -377,13 +414,28 @@ const middleware = createTracingMiddleware({
 
 ### Rate Limiting
 
-```typescript
-import { createRateLimitMiddleware } from '@lushly-dev/afd-server';
+Key the limiter on a value that identifies the caller. Over HTTP, provide it with `createContext`; the default key (`'global'`) shares one budget between all clients, and `traceId` is unique per call, so it never limits anything.
 
-const middleware = createRateLimitMiddleware({
-  maxRequests: 100,
-  windowMs: 60000,         // 100 requests per minute
-  keyFn: (context) => context.userId ?? 'anonymous',
+```typescript
+import { createMcpServer, createRateLimitMiddleware } from '@lushly-dev/afd-server';
+
+const server = createMcpServer({
+  name: 'my-server',
+  version: '1.0.0',
+  commands,
+  transport: 'http',
+  // Prefer an authenticated user ID; fall back to the socket address. Do not trust
+  // X-Forwarded-For unless your own proxy sets it.
+  createContext: (req) => ({
+    clientId: authenticate(req)?.userId ?? req.socket.remoteAddress ?? 'unknown',
+  }),
+  middleware: [
+    createRateLimitMiddleware({
+      maxRequests: 100,
+      windowMs: 60000,         // 100 requests per minute, per client
+      keyFn: (context) => String(context.clientId ?? 'unknown'),
+    }),
+  ],
 });
 ```
 
@@ -399,6 +451,44 @@ const myMiddleware: CommandMiddleware = async (commandName, input, context, next
   return result;
 };
 ```
+
+## In-Process Agents: `createDirectRegistry`
+
+For an AI agent in the same process, `DirectClient` from `@lushly-dev/afd-client`
+skips the transport. Give it a registry built with `createDirectRegistry`, not
+one that calls `command.handler(input)` directly: the registry runs every call
+through the same engine as `createMcpServer` (Zod input validation, middleware,
+error sanitization, `onCommand`/`onError`), and only lists and runs commands
+exposed to the chosen interface.
+
+```typescript
+import { createDirectClient } from '@lushly-dev/afd-client';
+import { createDirectRegistry, createLoggingMiddleware } from '@lushly-dev/afd-server';
+
+const registry = createDirectRegistry(commands, {
+  interface: 'agent',                    // default
+  middleware: [createLoggingMiddleware()],
+});
+const client = createDirectClient(registry);
+
+await client.call('todo-create', { title: { nested: true } });
+// → { success: false, error: { code: 'VALIDATION_ERROR', ... } }
+```
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `interface` | `'agent'` | Interface served: `'agent'`, `'palette'`, `'mcp'` or `'cli'` |
+| `middleware` | `[]` | Middleware, as for `createMcpServer` |
+| `devMode` | `false` | Include exception messages and stacks in failures |
+| `onCommand`, `onError` | — | Hooks, as for `createMcpServer` |
+
+A command is exposed to the interface when its `expose` flag for it is `true`.
+Flags a command leaves out fall back to `defaultExpose` (`palette` and `agent`
+on, `mcp` and `cli` off), so `expose: { mcp: true }` stays available to agents.
+Set `expose: { agent: false }` to keep a command away from in-app agents.
+Commands that are registered but not exposed are left out of
+`listCommands()`/`hasCommand()`, and `execute()` returns `COMMAND_NOT_EXPOSED`
+for them. Duplicate command names throw.
 
 ## Validation Utilities
 
@@ -444,7 +534,7 @@ Create a command definition with Zod schema.
 |--------|------|----------|-------------|
 | `name` | string | Yes | Unique command name (e.g., `user-create`) |
 | `description` | string | Yes | Human-readable description |
-| `input` | ZodType | Yes | Zod schema for input validation |
+| `input` | ZodType | Yes | Zod schema for input validation; advertised in Zod input mode (defaulted fields optional, transforms allowed) |
 | `handler` | function | Yes | Command implementation |
 | `category` | string | No | Category for grouping |
 | `mutation` | boolean | No | Whether command has side effects |
@@ -454,6 +544,8 @@ Create a command definition with Zod schema.
 | `contexts` | string[] | No | Restrict command to specific contexts (omit for universal) |
 | `requires` | string[] | No | Commands that should be called before this one (metadata only) |
 | `errors` | string[] | No | Possible error codes |
+| `expose` | ExposeOptions | No | Surfaces the command is exposed to; `{ mcp: true }` is required for MCP tools |
+| `examples` | `{ title, input }[]` | No | Example inputs, validated against `input` at define time |
 
 ### createMcpServer(options)
 
@@ -464,16 +556,22 @@ Create an MCP server from commands.
 | `name` | string | Yes | Server name |
 | `version` | string | Yes | Server version |
 | `commands` | array | Yes | Command definitions |
-| `transport` | `'stdio' \| 'http' \| 'auto'` | No | Transport protocol (default: `'auto'`) |
+| `transport` | `'stdio' \| 'http' \| 'auto'` | No | Transport protocol (default: `'auto'`, which picks stdio whenever stdin is not a TTY) |
 | `port` | number | No | Port for HTTP transport (default: 3100) |
 | `host` | string | No | Host for HTTP transport (default: localhost) |
 | `toolStrategy` | `'individual' \| 'grouped' \| 'lazy'` | No | How commands appear as MCP tools (default: `'grouped'`) |
+| `groupByFn` | `(command) => string \| undefined` | No | Group name for the grouped strategy (default: `category`, else the first name segment) |
 | `contexts` | `{ name, description }[]` | No | Context scopes for dynamic tool filtering |
+| `bootstrap` | boolean | No | Register the `afd-help`, `afd-docs` and `afd-schema` MCP tools (default: `false`) |
 | `devMode` | boolean | No | Enable development mode (default: false) |
 | `cors` | boolean | No | Enable CORS for HTTP transport (default: follows devMode) |
 | `allowedOrigins` | string[] | No | Additional exact browser origins |
 | `allowedHosts` | string[] | No | Accepted HTTP hostnames, without ports |
 | `maxBodyBytes` | number | No | Maximum JSON body bytes (default: 1048576) |
+| `createContext` | `(req) => object \| Promise<object>` | No | Per-request values merged into the `CommandContext` of every remotely executed HTTP command |
+| `maxSseConnections` | number | No | Concurrent `/sse` connections before HTTP 503 (default: 100) |
+| `maxSessions` | number | No | Live HTTP sessions when `contexts` are set; the least recently used is evicted (default: 1000) |
+| `sessionIdleTimeoutMs` | number | No | Idle time before an HTTP session expires (default: 1800000, 30 minutes) |
 | `middleware` | array | No | Middleware functions |
 | `onCommand` | function | No | Command execution callback |
 | `onError` | function | No | Error callback |
@@ -511,7 +609,32 @@ The server exposes these endpoints:
 | `/health` | GET | Health check |
 | `/batch` | POST | Batch command execution |
 | `/stream/:name` | POST | SSE chunks with command input in the JSON body |
-| `/stream/:name?input=...` | GET | Legacy streaming with JSON input in the query |
+| `/stream/:name?input=...` | GET | Legacy streaming with JSON input in the query; refused (HTTP 405) for `mutation: true` commands |
+
+### JSON-RPC Behavior (`/message` and `/rpc`)
+
+- A message with `"jsonrpc": "2.0"` and no `id` is a notification. It is answered with HTTP 202 and an empty body. On `/message` it is not executed (MCP notifications need no work here, and a request method sent without an `id` could not return its result). On `/rpc` the command runs, but its result is not sent. The simple `/rpc` format without a `jsonrpc` member is always answered, with `id: null` if omitted.
+- Protocol errors are JSON-RPC error objects, with recovery guidance in `error.data.suggestion`:
+
+| Code | Meaning | HTTP status |
+|------|---------|-------------|
+| `-32700` | Body is not valid JSON | 400 |
+| `-32600` | Not a valid request object (including batch arrays, which are not supported) | 400 |
+| `-32601` | Unknown MCP method | 200 |
+| `-32602` | Invalid `tools/call` params | 200 |
+| `-32603` | Internal error (for example a throwing `createContext`); details only in `devMode` | 200 |
+| `-32000` | Transport rejection: Host, Origin, Content-Type or body size | 400, 403, 413 or 415 |
+| `-32001` | Unknown or expired `Mcp-Session-Id` | 404 |
+
+Command failures are not protocol errors: they stay AFD `CommandResult` failures inside `result`. `/batch` and `/stream` are not JSON-RPC and answer errors with `{ success: false, error: { code, message, suggestion } }`.
+
+### Sessions (`Mcp-Session-Id`)
+
+When `contexts` are configured, `initialize` on `/message` returns an `Mcp-Session-Id` response header. Repeat it on later `/message`, `/rpc`, `/batch` and `/stream` requests to use that session's context stack. Requests without the header are stateless. An unknown or expired session ID is answered with HTTP 404; start a new session with `initialize`. `@lushly-dev/afd-client` does this automatically. Without `contexts`, no session is issued and the header is ignored.
+
+### SSE Connections
+
+`/sse` accepts at most `maxSseConnections` concurrent connections (default: 100); more receive HTTP 503 with `Retry-After`. Open connections get a `: ping` comment every 25 seconds so proxies keep them open and dead peers are detected. Closed connections are removed immediately, and `dispose()`/`stop()` closes the rest.
 
 ### Browser-Friendly `/rpc` Endpoint
 
@@ -577,6 +700,48 @@ const server = createMcpServer({
 });
 ```
 
+## Tool Strategies
+
+`toolStrategy` controls how MCP-exposed commands appear in `tools/list`. `afd-call`, `afd-batch` and `afd-pipe` are listed in every strategy.
+
+| Strategy | Tools listed |
+|----------|--------------|
+| `grouped` (default) | One tool per group plus `afd-detail`. A group is the command's `category`, else the first name segment (`todo-create` → `todo`), or `groupByFn(command)` |
+| `individual` | One tool per command, with its full input schema and `_meta` |
+| `lazy` | `afd-discover` and `afd-detail` only |
+
+A grouped tool takes `{ action, params }`, where `action` is the command name without its group segment (`todo-create-batch` → `create-batch`). So that agents need not guess `params`, each grouped tool carries every action's schema and metadata in `_meta.actions`:
+
+```json
+{
+  "name": "todo",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "action": { "type": "string", "enum": ["create", "list"] },
+      "params": { "type": "object", "anyOf": [{ "title": "create", "...": "todo-create input schema" }] }
+    },
+    "required": ["action"]
+  },
+  "_meta": {
+    "actions": [
+      {
+        "action": "create",
+        "command": "todo-create",
+        "description": "Create a todo",
+        "inputSchema": { "type": "object", "properties": { "title": { "type": "string" } }, "required": ["title"] },
+        "requires": ["auth-sign-in"],
+        "mutation": true,
+        "examples": [{ "title": "Basic", "input": { "title": "Buy milk" } }],
+        "outputSchema": { "type": "object" }
+      }
+    ]
+  }
+}
+```
+
+When a group's per-action schemas are small (at most 8,192 characters of JSON, and no `$ref`), they are also inlined as `params.anyOf` branches titled with the action. They sit under `params` because some MCP hosts reject `oneOf`/`anyOf`/`allOf` at the top level of a tool schema, and they use `anyOf` because actions often share a params shape. For larger groups, read `_meta.actions` or call `afd-detail` with the command name.
+
 ## Lazy Strategy
 
 For servers with many commands, the `lazy` strategy exposes 5 meta-tools instead of listing all commands:
@@ -599,6 +764,33 @@ Agents discover commands at runtime: `afd-discover` (filter/list) → `afd-detai
 | `afd-call` | Universal dispatcher — available in all strategies |
 | `afd-batch` | Execute multiple commands in one call |
 | `afd-pipe` | Pipeline execution with step references |
+
+The meta-tools are routable in every strategy. Their arguments are validated against the schemas they advertise: invalid `afd-call`, `afd-discover` and `afd-detail` arguments return a `VALIDATION_ERROR` result (with `details.errors`), and invalid `afd-batch`/`afd-pipe` envelopes return `INVALID_BATCH_REQUEST`/`INVALID_PIPELINE_REQUEST`. A `null` argument to `afd-call`, `afd-discover` or `afd-detail` counts as omitted.
+
+## Bootstrap Tools
+
+Set `bootstrap: true` to register three onboarding tools, exposed over MCP like any other command:
+
+```typescript
+const server = createMcpServer({
+  name: 'my-server',
+  version: '1.0.0',
+  commands: allCommands,
+  bootstrap: true,
+});
+```
+
+| Tool | Input | Returns |
+|------|-------|---------|
+| `afd-help` | `{ filter?, format?: 'brief' \| 'full' }` | Commands with `requires`, grouped by category (`full` adds tags, mutation and examples) |
+| `afd-docs` | `{ command? }` | Markdown documentation with a parameter table per command |
+| `afd-schema` | `{ format?: 'json' \| 'typescript' }` | Input JSON Schemas; `typescript` adds a module declaring one `<Command>Input` type per command |
+
+They describe what a remote agent can see: MCP-exposed commands in the active context, including the built-in context and bootstrap commands. `server.execute('afd-help', {})` works in-process too. `getBootstrapCommands(getCommands)` returns the same tools (as `ZodCommandDefinition`s with `expose: { mcp: true }`) for custom setups; prefer the option with `createMcpServer`.
+
+## Reserved and Duplicate Names
+
+Server creation throws when two commands share a name, or when a command uses a name the server handles itself: `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail` always; `afd-help`, `afd-docs` and `afd-schema` with `bootstrap: true`; `afd-context-list`, `afd-context-enter` and `afd-context-exit` when `contexts` is set.
 
 ## Context Management
 
@@ -624,6 +816,39 @@ When contexts are configured, the server registers three additional bootstrap co
 
 Commands without `contexts` are always visible. Context commands themselves are always visible.
 
+Context state is per client:
+
+- **stdio** serves one client, so it keeps one stack.
+- **HTTP** keeps one stack per session. `initialize` returns an `Mcp-Session-Id` header, and requests that repeat it share that session's stack; one client entering a context never changes another client's `tools/list` or execution. Requests without the header see no active context, and `afd-context-enter`/`afd-context-exit` return `SESSION_REQUIRED` for them. Sessions expire after `sessionIdleTimeoutMs` of inactivity, and at most `maxSessions` are kept.
+- A stack holds at most 16 contexts (`CONTEXT_DEPTH_EXCEEDED` beyond that), and re-entering the active context is a no-op.
+- In-process `server.execute()` ignores contexts.
+
+## Request Context
+
+`createContext(req)` derives per-request values from the HTTP request, such as the authenticated user or the remote address. Its result is merged into the `CommandContext` of every command the request runs: `tools/call`, `afd-call`, `afd-batch` items, `afd-pipe` steps, `/rpc`, `/batch` and `/stream`. Middleware and handlers read the values from `context`:
+
+```typescript
+const server = createMcpServer({
+  name: 'my-server',
+  version: '1.0.0',
+  commands,
+  transport: 'http',
+  createContext: async (req) => ({ user: await verifyBearerToken(req.headers.authorization) }),
+  middleware: [
+    async (command, input, context, next) =>
+      context.user
+        ? next()
+        : failure({ code: 'UNAUTHORIZED', message: 'Sign in first', suggestion: 'Send a bearer token' }),
+  ],
+});
+```
+
+- The server sets `traceId`, `signal` and `interface` (`'mcp'`) itself; `createContext` cannot override them.
+- `context.signal` aborts when the client disconnects before the response is finished, on every route, not only streams. Long-running handlers should honor it.
+- A throw from `createContext` is reported to `onError` and answered as an internal error (`-32603` on JSON-RPC routes, HTTP 500 elsewhere).
+- Pipeline `$input` does not expose these values, so a pipeline cannot copy them into step inputs.
+- stdio has no HTTP request, so `createContext` is not called there.
+
 ## Related
 
 - [@lushly-dev/afd-core](../core) - Core types and helpers
@@ -634,5 +859,7 @@ Commands without `contexts` are always visible. Context commands themselves are 
 ### Pipeline execution limits
 
 Pipelines run sequentially. `parallel: true` returns an actionable `UNSUPPORTED_OPTION` failure before invoking a command. `timeoutMs` bounds each awaited step by the remaining pipeline deadline and aborts its `context.signal`; handlers must honor that signal to stop their own work. A timed-out mutation may still finish if its handler ignores cancellation, so inspect partial results before retrying. Numeric `$steps[n]` references use original request indices, including skipped or failed steps. `$first` refers to original step zero; `$prev` keeps the last successful result.
+
+Variable references follow [`spec/pipeline-variables.md`](../../spec/pipeline-variables.md). `afd-pipe` accepts an optional top-level `input` (any JSON value) that steps read as `$input` and `$input.<path>`; `$input` never exposes the server's execution context (trace ID, auth or other context values), which it used to. Only whole strings of the reference forms are resolved: other `$` strings such as `$9.99` are literals, and `$$` sends a literal `$`. Paths follow only own keys of plain JSON objects and in-bounds array indices, so `constructor`, `__proto__` and other `__`-prefixed segments never resolve. Unresolved references are omitted from objects, become `null` in arrays, and make `when` comparisons false. Step inputs or `input` nested deeper than 64 levels are rejected with `VALIDATION_ERROR` before any step runs. Step data is copied between steps, so a handler that mutates its input cannot change another step's data.
 
 Default logging and console telemetry write to stderr so stdio MCP frames remain valid. In-memory rate limiting expires old client keys as requests arrive and caps active keys with `maxKeys` (default: 10000); new keys receive `RATE_LIMITED` while capacity is full.

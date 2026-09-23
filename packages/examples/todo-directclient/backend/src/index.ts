@@ -29,7 +29,7 @@ export {
 	updateTodo,
 } from './commands/index.js';
 // Export the registry for direct command execution
-export { CommandRegistry, registry } from './registry.js';
+export { type CommandRegistry, registry } from './registry.js';
 // Export store for testing
 export { store, TodoStore } from './store/index.js';
 // Export types

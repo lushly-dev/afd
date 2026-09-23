@@ -33,6 +33,66 @@ export interface Transport {
 }
 
 /**
+ * The MCP session a server issued in the `Mcp-Session-Id` header of its `initialize`
+ * response. It is repeated on later requests, so per-session server state (such as the
+ * active context of `afd-context-enter`) belongs to this client alone.
+ */
+class McpSession {
+	private id: string | undefined;
+	private initialize: McpRequest | undefined;
+
+	reset(): void {
+		this.id = undefined;
+		this.initialize = undefined;
+	}
+
+	/**
+	 * POST one JSON-RPC request. If the server answers 404 to a request that carried a
+	 * session (it restarted or expired the session), start a new session with the same
+	 * `initialize` request and retry once; the server ran nothing for the rejected request.
+	 */
+	async post(
+		url: string,
+		headers: Record<string, string> | undefined,
+		request: McpRequest,
+		signal: AbortSignal
+	): Promise<Response> {
+		if (request.method === 'initialize') {
+			this.id = undefined;
+			this.initialize = request;
+		}
+		const sentSession = this.id !== undefined;
+		const response = await this.send(url, headers, request, signal);
+		if (response.status !== 404 || !sentSession || !this.initialize) return response;
+		this.id = undefined;
+		const renewed = await this.send(url, headers, this.initialize, signal);
+		await renewed.body?.cancel();
+		return this.send(url, headers, request, signal);
+	}
+
+	private async send(
+		url: string,
+		headers: Record<string, string> | undefined,
+		request: McpRequest,
+		signal: AbortSignal
+	): Promise<Response> {
+		const response = await fetch(url, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				...headers,
+				...(this.id ? { 'Mcp-Session-Id': this.id } : {}),
+			},
+			body: JSON.stringify(request),
+			signal,
+		});
+		const issued = response.headers?.get('mcp-session-id');
+		if (issued) this.id = issued;
+		return response;
+	}
+}
+
+/**
  * SSE (Server-Sent Events) transport for MCP.
  *
  * This transport:
@@ -47,6 +107,7 @@ export class SseTransport implements Transport {
 	private connected = false;
 	private messageEndpoint: string;
 	private activeControllers = new Set<AbortController>();
+	private readonly session = new McpSession();
 
 	constructor(
 		private readonly sseUrl: string,
@@ -162,20 +223,18 @@ export class SseTransport implements Transport {
 			this.eventSource = null;
 		}
 		this.connected = false;
+		this.session.reset();
 	}
 
 	async send(request: McpRequest, signal?: AbortSignal): Promise<McpResponse> {
 		const { controller, signal: requestSignal } = this.createRequestController(signal);
 		try {
-			const response = await fetch(this.messageEndpoint, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					...this.headers,
-				},
-				body: JSON.stringify(request),
-				signal: requestSignal,
-			});
+			const response = await this.session.post(
+				this.messageEndpoint,
+				this.headers,
+				request,
+				requestSignal
+			);
 
 			if (!response.ok) {
 				throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
@@ -231,6 +290,7 @@ export class HttpTransport implements Transport {
 	private connected = false;
 	private messageUrl: string;
 	private activeControllers = new Set<AbortController>();
+	private readonly session = new McpSession();
 
 	constructor(
 		readonly url: string,
@@ -278,6 +338,7 @@ export class HttpTransport implements Transport {
 		}
 		this.activeControllers.clear();
 		this.connected = false;
+		this.session.reset();
 		if (this.closeHandler) {
 			this.closeHandler();
 		}
@@ -286,15 +347,12 @@ export class HttpTransport implements Transport {
 	async send(request: McpRequest, signal?: AbortSignal): Promise<McpResponse> {
 		const { controller, signal: requestSignal } = this.createRequestController(signal);
 		try {
-			const response = await fetch(this.messageUrl, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					...this.headers,
-				},
-				body: JSON.stringify(request),
-				signal: requestSignal,
-			});
+			const response = await this.session.post(
+				this.messageUrl,
+				this.headers,
+				request,
+				requestSignal
+			);
 
 			if (!response.ok) {
 				throw new Error(`HTTP error: ${response.status} ${response.statusText}`);

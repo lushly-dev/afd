@@ -264,7 +264,9 @@ def format_enhanced_validation_error(
 
     Args:
         errors: List of validation errors.
-        schema_info: Optional dict with expected_fields, unexpected_fields, missing_fields.
+        schema_info: Optional dict with expected_fields, unexpected_fields and
+            missing_fields (the camelCase wire keys expectedFields,
+            unexpectedFields and missingFields are accepted too).
 
     Returns:
         Formatted string with all available context.
@@ -280,13 +282,13 @@ def format_enhanced_validation_error(
     if errors:
         parts.append(format_validation_errors(errors))
     if schema_info:
-        unexpected = schema_info.get("unexpected_fields")
+        unexpected = schema_info.get("unexpected_fields") or schema_info.get("unexpectedFields")
         if unexpected:
             parts.append(f"Unknown field(s): {', '.join(unexpected)}")
-        missing = schema_info.get("missing_fields")
+        missing = schema_info.get("missing_fields") or schema_info.get("missingFields")
         if missing:
             parts.append(f"Missing required field(s): {', '.join(missing)}")
-        expected = schema_info.get("expected_fields")
+        expected = schema_info.get("expected_fields") or schema_info.get("expectedFields")
         if expected:
             parts.append(f"Expected fields: {', '.join(expected)}")
     return ". ".join(parts)
@@ -406,22 +408,29 @@ def _convert_pydantic_errors(exc: PydanticValidationError) -> list[ValidationErr
 def _extract_schema_info(
     model_class: type[BaseModel], input_data: object
 ) -> dict[str, list[str]]:
-    """Extract field introspection info from a model class and input data."""
-    expected_fields: list[str] = list(model_class.model_fields.keys())
+    """Extract field introspection info from a model class and input data.
+
+    Fields are reported under the name a caller sends: the field's alias when
+    it has one, otherwise its name.
+    """
+    wire_names = {
+        name: field_info.alias or name for name, field_info in model_class.model_fields.items()
+    }
+    expected_fields: list[str] = list(wire_names.values())
     unexpected_fields: list[str] = []
     missing_fields: list[str] = []
 
     if isinstance(input_data, dict):
         input_keys = set(input_data.keys())
-        expected_set = set(expected_fields)
+        accepted = set(wire_names) | set(wire_names.values())
 
         # Unexpected: keys in input but not in model
-        unexpected_fields = sorted(input_keys - expected_set)
+        unexpected_fields = sorted(str(key) for key in input_keys - accepted)
 
         # Missing: required fields not in input
         for name, field_info in model_class.model_fields.items():
-            if field_info.is_required() and name not in input_keys:
-                missing_fields.append(name)
+            if field_info.is_required() and not {name, wire_names[name]} & input_keys:
+                missing_fields.append(wire_names[name])
 
     return {
         "expected_fields": expected_fields,
@@ -437,13 +446,21 @@ def _input_validation_failure(
 ) -> CommandResult[Any]:
     """Build a VALIDATION_ERROR result from a pydantic error raised while parsing input.
 
-    Reports field paths, messages and expected/unknown/missing fields (the same
-    shape as the TypeScript server), not the exception text or input values.
+    Reports field paths, messages and expected/unknown/missing fields under the
+    TypeScript server's keys (``errors``, ``expectedFields``,
+    ``unexpectedFields``, ``missingFields``), not the exception text or input
+    values.
     """
     errors = _convert_pydantic_errors(exc)
     schema_info = _extract_schema_info(model_class, input_data)
     details: dict[str, Any] = {"errors": [_error_to_dict(e) for e in errors]}
-    details.update({key: value for key, value in schema_info.items() if value})
+    for key, wire_key in (
+        ("expected_fields", "expectedFields"),
+        ("unexpected_fields", "unexpectedFields"),
+        ("missing_fields", "missingFields"),
+    ):
+        if schema_info[key]:
+            details[wire_key] = schema_info[key]
     return failure(
         CommandError(
             code="VALIDATION_ERROR",

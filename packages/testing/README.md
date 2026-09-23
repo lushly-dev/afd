@@ -985,6 +985,18 @@ const log = server.getRequestLog();
 console.log('Requests made:', log.length);
 ```
 
+The mock server follows the real server's remote rules, so scenario tests see production
+semantics:
+
+- Only commands with `expose: { mcp: true }` are listed and callable; any other command
+  returns `COMMAND_NOT_EXPOSED`. Commands built with `createMockCommand`,
+  `createSuccessCommand` and `createFailureCommand` are exposed to MCP.
+- `tools/call` with `name: 'afd-batch'` runs a batch: a malformed request is rejected
+  before anything runs, `options.timeout` is a deadline at any `parallelism`, and every
+  entry is exposure-checked.
+- A handler that throws returns `COMMAND_EXECUTION_ERROR` without the exception message
+  or stack, unless you pass `createMockServer(commands, { devMode: true })`.
+
 ### Creating Mock Commands
 
 ```typescript

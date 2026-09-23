@@ -11,6 +11,7 @@ Example:
 import asyncio
 import json
 import logging
+import sys
 import time
 
 from contextlib import contextmanager
@@ -89,12 +90,21 @@ class TelemetrySink(Protocol):
         ...
 
 
+def _write_stderr(message: str) -> None:
+    """Write a line to stderr (stdout carries JSON-RPC on the stdio transport)."""
+    print(message, file=sys.stderr, flush=True)
+
+
 class ConsoleTelemetrySink:
     """Default telemetry sink that logs events to the console.
 
+    Events go to stderr by default, never stdout: on the stdio transport,
+    stdout carries the JSON-RPC stream and any other line corrupts it.
+
     Example:
-        >>> sink = ConsoleTelemetrySink()  # human-readable
+        >>> sink = ConsoleTelemetrySink()  # human-readable, to stderr
         >>> sink = ConsoleTelemetrySink(json_mode=True)  # JSON output
+        >>> sink = ConsoleTelemetrySink(log=logging.getLogger("telemetry").info)
     """
 
     def __init__(
@@ -104,7 +114,7 @@ class ConsoleTelemetrySink:
         json_mode: bool = False,
         prefix: str = "[Telemetry]",
     ):
-        self._log = log or print
+        self._log = log or _write_stderr
         self._json_mode = json_mode
         self._prefix = prefix
 

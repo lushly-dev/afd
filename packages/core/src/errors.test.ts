@@ -1,3 +1,4 @@
+import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import {
 	type CommandError,
@@ -107,6 +108,18 @@ describe('internalError', () => {
 		const err = internalError('wrapped', cause);
 		expect(err.cause).toBe(cause);
 	});
+
+	it('never serializes a native cause', () => {
+		const cause = Object.assign(new Error('ENOENT: no such file'), {
+			code: 'ENOENT',
+			path: '/srv/app/.secrets',
+		});
+		const err = internalError('Could not load settings', cause);
+
+		expect(Object.keys(err)).not.toContain('cause');
+		expect(JSON.stringify(err)).not.toContain('.secrets');
+		expect({ ...err }).not.toHaveProperty('cause');
+	});
 });
 
 describe('wrapError', () => {
@@ -120,13 +133,61 @@ describe('wrapError', () => {
 		expect(wrapped).toBe(original);
 	});
 
-	it('wraps Error instances', () => {
+	it('wraps Error instances without putting the stack or the Error in the result', () => {
 		const err = new Error('native error');
 		const wrapped = wrapError(err);
-		expect(wrapped.code).toBe(ErrorCodes.INTERNAL_ERROR);
-		expect(wrapped.message).toBe('native error');
-		expect(wrapped.cause).toBe(err);
-		expect(wrapped.details?.stack).toBeDefined();
+		expect(wrapped).toEqual({
+			code: ErrorCodes.INTERNAL_ERROR,
+			message: 'native error',
+			suggestion: 'Please try again. If this persists, contact support.',
+			retryable: true,
+		});
+		expect(wrapped).not.toBeInstanceOf(Error);
+		expect(wrapped.details).toBeUndefined();
+		expect(wrapped.cause).toBeUndefined();
+		expect(JSON.stringify(wrapped)).not.toContain('at ');
+	});
+
+	it('keeps the stack on a non-enumerable property for logging', () => {
+		const err = new Error('native error');
+		const wrapped = wrapError(err);
+		expect(Object.keys(wrapped)).not.toContain('stack');
+		expect((wrapped as CommandError & { stack?: string }).stack).toBe(err.stack);
+	});
+
+	it('wraps Node system errors without their errno, syscall or path fields', () => {
+		const systemError = Object.assign(
+			new Error("ENOENT: no such file or directory, open '/srv/app/.secrets'"),
+			{ errno: -2, code: 'ENOENT', syscall: 'open', path: '/srv/app/.secrets' }
+		);
+		const wrapped = wrapError(systemError);
+
+		expect(wrapped).not.toBe(systemError);
+		expect(wrapped.code).toBe('ENOENT');
+		expect(Object.keys(wrapped).sort()).toEqual(['code', 'message', 'retryable', 'suggestion']);
+		expect(JSON.parse(JSON.stringify(wrapped))).not.toHaveProperty('path');
+		expect(JSON.parse(JSON.stringify(wrapped))).not.toHaveProperty('syscall');
+	});
+
+	it('keeps the code, suggestion and retryable of structured Error subclasses', () => {
+		class ProviderError extends Error {
+			readonly code = 'TOKEN_EXPIRED';
+			readonly suggestion = 'Sign in again to continue';
+			readonly retryable = false;
+		}
+		expect(wrapError(new ProviderError('Session has expired'))).toEqual({
+			code: 'TOKEN_EXPIRED',
+			message: 'Session has expired',
+			suggestion: 'Sign in again to continue',
+			retryable: false,
+		});
+	});
+
+	it('keeps a cause only when it is a CommandError', () => {
+		const commandCause: CommandError = { code: 'UPSTREAM', message: 'Upstream failed' };
+		expect(wrapError(new Error('outer', { cause: commandCause })).cause).toBe(commandCause);
+		expect(wrapError(new Error('outer', { cause: new Error('inner') })).cause).toBeUndefined();
+		expect(wrapError(new Error('outer', { cause: 'text' })).cause).toBeUndefined();
 	});
 
 	it('wraps non-Error values as strings', () => {
@@ -191,5 +252,22 @@ describe('isCommandError', () => {
 
 	it('returns false when message is not a string', () => {
 		expect(isCommandError({ code: 'ERR', message: 42 })).toBe(false);
+	});
+
+	it('returns false for Error instances that carry a string code', () => {
+		const systemError = Object.assign(new Error('ENOENT: no such file'), {
+			code: 'ENOENT',
+			path: '/etc/secret',
+		});
+		expect(isCommandError(systemError)).toBe(false);
+	});
+
+	it('returns false for Error objects from another realm', () => {
+		const foreign: unknown = runInNewContext(
+			"Object.assign(new Error('permission denied'), { code: 'EACCES' })"
+		);
+		expect(foreign instanceof Error).toBe(false);
+		expect(isCommandError(foreign)).toBe(false);
+		expect(Object.keys(wrapError(foreign))).not.toContain('stack');
 	});
 });

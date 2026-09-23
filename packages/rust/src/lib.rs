@@ -29,10 +29,20 @@
 //! }
 //! ```
 //!
+//! ## Wire format
+//!
+//! The serde representations match the TypeScript and Python implementations.
+//! `tests/wire_fixtures.rs` round-trips the golden fixtures in `spec/wire/`.
+//!
 //! ## Features
 //!
 //! - `native` (default): Includes async runtime support via tokio
 //! - `wasm`: Enables WebAssembly compatibility via wasm-bindgen
+
+/// Compiles and runs the README examples as doctests.
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDoctests;
 
 // Module declarations
 pub mod batch;
@@ -48,6 +58,7 @@ pub mod result;
 pub mod similarity;
 pub mod streaming;
 pub mod telemetry;
+mod wire;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // RE-EXPORTS: Result types
@@ -73,7 +84,7 @@ pub use errors::{
 
 pub use metadata::{
     create_source, create_step, create_warning, update_step_status, Alternative, PlanStep,
-    PlanStepStatus, Source, SourceType, Warning, WarningSeverity,
+    PlanStepError, PlanStepStatus, Source, SourceType, Warning, WarningSeverity,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -147,7 +158,7 @@ pub use pipeline::{
     PipelineConditionGte, PipelineConditionLt, PipelineConditionLte, PipelineConditionNe,
     PipelineConditionNot, PipelineConditionOr, PipelineContext, PipelineMetadata, PipelineOptions,
     PipelineRequest, PipelineResult, PipelineSource, PipelineStep, PipelineWarning, StepConfidence,
-    StepMetadata, StepReasoning, StepResult, StepStatus,
+    StepMetadata, StepReasoning, StepResult, StepStatus, MAX_INPUT_DEPTH, MAX_REFERENCE_LENGTH,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -252,11 +263,12 @@ mod tests {
 
     #[test]
     fn test_metadata_types() {
-        let source = Source::new("Test", SourceType::Api);
-        assert_eq!(source.name, "Test");
+        let source = Source::new(SourceType::Api).with_title("Test");
+        assert_eq!(source.source_type, "api");
 
-        let step = PlanStep::new(1, "First step");
-        assert_eq!(step.step, 1);
+        let step = PlanStep::new("first", "fetch");
+        assert_eq!(step.id, "first");
+        assert_eq!(step.status, PlanStepStatus::Pending);
 
         let warning = Warning::new("DEPRECATION", "This is deprecated");
         assert_eq!(warning.code, "DEPRECATION");
@@ -264,11 +276,11 @@ mod tests {
 
     #[test]
     fn test_streaming_types() {
-        let progress = create_progress_chunk(50.0, "Halfway done");
-        assert_eq!(progress.progress, 50.0);
+        let progress = create_progress_chunk(0.5, "Halfway done");
+        assert_eq!(progress.progress, 0.5);
 
-        let data = create_data_chunk("partial", false);
-        assert!(!data.is_final);
+        let data = create_data_chunk("partial", 0, false);
+        assert!(!data.is_last);
     }
 
     #[test]

@@ -15,6 +15,7 @@ import json
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional
 
+from afd.core.wire import to_wire
 from afd.transports.base import (
     ToolInfo,
     ToolNotFoundError,
@@ -127,7 +128,7 @@ class FastMCPTransport:
             @self._mcp.tool(name=name, description=description)
             async def tool_wrapper(**kwargs):
                 result = await handler(kwargs)
-                return json.dumps(result, default=str)
+                return json.dumps(to_wire(result))
     
     async def call_tool(
         self,

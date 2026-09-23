@@ -13,12 +13,7 @@
  *   afd call chat-connect '{"roomId": "general", "nickname": "CLI-User"}'
  */
 
-import type { ZodCommandDefinition } from '@lushly-dev/afd-server';
-import {
-	createLoggingMiddleware,
-	createMcpServer,
-	getBootstrapCommands,
-} from '@lushly-dev/afd-server';
+import { createLoggingMiddleware, createMcpServer } from '@lushly-dev/afd-server';
 import { allCommands } from './commands/index.js';
 import { createHttpHandler } from './http-handler.js';
 import { createWebSocketServer } from './ws-server.js';
@@ -36,16 +31,12 @@ const DEV_MODE = process.env.NODE_ENV === 'development';
  * Create and configure the MCP server.
  */
 function createServer() {
-	// Combine app commands with bootstrap tools (afd-help, afd-docs, afd-schema)
-	const bootstrapCommands = getBootstrapCommands(
-		() => allCommands as unknown as import('@lushly-dev/afd-core').CommandDefinition[]
-	) as unknown as ZodCommandDefinition[];
-	const allServerCommands = [...allCommands, ...bootstrapCommands];
-
 	return createMcpServer({
 		name: 'chat-app',
 		version: '1.0.0',
-		commands: allServerCommands,
+		commands: allCommands,
+		// Adds the afd-help, afd-docs and afd-schema bootstrap tools
+		bootstrap: true,
 		port: PORT,
 		host: HOST,
 		devMode: DEV_MODE,
@@ -97,10 +88,7 @@ async function main() {
 	const wss = createWebSocketServer(WS_PORT);
 
 	// Start HTTP JSON-RPC server for browser demo
-	const _httpServer = createHttpHandler(
-		allCommands as unknown as ZodCommandDefinition[],
-		HTTP_PORT
-	);
+	const _httpServer = createHttpHandler(allCommands, HTTP_PORT);
 
 	if (isInteractive) {
 		console.error(`MCP Server running at ${server.getUrl()}`);

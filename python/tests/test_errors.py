@@ -144,7 +144,7 @@ class TestNotFoundError:
 
     def test_not_found_details(self):
         err = not_found_error("User", "user-456")
-        assert err.details == {"resource_type": "User", "resource_id": "user-456"}
+        assert err.details == {"resourceType": "User", "resourceId": "user-456"}
 
 
 class TestRateLimitError:
@@ -159,7 +159,7 @@ class TestRateLimitError:
     def test_rate_limit_with_retry_after(self):
         err = rate_limit_error(60)
         assert "60 seconds" in err.suggestion
-        assert err.details == {"retry_after_seconds": 60}
+        assert err.details == {"retryAfterSeconds": 60}
 
     def test_rate_limit_without_retry_after(self):
         err = rate_limit_error()
@@ -179,7 +179,7 @@ class TestTimeoutError:
 
     def test_timeout_details(self):
         err = timeout_error("api_call", 3000)
-        assert err.details == {"operation_name": "api_call", "timeout_ms": 3000}
+        assert err.details == {"operationName": "api_call", "timeoutMs": 3000}
 
 
 class TestInternalError:
@@ -215,7 +215,7 @@ class TestWrapError:
             wrapped = wrap_error(e)
             assert wrapped.code == ErrorCodes.INTERNAL_ERROR
             assert wrapped.message == "Bad value"
-            assert wrapped.details == {"error_type": "ValueError"}
+            assert wrapped.details == {"errorType": "ValueError"}
 
     def test_wrap_string(self):
         wrapped = wrap_error("Something went wrong")

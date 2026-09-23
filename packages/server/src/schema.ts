@@ -14,7 +14,7 @@ import type {
 	ExposeOptions,
 	JsonSchema,
 } from '@lushly-dev/afd-core';
-import { validateCommandName } from '@lushly-dev/afd-core';
+import { validateCommandName } from '@lushly-dev/afd-core/commands';
 import { type ZodType, z } from 'zod';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -102,7 +102,7 @@ export interface ZodCommandOptions<TInput extends ZodType, TOutput> {
 	 * Concrete input examples to help agents construct valid payloads.
 	 * Each example is validated against the input schema at define-time.
 	 */
-	examples?: CommandExample<z.infer<TInput>>[];
+	examples?: CommandExample<z.input<TInput>>[];
 
 	/**
 	 * Contexts this command belongs to. When context-based tool scoping is enabled,
@@ -170,7 +170,7 @@ export interface ZodCommandDefinition<TInput extends ZodType = ZodType, TOutput 
 	expose?: ExposeOptions;
 
 	/** Concrete input examples validated against the input schema */
-	examples?: CommandExample<z.infer<TInput>>[];
+	examples?: CommandExample<z.input<TInput>>[];
 
 	/** Zod schema for output validation (optional) */
 	outputSchema?: ZodType;
@@ -223,8 +223,12 @@ export function defineCommand<TInput extends ZodType, TOutput>(
 		console.warn(`[AFD] ${nameCheck.reason}`);
 	}
 
-	const jsonSchema = zodToJsonSchema(options.input);
-	const outputJsonSchema = options.output ? zodToJsonSchema(options.output) : undefined;
+	// Input schemas describe what a caller may send (defaults optional, transforms by their
+	// input type); output schemas describe what the handler returns.
+	const jsonSchema = zodToJsonSchema(options.input, { io: 'input' });
+	const outputJsonSchema = options.output
+		? zodToJsonSchema(options.output, { io: 'output' })
+		: undefined;
 
 	// Build tags with automatic handoff tags if handoff is enabled
 	const tags = buildHandoffTags(options.tags, options.handoff, options.handoffProtocol);
@@ -281,7 +285,9 @@ export function defineCommand<TInput extends ZodType, TOutput>(
 				handoff: options.handoff,
 				handoffProtocol: options.handoffProtocol,
 				expose: options.expose,
-				examples: options.examples,
+				// Examples are raw inputs (before defaults and transforms); core types them by the
+				// handler input, which differs only for schemas with defaults or transforms.
+				examples: options.examples as CommandExample<z.infer<TInput>>[] | undefined,
 				contexts: options.contexts,
 				parameters: jsonSchemaToParameters(jsonSchema),
 				returns: outputJsonSchema ?? { type: 'object', description: 'Command result' },
@@ -322,13 +328,30 @@ function buildHandoffTags(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Convert a Zod schema to JSON Schema format.
+ * Options for {@link zodToJsonSchema}.
+ */
+export interface ZodToJsonSchemaOptions {
+	/**
+	 * Which side of the schema to describe.
+	 *
+	 * - `'input'` (default): what a caller may send. Fields with `.default()` are
+	 *   optional, and `.transform()`/`.pipe()` are described by their input type.
+	 *   Use this for command inputs and MCP tool `inputSchema`s.
+	 * - `'output'`: what parsing produces. Defaulted fields are required, and a
+	 *   `.transform()` cannot be represented (Zod throws). Use this for output schemas.
+	 */
+	io?: 'input' | 'output';
+}
+
+/**
+ * Convert a Zod schema to JSON Schema (draft-7).
  *
  * @param schema - Zod schema to convert
+ * @param options - Conversion options; `io` defaults to `'input'`
  * @returns JSON Schema representation
  */
-export function zodToJsonSchema(schema: ZodType): JsonSchema {
-	const result = z.toJSONSchema(schema, { target: 'draft-7' });
+export function zodToJsonSchema(schema: ZodType, options: ZodToJsonSchemaOptions = {}): JsonSchema {
+	const result = z.toJSONSchema(schema, { target: 'draft-7', io: options.io ?? 'input' });
 
 	if (typeof result === 'object' && result !== null) {
 		const { $schema, ...rest } = result as Record<string, unknown>;
@@ -345,7 +368,7 @@ export function zodToJsonSchema(schema: ZodType): JsonSchema {
 /**
  * Convert JSON Schema to CommandParameter array for @lushly-dev/afd-core compatibility.
  */
-function jsonSchemaToParameters(schema: JsonSchema): CommandParameter[] {
+export function jsonSchemaToParameters(schema: JsonSchema): CommandParameter[] {
 	const parameters: CommandParameter[] = [];
 
 	if (schema.type === 'object' && schema.properties) {
@@ -370,10 +393,11 @@ function jsonSchemaToParameters(schema: JsonSchema): CommandParameter[] {
 }
 
 /**
- * Get required field names from a Zod object schema.
+ * Get the field names a caller must provide for a Zod object schema.
+ * Fields with `.default()` or `.optional()` are not required.
  */
 export function getRequiredFields(schema: ZodType): string[] {
-	const jsonSchema = zodToJsonSchema(schema);
+	const jsonSchema = zodToJsonSchema(schema, { io: 'input' });
 	// Handle required - it might be an array or undefined
 	return Array.isArray(jsonSchema.required) ? jsonSchema.required : [];
 }

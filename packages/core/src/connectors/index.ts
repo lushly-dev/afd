@@ -1,5 +1,13 @@
 /**
  * @fileoverview Connector exports for CLI tool abstractions.
+ *
+ * Published as `@lushly-dev/afd-core/connectors`. Node.js only: the
+ * connectors spawn processes through `node:child_process`.
+ *
+ * @example
+ * ```typescript
+ * import { GitHubConnector } from '@lushly-dev/afd-core/connectors';
+ * ```
  */
 
 export type {

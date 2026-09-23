@@ -15,5 +15,6 @@ export {
 export { createAfdDocsCommand } from './afd-docs.js';
 export { createAfdHelpCommand } from './afd-help.js';
 export { createAfdSchemaCommand } from './afd-schema.js';
+export type { DescribedCommand } from './described-command.js';
 
 export { getBootstrapCommands } from './registry.js';

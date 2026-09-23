@@ -14,7 +14,7 @@ Example:
 Pipeline Example:
     >>> result = await client.pipe([
     ...     {'command': 'user-get', 'input': {'id': 123}, 'as': 'user'},
-    ...     {'command': 'order-list', 'input': {'user_id': '$user.id'}},
+    ...     {'command': 'order-list', 'input': {'user_id': '$steps.user.id'}},
     ... ])
 """
 
@@ -38,8 +38,17 @@ from typing import (
 )
 
 from afd.core.result import CommandResult, failure, success
-from afd.core.errors import not_found_error, validation_error
-from afd.core.pipeline import get_nested_value
+from afd.core.errors import CommandError, not_found_error, validation_error
+from afd.core.pipeline import (
+    PipelineContext as _PipelineContext,
+    StepResult as _StepResult,
+    StepStatus as _StepStatus,
+    condition_error,
+    evaluate_condition,
+    resolve_variable,
+    resolve_variables,
+)
+from afd.core.pipeline_variables import MAX_INPUT_DEPTH, exceeds_depth
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -113,14 +122,16 @@ class PipelineStep:
     Attributes:
         command: Command name to execute
         input: Arguments for the command (can include variable references)
-        alias: Name to store result as (for later reference)
-        when: Optional condition for execution (e.g., '$prev.success')
+        alias: Name to store result as (referenced as ``$steps.<alias>``)
+        when: Optional condition for execution: a pipeline condition such as
+            ``{'$exists': '$prev.id'}``, or a reference string that must
+            resolve to a truthy value (e.g. ``'$steps.user.active'``)
     """
-    
+
     command: str
     input: Optional[Dict[str, Any]] = None
     alias: Optional[str] = None
-    when: Optional[str] = None
+    when: Optional[Union[str, Dict[str, Any]]] = None
 
 
 @dataclass
@@ -439,10 +450,10 @@ class DirectClient:
     Pipeline Example:
         >>> result = await client.pipe([
         ...     {'command': 'user-get', 'input': {'id': 123}, 'as': 'user'},
-        ...     {'command': 'order-list', 'input': {'user_id': '$user.id'}},
+        ...     {'command': 'order-list', 'input': {'user_id': '$steps.user.id'}},
         ... ])
     """
-    
+
     def __init__(
         self,
         registry: DirectRegistry,
@@ -615,33 +626,44 @@ class DirectClient:
         self,
         steps: List[Union[PipelineStep, Dict[str, Any]]],
         context: Optional[DirectCallContext] = None,
+        *,
+        input: Optional[Dict[str, Any]] = None,
     ) -> PipelineResult:
         """Execute a pipeline of commands with variable resolution.
-        
-        Variables reference previous step outputs:
-        - $prev - Previous step's result.data
-        - $prev.field - Field from previous step's data
-        - $alias - Named step's result.data (via 'as' property)
-        - $alias.field - Field from named step's data
-        
+
+        Step inputs and conditions use the pipeline variable references of
+        ``spec/pipeline-variables.md``, the same as ``afd-pipe``:
+
+        - ``$prev`` / ``$prev.field``: data of the previous successful step
+        - ``$first`` / ``$first.field``: data of the first step
+        - ``$steps[N]`` / ``$steps[N].field``: data of step N (0-based)
+        - ``$steps.alias`` / ``$steps.alias.field``: data of the step named
+          ``alias`` (via its ``as`` property)
+        - ``$input`` / ``$input.field``: the ``input`` argument
+
+        Other strings starting with ``$`` are literals, ``$$`` escapes a
+        literal ``$``, and an unresolved reference is omitted from objects
+        (``None`` in lists). The pipeline stops at the first failed step.
+
         Args:
             steps: List of pipeline steps (dicts or PipelineStep objects)
             context: Optional context for tracing
-        
+            input: Optional pipeline input, referenced as ``$input``
+
         Returns:
             PipelineResult with all step results and outputs
-        
+
         Example:
             >>> result = await client.pipe([
             ...     {'command': 'user-get', 'input': {'id': 123}, 'as': 'user'},
-            ...     {'command': 'order-list', 'input': {'user_id': '$user.id'}},
+            ...     {'command': 'order-list', 'input': {'user_id': '$steps.user.id'}},
             ... ])
         """
         start_time = time.perf_counter()
         trace_id = (context.trace_id if context else None) or _generate_trace_id()
-        
+
         self._debug(f"[{trace_id}] Starting pipeline with {len(steps)} steps")
-        
+
         # Normalize steps to PipelineStep objects
         normalized_steps = []
         for step in steps:
@@ -654,20 +676,32 @@ class DirectClient:
                 ))
             else:
                 normalized_steps.append(step)
-        
+
+        invalid = _validate_steps(normalized_steps, input)
+        if invalid is not None:
+            self._debug(f"[{trace_id}] Pipeline rejected: {invalid.message}")
+            return PipelineResult(
+                success=False,
+                steps=[],
+                outputs={},
+                final=failure(invalid),
+                total_duration_ms=(time.perf_counter() - start_time) * 1000,
+            )
+
         step_results: List[PipelineStepResult] = []
         outputs: Dict[str, Any] = {}
         prev_result: Optional[CommandResult] = None
         all_success = True
-        
+        variables = _PipelineContext(pipeline_input=input)
+
         for i, step in enumerate(normalized_steps):
             step_start = time.perf_counter()
-            
+
             self._debug(f"[{trace_id}] Step {i+1}/{len(normalized_steps)}: {step.command}")
-            
+
             # Check 'when' condition
             if step.when:
-                should_run = self._evaluate_condition(step.when, prev_result, outputs)
+                should_run = self._evaluate_condition(step.when, variables)
                 if not should_run:
                     self._debug(f"[{trace_id}] Skipped due to condition: {step.when}")
                     step_results.append(PipelineStepResult(
@@ -677,39 +711,58 @@ class DirectClient:
                         duration_ms=0,
                         skipped=True,
                     ))
+                    variables.steps.append(_StepResult(
+                        index=i,
+                        alias=step.alias,
+                        command=step.command,
+                        status=_StepStatus.SKIPPED,
+                    ))
                     continue
-            
+
             # Resolve variables in input
-            resolved_input = self._resolve_variables(step.input, prev_result, outputs)
-            
+            resolved_input = (
+                resolve_variables(step.input, variables) if step.input is not None else None
+            )
+
             # Execute the command
             result = await self.call(step.command, resolved_input, context)
-            
+
             step_duration = (time.perf_counter() - step_start) * 1000
-            
+
             step_results.append(PipelineStepResult(
                 command=step.command,
                 alias=step.alias,
                 result=result,
                 duration_ms=step_duration,
             ))
-            
+            step_record = _StepResult(
+                index=i,
+                alias=step.alias,
+                command=step.command,
+                status=_StepStatus.SUCCESS if result.success else _StepStatus.FAILURE,
+                data=result.data if result.success else None,
+                execution_time_ms=step_duration,
+            )
+            variables.steps.append(step_record)
+            if result.success:
+                variables.previous_result = step_record
+
             # Store in outputs if aliased
             if step.alias:
                 outputs[step.alias] = result.data if result.success else None
-            
+
             prev_result = result
-            
+
             # Track overall success
             if not result.success:
                 all_success = False
                 self._debug(f"[{trace_id}] Step failed: {step.command}")
                 break  # Stop pipeline on first failure
-        
+
         total_duration = (time.perf_counter() - start_time) * 1000
-        
+
         self._debug(f"[{trace_id}] Pipeline complete in {total_duration:.2f}ms, success={all_success}")
-        
+
         return PipelineResult(
             success=all_success,
             steps=step_results,
@@ -717,76 +770,63 @@ class DirectClient:
             final=prev_result,
             total_duration_ms=total_duration,
         )
-    
-    def _resolve_variables(
-        self,
-        data: Optional[Dict[str, Any]],
-        prev_result: Optional[CommandResult],
-        outputs: Dict[str, Any],
-    ) -> Optional[Dict[str, Any]]:
-        """Resolve variable references in input data.
-        
-        Supported patterns:
-        - $prev - Previous step's data
-        - $prev.field - Field from previous step
-        - $alias - Named step's data
-        - $alias.field.nested - Nested field access
-        """
-        if data is None:
-            return None
-        
-        def resolve_value(value: Any) -> Any:
-            if isinstance(value, str) and value.startswith('$'):
-                return self._resolve_reference(value[1:], prev_result, outputs)
-            elif isinstance(value, dict):
-                return {k: resolve_value(v) for k, v in value.items()}
-            elif isinstance(value, list):
-                return [resolve_value(v) for v in value]
-            return value
-        
-        return {k: resolve_value(v) for k, v in data.items()}
-    
-    def _resolve_reference(
-        self,
-        ref: str,
-        prev_result: Optional[CommandResult],
-        outputs: Dict[str, Any],
-    ) -> Any:
-        """Resolve a single variable reference."""
-        parts = ref.split('.')
-        root = parts[0]
-        path = parts[1:]
-        
-        # Get base value
-        if root == 'prev':
-            base = prev_result.data if prev_result else None
-        elif root in outputs:
-            base = outputs[root]
-        else:
-            return None  # Unknown reference
-        
-        # Navigate path with the pipeline's data-only resolver (never getattr)
-        if not path:
-            return base
-        return get_nested_value(base, '.'.join(path))
-    
+
     def _evaluate_condition(
         self,
-        condition: str,
-        prev_result: Optional[CommandResult],
-        outputs: Dict[str, Any],
+        condition: Union[str, Dict[str, Any]],
+        variables: _PipelineContext,
     ) -> bool:
-        """Evaluate a simple condition string.
-        
-        Supported patterns:
-        - $prev.success - Previous step succeeded
-        - $alias - Alias exists and is truthy
-        - $alias.field - Field is truthy
+        """Evaluate a step's ``when`` condition.
+
+        A dict is a pipeline condition (``$exists``, ``$eq``, ``$and``, ...).
+        A string is resolved as a reference and must be truthy; an unresolved
+        reference is false.
         """
-        if condition.startswith('$'):
-            value = self._resolve_reference(condition[1:], prev_result, outputs)
-            return bool(value)
-        return True  # Default to run
+        if isinstance(condition, str):
+            return bool(resolve_variable(condition, variables))
+        return evaluate_condition(condition, variables)
+
+
+def _validate_steps(
+    steps: List[PipelineStep],
+    pipeline_input: Optional[Dict[str, Any]] = None,
+) -> Optional[CommandError]:
+    """Reject over-deep inputs and malformed conditions before any step runs."""
+    if pipeline_input is not None and exceeds_depth(pipeline_input):
+        return CommandError(
+            code="VALIDATION_ERROR",
+            message=f"Pipeline input is nested deeper than {MAX_INPUT_DEPTH} levels",
+            suggestion=(
+                f"Reduce the nesting of the pipeline input to at most {MAX_INPUT_DEPTH} levels"
+            ),
+            retryable=False,
+            details={"maxDepth": MAX_INPUT_DEPTH},
+        )
+    for index, step in enumerate(steps):
+        if step.input is not None and exceeds_depth(step.input):
+            return CommandError(
+                code="VALIDATION_ERROR",
+                message=f"Step {index} input is nested deeper than {MAX_INPUT_DEPTH} levels",
+                suggestion=(
+                    f"Reduce the nesting of the step input to at most {MAX_INPUT_DEPTH} levels"
+                ),
+                retryable=False,
+                details={"stepIndex": index, "maxDepth": MAX_INPUT_DEPTH},
+            )
+        if step.when and not isinstance(step.when, str):
+            problem = condition_error(step.when)
+            if problem:
+                return CommandError(
+                    code="VALIDATION_ERROR",
+                    message=f"Step {index} has an invalid when condition: {problem}",
+                    suggestion=(
+                        "Use one operator per condition object: $exists, $eq, $ne, "
+                        "$gt, $gte, $lt, $lte, $and, $or or $not"
+                    ),
+                    retryable=False,
+                    details={"stepIndex": index},
+                )
+    return None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

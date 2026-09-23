@@ -21,7 +21,9 @@ import type { ZodCommandDefinition } from './schema.js';
  *
  * - `"stdio"`: Standard input/output transport for IDE/CLI integration (Cursor, Claude Code, etc.)
  * - `"http"`: HTTP/SSE transport for browser-based clients
- * - `"auto"`: Auto-detect based on whether stdin is a TTY (stdio if piped, http if TTY)
+ * - `"auto"`: Auto-detect based on whether stdin is a TTY (stdio if piped, http if TTY).
+ *   Under Docker without `-t`, systemd, pm2 or CI, stdin is not a TTY, so `"auto"` picks stdio
+ *   and the HTTP port never opens. Set `"http"` explicitly for network servers.
  */
 export type McpTransport = 'stdio' | 'http' | 'auto';
 
@@ -72,7 +74,12 @@ export interface McpServerOptions {
 	 */
 	devMode?: boolean;
 
-	/** Enable CORS for browser access (in production, requires explicit opt-in) */
+	/**
+	 * Send CORS response headers for accepted browser origins. It does not widen which
+	 * origins are accepted; see `allowedOrigins`.
+	 *
+	 * @default devMode
+	 */
 	cors?: boolean;
 
 	/** Allowed HTTP Host names (without ports). Defaults to the configured host and loopback names. Set explicitly for proxies and embedded hosts. */
@@ -85,11 +92,41 @@ export interface McpServerOptions {
 	maxBodyBytes?: number;
 
 	/**
+	 * Per-request context for HTTP calls: its result is merged into the `CommandContext` of
+	 * every remotely executed command. Use it to pass the authenticated user or the remote
+	 * address to middleware such as `createRateLimitMiddleware`. Not called for stdio.
+	 *
+	 * @example
+	 * ```typescript
+	 * createContext: (req) => ({ clientId: req.socket.remoteAddress ?? 'unknown' }),
+	 * middleware: [createRateLimitMiddleware({ maxRequests: 60, windowMs: 60_000,
+	 *   keyFn: (ctx) => String(ctx.clientId) })],
+	 * ```
+	 */
+	createContext?: CreateRequestContext;
+
+	/** Maximum concurrent `/sse` connections; more receive HTTP 503 (default: 100). */
+	maxSseConnections?: number;
+
+	/**
+	 * Maximum live HTTP sessions when `contexts` are configured; the least recently used one
+	 * is evicted beyond it (default: 1000).
+	 */
+	maxSessions?: number;
+
+	/** Idle time in milliseconds after which an HTTP session expires (default: 1800000, 30 minutes). */
+	sessionIdleTimeoutMs?: number;
+
+	/**
 	 * Transport protocol to use.
 	 *
 	 * - `"stdio"`: Standard input/output for IDE/agent integration (Cursor, Claude Code, Antigravity)
 	 * - `"http"`: HTTP/SSE for browser-based clients and web UIs
 	 * - `"auto"`: Auto-detect based on environment (stdio if piped, http if TTY) - **default**
+	 *
+	 * `"auto"` chooses stdio whenever stdin is not a TTY. That includes Docker without `-t`,
+	 * systemd, pm2 and CI, where the HTTP port then silently never opens. Network servers
+	 * should set `transport: "http"`. `start()` logs the resolved transport to stderr.
 	 *
 	 * @default "auto"
 	 *
@@ -101,7 +138,7 @@ export interface McpServerOptions {
 	 * // For web UI:
 	 * createMcpServer({ transport: "http", ... });
 	 *
-	 * // Auto-detect (recommended for most cases):
+	 * // Auto-detect (for servers launched by an IDE or run from a terminal):
 	 * createMcpServer({ transport: "auto", ... });
 	 * ```
 	 */
@@ -123,10 +160,16 @@ export interface McpServerOptions {
 	onError?: (error: Error) => void;
 
 	/**
-	 * Tool strategy for MCP tool listing.
-	 * - "individual": Each command is exposed as a separate tool (default)
-	 * - "grouped": Commands are grouped by category into consolidated tools
-	 * - "lazy": Exposes afd-discover, afd-detail, and afd-call meta-tools instead of enumerating every command
+	 * Tool strategy for MCP tool listing. `afd-call`, `afd-batch` and `afd-pipe` are
+	 * listed in every strategy.
+	 * - "grouped" (default): one tool per group (category, or the first name segment)
+	 *   taking `{ action, params }`. Each grouped tool's `_meta.actions` carries every
+	 *   action's command name, input schema and metadata; small groups also inline the
+	 *   per-action schemas as `params.anyOf`. `afd-detail` is listed too.
+	 * - "individual": each command is its own tool, with its input schema and `_meta`
+	 * - "lazy": only the afd-discover and afd-detail meta-tools (plus the three above)
+	 *
+	 * @default "grouped"
 	 */
 	toolStrategy?: 'individual' | 'grouped' | 'lazy';
 
@@ -137,8 +180,25 @@ export interface McpServerOptions {
 	 */
 	groupByFn?: (command: ZodCommandDefinition) => string | undefined;
 
-	/** Context configurations for tool scoping. When provided, enables context-based tool filtering. */
+	/**
+	 * Context configurations for tool scoping. When provided, enables context-based tool
+	 * filtering and registers `afd-context-list`, `afd-context-enter` and `afd-context-exit`.
+	 *
+	 * Context state is per client: stdio has one stack, and each HTTP session has its own.
+	 * Over HTTP, `initialize` returns an `Mcp-Session-Id` header that later requests repeat;
+	 * requests without it see no active context and cannot enter one. Stacks hold at most 16
+	 * contexts, and re-entering the active context is a no-op.
+	 */
 	contexts?: ContextConfig[];
+
+	/**
+	 * Register the afd-help, afd-docs and afd-schema bootstrap tools (MCP-exposed).
+	 * They describe the MCP-exposed commands visible in the active context, including
+	 * built-ins. The names become reserved, so a command with one of them throws.
+	 *
+	 * @default false
+	 */
+	bootstrap?: boolean;
 }
 
 /**
@@ -166,6 +226,19 @@ export interface ContextConfig {
 }
 
 export type { CommandMiddleware } from '@lushly-dev/afd-core';
+
+/**
+ * Derive per-request `CommandContext` values from an HTTP request, for example the
+ * authenticated user or the remote address.
+ *
+ * The returned object is merged into the context of every command the request executes
+ * (`tools/call`, `afd-call`, batch items, pipeline steps, `/rpc`, `/batch` and `/stream`).
+ * The reserved keys `traceId`, `signal` and `interface` are set by the server and ignored if
+ * returned. A throw is reported to `onError` and answered as an internal error.
+ */
+export type CreateRequestContext = (
+	req: IncomingMessage
+) => Record<string, unknown> | Promise<Record<string, unknown>>;
 
 /**
  * Embeddable Node HTTP handler returned by `createMcpHandler()`.
@@ -204,6 +277,9 @@ export interface McpServer {
 	/**
 	 * Execute a pipeline of chained commands directly (for testing).
 	 * Enables multi-step workflows with variable resolution.
+	 *
+	 * `context` reaches every command's context but is never visible to pipeline references:
+	 * `$input` resolves to `request.input` (see `spec/pipeline-variables.md`).
 	 */
 	executePipeline(request: PipelineRequest, context?: CommandContext): Promise<PipelineResult>;
 }

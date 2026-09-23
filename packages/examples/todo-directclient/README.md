@@ -44,6 +44,17 @@ npx tsx src/chat-server.ts
 └─────────────────────────────────────────────────────────┘
 ```
 
+The registry (`backend/src/registry.ts`) is built with `createDirectRegistry`
+from `@lushly-dev/afd-server`. Every call, from the AI or the UI, goes through
+the same engine as the MCP server: Zod input validation, middleware, error
+sanitization and the `expose.agent` check.
+
+```ts
+import { createDirectRegistry } from '@lushly-dev/afd-server';
+
+export const registry = createDirectRegistry(allCommands, { interface: 'agent' });
+```
+
 ## Endpoints
 
 | Endpoint | Description |
@@ -59,7 +70,7 @@ npx tsx src/chat-server.ts
 - **API Key Masking**: Keys shown as `***XXXX` in logs
 - **CORS**: Configurable via `ALLOWED_ORIGINS`
 - **Rate Limiting**: 30 chat/min, 120 execute/min
-- **Input Validation**: Command name regex, body size limits
+- **Input Validation**: Command name regex, body size limits, and each command's Zod schema (via `createDirectRegistry`)
 
 ## Configuration
 

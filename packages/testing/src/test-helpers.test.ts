@@ -89,6 +89,40 @@ describe('test helpers', () => {
 		expect((await fails.handler({}, createTestContext())).error?.code).toBe('EXPECTED');
 	});
 
+	it('reports a void command result as a success', async () => {
+		const result = await testCommand(async () => success(undefined), {});
+
+		expect(result).toMatchObject({ isSuccess: true, isFailure: false });
+	});
+
+	it('exposes mock commands to MCP so MockMcpServer can call them', async () => {
+		const commands = [
+			createMockCommand('test-echo', () => 1),
+			createSuccessCommand('test-success', 1),
+			createFailureCommand('test-failure', { code: 'EXPECTED', message: 'Expected' }),
+		];
+
+		for (const command of commands) {
+			expect(command.expose).toMatchObject({ mcp: true, palette: true, agent: true, cli: false });
+		}
+		const registry = createTestRegistry(commands);
+		expect((await registry.execute('test-echo', {}, { interface: 'mcp' })).data).toBe(1);
+	});
+
+	it('wraps thrown system errors without leaking their fields', async () => {
+		const result = await testCommand(async () => {
+			throw Object.assign(new Error('ENOENT: no such file'), {
+				code: 'ENOENT',
+				syscall: 'open',
+				path: '/srv/app/.env',
+			});
+		}, {});
+
+		expect(result.isFailure).toBe(true);
+		expect(result.result.error?.code).toBe('ENOENT');
+		expect(JSON.stringify(result.result)).not.toContain('/srv/app/.env');
+	});
+
 	it('registers all mock commands for executable lookup', async () => {
 		const registry = createTestRegistry([
 			createSuccessCommand('first-run', 1),

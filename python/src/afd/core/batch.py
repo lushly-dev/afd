@@ -19,10 +19,11 @@ Example:
 from datetime import datetime, timezone
 from typing import Any, Generic, List, Optional, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import ConfigDict, Field
 
 from afd.core.errors import CommandError
 from afd.core.result import CommandResult, ResultMetadata
+from afd.core.wire import WIRE_MODEL_CONFIG, WireModel
 
 T = TypeVar("T")
 
@@ -32,7 +33,7 @@ T = TypeVar("T")
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class BatchCommand(BaseModel):
+class BatchCommand(WireModel):
     """A single command within a batch request.
 
     Attributes:
@@ -51,7 +52,7 @@ class BatchCommand(BaseModel):
     input: Any = None
 
 
-class BatchOptions(BaseModel):
+class BatchOptions(WireModel):
     """Options for batch execution.
 
     Attributes:
@@ -67,10 +68,10 @@ class BatchOptions(BaseModel):
     timeout: Optional[int] = Field(default=None, ge=0)
     parallelism: int = Field(default=1, ge=1)
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(**WIRE_MODEL_CONFIG, extra="forbid")
 
 
-class BatchRequest(BaseModel):
+class BatchRequest(WireModel):
     """A batch request containing multiple commands to execute.
 
     Attributes:
@@ -95,7 +96,7 @@ class BatchRequest(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class BatchCommandResult(BaseModel, Generic[T]):
+class BatchCommandResult(WireModel, Generic[T]):
     """Result of a single command within a batch.
 
     Attributes:
@@ -120,7 +121,7 @@ class BatchCommandResult(BaseModel, Generic[T]):
     duration_ms: float = Field(ge=0)
 
 
-class BatchSummary(BaseModel):
+class BatchSummary(WireModel):
     """Summary statistics for a batch execution.
 
     Attributes:
@@ -136,7 +137,7 @@ class BatchSummary(BaseModel):
     skipped_count: int = Field(ge=0)
 
 
-class BatchTiming(BaseModel):
+class BatchTiming(WireModel):
     """Timing information for the batch execution.
 
     Attributes:
@@ -152,7 +153,7 @@ class BatchTiming(BaseModel):
     completed_at: str
 
 
-class BatchWarning(BaseModel):
+class BatchWarning(WireModel):
     """Warning from a command within a batch.
 
     Attributes:
@@ -166,7 +167,7 @@ class BatchWarning(BaseModel):
     message: str
 
 
-class BatchResult(BaseModel, Generic[T]):
+class BatchResult(WireModel, Generic[T]):
     """Result of a batch execution.
 
     Uses partial success semantics — success is true even if some commands fail.

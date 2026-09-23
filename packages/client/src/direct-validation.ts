@@ -24,7 +24,7 @@ export interface CommandDefinition {
  */
 export interface CommandParameter {
 	name: string;
-	type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null';
+	type: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'null';
 	description: string;
 	required?: boolean;
 	default?: unknown;
@@ -76,7 +76,11 @@ export function validateInput(
 
 		// Type validation
 		const actualType = Array.isArray(value) ? 'array' : value === null ? 'null' : typeof value;
-		if (actualType !== param.type) {
+		const typeMatches =
+			param.type === 'integer'
+				? typeof value === 'number' && Number.isInteger(value)
+				: actualType === param.type;
+		if (!typeMatches) {
 			issues.push({
 				parameter: param.name,
 				message: `Parameter '${param.name}' has wrong type`,

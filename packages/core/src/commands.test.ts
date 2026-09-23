@@ -5,6 +5,7 @@ import {
 	commandToMcpTool,
 	createCommandRegistry,
 	defaultExpose,
+	isExposedTo,
 	isMcpExposed,
 	validateCommandName,
 } from './commands.js';
@@ -220,14 +221,30 @@ describe('createCommandRegistry', () => {
 			expect(cliResults).toHaveLength(1);
 			expect(cliResults[0]?.name).toBe('cli.cmd');
 
-			// Default commands have palette and agent enabled
+			// Flags a command leaves out fall back to defaultExpose, so every command
+			// keeps the default palette and agent exposure.
 			const paletteResults = registry.listByExposure('palette');
-			expect(paletteResults).toHaveLength(1);
-			expect(paletteResults[0]?.name).toBe('default.cmd');
+			expect(paletteResults.map((cmd) => cmd.name)).toEqual(['mcp.cmd', 'cli.cmd', 'default.cmd']);
 
 			const agentResults = registry.listByExposure('agent');
-			expect(agentResults).toHaveLength(1);
-			expect(agentResults[0]?.name).toBe('default.cmd');
+			expect(agentResults.map((cmd) => cmd.name)).toEqual(['mcp.cmd', 'cli.cmd', 'default.cmd']);
+		});
+
+		it('hides a command from an interface only when that flag is false', () => {
+			const registry = createCommandRegistry();
+			registry.register({
+				name: 'internal.reset',
+				description: 'Not for agents',
+				parameters: [],
+				expose: { mcp: true, agent: false },
+				handler: async () => success(null),
+			});
+
+			expect(registry.listByExposure('agent')).toHaveLength(0);
+			expect(registry.listByExposure('mcp').map((cmd) => cmd.name)).toEqual(['internal.reset']);
+			expect(isExposedTo({ expose: { mcp: true } }, 'agent')).toBe(true);
+			expect(isExposedTo({ expose: { agent: false } }, 'agent')).toBe(false);
+			expect(isExposedTo({}, 'mcp')).toBe(false);
 		});
 
 		it('uses defaultExpose when expose is not specified', () => {
@@ -562,25 +579,38 @@ describe('createCommandRegistry - execute error paths', () => {
 		expect(result.error?.code).toBe('COMMAND_NOT_FOUND');
 	});
 
-	it('catches handler exceptions and returns COMMAND_EXECUTION_ERROR', async () => {
+	const throwing: CommandDefinition = {
+		name: 'throw-cmd',
+		description: 'throws',
+		parameters: [],
+		handler: async () => {
+			throw new Error('handler exploded at /srv/app/secret.ts');
+		},
+	};
+
+	it('catches handler exceptions without leaking the message or stack by default', async () => {
 		const registry = createCommandRegistry();
-		const cmd: CommandDefinition = {
-			name: 'throw-cmd',
-			description: 'throws',
-			parameters: [],
-			handler: async () => {
-				throw new Error('handler exploded');
-			},
-		};
-		registry.register(cmd);
+		registry.register(throwing);
 		const result = await registry.execute('throw-cmd', {});
 		expect(result.success).toBe(false);
+		expect(result.error).toEqual({
+			code: 'COMMAND_EXECUTION_ERROR',
+			message: 'An internal error occurred',
+			suggestion: 'Contact support if this persists',
+		});
+		expect(JSON.stringify(result)).not.toContain('/srv/app');
+	});
+
+	it('includes the raw message and stack in devMode', async () => {
+		const registry = createCommandRegistry({ devMode: true });
+		registry.register(throwing);
+		const result = await registry.execute('throw-cmd', {});
 		expect(result.error?.code).toBe('COMMAND_EXECUTION_ERROR');
 		expect(result.error?.message).toContain('handler exploded');
+		expect(result.error?.details?.stack).toContain('handler exploded');
 	});
 
 	it('catches non-Error throws', async () => {
-		const registry = createCommandRegistry();
 		const cmd: CommandDefinition = {
 			name: 'throw-string',
 			description: 'throws string',
@@ -589,10 +619,24 @@ describe('createCommandRegistry - execute error paths', () => {
 				throw 'string error';
 			},
 		};
+		const registry = createCommandRegistry();
 		registry.register(cmd);
-		const result = await registry.execute('throw-string', {});
-		expect(result.success).toBe(false);
-		expect(result.error?.message).toBe('string error');
+		const hidden = await registry.execute('throw-string', {});
+		expect(hidden.success).toBe(false);
+		expect(hidden.error?.message).toBe('An internal error occurred');
+
+		const devRegistry = createCommandRegistry({ devMode: true });
+		devRegistry.register(cmd);
+		const shown = await devRegistry.execute('throw-string', {});
+		expect(shown.error?.message).toBe('string error');
+		expect(shown.error?.details).toBeUndefined();
+	});
+
+	it('truncates long unknown names in COMMAND_NOT_FOUND', async () => {
+		const registry = createCommandRegistry();
+		const result = await registry.execute('x'.repeat(10_000), {});
+		expect(result.error?.code).toBe('COMMAND_NOT_FOUND');
+		expect(result.error?.message.length).toBeLessThan(200);
 	});
 });
 
@@ -890,5 +934,20 @@ describe('commandToMcpTool', () => {
 		const prop = tool.inputSchema.properties.format;
 		expect(prop?.default).toBe('json');
 		expect(prop?.enum).toEqual(['json', 'csv']);
+	});
+
+	it('accepts the integer type emitted by Zod for z.number().int()', () => {
+		const cmd: CommandDefinition = {
+			name: 'page-get',
+			description: 'test',
+			parameters: [{ name: 'limit', type: 'integer', description: 'Page size', default: 20 }],
+			handler: async () => success(null),
+		};
+
+		expect(commandToMcpTool(cmd).inputSchema.properties.limit).toEqual({
+			type: 'integer',
+			description: 'Page size',
+			default: 20,
+		});
 	});
 });

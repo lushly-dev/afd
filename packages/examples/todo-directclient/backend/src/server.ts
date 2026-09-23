@@ -9,12 +9,7 @@
  *   node dist/server.js
  */
 
-import type { ZodCommandDefinition } from '@lushly-dev/afd-server';
-import {
-	createLoggingMiddleware,
-	createMcpServer,
-	getBootstrapCommands,
-} from '@lushly-dev/afd-server';
+import { createLoggingMiddleware, createMcpServer } from '@lushly-dev/afd-server';
 import { allCommands } from './commands/index.js';
 
 // Configuration from environment
@@ -28,16 +23,12 @@ const DEV_MODE = process.env.NODE_ENV === 'development';
  * Create and configure the MCP server.
  */
 function createServer() {
-	// Combine app commands with bootstrap tools
-	const bootstrapCommands = getBootstrapCommands(
-		() => allCommands as unknown as import('@lushly-dev/afd-core').CommandDefinition[]
-	) as unknown as ZodCommandDefinition[];
-	const allServerCommands = [...allCommands, ...bootstrapCommands];
-
 	return createMcpServer({
 		name: 'todo-experiment',
 		version: '0.1.0',
-		commands: allServerCommands,
+		commands: allCommands,
+		// Adds the afd-help, afd-docs and afd-schema bootstrap tools
+		bootstrap: true,
 		port: PORT,
 		host: HOST,
 		devMode: DEV_MODE,

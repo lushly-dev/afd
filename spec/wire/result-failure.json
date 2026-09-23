@@ -1,0 +1,17 @@
+{
+	"success": false,
+	"error": {
+		"code": "NOT_FOUND",
+		"message": "Todo todo-42 not found",
+		"suggestion": "Use todo-list to see available todos",
+		"retryable": false,
+		"details": {
+			"id": "todo-42"
+		}
+	},
+	"metadata": {
+		"executionTimeMs": 0,
+		"commandVersion": "1.0.0",
+		"traceId": "trace-fixture"
+	}
+}

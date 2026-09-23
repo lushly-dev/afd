@@ -19,6 +19,7 @@ Example:
 
 from dataclasses import dataclass, field
 from typing import (
+    Annotated,
     Any,
     AsyncIterator,
     Callable,
@@ -30,10 +31,11 @@ from typing import (
     Union,
 )
 
-from pydantic import BaseModel, Field
+from pydantic import Field, TypeAdapter
 
 from afd.core.errors import CommandError
 from afd.core.result import ResultMetadata
+from afd.core.wire import WireModel
 
 T = TypeVar("T")
 
@@ -43,7 +45,7 @@ T = TypeVar("T")
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class ProgressChunk(BaseModel):
+class ProgressChunk(WireModel):
     """Progress update chunk.
 
     Emitted during long-running operations to show progress.
@@ -52,6 +54,8 @@ class ProgressChunk(BaseModel):
         type: Discriminator for chunk type.
         progress: Progress percentage (0-1).
         message: Human-readable progress message.
+        current_step: Current step number, for step-based operations.
+        total_steps: Total number of steps, for step-based operations.
         items_processed: Number of items processed so far.
         items_total: Total number of items to process.
         estimated_time_remaining_ms: Estimated time remaining in milliseconds.
@@ -67,13 +71,15 @@ class ProgressChunk(BaseModel):
     type: Literal["progress"] = "progress"
     progress: float = Field(ge=0, le=1)
     message: Optional[str] = None
+    current_step: Optional[int] = Field(default=None, ge=0)
+    total_steps: Optional[int] = Field(default=None, ge=0)
     items_processed: Optional[int] = Field(default=None, ge=0)
     items_total: Optional[int] = Field(default=None, ge=0)
     estimated_time_remaining_ms: Optional[int] = Field(default=None, ge=0)
     phase: Optional[str] = None
 
 
-class DataChunk(BaseModel, Generic[T]):
+class DataChunk(WireModel, Generic[T]):
     """Data chunk containing partial results.
 
     Emitted as data becomes available, allowing incremental UI updates.
@@ -100,7 +106,7 @@ class DataChunk(BaseModel, Generic[T]):
     chunk_id: Optional[str] = None
 
 
-class CompleteChunk(BaseModel, Generic[T]):
+class CompleteChunk(WireModel, Generic[T]):
     """Completion chunk signaling successful stream end.
 
     Contains final summary and aggregated metadata.
@@ -130,7 +136,7 @@ class CompleteChunk(BaseModel, Generic[T]):
     metadata: Optional[ResultMetadata] = None
 
 
-class ErrorChunk(BaseModel):
+class ErrorChunk(WireModel):
     """Error chunk signaling stream failure.
 
     May be emitted mid-stream if an error occurs after some data has been sent.
@@ -166,13 +172,39 @@ class ErrorChunk(BaseModel):
 # Union type for all possible stream chunks
 StreamChunk = Union[ProgressChunk, DataChunk, CompleteChunk, ErrorChunk]
 
+_STREAM_CHUNK_ADAPTER: TypeAdapter[Any] = TypeAdapter(
+    Annotated[
+        Union[ProgressChunk, DataChunk[Any], CompleteChunk[Any], ErrorChunk],
+        Field(discriminator="type"),
+    ]
+)
+
+
+def parse_stream_chunk(value: Any) -> StreamChunk:
+    """Parse a stream chunk from its wire form (camelCase or snake_case keys).
+
+    Args:
+        value: A chunk dict as received from a stream, e.g. ``{"type": "data", ...}``.
+
+    Returns:
+        The matching ProgressChunk, DataChunk, CompleteChunk or ErrorChunk.
+
+    Raises:
+        pydantic.ValidationError: If the value is not a valid stream chunk.
+
+    Example:
+        >>> parse_stream_chunk({"type": "data", "data": 1, "index": 0, "isLast": True}).is_last
+        True
+    """
+    return _STREAM_CHUNK_ADAPTER.validate_python(value)
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # STREAM OPTIONS
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class StreamOptions(BaseModel):
+class StreamOptions(WireModel):
     """Options for stream execution.
 
     Note: Python uses ``asyncio.timeout()`` natively instead of AbortSignal.
@@ -216,7 +248,7 @@ class StreamCallbacks(Generic[T]):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class StreamableCommand(BaseModel):
+class StreamableCommand(WireModel):
     """Marker interface for commands that support streaming.
 
     Attributes:
@@ -247,6 +279,8 @@ def create_progress_chunk(
     progress: float,
     *,
     message: Optional[str] = None,
+    current_step: Optional[int] = None,
+    total_steps: Optional[int] = None,
     items_processed: Optional[int] = None,
     items_total: Optional[int] = None,
     estimated_time_remaining_ms: Optional[int] = None,
@@ -257,6 +291,8 @@ def create_progress_chunk(
     Args:
         progress: Progress percentage (clamped to 0-1).
         message: Human-readable progress message.
+        current_step: Current step number, for step-based operations.
+        total_steps: Total number of steps, for step-based operations.
         items_processed: Number of items processed so far.
         items_total: Total number of items to process.
         estimated_time_remaining_ms: Estimated time remaining in ms.
@@ -279,6 +315,8 @@ def create_progress_chunk(
     return ProgressChunk(
         progress=clamped,
         message=message,
+        current_step=current_step,
+        total_steps=total_steps,
         items_processed=items_processed,
         items_total=items_total,
         estimated_time_remaining_ms=estimated_time_remaining_ms,

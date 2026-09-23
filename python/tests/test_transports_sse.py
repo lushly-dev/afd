@@ -13,17 +13,17 @@ from afd.transports.sse import SseTransport
 class TestSseUrlDerivation:
     """Tests for message URL derivation on SSE transport."""
 
-    def test_sse_url_becomes_messages_endpoint(self):
+    def test_sse_url_becomes_message_endpoint(self):
         t = SseTransport("http://localhost:3100/sse")
-        assert t._message_url == "http://localhost:3100/messages/"
+        assert t._message_url == "http://localhost:3100/message"
 
-    def test_bare_url_gets_messages_endpoint(self):
+    def test_bare_url_gets_message_endpoint(self):
         t = SseTransport("http://localhost:3100")
-        assert t._message_url == "http://localhost:3100/messages/"
+        assert t._message_url == "http://localhost:3100/message"
 
-    def test_legacy_message_url_normalizes_to_messages_endpoint(self):
+    def test_message_url_is_kept(self):
         t = SseTransport("http://localhost:3100/message")
-        assert t._message_url == "http://localhost:3100/messages/"
+        assert t._message_url == "http://localhost:3100/message"
 
 
 class TestSseTransportState:

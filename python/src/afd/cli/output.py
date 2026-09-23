@@ -31,7 +31,9 @@ def print_result(result: CommandResult[Any], *, json_output: bool = False) -> No
     import json
 
     if json_output:
-        console.print(json.dumps(result, indent=2, default=str))
+        from afd.core.wire import to_wire
+
+        console.print(json.dumps(to_wire(result), indent=2))
         return
 
     # Handle both dict and CommandResult objects

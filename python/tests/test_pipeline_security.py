@@ -196,9 +196,17 @@ class TestAfdPipeVariableResolution:
 
 
 class TestGetNestedValueRules:
-    def test_underscore_segments_resolve_to_none_even_for_dict_keys(self):
-        assert get_nested_value({"_private": 1, "public": {"_x": 2}}, "_private") is None
-        assert get_nested_value({"public": {"_x": 2}}, "public._x") is None
+    def test_double_underscore_segments_resolve_to_none_even_for_dict_keys(self):
+        data = {"__private": 1, "public": {"__x": 2, "__proto__": 3}}
+        assert get_nested_value(data, "__private") is None
+        assert get_nested_value(data, "public.__x") is None
+        assert get_nested_value(data, "public.__proto__") is None
+
+    def test_single_underscore_keys_are_ordinary_json_keys(self):
+        # The spec only blocks segments that start with "__".
+        data = {"_id": "a1", "public": {"_x": 2}}
+        assert get_nested_value(data, "_id") == "a1"
+        assert get_nested_value(data, "public._x") == 2
 
     def test_dataclass_is_read_as_data(self):
         @dataclasses.dataclass
@@ -240,8 +248,8 @@ class TestDirectClientPipeResolution:
             [
                 {"command": "profile-get", "as": "profile"},
                 {"command": "text-echo", "input": {"text": f"$prev.{GLOBALS_PATH}"}},
-                {"command": "text-echo", "input": {"text": f"$profile.{GLOBALS_PATH}"}},
-                {"command": "text-echo", "input": {"text": "$profile.name"}},
+                {"command": "text-echo", "input": {"text": f"$steps.profile.{GLOBALS_PATH}"}},
+                {"command": "text-echo", "input": {"text": "$steps.profile.name"}},
             ]
         )
 

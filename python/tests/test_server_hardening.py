@@ -254,8 +254,9 @@ class TestInputValidationErrors:
         result = await server.call_tool("todo-create", {"count": 2})
 
         assert result.error.code == "VALIDATION_ERROR"
-        assert result.error.details["missing_fields"] == ["title"]
-        assert result.error.details["expected_fields"] == ["title", "count"]
+        assert result.error.details["missingFields"] == ["title"]
+        assert result.error.details["expectedFields"] == ["title", "count"]
+        assert "missing_fields" not in result.error.details
         assert "Missing required field(s): title" in result.error.suggestion
 
     @pytest.mark.asyncio

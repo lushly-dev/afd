@@ -27,7 +27,7 @@ export {
 	assertSuccess,
 } from './assertions.js';
 // Mock server
-export { createMockServer, MockMcpServer } from './mock-server.js';
+export { createMockServer, MockMcpServer, type MockServerOptions } from './mock-server.js';
 // Test helpers
 export {
 	type CommandTestResult,

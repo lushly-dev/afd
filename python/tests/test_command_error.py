@@ -57,7 +57,7 @@ class TestSingleCommandErrorClass:
         result = failure(not_found_error("Todo", "42"))
 
         assert result.error.code == "NOT_FOUND"
-        assert result.error.details == {"resource_type": "Todo", "resource_id": "42"}
+        assert result.error.details == {"resourceType": "Todo", "resourceId": "42"}
 
     def test_cause_is_available_on_result_errors(self):
         result = failure(internal_error("Query failed", cause=ValueError("db down")))

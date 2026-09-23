@@ -5,11 +5,14 @@ on:
     branches: [main]
     paths:
       - 'packages/rust/**'
+      # tests/wire_fixtures.rs round-trips these golden fixtures.
+      - 'spec/wire/**'
       - '.github/workflows/rust.yml'
   pull_request:
     branches: [main]
     paths:
       - 'packages/rust/**'
+      - 'spec/wire/**'
       - '.github/workflows/rust.yml'
 
 permissions:

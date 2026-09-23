@@ -170,15 +170,12 @@ let err = CommandError::new(
     "Too many requests",
 ).with_suggestion("Wait 60 seconds before retrying");
 
-// With retryable flag
-let err = CommandError {
-    code: "TIMEOUT".to_string(),
-    message: "Request timed out".to_string(),
-    suggestion: Some("Try again in a few seconds".to_string()),
-    retryable: Some(true),
-    details: None,
-    cause: None,
-};
+// With retryable flag (CommandError is #[non_exhaustive]: use the builders)
+let err = CommandError::new("TIMEOUT", "Request timed out")
+    .with_suggestion("Try again in a few seconds")
+    .with_retryable(true);
+
+// CommandError implements Display ("TIMEOUT: Request timed out") and std::error::Error
 ```
 
 ## Command Definition
@@ -312,25 +309,21 @@ let result = registry.execute(
 ```rust
 use afd::{BatchRequest, BatchCommand, BatchOptions};
 
-// Create batch request
-let request = BatchRequest {
-    commands: vec![
-        BatchCommand::new("1", "todo-create", serde_json::json!({"title": "First"})),
-        BatchCommand::new("2", "todo-create", serde_json::json!({"title": "Second"})),
-    ],
-    options: BatchOptions {
-        continue_on_error: true,
-        max_concurrency: Some(4),
-        ..Default::default()
-    },
-    context: None,
-};
+// Create batch request. Every command runs unless stopOnError is set;
+// commands without an ID are reported as `cmd-<index>`.
+let request = BatchRequest::new(vec![
+    BatchCommand::new("todo-create", serde_json::json!({"title": "First"})).with_id("first"),
+    BatchCommand::new("todo-create", serde_json::json!({"title": "Second"})),
+])
+.with_options(BatchOptions::new().with_parallelism(4).with_timeout(5_000.0));
 
-// Execute batch
+// Execute batch. `result.success` is true whenever the batch ran, even if some
+// commands failed; a panicking handler becomes an INTERNAL_ERROR for that command.
 let result = registry.execute_batch(request).await;
 
-println!("Succeeded: {}", result.summary.succeeded);
-println!("Failed: {}", result.summary.failed);
+println!("Succeeded: {}", result.summary.success_count);
+println!("Failed: {}", result.summary.failure_count);
+println!("Skipped: {}", result.summary.skipped_count);
 ```
 
 ## Streaming Results
@@ -342,20 +335,23 @@ use afd::{
 };
 use afd::CommandError;
 
-// Progress update
-let progress = create_progress_chunk(50.0, "Processing items...");
+// Progress update (a 0-1 fraction)
+let progress = create_progress_chunk(0.5, "Processing items...");
 
-// Partial data
-let data = create_data_chunk(partial_result, false);
+// Partial data: (data, index, is_last)
+let data = create_data_chunk(partial_result, 0, false);
 
 // Final data
-let final_data = create_data_chunk(complete_result, true);
+let final_data = create_data_chunk(complete_result, 1, true);
 
-// Completion
-let complete = create_complete_chunk(final_result, Some(1500));
+// Completion: (total_chunks, total_duration_ms), then optional data/reasoning/confidence
+let complete = create_complete_chunk(2, 1500.0).with_data(final_result);
 
-// Error during streaming
-let error = create_error_chunk(CommandError::internal("Stream interrupted"), false);
+// Error during streaming: (error, chunks_before_error, recoverable)
+let error = create_error_chunk(CommandError::internal("Stream interrupted"), 2, false);
+
+// Every chunk serializes with its `type` discriminator; wrap with `.into()` for StreamChunk
+let chunk: StreamChunk = progress.into();
 ```
 
 ## Metadata Types
@@ -381,14 +377,11 @@ Status clarity for cross-language planning:
 ```rust
 use afd::{Warning, WarningSeverity, create_warning};
 
+// Severity defaults to WarningSeverity::Warning (info | warning | caution)
 let warning = create_warning("DEPRECATION", "This field is deprecated", None);
 
-let warning = Warning {
-    code: "PERMANENT".to_string(),
-    message: "This action cannot be undone".to_string(),
-    severity: Some(WarningSeverity::High),
-    context: None,
-};
+let warning = Warning::new("PERMANENT", "This action cannot be undone")
+    .with_severity(WarningSeverity::Caution);
 ```
 
 ### Sources
@@ -396,16 +389,14 @@ let warning = Warning {
 ```rust
 use afd::{Source, SourceType, create_source};
 
-let source = create_source("API Response", SourceType::Api, None);
+// Serializes as {"type": "api", "title": "API Response"}
+let source = create_source(SourceType::Api, Some("API Response"), None);
 
-let source = Source {
-    name: "User Database".to_string(),
-    source_type: SourceType::Database,
-    url: Some("postgres://...".to_string()),
-    accessed_at: None,
-    relevance: Some(0.99),
-    snippet: None,
-};
+let source = Source::new(SourceType::Database)
+    .with_id("users")
+    .with_title("User Database")
+    .with_location("users table")
+    .with_relevance(0.99);
 ```
 
 ### Plan Steps
@@ -413,11 +404,31 @@ let source = Source {
 ```rust
 use afd::{PlanStep, PlanStepStatus, create_step, update_step_status};
 
-let step = create_step(1, "Validate input", PlanStepStatus::Pending);
+// (id, action, description)
+let step = create_step("validate", "validate", Some("Validate input"));
 
-let mut step = PlanStep::new(1, "Process data");
-update_step_status(&mut step, PlanStepStatus::Running, None, None);
-update_step_status(&mut step, PlanStepStatus::Completed, Some(120), None);
+let mut step = PlanStep::new("process", "transform").with_depends_on(vec!["validate".into()]);
+update_step_status(&mut step, PlanStepStatus::InProgress, None);
+update_step_status(&mut step, PlanStepStatus::Complete, Some(serde_json::json!({"rows": 3})));
+```
+
+### Pipelines
+
+Variable references follow `spec/pipeline-variables.md`: `$prev`, `$first`, `$steps[N]`,
+`$steps.<alias>`, `$input` (from `PipelineRequest.input`, never the host context), each with an
+optional path. Other `$` strings are literals; `$$` escapes. Unresolved references are omitted
+from objects and `null` in arrays; inputs deeper than 64 levels are rejected.
+
+```rust
+use afd::{PipelineRequest, PipelineStep, execute_pipeline};
+
+let request = PipelineRequest::new(vec![
+    PipelineStep::new("user-get").with_input(serde_json::json!({"id": "$input.userId"})).with_alias("user"),
+    PipelineStep::new("order-list").with_input(serde_json::json!({"userId": "$steps.user.id"})),
+])
+.with_input(serde_json::json!({"userId": 7}));
+
+let result = execute_pipeline(&request, &executor, None).await;
 ```
 
 ## JSON Serialization

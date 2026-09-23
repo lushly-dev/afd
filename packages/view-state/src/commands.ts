@@ -1,6 +1,21 @@
-import { defineCommand, failure, success } from '@lushly-dev/afd-server';
+/**
+ * @fileoverview View-state AFD commands: `@lushly-dev/afd-view-state/commands`.
+ *
+ * Imports `defineCommand` from `@lushly-dev/afd-server/define`, which loads
+ * neither the MCP SDK nor any Node.js builtin, so this module can run in the
+ * browser next to the UI it controls.
+ */
+
+import {
+	defineCommand,
+	type ExposeOptions,
+	failure,
+	success,
+	type ZodCommandDefinition,
+} from '@lushly-dev/afd-server/define';
 import { z } from 'zod';
 import type { ViewStateRegistry } from './registry.js';
+import type { ViewStateEntry } from './types.js';
 
 const stateSchema = z.record(z.string(), z.unknown());
 
@@ -9,23 +24,99 @@ const viewStateEntrySchema = z.object({
 	state: stateSchema,
 });
 
+const getInput = z.object({
+	id: z.string().describe('The registered view state ID'),
+});
+
+const setInput = z.object({
+	id: z.string().describe('The registered view state ID'),
+	state: stateSchema.describe('Partial state to merge'),
+	replace: z
+		.boolean()
+		.optional()
+		.describe('Replace the complete state; requires a handler with replace support'),
+});
+
+const listInput = z.object({});
+
+/** Data returned by `view-state-set`. */
+export interface ViewStateSetResult {
+	id: string;
+	state: Record<string, unknown>;
+	previous: Record<string, unknown>;
+}
+
+/** Data returned by `view-state-list`. */
+export interface ViewStateListResult {
+	states: ViewStateEntry[];
+	total: number;
+}
+
+/** The `view-state-get` command. */
+export type ViewStateGetCommand = ZodCommandDefinition<typeof getInput, ViewStateEntry>;
+/** The `view-state-set` command. */
+export type ViewStateSetCommand = ZodCommandDefinition<typeof setInput, ViewStateSetResult>;
+/** The `view-state-list` command. */
+export type ViewStateListCommand = ZodCommandDefinition<typeof listInput, ViewStateListResult>;
+
+/**
+ * The commands returned by {@link createViewStateCommands}, in a fixed order,
+ * so callers can destructure them with their exact types:
+ *
+ * ```ts
+ * const [viewStateGet, viewStateSet, viewStateList] = createViewStateCommands(registry);
+ * ```
+ *
+ * It is still an array, so it can be passed or spread wherever a
+ * `ZodCommandDefinition[]` is expected.
+ */
+export type ViewStateCommands = [
+	viewStateGet: ViewStateGetCommand,
+	viewStateSet: ViewStateSetCommand,
+	viewStateList: ViewStateListCommand,
+];
+
+/** Options for {@link createViewStateCommands}. */
+export interface ViewStateCommandsOptions {
+	/**
+	 * Interfaces the three commands are exposed to, set as each command's
+	 * `expose`. Omitted, the commands keep `defaultExpose`: command palette and
+	 * in-app agent, but not MCP or CLI. Pass `{ mcp: true }` to list them as
+	 * MCP tools.
+	 */
+	expose?: ExposeOptions;
+}
+
 /**
  * Creates the 3 AFD commands for view state management.
  *
  * - `view-state-get` — read current state for a UI surface
  * - `view-state-set` — apply partial or complete state (with capability-aware undo)
  * - `view-state-list` — list all registered view states
+ *
+ * @example
+ * ```ts
+ * import { createMcpServer } from '@lushly-dev/afd-server';
+ * import { createViewStateCommands } from '@lushly-dev/afd-view-state/commands';
+ *
+ * const commands = createViewStateCommands(registry, { expose: { mcp: true } });
+ * createMcpServer({ name: 'my-app', version: '1.0.0', commands });
+ * ```
  */
-export function createViewStateCommands(registry: ViewStateRegistry) {
-	const viewStateGet = defineCommand({
+export function createViewStateCommands(
+	registry: ViewStateRegistry,
+	options: ViewStateCommandsOptions = {}
+): ViewStateCommands {
+	const { expose } = options;
+
+	const viewStateGet = defineCommand<typeof getInput, ViewStateEntry>({
 		name: 'view-state-get',
 		description: 'Get the current view state for a registered UI surface',
 		category: 'view-state',
 		mutation: false,
 		executionTime: 'instant',
-		input: z.object({
-			id: z.string().describe('The registered view state ID'),
-		}),
+		expose,
+		input: getInput,
 		output: viewStateEntrySchema,
 		examples: [{ title: 'Get panel state', input: { id: 'design-panel' } }],
 
@@ -48,20 +139,14 @@ export function createViewStateCommands(registry: ViewStateRegistry) {
 		},
 	});
 
-	const viewStateSet = defineCommand({
+	const viewStateSet = defineCommand<typeof setInput, ViewStateSetResult>({
 		name: 'view-state-set',
 		description: 'Apply partial or complete state to a registered UI surface',
 		category: 'view-state',
 		mutation: true,
 		executionTime: 'instant',
-		input: z.object({
-			id: z.string().describe('The registered view state ID'),
-			state: stateSchema.describe('Partial state to merge'),
-			replace: z
-				.boolean()
-				.optional()
-				.describe('Replace the complete state; requires a handler with replace support'),
-		}),
+		expose,
+		input: setInput,
 		output: z.object({
 			id: z.string(),
 			state: stateSchema,
@@ -125,13 +210,14 @@ export function createViewStateCommands(registry: ViewStateRegistry) {
 		},
 	});
 
-	const viewStateList = defineCommand({
+	const viewStateList = defineCommand<typeof listInput, ViewStateListResult>({
 		name: 'view-state-list',
 		description: 'List all registered UI view states',
 		category: 'view-state',
 		mutation: false,
 		executionTime: 'instant',
-		input: z.object({}),
+		expose,
+		input: listInput,
 		output: z.object({
 			states: z.array(viewStateEntrySchema),
 			total: z.number(),

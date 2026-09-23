@@ -425,7 +425,11 @@ export interface RateLimitOptions {
 	/** Maximum distinct active clients retained (default: 10000). New keys are rejected at capacity. */
 	maxKeys?: number;
 
-	/** Key function to identify clients (defaults to 'global') */
+	/**
+	 * Key function to identify clients (defaults to 'global': one budget shared by everyone).
+	 * Key on a caller identity, such as a value set by the server's `createContext` option.
+	 * Do not key on `traceId`, which is unique per call and never limits.
+	 */
 	keyFn?: (context: CommandContext) => string;
 }
 
@@ -436,11 +440,16 @@ export interface RateLimitOptions {
  * ```typescript
  * const server = createMcpServer({
  *   // ...
+ *   transport: 'http',
+ *   // Identify the caller per HTTP request: an authenticated user, else the socket address.
+ *   createContext: (req) => ({
+ *     clientId: authenticate(req)?.userId ?? req.socket.remoteAddress ?? 'unknown',
+ *   }),
  *   middleware: [
  *     createRateLimitMiddleware({
  *       maxRequests: 100,
- *       windowMs: 60_000, // 100 requests per minute
- *       keyFn: (ctx) => ctx.traceId ?? 'global',
+ *       windowMs: 60_000, // 100 requests per minute, per client
+ *       keyFn: (ctx) => String(ctx.clientId ?? 'unknown'),
  *     }),
  *   ],
  * });

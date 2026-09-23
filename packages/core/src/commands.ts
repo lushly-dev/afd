@@ -6,13 +6,7 @@
  * is defined as a command with a clear schema.
  */
 
-import type {
-	BatchCommand,
-	BatchCommandResult,
-	BatchRequest,
-	BatchResult,
-	BatchTiming,
-} from './batch.js';
+import type { BatchRequest, BatchResult } from './batch.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMMAND NAME VALIDATION
@@ -46,10 +40,14 @@ export function validateCommandName(name: string): { valid: boolean; reason?: st
 	return { valid: true };
 }
 
-import { createBatchResult, createFailedBatchResult } from './batch.js';
+import {
+	executeBatch as executeCoreBatch,
+	executeStream as executeCoreStream,
+	executionFailure,
+} from './command-execution.js';
 import type { CommandResult } from './result.js';
+import { truncateName } from './similarity.js';
 import type { StreamChunk, StreamOptions } from './streaming.js';
-import { createCompleteChunk, createErrorChunk } from './streaming.js';
 
 /**
  * Controls which interfaces a command is exposed to.
@@ -74,14 +72,28 @@ export const defaultExpose: Readonly<ExposeOptions> = Object.freeze({
 });
 
 /**
+ * Whether a command is exposed to an interface.
+ *
+ * Each flag a command's `expose` leaves out falls back to {@link defaultExpose}, so
+ * `expose: { mcp: true }` keeps the default agent and palette exposure.
+ */
+export function isExposedTo(
+	command: { expose?: ExposeOptions },
+	interfaceType: keyof ExposeOptions
+): boolean {
+	return (command.expose?.[interfaceType] ?? defaultExpose[interfaceType]) === true;
+}
+
+/**
  * JSON Schema 7 subset for command parameter validation.
  *
  * Includes composition keywords (`oneOf`, `anyOf`, `allOf`) needed for
  * discriminated unions, non-discriminated unions, and intersections.
- * These are produced by `zod-to-json-schema` with `target: 'jsonSchema7'`.
+ * These are produced by Zod's `z.toJSONSchema()` with `target: 'draft-7'`,
+ * which emits `'integer'` for `z.number().int()`.
  */
 export interface JsonSchema {
-	type: 'string' | 'number' | 'boolean' | 'object' | 'array' | 'null';
+	type: 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array' | 'null';
 	description?: string;
 	/** For object schemas, array of required property names */
 	required?: string[] | boolean;
@@ -383,26 +395,39 @@ export interface CommandRegistry {
 	 * even if some fail. Confidence is aggregated from success ratio
 	 * and individual command confidence scores.
 	 *
+	 * The envelope is validated before any command runs (a malformed or empty
+	 * batch returns `INVALID_BATCH_REQUEST`), `options.timeout` is enforced as a
+	 * deadline at any `parallelism`, and every entry runs through `execute()`
+	 * with `context`, so exposure checks apply to each entry.
+	 *
 	 * @param request - Batch request containing commands and options
+	 * @param context - Context passed to every command (e.g. `interface`, `signal`, `traceId`)
 	 * @returns BatchResult with all command results and aggregated metrics
 	 */
-	executeBatch<TOutput = unknown>(request: BatchRequest): Promise<BatchResult<TOutput>>;
+	executeBatch<TOutput = unknown>(
+		request: BatchRequest,
+		context?: CommandContext
+	): Promise<BatchResult<TOutput>>;
 
 	/**
 	 * Execute a command that yields streaming results.
 	 *
 	 * Returns an AsyncGenerator that yields StreamChunks (progress, data,
 	 * complete, or error). Use for long-running operations or large results.
+	 * The command runs through `execute()` with `context`, so exposure checks
+	 * apply.
 	 *
 	 * @param name - Command name
 	 * @param input - Command input
 	 * @param options - Stream options including AbortSignal for cancellation
+	 * @param context - Context passed to the command (e.g. `interface`); `options.signal` takes precedence over `context.signal`
 	 * @returns AsyncGenerator yielding StreamChunks
 	 */
 	executeStream<TOutput = unknown>(
 		name: string,
 		input: unknown,
-		options?: StreamOptions
+		options?: StreamOptions,
+		context?: CommandContext
 	): AsyncGenerator<StreamChunk<TOutput>, void, unknown>;
 }
 
@@ -411,10 +436,27 @@ export interface CommandRegistry {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Create a new command registry.
+ * Options for {@link createCommandRegistry}.
  */
-export function createCommandRegistry(): CommandRegistry {
+export interface CommandRegistryOptions {
+	/**
+	 * Include raw exception messages and stack traces in `COMMAND_EXECUTION_ERROR`
+	 * results. Default `false`, matching `devMode` in `createMcpServer()`.
+	 */
+	devMode?: boolean;
+}
+
+/**
+ * Create a new command registry.
+ *
+ * `execute`, `executeBatch` and `executeStream` share one execution path:
+ * batch and stream delegate to the core `executeBatch()` / `executeStream()`
+ * helpers with `execute()` as the callback, so exposure checks, the batch
+ * deadline and error redaction behave the same on every entry point.
+ */
+export function createCommandRegistry(options: CommandRegistryOptions = {}): CommandRegistry {
 	const commands = new Map<string, CommandDefinition>();
+	const devMode = options.devMode === true;
 
 	const registry: CommandRegistry = {
 		register(command) {
@@ -458,10 +500,7 @@ export function createCommandRegistry(): CommandRegistry {
 		},
 
 		listByExposure(interfaceType) {
-			return Array.from(commands.values()).filter((cmd) => {
-				const expose = cmd.expose ?? defaultExpose;
-				return expose[interfaceType] === true;
-			});
+			return Array.from(commands.values()).filter((cmd) => isExposedTo(cmd, interfaceType));
 		},
 
 		async execute<TOutput = unknown>(
@@ -475,7 +514,7 @@ export function createCommandRegistry(): CommandRegistry {
 					success: false,
 					error: {
 						code: 'COMMAND_NOT_FOUND',
-						message: `Command '${name}' not found`,
+						message: `Command '${truncateName(String(name))}' not found`,
 						suggestion: `Use 'afd tools' to see available commands`,
 					},
 				};
@@ -483,13 +522,13 @@ export function createCommandRegistry(): CommandRegistry {
 
 			// Check exposure if interface context is provided
 			if (context?.interface) {
-				const expose = command.expose ?? defaultExpose;
-				if (!expose[context.interface]) {
+				if (!isExposedTo(command, context.interface)) {
 					return {
 						success: false,
 						error: {
 							code: 'COMMAND_NOT_EXPOSED',
 							message: `Command '${name}' is not exposed to ${context.interface}`,
+							suggestion: `Call it from an interface it is exposed to, or set expose.${context.interface} to true in its definition`,
 							retryable: false,
 						},
 					};
@@ -500,299 +539,39 @@ export function createCommandRegistry(): CommandRegistry {
 				const result = await command.handler(input, context);
 				return result as CommandResult<TOutput>;
 			} catch (error) {
-				return {
-					success: false,
-					error: {
-						code: 'COMMAND_EXECUTION_ERROR',
-						message: error instanceof Error ? error.message : String(error),
-						suggestion: 'Check the input parameters and try again',
-						details: {
-							command: name,
-							error: error instanceof Error ? error.stack : undefined,
-						},
-					},
-				};
+				// Raw messages and stacks only in devMode, as in the MCP server.
+				return executionFailure(error, devMode);
 			}
 		},
 
-		async executeBatch<TOutput = unknown>(request: BatchRequest): Promise<BatchResult<TOutput>> {
-			const startedAt = new Date().toISOString();
-			const startTime = performance.now();
-
-			// Validate request
-			if (!request.commands || request.commands.length === 0) {
-				return createFailedBatchResult(
-					{
-						code: 'INVALID_BATCH_REQUEST',
-						message: 'Batch request must contain at least one command',
-						suggestion: 'Provide an array of commands to execute',
-					},
-					{ startedAt }
-				) as BatchResult<TOutput>;
-			}
-
-			const options = request.options ?? {};
-			const results: BatchCommandResult<TOutput>[] = [];
-			let stopped = false;
-
-			// Execute commands sequentially (or with parallelism if specified)
-			const parallelism = options.parallelism ?? 1;
-
-			if (parallelism === 1) {
-				// Sequential execution
-				for (let i = 0; i < request.commands.length; i++) {
-					const cmd = request.commands[i];
-					if (!cmd) continue;
-
-					if (stopped) {
-						// Mark remaining as skipped
-						results.push({
-							id: cmd.id ?? `cmd-${i}`,
-							index: i,
-							command: cmd.command,
-							result: {
-								success: false,
-								error: {
-									code: 'COMMAND_SKIPPED',
-									message: 'Command skipped due to previous error (stopOnError enabled)',
-								},
-							},
-							durationMs: 0,
-						});
-						continue;
-					}
-
-					const cmdStartTime = performance.now();
-
-					const result = await registry.execute<TOutput>(cmd.command, cmd.input);
-
-					const cmdDuration = performance.now() - cmdStartTime;
-
-					results.push({
-						id: cmd.id ?? `cmd-${i}`,
-						index: i,
-						command: cmd.command,
-						result,
-						durationMs: Math.round(cmdDuration * 100) / 100,
-					});
-
-					if (!result.success && options.stopOnError) {
-						stopped = true;
-					}
-
-					// Check timeout
-					if (options.timeout && performance.now() - startTime > options.timeout) {
-						// Mark remaining as skipped due to timeout
-						for (let j = i + 1; j < request.commands.length; j++) {
-							const remainingCmd = request.commands[j];
-							if (!remainingCmd) continue;
-							results.push({
-								id: remainingCmd.id ?? `cmd-${j}`,
-								index: j,
-								command: remainingCmd.command,
-								result: {
-									success: false,
-									error: {
-										code: 'BATCH_TIMEOUT',
-										message: `Batch timeout exceeded (${options.timeout}ms)`,
-										retryable: true,
-									},
-								},
-								durationMs: 0,
-							});
-						}
-						break;
-					}
-				}
-			} else {
-				// Parallel execution with limited concurrency
-				const executeCommand = async (
-					cmd: BatchCommand,
-					index: number
-				): Promise<BatchCommandResult<TOutput>> => {
-					const cmdStartTime = performance.now();
-					const result = await registry.execute<TOutput>(cmd.command, cmd.input);
-					const cmdDuration = performance.now() - cmdStartTime;
-
-					return {
-						id: cmd.id ?? `cmd-${index}`,
-						index,
-						command: cmd.command,
-						result,
-						durationMs: Math.round(cmdDuration * 100) / 100,
-					};
-				};
-
-				// Process in batches of `parallelism` size
-				for (let i = 0; i < request.commands.length; i += parallelism) {
-					const batch = request.commands.slice(i, i + parallelism);
-					const batchResults = await Promise.all(
-						batch.map((cmd, batchIndex) => executeCommand(cmd, i + batchIndex))
-					);
-					results.push(...batchResults);
-
-					// Check for stopOnError
-					if (options.stopOnError && batchResults.some((r) => !r.result.success)) {
-						stopped = true;
-						// Mark remaining as skipped
-						for (let j = i + parallelism; j < request.commands.length; j++) {
-							const remainingCmd = request.commands[j];
-							if (!remainingCmd) continue;
-							results.push({
-								id: remainingCmd.id ?? `cmd-${j}`,
-								index: j,
-								command: remainingCmd.command,
-								result: {
-									success: false,
-									error: {
-										code: 'COMMAND_SKIPPED',
-										message: 'Command skipped due to previous error (stopOnError enabled)',
-									},
-								},
-								durationMs: 0,
-							});
-						}
-						break;
-					}
-				}
-			}
-
-			const completedAt = new Date().toISOString();
-			const totalMs = performance.now() - startTime;
-
-			const timing: BatchTiming = {
-				totalMs: Math.round(totalMs * 100) / 100,
-				averageMs: results.length > 0 ? Math.round((totalMs / results.length) * 100) / 100 : 0,
-				startedAt,
-				completedAt,
-			};
-
-			return createBatchResult(results, timing, {
-				traceId: `batch-${Date.now()}`,
-			});
+		async executeBatch<TOutput = unknown>(
+			request: BatchRequest,
+			context: CommandContext = {}
+		): Promise<BatchResult<TOutput>> {
+			const result = await executeCoreBatch(
+				request,
+				(name, input, commandContext) => registry.execute(name, input, commandContext),
+				context,
+				{ devMode }
+			);
+			return result as BatchResult<TOutput>;
 		},
 
-		async *executeStream<TOutput = unknown>(
+		executeStream<TOutput = unknown>(
 			name: string,
 			input: unknown,
-			options?: StreamOptions
+			options?: StreamOptions,
+			context: CommandContext = {}
 		): AsyncGenerator<StreamChunk<TOutput>, void, unknown> {
-			const startTime = performance.now();
-			let chunksEmitted = 0;
-
-			// Check for abort before starting
-			if (options?.signal?.aborted) {
-				yield createErrorChunk(
-					{
-						code: 'STREAM_ABORTED',
-						message: 'Stream was aborted before starting',
-						retryable: true,
-					},
-					0,
-					true
-				);
-				return;
-			}
-
-			// Set up abort handler
-			let aborted = false;
-			const abortHandler = () => {
-				aborted = true;
-			};
-			options?.signal?.addEventListener('abort', abortHandler);
-
-			try {
-				// Execute the command
-				const result = await registry.execute<TOutput>(name, input, {
-					signal: options?.signal,
-				});
-
-				// Check if aborted during execution
-				if (aborted) {
-					yield createErrorChunk(
-						{
-							code: 'STREAM_ABORTED',
-							message: 'Stream was aborted during execution',
-							retryable: true,
-						},
-						chunksEmitted,
-						true
-					);
-					return;
-				}
-
-				if (!result.success) {
-					yield createErrorChunk(
-						result.error ?? {
-							code: 'COMMAND_FAILED',
-							message: 'Command execution failed',
-						},
-						chunksEmitted,
-						result.error?.retryable ?? false
-					);
-					return;
-				}
-
-				// For non-streamable commands, emit the result as a single data chunk
-				// followed by completion
-				const data = result.data;
-
-				// If result is an array, emit each item as a chunk
-				if (Array.isArray(data)) {
-					for (let i = 0; i < data.length; i++) {
-						if (aborted) {
-							yield createErrorChunk(
-								{
-									code: 'STREAM_ABORTED',
-									message: 'Stream was aborted',
-									retryable: true,
-								},
-								chunksEmitted,
-								true,
-								chunksEmitted
-							);
-							return;
-						}
-
-						yield {
-							type: 'data',
-							data: data[i] as TOutput,
-							index: i,
-							isLast: i === data.length - 1,
-						};
-						chunksEmitted++;
-					}
-				} else {
-					// Single result
-					yield {
-						type: 'data',
-						data: data as TOutput,
-						index: 0,
-						isLast: true,
-					};
-					chunksEmitted++;
-				}
-
-				// Emit completion
-				const totalDurationMs = performance.now() - startTime;
-				yield createCompleteChunk<TOutput>(chunksEmitted, totalDurationMs, {
-					confidence: result.confidence,
-					reasoning: result.reasoning,
-					metadata: result.metadata,
-				});
-			} catch (error) {
-				yield createErrorChunk(
-					{
-						code: 'STREAM_ERROR',
-						message: error instanceof Error ? error.message : String(error),
-						retryable: true,
-					},
-					chunksEmitted,
-					true
-				);
-			} finally {
-				options?.signal?.removeEventListener('abort', abortHandler);
-			}
+			const signal = options?.signal ?? context.signal;
+			return executeCoreStream<TOutput>(
+				name,
+				input,
+				(commandName, commandInput, commandContext) =>
+					registry.execute(commandName, commandInput, commandContext),
+				signal ? { ...context, signal } : context,
+				{ devMode }
+			);
 		},
 	};
 
@@ -842,8 +621,7 @@ export function commandToMcpTool(command: CommandDefinition): {
  * Check if a command is exposed to MCP.
  */
 export function isMcpExposed(command: Pick<CommandDefinition, 'expose'>): boolean {
-	const expose = command.expose ?? defaultExpose;
-	return expose.mcp === true;
+	return isExposedTo(command, 'mcp');
 }
 
 /**

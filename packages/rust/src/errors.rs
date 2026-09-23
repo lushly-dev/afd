@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fmt::Display;
+use std::fmt::{self, Display};
 
 /// Standard error structure for command failures.
 ///
@@ -16,17 +16,14 @@ use std::fmt::Display;
 /// ```rust
 /// use afd::CommandError;
 ///
-/// let error = CommandError {
-///     code: "RATE_LIMITED".to_string(),
-///     message: "API rate limit exceeded".to_string(),
-///     suggestion: Some("Wait 60 seconds and try again".to_string()),
-///     retryable: Some(true),
-///     details: None,
-///     cause: None,
-/// };
+/// let error = CommandError::new("RATE_LIMITED", "API rate limit exceeded")
+///     .with_suggestion("Wait 60 seconds and try again")
+///     .with_retryable(true);
+/// assert_eq!(error.to_string(), "RATE_LIMITED: API rate limit exceeded");
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct CommandError {
     /// Machine-readable error code.
     ///
@@ -66,6 +63,20 @@ pub struct CommandError {
     pub cause: Option<Box<CommandError>>,
 }
 
+impl fmt::Display for CommandError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.code, self.message)
+    }
+}
+
+impl std::error::Error for CommandError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.cause
+            .as_deref()
+            .map(|cause| cause as &(dyn std::error::Error + 'static))
+    }
+}
+
 impl CommandError {
     /// Create a new CommandError with standard fields.
     pub fn new(code: impl Into<String>, message: impl Into<String>) -> Self {
@@ -94,6 +105,12 @@ impl CommandError {
     /// Add details to the error.
     pub fn with_details(mut self, details: HashMap<String, serde_json::Value>) -> Self {
         self.details = Some(details);
+        self
+    }
+
+    /// Set the error that caused this one.
+    pub fn with_cause(mut self, cause: CommandError) -> Self {
+        self.cause = Some(Box::new(cause));
         self
     }
 
@@ -359,6 +376,15 @@ mod tests {
         assert_eq!(error.code, "CUSTOM_ERROR");
         assert_eq!(error.suggestion, Some("Try again later".to_string()));
         assert_eq!(error.retryable, Some(true));
+    }
+
+    #[test]
+    fn test_display_and_error_source() {
+        let error = CommandError::new("OUTER", "outer failed")
+            .with_cause(CommandError::new("INNER", "inner failed"));
+        assert_eq!(error.to_string(), "OUTER: outer failed");
+        let source = std::error::Error::source(&error).expect("cause is the source");
+        assert_eq!(source.to_string(), "INNER: inner failed");
     }
 
     #[test]

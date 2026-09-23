@@ -31,6 +31,7 @@ export {
 	type DirectClientOptions,
 	type DirectRegistry,
 	DirectTransport,
+	isUnknownToolError,
 	type UnknownToolError,
 } from './direct.js';
 // Built-in protocol handlers

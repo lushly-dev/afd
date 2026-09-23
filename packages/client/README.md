@@ -173,20 +173,28 @@ const client = createClient({
 
 ### Direct Transport (Zero Overhead)
 
-For co-located agents (same runtime as the application), use `createDirectClient` to bypass all transport overhead:
+For co-located agents (same runtime as the application), use `createDirectClient` to bypass all transport overhead. Build the registry with `createDirectRegistry` from `@lushly-dev/afd-server`: it runs each call through the same engine as the MCP server (Zod input validation, middleware, error sanitization) and only offers commands exposed to agents (`expose.agent`, on by default).
 
 ```typescript
-import { createDirectClient } from '@lushly-dev/afd-client';
-import { registry } from '@my-app/commands';
+import { isSuccess } from '@lushly-dev/afd-core';
+import { createDirectClient, isUnknownToolError } from '@lushly-dev/afd-client';
+import { createDirectRegistry } from '@lushly-dev/afd-server';
+import { commands } from '@my-app/commands';
 
 // Direct execution - ~0.03-0.1ms latency vs 2-10ms for MCP
-const client = createDirectClient(registry);
+const client = createDirectClient(createDirectRegistry(commands));
 
 const result = await client.call<Todo>('todo-create', { title: 'Fast!' });
-if (result.success) {
-  console.log('Created:', result.data.id);
+if (isUnknownToolError(result)) {
+  console.log(result.data?.hint); // "Did you mean 'todo-create'?"
+} else if (isSuccess(result)) {
+  console.log('Created:', result.data.id); // result is CommandResult<Todo>
 }
 ```
+
+`call<T>()` returns `CommandResult<T> | CommandResult<UnknownToolError>`, so
+`result.success` alone does not narrow it. Rule out the unknown-tool case with
+`isUnknownToolError(result)` first.
 
 **Performance comparison:**
 
@@ -202,16 +210,21 @@ if (result.success) {
 const client = createDirectClient(registry, {
   source: 'my-agent',      // Identifier propagated to handlers
   debug: true,             // Enable debug logging
-  validateInputs: true,    // Validate inputs against schemas (default: true)
+  validateInputs: true,    // Shallow checks for registries with getCommand() (default: true)
+  middleware: [],          // Client-side middleware, outside the registry's own
+  allow: (name) => name.startsWith('todo-'), // Others get COMMAND_NOT_ALLOWED
 });
 ```
 
-#### Context Propagation
+`allow` narrows what the client may call. Refused commands return a
+`COMMAND_NOT_ALLOWED` failure without reaching the registry, and are left out of
+`listCommands()`, `listCommandNames()` and `hasCommand()`.
 
-Pass context to individual calls for tracing and cancellation:
+#### Context Propagation and Timeouts
+
+Pass context to individual calls for tracing, cancellation and timeouts:
 
 ```typescript
-// Custom trace ID
 const result = await client.call('command', args, {
   traceId: 'custom-trace-123',
   timeout: 5000,
@@ -222,32 +235,34 @@ const result = await client.call('command', args, {
 // Handler receives: { traceId, source, timeout, signal, ... }
 ```
 
+`timeout` is enforced (per step in `pipe()`). When it passes, the `signal` the
+handler receives aborts (it combines your `signal` with the timeout), and the
+call resolves to a `TIMEOUT` failure even if the handler ignores the signal. The
+handler may still finish its work, so check a mutation's effect before retrying.
+
 #### Input Validation
 
-If your registry implements `getCommand()`, DirectClient validates inputs:
+`createDirectRegistry` validates every call with the command's Zod schema, so
+wrong types, nested objects and out-of-range values are rejected before the
+handler runs:
 
 ```typescript
-class MyRegistry implements DirectRegistry {
-  // ... other methods ...
-
-  getCommand(name: string): CommandDefinition | undefined {
-    return this.commands.get(name);
-  }
-}
-
-const client = createDirectClient(registry, { validateInputs: true });
-
-// Missing required parameter
-const result = await client.call('todo-create', {});
+const result = await client.call('todo-create', { title: { nested: true } });
 // Result: { success: false, error: { code: 'VALIDATION_ERROR', ... } }
 ```
 
+With a custom registry, DirectClient only performs shallow checks (required
+top-level fields, primitive types, enums), and only when the registry implements
+`getCommand()`.
+
 #### DirectRegistry Interface
 
-Your registry must implement:
+`createDirectRegistry` returns a compatible registry. A custom registry must
+implement the following, and is then responsible for its own validation and
+exposure checks:
 
 ```typescript
-import { DirectRegistry, CommandDefinition } from '@lushly-dev/afd-client';
+import type { CommandDefinition, DirectRegistry } from '@lushly-dev/afd-client';
 import type { CommandResult, CommandContext } from '@lushly-dev/afd-core';
 
 class MyRegistry implements DirectRegistry {
@@ -262,7 +277,7 @@ class MyRegistry implements DirectRegistry {
   listCommands(): Array<{ name: string; description: string }>;
   hasCommand(name: string): boolean;
 
-  // Optional - enables input validation
+  // Optional - enables DirectClient's shallow input checks
   getCommand?(name: string): CommandDefinition | undefined;
 }
 ```

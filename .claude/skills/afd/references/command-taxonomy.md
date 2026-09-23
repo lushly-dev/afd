@@ -26,7 +26,9 @@ defineCommand({
 
 ## Bootstrap Tools
 
-Every AFD MCP server exposes bootstrap tools for agent onboarding:
+`createMcpServer({ bootstrap: true })` registers bootstrap tools for agent onboarding (the
+context tools are registered when `contexts` is set). They are MCP-exposed and describe only
+MCP-exposed commands in the active context:
 
 | Tool | Description |
 |------|-------------|
@@ -38,6 +40,10 @@ Every AFD MCP server exposes bootstrap tools for agent onboarding:
 | `afd-context-exit` | Exit the current context (restores previous) |
 
 ```typescript
+import { createMcpServer } from '@lushly-dev/afd-server';
+const server = createMcpServer({ name: 'my-app', version: '1.0.0', commands, bootstrap: true });
+
+// Custom setups: the same tools as ZodCommandDefinitions with expose: { mcp: true }
 import { getBootstrapCommands } from '@lushly-dev/afd-server';
 const bootstrapCmds = getBootstrapCommands(() => myCommands);
 ```
@@ -70,7 +76,7 @@ createMcpServer({
 });
 ```
 
-- **grouped** (default): Commands consolidated by category (cleaner IDE UX)
+- **grouped** (default): Commands consolidated by category (cleaner IDE UX). Each grouped tool lists every action's schema and metadata in `_meta.actions` (small groups also inline them as `params.anyOf`), and `afd-detail` is listed
 - **individual**: Each command = separate MCP tool (more precise schemas)
 - **lazy**: Exposes 5 meta-tools (`afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`) — agents discover commands at runtime instead of seeing them all upfront. Best for large command sets (50+)
 
@@ -84,4 +90,4 @@ createMcpServer({
 | `afd-batch` | Execute multiple commands in one call |
 | `afd-pipe` | Execute commands as a pipeline with step references |
 
-`afd-call` is available in **all** strategies (not just lazy). `afd-discover` and `afd-detail` are lazy-only.
+`afd-call` is available in **all** strategies (not just lazy). `afd-discover` is listed only in lazy mode and `afd-detail` in lazy and grouped mode; both are routable in every strategy.

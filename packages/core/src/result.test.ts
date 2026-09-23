@@ -109,6 +109,22 @@ describe('isSuccess', () => {
 			expect(result.data.id).toBe('123');
 		}
 	});
+
+	it('treats a void command result as a success', () => {
+		const result = success(undefined);
+		expect(isSuccess(result)).toBe(true);
+		expect(isFailure(result)).toBe(false);
+		if (isSuccess(result)) {
+			const data: undefined = result.data;
+			expect(data).toBeUndefined();
+		}
+	});
+
+	it('depends only on success === true', () => {
+		expect(isSuccess({ success: true })).toBe(true);
+		expect(isSuccess({ success: true, data: null })).toBe(true);
+		expect(isSuccess({ success: false, data: 'stale' })).toBe(false);
+	});
 });
 
 describe('isFailure', () => {

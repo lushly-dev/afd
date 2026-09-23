@@ -4,18 +4,23 @@
 //! is defined as a command with a clear schema.
 
 use async_trait::async_trait;
-use futures_util::{stream::FuturesUnordered, StreamExt};
+use futures_util::{stream::FuturesUnordered, FutureExt, StreamExt};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::future::Future;
+use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
 
-use crate::batch::{BatchCommandResult, BatchRequest, BatchResult, BatchSummary, BatchTiming};
-use crate::errors::CommandError;
+use crate::batch::{
+    create_batch_result, create_failed_batch_result, BatchCommandResult, BatchRequest, BatchResult,
+    BatchTiming,
+};
+use crate::errors::{error_codes, CommandError};
 use crate::handoff::HandoffCommandLike;
-use crate::result::CommandResult;
+use crate::result::{failure, CommandResult, ResultMetadata};
 
 type BatchExecutionFuture<'a> =
     Pin<Box<dyn Future<Output = (usize, BatchCommandResult<serde_json::Value>)> + Send + 'a>>;
@@ -605,111 +610,108 @@ impl CommandRegistry {
         input: serde_json::Value,
         context: Option<CommandContext>,
     ) -> CommandResult<serde_json::Value> {
-        let command = match self.commands.get(name) {
-            Some(cmd) => cmd,
-            None => {
-                return CommandResult {
-                    success: false,
-                    data: None,
-                    error: Some(CommandError {
-                        code: "COMMAND_NOT_FOUND".to_string(),
-                        message: format!("Command '{}' not found", name),
-                        suggestion: Some("Use 'afd tools' to see available commands".to_string()),
-                        retryable: Some(false),
-                        details: None,
-                        cause: None,
-                    }),
-                    confidence: None,
-                    reasoning: None,
-                    sources: None,
-                    plan: None,
-                    alternatives: None,
-                    warnings: None,
-                    metadata: None,
-                };
-            }
+        let Some(command) = self.commands.get(name) else {
+            return failure(
+                CommandError::new(
+                    error_codes::COMMAND_NOT_FOUND,
+                    format!("Command '{name}' not found"),
+                )
+                .with_suggestion("Use 'afd tools' to see available commands")
+                .with_retryable(false),
+            );
         };
 
-        let ctx = context.unwrap_or_default();
-        command.execute(input, ctx).await
+        command.execute(input, context.unwrap_or_default()).await
     }
 
     /// Execute multiple commands in a batch.
+    ///
+    /// Uses partial success semantics, as in TypeScript: every command runs
+    /// unless `stopOnError` is set, and [`BatchResult::success`] is `true`
+    /// whenever the batch itself ran. It is `false` only for an invalid
+    /// request. A handler that panics produces an `INTERNAL_ERROR` result for
+    /// its own command; the other results are kept.
     pub async fn execute_batch(
         &self,
         request: BatchRequest<serde_json::Value>,
     ) -> BatchResult<serde_json::Value> {
-        let start_time = std::time::Instant::now();
+        let start_time = Instant::now();
         let started_at = chrono::Utc::now().to_rfc3339();
+        let invalid = |message: &str, suggestion: &str| {
+            create_failed_batch_result(
+                CommandError::new("INVALID_BATCH_REQUEST", message)
+                    .with_suggestion(suggestion)
+                    .with_retryable(false),
+                &started_at,
+            )
+        };
 
         if request.commands.is_empty() {
-            return BatchResult {
-                success: false,
-                results: vec![],
-                summary: BatchSummary::new(0, 0, 0, 0),
-                timing: BatchTiming {
-                    started_at,
-                    ended_at: Some(chrono::Utc::now().to_rfc3339()),
-                    total_ms: Some(0),
-                    average_ms: None,
-                },
-                warnings: None,
-                error: Some(CommandError {
-                    code: "INVALID_BATCH_REQUEST".to_string(),
-                    message: "Batch request must contain at least one command".to_string(),
-                    suggestion: Some("Provide an array of commands to execute".to_string()),
-                    retryable: Some(false),
-                    details: None,
-                    cause: None,
-                }),
-            };
+            return invalid(
+                "Batch request must contain at least one command",
+                "Provide an array of commands to execute",
+            );
         }
 
-        let options = request.options;
+        let options = request.options.unwrap_or_default();
+        if options
+            .timeout
+            .is_some_and(|timeout| !timeout.is_finite() || timeout < 0.0)
+        {
+            return invalid(
+                "Batch timeout must be a non-negative number",
+                "Set timeout to a non-negative number of milliseconds or omit it",
+            );
+        }
         #[cfg(not(feature = "native"))]
-        if options.timeout_ms.is_some() {
-            return crate::batch::create_failed_batch_result(
-                CommandError {
-                    code: "UNSUPPORTED_OPTION".to_string(),
-                    message: "Batch deadlines require the native feature".to_string(),
-                    suggestion: Some("Enable the native feature or omit timeoutMs".to_string()),
-                    retryable: Some(false),
-                    details: None,
-                    cause: None,
-                },
+        if options.timeout.is_some() {
+            return create_failed_batch_result(
+                CommandError::new(
+                    "UNSUPPORTED_OPTION",
+                    "Batch deadlines require the native feature",
+                )
+                .with_suggestion("Enable the native feature or omit timeout")
+                .with_retryable(false),
                 &started_at,
             );
         }
-        let concurrency = options.max_concurrency.unwrap_or(1);
-        if concurrency == 0 || options.max_failures == Some(0) {
-            return crate::batch::create_failed_batch_result(
-                CommandError {
-                    code: "INVALID_BATCH_REQUEST".to_string(),
-                    message: "Batch concurrency and maxFailures must be positive".to_string(),
-                    suggestion: Some(
-                        "Set maxConcurrency and maxFailures to values greater than zero"
-                            .to_string(),
-                    ),
-                    retryable: Some(false),
-                    details: None,
-                    cause: None,
-                },
-                &started_at,
+        let parallelism = options.parallelism.unwrap_or(1);
+        if parallelism == 0 || options.max_failures == Some(0) {
+            return invalid(
+                "Batch parallelism and maxFailures must be positive",
+                "Set parallelism and maxFailures to values greater than zero",
             );
         }
 
+        let batch_trace_id = format!("batch-{}", chrono::Utc::now().timestamp_millis());
         let total_commands = request.commands.len();
         let command_metadata: Vec<_> = request
             .commands
             .iter()
-            .map(|command| (command.id.clone(), command.command.clone()))
+            .enumerate()
+            .map(|(index, command)| {
+                (
+                    command.id.clone().unwrap_or_else(|| format!("cmd-{index}")),
+                    command.command.clone(),
+                )
+            })
             .collect();
-        let timeout_ms = options.timeout_ms;
-        let continue_on_error = options.continue_on_error;
+        let timeout_error = || {
+            CommandError::new(
+                "BATCH_TIMEOUT",
+                format!(
+                    "Batch timeout exceeded ({}ms)",
+                    options.timeout.unwrap_or(0.0)
+                ),
+            )
+            .with_suggestion("Increase timeout or reduce the number of batch commands")
+            .with_retryable(true)
+        };
+        let stop_on_error = options.stops_on_error();
         let max_failures = options.max_failures;
         let deadline = options
-            .timeout_ms
-            .map(|timeout| start_time + std::time::Duration::from_millis(timeout));
+            .timeout
+            .and_then(|timeout| deadline_after(start_time, timeout));
         let mut pending = request.commands.into_iter().enumerate();
         let mut active: FuturesUnordered<BatchExecutionFuture<'_>> = FuturesUnordered::new();
         let mut results: Vec<Option<BatchCommandResult<serde_json::Value>>> =
@@ -719,64 +721,42 @@ impl CommandRegistry {
         let mut timed_out = false;
 
         loop {
-            while !stopped && active.len() < concurrency {
+            while !stopped && active.len() < parallelism {
                 let Some((index, cmd)) = pending.next() else {
                     break;
                 };
-                let command_name = cmd.command.clone();
+                let (id, command_name) = command_metadata[index].clone();
+                let context =
+                    CommandContext::new().with_trace_id(format!("{batch_trace_id}-{index}"));
+                let timeout_error = &timeout_error;
                 active.push(Box::pin(async move {
-                    let command_start = std::time::Instant::now();
-                    let execution = self.execute(&command_name, cmd.input, None);
-                    let result = if let Some(deadline) = deadline {
-                        let remaining =
-                            deadline.saturating_duration_since(std::time::Instant::now());
-                        if remaining.is_zero() {
-                            None
-                        } else {
-                            #[cfg(feature = "native")]
-                            {
-                                tokio::time::timeout(remaining, execution).await.ok()
-                            }
-                            #[cfg(not(feature = "native"))]
-                            {
-                                Some(execution.await)
+                    let command_start = Instant::now();
+                    let name = command_name.clone();
+                    let execution = run_guarded(self.execute(&name, cmd.input, Some(context)));
+                    let result = match deadline {
+                        None => Some(execution.await),
+                        Some(deadline) => {
+                            let remaining = deadline.saturating_duration_since(Instant::now());
+                            if remaining.is_zero() {
+                                None
+                            } else {
+                                #[cfg(feature = "native")]
+                                {
+                                    tokio::time::timeout(remaining, execution).await.ok()
+                                }
+                                // Unreachable: deadlines are rejected above without `native`.
+                                #[cfg(not(feature = "native"))]
+                                {
+                                    Some(execution.await)
+                                }
                             }
                         }
-                    } else {
-                        Some(execution.await)
                     };
-                    let result = result.unwrap_or_else(|| CommandResult {
-                        success: false,
-                        data: None,
-                        error: Some(CommandError {
-                            code: "BATCH_TIMEOUT".to_string(),
-                            message: format!(
-                                "Batch timeout exceeded ({}ms)",
-                                timeout_ms.unwrap_or(0)
-                            ),
-                            suggestion: Some(
-                                "Increase timeoutMs or reduce the number of commands".to_string(),
-                            ),
-                            retryable: Some(true),
-                            details: None,
-                            cause: None,
-                        }),
-                        confidence: None,
-                        reasoning: None,
-                        sources: None,
-                        plan: None,
-                        alternatives: None,
-                        warnings: None,
-                        metadata: None,
-                    });
+                    let result = result.unwrap_or_else(|| failure(timeout_error()));
                     (
                         index,
-                        BatchCommandResult {
-                            id: cmd.id,
-                            command: command_name.clone(),
-                            result,
-                            duration_ms: Some(command_start.elapsed().as_millis() as u64),
-                        },
+                        BatchCommandResult::new(id, index, command_name, result)
+                            .with_duration(elapsed_ms(command_start)),
                     )
                 }));
             }
@@ -784,104 +764,93 @@ impl CommandRegistry {
             let Some((index, command_result)) = active.next().await else {
                 break;
             };
-            let is_timeout = command_result
-                .result
-                .error
-                .as_ref()
-                .map(|error| error.code.as_str())
-                == Some("BATCH_TIMEOUT");
             if !command_result.result.success {
                 failures += 1;
-                timed_out |= is_timeout;
+                timed_out |= command_result
+                    .result
+                    .error
+                    .as_ref()
+                    .is_some_and(|error| error.code == "BATCH_TIMEOUT");
                 stopped = timed_out
-                    || !continue_on_error
+                    || stop_on_error
                     || max_failures.is_some_and(|maximum| failures >= maximum);
             }
             results[index] = Some(command_result);
         }
 
-        for (index, result) in results.iter_mut().enumerate() {
-            if result.is_some() {
-                continue;
-            }
-            let code = if timed_out {
-                "BATCH_TIMEOUT"
-            } else {
-                "COMMAND_SKIPPED"
-            };
-            let (id, command) = &command_metadata[index];
-            *result = Some(BatchCommandResult {
-                id: id.clone(),
-                command: command.clone(),
-                result: CommandResult {
-                    success: false,
-                    data: None,
-                    error: Some(CommandError {
-                        code: code.to_string(),
-                        message: if timed_out {
-                            "Command did not start before the batch deadline".to_string()
-                        } else {
-                            "Command skipped because batch execution stopped after a failure"
-                                .to_string()
-                        },
-                        suggestion: Some(if timed_out {
-                            "Increase timeoutMs or reduce the number of commands".to_string()
-                        } else {
-                            "Enable continueOnError to execute remaining commands".to_string()
-                        }),
-                        retryable: Some(timed_out),
-                        details: None,
-                        cause: None,
-                    }),
-                    confidence: None,
-                    reasoning: None,
-                    sources: None,
-                    plan: None,
-                    alternatives: None,
-                    warnings: None,
-                    metadata: None,
-                },
-                duration_ms: Some(0),
-            });
-        }
-        let results: Vec<_> = results.into_iter().flatten().collect();
-
-        let total_ms = start_time.elapsed().as_millis() as u64;
-        let ended_at = chrono::Utc::now().to_rfc3339();
-
-        let total = results.len();
-        let succeeded = results.iter().filter(|r| r.result.success).count();
-        let skipped = results
-            .iter()
-            .filter(|result| {
-                result
-                    .result
-                    .error
-                    .as_ref()
-                    .map(|error| error.code.as_str())
-                    == Some("COMMAND_SKIPPED")
+        let results: Vec<_> = results
+            .into_iter()
+            .enumerate()
+            .map(|(index, result)| {
+                result.unwrap_or_else(|| {
+                    let (id, command) = command_metadata[index].clone();
+                    let error = if timed_out {
+                        timeout_error()
+                    } else {
+                        CommandError::new(
+                            "COMMAND_SKIPPED",
+                            "Command skipped because batch execution stopped after a failure",
+                        )
+                        .with_suggestion("Disable stopOnError to execute every command")
+                    };
+                    BatchCommandResult::new(id, index, command, failure(error))
+                })
             })
-            .count();
-        let failed = total - succeeded - skipped;
+            .collect();
 
-        BatchResult {
-            success: true,
+        let total_ms = elapsed_ms(start_time);
+        let average_ms = (total_ms / results.len() as f64 * 100.0).round() / 100.0;
+        create_batch_result(
             results,
-            summary: BatchSummary::new(total, succeeded, failed, skipped),
-            timing: BatchTiming {
-                started_at,
-                ended_at: Some(ended_at),
-                total_ms: Some(total_ms),
-                average_ms: if total > 0 {
-                    Some(total_ms / total as u64)
-                } else {
-                    None
-                },
-            },
-            warnings: None,
-            error: None,
-        }
+            BatchTiming::new(
+                started_at.clone(),
+                chrono::Utc::now().to_rfc3339(),
+                total_ms,
+                average_ms,
+            ),
+            Some(ResultMetadata::new().with_trace_id(batch_trace_id)),
+        )
     }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXECUTION HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Milliseconds since `start`, rounded to two decimals as in TypeScript.
+pub(crate) fn elapsed_ms(start: Instant) -> f64 {
+    (start.elapsed().as_secs_f64() * 100_000.0).round() / 100.0
+}
+
+/// The instant `timeout_ms` after `start`, or `None` when it is too far away
+/// to represent (effectively no deadline).
+pub(crate) fn deadline_after(start: Instant, timeout_ms: f64) -> Option<Instant> {
+    Duration::try_from_secs_f64(timeout_ms / 1000.0)
+        .ok()
+        .and_then(|timeout| start.checked_add(timeout))
+}
+
+/// The error reported in place of a result when a command handler panics.
+///
+/// The panic payload is not included: it may contain internal details.
+pub(crate) fn handler_panic_error() -> CommandError {
+    CommandError::new(error_codes::INTERNAL_ERROR, "The command handler panicked")
+        .with_suggestion(
+            "This is a bug in the command implementation. Report it, or retry with different input",
+        )
+        .with_retryable(false)
+}
+
+/// Run a command future, turning a panic into an `INTERNAL_ERROR` failure so
+/// one handler cannot abort a whole batch or pipeline.
+pub(crate) async fn run_guarded<F>(future: F) -> CommandResult<serde_json::Value>
+where
+    F: Future<Output = CommandResult<serde_json::Value>>,
+{
+    AssertUnwindSafe(future)
+        .catch_unwind()
+        .await
+        .unwrap_or_else(|_| failure(handler_panic_error()))
 }
 
 impl Default for CommandRegistry {
@@ -951,10 +920,44 @@ pub fn create_command_registry() -> CommandRegistry {
 mod tests {
     use super::*;
     use crate::batch::{BatchCommand, BatchOptions};
-    use crate::result::{failure, success};
+    use crate::result::success;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     struct TestHandler;
+
+    /// Panics when the input has `"panic": true`; otherwise echoes the input.
+    struct PanickingHandler;
+
+    #[async_trait]
+    impl CommandHandler for PanickingHandler {
+        async fn execute(
+            &self,
+            input: serde_json::Value,
+            _context: CommandContext,
+        ) -> CommandResult<serde_json::Value> {
+            if input.get("panic") == Some(&serde_json::Value::Bool(true)) {
+                panic!("handler bug");
+            }
+            success(input)
+        }
+    }
+
+    fn work_registry() -> (CommandRegistry, Arc<AtomicUsize>) {
+        let peak = Arc::new(AtomicUsize::new(0));
+        let mut registry = CommandRegistry::new();
+        registry
+            .register(CommandDefinition::new(
+                "work-run",
+                "Runs controlled work",
+                vec![],
+                ControlledHandler {
+                    active: Arc::new(AtomicUsize::new(0)),
+                    peak: Arc::clone(&peak),
+                },
+            ))
+            .unwrap();
+        (registry, peak)
+    }
 
     struct ControlledHandler {
         active: Arc<AtomicUsize>,
@@ -1017,36 +1020,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_batch_bounds_concurrency_and_preserves_order() {
-        let active = Arc::new(AtomicUsize::new(0));
-        let peak = Arc::new(AtomicUsize::new(0));
-        let mut registry = CommandRegistry::new();
-        registry
-            .register(CommandDefinition::new(
-                "work-run",
-                "Runs controlled work",
-                vec![],
-                ControlledHandler {
-                    active,
-                    peak: Arc::clone(&peak),
-                },
-            ))
-            .unwrap();
+        let (registry, peak) = work_registry();
         let request = BatchRequest::new(
             (0..4)
                 .map(|index| {
-                    BatchCommand::new(
-                        format!("request-{index}"),
-                        "work-run",
-                        serde_json::json!({"index": index}),
-                    )
+                    BatchCommand::new("work-run", serde_json::json!({"index": index}))
+                        .with_id(format!("request-{index}"))
                 })
                 .collect(),
         )
-        .with_options(BatchOptions {
-            continue_on_error: true,
-            max_concurrency: Some(2),
-            ..Default::default()
-        });
+        .with_options(BatchOptions::new().with_parallelism(2));
 
         let result = registry.execute_batch(request).await;
 
@@ -1055,66 +1038,83 @@ mod tests {
             result
                 .results
                 .iter()
-                .map(|result| result.id.as_str())
+                .map(|result| (result.id.as_str(), result.index))
                 .collect::<Vec<_>>(),
-            vec!["request-0", "request-1", "request-2", "request-3"]
+            vec![
+                ("request-0", 0),
+                ("request-1", 1),
+                ("request-2", 2),
+                ("request-3", 3)
+            ]
         );
+        assert!(result
+            .metadata
+            .as_ref()
+            .and_then(|metadata| metadata.trace_id.as_deref())
+            .is_some_and(|trace_id| trace_id.starts_with("batch-")));
     }
 
     #[tokio::test]
-    async fn test_batch_stop_retains_skipped_correlation() {
-        let mut registry = CommandRegistry::new();
-        registry
-            .register(CommandDefinition::new(
-                "work-run",
-                "Runs controlled work",
-                vec![],
-                ControlledHandler {
-                    active: Arc::new(AtomicUsize::new(0)),
-                    peak: Arc::new(AtomicUsize::new(0)),
-                },
-            ))
-            .unwrap();
+    async fn test_batch_continues_after_failure_by_default() {
+        let (registry, _) = work_registry();
         let request = BatchRequest::new(vec![
-            BatchCommand::new("first", "work-run", serde_json::json!({"fail": true})),
-            BatchCommand::new("second", "work-run", serde_json::json!({})),
+            BatchCommand::new("work-run", serde_json::json!({"fail": true})).with_id("first"),
+            BatchCommand::new("work-run", serde_json::json!({})),
+            BatchCommand::new("missing-command", serde_json::json!({})),
         ]);
 
         let result = registry.execute_batch(request).await;
 
+        assert!(result.success, "a batch that ran is successful");
+        assert_eq!(result.summary.success_count, 1);
+        assert_eq!(result.summary.failure_count, 2);
+        assert_eq!(result.summary.skipped_count, 0);
+        assert!(result.results[1].result.success);
+        assert_eq!(result.results[0].id, "first");
+        assert_eq!(result.results[1].id, "cmd-1");
+        assert_eq!(result.results[2].id, "cmd-2");
+        assert_eq!(
+            result.results[2].result.error.as_ref().unwrap().code,
+            "COMMAND_NOT_FOUND"
+        );
+        assert_eq!(
+            result.reasoning,
+            "Executed 3 commands: 1 succeeded, 2 failed"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_batch_stop_on_error_retains_skipped_correlation() {
+        let (registry, _) = work_registry();
+        let request = BatchRequest::new(vec![
+            BatchCommand::new("work-run", serde_json::json!({"fail": true})).with_id("first"),
+            BatchCommand::new("work-run", serde_json::json!({})).with_id("second"),
+        ])
+        .with_options(BatchOptions::new().with_stop_on_error(true));
+
+        let result = registry.execute_batch(request).await;
+
         assert!(result.success);
-        assert_eq!(result.summary.failed, 1);
-        assert_eq!(result.summary.skipped, 1);
+        assert_eq!(result.summary.failure_count, 1);
+        assert_eq!(result.summary.skipped_count, 1);
         assert_eq!(result.results[1].id, "second");
+        assert_eq!(result.results[1].index, 1);
         assert_eq!(result.results[1].command, "work-run");
+        assert_eq!(
+            result.results[1].result.error.as_ref().unwrap().code,
+            "COMMAND_SKIPPED"
+        );
     }
 
     #[tokio::test]
     async fn test_batch_honors_deadline_and_max_failures() {
-        let mut registry = CommandRegistry::new();
-        let peak = Arc::new(AtomicUsize::new(0));
-        registry
-            .register(CommandDefinition::new(
-                "work-run",
-                "Runs controlled work",
-                vec![],
-                ControlledHandler {
-                    active: Arc::new(AtomicUsize::new(0)),
-                    peak: Arc::clone(&peak),
-                },
-            ))
-            .unwrap();
+        let (registry, peak) = work_registry();
         let timed_out = registry
             .execute_batch(
-                BatchRequest::new(vec![BatchCommand::new(
-                    "slow",
-                    "work-run",
-                    serde_json::json!({}),
-                )])
-                .with_options(BatchOptions {
-                    timeout_ms: Some(1),
-                    ..Default::default()
-                }),
+                BatchRequest::new(vec![
+                    BatchCommand::new("work-run", serde_json::json!({})).with_id("slow")
+                ])
+                .with_options(BatchOptions::new().with_timeout(1.0)),
             )
             .await;
         #[cfg(feature = "native")]
@@ -1124,6 +1124,7 @@ mod tests {
         );
         #[cfg(not(feature = "native"))]
         {
+            assert!(!timed_out.success);
             assert_eq!(timed_out.error.as_ref().unwrap().code, "UNSUPPORTED_OPTION");
             assert!(timed_out.results.is_empty());
             assert_eq!(peak.load(Ordering::SeqCst), 0);
@@ -1132,20 +1133,87 @@ mod tests {
         let failure_limited = registry
             .execute_batch(
                 BatchRequest::new(vec![
-                    BatchCommand::new("one", "work-run", serde_json::json!({"fail": true})),
-                    BatchCommand::new("two", "work-run", serde_json::json!({"fail": true})),
-                    BatchCommand::new("three", "work-run", serde_json::json!({})),
+                    BatchCommand::new("work-run", serde_json::json!({"fail": true})).with_id("one"),
+                    BatchCommand::new("work-run", serde_json::json!({"fail": true})).with_id("two"),
+                    BatchCommand::new("work-run", serde_json::json!({})).with_id("three"),
                 ])
-                .with_options(BatchOptions {
-                    continue_on_error: true,
-                    max_failures: Some(2),
-                    ..Default::default()
-                }),
+                .with_options(BatchOptions::new().with_max_failures(2)),
             )
             .await;
-        assert_eq!(failure_limited.summary.failed, 2);
-        assert_eq!(failure_limited.summary.skipped, 1);
+        assert_eq!(failure_limited.summary.failure_count, 2);
+        assert_eq!(failure_limited.summary.skipped_count, 1);
         assert_eq!(failure_limited.results[2].id, "three");
+        let _ = peak;
+    }
+
+    #[tokio::test]
+    async fn test_batch_rejects_invalid_options() {
+        let (registry, _) = work_registry();
+        for options in [
+            BatchOptions::new().with_parallelism(0),
+            BatchOptions::new().with_timeout(-5.0),
+            BatchOptions::new().with_timeout(f64::NAN),
+        ] {
+            let result = registry
+                .execute_batch(
+                    BatchRequest::new(vec![BatchCommand::new("work-run", serde_json::json!({}))])
+                        .with_options(options),
+                )
+                .await;
+            assert!(!result.success);
+            assert_eq!(result.error.as_ref().unwrap().code, "INVALID_BATCH_REQUEST");
+        }
+        let empty = registry.execute_batch(BatchRequest::new(vec![])).await;
+        assert!(!empty.success);
+    }
+
+    #[tokio::test]
+    async fn test_batch_huge_timeout_does_not_overflow() {
+        let (registry, _) = work_registry();
+        let result = registry
+            .execute_batch(
+                BatchRequest::new(vec![BatchCommand::new("work-run", serde_json::json!({}))])
+                    .with_options(BatchOptions::new().with_timeout(f64::MAX)),
+            )
+            .await;
+        assert_eq!(result.success, cfg!(feature = "native"));
+    }
+
+    #[tokio::test]
+    async fn test_batch_panicking_handler_keeps_other_results() {
+        let mut registry = CommandRegistry::new();
+        registry
+            .register(CommandDefinition::new(
+                "panic-run",
+                "Panics on request",
+                vec![],
+                PanickingHandler,
+            ))
+            .unwrap();
+        let request = BatchRequest::new(vec![
+            BatchCommand::new("panic-run", serde_json::json!({"n": 1})),
+            BatchCommand::new("panic-run", serde_json::json!({"panic": true})),
+            BatchCommand::new("panic-run", serde_json::json!({"n": 3})),
+        ])
+        .with_options(BatchOptions::new().with_parallelism(2));
+
+        let result = registry.execute_batch(request).await;
+
+        assert!(result.success);
+        assert_eq!(result.results.len(), 3);
+        assert_eq!(
+            result.results[0].result.data,
+            Some(serde_json::json!({"n": 1}))
+        );
+        let error = result.results[1].result.error.as_ref().unwrap();
+        assert_eq!(error.code, "INTERNAL_ERROR");
+        assert!(!error.message.contains("handler bug"));
+        assert_eq!(
+            result.results[2].result.data,
+            Some(serde_json::json!({"n": 3}))
+        );
+        assert_eq!(result.summary.success_count, 2);
+        assert_eq!(result.summary.failure_count, 1);
     }
 
     #[test]

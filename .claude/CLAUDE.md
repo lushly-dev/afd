@@ -52,7 +52,7 @@ alfred/  # Quality bot — lint, parity, quality (see alfred/AGENTS.md)
 - **Testing**: Vitest with explicit imports, tests in `src/**/*.test.ts`
 - **Imports**: Use `import type` for type-only, `node:` prefix for Node.js builtins
 - **Lint**: Biome — tab indent, single quotes, no `any`, no unused imports
-- **Command Prerequisites**: Declare with `requires: ['command-name']` on `defineCommand()` — metadata only, not enforced at runtime. Exposed via MCP `_meta.requires` and `afd-help`
+- **Command Prerequisites**: Declare with `requires: ['command-name']` on `defineCommand()` — metadata only, not enforced at runtime. Exposed via MCP `_meta.requires` (and `afd-help` when the server sets `bootstrap: true`)
 
 ## Quality Gates & CI
 
@@ -68,7 +68,7 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 | **CI** (`ci.yml`) | Push to main / PR | Same as quality gate — safety net for skipped hooks |
 | **Python** (`python.yml`) | Push to main / PR touching `python/**` | `uv lock --check`; ruff (F821, F841, B904); pytest on 3.10, 3.11, 3.12; wheel install smoke test per extra (base, client, server, cli) |
 | **Rust** (`rust.yml`) | Push to main / PR touching `packages/rust/**` | `cargo fmt --check`; clippy `-D warnings` and `cargo test`, each with default and no default features |
-| **Conformance** (`conformance.yml`) | Push to main / PR touching the todo example, `packages/server`, `packages/core`, `python/` or the lockfile | Todo example: Python backend pytest, then the 32-case conformance suite against the TypeScript and Python backends |
+| **Conformance** (`conformance.yml`) | Push to main / PR touching the todo example, `packages/server`, `packages/core`, `python/` or the lockfile | Todo example: Python backend pytest, then the 34-case conformance suite against the TypeScript and Python backends |
 | **Alfred** (`alfred.yml`) | Push to main / PR touching `alfred/**` | ruff, pytest, wheel smoke test |
 | **Release** (GitHub Actions) | Push to main | `pnpm check` → Changesets opens a version PR or publishes to npm |
 

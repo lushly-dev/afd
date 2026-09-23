@@ -27,6 +27,9 @@ import {
 	isBatchRequest,
 	truncateName,
 } from '@lushly-dev/afd-core';
+import type { ContextState } from './bootstrap/afd-context.js';
+import { isAccessibleInContext, notInContextError } from './command-routing.js';
+import { resolveContextState } from './context-scope.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { EnhancedValidationResult } from './validation.js';
 import { formatEnhancedValidationError, validateInputEnhanced } from './validation.js';
@@ -38,7 +41,8 @@ import { formatEnhancedValidationError, validateInputEnhanced } from './validati
 export interface ExecutionDeps {
 	commandMap: Map<string, ZodCommandDefinition>;
 	middleware: CommandMiddleware[];
-	contextState?: { getActive(): string | null };
+	/** Context state used when the command context carries none (stdio). */
+	contextState?: ContextState;
 	devMode: boolean;
 	onCommand?: (command: string, input: unknown, result: CommandResult) => void;
 	onError?: (error: Error) => void;
@@ -94,13 +98,9 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			});
 		}
 
-		const activeContext = deps.contextState?.getActive();
-		if (activeContext && command.contexts?.length && !command.contexts.includes(activeContext)) {
-			return failure({
-				code: 'COMMAND_NOT_IN_CONTEXT',
-				message: `Command '${commandName}' is not available in context '${activeContext}'`,
-				suggestion: 'Use afd-context-enter to switch contexts or afd-context-exit to leave.',
-			});
+		const activeContext = resolveContextState(context, deps.contextState)?.getActive();
+		if (activeContext && !isAccessibleInContext(command, activeContext)) {
+			return failure(notInContextError(commandName, activeContext));
 		}
 		// Validate input with enhanced error messages. Schema callbacks (.refine,
 		// .superRefine, .transform, .preprocess) run here, so an exception they throw
@@ -318,12 +318,23 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 
 	/**
 	 * Execute a pipeline of chained commands with variable resolution.
+	 * `$input` resolves to `request.input`; `context` is passed to commands, never to references.
 	 */
 	async function executePipeline(
 		request: PipelineRequest,
 		context: CommandContext = {}
 	): Promise<PipelineResult> {
-		return executeCorePipeline(request, executeCommand, context);
+		// The core runner resolves `$input` against the context it is given, so it only gets the
+		// trace ID and signal. Request values (for example from `createContext`) must not be
+		// readable, or copyable into step inputs, by the pipeline author.
+		const runnerContext: CommandContext = {};
+		if (context.traceId !== undefined) runnerContext.traceId = context.traceId;
+		if (context.signal !== undefined) runnerContext.signal = context.signal;
+		return executeCorePipeline(
+			request,
+			(name, input, stepContext) => executeCommand(name, input, { ...context, ...stepContext }),
+			runnerContext
+		);
 	}
 
 	/**

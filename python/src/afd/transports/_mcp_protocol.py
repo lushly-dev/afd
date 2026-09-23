@@ -10,6 +10,7 @@ from __future__ import annotations
 import itertools
 import json
 from typing import Any, Dict, List, Optional
+from urllib.parse import quote, urlsplit, urlunsplit
 
 import httpx
 
@@ -154,30 +155,36 @@ class _HttpBasedTransport:
 
     @staticmethod
     def _derive_message_url(url: str) -> str:
-        """Derive the FastMCP ``/messages/`` endpoint from a server URL.
+        """Derive the JSON-RPC ``POST`` endpoint from a server URL.
 
-        If the URL ends with ``/sse``, replace it with ``/messages/``.
-        If it already points at a legacy ``/message`` or current
-        ``/messages`` endpoint, normalize to ``/messages/``.
-        Otherwise, append ``/messages/``.
+        The AFD TypeScript server answers JSON-RPC synchronously on
+        ``/message``, next to ``/sse``, the same endpoint its client uses:
+
+        - ``http://host:3100/sse`` becomes ``http://host:3100/message``;
+        - a bare origin (``http://host:3100``) gets ``/message``;
+        - any other URL, such as an explicit ``/message`` or ``/messages/``
+          endpoint, is used as given.
         """
-        normalized = url.rstrip("/")
-
-        if normalized.endswith("/sse"):
-            return normalized[: -len("/sse")] + "/messages/"
-        if normalized.endswith("/message"):
-            return normalized[: -len("/message")] + "/messages/"
-        if normalized.endswith("/messages"):
-            return normalized + "/"
-        return normalized + "/messages/"
+        parts = urlsplit(url)
+        path = parts.path.rstrip("/")
+        if path.endswith("/sse"):
+            path = path[: -len("/sse")] + "/message"
+        elif path == "":
+            path = "/message"
+        else:
+            return url
+        return urlunsplit((parts.scheme, parts.netloc, path, parts.query, ""))
 
     @staticmethod
     def _derive_health_url(message_url: str) -> str:
         """Derive a best-effort health endpoint from the message URL."""
-        normalized = message_url.rstrip("/")
-        if normalized.endswith("/messages"):
-            return normalized[: -len("/messages")] + "/health"
-        return normalized + "/health"
+        parts = urlsplit(message_url)
+        path = parts.path.rstrip("/")
+        for suffix in ("/message", "/messages"):
+            if path.endswith(suffix):
+                path = path[: -len(suffix)]
+                break
+        return urlunsplit((parts.scheme, parts.netloc, path + "/health", "", ""))
 
     @staticmethod
     def _extract_content(result: Any) -> Any:
@@ -185,29 +192,67 @@ class _HttpBasedTransport:
 
         MCP results contain a ``content`` array of ``{type, text}`` objects.
         This method joins text content and attempts JSON parsing.
+
+        A result flagged ``isError`` whose text is an AFD result (a
+        CommandResult, BatchResult or PipelineResult, as the TypeScript and
+        Python servers send for failures) is returned like any other result,
+        so its ``error.code`` and ``error.suggestion`` survive. Any other
+        ``isError`` result raises ``ToolExecutionError``.
         """
         if result is None:
             return None
 
+        content = result.get("content", []) if isinstance(result, dict) else []
+        texts = [
+            c["text"]
+            for c in content
+            if isinstance(c, dict) and c.get("type") == "text" and isinstance(c.get("text"), str)
+        ]
+        combined = "".join(texts)
+
+        try:
+            parsed: Any = json.loads(combined) if combined else _NO_JSON
+        except (json.JSONDecodeError, TypeError):
+            parsed = _NO_JSON
+
         # Check for isError flag — tool-level error, not transport
         if isinstance(result, dict) and result.get("isError"):
-            texts = [
-                c["text"]
-                for c in result.get("content", [])
-                if c.get("type") == "text"
-            ]
+            if is_afd_result(parsed):
+                return parsed
             raise ToolExecutionError(
                 " ".join(texts) or "Tool execution failed"
             )
 
-        content = result.get("content", []) if isinstance(result, dict) else []
-        texts = [c["text"] for c in content if c.get("type") == "text"]
-        combined = "".join(texts)
-
         if not combined:
             return result
 
-        try:
-            return json.loads(combined)
-        except (json.JSONDecodeError, TypeError):
-            return combined
+        return combined if parsed is _NO_JSON else parsed
+
+
+_NO_JSON = object()
+
+
+def is_afd_result(value: Any) -> bool:
+    """Return True for a parsed CommandResult, BatchResult or PipelineResult body."""
+    if not isinstance(value, dict):
+        return False
+    if isinstance(value.get("success"), bool):
+        return True
+    return isinstance(value.get("steps"), list) and isinstance(value.get("metadata"), dict)
+
+
+def derive_stream_url(url: str, command_name: str) -> str:
+    """Derive the ``/stream/<command>`` URL from a server URL.
+
+    ``/sse``, ``/message`` and ``/messages`` are replaced; the command name is
+    URL-encoded. ``http://host:3100/sse`` and ``todo-list`` give
+    ``http://host:3100/stream/todo-list``.
+    """
+    parts = urlsplit(url)
+    path = parts.path.rstrip("/")
+    for suffix in ("/sse", "/message", "/messages"):
+        if path.endswith(suffix):
+            path = path[: -len(suffix)]
+            break
+    stream_path = f"{path}/stream/{quote(command_name, safe='')}"
+    return urlunsplit((parts.scheme, parts.netloc, stream_path, "", ""))

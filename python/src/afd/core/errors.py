@@ -17,10 +17,10 @@ Example:
 
 from typing import Any, Optional, Union
 
-from pydantic import BaseModel
+from afd.core.wire import WireModel
 
 
-class CommandError(BaseModel):
+class CommandError(WireModel):
     """Structured error with recovery guidance.
     
     All errors should be actionable - users should know what to do next.
@@ -39,8 +39,10 @@ class CommandError(BaseModel):
         ...     message="API rate limit exceeded",
         ...     suggestion="Wait 60 seconds and try again",
         ...     retryable=True,
-        ...     details={"retry_after_seconds": 60},
+        ...     details={"retryAfterSeconds": 60},
         ... )
+
+    On the wire, ``details`` keys use camelCase like the TypeScript package.
     """
 
     code: str
@@ -209,7 +211,7 @@ def not_found_error(
         f"{resource_type} with ID '{resource_id}' not found",
         suggestion=f"Verify the {resource_type.lower()} ID exists and try again",
         retryable=False,
-        details={"resource_type": resource_type, "resource_id": resource_id},
+        details={"resourceType": resource_type, "resourceId": resource_id},
     )
 
 
@@ -239,7 +241,7 @@ def rate_limit_error(
         "Rate limit exceeded",
         suggestion=suggestion,
         retryable=True,
-        details={"retry_after_seconds": retry_after_seconds} if retry_after_seconds else None,
+        details={"retryAfterSeconds": retry_after_seconds} if retry_after_seconds else None,
     )
 
 
@@ -266,7 +268,7 @@ def timeout_error(
         f"Operation '{operation_name}' timed out after {timeout_ms}ms",
         suggestion="Try again with a simpler request or contact support if this persists",
         retryable=True,
-        details={"operation_name": operation_name, "timeout_ms": timeout_ms},
+        details={"operationName": operation_name, "timeoutMs": timeout_ms},
     )
 
 
@@ -328,7 +330,7 @@ def wrap_error(error: Any) -> CommandError:
             suggestion="Please try again. If this persists, contact support.",
             retryable=True,
             cause=error,
-            details={"error_type": type(error).__name__},
+            details={"errorType": type(error).__name__},
         )
 
     return create_error(

@@ -222,7 +222,7 @@ assert.equal(auth.useConvexAuthAdapter, undefined);
 
 test('auth integration subpaths resolve when their peers are installed', () => {
 	ensureBuilt('packages/core', ['index.js']);
-	ensureBuilt('packages/server', ['index.js']);
+	ensureBuilt('packages/server', ['index.js', 'define.js']);
 	ensureBuilt('packages/auth', ['index.js', 'react.js', 'commands.js']);
 
 	const consumerRoot = mkdtempSync(join(tmpdir(), 'afd-auth-integration-consumer-'));
