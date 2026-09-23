@@ -250,18 +250,45 @@ export function createTimingMiddleware(options: TimingOptions = {}): CommandMidd
  * Options for retry middleware.
  */
 export interface RetryOptions {
-	/** Maximum number of retries */
+	/** Maximum number of retries after the first attempt (default: 3). */
 	maxRetries?: number;
 
-	/** Delay between retries in ms */
+	/**
+	 * Base backoff in ms (default: 100). It doubles for each retry: retry `n`
+	 * backs off `min(maxDelay, retryDelay * 2 ** (n - 1))`.
+	 */
 	retryDelay?: number;
+
+	/** Upper bound on the backoff of any retry in ms, before jitter (default: 5000). */
+	maxDelay?: number;
+
+	/**
+	 * Randomize each wait to between half and all of the backoff, so clients
+	 * that failed together do not retry in lockstep (default: true). Set
+	 * `false` to wait exactly the backoff.
+	 */
+	jitter?: boolean;
 
 	/** Whether to retry based on error code */
 	shouldRetry?: (errorCode: string) => boolean;
 }
 
 /**
+ * The wait before retry `retry` (1-based): exponential from `baseMs`, capped
+ * at `maxMs`, and with jitter a uniform value in `[backoff / 2, backoff]`.
+ */
+function retryWait(retry: number, baseMs: number, maxMs: number, jitter: boolean): number {
+	const backoff = Math.min(maxMs, baseMs * 2 ** (retry - 1));
+	return jitter ? backoff / 2 + Math.random() * (backoff / 2) : backoff;
+}
+
+/**
  * Create a retry middleware for transient failures.
+ *
+ * A failure whose error code passes `shouldRetry` is retried up to
+ * `maxRetries` times with capped exponential backoff and jitter (see
+ * {@link RetryOptions}). The wait ends early when `context.signal` aborts:
+ * the middleware then stops retrying and returns the last failure.
  *
  * @example
  * ```typescript
@@ -281,44 +308,26 @@ export function createRetryMiddleware(options: RetryOptions = {}): CommandMiddle
 	const {
 		maxRetries = 3,
 		retryDelay = 100,
+		maxDelay = 5_000,
+		jitter = true,
 		shouldRetry = (code) => code === 'TRANSIENT_ERROR' || code === 'TIMEOUT',
 	} = options;
+	if (!Number.isInteger(maxRetries) || maxRetries < 0) {
+		throw new Error('Retry maxRetries must be a nonnegative integer');
+	}
+	if (!(retryDelay >= 0 && maxDelay >= 0 && Number.isFinite(maxDelay))) {
+		throw new Error('Retry retryDelay and maxDelay must be nonnegative, and maxDelay finite');
+	}
 
-	return async (_commandName, _input, _context, next) => {
-		let lastResult: CommandResult | undefined;
-		let attempts = 0;
-
-		while (attempts <= maxRetries) {
-			const result = await next();
-
-			if (result.success) {
-				return result;
-			}
-
-			lastResult = result;
-
-			// Check if we should retry
-			if (result.error && shouldRetry(result.error.code)) {
-				attempts++;
-				if (attempts <= maxRetries) {
-					await sleep(retryDelay * attempts); // Exponential backoff
-					continue;
-				}
-			}
-
-			// Not retryable or max retries reached
-			break;
+	return async (_commandName, _input, context, next) => {
+		let result = await next();
+		for (let retry = 1; retry <= maxRetries; retry++) {
+			if (result.success || !result.error || !shouldRetry(result.error.code)) return result;
+			const waited = await sleep(retryWait(retry, retryDelay, maxDelay, jitter), context.signal);
+			if (!waited) return result;
+			result = await next();
 		}
-
-		if (!lastResult) {
-			const { failure } = await import('@lushly-dev/afd-core');
-			return failure({
-				code: 'RETRY_EXHAUSTED',
-				message: 'No result after retry attempts',
-				suggestion: 'Check the command implementation',
-			});
-		}
-		return lastResult;
+		return result;
 	};
 }
 
@@ -720,8 +729,23 @@ export class ConsoleTelemetrySink implements TelemetrySink {
 // HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+/**
+ * Wait `ms`, ending early when `signal` aborts. Resolves `true` when the full
+ * time passed and `false` when aborted (immediately if already aborted).
+ */
+function sleep(ms: number, signal?: AbortSignal): Promise<boolean> {
+	if (signal?.aborted) return Promise.resolve(false);
+	return new Promise((resolve) => {
+		const onAbort = () => {
+			clearTimeout(timer);
+			resolve(false);
+		};
+		const timer = setTimeout(() => {
+			signal?.removeEventListener('abort', onAbort);
+			resolve(true);
+		}, ms);
+		signal?.addEventListener('abort', onAbort, { once: true });
+	});
 }
 
 /**

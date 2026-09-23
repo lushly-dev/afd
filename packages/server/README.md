@@ -439,6 +439,21 @@ const server = createMcpServer({
 });
 ```
 
+### Retries
+
+`createRetryMiddleware` reruns a command whose failure code passes `shouldRetry` (default: `TRANSIENT_ERROR` and `TIMEOUT`), up to `maxRetries` times (default: 3). The backoff is exponential and capped: retry `n` backs off `min(maxDelay, retryDelay * 2 ** (n - 1))`, with `retryDelay` defaulting to 100 ms and `maxDelay` to 5000 ms. With `jitter` (the default) each wait is a random time between half and all of that backoff; `jitter: false` waits exactly the backoff. When `context.signal` aborts, for example because the client disconnected or a batch deadline passed, the wait ends and the last failure is returned without further retries. Retry only commands that are safe to repeat.
+
+```typescript
+import { createRetryMiddleware } from '@lushly-dev/afd-server';
+
+const retry = createRetryMiddleware({
+  maxRetries: 4,
+  retryDelay: 200,  // 200, 400, 800, 1600 ms before jitter
+  maxDelay: 1000,   // ...capped at 1000 ms
+  shouldRetry: (code) => code === 'UPSTREAM_UNAVAILABLE',
+});
+```
+
 ### Custom Middleware
 
 ```typescript
