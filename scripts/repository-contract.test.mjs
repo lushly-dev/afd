@@ -83,6 +83,74 @@ test('workflow actions are pinned to full commit SHAs', () => {
 	}
 });
 
+function publishedPackageDirectories() {
+	return readdirSync(join(repoRoot, 'packages'), { withFileTypes: true })
+		.filter((entry) => entry.isDirectory())
+		.map((entry) => `packages/${entry.name}`)
+		.filter((directory) => existsSync(join(repoRoot, directory, 'package.json')))
+		.filter((directory) => JSON.parse(read(`${directory}/package.json`)).private !== true);
+}
+
+function testFiles(directory, root = directory) {
+	const found = [];
+	for (const entry of readdirSync(join(repoRoot, directory), { withFileTypes: true })) {
+		if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name.startsWith('.')) {
+			continue;
+		}
+		const path = `${directory}/${entry.name}`;
+		if (entry.isDirectory()) found.push(...testFiles(path, root));
+		else if (/\.test\.tsx?$/.test(entry.name)) found.push(path.slice(root.length + 1));
+	}
+	return found;
+}
+
+test('every published package type-checks its tests', () => {
+	const packages = publishedPackageDirectories();
+	assert.ok(packages.includes('packages/core'), 'expected to find the published packages');
+
+	for (const directory of packages) {
+		const manifest = JSON.parse(read(`${directory}/package.json`));
+		assert.equal(
+			manifest.scripts?.typecheck,
+			'tsc -p tsconfig.typecheck.json',
+			`${directory} needs a test-inclusive typecheck script`
+		);
+
+		const config = JSON.parse(read(`${directory}/tsconfig.typecheck.json`));
+		assert.equal(config.extends, './tsconfig.json', `${directory}/tsconfig.typecheck.json`);
+		assert.equal(config.compilerOptions?.noEmit, true, `${directory}/tsconfig.typecheck.json`);
+		for (const pattern of config.exclude ?? []) {
+			assert.doesNotMatch(pattern, /test/, `${directory}/tsconfig.typecheck.json excludes tests`);
+		}
+
+		const roots = (config.include ?? [])
+			.filter((pattern) => pattern.endsWith('/**/*'))
+			.map((pattern) => pattern.slice(0, -'**/*'.length));
+		for (const file of testFiles(directory)) {
+			assert.ok(
+				roots.some((root) => file.startsWith(root)),
+				`${directory}/${file} is outside tsconfig.typecheck.json's include`
+			);
+		}
+	}
+});
+
+test('every published package enforces coverage thresholds', () => {
+	for (const directory of publishedPackageDirectories()) {
+		const configPath = `${directory}/vitest.config.ts`;
+		assert.ok(existsSync(join(repoRoot, configPath)), `${directory} needs a vitest.config.ts`);
+		const config = read(configPath);
+
+		assert.doesNotMatch(config, /globals:\s*true/, `${configPath} must use explicit imports`);
+		assert.match(config, /include:\s*\[\s*'src\/\*\*\/\*\.ts'\s*\]/, `${configPath} coverage`);
+		const thresholds = config.match(/thresholds:\s*\{([^}]*)\}/)?.[1];
+		assert.ok(thresholds, `${configPath} needs coverage thresholds`);
+		for (const metric of ['statements', 'branches', 'functions', 'lines']) {
+			assert.match(thresholds, new RegExp(`${metric}:\\s*[1-9]\\d*`), `${configPath} ${metric}`);
+		}
+	}
+});
+
 test('public TypeScript example commands explicitly opt in to MCP', () => {
 	const commandDirectories = [
 		'packages/examples/todo/backends/typescript/src/commands',
