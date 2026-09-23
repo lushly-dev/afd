@@ -20,7 +20,7 @@ import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import { failure, success } from '@lushly-dev/afd-core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { defineCommand } from './schema.js';
+import { defineCommand, type ZodCommandDefinition } from './schema.js';
 import { createMcpServer, type McpServer } from './server.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -68,7 +68,7 @@ const metadataCommand = defineCommand({
 			confidence: 0.75,
 			reasoning: 'Moderate confidence for testing',
 			warnings: [
-				{ message: 'Rate limit approaching' },
+				{ code: 'RATE_LIMIT', message: 'Rate limit approaching' },
 				{ code: 'STALE', message: 'Data may be outdated' },
 			],
 		});
@@ -118,7 +118,7 @@ function createServerExecutor(server: McpServer) {
  * Includes exception handling and metadata augmentation to match server behavior.
  */
 function createDirectRegistry(commands: typeof sharedCommands): DirectRegistry {
-	const commandMap = new Map(commands.map((c) => [c.name, c]));
+	const commandMap = new Map<string, ZodCommandDefinition>(commands.map((c) => [c.name, c]));
 
 	return {
 		async execute<T>(name: string, input?: unknown, context?: CommandContext) {

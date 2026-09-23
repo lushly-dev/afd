@@ -389,17 +389,17 @@ describe('JTBD Pipeline Scenarios', () => {
 			expect(result.metadata.completedSteps).toBe(0);
 
 			// expect: steps[0].status: "failure"
-			expect(result.steps[0].status).toBe('failure');
+			expect(result.steps[0]?.status).toBe('failure');
 
 			// expect: steps[0].error.code: "NOT_FOUND"
-			expect(result.steps[0].error?.code).toBe('NOT_FOUND');
+			expect(result.steps[0]?.error?.code).toBe('NOT_FOUND');
 
 			// expect: steps[0].error.suggestion: /.+/
-			expect(result.steps[0].error?.suggestion).toBeDefined();
-			expect(result.steps[0].error?.suggestion).toMatch(/.+/);
+			expect(result.steps[0]?.error?.suggestion).toBeDefined();
+			expect(result.steps[0]?.error?.suggestion).toMatch(/.+/);
 
 			// expect: steps[1].status: "skipped"
-			expect(result.steps[1].status).toBe('skipped');
+			expect(result.steps[1]?.status).toBe('skipped');
 		});
 	});
 
@@ -444,10 +444,10 @@ describe('JTBD Pipeline Scenarios', () => {
 			const result = await server.executePipeline(request);
 
 			// expect: success: true (first step succeeded)
-			expect(result.steps[0].status).toBe('success');
+			expect(result.steps[0]?.status).toBe('success');
 
 			// expect: steps[1].status: "skipped" (User is not premium)
-			expect(result.steps[1].status).toBe('skipped');
+			expect(result.steps[1]?.status).toBe('skipped');
 		});
 	});
 

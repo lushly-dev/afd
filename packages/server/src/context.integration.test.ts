@@ -1,7 +1,7 @@
-import { success } from '@lushly-dev/afd-core';
+import { createBatchResult, success } from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
 import { createContextState } from './bootstrap/afd-context.js';
-import { defineCommand } from './schema.js';
+import { defineCommand, type ZodCommandDefinition } from './schema.js';
 import { createToolRouter } from './tool-router.js';
 import { getToolsList } from './tools.js';
 
@@ -54,7 +54,7 @@ const multiContextCmd = defineCommand({
 	},
 });
 
-const allCommands = [docCreate, docPrint, universalHelp, multiContextCmd];
+const allCommands: ZodCommandDefinition[] = [docCreate, docPrint, universalHelp, multiContextCmd];
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Tool List Filtering
@@ -115,13 +115,8 @@ describe('createToolRouter with context state', () => {
 				}
 				return cmd.handler(input, {});
 			},
-			executeBatch: async () => ({
-				success: true,
-				results: [],
-				timing: { totalMs: 0, averageMs: 0, startedAt: '', completedAt: '' },
-				metadata: { successCount: 0, failureCount: 0, totalCount: 0, confidence: 1 },
-				steps: [],
-			}),
+			executeBatch: async () =>
+				createBatchResult([], { totalMs: 0, averageMs: 0, startedAt: '', completedAt: '' }),
 			executePipeline: async () => ({
 				data: undefined,
 				metadata: {
@@ -237,13 +232,8 @@ describe('afd-detail with context filtering', () => {
 				}
 				return cmd.handler(input, {});
 			},
-			executeBatch: async () => ({
-				success: true,
-				results: [],
-				timing: { totalMs: 0, averageMs: 0, startedAt: '', completedAt: '' },
-				metadata: { successCount: 0, failureCount: 0, totalCount: 0, confidence: 1 },
-				steps: [],
-			}),
+			executeBatch: async () =>
+				createBatchResult([], { totalMs: 0, averageMs: 0, startedAt: '', completedAt: '' }),
 			executePipeline: async () => ({
 				data: undefined,
 				metadata: {
@@ -334,13 +324,8 @@ describe('grouped strategy with context enforcement', () => {
 				}
 				return cmd.handler(input, {});
 			},
-			executeBatch: async () => ({
-				success: true,
-				results: [],
-				timing: { totalMs: 0, averageMs: 0, startedAt: '', completedAt: '' },
-				metadata: { successCount: 0, failureCount: 0, totalCount: 0, confidence: 1 },
-				steps: [],
-			}),
+			executeBatch: async () =>
+				createBatchResult([], { totalMs: 0, averageMs: 0, startedAt: '', completedAt: '' }),
 			executePipeline: async () => ({
 				data: undefined,
 				metadata: {

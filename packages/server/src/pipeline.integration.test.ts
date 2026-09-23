@@ -269,9 +269,9 @@ describe('Pipeline Integration Tests', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[0].status).toBe('success');
-			expect(result.steps[1].status).toBe('success');
-			expect(result.steps[1].data).toEqual({
+			expect(result.steps[0]?.status).toBe('success');
+			expect(result.steps[1]?.status).toBe('success');
+			expect(result.steps[1]?.data).toEqual({
 				orders: [
 					{ id: 'order-1', total: 100 },
 					{ id: 'order-2', total: 250 },
@@ -298,8 +298,8 @@ describe('Pipeline Integration Tests', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[2].status).toBe('success');
-			expect(result.steps[2].data).toMatchObject({
+			expect(result.steps[2]?.status).toBe('success');
+			expect(result.steps[2]?.data).toMatchObject({
 				summary: 'Alice has 2 orders',
 				totalAmount: 350,
 			});
@@ -315,7 +315,7 @@ describe('Pipeline Integration Tests', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[1].status).toBe('success');
+			expect(result.steps[1]?.status).toBe('success');
 		});
 
 		it('resolves $steps.alias named reference', async () => {
@@ -335,8 +335,8 @@ describe('Pipeline Integration Tests', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[2].status).toBe('success');
-			expect(result.steps[2].data).toMatchObject({
+			expect(result.steps[2]?.status).toBe('success');
+			expect(result.steps[2]?.data).toMatchObject({
 				summary: 'Alice has 2 orders',
 			});
 		});
@@ -359,9 +359,9 @@ describe('Pipeline Integration Tests', () => {
 
 			expect(result.metadata.confidence).toBe(0.75);
 			expect(result.metadata.confidenceBreakdown).toHaveLength(2);
-			expect(result.metadata.confidenceBreakdown[0].confidence).toBe(0.95);
-			expect(result.metadata.confidenceBreakdown[1].confidence).toBe(0.75);
-			expect(result.metadata.confidenceBreakdown[1].reasoning).toBe('Schema mismatch in 2 fields');
+			expect(result.metadata.confidenceBreakdown[0]?.confidence).toBe(0.95);
+			expect(result.metadata.confidenceBreakdown[1]?.confidence).toBe(0.75);
+			expect(result.metadata.confidenceBreakdown[1]?.reasoning).toBe('Schema mismatch in 2 fields');
 		});
 
 		it('aggregates reasoning from all steps', async () => {
@@ -403,10 +403,10 @@ describe('Pipeline Integration Tests', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[0].status).toBe('failure');
-			expect(result.steps[0].error?.code).toBe('NOT_FOUND');
-			expect(result.steps[0].error?.suggestion).toContain('user-create');
-			expect(result.steps[1].status).toBe('skipped');
+			expect(result.steps[0]?.status).toBe('failure');
+			expect(result.steps[0]?.error?.code).toBe('NOT_FOUND');
+			expect(result.steps[0]?.error?.suggestion).toContain('user-create');
+			expect(result.steps[1]?.status).toBe('skipped');
 			expect(result.metadata.completedSteps).toBe(0);
 		});
 
@@ -421,8 +421,8 @@ describe('Pipeline Integration Tests', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[0].status).toBe('failure');
-			expect(result.steps[1].status).toBe('success');
+			expect(result.steps[0]?.status).toBe('failure');
+			expect(result.steps[1]?.status).toBe('success');
 			expect(result.metadata.completedSteps).toBe(1);
 		});
 	});
@@ -446,8 +446,8 @@ describe('Pipeline Integration Tests', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[0].status).toBe('success');
-			expect(result.steps[1].status).toBe('skipped');
+			expect(result.steps[0]?.status).toBe('success');
+			expect(result.steps[1]?.status).toBe('skipped');
 		});
 
 		it('runs step when $eq condition matches', async () => {
@@ -464,9 +464,9 @@ describe('Pipeline Integration Tests', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[0].status).toBe('success');
-			expect(result.steps[1].status).toBe('success');
-			expect(result.steps[1].data).toMatchObject({ discountApplied: true, percentage: 10 });
+			expect(result.steps[0]?.status).toBe('success');
+			expect(result.steps[1]?.status).toBe('success');
+			expect(result.steps[1]?.data).toMatchObject({ discountApplied: true, percentage: 10 });
 		});
 
 		it('skips step when $eq condition does not match', async () => {
@@ -483,8 +483,8 @@ describe('Pipeline Integration Tests', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[0].status).toBe('success');
-			expect(result.steps[1].status).toBe('skipped');
+			expect(result.steps[0]?.status).toBe('success');
+			expect(result.steps[1]?.status).toBe('skipped');
 		});
 
 		it('evaluates complex $and conditions', async () => {
@@ -503,7 +503,7 @@ describe('Pipeline Integration Tests', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[1].status).toBe('success');
+			expect(result.steps[1]?.status).toBe('success');
 		});
 
 		it('evaluates $or conditions', async () => {
@@ -525,7 +525,7 @@ describe('Pipeline Integration Tests', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[1].status).toBe('success');
+			expect(result.steps[1]?.status).toBe('success');
 		});
 	});
 
@@ -561,8 +561,8 @@ describe('Pipeline Integration Tests', () => {
 			const result = await server.executePipeline(request);
 
 			expect(result.metadata.executionTimeMs).toBeGreaterThanOrEqual(0);
-			expect(result.steps[0].executionTimeMs).toBeGreaterThanOrEqual(0);
-			expect(result.steps[1].executionTimeMs).toBeGreaterThanOrEqual(0);
+			expect(result.steps[0]?.executionTimeMs).toBeGreaterThanOrEqual(0);
+			expect(result.steps[1]?.executionTimeMs).toBeGreaterThanOrEqual(0);
 		});
 
 		it('includes step aliases in results', async () => {
@@ -575,8 +575,8 @@ describe('Pipeline Integration Tests', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[0].alias).toBe('userProfile');
-			expect(result.steps[1].alias).toBe('userOrders');
+			expect(result.steps[0]?.alias).toBe('userProfile');
+			expect(result.steps[1]?.alias).toBe('userOrders');
 		});
 	});
 
@@ -638,7 +638,7 @@ describe('Pipeline Integration Tests', () => {
 			const result = await server.executePipeline(request);
 
 			expect(result.steps).toHaveLength(1);
-			expect(result.steps[0].status).toBe('success');
+			expect(result.steps[0]?.status).toBe('success');
 			expect(result.data).toMatchObject({ id: 1, name: 'Alice' });
 		});
 

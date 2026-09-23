@@ -129,15 +129,13 @@ describe('exceptions thrown during input validation', () => {
 			const handler = vi.fn(async () => success({ ran: true }));
 			// Build with a plain schema, then swap in the throwing one: defineCommand
 			// cannot derive a JSON Schema from a transform.
-			const command: ZodCommandDefinition = {
-				...defineCommand({
-					name: 'item-check',
-					description: 'Throwing validator',
-					input: z.object({ value: z.string() }),
-					handler,
-				}),
-				inputSchema: schema,
-			};
+			const base: ZodCommandDefinition = defineCommand({
+				name: 'item-check',
+				description: 'Throwing validator',
+				input: z.object({ value: z.string() }),
+				handler,
+			});
+			const command: ZodCommandDefinition = { ...base, inputSchema: schema };
 			const result = await engineFor(command, { onError }).executeCommand('item-check', {
 				value: 'x',
 			});

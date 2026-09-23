@@ -62,7 +62,7 @@ async function call(url: string, name: string, args: unknown) {
 		}),
 	});
 	expect(response.status).toBe(200);
-	const body = await response.json();
+	const body = (await response.json()) as { result: { content: [{ text: string }] } };
 	return JSON.parse(body.result.content[0].text);
 }
 

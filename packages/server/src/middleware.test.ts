@@ -2,7 +2,12 @@
  * @fileoverview Tests for telemetry middleware
  */
 
-import type { CommandMiddleware, TelemetryEvent, TelemetrySink } from '@lushly-dev/afd-core';
+import type {
+	CommandMiddleware,
+	CommandResult,
+	TelemetryEvent,
+	TelemetrySink,
+} from '@lushly-dev/afd-core';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
@@ -515,10 +520,7 @@ describe('defaultMiddleware', () => {
 
 		// Run the chain
 		const context: Record<string, unknown> = {};
-		let next: () => Promise<{ success: true; data: Record<string, never> }> = async () => ({
-			success: true as const,
-			data: {},
-		});
+		let next: () => Promise<CommandResult> = async () => ({ success: true, data: {} });
 		for (let i = stack.length - 1; i >= 0; i--) {
 			const mw = stack[i];
 			if (!mw) continue;
