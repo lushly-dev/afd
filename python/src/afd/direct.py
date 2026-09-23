@@ -39,6 +39,7 @@ from typing import (
 
 from afd.core.result import CommandResult, failure, success
 from afd.core.errors import not_found_error, validation_error
+from afd.core.pipeline import get_nested_value
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -202,6 +203,11 @@ def _levenshtein_similarity(a: str, b: str) -> float:
     return 1.0 - matrix[len_a][len_b] / max_len
 
 
+# Untrusted tool names are capped before fuzzy matching (the Levenshtein
+# matrix is O(len(a) * len(b))) and before being echoed back.
+_MAX_TOOL_NAME_LENGTH = 128
+
+
 def _find_similar_tools(
     requested: str,
     available: List[str],
@@ -222,6 +228,7 @@ def _create_unknown_tool_error(
     available: List[str]
 ) -> UnknownToolError:
     """Create a structured unknown tool error."""
+    requested = requested[:_MAX_TOOL_NAME_LENGTH]
     suggestions = _find_similar_tools(requested, available)
     hint = f"Did you mean '{suggestions[0]}'?" if suggestions else None
     
@@ -371,7 +378,7 @@ class SimpleRegistry:
         """Execute a command by name."""
         cmd = self._commands.get(name)
         if not cmd:
-            return failure(not_found_error(f"Command '{name}' not found"))
+            return failure(not_found_error("Command", name))
         
         try:
             result = await cmd.handler(**(args or {}))
@@ -758,16 +765,10 @@ class DirectClient:
         else:
             return None  # Unknown reference
         
-        # Navigate path
-        for part in path:
-            if isinstance(base, dict):
-                base = base.get(part)
-            elif hasattr(base, part):
-                base = getattr(base, part)
-            else:
-                return None
-        
-        return base
+        # Navigate path with the pipeline's data-only resolver (never getattr)
+        if not path:
+            return base
+        return get_nested_value(base, '.'.join(path))
     
     def _evaluate_condition(
         self,

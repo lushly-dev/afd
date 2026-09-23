@@ -25,8 +25,10 @@ import {
 	executePipeline as executeCorePipeline,
 	failure,
 	isBatchRequest,
+	truncateName,
 } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from './schema.js';
+import type { EnhancedValidationResult } from './validation.js';
 import { formatEnhancedValidationError, validateInputEnhanced } from './validation.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -46,8 +48,33 @@ export interface ExecutionDeps {
 // EXECUTION ENGINE FACTORY
 // ═══════════════════════════════════════════════════════════════════════════════
 
+function toError(error: unknown): Error {
+	return error instanceof Error ? error : new Error(String(error));
+}
+
+/**
+ * Run an observer hook so that a throw or a rejected promise from it can never
+ * change the command result or escape as an unhandled rejection.
+ */
+function runHook(hook: () => unknown, onHookError: (error: unknown) => void): void {
+	try {
+		const returned = hook();
+		if (returned instanceof Promise) returned.catch(onHookError);
+	} catch (error) {
+		onHookError(error);
+	}
+}
+
 export function createExecutionEngine(deps: ExecutionDeps) {
 	const { commandMap, middleware, devMode, onCommand, onError } = deps;
+
+	/** Report to `onError`. A failing `onError` has nowhere left to report, so it is ignored. */
+	function reportError(error: unknown): void {
+		runHook(
+			() => onError?.(toError(error)),
+			() => {}
+		);
+	}
 
 	/**
 	 * Execute a command with validation and middleware.
@@ -62,7 +89,7 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		if (!command) {
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
-				message: `Command '${commandName}' not found`,
+				message: `Command '${truncateName(commandName)}' not found`,
 				suggestion: `Available commands: ${Array.from(commandMap.keys()).join(', ')}`,
 			});
 		}
@@ -75,8 +102,23 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 				suggestion: 'Use afd-context-enter to switch contexts or afd-context-exit to leave.',
 			});
 		}
-		// Validate input with enhanced error messages
-		const validation = validateInputEnhanced(command.inputSchema, input);
+		// Validate input with enhanced error messages. Schema callbacks (.refine,
+		// .superRefine, .transform, .preprocess) run here, so an exception they throw
+		// becomes a VALIDATION_ERROR result instead of rejecting.
+		let validation: EnhancedValidationResult<unknown>;
+		try {
+			validation = validateInputEnhanced(command.inputSchema, input);
+		} catch (error) {
+			const err = toError(error);
+			reportError(err);
+			return failure({
+				code: 'VALIDATION_ERROR',
+				message: 'Input validation failed',
+				suggestion: devMode
+					? `Input validation threw: ${err.message}`
+					: `Check the input against the input schema of '${commandName}' (afd-detail returns it) and retry`,
+			});
+		}
 		if (!validation.success) {
 			return failure({
 				code: 'VALIDATION_ERROR',
@@ -95,22 +137,23 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			});
 		}
 
+		const data = validation.data;
+
 		// Build middleware chain
 		const runHandler = async (): Promise<CommandResult> => {
 			const startTime = Date.now();
-			const result = await command.handler(validation.data, context);
+			const result = await command.handler(data, context);
 
-			// Add metadata if not present
-			if (!result.metadata) {
-				result.metadata = {};
-			}
-			result.metadata.executionTimeMs = Date.now() - startTime;
-			result.metadata.commandVersion = command.version;
-			if (context.traceId) {
-				result.metadata.traceId = context.traceId;
-			}
-
-			return result;
+			// Build a new result rather than mutating the handler's (possibly frozen) object.
+			return {
+				...result,
+				metadata: {
+					...result.metadata,
+					executionTimeMs: Date.now() - startTime,
+					commandVersion: command.version,
+					...(context.traceId ? { traceId: context.traceId } : {}),
+				},
+			};
 		};
 
 		// Apply middleware in reverse order
@@ -119,16 +162,15 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			const mw = middleware[i];
 			if (!mw) continue;
 			const currentNext = next;
-			next = () => mw(commandName, validation.data, context, currentNext);
+			next = () => mw(commandName, data, context, currentNext);
 		}
 
+		let result: CommandResult;
 		try {
-			const result = await next();
-			onCommand?.(commandName, input, result);
-			return result;
+			result = await next();
 		} catch (error) {
-			const err = error instanceof Error ? error : new Error(String(error));
-			onError?.(err);
+			const err = toError(error);
+			reportError(err);
 			return failure({
 				code: 'COMMAND_EXECUTION_ERROR',
 				message: devMode ? err.message : 'An internal error occurred',
@@ -139,6 +181,11 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 				...(devMode ? { details: { stack: err.stack } } : {}),
 			});
 		}
+
+		// Outside the try: a failing onCommand must not turn a completed command
+		// (possibly a committed write) into COMMAND_EXECUTION_ERROR.
+		runHook(() => onCommand?.(commandName, input, result), reportError);
+		return result;
 	}
 
 	/**
@@ -339,7 +386,7 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 			yield createErrorChunk(
 				{
 					code: 'STREAM_ERROR',
-					message: error instanceof Error ? error.message : String(error),
+					message: devMode ? toError(error).message : 'Stream execution failed',
 					retryable: true,
 				},
 				chunksEmitted,

@@ -3,7 +3,7 @@
  */
 
 import type { CommandResult, JsonSchema } from '@lushly-dev/afd-core';
-import { findSimilarTools, success } from '@lushly-dev/afd-core';
+import { findSimilarTools, success, truncateName } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from './schema.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -207,7 +207,7 @@ export function executeDetail(
 				found: false as const,
 				error: {
 					code: 'COMMAND_NOT_FOUND',
-					message: `No command named '${name}'`,
+					message: `No command named '${truncateName(name)}'`,
 					suggestion: suggestionText,
 				},
 			};

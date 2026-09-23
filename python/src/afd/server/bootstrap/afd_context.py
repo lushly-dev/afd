@@ -5,10 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from afd.core.commands import CommandContext, CommandDefinition, ExposeOptions
 from afd.core.result import CommandResult, error, success
+from afd.server.validation import _input_validation_failure
 
 
 @dataclass(frozen=True)
@@ -152,11 +153,14 @@ def create_afd_context_enter_command(
         context: Optional[CommandContext] = None,
     ) -> CommandResult[AfdContextEnterOutput]:
         _ = context
-        parsed = (
-            input
-            if isinstance(input, AfdContextEnterInput)
-            else AfdContextEnterInput.model_validate(input or {})
-        )
+        try:
+            parsed = (
+                input
+                if isinstance(input, AfdContextEnterInput)
+                else AfdContextEnterInput.model_validate(input or {})
+            )
+        except ValidationError as exc:
+            return _input_validation_failure(AfdContextEnterInput, input, exc)
         context_names = {item.name for item in get_contexts()}
         if parsed.context not in context_names:
             return error(

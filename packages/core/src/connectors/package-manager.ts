@@ -2,7 +2,14 @@
  * @fileoverview Package manager connector for npm/pnpm operations.
  */
 
-import { type ExecOptions, type ExecResult, exec, isExecError } from '../platform.js';
+import {
+	createExecResult,
+	ExecErrorCode,
+	type ExecOptions,
+	type ExecResult,
+	exec,
+	isExecError,
+} from '../platform.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -20,11 +27,54 @@ export interface PackageManagerConnectorOptions {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// INPUT VALIDATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * npm package name (`name` or `@scope/name`: URL-safe characters, not starting with `.`, `_`
+ * or `-`), optionally followed by `@version`, `@range` or `@tag`. Aliases, URLs, and
+ * repository or file specs are not accepted.
+ */
+const PACKAGE_SPEC_PATTERN =
+	/^(?<name>(?:@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*)(?:@[a-z0-9.+^~<>=*| -]+)?$/i;
+
+/** Maximum npm package name length. */
+const MAX_PACKAGE_NAME_LENGTH = 214;
+
+/** Conservative package.json script name, e.g. `build`, `test:unit`, `lint-fix`. */
+const SCRIPT_NAME_PATTERN = /^[a-z0-9_][a-z0-9_.:+/-]*$/i;
+
+const MAX_SCRIPT_NAME_LENGTH = 128;
+
+function isValidPackageSpec(pkg: string): boolean {
+	const name = PACKAGE_SPEC_PATTERN.exec(pkg)?.groups?.name;
+	return name !== undefined && name.length <= MAX_PACKAGE_NAME_LENGTH;
+}
+
+function isValidScriptName(script: string): boolean {
+	return script.length <= MAX_SCRIPT_NAME_LENGTH && SCRIPT_NAME_PATTERN.test(script);
+}
+
+/** An error result for input rejected before anything is spawned. */
+function invalidInput(message: string): ExecResult {
+	return createExecResult('', message, 1, 0, ExecErrorCode.SPAWN_FAILED);
+}
+
+function invalidPackage(pkg: string): ExecResult {
+	return invalidInput(
+		`Invalid package name ${JSON.stringify(pkg)}. Use an npm package name such as "lodash", "@scope/name" or "name@^1.2.3".`
+	);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // PACKAGE MANAGER CONNECTOR
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Connector for package manager operations (npm/pnpm).
+ *
+ * Package and script names are validated before anything runs. An invalid name returns an
+ * ExecResult with `errorCode: SPAWN_FAILED` and the reason in `stderr`.
  *
  * @example
  * ```typescript
@@ -60,6 +110,10 @@ export class PackageManagerConnector {
 	 * @returns ExecResult from the install command
 	 */
 	async install(pkg?: string, dev?: boolean): Promise<ExecResult> {
+		if (pkg && !isValidPackageSpec(pkg)) {
+			return invalidPackage(pkg);
+		}
+
 		const cmd: string[] = [this.pm, 'install'];
 
 		if (pkg) {
@@ -80,6 +134,12 @@ export class PackageManagerConnector {
 	 * @returns ExecResult from the run command
 	 */
 	async run(script: string): Promise<ExecResult> {
+		if (!isValidScriptName(script)) {
+			return invalidInput(
+				`Invalid script name ${JSON.stringify(script)}. Use a package.json script name such as "build" or "test:unit".`
+			);
+		}
+
 		const cmd: string[] = [this.pm, 'run', script];
 		return this.execPm(cmd);
 	}
@@ -92,6 +152,10 @@ export class PackageManagerConnector {
 	 * @returns ExecResult from the add command
 	 */
 	async add(pkg: string, dev?: boolean): Promise<ExecResult> {
+		if (!isValidPackageSpec(pkg)) {
+			return invalidPackage(pkg);
+		}
+
 		const cmd: string[] = [this.pm, 'add', pkg];
 
 		if (dev) {
@@ -108,6 +172,10 @@ export class PackageManagerConnector {
 	 * @returns ExecResult from the remove command
 	 */
 	async remove(pkg: string): Promise<ExecResult> {
+		if (!isValidPackageSpec(pkg)) {
+			return invalidPackage(pkg);
+		}
+
 		const cmd: string[] = [this.pm, 'remove', pkg];
 		return this.execPm(cmd);
 	}

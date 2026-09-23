@@ -32,12 +32,13 @@ export function registerConnectCommand(program: Command): void {
 					await existingClient.disconnect();
 				}
 
-				// Create new client
+				// Create new client. `connect` is one-shot, so a dropped stream must
+				// not start a reconnect loop that keeps the process alive.
 				const client: McpClient = createClient({
 					url,
 					transport: options.transport as 'sse' | 'http',
 					timeout: Number.parseInt(options.timeout, 10),
-					autoReconnect: options.reconnect !== false,
+					autoReconnect: false,
 				});
 				setClient(client);
 

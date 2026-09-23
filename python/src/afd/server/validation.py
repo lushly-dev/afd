@@ -23,12 +23,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Annotated, Generic, Literal, TypeVar
+from typing import Annotated, Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, Field, field_validator
 from pydantic import ValidationError as PydanticValidationError
 
 from afd.core.errors import CommandError
+from afd.core.result import CommandResult, failure
 
 T = TypeVar("T")
 
@@ -427,6 +428,31 @@ def _extract_schema_info(
         "unexpected_fields": unexpected_fields,
         "missing_fields": missing_fields,
     }
+
+
+def _input_validation_failure(
+    model_class: type[BaseModel],
+    input_data: object,
+    exc: PydanticValidationError,
+) -> CommandResult[Any]:
+    """Build a VALIDATION_ERROR result from a pydantic error raised while parsing input.
+
+    Reports field paths, messages and expected/unknown/missing fields (the same
+    shape as the TypeScript server), not the exception text or input values.
+    """
+    errors = _convert_pydantic_errors(exc)
+    schema_info = _extract_schema_info(model_class, input_data)
+    details: dict[str, Any] = {"errors": [_error_to_dict(e) for e in errors]}
+    details.update({key: value for key, value in schema_info.items() if value})
+    return failure(
+        CommandError(
+            code="VALIDATION_ERROR",
+            message="Input validation failed",
+            suggestion=format_enhanced_validation_error(errors, schema_info),
+            retryable=False,
+            details=details,
+        )
+    )
 
 
 def _error_to_dict(error: ValidationError) -> dict[str, object]:

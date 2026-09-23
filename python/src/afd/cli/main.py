@@ -27,12 +27,21 @@ from afd.cli.output import (
     print_tools,
     print_warning,
 )
-from afd.testing.surface.validate import validate_command_surface
-from afd.testing.surface.types import SurfaceValidationOptions
 from afd.transports import FastMCPTransport, HttpTransport, MockTransport, SseTransport, Transport
 
 # State file for persistent connection info
 STATE_FILE = Path.home() / ".afd" / "state.json"
+
+
+def validate_command_surface(commands: list[Any], options: Any = None) -> Any:
+    """Run surface validation from ``afd.testing``.
+
+    Imported on first use: ``afd.testing`` needs the ``testing`` extra (pytest),
+    which the CLI does not otherwise require.
+    """
+    from afd.testing.surface.validate import validate_command_surface as _validate
+
+    return _validate(commands, options)
 
 
 def _load_state() -> dict[str, Any]:
@@ -356,7 +365,6 @@ def validate(
     """
     Validate server connection/tools, or run cross-command surface validation.
     """
-    quiet = ctx.obj.get("quiet", False)
     json_output = ctx.obj.get("json_output", False)
     
     async def _validate_connection() -> None:
@@ -394,6 +402,8 @@ def validate(
             await transport.disconnect()
 
     async def _validate_surface() -> None:
+        from afd.testing.surface.types import SurfaceValidationOptions
+
         transport = _get_transport(server)
         try:
             await transport.connect()

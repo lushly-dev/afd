@@ -13,7 +13,13 @@ import type {
 	PipelineRequest,
 	PipelineResult,
 } from '@lushly-dev/afd-core';
-import { failure, findSimilarTools, isBatchRequest, isPipelineRequest } from '@lushly-dev/afd-core';
+import {
+	failure,
+	findSimilarTools,
+	isBatchRequest,
+	isPipelineRequest,
+	truncateName,
+} from '@lushly-dev/afd-core';
 import type { DetailInput, DiscoverInput } from './lazy-tools.js';
 import { executeDetail, executeDiscover } from './lazy-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
@@ -161,7 +167,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 						success: false,
 						error: {
 							code: 'COMMAND_NOT_FOUND',
-							message: `Command '${commandName}' not found`,
+							message: `Command '${truncateName(commandName)}' not found`,
 							suggestion: suggestionText,
 						},
 					},
@@ -296,7 +302,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 					return resultContent(
 						failure({
 							code: candidates.length ? 'AMBIGUOUS_ACTION' : 'COMMAND_NOT_FOUND',
-							message: `Action '${action}' does not identify one command in group '${toolName}'`,
+							message: `Action '${truncateName(action)}' does not identify one command in group '${truncateName(toolName)}'`,
 							suggestion:
 								'Use afd-call with the full command name, or list tools to find a valid action.',
 						}),

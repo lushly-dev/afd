@@ -17,8 +17,12 @@ Example:
 
 from typing import Any, Generic, List, Optional, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, field_serializer
 
+# CommandError is defined once, in afd.core.errors, and re-exported here so
+# ``afd.core.result.CommandError`` and ``afd.core.errors.CommandError`` are the
+# same class.
+from afd.core.errors import CommandError, _omit_unset_cause
 from afd.core.metadata import Alternative, PlanStep, Source, Warning
 
 T = TypeVar("T")
@@ -40,34 +44,6 @@ class ResultMetadata(BaseModel):
     command_version: Optional[str] = None
     trace_id: Optional[str] = None
     timestamp: Optional[str] = None
-
-
-class CommandError(BaseModel):
-    """Structured error with recovery guidance.
-    
-    All errors should be actionable - users should know what to do next.
-    
-    Attributes:
-        code: Machine-readable error code (SCREAMING_SNAKE_CASE).
-        message: Human-readable error description.
-        suggestion: What the user can do about this error.
-        retryable: Whether retrying might succeed.
-        details: Additional technical details for debugging.
-    
-    Example:
-        >>> error = CommandError(
-        ...     code="RATE_LIMITED",
-        ...     message="API rate limit exceeded",
-        ...     suggestion="Wait 60 seconds and try again",
-        ...     retryable=True,
-        ... )
-    """
-
-    code: str
-    message: str
-    suggestion: Optional[str] = None
-    retryable: Optional[bool] = None
-    details: Optional[dict[str, Any]] = None
 
 
 class CommandResult(BaseModel, Generic[T]):
@@ -116,6 +92,12 @@ class CommandResult(BaseModel, Generic[T]):
     # Undo fields (for serializable undo over MCP)
     undo_command: Optional[str] = None
     undo_args: Optional[dict[str, Any]] = None
+
+    @field_serializer("error", mode="wrap")
+    def _serialize_error(
+        self, value: Optional[CommandError], handler: SerializerFunctionWrapHandler
+    ) -> Any:
+        return _omit_unset_cause(handler(value))
 
 
 def success(

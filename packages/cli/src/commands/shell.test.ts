@@ -62,6 +62,27 @@ async function line(value: string): Promise<void> {
 	await handler(value);
 }
 
+/**
+ * Start the shell. Its command only finishes once readline closes, so the
+ * returned `done` promise is awaited after `closeInput()`.
+ */
+async function startShell(...args: string[]): Promise<{ done: Promise<void> }> {
+	const done = createCli()
+		.exitOverride()
+		.parseAsync(['shell', ...args], { from: 'user' })
+		.then(() => undefined);
+	await vi.waitFor(() => {
+		if (!mocks.handlers.has('close')) throw new Error('shell has not started');
+	});
+	return { done };
+}
+
+function closeInput(): void {
+	const handler = mocks.handlers.get('close');
+	if (!handler) throw new Error('close handler was not registered');
+	handler();
+}
+
 describe('interactive shell', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -79,7 +100,7 @@ describe('interactive shell', () => {
 		const client = connectedClient();
 		mocks.createClient.mockReturnValue(client);
 
-		await createCli().exitOverride().parseAsync(['shell'], { from: 'user' });
+		const { done } = await startShell();
 		await line('');
 		await line('help');
 		await line('unknown');
@@ -95,7 +116,10 @@ describe('interactive shell', () => {
 		await line('disconnect');
 		await line('tools');
 		await line('call');
+		closeInput();
+		await done;
 
+		expect(console.log).toHaveBeenCalledWith('Goodbye!');
 		expect(client.connect).toHaveBeenCalled();
 		expect(client.refreshTools).toHaveBeenCalled();
 		expect(client.call).toHaveBeenNthCalledWith(1, 'todo.create', { title: 'Test' });
@@ -113,14 +137,14 @@ describe('interactive shell', () => {
 		(client.call as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('call failed'));
 		mocks.createClient.mockReturnValue(client);
 
-		await createCli()
-			.exitOverride()
-			.parseAsync(['shell', '--url', 'http://auto/mcp'], { from: 'user' });
+		const { done } = await startShell('--url', 'http://auto/mcp');
 		await line('call todo.create {broken');
 		await line('call todo.create {}');
 		await line('?');
 		await line('list');
 		await line('q');
+		closeInput();
+		await done;
 
 		expect(mocks.setConfig).toHaveBeenCalledWith('serverUrl', 'http://auto/mcp');
 		expect(console.error).toHaveBeenCalledWith(
@@ -135,13 +159,46 @@ describe('interactive shell', () => {
 		(failed.connect as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('offline'));
 		mocks.createClient.mockReturnValue(failed);
 
-		await createCli()
-			.exitOverride()
-			.parseAsync(['shell', '--url', 'http://offline/mcp'], { from: 'user' });
+		const { done } = await startShell('--url', 'http://offline/mcp');
 		await line('connect http://offline/mcp');
+		closeInput();
+		await done;
 
 		expect(console.error).toHaveBeenCalledWith(expect.anything(), 'Auto-connect failed');
 		expect(console.error).toHaveBeenCalledWith(expect.anything(), 'Connection failed');
 		expect(mocks.readline.prompt).toHaveBeenCalled();
+	});
+
+	it('stays running until input closes, then finishes queued commands first', async () => {
+		const client = connectedClient();
+		let release: () => void = () => undefined;
+		(client.call as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+			new Promise((resolve) => {
+				release = () => resolve({ success: true, data: { id: '1' } });
+			})
+		);
+		mocks.createClient.mockReturnValue(client);
+
+		const { done } = await startShell('--url', 'http://auto/mcp');
+		let finished = false;
+		void done.then(() => {
+			finished = true;
+		});
+
+		const inFlight = line('call todo-create');
+		const queued = line('status');
+		closeInput();
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		expect(finished).toBe(false);
+		expect(client.disconnect).not.toHaveBeenCalled();
+
+		const promptsBeforeRelease = mocks.readline.prompt.mock.calls.length;
+		release();
+		await Promise.all([inFlight, queued, done]);
+
+		expect(finished).toBe(true);
+		expect(console.log).toHaveBeenLastCalledWith('Goodbye!');
+		// No prompt is redrawn once the input has closed.
+		expect(mocks.readline.prompt).toHaveBeenCalledTimes(promptsBeforeRelease);
 	});
 });

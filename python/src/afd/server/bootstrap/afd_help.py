@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 from afd.core.commands import (
     CommandContext,
@@ -14,6 +14,7 @@ from afd.core.commands import (
 )
 from afd.core.result import CommandResult, success
 from afd.server.bootstrap.afd_context import BOOTSTRAP_EXPOSE
+from afd.server.validation import _input_validation_failure
 
 
 class AfdHelpInput(BaseModel):
@@ -114,7 +115,10 @@ def create_afd_help_command(
         input: Any,
         context: Optional[CommandContext] = None,
     ) -> CommandResult[AfdHelpOutput]:
-        parsed_input = input if isinstance(input, AfdHelpInput) else AfdHelpInput(**(input or {}))
+        try:
+            parsed_input = input if isinstance(input, AfdHelpInput) else AfdHelpInput(**(input or {}))
+        except ValidationError as exc:
+            return _input_validation_failure(AfdHelpInput, input, exc)
         return await _afd_help_handler(parsed_input, context, get_commands)
 
     return CommandDefinition(

@@ -41,6 +41,8 @@ Handoff Example:
     ...     ))
 """
 
+from typing import TYPE_CHECKING
+
 from afd.core.result import (
     CommandResult,
     ResultMetadata,
@@ -186,12 +188,6 @@ from afd.direct import (
     create_direct_client,
     create_registry,
 )
-from afd.client import (
-    McpClient,
-    McpClientConfig,
-    ClientStatus,
-    create_client,
-)
 from afd.platform import (
     ExecErrorCode,
     ExecOptions,
@@ -246,6 +242,46 @@ from afd.handoff_client import (
     WebSocketHandoffHandler,
     SseHandoffHandler,
 )
+
+if TYPE_CHECKING:
+    from afd.client import (
+        ClientStatus,
+        McpClient,
+        McpClientConfig,
+        create_client,
+    )
+
+# The MCP client needs the optional ``client`` extra (httpx, mcp), so its
+# exports are imported on first access instead of when ``afd`` is imported.
+_LAZY_EXPORTS = {
+    "McpClient": "afd.client",
+    "McpClientConfig": "afd.client",
+    "ClientStatus": "afd.client",
+    "create_client": "afd.client",
+}
+
+
+def __getattr__(name: str) -> object:
+    module_name = _LAZY_EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    import importlib
+
+    try:
+        module = importlib.import_module(module_name)
+    except ModuleNotFoundError as exc:
+        raise ModuleNotFoundError(
+            f"afd.{name} requires the 'client' extra: pip install 'afd[client]' ({exc})",
+            name=exc.name,
+        ) from exc
+    value = getattr(module, name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_LAZY_EXPORTS))
+
 
 __version__ = "0.8.0"
 

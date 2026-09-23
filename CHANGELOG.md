@@ -22,6 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Validate complete batch/pipeline requests before invoking handlers, avoiding unreported partial writes on malformed input (#219).
 - Reject deadline options before execution in Rust builds without the native runtime feature (#220).
 - Repair showcase command registration types and include showcase demos in recursive typechecking (#224).
+- **Python security:** pipeline and DirectClient `$ref` paths follow only dict keys and list indices, never attributes or `_`-prefixed names. Previously any MCP client could read server process globals and environment through `afd-pipe`.
+- **Python security:** `afd-help`, `afd-docs`, `afd-schema`, `afd-detail`, and `afd-call` only see MCP-exposed commands.
+- **Python security:** handler exceptions are logged to the `afd.server` logger and returned as "An internal error occurred" unless the new `create_server(dev_mode=True)` is set. Invalid input returns `VALIDATION_ERROR` with structured details.
+- **Python:** a base `pip install afd` imports again; MCP client exports load lazily and `afd --help` no longer needs pytest. Extras depend on `mcp>=1.19,<2` directly instead of the unused `fastmcp`, drop the unused `httpx-sse`, require `websockets>=14`, and `afd[cli]` includes the client transports.
+- **Python:** there is now a single `CommandError` class, so `failure(not_found_error(...))`, DirectClient error paths, and `afd-batch` timeout/`stopOnError` return results instead of raising `ValidationError`. Serialized output is unchanged.
+- Python fuzzy "did you mean" matching caps untrusted names at 128 characters.
+- TypeScript and Rust fuzzy matching of unknown command names is bounded, so an oversized `afd-call`, `afd-detail`, or DirectClient name no longer blocks the event loop for seconds. Echoed names are truncated.
+- An exception thrown inside a Zod refine, transform, or preprocess callback returns `VALIDATION_ERROR` instead of an HTTP 500 or raw exception text. Throwing `onCommand`/`onError` hooks no longer change a command's result, and frozen handler results are supported.
+- **Windows security:** `exec()` and the testing `CliWrapper` no longer spawn with `shell: true`. `.cmd`/`.bat` shims run through `cmd.exe` with every argument escaped, and `.exe` commands run directly. `GitHubConnector` passes `--flag=value` arguments, and `PackageManagerConnector` validates package and script names.
+- **CLI:** `afd validate` no longer executes tools unless `--execute` is given, and even then skips tools marked `mutation` or `destructive`. `connect`, `call`, `status`, `tools`, `batch`, and `stream` exit after printing instead of hanging over SSE. `--category` filters on `_meta.category`, and confidence bars no longer crash on values outside 0–1.
+- `@lushly-dev/afd-server` re-exports the core `error()` helper used throughout the docs. The TypeScript skills now show the required `expose: { mcp: true }` opt-in.
 
 ### Changed
 
@@ -33,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Regression tests across runtime, security, auth, CLI, database, execution controls, and repository tooling; dedicated Alfred CI checks.
 - A detailed review record at `docs/reviews/2026-09-05-review.md` (#194).
+- A follow-up quality review at `docs/reviews/2026-09-23-quality-review.md`, with Wave 0 fixes applied.
 
 ## [0.8.0] - 2026-07-07
 

@@ -38,6 +38,7 @@ from typing import (
 )
 
 from pydantic import BaseModel
+from pydantic import ValidationError as PydanticValidationError
 
 from afd.core.commands import (
     CommandDefinition,
@@ -46,6 +47,7 @@ from afd.core.commands import (
     ExposeOptions,
 )
 from afd.core.result import CommandResult
+from afd.server.validation import _input_validation_failure
 
 TInput = TypeVar("TInput", bound=BaseModel)
 TOutput = TypeVar("TOutput")
@@ -161,12 +163,15 @@ def define_command(
             """Wrapper that validates input and calls the handler."""
             # Validate input using Pydantic schema if provided
             if input_schema and raw_input is not None:
-                if isinstance(raw_input, dict):
-                    validated_input = input_schema.model_validate(raw_input)
-                elif isinstance(raw_input, input_schema):
-                    validated_input = raw_input
-                else:
-                    validated_input = input_schema.model_validate(raw_input)
+                try:
+                    if isinstance(raw_input, dict):
+                        validated_input = input_schema.model_validate(raw_input)
+                    elif isinstance(raw_input, input_schema):
+                        validated_input = raw_input
+                    else:
+                        validated_input = input_schema.model_validate(raw_input)
+                except PydanticValidationError as exc:
+                    return _input_validation_failure(input_schema, raw_input, exc)
             else:
                 validated_input = raw_input
             

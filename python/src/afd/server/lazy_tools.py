@@ -8,6 +8,9 @@ from typing import Any, Iterable, Sequence
 from afd.core.commands import CommandDefinition, command_to_mcp_tool, serialize_command_examples
 from afd.core.result import CommandResult, success
 
+# Requested names are untrusted: cap them before fuzzy matching and echoing.
+_MAX_COMMAND_NAME_LENGTH = 128
+
 
 def _truncate_description(description: str, max_length: int = 120) -> str:
     first_sentence = description.split(". ")[0] if description else ""
@@ -114,6 +117,7 @@ def execute_detail(
     for name in names:
         command = command_map.get(name)
         if command is None:
+            name = name[:_MAX_COMMAND_NAME_LENGTH]
             suggestion = get_close_matches(name, available_names, n=1)
             entries.append(
                 {

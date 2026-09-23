@@ -198,20 +198,28 @@ function formatValue(value: unknown, indent = 2): string {
 }
 
 /**
- * Create a visual confidence bar.
+ * Render a fixed-width bar for a 0-1 ratio.
+ *
+ * Servers are not trusted to stay in range: values above 1, below 0 or NaN are
+ * clamped, because `String.prototype.repeat` throws on a negative count.
  */
-function getConfidenceBar(confidence: number): string {
-	const filled = Math.round(confidence * 10);
-	const empty = 10 - filled;
+export function renderBar(ratio: number, width: number, color: (text: string) => string): string {
+	const clamped = Number.isNaN(ratio) ? 0 : Math.min(1, Math.max(0, ratio));
+	const filled = Math.round(clamped * width);
+	return color('█'.repeat(filled)) + chalk.dim('░'.repeat(width - filled));
+}
 
-	let color: typeof chalk.green;
-	if (confidence >= 0.8) {
-		color = chalk.green;
-	} else if (confidence >= 0.5) {
-		color = chalk.yellow;
-	} else {
-		color = chalk.red;
-	}
+/**
+ * Create a visual confidence bar, colored by confidence level.
+ */
+export function getConfidenceBar(confidence: number): string {
+	const color = confidence >= 0.8 ? chalk.green : confidence >= 0.5 ? chalk.yellow : chalk.red;
+	return renderBar(confidence, 10, color);
+}
 
-	return color('█'.repeat(filled)) + chalk.dim('░'.repeat(empty));
+/**
+ * Create a visual progress bar.
+ */
+export function getProgressBar(progress: number): string {
+	return chalk.cyan('[') + renderBar(progress, 20, chalk.cyan) + chalk.cyan(']');
 }

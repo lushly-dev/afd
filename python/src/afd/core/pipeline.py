@@ -19,15 +19,18 @@ Example:
 """
 
 import asyncio
+import dataclasses
 import re
 import time
+from collections.abc import Mapping
 from enum import Enum
 from typing import Any, Callable, Dict, Generic, List, Optional, TypeVar, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SerializerFunctionWrapHandler, field_serializer
 
+from afd.core.errors import _omit_unset_cause
 from afd.core.metadata import Alternative, Source, Warning
-from afd.core.result import CommandError, ResultMetadata
+from afd.core.result import CommandError, CommandResult, ResultMetadata
 
 T = TypeVar("T")
 
@@ -271,6 +274,12 @@ class StepResult(BaseModel):
     execution_time_ms: float = 0
     metadata: Optional[ResultMetadata] = None
 
+    @field_serializer("error", mode="wrap")
+    def _serialize_error(
+        self, value: Optional[CommandError], handler: SerializerFunctionWrapHandler
+    ) -> Any:
+        return _omit_unset_cause(handler(value))
+
 
 class PipelineMetadata(ResultMetadata):
     """Aggregated metadata from pipeline execution."""
@@ -395,8 +404,37 @@ def create_pipeline(
     return PipelineRequest(steps=steps, options=options, input=input)
 
 
+def _as_plain_data(value: Any) -> Any:
+    """View pydantic models and dataclasses as plain data for path traversal."""
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    if dataclasses.is_dataclass(value) and not isinstance(value, type):
+        return dataclasses.asdict(value)
+    return value
+
+
+def _get_path_segment(current: Any, segment: str) -> Any:
+    """Follow one path segment through mapping keys or list/tuple indices only."""
+    if segment.startswith("_"):
+        return None
+    current = _as_plain_data(current)
+    if isinstance(current, Mapping):
+        return current.get(segment)
+    if isinstance(current, (list, tuple)) and segment.isascii() and segment.isdigit():
+        index = int(segment)
+        return current[index] if index < len(current) else None
+    return None
+
+
 def get_nested_value(obj: Any, path: str) -> Any:
-    """Get a nested value from an object using dot notation."""
+    """Get a nested value from an object using dot notation.
+
+    Paths only follow mapping keys and list/tuple indices. Pydantic models and
+    dataclasses are read through their serialized form (the stored value is not
+    modified), attributes are never read, and segments starting with ``_``
+    resolve to ``None``. A path such as ``__class__.__init__.__globals__``
+    therefore cannot reach interpreter internals.
+    """
     if obj is None:
         return None
 
@@ -409,20 +447,12 @@ def get_nested_value(obj: Any, path: str) -> Any:
 
         array_match = re.match(r"^(\w+)\[(\d+)\]$", part)
         if array_match:
-            prop = array_match.group(1)
-            index = int(array_match.group(2))
-            if isinstance(current, dict):
-                arr = current.get(prop)
-            else:
-                arr = getattr(current, prop, None)
-            if not isinstance(arr, list) or index >= len(arr):
+            arr = _get_path_segment(current, array_match.group(1))
+            if not isinstance(arr, (list, tuple)):
                 return None
-            current = arr[index]
+            current = _get_path_segment(arr, array_match.group(2))
         else:
-            if isinstance(current, dict):
-                current = current.get(part)
-            else:
-                current = getattr(current, part, None)
+            current = _get_path_segment(current, part)
 
     return current
 

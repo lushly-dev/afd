@@ -9,7 +9,7 @@ import chalk from 'chalk';
 import type { Command } from 'commander';
 import ora from 'ora';
 import { ensureConnected } from '../connection.js';
-import { type OutputFormat, printError } from '../output.js';
+import { getConfidenceBar, type OutputFormat, printError } from '../output.js';
 
 /**
  * Register the batch command.
@@ -224,23 +224,4 @@ function printBatchResult<T>(
 			console.log(chalk.dim('Suggestion:'), result.error.suggestion);
 		}
 	}
-}
-
-/**
- * Create a visual confidence bar.
- */
-function getConfidenceBar(confidence: number): string {
-	const filled = Math.round(confidence * 10);
-	const empty = 10 - filled;
-
-	let color: typeof chalk.green;
-	if (confidence >= 0.8) {
-		color = chalk.green;
-	} else if (confidence >= 0.5) {
-		color = chalk.yellow;
-	} else {
-		color = chalk.red;
-	}
-
-	return color('█'.repeat(filled)) + chalk.dim('░'.repeat(empty));
 }

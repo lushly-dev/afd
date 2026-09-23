@@ -85,6 +85,14 @@ export interface GitHubConnectorOptions {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
+ * Build a `--name=value` flag. Keeping the value in the same argument means a value that
+ * starts with `-` (e.g. a title of `--web`) can never be read as another flag.
+ */
+function flag(name: string, value: string): string {
+	return `--${name}=${value}`;
+}
+
+/**
  * Connector for interacting with GitHub via the gh CLI.
  *
  * SECURITY: This connector NEVER logs stdout to prevent accidental
@@ -119,20 +127,26 @@ export class GitHubConnector {
 	 * @returns Issue number on success, or throws on failure
 	 */
 	async issueCreate(opts: IssueCreateOptions): Promise<number> {
-		const cmd: string[] = ['gh', 'issue', 'create', '--title', opts.title, '--body', opts.body];
+		const cmd: string[] = [
+			'gh',
+			'issue',
+			'create',
+			flag('title', opts.title),
+			flag('body', opts.body),
+		];
 
 		if (opts.repo) {
-			cmd.push('--repo', opts.repo);
+			cmd.push(flag('repo', opts.repo));
 		}
 
 		if (opts.labels && opts.labels.length > 0) {
 			for (const label of opts.labels) {
-				cmd.push('--label', label);
+				cmd.push(flag('label', label));
 			}
 		}
 
 		if (opts.project) {
-			cmd.push('--project', opts.project);
+			cmd.push(flag('project', opts.project));
 		}
 
 		const result = await this.execGh(cmd);
@@ -162,26 +176,24 @@ export class GitHubConnector {
 			'gh',
 			'issue',
 			'list',
-			'--repo',
-			repo,
-			'--json',
-			'number,title,state,url',
+			flag('repo', repo),
+			flag('json', 'number,title,state,url'),
 		];
 
 		if (filters?.state) {
-			cmd.push('--state', filters.state);
+			cmd.push(flag('state', filters.state));
 		}
 
 		if (filters?.label) {
-			cmd.push('--label', filters.label);
+			cmd.push(flag('label', filters.label));
 		}
 
 		if (filters?.assignee) {
-			cmd.push('--assignee', filters.assignee);
+			cmd.push(flag('assignee', filters.assignee));
 		}
 
 		if (filters?.limit) {
-			cmd.push('--limit', String(filters.limit));
+			cmd.push(flag('limit', String(filters.limit)));
 		}
 
 		const result = await this.execGh(cmd);
@@ -212,12 +224,17 @@ export class GitHubConnector {
 	 * @returns PR number on success, or throws on failure
 	 */
 	async prCreate(opts: PrCreateOptions): Promise<number> {
-		const cmd: string[] = ['gh', 'pr', 'create', '--title', opts.title, '--body', opts.body];
-
-		cmd.push('--head', opts.head);
+		const cmd: string[] = [
+			'gh',
+			'pr',
+			'create',
+			flag('title', opts.title),
+			flag('body', opts.body),
+			flag('head', opts.head),
+		];
 
 		if (opts.base) {
-			cmd.push('--base', opts.base);
+			cmd.push(flag('base', opts.base));
 		}
 
 		if (opts.draft) {
@@ -247,22 +264,28 @@ export class GitHubConnector {
 	 * @returns Array of pull requests
 	 */
 	async prList(repo: string, filters?: IssueFilters): Promise<PullRequest[]> {
-		const cmd: string[] = ['gh', 'pr', 'list', '--repo', repo, '--json', 'number,title,state,url'];
+		const cmd: string[] = [
+			'gh',
+			'pr',
+			'list',
+			flag('repo', repo),
+			flag('json', 'number,title,state,url'),
+		];
 
 		if (filters?.state && filters.state !== 'all') {
-			cmd.push('--state', filters.state);
+			cmd.push(flag('state', filters.state));
 		}
 
 		if (filters?.label) {
-			cmd.push('--label', filters.label);
+			cmd.push(flag('label', filters.label));
 		}
 
 		if (filters?.assignee) {
-			cmd.push('--assignee', filters.assignee);
+			cmd.push(flag('assignee', filters.assignee));
 		}
 
 		if (filters?.limit) {
-			cmd.push('--limit', String(filters.limit));
+			cmd.push(flag('limit', String(filters.limit)));
 		}
 
 		const result = await this.execGh(cmd);

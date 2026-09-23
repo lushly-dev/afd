@@ -73,6 +73,7 @@ All functionality is exposed as commands before any UI is built:
 // Step 1: Define command
 const createItem = defineCommand({
   name: 'item-create',
+  expose: { mcp: true }, // Commands are private unless exposed; MCP clients need this opt-in
   input: z.object({ title: z.string().min(1) }),
   async handler(input) {
     const item = await store.create(input);

@@ -9,7 +9,7 @@ import { isCompleteChunk, isDataChunk, isErrorChunk, isProgressChunk } from '@lu
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import { ensureConnected } from '../connection.js';
-import { type OutputFormat, printError } from '../output.js';
+import { getConfidenceBar, getProgressBar, type OutputFormat, printError } from '../output.js';
 
 /**
  * Register the stream command.
@@ -236,39 +236,4 @@ function parseKeyValuePairs(input: string): Record<string, unknown> {
 	}
 
 	return result;
-}
-
-/**
- * Create a visual progress bar.
- */
-function getProgressBar(progress: number): string {
-	const width = 20;
-	const filled = Math.round(progress * width);
-	const empty = width - filled;
-
-	return (
-		chalk.cyan('[') +
-		chalk.cyan('█'.repeat(filled)) +
-		chalk.dim('░'.repeat(empty)) +
-		chalk.cyan(']')
-	);
-}
-
-/**
- * Create a visual confidence bar.
- */
-function getConfidenceBar(confidence: number): string {
-	const filled = Math.round(confidence * 10);
-	const empty = 10 - filled;
-
-	let color: typeof chalk.green;
-	if (confidence >= 0.8) {
-		color = chalk.green;
-	} else if (confidence >= 0.5) {
-		color = chalk.yellow;
-	} else {
-		color = chalk.red;
-	}
-
-	return color('█'.repeat(filled)) + chalk.dim('░'.repeat(empty));
 }
