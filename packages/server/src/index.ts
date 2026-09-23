@@ -67,6 +67,7 @@ export {
 	createTelemetryEvent,
 	defaultExpose,
 	defaultReconnectPolicy,
+	error,
 	failure,
 	getHandoffProtocol,
 	isFailure,

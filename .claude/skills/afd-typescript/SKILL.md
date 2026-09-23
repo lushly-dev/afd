@@ -52,7 +52,7 @@ import { ViewStateRegistry, createViewStateCommands } from '@lushly-dev/afd-view
 
 ```typescript
 import { z } from 'zod';
-import { defineCommand, success, error } from '@lushly-dev/afd-server';
+import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 
 const inputSchema = z.object({
   title: z.string().min(1).max(200),
@@ -71,6 +71,7 @@ export const createTodo = defineCommand({
   description: 'Create a new todo item',
   category: 'todo',
   mutation: true,
+  expose: { mcp: true },       // Required for MCP clients — commands are private by default
   requires: ['auth-sign-in'],  // Planning-order dependency (metadata only)
   version: '1.0.0',
   input: inputSchema,
@@ -78,17 +79,22 @@ export const createTodo = defineCommand({
   contexts: ['task-management'],  // Only visible in task-management context
   errors: ['VALIDATION_ERROR'],
 
+  // `input` has already been validated and parsed against `inputSchema` (defaults applied)
   async handler(input) {
-    const parsed = inputSchema.parse(input);
-    const todo = await store.create(parsed);
+    const todo = await store.create(input);
 
     return success(todo, {
-      reasoning: `Created todo "${todo.title}" with ${parsed.priority} priority`,
+      reasoning: `Created todo "${todo.title}" with ${input.priority} priority`,
       confidence: 1.0,
     });
   },
 });
 ```
+
+> **Exposure is opt-in.** Remote MCP clients can only list and call commands that declare
+> `expose: { mcp: true }`. Omitting `expose` (or `expose.mcp`) keeps a command private to
+> in-process callers such as `server.execute()`. This applies to tool listing, discovery,
+> `afd-call`, batches, pipelines, and streaming.
 
 ### Command with Context
 
@@ -98,17 +104,21 @@ export const updateTodo = defineCommand({
   description: 'Update a todo item',
   category: 'todo',
   mutation: true,
+  expose: { mcp: true },
   input: updateSchema,
   errors: ['NOT_FOUND', 'NO_CHANGES'],
 
   async handler(input, context) {
     // context.traceId - Correlation ID for logging
-    // context.userId - Authenticated user (if available)
-    console.log(`[${context.traceId}] Updating todo ${input.id}`);
+    // Other context values (e.g. an authenticated user) are only present
+    // when your own middleware sets them.
+    console.error(`[${context.traceId}] Updating todo ${input.id}`); // stderr: stdout carries stdio JSON-RPC
 
     const todo = await store.get(input.id);
     if (!todo) {
-      return error('NOT_FOUND', `Todo ${input.id} not found`, {
+      return failure({
+        code: 'NOT_FOUND',
+        message: `Todo ${input.id} not found`,
         suggestion: 'Use todo-list to see available todos',
       });
     }
@@ -278,8 +288,11 @@ const server = createMcpServer({
 });
 
 await server.start();
-console.log(`MCP server running at ${server.getUrl()}`);
+console.error(`MCP server running at ${server.getUrl()}`);
 ```
+
+Only commands declaring `expose: { mcp: true }` appear in `tools/list` and can be called
+remotely; `server.execute()` can still run private commands in-process.
 
 ### Embeddable Node Handler
 

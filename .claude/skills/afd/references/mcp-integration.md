@@ -181,11 +181,11 @@ await client.reconnect();
 ### Export Pattern
 
 ```typescript
-// commands/create.ts
-export const createTodo = defineCommand({...});
+// commands/create.ts — every remotely callable command opts in to MCP exposure
+export const createTodo = defineCommand({ ..., expose: { mcp: true } });
 
 // commands/list.ts
-export const listTodos = defineCommand({...});
+export const listTodos = defineCommand({ ..., expose: { mcp: true } });
 
 // commands/index.ts
 import { createTodo } from './create.js';
@@ -459,11 +459,16 @@ const formatDoc = defineCommand({
 - When no context is active, all commands are visible
 - Contexts use a stack — entering a new context pushes to stack, exiting pops
 
-## Environment Variables
+## Server Options
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | 3100 | Server port |
-| `HOST` | localhost | Server host |
-| `LOG_LEVEL` | info | Logging level |
-| `CORS_ORIGIN` | * | Allowed origins |
+The TypeScript server does not read environment variables. Pass these options to
+`createMcpServer()` / `createMcpHandler()` explicitly (read `process.env` yourself if needed):
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `port` | 3100 | Server port |
+| `host` | localhost | Bind host |
+| `allowedHosts` | configured host + loopback names | Accepted HTTP `Host` values; set for proxies and custom hostnames |
+| `allowedOrigins` | same-origin only | Additional exact browser origins |
+| `maxBodyBytes` | 1048576 | Maximum JSON request body |
+| `devMode` | false | Verbose errors and any-origin CORS — never enable on a reachable host |
