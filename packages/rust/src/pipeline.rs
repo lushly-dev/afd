@@ -2,22 +2,66 @@
 //!
 //! Pipelines enable declarative composition of commands where the output of one
 //! becomes the input of the next. Key features:
-//! - Variable resolution ($prev, $first, $steps[n], $steps.alias)
-//! - Conditional execution with when clauses
+//! - Variable resolution (`$prev`, `$first`, `$steps[n]`, `$steps.alias`, `$input`)
+//! - Conditional execution with `when` clauses
 //! - Trust signal propagation (confidence, reasoning, sources)
 //! - Error propagation with actionable suggestions
+//!
+//! The JSON shapes match `packages/core/src/pipeline.ts` and
+//! `spec/wire/pipeline-result.json`.
+//!
+//! # Variable references
+//!
+//! Resolution follows `spec/pipeline-variables.md`. A step input string is a
+//! reference only when the whole string is one of:
+//!
+//! | Form | Resolves to |
+//! | --- | --- |
+//! | `$prev`, `$prev.<path>` | data of the previous successful step |
+//! | `$first`, `$first.<path>` | data of the first step |
+//! | `$steps[N]`, `$steps[N].<path>` | data of step `N` (0-based) |
+//! | `$steps.<alias>`, `$steps.<alias>.<path>` | data of the step whose `as` is `<alias>` |
+//! | `$input`, `$input.<path>` | [`PipelineRequest::input`] |
+//!
+//! A `<path>` is `.`-separated segments; a segment is a key (`user`) with at
+//! most one index suffix (`items[2]`). Keys contain any characters except `.`,
+//! `[`, `]` and whitespace. A purely numeric segment (`items.2`) is an own-key
+//! lookup on an object and an index on an array.
+//!
+//! - Any other string starting with `$` (`$9.99`, `$HOME`, `$prevx`,
+//!   `$prev.a b`, `$steps[0][1]`) is a literal and passes through unchanged.
+//!   A string starting with `$$` is a literal with one `$` removed (`"$$prev"`
+//!   becomes `"$prev"`), at any length. Would-be references longer than
+//!   [`MAX_REFERENCE_LENGTH`] characters are literals.
+//! - Traversal reads only own keys of JSON objects and in-bounds array
+//!   indices; a segment or alias starting with `__` never resolves.
+//! - An unresolved reference is absent: it is omitted from objects and becomes
+//!   `null` in arrays. In `when` conditions `$exists` is `false` (also for
+//!   `null`), comparisons with absent operands are `false`, and `$eq`/`$ne`
+//!   compare JSON values structurally.
+//! - [`execute_pipeline`] rejects step inputs and the request `input` nested
+//!   deeper than [`MAX_INPUT_DEPTH`] levels (the outermost object or array is
+//!   level 1) with `VALIDATION_ERROR` before any step runs.
 
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::future::Future;
+use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
+use crate::commands::{deadline_after, elapsed_ms};
 use crate::errors::CommandError;
-use crate::metadata::{Alternative, Source, Warning};
+use crate::metadata::{Alternative, Source, Warning, WarningSeverity};
 use crate::result::CommandResult;
-use crate::result::ResultMetadata;
+
+/// Step inputs nested deeper than this many levels are rejected before any step runs.
+pub const MAX_INPUT_DEPTH: usize = 64;
+
+/// Reference strings longer than this many characters are literals.
+pub const MAX_REFERENCE_LENGTH: usize = 1024;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PIPELINE REQUEST TYPES
@@ -30,42 +74,73 @@ use crate::result::ResultMetadata;
 /// ```rust
 /// use afd::pipeline::{PipelineRequest, PipelineStep};
 ///
-/// let request = PipelineRequest {
-///     id: Some("my-pipeline".to_string()),
-///     steps: vec![
-///         PipelineStep {
-///             command: "user-get".to_string(),
-///             input: Some(serde_json::json!({"id": 123})),
-///             alias: Some("user".to_string()),
-///             when: None,
-///             stream: None,
-///         },
-///         PipelineStep {
-///             command: "order-list".to_string(),
-///             input: Some(serde_json::json!({"userId": "$prev.id"})),
-///             alias: None,
-///             when: None,
-///             stream: None,
-///         },
-///     ],
-///     options: None,
-/// };
+/// let request = PipelineRequest::new(vec![
+///     PipelineStep::new("user-get")
+///         .with_input(serde_json::json!({"id": "$input.userId"}))
+///         .with_alias("user"),
+///     PipelineStep::new("order-list").with_input(serde_json::json!({"userId": "$prev.id"})),
+/// ])
+/// .with_id("my-pipeline")
+/// .with_input(serde_json::json!({"userId": 123}));
+///
+/// assert_eq!(request.steps.len(), 2);
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct PipelineRequest {
     /// Unique identifier for the pipeline execution.
     /// Auto-generated if not provided.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
 
     /// Ordered list of pipeline steps to execute.
-    /// Steps are executed sequentially unless parallel is enabled.
     pub steps: Vec<PipelineStep>,
 
     /// Pipeline-level options.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub options: Option<PipelineOptions>,
+
+    /// Data that step inputs can reference as `$input`.
+    ///
+    /// This is the only source of `$input`; the host's execution context is
+    /// never exposed to references.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::wire::present"
+    )]
+    pub input: Option<serde_json::Value>,
+}
+
+impl PipelineRequest {
+    /// Create a request from steps.
+    pub fn new(steps: Vec<PipelineStep>) -> Self {
+        Self {
+            id: None,
+            steps,
+            options: None,
+            input: None,
+        }
+    }
+
+    /// Set the pipeline ID.
+    pub fn with_id(mut self, id: impl Into<String>) -> Self {
+        self.id = Some(id.into());
+        self
+    }
+
+    /// Set pipeline options.
+    pub fn with_options(mut self, options: PipelineOptions) -> Self {
+        self.options = Some(options);
+        self
+    }
+
+    /// Set the data available to steps as `$input`.
+    pub fn with_input(mut self, input: serde_json::Value) -> Self {
+        self.input = Some(input);
+        self
+    }
 }
 
 /// A single step in a pipeline.
@@ -73,73 +148,128 @@ pub struct PipelineRequest {
 /// # Example
 ///
 /// ```rust
-/// use afd::pipeline::{PipelineStep, PipelineCondition};
+/// use afd::pipeline::{PipelineCondition, PipelineStep};
 ///
-/// let step = PipelineStep {
-///     command: "order-list".to_string(),
-///     input: Some(serde_json::json!({"userId": "$prev.id", "status": "active"})),
-///     alias: Some("orders".to_string()),
-///     when: Some(PipelineCondition::Exists { exists: "$prev.id".to_string() }),
-///     stream: None,
-/// };
+/// let step = PipelineStep::new("order-list")
+///     .with_input(serde_json::json!({"userId": "$prev.id", "status": "active"}))
+///     .with_alias("orders")
+///     .with_when(PipelineCondition::Exists { exists: "$prev.id".to_string() });
+/// assert_eq!(
+///     serde_json::to_value(&step).unwrap()["when"],
+///     serde_json::json!({"$exists": "$prev.id"})
+/// );
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct PipelineStep {
     /// Command name to execute.
     pub command: String,
 
-    /// Input for this step.
-    ///
-    /// Can reference outputs from previous steps using variables:
-    /// - `$prev` - Output of immediately previous step
-    /// - `$prev.field` - Specific field from previous output
-    /// - `$first` - Output of first step
-    /// - `$steps[n]` - Output of step at index n
-    /// - `$steps.alias` - Output of step with matching `as` alias
-    /// - `$input` - Original pipeline input
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Input for this step. String values may be variable references
+    /// (see the [module documentation](self)).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub input: Option<serde_json::Value>,
 
-    /// Optional alias for referencing this step's output.
-    ///
-    /// Other steps can reference this step using `$steps.alias`.
-    #[serde(rename = "as", skip_serializing_if = "Option::is_none")]
+    /// Optional alias for referencing this step's output as `$steps.<alias>`.
+    #[serde(rename = "as", default, skip_serializing_if = "Option::is_none")]
     pub alias: Option<String>,
 
-    /// Condition for running this step.
-    ///
-    /// If the condition evaluates to false, the step is skipped.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Condition for running this step. If it evaluates to false, the step is skipped.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub when: Option<PipelineCondition>,
 
     /// Enable streaming for this step.
-    ///
-    /// When true, the step will emit StreamChunk events through the
-    /// pipeline's onProgress callback.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
+}
+
+impl PipelineStep {
+    /// Create a step for a command with no input.
+    pub fn new(command: impl Into<String>) -> Self {
+        Self {
+            command: command.into(),
+            input: None,
+            alias: None,
+            when: None,
+            stream: None,
+        }
+    }
+
+    /// Set the step input.
+    pub fn with_input(mut self, input: serde_json::Value) -> Self {
+        self.input = Some(input);
+        self
+    }
+
+    /// Set the step alias (`as`).
+    pub fn with_alias(mut self, alias: impl Into<String>) -> Self {
+        self.alias = Some(alias.into());
+        self
+    }
+
+    /// Set the `when` condition.
+    pub fn with_when(mut self, condition: PipelineCondition) -> Self {
+        self.when = Some(condition);
+        self
+    }
+
+    /// Enable or disable streaming.
+    pub fn with_stream(mut self, stream: bool) -> Self {
+        self.stream = Some(stream);
+        self
+    }
 }
 
 /// Options for pipeline execution.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct PipelineOptions {
     /// Continue on failure or stop immediately.
     ///
     /// - `false` (default): Pipeline stops on first failure
     /// - `true`: Continue executing, collect all errors
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub continue_on_failure: Option<bool>,
 
-    /// Timeout for entire pipeline in milliseconds.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub timeout_ms: Option<u64>,
+    /// Timeout for the entire pipeline in milliseconds.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::wire::opt_number"
+    )]
+    pub timeout_ms: Option<f64>,
 
     /// Reserved for dependency-aware parallel execution. `true` is currently
     /// rejected with `UNSUPPORTED_OPTION`.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parallel: Option<bool>,
+}
+
+impl PipelineOptions {
+    /// Create default options.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Continue after a failed step.
+    pub fn with_continue_on_failure(mut self, continue_on_failure: bool) -> Self {
+        self.continue_on_failure = Some(continue_on_failure);
+        self
+    }
+
+    /// Set the pipeline deadline in milliseconds.
+    pub fn with_timeout_ms(mut self, timeout_ms: f64) -> Self {
+        self.timeout_ms = Some(timeout_ms);
+        self
+    }
+
+    /// Request parallel execution (currently rejected).
+    pub fn with_parallel(mut self, parallel: bool) -> Self {
+        self.parallel = Some(parallel);
+        self
+    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -148,7 +278,9 @@ pub struct PipelineOptions {
 
 /// Conditional expression for pipeline steps.
 ///
-/// Supports existence checks, comparisons, and logical combinations.
+/// Each condition serializes as a single-key object, as in TypeScript:
+/// `{"$exists": "$prev.id"}`, `{"$eq": ["$prev.tier", "premium"]}`,
+/// `{"$and": [...]}`.
 ///
 /// # Example
 ///
@@ -165,24 +297,19 @@ pub struct PipelineOptions {
 ///
 /// // Numeric comparison
 /// let gt = PipelineCondition::Gt {
-///     gt: ("$prev.items.length".to_string(), 0.0)
+///     gt: ("$prev.count".to_string(), 0.0)
 /// };
 ///
 /// // Logical combination
-/// let and = PipelineCondition::And {
-///     and: vec![
-///         PipelineCondition::Exists { exists: "$prev.userId".to_string() },
-///         PipelineCondition::Eq {
-///             eq: ("$steps.user.active".to_string(), serde_json::json!(true))
-///         },
-///     ]
-/// };
+/// let and = PipelineCondition::And { and: vec![exists, eq, gt] };
+/// let json = serde_json::to_value(&and).unwrap();
+/// assert_eq!(json["$and"][2], serde_json::json!({"$gt": ["$prev.count", 0]}));
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(untagged, deny_unknown_fields)]
+#[non_exhaustive]
 pub enum PipelineCondition {
-    /// Check if a field exists in the context.
-    #[serde(rename = "$exists")]
+    /// Check if a field exists (is resolved and not `null`).
     Exists {
         /// Variable reference to check for existence
         #[serde(rename = "$exists")]
@@ -190,15 +317,13 @@ pub enum PipelineCondition {
     },
 
     /// Check if a field equals a value.
-    #[serde(rename = "$eq")]
     Eq {
         /// (variable reference, expected value)
         #[serde(rename = "$eq")]
         eq: (String, serde_json::Value),
     },
 
-    /// Check if a field does not equal a value.
-    #[serde(rename = "$ne")]
+    /// Check if a field is present and does not equal a value.
     Ne {
         /// (variable reference, value to not equal)
         #[serde(rename = "$ne")]
@@ -206,39 +331,34 @@ pub enum PipelineCondition {
     },
 
     /// Check if a field is greater than a value.
-    #[serde(rename = "$gt")]
     Gt {
         /// (variable reference, value to compare against)
-        #[serde(rename = "$gt")]
+        #[serde(rename = "$gt", serialize_with = "crate::wire::reference_and_number")]
         gt: (String, f64),
     },
 
     /// Check if a field is greater than or equal to a value.
-    #[serde(rename = "$gte")]
     Gte {
         /// (variable reference, value to compare against)
-        #[serde(rename = "$gte")]
+        #[serde(rename = "$gte", serialize_with = "crate::wire::reference_and_number")]
         gte: (String, f64),
     },
 
     /// Check if a field is less than a value.
-    #[serde(rename = "$lt")]
     Lt {
         /// (variable reference, value to compare against)
-        #[serde(rename = "$lt")]
+        #[serde(rename = "$lt", serialize_with = "crate::wire::reference_and_number")]
         lt: (String, f64),
     },
 
     /// Check if a field is less than or equal to a value.
-    #[serde(rename = "$lte")]
     Lte {
         /// (variable reference, value to compare against)
-        #[serde(rename = "$lte")]
+        #[serde(rename = "$lte", serialize_with = "crate::wire::reference_and_number")]
         lte: (String, f64),
     },
 
     /// Logical AND - all conditions must be true.
-    #[serde(rename = "$and")]
     And {
         /// Array of conditions that must all be true
         #[serde(rename = "$and")]
@@ -246,7 +366,6 @@ pub enum PipelineCondition {
     },
 
     /// Logical OR - any condition must be true.
-    #[serde(rename = "$or")]
     Or {
         /// Array of conditions where at least one must be true
         #[serde(rename = "$or")]
@@ -254,7 +373,6 @@ pub enum PipelineCondition {
     },
 
     /// Logical NOT - negates a condition.
-    #[serde(rename = "$not")]
     Not {
         /// Condition to negate
         #[serde(rename = "$not")]
@@ -286,28 +404,28 @@ pub struct PipelineConditionNe {
 /// Check if a field is greater than a value.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PipelineConditionGt {
-    #[serde(rename = "$gt")]
+    #[serde(rename = "$gt", serialize_with = "crate::wire::reference_and_number")]
     pub gt: (String, f64),
 }
 
 /// Check if a field is greater than or equal to a value.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PipelineConditionGte {
-    #[serde(rename = "$gte")]
+    #[serde(rename = "$gte", serialize_with = "crate::wire::reference_and_number")]
     pub gte: (String, f64),
 }
 
 /// Check if a field is less than a value.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PipelineConditionLt {
-    #[serde(rename = "$lt")]
+    #[serde(rename = "$lt", serialize_with = "crate::wire::reference_and_number")]
     pub lt: (String, f64),
 }
 
 /// Check if a field is less than or equal to a value.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PipelineConditionLte {
-    #[serde(rename = "$lte")]
+    #[serde(rename = "$lte", serialize_with = "crate::wire::reference_and_number")]
     pub lte: (String, f64),
 }
 
@@ -407,30 +525,43 @@ impl From<PipelineConditionNot> for PipelineCondition {
 /// # Example
 ///
 /// ```rust
-/// use afd::pipeline::{PipelineResult, PipelineMetadata, StepResult, StepStatus};
+/// use afd::pipeline::{PipelineResult, StepStatus};
 ///
-/// let result: PipelineResult<serde_json::Value> = PipelineResult {
-///     data: serde_json::json!([{"id": 1, "total": 100}]),
-///     metadata: PipelineMetadata {
-///         confidence: 0.87,
-///         confidence_breakdown: vec![],
-///         reasoning: vec![],
-///         warnings: vec![],
-///         sources: vec![],
-///         alternatives: vec![],
-///         execution_time_ms: 150,
-///         completed_steps: 3,
-///         total_steps: 3,
-///         result_metadata: None,
+/// let result: PipelineResult = serde_json::from_value(serde_json::json!({
+///     "data": [{"id": 1, "total": 100}],
+///     "metadata": {
+///         "confidence": 0.87,
+///         "confidenceBreakdown": [],
+///         "reasoning": [],
+///         "warnings": [],
+///         "sources": [],
+///         "alternatives": [],
+///         "executionTimeMs": 150,
+///         "completedSteps": 1,
+///         "totalSteps": 1
 ///     },
-///     steps: vec![],
-/// };
+///     "steps": [{
+///         "index": 0,
+///         "command": "order-list",
+///         "status": "success",
+///         "data": [{"id": 1, "total": 100}],
+///         "executionTimeMs": 150
+///     }]
+/// }))
+/// .unwrap();
+/// assert_eq!(result.steps[0].status, StepStatus::Success);
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", bound(deserialize = "T: Deserialize<'de>"))]
+#[non_exhaustive]
 pub struct PipelineResult<T = serde_json::Value> {
-    /// Final output (last successful step's data).
-    pub data: T,
+    /// Final output: the last successful step's data. Absent when no step succeeded.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::wire::present"
+    )]
+    pub data: Option<T>,
 
     /// Aggregated metadata from all steps.
     pub metadata: PipelineMetadata,
@@ -441,13 +572,15 @@ pub struct PipelineResult<T = serde_json::Value> {
 
 /// Aggregated metadata from pipeline execution.
 ///
-/// Combines trust signals from all steps with pipeline-specific fields.
+/// Combines trust signals from all steps with pipeline-specific fields. Like
+/// TypeScript's `PipelineMetadata extends ResultMetadata`, it may carry
+/// `commandVersion`, `traceId`, `timestamp` and arbitrary extra keys.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct PipelineMetadata {
-    /// Minimum confidence across all steps (weakest link principle).
-    ///
-    /// The pipeline is only as trustworthy as its least confident step.
+    /// Minimum confidence across all successful steps (weakest link principle).
+    #[serde(serialize_with = "crate::wire::number")]
     pub confidence: f64,
 
     /// Per-step confidence breakdown.
@@ -465,18 +598,31 @@ pub struct PipelineMetadata {
     /// Alternatives from ANY step that suggested them.
     pub alternatives: Vec<PipelineAlternative>,
 
-    /// Total execution time (sum of all steps).
-    pub execution_time_ms: u64,
+    /// Total execution time in milliseconds.
+    #[serde(serialize_with = "crate::wire::number")]
+    pub execution_time_ms: f64,
 
     /// Number of steps completed successfully.
-    pub completed_steps: u32,
+    pub completed_steps: usize,
 
     /// Total number of steps in the pipeline.
-    pub total_steps: u32,
+    pub total_steps: usize,
 
-    /// Additional result metadata.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub result_metadata: Option<ResultMetadata>,
+    /// Version of the command that produced this result.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub command_version: Option<String>,
+
+    /// Trace ID for debugging and correlation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub trace_id: Option<String>,
+
+    /// Timestamp of the execution.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub timestamp: Option<String>,
+
+    /// Additional arbitrary metadata.
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
 }
 
 impl Default for PipelineMetadata {
@@ -488,10 +634,13 @@ impl Default for PipelineMetadata {
             warnings: Vec::new(),
             sources: Vec::new(),
             alternatives: Vec::new(),
-            execution_time_ms: 0,
+            execution_time_ms: 0.0,
             completed_steps: 0,
             total_steps: 0,
-            result_metadata: None,
+            command_version: None,
+            trace_id: None,
+            timestamp: None,
+            extra: HashMap::new(),
         }
     }
 }
@@ -499,28 +648,31 @@ impl Default for PipelineMetadata {
 /// Confidence information for a single step.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct StepConfidence {
     /// Step index (0-based).
     pub step: usize,
 
     /// Step alias if provided.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alias: Option<String>,
 
     /// Command that was executed.
     pub command: String,
 
     /// Confidence score for this step (0-1).
+    #[serde(serialize_with = "crate::wire::number")]
     pub confidence: f64,
 
     /// Explanation of why this confidence level.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<String>,
 }
 
 /// Reasoning from a single step.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct StepReasoning {
     /// Which step provided this reasoning.
     pub step_index: usize,
@@ -532,9 +684,10 @@ pub struct StepReasoning {
     pub reasoning: String,
 }
 
-/// Warning from a pipeline step.
+/// Warning from a pipeline step (a [`Warning`] plus step attribution).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct PipelineWarning {
     /// Warning code for programmatic handling.
     pub code: String,
@@ -542,11 +695,19 @@ pub struct PipelineWarning {
     /// Human-readable warning message.
     pub message: String,
 
+    /// Severity level.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub severity: Option<WarningSeverity>,
+
+    /// Additional context or details.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<HashMap<String, serde_json::Value>>,
+
     /// Which step generated this warning.
     pub step_index: usize,
 
     /// Step alias if provided.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub step_alias: Option<String>,
 }
 
@@ -555,40 +716,74 @@ impl From<(&Warning, usize, Option<&str>)> for PipelineWarning {
         Self {
             code: warning.code.clone(),
             message: warning.message.clone(),
+            severity: warning.severity,
+            details: warning.details.clone(),
             step_index,
-            step_alias: step_alias.map(|s| s.to_string()),
+            step_alias: step_alias.map(ToString::to_string),
         }
     }
 }
 
-/// Source used by a pipeline step.
+/// Source used by a pipeline step (a [`Source`] plus step attribution).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct PipelineSource {
-    /// Human-readable name for the source.
-    pub name: String,
+    /// Source type identifier.
+    #[serde(rename = "type")]
+    pub source_type: String,
+
+    /// Unique identifier for the source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+
+    /// Human-readable title.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+
+    /// URL if the source is web-accessible.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+
+    /// Location within the source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+
+    /// When the source was accessed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accessed_at: Option<String>,
+
+    /// Relevance score (0-1).
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::wire::opt_number"
+    )]
+    pub relevance: Option<f64>,
 
     /// Which step used this source.
     pub step_index: usize,
-
-    /// URL or URI to the source.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub url: Option<String>,
 }
 
 impl From<(&Source, usize)> for PipelineSource {
     fn from((source, step_index): (&Source, usize)) -> Self {
         Self {
-            name: source.name.clone(),
-            step_index,
+            source_type: source.source_type.clone(),
+            id: source.id.clone(),
+            title: source.title.clone(),
             url: source.url.clone(),
+            location: source.location.clone(),
+            accessed_at: source.accessed_at.clone(),
+            relevance: source.relevance,
+            step_index,
         }
     }
 }
 
-/// Alternative suggested by a pipeline step.
+/// Alternative suggested by a pipeline step (an [`Alternative`] plus step attribution).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct PipelineAlternative {
     /// The alternative data.
     pub data: serde_json::Value,
@@ -596,12 +791,20 @@ pub struct PipelineAlternative {
     /// Why this alternative wasn't selected.
     pub reason: String,
 
+    /// Confidence in this alternative (0-1).
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::wire::opt_number"
+    )]
+    pub confidence: Option<f64>,
+
+    /// Label for this alternative.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+
     /// Which step suggested this alternative.
     pub step_index: usize,
-
-    /// Confidence in this alternative (0-1).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub confidence: Option<f64>,
 }
 
 impl<T: Serialize> From<(&Alternative<T>, usize)> for PipelineAlternative {
@@ -609,8 +812,9 @@ impl<T: Serialize> From<(&Alternative<T>, usize)> for PipelineAlternative {
         Self {
             data: serde_json::to_value(&alt.data).unwrap_or(serde_json::Value::Null),
             reason: alt.reason.clone(),
-            step_index,
             confidence: alt.confidence,
+            label: alt.label.clone(),
+            step_index,
         }
     }
 }
@@ -618,12 +822,13 @@ impl<T: Serialize> From<(&Alternative<T>, usize)> for PipelineAlternative {
 /// Result of a single pipeline step.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct StepResult {
     /// Step index (0-based).
     pub index: usize,
 
     /// Step alias if provided.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alias: Option<String>,
 
     /// Command that was executed.
@@ -633,57 +838,148 @@ pub struct StepResult {
     pub status: StepStatus,
 
     /// Step output (if successful).
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::wire::present"
+    )]
     pub data: Option<serde_json::Value>,
 
-    /// Step error (if failed).
-    ///
-    /// Includes suggestion following AFD error patterns.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Step error (if failed, or skipped because of a timeout).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub error: Option<CommandError>,
 
     /// Step execution time in milliseconds.
-    pub execution_time_ms: u64,
+    #[serde(serialize_with = "crate::wire::number")]
+    pub execution_time_ms: f64,
 
-    /// Full step metadata (confidence, reasoning, sources, etc.).
-    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Step metadata (confidence, reasoning, sources, etc.).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub metadata: Option<StepMetadata>,
+}
+
+impl StepResult {
+    /// Create a step result with no data, error or metadata.
+    pub fn new(index: usize, command: impl Into<String>, status: StepStatus) -> Self {
+        Self {
+            index,
+            alias: None,
+            command: command.into(),
+            status,
+            data: None,
+            error: None,
+            execution_time_ms: 0.0,
+            metadata: None,
+        }
+    }
+
+    /// Set the step alias.
+    pub fn with_alias(mut self, alias: impl Into<String>) -> Self {
+        self.alias = Some(alias.into());
+        self
+    }
+
+    /// Set the step data.
+    pub fn with_data(mut self, data: serde_json::Value) -> Self {
+        self.data = Some(data);
+        self
+    }
+
+    /// Set the step error.
+    pub fn with_error(mut self, error: CommandError) -> Self {
+        self.error = Some(error);
+        self
+    }
+
+    /// Set the execution time in milliseconds.
+    pub fn with_execution_time_ms(mut self, execution_time_ms: f64) -> Self {
+        self.execution_time_ms = execution_time_ms;
+        self
+    }
+
+    /// Set the step metadata.
+    pub fn with_metadata(mut self, metadata: StepMetadata) -> Self {
+        self.metadata = Some(metadata);
+        self
+    }
 }
 
 /// Metadata for a single step result.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct StepMetadata {
     /// Confidence score for this step (0-1).
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::wire::opt_number"
+    )]
     pub confidence: Option<f64>,
 
     /// Reasoning for this step's result.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<String>,
 
-    /// Sources used by this step.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub sources: Option<Vec<Source>>,
-
     /// Warnings from this step.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub warnings: Option<Vec<Warning>>,
 
+    /// Sources used by this step.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sources: Option<Vec<Source>>,
+
     /// Alternatives considered by this step.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub alternatives: Option<Vec<Alternative<serde_json::Value>>>,
+
+    /// Additional arbitrary metadata.
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
+impl StepMetadata {
+    /// Collect the trust signals of a command result.
+    pub fn from_result(result: &CommandResult<serde_json::Value>) -> Self {
+        Self {
+            confidence: result.confidence,
+            reasoning: result.reasoning.clone(),
+            warnings: result.warnings.clone(),
+            sources: result.sources.clone(),
+            alternatives: result.alternatives.clone(),
+            extra: HashMap::new(),
+        }
+    }
+
+    /// Set the confidence.
+    pub fn with_confidence(mut self, confidence: f64) -> Self {
+        self.confidence = Some(confidence);
+        self
+    }
+
+    /// Set the reasoning.
+    pub fn with_reasoning(mut self, reasoning: impl Into<String>) -> Self {
+        self.reasoning = Some(reasoning.into());
+        self
+    }
+
+    /// Set the warnings.
+    pub fn with_warnings(mut self, warnings: Vec<Warning>) -> Self {
+        self.warnings = Some(warnings);
+        self
+    }
 }
 
 /// Possible statuses for a pipeline step.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum StepStatus {
     /// Step completed successfully.
     Success,
     /// Step failed.
     Failure,
-    /// Step was skipped (condition not met).
+    /// Step was skipped (condition not met, or the pipeline stopped).
     Skipped,
 }
 
@@ -691,19 +987,36 @@ pub enum StepStatus {
 // PIPELINE CONTEXT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Context available during pipeline execution.
-///
-/// Used for variable resolution.
+/// Context available during pipeline execution, used for variable resolution.
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct PipelineContext {
-    /// Original pipeline input.
+    /// The pipeline request's `input`, referenced as `$input`.
     pub pipeline_input: Option<serde_json::Value>,
 
-    /// Result of the previous step.
+    /// Result of the previous successful step, referenced as `$prev`.
     pub previous_result: Option<StepResult>,
 
-    /// All completed step results.
+    /// All step results so far, in step order.
     pub steps: Vec<StepResult>,
+}
+
+impl PipelineContext {
+    /// Create a context with the given `$input` data.
+    pub fn new(pipeline_input: Option<serde_json::Value>) -> Self {
+        Self {
+            pipeline_input,
+            ..Self::default()
+        }
+    }
+
+    /// Record a step result. Successful steps also become `$prev`.
+    pub fn push_step(&mut self, step: StepResult) {
+        if step.status == StepStatus::Success {
+            self.previous_result = Some(step.clone());
+        }
+        self.steps.push(step);
+    }
 }
 
 /// Async command execution callback used by the pipeline executor.
@@ -723,37 +1036,24 @@ pub type CommandExecutor = Arc<
 
 /// Type guard to check if a value is a PipelineRequest.
 pub fn is_pipeline_request(value: &serde_json::Value) -> bool {
-    if let Some(obj) = value.as_object() {
-        if let Some(steps) = obj.get("steps") {
-            return steps.is_array()
-                && steps
-                    .as_array()
-                    .map(|arr| arr.iter().all(is_pipeline_step))
-                    .unwrap_or(false);
-        }
-    }
-    false
+    value
+        .get("steps")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|steps| steps.iter().all(is_pipeline_step))
 }
 
 /// Type guard to check if a value is a PipelineStep.
 pub fn is_pipeline_step(value: &serde_json::Value) -> bool {
-    if let Some(obj) = value.as_object() {
-        if let Some(command) = obj.get("command") {
-            return command.is_string();
-        }
-    }
-    false
+    value
+        .get("command")
+        .is_some_and(serde_json::Value::is_string)
 }
 
 /// Type guard to check if a value is a PipelineResult.
 pub fn is_pipeline_result(value: &serde_json::Value) -> bool {
-    if let Some(obj) = value.as_object() {
-        return obj.contains_key("data")
-            && obj.contains_key("metadata")
-            && obj.contains_key("steps")
-            && obj.get("steps").map(|s| s.is_array()).unwrap_or(false);
-    }
-    false
+    value.as_object().is_some_and(|obj| {
+        obj.contains_key("metadata") && obj.get("steps").is_some_and(|s| s.is_array())
+    })
 }
 
 /// Type guard to check if a value is a PipelineCondition.
@@ -836,66 +1136,37 @@ pub fn is_not_condition(condition: &PipelineCondition) -> bool {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Create a PipelineRequest from an array of steps.
-///
-/// # Arguments
-///
-/// * `steps` - Pipeline steps
-/// * `options` - Optional pipeline options
-///
-/// # Returns
-///
-/// A PipelineRequest object
 pub fn create_pipeline(
     steps: Vec<PipelineStep>,
     options: Option<PipelineOptions>,
 ) -> PipelineRequest {
     PipelineRequest {
-        id: None,
-        steps,
         options,
+        ..PipelineRequest::new(steps)
     }
+}
+
+fn step_confidence(step: &StepResult) -> f64 {
+    step.metadata
+        .as_ref()
+        .and_then(|m| m.confidence)
+        .unwrap_or(1.0)
 }
 
 /// Calculate aggregated confidence from step results.
 ///
-/// Uses the "weakest link" principle - pipeline confidence is the minimum
-/// of all step confidences.
-///
-/// # Arguments
-///
-/// * `steps` - Array of step results
-///
-/// # Returns
-///
-/// Minimum confidence across all successful steps (0 if no successful steps)
+/// Uses the "weakest link" principle: the minimum confidence of all successful
+/// steps (a step without a confidence counts as 1), or 0 if no step succeeded.
 pub fn aggregate_pipeline_confidence(steps: &[StepResult]) -> f64 {
-    let confidences: Vec<f64> = steps
+    steps
         .iter()
         .filter(|s| s.status == StepStatus::Success)
-        .map(|s| {
-            s.metadata
-                .as_ref()
-                .and_then(|m| m.confidence)
-                .unwrap_or(1.0)
-        })
-        .collect();
-
-    if confidences.is_empty() {
-        0.0
-    } else {
-        confidences.iter().cloned().fold(f64::INFINITY, f64::min)
-    }
+        .map(step_confidence)
+        .reduce(f64::min)
+        .unwrap_or(0.0)
 }
 
-/// Aggregate reasoning from all steps.
-///
-/// # Arguments
-///
-/// * `steps` - Array of step results
-///
-/// # Returns
-///
-/// Array of step reasoning with attribution
+/// Aggregate reasoning from all successful steps.
 pub fn aggregate_pipeline_reasoning(steps: &[StepResult]) -> Vec<StepReasoning> {
     steps
         .iter()
@@ -913,95 +1184,50 @@ pub fn aggregate_pipeline_reasoning(steps: &[StepResult]) -> Vec<StepReasoning> 
         .collect()
 }
 
-/// Aggregate warnings from all steps.
-///
-/// # Arguments
-///
-/// * `steps` - Array of step results
-///
-/// # Returns
-///
-/// Array of pipeline warnings with step attribution
+/// Aggregate warnings from all steps, with step attribution.
 pub fn aggregate_pipeline_warnings(steps: &[StepResult]) -> Vec<PipelineWarning> {
-    let mut warnings = Vec::new();
-
-    for step in steps {
-        if let Some(metadata) = &step.metadata {
-            if let Some(step_warnings) = &metadata.warnings {
-                for warning in step_warnings {
-                    warnings.push(PipelineWarning::from((
-                        warning,
-                        step.index,
-                        step.alias.as_deref(),
-                    )));
-                }
-            }
-        }
-    }
-
-    warnings
+    steps
+        .iter()
+        .flat_map(|step| {
+            step.metadata
+                .iter()
+                .flat_map(|metadata| metadata.warnings.iter().flatten())
+                .map(move |warning| {
+                    PipelineWarning::from((warning, step.index, step.alias.as_deref()))
+                })
+        })
+        .collect()
 }
 
-/// Aggregate sources from all steps.
-///
-/// # Arguments
-///
-/// * `steps` - Array of step results
-///
-/// # Returns
-///
-/// Array of pipeline sources with step attribution
+/// Aggregate sources from all steps, with step attribution.
 pub fn aggregate_pipeline_sources(steps: &[StepResult]) -> Vec<PipelineSource> {
-    let mut sources = Vec::new();
-
-    for step in steps {
-        if let Some(metadata) = &step.metadata {
-            if let Some(step_sources) = &metadata.sources {
-                for source in step_sources {
-                    sources.push(PipelineSource::from((source, step.index)));
-                }
-            }
-        }
-    }
-
-    sources
+    steps
+        .iter()
+        .flat_map(|step| {
+            step.metadata
+                .iter()
+                .flat_map(|metadata| metadata.sources.iter().flatten())
+                .map(move |source| PipelineSource::from((source, step.index)))
+        })
+        .collect()
 }
 
-/// Aggregate alternatives from all steps.
-///
-/// # Arguments
-///
-/// * `steps` - Array of step results
-///
-/// # Returns
-///
-/// Array of pipeline alternatives with step attribution
+/// Aggregate alternatives from all steps, with step attribution.
 pub fn aggregate_pipeline_alternatives(steps: &[StepResult]) -> Vec<PipelineAlternative> {
-    let mut alternatives = Vec::new();
-
-    for step in steps {
-        if let Some(metadata) = &step.metadata {
-            if let Some(step_alts) = &metadata.alternatives {
-                for alt in step_alts {
-                    alternatives.push(PipelineAlternative::from((alt, step.index)));
-                }
-            }
-        }
-    }
-
-    alternatives
+    steps
+        .iter()
+        .flat_map(|step| {
+            step.metadata
+                .iter()
+                .flat_map(|metadata| metadata.alternatives.iter().flatten())
+                .map(move |alt| PipelineAlternative::from((alt, step.index)))
+        })
+        .collect()
 }
 
-/// Build confidence breakdown from step results.
+/// Build the confidence breakdown of the successful steps.
 ///
-/// # Arguments
-///
-/// * `steps` - Array of step results
-/// * `step_defs` - Original step definitions for alias lookup
-///
-/// # Returns
-///
-/// Array of step confidence information
+/// `step_defs` supplies aliases for results that do not carry one.
 pub fn build_confidence_breakdown(
     steps: &[StepResult],
     step_defs: Option<&[PipelineStep]>,
@@ -1009,22 +1235,14 @@ pub fn build_confidence_breakdown(
     steps
         .iter()
         .filter(|s| s.status == StepStatus::Success)
-        .map(|s| {
-            let alias = s.alias.clone().or_else(|| {
+        .map(|s| StepConfidence {
+            step: s.index,
+            alias: s.alias.clone().or_else(|| {
                 step_defs.and_then(|defs| defs.get(s.index).and_then(|d| d.alias.clone()))
-            });
-
-            StepConfidence {
-                step: s.index,
-                alias,
-                command: s.command.clone(),
-                confidence: s
-                    .metadata
-                    .as_ref()
-                    .and_then(|m| m.confidence)
-                    .unwrap_or(1.0),
-                reasoning: s.metadata.as_ref().and_then(|m| m.reasoning.clone()),
-            }
+            }),
+            command: s.command.clone(),
+            confidence: step_confidence(s),
+            reasoning: s.metadata.as_ref().and_then(|m| m.reasoning.clone()),
         })
         .collect()
 }
@@ -1033,128 +1251,145 @@ pub fn build_confidence_breakdown(
 // VARIABLE RESOLUTION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Matches a `$steps[n]` prefix; compiled once.
-fn step_index_pattern() -> &'static regex::Regex {
-    static PATTERN: OnceLock<regex::Regex> = OnceLock::new();
+/// The complete reference grammar; compiled once.
+///
+/// Groups: 1 = `prev`/`first`/`input`, 2 = step index, 3 = step alias, 4 = path.
+fn reference_pattern() -> &'static Regex {
+    static PATTERN: OnceLock<Regex> = OnceLock::new();
     PATTERN.get_or_init(|| {
-        regex::Regex::new(r"^\$steps\[(\d+)\]").expect("step index regex should be valid")
+        Regex::new(
+            r"^\$(?:(prev|first|input)|steps\[([0-9]+)\]|steps\.([^.\[\]\s]+))((?:\.[^.\[\]\s]+(?:\[[0-9]+\])?)*)$",
+        )
+        .expect("reference regex should be valid")
     })
 }
 
-/// Matches an `items[0]` path segment; compiled once rather than per segment.
-fn array_index_pattern() -> &'static regex::Regex {
-    static PATTERN: OnceLock<regex::Regex> = OnceLock::new();
+/// A path segment: a key with an optional `[index]`; compiled once.
+fn path_segment_pattern() -> &'static Regex {
+    static PATTERN: OnceLock<Regex> = OnceLock::new();
     PATTERN.get_or_init(|| {
-        regex::Regex::new(r"^(\w+)\[(\d+)\]$").expect("array index regex should be valid")
+        Regex::new(r"^([^.\[\]\s]+)(?:\[([0-9]+)\])?$").expect("path segment regex should be valid")
     })
+}
+
+/// How a string in a step input or condition was interpreted.
+enum Resolution<'s, 'c> {
+    /// Not a reference: pass the (unescaped) string through.
+    Literal(&'s str),
+    /// A reference that resolved to pipeline data.
+    Value(&'c serde_json::Value),
+    /// A reference that could not be resolved.
+    Absent,
+}
+
+fn is_reserved(segment: &str) -> bool {
+    segment.starts_with("__")
+}
+
+fn exceeds_reference_length(value: &str) -> bool {
+    value.len() > MAX_REFERENCE_LENGTH && value.chars().count() > MAX_REFERENCE_LENGTH
+}
+
+fn resolve_string<'s, 'c>(value: &'s str, context: &'c PipelineContext) -> Resolution<'s, 'c> {
+    if value.starts_with("$$") {
+        return Resolution::Literal(&value[1..]);
+    }
+    if !value.starts_with('$') || exceeds_reference_length(value) {
+        return Resolution::Literal(value);
+    }
+    let Some(captures) = reference_pattern().captures(value) else {
+        return Resolution::Literal(value);
+    };
+
+    let root = if let Some(name) = captures.get(1) {
+        match name.as_str() {
+            "prev" => context
+                .previous_result
+                .as_ref()
+                .and_then(|step| step.data.as_ref()),
+            "first" => context.steps.first().and_then(|step| step.data.as_ref()),
+            _ => context.pipeline_input.as_ref(),
+        }
+    } else if let Some(index) = captures.get(2) {
+        index
+            .as_str()
+            .parse::<usize>()
+            .ok()
+            .and_then(|index| context.steps.get(index))
+            .and_then(|step| step.data.as_ref())
+    } else {
+        captures
+            .get(3)
+            .map(|alias| alias.as_str())
+            .filter(|alias| !is_reserved(alias))
+            .and_then(|alias| {
+                context
+                    .steps
+                    .iter()
+                    .find(|step| step.alias.as_deref() == Some(alias))
+            })
+            .and_then(|step| step.data.as_ref())
+    };
+
+    let path = captures.get(4).map_or("", |path| path.as_str());
+    let resolved = root.and_then(|root| match path.strip_prefix('.') {
+        Some(path) => traverse(root, path),
+        None => Some(root),
+    });
+    resolved.map_or(Resolution::Absent, Resolution::Value)
+}
+
+/// Follow one key: an own key of an object, or a numeric index into an array.
+fn lookup_key<'v>(current: &'v serde_json::Value, key: &str) -> Option<&'v serde_json::Value> {
+    if is_reserved(key) {
+        return None;
+    }
+    match current {
+        serde_json::Value::Object(map) => map.get(key),
+        serde_json::Value::Array(items) if key.bytes().all(|b| b.is_ascii_digit()) => {
+            items.get(key.parse::<usize>().ok()?)
+        }
+        _ => None,
+    }
+}
+
+fn traverse<'v>(root: &'v serde_json::Value, path: &str) -> Option<&'v serde_json::Value> {
+    let mut current = root;
+    for segment in path.split('.') {
+        let captures = path_segment_pattern().captures(segment)?;
+        current = lookup_key(current, captures.get(1)?.as_str())?;
+        if let Some(index) = captures.get(2) {
+            current = current
+                .as_array()?
+                .get(index.as_str().parse::<usize>().ok()?)?;
+        }
+    }
+    Some(current)
 }
 
 /// Resolve a single variable reference to its value from pipeline context.
 ///
-/// Supports the following variable patterns:
-/// - `$prev` - Output of immediately previous step
-/// - `$prev.field.subfield` - Nested field from previous output
-/// - `$first` - Output of first step
-/// - `$first.field` - Field from first step output
-/// - `$steps[n]` - Output of step at index n
-/// - `$steps[n].field` - Field from step at index n
-/// - `$steps.alias` - Output of step with matching `as` alias
-/// - `$steps.alias.field` - Field from aliased step
-/// - `$input` - Original pipeline input
-/// - `$input.field` - Field from pipeline input
-///
-/// # Arguments
-///
-/// * `reference` - Variable reference (e.g., '$prev', '$prev.field', '$steps.alias.field')
-/// * `context` - Pipeline execution context
-///
-/// # Returns
-///
-/// The resolved value, or None if not found
+/// Returns `None` when the string is a reference that cannot be resolved.
+/// Strings that are not references are returned as literals (with a `$$`
+/// escape reduced to `$`). See the [module documentation](self) for the rules.
 ///
 /// # Example
 ///
 /// ```rust
 /// use afd::pipeline::{resolve_variable, PipelineContext};
 ///
-/// let context = PipelineContext::default();
-/// let value = resolve_variable("$prev", &context);
+/// let context = PipelineContext::new(Some(serde_json::json!({"user": {"id": 7}})));
+/// assert_eq!(resolve_variable("$input.user.id", &context), Some(serde_json::json!(7)));
+/// assert_eq!(resolve_variable("$prev", &context), None);
+/// assert_eq!(resolve_variable("$9.99", &context), Some(serde_json::json!("$9.99")));
+/// assert_eq!(resolve_variable("$$prev", &context), Some(serde_json::json!("$prev")));
 /// ```
 pub fn resolve_variable(reference: &str, context: &PipelineContext) -> Option<serde_json::Value> {
-    if !reference.starts_with('$') {
-        return Some(serde_json::Value::String(reference.to_string()));
+    match resolve_string(reference, context) {
+        Resolution::Literal(literal) => Some(serde_json::Value::String(literal.to_string())),
+        Resolution::Value(value) => Some(value.clone()),
+        Resolution::Absent => None,
     }
-
-    // $prev - previous step's data
-    if reference == "$prev" {
-        return context
-            .previous_result
-            .as_ref()
-            .and_then(|r| r.data.clone());
-    }
-
-    // $first - first step's data
-    if reference == "$first" {
-        return context.steps.first().and_then(|s| s.data.clone());
-    }
-
-    // $input - original pipeline input
-    if reference == "$input" {
-        return context.pipeline_input.clone();
-    }
-
-    // $steps[n] - step at index n
-    if reference.starts_with("$steps[") {
-        if let Some(captures) = step_index_pattern().captures(reference) {
-            let index: usize = captures.get(1)?.as_str().parse().ok()?;
-            let step = context.steps.get(index)?;
-            let remaining = &reference[captures.get(0)?.end()..];
-            if let Some(path) = remaining.strip_prefix('.') {
-                return get_nested_value(step.data.as_ref()?, path);
-            }
-            return step.data.clone();
-        }
-    }
-
-    // $steps.alias - step with alias
-    if let Some(rest) = reference.strip_prefix("$steps.") {
-        let dot_index = rest.find('.');
-        let alias = match dot_index {
-            Some(idx) => &rest[..idx],
-            None => rest,
-        };
-        let step = context
-            .steps
-            .iter()
-            .find(|s| s.alias.as_deref() == Some(alias))?;
-        if let Some(idx) = dot_index {
-            return get_nested_value(step.data.as_ref()?, &rest[idx + 1..]);
-        }
-        return step.data.clone();
-    }
-
-    // $prev.field - field from previous step
-    if let Some(path) = reference.strip_prefix("$prev.") {
-        let data = context
-            .previous_result
-            .as_ref()
-            .and_then(|r| r.data.as_ref())?;
-        return get_nested_value(data, path);
-    }
-
-    // $first.field - field from first step
-    if let Some(path) = reference.strip_prefix("$first.") {
-        let data = context.steps.first().and_then(|s| s.data.as_ref())?;
-        return get_nested_value(data, path);
-    }
-
-    // $input.field - field from pipeline input
-    if let Some(path) = reference.strip_prefix("$input.") {
-        let data = context.pipeline_input.as_ref()?;
-        return get_nested_value(data, path);
-    }
-
-    None
 }
 
 /// Alias for `resolve_variable` for backwards compatibility.
@@ -1162,146 +1397,148 @@ pub fn resolve_reference(reference: &str, context: &PipelineContext) -> Option<s
     resolve_variable(reference, context)
 }
 
+fn resolve_value(
+    input: &serde_json::Value,
+    context: &PipelineContext,
+    depth: usize,
+) -> Option<serde_json::Value> {
+    match input {
+        serde_json::Value::String(value) => resolve_variable(value, context),
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) if depth > MAX_INPUT_DEPTH => {
+            Some(serde_json::Value::Null)
+        }
+        serde_json::Value::Array(items) => Some(serde_json::Value::Array(
+            items
+                .iter()
+                .map(|item| resolve_value(item, context, depth + 1).unwrap_or_default())
+                .collect(),
+        )),
+        serde_json::Value::Object(map) => Some(serde_json::Value::Object(
+            map.iter()
+                .filter_map(|(key, value)| {
+                    resolve_value(value, context, depth + 1).map(|value| (key.clone(), value))
+                })
+                .collect(),
+        )),
+        other => Some(other.clone()),
+    }
+}
+
 /// Resolve all variable references in an input value.
 ///
-/// # Arguments
-///
-/// * `input` - Input value potentially containing variable references
-/// * `context` - Pipeline execution context
-///
-/// # Returns
-///
-/// Input value with all variables resolved
+/// Unresolved references are omitted from objects and become `null` in
+/// arrays; an unresolved top-level reference becomes `null`. Containers
+/// nested deeper than [`MAX_INPUT_DEPTH`] are replaced by `null` (the pipeline
+/// executor rejects such inputs before running any step).
 pub fn resolve_variables(
     input: &serde_json::Value,
     context: &PipelineContext,
 ) -> serde_json::Value {
-    match input {
-        serde_json::Value::String(s) if s.starts_with('$') => {
-            resolve_variable(s, context).unwrap_or(serde_json::Value::Null)
-        }
-        serde_json::Value::Array(arr) => serde_json::Value::Array(
-            arr.iter()
-                .map(|item| resolve_variables(item, context))
-                .collect(),
-        ),
-        serde_json::Value::Object(obj) => {
-            let mut new_obj = serde_json::Map::new();
-            for (key, value) in obj {
-                new_obj.insert(key.clone(), resolve_variables(value, context));
+    resolve_value(input, context, 1).unwrap_or_default()
+}
+
+/// Whether a value has containers nested deeper than `max_depth` levels.
+///
+/// The top-level container is level 1. Iterative, so it never overflows the stack.
+fn exceeds_depth(value: &serde_json::Value, max_depth: usize) -> bool {
+    let mut pending = vec![(value, 1usize)];
+    while let Some((value, depth)) = pending.pop() {
+        match value {
+            serde_json::Value::Array(items) => {
+                if depth > max_depth {
+                    return true;
+                }
+                pending.extend(items.iter().map(|item| (item, depth + 1)));
             }
-            serde_json::Value::Object(new_obj)
+            serde_json::Value::Object(map) => {
+                if depth > max_depth {
+                    return true;
+                }
+                pending.extend(map.values().map(|item| (item, depth + 1)));
+            }
+            _ => {}
         }
-        other => other.clone(),
     }
+    false
 }
 
 /// Get a nested value from a JSON value using dot notation.
 ///
-/// # Arguments
-///
-/// * `obj` - The JSON value to traverse
-/// * `path` - Dot-separated path (e.g., 'user.profile.name')
-///
-/// # Returns
-///
-/// The value at the path, or None if not found
+/// Follows the same rules as reference paths: own object keys, in-bounds
+/// array indices (`items[0]` or `items.0`), and never a segment starting
+/// with `__`.
 ///
 /// # Example
 ///
 /// ```rust
 /// use afd::pipeline::get_nested_value;
 ///
-/// let obj = serde_json::json!({"user": {"name": "Alice"}});
-/// let name = get_nested_value(&obj, "user.name");
-/// assert_eq!(name, Some(serde_json::json!("Alice")));
+/// let obj = serde_json::json!({"user": {"name": "Alice"}, "items": [1, 2]});
+/// assert_eq!(get_nested_value(&obj, "user.name"), Some(serde_json::json!("Alice")));
+/// assert_eq!(get_nested_value(&obj, "items[1]"), Some(serde_json::json!(2)));
+/// assert_eq!(get_nested_value(&obj, "items[5]"), None);
 /// ```
 pub fn get_nested_value(obj: &serde_json::Value, path: &str) -> Option<serde_json::Value> {
-    let parts: Vec<&str> = path.split('.').collect();
-    let mut current = obj;
-
-    for part in parts {
-        // Handle array index notation (e.g., 'items[0]')
-        if let Some(captures) = array_index_pattern().captures(part) {
-            let prop = captures.get(1)?.as_str();
-            let index: usize = captures.get(2)?.as_str().parse().ok()?;
-            current = current.get(prop)?.get(index)?;
-        } else {
-            current = current.get(part)?;
-        }
-    }
-
-    Some(current.clone())
+    traverse(obj, path).cloned()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONDITION EVALUATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// A condition operand: literals compare as strings; absent operands make
+/// every comparison false.
+fn condition_operand<'c>(
+    reference: &str,
+    context: &'c PipelineContext,
+) -> Option<std::borrow::Cow<'c, serde_json::Value>> {
+    match resolve_string(reference, context) {
+        Resolution::Literal(literal) => Some(std::borrow::Cow::Owned(serde_json::Value::String(
+            literal.to_string(),
+        ))),
+        Resolution::Value(value) => Some(std::borrow::Cow::Borrowed(value)),
+        Resolution::Absent => None,
+    }
+}
+
+fn compare_number(
+    reference: &str,
+    context: &PipelineContext,
+    predicate: impl Fn(f64) -> bool,
+) -> bool {
+    condition_operand(reference, context)
+        .and_then(|value| value.as_f64())
+        .is_some_and(predicate)
+}
+
 /// Evaluate a pipeline condition against the current context.
 ///
-/// # Arguments
-///
-/// * `condition` - The condition to evaluate
-/// * `context` - Pipeline execution context
-///
-/// # Returns
-///
-/// true if the condition is met, false otherwise
+/// An unresolved reference is absent: `$exists` is `false` (also for `null`)
+/// and every comparison, including `$ne`, is `false`. `$eq` and `$ne` compare
+/// JSON values structurally.
 pub fn evaluate_condition(condition: &PipelineCondition, context: &PipelineContext) -> bool {
     match condition {
         PipelineCondition::Exists { exists } => {
-            let value = resolve_variable(exists, context);
-            value.is_some() && !value.as_ref().map(|v| v.is_null()).unwrap_or(true)
+            condition_operand(exists, context).is_some_and(|value| !value.is_null())
         }
         PipelineCondition::Eq {
-            eq: (ref_str, expected),
-        } => {
-            let value = resolve_variable(ref_str, context);
-            value.as_ref() == Some(expected)
-        }
+            eq: (reference, expected),
+        } => condition_operand(reference, context).is_some_and(|value| *value == *expected),
         PipelineCondition::Ne {
-            ne: (ref_str, expected),
-        } => {
-            let value = resolve_variable(ref_str, context);
-            value.as_ref() != Some(expected)
-        }
+            ne: (reference, expected),
+        } => condition_operand(reference, context).is_some_and(|value| *value != *expected),
         PipelineCondition::Gt {
-            gt: (ref_str, threshold),
-        } => {
-            let value = resolve_variable(ref_str, context);
-            value
-                .and_then(|v| v.as_f64())
-                .map(|n| n > *threshold)
-                .unwrap_or(false)
-        }
+            gt: (reference, threshold),
+        } => compare_number(reference, context, |n| n > *threshold),
         PipelineCondition::Gte {
-            gte: (ref_str, threshold),
-        } => {
-            let value = resolve_variable(ref_str, context);
-            value
-                .and_then(|v| v.as_f64())
-                .map(|n| n >= *threshold)
-                .unwrap_or(false)
-        }
+            gte: (reference, threshold),
+        } => compare_number(reference, context, |n| n >= *threshold),
         PipelineCondition::Lt {
-            lt: (ref_str, threshold),
-        } => {
-            let value = resolve_variable(ref_str, context);
-            value
-                .and_then(|v| v.as_f64())
-                .map(|n| n < *threshold)
-                .unwrap_or(false)
-        }
+            lt: (reference, threshold),
+        } => compare_number(reference, context, |n| n < *threshold),
         PipelineCondition::Lte {
-            lte: (ref_str, threshold),
-        } => {
-            let value = resolve_variable(ref_str, context);
-            value
-                .and_then(|v| v.as_f64())
-                .map(|n| n <= *threshold)
-                .unwrap_or(false)
-        }
+            lte: (reference, threshold),
+        } => compare_number(reference, context, |n| n <= *threshold),
         PipelineCondition::And { and: conditions } => {
             conditions.iter().all(|c| evaluate_condition(c, context))
         }
@@ -1312,7 +1549,117 @@ pub fn evaluate_condition(condition: &PipelineCondition, context: &PipelineConte
     }
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// EXECUTION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+fn pipeline_error(code: &str, message: String, suggestion: &str, retryable: bool) -> CommandError {
+    CommandError::new(code, message)
+        .with_suggestion(suggestion)
+        .with_retryable(retryable)
+}
+
+/// Check the request before any step runs. Returns the index of the step to
+/// blame and the error.
+fn preflight(
+    request: &PipelineRequest,
+    options: &PipelineOptions,
+) -> Option<(usize, CommandError)> {
+    if options.parallel == Some(true) {
+        return Some((
+            0,
+            pipeline_error(
+                "UNSUPPORTED_OPTION",
+                "Parallel pipeline execution is not supported".to_string(),
+                "Remove parallel or set it to false to execute steps sequentially",
+                false,
+            ),
+        ));
+    }
+    if let Some(timeout_ms) = options.timeout_ms {
+        if !timeout_ms.is_finite() || timeout_ms < 0.0 {
+            return Some((
+                0,
+                pipeline_error(
+                    "VALIDATION_ERROR",
+                    "timeoutMs must be a non-negative number".to_string(),
+                    "Set timeoutMs to a non-negative number of milliseconds or omit it",
+                    false,
+                ),
+            ));
+        }
+        if !cfg!(feature = "native") {
+            return Some((
+                0,
+                pipeline_error(
+                    "UNSUPPORTED_OPTION",
+                    "Pipeline deadlines require the native feature".to_string(),
+                    "Enable the native feature or omit timeoutMs",
+                    false,
+                ),
+            ));
+        }
+    }
+    let too_deep = |field: String, index: usize| {
+        let mut details = HashMap::new();
+        details.insert("maxDepth".to_string(), serde_json::json!(MAX_INPUT_DEPTH));
+        details.insert("field".to_string(), serde_json::json!(field));
+        (
+            index,
+            pipeline_error(
+                "VALIDATION_ERROR",
+                format!("{field} is nested deeper than {MAX_INPUT_DEPTH} levels"),
+                "Flatten the input; nesting is limited to 64 levels",
+                false,
+            )
+            .with_details(details),
+        )
+    };
+    if request
+        .input
+        .as_ref()
+        .is_some_and(|input| exceeds_depth(input, MAX_INPUT_DEPTH))
+    {
+        return Some(too_deep("input".to_string(), 0));
+    }
+    request
+        .steps
+        .iter()
+        .position(|step| {
+            step.input
+                .as_ref()
+                .is_some_and(|input| exceeds_depth(input, MAX_INPUT_DEPTH))
+        })
+        .map(|index| too_deep(format!("steps[{index}].input"), index))
+}
+
+fn empty_metadata(total_steps: usize) -> PipelineMetadata {
+    PipelineMetadata {
+        confidence: 0.0,
+        total_steps,
+        ..PipelineMetadata::default()
+    }
+}
+
+/// Run a step's executor, turning a panic (while creating or polling the
+/// future) into an `INTERNAL_ERROR` failure.
+async fn run_step(
+    execute: &CommandExecutor,
+    command: String,
+    input: serde_json::Value,
+    context: HashMap<String, serde_json::Value>,
+) -> CommandResult<serde_json::Value> {
+    match std::panic::catch_unwind(AssertUnwindSafe(|| execute(command, input, context))) {
+        Ok(execution) => crate::commands::run_guarded(execution).await,
+        Err(_) => crate::result::failure(crate::commands::handler_panic_error()),
+    }
+}
+
 /// Execute a pipeline of chained commands with variable resolution.
+///
+/// `context` is passed to every command invocation (with a per-step
+/// `traceId`); it is never visible to `$input` references, which read
+/// [`PipelineRequest::input`] only.
 pub async fn execute_pipeline(
     request: &PipelineRequest,
     execute: &CommandExecutor,
@@ -1326,104 +1673,82 @@ pub async fn execute_pipeline(
 
     if request.steps.is_empty() {
         return PipelineResult {
-            data: serde_json::Value::Null,
-            metadata: PipelineMetadata {
-                confidence: 0.0,
-                confidence_breakdown: vec![],
-                reasoning: vec![],
-                warnings: vec![],
-                sources: vec![],
-                alternatives: vec![],
-                execution_time_ms: 0,
-                completed_steps: 0,
-                total_steps: 0,
-                result_metadata: None,
-            },
+            data: None,
+            metadata: empty_metadata(0),
             steps: vec![],
         };
     }
 
-    let mut pipeline_context = PipelineContext {
-        pipeline_input: context
-            .as_ref()
-            .map(|ctx| serde_json::Value::Object(ctx.clone().into_iter().collect())),
-        previous_result: None,
-        steps: vec![],
-    };
-
-    let mut step_results = Vec::new();
     let options = request.options.clone().unwrap_or_default();
     let base_context = context.unwrap_or_default();
 
-    let unsupported_deadline = !cfg!(feature = "native") && options.timeout_ms.is_some();
-    if options.parallel == Some(true) || unsupported_deadline {
-        let unsupported = CommandError {
-            code: "UNSUPPORTED_OPTION".to_string(),
-            message: if unsupported_deadline {
-                "Pipeline deadlines require the native feature".to_string()
-            } else {
-                "Parallel pipeline execution is not supported".to_string()
-            },
-            suggestion: Some(if unsupported_deadline {
-                "Enable the native feature or omit timeoutMs".to_string()
-            } else {
-                "Remove parallel or set it to false to execute steps sequentially".to_string()
-            }),
-            retryable: Some(false),
-            details: None,
-            cause: None,
-        };
-        for (i, step) in request.steps.iter().enumerate() {
-            step_results.push(StepResult {
-                index: i,
-                alias: step.alias.clone(),
-                command: step.command.clone(),
-                status: if i == 0 {
-                    StepStatus::Failure
-                } else {
-                    StepStatus::Skipped
-                },
-                data: None,
-                error: (i == 0).then_some(unsupported.clone()),
-                execution_time_ms: 0,
-                metadata: None,
-            });
-        }
+    if let Some((failed_index, error)) = preflight(request, &options) {
+        let steps = request
+            .steps
+            .iter()
+            .enumerate()
+            .map(|(i, step)| {
+                let mut result = StepResult::new(
+                    i,
+                    step.command.clone(),
+                    if i == failed_index {
+                        StepStatus::Failure
+                    } else {
+                        StepStatus::Skipped
+                    },
+                );
+                result.alias = step.alias.clone();
+                result.error = (i == failed_index).then(|| error.clone());
+                result
+            })
+            .collect();
         return PipelineResult {
-            data: serde_json::Value::Null,
-            metadata: PipelineMetadata {
-                confidence: 0.0,
-                confidence_breakdown: vec![],
-                reasoning: vec![],
-                warnings: vec![],
-                sources: vec![],
-                alternatives: vec![],
-                execution_time_ms: 0,
-                completed_steps: 0,
-                total_steps: request.steps.len() as u32,
-                result_metadata: None,
-            },
-            steps: step_results,
+            data: None,
+            metadata: empty_metadata(request.steps.len()),
+            steps,
         };
     }
 
+    let deadline = options
+        .timeout_ms
+        .and_then(|timeout_ms| deadline_after(start_time, timeout_ms));
+    let timeout_error = || {
+        pipeline_error(
+            "PIPELINE_TIMEOUT",
+            format!(
+                "Pipeline timeout exceeded ({}ms)",
+                options.timeout_ms.unwrap_or(0.0)
+            ),
+            "Increase timeoutMs or reduce the number of pipeline steps",
+            true,
+        )
+    };
+
+    let mut pipeline_context = PipelineContext::new(request.input.clone());
+    let skip_from = |context: &mut PipelineContext, first: usize, error: Option<CommandError>| {
+        for (j, remaining_step) in request.steps.iter().enumerate().skip(first) {
+            let mut skipped =
+                StepResult::new(j, remaining_step.command.clone(), StepStatus::Skipped);
+            skipped.alias = remaining_step.alias.clone();
+            skipped.error = error.clone();
+            context.push_step(skipped);
+        }
+    };
+
     for (i, step) in request.steps.iter().enumerate() {
         let step_start = Instant::now();
+        let mut step_result = StepResult::new(i, step.command.clone(), StepStatus::Skipped);
+        step_result.alias = step.alias.clone();
+
+        let remaining = deadline.map(|deadline| deadline.saturating_duration_since(step_start));
+        if remaining.is_some_and(|remaining| remaining.is_zero()) {
+            skip_from(&mut pipeline_context, i, Some(timeout_error()));
+            break;
+        }
 
         if let Some(condition) = &step.when {
             if !evaluate_condition(condition, &pipeline_context) {
-                let skipped = StepResult {
-                    index: i,
-                    alias: step.alias.clone(),
-                    command: step.command.clone(),
-                    status: StepStatus::Skipped,
-                    data: None,
-                    error: None,
-                    execution_time_ms: 0,
-                    metadata: None,
-                };
-                step_results.push(skipped.clone());
-                pipeline_context.steps.push(skipped);
+                pipeline_context.push_step(step_result);
                 continue;
             }
         }
@@ -1440,134 +1765,52 @@ pub async fn execute_pipeline(
             serde_json::json!(format!("{pipeline_id}-step-{i}")),
         );
 
-        let execution = execute(step.command.clone(), resolved_input, step_context);
-        let result = if let Some(timeout_ms) = options.timeout_ms {
-            let elapsed_ms = start_time.elapsed().as_millis() as u64;
-            let remaining_ms = timeout_ms.saturating_sub(elapsed_ms);
-            if remaining_ms == 0 {
-                Err(())
-            } else {
-                #[cfg(feature = "native")]
-                {
-                    tokio::time::timeout(std::time::Duration::from_millis(remaining_ms), execution)
-                        .await
-                        .map_err(|_| ())
-                }
-                #[cfg(not(feature = "native"))]
-                {
-                    Ok(execution.await)
-                }
-            }
-        } else {
-            Ok(execution.await)
+        let execution = run_step(execute, step.command.clone(), resolved_input, step_context);
+        let result = match remaining {
+            None => Some(execution.await),
+            #[cfg(feature = "native")]
+            Some(remaining) => tokio::time::timeout(remaining, execution).await.ok(),
+            // Unreachable: preflight rejects deadlines without `native`.
+            #[cfg(not(feature = "native"))]
+            Some(_) => Some(execution.await),
         };
-        let result = match result {
-            Ok(result) => result,
-            Err(()) => {
-                let timeout_error = CommandError {
-                    code: "PIPELINE_TIMEOUT".to_string(),
-                    message: format!(
-                        "Pipeline timeout exceeded ({:?}ms)",
-                        options.timeout_ms.unwrap_or(0)
-                    ),
-                    suggestion: Some(
-                        "Increase timeoutMs or reduce the number of pipeline steps".to_string(),
-                    ),
-                    retryable: Some(true),
-                    details: None,
-                    cause: None,
-                };
-                step_results.push(StepResult {
-                    index: i,
-                    alias: step.alias.clone(),
-                    command: step.command.clone(),
-                    status: StepStatus::Failure,
-                    data: None,
-                    error: Some(timeout_error.clone()),
-                    execution_time_ms: step_start.elapsed().as_millis() as u64,
-                    metadata: None,
-                });
-                for (j, remaining_step) in request.steps.iter().enumerate().skip(i + 1) {
-                    step_results.push(StepResult {
-                        index: j,
-                        alias: remaining_step.alias.clone(),
-                        command: remaining_step.command.clone(),
-                        status: StepStatus::Skipped,
-                        data: None,
-                        error: Some(timeout_error.clone()),
-                        execution_time_ms: 0,
-                        metadata: None,
-                    });
-                }
-                break;
-            }
+        step_result.execution_time_ms = elapsed_ms(step_start);
+
+        let Some(result) = result else {
+            let error = timeout_error();
+            step_result.status = StepStatus::Failure;
+            step_result.error = Some(error.clone());
+            pipeline_context.push_step(step_result);
+            skip_from(&mut pipeline_context, i + 1, Some(error));
+            break;
         };
-        let step_execution_time_ms = step_start.elapsed().as_millis() as u64;
 
         if result.success {
-            let step_result = StepResult {
-                index: i,
-                alias: step.alias.clone(),
-                command: step.command.clone(),
-                status: StepStatus::Success,
-                data: result.data.clone(),
-                error: None,
-                execution_time_ms: step_execution_time_ms,
-                metadata: Some(StepMetadata {
-                    confidence: result.confidence,
-                    reasoning: result.reasoning.clone(),
-                    sources: result.sources.clone(),
-                    warnings: result.warnings.clone(),
-                    alternatives: result.alternatives.clone(),
-                }),
-            };
-            step_results.push(step_result.clone());
-            pipeline_context.steps.push(step_result.clone());
-            pipeline_context.previous_result = Some(step_result);
+            step_result.status = StepStatus::Success;
+            step_result.metadata = Some(StepMetadata::from_result(&result));
+            step_result.data = result.data;
+            pipeline_context.push_step(step_result);
         } else {
-            let step_result = StepResult {
-                index: i,
-                alias: step.alias.clone(),
-                command: step.command.clone(),
-                status: StepStatus::Failure,
-                data: None,
-                error: result.error.clone(),
-                execution_time_ms: step_execution_time_ms,
-                metadata: None,
-            };
-            step_results.push(step_result);
-
-            pipeline_context
-                .steps
-                .push(step_results.last().cloned().expect("step was added"));
+            step_result.status = StepStatus::Failure;
+            step_result.error = result.error;
+            pipeline_context.push_step(step_result);
 
             if options.continue_on_failure != Some(true) {
-                for (j, remaining_step) in request.steps.iter().enumerate().skip(i + 1) {
-                    step_results.push(StepResult {
-                        index: j,
-                        alias: remaining_step.alias.clone(),
-                        command: remaining_step.command.clone(),
-                        status: StepStatus::Skipped,
-                        data: None,
-                        error: None,
-                        execution_time_ms: 0,
-                        metadata: None,
-                    });
-                }
+                skip_from(&mut pipeline_context, i + 1, None);
                 break;
             }
         }
     }
 
-    let final_data = step_results
+    let step_results = pipeline_context.steps;
+    let data = step_results
         .iter()
         .rev()
         .find(|step| step.status == StepStatus::Success)
-        .and_then(|step| step.data.clone())
-        .unwrap_or(serde_json::Value::Null);
+        .and_then(|step| step.data.clone());
 
     PipelineResult {
-        data: final_data,
+        data,
         metadata: PipelineMetadata {
             confidence: aggregate_pipeline_confidence(&step_results),
             confidence_breakdown: build_confidence_breakdown(&step_results, Some(&request.steps)),
@@ -1575,13 +1818,13 @@ pub async fn execute_pipeline(
             warnings: aggregate_pipeline_warnings(&step_results),
             sources: aggregate_pipeline_sources(&step_results),
             alternatives: aggregate_pipeline_alternatives(&step_results),
-            execution_time_ms: start_time.elapsed().as_millis() as u64,
+            execution_time_ms: elapsed_ms(start_time),
             completed_steps: step_results
                 .iter()
                 .filter(|step| step.status == StepStatus::Success)
-                .count() as u32,
-            total_steps: request.steps.len() as u32,
-            result_metadata: None,
+                .count(),
+            total_steps: request.steps.len(),
+            ..PipelineMetadata::default()
         },
         steps: step_results,
     }
@@ -1592,655 +1835,4 @@ pub async fn execute_pipeline(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::result::{failure, success};
-
-    #[test]
-    fn test_pipeline_request_creation() {
-        let request = create_pipeline(
-            vec![PipelineStep {
-                command: "test-command".to_string(),
-                input: Some(serde_json::json!({"key": "value"})),
-                alias: Some("step1".to_string()),
-                when: None,
-                stream: None,
-            }],
-            None,
-        );
-
-        assert!(request.id.is_none());
-        assert_eq!(request.steps.len(), 1);
-        assert_eq!(request.steps[0].command, "test-command");
-    }
-
-    #[test]
-    fn test_pipeline_step_serialization() {
-        let step = PipelineStep {
-            command: "user-get".to_string(),
-            input: Some(serde_json::json!({"id": 123})),
-            alias: Some("user".to_string()),
-            when: None,
-            stream: None,
-        };
-
-        let json = serde_json::to_string(&step).unwrap();
-        assert!(json.contains("\"command\":\"user-get\""));
-        assert!(json.contains("\"as\":\"user\""));
-    }
-
-    #[test]
-    fn test_pipeline_condition_exists() {
-        let context = PipelineContext {
-            previous_result: Some(StepResult {
-                index: 0,
-                alias: None,
-                command: "test".to_string(),
-                status: StepStatus::Success,
-                data: Some(serde_json::json!({"email": "test@example.com"})),
-                error: None,
-                execution_time_ms: 10,
-                metadata: None,
-            }),
-            ..Default::default()
-        };
-
-        let condition = PipelineCondition::Exists {
-            exists: "$prev.email".to_string(),
-        };
-        assert!(evaluate_condition(&condition, &context));
-
-        let condition_missing = PipelineCondition::Exists {
-            exists: "$prev.phone".to_string(),
-        };
-        assert!(!evaluate_condition(&condition_missing, &context));
-    }
-
-    #[test]
-    fn test_pipeline_condition_eq() {
-        let context = PipelineContext {
-            previous_result: Some(StepResult {
-                index: 0,
-                alias: None,
-                command: "test".to_string(),
-                status: StepStatus::Success,
-                data: Some(serde_json::json!({"tier": "premium"})),
-                error: None,
-                execution_time_ms: 10,
-                metadata: None,
-            }),
-            ..Default::default()
-        };
-
-        let condition = PipelineCondition::Eq {
-            eq: ("$prev.tier".to_string(), serde_json::json!("premium")),
-        };
-        assert!(evaluate_condition(&condition, &context));
-
-        let condition_ne = PipelineCondition::Eq {
-            eq: ("$prev.tier".to_string(), serde_json::json!("basic")),
-        };
-        assert!(!evaluate_condition(&condition_ne, &context));
-    }
-
-    #[test]
-    fn test_pipeline_condition_numeric() {
-        let context = PipelineContext {
-            previous_result: Some(StepResult {
-                index: 0,
-                alias: None,
-                command: "test".to_string(),
-                status: StepStatus::Success,
-                data: Some(serde_json::json!({"count": 5})),
-                error: None,
-                execution_time_ms: 10,
-                metadata: None,
-            }),
-            ..Default::default()
-        };
-
-        let gt = PipelineCondition::Gt {
-            gt: ("$prev.count".to_string(), 3.0),
-        };
-        assert!(evaluate_condition(&gt, &context));
-
-        let lt = PipelineCondition::Lt {
-            lt: ("$prev.count".to_string(), 10.0),
-        };
-        assert!(evaluate_condition(&lt, &context));
-
-        let gte = PipelineCondition::Gte {
-            gte: ("$prev.count".to_string(), 5.0),
-        };
-        assert!(evaluate_condition(&gte, &context));
-
-        let lte = PipelineCondition::Lte {
-            lte: ("$prev.count".to_string(), 5.0),
-        };
-        assert!(evaluate_condition(&lte, &context));
-    }
-
-    #[test]
-    fn test_pipeline_condition_logical() {
-        let context = PipelineContext {
-            previous_result: Some(StepResult {
-                index: 0,
-                alias: None,
-                command: "test".to_string(),
-                status: StepStatus::Success,
-                data: Some(serde_json::json!({"active": true, "tier": "premium"})),
-                error: None,
-                execution_time_ms: 10,
-                metadata: None,
-            }),
-            ..Default::default()
-        };
-
-        let and = PipelineCondition::And {
-            and: vec![
-                PipelineCondition::Eq {
-                    eq: ("$prev.active".to_string(), serde_json::json!(true)),
-                },
-                PipelineCondition::Eq {
-                    eq: ("$prev.tier".to_string(), serde_json::json!("premium")),
-                },
-            ],
-        };
-        assert!(evaluate_condition(&and, &context));
-
-        let or = PipelineCondition::Or {
-            or: vec![
-                PipelineCondition::Eq {
-                    eq: ("$prev.tier".to_string(), serde_json::json!("basic")),
-                },
-                PipelineCondition::Eq {
-                    eq: ("$prev.tier".to_string(), serde_json::json!("premium")),
-                },
-            ],
-        };
-        assert!(evaluate_condition(&or, &context));
-
-        let not = PipelineCondition::Not {
-            not: Box::new(PipelineCondition::Eq {
-                eq: ("$prev.tier".to_string(), serde_json::json!("basic")),
-            }),
-        };
-        assert!(evaluate_condition(&not, &context));
-    }
-
-    #[test]
-    fn test_resolve_variable_prev() {
-        let context = PipelineContext {
-            previous_result: Some(StepResult {
-                index: 0,
-                alias: None,
-                command: "test".to_string(),
-                status: StepStatus::Success,
-                data: Some(serde_json::json!({"id": 123, "name": "Test"})),
-                error: None,
-                execution_time_ms: 10,
-                metadata: None,
-            }),
-            ..Default::default()
-        };
-
-        let prev = resolve_variable("$prev", &context);
-        assert_eq!(prev, Some(serde_json::json!({"id": 123, "name": "Test"})));
-
-        let prev_id = resolve_variable("$prev.id", &context);
-        assert_eq!(prev_id, Some(serde_json::json!(123)));
-
-        let prev_name = resolve_variable("$prev.name", &context);
-        assert_eq!(prev_name, Some(serde_json::json!("Test")));
-    }
-
-    #[test]
-    fn test_resolve_variable_first() {
-        let context = PipelineContext {
-            steps: vec![
-                StepResult {
-                    index: 0,
-                    alias: None,
-                    command: "first".to_string(),
-                    status: StepStatus::Success,
-                    data: Some(serde_json::json!({"first_data": true})),
-                    error: None,
-                    execution_time_ms: 10,
-                    metadata: None,
-                },
-                StepResult {
-                    index: 1,
-                    alias: None,
-                    command: "second".to_string(),
-                    status: StepStatus::Success,
-                    data: Some(serde_json::json!({"second_data": true})),
-                    error: None,
-                    execution_time_ms: 10,
-                    metadata: None,
-                },
-            ],
-            ..Default::default()
-        };
-
-        let first = resolve_variable("$first", &context);
-        assert_eq!(first, Some(serde_json::json!({"first_data": true})));
-    }
-
-    #[test]
-    fn test_resolve_variable_alias() {
-        let context = PipelineContext {
-            steps: vec![StepResult {
-                index: 0,
-                alias: Some("user".to_string()),
-                command: "user-get".to_string(),
-                status: StepStatus::Success,
-                data: Some(serde_json::json!({"id": 456, "email": "user@test.com"})),
-                error: None,
-                execution_time_ms: 10,
-                metadata: None,
-            }],
-            ..Default::default()
-        };
-
-        let user = resolve_variable("$steps.user", &context);
-        assert_eq!(
-            user,
-            Some(serde_json::json!({"id": 456, "email": "user@test.com"}))
-        );
-
-        let email = resolve_variable("$steps.user.email", &context);
-        assert_eq!(email, Some(serde_json::json!("user@test.com")));
-    }
-
-    #[test]
-    fn test_resolve_variable_input() {
-        let context = PipelineContext {
-            pipeline_input: Some(serde_json::json!({"userId": 789})),
-            ..Default::default()
-        };
-
-        let input = resolve_variable("$input", &context);
-        assert_eq!(input, Some(serde_json::json!({"userId": 789})));
-
-        let user_id = resolve_variable("$input.userId", &context);
-        assert_eq!(user_id, Some(serde_json::json!(789)));
-    }
-
-    #[test]
-    fn test_resolve_variables_object() {
-        let context = PipelineContext {
-            previous_result: Some(StepResult {
-                index: 0,
-                alias: None,
-                command: "test".to_string(),
-                status: StepStatus::Success,
-                data: Some(serde_json::json!({"id": 123})),
-                error: None,
-                execution_time_ms: 10,
-                metadata: None,
-            }),
-            ..Default::default()
-        };
-
-        let input = serde_json::json!({
-            "userId": "$prev.id",
-            "status": "active"
-        });
-
-        let resolved = resolve_variables(&input, &context);
-        assert_eq!(
-            resolved,
-            serde_json::json!({
-                "userId": 123,
-                "status": "active"
-            })
-        );
-    }
-
-    #[test]
-    fn test_get_nested_value() {
-        let obj = serde_json::json!({
-            "user": {
-                "profile": {
-                    "name": "Alice"
-                }
-            },
-            "items": [1, 2, 3]
-        });
-
-        let name = get_nested_value(&obj, "user.profile.name");
-        assert_eq!(name, Some(serde_json::json!("Alice")));
-
-        let missing = get_nested_value(&obj, "user.missing.field");
-        assert_eq!(missing, None);
-    }
-
-    #[test]
-    fn test_aggregate_confidence() {
-        let steps = vec![
-            StepResult {
-                index: 0,
-                alias: None,
-                command: "cmd1".to_string(),
-                status: StepStatus::Success,
-                data: Some(serde_json::json!({})),
-                error: None,
-                execution_time_ms: 10,
-                metadata: Some(StepMetadata {
-                    confidence: Some(0.9),
-                    ..Default::default()
-                }),
-            },
-            StepResult {
-                index: 1,
-                alias: None,
-                command: "cmd2".to_string(),
-                status: StepStatus::Success,
-                data: Some(serde_json::json!({})),
-                error: None,
-                execution_time_ms: 10,
-                metadata: Some(StepMetadata {
-                    confidence: Some(0.7),
-                    ..Default::default()
-                }),
-            },
-            StepResult {
-                index: 2,
-                alias: None,
-                command: "cmd3".to_string(),
-                status: StepStatus::Failure,
-                data: None,
-                error: Some(CommandError::internal("failed")),
-                execution_time_ms: 10,
-                metadata: Some(StepMetadata {
-                    confidence: Some(0.5),
-                    ..Default::default()
-                }),
-            },
-        ];
-
-        // Should use weakest link (0.7), ignoring failed step
-        let confidence = aggregate_pipeline_confidence(&steps);
-        assert!((confidence - 0.7).abs() < 0.001);
-    }
-
-    #[test]
-    fn test_type_guards() {
-        let request = serde_json::json!({
-            "steps": [
-                {"command": "test"}
-            ]
-        });
-        assert!(is_pipeline_request(&request));
-
-        let step = serde_json::json!({"command": "test"});
-        assert!(is_pipeline_step(&step));
-
-        let result = serde_json::json!({
-            "data": {},
-            "metadata": {},
-            "steps": []
-        });
-        assert!(is_pipeline_result(&result));
-
-        let condition = serde_json::json!({
-            "$exists": "$prev.id"
-        });
-        assert!(is_pipeline_condition(&condition));
-    }
-
-    #[test]
-    fn test_condition_type_guards() {
-        let exists = PipelineCondition::from(PipelineConditionExists {
-            exists: "$prev.id".to_string(),
-        });
-        let eq = PipelineCondition::from(PipelineConditionEq {
-            eq: ("$prev.tier".to_string(), serde_json::json!("premium")),
-        });
-        let and = PipelineCondition::from(PipelineConditionAnd {
-            and: vec![exists.clone(), eq.clone()],
-        });
-
-        assert!(is_exists_condition(&exists));
-        assert!(is_eq_condition(&eq));
-        assert!(is_and_condition(&and));
-        assert!(!is_or_condition(&and));
-    }
-
-    #[test]
-    fn test_resolve_reference_alias() {
-        let context = PipelineContext {
-            previous_result: Some(StepResult {
-                index: 0,
-                alias: None,
-                command: "test".to_string(),
-                status: StepStatus::Success,
-                data: Some(serde_json::json!({"id": 123})),
-                error: None,
-                execution_time_ms: 10,
-                metadata: None,
-            }),
-            ..Default::default()
-        };
-
-        assert_eq!(
-            resolve_reference("$prev.id", &context),
-            Some(serde_json::json!(123))
-        );
-    }
-
-    #[test]
-    fn test_step_status_serialization() {
-        let success = StepStatus::Success;
-        let json = serde_json::to_string(&success).unwrap();
-        assert_eq!(json, "\"success\"");
-
-        let failure = StepStatus::Failure;
-        let json = serde_json::to_string(&failure).unwrap();
-        assert_eq!(json, "\"failure\"");
-
-        let skipped = StepStatus::Skipped;
-        let json = serde_json::to_string(&skipped).unwrap();
-        assert_eq!(json, "\"skipped\"");
-    }
-
-    #[test]
-    fn test_pipeline_metadata_default() {
-        let metadata = PipelineMetadata::default();
-        assert_eq!(metadata.confidence, 1.0);
-        assert_eq!(metadata.completed_steps, 0);
-        assert_eq!(metadata.total_steps, 0);
-        assert!(metadata.warnings.is_empty());
-    }
-
-    #[test]
-    fn test_aggregate_warnings() {
-        let steps = vec![StepResult {
-            index: 0,
-            alias: Some("step1".to_string()),
-            command: "cmd1".to_string(),
-            status: StepStatus::Success,
-            data: Some(serde_json::json!({})),
-            error: None,
-            execution_time_ms: 10,
-            metadata: Some(StepMetadata {
-                warnings: Some(vec![Warning::new("DEPRECATION", "This is deprecated")]),
-                ..Default::default()
-            }),
-        }];
-
-        let warnings = aggregate_pipeline_warnings(&steps);
-        assert_eq!(warnings.len(), 1);
-        assert_eq!(warnings[0].code, "DEPRECATION");
-        assert_eq!(warnings[0].step_index, 0);
-        assert_eq!(warnings[0].step_alias, Some("step1".to_string()));
-    }
-
-    #[tokio::test]
-    async fn test_execute_pipeline_single_step() {
-        let executor: CommandExecutor = Arc::new(|name, _input, _ctx| {
-            Box::pin(async move {
-                if name == "user-get" {
-                    success(serde_json::json!({"id": 1, "name": "Alice"}))
-                } else {
-                    failure(CommandError::new(
-                        "COMMAND_NOT_FOUND",
-                        format!("Command '{name}' not found"),
-                    ))
-                }
-            })
-        });
-
-        let result = execute_pipeline(
-            &PipelineRequest {
-                id: None,
-                steps: vec![PipelineStep {
-                    command: "user-get".to_string(),
-                    input: Some(serde_json::json!({"id": 1})),
-                    alias: None,
-                    when: None,
-                    stream: None,
-                }],
-                options: None,
-            },
-            &executor,
-            None,
-        )
-        .await;
-
-        assert_eq!(result.data, serde_json::json!({"id": 1, "name": "Alice"}));
-        assert_eq!(result.steps.len(), 1);
-        assert_eq!(result.steps[0].status, StepStatus::Success);
-    }
-
-    #[tokio::test]
-    async fn test_execute_pipeline_stops_on_failure() {
-        let executor: CommandExecutor = Arc::new(|name, _input, _ctx| {
-            Box::pin(async move {
-                match name.as_str() {
-                    "step-a" => success(serde_json::json!("a")),
-                    "step-b" => failure(CommandError::new("FAIL", "Step B failed")),
-                    _ => success(serde_json::json!("c")),
-                }
-            })
-        });
-
-        let result = execute_pipeline(
-            &PipelineRequest {
-                id: None,
-                steps: vec![
-                    PipelineStep {
-                        command: "step-a".to_string(),
-                        input: None,
-                        alias: None,
-                        when: None,
-                        stream: None,
-                    },
-                    PipelineStep {
-                        command: "step-b".to_string(),
-                        input: None,
-                        alias: None,
-                        when: None,
-                        stream: None,
-                    },
-                    PipelineStep {
-                        command: "step-c".to_string(),
-                        input: None,
-                        alias: None,
-                        when: None,
-                        stream: None,
-                    },
-                ],
-                options: None,
-            },
-            &executor,
-            None,
-        )
-        .await;
-
-        assert_eq!(result.steps[0].status, StepStatus::Success);
-        assert_eq!(result.steps[1].status, StepStatus::Failure);
-        assert_eq!(result.steps[2].status, StepStatus::Skipped);
-    }
-
-    #[tokio::test]
-    async fn test_parallel_pipeline_is_rejected_before_execution() {
-        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let executor_calls = Arc::clone(&calls);
-        let executor: CommandExecutor = Arc::new(move |_name, _input, _ctx| {
-            executor_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            Box::pin(async { success(serde_json::json!({})) })
-        });
-        let result = execute_pipeline(
-            &PipelineRequest {
-                id: None,
-                steps: vec![PipelineStep {
-                    command: "step-a".to_string(),
-                    input: None,
-                    alias: None,
-                    when: None,
-                    stream: None,
-                }],
-                options: Some(PipelineOptions {
-                    parallel: Some(true),
-                    ..Default::default()
-                }),
-            },
-            &executor,
-            None,
-        )
-        .await;
-
-        assert_eq!(calls.load(std::sync::atomic::Ordering::SeqCst), 0);
-        assert_eq!(
-            result.steps[0].error.as_ref().unwrap().code,
-            "UNSUPPORTED_OPTION"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_pipeline_timeout_interrupts_current_step() {
-        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let executor_calls = Arc::clone(&calls);
-        let executor: CommandExecutor = Arc::new(move |_name, _input, _ctx| {
-            executor_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            Box::pin(async {
-                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-                success(serde_json::json!({}))
-            })
-        });
-        let result = execute_pipeline(
-            &PipelineRequest {
-                id: None,
-                steps: vec![PipelineStep {
-                    command: "slow-step".to_string(),
-                    input: None,
-                    alias: None,
-                    when: None,
-                    stream: None,
-                }],
-                options: Some(PipelineOptions {
-                    timeout_ms: Some(5),
-                    ..Default::default()
-                }),
-            },
-            &executor,
-            None,
-        )
-        .await;
-
-        assert_eq!(
-            result.steps[0].error.as_ref().unwrap().code,
-            if cfg!(feature = "native") {
-                "PIPELINE_TIMEOUT"
-            } else {
-                "UNSUPPORTED_OPTION"
-            }
-        );
-        assert_eq!(
-            calls.load(std::sync::atomic::Ordering::SeqCst),
-            usize::from(cfg!(feature = "native"))
-        );
-        assert!(result.metadata.execution_time_ms < 100);
-    }
-}
+mod tests;
