@@ -49,14 +49,15 @@ Expert guidance for botcore's development command suite — language-aware linti
 
 ## Core Principles
 
-### 1. Lefthook IS the CI Pipeline
+### 1. Lefthook IS the TypeScript CI Pipeline
 
 <rules>
-`pnpm check` runs the exact same steps as GitHub Actions CI. If it passes locally, CI passes remotely.
+`pnpm check` runs the exact same steps as the TypeScript CI workflow (`ci.yml`). If it passes locally, that workflow passes remotely.
 The quality gate runs: lint → build → typecheck → test:coverage + portability, file-size, orphan-files.
-Never add a check to CI without adding it to lefthook's `check` group first.
+Never add a check to `ci.yml` without adding it to lefthook's `check` group first.
 Never add a check to lefthook without verifying CI runs the same command.
-Drift between local and remote gates is a bug — the `check` group is the single source of truth.
+Drift between local and remote gates is a bug — the `check` group is the single source of truth for TypeScript.
+Lefthook and `pnpm check` do not cover Python (`python/`), Rust (`packages/rust/`) or alfred. Their gates are the path-filtered `python.yml`, `rust.yml` and `alfred.yml` workflows; run those workflows' commands locally when you change that code.
 </rules>
 
 ### 2. Three Enforcement Layers
@@ -67,7 +68,7 @@ Drift between local and remote gates is a bug — the `check` group is the singl
 | **Pre-push** | `git push` | ~25s | Full lint, test, typecheck, portability, file-size, orphan-files |
 | **On-demand** (`pnpm check`) | Before release / manual | ~25s | Same as pre-push + build + test:coverage |
 
-Pre-commit catches formatting. Pre-push catches regressions. `pnpm check` catches everything CI would catch.
+Pre-commit catches formatting. Pre-push catches regressions. `pnpm check` catches everything `ci.yml` would catch.
 
 ### 3. Language Dispatch Is Automatic
 

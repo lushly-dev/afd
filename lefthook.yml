@@ -69,7 +69,8 @@ pre-push:
       run: node --test scripts/check-file-size.test.mjs scripts/repository-contract.test.mjs
 
 # On-demand quality gate — run with: npx lefthook run check
-# Mirrors the CI pipeline exactly so local `pnpm check` = remote CI.
+# Mirrors the TypeScript CI workflow (ci.yml) exactly so local `pnpm check` = remote CI.
+# Python, Rust and alfred are not covered here; see python.yml, rust.yml and alfred.yml.
 check:
   # Sequential for same Windows terminal deadlock prevention.
   parallel: false
