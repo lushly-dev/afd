@@ -51,13 +51,15 @@ const error = failure({
 import { isSuccess, isFailure } from '@lushly-dev/afd-core';
 
 if (isSuccess(result)) {
-  console.log(result.data); // TypeScript knows data exists
+  console.log(result.data); // Typed as T (undefined for void commands)
 }
 
 if (isFailure(result)) {
   console.log(result.error); // TypeScript knows error exists
 }
 ```
+
+`isSuccess` checks only `success === true`, so a void command's `success(undefined)` is a success.
 
 ### Defining Commands
 
@@ -107,6 +109,19 @@ registry.register(createDocument);
 
 const result = await registry.execute('document-create', { title: 'Test' });
 ```
+
+The registry follows the same rules as the MCP server:
+
+- Pass `{ interface: 'mcp' }` (or `'cli'`, `'agent'`, `'palette'`) as the context to
+  `execute`, `executeBatch` or `executeStream` and the command's `expose` options are
+  checked on every entry point, including each batch entry.
+- `executeBatch` validates the whole request with `isBatchRequest()` before running
+  anything, and `options.timeout` is a deadline at any `parallelism`.
+- A handler that throws returns `COMMAND_EXECUTION_ERROR` without the exception message
+  or stack. Pass `createCommandRegistry({ devMode: true })` to include them.
+
+Batch and stream execution live in `executeBatch()` and `executeStream()`, which take an
+`execute` callback like `executePipeline()`, so other hosts can reuse the same semantics.
 
 ### Creating Errors
 
@@ -227,6 +242,11 @@ interface CommandError {
   cause?: CommandError | Error;
 }
 ```
+
+`wrapError()` turns a thrown `Error` into a plain `CommandError`: it keeps the message
+and any `code`, `suggestion` and `retryable` fields, drops everything else (such as a
+Node system error's `path`), never puts the stack in `details`, and keeps `cause` only
+when it is a `CommandError`. `isCommandError()` returns `false` for `Error` instances.
 
 ### CommandDefinition
 

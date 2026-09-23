@@ -562,25 +562,38 @@ describe('createCommandRegistry - execute error paths', () => {
 		expect(result.error?.code).toBe('COMMAND_NOT_FOUND');
 	});
 
-	it('catches handler exceptions and returns COMMAND_EXECUTION_ERROR', async () => {
+	const throwing: CommandDefinition = {
+		name: 'throw-cmd',
+		description: 'throws',
+		parameters: [],
+		handler: async () => {
+			throw new Error('handler exploded at /srv/app/secret.ts');
+		},
+	};
+
+	it('catches handler exceptions without leaking the message or stack by default', async () => {
 		const registry = createCommandRegistry();
-		const cmd: CommandDefinition = {
-			name: 'throw-cmd',
-			description: 'throws',
-			parameters: [],
-			handler: async () => {
-				throw new Error('handler exploded');
-			},
-		};
-		registry.register(cmd);
+		registry.register(throwing);
 		const result = await registry.execute('throw-cmd', {});
 		expect(result.success).toBe(false);
+		expect(result.error).toEqual({
+			code: 'COMMAND_EXECUTION_ERROR',
+			message: 'An internal error occurred',
+			suggestion: 'Contact support if this persists',
+		});
+		expect(JSON.stringify(result)).not.toContain('/srv/app');
+	});
+
+	it('includes the raw message and stack in devMode', async () => {
+		const registry = createCommandRegistry({ devMode: true });
+		registry.register(throwing);
+		const result = await registry.execute('throw-cmd', {});
 		expect(result.error?.code).toBe('COMMAND_EXECUTION_ERROR');
 		expect(result.error?.message).toContain('handler exploded');
+		expect(result.error?.details?.stack).toContain('handler exploded');
 	});
 
 	it('catches non-Error throws', async () => {
-		const registry = createCommandRegistry();
 		const cmd: CommandDefinition = {
 			name: 'throw-string',
 			description: 'throws string',
@@ -589,10 +602,24 @@ describe('createCommandRegistry - execute error paths', () => {
 				throw 'string error';
 			},
 		};
+		const registry = createCommandRegistry();
 		registry.register(cmd);
-		const result = await registry.execute('throw-string', {});
-		expect(result.success).toBe(false);
-		expect(result.error?.message).toBe('string error');
+		const hidden = await registry.execute('throw-string', {});
+		expect(hidden.success).toBe(false);
+		expect(hidden.error?.message).toBe('An internal error occurred');
+
+		const devRegistry = createCommandRegistry({ devMode: true });
+		devRegistry.register(cmd);
+		const shown = await devRegistry.execute('throw-string', {});
+		expect(shown.error?.message).toBe('string error');
+		expect(shown.error?.details).toBeUndefined();
+	});
+
+	it('truncates long unknown names in COMMAND_NOT_FOUND', async () => {
+		const registry = createCommandRegistry();
+		const result = await registry.execute('x'.repeat(10_000), {});
+		expect(result.error?.code).toBe('COMMAND_NOT_FOUND');
+		expect(result.error?.message.length).toBeLessThan(200);
 	});
 });
 
