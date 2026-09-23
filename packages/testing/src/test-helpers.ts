@@ -9,9 +9,11 @@ import type {
 	CommandDefinition,
 	CommandHandler,
 	CommandResult,
+	ExposeOptions,
 } from '@lushly-dev/afd-core';
 import {
 	createCommandRegistry,
+	defaultExpose,
 	failure,
 	isFailure,
 	isSuccess,
@@ -210,7 +212,15 @@ export async function testCommandMultiple<TInput, TOutput>(
 }
 
 /**
+ * Exposure for mock commands: the defaults plus MCP, so they can be called
+ * through `MockMcpServer`, which enforces MCP exposure like the real server.
+ */
+const MOCK_EXPOSE: ExposeOptions = { ...defaultExpose, mcp: true };
+
+/**
  * Create a mock command for testing.
+ *
+ * The command is exposed to MCP (and to the default interfaces).
  */
 export function createMockCommand<TInput = unknown, TOutput = unknown>(
 	name: string,
@@ -221,6 +231,7 @@ export function createMockCommand<TInput = unknown, TOutput = unknown>(
 		description: `Mock command: ${name}`,
 		category: 'mock',
 		parameters: [],
+		expose: { ...MOCK_EXPOSE },
 		handler: async (input) => {
 			try {
 				const data = await mockHandler(input);
@@ -241,6 +252,8 @@ export function createSuccessCommand<T>(name: string, data: T): CommandDefinitio
 
 /**
  * Create a mock command that always fails.
+ *
+ * The command is exposed to MCP (and to the default interfaces).
  */
 export function createFailureCommand(
 	name: string,
@@ -251,6 +264,7 @@ export function createFailureCommand(
 		description: `Mock failing command: ${name}`,
 		category: 'mock',
 		parameters: [],
+		expose: { ...MOCK_EXPOSE },
 		handler: async () => failure(error),
 	};
 }

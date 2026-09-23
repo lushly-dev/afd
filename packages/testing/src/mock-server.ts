@@ -6,6 +6,7 @@
  */
 
 import type {
+	BatchRequest,
 	CommandDefinition,
 	CommandRegistry,
 	McpRequest,
@@ -23,8 +24,35 @@ import {
 	textContent,
 } from '@lushly-dev/afd-core';
 
+/** Name of the built-in batch tool, as on the real server. */
+const BATCH_TOOL = 'afd-batch';
+
+/**
+ * Options for {@link MockMcpServer}.
+ */
+export interface MockServerOptions {
+	/**
+	 * Include raw exception messages and stack traces in results, like `devMode`
+	 * in `createMcpServer()`. Default `false`.
+	 */
+	devMode?: boolean;
+}
+
 /**
  * Mock MCP server for testing.
+ *
+ * Follows the real server's remote semantics:
+ * - only commands with `expose.mcp: true` are listed, and calling any other
+ *   command returns `COMMAND_NOT_EXPOSED`;
+ * - `tools/call` with the built-in `afd-batch` tool runs a batch through the
+ *   shared core executor: malformed envelopes are rejected before anything
+ *   runs, `options.timeout` is a deadline at any `parallelism`, and every
+ *   entry is exposure-checked;
+ * - handler exceptions are reported without their message or stack unless
+ *   `devMode` is set.
+ *
+ * Commands built with `createMockCommand()`, `createSuccessCommand()` or
+ * `createFailureCommand()` are exposed to MCP.
  */
 export class MockMcpServer {
 	private registry: CommandRegistry;
@@ -34,8 +62,8 @@ export class MockMcpServer {
 	};
 	private requestLog: Array<{ request: McpRequest; response: McpResponse }> = [];
 
-	constructor(commands?: CommandDefinition[]) {
-		this.registry = createCommandRegistry();
+	constructor(commands?: CommandDefinition[], options: MockServerOptions = {}) {
+		this.registry = createCommandRegistry({ devMode: options.devMode });
 
 		if (commands) {
 			for (const command of commands) {
@@ -105,10 +133,10 @@ export class MockMcpServer {
 	}
 
 	/**
-	 * Get all registered tools.
+	 * Get the tools an MCP client can see: registered commands with `expose.mcp: true`.
 	 */
 	getTools(): McpTool[] {
-		return this.registry.list().map(commandToMcpTool);
+		return this.registry.listByExposure('mcp').map(commandToMcpTool);
 	}
 
 	/**
@@ -141,7 +169,13 @@ export class MockMcpServer {
 			return createMcpErrorResponse(request.id, McpErrorCodes.INVALID_PARAMS, 'Missing tool name');
 		}
 
-		const result = await this.registry.execute(params.name, params.arguments ?? {});
+		// Remote callers are MCP clients, so every entry point is exposure-checked.
+		const args: unknown = params.arguments;
+		const result =
+			params.name === BATCH_TOOL
+				? // SAFETY: executeBatch validates the whole envelope before running anything.
+					await this.registry.executeBatch(args as BatchRequest, { interface: 'mcp' })
+				: await this.registry.execute(params.name, args ?? {}, { interface: 'mcp' });
 
 		// Convert CommandResult to MCP content
 		const content = [textContent(JSON.stringify(result))];
@@ -156,6 +190,9 @@ export class MockMcpServer {
 /**
  * Create a mock MCP server.
  */
-export function createMockServer(commands?: CommandDefinition[]): MockMcpServer {
-	return new MockMcpServer(commands);
+export function createMockServer(
+	commands?: CommandDefinition[],
+	options?: MockServerOptions
+): MockMcpServer {
+	return new MockMcpServer(commands, options);
 }
