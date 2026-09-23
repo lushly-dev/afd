@@ -19,6 +19,34 @@ This package provides the foundational types used across all AFD packages:
 - **CommandDefinition** - Full command schema with handler
 - **MCP types** - Model Context Protocol types for agent communication
 
+## Entry points
+
+| Import | Contents | Runs in |
+|--------|----------|---------|
+| `@lushly-dev/afd-core` | All types and helpers, plus the deprecated connector re-exports; not `platform` | Node.js (see below) |
+| `@lushly-dev/afd-core/commands` | Command types, `defaultExpose`, `validateCommandName`, `createCommandRegistry`, MCP tool conversion | Node.js and browsers |
+| `@lushly-dev/afd-core/result` | `CommandResult`, `success`, `failure`, `error`, `isSuccess`, `isFailure` | Node.js and browsers |
+| `@lushly-dev/afd-core/connectors` | `GitHubConnector`, `PackageManagerConnector` and their types | Node.js only |
+| `@lushly-dev/afd-core/platform` | `exec`, `findUp`, `isWindows` and other process helpers | Node.js only |
+
+### Connectors are moving out of the root entry
+
+`GitHubConnector` and `PackageManagerConnector` spawn processes through
+`node:child_process`. Import them from the `connectors` subpath:
+
+```typescript
+import { GitHubConnector, PackageManagerConnector } from '@lushly-dev/afd-core/connectors';
+```
+
+The root entry still re-exports them, marked `@deprecated`, so existing imports
+keep working. **These root re-exports will be removed in the next major
+version.** Until then they block browser bundling: any bundle that imports the
+root entry, even `import { success } from '@lushly-dev/afd-core'`, pulls in
+`node:child_process`, `node:fs`, `node:os` and `node:path`, and a browser build
+(for example `esbuild --bundle --platform=browser`) fails. Browser code should
+import from `@lushly-dev/afd-core/result` and `@lushly-dev/afd-core/commands`,
+or define commands through `@lushly-dev/afd-server/define`.
+
 ## Usage
 
 ### Creating Command Results

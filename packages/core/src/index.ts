@@ -57,21 +57,38 @@ export {
 	isMcpExposed,
 	validateCommandName,
 } from './commands.js';
+// Connectors — deprecated root re-exports. The connectors spawn processes
+// (node:child_process), so re-exporting them here stops the root entry from
+// being bundled for the browser. Import them from '@lushly-dev/afd-core/connectors';
+// these re-exports will be removed in the next major version.
 export type {
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	GitHubConnectorOptions,
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	Issue,
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	IssueCreateOptions,
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	IssueFilters,
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	PrCreateOptions,
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	PullRequest,
 } from './connectors/github.js';
-// Connectors
-export { GitHubConnector } from './connectors/github.js';
+export {
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
+	GitHubConnector,
+} from './connectors/github.js';
 export type {
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	PackageManager,
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
 	PackageManagerConnectorOptions,
 } from './connectors/package-manager.js';
-export { PackageManagerConnector } from './connectors/package-manager.js';
+export {
+	/** @deprecated Import from `@lushly-dev/afd-core/connectors`. Removed from the root entry in the next major version. */
+	PackageManagerConnector,
+} from './connectors/package-manager.js';
 // Error types
 export type { CommandError, ErrorCode } from './errors.js';
 export {

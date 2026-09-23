@@ -11,6 +11,18 @@
 		"./platform": {
 			"types": "./dist/platform.d.ts",
 			"import": "./dist/platform.js"
+		},
+		"./connectors": {
+			"types": "./dist/connectors/index.d.ts",
+			"import": "./dist/connectors/index.js"
+		},
+		"./commands": {
+			"types": "./dist/commands.d.ts",
+			"import": "./dist/commands.js"
+		},
+		"./result": {
+			"types": "./dist/result.d.ts",
+			"import": "./dist/result.js"
 		}
 	},
 	"main": "./dist/index.js",
