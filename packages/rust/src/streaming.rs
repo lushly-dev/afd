@@ -495,6 +495,8 @@ pub fn is_streamable_command<T: Serialize>(value: &T) -> bool {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Consume a stream and fan out events to callbacks.
+// `ErrorChunk` is the public stream wire type; boxing it would change this public signature.
+#[allow(clippy::result_large_err)]
 pub async fn consume_stream<T, I>(
     stream: I,
     callbacks: &StreamCallbacks<T>,

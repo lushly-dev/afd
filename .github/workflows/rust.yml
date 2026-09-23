@@ -34,10 +34,9 @@ jobs:
           persist-credentials: false
 
       # rustup is preinstalled on GitHub-hosted runners; no third-party action needed.
+      # `rustup toolchain install` (no args) installs the toolchain pinned in packages/rust/rust-toolchain.toml.
       - name: Install Rust toolchain
-        run: |
-          rustup toolchain install stable --profile minimal --component clippy,rustfmt
-          rustup default stable
+        run: rustup toolchain install
 
       - name: Cache cargo
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2

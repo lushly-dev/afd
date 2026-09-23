@@ -1,0 +1,6 @@
+# Pin the toolchain so a new stable release cannot fail `clippy -D warnings`
+# without a change in this repository. Bump deliberately and fix new lints.
+[toolchain]
+channel = "1.98.0"
+components = ["clippy", "rustfmt"]
+profile = "minimal"
