@@ -1,0 +1,85 @@
+name: Python
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'python/**'
+      - '.github/workflows/python.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'python/**'
+      - '.github/workflows/python.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keep in sync with requires-python and the classifiers in python/pyproject.toml.
+        python-version: ['3.10', '3.11', '3.12']
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: python
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # Sets UV_PYTHON, so every uv command below uses the matrix Python.
+      - name: Install uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+          cache-dependency-glob: python/uv.lock
+
+      - name: Check lockfile is up to date
+        run: uv lock --check
+
+      - name: Install dependencies
+        run: uv sync --frozen --all-extras
+
+      - name: Lint
+        run: uv run ruff check --select F821,F841,B904 src
+
+      - name: Test
+        run: uv run pytest -q
+
+      - name: Build wheel
+        run: uv build
+
+      # Each extra gets a fresh venv with only the wheel and that extra's
+      # dependencies, so an import that needs an uninstalled extra fails here.
+      - name: Install smoke test (base, client, server, cli)
+        run: |
+          set -euo pipefail
+          wheel=$(ls dist/afd-*.whl)
+          for extra in base client server cli; do
+            echo "::group::afd[$extra]"
+            venv="$RUNNER_TEMP/afd-smoke-$extra"
+            uv venv "$venv"
+            py="$venv/bin/python"
+            if [ "$extra" = base ]; then
+              uv pip install --python "$py" "$wheel"
+            else
+              uv pip install --python "$py" "${wheel}[${extra}]"
+            fi
+            "$py" -c "import afd, afd.core"
+            case "$extra" in
+              client) "$py" -c "from afd import McpClient" ;;
+              cli) "$venv/bin/afd" --help ;;
+            esac
+            echo "::endgroup::"
+          done
