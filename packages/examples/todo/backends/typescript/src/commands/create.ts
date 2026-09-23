@@ -1,5 +1,5 @@
 /**
- * @fileoverview todo.create command
+ * @fileoverview todo-create command
  */
 
 import { defineCommand, success } from '@lushly-dev/afd-server';

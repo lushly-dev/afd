@@ -9,7 +9,7 @@
  * Then connect with the AFD CLI:
  *   afd connect http://localhost:3100/sse
  *   afd tools
- *   afd call todo.create '{"title": "My first todo"}'
+ *   afd call todo-create '{"title": "My first todo"}'
  */
 
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server';

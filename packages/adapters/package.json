@@ -18,6 +18,7 @@
 	],
 	"scripts": {
 		"build": "tsc",
+		"typecheck": "tsc -p tsconfig.typecheck.json",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"lint": "biome check src/",

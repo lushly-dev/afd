@@ -8,6 +8,7 @@ Port of packages/testing/src/commands/evaluate.ts
 
 from __future__ import annotations
 
+import asyncio
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -16,6 +17,7 @@ from afd.core.result import CommandResult, error, success
 from afd.testing.scenarios.executor import InProcessExecutor, InProcessExecutorConfig
 from afd.testing.scenarios.parser import parse_scenario_file
 from afd.testing.scenarios.types import (
+	Scenario,
 	ScenarioResult,
 	TestReport,
 	TestSummary,
@@ -75,6 +77,23 @@ async def scenario_evaluate(input: dict[str, Any] | None = None) -> CommandResul
 			suggestion="Provide a 'handler' function in the input.",
 		)
 
+	if isinstance(concurrency, bool) or not isinstance(concurrency, (int, float)) or concurrency < 1:
+		return error(
+			"VALIDATION_ERROR",
+			f"Invalid concurrency: {concurrency!r}",
+			suggestion="Pass 'concurrency' as a positive integer (default: 1).",
+		)
+	concurrency = int(concurrency)
+
+	if timeout is not None and (
+		isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout <= 0
+	):
+		return error(
+			"VALIDATION_ERROR",
+			f"Invalid timeout: {timeout!r}",
+			suggestion="Pass 'timeout' as a positive number of milliseconds, or omit it.",
+		)
+
 	# Discover scenario files
 	if scenario_files:
 		files = scenario_files
@@ -111,7 +130,6 @@ async def scenario_evaluate(input: dict[str, Any] | None = None) -> CommandResul
 	# Execute scenarios
 	start_time = time.monotonic()
 	results: list[ScenarioResult] = []
-	should_stop = False
 
 	config = InProcessExecutorConfig(
 		handler=handler,
@@ -119,17 +137,14 @@ async def scenario_evaluate(input: dict[str, Any] | None = None) -> CommandResul
 	)
 	executor = InProcessExecutor(config)
 
-	for scenario, filepath in parsed_scenarios:
-		if should_stop:
-			break
+	async def run_one(scenario: Scenario, filepath: str) -> ScenarioResult:
 		try:
-			result = await executor.execute(scenario)
-			results.append(result)
-
-			if fail_fast and result.outcome in ("fail", "error"):
-				should_stop = True
-		except Exception as e:
-			results.append(ScenarioResult(
+			if timeout is None:
+				result = await executor.execute(scenario)
+			else:
+				result = await asyncio.wait_for(executor.execute(scenario), timeout / 1000)
+		except Exception:
+			return ScenarioResult(
 				scenario_path=filepath,
 				job_name=scenario.job,
 				outcome="error",
@@ -140,9 +155,17 @@ async def scenario_evaluate(input: dict[str, Any] | None = None) -> CommandResul
 				skipped_steps=len(scenario.steps),
 				started_at=datetime.now(timezone.utc),
 				completed_at=datetime.now(timezone.utc),
-			))
-			if fail_fast:
-				should_stop = True
+			)
+		result.scenario_path = filepath
+		return result
+
+	# Run in batches of `concurrency`; fail_fast stops after the failing batch.
+	for i in range(0, len(parsed_scenarios), concurrency):
+		batch = parsed_scenarios[i : i + concurrency]
+		batch_results = await asyncio.gather(*(run_one(s, p) for s, p in batch))
+		results.extend(batch_results)
+		if fail_fast and any(r.outcome in ("fail", "error") for r in batch_results):
+			break
 
 	total_duration = int((time.monotonic() - start_time) * 1000)
 	summary = calculate_summary(results)

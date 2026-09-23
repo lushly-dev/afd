@@ -1,0 +1,89 @@
+name: Conformance
+
+# Runs the todo example's shared conformance suite (spec/test-cases.json)
+# against the TypeScript and Python backends, plus the Python backend's own
+# tests. The Python backend installs the repository's python/ package, so
+# changes there are checked too.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/examples/todo/**'
+      - 'packages/server/**'
+      - 'packages/core/**'
+      - 'python/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/conformance.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/examples/todo/**'
+      - 'packages/server/**'
+      - 'packages/core/**'
+      - 'python/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/conformance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  todo:
+    name: Todo conformance (TypeScript + Python)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.x
+          cache: pnpm
+
+      # Sets UV_PYTHON, so every uv command below uses Python 3.12.
+      - name: Install uv and Python 3.12
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        with:
+          python-version: '3.12'
+          enable-cache: true
+          cache-dependency-glob: packages/examples/todo/backends/python/uv.lock
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      # --locked fails if uv.lock is stale (for example after a dependency
+      # change in python/pyproject.toml); run `uv lock` in the backend to fix.
+      - name: Install Python backend
+        working-directory: packages/examples/todo/backends/python
+        run: uv sync --locked
+
+      - name: Python backend tests
+        working-directory: packages/examples/todo/backends/python
+        run: uv run --locked pytest -q
+
+      - name: Conformance (TypeScript backend)
+        run: pnpm --dir packages/examples/todo test:conformance:ts
+
+      - name: Conformance (Python backend)
+        run: pnpm --dir packages/examples/todo test:conformance:py
+
+      # The stores must never write tracked files (data/todos.json is gitignored).
+      - name: Check the working tree is unchanged
+        run: |
+          changes=$(git status --porcelain)
+          if [ -n "$changes" ]; then
+            echo "::error::Building and testing the todo example changed the working tree:"
+            echo "$changes"
+            exit 1
+          fi

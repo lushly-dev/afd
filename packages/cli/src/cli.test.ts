@@ -11,7 +11,7 @@
 import { stripVTControlCharacters } from 'node:util';
 import type { CommandResult } from '@lushly-dev/afd-core';
 import { describe, expect, it, vi } from 'vitest';
-import packageJson from '../package.json';
+import packageJson from '../package.json' with { type: 'json' };
 import { createCli } from './cli.js';
 import {
 	getConfidenceBar,
@@ -210,7 +210,7 @@ describe('Output formatting', () => {
 			const result: CommandResult<string> = {
 				success: true,
 				data: 'ok',
-				warnings: [{ message: 'Rate limit approaching' }],
+				warnings: [{ code: 'RATE_LIMIT', message: 'Rate limit approaching' }],
 			};
 
 			printResult(result, { format: 'text' });

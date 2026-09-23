@@ -32,7 +32,7 @@ import { clearConfig, deleteConfig, getConfig, getConfigPath, setConfig } from '
 
 describe('CLI configuration', () => {
 	beforeEach(() => {
-		state.values = new Map([
+		state.values = new Map<string, unknown>([
 			['timeout', 30000],
 			['format', 'text'],
 			['debug', false],

@@ -1,5 +1,5 @@
 /**
- * @fileoverview todo.stats command
+ * @fileoverview todo-stats command
  */
 
 import { defineCommand, success } from '@lushly-dev/afd-server';

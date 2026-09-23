@@ -5,6 +5,7 @@
  * AFD commands should be fast since they're called by both UI and agents.
  */
 
+import type { CommandResult } from '@lushly-dev/afd-core';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { store } from '../../store/index.js';
 import { clearCompleted } from '../clear.js';
@@ -15,6 +16,19 @@ import { listTodos } from '../list.js';
 import { getStats } from '../stats.js';
 import { toggleTodo } from '../toggle.js';
 import { updateTodo } from '../update.js';
+
+/** The id from a successful command result that returned a todo, failing the test otherwise. */
+function idOf(result: CommandResult<{ id: string }>): string {
+	if (!result.data) throw new Error(`Expected a todo, got ${JSON.stringify(result.error)}`);
+	return result.data.id;
+}
+
+/** The sample at the given fraction of an ascending list of durations. */
+function percentile(sorted: number[], fraction: number): number {
+	const value = sorted[Math.floor(sorted.length * fraction)];
+	if (value === undefined) throw new Error('No latency samples recorded');
+	return value;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // PERFORMANCE THRESHOLDS (in milliseconds)
@@ -134,19 +148,19 @@ describe('Single Operation Performance', () => {
 
 	it(`todo-get < ${THRESHOLDS.get}ms`, async () => {
 		const created = await createTodo.handler({ title: 'Find me', priority: 'medium' }, {});
+		const id = idOf(created);
 
-		const result = await measure('todo-get', THRESHOLDS.get, () =>
-			getTodo.handler({ id: created.data?.id }, {})
-		);
+		const result = await measure('todo-get', THRESHOLDS.get, () => getTodo.handler({ id }, {}));
 
 		expect(result.success).toBe(true);
 	});
 
 	it(`todo-update < ${THRESHOLDS.update}ms`, async () => {
 		const created = await createTodo.handler({ title: 'Update me', priority: 'medium' }, {});
+		const id = idOf(created);
 
 		const result = await measure('todo-update', THRESHOLDS.update, () =>
-			updateTodo.handler({ id: created.data?.id, title: 'Updated' }, {})
+			updateTodo.handler({ id, title: 'Updated' }, {})
 		);
 
 		expect(result.success).toBe(true);
@@ -154,9 +168,10 @@ describe('Single Operation Performance', () => {
 
 	it(`todo-toggle < ${THRESHOLDS.toggle}ms`, async () => {
 		const created = await createTodo.handler({ title: 'Toggle me', priority: 'medium' }, {});
+		const id = idOf(created);
 
 		const result = await measure('todo-toggle', THRESHOLDS.toggle, () =>
-			toggleTodo.handler({ id: created.data?.id }, {})
+			toggleTodo.handler({ id }, {})
 		);
 
 		expect(result.success).toBe(true);
@@ -164,9 +179,10 @@ describe('Single Operation Performance', () => {
 
 	it(`todo-delete < ${THRESHOLDS.delete}ms`, async () => {
 		const created = await createTodo.handler({ title: 'Delete me', priority: 'medium' }, {});
+		const id = idOf(created);
 
 		const result = await measure('todo-delete', THRESHOLDS.delete, () =>
-			deleteTodo.handler({ id: created.data?.id }, {})
+			deleteTodo.handler({ id }, {})
 		);
 
 		expect(result.success).toBe(true);
@@ -234,8 +250,8 @@ describe('Batch Operation Performance', () => {
 	it(`todo-clear (10 completed) < ${THRESHOLDS.clear}ms`, async () => {
 		// Create 20 todos and complete 10
 		const ids = await createBulkTodos(20);
-		for (let i = 0; i < 10; i++) {
-			await toggleTodo.handler({ id: ids[i] }, {});
+		for (const id of ids.slice(0, 10)) {
+			await toggleTodo.handler({ id }, {});
 		}
 
 		const result = await measure('todo-clear', THRESHOLDS.clear, () =>
@@ -305,9 +321,9 @@ describe('Latency Percentiles', () => {
 		// Sort for percentile calculation
 		durations.sort((a, b) => a - b);
 
-		const p50 = durations[Math.floor(durations.length * 0.5)];
-		const p95 = durations[Math.floor(durations.length * 0.95)];
-		const p99 = durations[Math.floor(durations.length * 0.99)];
+		const p50 = percentile(durations, 0.5);
+		const p95 = percentile(durations, 0.95);
+		const p99 = percentile(durations, 0.99);
 
 		console.log(
 			`\n  todo-create latency: p50=${p50.toFixed(2)}ms, p95=${p95.toFixed(2)}ms, p99=${p99.toFixed(2)}ms`

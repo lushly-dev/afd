@@ -227,7 +227,7 @@ class TestCallCommand:
 
     def test_call_with_server(self, runner, temp_state_file, mock_transport):
         """Should call tool on specified server."""
-        with patch("afd.cli.main._get_transport", return_value=mock_transport):
+        with patch.object(_cli_main_module, "_get_transport", return_value=mock_transport):
             result = runner.invoke(cli, ["call", "user-create", '{"name": "Alice"}', "-s", "mock"])
             assert result.exit_code == 0
             mock_transport.call_tool.assert_called_once()
@@ -241,7 +241,7 @@ class TestCallCommand:
 
     def test_call_default_empty_args(self, runner, temp_state_file, mock_transport):
         """Should use empty object for missing args."""
-        with patch("afd.cli.main._get_transport", return_value=mock_transport):
+        with patch.object(_cli_main_module, "_get_transport", return_value=mock_transport):
             result = runner.invoke(cli, ["call", "user-list", "-s", "mock"])
             assert result.exit_code == 0
             mock_transport.call_tool.assert_called_once_with("user-list", {})
@@ -311,7 +311,7 @@ class TestValidateCommand:
 
         transport.call_tool = AsyncMock(side_effect=_call_tool)
 
-        with patch("afd.cli.main._get_transport", return_value=transport):
+        with patch.object(_cli_main_module, "_get_transport", return_value=transport):
             result = runner.invoke(cli, ["validate", "--surface", "-s", "mock"])
 
         assert result.exit_code == 0
@@ -357,7 +357,7 @@ class TestValidateCommand:
 
         transport.call_tool = AsyncMock(side_effect=_call_tool)
 
-        with patch("afd.cli.main._get_transport", return_value=transport):
+        with patch.object(_cli_main_module, "_get_transport", return_value=transport):
             result = runner.invoke(cli, ["validate", "--surface", "-s", "mock"])
 
         assert result.exit_code == 1
@@ -402,8 +402,8 @@ class TestValidateCommand:
             )
 
         with (
-            patch("afd.cli.main._get_transport", return_value=transport),
-            patch("afd.cli.main.validate_command_surface", side_effect=_fake_validate),
+            patch.object(_cli_main_module, "_get_transport", return_value=transport),
+            patch.object(_cli_main_module, "validate_command_surface", side_effect=_fake_validate),
         ):
             result = runner.invoke(
                 cli,

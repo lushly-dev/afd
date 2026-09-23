@@ -354,8 +354,10 @@ describe('scenario-create', () => {
 		});
 
 		expect(result.success).toBe(true);
-		expect(result.data?.path).toContain('test-scenario.scenario.yaml');
-		expect(fs.existsSync(result.data?.path)).toBe(true);
+		const path = result.data?.path;
+		if (!path) throw new Error('scenario-create returned no path');
+		expect(path).toContain('test-scenario.scenario.yaml');
+		expect(fs.existsSync(path)).toBe(true);
 	});
 
 	it('creates CRUD template', async () => {
@@ -369,7 +371,9 @@ describe('scenario-create', () => {
 		expect(result.success).toBe(true);
 		expect(result.data?.scenario.steps.length).toBe(5);
 
-		const content = fs.readFileSync(result.data?.path, 'utf-8');
+		const path = result.data?.path;
+		if (!path) throw new Error('scenario-create returned no path');
+		const content = fs.readFileSync(path, 'utf-8');
 		expect(content).toContain('todo.create');
 		expect(content).toContain('todo.update');
 		expect(content).toContain('todo.delete');

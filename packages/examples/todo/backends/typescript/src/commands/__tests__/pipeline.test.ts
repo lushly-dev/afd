@@ -55,9 +55,9 @@ describe('Todo Pipeline Integration', () => {
 			const result = await server.executePipeline(request);
 
 			// All steps succeed
-			expect(result.steps[0].status).toBe('success');
-			expect(result.steps[1].status).toBe('success');
-			expect(result.steps[2].status).toBe('success');
+			expect(result.steps[0]?.status).toBe('success');
+			expect(result.steps[1]?.status).toBe('success');
+			expect(result.steps[2]?.status).toBe('success');
 
 			// Final data is the completed todo
 			expect(result.data).toMatchObject({
@@ -124,12 +124,12 @@ describe('Todo Pipeline Integration', () => {
 			const result = await server.executePipeline(request);
 
 			// Check completed list was found
-			expect(result.steps[0].data).toMatchObject({
+			expect(result.steps[0]?.data).toMatchObject({
 				total: 1, // One completed todo
 			});
 
 			// Check clear result
-			expect(result.steps[1].data).toMatchObject({
+			expect(result.steps[1]?.data).toMatchObject({
 				cleared: 1,
 			});
 
@@ -156,7 +156,7 @@ describe('Todo Pipeline Integration', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[1].status).toBe('success');
+			expect(result.steps[1]?.status).toBe('success');
 			expect(result.data).toMatchObject({
 				title: 'Chained',
 			});
@@ -198,10 +198,10 @@ describe('Todo Pipeline Integration', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[0].status).toBe('failure');
-			expect(result.steps[0].error?.code).toBe('NOT_FOUND');
-			expect(result.steps[0].error?.suggestion).toBeDefined();
-			expect(result.steps[1].status).toBe('skipped');
+			expect(result.steps[0]?.status).toBe('failure');
+			expect(result.steps[0]?.error?.code).toBe('NOT_FOUND');
+			expect(result.steps[0]?.error?.suggestion).toBeDefined();
+			expect(result.steps[1]?.status).toBe('skipped');
 		});
 
 		it('continues on failure when option is set', async () => {
@@ -215,8 +215,8 @@ describe('Todo Pipeline Integration', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[0].status).toBe('failure');
-			expect(result.steps[1].status).toBe('success');
+			expect(result.steps[0]?.status).toBe('failure');
+			expect(result.steps[1]?.status).toBe('success');
 			expect(result.data).toHaveProperty('total');
 		});
 	});
@@ -242,11 +242,11 @@ describe('Todo Pipeline Integration', () => {
 			const result = await server.executePipeline(request);
 
 			// First toggle succeeds
-			expect(result.steps[1].status).toBe('success');
-			expect(result.steps[1].data).toMatchObject({ completed: true });
+			expect(result.steps[1]?.status).toBe('success');
+			expect(result.steps[1]?.data).toMatchObject({ completed: true });
 
 			// Second toggle skipped because todo is completed
-			expect(result.steps[2].status).toBe('skipped');
+			expect(result.steps[2]?.status).toBe('skipped');
 		});
 
 		it('runs step only when condition is met', async () => {
@@ -267,7 +267,7 @@ describe('Todo Pipeline Integration', () => {
 
 			const result = await server.executePipeline(request);
 
-			expect(result.steps[1].status).toBe('success');
+			expect(result.steps[1]?.status).toBe('success');
 			expect(result.data).toMatchObject({
 				title: 'URGENT: High priority',
 			});
@@ -307,8 +307,8 @@ describe('Todo Pipeline Integration', () => {
 			const result = await server.executePipeline(request);
 
 			expect(result.metadata.executionTimeMs).toBeGreaterThan(0);
-			expect(result.steps[0].executionTimeMs).toBeGreaterThanOrEqual(0);
-			expect(result.steps[1].executionTimeMs).toBeGreaterThanOrEqual(0);
+			expect(result.steps[0]?.executionTimeMs).toBeGreaterThanOrEqual(0);
+			expect(result.steps[1]?.executionTimeMs).toBeGreaterThanOrEqual(0);
 		});
 
 		it('uses weakest link for confidence', async () => {

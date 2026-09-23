@@ -344,7 +344,7 @@ describe('PackageManagerConnector', () => {
 				stderr: 'Error',
 				exitCode: 1,
 				durationMs: 100,
-				errorCode: 'EXIT_CODE' as const,
+				errorCode: ExecErrorCode.EXIT_CODE,
 			};
 
 			expect(pm.isSuccess(result)).toBe(false);

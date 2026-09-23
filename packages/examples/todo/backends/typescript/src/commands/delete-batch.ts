@@ -1,5 +1,5 @@
 /**
- * @fileoverview todo.delete-batch command
+ * @fileoverview todo-delete-batch command
  *
  * Demonstrates AFD batch delete pattern with warnings for destructive operations.
  */
@@ -73,7 +73,7 @@ export const deleteBatch = defineCommand<typeof inputSchema, BatchDeleteResult>(
 					error: {
 						code: 'NOT_FOUND',
 						message: `Todo with ID "${id}" not found`,
-						suggestion: 'Use todo.list to see available todos',
+						suggestion: 'Use todo-list to see available todos',
 					},
 				});
 				continue;

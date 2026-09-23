@@ -1,5 +1,5 @@
 /**
- * @fileoverview todo.list command
+ * @fileoverview todo-list command
  *
  * Demonstrates AFD alternatives pattern: when filters are applied,
  * we also return the unfiltered result as an alternative option.

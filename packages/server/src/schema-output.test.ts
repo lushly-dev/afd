@@ -78,9 +78,11 @@ describe('defineCommand output schema', () => {
 		});
 		const tools = getToolsList([cmd], 'individual');
 		const tool = tools.find((t) => t.name === 'todo-list');
-		expect(tool?._meta?.category).toBe('inventory');
-		expect(tool?._meta?.outputSchema).toBeDefined();
-		expect(tool?._meta?.outputSchema?.type).toBe('array');
+		expect(tool).toBeDefined();
+		const meta = tool && '_meta' in tool ? tool._meta : undefined;
+		expect(meta?.category).toBe('inventory');
+		expect(meta?.outputSchema).toBeDefined();
+		expect(meta?.outputSchema?.type).toBe('array');
 	});
 
 	it('handles complex nested output schemas', () => {
@@ -137,7 +139,8 @@ describe('defineCommand output schema', () => {
 		});
 		const tools = getToolsList([cmd], 'individual');
 		const tool = tools.find((t) => t.name === 'todo-ping');
-		expect(tool?._meta).toBeUndefined();
+		expect(tool).toBeDefined();
+		expect(tool).not.toHaveProperty('_meta');
 	});
 
 	// Type inference: the output schema constrains the handler return type.

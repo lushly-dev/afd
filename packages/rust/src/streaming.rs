@@ -288,16 +288,25 @@ impl Default for StreamOptions {
 // STREAM CALLBACKS (for native async usage)
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// Callback invoked with a [`ProgressChunk`].
+pub type ProgressCallback = Box<dyn Fn(&ProgressChunk) + Send + Sync>;
+/// Callback invoked with a [`DataChunk`].
+pub type DataCallback<T> = Box<dyn Fn(&DataChunk<T>) + Send + Sync>;
+/// Callback invoked with a [`CompleteChunk`].
+pub type CompleteCallback<T> = Box<dyn Fn(&CompleteChunk<T>) + Send + Sync>;
+/// Callback invoked with an [`ErrorChunk`].
+pub type ErrorCallback = Box<dyn Fn(&ErrorChunk) + Send + Sync>;
+
 /// Callbacks for handling stream events.
 pub struct StreamCallbacks<T> {
     /// Called when progress is reported.
-    pub on_progress: Option<Box<dyn Fn(&ProgressChunk) + Send + Sync>>,
+    pub on_progress: Option<ProgressCallback>,
     /// Called when partial data is available.
-    pub on_data: Option<Box<dyn Fn(&DataChunk<T>) + Send + Sync>>,
+    pub on_data: Option<DataCallback<T>>,
     /// Called when the stream completes.
-    pub on_complete: Option<Box<dyn Fn(&CompleteChunk<T>) + Send + Sync>>,
+    pub on_complete: Option<CompleteCallback<T>>,
     /// Called when an error occurs.
-    pub on_error: Option<Box<dyn Fn(&ErrorChunk) + Send + Sync>>,
+    pub on_error: Option<ErrorCallback>,
 }
 
 impl<T> Default for StreamCallbacks<T> {
@@ -486,6 +495,8 @@ pub fn is_streamable_command<T: Serialize>(value: &T) -> bool {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Consume a stream and fan out events to callbacks.
+// `ErrorChunk` is the public stream wire type; boxing it would change this public signature.
+#[allow(clippy::result_large_err)]
 pub async fn consume_stream<T, I>(
     stream: I,
     callbacks: &StreamCallbacks<T>,

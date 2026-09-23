@@ -13,16 +13,22 @@ Server runs at `http://localhost:3100`.
 
 ## Storage Configuration
 
-By default, the server uses **file-based storage** (`data/todos.json`) so that:
+By default, the server uses **file-based storage** (`packages/examples/todo/data/todos.json`) so that:
 - MCP clients (stdio transport) share data with the HTTP server
 - The UI and MCP tools see the same todos
+- The TypeScript and Python backends share the same data
+
+`data/todos.json` is gitignored. When it is missing, it is created from the committed seed
+`data/todos.seed.json`; delete it to reset the data. Writes are atomic (a temporary file renamed
+over `todos.json`), and a file that is not valid JSON stops the server with an error naming the
+file instead of being treated as empty.
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TODO_STORE_TYPE` | `file` | Storage type: `file` or `memory` |
-| `TODO_STORE_PATH` | `./data/todos.json` | Path to JSON file (file mode only) |
+| `TODO_STORE_PATH` | `data/todos.json` (seeded) | Path to JSON file (file mode only). A custom path starts empty. |
 | `PORT` | `3100` | HTTP server port |
 | `HOST` | `localhost` | HTTP server host |
 | `TRANSPORT` | `auto` | Transport mode: `auto`, `http`, or `stdio` |
@@ -58,8 +64,10 @@ TODO_STORE_PATH=/path/to/todos.json pnpm start
 
 ## Conformance
 
-Run conformance tests:
+Run the unit tests and the conformance suite (the runner uses an in-memory store, so it never
+touches `data/todos.json`):
 
 ```bash
+pnpm test
 pnpm --dir ../.. test:conformance:ts
 ```

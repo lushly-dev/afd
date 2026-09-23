@@ -16,7 +16,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `pnpm lint` | Biome lint check |
 | `pnpm lint:fix` | Auto-fix lint issues |
 | `pnpm typecheck` | TypeScript type checking |
-| `pnpm check` | Quality gate (lint + build + typecheck + test:coverage) — mirrors CI exactly |
+| `pnpm check` | TypeScript quality gate (lint + build + typecheck + test:coverage) — mirrors `ci.yml` exactly |
 | `pnpm changeset` | Create a changeset describing your change and its semver impact |
 | `pnpm version-packages` | Consume changesets, bump versions, update CHANGELOGs |
 | `pnpm publish:npm` | Publish all @lushly-dev/* packages to npm |
@@ -55,18 +55,26 @@ alfred/  # Quality bot — lint, parity, quality (see alfred/AGENTS.md)
 
 ## Quality Gates & CI
 
-**Principle: lefthook IS the CI pipeline.** `pnpm check` runs the exact same steps as GitHub Actions CI. If it passes locally, CI passes remotely. No surprises.
+**Principle: for TypeScript, lefthook IS the CI pipeline.** `pnpm check` runs the exact same steps as the `CI` workflow (`ci.yml`). If it passes locally, that workflow passes remotely.
+
+Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/rust/`) or alfred. Each has its own path-filtered workflow, listed below. The TypeScript and Python todo example backends run the shared conformance suite in `conformance.yml`; the Rust todo backend is not in any gate yet.
 
 | Layer | When | What |
 |-------|------|------|
 | **Pre-commit** (lefthook) | `git commit` | Biome lint+fix, portability, file-size, typecheck |
 | **Pre-push** (lefthook) | `git push` | Full lint, test, typecheck, portability, file-size, orphan-files |
 | **Quality gate** (`pnpm check`) | On-demand / release script | lint → build → typecheck → test:coverage + portability, file-size, orphan-files |
-| **CI** (GitHub Actions) | Push to main / PR | Same as quality gate — safety net for skipped hooks |
+| **CI** (`ci.yml`) | Push to main / PR | Same as quality gate — safety net for skipped hooks |
+| **Python** (`python.yml`) | Push to main / PR touching `python/**` | `uv lock --check`; ruff (F821, F841, B904); pytest on 3.10, 3.11, 3.12; wheel install smoke test per extra (base, client, server, cli) |
+| **Rust** (`rust.yml`) | Push to main / PR touching `packages/rust/**` | `cargo fmt --check`; clippy `-D warnings` and `cargo test`, each with default and no default features |
+| **Conformance** (`conformance.yml`) | Push to main / PR touching the todo example, `packages/server`, `packages/core`, `python/` or the lockfile | Todo example: Python backend pytest, then the 32-case conformance suite against the TypeScript and Python backends |
+| **Alfred** (`alfred.yml`) | Push to main / PR touching `alfred/**` | ruff, pytest, wheel smoke test |
 | **Release** (GitHub Actions) | Push to main | `pnpm check` → Changesets opens a version PR or publishes to npm |
 
 **Key rules:**
-- Always run `pnpm check` before pushing — catches everything CI would catch
+- Always run `pnpm check` before pushing — catches everything `ci.yml` would catch
+- Changed `python/` or `packages/rust/`? `pnpm check` does not test them. Run the commands from `python.yml` or `rust.yml` locally (`cd python && uv run pytest -q`; `cd packages/rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test`)
+- Workflow actions are pinned to full commit SHAs with a `# vX.Y.Z` comment; Dependabot updates them
 - Changesets manages versioning — run `pnpm changeset` to describe publishable package changes
 - All `@lushly-dev/*` packages share one version (fixed versioning)
 - Release flow: merge a PR with changesets → the Release workflow opens a release PR → merge it → the workflow runs `pnpm check` and publishes

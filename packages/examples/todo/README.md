@@ -9,6 +9,7 @@ Multi-stack implementation of a Todo application demonstrating **Agent-First Dev
 - **MCP-Native**: Backends are Model Context Protocol (MCP) servers, ready for AI agents.
 - **Thin UI**: Frontends are thin surfaces that invoke commands via MCP.
 - **Shared Storage**: Both backends use the same JSON file for data persistence.
+- **Conformance in CI**: `.github/workflows/conformance.yml` runs the suite against both backends.
 
 The TypeScript commands explicitly set `expose: { mcp: true }`. AFD commands are
 private to external MCP clients by default, so every command intended for a remote
@@ -20,7 +21,11 @@ agent must opt in at its definition.
 
 ```bash
 pnpm install
+pnpm build
 ```
+
+The Python backend also needs [uv](https://docs.astral.sh/uv/). It installs the repository's
+`afd` package from `python/` on first run.
 
 ### 2. Run Conformance Tests
 
@@ -38,6 +43,9 @@ pnpm test:conformance:ts
 pnpm test:conformance:py
 ```
 
+The runner spawns each backend over stdio with `TODO_STORE_TYPE=memory`, runs every case in
+[spec/test-cases.json](./spec/test-cases.json), and exits non-zero if any case fails.
+
 ### 3. Start a Backend (Manual)
 
 **TypeScript:**
@@ -47,7 +55,7 @@ cd backends/typescript
 pnpm dev
 ```
 
-**Python:**
+**Python** (MCP over stdio, for MCP clients; the web frontends need the TypeScript backend):
 
 ```bash
 uv run --project backends/python todo-server
@@ -74,7 +82,12 @@ Both backends support file-based storage (default) or in-memory storage:
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `TODO_STORE_TYPE` | `file` | `file` for shared JSON storage, `memory` for isolated in-memory |
-| `TODO_STORE_PATH` | `data/todos.json` | Path to the shared JSON file |
+| `TODO_STORE_PATH` | `data/todos.json` | Path to the shared JSON file. A custom path starts empty. |
+
+`data/todos.json` is gitignored, so running the example does not change the working tree.
+When it is missing, the stores create it from the committed seed `data/todos.seed.json`; delete
+it to reset. Writes are atomic (temporary file + rename), and a file that is not valid JSON is
+reported as an error instead of being treated as empty.
 
 File-based storage enables:
 - **MCP/HTTP Sharing**: MCP clients (stdio) and HTTP server see the same todos
@@ -106,16 +119,18 @@ Both Vanilla JS and React frontends demonstrate AFD UX principles:
 
 ## Mix and Match
 
-Any backend works with any frontend because they share the same command schemas:
+The frontends work with any backend that serves their HTTP endpoint, because the backends share the same command schemas:
 
 | Backend    | Frontend | Command                          |
 | ---------- | -------- | -------------------------------- |
 | TypeScript | Vanilla  | `pnpm dev:ts` + `pnpm dev:web`   |
 | TypeScript | React    | `pnpm dev:ts` + `pnpm dev:react` |
-| Python     | Vanilla  | `pnpm dev:py` + `pnpm dev:web`   |
-| Python     | React    | `pnpm dev:py` + `pnpm dev:react` |
 | Rust       | Vanilla  | `cargo run -- server` + `pnpm dev:web` |
 | Rust       | React    | `cargo run -- server` + `pnpm dev:react` |
+
+The frontends POST JSON-RPC to `http://localhost:3100/message`. The Python backend is a stdio
+MCP server without that HTTP endpoint, so use it from an MCP client (see below) and the
+conformance suite rather than the web frontends.
 
 ## VS Code MCP Configuration
 
@@ -133,9 +148,8 @@ All three backends can be configured as MCP servers in VS Code. Edit `.vscode/mc
     
     // Python backend (stdio transport - auto-starts)
     "afd-todo-python": {
-      "command": "python",
-      "args": ["-m", "todo_backend"],
-      "cwd": "packages/examples/todo/backends/python",
+      "command": "uv",
+      "args": ["run", "--project", "packages/examples/todo/backends/python", "todo-server"],
       "disabled": true
     },
     
@@ -176,7 +190,7 @@ Then enable `afd-todo-rust` in mcp.json and reload VS Code.
 
 ## API Contract
 
-The source of truth for this example is the [test-cases.json](./spec/test-cases.json) file, which defines the expected inputs, outputs, and state transitions for all commands.
+The source of truth for this example is the [test-cases.json](./spec/test-cases.json) file, which defines the expected inputs, outputs, and state transitions for all commands. [commands.schema.json](./spec/commands.schema.json) documents each command's input and result shape, and the TypeScript and Python test suites check that it lists exactly the commands each backend defines.
 
 ## Commands
 

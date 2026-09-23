@@ -1,5 +1,5 @@
 /**
- * @fileoverview todo.toggle-batch command
+ * @fileoverview todo-toggle-batch command
  *
  * Demonstrates AFD batch toggle pattern with optional override.
  * Can either toggle each item's status or set all to a specific value.
@@ -91,7 +91,7 @@ export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>(
 					error: {
 						code: 'NOT_FOUND',
 						message: `Todo with ID "${id}" not found`,
-						suggestion: 'Use todo.list to see available todos',
+						suggestion: 'Use todo-list to see available todos',
 					},
 				});
 				continue;

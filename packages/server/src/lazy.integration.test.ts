@@ -1,3 +1,4 @@
+import { createBatchResult } from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { executeDetail, executeDiscover } from './lazy-tools.js';
@@ -134,13 +135,8 @@ describe('afd-discover with context filtering via router', () => {
 		const commands = [cmdA, cmdB, cmdC];
 		const router = createToolRouter({
 			executeCommand: async () => ({ success: true as const, data: null }),
-			executeBatch: async () => ({
-				success: true,
-				results: [],
-				timing: { totalMs: 0, averageMs: 0, startedAt: '', completedAt: '' },
-				metadata: { successCount: 0, failureCount: 0, totalCount: 0, confidence: 1 },
-				steps: [],
-			}),
+			executeBatch: async () =>
+				createBatchResult([], { totalMs: 0, averageMs: 0, startedAt: '', completedAt: '' }),
 			executePipeline: async () => ({
 				data: undefined,
 				metadata: {

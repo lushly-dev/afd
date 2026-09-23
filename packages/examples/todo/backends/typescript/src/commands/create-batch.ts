@@ -1,5 +1,5 @@
 /**
- * @fileoverview todo.create-batch command
+ * @fileoverview todo-create-batch command
  *
  * Demonstrates AFD batch operation pattern with partial failure handling.
  * Creates multiple todos at once, reporting success/failure for each item.

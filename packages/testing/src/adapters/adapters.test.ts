@@ -16,7 +16,17 @@ import {
 	resetGlobalRegistry,
 } from './registry.js';
 import { createTodoAdapter, type TodoFixture, todoAdapter } from './todo.js';
-import type { AdapterContext } from './types.js';
+import type { AdapterContext, AppAdapter, FixtureValidationResult } from './types.js';
+
+/** Run an adapter's fixture validator, failing the test if it has none. */
+async function validateFixture(
+	adapter: AppAdapter,
+	fixture: unknown
+): Promise<FixtureValidationResult> {
+	const result = await adapter.fixture.validate?.(fixture);
+	if (!result) throw new Error(`Adapter '${adapter.name}' has no fixture validator`);
+	return result;
+}
 
 // ============================================================================
 // Registry Tests
@@ -225,7 +235,7 @@ describe('Generic Adapter', () => {
 	describe('fixture.validate', () => {
 		it('validates valid fixture', async () => {
 			const adapter = createGenericAdapter('test');
-			const result = await adapter.fixture.validate?.({
+			const result = await validateFixture(adapter, {
 				app: 'test',
 				data: [{ command: 'cmd' }],
 			});
@@ -234,14 +244,14 @@ describe('Generic Adapter', () => {
 
 		it('rejects non-object fixture', async () => {
 			const adapter = createGenericAdapter('test');
-			const result = await adapter.fixture.validate?.('not an object');
+			const result = await validateFixture(adapter, 'not an object');
 			expect(result.valid).toBe(false);
 			expect(result.errors).toContain('Fixture must be an object');
 		});
 
 		it('warns about missing app field', async () => {
 			const adapter = createGenericAdapter('test');
-			const result = await adapter.fixture.validate?.({ data: [] });
+			const result = await validateFixture(adapter, { data: [] });
 			expect(result.valid).toBe(false);
 			expect(result.errors?.some((e) => e.includes('app'))).toBe(true);
 		});
@@ -268,8 +278,8 @@ describe('Todo Adapter', () => {
 			expect(todoAdapter.cli.inputFormat).toBe('json-arg');
 		});
 
-		it('lists all commands', () => {
-			const commands = todoAdapter.commands.list();
+		it('lists all commands', async () => {
+			const commands = await todoAdapter.commands.list();
 			expect(commands).toContain('todo.create');
 			expect(commands).toContain('todo.list');
 			expect(commands).toContain('todo.toggle');
@@ -341,7 +351,7 @@ describe('Todo Adapter', () => {
 
 	describe('fixture.validate', () => {
 		it('validates valid fixture', async () => {
-			const result = await todoAdapter.fixture.validate?.({
+			const result = await validateFixture(todoAdapter, {
 				app: 'todo',
 				todos: [{ title: 'Test' }],
 			});
@@ -349,7 +359,7 @@ describe('Todo Adapter', () => {
 		});
 
 		it('rejects wrong app name', async () => {
-			const result = await todoAdapter.fixture.validate?.({
+			const result = await validateFixture(todoAdapter, {
 				app: 'other',
 				todos: [],
 			});
@@ -358,7 +368,7 @@ describe('Todo Adapter', () => {
 		});
 
 		it('rejects todo without title', async () => {
-			const result = await todoAdapter.fixture.validate?.({
+			const result = await validateFixture(todoAdapter, {
 				app: 'todo',
 				todos: [{ priority: 'high' }],
 			});
@@ -367,7 +377,7 @@ describe('Todo Adapter', () => {
 		});
 
 		it('rejects invalid priority', async () => {
-			const result = await todoAdapter.fixture.validate?.({
+			const result = await validateFixture(todoAdapter, {
 				app: 'todo',
 				todos: [{ title: 'Test', priority: 'urgent' }],
 			});
@@ -424,11 +434,12 @@ describe('Adapter Integration', () => {
 		};
 		const adapter = detectAdapter(fixture);
 		expect(adapter?.name).toBe('todo');
+		if (!adapter) throw new Error('Expected the todo adapter to be detected');
 
 		// Apply fixture
 		const handler = vi.fn().mockResolvedValue({ success: true, data: { id: 'int-1' } });
 		const context: AdapterContext = { cli: 'todo', handler };
-		const result = await adapter?.fixture.apply(fixture, context);
+		const result = await adapter.fixture.apply(fixture, context);
 
 		expect(result.appliedCommands.length).toBeGreaterThan(0);
 		expect(handler).toHaveBeenCalled();

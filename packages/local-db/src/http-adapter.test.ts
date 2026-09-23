@@ -3,7 +3,8 @@ import { createHttpAdapter, HttpAdapter } from './http-adapter.js';
 import type { DataAdapter } from './types.js';
 
 function mockFetch(responses: Record<string, { status: number; body?: unknown }>) {
-	return vi.fn(async (url: string, init?: RequestInit) => {
+	return vi.fn<typeof globalThis.fetch>(async (input, init) => {
+		const url = input instanceof Request ? input.url : String(input);
 		const key = `${init?.method ?? 'GET'} ${url}`;
 		// Find matching response by checking if URL starts with any key
 		const match = Object.entries(responses).find(([k]) => key.startsWith(k) || url.includes(k));

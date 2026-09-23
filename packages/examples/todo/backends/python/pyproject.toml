@@ -1,12 +1,42 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "afd-example-todo-python"
 version = "1.0.0"
 description = "Todo example - Python backend implementing AFD patterns"
 requires-python = ">=3.10"
 dependencies = [
-    "afd>=0.1.0",
+    # The server extra brings in FastMCP (mcp<2), which serves the stdio transport.
+    "afd[server]",
     "pydantic>=2.0.0",
 ]
 
 [project.scripts]
-todo-server = "src.server:main"
+todo-server = "todo_backend.server:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+# Test the repository's afd package, not the release on PyPI.
+[tool.uv.sources]
+afd = { path = "../../../../../python", editable = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/todo_backend"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint.isort]
+known-first-party = ["todo_backend"]

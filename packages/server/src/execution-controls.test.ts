@@ -1,18 +1,23 @@
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { McpClient } from '@lushly-dev/afd-client';
+import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import { failure, success } from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createExecutionEngine } from './execution.js';
-import { defineCommand, type ZodCommandDefinition } from './schema.js';
+import { defineCommand } from './schema.js';
 import { createMcpHandler } from './server.js';
 
-function engineFor(handler: ZodCommandDefinition['handler']) {
+const workInput = z.object({ index: z.number() });
+
+function engineFor(
+	handler: (input: z.infer<typeof workInput>, context: CommandContext) => Promise<CommandResult>
+) {
 	const command = defineCommand({
 		name: 'work-run',
 		description: 'Run controlled test work',
-		input: z.object({ index: z.number() }),
+		input: workInput,
 		handler,
 	});
 	return createExecutionEngine({

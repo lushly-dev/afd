@@ -15,8 +15,22 @@ updates:
           - minor
           - patch
 
-  - package-ecosystem: pip
+  - package-ecosystem: uv
     directory: /python
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+
+  - package-ecosystem: cargo
+    directory: /packages/rust
+    schedule:
+      interval: weekly
+    labels:
+      - dependencies
+
+  - package-ecosystem: uv
+    directory: /alfred
     schedule:
       interval: weekly
     labels:

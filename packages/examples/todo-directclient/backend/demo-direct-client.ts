@@ -7,8 +7,23 @@
  * Run: npx tsx demo-direct-client.ts
  */
 
-import { DirectClient } from '@lushly-dev/afd-client';
+import { type CommandResult, DirectClient, type UnknownToolError } from '@lushly-dev/afd-client';
 import { registry } from './src/registry.js';
+
+/** True when a DirectClient call named a tool the registry does not have. */
+function isUnknownToolError(value: unknown): value is UnknownToolError {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		'error' in value &&
+		value.error === 'UNKNOWN_TOOL'
+	);
+}
+
+/** The command's data, or undefined when the call failed or named an unknown tool. */
+function dataOf<T>(result: CommandResult<T> | CommandResult<UnknownToolError>): T | undefined {
+	return isUnknownToolError(result.data) ? undefined : result.data;
+}
 
 // ANSI colors
 const c = {
@@ -29,8 +44,9 @@ interface Todo {
 }
 
 interface ListResult {
-	items: Todo[];
+	todos: Todo[];
 	total: number;
+	hasMore: boolean;
 }
 
 interface StatsResult {
@@ -61,31 +77,37 @@ async function main() {
 	// ─────────────────────────────────────────────────────────────────
 	console.log(`${c.yellow}▸ Creating todos...${c.reset}`);
 
-	const todo1 = await client.call<Todo>('todo-create', {
-		title: 'Learn DirectClient',
-		priority: 'high',
-	});
-	console.log(`  ✓ Created: "${todo1.data?.title}" (${todo1.data?.id})`);
+	const todo1 = dataOf(
+		await client.call<Todo>('todo-create', {
+			title: 'Learn DirectClient',
+			priority: 'high',
+		})
+	);
+	console.log(`  ✓ Created: "${todo1?.title}" (${todo1?.id})`);
 
-	const todo2 = await client.call<Todo>('todo-create', {
-		title: 'Benchmark performance',
-		priority: 'medium',
-	});
-	console.log(`  ✓ Created: "${todo2.data?.title}" (${todo2.data?.id})`);
+	const todo2 = dataOf(
+		await client.call<Todo>('todo-create', {
+			title: 'Benchmark performance',
+			priority: 'medium',
+		})
+	);
+	console.log(`  ✓ Created: "${todo2?.title}" (${todo2?.id})`);
 
-	const todo3 = await client.call<Todo>('todo-create', {
-		title: 'Write documentation',
-		priority: 'low',
-	});
-	console.log(`  ✓ Created: "${todo3.data?.title}" (${todo3.data?.id})`);
+	const todo3 = dataOf(
+		await client.call<Todo>('todo-create', {
+			title: 'Write documentation',
+			priority: 'low',
+		})
+	);
+	console.log(`  ✓ Created: "${todo3?.title}" (${todo3?.id})`);
 
 	// ─────────────────────────────────────────────────────────────────
 	// LIST: Show all todos
 	// ─────────────────────────────────────────────────────────────────
 	console.log(`\n${c.yellow}▸ Listing todos...${c.reset}`);
-	const list = await client.call<ListResult>('todo-list', {});
-	console.log(`  Found ${list.data?.total} todos:`);
-	for (const todo of list.data?.items ?? []) {
+	const list = dataOf(await client.call<ListResult>('todo-list', {}));
+	console.log(`  Found ${list?.total} todos:`);
+	for (const todo of list?.todos ?? []) {
 		const status = todo.completed ? '✓' : '○';
 		console.log(`    ${status} [${todo.priority}] ${todo.title}`);
 	}
@@ -94,17 +116,17 @@ async function main() {
 	// TOGGLE: Complete a todo
 	// ─────────────────────────────────────────────────────────────────
 	console.log(`\n${c.yellow}▸ Completing first todo...${c.reset}`);
-	const toggled = await client.call<Todo>('todo-toggle', { id: todo1.data?.id });
-	console.log(`  ✓ Toggled: "${toggled.data?.title}" -> completed: ${toggled.data?.completed}`);
+	const toggled = dataOf(await client.call<Todo>('todo-toggle', { id: todo1?.id }));
+	console.log(`  ✓ Toggled: "${toggled?.title}" -> completed: ${toggled?.completed}`);
 
 	// ─────────────────────────────────────────────────────────────────
 	// STATS: Get statistics
 	// ─────────────────────────────────────────────────────────────────
 	console.log(`\n${c.yellow}▸ Getting stats...${c.reset}`);
-	const stats = await client.call<StatsResult>('todo-stats', {});
-	console.log(`  Total: ${stats.data?.total}`);
-	console.log(`  Completed: ${stats.data?.completed}`);
-	console.log(`  Pending: ${stats.data?.pending}`);
+	const stats = dataOf(await client.call<StatsResult>('todo-stats', {}));
+	console.log(`  Total: ${stats?.total}`);
+	console.log(`  Completed: ${stats?.completed}`);
+	console.log(`  Pending: ${stats?.pending}`);
 
 	// ─────────────────────────────────────────────────────────────────
 	// PERFORMANCE: Quick benchmark

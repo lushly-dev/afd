@@ -1,3 +1,4 @@
+import type { ZodCommandDefinition } from '@lushly-dev/afd-server';
 import { createInProcessExecutor, parseScenarioFile } from '@lushly-dev/afd-testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createViewStateCommands } from './commands.js';
@@ -26,14 +27,14 @@ function createHandler(
  */
 function createDispatcher(registry: ViewStateRegistry) {
 	const commands = createViewStateCommands(registry);
-	const commandMap = new Map(commands.map((c) => [c.name, c]));
+	const commandMap = new Map<string, ZodCommandDefinition>(commands.map((c) => [c.name, c]));
 
 	return async (command: string, input?: Record<string, unknown>) => {
 		const cmd = commandMap.get(command);
 		if (!cmd) {
 			throw new Error(`Unknown command: ${command}`);
 		}
-		return cmd.handler(input ?? {}, {} as never);
+		return cmd.handler(input ?? {}, {});
 	};
 }
 

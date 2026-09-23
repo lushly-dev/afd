@@ -3,7 +3,8 @@
  *
  * Environment variables:
  *   TODO_STORE_TYPE - "memory" or "file" (default: "file")
- *   TODO_STORE_PATH - Path to the JSON file (default: ./data/todos.json)
+ *   TODO_STORE_PATH - Path to the JSON file (default: data/todos.json, which is
+ *                     gitignored and created from data/todos.seed.json)
  *
  * The default is "file" to enable MCP (stdio) and HTTP servers to share data.
  * Use "memory" for testing or isolated instances.
@@ -14,7 +15,7 @@ import { TodoStore } from './memory.js';
 
 // Store type from environment (default: file for shared storage)
 const STORE_TYPE = process.env.TODO_STORE_TYPE ?? 'file';
-const STORE_PATH = process.env.TODO_STORE_PATH;
+const STORE_PATH = process.env.TODO_STORE_PATH || undefined;
 
 /**
  * Store interface - common API for both memory and file stores.
@@ -33,7 +34,7 @@ export function createStore(): Store {
 	}
 
 	const store = new FileStore(STORE_PATH);
-	console.error(`[Store] Using file storage (shared across processes)`);
+	console.error(`[Store] Using file storage at ${store.filePath} (shared across processes)`);
 	return store;
 }
 
@@ -46,5 +47,6 @@ export function createStore(): Store {
 export const store = createStore();
 
 export { FileStore } from './file.js';
+export { TodoStoreCorruptError } from './json-file.js';
 // Re-export types for convenience
 export { TodoStore } from './memory.js';

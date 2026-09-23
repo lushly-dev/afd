@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import os
 
 import pytest
@@ -295,3 +296,80 @@ class TestScenarioEvaluate:
 		summary = result.data["report"]["summary"]
 		assert summary["failed_scenarios"] >= 1 or summary["error_scenarios"] >= 1
 		assert result.data["exit_code"] == 1
+
+	@pytest.mark.asyncio
+	async def test_evaluate_timeout_marks_scenario_as_error(self, tmp_path):
+		"""A scenario that exceeds `timeout` (ms) is reported as an error."""
+		_write_scenario(str(tmp_path), "slow.scenario.yaml", VALID_SCENARIO_YAML)
+
+		async def handler(cmd, inp):
+			await asyncio.sleep(5)
+			return {"success": True, "data": {}}
+
+		result = await scenario_evaluate({
+			"handler": handler,
+			"directory": str(tmp_path),
+			"timeout": 20,
+		})
+		assert result.success is True
+		assert result.data["report"]["summary"]["error_scenarios"] == 1
+		assert result.data["report"]["scenarios"][0]["outcome"] == "error"
+		assert result.data["exit_code"] == 1
+
+	@pytest.mark.asyncio
+	async def test_evaluate_concurrency_runs_scenarios_in_parallel(self, tmp_path):
+		"""`concurrency` > 1 runs scenarios concurrently; the default runs them one at a time."""
+		_write_scenario(str(tmp_path), "a.scenario.yaml", VALID_SCENARIO_YAML)
+		_write_scenario(str(tmp_path), "b.scenario.yaml", SECOND_SCENARIO_YAML)
+		_write_scenario(str(tmp_path), "c.scenario.yaml", WORKFLOW_SCENARIO_YAML)
+
+		async def run(concurrency: int | None) -> int:
+			in_flight = 0
+			peak = 0
+
+			async def handler(cmd, inp):
+				nonlocal in_flight, peak
+				in_flight += 1
+				peak = max(peak, in_flight)
+				await asyncio.sleep(0.01)
+				in_flight -= 1
+				return {"success": True, "data": {}}
+
+			params = {"handler": handler, "directory": str(tmp_path)}
+			if concurrency is not None:
+				params["concurrency"] = concurrency
+			result = await scenario_evaluate(params)
+			assert result.success is True
+			assert result.data["report"]["summary"]["passed_scenarios"] == 3
+			return peak
+
+		assert await run(None) == 1
+		assert await run(3) == 3
+
+	@pytest.mark.asyncio
+	async def test_evaluate_reports_scenario_path(self, tmp_path):
+		"""Each scenario entry carries the file it came from."""
+		path = _write_scenario(str(tmp_path), "one.scenario.yaml", VALID_SCENARIO_YAML)
+
+		async def handler(cmd, inp):
+			return {"success": True, "data": {}}
+
+		result = await scenario_evaluate({"handler": handler, "scenarios": [path]})
+		assert result.data["report"]["scenarios"][0]["scenario_path"] == path
+
+	@pytest.mark.asyncio
+	@pytest.mark.parametrize(
+		"params",
+		[{"concurrency": 0}, {"concurrency": "4"}, {"timeout": 0}, {"timeout": "fast"}],
+	)
+	async def test_evaluate_rejects_invalid_concurrency_and_timeout(self, tmp_path, params):
+		"""Invalid `concurrency` or `timeout` values return a validation error."""
+		_write_scenario(str(tmp_path), "test.scenario.yaml", VALID_SCENARIO_YAML)
+
+		async def handler(cmd, inp):
+			return {"success": True, "data": {}}
+
+		result = await scenario_evaluate({"handler": handler, "directory": str(tmp_path), **params})
+		assert result.success is False
+		assert result.error.code == "VALIDATION_ERROR"
+		assert result.error.suggestion is not None

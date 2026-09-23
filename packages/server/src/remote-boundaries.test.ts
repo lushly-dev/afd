@@ -1,5 +1,6 @@
 import { createServer, request as httpRequest } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import type { BatchResult, CommandError, CommandResult } from '@lushly-dev/afd-core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { defineCommand } from './schema.js';
@@ -75,6 +76,9 @@ async function post(
 		body: JSON.stringify(body),
 	});
 }
+async function readJson<T>(response: Response): Promise<T> {
+	return (await response.json()) as T;
+}
 async function call(url: string, name: string, args: unknown = {}) {
 	const response = await post(url, '/message', {
 		jsonrpc: '2.0',
@@ -82,7 +86,7 @@ async function call(url: string, name: string, args: unknown = {}) {
 		method: 'tools/call',
 		params: { name, arguments: args },
 	});
-	const body = await response.json();
+	const body = await readJson<{ result: { content: [{ text: string }] } }>(response);
 	return JSON.parse(body.result.content[0].text);
 }
 
@@ -119,13 +123,14 @@ describe('remote exposure', () => {
 				expect((await call(url, 'afd-pipe', { steps: [{ command: name }] })).steps[0].status).toBe(
 					'failure'
 				);
-				expect((await (await post(url, '/rpc', { method: name })).json()).result.success).toBe(
-					false
+				const rpc = await readJson<{ result: CommandResult }>(
+					await post(url, '/rpc', { method: name })
 				);
-				expect(
-					(await (await post(url, '/batch', { commands: [{ command: name }] })).json()).results[0]
-						.result.success
-				).toBe(false);
+				expect(rpc.result.success).toBe(false);
+				const batch = await readJson<BatchResult>(
+					await post(url, '/batch', { commands: [{ command: name }] })
+				);
+				expect(batch.results[0]?.result.success).toBe(false);
 				expect(await (await post(url, `/stream/${name}`, {})).text()).toContain(
 					'COMMAND_NOT_FOUND'
 				);
@@ -400,7 +405,9 @@ it('preflights complete MCP and REST envelopes before any write handler', async 
 	const batch = { commands: [{ command: 'item-write', input: {} }, null] };
 	const rest = await post(url, '/batch', batch);
 	expect(rest.status).toBe(400);
-	expect((await rest.json()).error.suggestion).toEqual(expect.any(String));
+	expect((await readJson<{ error: CommandError }>(rest)).error.suggestion).toEqual(
+		expect.any(String)
+	);
 	expect((await call(url, 'afd-batch', batch)).error.code).toBe('INVALID_BATCH_REQUEST');
 	const pipeline = await call(url, 'afd-pipe', {
 		steps: [{ command: 'item-write' }, { command: 'item-write', when: { $eq: null } }],

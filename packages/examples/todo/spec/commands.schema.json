@@ -1,7 +1,7 @@
 {
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"title": "Todo Example Commands",
-	"description": "JSON Schema for all 11 commands in the Todo example",
+	"description": "JSON Schema for the 11 commands of the Todo example, keyed by kebab-case MCP tool name. spec/test-cases.json checks their behaviour.",
 	"definitions": {
 		"Priority": {
 			"type": "string",
@@ -55,10 +55,35 @@
 				}
 			},
 			"required": ["success"]
+		},
+		"BatchIds": {
+			"type": "array",
+			"items": { "type": "string", "minLength": 1 },
+			"minItems": 1,
+			"maxItems": 100
+		},
+		"FailedItem": {
+			"type": "object",
+			"description": "A batch item that failed. todo-create-batch includes the item's input; todo-delete-batch and todo-toggle-batch include its id.",
+			"properties": {
+				"index": { "type": "integer", "minimum": 0 },
+				"input": { "type": "object" },
+				"id": { "type": "string" },
+				"error": {
+					"type": "object",
+					"properties": {
+						"code": { "type": "string" },
+						"message": { "type": "string" },
+						"suggestion": { "type": "string" }
+					},
+					"required": ["code", "message"]
+				}
+			},
+			"required": ["index", "error"]
 		}
 	},
 	"commands": {
-		"todo.create": {
+		"todo-create": {
 			"input": {
 				"type": "object",
 				"properties": {
@@ -79,7 +104,7 @@
 				]
 			}
 		},
-		"todo.list": {
+		"todo-list": {
 			"input": {
 				"type": "object",
 				"properties": {
@@ -127,11 +152,11 @@
 				]
 			}
 		},
-		"todo.get": {
+		"todo-get": {
 			"input": {
 				"type": "object",
 				"properties": {
-					"id": { "type": "string" }
+					"id": { "type": "string", "minLength": 1 }
 				},
 				"required": ["id"]
 			},
@@ -146,11 +171,11 @@
 				]
 			}
 		},
-		"todo.update": {
+		"todo-update": {
 			"input": {
 				"type": "object",
 				"properties": {
-					"id": { "type": "string" },
+					"id": { "type": "string", "minLength": 1 },
 					"title": { "type": "string", "minLength": 1, "maxLength": 200 },
 					"description": { "type": "string", "maxLength": 1000 },
 					"priority": { "$ref": "#/definitions/Priority" },
@@ -169,11 +194,11 @@
 				]
 			}
 		},
-		"todo.toggle": {
+		"todo-toggle": {
 			"input": {
 				"type": "object",
 				"properties": {
-					"id": { "type": "string" }
+					"id": { "type": "string", "minLength": 1 }
 				},
 				"required": ["id"]
 			},
@@ -188,11 +213,11 @@
 				]
 			}
 		},
-		"todo.delete": {
+		"todo-delete": {
 			"input": {
 				"type": "object",
 				"properties": {
-					"id": { "type": "string" }
+					"id": { "type": "string", "minLength": 1 }
 				},
 				"required": ["id"]
 			},
@@ -214,8 +239,16 @@
 				]
 			}
 		},
-		"todo.clear": {
-			"input": { "type": "object" },
+		"todo-clear": {
+			"input": {
+				"type": "object",
+				"properties": {
+					"all": {
+						"type": "boolean",
+						"description": "If true, clear all todos regardless of status"
+					}
+				}
+			},
 			"output": {
 				"allOf": [
 					{ "$ref": "#/definitions/CommandResult" },
@@ -234,7 +267,7 @@
 				]
 			}
 		},
-		"todo.stats": {
+		"todo-stats": {
 			"input": { "type": "object" },
 			"output": {
 				"allOf": [
@@ -265,18 +298,20 @@
 				]
 			}
 		},
-		"todo.create-batch": {
+		"todo-create-batch": {
 			"input": {
 				"type": "object",
 				"properties": {
 					"todos": {
 						"type": "array",
+						"minItems": 1,
+						"maxItems": 100,
 						"items": {
 							"type": "object",
 							"properties": {
 								"title": { "type": "string", "minLength": 1, "maxLength": 200 },
 								"description": { "type": "string", "maxLength": 1000 },
-								"priority": { "$ref": "#/definitions/Priority" }
+								"priority": { "$ref": "#/definitions/Priority", "default": "medium" }
 							},
 							"required": ["title"]
 						}
@@ -296,7 +331,7 @@
 										"type": "array",
 										"items": { "$ref": "#/definitions/Todo" }
 									},
-									"failed": { "type": "array" },
+									"failed": { "type": "array", "items": { "$ref": "#/definitions/FailedItem" } },
 									"summary": {
 										"type": "object",
 										"properties": {
@@ -314,11 +349,11 @@
 				]
 			}
 		},
-		"todo.delete-batch": {
+		"todo-delete-batch": {
 			"input": {
 				"type": "object",
 				"properties": {
-					"ids": { "type": "array", "items": { "type": "string" } }
+					"ids": { "$ref": "#/definitions/BatchIds" }
 				},
 				"required": ["ids"]
 			},
@@ -334,7 +369,7 @@
 										"type": "array",
 										"items": { "type": "string" }
 									},
-									"failed": { "type": "array" },
+									"failed": { "type": "array", "items": { "$ref": "#/definitions/FailedItem" } },
 									"summary": {
 										"type": "object",
 										"properties": {
@@ -352,12 +387,15 @@
 				]
 			}
 		},
-		"todo.toggle-batch": {
+		"todo-toggle-batch": {
 			"input": {
 				"type": "object",
 				"properties": {
-					"ids": { "type": "array", "items": { "type": "string" } },
-					"completed": { "type": "boolean" }
+					"ids": { "$ref": "#/definitions/BatchIds" },
+					"completed": {
+						"type": "boolean",
+						"description": "If set, mark every todo with this state instead of toggling each one"
+					}
 				},
 				"required": ["ids"]
 			},
@@ -373,15 +411,23 @@
 										"type": "array",
 										"items": { "$ref": "#/definitions/Todo" }
 									},
-									"failed": { "type": "array" },
+									"failed": { "type": "array", "items": { "$ref": "#/definitions/FailedItem" } },
 									"summary": {
 										"type": "object",
 										"properties": {
 											"total": { "type": "integer" },
 											"successCount": { "type": "integer" },
-											"failureCount": { "type": "integer" }
+											"failureCount": { "type": "integer" },
+											"markedComplete": { "type": "integer" },
+											"markedIncomplete": { "type": "integer" }
 										},
-										"required": ["total", "successCount", "failureCount"]
+										"required": [
+											"total",
+											"successCount",
+											"failureCount",
+											"markedComplete",
+											"markedIncomplete"
+										]
 									}
 								},
 								"required": ["succeeded", "failed", "summary"]
