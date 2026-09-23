@@ -1,8 +1,15 @@
-import type { ZodCommandDefinition } from '@lushly-dev/afd-server';
-import { beforeEach, describe, expect, it } from 'vitest';
-import { createViewStateCommands } from './commands.js';
+import { createDirectRegistry, type ZodCommandDefinition } from '@lushly-dev/afd-server';
+import { beforeEach, describe, expect, expectTypeOf, it } from 'vitest';
+import {
+	createViewStateCommands,
+	type ViewStateCommands,
+	type ViewStateGetCommand,
+	type ViewStateListCommand,
+	type ViewStateSetCommand,
+	type ViewStateSetResult,
+} from './commands.js';
 import { ViewStateRegistry } from './registry.js';
-import type { ViewStateHandler } from './types.js';
+import type { ViewStateEntry, ViewStateHandler } from './types.js';
 
 function createHandler(
 	initial: Record<string, unknown>
@@ -191,5 +198,92 @@ describe('createViewStateCommands', () => {
 			expect(list.mutation).toBe(false);
 			expect(list.category).toBe('view-state');
 		});
+	});
+});
+
+describe('createViewStateCommands expose option', () => {
+	it('keeps the commands private to MCP by default', () => {
+		const commands = createViewStateCommands(new ViewStateRegistry());
+
+		expect(commands.map((command) => command.expose)).toEqual([undefined, undefined, undefined]);
+		expect(createDirectRegistry(commands, { interface: 'mcp' }).listCommandNames()).toEqual([]);
+		expect(createDirectRegistry(commands).listCommandNames()).toEqual([
+			'view-state-get',
+			'view-state-set',
+			'view-state-list',
+		]);
+	});
+
+	it('exposes every command to MCP with expose: { mcp: true }', () => {
+		const commands = createViewStateCommands(new ViewStateRegistry(), { expose: { mcp: true } });
+
+		expect(commands.map((command) => command.expose)).toEqual([
+			{ mcp: true },
+			{ mcp: true },
+			{ mcp: true },
+		]);
+		expect(createDirectRegistry(commands, { interface: 'mcp' }).listCommandNames()).toEqual([
+			'view-state-get',
+			'view-state-set',
+			'view-state-list',
+		]);
+	});
+
+	it('can hide the commands from in-app agents', () => {
+		const commands = createViewStateCommands(new ViewStateRegistry(), {
+			expose: { palette: true, agent: false },
+		});
+
+		expect(createDirectRegistry(commands).listCommandNames()).toEqual([]);
+	});
+
+	it('validates input when run through a registry', async () => {
+		const registry = new ViewStateRegistry();
+		registry.register('panel', createHandler({ open: false }));
+		const direct = createDirectRegistry(createViewStateCommands(registry));
+
+		const invalid = await direct.execute('view-state-set', { id: 'panel', state: 'open' });
+		const valid = await direct.execute<ViewStateSetResult>('view-state-set', {
+			id: 'panel',
+			state: { open: true },
+		});
+
+		expect(invalid.error?.code).toBe('VALIDATION_ERROR');
+		expect(valid.data?.state).toEqual({ open: true });
+	});
+});
+
+describe('createViewStateCommands return type', () => {
+	it('destructures into precisely typed commands', async () => {
+		const registry = new ViewStateRegistry();
+		registry.register('panel', createHandler({ open: true }));
+
+		const [viewStateGet, viewStateSet, viewStateList] = createViewStateCommands(registry);
+
+		expectTypeOf(viewStateGet).toEqualTypeOf<ViewStateGetCommand>();
+		expectTypeOf(viewStateSet).toEqualTypeOf<ViewStateSetCommand>();
+		expectTypeOf(viewStateList).toEqualTypeOf<ViewStateListCommand>();
+		expectTypeOf(viewStateSet.handler).parameter(0).toEqualTypeOf<{
+			id: string;
+			state: Record<string, unknown>;
+			replace?: boolean | undefined;
+		}>();
+
+		expect(viewStateGet.name).toBe('view-state-get');
+		expect(viewStateSet.name).toBe('view-state-set');
+		expect(viewStateList.name).toBe('view-state-list');
+
+		const result = await viewStateGet.handler({ id: 'panel' }, {});
+		expectTypeOf(result.data).toEqualTypeOf<ViewStateEntry | undefined>();
+		expect(result.data).toEqual({ id: 'panel', state: { open: true } });
+	});
+
+	it('is still an array of command definitions', () => {
+		const commands: ViewStateCommands = createViewStateCommands(new ViewStateRegistry());
+		const asArray: ZodCommandDefinition[] = commands;
+		const spread: ZodCommandDefinition[] = [...createViewStateCommands(new ViewStateRegistry())];
+
+		expect(Array.isArray(asArray)).toBe(true);
+		expect(spread).toHaveLength(3);
 	});
 });

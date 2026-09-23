@@ -47,12 +47,23 @@ registry.list();                               // [{ id: 'design-panel', state: 
 
 ## With AFD commands
 
+The command factory lives in the `@lushly-dev/afd-view-state/commands` subpath.
+It defines the commands with `@lushly-dev/afd-server/define`, which loads
+neither the MCP SDK nor any Node.js builtin, so it can run in the browser next to
+the UI it controls.
+
+### MCP tools
+
+Commands are private to MCP unless they opt in. Pass `expose: { mcp: true }` so
+`createMcpServer` lists them as tools; without it the server exposes none of them.
+
 ```ts
 import { createMcpServer } from '@lushly-dev/afd-server';
-import { ViewStateRegistry, createViewStateCommands } from '@lushly-dev/afd-view-state';
+import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
+import { createViewStateCommands } from '@lushly-dev/afd-view-state/commands';
 
 const registry = new ViewStateRegistry();
-const commands = createViewStateCommands(registry);
+const commands = createViewStateCommands(registry, { expose: { mcp: true } });
 
 const server = createMcpServer({
   name: 'my-app',
@@ -61,7 +72,30 @@ const server = createMcpServer({
 });
 ```
 
-Commands exposed: `view-state-get`, `view-state-set`, `view-state-list`.
+### In-app agent
+
+Without `expose`, the commands keep the default exposure (command palette and
+in-app agent). Run them through `createDirectRegistry` so input is validated:
+
+```ts
+import { createDirectClient } from '@lushly-dev/afd-client';
+import { createDirectRegistry } from '@lushly-dev/afd-server';
+import { createViewStateCommands } from '@lushly-dev/afd-view-state/commands';
+
+const client = createDirectClient(createDirectRegistry(createViewStateCommands(registry)));
+await client.call('view-state-set', { id: 'design-panel', state: { open: true } });
+```
+
+Commands: `view-state-get`, `view-state-set`, `view-state-list`. The factory
+returns them as a typed tuple, so you can destructure them:
+
+```ts
+const [viewStateGet, viewStateSet, viewStateList] = createViewStateCommands(registry);
+```
+
+> The root entry (`@lushly-dev/afd-view-state`) still re-exports
+> `createViewStateCommands`, marked `@deprecated`. It will be removed from the
+> root in the next major version; import it from `/commands`.
 
 `view-state-set` merges the supplied `state` by default. Set `replace: true`
 to replace the complete state; this requires the registered handler to provide a
