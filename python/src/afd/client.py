@@ -33,6 +33,8 @@ from typing import (
     Union,
 )
 
+from pydantic import ValidationError
+
 from afd.core.result import CommandResult, error as result_error, success
 from afd.transports.base import (
     ToolExecutionError,
@@ -226,8 +228,10 @@ class McpClient:
         """Call a command and return a ``CommandResult``.
 
         This is the primary method for AFD usage.  The raw MCP result is
-        unwrapped: if the data is already a ``CommandResult`` dict it is
-        returned directly; otherwise it is wrapped in ``success()``.
+        unwrapped: if the data is already a ``CommandResult`` dict (camelCase
+        from TypeScript/Rust servers, or snake_case) it is parsed with all its
+        fields, including a failure sent with ``isError: true``; otherwise it
+        is wrapped in ``success()``.
 
         Args:
             name: Tool/command name.
@@ -241,16 +245,9 @@ class McpClient:
         try:
             data = await self._transport.call_tool(name, args or {})
 
-            # If already a CommandResult-shaped dict, return as-is
-            if isinstance(data, dict) and "success" in data:
-                return CommandResult(**{
-                    "success": data["success"],
-                    "data": data.get("data"),
-                    "error": data.get("error"),
-                    "reasoning": data.get("reasoning"),
-                    "confidence": data.get("confidence"),
-                    "warnings": data.get("warnings"),
-                })
+            # A CommandResult-shaped dict keeps every field it carries
+            if isinstance(data, dict) and isinstance(data.get("success"), bool):
+                return _parse_command_result(data)
 
             return success(data)
 
@@ -347,21 +344,25 @@ class McpClient:
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """Stream results from a command via SSE.
 
-        POSTs to ``/stream/{name}`` and yields parsed SSE data events.
+        POSTs to ``/stream/{name}`` next to the server's ``/sse`` endpoint
+        (the name is URL-encoded) and yields parsed SSE data events. An HTTP
+        error status yields a single ``STREAM_ERROR`` error chunk.
 
         Args:
             name: Command name.
             args: Command arguments.
 
         Yields:
-            Parsed JSON chunks from the SSE stream.
+            Parsed JSON chunks from the SSE stream (wire format, camelCase).
+            Use :func:`afd.core.streaming.parse_stream_chunk` for models.
         """
         self._require_connected()
 
         import httpx
 
-        base_url = self._config.url.rstrip("/")
-        stream_url = f"{base_url}/stream/{name}"
+        from afd.transports._mcp_protocol import derive_stream_url
+
+        stream_url = derive_stream_url(self._config.resolved_url, name)
 
         async with httpx.AsyncClient() as http_client:
             async with http_client.stream(
@@ -375,9 +376,15 @@ class McpClient:
                 },
                 timeout=self._config.timeout,
             ) as response:
+                if not response.is_success:
+                    body = await response.aread()
+                    yield _stream_http_error(response.status_code, response.reason_phrase, body)
+                    return
                 async for line in response.aiter_lines():
                     if line.startswith("data: "):
-                        payload = line[len("data: "):]
+                        payload = line[len("data: "):].strip()
+                        if payload == "[DONE]":
+                            return
                         try:
                             yield json.loads(payload)
                         except json.JSONDecodeError:
@@ -489,6 +496,55 @@ class McpClient:
         """Debug logging."""
         if self._config.debug:
             print(f"[McpClient] {message}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RESULT PARSING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def _parse_command_result(data: Dict[str, Any]) -> CommandResult:
+    """Parse a CommandResult dict, keeping sources, plan, metadata and the rest."""
+    try:
+        return CommandResult.model_validate(data)
+    except ValidationError as exc:
+        return result_error(
+            code="INVALID_RESULT",
+            message="The server returned a malformed CommandResult",
+            suggestion="Check that the server returns AFD CommandResult JSON",
+            details={
+                "errors": [
+                    {
+                        "path": ".".join(str(part) for part in issue.get("loc", ())),
+                        "message": issue.get("msg", "Invalid value"),
+                    }
+                    for issue in exc.errors()
+                ]
+            },
+        )
+
+
+def _stream_http_error(status: int, reason: str, body: bytes) -> Dict[str, Any]:
+    """A wire-format error chunk for a stream request that got an HTTP error."""
+    message = f"HTTP {status}: {reason}" if reason else f"HTTP {status}"
+    try:
+        payload = json.loads(body) if body else None
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        payload = None
+    server_error = payload.get("error") if isinstance(payload, dict) else None
+    if isinstance(server_error, dict) and isinstance(server_error.get("message"), str):
+        message = f"HTTP {status}: {server_error['message']}"
+    return {
+        "type": "error",
+        "error": {
+            "code": "STREAM_ERROR",
+            "message": message,
+            "suggestion": "Check the command name and arguments",
+            "retryable": status >= 500,
+        },
+        "chunksBeforeError": 0,
+        "recoverable": False,
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

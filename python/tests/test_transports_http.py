@@ -16,27 +16,46 @@ from afd.transports._mcp_protocol import _HttpBasedTransport
 
 
 class TestUrlDerivation:
-    """Tests for message URL derivation."""
+    """Message URL derivation matches the TypeScript server's /message route."""
 
-    def test_sse_url_becomes_messages_endpoint(self):
+    def test_sse_url_becomes_message_endpoint(self):
         t = HttpTransport("http://localhost:3100/sse")
-        assert t._message_url == "http://localhost:3100/messages/"
+        assert t._message_url == "http://localhost:3100/message"
 
-    def test_message_url_normalizes_to_messages_endpoint(self):
+    def test_sse_url_with_trailing_slash(self):
+        t = HttpTransport("http://localhost:3100/sse/")
+        assert t._message_url == "http://localhost:3100/message"
+
+    def test_message_url_is_kept(self):
+        # The TypeScript server's JSON-RPC route is /message, not /messages/.
         t = HttpTransport("http://localhost:3100/message")
-        assert t._message_url == "http://localhost:3100/messages/"
+        assert t._message_url == "http://localhost:3100/message"
 
-    def test_messages_url_kept(self):
+    def test_explicit_messages_url_kept(self):
         t = HttpTransport("http://localhost:3100/messages/")
         assert t._message_url == "http://localhost:3100/messages/"
 
-    def test_bare_url_gets_messages_endpoint(self):
+    def test_bare_url_gets_message_endpoint(self):
         t = HttpTransport("http://localhost:3100")
-        assert t._message_url == "http://localhost:3100/messages/"
+        assert t._message_url == "http://localhost:3100/message"
 
     def test_trailing_slash(self):
         t = HttpTransport("http://localhost:3100/")
-        assert t._message_url == "http://localhost:3100/messages/"
+        assert t._message_url == "http://localhost:3100/message"
+
+    def test_path_prefix_is_preserved(self):
+        t = HttpTransport("http://localhost:3100/api/sse")
+        assert t._message_url == "http://localhost:3100/api/message"
+
+    def test_health_url_sits_next_to_message(self):
+        assert (
+            _HttpBasedTransport._derive_health_url("http://localhost:3100/message")
+            == "http://localhost:3100/health"
+        )
+        assert (
+            _HttpBasedTransport._derive_health_url("http://localhost:3100/messages/")
+            == "http://localhost:3100/health"
+        )
 
 
 # ============================================================================
