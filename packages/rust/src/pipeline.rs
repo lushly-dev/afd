@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 use crate::errors::CommandError;
@@ -1033,6 +1033,22 @@ pub fn build_confidence_breakdown(
 // VARIABLE RESOLUTION
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// Matches a `$steps[n]` prefix; compiled once.
+fn step_index_pattern() -> &'static regex::Regex {
+    static PATTERN: OnceLock<regex::Regex> = OnceLock::new();
+    PATTERN.get_or_init(|| {
+        regex::Regex::new(r"^\$steps\[(\d+)\]").expect("step index regex should be valid")
+    })
+}
+
+/// Matches an `items[0]` path segment; compiled once rather than per segment.
+fn array_index_pattern() -> &'static regex::Regex {
+    static PATTERN: OnceLock<regex::Regex> = OnceLock::new();
+    PATTERN.get_or_init(|| {
+        regex::Regex::new(r"^(\w+)\[(\d+)\]$").expect("array index regex should be valid")
+    })
+}
+
 /// Resolve a single variable reference to its value from pipeline context.
 ///
 /// Supports the following variable patterns:
@@ -1089,21 +1105,19 @@ pub fn resolve_variable(reference: &str, context: &PipelineContext) -> Option<se
 
     // $steps[n] - step at index n
     if reference.starts_with("$steps[") {
-        let re = regex::Regex::new(r"^\$steps\[(\d+)\]").ok()?;
-        if let Some(captures) = re.captures(reference) {
+        if let Some(captures) = step_index_pattern().captures(reference) {
             let index: usize = captures.get(1)?.as_str().parse().ok()?;
             let step = context.steps.get(index)?;
             let remaining = &reference[captures.get(0)?.end()..];
-            if remaining.starts_with('.') {
-                return get_nested_value(step.data.as_ref()?, &remaining[1..]);
+            if let Some(path) = remaining.strip_prefix('.') {
+                return get_nested_value(step.data.as_ref()?, path);
             }
             return step.data.clone();
         }
     }
 
     // $steps.alias - step with alias
-    if reference.starts_with("$steps.") {
-        let rest = &reference[7..]; // Remove '$steps.'
+    if let Some(rest) = reference.strip_prefix("$steps.") {
         let dot_index = rest.find('.');
         let alias = match dot_index {
             Some(idx) => &rest[..idx],
@@ -1120,24 +1134,24 @@ pub fn resolve_variable(reference: &str, context: &PipelineContext) -> Option<se
     }
 
     // $prev.field - field from previous step
-    if reference.starts_with("$prev.") {
+    if let Some(path) = reference.strip_prefix("$prev.") {
         let data = context
             .previous_result
             .as_ref()
             .and_then(|r| r.data.as_ref())?;
-        return get_nested_value(data, &reference[6..]);
+        return get_nested_value(data, path);
     }
 
     // $first.field - field from first step
-    if reference.starts_with("$first.") {
+    if let Some(path) = reference.strip_prefix("$first.") {
         let data = context.steps.first().and_then(|s| s.data.as_ref())?;
-        return get_nested_value(data, &reference[7..]);
+        return get_nested_value(data, path);
     }
 
     // $input.field - field from pipeline input
-    if reference.starts_with("$input.") {
+    if let Some(path) = reference.strip_prefix("$input.") {
         let data = context.pipeline_input.as_ref()?;
-        return get_nested_value(data, &reference[7..]);
+        return get_nested_value(data, path);
     }
 
     None
@@ -1208,8 +1222,7 @@ pub fn get_nested_value(obj: &serde_json::Value, path: &str) -> Option<serde_jso
 
     for part in parts {
         // Handle array index notation (e.g., 'items[0]')
-        let array_re = regex::Regex::new(r"^(\w+)\[(\d+)\]$").ok()?;
-        if let Some(captures) = array_re.captures(part) {
+        if let Some(captures) = array_index_pattern().captures(part) {
             let prop = captures.get(1)?.as_str();
             let index: usize = captures.get(2)?.as_str().parse().ok()?;
             current = current.get(prop)?.get(index)?;
@@ -1618,17 +1631,19 @@ mod tests {
 
     #[test]
     fn test_pipeline_condition_exists() {
-        let mut context = PipelineContext::default();
-        context.previous_result = Some(StepResult {
-            index: 0,
-            alias: None,
-            command: "test".to_string(),
-            status: StepStatus::Success,
-            data: Some(serde_json::json!({"email": "test@example.com"})),
-            error: None,
-            execution_time_ms: 10,
-            metadata: None,
-        });
+        let context = PipelineContext {
+            previous_result: Some(StepResult {
+                index: 0,
+                alias: None,
+                command: "test".to_string(),
+                status: StepStatus::Success,
+                data: Some(serde_json::json!({"email": "test@example.com"})),
+                error: None,
+                execution_time_ms: 10,
+                metadata: None,
+            }),
+            ..Default::default()
+        };
 
         let condition = PipelineCondition::Exists {
             exists: "$prev.email".to_string(),
@@ -1643,17 +1658,19 @@ mod tests {
 
     #[test]
     fn test_pipeline_condition_eq() {
-        let mut context = PipelineContext::default();
-        context.previous_result = Some(StepResult {
-            index: 0,
-            alias: None,
-            command: "test".to_string(),
-            status: StepStatus::Success,
-            data: Some(serde_json::json!({"tier": "premium"})),
-            error: None,
-            execution_time_ms: 10,
-            metadata: None,
-        });
+        let context = PipelineContext {
+            previous_result: Some(StepResult {
+                index: 0,
+                alias: None,
+                command: "test".to_string(),
+                status: StepStatus::Success,
+                data: Some(serde_json::json!({"tier": "premium"})),
+                error: None,
+                execution_time_ms: 10,
+                metadata: None,
+            }),
+            ..Default::default()
+        };
 
         let condition = PipelineCondition::Eq {
             eq: ("$prev.tier".to_string(), serde_json::json!("premium")),
@@ -1668,17 +1685,19 @@ mod tests {
 
     #[test]
     fn test_pipeline_condition_numeric() {
-        let mut context = PipelineContext::default();
-        context.previous_result = Some(StepResult {
-            index: 0,
-            alias: None,
-            command: "test".to_string(),
-            status: StepStatus::Success,
-            data: Some(serde_json::json!({"count": 5})),
-            error: None,
-            execution_time_ms: 10,
-            metadata: None,
-        });
+        let context = PipelineContext {
+            previous_result: Some(StepResult {
+                index: 0,
+                alias: None,
+                command: "test".to_string(),
+                status: StepStatus::Success,
+                data: Some(serde_json::json!({"count": 5})),
+                error: None,
+                execution_time_ms: 10,
+                metadata: None,
+            }),
+            ..Default::default()
+        };
 
         let gt = PipelineCondition::Gt {
             gt: ("$prev.count".to_string(), 3.0),
@@ -1703,17 +1722,19 @@ mod tests {
 
     #[test]
     fn test_pipeline_condition_logical() {
-        let mut context = PipelineContext::default();
-        context.previous_result = Some(StepResult {
-            index: 0,
-            alias: None,
-            command: "test".to_string(),
-            status: StepStatus::Success,
-            data: Some(serde_json::json!({"active": true, "tier": "premium"})),
-            error: None,
-            execution_time_ms: 10,
-            metadata: None,
-        });
+        let context = PipelineContext {
+            previous_result: Some(StepResult {
+                index: 0,
+                alias: None,
+                command: "test".to_string(),
+                status: StepStatus::Success,
+                data: Some(serde_json::json!({"active": true, "tier": "premium"})),
+                error: None,
+                execution_time_ms: 10,
+                metadata: None,
+            }),
+            ..Default::default()
+        };
 
         let and = PipelineCondition::And {
             and: vec![
@@ -1749,17 +1770,19 @@ mod tests {
 
     #[test]
     fn test_resolve_variable_prev() {
-        let mut context = PipelineContext::default();
-        context.previous_result = Some(StepResult {
-            index: 0,
-            alias: None,
-            command: "test".to_string(),
-            status: StepStatus::Success,
-            data: Some(serde_json::json!({"id": 123, "name": "Test"})),
-            error: None,
-            execution_time_ms: 10,
-            metadata: None,
-        });
+        let context = PipelineContext {
+            previous_result: Some(StepResult {
+                index: 0,
+                alias: None,
+                command: "test".to_string(),
+                status: StepStatus::Success,
+                data: Some(serde_json::json!({"id": 123, "name": "Test"})),
+                error: None,
+                execution_time_ms: 10,
+                metadata: None,
+            }),
+            ..Default::default()
+        };
 
         let prev = resolve_variable("$prev", &context);
         assert_eq!(prev, Some(serde_json::json!({"id": 123, "name": "Test"})));
@@ -1773,29 +1796,31 @@ mod tests {
 
     #[test]
     fn test_resolve_variable_first() {
-        let mut context = PipelineContext::default();
-        context.steps = vec![
-            StepResult {
-                index: 0,
-                alias: None,
-                command: "first".to_string(),
-                status: StepStatus::Success,
-                data: Some(serde_json::json!({"first_data": true})),
-                error: None,
-                execution_time_ms: 10,
-                metadata: None,
-            },
-            StepResult {
-                index: 1,
-                alias: None,
-                command: "second".to_string(),
-                status: StepStatus::Success,
-                data: Some(serde_json::json!({"second_data": true})),
-                error: None,
-                execution_time_ms: 10,
-                metadata: None,
-            },
-        ];
+        let context = PipelineContext {
+            steps: vec![
+                StepResult {
+                    index: 0,
+                    alias: None,
+                    command: "first".to_string(),
+                    status: StepStatus::Success,
+                    data: Some(serde_json::json!({"first_data": true})),
+                    error: None,
+                    execution_time_ms: 10,
+                    metadata: None,
+                },
+                StepResult {
+                    index: 1,
+                    alias: None,
+                    command: "second".to_string(),
+                    status: StepStatus::Success,
+                    data: Some(serde_json::json!({"second_data": true})),
+                    error: None,
+                    execution_time_ms: 10,
+                    metadata: None,
+                },
+            ],
+            ..Default::default()
+        };
 
         let first = resolve_variable("$first", &context);
         assert_eq!(first, Some(serde_json::json!({"first_data": true})));
@@ -1803,17 +1828,19 @@ mod tests {
 
     #[test]
     fn test_resolve_variable_alias() {
-        let mut context = PipelineContext::default();
-        context.steps = vec![StepResult {
-            index: 0,
-            alias: Some("user".to_string()),
-            command: "user-get".to_string(),
-            status: StepStatus::Success,
-            data: Some(serde_json::json!({"id": 456, "email": "user@test.com"})),
-            error: None,
-            execution_time_ms: 10,
-            metadata: None,
-        }];
+        let context = PipelineContext {
+            steps: vec![StepResult {
+                index: 0,
+                alias: Some("user".to_string()),
+                command: "user-get".to_string(),
+                status: StepStatus::Success,
+                data: Some(serde_json::json!({"id": 456, "email": "user@test.com"})),
+                error: None,
+                execution_time_ms: 10,
+                metadata: None,
+            }],
+            ..Default::default()
+        };
 
         let user = resolve_variable("$steps.user", &context);
         assert_eq!(
@@ -1827,8 +1854,10 @@ mod tests {
 
     #[test]
     fn test_resolve_variable_input() {
-        let mut context = PipelineContext::default();
-        context.pipeline_input = Some(serde_json::json!({"userId": 789}));
+        let context = PipelineContext {
+            pipeline_input: Some(serde_json::json!({"userId": 789})),
+            ..Default::default()
+        };
 
         let input = resolve_variable("$input", &context);
         assert_eq!(input, Some(serde_json::json!({"userId": 789})));
@@ -1839,17 +1868,19 @@ mod tests {
 
     #[test]
     fn test_resolve_variables_object() {
-        let mut context = PipelineContext::default();
-        context.previous_result = Some(StepResult {
-            index: 0,
-            alias: None,
-            command: "test".to_string(),
-            status: StepStatus::Success,
-            data: Some(serde_json::json!({"id": 123})),
-            error: None,
-            execution_time_ms: 10,
-            metadata: None,
-        });
+        let context = PipelineContext {
+            previous_result: Some(StepResult {
+                index: 0,
+                alias: None,
+                command: "test".to_string(),
+                status: StepStatus::Success,
+                data: Some(serde_json::json!({"id": 123})),
+                error: None,
+                execution_time_ms: 10,
+                metadata: None,
+            }),
+            ..Default::default()
+        };
 
         let input = serde_json::json!({
             "userId": "$prev.id",
@@ -1978,17 +2009,19 @@ mod tests {
 
     #[test]
     fn test_resolve_reference_alias() {
-        let mut context = PipelineContext::default();
-        context.previous_result = Some(StepResult {
-            index: 0,
-            alias: None,
-            command: "test".to_string(),
-            status: StepStatus::Success,
-            data: Some(serde_json::json!({"id": 123})),
-            error: None,
-            execution_time_ms: 10,
-            metadata: None,
-        });
+        let context = PipelineContext {
+            previous_result: Some(StepResult {
+                index: 0,
+                alias: None,
+                command: "test".to_string(),
+                status: StepStatus::Success,
+                data: Some(serde_json::json!({"id": 123})),
+                error: None,
+                execution_time_ms: 10,
+                metadata: None,
+            }),
+            ..Default::default()
+        };
 
         assert_eq!(
             resolve_reference("$prev.id", &context),

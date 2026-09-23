@@ -12,17 +12,12 @@ use crate::result::{success_with, CommandResult, ResultOptions};
 
 use super::{BOOTSTRAP_CATEGORY, BOOTSTRAP_TAGS};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum SchemaFormat {
+    #[default]
     Json,
     Typescript,
-}
-
-impl Default for SchemaFormat {
-    fn default() -> Self {
-        SchemaFormat::Json
-    }
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -86,7 +81,7 @@ impl AfdSchemaHandler {
 }
 
 fn to_pascal_case(s: &str) -> String {
-    s.split(|c| c == '-' || c == '_' || c == '.')
+    s.split(['-', '_', '.'])
         .map(|word| {
             let mut chars = word.chars();
             match chars.next() {
@@ -116,7 +111,7 @@ impl CommandHandler for AfdSchemaHandler {
             all_commands
         };
 
-        if input.command.is_some() && commands.is_empty() {
+        if let Some(cmd_name) = input.command.as_ref().filter(|_| commands.is_empty()) {
             let output = SchemaOutput {
                 schemas: vec![],
                 total: 0,
@@ -125,7 +120,7 @@ impl CommandHandler for AfdSchemaHandler {
             return success_with(
                 serde_json::to_value(output).unwrap(),
                 ResultOptions {
-                    reasoning: Some(format!("Command \"{}\" not found", input.command.unwrap())),
+                    reasoning: Some(format!("Command \"{cmd_name}\" not found")),
                     confidence: Some(1.0),
                     ..Default::default()
                 },

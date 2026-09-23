@@ -104,7 +104,7 @@ impl CommandHandler for AfdDocsHandler {
             all_commands
         };
 
-        if input.command.is_some() && commands.is_empty() {
+        if let Some(cmd_name) = input.command.as_ref().filter(|_| commands.is_empty()) {
             let output = DocsOutput {
                 markdown: String::new(),
                 command_count: 0,
@@ -112,7 +112,7 @@ impl CommandHandler for AfdDocsHandler {
             return success_with(
                 serde_json::to_value(output).unwrap(),
                 ResultOptions {
-                    reasoning: Some(format!("Command \"{}\" not found", input.command.unwrap())),
+                    reasoning: Some(format!("Command \"{cmd_name}\" not found")),
                     confidence: Some(1.0),
                     ..Default::default()
                 },
