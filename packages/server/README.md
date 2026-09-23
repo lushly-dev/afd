@@ -19,6 +19,7 @@ pnpm add @lushly-dev/afd-server
 - **Built-in Validation** - Automatic input validation before handler execution
 - **Middleware System** - Logging, tracing, rate limiting, and custom middleware
 - **Command Prerequisites** - Declare `requires` dependencies so agents can plan execution order
+- **Agent Discovery** - Grouped, individual or lazy tool strategies, `afd-detail`, and optional `afd-help`/`afd-docs`/`afd-schema` bootstrap tools
 - **Full TypeScript Support** - Complete type inference from Zod schemas
 
 ## Quick Start
@@ -219,6 +220,8 @@ const createUser = defineCommand({
 });
 ```
 
+The advertised JSON Schema describes what a caller may **send** (Zod input mode): `role` has a default, so it is optional and only `email` and `name` are required. Input schemas may use `.transform()` and `.pipe()`; they are advertised by their input type (a `z.string().transform(Number)` field is a string), and the handler receives the transformed value. `output` schemas are generated in output mode. Integer fields (`z.number().int()`) are advertised as `type: 'integer'`. Examples are typed and validated as raw input, so they may omit defaulted fields.
+
 ### Command with Error Handling
 
 ```typescript
@@ -263,7 +266,7 @@ const secretData = defineCommand({
 });
 ```
 
-Prerequisites are metadata — they tell agents what to call first but are not enforced at runtime (middleware handles enforcement). They appear in MCP tool `_meta` and `afd-help` output.
+Prerequisites are metadata — they tell agents what to call first but are not enforced at runtime (middleware handles enforcement). They appear in MCP tool `_meta` (per action in `_meta.actions` for grouped tools), in `afd-detail`, and in `afd-help` output when the server has `bootstrap: true`.
 
 ### Command with Output Schema
 
@@ -321,6 +324,8 @@ const server = createMcpServer({
   host: 'localhost',       // Default: localhost
   transport: 'http',       // Default: 'auto' (see the pitfall above)
   cors: true,              // Send CORS headers (default: follows devMode)
+  toolStrategy: 'grouped', // Default: 'grouped' (see "Tool Strategies")
+  bootstrap: true,         // Add afd-help, afd-docs, afd-schema (default: false)
 
   // Per-request context for HTTP calls (see "Request Context")
   createContext: (req) => ({ clientIp: req.socket.remoteAddress ?? 'unknown' }),
@@ -529,7 +534,7 @@ Create a command definition with Zod schema.
 |--------|------|----------|-------------|
 | `name` | string | Yes | Unique command name (e.g., `user-create`) |
 | `description` | string | Yes | Human-readable description |
-| `input` | ZodType | Yes | Zod schema for input validation |
+| `input` | ZodType | Yes | Zod schema for input validation; advertised in Zod input mode (defaulted fields optional, transforms allowed) |
 | `handler` | function | Yes | Command implementation |
 | `category` | string | No | Category for grouping |
 | `mutation` | boolean | No | Whether command has side effects |
@@ -539,6 +544,8 @@ Create a command definition with Zod schema.
 | `contexts` | string[] | No | Restrict command to specific contexts (omit for universal) |
 | `requires` | string[] | No | Commands that should be called before this one (metadata only) |
 | `errors` | string[] | No | Possible error codes |
+| `expose` | ExposeOptions | No | Surfaces the command is exposed to; `{ mcp: true }` is required for MCP tools |
+| `examples` | `{ title, input }[]` | No | Example inputs, validated against `input` at define time |
 
 ### createMcpServer(options)
 
@@ -553,7 +560,9 @@ Create an MCP server from commands.
 | `port` | number | No | Port for HTTP transport (default: 3100) |
 | `host` | string | No | Host for HTTP transport (default: localhost) |
 | `toolStrategy` | `'individual' \| 'grouped' \| 'lazy'` | No | How commands appear as MCP tools (default: `'grouped'`) |
+| `groupByFn` | `(command) => string \| undefined` | No | Group name for the grouped strategy (default: `category`, else the first name segment) |
 | `contexts` | `{ name, description }[]` | No | Context scopes for dynamic tool filtering |
+| `bootstrap` | boolean | No | Register the `afd-help`, `afd-docs` and `afd-schema` MCP tools (default: `false`) |
 | `devMode` | boolean | No | Enable development mode (default: false) |
 | `cors` | boolean | No | Enable CORS for HTTP transport (default: follows devMode) |
 | `allowedOrigins` | string[] | No | Additional exact browser origins |
@@ -691,6 +700,48 @@ const server = createMcpServer({
 });
 ```
 
+## Tool Strategies
+
+`toolStrategy` controls how MCP-exposed commands appear in `tools/list`. `afd-call`, `afd-batch` and `afd-pipe` are listed in every strategy.
+
+| Strategy | Tools listed |
+|----------|--------------|
+| `grouped` (default) | One tool per group plus `afd-detail`. A group is the command's `category`, else the first name segment (`todo-create` → `todo`), or `groupByFn(command)` |
+| `individual` | One tool per command, with its full input schema and `_meta` |
+| `lazy` | `afd-discover` and `afd-detail` only |
+
+A grouped tool takes `{ action, params }`, where `action` is the command name without its group segment (`todo-create-batch` → `create-batch`). So that agents need not guess `params`, each grouped tool carries every action's schema and metadata in `_meta.actions`:
+
+```json
+{
+  "name": "todo",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "action": { "type": "string", "enum": ["create", "list"] },
+      "params": { "type": "object", "anyOf": [{ "title": "create", "...": "todo-create input schema" }] }
+    },
+    "required": ["action"]
+  },
+  "_meta": {
+    "actions": [
+      {
+        "action": "create",
+        "command": "todo-create",
+        "description": "Create a todo",
+        "inputSchema": { "type": "object", "properties": { "title": { "type": "string" } }, "required": ["title"] },
+        "requires": ["auth-sign-in"],
+        "mutation": true,
+        "examples": [{ "title": "Basic", "input": { "title": "Buy milk" } }],
+        "outputSchema": { "type": "object" }
+      }
+    ]
+  }
+}
+```
+
+When a group's per-action schemas are small (at most 8,192 characters of JSON, and no `$ref`), they are also inlined as `params.anyOf` branches titled with the action. They sit under `params` because some MCP hosts reject `oneOf`/`anyOf`/`allOf` at the top level of a tool schema, and they use `anyOf` because actions often share a params shape. For larger groups, read `_meta.actions` or call `afd-detail` with the command name.
+
 ## Lazy Strategy
 
 For servers with many commands, the `lazy` strategy exposes 5 meta-tools instead of listing all commands:
@@ -713,6 +764,33 @@ Agents discover commands at runtime: `afd-discover` (filter/list) → `afd-detai
 | `afd-call` | Universal dispatcher — available in all strategies |
 | `afd-batch` | Execute multiple commands in one call |
 | `afd-pipe` | Pipeline execution with step references |
+
+The meta-tools are routable in every strategy. Their arguments are validated against the schemas they advertise: invalid `afd-call`, `afd-discover` and `afd-detail` arguments return a `VALIDATION_ERROR` result (with `details.errors`), and invalid `afd-batch`/`afd-pipe` envelopes return `INVALID_BATCH_REQUEST`/`INVALID_PIPELINE_REQUEST`. A `null` argument to `afd-call`, `afd-discover` or `afd-detail` counts as omitted.
+
+## Bootstrap Tools
+
+Set `bootstrap: true` to register three onboarding tools, exposed over MCP like any other command:
+
+```typescript
+const server = createMcpServer({
+  name: 'my-server',
+  version: '1.0.0',
+  commands: allCommands,
+  bootstrap: true,
+});
+```
+
+| Tool | Input | Returns |
+|------|-------|---------|
+| `afd-help` | `{ filter?, format?: 'brief' \| 'full' }` | Commands with `requires`, grouped by category (`full` adds tags, mutation and examples) |
+| `afd-docs` | `{ command? }` | Markdown documentation with a parameter table per command |
+| `afd-schema` | `{ format?: 'json' \| 'typescript' }` | Input JSON Schemas; `typescript` adds a module declaring one `<Command>Input` type per command |
+
+They describe what a remote agent can see: MCP-exposed commands in the active context, including the built-in context and bootstrap commands. `server.execute('afd-help', {})` works in-process too. `getBootstrapCommands(getCommands)` returns the same tools (as `ZodCommandDefinition`s with `expose: { mcp: true }`) for custom setups; prefer the option with `createMcpServer`.
+
+## Reserved and Duplicate Names
+
+Server creation throws when two commands share a name, or when a command uses a name the server handles itself: `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail` always; `afd-help`, `afd-docs` and `afd-schema` with `bootstrap: true`; `afd-context-list`, `afd-context-enter` and `afd-context-exit` when `contexts` is set.
 
 ## Context Management
 

@@ -212,8 +212,24 @@ const server = createMcpServer({
   name: 'todo-app',
   version: '1.0.0',
   commands: allCommands,
+  bootstrap: true, // optional: afd-help, afd-docs, afd-schema
 });
 ```
+
+Command names must be unique. Server creation throws on duplicates and on names the server
+handles itself: `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`; the
+bootstrap names with `bootstrap: true`; the `afd-context-*` names with `contexts`.
+
+### Bootstrap Tools
+
+`bootstrap: true` registers three MCP-exposed onboarding tools. They describe only the
+MCP-exposed commands visible in the active context (built-ins included):
+
+| Tool | Input | Returns |
+|------|-------|---------|
+| `afd-help` | `{ filter?, format?: 'brief' \| 'full' }` | Commands with `requires`, grouped by category |
+| `afd-docs` | `{ command? }` | Markdown documentation |
+| `afd-schema` | `{ format?: 'json' \| 'typescript' }` | Input JSON Schemas; `typescript` adds generated `<Command>Input` types |
 
 ## Middleware
 
@@ -384,6 +400,49 @@ When commands have metadata fields set, the MCP `tools/list` response includes a
 
 `_meta` is only emitted when there is content (no empty objects). Agents can read `_meta.requires` to plan command execution order without trial-and-error.
 
+Input schemas are generated in Zod input mode: fields with `.default()` are optional, and
+`.transform()` fields are described by their input type. `z.number().int()` becomes
+`"type": "integer"`.
+
+## Tool Strategies
+
+`toolStrategy` defaults to `'grouped'`. `afd-call`, `afd-batch` and `afd-pipe` are listed in
+every strategy.
+
+| Strategy | Tools listed |
+|----------|--------------|
+| `grouped` (default) | One tool per group (`category`, else the first name segment, or `groupByFn`) plus `afd-detail` |
+| `individual` | One tool per command with its input schema and `_meta` |
+| `lazy` | `afd-discover` and `afd-detail` |
+
+A grouped tool takes `{ action, params }` (`todo-create` → group `todo`, action `create`).
+Its `_meta.actions` lists every action with the full command name, description, input
+schema and the per-command `_meta` fields above:
+
+```json
+{
+  "name": "todo",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "action": { "type": "string", "enum": ["create", "list"] },
+      "params": { "type": "object", "anyOf": [{ "title": "create", "type": "object", "properties": { "title": { "type": "string" } }, "required": ["title"] }] }
+    },
+    "required": ["action"]
+  },
+  "_meta": {
+    "actions": [
+      { "action": "create", "command": "todo-create", "description": "Create a todo", "inputSchema": { "...": "..." }, "requires": ["auth-sign-in"], "mutation": true }
+    ]
+  }
+}
+```
+
+Small groups (at most 8,192 characters of per-action schemas, no `$ref`) also inline the
+schemas as `params.anyOf` branches titled with the action. They are never placed at the top
+level, since some MCP hosts reject top-level `oneOf`/`anyOf`/`allOf`. For larger groups,
+agents read `_meta.actions` or call `afd-detail`.
+
 ## Lazy Strategy (Large Command Sets)
 
 For servers with many commands (50+), the `lazy` strategy exposes 5 meta-tools instead of enumerating all commands:
@@ -419,7 +478,9 @@ await tools.call('afd-call', {
 });
 ```
 
-On error, `afd-call` returns fuzzy suggestions for misspelled command names.
+On error, `afd-call` returns fuzzy suggestions for misspelled command names. Invalid
+arguments to `afd-call`, `afd-discover` or `afd-detail` (for example `{ search: 123 }`)
+return a `VALIDATION_ERROR` result with `details.errors`; a `null` argument counts as omitted.
 
 ## Context Management
 
@@ -478,3 +539,6 @@ The TypeScript server does not read environment variables. Pass these options to
 | `allowedOrigins` | same-origin only | Additional exact browser origins |
 | `maxBodyBytes` | 1048576 | Maximum JSON request body |
 | `devMode` | false | Verbose errors and any-origin CORS — never enable on a reachable host |
+| `toolStrategy` | `'grouped'` | `'grouped'`, `'individual'` or `'lazy'` (see Tool Strategies) |
+| `bootstrap` | false | Register the `afd-help`, `afd-docs` and `afd-schema` MCP tools |
+| `contexts` | none | Context scopes; registers the `afd-context-*` commands |

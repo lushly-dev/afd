@@ -318,6 +318,32 @@ createServer((req, res) => {
 
 Use `createMcpServer()` for the batteries-included standalone server. Use `createMcpHandler()` when you need AFD to plug into an existing Node HTTP host.
 
+### Tool Strategies and Bootstrap Tools
+
+`toolStrategy` defaults to `'grouped'`: one tool per group (the command's `category`, else
+the first name segment) taking `{ action, params }`, plus `afd-detail`, `afd-call`,
+`afd-batch` and `afd-pipe`. Each grouped tool lists every action's command name, input
+schema, `requires`, `examples`, `mutation` and `outputSchema` in `_meta.actions`; small
+groups also inline the per-action schemas as `params.anyOf` branches titled with the
+action. Use `toolStrategy: 'individual'` for one tool per command.
+
+```typescript
+const server = createMcpServer({
+  name: 'my-app',
+  version: '1.0.0',
+  commands: allCommands,
+  bootstrap: true, // afd-help, afd-docs, afd-schema (default: false)
+});
+```
+
+`bootstrap: true` registers `afd-help`, `afd-docs` and `afd-schema` as MCP tools. They
+describe only MCP-exposed commands in the active context; `afd-schema` with
+`format: 'typescript'` also returns generated input types. Do not add
+`getBootstrapCommands()` output to `commands` as well: server creation throws on duplicate
+names and on names the server owns (`afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`,
+`afd-detail`; the bootstrap names with `bootstrap: true`; the `afd-context-*` names with
+`contexts`).
+
 ### Lazy Strategy (Large Command Sets)
 
 ```typescript
@@ -329,7 +355,7 @@ const server = createMcpServer({
 });
 ```
 
-The expected agent workflow in lazy mode is `afd-discover -> afd-detail -> afd-call`. `afd-call`, `afd-batch`, and `afd-pipe` remain available across all tool strategies; `lazy` just keeps discovery constant-cost for large command sets.
+The expected agent workflow in lazy mode is `afd-discover -> afd-detail -> afd-call`. `afd-call`, `afd-batch`, and `afd-pipe` remain available across all tool strategies; `lazy` just keeps discovery constant-cost for large command sets. Meta-tool arguments are validated: bad `afd-call`/`afd-discover`/`afd-detail` arguments return `VALIDATION_ERROR`, bad batch or pipeline envelopes `INVALID_BATCH_REQUEST`/`INVALID_PIPELINE_REQUEST`.
 
 ### With Contexts
 
@@ -387,13 +413,15 @@ export const createTodo = defineCommand({...});
 export const listTodos = defineCommand({...});
 
 // commands/index.ts
+import type { ZodCommandDefinition } from '@lushly-dev/afd-server';
 import { createTodo } from './create.js';
 import { listTodos } from './list.js';
 import { getTodo } from './get.js';
 
 export { createTodo, listTodos, getTodo };
 
-export const allCommands = [
+// Annotate the array; no `as unknown as` cast is needed
+export const allCommands: ZodCommandDefinition[] = [
   createTodo,
   listTodos,
   getTodo,
@@ -483,13 +511,18 @@ const schema = z.object({
 
 // z.input<typeof schema>  -> { priority?: 'low' | 'medium' | 'high' }
 // z.output<typeof schema> -> { priority: 'low' | 'medium' | 'high' }
-
-// Always parse inside handler to apply defaults
-async handler(rawInput: z.input<typeof schema>) {
-  const input = schema.parse(rawInput);
-  // input.priority is guaranteed to exist now
-}
 ```
+
+`defineCommand` uses each side where it belongs:
+
+- The server parses the input before calling the handler, so `handler(input)` receives
+  `z.output` (defaults applied, transforms run). No need to re-parse.
+- The advertised JSON Schema (`jsonSchema`, MCP `inputSchema`, `afd-detail`) is generated
+  in Zod **input** mode: `priority` is optional, and a `.transform()` field is advertised by
+  its input type. Transforms in input schemas are fine.
+- `examples` are typed as `z.input` and validated at define time, so they may omit defaults.
+- `output` schemas are generated in output mode (defaulted fields required).
+- `z.number().int()` is advertised as `type: 'integer'`.
 
 ### Generic Registry Types
 
