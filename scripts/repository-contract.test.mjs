@@ -62,9 +62,25 @@ test('release documentation and workflow agree with root scripts', () => {
 	assert.match(agents, /pnpm changeset/);
 
 	const qualityGate = release.indexOf('run: pnpm check');
-	const publishAction = release.indexOf('uses: changesets/action@v1');
+	const publishAction = release.search(/uses: changesets\/action@[0-9a-f]{40} # v1\./);
 	assert.ok(qualityGate >= 0, 'release workflow must run pnpm check');
 	assert.ok(publishAction > qualityGate, 'quality gate must finish before Changesets can publish');
+});
+
+test('workflow actions are pinned to full commit SHAs', () => {
+	const workflowDirectory = '.github/workflows';
+	for (const entry of readdirSync(new URL(`../${workflowDirectory}/`, import.meta.url))) {
+		if (!/\.ya?ml$/.test(entry)) continue;
+		for (const line of read(`${workflowDirectory}/${entry}`).split('\n')) {
+			const match = line.match(/^\s*(?:-\s+)?uses:\s*(\S+)(.*)$/);
+			if (!match || match[1].startsWith('./')) continue;
+			assert.match(
+				`${match[1]}${match[2]}`,
+				/^[\w.-]+\/[\w./-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/,
+				`${entry}: pin "${match[1]}" to a commit SHA with a "# vX.Y.Z" comment`
+			);
+		}
+	}
 });
 
 test('public TypeScript example commands explicitly opt in to MCP', () => {
