@@ -1,0 +1,29 @@
+[
+	{
+		"id": "todo-seed-1",
+		"title": "Try the todo example",
+		"description": "Create, toggle and delete todos from a frontend, the afd CLI or an MCP client",
+		"priority": "high",
+		"completed": false,
+		"createdAt": "2026-01-01T09:00:00.000Z",
+		"updatedAt": "2026-01-01T09:00:00.000Z"
+	},
+	{
+		"id": "todo-seed-2",
+		"title": "Read the conformance spec",
+		"description": "spec/test-cases.json is the contract every backend must pass",
+		"priority": "medium",
+		"completed": false,
+		"createdAt": "2026-01-01T09:01:00.000Z",
+		"updatedAt": "2026-01-01T09:01:00.000Z"
+	},
+	{
+		"id": "todo-seed-3",
+		"title": "Start a backend",
+		"priority": "low",
+		"completed": true,
+		"createdAt": "2026-01-01T09:02:00.000Z",
+		"updatedAt": "2026-01-01T09:03:00.000Z",
+		"completedAt": "2026-01-01T09:03:00.000Z"
+	}
+]

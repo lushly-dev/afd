@@ -2,20 +2,42 @@
  * @fileoverview File-based todo store with JSON persistence
  *
  * This store persists todos to a JSON file, allowing multiple server instances
- * (HTTP and stdio/MCP) to share the same data.
+ * (HTTP and stdio/MCP, or the TypeScript and Python backends) to share the same data.
+ *
+ * The default file, `packages/examples/todo/data/todos.json`, is gitignored. When it
+ * is missing it is created from the committed seed, `data/todos.seed.json`. A custom
+ * path starts empty unless a seed is passed explicitly.
  *
  * Environment variables:
- *   TODO_STORE_PATH - Path to the JSON file (default: ./data/todos.json)
+ *   TODO_STORE_PATH - Path to the JSON file (default: data/todos.json)
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Priority, Todo, TodoFilter, TodoStats } from '../types.js';
+import { readTodoFile, writeTodoFile } from './json-file.js';
 
-// Get the directory of this file for consistent path resolution
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// From this file: store/ → src/ (or dist/) → typescript/ → backends/ → todo/
+const EXAMPLE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
+
+/** Default data file: gitignored, created from the seed on first run. */
+export const DEFAULT_STORE_PATH = resolve(EXAMPLE_ROOT, 'data', 'todos.json');
+
+/** Committed seed data copied into a missing default data file. */
+export const DEFAULT_SEED_PATH = resolve(EXAMPLE_ROOT, 'data', 'todos.seed.json');
+
+/**
+ * Options for {@link FileStore}.
+ */
+export interface FileStoreOptions {
+	/**
+	 * JSON file whose todos initialize a missing data file. Defaults to
+	 * {@link DEFAULT_SEED_PATH} for the default data file, and to none (start empty)
+	 * for a custom path.
+	 */
+	seedPath?: string;
+}
 
 /**
  * Generate a unique ID.
@@ -33,58 +55,50 @@ function now(): string {
 
 /**
  * File-based todo store with JSON persistence.
+ *
+ * Writes are atomic (temp file + rename), and a file that cannot be parsed throws
+ * a `TodoStoreCorruptError` rather than being treated as empty.
  */
 export class FileStore {
-	private filePath: string;
+	readonly filePath: string;
 
-	constructor(filePath?: string) {
-		// Default path: packages/examples/todo/data/todos.json
-		// From this file: store/file.ts → src/ → typescript/ → backends/ → todo/ → data/
-		this.filePath = filePath ?? resolve(__dirname, '..', '..', '..', '..', 'data', 'todos.json');
+	constructor(filePath?: string, options: FileStoreOptions = {}) {
+		this.filePath = filePath ?? DEFAULT_STORE_PATH;
+		const seedPath = options.seedPath ?? (filePath === undefined ? DEFAULT_SEED_PATH : undefined);
 
-		// Ensure the directory exists
-		const dir = dirname(this.filePath);
-		if (!existsSync(dir)) {
-			mkdirSync(dir, { recursive: true });
-		}
+		mkdirSync(dirname(this.filePath), { recursive: true });
 
-		// Initialize empty file if it doesn't exist
 		if (!existsSync(this.filePath)) {
-			this.saveTodos(new Map());
+			const initial = seedPath && existsSync(seedPath) ? readTodoFile(seedPath) : new Map();
+			this.saveTodos(initial);
 		}
+
+		// Fail at startup, not on the first command, when the file is unreadable.
+		this.loadTodos();
 	}
 
 	/**
 	 * Load todos from file.
+	 *
+	 * @throws TodoStoreCorruptError when the file exists but cannot be parsed
 	 */
 	private loadTodos(): Map<string, Todo> {
 		try {
-			const data = readFileSync(this.filePath, 'utf-8');
-			const parsed = JSON.parse(data);
-
-			// Handle both array format and object format
-			if (Array.isArray(parsed)) {
-				const map = new Map<string, Todo>();
-				for (const todo of parsed) {
-					map.set(todo.id, todo);
-				}
-				return map;
+			return readTodoFile(this.filePath);
+		} catch (error) {
+			// Deleted while the server runs: start again from an empty store.
+			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+				return new Map();
 			}
-
-			// Object format: { "id": todo }
-			return new Map(Object.entries(parsed));
-		} catch {
-			return new Map();
+			throw error;
 		}
 	}
 
 	/**
-	 * Save todos to file.
+	 * Save todos to file atomically.
 	 */
 	private saveTodos(todos: Map<string, Todo>): void {
-		// Save as array for better readability
-		const data = Array.from(todos.values());
-		writeFileSync(this.filePath, JSON.stringify(data, null, 2), 'utf-8');
+		writeTodoFile(this.filePath, todos);
 	}
 
 	/**
