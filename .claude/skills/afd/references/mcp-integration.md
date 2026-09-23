@@ -260,19 +260,23 @@ const timing = createTimingMiddleware({
 
 ### Rate Limiting
 
+Without `keyFn`, every client shares one budget. Identify callers with the server's `createContext(req)` option and key on that value (never on `traceId`, which is unique per call):
+
 ```typescript
 import { createRateLimitMiddleware } from '@lushly-dev/afd-server';
 
+// createMcpServer({ ..., createContext: (req) => ({ clientId: req.socket.remoteAddress ?? 'unknown' }) })
 const rateLimit = createRateLimitMiddleware({
   maxRequests: 100,
-  windowMs: 60000,  // 1 minute
+  windowMs: 60000,  // 1 minute, per client
+  keyFn: (context) => String(context.clientId ?? 'unknown'),
 });
 ```
 
 ### Custom Middleware
 
 ```typescript
-import type { CommandMiddleware } from '@lushly-dev/afd-server';
+import { type CommandMiddleware, failure } from '@lushly-dev/afd-server';
 
 const authMiddleware: CommandMiddleware = async (
   commandName,
@@ -280,9 +284,9 @@ const authMiddleware: CommandMiddleware = async (
   context,
   next
 ) => {
-  // Check auth
+  // Check auth (set context.userId with the server's createContext(req) option)
   if (!context.userId) {
-    throw new Error('Unauthorized');
+    return failure({ code: 'UNAUTHORIZED', message: 'Sign in first', suggestion: 'Send credentials' });
   }
   
   // Call next middleware/handler
@@ -440,6 +444,8 @@ const server = createMcpServer({
 | `afd-context-list` | List all configured contexts and the active context |
 | `afd-context-enter` | Enter a context (pushes to stack, filters visible tools) |
 | `afd-context-exit` | Exit current context (pops stack, restores previous) |
+
+Context state is per client: stdio keeps one stack, and each HTTP session (the `Mcp-Session-Id` header returned by `initialize`) keeps its own. HTTP requests without a session see no active context and get `SESSION_REQUIRED` from enter/exit. Stacks hold at most 16 contexts; re-entering the active context is a no-op.
 
 ### Command Context Scoping
 

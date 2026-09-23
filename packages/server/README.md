@@ -67,7 +67,7 @@ console.error(`Server running at ${server.getUrl()}`);
 
 Remote invocation now enforces the core exposure contract: commands require `expose: { mcp: true }`. Omitting `expose`, omitting `expose.mcp`, or setting it to `false` keeps a command private. This applies to tool listing, discovery, direct MCP calls, `afd-call`, batch, pipelines, `/rpc`, and streaming. Existing applications should explicitly opt in their public commands. The server's in-process `execute()` and `executePipeline()` remain available for private commands.
 
-Configured `contexts` automatically register `afd-context-list`, `afd-context-enter`, and `afd-context-exit` against the server's shared context state. Active contexts scope all remote execution paths; context state belongs to the server instance.
+Configured `contexts` automatically register `afd-context-list`, `afd-context-enter`, and `afd-context-exit`. Active contexts scope all remote execution paths. Context state belongs to the client, not the server: stdio has one stack, and each HTTP session has its own (see [Context Management](#context-management)).
 
 ## Embedding In A Host-Controlled HTTP Server
 
@@ -90,7 +90,7 @@ createServer((req, res) => {
 }).listen(3100, '127.0.0.1');
 ```
 
-Call `handler.dispose()` when the embedding host shuts down to close active SSE/stream responses. The host still owns its listener and other connections.
+Call `handler.dispose()` when the embedding host shuts down to close active SSE/stream responses and drop HTTP sessions. The host still owns its listener and other connections.
 
 Use `createMcpServer()` for the batteries-included standalone server. Use `createMcpHandler()` when you need AFD to plug into an existing Node HTTP host.
 
@@ -113,6 +113,8 @@ const server = createMcpServer({
 // When stdin is piped (IDE/agent context): uses stdio
 // When stdin is a TTY (interactive context): uses HTTP
 ```
+
+> **Pitfall:** `auto` picks stdio whenever stdin is not a TTY. Under Docker without `-t`, systemd, pm2 or CI, the server therefore speaks stdio and the HTTP port never opens. Set `transport: 'http'` for any server that must listen on the network. `start()` logs the resolved transport to stderr, for example `[my-server] MCP transport: stdio (auto-detected because stdin is not a TTY; set transport: 'http' to serve HTTP)`.
 
 ### stdio Transport (IDE/Agent Integration)
 
@@ -291,7 +293,11 @@ const server = createMcpServer({
   // Optional
   port: 3100,              // Default: 3100
   host: 'localhost',       // Default: localhost
-  cors: true,              // Enable CORS (default: true)
+  transport: 'http',       // Default: 'auto' (see the pitfall above)
+  cors: true,              // Send CORS headers (default: follows devMode)
+
+  // Per-request context for HTTP calls (see "Request Context")
+  createContext: (req) => ({ clientIp: req.socket.remoteAddress ?? 'unknown' }),
 
   // Middleware — zero-config observability
   middleware: defaultMiddleware(),
@@ -377,13 +383,28 @@ const middleware = createTracingMiddleware({
 
 ### Rate Limiting
 
-```typescript
-import { createRateLimitMiddleware } from '@lushly-dev/afd-server';
+Key the limiter on a value that identifies the caller. Over HTTP, provide it with `createContext`; the default key (`'global'`) shares one budget between all clients, and `traceId` is unique per call, so it never limits anything.
 
-const middleware = createRateLimitMiddleware({
-  maxRequests: 100,
-  windowMs: 60000,         // 100 requests per minute
-  keyFn: (context) => context.userId ?? 'anonymous',
+```typescript
+import { createMcpServer, createRateLimitMiddleware } from '@lushly-dev/afd-server';
+
+const server = createMcpServer({
+  name: 'my-server',
+  version: '1.0.0',
+  commands,
+  transport: 'http',
+  // Prefer an authenticated user ID; fall back to the socket address. Do not trust
+  // X-Forwarded-For unless your own proxy sets it.
+  createContext: (req) => ({
+    clientId: authenticate(req)?.userId ?? req.socket.remoteAddress ?? 'unknown',
+  }),
+  middleware: [
+    createRateLimitMiddleware({
+      maxRequests: 100,
+      windowMs: 60000,         // 100 requests per minute, per client
+      keyFn: (context) => String(context.clientId ?? 'unknown'),
+    }),
+  ],
 });
 ```
 
@@ -464,7 +485,7 @@ Create an MCP server from commands.
 | `name` | string | Yes | Server name |
 | `version` | string | Yes | Server version |
 | `commands` | array | Yes | Command definitions |
-| `transport` | `'stdio' \| 'http' \| 'auto'` | No | Transport protocol (default: `'auto'`) |
+| `transport` | `'stdio' \| 'http' \| 'auto'` | No | Transport protocol (default: `'auto'`, which picks stdio whenever stdin is not a TTY) |
 | `port` | number | No | Port for HTTP transport (default: 3100) |
 | `host` | string | No | Host for HTTP transport (default: localhost) |
 | `toolStrategy` | `'individual' \| 'grouped' \| 'lazy'` | No | How commands appear as MCP tools (default: `'grouped'`) |
@@ -474,6 +495,10 @@ Create an MCP server from commands.
 | `allowedOrigins` | string[] | No | Additional exact browser origins |
 | `allowedHosts` | string[] | No | Accepted HTTP hostnames, without ports |
 | `maxBodyBytes` | number | No | Maximum JSON body bytes (default: 1048576) |
+| `createContext` | `(req) => object \| Promise<object>` | No | Per-request values merged into the `CommandContext` of every remotely executed HTTP command |
+| `maxSseConnections` | number | No | Concurrent `/sse` connections before HTTP 503 (default: 100) |
+| `maxSessions` | number | No | Live HTTP sessions when `contexts` are set; the least recently used is evicted (default: 1000) |
+| `sessionIdleTimeoutMs` | number | No | Idle time before an HTTP session expires (default: 1800000, 30 minutes) |
 | `middleware` | array | No | Middleware functions |
 | `onCommand` | function | No | Command execution callback |
 | `onError` | function | No | Error callback |
@@ -511,7 +536,32 @@ The server exposes these endpoints:
 | `/health` | GET | Health check |
 | `/batch` | POST | Batch command execution |
 | `/stream/:name` | POST | SSE chunks with command input in the JSON body |
-| `/stream/:name?input=...` | GET | Legacy streaming with JSON input in the query |
+| `/stream/:name?input=...` | GET | Legacy streaming with JSON input in the query; refused (HTTP 405) for `mutation: true` commands |
+
+### JSON-RPC Behavior (`/message` and `/rpc`)
+
+- A message with `"jsonrpc": "2.0"` and no `id` is a notification. It is answered with HTTP 202 and an empty body. On `/message` it is not executed (MCP notifications need no work here, and a request method sent without an `id` could not return its result). On `/rpc` the command runs, but its result is not sent. The simple `/rpc` format without a `jsonrpc` member is always answered, with `id: null` if omitted.
+- Protocol errors are JSON-RPC error objects, with recovery guidance in `error.data.suggestion`:
+
+| Code | Meaning | HTTP status |
+|------|---------|-------------|
+| `-32700` | Body is not valid JSON | 400 |
+| `-32600` | Not a valid request object (including batch arrays, which are not supported) | 400 |
+| `-32601` | Unknown MCP method | 200 |
+| `-32602` | Invalid `tools/call` params | 200 |
+| `-32603` | Internal error (for example a throwing `createContext`); details only in `devMode` | 200 |
+| `-32000` | Transport rejection: Host, Origin, Content-Type or body size | 400, 403, 413 or 415 |
+| `-32001` | Unknown or expired `Mcp-Session-Id` | 404 |
+
+Command failures are not protocol errors: they stay AFD `CommandResult` failures inside `result`. `/batch` and `/stream` are not JSON-RPC and answer errors with `{ success: false, error: { code, message, suggestion } }`.
+
+### Sessions (`Mcp-Session-Id`)
+
+When `contexts` are configured, `initialize` on `/message` returns an `Mcp-Session-Id` response header. Repeat it on later `/message`, `/rpc`, `/batch` and `/stream` requests to use that session's context stack. Requests without the header are stateless. An unknown or expired session ID is answered with HTTP 404; start a new session with `initialize`. `@lushly-dev/afd-client` does this automatically. Without `contexts`, no session is issued and the header is ignored.
+
+### SSE Connections
+
+`/sse` accepts at most `maxSseConnections` concurrent connections (default: 100); more receive HTTP 503 with `Retry-After`. Open connections get a `: ping` comment every 25 seconds so proxies keep them open and dead peers are detected. Closed connections are removed immediately, and `dispose()`/`stop()` closes the rest.
 
 ### Browser-Friendly `/rpc` Endpoint
 
@@ -623,6 +673,39 @@ When contexts are configured, the server registers three additional bootstrap co
 - **`afd-context-exit`** — Pops the current context (restores previous)
 
 Commands without `contexts` are always visible. Context commands themselves are always visible.
+
+Context state is per client:
+
+- **stdio** serves one client, so it keeps one stack.
+- **HTTP** keeps one stack per session. `initialize` returns an `Mcp-Session-Id` header, and requests that repeat it share that session's stack; one client entering a context never changes another client's `tools/list` or execution. Requests without the header see no active context, and `afd-context-enter`/`afd-context-exit` return `SESSION_REQUIRED` for them. Sessions expire after `sessionIdleTimeoutMs` of inactivity, and at most `maxSessions` are kept.
+- A stack holds at most 16 contexts (`CONTEXT_DEPTH_EXCEEDED` beyond that), and re-entering the active context is a no-op.
+- In-process `server.execute()` ignores contexts.
+
+## Request Context
+
+`createContext(req)` derives per-request values from the HTTP request, such as the authenticated user or the remote address. Its result is merged into the `CommandContext` of every command the request runs: `tools/call`, `afd-call`, `afd-batch` items, `afd-pipe` steps, `/rpc`, `/batch` and `/stream`. Middleware and handlers read the values from `context`:
+
+```typescript
+const server = createMcpServer({
+  name: 'my-server',
+  version: '1.0.0',
+  commands,
+  transport: 'http',
+  createContext: async (req) => ({ user: await verifyBearerToken(req.headers.authorization) }),
+  middleware: [
+    async (command, input, context, next) =>
+      context.user
+        ? next()
+        : failure({ code: 'UNAUTHORIZED', message: 'Sign in first', suggestion: 'Send a bearer token' }),
+  ],
+});
+```
+
+- The server sets `traceId`, `signal` and `interface` (`'mcp'`) itself; `createContext` cannot override them.
+- `context.signal` aborts when the client disconnects before the response is finished, on every route, not only streams. Long-running handlers should honor it.
+- A throw from `createContext` is reported to `onError` and answered as an internal error (`-32603` on JSON-RPC routes, HTTP 500 elsewhere).
+- Pipeline `$input` does not expose these values, so a pipeline cannot copy them into step inputs.
+- stdio has no HTTP request, so `createContext` is not called there.
 
 ## Related
 
