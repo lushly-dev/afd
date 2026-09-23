@@ -7,6 +7,7 @@
 
 import { spawn } from 'node:child_process';
 import type { CommandResult } from '@lushly-dev/afd-core';
+import { prepareSpawn } from '@lushly-dev/afd-core/platform';
 import type { StepError } from '../types/report.js';
 import { createStepError } from '../types/report.js';
 
@@ -197,14 +198,19 @@ export class CliWrapper {
 		extraEnv?: Record<string, string>
 	): Promise<{ stdout: string; stderr: string; exitCode: number }> {
 		return new Promise((resolve, reject) => {
-			const proc = spawn(this.config.cliPath, args, {
+			const env = {
+				...process.env,
+				...this.config.env,
+				...extraEnv,
+			};
+			// Never shell: true. On Windows a .cmd CLI shim runs through cmd.exe with every
+			// argument (including JSON input from scenario files) escaped.
+			const invocation = prepareSpawn(this.config.cliPath, args, { cwd: this.config.cwd, env });
+			const proc = spawn(invocation.command, invocation.args, {
 				cwd: this.config.cwd,
-				env: {
-					...process.env,
-					...this.config.env,
-					...extraEnv,
-				},
-				shell: process.platform === 'win32',
+				env,
+				shell: false,
+				windowsVerbatimArguments: invocation.windowsVerbatimArguments,
 				timeout,
 			});
 
