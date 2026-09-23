@@ -2,6 +2,7 @@
  * @fileoverview Unit tests for todo commands
  */
 
+import type { CommandResult } from '@lushly-dev/afd-core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { store } from '../../store/index.js';
 import { clearCompleted } from '../clear.js';
@@ -12,6 +13,12 @@ import { listTodos } from '../list.js';
 import { getStats } from '../stats.js';
 import { toggleTodo } from '../toggle.js';
 import { updateTodo } from '../update.js';
+
+/** The id from a successful command result that returned a todo, failing the test otherwise. */
+function idOf(result: CommandResult<{ id: string }>): string {
+	if (!result.data) throw new Error(`Expected a todo, got ${JSON.stringify(result.error)}`);
+	return result.data.id;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TEST SETUP
@@ -102,7 +109,7 @@ describe('todo-list', () => {
 
 		expect(result.success).toBe(true);
 		expect(result.data?.todos).toHaveLength(1);
-		expect(result.data?.todos[0].priority).toBe('high');
+		expect(result.data?.todos[0]?.priority).toBe('high');
 	});
 
 	it('filters by completion status', async () => {
@@ -116,7 +123,9 @@ describe('todo-list', () => {
 			},
 			{}
 		);
-		await toggleTodo.handler({ id: list.data?.todos[0].id }, {});
+		const [first] = list.data?.todos ?? [];
+		if (!first) throw new Error('Expected a todo to toggle');
+		await toggleTodo.handler({ id: first.id }, {});
 
 		const pending = await listTodos.handler(
 			{
@@ -182,7 +191,7 @@ describe('todo-list', () => {
 		);
 
 		expect(result.data?.todos).toHaveLength(1);
-		expect(result.data?.todos[0].title).toBe('Todo 2');
+		expect(result.data?.todos[0]?.title).toBe('Todo 2');
 	});
 });
 
@@ -193,7 +202,7 @@ describe('todo-list', () => {
 describe('todo-get', () => {
 	it('gets a todo by ID', async () => {
 		const created = await createTodo.handler({ title: 'Find me', priority: 'medium' }, {});
-		const result = await getTodo.handler({ id: created.data?.id }, {});
+		const result = await getTodo.handler({ id: idOf(created) }, {});
 
 		expect(result.success).toBe(true);
 		expect(result.data?.title).toBe('Find me');
@@ -221,7 +230,7 @@ describe('todo-update', () => {
 
 		const result = await updateTodo.handler(
 			{
-				id: created.data?.id,
+				id: idOf(created),
 				title: 'Updated',
 			},
 			{}
@@ -237,7 +246,7 @@ describe('todo-update', () => {
 		const created = await createTodo.handler({ title: 'Test', priority: 'low' }, {});
 		const result = await updateTodo.handler(
 			{
-				id: created.data?.id,
+				id: idOf(created),
 				priority: 'high',
 			},
 			{}
@@ -262,7 +271,7 @@ describe('todo-update', () => {
 
 	it('returns NO_CHANGES when nothing to update', async () => {
 		const created = await createTodo.handler({ title: 'Test', priority: 'medium' }, {});
-		const result = await updateTodo.handler({ id: created.data?.id }, {});
+		const result = await updateTodo.handler({ id: idOf(created) }, {});
 
 		expect(result.success).toBe(false);
 		expect(result.error?.code).toBe('NO_CHANGES');
@@ -276,7 +285,7 @@ describe('todo-update', () => {
 describe('todo-toggle', () => {
 	it('marks todo as completed', async () => {
 		const created = await createTodo.handler({ title: 'Toggle me', priority: 'medium' }, {});
-		const result = await toggleTodo.handler({ id: created.data?.id }, {});
+		const result = await toggleTodo.handler({ id: idOf(created) }, {});
 
 		expect(result.success).toBe(true);
 		expect(result.data?.completed).toBe(true);
@@ -286,8 +295,8 @@ describe('todo-toggle', () => {
 
 	it('marks todo as pending when toggled again', async () => {
 		const created = await createTodo.handler({ title: 'Toggle me', priority: 'medium' }, {});
-		await toggleTodo.handler({ id: created.data?.id }, {});
-		const result = await toggleTodo.handler({ id: created.data?.id }, {});
+		await toggleTodo.handler({ id: idOf(created) }, {});
+		const result = await toggleTodo.handler({ id: idOf(created) }, {});
 
 		expect(result.success).toBe(true);
 		expect(result.data?.completed).toBe(false);
@@ -310,22 +319,22 @@ describe('todo-toggle', () => {
 describe('todo-delete', () => {
 	it('deletes a todo', async () => {
 		const created = await createTodo.handler({ title: 'Delete me', priority: 'medium' }, {});
-		const result = await deleteTodo.handler({ id: created.data?.id }, {});
+		const result = await deleteTodo.handler({ id: idOf(created) }, {});
 
 		expect(result.success).toBe(true);
 		expect(result.data?.deleted).toBe(true);
 
 		// Verify it's gone
-		const get = await getTodo.handler({ id: created.data?.id }, {});
+		const get = await getTodo.handler({ id: idOf(created) }, {});
 		expect(get.success).toBe(false);
 	});
 
 	it('includes warning about permanence', async () => {
 		const created = await createTodo.handler({ title: 'Delete me', priority: 'medium' }, {});
-		const result = await deleteTodo.handler({ id: created.data?.id }, {});
+		const result = await deleteTodo.handler({ id: idOf(created) }, {});
 
 		expect(result.warnings).toBeDefined();
-		expect(result.warnings?.[0].code).toBe('PERMANENT');
+		expect(result.warnings?.[0]?.code).toBe('PERMANENT');
 	});
 
 	it('returns NOT_FOUND for missing todo', async () => {
@@ -347,8 +356,8 @@ describe('todo-clear', () => {
 		const t2 = await createTodo.handler({ title: 'Todo 2', priority: 'medium' }, {});
 		await createTodo.handler({ title: 'Todo 3', priority: 'medium' }, {});
 
-		await toggleTodo.handler({ id: t1.data?.id }, {});
-		await toggleTodo.handler({ id: t2.data?.id }, {});
+		await toggleTodo.handler({ id: idOf(t1) }, {});
+		await toggleTodo.handler({ id: idOf(t2) }, {});
 
 		const result = await clearCompleted.handler({}, {});
 
@@ -401,7 +410,7 @@ describe('todo-stats', () => {
 		const t4 = await createTodo.handler({ title: 'Low', priority: 'low' }, {});
 
 		// Complete one
-		await toggleTodo.handler({ id: t4.data?.id }, {});
+		await toggleTodo.handler({ id: idOf(t4) }, {});
 
 		const result = await getStats.handler({}, {});
 
@@ -478,7 +487,7 @@ describe('AFD Compliance', () => {
 
 	it('mutation commands include warnings when appropriate', async () => {
 		const created = await createTodo.handler({ title: 'Test', priority: 'medium' }, {});
-		const result = await deleteTodo.handler({ id: created.data?.id }, {});
+		const result = await deleteTodo.handler({ id: idOf(created) }, {});
 
 		expect(result.warnings).toBeDefined();
 		expect(result.warnings?.length).toBeGreaterThan(0);
