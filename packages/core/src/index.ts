@@ -228,6 +228,7 @@ export type {
 	StreamCallbacks,
 	StreamChunk,
 	StreamOptions,
+	TimeoutController,
 } from './streaming.js';
 export {
 	collectStreamData,

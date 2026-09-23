@@ -561,22 +561,35 @@ export async function collectStreamData<T>(
 	return items;
 }
 
+/** An AbortController whose pending timeout can be cancelled with `dispose()`. */
+export interface TimeoutController extends AbortController {
+	/** Cancel the pending timeout without aborting. Idempotent; safe after an abort. */
+	dispose(): void;
+}
+
 /**
- * Create an AbortController with timeout.
+ * Create an AbortController that aborts after a timeout.
+ *
+ * The timer is `unref()`'d in Node, so it never keeps the process alive, and is
+ * cleared on abort or `dispose()`. Call `dispose()` in a `finally` once the
+ * work completes; otherwise the signal still aborts when the timeout elapses.
  *
  * @param timeoutMs - Timeout in milliseconds
- * @returns AbortController that will abort after timeout
+ * @returns A controller that aborts after `timeoutMs`, with `dispose()` to cancel the timeout
  */
-export function createTimeoutController(timeoutMs: number): AbortController {
+export function createTimeoutController(timeoutMs: number): TimeoutController {
 	const controller = new AbortController();
 	const timeoutId = setTimeout(() => {
 		controller.abort(new Error(`Stream timed out after ${timeoutMs}ms`));
 	}, timeoutMs);
+	// Node returns a Timeout with unref(); browsers return a number.
+	timeoutId.unref?.();
 
-	// Clear timeout if aborted manually
-	controller.signal.addEventListener('abort', () => {
+	const dispose = (): void => {
 		clearTimeout(timeoutId);
-	});
+		controller.signal.removeEventListener('abort', dispose);
+	};
+	controller.signal.addEventListener('abort', dispose, { once: true });
 
-	return controller;
+	return Object.assign(controller, { dispose });
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	collectStreamData,
 	consumeStream,
@@ -319,5 +319,41 @@ describe('createTimeoutController', () => {
 		controller.abort();
 
 		expect(controller.signal.aborted).toBe(true);
+	});
+
+	it('does not abort after dispose()', async () => {
+		const controller = createTimeoutController(20);
+
+		controller.dispose();
+		await new Promise((resolve) => setTimeout(resolve, 50));
+
+		expect(controller.signal.aborted).toBe(false);
+		// Idempotent, and safe after the work is done.
+		expect(() => controller.dispose()).not.toThrow();
+	});
+
+	it('unrefs the timer so a pending timeout never keeps the process alive', () => {
+		const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout');
+		try {
+			const controller = createTimeoutController(10000);
+			const timer = setTimeoutSpy.mock.results[0]?.value as NodeJS.Timeout;
+
+			expect(timer.hasRef()).toBe(false);
+			controller.dispose();
+		} finally {
+			setTimeoutSpy.mockRestore();
+		}
+	});
+
+	it('clears the timer when aborted manually or disposed', () => {
+		const clearTimeoutSpy = vi.spyOn(globalThis, 'clearTimeout');
+		try {
+			createTimeoutController(10000).abort();
+			createTimeoutController(10000).dispose();
+
+			expect(clearTimeoutSpy).toHaveBeenCalledTimes(2);
+		} finally {
+			clearTimeoutSpy.mockRestore();
+		}
 	});
 });

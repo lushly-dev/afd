@@ -231,13 +231,22 @@ export function error<T = unknown>(
 
 /**
  * Type guard to check if a result is successful.
+ *
+ * Depends only on `success === true`, so a void command's `success(undefined)`
+ * is a success. The narrowed `data` has the result's own type `T`, which is
+ * `undefined` (or `void`) for commands that return no data.
  */
-export function isSuccess<T>(result: CommandResult<T>): result is CommandResult<T> & { data: T } {
-	return result.success === true && result.data !== undefined;
+export function isSuccess<T>(
+	result: CommandResult<T>
+): result is CommandResult<T> & { success: true; data: T } {
+	return result.success === true;
 }
 
 /**
  * Type guard to check if a result is a failure.
+ *
+ * Requires `success === false` and an `error`, so `error` is narrowed to
+ * `CommandError`.
  */
 export function isFailure<T>(
 	result: CommandResult<T>
