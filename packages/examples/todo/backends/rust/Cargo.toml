@@ -2,16 +2,21 @@
 name = "todo-backend-rust"
 version = "0.1.0"
 edition = "2021"
+rust-version = "1.82"
+publish = false
+description = "Rust backend for the AFD todo example: CLI, shell and MCP over HTTP"
 
 [dependencies]
 afd = { path = "../../../../rust" }
+async-trait = "0.1"
+axum = "0.7"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tokio = { version = "1.0", features = ["full"] }
-chrono = { version = "0.4", features = ["serde"] }
-uuid = { version = "1.0", features = ["v4", "serde"] }
-async-trait = "0.1"
-lazy_static = "1.4"
-dashmap = "5.5"
-axum = "0.7"
+tokio = { version = "1.0", features = ["macros", "net", "rt-multi-thread", "signal"] }
 tower-http = { version = "0.5", features = ["cors"] }
+uuid = { version = "1.0", features = ["v4"] }
+
+[dev-dependencies]
+http-body-util = "0.1"
+tower = { version = "0.4", features = ["util"] }

@@ -1,39 +1,38 @@
-use afd::{CommandHandler, CommandResult, CommandContext, success};
-use crate::types::{TodoStats, PriorityStats, Priority};
-use crate::store::STORE;
-use async_trait::async_trait;
+use super::{ok, Command};
+use crate::store::TodoStore;
+use afd::CommandResult;
+use serde::Deserialize;
+use serde_json::{json, Value};
+use std::sync::Arc;
 
-pub struct StatsHandler;
+pub struct Stats(pub Arc<TodoStore>);
 
-#[async_trait]
-impl CommandHandler for StatsHandler {
-    async fn execute(&self, _input: serde_json::Value, _context: CommandContext) -> CommandResult<serde_json::Value> {
-        let total = STORE.len();
-        let mut completed = 0;
-        let mut low = 0;
-        let mut medium = 0;
-        let mut high = 0;
+#[derive(Deserialize)]
+pub struct Input {}
 
-        for r in STORE.iter() {
-            let t = r.value();
-            if t.completed {
-                completed += 1;
-            }
-            match t.priority {
-                Priority::Low => low += 1,
-                Priority::Medium => medium += 1,
-                Priority::High => high += 1,
-            }
-        }
+impl Command for Stats {
+    type Input = Input;
+    const NAME: &'static str = "todo-stats";
+    const DESCRIPTION: &'static str = "Get todo statistics";
+    const MUTATION: bool = false;
 
-        let stats = TodoStats {
-            total,
-            completed,
-            pending: total - completed,
-            by_priority: PriorityStats { low, medium, high },
-            completion_rate: if total > 0 { completed as f64 / total as f64 } else { 0.0 },
+    fn schema() -> Value {
+        json!({ "type": "object", "properties": {} })
+    }
+
+    fn run(&self, _input: Input) -> CommandResult<Value> {
+        let stats = self.0.stats();
+        let reasoning = if stats.total == 0 {
+            "No todos yet".to_string()
+        } else {
+            format!(
+                "{} total todos, {} completed, {} pending, {}% completion rate",
+                stats.total,
+                stats.completed,
+                stats.pending,
+                (stats.completion_rate * 100.0).round()
+            )
         };
-
-        success(serde_json::to_value(stats).unwrap())
+        ok(&stats, reasoning, 1.0, Vec::new())
     }
 }

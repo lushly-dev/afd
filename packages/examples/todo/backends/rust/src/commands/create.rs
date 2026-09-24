@@ -1,31 +1,49 @@
-use afd::{CommandHandler, CommandResult, CommandError, CommandContext, success, failure};
-use crate::types::{Todo, Priority};
-use crate::store;
-use serde::{Deserialize, Serialize};
-use async_trait::async_trait;
+use super::{ok, schema, Command};
+use crate::store::{NewTodo, TodoStore};
+use crate::types::Priority;
+use afd::CommandResult;
+use serde::Deserialize;
+use serde_json::{json, Value};
+use std::sync::Arc;
+
+pub struct Create(pub Arc<TodoStore>);
 
 #[derive(Deserialize)]
-pub struct CreateInput {
-    pub title: String,
-    pub description: Option<String>,
-    pub priority: Option<Priority>,
+pub struct Input {
+    title: String,
+    description: Option<String>,
+    priority: Priority,
 }
 
-pub struct CreateHandler;
+impl Command for Create {
+    type Input = Input;
+    const NAME: &'static str = "todo-create";
+    const DESCRIPTION: &'static str = "Create a new todo item";
+    const MUTATION: bool = true;
 
-#[async_trait]
-impl CommandHandler for CreateHandler {
-    async fn execute(&self, input: serde_json::Value, _context: CommandContext) -> CommandResult<serde_json::Value> {
-        let input: CreateInput = match serde_json::from_value(input) {
-            Ok(i) => i,
-            Err(e) => return failure(CommandError::validation(&e.to_string(), None)),
-        };
+    fn schema() -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "title": schema::title(),
+                "description": schema::description(),
+                "priority": schema::priority_with_default("Priority (default: medium)")
+            },
+            "required": ["title"]
+        })
+    }
 
-        if input.title.trim().is_empty() {
-            return failure(CommandError::validation("Title cannot be empty", None));
-        }
-
-        let todo = store::create(input.title, input.description, input.priority);
-        success(serde_json::to_value(todo).unwrap())
+    fn run(&self, input: Input) -> CommandResult<Value> {
+        let todo = self.0.create(NewTodo {
+            title: input.title,
+            description: input.description,
+            priority: input.priority,
+        });
+        let reasoning = format!(
+            "Created todo \"{}\" with {} priority",
+            todo.title,
+            todo.priority.as_str()
+        );
+        ok(&todo, reasoning, 1.0, Vec::new())
     }
 }

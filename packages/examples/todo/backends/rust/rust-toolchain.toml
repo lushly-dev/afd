@@ -1,0 +1,6 @@
+# Same toolchain as packages/rust, so a new stable release cannot fail
+# `clippy -D warnings` without a change in this repository.
+[toolchain]
+channel = "1.98.0"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

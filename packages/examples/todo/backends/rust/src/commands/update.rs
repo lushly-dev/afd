@@ -1,31 +1,65 @@
-use afd::{CommandHandler, CommandResult, CommandError, CommandContext, success, failure};
+use super::{not_found, ok, schema, Command};
+use crate::store::{Changes, TodoStore};
 use crate::types::Priority;
-use crate::store;
+use afd::{failure, CommandError, CommandResult};
 use serde::Deserialize;
-use async_trait::async_trait;
+use serde_json::{json, Value};
+use std::sync::Arc;
+
+pub struct Update(pub Arc<TodoStore>);
 
 #[derive(Deserialize)]
-pub struct UpdateInput {
-    pub id: String,
-    pub title: Option<String>,
-    pub description: Option<String>,
-    pub priority: Option<Priority>,
-    pub completed: Option<bool>,
+pub struct Input {
+    id: String,
+    title: Option<String>,
+    description: Option<String>,
+    priority: Option<Priority>,
+    completed: Option<bool>,
 }
 
-pub struct UpdateHandler;
+impl Command for Update {
+    type Input = Input;
+    const NAME: &'static str = "todo-update";
+    const DESCRIPTION: &'static str = "Update a todo's title, description, priority or status";
+    const MUTATION: bool = true;
 
-#[async_trait]
-impl CommandHandler for UpdateHandler {
-    async fn execute(&self, input: serde_json::Value, _context: CommandContext) -> CommandResult<serde_json::Value> {
-        let input: UpdateInput = match serde_json::from_value(input) {
-            Ok(i) => i,
-            Err(e) => return failure(CommandError::validation(&e.to_string(), None)),
+    fn schema() -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "id": schema::id(),
+                "title": schema::title(),
+                "description": schema::description(),
+                "priority": schema::priority("New priority"),
+                "completed": { "type": "boolean", "description": "New completion status" }
+            },
+            "required": ["id"]
+        })
+    }
+
+    fn run(&self, input: Input) -> CommandResult<Value> {
+        let changes = Changes {
+            title: input.title,
+            description: input.description,
+            priority: input.priority,
+            completed: input.completed,
         };
+        if changes.is_empty() {
+            return failure(
+                CommandError::new("NO_CHANGES", "No fields to update")
+                    .with_suggestion(
+                        "Provide at least one of: title, description, completed, priority",
+                    )
+                    .with_retryable(false),
+            );
+        }
 
-        match store::update(&input.id, input.title, input.description, input.priority, input.completed) {
-            Some(todo) => success(serde_json::to_value(todo).unwrap()),
-            None => failure(CommandError::not_found("Todo", &input.id)),
+        match self.0.update(&input.id, changes) {
+            Some(todo) => {
+                let reasoning = format!("Updated todo \"{}\"", todo.title);
+                ok(&todo, reasoning, 1.0, Vec::new())
+            }
+            None => failure(not_found(&input.id)),
         }
     }
 }

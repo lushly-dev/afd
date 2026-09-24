@@ -1,26 +1,43 @@
-use afd::{CommandHandler, CommandResult, CommandError, CommandContext, success, failure};
-use crate::store;
+use super::{not_found, ok, schema, Command};
+use crate::store::TodoStore;
+use afd::{failure, CommandResult};
 use serde::Deserialize;
-use async_trait::async_trait;
+use serde_json::{json, Value};
+use std::sync::Arc;
+
+pub struct Toggle(pub Arc<TodoStore>);
 
 #[derive(Deserialize)]
-pub struct ToggleInput {
-    pub id: String,
+pub struct Input {
+    id: String,
 }
 
-pub struct ToggleHandler;
+impl Command for Toggle {
+    type Input = Input;
+    const NAME: &'static str = "todo-toggle";
+    const DESCRIPTION: &'static str = "Toggle a todo's completion status";
+    const MUTATION: bool = true;
 
-#[async_trait]
-impl CommandHandler for ToggleHandler {
-    async fn execute(&self, input: serde_json::Value, _context: CommandContext) -> CommandResult<serde_json::Value> {
-        let input: ToggleInput = match serde_json::from_value(input) {
-            Ok(i) => i,
-            Err(e) => return failure(CommandError::validation(&e.to_string(), None)),
-        };
+    fn schema() -> Value {
+        json!({
+            "type": "object",
+            "properties": { "id": schema::id() },
+            "required": ["id"]
+        })
+    }
 
-        match store::toggle(&input.id) {
-            Some(todo) => success(serde_json::to_value(todo).unwrap()),
-            None => failure(CommandError::not_found("Todo", &input.id)),
+    fn run(&self, input: Input) -> CommandResult<Value> {
+        match self.0.toggle(&input.id) {
+            Some(todo) => {
+                let action = if todo.completed {
+                    "Marked as complete"
+                } else {
+                    "Marked as incomplete"
+                };
+                let reasoning = format!("{action}: \"{}\"", todo.title);
+                ok(&todo, reasoning, 1.0, Vec::new())
+            }
+            None => failure(not_found(&input.id)),
         }
     }
 }
