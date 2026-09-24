@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { DataAdapterError } from './adapter-support.js';
 import { createHttpAdapter, HttpAdapter } from './http-adapter.js';
 import type { DataAdapter } from './types.js';
 
@@ -199,6 +200,63 @@ describe('HttpAdapter', () => {
 		});
 		const adapter = new HttpAdapter('/api/v1', { fetch });
 		await expect(adapter.list('accounts')).rejects.toThrow('HTTP 500');
+	});
+
+	it.each([
+		['chat_messages', '/api/v1/chat/messages/m1'],
+		['chat_sessions', '/api/v1/chat/sessions/m1'],
+		['feature_flags', '/api/v1/flags/m1'],
+	])('maps the %s table to its own path', async (table, expectedUrl) => {
+		const fetch = mockFetch({ [expectedUrl]: { status: 200, body: { id: 'm1' } } });
+		const adapter = new HttpAdapter('/api/v1', { fetch });
+
+		await adapter.get(table, 'm1');
+
+		expect(fetch).toHaveBeenCalledWith(expectedUrl, undefined);
+	});
+
+	it.each([
+		['constructor', '/api/v1/constructor'],
+		['__proto__', '/api/v1/__proto__'],
+		['hasOwnProperty', '/api/v1/hasOwnProperty'],
+		['../admin', '/api/v1/..%2Fadmin'],
+		['a b?c', '/api/v1/a%20b%3Fc'],
+	])('sends the unmapped table %j as one encoded path segment', async (table, expectedUrl) => {
+		const fetch = mockFetch({ [expectedUrl]: { status: 200, body: { data: [], total: 0 } } });
+		const adapter = new HttpAdapter('/api/v1', { fetch });
+
+		await adapter.list(table);
+
+		expect(fetch).toHaveBeenCalledWith(expectedUrl, undefined);
+	});
+
+	it('rejects dot-segment table and record names before sending anything', async () => {
+		const fetch = mockFetch({});
+		const adapter = new HttpAdapter('/api/v1', { fetch });
+
+		await expect(adapter.list('..')).rejects.toMatchObject({ status: 400, code: 'INVALID_NAME' });
+		await expect(adapter.get('accounts', '..')).rejects.toBeInstanceOf(DataAdapterError);
+		await expect(adapter.remove('accounts', '.')).rejects.toMatchObject({ status: 400 });
+		expect(fetch).not.toHaveBeenCalled();
+	});
+
+	it('rejects failures with a DataAdapterError carrying the status', async () => {
+		const fetch = mockFetch({ '/api/v1/accounts': { status: 409, body: { error: 'taken' } } });
+		const adapter = new HttpAdapter('/api/v1', { fetch });
+
+		await expect(adapter.create('accounts', { id: 'a' })).rejects.toMatchObject({
+			name: 'DataAdapterError',
+			status: 409,
+			code: 'CONFLICT',
+			message: 'HTTP 409: {"error":"taken"}',
+		});
+	});
+
+	it('treats deleting a missing record as success', async () => {
+		const fetch = mockFetch({ DELETE: { status: 404, body: { error: 'Not found' } } });
+		const adapter = new HttpAdapter('/api/v1', { fetch });
+
+		await expect(adapter.remove('accounts', 'gone')).resolves.toBeUndefined();
 	});
 
 	it('uses custom path map', async () => {

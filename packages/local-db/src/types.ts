@@ -55,6 +55,11 @@ export interface HealthStatus {
  * - `MemoryAdapter` — in-memory Maps, for unit tests
  * - `HttpAdapter` — fetch-based, for REST API backends (SQLite, Postgres, etc.)
  * - Custom adapters can wrap IndexedDB, Firestore, Cosmos DB, etc.
+ *
+ * Both built-in adapters pass the same contract suite: records are JSON copies (never live
+ * references to stored data), table names are arbitrary strings except `''`, `.` and `..`
+ * (rejected with a 400 `DataAdapterError`), and failures reject with a `DataAdapterError`
+ * whose `status` follows HTTP.
  */
 export interface DataAdapter {
 	/** Get a single record by ID. Returns null if not found. */
@@ -66,13 +71,27 @@ export interface DataAdapter {
 	/** Create a new record. Returns the created record. */
 	create<T>(table: string, data: Partial<T>): Promise<T>;
 
-	/** Update an existing record by ID. Returns the updated record. */
+	/**
+	 * Merge a patch into an existing record by ID. Returns the updated record. A missing record
+	 * rejects with a 404 `DataAdapterError`, except in the upsert tables (`settings`, `flags`,
+	 * `feature_flags`, `feature_data`, `keyboard_shortcuts`), where it is created.
+	 */
 	update<T>(table: string, id: string, patch: Partial<T>): Promise<T>;
 
-	/** Delete a record by ID. */
+	/** Delete a record by ID. Deleting a missing record succeeds. */
 	remove(table: string, id: string): Promise<void>;
 
-	/** Execute multiple operations atomically. */
+	/**
+	 * Execute multiple operations atomically, in order. Paths are `/<table>` or
+	 * `/<table>/<id>` with percent-encoded segments; `PUT` upserts and `PATCH` needs an existing
+	 * record.
+	 *
+	 * If every operation succeeds, all writes are applied. If any fails (status 400 or above,
+	 * except a `GET` of a missing record, which reports 404 with `data: null`), execution stops
+	 * and no write is applied: the failed operation keeps its status and error, every other
+	 * operation reports `424` (Failed Dependency), and the summary counts all operations as
+	 * failed.
+	 */
 	batch(operations: BatchOperation[]): Promise<BatchResult>;
 
 	/** Check backend health. */
