@@ -4,12 +4,22 @@ on:
   push:
     branches: [main]
     paths:
+      # alfred's tests read the Python package, the wire fixtures and the
+      # TypeScript/Rust export surfaces, so changes there must run them too.
       - 'alfred/**'
+      - 'python/**'
+      - 'spec/**'
+      - 'packages/**'
       - '.github/workflows/alfred.yml'
   pull_request:
     branches: [main]
     paths:
+      # alfred's tests read the Python package, the wire fixtures and the
+      # TypeScript/Rust export surfaces, so changes there must run them too.
       - 'alfred/**'
+      - 'python/**'
+      - 'spec/**'
+      - 'packages/**'
       - '.github/workflows/alfred.yml'
 
 permissions:
