@@ -438,8 +438,10 @@ async def test_parity_missing_files():
 # closes. Raising one means a language fell further behind TypeScript; do it
 # only with a reason in the pull request.
 NAME_GAP_BUDGET = {
-    "missing_from_python": 97,
-    "missing_from_rust": 9,
+    # 97 → 98 and 9 → 10: TypeScript's StreamExecutorOptions (the executeStream
+    # timeout). Neither language has an executor options type, like ExecutorOptions.
+    "missing_from_python": 98,
+    "missing_from_rust": 10,
 }
 
 # Exports every language must have; if one disappears the parser is broken.
