@@ -1,5 +1,0 @@
----
-'@lushly-dev/afd-server': patch
----
-
-The server engine now runs `afd-batch`, `/batch` and `/stream` through the core `executeBatch()` and `executeStream()` executors, with its own `executeCommand` as the callback, and builds thrown-handler failures with the core `executionFailure()`. The server, the core registry and DirectClient now share one batch and stream implementation. Observable differences from the server's former copies: an invalid batch envelope's `INVALID_BATCH_REQUEST` suggestion uses the core wording; a stream whose `context.signal` is aborted before or during execution ends with a single `STREAM_ABORTED` error chunk (the command does not run when the signal was already aborted); a failure result without an `error` streams as `COMMAND_FAILED` with a suggestion; stream `STREAM_ERROR` chunks carry a suggestion; a callback that rejects becomes a per-entry `COMMAND_EXECUTION_ERROR` instead of rejecting the whole batch; and in `devMode` a thrown non-`Error` value no longer gets a synthetic stack in `details`.
