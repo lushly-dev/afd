@@ -290,7 +290,8 @@ describe('DirectClient', () => {
 			const name = 'todo-'.repeat(20 * 1024);
 			const start = performance.now();
 			const result = await client.call(name, {});
-			expect(performance.now() - start).toBeLessThan(100);
+			// Generous for loaded CI runners; a quadratic fuzzy match takes far longer.
+			expect(performance.now() - start).toBeLessThan(1_000);
 
 			expect(result.success).toBe(false);
 			expect(result.error?.code).toBe('UNKNOWN_TOOL');

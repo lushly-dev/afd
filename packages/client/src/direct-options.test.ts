@@ -128,17 +128,13 @@ describe('DirectClient allow option', () => {
 describe('DirectClient timeout', () => {
 	it('returns a TIMEOUT failure when the command outlasts context.timeout', async () => {
 		const { registry } = createRegistry({
-			'slow-run': async () => {
-				await delay(200);
-				return { success: true, data: 'late' };
-			},
+			// Never settles: without an enforced timeout the test itself times out.
+			'slow-run': () => new Promise<CommandResult>(() => {}),
 		});
 		const client = createDirectClient(registry);
 
-		const started = performance.now();
 		const result = await client.call('slow-run', {}, { timeout: 20 });
 
-		expect(performance.now() - started).toBeLessThan(150);
 		expect(result.success).toBe(false);
 		expect(result.error).toMatchObject({
 			code: 'TIMEOUT',

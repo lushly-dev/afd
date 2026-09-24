@@ -1,4 +1,3 @@
-// afd-override: max-lines=700 — public in-process client APIs and their examples; pipeline execution delegates to core
 /**
  * @fileoverview Direct Transport for zero-overhead in-process command execution
  *
