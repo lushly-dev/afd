@@ -233,6 +233,56 @@ def error(
     )
 
 
+INVALID_COMMAND_RESULT = "INVALID_COMMAND_RESULT"
+"""Error code for a handler that returned something other than a CommandResult."""
+
+
+def coerce_command_result(value: Any, command: str) -> CommandResult[Any]:
+    """Return ``value`` as a CommandResult, or a failure explaining why it is not one.
+
+    Batches and pipelines aggregate CommandResults after the commands have run,
+    so aggregation must never raise. A dict with a boolean ``success`` is
+    parsed (camelCase or snake_case keys). Anything else, or a dict that does
+    not parse, becomes an ``INVALID_COMMAND_RESULT`` failure. The command may
+    already have had side effects, so that failure is not retryable.
+
+    Args:
+        value: What the command (or its middleware) returned.
+        command: The command name, for the error message.
+
+    Returns:
+        ``value`` itself when it is a CommandResult, otherwise a CommandResult.
+
+    Example:
+        >>> coerce_command_result({"success": True, "data": 1}, "x").data
+        1
+        >>> coerce_command_result([1], "x").error.code
+        'INVALID_COMMAND_RESULT'
+    """
+    if isinstance(value, CommandResult):
+        return value
+    if isinstance(value, dict) and isinstance(value.get("success"), bool):
+        try:
+            return CommandResult.model_validate(value)
+        except ValueError:
+            pass
+    return CommandResult(
+        success=False,
+        error=CommandError(
+            code=INVALID_COMMAND_RESULT,
+            message=(
+                f"Command '{command[:128]}' returned {type(value).__name__} "
+                "instead of a CommandResult"
+            ),
+            suggestion=(
+                "The command may have run: check its effects before retrying. "
+                "Its handler must return success(...) or error(...)."
+            ),
+            retryable=False,
+        ),
+    )
+
+
 def is_success(result: CommandResult[T]) -> bool:
     """Check if a result is successful.
     

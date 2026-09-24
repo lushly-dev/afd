@@ -103,12 +103,16 @@ class TestResultWireFormat:
         is_error, body = await _call(_server(), "todo-create", {"title": "Buy milk"})
 
         assert is_error is False
+        # The server sets executionTimeMs and traceId (run-dependent), as in TypeScript.
+        metadata = body.pop("metadata")
+        assert metadata.pop("executionTimeMs") >= 0
+        assert metadata.pop("traceId").startswith("trace-")
+        assert metadata == {"commandVersion": "1.0.0"}
         assert body == {
             "success": True,
             "data": {"id": "todo-1", "title": "Buy milk", "description": None},
             "reasoning": "Created",
             "sources": [{"type": "document", "accessedAt": "2026-01-01T00:00:00Z"}],
-            "metadata": {"executionTimeMs": 1.5, "commandVersion": "1.0.0"},
             "undoCommand": "todo-delete",
             "undoArgs": {"id": "todo-1"},
         }
@@ -118,6 +122,7 @@ class TestResultWireFormat:
         is_error, body = await _call(_server(), "todo-get", {"id": "x"})
 
         assert is_error is True
+        assert set(body.pop("metadata")) == {"executionTimeMs", "traceId"}
         assert body == {
             "success": False,
             "error": {

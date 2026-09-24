@@ -24,6 +24,7 @@ Example:
     ...     return success(GreetOutput(message=f"Hello, {input.name}!"))
 """
 
+import inspect
 from dataclasses import dataclass, field
 from functools import wraps
 from typing import (
@@ -140,6 +141,8 @@ def define_command(
         if handoff_protocol and f"handoff:{handoff_protocol}" not in effective_tags:
             effective_tags.append(f"handoff:{handoff_protocol}")
         normalized_examples = _normalize_examples(examples or [], input_schema)
+        # Inspect the signature once, not on every call.
+        accepts_context = _accepts_context(func)
 
         # Attach metadata to the function
         func.__afd_command__ = CommandMetadata(
@@ -175,10 +178,9 @@ def define_command(
             else:
                 validated_input = raw_input
             
-            # Call the original handler
-            result = await func(validated_input, context) if _accepts_context(func) else await func(validated_input)
-            
-            return result
+            if accepts_context:
+                return await func(validated_input, context)
+            return await func(validated_input)
         
         # Copy metadata to wrapper
         wrapper.__afd_command__ = func.__afd_command__
@@ -190,13 +192,11 @@ def define_command(
 
 def _accepts_context(func: Callable) -> bool:
     """Check if function accepts a context parameter."""
-    import inspect
     try:
-        sig = inspect.signature(func)
-        params = list(sig.parameters.keys())
-        return "context" in params or len(params) > 1
-    except Exception:
+        params = list(inspect.signature(func).parameters)
+    except (TypeError, ValueError):  # builtins and some callables have no signature
         return False
+    return "context" in params or len(params) > 1
 
 
 def has_command_metadata(func: Callable) -> bool:
