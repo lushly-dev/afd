@@ -6,6 +6,7 @@ import type { McpRequest, McpResponse } from '@lushly-dev/afd-core';
 import { isMcpResponse } from '@lushly-dev/afd-core';
 import { EventSource } from 'eventsource';
 import { HttpStatusError } from './client-errors.js';
+import { McpSession } from './mcp-session.js';
 
 /**
  * Consecutive network failures (no HTTP response at all) after which `HttpTransport` reports the
@@ -63,66 +64,18 @@ export interface Transport {
 
 	/** Set close handler */
 	onClose(handler: () => void): void;
-}
-
-/**
- * The MCP session a server issued in the `Mcp-Session-Id` header of its `initialize`
- * response. It is repeated on later requests, so per-session server state (such as the
- * active context of `afd-context-enter`) belongs to this client alone.
- */
-class McpSession {
-	private id: string | undefined;
-	private initialize: McpRequest | undefined;
-
-	reset(): void {
-		this.id = undefined;
-		this.initialize = undefined;
-	}
 
 	/**
-	 * POST one JSON-RPC request. If the server answers 404 to a request that carried a
-	 * session (it restarted or expired the session), start a new session with the same
-	 * `initialize` request and retry once; the server ran nothing for the rejected request.
+	 * The MCP session ID the server issued in its `initialize` response, if any. `McpClient`
+	 * sends it with `stream()` requests, so a stream shares the session's context state.
 	 */
-	async post(
-		url: string,
-		headers: Record<string, string> | undefined,
-		request: McpRequest,
-		signal: AbortSignal
-	): Promise<Response> {
-		if (request.method === 'initialize') {
-			this.id = undefined;
-			this.initialize = request;
-		}
-		const sentSession = this.id !== undefined;
-		const response = await this.send(url, headers, request, signal);
-		if (response.status !== 404 || !sentSession || !this.initialize) return response;
-		this.id = undefined;
-		const renewed = await this.send(url, headers, this.initialize, signal);
-		await renewed.body?.cancel();
-		return this.send(url, headers, request, signal);
-	}
+	readonly sessionId?: string;
 
-	private async send(
-		url: string,
-		headers: Record<string, string> | undefined,
-		request: McpRequest,
-		signal: AbortSignal
-	): Promise<Response> {
-		const response = await fetch(url, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				...headers,
-				...(this.id ? { 'Mcp-Session-Id': this.id } : {}),
-			},
-			body: JSON.stringify(request),
-			signal,
-		});
-		const issued = response.headers?.get('mcp-session-id');
-		if (issued) this.id = issued;
-		return response;
-	}
+	/**
+	 * Start a new session with the last `initialize` request after the server rejected the
+	 * current one (404). Resolves `false`, sending nothing, when there is no session to renew.
+	 */
+	renewSession?(signal?: AbortSignal): Promise<boolean>;
 }
 
 /**
@@ -279,6 +232,19 @@ export class SseTransport implements Transport {
 		}
 	}
 
+	get sessionId(): string | undefined {
+		return this.session.sessionId;
+	}
+
+	async renewSession(signal?: AbortSignal): Promise<boolean> {
+		const { controller, signal: requestSignal } = this.createRequestController(signal);
+		try {
+			return await this.session.renew(this.messageEndpoint, this.headers, requestSignal);
+		} finally {
+			this.activeControllers.delete(controller);
+		}
+	}
+
 	isConnected(): boolean {
 		return this.connected && this.eventSource?.readyState === EventSource.OPEN;
 	}
@@ -393,6 +359,19 @@ export class HttpTransport implements Transport {
 			}
 
 			return data;
+		} finally {
+			this.activeControllers.delete(controller);
+		}
+	}
+
+	get sessionId(): string | undefined {
+		return this.session.sessionId;
+	}
+
+	async renewSession(signal?: AbortSignal): Promise<boolean> {
+		const { controller, signal: requestSignal } = this.createRequestController(signal);
+		try {
+			return await this.session.renew(this.messageUrl, this.headers, requestSignal);
 		} finally {
 			this.activeControllers.delete(controller);
 		}

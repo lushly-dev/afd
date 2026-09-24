@@ -2,10 +2,10 @@
  * Context scoping over HTTP is per MCP session: one client entering a context must not change
  * another client's tool list or execution (quality review H3).
  */
-import { createServer } from 'node:http';
+import { createServer, type IncomingMessage } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { McpClient } from '@lushly-dev/afd-client';
-import { success } from '@lushly-dev/afd-core';
+import { type StreamChunk, success } from '@lushly-dev/afd-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineCommand } from './schema.js';
@@ -28,7 +28,10 @@ const commands = ['edit', 'print'].map((context) =>
 	})
 );
 
-async function host(options: Partial<McpHandlerOptions> = {}) {
+async function host(
+	options: Partial<McpHandlerOptions> = {},
+	observe?: (req: IncomingMessage) => void
+) {
 	const handler = createMcpHandler({
 		name: 'sessions',
 		version: '1',
@@ -38,7 +41,10 @@ async function host(options: Partial<McpHandlerOptions> = {}) {
 		toolStrategy: 'individual',
 		...options,
 	});
-	const server = createServer(handler);
+	const server = createServer((req, res) => {
+		observe?.(req);
+		return handler(req, res);
+	});
 	await new Promise<void>((resolve, reject) => {
 		server.once('error', reject);
 		server.listen(0, '127.0.0.1', resolve);
@@ -237,5 +243,81 @@ describe('per-session context state over HTTP', () => {
 		expect((await b.listTools()).map((tool) => tool.name)).toContain('edit-run');
 		expect((await a.call('edit-run', {})).error?.code).toBe('COMMAND_NOT_IN_CONTEXT');
 		expect((await b.call('edit-run', {})).success).toBe(true);
+	});
+});
+
+describe('McpClient.stream() in the client session', () => {
+	/** The stream's chunk types, and its data or error code. */
+	async function outcome(stream: AsyncIterable<StreamChunk>) {
+		const types: string[] = [];
+		const data: unknown[] = [];
+		let errorCode: string | undefined;
+		for await (const chunk of stream) {
+			types.push(chunk.type);
+			if (chunk.type === 'data') data.push(chunk.data);
+			if (chunk.type === 'error') errorCode = chunk.error.code;
+		}
+		return { types, data, errorCode };
+	}
+
+	async function connected(url: string, transport: 'http' | 'sse') {
+		const client = new McpClient({
+			url: `${url}/${transport === 'sse' ? 'sse' : 'message'}`,
+			transport,
+			autoReconnect: false,
+		});
+		cleanups.push(() => client.disconnect());
+		await client.connect();
+		return client;
+	}
+
+	it.each(['http', 'sse'] as const)('honors the active context over %s', async (transport) => {
+		const streamSessions: Array<string | undefined> = [];
+		const url = await host({}, (req) => {
+			if (req.url?.startsWith('/stream/')) {
+				streamSessions.push(req.headers['mcp-session-id'] as string | undefined);
+			}
+		});
+		const client = await connected(url, transport);
+
+		expect((await client.call('afd-context-enter', { context: 'edit' })).success).toBe(true);
+		// Without the session a stream runs statelessly and print-run would succeed.
+		expect(await outcome(client.stream('print-run'))).toEqual({
+			types: ['error'],
+			data: [],
+			errorCode: 'COMMAND_NOT_IN_CONTEXT',
+		});
+		expect(await outcome(client.stream('edit-run'))).toEqual({
+			types: ['data', 'complete'],
+			data: [{ ran: 'edit' }],
+			errorCode: undefined,
+		});
+		expect(streamSessions).toHaveLength(2);
+		expect(streamSessions[0]).toMatch(/^[0-9a-f-]{36}$/);
+		expect(streamSessions[1]).toBe(streamSessions[0]);
+	});
+
+	it('renews an expired session and retries the stream once', async () => {
+		const streamSessions: Array<string | undefined> = [];
+		const url = await host({ sessionIdleTimeoutMs: 50 }, (req) => {
+			if (req.url?.startsWith('/stream/')) {
+				streamSessions.push(req.headers['mcp-session-id'] as string | undefined);
+			}
+		});
+		const client = await connected(url, 'http');
+		expect((await client.call('afd-context-enter', { context: 'edit' })).success).toBe(true);
+		await new Promise((resolve) => setTimeout(resolve, 80));
+
+		// The server answers 404 for the expired session; the new session has no active context.
+		expect(await outcome(client.stream('print-run'))).toEqual({
+			types: ['data', 'complete'],
+			data: [{ ran: 'print' }],
+			errorCode: undefined,
+		});
+		expect(streamSessions).toHaveLength(2);
+		expect(streamSessions[0]).toMatch(/^[0-9a-f-]{36}$/);
+		expect(streamSessions[1]).toMatch(/^[0-9a-f-]{36}$/);
+		expect(streamSessions[1]).not.toBe(streamSessions[0]);
+		expect((await client.call('afd-context-list')).data).toMatchObject({ activeContext: null });
 	});
 });

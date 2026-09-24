@@ -214,6 +214,10 @@ always a `complete` or `error` chunk. The client makes the error chunk itself wh
 | `STREAM_CANCELLED` | `options.signal` aborted, or `disconnect()` was called |
 | `STREAM_EVENT_TOO_LARGE` | One event exceeded `maxStreamEventSize` (default 1 MiB) |
 
+A stream runs in the client's MCP session: it sends the `Mcp-Session-Id` from `initialize`, so
+it sees the active context entered with `afd-context-enter`, like `call()`. If the server has
+expired the session (HTTP 404), the client starts a new session and retries the stream once.
+
 ## Configuration
 
 ```typescript

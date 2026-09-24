@@ -108,16 +108,54 @@ async function httpFailure(response: Response): Promise<CommandError> {
 	};
 }
 
+/** The client's MCP session, as its transport exposes it. */
+export interface StreamSession {
+	/** Sent as `Mcp-Session-Id` when set. */
+	readonly sessionId?: string;
+	/** Start a new session after the server rejected this one; `false` when it cannot. */
+	renewSession?(signal?: AbortSignal): Promise<boolean>;
+}
+
 /** Options for {@link streamOverHttp}. */
 export interface HttpStreamRequest {
 	url: string;
 	args: Record<string, unknown> | undefined;
 	headers: Record<string, string>;
+	/** The session the stream runs in, so it sees the session's active context. */
+	session?: StreamSession;
 	signal: AbortSignal;
 	abort: StreamAbortState;
 	timeoutMs: number | undefined;
 	maxEventSize: number;
 	debug: (message: string, data?: unknown) => void;
+}
+
+function postStream(request: HttpStreamRequest, sessionId: string | undefined): Promise<Response> {
+	return fetch(request.url, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			Accept: 'text/event-stream',
+			...request.headers,
+			...(sessionId ? { 'Mcp-Session-Id': sessionId } : {}),
+		},
+		body: JSON.stringify(request.args ?? {}),
+		signal: request.signal,
+	});
+}
+
+/**
+ * POST the stream request in the client's session. A 404 to a request that carried a session
+ * means the server expired or forgot it: renew the session and retry once, as `/message`
+ * requests do. The server ran nothing for the rejected request.
+ */
+async function openStream(request: HttpStreamRequest): Promise<Response> {
+	const sessionId = request.session?.sessionId;
+	const response = await postStream(request, sessionId);
+	if (response.status !== 404 || !sessionId) return response;
+	if (!(await request.session?.renewSession?.(request.signal))) return response;
+	await response.body?.cancel();
+	return postStream(request, request.session?.sessionId);
 }
 
 /**
@@ -129,16 +167,7 @@ export async function* streamOverHttp<T>(
 	let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
 	let chunks = 0;
 	try {
-		const response = await fetch(request.url, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				Accept: 'text/event-stream',
-				...request.headers,
-			},
-			body: JSON.stringify(request.args ?? {}),
-			signal: request.signal,
-		});
+		const response = await openStream(request);
 		if (!response.ok) {
 			yield streamErrorChunk(await httpFailure(response), 0);
 			return;

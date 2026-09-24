@@ -195,15 +195,37 @@ describe('MCP session header', () => {
 			.mockResolvedValueOnce(reply(2));
 		vi.stubGlobal('fetch', fetchMock);
 		const transport = create('http://localhost:3100/message');
+		expect(transport.sessionId).toBeUndefined();
 		await transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize' });
+		expect(transport.sessionId).toBe('session-1');
 		await transport.send({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
 		expect(sentSession(fetchMock, 0)).toBeUndefined();
 		expect(sentSession(fetchMock, 1)).toBe('session-1');
 
 		transport.disconnect();
+		expect(transport.sessionId).toBeUndefined();
 		fetchMock.mockResolvedValueOnce(reply(3));
 		await transport.send({ jsonrpc: '2.0', id: 3, method: 'tools/list' });
 		expect(sentSession(fetchMock, 2)).toBeUndefined();
+	});
+
+	it.each([
+		['http', (url: string) => new HttpTransport(url)],
+		['sse', (url: string) => new SseTransport(url.replace('/message', '/sse'))],
+	] as const)('%s transport renews its session with the last initialize', async (_name, create) => {
+		const fetchMock = vi.fn().mockResolvedValueOnce(reply(1, { 'Mcp-Session-Id': 'old' }));
+		vi.stubGlobal('fetch', fetchMock);
+		const transport = create('http://localhost:3100/message');
+		expect(await transport.renewSession()).toBe(false);
+		expect(fetchMock).not.toHaveBeenCalled();
+
+		await transport.send({ jsonrpc: '2.0', id: 1, method: 'initialize' });
+		fetchMock.mockResolvedValueOnce(reply(1, { 'Mcp-Session-Id': 'new' }));
+		expect(await transport.renewSession()).toBe(true);
+		expect(transport.sessionId).toBe('new');
+		expect(fetchMock.mock.calls[1]?.[0]).toBe('http://localhost:3100/message');
+		expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body)).method).toBe('initialize');
+		expect(sentSession(fetchMock, 1)).toBeUndefined();
 	});
 
 	it('starts a new session and retries once when the server forgot the session', async () => {
