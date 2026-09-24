@@ -14,8 +14,8 @@ Example:
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
-from typing import Iterable, Iterator, List, Optional
 
 
 @dataclass
@@ -24,20 +24,20 @@ class SseEvent:
 
     data: str
     event: str = "message"
-    id: Optional[str] = None
-    retry: Optional[int] = None
+    id: str | None = None
+    retry: int | None = None
 
 
 class SseDecoder:
     """Turn event-stream lines (without their line endings) into events."""
 
     def __init__(self) -> None:
-        self._data: List[str] = []
+        self._data: list[str] = []
         self._event = ""
-        self._last_id: Optional[str] = None
-        self._retry: Optional[int] = None
+        self._last_id: str | None = None
+        self._retry: int | None = None
 
-    def decode(self, line: str) -> Optional[SseEvent]:
+    def decode(self, line: str) -> SseEvent | None:
         """Feed one line; return the event a blank line completes, else None."""
         line = line.rstrip("\r\n")
         if not line:

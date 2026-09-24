@@ -6,18 +6,12 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import (
     Any,
-    Callable,
-    Dict,
-    FrozenSet,
-    List,
-    Optional,
     Protocol,
-    Tuple,
-    Type,
     TypeVar,
     runtime_checkable,
 )
@@ -73,7 +67,7 @@ TOutput = TypeVar("TOutput")
 # Never log to stdout: the stdio transport uses it for JSON-RPC.
 logger = logging.getLogger("afd.server")
 
-META_TOOL_NAMES: FrozenSet[str] = frozenset(
+META_TOOL_NAMES: frozenset[str] = frozenset(
     {"afd-call", "afd-batch", "afd-pipe", "afd-discover", "afd-detail"}
 )
 """Tools the router handles itself. They are not commands: a command cannot use
@@ -105,12 +99,12 @@ class ServerConfig:
 
     name: str
     version: str = "1.0.0"
-    description: Optional[str] = None
-    transport: Optional[str] = "fastmcp"
-    middleware: List[CommandMiddleware] = field(default_factory=list)
+    description: str | None = None
+    transport: str | None = "fastmcp"
+    middleware: list[CommandMiddleware] = field(default_factory=list)
     tool_strategy: ToolStrategy = "individual"
-    contexts: List[ContextConfig] = field(default_factory=list)
-    group_by: Optional[GroupByFn] = None
+    contexts: list[ContextConfig] = field(default_factory=list)
+    group_by: GroupByFn | None = None
     dev_mode: bool = False
     max_batch_size: int = DEFAULT_MAX_BATCH_SIZE
     max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM
@@ -124,15 +118,15 @@ class MCPServer:
             raise ValueError("max_batch_size and max_batch_parallelism must be at least 1")
         self.config = config
         self._registry = create_command_registry()
-        self._commands: Dict[str, Callable] = {}
-        self._metadata: Dict[str, CommandMetadata] = {}
+        self._commands: dict[str, Callable] = {}
+        self._metadata: dict[str, CommandMetadata] = {}
         self._mcp_server = None
-        self._middleware: List[CommandMiddleware] = list(config.middleware)
+        self._middleware: list[CommandMiddleware] = list(config.middleware)
         self._context_state: ContextState = create_context_state()
-        self._bootstrap_commands: Optional[List[CommandDefinition]] = None
+        self._bootstrap_commands: list[CommandDefinition] | None = None
         # Per-call caches, rebuilt after register() or a context change.
-        self._command_index: Optional[Dict[str, CommandDefinition]] = None
-        self._router: Optional[Callable[[str, Any], Any]] = None
+        self._command_index: dict[str, CommandDefinition] | None = None
+        self._router: Callable[[str, Any], Any] | None = None
 
     @property
     def name(self) -> str:
@@ -150,22 +144,22 @@ class MCPServer:
     def context_state(self) -> ContextState:
         return self._context_state
 
-    def list_contexts(self) -> List[ContextConfig]:
+    def list_contexts(self) -> list[ContextConfig]:
         return list(self.config.contexts)
 
     def command(
         self,
         name: str,
         description: str,
-        category: Optional[str] = None,
-        input_schema: Optional[Type[BaseModel]] = None,
-        output_schema: Optional[Type[BaseModel]] = None,
-        tags: Optional[List[str]] = None,
+        category: str | None = None,
+        input_schema: type[BaseModel] | None = None,
+        output_schema: type[BaseModel] | None = None,
+        tags: list[str] | None = None,
         mutation: bool = False,
-        examples: Optional[List[CommandExample | Dict[str, Any]]] = None,
-        requires: Optional[List[str]] = None,
-        contexts: Optional[List[str]] = None,
-        expose: Optional[ExposeOptions] = None,
+        examples: list[CommandExample | dict[str, Any]] | None = None,
+        requires: list[str] | None = None,
+        contexts: list[str] | None = None,
+        expose: ExposeOptions | None = None,
     ) -> Callable:
         """Decorator to register a command with this server."""
 
@@ -222,9 +216,9 @@ class MCPServer:
         self._command_index = None
         self._router = None
 
-    def _get_bootstrap_commands(self) -> List[CommandDefinition]:
+    def _get_bootstrap_commands(self) -> list[CommandDefinition]:
         if self._bootstrap_commands is None:
-            options: Dict[str, Any] = {
+            options: dict[str, Any] = {
                 "get_json_schema": lambda command: command.input_schema or {},
             }
             if self.config.contexts:
@@ -240,7 +234,7 @@ class MCPServer:
             )
         return list(self._bootstrap_commands)
 
-    def _get_command_index(self) -> Dict[str, CommandDefinition]:
+    def _get_command_index(self) -> dict[str, CommandDefinition]:
         """Name -> definition for registered and bootstrap commands (cached)."""
         if self._command_index is None:
             index = {command.name: command for command in self._get_bootstrap_commands()}
@@ -254,7 +248,7 @@ class MCPServer:
         *,
         include_bootstrap: bool = False,
         context_filtered: bool = False,
-    ) -> List[CommandDefinition]:
+    ) -> list[CommandDefinition]:
         """List registered commands."""
 
         commands = list(self._registry.list())
@@ -273,7 +267,7 @@ class MCPServer:
         *,
         include_bootstrap: bool = True,
         context_filtered: bool = False,
-    ) -> Optional[CommandDefinition]:
+    ) -> CommandDefinition | None:
         command = (
             self._get_command_index().get(name)
             if include_bootstrap
@@ -295,7 +289,7 @@ class MCPServer:
         interface: str = "mcp",
         include_bootstrap: bool = True,
         context_filtered: bool = False,
-    ) -> List[CommandDefinition]:
+    ) -> list[CommandDefinition]:
         """List commands exposed on a specific interface."""
 
         return [
@@ -311,7 +305,7 @@ class MCPServer:
         self,
         command: CommandDefinition,
         input: Any,
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
     ) -> CommandResult:
         context = context or CommandContext()
 
@@ -390,7 +384,7 @@ class MCPServer:
         self,
         name: str,
         input: Any,
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
     ) -> CommandResult:
         command = self._find_command(name, include_bootstrap=True, context_filtered=True)
         if command is None:
@@ -412,7 +406,7 @@ class MCPServer:
         self,
         name: str,
         input: Any,
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
     ) -> Any:
         """Run a command (never a built-in tool) through the middleware chain.
 
@@ -440,7 +434,7 @@ class MCPServer:
         self,
         name: str,
         input: Any,
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
     ) -> Any:
         """Execute a command or built-in tool by name."""
 
@@ -514,9 +508,9 @@ class MCPServer:
 
     # ── Batch ──────────────────────────────────────────────────────────────
 
-    def _batch_problems(self, request: BatchRequest) -> List[Dict[str, Any]]:
+    def _batch_problems(self, request: BatchRequest) -> list[dict[str, Any]]:
         """Envelope problems that reject a whole batch before any command runs."""
-        problems: List[Dict[str, Any]] = []
+        problems: list[dict[str, Any]] = []
         count = len(request.commands)
         if count == 0:
             problems.append(
@@ -562,7 +556,7 @@ class MCPServer:
     async def _execute_batch(
         self,
         request: BatchRequest | dict[str, Any],
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
     ) -> BatchResult:
         """Run a batch with partial-success semantics.
 
@@ -605,8 +599,8 @@ class MCPServer:
         parallelism = min(options.parallelism, total)
         deadline = None if options.timeout is None else start_time + options.timeout / 1000
         batch_trace_id = context.trace_id or new_trace_id("batch")
-        results: List[Optional[BatchCommandResult]] = [None] * total
-        in_flight: Dict["asyncio.Task[CommandResult]", Tuple[int, float]] = {}
+        results: list[BatchCommandResult | None] = [None] * total
+        in_flight: dict[asyncio.Task[CommandResult], tuple[int, float]] = {}
         next_index = 0
         stopped = False
         timed_out = False
@@ -691,7 +685,7 @@ class MCPServer:
             if in_flight:
                 await _cancel_and_wait(in_flight)
 
-        final: List[BatchCommandResult] = []
+        final: list[BatchCommandResult] = []
         for index, item_result in enumerate(results):
             if item_result is None:
                 item = commands[index]
@@ -733,7 +727,7 @@ class MCPServer:
     async def _execute_pipeline(
         self,
         request: PipelineRequest | dict[str, Any],
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
     ) -> PipelineResult[Any]:
         if not isinstance(request, PipelineRequest):
             # Options accept camelCase (continueOnFailure, timeoutMs) and snake_case.
@@ -783,7 +777,7 @@ class MCPServer:
 
         step_context = context or CommandContext()
 
-        async def executor(command_name: str, payload: Dict[str, Any]) -> CommandResult:
+        async def executor(command_name: str, payload: dict[str, Any]) -> CommandResult:
             try:
                 result = await self._execute_command(command_name, payload, step_context)
             except Exception as exc:
@@ -831,7 +825,7 @@ class MCPServer:
 
         return await self.route_tool_call(tool_name, args or {})
 
-    def get_tool_definitions(self) -> List[Dict[str, Any]]:
+    def get_tool_definitions(self) -> list[dict[str, Any]]:
         """Return the MCP-visible tool definitions for the current strategy."""
 
         return get_tools_list(
@@ -841,7 +835,7 @@ class MCPServer:
             active_context=self._context_state.get_active(),
         )
 
-    def get_mcp_tools(self) -> List[Dict[str, Any]]:
+    def get_mcp_tools(self) -> list[dict[str, Any]]:
         """Compatibility wrapper returning current MCP-visible tool definitions."""
 
         return self.get_tool_definitions()
@@ -861,7 +855,7 @@ class MCPServer:
             tool = self._create_fastmcp_tool(tool_definition)
             tool_manager._tools[tool.name] = tool
 
-    def _build_input_model(self, tool_name: str, schema: Dict[str, Any]) -> Type[BaseModel]:
+    def _build_input_model(self, tool_name: str, schema: dict[str, Any]) -> type[BaseModel]:
         """Build a FastMCP argument model that passes arguments through unchanged.
 
         The advertised ``inputSchema`` is the command's schema, but FastMCP does
@@ -882,7 +876,7 @@ class MCPServer:
             __base__=PassthroughArgs,
         )
 
-    def _create_fastmcp_tool(self, tool_definition: Dict[str, Any]):
+    def _create_fastmcp_tool(self, tool_definition: dict[str, Any]):
         from mcp.server.fastmcp.tools import Tool
         from mcp.server.fastmcp.utilities.func_metadata import FuncMetadata
 
@@ -943,7 +937,7 @@ class MCPServer:
             raise ValueError(f"Unknown transport: {transport}")
 
 
-def _in_context(command: CommandDefinition, active_context: Optional[str]) -> bool:
+def _in_context(command: CommandDefinition, active_context: str | None) -> bool:
     """Whether a command is visible in the active context (universal commands always are)."""
     return not active_context or not command.contexts or active_context in command.contexts
 
@@ -952,14 +946,14 @@ def _with_execution_metadata(
     result: CommandResult,
     *,
     execution_time_ms: float,
-    command_version: Optional[str],
-    trace_id: Optional[str],
+    command_version: str | None,
+    trace_id: str | None,
 ) -> CommandResult:
     """A copy of ``result`` whose metadata carries the server's execution fields.
 
     The handler's own result object is never mutated (it may be shared).
     """
-    updates: Dict[str, Any] = {"execution_time_ms": round(execution_time_ms, 2)}
+    updates: dict[str, Any] = {"execution_time_ms": round(execution_time_ms, 2)}
     if command_version:
         updates["command_version"] = command_version
     if trace_id:
@@ -972,7 +966,7 @@ def _with_execution_metadata(
     return result.model_copy(update={"metadata": metadata})
 
 
-async def _cancel_and_wait(tasks: Dict["asyncio.Task[Any]", Any]) -> None:
+async def _cancel_and_wait(tasks: dict[asyncio.Task[Any], Any]) -> None:
     """Cancel tasks and wait until every one of them has finished."""
     for task in tasks:
         task.cancel()
@@ -1004,7 +998,7 @@ def _tool_call_result(result: Any) -> Any:
     )
 
 
-def _describe_validation_error(exc: PydanticValidationError) -> List[Dict[str, Any]]:
+def _describe_validation_error(exc: PydanticValidationError) -> list[dict[str, Any]]:
     """Field paths and messages of a pydantic error, without input values."""
     return [
         {
@@ -1016,7 +1010,7 @@ def _describe_validation_error(exc: PydanticValidationError) -> List[Dict[str, A
     ]
 
 
-def _invalid_batch(problem: Any, *, suggestion: Optional[str] = None) -> BatchResult:
+def _invalid_batch(problem: Any, *, suggestion: str | None = None) -> BatchResult:
     """A failed BatchResult for a request whose envelope is invalid."""
     return create_failed_batch_result(
         CommandError(
@@ -1036,12 +1030,12 @@ def _invalid_batch(problem: Any, *, suggestion: Optional[str] = None) -> BatchRe
 def create_server(
     name: str,
     version: str = "1.0.0",
-    description: Optional[str] = None,
-    middleware: Optional[List[CommandMiddleware]] = None,
+    description: str | None = None,
+    middleware: list[CommandMiddleware] | None = None,
     *,
     tool_strategy: ToolStrategy = "individual",
-    contexts: Optional[List[ContextConfig]] = None,
-    group_by: Optional[GroupByFn] = None,
+    contexts: list[ContextConfig] | None = None,
+    group_by: GroupByFn | None = None,
     dev_mode: bool = False,
     max_batch_size: int = DEFAULT_MAX_BATCH_SIZE,
     max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM,

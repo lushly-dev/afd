@@ -15,8 +15,7 @@ import math
 import sys
 import time
 from collections import OrderedDict
-from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import (
     Any,
     Awaitable,
@@ -618,15 +617,15 @@ def create_telemetry_middleware(
                 ),
             )
 
+            # A failing sink must not change the command result, but is logged.
             try:
                 record_result = sink.record(event)
                 if asyncio.isfuture(record_result) or asyncio.iscoroutine(record_result):
-                    try:
-                        await record_result
-                    except Exception:
-                        pass
+                    await record_result
             except Exception:
-                pass
+                logging.getLogger("afd.middleware").warning(
+                    "Telemetry sink failed to record '%s'", command_name, exc_info=True
+                )
 
         if result is None:
             from afd.core.result import failure

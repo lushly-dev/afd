@@ -14,12 +14,11 @@ Example:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Dict, Optional
 
 import httpx
 
 from afd.transports.base import (
-    ToolInfo,
     TransportError,
     TransportState,
 )

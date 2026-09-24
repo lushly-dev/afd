@@ -12,11 +12,9 @@ from typing import Any
 from urllib.parse import urlparse
 
 import click
-from rich.console import Console
 
 from afd.cli.output import (
     console,
-    error_console,
     print_connecting,
     print_disconnecting,
     print_error,

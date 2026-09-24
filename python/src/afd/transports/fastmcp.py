@@ -12,14 +12,13 @@ Example:
 """
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional
 
 from afd.core.wire import to_wire
 from afd.transports.base import (
     ToolInfo,
     ToolNotFoundError,
-    Transport,
     TransportConfig,
     TransportState,
 )

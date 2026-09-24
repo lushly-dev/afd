@@ -30,18 +30,12 @@ import json
 import logging
 import random
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import Enum
 from typing import (
     Any,
-    Awaitable,
-    Callable,
-    Dict,
-    List,
-    Optional,
     Protocol,
-    Set,
-    Tuple,
     runtime_checkable,
 )
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
@@ -149,14 +143,14 @@ class HandoffConnectionOptions:
         on_state_change: Called when connection state changes.
     """
 
-    on_connect: Optional[Callable[[Any], None]] = None
-    on_message: Optional[Callable[[Any], None]] = None
-    on_disconnect: Optional[Callable[[Optional[int], Optional[str]], None]] = None
-    on_error: Optional[Callable[[Exception], None]] = None
-    on_state_change: Optional[Callable[[HandoffConnectionState], None]] = None
+    on_connect: Callable[[Any], None] | None = None
+    on_message: Callable[[Any], None] | None = None
+    on_disconnect: Callable[[int | None, str | None], None] | None = None
+    on_error: Callable[[Exception], None] | None = None
+    on_state_change: Callable[[HandoffConnectionState], None] | None = None
 
 
-def _call_safely(callback: Optional[Callable[..., Any]], *args: Any) -> None:
+def _call_safely(callback: Callable[..., Any] | None, *args: Any) -> None:
     """Run a user callback. An exception is logged, never raised into our tasks."""
     if callback is None:
         return
@@ -180,7 +174,7 @@ def _field(mapping: Any, camel: str, snake: str, default: Any = None) -> Any:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 ProtocolHandler = Callable[
-    [Dict[str, Any], HandoffConnectionOptions],
+    [dict[str, Any], HandoffConnectionOptions],
     Awaitable[HandoffConnection],
 ]
 """Handler function for a specific protocol.
@@ -188,7 +182,7 @@ ProtocolHandler = Callable[
 Takes a handoff dict and connection options, returns a HandoffConnection.
 """
 
-_protocol_handlers: Dict[str, ProtocolHandler] = {}
+_protocol_handlers: dict[str, ProtocolHandler] = {}
 
 
 def register_handoff_handler(protocol: str, handler: ProtocolHandler) -> None:
@@ -210,7 +204,7 @@ def unregister_handoff_handler(protocol: str) -> bool:
     return _protocol_handlers.pop(protocol, None) is not None
 
 
-def get_handoff_handler(protocol: str) -> Optional[ProtocolHandler]:
+def get_handoff_handler(protocol: str) -> ProtocolHandler | None:
     """Get a registered protocol handler."""
     return _protocol_handlers.get(protocol)
 
@@ -220,7 +214,7 @@ def has_handoff_handler(protocol: str) -> bool:
     return protocol in _protocol_handlers
 
 
-def list_handoff_handlers() -> List[str]:
+def list_handoff_handlers() -> list[str]:
     """List all registered protocol identifiers."""
     return list(_protocol_handlers.keys())
 
@@ -236,8 +230,8 @@ def clear_handoff_handlers() -> None:
 
 
 async def connect_handoff(
-    handoff: Dict[str, Any],
-    options: Optional[HandoffConnectionOptions] = None,
+    handoff: dict[str, Any],
+    options: HandoffConnectionOptions | None = None,
 ) -> HandoffConnection:
     """Connect to a handoff endpoint using the appropriate protocol handler.
 
@@ -306,19 +300,19 @@ class ReconnectionOptions:
         on_reconnect_failed: Called when all reconnection attempts fail.
     """
 
-    reconnect_command: Optional[str] = None
-    reconnect_args: Optional[Dict[str, Any]] = None
-    session_id: Optional[str] = None
+    reconnect_command: str | None = None
+    reconnect_args: dict[str, Any] | None = None
+    session_id: str | None = None
     max_attempts: int = 5
     backoff_ms: int = 1000
     max_backoff_ms: int = 30000
-    on_connect: Optional[Callable[[Any], None]] = None
-    on_message: Optional[Callable[[Any], None]] = None
-    on_disconnect: Optional[Callable[[Optional[int], Optional[str]], None]] = None
-    on_error: Optional[Callable[[Exception], None]] = None
-    on_state_change: Optional[Callable[[HandoffConnectionState], None]] = None
-    on_reconnect: Optional[Callable[[int], None]] = None
-    on_reconnect_failed: Optional[Callable[[], None]] = None
+    on_connect: Callable[[Any], None] | None = None
+    on_message: Callable[[Any], None] | None = None
+    on_disconnect: Callable[[int | None, str | None], None] | None = None
+    on_error: Callable[[Exception], None] | None = None
+    on_state_change: Callable[[HandoffConnectionState], None] | None = None
+    on_reconnect: Callable[[int], None] | None = None
+    on_reconnect_failed: Callable[[], None] | None = None
 
 
 class ReconnectingHandoffConnection:
@@ -342,20 +336,20 @@ class ReconnectingHandoffConnection:
     def __init__(
         self,
         client: Any,
-        handoff: Dict[str, Any],
+        handoff: dict[str, Any],
         options: ReconnectionOptions,
     ) -> None:
         self._client = client
         self._handoff = dict(handoff)
-        self._connection: Optional[HandoffConnection] = None
+        self._connection: HandoffConnection | None = None
         self._state = HandoffConnectionState.DISCONNECTED
         self._reconnect_attempt = 0
         self._is_reconnecting = False
         self._closed = False
         self._generation = 0
         self._connected_generation = -1
-        self._reconnect_task: Optional[asyncio.Task[None]] = None
-        self._tasks: Set[asyncio.Task[Any]] = set()
+        self._reconnect_task: asyncio.Task[None] | None = None
+        self._tasks: set[asyncio.Task[Any]] = set()
 
         # Resolve reconnection defaults from handoff metadata (TS parity)
         metadata_reconnect = _field(handoff.get("metadata"), "reconnect", "reconnect") or {}
@@ -415,7 +409,7 @@ class ReconnectingHandoffConnection:
     def _active(self, generation: int) -> bool:
         return not self._closed and generation == self._generation
 
-    def _track(self, task: "asyncio.Task[Any]") -> "asyncio.Task[Any]":
+    def _track(self, task: asyncio.Task[Any]) -> asyncio.Task[Any]:
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
         return task
@@ -466,7 +460,7 @@ class ReconnectingHandoffConnection:
         _call_safely(self._options.on_connect, self)
 
     def _handle_disconnect(
-        self, generation: int, code: Optional[int] = None, reason: Optional[str] = None
+        self, generation: int, code: int | None = None, reason: str | None = None
     ) -> None:
         if not self._active(generation):
             return  # an older connection, or close() already reported it
@@ -480,7 +474,7 @@ class ReconnectingHandoffConnection:
             return
         self._start_reconnect()
 
-    def _start_reconnect(self) -> Optional["asyncio.Task[None]"]:
+    def _start_reconnect(self) -> asyncio.Task[None] | None:
         """Start the reconnect loop, or return the one already running."""
         if self._closed:
             return None
@@ -607,8 +601,8 @@ class ReconnectingHandoffConnection:
 
 async def create_reconnecting_handoff(
     client: Any,
-    handoff: Dict[str, Any],
-    options: Optional[ReconnectionOptions] = None,
+    handoff: dict[str, Any],
+    options: ReconnectionOptions | None = None,
 ) -> ReconnectingHandoffConnection:
     """Create a reconnecting handoff connection with automatic retry logic.
 
@@ -640,14 +634,14 @@ async def create_reconnecting_handoff(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def _auth_headers(credentials: Any, base: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+def _auth_headers(credentials: Any, base: dict[str, str] | None = None) -> dict[str, str]:
     """Connection headers: base headers, credentials headers, and the bearer token.
 
     The token becomes ``Authorization: Bearer <token>`` unless the credentials
     already set an Authorization header. It is never put in the URL, where it
     would reach server and proxy logs.
     """
-    headers: Dict[str, str] = dict(base or {})
+    headers: dict[str, str] = dict(base or {})
     if not isinstance(credentials, dict):
         return headers
     extra = credentials.get("headers")
@@ -684,7 +678,7 @@ class _StreamConnection:
     def __init__(
         self,
         endpoint: str,
-        headers: Dict[str, str],
+        headers: dict[str, str],
         options: HandoffConnectionOptions,
         protocol: str,
         open_timeout: float = DEFAULT_OPEN_TIMEOUT_S,
@@ -695,10 +689,10 @@ class _StreamConnection:
         self._protocol_name = protocol
         self._open_timeout = open_timeout
         self._state = HandoffConnectionState.DISCONNECTED
-        self._message_callbacks: List[Callable[[Any], None]] = []
-        self._error_callbacks: List[Callable[[Exception], None]] = []
-        self._close_callbacks: List[Callable[[], None]] = []
-        self._reader: Optional[asyncio.Task[None]] = None
+        self._message_callbacks: list[Callable[[Any], None]] = []
+        self._error_callbacks: list[Callable[[Exception], None]] = []
+        self._close_callbacks: list[Callable[[], None]] = []
+        self._reader: asyncio.Task[None] | None = None
         self._closed = False
         self._finished = False
 
@@ -706,7 +700,7 @@ class _StreamConnection:
     async def _open(self) -> None:
         raise NotImplementedError
 
-    async def _read_loop(self) -> Tuple[Optional[int], Optional[str]]:
+    async def _read_loop(self) -> tuple[int | None, str | None]:
         raise NotImplementedError
 
     async def _close_transport(self) -> None:
@@ -726,7 +720,7 @@ class _StreamConnection:
         for callback in list(self._error_callbacks):
             _call_safely(callback, exc)
 
-    def _finish(self, code: Optional[int], reason: Optional[str]) -> None:
+    def _finish(self, code: int | None, reason: str | None) -> None:
         """Report the disconnect (once)."""
         if self._finished:
             return
@@ -753,8 +747,8 @@ class _StreamConnection:
         _call_safely(self._options.on_connect, self)
 
     async def _run_reader(self) -> None:
-        code: Optional[int] = None
-        reason: Optional[str] = None
+        code: int | None = None
+        reason: str | None = None
         try:
             code, reason = await self._read_loop()
         except asyncio.CancelledError:
@@ -809,7 +803,7 @@ class WebSocketHandoffHandler:
 
     @staticmethod
     async def handle(
-        handoff: Dict[str, Any],
+        handoff: dict[str, Any],
         options: HandoffConnectionOptions,
     ) -> HandoffConnection:
         """Create a WebSocket connection from a handoff result."""
@@ -845,7 +839,7 @@ class _WebSocketConnection(_StreamConnection):
             open_timeout=self._open_timeout,
         )
 
-    async def _read_loop(self) -> Tuple[Optional[int], Optional[str]]:
+    async def _read_loop(self) -> tuple[int | None, str | None]:
         from websockets.exceptions import ConnectionClosed
 
         ws = self._ws
@@ -875,7 +869,7 @@ class SseHandoffHandler:
 
     @staticmethod
     async def handle(
-        handoff: Dict[str, Any],
+        handoff: dict[str, Any],
         options: HandoffConnectionOptions,
     ) -> HandoffConnection:
         """Create an SSE connection from a handoff result."""
@@ -930,7 +924,7 @@ class _SseConnection(_StreamConnection):
             await self._close_transport()
             raise
 
-    async def _read_loop(self) -> Tuple[Optional[int], Optional[str]]:
+    async def _read_loop(self) -> tuple[int | None, str | None]:
         from afd.core.sse import SseDecoder
 
         decoder = SseDecoder()
@@ -985,7 +979,7 @@ def register_builtin_handlers() -> None:
 
 def build_authenticated_endpoint(
     endpoint: str,
-    credentials: Optional[Dict[str, Any]] = None,
+    credentials: dict[str, Any] | None = None,
 ) -> str:
     """Build an endpoint URL with authentication token as query parameter.
 
@@ -1014,7 +1008,7 @@ def build_authenticated_endpoint(
     return urlunparse(parsed._replace(query=new_query))
 
 
-def parse_handoff_endpoint(endpoint: str) -> Dict[str, Any]:
+def parse_handoff_endpoint(endpoint: str) -> dict[str, Any]:
     """Parse a handoff endpoint URL and extract connection details.
 
     Args:
@@ -1044,7 +1038,7 @@ def parse_handoff_endpoint(endpoint: str) -> Dict[str, Any]:
     }
 
 
-def _expiry_timestamp(handoff: Dict[str, Any]) -> Optional[float]:
+def _expiry_timestamp(handoff: dict[str, Any]) -> float | None:
     """The handoff's expiry as a POSIX timestamp, or None if absent or invalid."""
     expires_at = _field(handoff.get("metadata"), "expiresAt", "expires_at")
     if not isinstance(expires_at, str) or not expires_at:
@@ -1058,7 +1052,7 @@ def _expiry_timestamp(handoff: Dict[str, Any]) -> Optional[float]:
         return None
 
 
-def is_handoff_expired(handoff: Dict[str, Any]) -> bool:
+def is_handoff_expired(handoff: dict[str, Any]) -> bool:
     """Check if handoff credentials have expired.
 
     Args:
@@ -1076,7 +1070,7 @@ def is_handoff_expired(handoff: Dict[str, Any]) -> bool:
     return expiry is not None and expiry < time.time()
 
 
-def get_handoff_ttl(handoff: Dict[str, Any]) -> Optional[int]:
+def get_handoff_ttl(handoff: dict[str, Any]) -> int | None:
     """Get the time until handoff credentials expire in milliseconds.
 
     Args:

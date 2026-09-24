@@ -9,8 +9,8 @@ Port of packages/testing/src/mcp/hints.ts
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Generic, TypeVar
+from dataclasses import dataclass
+from typing import Any, TypeVar
 
 T = TypeVar("T")
 

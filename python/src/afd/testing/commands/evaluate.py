@@ -9,6 +9,7 @@ Port of packages/testing/src/commands/evaluate.ts
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import time
 from datetime import datetime, timezone
@@ -29,6 +30,8 @@ from afd.testing.scenarios.types import (
 	TestReport,
 	calculate_summary,
 )
+
+logger = logging.getLogger("afd.testing")
 
 
 async def scenario_evaluate(
@@ -174,7 +177,9 @@ async def scenario_evaluate(
 				result = await executor.execute(scenario)
 			else:
 				result = await asyncio.wait_for(executor.execute(scenario), timeout / 1000)
-		except Exception:
+		except Exception as exc:
+			if not isinstance(exc, asyncio.TimeoutError):
+				logger.warning("Scenario %s raised", filepath, exc_info=True)
 			return ScenarioResult(
 				scenario_path=filepath,
 				job_name=scenario.job,

@@ -20,9 +20,9 @@ Pipeline Example:
 
 from __future__ import annotations
 
+import inspect
 import time
 import uuid
-from abc import abstractmethod
 from dataclasses import dataclass, field
 from typing import (
     Any,
@@ -31,7 +31,6 @@ from typing import (
     List,
     Optional,
     Protocol,
-    Sequence,
     TypeVar,
     Union,
     runtime_checkable,
@@ -391,12 +390,23 @@ class SimpleRegistry:
         if not cmd:
             return failure(not_found_error("Command", name))
         
+        kwargs = args or {}
         try:
-            result = await cmd.handler(**(args or {}))
-            return result
+            inspect.signature(cmd.handler).bind(**kwargs)
+        except TypeError as e:
+            return failure(validation_error(f"Invalid arguments for '{name}': {e}"))
+        except ValueError:
+            pass  # no introspectable signature: let the call decide
+        try:
+            return await cmd.handler(**kwargs)
         except Exception as e:
+            # The handler itself failed: not the caller's input.
             return failure(
-                validation_error(f"Command execution failed: {e}")
+                CommandError(
+                    code="COMMAND_EXECUTION_ERROR",
+                    message=f"Command '{name}' failed: {e}",
+                    suggestion="Check the command implementation and retry",
+                )
             )
     
     def has_command(self, name: str) -> bool:

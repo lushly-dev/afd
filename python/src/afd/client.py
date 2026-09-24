@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import (
@@ -29,8 +30,6 @@ from typing import (
     Literal,
     Optional,
     Sequence,
-    Tuple,
-    Union,
 )
 
 from pydantic import ValidationError
@@ -45,6 +44,8 @@ from afd.transports.base import (
 
 # Lazy imports for optional transports
 _Transport = Any  # Actual Transport protocol from base
+
+logger = logging.getLogger("afd.client")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -428,7 +429,8 @@ class McpClient:
             try:
                 handler(*args)
             except Exception:
-                pass  # Don't let handler errors crash the client
+                # A handler error must not crash the client, but must not vanish.
+                logger.exception("McpClient %r event handler raised", event)
 
     # ── Reconnection ──────────────────────────────────────────────────────
 

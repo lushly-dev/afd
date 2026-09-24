@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import time
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any
 
 from afd.core.batch import BatchRequest, is_batch_request
 from afd.core.commands import CommandContext, CommandDefinition
@@ -17,14 +18,14 @@ from afd.server.tools import derive_group_action, derive_group_name
 
 @dataclass
 class ToolRouterDeps:
-    execute_command: Callable[[str, Any, Optional[CommandContext]], Awaitable[CommandResult[Any]]]
-    execute_batch: Callable[[BatchRequest | dict[str, Any], Optional[CommandContext]], Awaitable[Any]]
-    execute_pipeline: Callable[[PipelineRequest | dict[str, Any], Optional[CommandContext]], Awaitable[Any]]
-    commands: List[CommandDefinition]
+    execute_command: Callable[[str, Any, CommandContext | None], Awaitable[CommandResult[Any]]]
+    execute_batch: Callable[[BatchRequest | dict[str, Any], CommandContext | None], Awaitable[Any]]
+    execute_pipeline: Callable[[PipelineRequest | dict[str, Any], CommandContext | None], Awaitable[Any]]
+    commands: list[CommandDefinition]
     tool_strategy: str
-    group_by_fn: Optional[Callable[[CommandDefinition], Optional[str]]] = None
-    all_commands: Optional[List[CommandDefinition]] = None
-    exposed_command_names: Optional[set[str]] = None
+    group_by_fn: Callable[[CommandDefinition], str | None] | None = None
+    all_commands: list[CommandDefinition] | None = None
+    exposed_command_names: set[str] | None = None
     context_state: Any = None
 
 
@@ -34,8 +35,8 @@ def new_trace_id(prefix: str) -> str:
 
 
 def is_command_accessible(
-    command: Optional[CommandDefinition],
-    active_context: Optional[str],
+    command: CommandDefinition | None,
+    active_context: str | None,
 ) -> bool:
     """Return whether the command is visible in the active context."""
     if not active_context or command is None:
@@ -45,9 +46,9 @@ def is_command_accessible(
     return active_context in command.contexts
 
 
-def _index_by_name(commands: List[CommandDefinition]) -> Dict[str, CommandDefinition]:
+def _index_by_name(commands: list[CommandDefinition]) -> dict[str, CommandDefinition]:
     """Name -> command; the first command with a name wins, as a linear search would."""
-    index: Dict[str, CommandDefinition] = {}
+    index: dict[str, CommandDefinition] = {}
     for command in commands:
         index.setdefault(command.name, command)
     return index
@@ -66,21 +67,21 @@ def create_tool_router(deps: ToolRouterDeps):
     commands_by_name = _index_by_name(deps.commands)
     all_commands_by_name = _index_by_name(all_commands)
     get_group = deps.group_by_fn or derive_group_name
-    commands_by_group: Dict[str, List[CommandDefinition]] = {}
-    all_commands_by_group: Dict[str, List[CommandDefinition]] = {}
+    commands_by_group: dict[str, list[CommandDefinition]] = {}
+    all_commands_by_group: dict[str, list[CommandDefinition]] = {}
     if deps.tool_strategy == "grouped":
         for command in deps.commands:
             commands_by_group.setdefault(get_group(command) or "general", []).append(command)
         for command in all_commands:
             all_commands_by_group.setdefault(get_group(command) or "general", []).append(command)
 
-    def mcp_context(prefix: str, active_context: Optional[str]) -> CommandContext:
+    def mcp_context(prefix: str, active_context: str | None) -> CommandContext:
         return CommandContext(
             trace_id=new_trace_id(prefix),
             extra={"interface": "mcp", "active_context": active_context},
         )
 
-    def not_in_context(name: str, active_context: Optional[str]) -> CommandResult[Any]:
+    def not_in_context(name: str, active_context: str | None) -> CommandResult[Any]:
         return error(
             "COMMAND_NOT_IN_CONTEXT",
             f"Command '{name}' is not available in context '{active_context}'",
