@@ -7,9 +7,10 @@
 
 // Injection detection
 export { checkInjection, INJECTION_PATTERNS } from './injection.js';
+// Pairwise rules
+export { checkSchemaOverlap, checkSimilarDescriptions } from './pair-rules.js';
 // Rules (for direct use / testing)
 export {
-	checkCircularPrerequisites,
 	checkDescriptionInjection,
 	checkDescriptionQuality,
 	checkMissingCategory,
@@ -19,9 +20,6 @@ export {
 	checkNamingConvention,
 	checkOrphanedCategory,
 	checkSchemaComplexity,
-	checkSchemaOverlap,
-	checkSimilarDescriptions,
-	checkUnresolvedPrerequisites,
 	DESCRIPTION_VERBS,
 } from './rules.js';
 

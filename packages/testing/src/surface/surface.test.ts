@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { checkInjection } from './injection.js';
+import { checkSchemaOverlap, checkSimilarDescriptions } from './pair-rules.js';
+import { checkCircularPrerequisites, checkUnresolvedPrerequisites } from './prerequisite-rules.js';
 import {
-	checkCircularPrerequisites,
 	checkDescriptionInjection,
 	checkDescriptionQuality,
 	checkMissingCategory,
@@ -11,9 +12,6 @@ import {
 	checkNamingConvention,
 	checkOrphanedCategory,
 	checkSchemaComplexity,
-	checkSchemaOverlap,
-	checkSimilarDescriptions,
-	checkUnresolvedPrerequisites,
 } from './rules.js';
 import { computeComplexity } from './schema-complexity.js';
 import { commandParametersToJsonSchema, compareSchemas } from './schema-overlap.js';

@@ -5,8 +5,9 @@
  */
 
 import type { CommandDefinition } from '@lushly-dev/afd-core';
+import { checkSchemaOverlap, checkSimilarDescriptions } from './pair-rules.js';
+import { checkCircularPrerequisites, checkUnresolvedPrerequisites } from './prerequisite-rules.js';
 import {
-	checkCircularPrerequisites,
 	checkDescriptionInjection,
 	checkDescriptionQuality,
 	checkMissingCategory,
@@ -16,9 +17,6 @@ import {
 	checkNamingConvention,
 	checkOrphanedCategory,
 	checkSchemaComplexity,
-	checkSchemaOverlap,
-	checkSimilarDescriptions,
-	checkUnresolvedPrerequisites,
 } from './rules.js';
 import { commandParametersToJsonSchema } from './schema-overlap.js';
 import type {
@@ -160,6 +158,16 @@ function isSuppressed(finding: SurfaceFinding, suppressions: string[]): boolean 
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
+ * Append without spreading: `push(...items)` passes every item as an argument
+ * and overflows the stack for large rule outputs.
+ */
+function append(target: SurfaceFinding[], items: SurfaceFinding[]): void {
+	for (const item of items) {
+		target.push(item);
+	}
+}
+
+/**
  * Validate the command surface for semantic quality issues.
  *
  * Performs cross-command analysis on a registered command set, detecting:
@@ -213,68 +221,64 @@ export function validateCommandSurface(
 
 	// Always run: similar-descriptions
 	rulesEvaluated.push('similar-descriptions');
-	allFindings.push(...checkSimilarDescriptions(normalized, similarityThreshold));
+	append(allFindings, checkSimilarDescriptions(normalized, similarityThreshold));
 
 	// Always run: schema-overlap
 	rulesEvaluated.push('schema-overlap');
-	allFindings.push(...checkSchemaOverlap(normalized, schemaOverlapThreshold));
+	append(allFindings, checkSchemaOverlap(normalized, schemaOverlapThreshold));
 
 	// Naming convention (configurable)
 	if (enforceNaming) {
 		rulesEvaluated.push('naming-convention');
-		allFindings.push(...checkNamingConvention(normalized, namingPattern));
+		append(allFindings, checkNamingConvention(normalized, namingPattern));
 	}
 
 	// Always run: naming-collision
 	rulesEvaluated.push('naming-collision');
-	allFindings.push(...checkNamingCollision(normalized));
+	append(allFindings, checkNamingCollision(normalized));
 
 	// Always run: missing-category
 	rulesEvaluated.push('missing-category');
-	allFindings.push(...checkMissingCategory(normalized));
+	append(allFindings, checkMissingCategory(normalized));
 
 	// Injection detection (configurable)
 	if (detectInjection) {
 		rulesEvaluated.push('description-injection');
-		allFindings.push(...checkDescriptionInjection(normalized, additionalInjectionPatterns));
+		append(allFindings, checkDescriptionInjection(normalized, additionalInjectionPatterns));
 	}
 
 	// Description quality (configurable)
 	if (checkQuality) {
 		rulesEvaluated.push('description-quality');
-		allFindings.push(
-			...checkDescriptionQuality(normalized, {
-				minLength: minDescriptionLength,
-			})
-		);
+		append(allFindings, checkDescriptionQuality(normalized, { minLength: minDescriptionLength }));
 	}
 
 	// Always run: orphaned-category
 	rulesEvaluated.push('orphaned-category');
-	allFindings.push(...checkOrphanedCategory(normalized));
+	append(allFindings, checkOrphanedCategory(normalized));
 
 	// Schema complexity (configurable)
 	if (checkComplexity) {
 		rulesEvaluated.push('schema-complexity');
-		allFindings.push(...checkSchemaComplexity(normalized, schemaComplexityThreshold));
+		append(allFindings, checkSchemaComplexity(normalized, schemaComplexityThreshold));
 	}
 
 	// Always run: unresolved-prerequisite
 	rulesEvaluated.push('unresolved-prerequisite');
-	allFindings.push(...checkUnresolvedPrerequisites(normalized));
+	append(allFindings, checkUnresolvedPrerequisites(normalized));
 
 	// Always run: circular-prerequisite
 	rulesEvaluated.push('circular-prerequisite');
-	allFindings.push(...checkCircularPrerequisites(normalized));
+	append(allFindings, checkCircularPrerequisites(normalized));
 
 	// Always run: missing-output-schema
 	rulesEvaluated.push('missing-output-schema');
-	allFindings.push(...checkMissingOutputSchema(normalized));
+	append(allFindings, checkMissingOutputSchema(normalized));
 
 	// Missing context (only when contexts are configured)
 	if (configuredContexts.length > 0) {
 		rulesEvaluated.push('missing-context');
-		allFindings.push(...checkMissingContext(normalized, configuredContexts));
+		append(allFindings, checkMissingContext(normalized, configuredContexts));
 	}
 
 	// Apply suppressions
