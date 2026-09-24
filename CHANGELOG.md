@@ -36,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Python `scenario-evaluate` command honors its documented `concurrency` and `timeout` options and reports each scenario's file path.
 - `@lushly-dev/afd-testing`: `MockMcpServer.register()` accepts typed commands, like `CommandRegistry.register()`.
 - Todo example: the Python backend is installable and conformant (kebab-case, MCP-exposed commands matching the TypeScript backend). The data file is no longer tracked in git; it is seeded from `data/todos.seed.json`, written atomically, and an unreadable file raises instead of being replaced with an empty store.
+- **Python security:** `scenario-create` and `scenario-evaluate` stay inside the project root (symlinks included), sanitize scenario names, and only read `*.scenario.yaml`/`*.scenario.yml` files.
+- **Python:** batches and pipelines coerce every item to a `CommandResult` (`INVALID_COMMAND_RESULT` for a plain dict), reject built-in tools as steps, cap size and parallelism (`max_batch_size=500`, `max_batch_parallelism=16`), and cancel in-flight siblings when a batch stops. Malformed pipeline conditions are rejected up front.
+- **Python:** the handoff client reads WebSocket and SSE connections in the background, sends the token as an `Authorization: Bearer` header instead of a query parameter, and `ReconnectingHandoffConnection` cleans up its tasks on `close()`.
+- **Python:** `exec_command()` and the testing `CliWrapper` kill and reap child processes when the caller is cancelled; `exec_command()` defaults to a 5-minute timeout. The rate limiter evicts expired windows and tracks at most `max_keys` keys. `afd connect` accepts only http(s) URLs or `mock`. Built-in command payloads (`afd-schema`, `afd-help`, `afd-docs`, `afd-context-list`, `afd-detail`) use the wire format. Blind excepts now log, and a crashing `SimpleRegistry` handler is `COMMAND_EXECUTION_ERROR`.
+- **Rust:** the registry validates input against declared parameters and applies defaults, honors `expose` and `CommandContext.timeout_ms`, supports middleware, and propagates batch context. The wasm, MCP and handoff types are fixed.
+- Todo example: the Rust backend validates input against JSON Schemas, checks Host headers instead of allowing any origin, adds the three batch commands, and passes the conformance suite. The vanilla and chat frontends escape user content; the chat demo goes through MCP.
+- Alfred: `quality` scans every `defineCommand` call (68 of 68 example commands, up from 43); `parity` checks that every `spec/wire` fixture is covered by the TypeScript, Python and Rust round-trip suites and no longer drops exports; development and tests use the repo's `afd` package.
 
 ### Changed
 
@@ -51,8 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Regression tests across runtime, security, auth, CLI, database, execution controls, and repository tooling; dedicated Alfred CI checks.
 - A detailed review record at `docs/reviews/2026-09-05-review.md` (#194).
-- A follow-up quality review at `docs/reviews/2026-09-23-quality-review.md`, with Wave 0 fixes applied.
-- CI for Python (pytest on 3.10–3.12, bug-class ruff rules, clean-venv install smoke test per extra), Rust (fmt, clippy `-D warnings`, tests with and without default features, pinned toolchain), and todo conformance (32 cases against the TypeScript and Python backends).
+- A follow-up quality review at `docs/reviews/2026-09-23-quality-review.md`, with its Wave 0–3 fixes applied.
+- CI for Python (pytest on 3.10–3.12, bug-class ruff rules, clean-venv install smoke test per extra), Rust (fmt, clippy `-D warnings`, tests with and without default features, pinned toolchain), and todo conformance (34 cases against the TypeScript, Python and Rust backends).
 - Every package type-checks its test files; server, adapters and auth enforce coverage thresholds; a repository contract test keeps both, and SHA-pinned workflow actions, in place.
 
 ## [0.8.0] - 2026-07-07
