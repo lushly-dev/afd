@@ -415,7 +415,9 @@ if result.success and is_handoff(result.data):
   (parsed as JSON when it is JSON) and a close by the server reaches `on_disconnect`.
 - A `credentials.token` is sent as an `Authorization: Bearer` header, never in the URL.
 - A reconnecting connection retries with exponential backoff until it connects, runs
-  out of attempts (`on_reconnect_failed`, state `failed`) or is closed.
+  out of attempts (`on_reconnect_failed`, state `failed`) or is closed. Before each
+  attempt it calls `reconnect_command` with `reconnect_args` plus `sessionId` (the
+  wire name, as in TypeScript) set from the `session_id` option.
 - `create_handoff()` returns the wire format (`sessionId`, `expectedLatency`,
   `expiresAt`, `maxAttempts`, `backoffMs`); the handoff helpers accept camelCase or
   snake_case.
