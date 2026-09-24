@@ -8,8 +8,50 @@ import type { BatchCommand, BatchOptions, BatchResult } from '@lushly-dev/afd-co
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import ora from 'ora';
-import { ensureConnected } from '../connection.js';
-import { getConfidenceBar, type OutputFormat, printError } from '../output.js';
+import { type ConnectFlags, requireClient } from '../connection.js';
+import { formatConfidence, formatErrorSummary, type OutputFormat, printError } from '../output.js';
+import { terminalText } from '../terminal.js';
+import { headerOption } from './options.js';
+
+interface BatchCliOptions extends ConnectFlags {
+	stopOnError: boolean;
+	timeout: string;
+	parallel: string;
+	format: OutputFormat;
+	verbose?: boolean;
+}
+
+/** Read and normalize the batch argument: a JSON array or a path to a `.json` file. */
+async function parseBatchCommands(commandsArg: string): Promise<BatchCommand[]> {
+	let commands: unknown;
+	if (commandsArg.endsWith('.json')) {
+		const fs = await import('node:fs/promises');
+		commands = JSON.parse(await fs.readFile(commandsArg, 'utf-8'));
+	} else {
+		commands = JSON.parse(commandsArg);
+	}
+
+	if (!Array.isArray(commands)) {
+		throw new Error('Commands must be an array');
+	}
+
+	// Accept `name`/`args` as aliases of `command`/`input`.
+	return commands.map((entry: unknown, index): BatchCommand => {
+		const cmd = (typeof entry === 'object' && entry !== null ? entry : {}) as Record<
+			string,
+			unknown
+		>;
+		const command = cmd.command ?? cmd.name;
+		if (typeof command !== 'string' || command === '') {
+			throw new Error(`Command at index ${index} is missing 'command' field`);
+		}
+		return {
+			id: typeof cmd.id === 'string' ? cmd.id : `cmd-${index}`,
+			command,
+			input: (cmd.input ?? cmd.args ?? {}) as BatchCommand['input'],
+		};
+	});
+}
 
 /**
  * Register the batch command.
@@ -27,62 +69,24 @@ export function registerBatchCommand(program: Command): void {
 		.option('-p, --parallel <n>', 'Maximum parallel commands (1 = sequential)', '1')
 		.option('-f, --format <format>', 'Output format (json, text)', 'text')
 		.option('-v, --verbose', 'Show detailed output for each command')
-		.action(async (commandsArg: string, options) => {
-			const client = await ensureConnected();
-
-			if (!client) {
-				printError('Not connected. Run "afd connect <url>" first.');
-				process.exit(1);
-			}
-
-			// Parse commands
+		.addOption(headerOption())
+		.action(async (commandsArg: string, options: BatchCliOptions) => {
 			let commands: BatchCommand[];
-
 			try {
-				// Check if it's a file path
-				if (commandsArg.endsWith('.json')) {
-					const fs = await import('node:fs/promises');
-					const content = await fs.readFile(commandsArg, 'utf-8');
-					commands = JSON.parse(content);
-				} else {
-					// Parse as JSON array
-					commands = JSON.parse(commandsArg);
-				}
-
-				// Validate structure
-				if (!Array.isArray(commands)) {
-					throw new Error('Commands must be an array');
-				}
-
-				// Normalize command format
-				commands = commands.map((cmd, i) => {
-					// SAFETY: Support alternative input formats (name/args instead of command/input).
-					// The cast allows accessing non-standard fields that may exist on user-provided objects.
-					const cmdAny = cmd as unknown as Record<string, unknown>;
-					return {
-						id: cmd.id ?? `cmd-${i}`,
-						command: cmd.command ?? (cmdAny.name as string) ?? '',
-						input: cmd.input ?? (cmdAny.args as unknown) ?? {},
-					};
-				});
-
-				// Validate each command has a command name
-				for (const cmd of commands) {
-					if (!cmd.command) {
-						throw new Error(`Command at index ${commands.indexOf(cmd)} is missing 'command' field`);
-					}
-				}
+				commands = await parseBatchCommands(commandsArg);
 			} catch (error) {
 				const msg = error instanceof Error ? error.message : String(error);
 				printError(`Invalid commands format: ${msg}`);
 				console.log();
 				console.log(chalk.dim('Expected format:'));
-				console.log(chalk.dim('  [{"command":"todo.create","input":{"title":"Task 1"}},...]'));
+				console.log(chalk.dim('  [{"command":"todo-create","input":{"title":"Task 1"}},...]'));
 				console.log();
 				console.log(chalk.dim('Or provide a JSON file path:'));
 				console.log(chalk.dim('  afd batch ./commands.json'));
-				process.exit(1);
+				return process.exit(1);
 			}
+
+			const client = await requireClient(options);
 
 			const batchOptions: BatchOptions = {
 				stopOnError: options.stopOnError,
@@ -91,7 +95,6 @@ export function registerBatchCommand(program: Command): void {
 			};
 
 			const spinner = ora(`Executing batch of ${commands.length} command(s)...`).start();
-			const _startTime = Date.now();
 
 			try {
 				const result = await client.batch(commands, batchOptions);
@@ -99,7 +102,7 @@ export function registerBatchCommand(program: Command): void {
 
 				// Output result
 				printBatchResult(result, {
-					format: options.format as OutputFormat,
+					format: options.format,
 					verbose: options.verbose,
 				});
 
@@ -119,7 +122,8 @@ export function registerBatchCommand(program: Command): void {
 }
 
 /**
- * Print batch result in the appropriate format.
+ * Print batch result in the appropriate format. Every server-provided value is
+ * passed through `terminalText` in text mode.
  */
 function printBatchResult<T>(
 	result: BatchResult<T>,
@@ -150,29 +154,28 @@ function printBatchResult<T>(
 	// Summary stats
 	console.log();
 	console.log(chalk.bold('Summary:'));
-	console.log(`  Total:    ${summary.total}`);
-	console.log(`  Success:  ${chalk.green(summary.successCount.toString())}`);
+	console.log(`  Total:    ${terminalText(summary.total)}`);
+	console.log(`  Success:  ${chalk.green(terminalText(summary.successCount))}`);
 	if (summary.failureCount > 0) {
-		console.log(`  Failed:   ${chalk.red(summary.failureCount.toString())}`);
+		console.log(`  Failed:   ${chalk.red(terminalText(summary.failureCount))}`);
 	}
 	if (summary.skippedCount > 0) {
-		console.log(`  Skipped:  ${chalk.dim(summary.skippedCount.toString())}`);
+		console.log(`  Skipped:  ${chalk.dim(terminalText(summary.skippedCount))}`);
 	}
 
 	// Timing
 	console.log();
 	console.log(chalk.bold('Timing:'));
-	console.log(`  Total:    ${timing.totalMs}ms`);
-	console.log(`  Average:  ${timing.averageMs.toFixed(1)}ms/command`);
+	console.log(`  Total:    ${terminalText(timing.totalMs)}ms`);
+	console.log(`  Average:  ${Number(timing.averageMs).toFixed(1)}ms/command`);
 
 	// Confidence
 	console.log();
-	const confidenceBar = getConfidenceBar(result.confidence);
-	console.log(chalk.bold('Confidence:'), confidenceBar, `${Math.round(result.confidence * 100)}%`);
+	console.log(chalk.bold('Confidence:'), formatConfidence(result.confidence));
 
 	// Reasoning
 	if (result.reasoning) {
-		console.log(chalk.dim(`  ${result.reasoning}`));
+		console.log(chalk.dim(`  ${terminalText(result.reasoning)}`));
 	}
 
 	// Individual results (verbose mode)
@@ -182,26 +185,26 @@ function printBatchResult<T>(
 
 		for (const cmdResult of result.results) {
 			const status = cmdResult.result.success ? chalk.green('✓') : chalk.red('✗');
-			const id = cmdResult.id || `#${cmdResult.index}`;
+			const id = terminalText(cmdResult.id || `#${cmdResult.index}`);
+			const command = terminalText(cmdResult.command);
+			const duration = terminalText(cmdResult.durationMs);
 
 			console.log();
-			console.log(
-				`  ${status} ${chalk.cyan(cmdResult.command)} ${chalk.dim(`(${id}, ${cmdResult.durationMs}ms)`)}`
-			);
+			console.log(`  ${status} ${chalk.cyan(command)} ${chalk.dim(`(${id}, ${duration}ms)`)}`);
 
 			if (cmdResult.result.success && cmdResult.result.data !== undefined) {
 				const dataPreview = JSON.stringify(cmdResult.result.data);
 				const truncated =
 					dataPreview.length > 100 ? `${dataPreview.slice(0, 100)}...` : dataPreview;
-				console.log(`    ${chalk.dim('Data:')} ${truncated}`);
+				console.log(`    ${chalk.dim('Data:')} ${terminalText(truncated)}`);
 			}
 
 			if (!cmdResult.result.success && cmdResult.result.error) {
-				console.log(
-					`    ${chalk.red('Error:')} [${cmdResult.result.error.code}] ${cmdResult.result.error.message}`
-				);
+				console.log(`    ${chalk.red('Error:')} ${formatErrorSummary(cmdResult.result.error)}`);
 				if (cmdResult.result.error.suggestion) {
-					console.log(`    ${chalk.dim('Suggestion:')} ${cmdResult.result.error.suggestion}`);
+					console.log(
+						`    ${chalk.dim('Suggestion:')} ${terminalText(cmdResult.result.error.suggestion)}`
+					);
 				}
 			}
 		}
@@ -212,16 +215,18 @@ function printBatchResult<T>(
 		console.log();
 		console.log(chalk.yellow('Warnings:'));
 		for (const warning of result.warnings) {
-			console.log(`  ⚠ [${warning.code}] ${warning.message} (${warning.commandId})`);
+			console.log(
+				`  ⚠ ${terminalText(`[${warning.code}] ${warning.message} (${warning.commandId})`)}`
+			);
 		}
 	}
 
 	// Error (batch-level failure)
 	if (result.error) {
 		console.log();
-		console.log(chalk.red('Error:'), `[${result.error.code}]`, result.error.message);
+		console.log(chalk.red('Error:'), formatErrorSummary(result.error));
 		if (result.error.suggestion) {
-			console.log(chalk.dim('Suggestion:'), result.error.suggestion);
+			console.log(chalk.dim('Suggestion:'), terminalText(result.error.suggestion));
 		}
 	}
 }

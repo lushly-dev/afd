@@ -16,6 +16,7 @@ import { createCli } from './cli.js';
 import {
 	getConfidenceBar,
 	getProgressBar,
+	printClientStatus,
 	printError,
 	printInfo,
 	printResult,
@@ -335,5 +336,165 @@ describe('Output formatting', () => {
 
 		expect(logSpy.mock.calls.flat().join('\n')).toContain('afd v?');
 		expect(errorSpy.mock.calls.flat().join('\n')).toContain('inner');
+	});
+});
+
+describe('Tool grouping', () => {
+	it('groups by _meta.category, else by the kebab-case domain prefix', () => {
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+		printTools([
+			{ name: 'todo-create', description: 'Create', inputSchema: { type: 'object' } },
+			{ name: 'user-get', description: 'Get', inputSchema: { type: 'object' } },
+			{ name: 'todo-list', inputSchema: { type: 'object' } },
+			{
+				name: 'todo-export',
+				description: 'Export',
+				inputSchema: { type: 'object' },
+				_meta: { category: 'reports' },
+			},
+			{ name: 'ping', description: 'Ping', inputSchema: { type: 'object' } },
+		]);
+
+		const lines = logSpy.mock.calls.map((call) => stripVTControlCharacters(call.join(' ')));
+		const groups = lines.filter((line) => line.endsWith('/')).map((line) => line.trim());
+		expect(groups).toEqual(['todo/', 'user/', 'reports/', 'ping/']);
+		const todo = lines.indexOf('  todo/');
+		expect(lines.slice(todo + 1, todo + 4)).toEqual([
+			'    todo-create',
+			'      Create',
+			'    todo-list',
+		]);
+		expect(lines[lines.indexOf('  reports/') + 1]).toBe('    todo-export');
+
+		logSpy.mockRestore();
+	});
+});
+
+describe('Terminal safety of text output', () => {
+	const ESC = '\x1b';
+	const BEL = '\x07';
+	/** Title set, a hidden hyperlink, cursor-up + erase-line, and an 8-bit CSI. */
+	const evil = (label: string) =>
+		`${ESC}]0;pwned${BEL}${ESC}]8;;https://evil.example${ESC}\\${label}${ESC}]8;;${ESC}\\${ESC}[2A${ESC}[2K\x9b1m`;
+
+	function capture(print: () => void): string {
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+		const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+		try {
+			print();
+			return [...logSpy.mock.calls, ...errorSpy.mock.calls].flat().join('\n');
+		} finally {
+			logSpy.mockRestore();
+			errorSpy.mockRestore();
+		}
+	}
+
+	function expectSafe(output: string, ...labels: string[]): void {
+		expect(output).not.toContain(`${ESC}]`);
+		expect(output).not.toContain(`${ESC}[2A`);
+		expect(output).not.toContain(`${ESC}[2K`);
+		expect(output).not.toContain(BEL);
+		expect(output).not.toContain('\x9b');
+		expect(output).not.toContain('pwned');
+		expect(output).not.toContain('evil.example');
+		for (const label of labels) expect(output).toContain(label);
+	}
+
+	it('sanitizes every server string printResult shows', () => {
+		const success = capture(() =>
+			printResult(
+				{
+					success: true,
+					data: evil('string-data'),
+					reasoning: evil('reasoning'),
+					sources: [{ type: 'doc', title: evil('source'), location: evil('location') }],
+					warnings: [{ code: 'W', message: evil('warning') }],
+				},
+				{ verbose: true }
+			)
+		);
+		expectSafe(success, 'string-data', 'reasoning', 'source', 'location', 'warning');
+
+		const objectData = capture(() => printResult({ success: true, data: { v: '\x9d0;t\x9c' } }));
+		expect(objectData).not.toContain('\x9d');
+
+		const failure = capture(() =>
+			printResult(
+				{
+					success: false,
+					error: {
+						code: evil('CODE'),
+						message: evil('message'),
+						suggestion: evil('suggestion'),
+					},
+				},
+				{ verbose: true }
+			)
+		);
+		expectSafe(failure, 'CODE', 'message', 'suggestion');
+
+		// Structured values print as JSON, where escapes are already inert text.
+		const details = capture(() =>
+			printResult(
+				{ success: false, error: { code: 'E', message: 'm', details: { note: evil('d') } } },
+				{ verbose: true }
+			)
+		);
+		expect(details).toContain('\\u001b]0;pwned');
+		expect(details).not.toContain(ESC);
+		expect(details).not.toContain('\x9b');
+	});
+
+	it('sanitizes tool names, descriptions and categories', () => {
+		const output = capture(() =>
+			printTools([
+				{
+					name: evil('tool-name'),
+					description: evil('description'),
+					inputSchema: { type: 'object' },
+					_meta: { category: evil('category') },
+				},
+			])
+		);
+		expectSafe(output, 'tool-name', 'description', 'category');
+	});
+
+	it('sanitizes server info and error text, and redacts credentials in URLs', () => {
+		const output = capture(() => {
+			printStatus({
+				connected: true,
+				url: 'http://alice:hunter2@host/sse?token=abc123',
+				serverName: evil('server'),
+				serverVersion: evil('1.0'),
+			});
+			printError(evil('outer'), new Error(evil('inner')));
+			printSuccess(evil('success'));
+			printInfo(evil('info'));
+			printWarning(evil('warn'));
+		});
+		expectSafe(output, 'server', '1.0', 'outer', 'inner', 'success', 'info', 'warn');
+		expect(output).toContain('http://***@host/sse?token=***');
+		expect(output).not.toContain('hunter2');
+		expect(output).not.toContain('abc123');
+	});
+
+	it('prints a client status, or not connected without a client', () => {
+		const output = capture(() => {
+			printClientStatus(null);
+			printClientStatus({
+				getStatus: () => ({
+					state: 'connected',
+					url: 'http://host/sse',
+					serverInfo: { name: 'afd', version: '2' },
+					capabilities: null,
+					connectedAt: null,
+					reconnectAttempts: 0,
+					pendingRequests: 0,
+				}),
+			});
+		});
+		expect(output).toContain('Not connected');
+		expect(output).toContain('afd v2');
 	});
 });

@@ -5,20 +5,20 @@
 import type { McpClient } from '@lushly-dev/afd-client';
 import type { McpTool } from '@lushly-dev/afd-core';
 import {
-	type SurfaceCommand,
-	type SurfaceFinding,
 	type ValidationError,
 	type ValidationResult,
 	type ValidationWarning,
-	validateCommandSurface,
 	validateResult,
 } from '@lushly-dev/afd-testing';
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import ora from 'ora';
-import { ensureConnected } from '../connection.js';
+import { type ConnectFlags, requireClient } from '../connection.js';
 import { printError, printInfo, printSuccess, printWarning } from '../output.js';
-import { matchesCategory } from './tools.js';
+import { terminalText } from '../terminal.js';
+import { matchesCategory } from '../tool-category.js';
+import { collectValues, headerOption } from './options.js';
+import { runSurfaceValidation } from './validate-surface.js';
 
 /**
  * Register the validate command.
@@ -57,6 +57,7 @@ export function registerValidateCommand(program: Command): void {
 			collectValues,
 			[]
 		)
+		.addOption(headerOption())
 		.addHelpText(
 			'after',
 			`
@@ -77,143 +78,11 @@ when the server advertises one, otherwise {}.`
 		});
 }
 
-/**
- * Commander helper: collect repeatable option values into an array.
- */
-function collectValues(value: string, previous: string[]): string[] {
-	return [...previous, value];
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// SURFACE VALIDATION
-// ═══════════════════════════════════════════════════════════════════════════════
-
-interface SurfaceOptions {
-	strict?: boolean;
-	verbose?: boolean;
-	similarityThreshold: string;
-	skipCategory: string[];
-	suppress: string[];
-}
-
-/** Preserve AFD metadata advertised by a remote MCP tools/list response. */
-export function mapToolsToSurfaceCommands(tools: McpTool[]): SurfaceCommand[] {
-	return tools.map((tool) => ({
-		name: tool.name,
-		description: tool.description ?? '',
-		category: tool._meta?.category,
-		jsonSchema: tool.inputSchema as SurfaceCommand['jsonSchema'],
-		requires: tool._meta?.requires,
-		examples: tool._meta?.examples,
-		outputJsonSchema: tool._meta?.outputSchema as SurfaceCommand['outputJsonSchema'],
-		contexts: tool._meta?.contexts,
-	}));
-}
-
-async function runSurfaceValidation(options: SurfaceOptions): Promise<void> {
-	const client = await ensureConnected();
-
-	if (!client?.isConnected()) {
-		printError('Not connected. Run "afd connect <url>" first.');
-		process.exit(1);
-	}
-
-	const spinner = ora('Fetching tools for surface validation...').start();
-
-	try {
-		const tools = await client.refreshTools();
-		spinner.text = `Analyzing ${tools.length} commands...`;
-
-		// Map MCP tool definitions to SurfaceCommand shape
-		const commands = mapToolsToSurfaceCommands(tools);
-		const configuredContexts = [...new Set(commands.flatMap((command) => command.contexts ?? []))];
-
-		const result = validateCommandSurface(commands, {
-			similarityThreshold: Number.parseFloat(options.similarityThreshold),
-			strict: options.strict,
-			skipCategories: options.skipCategory,
-			suppressions: options.suppress,
-			configuredContexts,
-		});
-
-		spinner.stop();
-
-		// Print findings grouped by severity
-		console.log();
-		console.log(chalk.bold('Surface Validation Results:'));
-		console.log();
-
-		const bySeverity: Record<string, SurfaceFinding[]> = {
-			error: [],
-			warning: [],
-			info: [],
-		};
-
-		for (const finding of result.findings) {
-			if (finding.suppressed) continue;
-			bySeverity[finding.severity]?.push(finding);
-		}
-
-		for (const [severity, findings] of Object.entries(bySeverity)) {
-			if (findings.length === 0) continue;
-
-			const color =
-				severity === 'error' ? chalk.red : severity === 'warning' ? chalk.yellow : chalk.blue;
-			const icon = severity === 'error' ? '✗' : severity === 'warning' ? '△' : 'ℹ';
-
-			console.log(color.bold(`${icon} ${severity.toUpperCase()} (${findings.length}):`));
-
-			for (const f of findings) {
-				console.log(color(`  ${f.rule}: ${f.message}`));
-				console.log(chalk.dim(`    Commands: ${f.commands.join(', ')}`));
-				if (options.verbose) {
-					console.log(chalk.dim(`    Fix: ${f.suggestion}`));
-					if (f.evidence) {
-						console.log(chalk.dim(`    Evidence: ${JSON.stringify(f.evidence)}`));
-					}
-				}
-			}
-			console.log();
-		}
-
-		// Suppressed count
-		if (result.summary.suppressedCount > 0) {
-			console.log(chalk.dim(`  ${result.summary.suppressedCount} finding(s) suppressed`));
-		}
-
-		// Summary
-		console.log(chalk.bold('Summary:'));
-		console.log(`  ${result.summary.commandCount} commands analyzed`);
-		console.log(
-			`  ${result.summary.rulesEvaluated.length} rules evaluated in ${result.summary.durationMs}ms`
-		);
-		console.log(`  ${chalk.red(result.summary.errorCount)} errors`);
-		console.log(`  ${chalk.yellow(result.summary.warningCount)} warnings`);
-		console.log(`  ${chalk.blue(result.summary.infoCount)} info`);
-
-		if (!result.valid) {
-			console.log();
-			printWarning('Surface validation failed. Fix the issues above.');
-			process.exit(1);
-		} else if (result.summary.warningCount > 0) {
-			console.log();
-			printInfo('Surface validation passed with warnings. Consider addressing them.');
-		} else {
-			console.log();
-			printSuccess('Surface validation passed!');
-		}
-	} catch (error) {
-		spinner.fail('Surface validation failed');
-		printError('Could not complete surface validation', error instanceof Error ? error : undefined);
-		process.exit(1);
-	}
-}
-
 // ═══════════════════════════════════════════════════════════════════════════════
 // PER-COMMAND VALIDATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-interface PerCommandOptions {
+interface PerCommandOptions extends ConnectFlags {
 	category?: string;
 	execute?: boolean;
 	strict?: boolean;
@@ -336,12 +205,7 @@ async function validateTool(
 }
 
 async function runPerCommandValidation(options: PerCommandOptions): Promise<void> {
-	const client = await ensureConnected();
-
-	if (!client?.isConnected()) {
-		printError('Not connected. Run "afd connect <url>" first.');
-		process.exit(1);
-	}
+	const client = await requireClient(options);
 
 	const spinner = ora('Fetching tools...').start();
 	const execute = options.execute === true;
@@ -359,7 +223,7 @@ async function runPerCommandValidation(options: PerCommandOptions): Promise<void
 
 		const results: ToolValidation[] = [];
 		for (const tool of tools) {
-			spinner.text = `Validating ${tool.name}...`;
+			spinner.text = `Validating ${terminalText(tool.name)}...`;
 			results.push(await validateTool(client, tool, execute));
 		}
 
@@ -377,21 +241,21 @@ async function runPerCommandValidation(options: PerCommandOptions): Promise<void
 
 		for (const result of results) {
 			// Report every skip on the tool's own line, whatever its listing status.
-			const label = result.skipped
-				? `${result.name} ${chalk.dim(`skipped (${result.skipped})`)}`
-				: result.name;
+			// Tool names and error text come from the server.
+			const name = terminalText(result.name);
+			const label = result.skipped ? `${name} ${chalk.dim(`skipped (${result.skipped})`)}` : name;
 			if (result.error) {
 				failCount++;
 				console.log(chalk.red('✗'), label);
 				if (options.verbose) {
-					console.log(chalk.dim(`  Error: ${result.error}`));
+					console.log(chalk.dim(`  Error: ${terminalText(result.error)}`));
 				}
 			} else if (!result.validation.valid) {
 				failCount++;
 				console.log(chalk.red('✗'), label);
 				if (options.verbose) {
 					for (const err of result.validation.errors) {
-						console.log(chalk.red(`  - ${err.path}: ${err.message}`));
+						console.log(chalk.red(`  - ${terminalText(`${err.path}: ${err.message}`)}`));
 					}
 				}
 			} else if (result.validation.warnings.length > 0) {
@@ -404,7 +268,7 @@ async function runPerCommandValidation(options: PerCommandOptions): Promise<void
 				}
 				if (options.verbose) {
 					for (const warn of result.validation.warnings) {
-						console.log(chalk.yellow(`  - ${warn.path}: ${warn.message}`));
+						console.log(chalk.yellow(`  - ${terminalText(`${warn.path}: ${warn.message}`)}`));
 					}
 				}
 			} else if (result.skipped) {

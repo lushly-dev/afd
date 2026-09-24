@@ -1,10 +1,19 @@
 /**
  * @fileoverview Output formatting utilities
+ *
+ * Text output passes every server-provided string through
+ * `sanitizeForTerminal`, so a server cannot send escape sequences to the
+ * user's terminal. JSON output is printed with `JSON.stringify`, which escapes
+ * control characters.
  */
 
-import type { CommandResult, McpTool } from '@lushly-dev/afd-core';
+import type { McpClient } from '@lushly-dev/afd-client';
+import type { CommandError, CommandResult, McpTool } from '@lushly-dev/afd-core';
 import { isFailure, isSuccess } from '@lushly-dev/afd-core';
 import chalk from 'chalk';
+import { redactUrl } from './credentials.js';
+import { sanitizeForTerminal, terminalText } from './terminal.js';
+import { toolCategory } from './tool-category.js';
 
 export type OutputFormat = 'json' | 'text' | 'table';
 
@@ -40,44 +49,38 @@ export function printResult<T>(result: CommandResult<T>, options: OutputOptions 
 
 		// Show UX fields if present
 		if (result.confidence !== undefined) {
-			const confidenceBar = getConfidenceBar(result.confidence);
 			console.log();
-			console.log(
-				chalk.dim('Confidence:'),
-				confidenceBar,
-				`${Math.round(result.confidence * 100)}%`
-			);
+			console.log(chalk.dim('Confidence:'), formatConfidence(result.confidence));
 		}
 
 		if (result.reasoning && verbose) {
 			console.log();
-			console.log(chalk.dim('Reasoning:'), result.reasoning);
+			console.log(chalk.dim('Reasoning:'), terminalText(result.reasoning));
 		}
 
 		if (result.sources && result.sources.length > 0 && verbose) {
 			console.log();
 			console.log(chalk.dim('Sources:'));
 			for (const source of result.sources) {
-				console.log(
-					`  - ${source.title || source.type}${source.location ? ` (${source.location})` : ''}`
-				);
+				const location = source.location ? ` (${source.location})` : '';
+				console.log(`  - ${terminalText(`${source.title || source.type}${location}`)}`);
 			}
 		}
 
 		if (result.warnings && result.warnings.length > 0) {
 			console.log();
 			for (const warning of result.warnings) {
-				console.log(chalk.yellow(`⚠ ${warning.message}`));
+				console.log(chalk.yellow(`⚠ ${terminalText(warning.message)}`));
 			}
 		}
 	} else if (isFailure(result)) {
 		console.log(chalk.red('✗ Failed'));
 		console.log();
-		console.log(chalk.bold('Error:'), `[${result.error.code}]`, result.error.message);
+		console.log(chalk.bold('Error:'), formatErrorSummary(result.error));
 
 		if (result.error.suggestion) {
 			console.log();
-			console.log(chalk.dim('Suggestion:'), result.error.suggestion);
+			console.log(chalk.dim('Suggestion:'), terminalText(result.error.suggestion));
 		}
 
 		if (result.error.retryable) {
@@ -93,7 +96,8 @@ export function printResult<T>(result: CommandResult<T>, options: OutputOptions 
 }
 
 /**
- * Format a list of tools.
+ * Format a list of tools, grouped by `_meta.category` (else the kebab-case
+ * `domain-` prefix of the name).
  */
 export function printTools(tools: McpTool[], options: OutputOptions = {}): void {
 	const { format = 'text' } = options;
@@ -111,23 +115,20 @@ export function printTools(tools: McpTool[], options: OutputOptions = {}): void 
 	console.log(chalk.bold(`Available Tools (${tools.length}):`));
 	console.log();
 
-	// Group by category (extracted from name)
 	const grouped = new Map<string, McpTool[]>();
 	for (const tool of tools) {
-		const category = tool.name.split('.')[0] || 'other';
-		if (!grouped.has(category)) {
-			grouped.set(category, []);
-		}
-		grouped.get(category)?.push(tool);
+		const category = toolCategory(tool);
+		const group = grouped.get(category) ?? [];
+		group.push(tool);
+		grouped.set(category, group);
 	}
 
 	for (const [category, categoryTools] of grouped) {
-		console.log(chalk.cyan(`  ${category}/`));
+		console.log(chalk.cyan(`  ${terminalText(category)}/`));
 		for (const tool of categoryTools) {
-			const shortName = tool.name.split('.').slice(1).join('.') || tool.name;
-			console.log(`    ${chalk.white(shortName)}`);
+			console.log(`    ${chalk.white(terminalText(tool.name))}`);
 			if (tool.description) {
-				console.log(`      ${chalk.dim(tool.description)}`);
+				console.log(`      ${chalk.dim(terminalText(tool.description))}`);
 			}
 		}
 		console.log();
@@ -135,7 +136,7 @@ export function printTools(tools: McpTool[], options: OutputOptions = {}): void 
 }
 
 /**
- * Print connection status.
+ * Print connection status. Credentials in the URL are redacted.
  */
 export function printStatus(status: {
 	connected: boolean;
@@ -146,23 +147,42 @@ export function printStatus(status: {
 	if (status.connected) {
 		console.log(chalk.green('● Connected'));
 		if (status.url) {
-			console.log(chalk.dim('  URL:'), status.url);
+			console.log(chalk.dim('  URL:'), terminalText(redactUrl(status.url)));
 		}
 		if (status.serverName) {
-			console.log(chalk.dim('  Server:'), `${status.serverName} v${status.serverVersion || '?'}`);
+			console.log(
+				chalk.dim('  Server:'),
+				terminalText(`${status.serverName} v${status.serverVersion || '?'}`)
+			);
 		}
 	} else {
 		console.log(chalk.dim('○ Not connected'));
 	}
 }
 
+/** Print the status of a client, or "Not connected" without one. */
+export function printClientStatus(client: Pick<McpClient, 'getStatus'> | null): void {
+	if (!client) {
+		printStatus({ connected: false });
+		return;
+	}
+	const status = client.getStatus();
+	printStatus({
+		connected: status.state === 'connected',
+		url: status.url,
+		serverName: status.serverInfo?.name,
+		serverVersion: status.serverInfo?.version,
+	});
+}
+
 /**
- * Print an error message.
+ * Print an error message. Both the message and the error's own message may
+ * carry server text, so both are sanitized.
  */
 export function printError(message: string, error?: Error): void {
-	console.error(chalk.red('Error:'), message);
+	console.error(chalk.red('Error:'), sanitizeForTerminal(message));
 	if (error?.message && error.message !== message) {
-		console.error(chalk.dim(error.message));
+		console.error(chalk.dim(terminalText(error.message)));
 	}
 }
 
@@ -170,31 +190,34 @@ export function printError(message: string, error?: Error): void {
  * Print a success message.
  */
 export function printSuccess(message: string): void {
-	console.log(chalk.green('✓'), message);
+	console.log(chalk.green('✓'), sanitizeForTerminal(message));
 }
 
 /**
  * Print an info message.
  */
 export function printInfo(message: string): void {
-	console.log(chalk.blue('ℹ'), message);
+	console.log(chalk.blue('ℹ'), sanitizeForTerminal(message));
 }
 
 /**
  * Print a warning message.
  */
 export function printWarning(message: string): void {
-	console.log(chalk.yellow('⚠'), message);
+	console.log(chalk.yellow('⚠'), sanitizeForTerminal(message));
 }
 
 /**
- * Format a value for display.
+ * Format a value for display. Strings print as they are; anything else as
+ * indented JSON. Either way the result is safe for the terminal.
  */
-function formatValue(value: unknown, indent = 2): string {
-	if (typeof value === 'string') {
-		return value;
-	}
-	return JSON.stringify(value, null, indent);
+export function formatValue(value: unknown, indent = 2): string {
+	return terminalText(typeof value === 'string' ? value : JSON.stringify(value, null, indent));
+}
+
+/** `[CODE] message` for a command error, safe for the terminal. */
+export function formatErrorSummary(error: Pick<CommandError, 'code' | 'message'>): string {
+	return terminalText(`[${error.code}] ${error.message}`);
 }
 
 /**
@@ -215,6 +238,11 @@ export function renderBar(ratio: number, width: number, color: (text: string) =>
 export function getConfidenceBar(confidence: number): string {
 	const color = confidence >= 0.8 ? chalk.green : confidence >= 0.5 ? chalk.yellow : chalk.red;
 	return renderBar(confidence, 10, color);
+}
+
+/** Confidence bar followed by the percentage, e.g. `████████░░ 80%`. */
+export function formatConfidence(confidence: number): string {
+	return `${getConfidenceBar(Number(confidence))} ${Math.round(Number(confidence) * 100)}%`;
 }
 
 /**
