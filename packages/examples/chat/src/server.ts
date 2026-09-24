@@ -2,7 +2,8 @@
  * @fileoverview Chat app MCP server entry point
  *
  * This file creates and starts an MCP server exposing all chat commands,
- * along with a WebSocket server for real-time messaging.
+ * along with a WebSocket server for real-time messaging that also serves
+ * the browser demo.
  *
  * Usage:
  *   node dist/server.js
@@ -11,60 +12,28 @@
  *   afd connect http://localhost:3100/sse
  *   afd call chat-rooms
  *   afd call chat-connect '{"roomId": "general", "nickname": "CLI-User"}'
+ *
+ * Or open the browser demo at http://localhost:3001. It calls chat-connect
+ * through the MCP server's /rpc route, which validates input, checks
+ * `expose.mcp`, runs middleware and caps the body size.
  */
 
-import { createLoggingMiddleware, createMcpServer } from '@lushly-dev/afd-server';
+import { createMcpServer } from '@lushly-dev/afd-server';
 import { allCommands } from './commands/index.js';
-import { createHttpHandler } from './http-handler.js';
+import { type ChatConfig, createChatMcpOptions, loadChatConfig } from './config.js';
 import { createWebSocketServer } from './ws-server.js';
 
-// Configuration from environment
-const PORT = Number.parseInt(process.env.PORT ?? '3100', 10);
-const WS_PORT = Number.parseInt(process.env.WS_PORT ?? '3001', 10);
-const HTTP_PORT = Number.parseInt(process.env.HTTP_PORT ?? '3200', 10);
-const HOST = process.env.HOST ?? 'localhost';
-const LOG_LEVEL = process.env.LOG_LEVEL ?? 'info';
 const TRANSPORT = (process.env.TRANSPORT ?? 'auto') as 'auto' | 'http' | 'stdio';
-const DEV_MODE = process.env.NODE_ENV === 'development';
-
-/**
- * Create and configure the MCP server.
- */
-function createServer() {
-	return createMcpServer({
-		name: 'chat-app',
-		version: '1.0.0',
-		commands: allCommands,
-		// Adds the afd-help, afd-docs and afd-schema bootstrap tools
-		bootstrap: true,
-		port: PORT,
-		host: HOST,
-		devMode: DEV_MODE,
-		transport: TRANSPORT,
-		cors: true,
-
-		middleware:
-			DEV_MODE || LOG_LEVEL === 'debug'
-				? [createLoggingMiddleware({ logInput: true, logResult: true })]
-				: [createLoggingMiddleware()],
-
-		onCommand(command, input, result) {
-			if (LOG_LEVEL === 'debug') {
-				console.error(`[Command] ${command}:`, { input, result });
-			}
-		},
-
-		onError(error) {
-			console.error('[Error]', error);
-		},
-	});
-}
 
 /**
  * Main entry point.
  */
 async function main() {
-	const server = createServer();
+	const config: ChatConfig = loadChatConfig(process.env);
+	const server = createMcpServer({
+		...createChatMcpOptions(config, allCommands),
+		transport: TRANSPORT,
+	});
 	const isInteractive = process.stdin.isTTY;
 
 	if (isInteractive) {
@@ -72,8 +41,8 @@ async function main() {
 		console.error(`  MCP Server: chat-app v1.0.0`);
 		console.error(
 			`  Mode: ${
-				DEV_MODE
-					? '🔧 DEVELOPMENT (verbose errors, permissive CORS)'
+				config.devMode
+					? '🔧 DEVELOPMENT (verbose errors, any browser origin)'
 					: '🔒 PRODUCTION (secure defaults)'
 			}`
 		);
@@ -84,15 +53,21 @@ async function main() {
 	// Start MCP server
 	await server.start();
 
-	// Start WebSocket server
-	const wss = createWebSocketServer(WS_PORT);
-
-	// Start HTTP JSON-RPC server for browser demo
-	const _httpServer = createHttpHandler(allCommands, HTTP_PORT);
+	// Start WebSocket server (also serves the browser demo)
+	const realtime = createWebSocketServer({
+		port: config.wsPort,
+		host: config.host,
+		maxPayload: config.wsMaxPayload,
+		allowedOrigins: config.allowedOrigins,
+		allowedHosts: config.allowedHosts,
+	});
+	await realtime.ready;
 
 	if (isInteractive) {
 		console.error(`MCP Server running at ${server.getUrl()}`);
-		console.error(`WebSocket Server running at ws://${HOST}:${WS_PORT}`);
+		console.error(`WebSocket Server running at ws://${config.host}:${config.wsPort}`);
+		console.error(`Browser demo at http://localhost:${config.wsPort}`);
+		console.error(`Allowed browser origins: ${config.allowedOrigins.join(', ')}`);
 		console.error('');
 		console.error('Connect with the AFD CLI:');
 		console.error(`  afd connect ${server.getUrl()}/sse`);
@@ -112,7 +87,7 @@ async function main() {
 	// Handle shutdown
 	const shutdown = async () => {
 		console.error('\nShutting down...');
-		wss.close();
+		await realtime.close();
 		await server.stop();
 		process.exit(0);
 	};

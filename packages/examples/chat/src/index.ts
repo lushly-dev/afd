@@ -8,6 +8,16 @@
  */
 
 export * from './commands/index.js';
+export {
+	type ChatConfig,
+	createChatMcpOptions,
+	demoOrigins,
+	loadChatConfig,
+} from './config.js';
 export * from './services/chat.js';
 export * from './types.js';
-export { createWebSocketServer } from './ws-server.js';
+export {
+	type ChatRealtimeServer,
+	createWebSocketServer,
+	type WebSocketServerOptions,
+} from './ws-server.js';

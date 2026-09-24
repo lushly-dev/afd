@@ -1,11 +1,23 @@
 /**
  * @fileoverview WebSocket server for real-time chat
  *
- * This server handles WebSocket connections after handoff from the chat-connect command.
+ * This server handles WebSocket connections after handoff from the chat-connect
+ * command, and serves the browser demo (`demo.html`) from the same origin.
+ *
+ * Security defaults:
+ * - binds 127.0.0.1;
+ * - refuses messages over `maxPayload` bytes (16 KiB instead of the `ws`
+ *   default of 100 MiB) and chat text over 2000 characters;
+ * - refuses upgrades from browser origins other than `allowedOrigins`
+ *   (a WebSocket is not covered by CORS, so the server must check), and
+ *   `Host` headers that do not name this server (DNS rebinding).
  */
 
-import type { IncomingMessage } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { type WebSocket, WebSocketServer } from 'ws';
+import { demoOrigins } from './config.js';
 import { chatService } from './services/chat.js';
 import type { ChatClient } from './types.js';
 
@@ -69,12 +81,15 @@ class RoomManager {
 
 const roomManager = new RoomManager();
 
+/** Longest chat message, matching the chat-send command's schema. */
+export const MAX_MESSAGE_LENGTH = 2000;
+
 /**
  * Message types from clients.
  */
 interface ClientMessage {
 	type: 'message' | 'typing' | 'ping';
-	text?: string;
+	text?: unknown;
 }
 
 /**
@@ -89,15 +104,127 @@ type ServerMessage =
 	| { type: 'error'; message: string }
 	| { type: 'welcome'; roomId: string; participants: string[] };
 
+export interface WebSocketServerOptions {
+	/** Port for WebSocket upgrades and the demo page (default 3001; 0 picks a free port). */
+	port?: number;
+	/** Interface to bind (default `127.0.0.1`). */
+	host?: string;
+	/** Largest incoming message in bytes (default 16 KiB). */
+	maxPayload?: number;
+	/** Exact browser origins allowed to connect (default: the demo page's localhost origins). */
+	allowedOrigins?: string[];
+	/** Host names accepted in the `Host` header (default: localhost, 127.0.0.1, [::1] and `host`). */
+	allowedHosts?: string[];
+}
+
+export interface ChatRealtimeServer {
+	/** The WebSocket server. */
+	wss: WebSocketServer;
+	/** The HTTP server it is attached to, which also serves the demo page. */
+	http: Server;
+	/** Resolves with the bound address once listening. */
+	ready: Promise<AddressInfo>;
+	/** Close every connection and stop listening. */
+	close(): Promise<void>;
+}
+
+/** Scripts only from this origin, so injected markup cannot run code. */
+const DEMO_CSP = [
+	"default-src 'self'",
+	"script-src 'self'",
+	"style-src 'self' 'unsafe-inline'",
+	// The page calls the local MCP server's /rpc route and opens the WebSocket.
+	"connect-src 'self' http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*",
+	"object-src 'none'",
+	"base-uri 'none'",
+	"frame-ancestors 'none'",
+].join('; ');
+
+const DEMO_FILES: Record<string, { file: URL; type: string }> = {
+	'/': { file: new URL('../demo.html', import.meta.url), type: 'text/html; charset=utf-8' },
+	'/demo.html': {
+		file: new URL('../demo.html', import.meta.url),
+		type: 'text/html; charset=utf-8',
+	},
+	'/demo.js': {
+		file: new URL('../demo.js', import.meta.url),
+		type: 'text/javascript; charset=utf-8',
+	},
+};
+
+/** Whether an upgrade or page request comes from an allowed browser origin (or no browser). */
+export function isOriginAllowed(origin: string | undefined, allowed: readonly string[]): boolean {
+	if (origin === undefined) return true; // non-browser clients send no Origin
+	return origin !== 'null' && allowed.includes(origin);
+}
+
+/** Whether the `Host` header names this server. */
+export function isHostAllowed(host: string | undefined, allowed: readonly string[]): boolean {
+	if (!host || /[\s/@\\?#]/.test(host)) return false;
+	try {
+		return allowed.includes(new URL(`http://${host}`).hostname.toLowerCase());
+	} catch {
+		return false;
+	}
+}
+
+function sendText(res: ServerResponse, status: number, text: string): void {
+	res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8' });
+	res.end(text);
+}
+
 /**
  * Create and start the WebSocket server.
  */
-export function createWebSocketServer(port = 3001): WebSocketServer {
-	const wss = new WebSocketServer({ port });
+export function createWebSocketServer(options: WebSocketServerOptions = {}): ChatRealtimeServer {
+	const port = options.port ?? 3001;
+	const host = options.host ?? '127.0.0.1';
+	const hostName = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+	const allowedHosts = options.allowedHosts ?? ['localhost', '127.0.0.1', '[::1]', hostName];
+	const allowedOrigins = options.allowedOrigins ?? demoOrigins(port);
+
+	const http = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+		if (!isHostAllowed(req.headers.host, allowedHosts)) {
+			sendText(res, 403, 'Host not allowed');
+			return;
+		}
+		const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
+		const entry = DEMO_FILES[pathname];
+		if (req.method !== 'GET' || !entry) {
+			sendText(res, 404, 'Not found. Connect with WebSocket to /rooms/:roomId');
+			return;
+		}
+		try {
+			const body = await readFile(entry.file);
+			res.writeHead(200, {
+				'Content-Type': entry.type,
+				'Content-Security-Policy': DEMO_CSP,
+				'X-Content-Type-Options': 'nosniff',
+				'Cache-Control': 'no-store',
+			});
+			res.end(body);
+		} catch {
+			sendText(res, 500, 'Demo page unavailable');
+		}
+	});
+
+	const wss = new WebSocketServer({
+		server: http,
+		maxPayload: options.maxPayload ?? 16 * 1024,
+		verifyClient: ({ origin, req }, done) => {
+			if (!isHostAllowed(req.headers.host, allowedHosts)) {
+				done(false, 403, 'Host not allowed');
+			} else if (!isOriginAllowed(origin, allowedOrigins)) {
+				done(false, 403, 'Origin not allowed');
+			} else {
+				done(true);
+			}
+		},
+	});
 
 	wss.on('connection', async (ws: WebSocket, req: IncomingMessage) => {
 		// Parse URL
-		const url = new URL(req.url ?? '/', `ws://${req.headers.host ?? 'localhost'}`);
+		const url = new URL(req.url ?? '/', 'ws://localhost');
 		const pathParts = url.pathname.split('/').filter(Boolean);
 
 		// Expect /rooms/:roomId
@@ -175,8 +302,13 @@ export function createWebSocketServer(port = 3001): WebSocketServer {
 
 				switch (msg.type) {
 					case 'message': {
-						if (!msg.text) {
+						const text = typeof msg.text === 'string' ? msg.text.trim() : '';
+						if (!text) {
 							sendError(ws, 'Message text required');
+							return;
+						}
+						if (text.length > MAX_MESSAGE_LENGTH) {
+							sendError(ws, `Message text is limited to ${MAX_MESSAGE_LENGTH} characters`);
 							return;
 						}
 
@@ -184,14 +316,14 @@ export function createWebSocketServer(port = 3001): WebSocketServer {
 							roomId,
 							sessionId: session.id,
 							nickname: session.nickname,
-							text: msg.text,
+							text,
 						});
 
 						roomManager.broadcast(roomId, {
 							type: 'message',
 							id: saved.id,
 							sender: session.nickname,
-							text: msg.text,
+							text,
 							timestamp: saved.createdAt.getTime(),
 						});
 						break;
@@ -239,7 +371,19 @@ export function createWebSocketServer(port = 3001): WebSocketServer {
 		});
 	});
 
-	return wss;
+	const ready = new Promise<AddressInfo>((resolve, reject) => {
+		http.once('error', reject);
+		http.listen(port, host, () => resolve(http.address() as AddressInfo));
+	});
+
+	async function close(): Promise<void> {
+		for (const client of wss.clients) client.terminate();
+		await new Promise<void>((resolve) => wss.close(() => resolve()));
+		http.closeAllConnections();
+		await new Promise<void>((resolve) => http.close(() => resolve()));
+	}
+
+	return { wss, http, ready, close };
 }
 
 /**
