@@ -6,53 +6,64 @@ Test user journeys through YAML scenario files with fixtures and step references
 
 ```yaml
 # scenarios/create-and-complete-todo.scenario.yaml
-scenario:
-  name: "Create and complete a todo"
-  tags: ["smoke", "crud"]
+name: Create and complete a todo
+description: Tests the complete lifecycle of a todo item
+job: create-and-complete
+tags: [smoke, crud]
+timeout: 30000                          # Optional: per-scenario timeout in ms
 
-setup:
-  fixture:
-    file: "fixtures/seeded-todos.json"
+fixture:
+  file: ../fixtures/seeded-todos.json   # Relative to this scenario file
 
 steps:
-  - name: "Create todo"
-    command: todo.create
+  - description: Create todo
+    command: todo-create
     input:
-      title: "Buy groceries"
+      title: Buy groceries
     expect:
       success: true
       data:
-        title: "Buy groceries"
+        title: Buy groceries
 
-  - name: "Complete todo"
-    command: todo.toggle
+  - description: Complete todo
+    command: todo-toggle
     input:
-      id: "${{ steps[0].data.id }}"  # Reference previous step
+      id: ${{ steps[0].data.id }}        # Reference a previous step
     expect:
       success: true
+      data:
+        completed: true
 ```
+
+The parser is strict. An unknown field at any level is a parse error, and
+`verify`, `isolation` and `dependsOn` are rejected as not supported. A matcher
+object (`{ exists: true }`, `{ gte: 1 }`, `{ length: 3 }`) may contain only
+matcher keys; use `{ equals: {...} }` to compare a literal object.
 
 ## Step References
 
-Reference data from previous steps: `${{ steps[N].data.path }}`
+Reference data from previous steps: `${{ steps[N].data.path }}`. A reference
+that does not resolve fails the step with `reference_error`.
 
 ```yaml
 steps:
-  - name: "Create"
-    command: todo.create
-    input: { title: "Test" }
+  - description: Create
+    command: todo-create
+    input: { title: Test }
     # Result: { data: { id: "todo-123" } }
 
-  - name: "Update"
-    command: todo.update
+  - description: Update
+    command: todo-update
     input:
-      id: "${{ steps[0].data.id }}"    # → "todo-123"
-      title: "Updated"
+      id: ${{ steps[0].data.id }}    # → "todo-123"
+      title: Updated
 ```
 
 ## Fixtures
 
-Pre-seed test data before scenario execution:
+Pre-seed test data before scenario execution. The first failed fixture command
+fails the scenario at the fixture step (`error.type: 'fixture_failed'`), and no
+step runs.
 
 ```json
 // fixtures/seeded-todos.json
@@ -68,17 +79,21 @@ Pre-seed test data before scenario execution:
 ## Running Scenarios
 
 ```bash
-# Via conformance runner
+# Cross-backend conformance suite for the todo example
 cd packages/examples/todo
-npx tsx dx/run-conformance.ts ts  # Test TypeScript backend
-npx tsx dx/run-conformance.ts py  # Test Python backend
+pnpm test:conformance:ts   # also :py and :rs
 ```
 
 ```typescript
 // Programmatically
-import { parseScenario, InProcessExecutor } from '@lushly-dev/afd-testing';
-const scenario = parseScenario(yaml);
-const result = await executor.run(scenario);
+import { InProcessExecutor, parseScenarioFile } from '@lushly-dev/afd-testing';
+
+const parsed = await parseScenarioFile('scenarios/create-and-complete-todo.scenario.yaml');
+if (!parsed.success) throw new Error(parsed.error);
+
+const executor = new InProcessExecutor({ handler: myCommandHandler });
+const result = await executor.execute(parsed.scenario);
+// result.outcome: 'pass' | 'fail' | 'partial' | 'error' | 'skip'
 ```
 
 ## Dry Run Validation
@@ -88,13 +103,12 @@ Validate scenarios without executing:
 ```typescript
 import { validateScenario } from '@lushly-dev/afd-testing';
 
-const validation = validateScenario(scenario, {
-  availableCommands: ['todo-create', 'todo-get'],
-});
+// Structure, step references, expectations and fixture files
+const validation = await validateScenario(parsed.scenario, { checkFixtures: true });
 
 if (!validation.valid) {
   console.error(validation.errors);
-  // ["Unknown command 'todo-unknown' in step 3"]
+  // ["Step 3: Invalid reference to step 4 (can only reference earlier steps)"]
 }
 ```
 
