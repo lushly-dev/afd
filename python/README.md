@@ -303,6 +303,11 @@ middleware = compose_middleware([
     create_retry_middleware(max_retries=3),
 ])
 
+# Retries back off exponentially like TypeScript's createRetryMiddleware: retry n waits
+# min(max_delay, retry_delay * 2 ** (n - 1)) ms (defaults 100 and 5000), randomized to
+# between half and all of that unless jitter=False.
+retry = create_retry_middleware(max_retries=5, retry_delay=200, max_delay=2000, jitter=False)
+
 # Fixed-window rate limit: 100 calls per minute per client. Expired windows are
 # evicted; at most max_keys (default 10,000) clients are tracked at once.
 from afd.server import create_rate_limit_middleware

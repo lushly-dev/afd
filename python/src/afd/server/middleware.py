@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 import math
+import random
 import sys
 import time
 from collections import OrderedDict
@@ -314,20 +315,55 @@ def create_timing_middleware(
 # =============================================================================
 
 
+def _retry_wait_ms(retry: int, base_ms: float, max_ms: float, jitter: bool) -> float:
+    """The wait before retry ``retry`` (1-based), in milliseconds.
+
+    Exponential from ``base_ms``, capped at ``max_ms``, and with jitter a
+    uniform value in ``[backoff / 2, backoff]``. The exponent is bounded so a
+    large retry count cannot overflow the float conversion.
+    """
+    backoff = min(max_ms, base_ms * 2.0 ** min(retry - 1, 1023))
+    return random.uniform(backoff / 2, backoff) if jitter else backoff
+
+
 def create_retry_middleware(
     *,
     max_retries: int = 3,
     retry_delay: float = 100,
     should_retry: Optional[Callable[[str], bool]] = None,
+    max_delay: float = 5000,
+    jitter: bool = True,
 ) -> CommandMiddleware:
     """Create retry middleware for transient failures.
 
+    A failure whose error code passes ``should_retry`` is retried up to
+    ``max_retries`` times with capped exponential backoff, as in TypeScript's
+    ``createRetryMiddleware``: retry ``n`` backs off
+    ``min(max_delay, retry_delay * 2 ** (n - 1))`` ms. Cancelling the call
+    (``asyncio.CancelledError``) during a wait stops retrying at once.
+
     Args:
-        max_retries: Maximum number of retries. Default 3.
-        retry_delay: Base delay between retries in ms. Default 100ms.
+        max_retries: Maximum number of retries after the first attempt. Default 3.
+        retry_delay: Base backoff in ms, doubled for each retry. Default 100ms.
         should_retry: Predicate for retryable error codes.
             Defaults to TRANSIENT_ERROR and TIMEOUT.
+        max_delay: Upper bound on the backoff of any retry in ms, before
+            jitter. Default 5000ms.
+        jitter: Randomize each wait to between half and all of the backoff,
+            so clients that failed together do not retry in lockstep. Default
+            True; False waits exactly the backoff.
+
+    Raises:
+        ValueError: If ``max_retries`` is not a nonnegative integer, or
+            ``retry_delay`` or ``max_delay`` is negative, or ``max_delay`` is
+            not finite.
     """
+    if isinstance(max_retries, bool) or not isinstance(max_retries, int) or max_retries < 0:
+        raise ValueError("Retry max_retries must be a nonnegative integer")
+    if not (retry_delay >= 0 and max_delay >= 0 and math.isfinite(max_delay)):
+        raise ValueError(
+            "Retry retry_delay and max_delay must be nonnegative, and max_delay finite"
+        )
     _should_retry = should_retry or (
         lambda code: code in ("TRANSIENT_ERROR", "TIMEOUT")
     )
@@ -338,36 +374,13 @@ def create_retry_middleware(
         context: CommandContext,
         next_fn: NextFn,
     ) -> CommandResult[Any]:
-        last_result: Optional[CommandResult[Any]] = None
-        attempts = 0
-
-        while attempts <= max_retries:
-            result = await next_fn()
-
-            if result.success:
+        result = await next_fn()
+        for retry in range(1, max_retries + 1):
+            if result.success or not result.error or not _should_retry(result.error.code):
                 return result
-
-            last_result = result
-
-            if result.error and _should_retry(result.error.code):
-                attempts += 1
-                if attempts <= max_retries:
-                    await asyncio.sleep(retry_delay * attempts / 1000)
-                    continue
-
-            break
-
-        if last_result is None:
-            from afd.core.result import failure
-
-            return failure(
-                CommandError(
-                    code="RETRY_EXHAUSTED",
-                    message="No result after retry attempts",
-                    suggestion="Check the command implementation",
-                )
-            )
-        return last_result
+            await asyncio.sleep(_retry_wait_ms(retry, retry_delay, max_delay, jitter) / 1000)
+            result = await next_fn()
+        return result
 
     return middleware
 

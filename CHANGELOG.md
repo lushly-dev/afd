@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Todo example: the Rust backend validates input against JSON Schemas, checks Host headers instead of allowing any origin, adds the three batch commands, and passes the conformance suite. The vanilla and chat frontends escape user content; the chat demo goes through MCP.
 - Alfred: `quality` scans every `defineCommand` call (68 of 68 example commands, up from 43); `parity` checks that every `spec/wire` fixture is covered by the TypeScript, Python and Rust round-trip suites and no longer drops exports; development and tests use the repo's `afd` package.
 - **Python and Rust pipelines** reject a step with `stream: true` the way TypeScript does, instead of accepting and ignoring it: that step fails with `UNSUPPORTED_OPTION` and every other step is skipped, before any command runs. `stream: false` is still accepted. This covers Python `afd-pipe`, `execute_pipeline()` and `DirectClient.pipe()` (whose `PipelineStep` gains a `stream` field), and Rust `execute_pipeline()`.
+- **Python:** `create_retry_middleware()` backs off exponentially with a cap and jitter, like TypeScript, instead of linearly: retry `n` waits `min(max_delay, retry_delay * 2 ** (n - 1))` ms, randomized to between half and all of that. The new `max_delay` (default 5000) and `jitter` (default `True`) keyword arguments control it. Invalid options (a negative or non-integer `max_retries`, a negative `retry_delay` or `max_delay`, an infinite `max_delay`) now raise `ValueError`, as in TypeScript.
 
 ### Changed
 

@@ -3,6 +3,7 @@
 import asyncio
 from contextlib import contextmanager
 import json
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -330,6 +331,121 @@ class TestRetryMiddleware:
         result = await mw("test-cmd", {}, ctx, handler)
         assert result.success is False
         assert call_count[0] == 1  # No retries
+
+
+class TestRetryBackoff:
+    """Retry n waits min(max_delay, retry_delay * 2 ** (n - 1)) ms, as in TypeScript."""
+
+    @staticmethod
+    def _always_transient():
+        calls = []
+
+        async def handler():
+            calls.append(1)
+            return error("TRANSIENT_ERROR", "temporary", suggestion="retry")
+
+        return handler, calls
+
+    @staticmethod
+    def _waits(mock_sleep: AsyncMock) -> list:
+        return [call.args[0] for call in mock_sleep.call_args_list]
+
+    @pytest.mark.asyncio
+    @patch("afd.server.middleware.asyncio.sleep", new_callable=AsyncMock)
+    async def test_backoff_doubles_and_is_capped_by_max_delay(self, mock_sleep):
+        handler, calls = self._always_transient()
+        mw = create_retry_middleware(
+            max_retries=6, retry_delay=100, max_delay=1000, jitter=False
+        )
+
+        result = await mw("test-cmd", {}, make_context(), handler)
+
+        assert result.error.code == "TRANSIENT_ERROR"
+        assert len(calls) == 7
+        assert self._waits(mock_sleep) == [0.1, 0.2, 0.4, 0.8, 1.0, 1.0]
+
+    @pytest.mark.asyncio
+    @patch("afd.server.middleware.asyncio.sleep", new_callable=AsyncMock)
+    async def test_max_delay_defaults_to_five_seconds(self, mock_sleep):
+        handler, _ = self._always_transient()
+        mw = create_retry_middleware(max_retries=8, retry_delay=100, jitter=False)
+
+        await mw("test-cmd", {}, make_context(), handler)
+
+        assert self._waits(mock_sleep) == [0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 5.0, 5.0]
+
+    @pytest.mark.asyncio
+    @patch("afd.server.middleware.asyncio.sleep", new_callable=AsyncMock)
+    async def test_default_jitter_waits_between_half_and_all_of_the_backoff(self, mock_sleep):
+        handler, _ = self._always_transient()
+        mw = create_retry_middleware(max_retries=5)
+
+        with patch(
+            "afd.server.middleware.random.uniform", side_effect=lambda low, high: low
+        ) as uniform:
+            await mw("test-cmd", {}, make_context(), handler)
+
+        assert [call.args for call in uniform.call_args_list] == [
+            (50, 100),
+            (100, 200),
+            (200, 400),
+            (400, 800),
+            (800, 1600),
+        ]
+        assert self._waits(mock_sleep) == [0.05, 0.1, 0.2, 0.4, 0.8]
+
+    @pytest.mark.asyncio
+    @patch("afd.server.middleware.asyncio.sleep", new_callable=AsyncMock)
+    async def test_jittered_waits_stay_in_range(self, mock_sleep):
+        handler, _ = self._always_transient()
+        mw = create_retry_middleware(max_retries=4, retry_delay=100)
+
+        await mw("test-cmd", {}, make_context(), handler)
+
+        for retry, wait in enumerate(self._waits(mock_sleep), start=1):
+            backoff = 0.1 * 2 ** (retry - 1)
+            assert backoff / 2 <= wait <= backoff
+
+    @pytest.mark.asyncio
+    @patch("afd.server.middleware.asyncio.sleep", new_callable=AsyncMock)
+    async def test_many_retries_do_not_overflow(self, mock_sleep):
+        handler, calls = self._always_transient()
+        mw = create_retry_middleware(max_retries=1100, retry_delay=100.0, jitter=False)
+
+        await mw("test-cmd", {}, make_context(), handler)
+
+        assert len(calls) == 1101
+        assert self._waits(mock_sleep)[-1] == 5.0
+
+    @pytest.mark.asyncio
+    async def test_cancellation_during_backoff_stops_retrying(self):
+        handler, calls = self._always_transient()
+        mw = create_retry_middleware(max_retries=3, retry_delay=60_000, jitter=False)
+
+        task = asyncio.create_task(mw("test-cmd", {}, make_context(), handler))
+        while not calls:
+            await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        task.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert len(calls) == 1
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"max_retries": -1},
+            {"max_retries": 1.5},
+            {"retry_delay": -1},
+            {"retry_delay": float("nan")},
+            {"max_delay": -1},
+            {"max_delay": float("inf")},
+        ],
+    )
+    def test_rejects_invalid_options(self, kwargs):
+        with pytest.raises(ValueError, match="Retry"):
+            create_retry_middleware(**kwargs)
 
 
 # =============================================================================
