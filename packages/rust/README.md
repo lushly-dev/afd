@@ -151,16 +151,95 @@ let request = PipelineRequest::new(vec![
 assert_eq!(request.steps[1].alias, None);
 ```
 
+## Command registry
+
+`CommandRegistry::execute` enforces each command's metadata before its handler runs:
+
+- **Input validation.** The input is checked against the declared `parameters` (required fields,
+  JSON types, `enum` values, and a parameter's full `schema` when it has one). Parameter defaults
+  are filled in. Invalid input returns `VALIDATION_ERROR` with a suggestion that lists the expected
+  parameters, and the problems in `details.errors`.
+- **Exposure.** When the `CommandContext` names an `interface`, a command not exposed to it returns
+  `COMMAND_NOT_EXPOSED`. Each `expose` flag has its own default, as in TypeScript: `palette` and
+  `agent` are on, `mcp` and `cli` are off. Leave `interface` unset for trusted in-process calls.
+- **Timeout.** `CommandContext::with_timeout(ms)` returns `TIMEOUT` when the command runs longer
+  (`native` feature).
+- **Middleware.** `add_middleware` wraps every execution; the first middleware added is the
+  outermost.
+
+`execute_batch_with_context` runs every batch entry through the same path, with the caller's
+context and the request's `context` entries in `CommandContext::extra`. Commands can also declare
+`requires` and `contexts` metadata. Registration takes `&self`, so the bootstrap commands
+(`afd-help`, `afd-docs`, `afd-schema`) can be registered into the registry they describe.
+
+```rust
+use afd::{
+    register_bootstrap_commands, success, CommandContext, CommandDefinition, CommandHandler,
+    CommandInterface, CommandParameter, CommandRegistry, CommandResult, ExposeOptions,
+};
+use async_trait::async_trait;
+use serde_json::{json, Value};
+use std::sync::Arc;
+
+struct CreateTodo;
+
+#[async_trait]
+impl CommandHandler for CreateTodo {
+    async fn execute(&self, input: Value, _context: CommandContext) -> CommandResult<Value> {
+        success(input)
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    let registry = Arc::new(CommandRegistry::new());
+    registry
+        .register(
+            CommandDefinition::new(
+                "todo-create",
+                "Create a todo",
+                vec![
+                    CommandParameter::required_string("title", "Todo title"),
+                    CommandParameter::optional_string("priority", "Priority")
+                        .with_enum(vec![json!("low"), json!("high")])
+                        .with_default(json!("low")),
+                ],
+                CreateTodo,
+            )
+            .with_expose(ExposeOptions::new().with_mcp(true))
+            .with_requires(["todo-list"]),
+        )
+        .unwrap();
+    register_bootstrap_commands(&registry).unwrap();
+
+    let invalid = registry.execute("todo-create", json!({"title": 42}), None).await;
+    assert_eq!(invalid.error.unwrap().code, "VALIDATION_ERROR");
+
+    let mcp = CommandContext::new().with_interface(CommandInterface::Mcp);
+    let created = registry
+        .execute("todo-create", json!({"title": "Buy milk"}), Some(mcp.clone()))
+        .await;
+    assert_eq!(created.data.unwrap()["priority"], "low");
+
+    let help = registry.execute("afd-help", json!({}), Some(mcp)).await;
+    assert_eq!(help.data.unwrap()["total"], 4); // todo-create and the three bootstrap commands
+}
+```
+
 ## Features
 
-- `native` (default) - Native async runtime with Tokio
-- `wasm` - WebAssembly target support
+- `native` (default) - Deadlines through `tokio::time::timeout`: command timeouts
+  (`CommandContext::timeout_ms`), batch `timeout` and pipeline `timeoutMs`. It enables only Tokio's
+  `time` feature; the application provides the runtime, with its time driver enabled (for example
+  `#[tokio::main]`).
+- `wasm` - Browser WebAssembly (`wasm32-unknown-unknown`). Durations are measured with
+  [`web-time`](https://crates.io/crates/web-time), because `std::time::Instant::now()` traps on that
+  target. Build with `--no-default-features --features wasm`; CI runs
+  `cargo check --target wasm32-unknown-unknown --no-default-features --features wasm`.
 
-Batch and pipeline deadlines (batch `timeout`, pipeline `timeoutMs`) require `native` and a Tokio
-runtime with time enabled. Builds without `native` reject deadline options with
-`UNSUPPORTED_OPTION` before invoking any command. Execution without a deadline remains available.
-Parallel pipelines are currently rejected in every build; batch concurrency is supported through
-`parallelism`.
+Builds without `native` reject deadline options with `UNSUPPORTED_OPTION` before invoking any
+command. Execution without a deadline remains available. Parallel pipelines are currently rejected
+in every build; batch concurrency is supported through `parallelism`.
 
 ## License
 

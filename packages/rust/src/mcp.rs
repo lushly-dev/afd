@@ -92,7 +92,11 @@ pub struct McpResponse {
     /// JSON-RPC version, always `2.0`.
     pub jsonrpc: String,
     /// Request ID this is responding to.
-    pub id: McpId,
+    ///
+    /// `None` serializes as `"id": null`, which JSON-RPC requires when the
+    /// request's ID could not be determined (a parse error or an invalid
+    /// request). See [`create_mcp_null_id_error_response`].
+    pub id: Option<McpId>,
     /// Result if successful.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub result: Option<serde_json::Value>,
@@ -219,13 +223,86 @@ pub struct McpResourceContent {
     pub resource: McpEmbeddedResource,
 }
 
-/// MCP content union.
+/// MCP audio content.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct McpAudioContent {
+    /// Always `audio`.
+    #[serde(rename = "type")]
+    pub content_type: String,
+    /// Base64-encoded audio data.
+    pub data: String,
+    /// Audio MIME type, such as `audio/wav`.
+    pub mime_type: String,
+}
+
+/// MCP resource link content: a reference to a resource the client can read.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct McpResourceLinkContent {
+    /// Always `resource_link`.
+    #[serde(rename = "type")]
+    pub content_type: String,
+    /// Resource URI.
+    pub uri: String,
+    /// Resource name.
+    pub name: String,
+    /// Human-readable title.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    /// Description of the resource.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// Resource MIME type.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mime_type: Option<String>,
+    /// Resource size in bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<u64>,
+    /// Content annotations (audience, priority, ...), kept as JSON.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<serde_json::Value>,
+    /// Protocol metadata (`_meta`), kept as JSON.
+    #[serde(rename = "_meta", default, skip_serializing_if = "Option::is_none")]
+    pub meta: Option<serde_json::Value>,
+}
+
+/// MCP content union.
+///
+/// Items are told apart by their `type` field: `text`, `image`, `audio`,
+/// `resource` and `resource_link`. An item with any other `type` (or none)
+/// becomes [`McpContent::Unknown`] with its JSON intact, so a content type
+/// added by a later MCP revision does not make a whole tool result fail to
+/// parse. A known `type` with a malformed body is still an error.
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(untagged)]
+#[non_exhaustive]
 pub enum McpContent {
     Text(McpTextContent),
     Image(McpImageContent),
+    Audio(McpAudioContent),
     Resource(McpResourceContent),
+    ResourceLink(McpResourceLinkContent),
+    /// A content item of a type this crate does not model, kept verbatim.
+    Unknown(serde_json::Value),
+}
+
+impl<'de> Deserialize<'de> for McpContent {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let content_type = value.get("type").and_then(serde_json::Value::as_str);
+        let parsed = match content_type {
+            Some("text") => serde_json::from_value(value).map(Self::Text),
+            Some("image") => serde_json::from_value(value).map(Self::Image),
+            Some("audio") => serde_json::from_value(value).map(Self::Audio),
+            Some("resource") => serde_json::from_value(value).map(Self::Resource),
+            Some("resource_link") => serde_json::from_value(value).map(Self::ResourceLink),
+            _ => Ok(Self::Unknown(value)),
+        };
+        parsed.map_err(D::Error::custom)
+    }
 }
 
 /// Tool capability metadata.
@@ -336,7 +413,7 @@ pub fn create_mcp_response(
 ) -> McpResponse {
     McpResponse {
         jsonrpc: "2.0".to_string(),
-        id: id.into(),
+        id: Some(id.into()),
         result: Some(result.into()),
         error: None,
     }
@@ -349,15 +426,61 @@ pub fn create_mcp_error_response(
     message: &str,
     data: Option<serde_json::Value>,
 ) -> McpResponse {
+    error_response(Some(id.into()), code, message, data)
+}
+
+/// Create an MCP error response with `"id": null`.
+///
+/// JSON-RPC requires a null ID when the request's ID could not be determined,
+/// as for a parse error ([`McpErrorCodes::PARSE_ERROR`]) or an invalid
+/// request.
+pub fn create_mcp_null_id_error_response(
+    code: McpErrorCode,
+    message: &str,
+    data: Option<serde_json::Value>,
+) -> McpResponse {
+    error_response(None, code, message, data)
+}
+
+fn error_response(
+    id: Option<McpId>,
+    code: McpErrorCode,
+    message: &str,
+    data: Option<serde_json::Value>,
+) -> McpResponse {
     McpResponse {
         jsonrpc: "2.0".to_string(),
-        id: id.into(),
+        id,
         result: None,
         error: Some(McpError {
             code,
             message: message.to_string(),
             data,
         }),
+    }
+}
+
+/// Create an audio content item from base64 data.
+pub fn audio_content(data: &str, mime_type: &str) -> McpAudioContent {
+    McpAudioContent {
+        content_type: "audio".to_string(),
+        data: data.to_string(),
+        mime_type: mime_type.to_string(),
+    }
+}
+
+/// Create a resource link content item.
+pub fn resource_link_content(uri: &str, name: &str) -> McpResourceLinkContent {
+    McpResourceLinkContent {
+        content_type: "resource_link".to_string(),
+        uri: uri.to_string(),
+        name: name.to_string(),
+        title: None,
+        description: None,
+        mime_type: None,
+        size: None,
+        annotations: None,
+        meta: None,
     }
 }
 
@@ -421,7 +544,7 @@ mod tests {
     fn test_create_mcp_response() {
         let res = create_mcp_response(1u32, serde_json::json!({ "data": "hello" }));
         assert_eq!(res.jsonrpc, "2.0");
-        assert_eq!(res.id, McpId::Number(1));
+        assert_eq!(res.id, Some(McpId::Number(1)));
         assert_eq!(res.result, Some(serde_json::json!({ "data": "hello" })));
         assert!(res.error.is_none());
     }
@@ -434,7 +557,7 @@ mod tests {
             "Method not found",
             None,
         );
-        assert_eq!(res.id, McpId::Number(1));
+        assert_eq!(res.id, Some(McpId::Number(1)));
         assert!(res.result.is_none());
         assert_eq!(
             res.error,
@@ -510,5 +633,90 @@ mod tests {
         assert!(!is_mcp_notification(
             &serde_json::json!({ "jsonrpc": "2.0", "id": 1, "method": "notify" })
         ));
+    }
+
+    #[test]
+    fn test_parse_error_response_has_null_id() {
+        let response =
+            create_mcp_null_id_error_response(McpErrorCodes::PARSE_ERROR, "Parse error", None);
+        let json = serde_json::to_value(&response).unwrap();
+        assert_eq!(
+            json,
+            serde_json::json!({
+                "jsonrpc": "2.0",
+                "id": null,
+                "error": { "code": -32700, "message": "Parse error" }
+            })
+        );
+        assert!(is_mcp_response(&json));
+
+        let decoded: McpResponse = serde_json::from_value(json).unwrap();
+        assert_eq!(decoded, response);
+        assert!(decoded.id.is_none());
+
+        let with_id: McpResponse = serde_json::from_value(
+            serde_json::json!({ "jsonrpc": "2.0", "id": "abc", "result": {} }),
+        )
+        .unwrap();
+        assert_eq!(with_id.id, Some(McpId::String("abc".to_string())));
+    }
+
+    #[test]
+    fn test_tool_result_parses_every_content_type() {
+        let json = serde_json::json!({
+            "content": [
+                { "type": "text", "text": "hello" },
+                { "type": "image", "data": "aW1n", "mimeType": "image/png" },
+                { "type": "audio", "data": "YXVkaW8=", "mimeType": "audio/wav" },
+                {
+                    "type": "resource",
+                    "resource": { "uri": "file:///a.txt", "mimeType": "text/plain", "text": "a" }
+                },
+                {
+                    "type": "resource_link",
+                    "uri": "file:///b.md",
+                    "name": "b.md",
+                    "description": "Notes",
+                    "mimeType": "text/markdown",
+                    "annotations": { "audience": ["user"] }
+                },
+                { "type": "hologram", "frames": 3 },
+                { "no": "type" }
+            ],
+            "isError": false
+        });
+
+        let result: McpToolCallResult = serde_json::from_value(json.clone()).unwrap();
+
+        assert!(matches!(&result.content[0], McpContent::Text(text) if text.text == "hello"));
+        assert!(matches!(&result.content[1], McpContent::Image(_)));
+        assert_eq!(
+            result.content[2],
+            McpContent::Audio(audio_content("YXVkaW8=", "audio/wav"))
+        );
+        assert!(matches!(&result.content[3], McpContent::Resource(_)));
+        let McpContent::ResourceLink(link) = &result.content[4] else {
+            panic!("expected a resource link, got {:?}", result.content[4]);
+        };
+        assert_eq!(link.name, "b.md");
+        assert_eq!(link.description.as_deref(), Some("Notes"));
+        assert!(matches!(&result.content[5], McpContent::Unknown(value) if value["frames"] == 3));
+        assert!(matches!(&result.content[6], McpContent::Unknown(_)));
+
+        // Every item, including unknown ones, serializes back unchanged.
+        assert_eq!(serde_json::to_value(&result).unwrap(), json);
+    }
+
+    #[test]
+    fn test_malformed_known_content_is_an_error() {
+        let malformed = serde_json::json!({ "type": "text", "text": 5 });
+        assert!(serde_json::from_value::<McpContent>(malformed).is_err());
+
+        let link = resource_link_content("file:///c", "c");
+        let round_trip: McpContent = serde_json::from_value(
+            serde_json::to_value(McpContent::ResourceLink(link.clone())).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(round_trip, McpContent::ResourceLink(link));
     }
 }

@@ -50,12 +50,12 @@ use std::future::Future;
 use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
-use std::time::Instant;
 
 use crate::commands::{deadline_after, elapsed_ms};
 use crate::errors::CommandError;
 use crate::metadata::{Alternative, Source, Warning, WarningSeverity};
 use crate::result::CommandResult;
+use crate::time::Instant;
 
 /// Step inputs nested deeper than this many levels are rejected before any step runs.
 pub const MAX_INPUT_DEPTH: usize = 64;

@@ -2,15 +2,15 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use crate::commands::{
     command_to_mcp_tool, CommandContext, CommandDefinition, CommandHandler, CommandParameter,
     CommandRegistry, JsonSchemaType, McpTool,
 };
-use crate::result::{success_with, CommandResult, ResultOptions};
+use crate::result::{failure, success_with, CommandResult, ResultOptions};
 
-use super::{BOOTSTRAP_CATEGORY, BOOTSTRAP_TAGS};
+use super::{bootstrap_expose, RegistryRef, BOOTSTRAP_CATEGORY, BOOTSTRAP_TAGS};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -48,12 +48,24 @@ pub struct SchemaOutput {
     pub format: SchemaFormat,
 }
 
+/// Handler for `afd-schema`.
 pub struct AfdSchemaHandler {
-    registry: Arc<CommandRegistry>,
+    registry: RegistryRef,
 }
 
 impl AfdSchemaHandler {
+    /// Describe `registry`, keeping it alive.
     pub fn new(registry: Arc<CommandRegistry>) -> Self {
+        Self::from_ref(RegistryRef::Strong(registry))
+    }
+
+    /// Describe `registry` without keeping it alive, for a handler that is
+    /// registered into that same registry.
+    pub fn from_weak(registry: Weak<CommandRegistry>) -> Self {
+        Self::from_ref(RegistryRef::Weak(registry))
+    }
+
+    pub(crate) fn from_ref(registry: RegistryRef) -> Self {
         Self { registry }
     }
 
@@ -97,10 +109,13 @@ impl CommandHandler for AfdSchemaHandler {
     async fn execute(
         &self,
         input: serde_json::Value,
-        _context: CommandContext,
+        context: CommandContext,
     ) -> CommandResult<serde_json::Value> {
         let input: SchemaInput = serde_json::from_value(input).unwrap_or_default();
-        let all_commands = self.registry.list();
+        let all_commands = match self.registry.describable_commands(&context) {
+            Ok(commands) => commands,
+            Err(error) => return failure(*error),
+        };
 
         let commands: Vec<_> = if let Some(ref cmd_name) = input.command {
             all_commands
@@ -168,7 +183,13 @@ impl CommandHandler for AfdSchemaHandler {
     }
 }
 
+/// Create `afd-schema` for `registry`, keeping it alive. To register it into
+/// `registry` itself, use [`super::register_bootstrap_commands`].
 pub fn create_afd_schema_command(registry: Arc<CommandRegistry>) -> CommandDefinition {
+    command(AfdSchemaHandler::new(registry))
+}
+
+pub(super) fn command(handler: AfdSchemaHandler) -> CommandDefinition {
     CommandDefinition::new(
         "afd-schema",
         "Export JSON schemas for all commands",
@@ -181,11 +202,12 @@ pub fn create_afd_schema_command(registry: Arc<CommandRegistry>) -> CommandDefin
                     serde_json::json!("typescript"),
                 ]),
         ],
-        AfdSchemaHandler::new(registry),
+        handler,
     )
     .with_category(BOOTSTRAP_CATEGORY)
     .with_tags(BOOTSTRAP_TAGS.iter().map(|s| s.to_string()).collect())
     .with_version("1.0.0")
+    .with_expose(bootstrap_expose())
 }
 
 #[cfg(test)]
@@ -207,7 +229,7 @@ mod tests {
     }
 
     fn create_test_registry() -> Arc<CommandRegistry> {
-        let mut registry = CommandRegistry::new();
+        let registry = CommandRegistry::new();
         let cmd = CommandDefinition::new(
             "todo-create",
             "Create a new todo item",
@@ -299,7 +321,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_afd_schema_empty_parameters() {
-        let mut registry = CommandRegistry::new();
+        let registry = CommandRegistry::new();
         let cmd = CommandDefinition::new("todo-list", "List all todos", vec![], TestHandler);
         registry.register(cmd).unwrap();
         let registry = Arc::new(registry);

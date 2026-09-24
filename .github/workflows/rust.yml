@@ -60,3 +60,10 @@ jobs:
 
       - name: Test (no default features)
         run: cargo test --no-default-features
+
+      # The `wasm` feature targets browsers, where `std::time::Instant::now()` traps.
+      - name: Install wasm32 target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Check (wasm32, wasm feature)
+        run: cargo check --target wasm32-unknown-unknown --no-default-features --features wasm

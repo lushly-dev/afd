@@ -2,14 +2,14 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use crate::commands::{
     CommandContext, CommandDefinition, CommandHandler, CommandParameter, CommandRegistry,
 };
-use crate::result::{success_with, CommandResult, ResultOptions};
+use crate::result::{failure, success_with, CommandResult, ResultOptions};
 
-use super::{BOOTSTRAP_CATEGORY, BOOTSTRAP_TAGS};
+use super::{bootstrap_expose, RegistryRef, BOOTSTRAP_CATEGORY, BOOTSTRAP_TAGS};
 
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -25,12 +25,24 @@ pub struct DocsOutput {
     pub command_count: usize,
 }
 
+/// Handler for `afd-docs`.
 pub struct AfdDocsHandler {
-    registry: Arc<CommandRegistry>,
+    registry: RegistryRef,
 }
 
 impl AfdDocsHandler {
+    /// Describe `registry`, keeping it alive.
     pub fn new(registry: Arc<CommandRegistry>) -> Self {
+        Self::from_ref(RegistryRef::Strong(registry))
+    }
+
+    /// Describe `registry` without keeping it alive, for a handler that is
+    /// registered into that same registry.
+    pub fn from_weak(registry: Weak<CommandRegistry>) -> Self {
+        Self::from_ref(RegistryRef::Weak(registry))
+    }
+
+    pub(crate) fn from_ref(registry: RegistryRef) -> Self {
         Self { registry }
     }
 
@@ -51,6 +63,20 @@ impl AfdDocsHandler {
                 lines.push(format!("**Tags:** {}", tag_str));
                 lines.push(String::new());
             }
+        }
+
+        if let Some(requires) = cmd
+            .requires
+            .as_ref()
+            .filter(|requires| !requires.is_empty())
+        {
+            let requires = requires
+                .iter()
+                .map(|name| format!("`{name}`"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            lines.push(format!("**Requires:** {requires}"));
+            lines.push(String::new());
         }
 
         lines.push(format!(
@@ -90,10 +116,13 @@ impl CommandHandler for AfdDocsHandler {
     async fn execute(
         &self,
         input: serde_json::Value,
-        _context: CommandContext,
+        context: CommandContext,
     ) -> CommandResult<serde_json::Value> {
         let input: DocsInput = serde_json::from_value(input).unwrap_or_default();
-        let all_commands = self.registry.list();
+        let all_commands = match self.registry.describable_commands(&context) {
+            Ok(commands) => commands,
+            Err(error) => return failure(*error),
+        };
 
         let commands: Vec<_> = if let Some(ref cmd_name) = input.command {
             all_commands
@@ -174,7 +203,13 @@ impl CommandHandler for AfdDocsHandler {
     }
 }
 
+/// Create `afd-docs` for `registry`, keeping it alive. To register it into
+/// `registry` itself, use [`super::register_bootstrap_commands`].
 pub fn create_afd_docs_command(registry: Arc<CommandRegistry>) -> CommandDefinition {
+    command(AfdDocsHandler::new(registry))
+}
+
+pub(super) fn command(handler: AfdDocsHandler) -> CommandDefinition {
     CommandDefinition::new(
         "afd-docs",
         "Get detailed documentation for commands",
@@ -182,11 +217,12 @@ pub fn create_afd_docs_command(registry: Arc<CommandRegistry>) -> CommandDefinit
             "command",
             "Specific command name, or omit for all",
         )],
-        AfdDocsHandler::new(registry),
+        handler,
     )
     .with_category(BOOTSTRAP_CATEGORY)
     .with_tags(BOOTSTRAP_TAGS.iter().map(|s| s.to_string()).collect())
     .with_version("1.0.0")
+    .with_expose(bootstrap_expose())
 }
 
 #[cfg(test)]
@@ -208,7 +244,7 @@ mod tests {
     }
 
     fn create_test_registry() -> Arc<CommandRegistry> {
-        let mut registry = CommandRegistry::new();
+        let registry = CommandRegistry::new();
         let cmd1 = CommandDefinition::new(
             "todo-create",
             "Create a new todo item",
