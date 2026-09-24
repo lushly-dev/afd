@@ -10,6 +10,7 @@ import { type ListenerErrorHandler, ListenerSet } from '../listeners.js';
 import { areSessionStatesEqual } from '../session-state.js';
 import type { AuthAdapter, AuthSessionState, SignInOptions, SignInOutcome } from '../types.js';
 import { LOADING, UNAUTHENTICATED } from '../types.js';
+import { isKnownNetworkFailure } from './provider-errors.js';
 
 /** Minimal interface for better-auth client — avoids hard import */
 interface BetterAuthErrorResponse {
@@ -227,14 +228,4 @@ function toSignInOutcome(result: BetterAuthMethodResponse): SignInOutcome {
 		return url === undefined ? { kind: 'redirect' } : { kind: 'redirect', url };
 	}
 	return { kind: 'signed-in' };
-}
-
-function isKnownNetworkFailure(error: unknown, message: string): boolean {
-	if (error instanceof Error && (error.name === 'NetworkError' || error.name === 'TimeoutError')) {
-		return true;
-	}
-
-	return /failed to fetch|fetch failed|network (?:request )?failed|connection (?:refused|reset|closed)|request timed out/i.test(
-		message
-	);
 }
