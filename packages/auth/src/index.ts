@@ -22,6 +22,7 @@ export { createAuthMiddleware } from './middleware.js';
 // Session sync
 export type { SessionSyncOptions } from './session-sync.js';
 export { SessionSync } from './session-sync.js';
+export type { SessionSyncMessage, SessionSyncMessageType } from './session-sync-message.js';
 // Types
 export type {
 	AuthAdapter,

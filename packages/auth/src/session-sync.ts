@@ -5,6 +5,13 @@
  * All browser APIs are guarded with typeof checks for SSR safety.
  */
 
+import { ListenerSet } from './listeners.js';
+import {
+	parseSessionSyncMessage,
+	type SessionSyncMessage,
+	type SessionSyncMessageType,
+} from './session-sync-message.js';
+
 export interface SessionSyncOptions {
 	/** Channel name for BroadcastChannel (default: 'afd-auth-session') */
 	channelName?: string;
@@ -14,9 +21,15 @@ export interface SessionSyncOptions {
 	lockKey?: string;
 	/** Lock timeout in ms (default: 10_000) */
 	lockTimeoutMs?: number;
-	/** Double-check delay for lock acquisition in ms (default: 50) */
+	/**
+	 * How long `acquireRefreshLockAsync()` waits after writing the lock before
+	 * reading it back to confirm ownership, in ms (default: 50)
+	 */
 	lockCheckDelayMs?: number;
-	/** Debounce interval for state updates in ms (default: 100) */
+	/**
+	 * Debounce interval for received messages of the same type, in ms
+	 * (default: 100). `signed-out` is never debounced.
+	 */
 	debounceMs?: number;
 	/** Re-check session after tab hidden for this long in ms (default: 300_000 = 5 min) */
 	visibilityRefreshMs?: number;
@@ -32,6 +45,13 @@ const DEFAULTS: Required<SessionSyncOptions> = {
 	visibilityRefreshMs: 300_000,
 };
 
+/**
+ * How far in the future a lock timestamp may be and still count as live.
+ * Tabs share one clock, so a later timestamp comes from a clock change or a
+ * corrupted value and must not block refresh until the clock catches up.
+ */
+const LOCK_CLOCK_SKEW_MS = 1_000;
+
 interface RefreshLockRecord {
 	ownerId: string;
 	lockId: string;
@@ -43,13 +63,18 @@ interface StorageRead<T> {
 	value: T | null;
 }
 
+type LockAttempt =
+	| { kind: 'declined' }
+	| { kind: 'uncoordinated' }
+	| { kind: 'written'; lockId: string };
+
 let ownerSequence = 0;
 
 export class SessionSync {
 	private readonly options: Required<SessionSyncOptions>;
 	private channel: BroadcastChannel | null = null;
-	private listeners = new Set<(data: unknown) => void>();
-	private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+	private readonly listeners = new ListenerSet<SessionSyncMessage>();
+	private readonly pending = new Map<SessionSyncMessageType, ReturnType<typeof setTimeout>>();
 	private hiddenAt: number | null = null;
 	private visibilityHandler: (() => void) | null = null;
 	private storageHandler: ((e: StorageEvent) => void) | null = null;
@@ -64,32 +89,36 @@ export class SessionSync {
 
 	/**
 	 * Broadcast a session change to other tabs.
+	 *
+	 * @throws TypeError when `message` is not a valid {@link SessionSyncMessage}
 	 */
-	notifySessionChanged(data: unknown): void {
+	notifySessionChanged(message: SessionSyncMessage): void {
+		const valid = parseSessionSyncMessage(message);
+		if (!valid) {
+			throw new TypeError(`Invalid session sync message: ${JSON.stringify(message)}`);
+		}
 		if (this.disposed) return;
 
 		if (this.channel) {
 			try {
-				this.channel.postMessage(data);
+				this.channel.postMessage(valid);
 				return;
 			} catch {
 				// Fall through to localStorage
 			}
 		}
 
-		this.notifyViaStorage(data);
+		this.notifyViaStorage(valid);
 	}
 
 	/**
-	 * Subscribe to session changes from other tabs.
+	 * Subscribe to session changes from other tabs. Invalid payloads are
+	 * dropped. Messages of one type are debounced by `debounceMs`; a
+	 * `signed-out` message is delivered at once and cancels messages still
+	 * waiting in the debounce, since it supersedes them.
 	 */
-	onSessionChanged(callback: (data: unknown) => void): { unsubscribe: () => void } {
-		this.listeners.add(callback);
-		return {
-			unsubscribe: () => {
-				this.listeners.delete(callback);
-			},
-		};
+	onSessionChanged(callback: (message: SessionSyncMessage) => void): { unsubscribe: () => void } {
+		return this.listeners.add(callback);
 	}
 
 	/**
@@ -97,43 +126,31 @@ export class SessionSync {
 	 * Returns true if lock was acquired, false if another tab holds it.
 	 */
 	acquireRefreshLock(): boolean {
-		if (this.disposed) return false;
-		if (!this.hasLocalStorage()) return true;
-
-		const now = Date.now();
-		const existing = this.readRefreshLock();
-		if (!existing.available) return true;
-
-		if (existing.value && now - existing.value.timestamp < this.options.lockTimeoutMs) {
-			return false; // Another tab holds a valid lock
-		}
-
-		const lockId = createLockId();
-		const lock: RefreshLockRecord = { ownerId: this.ownerId, lockId, timestamp: now };
-		try {
-			localStorage.setItem(this.options.lockKey, JSON.stringify(lock));
-		} catch {
-			// Storage can be present but denied (private browsing, blocked cookies,
-			// quota). Proceed without coordination rather than failing auth refresh.
-			this.heldLockId = null;
-			return true;
-		}
+		const attempt = this.writeRefreshLock();
+		if (attempt.kind !== 'written') return attempt.kind === 'uncoordinated';
 
 		// localStorage has no compare-and-swap. The immediate read makes the
 		// synchronous fallback best-effort: if another tab won the write race,
 		// this instance declines the lock. It cannot make the operation atomic.
-		const observed = this.readRefreshLock();
-		if (
-			observed.available &&
-			observed.value?.ownerId === this.ownerId &&
-			observed.value.lockId === lockId
-		) {
-			this.heldLockId = lockId;
-			return true;
-		}
+		return this.confirmRefreshLock(attempt.lockId);
+	}
 
-		this.heldLockId = null;
-		return false;
+	/**
+	 * Like {@link acquireRefreshLock}, but waits `lockCheckDelayMs` after
+	 * writing the lock and reads it back before claiming it. A tab whose write
+	 * raced another tab's then sees the other owner and declines. This narrows
+	 * the race the synchronous check cannot see, but is still not atomic.
+	 */
+	async acquireRefreshLockAsync(): Promise<boolean> {
+		const attempt = this.writeRefreshLock();
+		if (attempt.kind !== 'written') return attempt.kind === 'uncoordinated';
+
+		await new Promise((resolve) => setTimeout(resolve, this.options.lockCheckDelayMs));
+		if (this.disposed) {
+			this.removeRefreshLock(attempt.lockId);
+			return false;
+		}
+		return this.confirmRefreshLock(attempt.lockId);
 	}
 
 	/**
@@ -142,23 +159,9 @@ export class SessionSync {
 	releaseRefreshLock(): void {
 		const heldLockId = this.heldLockId;
 		this.heldLockId = null;
-		if (!this.hasLocalStorage() || heldLockId === null) return;
-
-		const current = this.readRefreshLock();
-		if (
-			current.available &&
-			current.value?.ownerId === this.ownerId &&
-			current.value.lockId === heldLockId
-		) {
-			try {
-				localStorage.removeItem(this.options.lockKey);
-			} catch {
-				// Storage became unavailable; there is nothing safe to release.
-			}
-		}
-
 		// A stale owner must never retain permission to release a later owner's
 		// lock through this instance.
+		if (heldLockId !== null) this.removeRefreshLock(heldLockId);
 	}
 
 	/**
@@ -167,11 +170,7 @@ export class SessionSync {
 	dispose(): void {
 		this.releaseRefreshLock();
 		this.disposed = true;
-
-		if (this.debounceTimer !== null) {
-			clearTimeout(this.debounceTimer);
-			this.debounceTimer = null;
-		}
+		this.cancelPending();
 
 		if (this.channel) {
 			this.channel.close();
@@ -197,7 +196,7 @@ export class SessionSync {
 			try {
 				this.channel = new BroadcastChannel(this.options.channelName);
 				this.channel.onmessage = (event: MessageEvent) => {
-					this.debouncedNotify(event.data);
+					this.receive(event.data);
 				};
 			} catch {
 				// BroadcastChannel unavailable, fall through to localStorage
@@ -209,8 +208,7 @@ export class SessionSync {
 			this.storageHandler = (e: StorageEvent) => {
 				if (e.key === this.options.storageKey && e.newValue) {
 					try {
-						const data: unknown = JSON.parse(e.newValue);
-						this.debouncedNotify(data);
+						this.receive(JSON.parse(e.newValue));
 					} catch {
 						// Ignore malformed data
 					}
@@ -228,7 +226,7 @@ export class SessionSync {
 					const elapsed = Date.now() - this.hiddenAt;
 					this.hiddenAt = null;
 					if (elapsed >= this.options.visibilityRefreshMs) {
-						this.debouncedNotify({ type: 'visibility-refresh' });
+						this.receive({ type: 'visibility-refresh' });
 					}
 				}
 			};
@@ -236,10 +234,37 @@ export class SessionSync {
 		}
 	}
 
-	private notifyViaStorage(data: unknown): void {
+	private receive(payload: unknown): void {
+		if (this.disposed) return;
+		const message = parseSessionSyncMessage(payload);
+		if (!message) return;
+
+		if (message.type === 'signed-out') {
+			this.cancelPending();
+			this.listeners.emit(message);
+			return;
+		}
+
+		const existing = this.pending.get(message.type);
+		if (existing !== undefined) clearTimeout(existing);
+		this.pending.set(
+			message.type,
+			setTimeout(() => {
+				this.pending.delete(message.type);
+				this.listeners.emit(message);
+			}, this.options.debounceMs)
+		);
+	}
+
+	private cancelPending(): void {
+		for (const timer of this.pending.values()) clearTimeout(timer);
+		this.pending.clear();
+	}
+
+	private notifyViaStorage(message: SessionSyncMessage): void {
 		if (!this.hasLocalStorage()) return;
 		try {
-			localStorage.setItem(this.options.storageKey, JSON.stringify(data));
+			localStorage.setItem(this.options.storageKey, JSON.stringify(message));
 			// Clean up immediately — the storage event fires in other tabs
 			localStorage.removeItem(this.options.storageKey);
 		} catch {
@@ -247,16 +272,64 @@ export class SessionSync {
 		}
 	}
 
-	private debouncedNotify(data: unknown): void {
-		if (this.debounceTimer !== null) {
-			clearTimeout(this.debounceTimer);
+	private writeRefreshLock(): LockAttempt {
+		if (this.disposed) return { kind: 'declined' };
+		if (!this.hasLocalStorage()) return { kind: 'uncoordinated' };
+
+		const now = Date.now();
+		const existing = this.readRefreshLock();
+		if (!existing.available) return { kind: 'uncoordinated' };
+
+		if (existing.value && this.isLockLive(existing.value.timestamp, now)) {
+			return { kind: 'declined' }; // Another tab holds a valid lock
 		}
-		this.debounceTimer = setTimeout(() => {
-			this.debounceTimer = null;
-			for (const listener of this.listeners) {
-				listener(data);
+
+		const lockId = createLockId();
+		const lock: RefreshLockRecord = { ownerId: this.ownerId, lockId, timestamp: now };
+		try {
+			localStorage.setItem(this.options.lockKey, JSON.stringify(lock));
+		} catch {
+			// Storage can be present but denied (private browsing, blocked cookies,
+			// quota). Proceed without coordination rather than failing auth refresh.
+			this.heldLockId = null;
+			return { kind: 'uncoordinated' };
+		}
+		return { kind: 'written', lockId };
+	}
+
+	private isLockLive(timestamp: number, now: number): boolean {
+		return timestamp <= now + LOCK_CLOCK_SKEW_MS && now - timestamp < this.options.lockTimeoutMs;
+	}
+
+	private confirmRefreshLock(lockId: string): boolean {
+		const observed = this.readRefreshLock();
+		if (
+			observed.available &&
+			observed.value?.ownerId === this.ownerId &&
+			observed.value.lockId === lockId
+		) {
+			this.heldLockId = lockId;
+			return true;
+		}
+
+		this.heldLockId = null;
+		return false;
+	}
+
+	private removeRefreshLock(lockId: string): void {
+		if (!this.hasLocalStorage()) return;
+		const current = this.readRefreshLock();
+		if (
+			current.available &&
+			current.value?.ownerId === this.ownerId &&
+			current.value.lockId === lockId
+		) {
+			try {
+				localStorage.removeItem(this.options.lockKey);
+			} catch {
+				// Storage became unavailable; there is nothing safe to release.
 			}
-		}, this.options.debounceMs);
+		}
 	}
 
 	private hasLocalStorage(): boolean {
