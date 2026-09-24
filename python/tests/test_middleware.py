@@ -496,6 +496,71 @@ class TestRateLimitMiddleware:
         assert "Try again in" in result.error.suggestion
 
 
+class TestRateLimitMemoryAndSemantics:
+    """The windows dict used to grow forever; the docs said sliding for a fixed window."""
+
+    @pytest.mark.asyncio
+    async def test_expired_windows_are_evicted(self):
+        mw = create_rate_limit_middleware(
+            max_requests=1, window_ms=20, key_fn=lambda ctx: ctx.trace_id
+        )
+        for index in range(50):
+            await mw("test-cmd", {}, make_context(trace_id=f"client-{index}"), success_handler)
+        assert len(mw._windows) == 50
+
+        await asyncio.sleep(0.05)
+        await mw("test-cmd", {}, make_context(trace_id="late"), success_handler)
+
+        assert list(mw._windows) == ["late"]
+
+    @pytest.mark.asyncio
+    async def test_new_keys_beyond_capacity_are_rejected_not_evicting_others(self):
+        mw = create_rate_limit_middleware(
+            max_requests=1, window_ms=60_000, key_fn=lambda ctx: ctx.trace_id, max_keys=2
+        )
+        a = make_context(trace_id="a")
+        await mw("test-cmd", {}, a, success_handler)
+        await mw("test-cmd", {}, make_context(trace_id="b"), success_handler)
+
+        third = await mw("test-cmd", {}, make_context(trace_id="c"), success_handler)
+        again = await mw("test-cmd", {}, a, success_handler)
+
+        assert third.error.code == "RATE_LIMITED"
+        assert third.error.retryable is True
+        assert "capacity" in third.error.message
+        assert len(mw._windows) == 2
+        assert again.error.message == "Too many requests"  # a's budget was not reset
+
+    @pytest.mark.asyncio
+    async def test_fixed_window_resets_all_at_once(self):
+        mw = create_rate_limit_middleware(max_requests=2, window_ms=60)
+        ctx = make_context()
+
+        first = [await mw("test-cmd", {}, ctx, success_handler) for _ in range(3)]
+        await asyncio.sleep(0.08)
+        second = [await mw("test-cmd", {}, ctx, success_handler) for _ in range(2)]
+
+        assert [r.success for r in first] == [True, True, False]
+        assert [r.success for r in second] == [True, True]
+
+    def test_docstring_describes_a_fixed_window(self):
+        doc = create_rate_limit_middleware.__doc__
+        assert "fixed-window" in doc
+        assert "sliding window" not in doc
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"max_requests": -1, "window_ms": 1000},
+            {"max_requests": 1, "window_ms": 0},
+            {"max_requests": 1, "window_ms": 1000, "max_keys": 0},
+        ],
+    )
+    def test_invalid_options_raise(self, kwargs):
+        with pytest.raises(ValueError):
+            create_rate_limit_middleware(**kwargs)
+
+
 # =============================================================================
 # Telemetry Middleware
 # =============================================================================
