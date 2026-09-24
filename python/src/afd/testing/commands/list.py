@@ -8,29 +8,11 @@ Port of packages/testing/src/commands/list.ts
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from afd.core.result import CommandResult, error, success
+from afd.testing.commands._files import find_scenario_files
 from afd.testing.scenarios.parser import parse_scenario_file
-
-
-def _find_scenario_files(directory: str, recursive: bool = True) -> list[str]:
-	"""Recursively search for *.scenario.yaml files."""
-	results: list[str] = []
-	if not os.path.isdir(directory):
-		return results
-
-	for root, dirs, files in os.walk(directory):
-		# Exclude hidden dirs and node_modules
-		dirs[:] = [d for d in dirs if not d.startswith(".") and d != "node_modules"]
-		for f in files:
-			if f.endswith(".scenario.yaml") or f.endswith(".scenario.yml"):
-				results.append(os.path.join(root, f))
-		if not recursive:
-			break
-
-	return sorted(results)
 
 
 def scenario_list(input: dict[str, Any] | None = None) -> CommandResult[Any]:
@@ -60,7 +42,7 @@ def scenario_list(input: dict[str, Any] | None = None) -> CommandResult[Any]:
 	recursive = params.get("recursive", True)
 
 	try:
-		files = _find_scenario_files(directory, recursive)
+		files = find_scenario_files(directory, recursive)
 	except Exception as e:
 		return error(
 			"INTERNAL_ERROR",

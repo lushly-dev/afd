@@ -229,8 +229,14 @@ def _validate_input(input: Any, required_fields: list[str] | None = None) -> dic
 
 def create_tool_registry(
 	command_handler: Callable[..., Any] | None = None,
+	cwd: str | None = None,
 ) -> dict[str, Callable[..., Any]]:
 	"""Create a tool registry with handlers.
+
+	Args:
+		command_handler: Handler that scenario-evaluate runs commands with.
+		cwd: Project root. scenario-create writes, and scenario-evaluate reads,
+			only inside it (default: the process working directory).
 
 	Returns a dict mapping tool name -> async handler function.
 	"""
@@ -265,7 +271,7 @@ def create_tool_registry(
 			}
 			return enhance_with_agent_hints("scenario-evaluate", error_result)
 		parsed["handler"] = command_handler
-		result = await scenario_evaluate(parsed)
+		result = await scenario_evaluate(parsed, root=cwd)
 		if isinstance(result, dict):
 			return enhance_with_agent_hints("scenario-evaluate", result)
 		return enhance_with_agent_hints("scenario-evaluate", to_wire(result) if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})
@@ -285,7 +291,7 @@ def create_tool_registry(
 
 	async def handle_create(input: Any) -> dict[str, Any]:
 		parsed = _validate_input(input, ["name", "job"])
-		result = scenario_create(parsed)
+		result = scenario_create(parsed, root=cwd)
 		if isinstance(result, dict):
 			return enhance_with_agent_hints("scenario-create", result)
 		return enhance_with_agent_hints("scenario-create", to_wire(result) if hasattr(result, "model_dump") else {"success": result.success, "data": result.data})

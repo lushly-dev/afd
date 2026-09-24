@@ -14,6 +14,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+from pydantic import BaseModel
+
+from afd.core.wire import to_wire
 from afd.testing.scenarios.evaluator import evaluate_result, get_value_at_path
 from afd.testing.scenarios.types import (
     AssertionResult,
@@ -253,12 +256,12 @@ class InProcessExecutor:
             command_result = await self._handler(step.command, step.input)
             duration_ms = (time.monotonic() - start_time) * 1000
 
-            # Ensure command_result is a dict
-            if not isinstance(command_result, dict):
-                if hasattr(command_result, 'model_dump'):
-                    command_result = command_result.model_dump()
-                elif hasattr(command_result, '__dict__'):
-                    command_result = vars(command_result)
+            # Evaluate the wire form (camelCase keys, unset fields omitted), the
+            # JSON a client receives, as the TypeScript runner does.
+            if isinstance(command_result, (BaseModel, dict)):
+                command_result = to_wire(command_result)
+            elif hasattr(command_result, '__dict__'):
+                command_result = vars(command_result)
 
             evaluation = evaluate_result(command_result, step.expect)
             outcome: StepOutcome = 'pass' if evaluation.passed else 'fail'
