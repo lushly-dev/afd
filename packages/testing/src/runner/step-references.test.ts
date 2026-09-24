@@ -1,95 +1,28 @@
 /**
  * @lushly-dev/afd-testing - Step Reference Resolution Tests
+ *
+ * Tests the real resolver used by both executors.
  */
 
+import type { CommandResult } from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
+import {
+	getValueAtPath,
+	resolveStepReferences as resolveInput,
+	StepReferenceError,
+} from './step-references.js';
 
-// We need to test the step reference resolution functions
-// They are internal to executor.ts, so we test via the exported InProcessExecutor
-// But for unit testing, let's create standalone functions that can be tested
-
-/**
- * Resolve step references in a value.
- * References use syntax: ${{ steps[N].path.to.value }}
- */
+/** Resolve a single value the way it would be resolved inside a step input. */
 function resolveStepReferences(
 	value: unknown,
-	stepResults: Array<{ success: boolean; data?: unknown }>
+	stepResults: Array<CommandResult<unknown>>
 ): unknown {
-	return resolveValue(value, stepResults);
-}
-
-function resolveValue(
-	value: unknown,
-	stepResults: Array<{ success: boolean; data?: unknown }>
-): unknown {
-	if (typeof value === 'string') {
-		return resolveStringReferences(value, stepResults);
-	}
-	if (Array.isArray(value)) {
-		return value.map((v) => resolveValue(v, stepResults));
-	}
-	if (value !== null && typeof value === 'object') {
-		const result: Record<string, unknown> = {};
-		for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-			result[k] = resolveValue(v, stepResults);
-		}
-		return result;
-	}
-	return value;
-}
-
-function resolveStringReferences(
-	str: string,
-	stepResults: Array<{ success: boolean; data?: unknown }>
-): unknown {
-	// Exact match: entire string is a reference (return raw value)
-	const exactMatch = /^\$\{\{\s*steps\[(\d+)\]\.(.+?)\s*\}\}$/.exec(str);
-	if (exactMatch && exactMatch[1] !== undefined && exactMatch[2] !== undefined) {
-		const stepIndex = parseInt(exactMatch[1], 10);
-		const path = exactMatch[2];
-		return getValueAtPath(stepResults[stepIndex], path);
-	}
-
-	// Embedded references: replace within string
-	return str.replace(/\$\{\{\s*steps\[(\d+)\]\.(.+?)\s*\}\}/g, (_match, stepIndexStr, path) => {
-		const stepIndex = parseInt(stepIndexStr, 10);
-		const value = getValueAtPath(stepResults[stepIndex], path);
-		return String(value ?? '');
-	});
-}
-
-function getValueAtPath(obj: unknown, path: string): unknown {
-	const parts = path.split('.');
-	let current: unknown = obj;
-
-	for (const part of parts) {
-		if (current === null || current === undefined) {
-			return undefined;
-		}
-
-		// Handle array index: items[0]
-		const arrayMatch = /^(\w+)\[(\d+)\]$/.exec(part);
-		if (arrayMatch && arrayMatch[1] !== undefined && arrayMatch[2] !== undefined) {
-			const key = arrayMatch[1];
-			const index = parseInt(arrayMatch[2], 10);
-			current = (current as Record<string, unknown>)[key];
-			if (Array.isArray(current)) {
-				current = current[index];
-			} else {
-				return undefined;
-			}
-		} else {
-			current = (current as Record<string, unknown>)[part];
-		}
-	}
-
-	return current;
+	return resolveInput({ value }, stepResults)?.value;
 }
 
 describe('Step Reference Resolution', () => {
 	describe('resolveStepReferences', () => {
-		const stepResults = [
+		const stepResults: Array<CommandResult<unknown>> = [
 			{ success: true, data: { id: 'todo-1', title: 'First Todo' } },
 			{ success: true, data: { id: 'todo-2', title: 'Second Todo', count: 42 } },
 			{ success: true, data: { items: [{ name: 'Item A' }, { name: 'Item B' }] } },
@@ -115,16 +48,29 @@ describe('Step Reference Resolution', () => {
 				expect(typeof result).toBe('number');
 			});
 
-			it('returns undefined for non-existent step', () => {
+			it('throws for a step that has not run', () => {
 				const input = '${{ steps[99].data.id }}';
-				const result = resolveStepReferences(input, stepResults);
-				expect(result).toBeUndefined();
+				expect(() => resolveStepReferences(input, stepResults)).toThrow(StepReferenceError);
+				expect(() => resolveStepReferences(input, stepResults)).toThrow('step 99 has not run');
 			});
 
-			it('returns undefined for non-existent path', () => {
+			it('throws for a path with no value', () => {
 				const input = '${{ steps[0].data.nonexistent }}';
-				const result = resolveStepReferences(input, stepResults);
-				expect(result).toBeUndefined();
+				expect(() => resolveStepReferences(input, stepResults)).toThrow(
+					"steps[0] has no value at 'data.nonexistent'"
+				);
+			});
+
+			it('throws for a skipped step placeholder', () => {
+				expect(() =>
+					resolveStepReferences('${{ steps[0].data.id }}', [{ success: false }])
+				).toThrow(StepReferenceError);
+			});
+
+			it('keeps null values, which did resolve', () => {
+				expect(
+					resolveStepReferences('${{ steps[0].data.v }}', [{ success: true, data: { v: null } }])
+				).toBeNull();
 			});
 		});
 
@@ -148,10 +94,14 @@ describe('Step Reference Resolution', () => {
 				expect(typeof result).toBe('string');
 			});
 
-			it('replaces undefined values with empty string', () => {
+			it('throws instead of embedding an empty string for a missing value', () => {
 				const input = 'Missing: ${{ steps[0].data.missing }}';
-				const result = resolveStepReferences(input, stepResults);
-				expect(result).toBe('Missing: ');
+				expect(() => resolveStepReferences(input, stepResults)).toThrow(StepReferenceError);
+			});
+
+			it('embeds objects as JSON', () => {
+				const input = 'Items: ${{ steps[2].data.items[0] }}';
+				expect(resolveStepReferences(input, stepResults)).toBe('Items: {"name":"Item A"}');
 			});
 		});
 
@@ -168,10 +118,9 @@ describe('Step Reference Resolution', () => {
 				expect(result).toBe('Item B');
 			});
 
-			it('returns undefined for out-of-bounds index', () => {
+			it('throws for an out-of-bounds index', () => {
 				const input = '${{ steps[2].data.items[99].name }}';
-				const result = resolveStepReferences(input, stepResults);
-				expect(result).toBeUndefined();
+				expect(() => resolveStepReferences(input, stepResults)).toThrow(StepReferenceError);
 			});
 		});
 
@@ -246,6 +195,12 @@ describe('Step Reference Resolution', () => {
 		});
 	});
 
+	describe('resolveStepReferences input handling', () => {
+		it('returns undefined for a step without input', () => {
+			expect(resolveInput(undefined, [])).toBeUndefined();
+		});
+	});
+
 	describe('getValueAtPath', () => {
 		it('handles null input', () => {
 			const result = getValueAtPath(null, 'any.path');
@@ -267,6 +222,10 @@ describe('Step Reference Resolution', () => {
 			const obj = { a: { b: { c: { d: { e: 'deep' } } } } };
 			const result = getValueAtPath(obj, 'a.b.c.d.e');
 			expect(result).toBe('deep');
+		});
+
+		it('returns undefined when a path goes through a primitive', () => {
+			expect(getValueAtPath({ a: 'text' }, 'a.length')).toBeUndefined();
 		});
 
 		it('handles array access on non-array returns undefined', () => {

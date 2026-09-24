@@ -2,8 +2,31 @@
  * Tests for YAML scenario parser
  */
 
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { parseScenarioString } from '../parsers/yaml.js';
+import { parseScenarioFile, parseScenarioString } from '../parsers/yaml.js';
+
+const HEADER = `
+name: Strict
+description: Strict parsing
+job: strict
+`;
+
+function withStep(expect: string, extra = ''): string {
+	return `${HEADER}${extra}steps:
+  - command: thing-get
+    expect:
+${expect}
+`;
+}
+
+function parseError(yaml: string): string {
+	const result = parseScenarioString(yaml);
+	if (result.success) throw new Error('Expected a parse error');
+	return result.error;
+}
 
 describe('YAML Parser', () => {
 	describe('parseScenarioString', () => {
@@ -14,7 +37,7 @@ description: A test scenario
 job: test-job
 tags: [smoke]
 steps:
-  - command: test.command
+  - command: test-command
     expect:
       success: true
 `;
@@ -29,7 +52,7 @@ steps:
 				expect(result.scenario.steps).toHaveLength(1);
 				const step = result.scenario.steps.at(0);
 				if (!step) throw new Error('Expected step');
-				expect(step.command).toBe('test.command');
+				expect(step.command).toBe('test-command');
 				expect(step.expect.success).toBe(true);
 			}
 		});
@@ -41,7 +64,7 @@ description: Testing full step configuration
 job: full-step
 tags: []
 steps:
-  - command: todo.create
+  - command: todo-create
     description: Create a todo
     input:
       title: Buy groceries
@@ -59,7 +82,7 @@ steps:
 			if (result.success) {
 				const step = result.scenario.steps.at(0);
 				if (!step) throw new Error('Expected step');
-				expect(step.command).toBe('todo.create');
+				expect(step.command).toBe('todo-create');
 				expect(step.description).toBe('Create a todo');
 				expect(step.input).toEqual({ title: 'Buy groceries', priority: 'high' });
 				expect(step.expect.success).toBe(true);
@@ -78,7 +101,7 @@ description: Test error expectations
 job: error-test
 tags: []
 steps:
-  - command: todo.get
+  - command: todo-get
     input:
       id: nonexistent
     expect:
@@ -178,7 +201,7 @@ description: Test desc
 job: test
 tags: []
 steps:
-  - command: test.command
+  - command: test-command
 `;
 			const result = parseScenarioString(yaml);
 
@@ -228,37 +251,6 @@ steps:
 			}
 		});
 
-		it('should parse verification configuration', () => {
-			const yaml = `
-name: Verify Test
-description: Test verification parsing
-job: verify
-tags: []
-steps:
-  - command: test
-    expect:
-      success: true
-verify:
-  snapshot: ./snapshots/expected.json
-  assertions:
-    - All todos completed
-    - No errors in log
-  custom: ./verify.js
-`;
-			const result = parseScenarioString(yaml);
-
-			expect(result.success).toBe(true);
-			if (result.success) {
-				expect(result.scenario.verify).toBeDefined();
-				expect(result.scenario.verify?.snapshot).toBe('./snapshots/expected.json');
-				expect(result.scenario.verify?.assertions).toEqual([
-					'All todos completed',
-					'No errors in log',
-				]);
-				expect(result.scenario.verify?.custom).toBe('./verify.js');
-			}
-		});
-
 		it('should handle optional fields gracefully', () => {
 			const yaml = `
 name: Minimal
@@ -266,7 +258,7 @@ description: Minimal scenario
 job: minimal
 tags: []
 steps:
-  - command: test.cmd
+  - command: test-cmd
     expect:
       success: true
 `;
@@ -276,11 +268,151 @@ steps:
 			if (result.success) {
 				expect(result.scenario.version).toBeUndefined();
 				expect(result.scenario.fixture).toBeUndefined();
-				expect(result.scenario.verify).toBeUndefined();
-				expect(result.scenario.isolation).toBeUndefined();
-				expect(result.scenario.dependsOn).toBeUndefined();
 				expect(result.scenario.timeout).toBeUndefined();
+				expect(result.scenario.sourcePath).toBeUndefined();
 			}
+		});
+	});
+
+	describe('unimplemented fields', () => {
+		it.each([
+			['verify', 'verify:\n  assertions: [All todos completed]\n', "'verify' is not supported"],
+			['isolation', 'isolation: chained\n', "'isolation' is not supported"],
+			['dependsOn', 'dependsOn: [other-job]\n', "'dependsOn' is not supported"],
+		])('rejects %s instead of silently ignoring it', (_field, extra, message) => {
+			expect(parseError(withStep('      success: true', extra))).toContain(message);
+		});
+
+		it('parses a scenario-level timeout', () => {
+			const result = parseScenarioString(withStep('      success: true', 'timeout: 250\n'));
+
+			expect(result.success && result.scenario.timeout).toBe(250);
+		});
+
+		it.each(['0', '-5', 'soon'])('rejects timeout %s', (value) => {
+			expect(parseError(withStep('      success: true', `timeout: ${value}\n`))).toContain(
+				"'timeout' must be a positive number"
+			);
+		});
+	});
+
+	describe('strict fields', () => {
+		it('rejects unknown top-level, step, expect and fixture fields', () => {
+			expect(parseError(withStep('      success: true', 'fixtures: { file: x.json }\n'))).toContain(
+				"Unknown field 'fixtures' in scenario"
+			);
+			expect(
+				parseError(
+					`${HEADER}steps:\n  - command: a-b\n    inputs: {}\n    expect: { success: true }\n`
+				)
+			).toContain("Unknown field 'inputs' in step 1");
+			expect(parseError(withStep('      success: true\n      date: { id: 1 }'))).toContain(
+				"Unknown field 'date' in step 1 'expect'"
+			);
+			expect(
+				parseError(withStep('      success: false\n      error: { cod: NOT_FOUND }'))
+			).toContain("Unknown field 'cod'");
+			expect(
+				parseError(withStep('      success: true', 'fixture: { file: a.json, bse: b.json }\n'))
+			).toContain("Unknown field 'bse' in fixture");
+		});
+
+		it('rejects wrongly typed optional fields instead of dropping them', () => {
+			expect(parseError(withStep('      success: true', 'tags: smoke\n'))).toContain(
+				"'tags' must be a list of strings"
+			);
+			expect(
+				parseError(
+					`${HEADER}steps:\n  - command: a-b\n    input: abc\n    expect: { success: true }\n`
+				)
+			).toContain("'input' must be an object");
+			expect(
+				parseError(
+					`${HEADER}steps:\n  - command: a-b\n    continueOnFailure: yes please\n    expect: { success: true }\n`
+				)
+			).toContain("'continueOnFailure' must be true or false");
+			expect(parseError(withStep('      success: true\n      confidence: 2'))).toContain(
+				'between 0 and 1'
+			);
+		});
+
+		it('rejects data assertions on an expected failure and error assertions on a success', () => {
+			expect(parseError(withStep('      success: false\n      data: { id: 1 }'))).toContain(
+				"'data' assertions are only checked when 'success' is true"
+			);
+			expect(parseError(withStep('      success: true\n      error: { code: X }'))).toContain(
+				"'error' assertions are only checked when 'success' is false"
+			);
+		});
+
+		it('rejects matcher objects that mix in other keys', () => {
+			const error = parseError(
+				withStep('      success: true\n      data:\n        user: { exists: true, name: Bob }')
+			);
+
+			expect(error).toContain('Invalid assertion at data.user');
+			expect(error).toContain("'name'");
+		});
+
+		it('rejects a typo next to a real matcher', () => {
+			expect(
+				parseError(
+					withStep(
+						"      success: true\n      data:\n        name: { matches: '^A', matchs: '^B' }"
+					)
+				)
+			).toContain("'matchs'");
+		});
+
+		it('rejects matcher values of the wrong type', () => {
+			expect(
+				parseError(
+					withStep('      success: true\n      data:\n        items: { length: { gte: 1 } }')
+				)
+			).toContain("'length' expects a non-negative integer");
+			expect(
+				parseError(withStep("      success: true\n      data:\n        name: { matches: '(' }"))
+			).toContain('not a valid regular expression');
+		});
+	});
+
+	describe('YAML syntax errors', () => {
+		it('reports the line without echoing the source', () => {
+			const result = parseScenarioString(
+				'name: secret-value-123\nsteps:\n  - command: x\n  bad: [unclosed\npassword: hunter2 : x'
+			);
+
+			expect(result.success).toBe(false);
+			if (!result.success) {
+				expect(result.error).toMatch(/^YAML parse error at line \d+:/);
+				expect(result.line).toBeGreaterThan(0);
+				expect(result.error).not.toContain('secret-value-123');
+				expect(result.error).not.toContain('hunter2');
+				expect(result.error).not.toContain('\n');
+			}
+		});
+	});
+
+	describe('parseScenarioFile', () => {
+		it('records the absolute source path of the scenario', async () => {
+			const dir = await mkdtemp(join(tmpdir(), 'afd-yaml-'));
+			try {
+				const file = join(dir, 'a.scenario.yaml');
+				await writeFile(file, withStep('      success: true'));
+
+				const result = await parseScenarioFile(file);
+
+				expect(result.success && result.scenario.sourcePath).toBe(file);
+			} finally {
+				await rm(dir, { recursive: true, force: true });
+			}
+		});
+
+		it('reports unreadable files', async () => {
+			const result = await parseScenarioFile(join(tmpdir(), 'afd-missing', 'none.scenario.yaml'));
+
+			expect(result.success).toBe(false);
+			if (!result.success) expect(result.error).toContain('Failed to read file');
 		});
 	});
 });

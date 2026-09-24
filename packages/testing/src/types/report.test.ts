@@ -7,6 +7,7 @@ import {
 	isStepResult,
 	type ScenarioResult,
 } from './report.js';
+import { isScenario } from './scenario.js';
 
 function scenario(outcome: ScenarioResult['outcome']): ScenarioResult {
 	return {
@@ -38,6 +39,7 @@ describe('report helpers', () => {
 			passedScenarios: 0,
 			failedScenarios: 0,
 			errorScenarios: 0,
+			skippedScenarios: 0,
 			totalSteps: 0,
 			passedSteps: 0,
 			failedSteps: 0,
@@ -50,15 +52,17 @@ describe('report helpers', () => {
 			scenario('fail'),
 			scenario('partial'),
 			scenario('error'),
+			scenario('skip'),
 		]);
 
 		expect(summary).toMatchObject({
-			totalScenarios: 4,
+			totalScenarios: 5,
 			passedScenarios: 1,
 			failedScenarios: 2,
 			errorScenarios: 1,
-			totalSteps: 4,
-			passRate: 0.25,
+			skippedScenarios: 1,
+			totalSteps: 5,
+			passRate: 0.2,
 		});
 	});
 
@@ -78,6 +82,7 @@ describe('report helpers', () => {
 
 		expect(isStepResult(result.stepResults[0])).toBe(true);
 		expect(isScenarioResult(result)).toBe(true);
+		expect(isScenarioResult(scenario('skip'))).toBe(true);
 	});
 
 	it.each([
@@ -104,5 +109,11 @@ describe('report helpers', () => {
 		{ scenarioPath: 'a', jobName: 'job', outcome: 'pass', durationMs: 1, stepResults: {} },
 	])('rejects malformed scenario results', (value) => {
 		expect(isScenarioResult(value)).toBe(false);
+	});
+
+	it('recognizes scenario objects', () => {
+		expect(isScenario({ name: 'n', description: 'd', job: 'j', tags: [], steps: [] })).toBe(true);
+		expect(isScenario({ name: 'n', description: 'd', job: 'j', tags: 'x', steps: [] })).toBe(false);
+		expect(isScenario(null)).toBe(false);
 	});
 });

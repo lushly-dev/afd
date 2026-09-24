@@ -1,69 +1,24 @@
-// afd-override: max-lines=750 — ScenarioExecutor + InProcessExecutor share helpers and evaluation logic
 /**
  * @lushly-dev/afd-testing - Scenario Executor
  *
- * Executes scenario steps sequentially, evaluates results, and produces a ScenarioResult.
- * Supports fixture loading and step references.
+ * Executes scenario steps through the AFD CLI, evaluates results, and
+ * produces a ScenarioResult. Fixtures, step references, timeouts and
+ * cancellation behave exactly as in `InProcessExecutor`: both use the shared
+ * scenario run loop.
  */
 
-import type { CommandResult } from '@lushly-dev/afd-core';
-import type {
-	AssertionResult,
-	ScenarioOutcome,
-	ScenarioResult,
-	StepOutcome,
-	StepResult,
-} from '../types/report.js';
-import { createStepError } from '../types/report.js';
-import type { FixtureConfig, Scenario, Step } from '../types/scenario.js';
-import { type CliConfig, CliWrapper, type ExecuteResult } from './cli-wrapper.js';
-import { evaluateResult } from './evaluator.js';
-import { applyFixture, type FixtureData, loadFixture } from './fixture-loader.js';
-
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/**
- * Format failed assertions into a human-readable error message.
- * Shows expected vs actual values for each failure.
- */
-function formatAssertionFailures(failures: AssertionResult[]): string {
-	if (failures.length === 0) {
-		return 'Assertions failed';
-	}
-
-	if (failures.length === 1 && failures[0]) {
-		const f = failures[0];
-		return `${f.path}: expected ${formatValue(f.expected)}, got ${formatValue(f.actual)}`;
-	}
-
-	const lines = failures.map((f) => {
-		return `  - ${f.path}: expected ${formatValue(f.expected)}, got ${formatValue(f.actual)}`;
-	});
-
-	return `${failures.length} assertions failed:\n${lines.join('\n')}`;
-}
-
-/**
- * Format a value for error message display.
- */
-function formatValue(value: unknown): string {
-	if (value === undefined) return 'undefined';
-	if (value === null) return 'null';
-	if (typeof value === 'string') {
-		return value.length > 40 ? `"${value.slice(0, 40)}..."` : `"${value}"`;
-	}
-	if (typeof value === 'object') {
-		try {
-			const str = JSON.stringify(value);
-			return str.length > 60 ? `${str.slice(0, 60)}...` : str;
-		} catch {
-			return '[object]';
-		}
-	}
-	return String(value);
-}
+import { dirname } from 'node:path';
+import { type CommandResult, failure } from '@lushly-dev/afd-core';
+import type { ScenarioResult, StepResult } from '../types/report.js';
+import type { Scenario, Step } from '../types/scenario.js';
+import { type CliConfig, CliWrapper } from './cli-wrapper.js';
+import { applyFixture, loadFixture } from './fixture-loader.js';
+import {
+	type ExecuteScenarioOptions,
+	evaluateStep,
+	runScenario,
+	type SetupOutcome,
+} from './scenario-runner.js';
 
 // ============================================================================
 // Executor Configuration
@@ -72,6 +27,13 @@ function formatValue(value: unknown): string {
 export interface ExecutorConfig extends CliConfig {
 	/** Stop execution on first failure (default: true unless step has continueOnFailure) */
 	stopOnFailure?: boolean;
+
+	/**
+	 * Base path for resolving relative fixture paths of scenarios that were not
+	 * parsed from a file. Scenarios from `parseScenarioFile` resolve fixtures
+	 * against their own directory.
+	 */
+	basePath?: string;
 
 	/** Callback for step completion */
 	onStepComplete?: (step: Step, result: StepResult) => void;
@@ -114,183 +76,72 @@ export class ScenarioExecutor {
 	/**
 	 * Execute a single scenario.
 	 */
-	async execute(scenario: Scenario): Promise<ScenarioResult> {
-		const startedAt = new Date();
-		const startTime = Date.now();
-		const stepResults: StepResult[] = [];
-
-		let passedSteps = 0;
-		let failedSteps = 0;
-		let skippedSteps = 0;
-		let shouldSkipRemaining = false;
-
-		// Notify scenario start
-		this.config.onScenarioStart?.(scenario);
-
-		// Execute each step
-		for (const [index, step] of scenario.steps.entries()) {
-			// Check if we should skip this step
-			if (shouldSkipRemaining) {
-				const skippedResult: StepResult = {
-					stepId: `step-${index + 1}`,
-					command: step.command,
-					outcome: 'skip',
-					durationMs: 0,
-					assertions: [],
-					skippedReason: 'Previous step failed',
-				};
-				stepResults.push(skippedResult);
-				skippedSteps++;
-				this.config.onStepComplete?.(step, skippedResult);
-				continue;
-			}
-
-			// Execute the step
-			const stepResult = await this.executeStep(step, index + 1);
-			stepResults.push(stepResult);
-
-			// Update counters
-			switch (stepResult.outcome) {
-				case 'pass':
-					passedSteps++;
-					break;
-				case 'fail':
-				case 'error':
-					failedSteps++;
-					// Determine if we should skip remaining steps
-					if (this.config.stopOnFailure && !step.continueOnFailure) {
-						shouldSkipRemaining = true;
-					}
-					break;
-				case 'skip':
-					skippedSteps++;
-					break;
-			}
-
-			// Notify step completion
-			this.config.onStepComplete?.(step, stepResult);
-		}
-
-		const completedAt = new Date();
-		const durationMs = Date.now() - startTime;
-
-		// Determine overall outcome
-		const outcome = this.determineOutcome(
-			passedSteps,
-			failedSteps,
-			skippedSteps,
-			scenario.steps.length
-		);
-
-		const result: ScenarioResult = {
-			scenarioPath: '', // Will be set by caller
-			jobName: scenario.job,
-			jobDescription: scenario.description,
-			outcome,
-			durationMs,
-			stepResults,
-			passedSteps,
-			failedSteps,
-			skippedSteps,
-			startedAt,
-			completedAt,
-		};
-
-		// Notify scenario completion
-		this.config.onScenarioComplete?.(result);
-
-		return result;
+	async execute(scenario: Scenario, options: ExecuteScenarioOptions = {}): Promise<ScenarioResult> {
+		return runScenario(scenario, {
+			stopOnFailure: this.config.stopOnFailure ?? true,
+			signal: options.signal,
+			onStepComplete: this.config.onStepComplete,
+			onScenarioStart: this.config.onScenarioStart,
+			onScenarioComplete: this.config.onScenarioComplete,
+			setup: scenario.fixture ? (signal) => this.setupFixture(scenario, signal) : undefined,
+			runStep: (step, stepId, signal) => this.runStep(step, stepId, signal),
+		});
 	}
 
 	/**
-	 * Execute a single step.
+	 * Execute a single step through the CLI.
 	 */
-	private async executeStep(step: Step, stepNum: number): Promise<StepResult> {
-		const stepId = `step-${stepNum}`;
-		const startTime = Date.now();
+	private async runStep(step: Step, stepId: string, signal: AbortSignal): Promise<StepResult> {
+		const executeResult = await this.cli.execute(step.command, step.input, { signal });
 
-		try {
-			// Execute command via CLI
-			const executeResult: ExecuteResult = await this.cli.execute(step.command, step.input);
-			const durationMs = Date.now() - startTime;
-
-			if (!executeResult.success) {
-				// CLI execution itself failed
-				return {
-					stepId,
-					command: step.command,
-					outcome: 'error',
-					durationMs,
-					error: executeResult.error,
-					assertions: [],
-				};
-			}
-
-			// CLI execution succeeded, now evaluate against expectations
-			const evaluation = evaluateResult(executeResult.result, step.expect);
-
-			const outcome: StepOutcome = evaluation.passed ? 'pass' : 'fail';
-
-			// Build detailed error message for failed assertions
-			let errorMessage: string | undefined;
-			if (!evaluation.passed) {
-				const failedAssertions = evaluation.assertions.filter((a) => !a.passed);
-				errorMessage = formatAssertionFailures(failedAssertions);
-			}
-
-			return {
-				stepId,
-				command: step.command,
-				outcome,
-				durationMs,
-				commandResult: executeResult.result,
-				assertions: evaluation.assertions,
-				error: evaluation.passed
-					? undefined
-					: createStepError('expectation_mismatch', errorMessage ?? 'Assertions failed', {
-							expected: step.expect,
-							actual: executeResult.result,
-						}),
-			};
-		} catch (err) {
-			const durationMs = Date.now() - startTime;
-			const message = err instanceof Error ? err.message : String(err);
-
+		if (!executeResult.success) {
+			// CLI execution itself failed
 			return {
 				stepId,
 				command: step.command,
 				outcome: 'error',
-				durationMs,
-				error: createStepError('unknown', message, {
-					cause: err instanceof Error ? err : undefined,
-				}),
+				durationMs: executeResult.durationMs,
+				error: executeResult.error,
 				assertions: [],
 			};
 		}
+
+		return evaluateStep(step, stepId, executeResult.result, executeResult.durationMs, true);
 	}
 
 	/**
-	 * Determine overall scenario outcome.
+	 * Load the scenario's fixture and apply it through the CLI.
 	 */
-	private determineOutcome(
-		passed: number,
-		failed: number,
-		skipped: number,
-		_total: number
-	): ScenarioOutcome {
-		if (failed === 0 && skipped === 0) {
-			return 'pass';
+	private async setupFixture(scenario: Scenario, signal: AbortSignal): Promise<SetupOutcome> {
+		if (!scenario.fixture) {
+			return {};
+		}
+		const loadResult = await loadFixture(scenario.fixture, {
+			basePath: scenario.sourcePath ? dirname(scenario.sourcePath) : this.config.basePath,
+		});
+		if (!loadResult.success) {
+			return { error: `Fixture failed to load: ${loadResult.error}` };
 		}
 
-		if (passed === 0) {
-			return 'fail';
+		const applyResult = await applyFixture(
+			loadResult.data,
+			async (command, input): Promise<CommandResult<unknown>> => {
+				const executed = await this.cli.execute(command, input, { signal });
+				return executed.success
+					? executed.result
+					: failure({
+							code: 'CLI_ERROR',
+							message: executed.error.message,
+							suggestion: 'Check that the AFD CLI can reach the server under test',
+						});
+			},
+			{ signal }
+		);
+		const warnings = applyResult.warnings ?? [];
+		if (!applyResult.success) {
+			return { error: applyResult.error ?? 'Fixture failed to apply', warnings };
 		}
-
-		if (failed > 0 && passed > 0) {
-			return 'partial';
-		}
-
-		return 'fail';
+		return { warnings };
 	}
 
 	/**
@@ -314,6 +165,9 @@ export class ScenarioExecutor {
 		if (config.stopOnFailure !== undefined) {
 			this.config.stopOnFailure = config.stopOnFailure;
 		}
+		if (config.basePath !== undefined) {
+			this.config.basePath = config.basePath;
+		}
 		if (config.onStepComplete !== undefined) {
 			this.config.onStepComplete = config.onStepComplete;
 		}
@@ -331,386 +185,13 @@ export class ScenarioExecutor {
 // In-Process Execution (Alternative to CLI)
 // ============================================================================
 
-/**
- * Command handler function signature for in-process execution.
- */
-export type CommandHandler = (
-	command: string,
-	input?: Record<string, unknown>
-) => Promise<CommandResult<unknown>>;
-
-/**
- * Executor config for in-process mode.
- */
-export interface InProcessExecutorConfig {
-	/** Command handler function */
-	handler: CommandHandler;
-
-	/** Stop on first failure */
-	stopOnFailure?: boolean;
-
-	/** Base path for resolving fixture files */
-	basePath?: string;
-
-	/**
-	 * Dry run mode - validate scenario structure without executing commands.
-	 * Useful for CI validation and pre-flight checks.
-	 */
-	dryRun?: boolean;
-
-	/** Step completion callback */
-	onStepComplete?: (step: Step, result: StepResult) => void;
-
-	/** Scenario start callback */
-	onScenarioStart?: (scenario: Scenario) => void;
-
-	/** Scenario complete callback */
-	onScenarioComplete?: (result: ScenarioResult) => void;
-
-	/** Fixture loaded callback with detailed command data */
-	onFixtureLoaded?: (
-		fixture: FixtureData,
-		appliedCommands: Array<{ command: string; input?: unknown }>
-	) => void;
-}
-
-/**
- * Executor that runs commands in-process (no CLI subprocess).
- * Useful for faster unit testing of scenarios.
- *
- * Supports:
- * - Fixture loading and application
- * - Step references (${{ steps[0].data.id }})
- * - Dry run mode for validation without execution
- */
-export class InProcessExecutor {
-	private handler: CommandHandler;
-	private config: Omit<InProcessExecutorConfig, 'handler'>;
-
-	constructor(config: InProcessExecutorConfig) {
-		this.handler = config.handler;
-		this.config = {
-			stopOnFailure: config.stopOnFailure ?? true,
-			basePath: config.basePath,
-			dryRun: config.dryRun ?? false,
-			onStepComplete: config.onStepComplete,
-			onScenarioStart: config.onScenarioStart,
-			onScenarioComplete: config.onScenarioComplete,
-			onFixtureLoaded: config.onFixtureLoaded,
-		};
-	}
-
-	/**
-	 * Execute a scenario in-process.
-	 * If dryRun is true, validates scenario structure without executing commands.
-	 */
-	async execute(scenario: Scenario): Promise<ScenarioResult> {
-		const startedAt = new Date();
-		const startTime = Date.now();
-		const stepResults: StepResult[] = [];
-		/** Store step outputs for reference resolution */
-		const stepOutputs: Array<CommandResult<unknown>> = [];
-
-		let passedSteps = 0;
-		let failedSteps = 0;
-		let skippedSteps = 0;
-		let shouldSkipRemaining = false;
-		let fixtureError: string | undefined;
-
-		this.config.onScenarioStart?.(scenario);
-
-		// In dry run mode, validate fixture exists but don't apply
-		if (scenario.fixture) {
-			if (this.config.dryRun) {
-				const loadResult = await loadFixture(scenario.fixture, {
-					basePath: this.config.basePath,
-				});
-				if (!loadResult.success) {
-					fixtureError = `Fixture validation failed: ${loadResult.error}`;
-					shouldSkipRemaining = true;
-				}
-			} else {
-				const fixtureResult = await this.loadAndApplyFixture(scenario.fixture);
-				if (!fixtureResult.success) {
-					fixtureError = fixtureResult.error;
-					shouldSkipRemaining = true;
-				}
-			}
-		}
-
-		for (const [index, step] of scenario.steps.entries()) {
-			if (shouldSkipRemaining) {
-				const skippedResult: StepResult = {
-					stepId: `step-${index + 1}`,
-					command: step.command,
-					outcome: 'skip',
-					durationMs: 0,
-					assertions: [],
-					skippedReason: fixtureError ?? 'Previous step failed',
-				};
-				stepResults.push(skippedResult);
-				stepOutputs.push({ success: false });
-				skippedSteps++;
-				this.config.onStepComplete?.(step, skippedResult);
-				continue;
-			}
-
-			// In dry run mode, validate step structure without execution
-			if (this.config.dryRun) {
-				const dryRunResult: StepResult = {
-					stepId: `step-${index + 1}`,
-					command: step.command,
-					outcome: 'pass', // Validated successfully
-					durationMs: 0,
-					assertions: [],
-				};
-				stepResults.push(dryRunResult);
-				stepOutputs.push({ success: true, data: {} }); // Mock output for references
-				passedSteps++;
-				this.config.onStepComplete?.(step, dryRunResult);
-				continue;
-			}
-
-			// Resolve step references in input
-			const resolvedInput = this.resolveStepReferences(step.input, stepOutputs);
-
-			const stepResult = await this.executeStepInProcess(
-				{ ...step, input: resolvedInput },
-				index + 1
-			);
-			stepResults.push(stepResult);
-			stepOutputs.push(stepResult.commandResult ?? { success: stepResult.outcome === 'pass' });
-
-			switch (stepResult.outcome) {
-				case 'pass':
-					passedSteps++;
-					break;
-				case 'fail':
-				case 'error':
-					failedSteps++;
-					if (this.config.stopOnFailure && !step.continueOnFailure) {
-						shouldSkipRemaining = true;
-					}
-					break;
-				case 'skip':
-					skippedSteps++;
-					break;
-			}
-
-			this.config.onStepComplete?.(step, stepResult);
-		}
-
-		const completedAt = new Date();
-		const durationMs = Date.now() - startTime;
-
-		const outcome = this.determineOutcome(passedSteps, failedSteps, skippedSteps);
-
-		const result: ScenarioResult = {
-			scenarioPath: '',
-			jobName: scenario.job,
-			jobDescription: scenario.description,
-			outcome,
-			durationMs,
-			stepResults,
-			passedSteps,
-			failedSteps,
-			skippedSteps,
-			startedAt,
-			completedAt,
-		};
-
-		this.config.onScenarioComplete?.(result);
-		return result;
-	}
-
-	private async executeStepInProcess(step: Step, stepNum: number): Promise<StepResult> {
-		const stepId = `step-${stepNum}`;
-		const startTime = Date.now();
-
-		try {
-			const commandResult = await this.handler(step.command, step.input);
-			const durationMs = Date.now() - startTime;
-
-			const evaluation = evaluateResult(commandResult, step.expect);
-			const outcome: StepOutcome = evaluation.passed ? 'pass' : 'fail';
-
-			// Build detailed error message for failed assertions
-			let errorMessage: string | undefined;
-			if (!evaluation.passed) {
-				const failedAssertions = evaluation.assertions.filter((a) => !a.passed);
-				errorMessage = formatAssertionFailures(failedAssertions);
-			}
-
-			return {
-				stepId,
-				command: step.command,
-				outcome,
-				durationMs,
-				commandResult,
-				assertions: evaluation.assertions,
-				error: evaluation.passed
-					? undefined
-					: createStepError('expectation_mismatch', errorMessage ?? 'Assertions failed'),
-			};
-		} catch (err) {
-			const durationMs = Date.now() - startTime;
-			const message = err instanceof Error ? err.message : String(err);
-
-			return {
-				stepId,
-				command: step.command,
-				outcome: 'error',
-				durationMs,
-				error: createStepError('command_failed', message),
-				assertions: [],
-			};
-		}
-	}
-
-	/**
-	 * Load and apply a fixture.
-	 */
-	private async loadAndApplyFixture(
-		fixtureConfig: FixtureConfig
-	): Promise<{ success: boolean; error?: string }> {
-		// Load fixture file
-		const loadResult = await loadFixture(fixtureConfig, {
-			basePath: this.config.basePath,
-		});
-
-		if (!loadResult.success) {
-			return { success: false, error: loadResult.error };
-		}
-
-		// Apply fixture via command handler
-		const applyResult = await applyFixture(loadResult.data, this.handler);
-
-		if (!applyResult.success) {
-			return { success: false, error: applyResult.error };
-		}
-
-		// Notify callback
-		this.config.onFixtureLoaded?.(loadResult.data, applyResult.appliedCommands);
-
-		return { success: true };
-	}
-
-	/**
-	 * Resolve step references in input values.
-	 *
-	 * Supports syntax like:
-	 * - ${{ steps[0].data.id }} - Reference data from step 0
-	 * - ${{ steps[1].data.items[0].name }} - Nested path access
-	 */
-	private resolveStepReferences(
-		input: Record<string, unknown> | undefined,
-		stepOutputs: Array<CommandResult<unknown>>
-	): Record<string, unknown> | undefined {
-		if (!input) return undefined;
-
-		const resolved: Record<string, unknown> = {};
-
-		for (const [key, value] of Object.entries(input)) {
-			resolved[key] = this.resolveValue(value, stepOutputs);
-		}
-
-		return resolved;
-	}
-
-	/**
-	 * Resolve a single value, recursively handling objects and arrays.
-	 */
-	private resolveValue(value: unknown, stepOutputs: Array<CommandResult<unknown>>): unknown {
-		if (typeof value === 'string') {
-			return this.resolveStringReferences(value, stepOutputs);
-		}
-
-		if (Array.isArray(value)) {
-			return value.map((item) => this.resolveValue(item, stepOutputs));
-		}
-
-		if (typeof value === 'object' && value !== null) {
-			const resolved: Record<string, unknown> = {};
-			for (const [k, v] of Object.entries(value)) {
-				resolved[k] = this.resolveValue(v, stepOutputs);
-			}
-			return resolved;
-		}
-
-		return value;
-	}
-
-	/**
-	 * Resolve step references in a string value.
-	 *
-	 * Pattern: ${{ steps[N].path.to.value }}
-	 */
-	private resolveStringReferences(
-		value: string,
-		stepOutputs: Array<CommandResult<unknown>>
-	): unknown {
-		// Check for exact match (entire string is a reference)
-		const exactMatch = value.match(/^\$\{\{\s*steps\[(\d+)\]\.(.+?)\s*\}\}$/);
-		if (exactMatch && exactMatch[1] !== undefined && exactMatch[2] !== undefined) {
-			const stepIndex = parseInt(exactMatch[1], 10);
-			const path = exactMatch[2];
-			return this.getValueAtPath(stepOutputs[stepIndex], path);
-		}
-
-		// Check for embedded references (replace within string)
-		const refPattern = /\$\{\{\s*steps\[(\d+)\]\.(.+?)\s*\}\}/g;
-		if (refPattern.test(value)) {
-			// Reset lastIndex after test
-			refPattern.lastIndex = 0;
-			return value.replace(refPattern, (_, stepIdx, path) => {
-				const stepIndex = parseInt(stepIdx as string, 10);
-				const resolved = this.getValueAtPath(stepOutputs[stepIndex], path as string);
-				return String(resolved ?? '');
-			});
-		}
-
-		return value;
-	}
-
-	/**
-	 * Get a value at a dot-notation path from an object.
-	 */
-	private getValueAtPath(obj: unknown, path: string): unknown {
-		const parts = path.split('.');
-		let current: unknown = obj;
-
-		for (const part of parts) {
-			if (current === null || current === undefined) {
-				return undefined;
-			}
-
-			// Handle array index access like "items[0]"
-			const arrayMatch = part.match(/^(\w+)\[(\d+)\]$/);
-			if (arrayMatch && arrayMatch[1] !== undefined && arrayMatch[2] !== undefined) {
-				const propName = arrayMatch[1];
-				const index = parseInt(arrayMatch[2], 10);
-				current = (current as Record<string, unknown>)[propName];
-				if (Array.isArray(current)) {
-					current = current[index];
-				} else {
-					return undefined;
-				}
-			} else {
-				current = (current as Record<string, unknown>)[part];
-			}
-		}
-
-		return current;
-	}
-
-	private determineOutcome(passed: number, failed: number, skipped: number): ScenarioOutcome {
-		if (failed === 0 && skipped === 0) return 'pass';
-		if (passed === 0) return 'fail';
-		if (failed > 0 && passed > 0) return 'partial';
-		return 'fail';
-	}
-}
-
+export {
+	type CommandHandler,
+	createInProcessExecutor,
+	InProcessExecutor,
+	type InProcessExecutorConfig,
+} from './in-process-executor.js';
+export type { ExecuteScenarioOptions } from './scenario-runner.js';
 // Re-export validation from dedicated module
 export { type ScenarioValidationResult, validateScenario } from './validator.js';
 
@@ -723,11 +204,4 @@ export { type ScenarioValidationResult, validateScenario } from './validator.js'
  */
 export function createExecutor(config?: ExecutorConfig): ScenarioExecutor {
 	return new ScenarioExecutor(config);
-}
-
-/**
- * Create an in-process scenario executor.
- */
-export function createInProcessExecutor(config: InProcessExecutorConfig): InProcessExecutor {
-	return new InProcessExecutor(config);
 }

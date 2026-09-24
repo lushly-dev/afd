@@ -6,9 +6,13 @@
  */
 
 import type { CommandResult } from '@lushly-dev/afd-core';
+import {
+	findExpectationProblems,
+	InvalidExpectationError,
+	isAssertionMatcher,
+} from '../types/matchers.js';
 import type { AssertionResult, StepError } from '../types/report.js';
 import type { AssertionMatcher, Expectation } from '../types/scenario.js';
-import { isAssertionMatcher } from '../types/scenario.js';
 
 // ============================================================================
 // Evaluation Result Types
@@ -35,11 +39,18 @@ export interface EvaluationResult {
  * @param actual - The actual CommandResult from executing a command
  * @param expected - The Expectation from the scenario
  * @returns EvaluationResult with pass/fail status and detailed assertions
+ * @throws InvalidExpectationError when a data assertion is malformed, such as
+ *   a matcher object mixed with other keys or a matcher given the wrong type
  */
 export function evaluateResult(
 	actual: CommandResult<unknown>,
 	expected: Expectation
 ): EvaluationResult {
+	const problems = findExpectationProblems(expected);
+	if (problems.length > 0) {
+		throw new InvalidExpectationError(problems);
+	}
+
 	const assertions: AssertionResult[] = [];
 	let allPassed = true;
 
@@ -86,6 +97,20 @@ export function evaluateResult(
 			assertions.push(messageAssertion);
 			if (!messageAssertion.passed) {
 				allPassed = false;
+			}
+		}
+
+		const expectedSuggestion = expected.error.suggestion;
+		if (expectedSuggestion !== undefined) {
+			const actualSuggestion = (actual.error as Record<string, unknown> | undefined)?.suggestion;
+			const suggestionAssertions = isAssertionMatcher(expectedSuggestion, 'error.suggestion')
+				? evaluateMatcherAssertions('error.suggestion', actualSuggestion, expectedSuggestion)
+				: [evaluateAssertion('error.suggestion', actualSuggestion, expectedSuggestion, 'contains')];
+			for (const assertion of suggestionAssertions) {
+				assertions.push(assertion);
+				if (!assertion.passed) {
+					allPassed = false;
+				}
 			}
 		}
 	}
@@ -139,22 +164,25 @@ function evaluateDataAssertions(
 		const path = `${basePath}.${key}`;
 		const actualValue = getValueAtPath(actual, key);
 
-		if (isAssertionMatcher(expectedValue)) {
+		if (isAssertionMatcher(expectedValue, path)) {
 			// Handle matcher objects like { contains: "foo" }
-			const matcherResults = evaluateMatcherAssertions(path, actualValue, expectedValue);
-			results.push(...matcherResults);
+			for (const result of evaluateMatcherAssertions(path, actualValue, expectedValue)) {
+				results.push(result);
+			}
 		} else if (
 			typeof expectedValue === 'object' &&
 			expectedValue !== null &&
 			!Array.isArray(expectedValue)
 		) {
 			// Nested object - recurse
-			const nestedResults = evaluateDataAssertions(
+			const nested = evaluateDataAssertions(
 				actualValue,
 				expectedValue as Record<string, unknown>,
 				path
 			);
-			results.push(...nestedResults);
+			for (const result of nested) {
+				results.push(result);
+			}
 		} else {
 			// Simple equality check
 			results.push(evaluateAssertion(path, actualValue, expectedValue, 'equals'));
@@ -173,6 +201,10 @@ function evaluateMatcherAssertions(
 	matcher: AssertionMatcher
 ): AssertionResult[] {
 	const results: AssertionResult[] = [];
+
+	if ('equals' in matcher) {
+		results.push(evaluateAssertion(path, actual, matcher.equals, 'equals'));
+	}
 
 	if (matcher.contains !== undefined) {
 		results.push(evaluateAssertion(path, actual, matcher.contains, 'contains'));

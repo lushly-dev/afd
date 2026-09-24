@@ -27,8 +27,17 @@ export interface ScenarioListInput {
 	/** Filter by tags (scenarios must have ALL specified tags) */
 	tags?: string[];
 
-	/** Filter by last run status */
+	/**
+	 * Filter by last run status.
+	 *
+	 * @deprecated scenario-list keeps no run history, so every scenario's status
+	 * is `unknown`. `'unknown'` matches every scenario; `'passed'` and `'failed'`
+	 * return an `UNSUPPORTED_FILTER` failure instead of an empty list.
+	 */
 	status?: 'passed' | 'failed' | 'unknown';
+
+	/** Search subdirectories (default: true) */
+	recursive?: boolean;
 
 	/** Search in name/description */
 	search?: string;
@@ -39,11 +48,25 @@ export interface ScenarioListInput {
 	/** Sort order */
 	sortOrder?: 'asc' | 'desc';
 
-	/** Output format */
+	/** Also return `formattedOutput` in this format */
 	format?: 'table' | 'json' | 'names';
 
-	/** Glob pattern for scenario files (default: **\/*.scenario.yaml) */
+	/**
+	 * File name pattern for scenario files, matched against the file name
+	 * (`*` and `?` wildcards; a leading `**\/` is ignored). Default: `*.scenario.yaml`
+	 */
 	pattern?: string;
+}
+
+/**
+ * A scenario file that could not be parsed.
+ */
+export interface ScenarioParseFailure {
+	/** File path */
+	path: string;
+
+	/** Parse error (never includes file contents) */
+	error: string;
 }
 
 /**
@@ -98,6 +121,12 @@ export interface ScenarioListOutput {
 		status?: string;
 		search?: string;
 	};
+
+	/** Scenario files that could not be parsed (not included in `scenarios`) */
+	parseErrors: ScenarioParseFailure[];
+
+	/** Scenarios formatted as requested by `format` */
+	formattedOutput?: string;
 }
 
 // ============================================================================
@@ -105,33 +134,56 @@ export interface ScenarioListOutput {
 // ============================================================================
 
 /**
- * Find scenario files in a directory.
+ * Convert a file-name pattern (`*` and `?` wildcards) to a regular expression.
  */
-async function findScenarioFiles(directory: string, pattern?: string): Promise<string[]> {
+function patternToRegex(pattern: string): RegExp {
+	const fileName = pattern.replace(/^(\*\*\/)+/, '');
+	const source = fileName
+		.split('')
+		.map((char) => {
+			if (char === '*') return '[^/]*';
+			if (char === '?') return '[^/]';
+			return char.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+		})
+		.join('');
+	return new RegExp(`^${source}$`);
+}
+
+/**
+ * Find scenario files in a directory. Symlinks are not followed.
+ */
+async function findScenarioFiles(
+	directory: string,
+	pattern: string | undefined,
+	recursive: boolean
+): Promise<string[]> {
 	const scenarioFiles: string[] = [];
-	const _globPattern = pattern ?? '**/*.scenario.yaml';
+	const matcher = patternToRegex(pattern ?? '*.scenario.yaml');
 
-	// Simple recursive search (no glob library needed for basic case)
 	async function searchDir(dir: string): Promise<void> {
+		let entries: fs.Dirent[];
 		try {
-			const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-
-			for (const entry of entries) {
-				const fullPath = path.join(dir, entry.name);
-
-				if (entry.isDirectory() && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
-					await searchDir(fullPath);
-				} else if (entry.isFile() && entry.name.endsWith('.scenario.yaml')) {
-					scenarioFiles.push(fullPath);
-				}
-			}
+			entries = await fs.promises.readdir(dir, { withFileTypes: true });
 		} catch {
 			// Ignore directories we can't read
+			return;
+		}
+
+		for (const entry of entries) {
+			const fullPath = path.join(dir, entry.name);
+
+			if (entry.isDirectory()) {
+				if (recursive && !entry.name.startsWith('.') && entry.name !== 'node_modules') {
+					await searchDir(fullPath);
+				}
+			} else if (entry.isFile() && matcher.test(entry.name)) {
+				scenarioFiles.push(fullPath);
+			}
 		}
 	}
 
 	await searchDir(directory);
-	return scenarioFiles;
+	return scenarioFiles.sort();
 }
 
 /**
@@ -165,11 +217,6 @@ function applyFilters(scenarios: ScenarioSummary[], input: ScenarioListInput): S
 	// Filter by tags (must have ALL specified tags)
 	if (input.tags && input.tags.length > 0) {
 		filtered = filtered.filter((s) => input.tags?.every((tag) => s.tags.includes(tag)));
-	}
-
-	// Filter by status
-	if (input.status) {
-		filtered = filtered.filter((s) => s.lastRunStatus === input.status);
 	}
 
 	// Filter by search term
@@ -235,72 +282,71 @@ function sortScenarios(
 export async function scenarioList(
 	input: ScenarioListInput = {}
 ): Promise<CommandResult<ScenarioListOutput>> {
+	if (input.status === 'passed' || input.status === 'failed') {
+		return failure({
+			code: 'UNSUPPORTED_FILTER',
+			message: `Cannot filter by status '${input.status}': scenario-list keeps no run history`,
+			suggestion:
+				'Run scenario-evaluate and read the outcome of each scenario in its report instead',
+		});
+	}
+
 	try {
 		const directory = input.directory ?? process.cwd();
+		const filters = {
+			job: input.job,
+			tags: input.tags,
+			status: input.status,
+			search: input.search,
+		};
 
 		// Find scenario files
-		const files = await findScenarioFiles(directory, input.pattern);
-
-		if (files.length === 0) {
-			return success(
-				{
-					total: 0,
-					filtered: 0,
-					scenarios: [],
-					filters: {
-						job: input.job,
-						tags: input.tags,
-						status: input.status,
-						search: input.search,
-					},
-				},
-				{
-					reasoning: `No scenario files found in ${directory}`,
-				}
-			);
-		}
+		const files = await findScenarioFiles(directory, input.pattern, input.recursive ?? true);
 
 		// Parse all scenario files
 		const scenarios: ScenarioSummary[] = [];
-		const parseErrors: string[] = [];
+		const parseErrors: ScenarioParseFailure[] = [];
 
 		for (const file of files) {
 			const result = await parseScenarioFile(file);
 			if (result.success) {
 				scenarios.push(scenarioToSummary(result.scenario, file));
 			} else {
-				parseErrors.push(`${file}: ${result.error}`);
+				parseErrors.push({ path: file, error: result.error });
 			}
 		}
 
-		// Apply filters
-		const filtered = applyFilters(scenarios, input);
-
-		// Sort results
-		const sorted = sortScenarios(filtered, input.sortBy, input.sortOrder);
+		// Apply filters, then sort
+		const sorted = sortScenarios(applyFilters(scenarios, input), input.sortBy, input.sortOrder);
 
 		const output: ScenarioListOutput = {
 			total: scenarios.length,
 			filtered: sorted.length,
 			scenarios: sorted,
-			filters: {
-				job: input.job,
-				tags: input.tags,
-				status: input.status,
-				search: input.search,
-			},
+			filters,
+			parseErrors,
 		};
+		if (input.format) {
+			output.formattedOutput = formatScenarios(sorted, input.format);
+		}
 
-		const reasoning =
-			sorted.length === scenarios.length
-				? `Found ${sorted.length} scenarios`
-				: `Found ${sorted.length} of ${scenarios.length} scenarios matching filters`;
+		let reasoning: string;
+		if (files.length === 0) {
+			reasoning = `No scenario files found in ${directory}`;
+		} else if (sorted.length === scenarios.length) {
+			reasoning = `Found ${sorted.length} scenarios`;
+		} else {
+			reasoning = `Found ${sorted.length} of ${scenarios.length} scenarios matching filters`;
+		}
+		if (parseErrors.length > 0) {
+			reasoning += `; ${parseErrors.length} file(s) could not be parsed`;
+		}
 
 		return success(output, {
 			reasoning,
 			warnings:
 				parseErrors.length > 0
-					? parseErrors.map((e) => ({ code: 'PARSE_ERROR', message: e }))
+					? parseErrors.map((e) => ({ code: 'PARSE_ERROR', message: `${e.path}: ${e.error}` }))
 					: undefined,
 		});
 	} catch (err) {
@@ -310,6 +356,17 @@ export async function scenarioList(
 			message: `Failed to list scenarios: ${message}`,
 			suggestion: 'Check that the directory exists and contains .scenario.yaml files',
 		});
+	}
+}
+
+function formatScenarios(scenarios: ScenarioSummary[], format: 'table' | 'json' | 'names'): string {
+	switch (format) {
+		case 'json':
+			return JSON.stringify(scenarios, null, 2);
+		case 'names':
+			return scenarios.map((s) => s.name).join('\n');
+		default:
+			return formatScenarioTable(scenarios);
 	}
 }
 

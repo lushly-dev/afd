@@ -3,7 +3,9 @@
 /**
  * @fileoverview scenario-suggest command
  *
- * AI-powered scenario suggestions based on context.
+ * Heuristic scenario suggestions based on context. The strategies use keyword
+ * and file-name matching, and each suggestion's `confidence` is a fixed
+ * heuristic score per rule, not a model prediction. No AI model is called.
  * Supports multiple suggestion strategies:
  * - changed-files: Suggest scenarios for modified code
  * - uncovered: Suggest scenarios for untested commands
@@ -69,7 +71,7 @@ export interface ScenarioSuggestion {
 	/** Why this is suggested */
 	reason: string;
 
-	/** Confidence (0-1) */
+	/** Heuristic score (0-1) assigned by the rule that produced the suggestion */
 	confidence: number;
 
 	/** Priority */
@@ -107,7 +109,7 @@ export interface ScenarioSuggestOutput {
 // ============================================================================
 
 /**
- * Get AI-powered scenario suggestions.
+ * Get heuristic scenario suggestions (keyword and file-name rules; no AI model).
  *
  * @example
  * ```typescript
@@ -120,7 +122,7 @@ export interface ScenarioSuggestOutput {
  * // Suggest for uncovered commands
  * const result = await scenarioSuggest({
  *   context: 'uncovered',
- *   knownCommands: ['todo.create', 'todo.list', 'todo.delete'],
+ *   knownCommands: ['todo-create', 'todo-list', 'todo-delete'],
  * });
  * ```
  */
@@ -248,11 +250,11 @@ async function suggestFromChangedFiles(
 		for (const cmd of commands) {
 			// Check if command is covered by existing scenarios
 			// ScenarioSummary doesn't have commands, so check by name pattern
-			const covered = existingScenarios.some((s) => s.name.includes(cmd.replace('.', '-')));
+			const covered = existingScenarios.some((s) => s.name.includes(cmd));
 
 			if (!covered) {
 				suggestions.push({
-					name: `test-${cmd.replace(/\./g, '-')}`,
+					name: `test-${cmd}`,
 					job: inferJobFromCommand(cmd),
 					reason: `File "${file}" changed, command "${cmd}" may need test coverage`,
 					confidence: 0.85,
@@ -263,7 +265,7 @@ async function suggestFromChangedFiles(
 			} else {
 				// Suggest edge case scenarios
 				suggestions.push({
-					name: `${cmd.replace(/\./g, '-')}-edge-cases`,
+					name: `${cmd}-edge-cases`,
 					job: inferJobFromCommand(cmd),
 					reason: `File "${file}" changed, consider adding edge case tests for "${cmd}"`,
 					confidence: 0.6,
@@ -312,14 +314,10 @@ async function suggestFromUncovered(
 
 	const coverage = coverageResult.data;
 
-	// Untested commands (high priority) - using commandCoverage array
-	const untestedCommands = coverage.commandCoverage
-		.filter((c) => c.scenarioCount === 0)
-		.map((c) => c.command);
-
-	for (const cmd of untestedCommands) {
+	// Untested commands (high priority): known commands no scenario uses
+	for (const cmd of coverage.summary.commands.untested ?? []) {
 		suggestions.push({
-			name: `test-${cmd.replace(/\./g, '-')}`,
+			name: `test-${cmd}`,
 			job: inferJobFromCommand(cmd),
 			reason: `Command "${cmd}" has 0% test coverage`,
 			confidence: 0.95,
@@ -331,12 +329,12 @@ async function suggestFromUncovered(
 
 	// Low coverage commands (medium priority)
 	const lowCoverageCommands = coverage.commandCoverage
-		.filter((c) => c.scenarioCount > 0 && c.scenarioCount < 3)
+		.filter((c) => c.scenarioCount < 3)
 		.map((c) => c.command);
 
 	for (const cmd of lowCoverageCommands) {
 		suggestions.push({
-			name: `${cmd.replace(/\./g, '-')}-additional`,
+			name: `${cmd}-additional`,
 			job: inferJobFromCommand(cmd),
 			reason: `Command "${cmd}" has limited coverage - consider additional scenarios`,
 			confidence: 0.7,
@@ -381,13 +379,12 @@ async function suggestFromFailed(directory: string): Promise<ScenarioSuggestion[
 			tags: ['regression', 'failing'],
 		});
 
-		// Parse the scenario name to infer commands
-		// e.g., "test-todo-create" -> "todo.create"
-		const inferredCmd = scenario.name.replace(/^test-/, '').replace(/-/g, '.');
+		// Infer a command from the scenario name, e.g. "test-todo-create" -> "todo-create"
+		const inferredCmd = scenario.name.replace(/^test-/, '');
 
-		if (inferredCmd?.includes('.')) {
+		if (/^[a-z][a-z0-9]*-[a-z][a-z0-9-]*$/.test(inferredCmd)) {
 			suggestions.push({
-				name: `${inferredCmd.replace(/\./g, '-')}-isolation`,
+				name: `${inferredCmd}-isolation`,
 				job: `Isolated test for ${inferredCmd}`,
 				reason: `Command "${inferredCmd}" may be involved in failed scenario - test in isolation`,
 				confidence: 0.6,
@@ -427,9 +424,9 @@ async function suggestForCommand(
 	const existingScenarios = listResult.success ? (listResult.data?.scenarios ?? []) : [];
 
 	// Check existing coverage - ScenarioSummary doesn't have commands field
-	const existing = existingScenarios.filter((s) => s.name.includes(command.replace('.', '-')));
+	const existing = existingScenarios.filter((s) => s.name.includes(command));
 
-	const baseName = command.replace(/\./g, '-');
+	const baseName = command;
 
 	if (existing.length === 0) {
 		// No existing scenarios - suggest CRUD-style tests
@@ -466,7 +463,7 @@ async function suggestForCommand(
 	});
 
 	// If it's a mutation command, suggest idempotency tests
-	if (command.includes('.create') || command.includes('.update') || command.includes('.delete')) {
+	if (/-(create|update|delete)\b/.test(command)) {
 		suggestions.push({
 			name: `${baseName}-idempotency`,
 			job: `Test ${command} idempotency`,
@@ -558,11 +555,11 @@ async function suggestFromQuery(
 
 	// If we have known commands, try to match query keywords
 	for (const cmd of knownCommands) {
-		const cmdWords = cmd.split('.').join(' ');
+		const cmdWords = cmd.split('-').join(' ');
 		const firstWord = queryLower.split(' ')[0] ?? '';
 		if (queryLower.includes(cmdWords) || (firstWord && cmdWords.includes(firstWord))) {
 			suggestions.push({
-				name: `${cmd.replace(/\./g, '-')}-from-query`,
+				name: `${cmd}-from-query`,
 				job: `Test ${cmd}`,
 				reason: `Query matched command "${cmd}"`,
 				confidence: 0.7,
@@ -599,23 +596,23 @@ function mapFileToCommands(file: string): string[] {
 	const commands: string[] = [];
 	const normalizedPath = file.replace(/\\/g, '/');
 
-	// Pattern: src/commands/category/action.ts -> category.action
-	const commandMatch = normalizedPath.match(/commands\/(\w+)\/(\w+)\.ts$/);
+	// Pattern: src/commands/category/action.ts -> category-action
+	const commandMatch = normalizedPath.match(/commands\/(\w+)\/([\w-]+)\.ts$/);
 	if (commandMatch) {
-		commands.push(`${commandMatch[1]}.${commandMatch[2]}`);
+		commands.push(`${commandMatch[1]}-${commandMatch[2]}`);
 	}
 
-	// Pattern: src/commands/category.ts -> category.*
+	// Pattern: src/commands/category.ts -> category-*
 	const categoryMatch = normalizedPath.match(/commands\/(\w+)\.ts$/);
 	if (categoryMatch?.[1] && !categoryMatch[1].includes('index')) {
-		commands.push(`${categoryMatch[1]}.*`);
+		commands.push(`${categoryMatch[1]}-*`);
 	}
 
 	// Pattern: commands in handler files
 	if (normalizedPath.includes('handler')) {
 		const handlerMatch = normalizedPath.match(/(\w+)-handler\.ts$/);
 		if (handlerMatch) {
-			commands.push(`${handlerMatch[1]}.*`);
+			commands.push(`${handlerMatch[1]}-*`);
 		}
 	}
 
@@ -623,12 +620,13 @@ function mapFileToCommands(file: string): string[] {
 }
 
 /**
- * Infer a job description from a command name.
+ * Infer a job description from a kebab-case `domain-action` command name.
  */
 function inferJobFromCommand(command: string): string {
-	const [category, action] = command.split('.');
+	const [category, ...rest] = command.split('-');
+	const action = rest.join(' ');
 
-	if (action) {
+	if (action && action !== '*') {
 		return `${capitalize(action)} ${category}`;
 	}
 
@@ -655,7 +653,7 @@ function generateSkeleton(suggestion: ScenarioSuggestion): Partial<Scenario> {
 	} else {
 		steps.push({
 			description: 'Execute command',
-			command: 'your.command',
+			command: 'domain-action',
 			input: {},
 			expect: {
 				success: true,

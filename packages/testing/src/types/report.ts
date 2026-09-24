@@ -20,8 +20,17 @@ export type StepOutcome = 'pass' | 'fail' | 'skip' | 'error';
  * Detailed error information from a step
  */
 export interface StepError {
-	/** Error type classification */
-	type: 'command_failed' | 'expectation_mismatch' | 'timeout' | 'parse_error' | 'unknown';
+	/**
+	 * Error type classification. `reference_error` means a `${{ steps[N]... }}`
+	 * reference in the step input did not resolve to a value.
+	 */
+	type:
+		| 'command_failed'
+		| 'expectation_mismatch'
+		| 'timeout'
+		| 'parse_error'
+		| 'reference_error'
+		| 'unknown';
 
 	/** Human-readable error message */
 	message: string;
@@ -96,9 +105,29 @@ export interface AssertionResult {
 // ============================================================================
 
 /**
- * Overall scenario outcome
+ * Overall scenario outcome.
+ *
+ * `skip` means the scenario never ran, for example because `failFast`
+ * stopped the evaluation after an earlier scenario failed.
  */
-export type ScenarioOutcome = 'pass' | 'fail' | 'error' | 'partial';
+export type ScenarioOutcome = 'pass' | 'fail' | 'error' | 'partial' | 'skip';
+
+/**
+ * Why a scenario as a whole could not run to completion.
+ */
+export interface ScenarioError {
+	/**
+	 * - `parse_error`: the scenario file could not be parsed
+	 * - `fixture_failed`: loading or applying the fixture failed
+	 * - `timeout`: the scenario exceeded its timeout
+	 * - `aborted`: the caller's `AbortSignal` cancelled the run
+	 * - `unsupported`: the scenario uses a field the runner does not implement
+	 */
+	type: 'parse_error' | 'fixture_failed' | 'timeout' | 'aborted' | 'unsupported';
+
+	/** Human-readable message */
+	message: string;
+}
 
 /**
  * Result of executing an entire scenario
@@ -136,6 +165,12 @@ export interface ScenarioResult {
 
 	/** Verification results (if verification block was present) */
 	verification?: VerificationResult;
+
+	/** Scenario-level error (parse, fixture, timeout, abort); set when `outcome` is `error` for one of these reasons */
+	error?: ScenarioError;
+
+	/** Non-fatal warnings, such as warnings reported by a fixture adapter */
+	warnings?: string[];
 
 	/** Timestamp when scenario started */
 	startedAt: Date;
@@ -218,6 +253,9 @@ export interface TestSummary {
 	/** Scenarios with errors (not assertion failures) */
 	errorScenarios: number;
 
+	/** Scenarios that were not run (for example after `failFast` stopped the evaluation) */
+	skippedScenarios: number;
+
 	/** Total number of steps across all scenarios */
 	totalSteps: number;
 
@@ -267,6 +305,7 @@ export function createEmptySummary(): TestSummary {
 		passedScenarios: 0,
 		failedScenarios: 0,
 		errorScenarios: 0,
+		skippedScenarios: 0,
 		totalSteps: 0,
 		passedSteps: 0,
 		failedSteps: 0,
@@ -298,6 +337,9 @@ export function calculateSummary(scenarios: ScenarioResult[]): TestSummary {
 				break;
 			case 'error':
 				summary.errorScenarios++;
+				break;
+			case 'skip':
+				summary.skippedScenarios++;
 				break;
 		}
 	}
@@ -353,7 +395,7 @@ export function isScenarioResult(value: unknown): value is ScenarioResult {
 		typeof obj.scenarioPath === 'string' &&
 		typeof obj.jobName === 'string' &&
 		typeof obj.outcome === 'string' &&
-		['pass', 'fail', 'error', 'partial'].includes(obj.outcome as string) &&
+		['pass', 'fail', 'error', 'partial', 'skip'].includes(obj.outcome as string) &&
 		typeof obj.durationMs === 'number' &&
 		Array.isArray(obj.stepResults)
 	);

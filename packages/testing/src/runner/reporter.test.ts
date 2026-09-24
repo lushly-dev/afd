@@ -132,6 +132,7 @@ describe('TerminalReporter - JSON format', () => {
 				passedScenarios: 1,
 				failedScenarios: 0,
 				errorScenarios: 0,
+				skippedScenarios: 0,
 				totalSteps: 1,
 				passedSteps: 1,
 				failedSteps: 0,
@@ -411,6 +412,7 @@ describe('TerminalReporter - reportTestReport (human)', () => {
 				passedScenarios: 1,
 				failedScenarios: 1,
 				errorScenarios: 0,
+				skippedScenarios: 0,
 				totalSteps: 2,
 				passedSteps: 1,
 				failedSteps: 1,
@@ -444,6 +446,7 @@ describe('TerminalReporter - reportTestReport (human)', () => {
 				passedScenarios: 1,
 				failedScenarios: 0,
 				errorScenarios: 0,
+				skippedScenarios: 0,
 				totalSteps: 1,
 				passedSteps: 1,
 				failedSteps: 0,
@@ -457,5 +460,40 @@ describe('TerminalReporter - reportTestReport (human)', () => {
 
 		const output = lines.join('');
 		expect(output).toContain('All scenarios passed!');
+	});
+
+	it('does not report a run of errored scenarios as passed', () => {
+		const { stream, lines } = createCaptureStream();
+		const reporter = new TerminalReporter({ format: 'human', colors: false, output: stream });
+		const errored = makeScenarioResult({
+			outcome: 'error',
+			stepResults: [],
+			passedSteps: 0,
+			error: { type: 'fixture_failed', message: "Fixture command 'todo-create' failed" },
+		});
+
+		reporter.reportTestReport({
+			title: 'Errors only',
+			durationMs: 10,
+			scenarios: [errored],
+			summary: {
+				totalScenarios: 1,
+				passedScenarios: 0,
+				failedScenarios: 0,
+				errorScenarios: 1,
+				skippedScenarios: 0,
+				totalSteps: 0,
+				passedSteps: 0,
+				failedSteps: 0,
+				skippedSteps: 0,
+				passRate: 0,
+			},
+			generatedAt: new Date('2024-01-01'),
+		});
+
+		const output = lines.join('');
+		expect(output).not.toContain('All scenarios passed!');
+		expect(output).toContain('1 scenario(s) failed');
+		expect(output).toContain("Error (fixture_failed): Fixture command 'todo-create' failed");
 	});
 });

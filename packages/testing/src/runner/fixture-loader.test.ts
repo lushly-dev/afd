@@ -2,10 +2,14 @@
  * @lushly-dev/afd-testing - Fixture Loader Tests
  */
 
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { basename, join } from 'node:path';
+import type { CommandResult } from '@lushly-dev/afd-core';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createGenericAdapter } from '../adapters/generic.js';
+import { registerAdapter, resetGlobalRegistry } from '../adapters/registry.js';
+import { createTodoAdapter, todoAdapter } from '../adapters/todo.js';
 import { applyFixture, type FixtureData, loadFixture } from './fixture-loader.js';
 
 describe('loadFixture', () => {
@@ -224,9 +228,118 @@ describe('loadFixture', () => {
 	});
 });
 
+describe('loadFixture containment and errors', () => {
+	let testDir: string;
+
+	beforeEach(async () => {
+		testDir = await mkdtemp(join(tmpdir(), 'afd-fixture-root-'));
+	});
+
+	afterEach(async () => {
+		await rm(testDir, { recursive: true, force: true });
+	});
+
+	it('does not echo file contents when the JSON is invalid', async () => {
+		await writeFile(join(testDir, 'secret.json'), 'root:x:0:0:root:/root:/bin/bash');
+
+		const result = await loadFixture({ file: 'secret.json' }, { basePath: testDir });
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toContain('Invalid JSON');
+			expect(result.error).not.toContain('root:x');
+		}
+	});
+
+	it('reports the position of a JSON syntax error', async () => {
+		await writeFile(join(testDir, 'bad.json'), '{"a": 1, secret}');
+
+		const result = await loadFixture({ file: 'bad.json' }, { basePath: testDir });
+
+		expect(result.success).toBe(false);
+		if (!result.success) {
+			expect(result.error).toMatch(/at position \d+/);
+			expect(result.error).not.toContain('secret');
+		}
+	});
+
+	it('rejects fixture files outside rootDir', async () => {
+		const outside = await mkdtemp(join(tmpdir(), 'afd-fixture-outside-'));
+		try {
+			await writeFile(join(outside, 'f.json'), '{}');
+			const root = join(testDir, 'root');
+			await mkdir(root);
+
+			const escaped = await loadFixture(
+				{ file: `../../${basename(outside)}/f.json` },
+				{ basePath: root, rootDir: root }
+			);
+			const absolute = await loadFixture({ file: join(outside, 'f.json') }, { rootDir: root });
+
+			for (const result of [escaped, absolute]) {
+				expect(result.success).toBe(false);
+				if (!result.success) expect(result.error).toContain('outside the allowed directory');
+			}
+		} finally {
+			await rm(outside, { recursive: true, force: true });
+		}
+	});
+
+	it('rejects a base fixture that escapes rootDir through a symlinked directory', async () => {
+		const outside = await mkdtemp(join(tmpdir(), 'afd-fixture-outside-'));
+		try {
+			await writeFile(join(outside, 'base.json'), '{}');
+			await writeFile(join(testDir, 'main.json'), '{}');
+			await symlink(outside, join(testDir, 'link'), 'dir');
+
+			const result = await loadFixture(
+				{ file: 'main.json', base: 'link/base.json' },
+				{ basePath: testDir, rootDir: testDir }
+			);
+
+			expect(result.success).toBe(false);
+			if (!result.success) expect(result.error).toContain('Fixture base');
+		} finally {
+			await rm(outside, { recursive: true, force: true });
+		}
+	});
+
+	it('loads fixtures inside rootDir', async () => {
+		await writeFile(join(testDir, 'ok.json'), '{"app":"todo"}');
+
+		const result = await loadFixture({ file: 'ok.json' }, { basePath: testDir, rootDir: testDir });
+
+		expect(result.success).toBe(true);
+	});
+
+	it('validates the merged fixture with its adapter when asked', async () => {
+		await writeFile(join(testDir, 'todo.json'), JSON.stringify({ app: 'todo', todos: [{}] }));
+		await writeFile(join(testDir, 'none.json'), JSON.stringify({ app: 'violet' }));
+		await writeFile(join(testDir, 'good.json'), JSON.stringify({ app: 'todo', todos: [] }));
+
+		const invalid = await loadFixture({ file: 'todo.json' }, { basePath: testDir, validate: true });
+		const noAdapter = await loadFixture(
+			{ file: 'none.json' },
+			{ basePath: testDir, validate: true }
+		);
+		const valid = await loadFixture({ file: 'good.json' }, { basePath: testDir, validate: true });
+
+		expect(invalid.success).toBe(false);
+		if (!invalid.success) expect(invalid.error).toContain("must have a 'title'");
+		expect(noAdapter.success).toBe(false);
+		if (!noAdapter.success)
+			expect(noAdapter.error).toContain("No fixture adapter for app 'violet'");
+		expect(valid.success).toBe(true);
+	});
+});
+
 describe('applyFixture', () => {
+	afterEach(() => {
+		resetGlobalRegistry();
+	});
+
 	describe('todo app fixtures', () => {
-		it('clears todos and creates new ones', async () => {
+		it('clears every todo and creates new ones with kebab-case commands', async () => {
 			const commands: Array<{ command: string; input?: Record<string, unknown> }> = [];
 
 			const handler = async (command: string, input?: Record<string, unknown>) => {
@@ -239,28 +352,23 @@ describe('applyFixture', () => {
 				clearFirst: true,
 				todos: [
 					{ title: 'Todo 1', priority: 'high' },
-					{ title: 'Todo 2', priority: 'low' },
+					{ title: 'Todo 2', priority: 'low', completed: true },
 				],
 			};
 
 			const result = await applyFixture(fixture, handler);
 
 			expect(result.success).toBe(true);
-			expect(result.appliedCommands.map((c) => c.command)).toContain('todo.clear');
-			expect(result.appliedCommands.filter((c) => c.command === 'todo.create')).toHaveLength(2);
-
-			// Verify clear was called first
-			expect(commands[0]?.command).toBe('todo.clear');
+			expect(commands.map((c) => c.command)).toEqual([
+				'todo-clear',
+				'todo-create',
+				'todo-create',
+				'todo-toggle',
+			]);
 			expect(commands[0]?.input).toEqual({ all: true });
-
-			// Verify todos were created with correct data
-			expect(commands[1]?.command).toBe('todo.create');
-			expect(commands[1]?.input?.title).toBe('Todo 1');
-			expect(commands[1]?.input?.priority).toBe('high');
-
-			expect(commands[2]?.command).toBe('todo.create');
-			expect(commands[2]?.input?.title).toBe('Todo 2');
-			expect(commands[2]?.input?.priority).toBe('low');
+			expect(commands[1]?.input).toEqual({ title: 'Todo 1', priority: 'high' });
+			expect(commands[3]?.input).toEqual({ id: 'todo-3' });
+			expect(result.appliedCommands.map((c) => c.command)).toEqual(commands.map((c) => c.command));
 		});
 
 		it('skips clear when clearFirst is false', async () => {
@@ -271,16 +379,9 @@ describe('applyFixture', () => {
 				return { success: true };
 			};
 
-			const fixture: FixtureData = {
-				app: 'todo',
-				clearFirst: false,
-				todos: [{ title: 'Todo 1' }],
-			};
+			await applyFixture({ app: 'todo', clearFirst: false, todos: [{ title: 'Todo 1' }] }, handler);
 
-			await applyFixture(fixture, handler);
-
-			expect(commands).not.toContain('todo.clear');
-			expect(commands).toContain('todo.create');
+			expect(commands).toEqual(['todo-create']);
 		});
 
 		it('uses default priority when not specified', async () => {
@@ -291,63 +392,109 @@ describe('applyFixture', () => {
 				return { success: true };
 			};
 
-			const fixture: FixtureData = {
-				app: 'todo',
-				todos: [{ title: 'No priority specified' }],
-			};
+			await applyFixture({ app: 'todo', todos: [{ title: 'No priority specified' }] }, handler);
 
-			await applyFixture(fixture, handler);
-
-			// Find the todo.create input (skip todo.clear)
 			const createInput = inputs.find((i) => i.title);
 			expect(createInput?.priority).toBe('medium');
 		});
+
+		it('fails, naming the command and error code, when a fixture command fails', async () => {
+			// The pre-fix loader wrapped every result in { success: true } and reported success
+			const handler = async (command: string): Promise<CommandResult<unknown>> =>
+				command === 'todo-create'
+					? { success: false, error: { code: 'COMMAND_NOT_FOUND', message: 'Unknown command' } }
+					: { success: true, data: { cleared: 0 } };
+
+			const result = await applyFixture(
+				{ app: 'todo', todos: [{ title: 'A' }, { title: 'B' }] },
+				handler
+			);
+
+			expect(result.success).toBe(false);
+			expect(result.error).toBe(
+				"Fixture command 'todo-create' failed with COMMAND_NOT_FOUND: Unknown command"
+			);
+			expect(result.appliedCommands.map((c) => c.command)).toEqual(['todo-clear', 'todo-create']);
+		});
+
+		it('fails when the handler does not return a CommandResult', async () => {
+			const handler = vi.fn().mockResolvedValue('ok');
+
+			const result = await applyFixture({ app: 'todo', todos: [] }, handler);
+
+			expect(result.success).toBe(false);
+			expect(result.error).toContain('INVALID_COMMAND_RESULT');
+		});
 	});
 
-	describe('violet app fixtures', () => {
-		it('creates nodes, then operations, then constraints', async () => {
-			const commands: Array<{ command: string; input?: Record<string, unknown> }> = [];
+	describe('adapter selection', () => {
+		it('fails loudly for an app without an adapter instead of applying nothing', async () => {
+			const handler = vi.fn();
 
-			const handler = async (command: string, input?: Record<string, unknown>) => {
-				commands.push({ command, input });
-				return { success: true };
-			};
+			const result = await applyFixture({ app: 'violet', nodes: [{ id: 'global' }] }, handler);
 
-			const fixture: FixtureData = {
-				app: 'violet',
-				nodes: [
-					{ id: 'global', name: 'Global', type: 'root' },
-					{ id: 'product', name: 'Product', type: 'product', parentId: 'global' },
-				],
-				operations: [
-					{ type: 'add', nodeId: 'global', token: 'color.primary', value: '#007bff' },
-					{ type: 'override', nodeId: 'product', token: 'color.primary', value: '#ff0000' },
-				],
-				constraints: [
-					{ nodeId: 'global', id: 'brand-colors', type: 'enum', tokens: ['color.primary'] },
-				],
-			};
+			expect(result.success).toBe(false);
+			expect(result.error).toContain("No fixture adapter for app 'violet'");
+			expect(handler).not.toHaveBeenCalled();
+		});
 
-			const result = await applyFixture(fixture, handler);
+		it('fails for a fixture with nothing to apply', async () => {
+			const result = await applyFixture({ description: 'just data' }, vi.fn());
+
+			expect(result.success).toBe(false);
+			expect(result.error).toContain('nothing to apply');
+		});
+
+		it('uses a registered adapter for the fixture app', async () => {
+			registerAdapter(createGenericAdapter('violet'));
+			const handler = vi.fn().mockResolvedValue({ success: true });
+
+			const result = await applyFixture(
+				{ app: 'violet', setup: [{ command: 'node-create', input: { id: 'global' } }] },
+				handler
+			);
 
 			expect(result.success).toBe(true);
+			expect(handler).toHaveBeenCalledWith('node-create', { id: 'global' }, { signal: undefined });
+		});
 
-			// Verify order: nodes first, then operations, then constraints
-			const nodeCommands = commands.filter((c) => c.command === 'node.create');
-			const tokenCommands = commands.filter((c) => c.command.startsWith('token.'));
-			const constraintCommands = commands.filter((c) => c.command === 'constraints.set');
+		it('returns adapter warnings', async () => {
+			const warningAdapter = createTodoAdapter({
+				name: 'noisy',
+				fixture: {
+					...todoAdapter.fixture,
+					apply: async (_fixture, context) => {
+						const result = await context.handler?.('noisy-seed', {});
+						return {
+							appliedCommands: [{ command: 'noisy-seed', input: {}, result }],
+							warnings: ['seed data is stale'],
+						};
+					},
+				},
+			});
+			const handler = vi.fn().mockResolvedValue({ success: true });
 
-			expect(nodeCommands).toHaveLength(2);
-			expect(tokenCommands).toHaveLength(2);
-			expect(constraintCommands).toHaveLength(1);
+			const result = await applyFixture({ app: 'noisy' }, handler, { adapter: warningAdapter });
 
-			// Verify nodes created with correct data
-			expect(nodeCommands[0]?.input?.id).toBe('global');
-			expect(nodeCommands[1]?.input?.parentId).toBe('global');
+			expect(result).toEqual({
+				success: true,
+				appliedCommands: [{ command: 'noisy-seed', input: {} }],
+				warnings: ['seed data is stale'],
+			});
+		});
 
-			// Verify token operations
-			expect(tokenCommands[0]?.command).toBe('token.add');
-			expect(tokenCommands[1]?.command).toBe('token.override');
+		it('stops before the first command once the signal is aborted', async () => {
+			const controller = new AbortController();
+			controller.abort(new Error('cancelled'));
+			const handler = vi.fn().mockResolvedValue({ success: true });
+
+			const result = await applyFixture({ app: 'todo', todos: [{ title: 'A' }] }, handler, {
+				signal: controller.signal,
+			});
+
+			expect(result.success).toBe(false);
+			expect(result.error).toBe('cancelled');
+			expect(handler).not.toHaveBeenCalled();
 		});
 	});
 
@@ -363,28 +510,24 @@ describe('applyFixture', () => {
 			const fixture: FixtureData = {
 				app: 'custom',
 				setup: [
-					{ command: 'custom.init', input: { name: 'test' } },
-					{ command: 'custom.configure', input: { option: true } },
+					{ command: 'custom-init', input: { name: 'test' } },
+					{ command: 'custom-configure', input: { option: true } },
 				],
 			};
 
 			const result = await applyFixture(fixture, handler);
 
 			expect(result.success).toBe(true);
-			expect(commands).toHaveLength(2);
-			expect(commands[0]).toEqual({ command: 'custom.init', input: { name: 'test' } });
-			expect(commands[1]).toEqual({ command: 'custom.configure', input: { option: true } });
+			expect(commands).toEqual([
+				{ command: 'custom-init', input: { name: 'test' } },
+				{ command: 'custom-configure', input: { option: true } },
+			]);
 		});
 
 		it('handles empty setup array', async () => {
 			const handler = async () => ({ success: true });
 
-			const fixture: FixtureData = {
-				app: 'custom',
-				setup: [],
-			};
-
-			const result = await applyFixture(fixture, handler);
+			const result = await applyFixture({ app: 'custom', setup: [] }, handler);
 
 			expect(result.success).toBe(true);
 			expect(result.appliedCommands).toHaveLength(0);
@@ -397,12 +540,7 @@ describe('applyFixture', () => {
 				throw new Error('Handler failed');
 			};
 
-			const fixture: FixtureData = {
-				app: 'todo',
-				todos: [{ title: 'Test' }],
-			};
-
-			const result = await applyFixture(fixture, handler);
+			const result = await applyFixture({ app: 'todo', todos: [{ title: 'Test' }] }, handler);
 
 			expect(result.success).toBe(false);
 			expect(result.error).toContain('Handler failed');
@@ -418,15 +556,13 @@ describe('applyFixture', () => {
 				return { success: true };
 			};
 
-			const fixture: FixtureData = {
-				app: 'todo',
-				todos: [{ title: 'Todo 1' }, { title: 'Todo 2' }],
-			};
-
-			const result = await applyFixture(fixture, handler);
+			const result = await applyFixture(
+				{ app: 'todo', todos: [{ title: 'Todo 1' }, { title: 'Todo 2' }] },
+				handler
+			);
 
 			expect(result.success).toBe(false);
-			expect(result.appliedCommands.length).toBeGreaterThan(0);
+			expect(result.appliedCommands.map((c) => c.command)).toEqual(['todo-clear']);
 		});
 	});
 });

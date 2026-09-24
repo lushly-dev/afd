@@ -1,7 +1,8 @@
 /**
  * Todo App Adapter
  *
- * Adapter for the AFD Todo example application.
+ * Adapter for the AFD Todo example application (`packages/examples/todo`),
+ * whose commands use kebab-case names such as `todo-create`.
  */
 
 import type {
@@ -25,7 +26,7 @@ export interface TodoFixture {
 	version?: string;
 	/** Fixture description */
 	description?: string;
-	/** Whether to clear existing todos first */
+	/** Whether to clear all existing todos first (default: true) */
 	clearFirst?: boolean;
 	/** Todos to seed */
 	todos?: TodoSeed[];
@@ -146,53 +147,39 @@ async function applyTodoFixture(
 		return { appliedCommands, warnings };
 	}
 
-	// Clear existing todos if requested
-	if (fixture.clearFirst) {
-		try {
-			const result = await handler('todo.clear', {});
-			appliedCommands.push({
-				command: 'todo.clear',
-				input: {},
-				result,
-			});
-		} catch (error) {
-			warnings.push(
-				`Failed to clear todos: ${error instanceof Error ? error.message : String(error)}`
-			);
-		}
+	/** Run one command; returns the result, or undefined after a failure. */
+	const run = async (command: string, input: Record<string, unknown>) => {
+		const result = await handler(command, input);
+		appliedCommands.push({ command, input, result });
+		return result.success ? result : undefined;
+	};
+
+	// Start from a clean slate unless the fixture opts out
+	if (fixture.clearFirst !== false && !(await run('todo-clear', { all: true }))) {
+		return { appliedCommands, warnings };
 	}
 
-	// Create seeded todos
-	if (fixture.todos && Array.isArray(fixture.todos)) {
-		for (const todo of fixture.todos) {
-			try {
-				const input = {
-					title: todo.title,
-					description: todo.description,
-					priority: todo.priority ?? 'medium',
-				};
-				const result = await handler('todo.create', input);
-				appliedCommands.push({
-					command: 'todo.create',
-					input,
-					result,
-				});
+	for (const todo of fixture.todos ?? []) {
+		const input: Record<string, unknown> = {
+			title: todo.title,
+			priority: todo.priority ?? 'medium',
+		};
+		if (todo.description !== undefined) {
+			input.description = todo.description;
+		}
+		const created = await run('todo-create', input);
+		if (!created) {
+			return { appliedCommands, warnings };
+		}
 
-				// Toggle if completed
-				if (todo.completed && result.success && result.data) {
-					const toggleResult = await handler('todo.toggle', {
-						id: (result.data as { id: string }).id,
-					});
-					appliedCommands.push({
-						command: 'todo.toggle',
-						input: { id: (result.data as { id: string }).id },
-						result: toggleResult,
-					});
-				}
-			} catch (error) {
-				warnings.push(
-					`Failed to create todo '${todo.title}': ${error instanceof Error ? error.message : String(error)}`
-				);
+		if (todo.completed) {
+			const id = (created.data as { id?: unknown } | undefined)?.id;
+			if (typeof id !== 'string') {
+				warnings.push(`todo-create returned no id for '${todo.title}', so it was not completed`);
+				continue;
+			}
+			if (!(await run('todo-toggle', { id }))) {
+				return { appliedCommands, warnings };
 			}
 		}
 	}
@@ -201,10 +188,7 @@ async function applyTodoFixture(
 }
 
 async function resetTodoState(context: AdapterContext): Promise<void> {
-	const { handler } = context;
-	if (!handler) return;
-
-	await handler('todo.clear', {});
+	await context.handler?.('todo-clear', { all: true });
 }
 
 // ============================================================================
@@ -257,35 +241,35 @@ function validateTodoFixture(fixture: unknown): FixtureValidationResult {
 // ============================================================================
 
 const TODO_COMMANDS = [
-	'todo.create',
-	'todo.list',
-	'todo.get',
-	'todo.update',
-	'todo.toggle',
-	'todo.delete',
-	'todo.clear',
-	'todo.stats',
-	'todo.create-batch',
-	'todo.delete-batch',
-	'todo.toggle-batch',
+	'todo-create',
+	'todo-list',
+	'todo-get',
+	'todo-update',
+	'todo-toggle',
+	'todo-delete',
+	'todo-clear',
+	'todo-stats',
+	'todo-create-batch',
+	'todo-delete-batch',
+	'todo-toggle-batch',
 ];
 
 const TODO_COMMAND_DESCRIPTIONS: Record<string, string> = {
-	'todo.create': 'Create a new todo item',
-	'todo.list': 'List todos with optional filtering',
-	'todo.get': 'Get a specific todo by ID',
-	'todo.update': 'Update an existing todo',
-	'todo.toggle': 'Toggle completion status of a todo',
-	'todo.delete': 'Delete a todo by ID',
-	'todo.clear': 'Clear all completed todos',
-	'todo.stats': 'Get statistics about todos',
-	'todo.create-batch': 'Create multiple todos at once',
-	'todo.delete-batch': 'Delete multiple todos at once',
-	'todo.toggle-batch': 'Toggle multiple todos at once',
+	'todo-create': 'Create a new todo item',
+	'todo-list': 'List todos with optional filtering',
+	'todo-get': 'Get a specific todo by ID',
+	'todo-update': 'Update an existing todo',
+	'todo-toggle': 'Toggle completion status of a todo',
+	'todo-delete': 'Delete a todo by ID',
+	'todo-clear': 'Clear completed todos, or every todo with { all: true }',
+	'todo-stats': 'Get statistics about todos',
+	'todo-create-batch': 'Create multiple todos at once',
+	'todo-delete-batch': 'Delete multiple todos at once',
+	'todo-toggle-batch': 'Toggle multiple todos at once',
 };
 
 const TODO_COMMAND_SCHEMAS: Record<string, object> = {
-	'todo.create': {
+	'todo-create': {
 		type: 'object',
 		properties: {
 			title: { type: 'string', minLength: 1, maxLength: 200 },
@@ -294,7 +278,7 @@ const TODO_COMMAND_SCHEMAS: Record<string, object> = {
 		},
 		required: ['title'],
 	},
-	'todo.list': {
+	'todo-list': {
 		type: 'object',
 		properties: {
 			completed: { type: 'boolean' },
@@ -306,12 +290,12 @@ const TODO_COMMAND_SCHEMAS: Record<string, object> = {
 			offset: { type: 'integer', minimum: 0 },
 		},
 	},
-	'todo.get': {
+	'todo-get': {
 		type: 'object',
 		properties: { id: { type: 'string' } },
 		required: ['id'],
 	},
-	'todo.update': {
+	'todo-update': {
 		type: 'object',
 		properties: {
 			id: { type: 'string' },
@@ -322,19 +306,22 @@ const TODO_COMMAND_SCHEMAS: Record<string, object> = {
 		},
 		required: ['id'],
 	},
-	'todo.toggle': {
+	'todo-toggle': {
 		type: 'object',
 		properties: { id: { type: 'string' } },
 		required: ['id'],
 	},
-	'todo.delete': {
+	'todo-delete': {
 		type: 'object',
 		properties: { id: { type: 'string' } },
 		required: ['id'],
 	},
-	'todo.clear': { type: 'object' },
-	'todo.stats': { type: 'object' },
-	'todo.create-batch': {
+	'todo-clear': {
+		type: 'object',
+		properties: { all: { type: 'boolean' } },
+	},
+	'todo-stats': { type: 'object' },
+	'todo-create-batch': {
 		type: 'object',
 		properties: {
 			todos: {
@@ -352,12 +339,12 @@ const TODO_COMMAND_SCHEMAS: Record<string, object> = {
 		},
 		required: ['todos'],
 	},
-	'todo.delete-batch': {
+	'todo-delete-batch': {
 		type: 'object',
 		properties: { ids: { type: 'array', items: { type: 'string' } } },
 		required: ['ids'],
 	},
-	'todo.toggle-batch': {
+	'todo-toggle-batch': {
 		type: 'object',
 		properties: {
 			ids: { type: 'array', items: { type: 'string' } },
@@ -403,10 +390,10 @@ const TODO_JOB_DESCRIPTIONS: Record<string, string> = {
 };
 
 const TODO_JOB_COMMANDS: Record<string, string[]> = {
-	'manage-daily-tasks': ['todo.create', 'todo.update', 'todo.toggle', 'todo.delete'],
-	'track-progress': ['todo.stats', 'todo.list'],
-	'batch-operations': ['todo.create-batch', 'todo.delete-batch', 'todo.toggle-batch', 'todo.clear'],
-	'prioritize-work': ['todo.list', 'todo.update'],
+	'manage-daily-tasks': ['todo-create', 'todo-update', 'todo-toggle', 'todo-delete'],
+	'track-progress': ['todo-stats', 'todo-list'],
+	'batch-operations': ['todo-create-batch', 'todo-delete-batch', 'todo-toggle-batch', 'todo-clear'],
+	'prioritize-work': ['todo-list', 'todo-update'],
 };
 
 // ============================================================================
@@ -418,15 +405,15 @@ function mapTodoFileToCommands(filePath: string): string[] {
 
 	// Map source files to commands
 	const mappings: Record<string, string[]> = {
-		'create.ts': ['todo.create'],
-		'list.ts': ['todo.list'],
-		'get.ts': ['todo.get'],
-		'update.ts': ['todo.update'],
-		'toggle.ts': ['todo.toggle'],
-		'delete.ts': ['todo.delete'],
-		'clear.ts': ['todo.clear'],
-		'stats.ts': ['todo.stats'],
-		'batch.ts': ['todo.create-batch', 'todo.delete-batch', 'todo.toggle-batch'],
+		'create.ts': ['todo-create'],
+		'list.ts': ['todo-list'],
+		'get.ts': ['todo-get'],
+		'update.ts': ['todo-update'],
+		'toggle.ts': ['todo-toggle'],
+		'delete.ts': ['todo-delete'],
+		'clear.ts': ['todo-clear'],
+		'stats.ts': ['todo-stats'],
+		'batch.ts': ['todo-create-batch', 'todo-delete-batch', 'todo-toggle-batch'],
 		'store.ts': TODO_COMMANDS,
 		'types.ts': TODO_COMMANDS,
 		'index.ts': TODO_COMMANDS,
