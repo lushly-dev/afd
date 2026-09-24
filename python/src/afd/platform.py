@@ -135,12 +135,17 @@ class ExecErrorCode(str, Enum):
     SPAWN_FAILED = "SPAWN_FAILED"
 
 
+DEFAULT_EXEC_TIMEOUT_MS = 300_000
+"""Timeout (5 minutes) that exec_command() applies when ExecOptions.timeout is unset."""
+
+
 class ExecOptions(BaseModel):
     """Options for cross-platform command execution.
 
     Attributes:
         cwd: Working directory for the command.
-        timeout: Timeout in milliseconds.
+        timeout: Timeout in milliseconds. Defaults to DEFAULT_EXEC_TIMEOUT_MS
+            (5 minutes); the process is killed when it expires.
         debug: Enable debug logging of commands (default: False).
         env: Environment variables to merge with os.environ.
 
@@ -260,13 +265,16 @@ async def exec_command(
         )
 
     if opts.debug:
-        print(f"[exec] {' '.join(cmd)}")
+        # stderr: stdout may carry a stdio JSON-RPC stream.
+        print(f"[exec] {' '.join(cmd)}", file=sys.stderr)
 
     env = None
     if opts.env:
         env = {**os.environ, **opts.env}
 
-    start_time = asyncio.get_event_loop().time()
+    loop = asyncio.get_running_loop()
+    start_time = loop.time()
+    timeout_ms = opts.timeout if opts.timeout is not None else DEFAULT_EXEC_TIMEOUT_MS
 
     try:
         process = await asyncio.create_subprocess_exec(
@@ -277,22 +285,22 @@ async def exec_command(
             env=env,
         )
 
-        timeout_seconds = opts.timeout / 1000.0 if opts.timeout else None
-
         try:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(
                 process.communicate(),
-                timeout=timeout_seconds,
+                timeout=timeout_ms / 1000.0,
             )
         except asyncio.TimeoutError:
-            process.kill()
-            await process.wait()
-            duration_ms = (asyncio.get_event_loop().time() - start_time) * 1000
+            duration_ms = (loop.time() - start_time) * 1000
             return create_exec_result(
                 "", "", 1, duration_ms, ExecErrorCode.TIMEOUT
             )
+        finally:
+            # On a timeout, and when the awaiting task is cancelled (as a batch
+            # deadline does), the child must not outlive the call.
+            await _kill_and_reap(process)
 
-        duration_ms = (asyncio.get_event_loop().time() - start_time) * 1000
+        duration_ms = (loop.time() - start_time) * 1000
         stdout = stdout_bytes.decode("utf-8", errors="replace").strip()
         stderr = stderr_bytes.decode("utf-8", errors="replace").strip()
         exit_code = process.returncode or 0
@@ -304,15 +312,20 @@ async def exec_command(
 
         return create_exec_result(stdout, stderr, exit_code, duration_ms)
 
-    except FileNotFoundError as e:
-        duration_ms = (asyncio.get_event_loop().time() - start_time) * 1000
+    except OSError as e:  # includes FileNotFoundError and PermissionError
+        duration_ms = (loop.time() - start_time) * 1000
         return create_exec_result("", str(e), 1, duration_ms, ExecErrorCode.SPAWN_FAILED)
-    except PermissionError as e:
-        duration_ms = (asyncio.get_event_loop().time() - start_time) * 1000
-        return create_exec_result("", str(e), 1, duration_ms, ExecErrorCode.SPAWN_FAILED)
-    except OSError as e:
-        duration_ms = (asyncio.get_event_loop().time() - start_time) * 1000
-        return create_exec_result("", str(e), 1, duration_ms, ExecErrorCode.SPAWN_FAILED)
+
+
+async def _kill_and_reap(process: "asyncio.subprocess.Process") -> None:
+    """Kill a child process that is still running and wait for it to exit."""
+    if process.returncode is not None:
+        return
+    try:
+        process.kill()
+    except ProcessLookupError:
+        pass
+    await process.wait()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
