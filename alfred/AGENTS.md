@@ -86,7 +86,11 @@ Two checks.
 
 ### `alfred quality` — Command Description Quality
 
-Scans `defineCommand()` (TypeScript) and `@server.command()` / `@define_command()` (Python) definitions for description quality issues.
+Scans `defineCommand()` (TypeScript) and `@server.command()` / `define_command()` (Python) definitions for description quality issues.
+
+- TypeScript: a comment-aware scanner handles generic calls (`defineCommand<In, Out>({...})`), nested objects before `description` (`expose: { mcp: true }`), any quoting and escapes (`"Don't"`), templates without `${}` and `+` concatenation. Only the definition's top-level `name` and `description` count; calls in comments are ignored.
+- Python: definitions are read with `ast` (keyword or positional `name`/`description`), so docstring examples are ignored.
+- The walk prunes `node_modules`, `.venv`, `dist` and the other `AFDLinter.SKIP_DIRS`, and matches the skip path patterns (`.claude/`, ...) relative to the scanned root.
 
 | Check | Rule | Threshold |
 |-------|------|-----------|
