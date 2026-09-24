@@ -47,7 +47,7 @@
 	"sideEffects": false,
 	"dependencies": {
 		"@lushly-dev/afd-core": "workspace:*",
-		"eventsource": "^4.1.1"
+		"eventsource": "^5.1.1"
 	},
 	"devDependencies": {
 		"@vitest/coverage-v8": "^4.1.11",
