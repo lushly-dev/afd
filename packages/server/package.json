@@ -58,7 +58,7 @@
 		"directory": "packages/server"
 	},
 	"engines": {
-		"node": ">=22.0.0"
+		"node": ">=22.12.0"
 	},
 	"sideEffects": false,
 	"publishConfig": {

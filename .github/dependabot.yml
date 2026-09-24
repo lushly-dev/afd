@@ -21,6 +21,12 @@ updates:
       interval: weekly
     labels:
       - dependencies
+    ignore:
+      # afd's server uses mcp.server.fastmcp, which mcp 2.x removed, so the
+      # extras require mcp<2.
+      - dependency-name: mcp
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: cargo
     directory: /packages/rust

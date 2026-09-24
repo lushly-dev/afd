@@ -46,7 +46,7 @@
 		"directory": "packages/cli"
 	},
 	"engines": {
-		"node": ">=22.0.0"
+		"node": ">=22.12.0"
 	},
 	"dependencies": {
 		"@lushly-dev/afd-client": "workspace:*",
