@@ -157,7 +157,10 @@ server uses them too.
 
 `executeStream()` does not stream incrementally: the command runs to completion, then its result is
 turned into chunks (one `data` chunk per array item, or one for any other value, then `complete`).
-`StreamableCommand` is metadata only.
+`StreamableCommand` is metadata only. `registry.executeStream(name, input, { signal, timeout })`
+honors both options: `timeout` is a deadline for the whole stream, after which the command's
+signal aborts and the stream ends with a `STREAM_TIMEOUT` error chunk, even if the command ignores
+the signal.
 
 ### Creating Errors
 

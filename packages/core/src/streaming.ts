@@ -267,9 +267,7 @@ export interface StreamOptions {
 	 */
 	signal?: AbortSignal;
 
-	/**
-	 * Timeout in milliseconds for the entire stream.
-	 */
+	/** Deadline in ms for the whole stream; past it the stream ends with `STREAM_TIMEOUT`. */
 	timeout?: number;
 
 	/**

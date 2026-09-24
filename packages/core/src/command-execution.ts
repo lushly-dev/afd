@@ -22,7 +22,7 @@ import type { CommandExecutor } from './pipeline-executor.js';
 import { isBatchRequest } from './request-validation.js';
 import type { CommandResult } from './result.js';
 import { failure } from './result.js';
-import type { StreamChunk } from './streaming.js';
+import type { ErrorChunk, StreamChunk } from './streaming.js';
 import { createCompleteChunk, createErrorChunk } from './streaming.js';
 
 /**
@@ -244,7 +244,31 @@ export async function executeBatch(
 // STREAM
 // ═══════════════════════════════════════════════════════════════════════════════
 
-function abortedChunk(message: string, chunksEmitted: number, resumeFrom?: number) {
+/**
+ * Options for {@link executeStream}.
+ */
+export interface StreamExecutorOptions extends ExecutorOptions {
+	/**
+	 * Deadline for the whole stream in milliseconds, a nonnegative finite
+	 * number. When it passes, the command's `signal` aborts and the stream ends
+	 * with a `STREAM_TIMEOUT` error chunk, even if the command ignores the
+	 * signal. Default: no deadline.
+	 */
+	timeout?: number;
+}
+
+type StreamPhase = 'starting' | 'execution' | 'data';
+
+/** The error chunk for a stream whose signal aborted: the caller's abort or the deadline. */
+type StopReason = (phase: StreamPhase, chunksEmitted: number) => ErrorChunk;
+
+function abortedChunk(phase: StreamPhase, chunksEmitted: number): ErrorChunk {
+	const message =
+		phase === 'starting'
+			? 'Stream was aborted before starting'
+			: phase === 'execution'
+				? 'Stream was aborted during execution'
+				: 'Stream was aborted';
 	return createErrorChunk(
 		{
 			code: 'STREAM_ABORTED',
@@ -254,8 +278,43 @@ function abortedChunk(message: string, chunksEmitted: number, resumeFrom?: numbe
 		},
 		chunksEmitted,
 		true,
+		phase === 'data' ? chunksEmitted : undefined
+	);
+}
+
+function timeoutChunk(timeoutMs: number, chunksEmitted: number, resumeFrom?: number): ErrorChunk {
+	return createErrorChunk(
+		{
+			code: 'STREAM_TIMEOUT',
+			message: `Stream timed out after ${timeoutMs}ms`,
+			suggestion: 'Increase the stream timeout, or request less data, and retry',
+			retryable: true,
+		},
+		chunksEmitted,
+		true,
 		resumeFrom
 	);
+}
+
+/**
+ * A deadline that aborts its `signal` (which also follows the caller's signal)
+ * after `timeoutMs`; `expiry` resolves at that moment.
+ */
+function streamDeadline(timeoutMs: number, callerSignal: AbortSignal | undefined) {
+	const controller = new AbortController();
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	const expiry = new Promise<undefined>((resolve) => {
+		timer = setTimeout(() => {
+			controller.abort(new Error(`Stream timed out after ${timeoutMs}ms`));
+			resolve(undefined);
+		}, timeoutMs);
+	});
+	return {
+		signal: callerSignal ? AbortSignal.any([callerSignal, controller.signal]) : controller.signal,
+		expiry,
+		expired: () => controller.signal.aborted,
+		dispose: () => clearTimeout(timer),
+	};
 }
 
 /**
@@ -268,28 +327,81 @@ function abortedChunk(message: string, chunksEmitted: number, resumeFrom?: numbe
  * single data chunk, followed by a complete chunk; no progress chunks are
  * emitted. A failure result becomes an error chunk. `context.signal` cancels
  * the stream: an aborted signal yields a `STREAM_ABORTED` error chunk before
- * execution, after it, or between data chunks.
+ * execution, after it, or between data chunks. With `options.timeout`, the
+ * stream ends with a `STREAM_TIMEOUT` error chunk once the deadline passes.
  *
  * @param commandName - Command to execute
  * @param input - Command input
  * @param execute - Callback that executes a single command
  * @param context - Context passed to the command; `signal` cancels the stream
- * @param options - Executor options such as `devMode`
+ * @param options - Executor options such as `devMode` and `timeout`
  */
 export async function* executeStream<TOutput = unknown>(
 	commandName: string,
 	input: unknown,
 	execute: CommandExecutor,
 	context: CommandContext = {},
-	options: ExecutorOptions = {}
+	options: StreamExecutorOptions = {}
+): AsyncGenerator<StreamChunk<TOutput>, void, unknown> {
+	const { timeout } = options;
+	if (timeout !== undefined && !(Number.isFinite(timeout) && timeout >= 0)) {
+		yield createErrorChunk(
+			{
+				code: 'VALIDATION_ERROR',
+				message: 'Stream timeout must be a nonnegative finite number of milliseconds',
+				suggestion: 'Pass a timeout such as 30000, or omit it for no deadline',
+				retryable: false,
+			},
+			0,
+			false
+		);
+		return;
+	}
+	const callerSignal = context.signal instanceof AbortSignal ? context.signal : undefined;
+	if (callerSignal?.aborted) {
+		yield abortedChunk('starting', 0);
+		return;
+	}
+	if (timeout === undefined) {
+		yield* streamResult<TOutput>(commandName, input, execute, context, options, abortedChunk);
+		return;
+	}
+
+	const deadline = streamDeadline(timeout, callerSignal);
+	const stopped: StopReason = (phase, chunksEmitted) =>
+		deadline.expired()
+			? timeoutChunk(timeout, chunksEmitted, phase === 'data' ? chunksEmitted : undefined)
+			: abortedChunk(phase, chunksEmitted);
+	// The command gets the deadline's signal; if it ignores it, the race ends the wait.
+	const raced: CommandExecutor = (name, commandInput, commandContext) =>
+		Promise.race([execute(name, commandInput, commandContext), deadline.expiry]).then(
+			(result) => result ?? { success: false }
+		);
+	try {
+		yield* streamResult<TOutput>(
+			commandName,
+			input,
+			raced,
+			{ ...context, signal: deadline.signal },
+			options,
+			stopped
+		);
+	} finally {
+		deadline.dispose();
+	}
+}
+
+/** Run the command once and yield its result as chunks, stopping when `context.signal` aborts. */
+async function* streamResult<TOutput>(
+	commandName: string,
+	input: unknown,
+	execute: CommandExecutor,
+	context: CommandContext,
+	options: ExecutorOptions,
+	stopped: StopReason
 ): AsyncGenerator<StreamChunk<TOutput>, void, unknown> {
 	const startTime = performance.now();
 	const signal = context.signal instanceof AbortSignal ? context.signal : undefined;
-
-	if (signal?.aborted) {
-		yield abortedChunk('Stream was aborted before starting', 0);
-		return;
-	}
 
 	let result: CommandResult;
 	try {
@@ -314,7 +426,7 @@ export async function* executeStream<TOutput = unknown>(
 	}
 
 	if (signal?.aborted) {
-		yield abortedChunk('Stream was aborted during execution', 0);
+		yield stopped('execution', 0);
 		return;
 	}
 
@@ -335,7 +447,7 @@ export async function* executeStream<TOutput = unknown>(
 	let chunksEmitted = 0;
 	for (let index = 0; index < items.length; index++) {
 		if (signal?.aborted) {
-			yield abortedChunk('Stream was aborted', chunksEmitted, chunksEmitted);
+			yield stopped('data', chunksEmitted);
 			return;
 		}
 		yield {

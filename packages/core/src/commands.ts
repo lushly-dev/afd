@@ -420,7 +420,7 @@ export interface CommandRegistry {
 	 *
 	 * @param name - Command name
 	 * @param input - Command input
-	 * @param options - Stream options including AbortSignal for cancellation
+	 * @param options - Stream options: `signal` cancels the stream, and `timeout` is a deadline for the whole stream (it ends with a `STREAM_TIMEOUT` error chunk)
 	 * @param context - Context passed to the command (e.g. `interface`); `options.signal` takes precedence over `context.signal`
 	 * @returns AsyncGenerator yielding StreamChunks
 	 */
@@ -571,7 +571,7 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 				(commandName, commandInput, commandContext) =>
 					registry.execute(commandName, commandInput, commandContext),
 				signal ? { ...context, signal } : context,
-				{ devMode }
+				{ devMode, timeout: options?.timeout }
 			);
 		},
 	};
