@@ -274,35 +274,54 @@ let param = CommandParameter::required_string("priority", "Priority level")
 ## Command Registry
 
 ```rust
-use afd::{CommandDefinition, CommandRegistry, validate_command_name};
+use afd::{
+    register_bootstrap_commands, validate_command_name, CommandContext, CommandDefinition,
+    CommandInterface, CommandMiddleware, CommandRegistry, ExposeOptions,
+};
+use std::sync::Arc;
 
-// Create registry
-let mut registry = CommandRegistry::new();
+// Create registry. `register` takes &self, so an Arc'd registry can still grow.
+let registry = Arc::new(CommandRegistry::new());
 
 // Register commands
 registry.register(create_todo_cmd).expect("valid command definition");
-registry.register(list_todos_cmd).expect("valid command definition");
-registry.register(get_todo_cmd).expect("valid command definition");
+registry.register(
+    list_todos_cmd
+        .with_expose(ExposeOptions::new().with_mcp(true)) // other flags keep their defaults
+        .with_requires(["todo-create"]),                  // metadata only
+).expect("valid command definition");
+
+// afd-help, afd-docs and afd-schema, describing this registry (including themselves)
+register_bootstrap_commands(&registry).expect("no name clash");
 
 validate_command_name("todo-create").expect("valid command name");
 
-// Check if command exists
-if registry.has("todo-create") {
-    println!("Command registered");
-}
+// Middleware wraps every execution; the first added is the outermost
+let logging: CommandMiddleware = Arc::new(|name, _input, _context, next| {
+    Box::pin(async move {
+        let result = next().await;
+        println!("{name}: {}", result.success);
+        result
+    })
+});
+registry.add_middleware(logging);
 
-// Get command definition
-if let Some(cmd) = registry.get("todo-create") {
-    println!("Description: {}", cmd.description);
-}
-
-// Execute command
+// Execute command. Before the handler runs, the registry:
+// - validates input against `parameters` and fills defaults (VALIDATION_ERROR),
+// - checks `expose` when the context names an interface (COMMAND_NOT_EXPOSED),
+// - applies `timeout_ms` (TIMEOUT; needs the `native` feature).
+let context = CommandContext::new()
+    .with_interface(CommandInterface::Mcp)
+    .with_timeout(5_000);
 let result = registry.execute(
     "todo-create",
     serde_json::json!({"title": "Test"}),
-    None,
+    Some(context),
 ).await;
 ```
+
+`CommandDefinition::execute` calls the handler directly and skips all of these checks; call
+commands through the registry.
 
 ## Batch Execution
 
@@ -319,7 +338,14 @@ let request = BatchRequest::new(vec![
 
 // Execute batch. `result.success` is true whenever the batch ran, even if some
 // commands failed; a panicking handler becomes an INTERNAL_ERROR for that command.
+// Every entry runs through `execute` (validation, exposure, middleware).
 let result = registry.execute_batch(request).await;
+
+// Or with a caller context (interface, trace ID); the request's `context`
+// entries are added to each entry's `CommandContext::extra`.
+let result = registry
+    .execute_batch_with_context(mcp_request, CommandContext::new().with_interface(CommandInterface::Mcp))
+    .await;
 
 println!("Succeeded: {}", result.summary.success_count);
 println!("Failed: {}", result.summary.failure_count);
@@ -368,8 +394,8 @@ The Rust crate now includes parity helpers for:
 
 Status clarity for cross-language planning:
 
-- Shared today: output schemas, examples, exposure metadata, pipelines, discovery helpers, telemetry, handoff
-- Not yet part of the Rust crate surface: context-scoped command registration and the full server-side tool-strategy/bootstrap workflow exposed in TypeScript and Python
+- Shared today: output schemas, examples, enforced exposure and input validation, middleware, `requires`/`contexts` metadata, bootstrap commands (`register_bootstrap_commands`), pipelines, discovery helpers, telemetry, handoff
+- Not yet part of the Rust crate surface: an MCP server, active-context scoping at execution time (`contexts` is metadata; use `CommandDefinition::is_accessible_in_context`), and the server-side tool strategies exposed in TypeScript and Python
 - Parity decisions SHOULD compare agent-visible behavior first, then document Rust-specific gaps explicitly instead of assuming every TS/Python feature already exists in the crate
 
 ### Warnings
@@ -503,17 +529,46 @@ async fn create_todo(input: Value, store: &TodoStore) -> CommandResult<Todo> {
 
 ### Wrapping External Errors
 
+`impl From<sqlx::Error> for CommandError` does not compile in your crate: `From`, `sqlx::Error`
+and `CommandError` are all foreign to it (Rust's orphan rule). Convert with a local function, or
+through a local error type, which may implement `From` in both directions.
+
 ```rust
 use afd::{failure, success, CommandError, CommandResult};
 
-impl From<sqlx::Error> for CommandError {
-    fn from(err: sqlx::Error) -> Self {
-        CommandError::internal(&format!("Database error: {}", err))
-    }
+// Option 1: a local conversion function.
+fn db_error(err: sqlx::Error) -> CommandError {
+    eprintln!("database error: {err}"); // log the details; don't send them to agents
+    CommandError::internal("Database error")
 }
 
 async fn load_user(id: &str) -> Result<User, CommandError> {
-    db.get_user(id).await.map_err(CommandError::from)
+    db.get_user(id).await.map_err(db_error)
+}
+
+// Option 2: a local error type. Both impls are allowed because `AppError` is local.
+enum AppError {
+    Db(sqlx::Error),
+    NotFound(String),
+}
+
+impl From<sqlx::Error> for AppError {
+    fn from(err: sqlx::Error) -> Self {
+        AppError::Db(err)
+    }
+}
+
+impl From<AppError> for CommandError {
+    fn from(err: AppError) -> Self {
+        match err {
+            AppError::Db(err) => db_error(err),
+            AppError::NotFound(id) => CommandError::not_found("User", &id),
+        }
+    }
+}
+
+async fn find_user(id: &str) -> Result<User, AppError> {
+    db.get_user(id).await?.ok_or_else(|| AppError::NotFound(id.to_string()))
 }
 
 async fn get_user(id: &str) -> CommandResult<User> {
@@ -569,7 +624,7 @@ mod tests {
 ```rust
 #[tokio::test]
 async fn test_command_execution() {
-    let mut registry = CommandRegistry::new();
+    let registry = CommandRegistry::new();
     registry.register(create_test_command()).unwrap();
 
     let result = registry.execute(
@@ -612,6 +667,12 @@ tokio-test = "0.4"
 ```
 
 ## Feature Flags
+
+- `native` (default): deadlines (`CommandContext::timeout_ms`, batch `timeout`, pipeline
+  `timeoutMs`) through `tokio::time::timeout`. Only Tokio's `time` feature is enabled; the
+  application provides the runtime. Without it, deadlines return `UNSUPPORTED_OPTION`.
+- `wasm`: `wasm32-unknown-unknown` (browsers), using `web-time` for durations. Build with
+  `--no-default-features --features wasm`.
 
 ```rust
 // Check compilation mode
