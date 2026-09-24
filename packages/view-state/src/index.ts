@@ -15,15 +15,6 @@
  * @module @lushly-dev/afd-view-state
  */
 
-// Commands
-export {
-	/**
-	 * @deprecated Import from `@lushly-dev/afd-view-state/commands`. The root
-	 * entry stops re-exporting the command factory in the next major version, so
-	 * that using the registry alone no longer depends on `@lushly-dev/afd-server`.
-	 */
-	createViewStateCommands,
-} from './commands.js';
 // Registry
 export { ViewStateRegistry } from './registry.js';
 // Types

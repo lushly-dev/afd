@@ -43,7 +43,8 @@ import {
 import { z } from 'zod';
 
 // View state (UI state management via commands)
-import { ViewStateRegistry, createViewStateCommands } from '@lushly-dev/afd-view-state';
+import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
+import { createViewStateCommands } from '@lushly-dev/afd-view-state/commands';
 ```
 
 ## Command Definition

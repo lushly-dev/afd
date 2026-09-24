@@ -93,9 +93,8 @@ returns them as a typed tuple, so you can destructure them:
 const [viewStateGet, viewStateSet, viewStateList] = createViewStateCommands(registry);
 ```
 
-> The root entry (`@lushly-dev/afd-view-state`) still re-exports
-> `createViewStateCommands`, marked `@deprecated`. It will be removed from the
-> root in the next major version; import it from `/commands`.
+> Since 2.0 the root entry (`@lushly-dev/afd-view-state`) no longer re-exports
+> `createViewStateCommands`; import it from `/commands`.
 
 `view-state-set` merges the supplied `state` by default. Set `replace: true`
 to replace the complete state; this requires the registered handler to provide a
