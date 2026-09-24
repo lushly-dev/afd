@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from afd.core.commands import CommandContext, CommandDefinition, ExposeOptions
 from afd.core.result import CommandResult, error, success
+from afd.core.wire import WireModel
 from afd.server.validation import _input_validation_failure
 
 
@@ -49,7 +50,7 @@ class AfdContextListInput(BaseModel):
     pass
 
 
-class ContextInfo(BaseModel):
+class ContextInfo(WireModel):
     """Metadata about a configured context."""
 
     name: str
@@ -58,7 +59,7 @@ class ContextInfo(BaseModel):
     priority: Optional[int] = None
 
 
-class AfdContextListOutput(BaseModel):
+class AfdContextListOutput(WireModel):
     """Output for afd-context-list."""
 
     contexts: List[ContextInfo]
@@ -71,7 +72,7 @@ class AfdContextEnterInput(BaseModel):
     context: str = Field(..., description="Context name to enter")
 
 
-class AfdContextEnterOutput(BaseModel):
+class AfdContextEnterOutput(WireModel):
     """Output for afd-context-enter."""
 
     entered: str
@@ -84,7 +85,7 @@ class AfdContextExitInput(BaseModel):
     pass
 
 
-class AfdContextExitOutput(BaseModel):
+class AfdContextExitOutput(WireModel):
     """Output for afd-context-exit."""
 
     exited: Optional[str] = None

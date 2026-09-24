@@ -13,6 +13,7 @@ from afd.core.commands import (
     CommandParameter,
 )
 from afd.core.result import CommandResult, success
+from afd.core.wire import WireModel
 from afd.server.bootstrap.afd_context import BOOTSTRAP_EXPOSE
 from afd.server.validation import _input_validation_failure
 
@@ -24,7 +25,7 @@ class AfdHelpInput(BaseModel):
     format: str = Field(default="brief", description='Output format: "brief" or "full"')
 
 
-class CommandInfo(BaseModel):
+class CommandInfo(WireModel):
     """Information about a single command."""
 
     name: str
@@ -38,7 +39,7 @@ class CommandInfo(BaseModel):
     output_schema: Optional[dict[str, Any]] = None
 
 
-class AfdHelpOutput(BaseModel):
+class AfdHelpOutput(WireModel):
     """Output for ``afd-help``."""
 
     commands: List[CommandInfo]

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from afd.core.commands import CommandContext, CommandDefinition, CommandParameter
 from afd.core.result import CommandResult, success
+from afd.core.wire import WireModel
 from afd.server.bootstrap.afd_context import BOOTSTRAP_EXPOSE
 from afd.server.validation import _input_validation_failure
 
@@ -19,7 +20,7 @@ class AfdDocsInput(BaseModel):
     command: Optional[str] = Field(default=None, description="Specific command name, or omit for all")
 
 
-class AfdDocsOutput(BaseModel):
+class AfdDocsOutput(WireModel):
     """Output for ``afd-docs``."""
 
     markdown: str

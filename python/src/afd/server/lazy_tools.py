@@ -156,7 +156,8 @@ def execute_detail(
             "handoff": command.handoff,
             "handoffProtocol": command.handoff_protocol,
         }
-        entries.append(entry)
+        # Wire format: unset fields are omitted, never null.
+        entries.append({key: value for key, value in entry.items() if value is not None})
 
     return success(
         entries,
