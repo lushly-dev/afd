@@ -624,7 +624,7 @@ The server exposes these endpoints:
 | `/health` | GET | Health check |
 | `/batch` | POST | Batch command execution |
 | `/stream/:name` | POST | SSE chunks with command input in the JSON body |
-| `/stream/:name?input=...` | GET | Legacy streaming with JSON input in the query; refused (HTTP 405) for `mutation: true` commands |
+| `/stream/:name?input=...` | GET | Legacy streaming with JSON input in the query; refused (HTTP 405) for `mutation: true` commands; input over `maxBodyBytes` is refused (HTTP 413) |
 
 ### JSON-RPC Behavior (`/message` and `/rpc`)
 
@@ -701,7 +701,7 @@ console.log(result.data.greeting); // "Hello, World!"
 
 HTTP requests validate Host and browser Origin before dispatch. The default Host allowlist contains the configured host and loopback names. Requests without an Origin (such as CLI clients) and same-origin browser requests are accepted. Cross-site browser requests are rejected unless their exact Origin is listed in `allowedOrigins`. `cors: true` adds response headers for accepted origins; it does not disable request validation. `devMode: true` intentionally permits any browser origin, while Host checks remain enabled.
 
-All POST endpoints require `Content-Type: application/json`. Request bodies are limited to 1 MiB by default; set `maxBodyBytes` to change the limit. Configure `allowedHosts` and `allowedOrigins` explicitly when embedding behind a proxy. Forwarded headers are not trusted automatically.
+All POST endpoints require `Content-Type: application/json`. Request bodies, and the `input` query parameter of `GET /stream`, are limited to 1 MiB (UTF-8 bytes) by default; set `maxBodyBytes` to change the limit. Larger input is refused with HTTP 413 whatever header size limit the host sets. Configure `allowedHosts` and `allowedOrigins` explicitly when embedding behind a proxy. Forwarded headers are not trusted automatically.
 
 POST streaming is preferred because input stays out of URLs. Legacy GET streaming remains supported and applies the same browser-origin policy.
 

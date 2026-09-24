@@ -286,8 +286,16 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		let input: unknown;
 		if (req.method === 'POST') input = await readJsonBody(req, maxBodyBytes);
 		else {
+			const query = url.searchParams.get('input') ?? '{}';
+			// The same cap as a POST body: a host that raises Node's header size limit must
+			// not let a query carry more input than `maxBodyBytes` allows.
+			if (Buffer.byteLength(query, 'utf8') > maxBodyBytes) {
+				throw new HttpRequestError(413, 'Stream input is too large', {
+					suggestion: `POST /stream/${encodeURIComponent(commandName)} with the input as a JSON body of at most ${maxBodyBytes} bytes`,
+				});
+			}
 			try {
-				input = JSON.parse(url.searchParams.get('input') ?? '{}');
+				input = JSON.parse(query);
 			} catch {
 				throw new HttpRequestError(400, 'Stream input must be valid JSON');
 			}
