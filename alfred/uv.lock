@@ -4,15 +4,32 @@ requires-python = ">=3.11"
 
 [[package]]
 name = "afd"
-version = "0.2.0"
-source = { registry = "https://pypi.org/simple" }
+version = "0.8.0"
+source = { editable = "../python" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/47/a3/0a9944f8912f58313783f6ab0205e4a7b0d38abb52fe0242621f3d1132bc/afd-0.2.0.tar.gz", hash = "sha256:5a59ba82d65d8a6bf0eeaf6ba73aebee457ef611aa2386cde0c5e64f6676b5d0", size = 78054, upload-time = "2026-02-11T21:40:00.715Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/de/04/b7c49e5a026ce2866f6ef438879adcd8bce4bfa1a2416f5134c94ee7cb8a/afd-0.2.0-py3-none-any.whl", hash = "sha256:6a62e05f772bccffeb65aa3fcf07aad91081d57fe0ed43def1a10e245b309a27", size = 67511, upload-time = "2026-02-11T21:39:59.513Z" },
+
+[package.metadata]
+requires-dist = [
+    { name = "afd", extras = ["all"], marker = "extra == 'dev'" },
+    { name = "afd", extras = ["server", "client"], marker = "extra == 'cli'" },
+    { name = "afd", extras = ["server", "client", "cli", "testing"], marker = "extra == 'all'" },
+    { name = "click", marker = "extra == 'cli'", specifier = ">=8.0" },
+    { name = "httpx", marker = "extra == 'client'", specifier = ">=0.27" },
+    { name = "mcp", marker = "extra == 'client'", specifier = ">=1.19,<2" },
+    { name = "mcp", marker = "extra == 'server'", specifier = ">=1.19,<2" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0" },
+    { name = "pydantic", specifier = ">=2.0" },
+    { name = "pytest", marker = "extra == 'testing'", specifier = ">=8.0" },
+    { name = "pytest-asyncio", marker = "extra == 'testing'", specifier = ">=0.23" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0" },
+    { name = "pyyaml", marker = "extra == 'testing'", specifier = ">=6.0" },
+    { name = "rich", marker = "extra == 'cli'", specifier = ">=13.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
+    { name = "websockets", marker = "extra == 'client'", specifier = ">=14" },
 ]
+provides-extras = ["server", "client", "cli", "testing", "all", "dev"]
 
 [[package]]
 name = "alfred"
@@ -38,7 +55,7 @@ mcp = [
 
 [package.metadata]
 requires-dist = [
-    { name = "afd", specifier = ">=0.2.0" },
+    { name = "afd", editable = "../python" },
     { name = "alfred", extras = ["mcp"], marker = "extra == 'dev'" },
     { name = "click", specifier = ">=8.0" },
     { name = "lushly-botcore", specifier = ">=0.2.0" },

@@ -59,6 +59,12 @@ Repository = "https://github.com/lushly-dev/afd"
 [tool.hatch.build.targets.wheel]
 packages = ["src/alfred"]
 
+# Develop and test against the repo's own afd package (python/), not a PyPI
+# release, so `uv run alfred` and `uv run pytest` use the same code. uv-only:
+# built wheels keep the plain `afd>=...` requirement and install afd from PyPI.
+[tool.uv.sources]
+afd = { path = "../python", editable = true }
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
@@ -70,4 +76,5 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-pythonpath = ["src", "../python/src"]
+# afd comes from the editable ../python install (see [tool.uv.sources]).
+pythonpath = ["src"]

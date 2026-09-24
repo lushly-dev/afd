@@ -15,9 +15,9 @@ Alfred is a Python package that validates AFD codebases follow architectural con
 ## Development Commands
 
 ```bash
-# Install with all extras
+# Install with all extras (as CI does; afd comes from ../python, editable)
 cd alfred
-uv pip install -e ".[dev]"
+uv sync --all-extras --dev
 
 # Run tests
 uv run pytest tests/ -v
@@ -148,11 +148,11 @@ alfred/
 │       └── quality.py      # alfred_quality — description quality
 └── tests/
     ├── test_lint.py        # 6 tests
-    ├── test_parity.py      # 9 tests
-    └── test_quality.py     # 7 tests
+    ├── test_parity.py      # 22 tests
+    └── test_quality.py     # 17 tests
 ```
 
-**Tests:** 22 total (pytest + pytest-asyncio)
+**Tests:** 45 total (pytest + pytest-asyncio)
 
 ---
 
@@ -161,6 +161,11 @@ alfred/
 - **Core:** `lushly-botcore>=0.2.0`, `afd>=0.2.0`, `click>=8.0`, `rich>=13.0`
 - **MCP:** `lushly-botcore[mcp]`
 - **Python:** ≥3.11
+
+In development, `[tool.uv.sources]` installs `afd` from the repo's `python/` directory (editable), so
+`uv run alfred` and `uv run pytest` run against the same, current `afd` code, and `uv.lock` records
+that path instead of a PyPI release. The source is uv-only: a built alfred wheel still requires
+`afd>=0.2.0` and installs `afd` from PyPI.
 
 ---
 
