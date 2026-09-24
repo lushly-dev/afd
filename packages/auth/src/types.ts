@@ -48,6 +48,21 @@ export interface OAuthSignInOptions {
 
 export type SignInOptions = CredentialsSignInOptions | OAuthSignInOptions;
 
+/**
+ * What an adapter knows about a sign-in when `signIn()` resolves.
+ *
+ * - `signed-in`: the provider accepted the sign-in. The new session can still
+ *   reach `getSession()` later, through `onAuthStateChange`.
+ * - `redirect`: sign-in continues at the provider (OAuth). No session exists
+ *   until the provider redirects back to the app.
+ * - `pending`: the provider needs another step first, such as email
+ *   verification.
+ */
+export type SignInOutcome =
+	| { kind: 'signed-in' }
+	| { kind: 'redirect'; url?: string }
+	| { kind: 'pending' };
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUTH SESSION STATE (Discriminated Union)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -85,7 +100,13 @@ export const LOADING: AuthSessionState = Object.freeze({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export interface AuthAdapter {
-	signIn(options: SignInOptions): Promise<void>;
+	/**
+	 * Start a sign-in. Resolve with a {@link SignInOutcome} when the provider
+	 * says how the sign-in continues. Resolving with nothing is still allowed
+	 * and is treated like `signed-in`.
+	 */
+	// biome-ignore lint/suspicious/noConfusingVoidType: adapters written before SignInOutcome resolve with Promise<void> and must stay assignable
+	signIn(options: SignInOptions): Promise<SignInOutcome | void>;
 	signOut(): Promise<void>;
 	getSession(): AuthSessionState;
 	onAuthStateChange(callback: (state: AuthSessionState) => void): { unsubscribe: () => void };

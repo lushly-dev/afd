@@ -8,7 +8,7 @@
 import { AuthAdapterError } from '../errors.js';
 import { type ListenerErrorHandler, ListenerSet } from '../listeners.js';
 import { areSessionStatesEqual } from '../session-state.js';
-import type { AuthAdapter, AuthSessionState, SignInOptions } from '../types.js';
+import type { AuthAdapter, AuthSessionState, SignInOptions, SignInOutcome } from '../types.js';
 import { LOADING, UNAUTHENTICATED } from '../types.js';
 
 /** Minimal interface for better-auth client — avoids hard import */
@@ -36,6 +36,7 @@ interface BetterAuthClient {
 		social: (params: {
 			provider: string;
 			callbackURL?: string;
+			scopes?: string[];
 		}) => Promise<BetterAuthMethodResponse>;
 		email: (params: { email: string; password: string }) => Promise<BetterAuthMethodResponse>;
 	};
@@ -76,7 +77,7 @@ export class BetterAuthAdapter implements AuthAdapter {
 		this.setupSubscription();
 	}
 
-	async signIn(options: SignInOptions): Promise<void> {
+	async signIn(options: SignInOptions): Promise<SignInOutcome> {
 		try {
 			let result: BetterAuthMethodResponse;
 			if (options.method === 'credentials') {
@@ -88,6 +89,7 @@ export class BetterAuthAdapter implements AuthAdapter {
 				result = await this.client.signIn.social({
 					provider: options.provider,
 					callbackURL: options.redirectTo,
+					scopes: options.scopes,
 				});
 			}
 
@@ -98,6 +100,7 @@ export class BetterAuthAdapter implements AuthAdapter {
 				}
 				throw AuthAdapterError.providerError('better-auth', this.describeError(providerError));
 			}
+			return toSignInOutcome(result);
 		} catch (error) {
 			throw this.mapThrownError(error);
 		}
@@ -211,6 +214,19 @@ export class BetterAuthAdapter implements AuthAdapter {
 			},
 		};
 	}
+}
+
+/**
+ * Better Auth answers a social sign-in with `{ url, redirect: true }` and
+ * navigates the browser there; the session exists only after the callback.
+ */
+function toSignInOutcome(result: BetterAuthMethodResponse): SignInOutcome {
+	const data = result?.data;
+	if (typeof data === 'object' && data !== null && 'redirect' in data && data.redirect === true) {
+		const url = 'url' in data && typeof data.url === 'string' ? data.url : undefined;
+		return url === undefined ? { kind: 'redirect' } : { kind: 'redirect', url };
+	}
+	return { kind: 'signed-in' };
 }
 
 function isKnownNetworkFailure(error: unknown, message: string): boolean {

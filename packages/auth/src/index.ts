@@ -32,6 +32,7 @@ export type {
 	Provider,
 	Session,
 	SignInOptions,
+	SignInOutcome,
 	User,
 } from './types.js';
 export { LOADING, UNAUTHENTICATED } from './types.js';

@@ -4,7 +4,14 @@
 
 import { AuthAdapterError } from '../errors.js';
 import { type ListenerErrorHandler, ListenerSet } from '../listeners.js';
-import type { AuthAdapter, AuthSessionState, Session, SignInOptions, User } from '../types.js';
+import type {
+	AuthAdapter,
+	AuthSessionState,
+	Session,
+	SignInOptions,
+	SignInOutcome,
+	User,
+} from '../types.js';
 import { LOADING, UNAUTHENTICATED } from '../types.js';
 
 export interface MockAuthAdapterOptions {
@@ -28,7 +35,7 @@ export class MockAuthAdapter implements AuthAdapter {
 		this.listeners = new ListenerSet(options.onListenerError);
 	}
 
-	async signIn(options: SignInOptions): Promise<void> {
+	async signIn(options: SignInOptions): Promise<SignInOutcome> {
 		if (this.delay > 0) {
 			await this.sleep(this.delay);
 		}
@@ -47,6 +54,7 @@ export class MockAuthAdapter implements AuthAdapter {
 				name: email.split('@')[0],
 			},
 		});
+		return { kind: 'signed-in' };
 	}
 
 	async signOut(): Promise<void> {
