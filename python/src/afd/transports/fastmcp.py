@@ -173,11 +173,25 @@ class FastMCPTransport:
     
     async def run_async(self, transport: str = "stdio") -> None:
         """Run the FastMCP server asynchronously.
-        
+
         Args:
-            transport: Transport type.
+            transport: "stdio", "sse" or "streamable-http".
+
+        Raises:
+            RuntimeError: If connect() has not been called.
+            ValueError: For an unknown transport.
         """
         if not self._mcp:
             raise RuntimeError("Transport not connected. Call connect() first.")
-        
-        await self._mcp.run_async(transport=transport)
+
+        runners = {
+            "stdio": self._mcp.run_stdio_async,
+            "sse": self._mcp.run_sse_async,
+            "streamable-http": self._mcp.run_streamable_http_async,
+        }
+        runner = runners.get(transport)
+        if runner is None:
+            raise ValueError(
+                f"Unknown transport: {transport}. Use one of: {', '.join(runners)}"
+            )
+        await runner()

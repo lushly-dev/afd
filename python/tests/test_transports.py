@@ -258,3 +258,40 @@ class TestToolInfo:
         }
         info = ToolInfo(name="test", description="Test", input_schema=schema)
         assert info.input_schema == schema
+
+
+class TestFastMCPTransportRunAsync:
+    """run_async used to call FastMCP.run_async, which does not exist."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("transport_name", "method"),
+        [
+            ("stdio", "run_stdio_async"),
+            ("sse", "run_sse_async"),
+            ("streamable-http", "run_streamable_http_async"),
+        ],
+    )
+    async def test_dispatches_to_the_fastmcp_runner(self, monkeypatch, transport_name, method):
+        from unittest.mock import AsyncMock
+
+        from afd.transports import FastMCPTransport
+
+        transport = FastMCPTransport(server_name="run-test")
+        await transport.connect()
+        runner = AsyncMock()
+        monkeypatch.setattr(transport.mcp, method, runner)
+
+        await transport.run_async(transport_name)
+
+        runner.assert_awaited_once_with()
+
+    @pytest.mark.asyncio
+    async def test_unknown_transport_raises(self):
+        from afd.transports import FastMCPTransport
+
+        transport = FastMCPTransport(server_name="run-test")
+        await transport.connect()
+
+        with pytest.raises(ValueError, match="Unknown transport"):
+            await transport.run_async("carrier-pigeon")
