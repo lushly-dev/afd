@@ -291,7 +291,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			// not let a query carry more input than `maxBodyBytes` allows.
 			if (Buffer.byteLength(query, 'utf8') > maxBodyBytes) {
 				throw new HttpRequestError(413, 'Stream input is too large', {
-					suggestion: `POST /stream/${encodeURIComponent(commandName)} with the input as a JSON body of at most ${maxBodyBytes} bytes`,
+					suggestion: `POST the input to the same /stream path as a JSON body of at most ${maxBodyBytes} bytes`,
 				});
 			}
 			try {
