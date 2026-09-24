@@ -15,8 +15,9 @@ Example:
 
 from typing import Any, Dict, List, Literal, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from afd.core.wire import WireModel
 
 # Type alias for standard protocols
 HandoffProtocol = Union[
@@ -25,8 +26,12 @@ HandoffProtocol = Union[
 ]
 
 
-class ReconnectPolicy(BaseModel):
+class ReconnectPolicy(WireModel):
     """Reconnection policy for handoff connections.
+
+    The handoff models are wire models: they serialize as camelCase
+    (``maxAttempts``, ``sessionId``, ``expiresAt``) with :func:`afd.core.wire.to_wire`
+    and parse camelCase or snake_case.
 
     Attributes:
         allowed: Whether reconnection is allowed.
@@ -42,7 +47,7 @@ class ReconnectPolicy(BaseModel):
     backoff_ms: Optional[int] = Field(default=None, ge=0)
 
 
-class HandoffCredentials(BaseModel):
+class HandoffCredentials(WireModel):
     """Authentication credentials for the handoff connection.
 
     Attributes:
@@ -63,7 +68,7 @@ class HandoffCredentials(BaseModel):
     session_id: Optional[str] = None
 
 
-class HandoffMetadata(BaseModel):
+class HandoffMetadata(WireModel):
     """Metadata for client decision-making about the handoff.
 
     Attributes:
@@ -90,7 +95,7 @@ class HandoffMetadata(BaseModel):
     description: Optional[str] = None
 
 
-class HandoffResult(BaseModel):
+class HandoffResult(WireModel):
     """Result returned by commands that hand off to specialized protocols.
 
     This type is used as the data payload in CommandResult[HandoffResult].
@@ -116,7 +121,7 @@ class HandoffResult(BaseModel):
         ...         reconnect=ReconnectPolicy(allowed=True),
         ...     ),
         ... )
-        >>> result = success(handoff.model_dump())
+        >>> result = success(to_wire(handoff))  # camelCase keys, unset fields omitted
     """
 
     protocol: str = Field(..., min_length=1)
@@ -130,8 +135,18 @@ class HandoffResult(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _field(mapping: Dict[str, Any], camel: str, snake: str) -> Any:
+    """A handoff field by its wire (camelCase) name, or its snake_case name."""
+    if camel in mapping:
+        return mapping[camel]
+    return mapping.get(snake)
+
+
 def is_handoff(value: Any) -> bool:
     """Type guard to check if a value is a HandoffResult.
+
+    Accepts the wire form (``sessionId``, ``expectedLatency``, ``expiresAt``,
+    ``maxAttempts``, ``backoffMs``) and the snake_case form.
 
     Args:
         value: Value to check.
@@ -168,7 +183,7 @@ def is_handoff(value: Any) -> bool:
         if token is not None and not isinstance(token, str):
             return False
 
-        session_id = credentials.get("session_id")
+        session_id = _field(credentials, "sessionId", "session_id")
         if session_id is not None and not isinstance(session_id, str):
             return False
 
@@ -182,7 +197,7 @@ def is_handoff(value: Any) -> bool:
         if not isinstance(metadata, dict):
             return False
 
-        expected_latency = metadata.get("expected_latency")
+        expected_latency = _field(metadata, "expectedLatency", "expected_latency")
         if expected_latency is not None and not isinstance(expected_latency, (int, float)):
             return False
 
@@ -190,7 +205,7 @@ def is_handoff(value: Any) -> bool:
         if capabilities is not None and not isinstance(capabilities, list):
             return False
 
-        expires_at = metadata.get("expires_at")
+        expires_at = _field(metadata, "expiresAt", "expires_at")
         if expires_at is not None and not isinstance(expires_at, str):
             return False
 
@@ -207,11 +222,11 @@ def is_handoff(value: Any) -> bool:
             if not isinstance(allowed, bool):
                 return False
 
-            max_attempts = reconnect.get("max_attempts")
+            max_attempts = _field(reconnect, "maxAttempts", "max_attempts")
             if max_attempts is not None and not isinstance(max_attempts, (int, float)):
                 return False
 
-            backoff_ms = reconnect.get("backoff_ms")
+            backoff_ms = _field(reconnect, "backoffMs", "backoff_ms")
             if backoff_ms is not None and not isinstance(backoff_ms, (int, float)):
                 return False
 
@@ -315,7 +330,7 @@ def get_handoff_protocol(command: Any) -> Optional[str]:
     # Handle both dict and object with attributes
     if isinstance(command, dict):
         # Check explicit handoff_protocol property first
-        handoff_protocol = command.get("handoff_protocol")
+        handoff_protocol = _field(command, "handoffProtocol", "handoff_protocol")
         if handoff_protocol:
             return handoff_protocol
 
@@ -371,7 +386,9 @@ def create_handoff(
         description: Human-readable description.
 
     Returns:
-        A dict matching HandoffResult structure.
+        A dict matching HandoffResult structure, in the wire format: camelCase
+        keys (``sessionId``, ``expectedLatency``, ``expiresAt``,
+        ``maxAttempts``, ``backoffMs``) and no unset fields.
 
     Example:
         >>> from afd import success
@@ -395,7 +412,7 @@ def create_handoff(
         if token is not None:
             credentials["token"] = token
         if session_id is not None:
-            credentials["session_id"] = session_id
+            credentials["sessionId"] = session_id
         if headers is not None:
             credentials["headers"] = headers
         result["credentials"] = credentials
@@ -412,11 +429,11 @@ def create_handoff(
     if has_metadata:
         metadata: Dict[str, Any] = {}
         if expected_latency is not None:
-            metadata["expected_latency"] = expected_latency
+            metadata["expectedLatency"] = expected_latency
         if capabilities is not None:
             metadata["capabilities"] = capabilities
         if expires_at is not None:
-            metadata["expires_at"] = expires_at
+            metadata["expiresAt"] = expires_at
         if description is not None:
             metadata["description"] = description
 
@@ -424,9 +441,9 @@ def create_handoff(
         if reconnect_allowed is not None:
             reconnect: Dict[str, Any] = {"allowed": reconnect_allowed}
             if reconnect_max_attempts is not None:
-                reconnect["max_attempts"] = reconnect_max_attempts
+                reconnect["maxAttempts"] = reconnect_max_attempts
             if reconnect_backoff_ms is not None:
-                reconnect["backoff_ms"] = reconnect_backoff_ms
+                reconnect["backoffMs"] = reconnect_backoff_ms
             metadata["reconnect"] = reconnect
 
         result["metadata"] = metadata

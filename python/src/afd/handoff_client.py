@@ -4,6 +4,11 @@ Provides protocol handlers and connection management for handoff results,
 allowing clients to connect to streaming protocols (WebSocket, SSE, etc.)
 returned by handoff commands.
 
+The built-in handlers read the connection in a background task: every message
+reaches ``on_message``, and a close by the server reaches ``on_disconnect``.
+A credentials token is sent in an ``Authorization: Bearer`` header, never in
+the URL.
+
 Example:
     >>> from afd import connect_handoff, register_builtin_handlers
     >>> from afd.core.handoff import is_handoff
@@ -18,14 +23,14 @@ Example:
     ...     await conn.send({'type': 'message', 'text': 'Hello!'})
 """
 
-# afd-override: max-lines=500
-
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import random
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import (
     Any,
@@ -35,9 +40,16 @@ from typing import (
     List,
     Optional,
     Protocol,
+    Set,
+    Tuple,
     runtime_checkable,
 )
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
+
+logger = logging.getLogger("afd.handoff")
+
+DEFAULT_OPEN_TIMEOUT_S = 10.0
+"""Seconds the built-in handlers wait for a WebSocket or SSE handshake."""
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -131,7 +143,8 @@ class HandoffConnectionOptions:
     Attributes:
         on_connect: Called when the connection is established (receives the connection).
         on_message: Called when a message is received.
-        on_disconnect: Called when the connection is closed.
+        on_disconnect: Called with (code, reason) when the connection closes,
+            whether the server or ``close()`` closed it.
         on_error: Called when an error occurs.
         on_state_change: Called when connection state changes.
     """
@@ -141,6 +154,25 @@ class HandoffConnectionOptions:
     on_disconnect: Optional[Callable[[Optional[int], Optional[str]], None]] = None
     on_error: Optional[Callable[[Exception], None]] = None
     on_state_change: Optional[Callable[[HandoffConnectionState], None]] = None
+
+
+def _call_safely(callback: Optional[Callable[..., Any]], *args: Any) -> None:
+    """Run a user callback. An exception is logged, never raised into our tasks."""
+    if callback is None:
+        return
+    try:
+        callback(*args)
+    except Exception:
+        logger.exception("Handoff callback %r raised", callback)
+
+
+def _field(mapping: Any, camel: str, snake: str, default: Any = None) -> Any:
+    """A handoff field by its wire (camelCase) or snake_case name."""
+    if not isinstance(mapping, dict):
+        return default
+    if camel in mapping:
+        return mapping[camel]
+    return mapping.get(snake, default)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -241,6 +273,14 @@ async def connect_handoff(
     return connection
 
 
+async def _close_quietly(connection: Any) -> None:
+    """Close a connection, logging (not raising) a failure."""
+    try:
+        await connection.close()
+    except Exception:
+        logger.debug("Closing handoff connection failed", exc_info=True)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # RECONNECTION
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -285,6 +325,10 @@ class ReconnectingHandoffConnection:
     """Wraps a HandoffConnection with automatic reconnection logic.
 
     Provides exponential backoff and session resumption via a reconnect command.
+    Each underlying connection has a generation number: events from an older
+    connection are ignored, so a late disconnect can never start a second
+    reconnect loop. ``close()`` cancels a reconnect in progress and closes any
+    connection it opened, and every background task is kept and awaited.
 
     Attributes:
         state: Current connection state.
@@ -308,9 +352,13 @@ class ReconnectingHandoffConnection:
         self._reconnect_attempt = 0
         self._is_reconnecting = False
         self._closed = False
+        self._generation = 0
+        self._connected_generation = -1
+        self._reconnect_task: Optional[asyncio.Task[None]] = None
+        self._tasks: Set[asyncio.Task[Any]] = set()
 
         # Resolve reconnection defaults from handoff metadata (TS parity)
-        metadata_reconnect = (handoff.get("metadata") or {}).get("reconnect") or {}
+        metadata_reconnect = _field(handoff.get("metadata"), "reconnect", "reconnect") or {}
         resolved = ReconnectionOptions(
             reconnect_command=options.reconnect_command,
             reconnect_args=options.reconnect_args,
@@ -318,12 +366,12 @@ class ReconnectingHandoffConnection:
             max_attempts=(
                 options.max_attempts
                 if options.max_attempts != 5
-                else metadata_reconnect.get("max_attempts", 5)
+                else _field(metadata_reconnect, "maxAttempts", "max_attempts", 5)
             ),
             backoff_ms=(
                 options.backoff_ms
                 if options.backoff_ms != 1000
-                else metadata_reconnect.get("backoff_ms", 1000)
+                else _field(metadata_reconnect, "backoffMs", "backoff_ms", 1000)
             ),
             max_backoff_ms=options.max_backoff_ms,
             on_connect=options.on_connect,
@@ -362,108 +410,150 @@ class ReconnectingHandoffConnection:
 
     def _set_state(self, new_state: HandoffConnectionState) -> None:
         self._state = new_state
-        if self._options.on_state_change:
-            self._options.on_state_change(new_state)
+        _call_safely(self._options.on_state_change, new_state)
+
+    def _active(self, generation: int) -> bool:
+        return not self._closed and generation == self._generation
+
+    def _track(self, task: "asyncio.Task[Any]") -> "asyncio.Task[Any]":
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+        return task
 
     async def _connect(self, reconnecting: bool = False) -> None:
-        if reconnecting:
-            self._set_state(HandoffConnectionState.RECONNECTING)
-        else:
-            self._set_state(HandoffConnectionState.CONNECTING)
+        """Open a new underlying connection (a new generation).
+
+        Raises:
+            ConnectionError: If ``close()`` ran while the connection was opening
+                (the new connection is closed first).
+        """
+        self._generation += 1
+        generation = self._generation
+        self._set_state(
+            HandoffConnectionState.RECONNECTING if reconnecting else HandoffConnectionState.CONNECTING
+        )
+
+        def on_message(message: Any) -> None:
+            if self._active(generation):
+                _call_safely(self._options.on_message, message)
+
+        def on_error(exc: Exception) -> None:
+            if self._active(generation):
+                _call_safely(self._options.on_error, exc)
 
         conn_options = HandoffConnectionOptions(
-            on_connect=self._handle_connect,
-            on_message=self._options.on_message,
-            on_disconnect=self._handle_disconnect,
-            on_error=self._options.on_error,
+            on_connect=lambda _connection: self._handle_connect(generation),
+            on_message=on_message,
+            on_disconnect=lambda code, reason: self._handle_disconnect(generation, code, reason),
+            on_error=on_error,
             on_state_change=None,
         )
 
-        self._connection = await connect_handoff(self._handoff, conn_options)
+        connection = await connect_handoff(self._handoff, conn_options)
+        if not self._active(generation):
+            await _close_quietly(connection)
+            raise ConnectionError("Handoff connection was closed while it was opening")
+        self._connection = connection
+        # Handlers that never call on_connect are connected once connect() returns.
+        self._handle_connect(generation)
 
-    def _handle_connect(self, _connection: Any = None) -> None:
-        self._set_state(HandoffConnectionState.CONNECTED)
+    def _handle_connect(self, generation: int) -> None:
+        if not self._active(generation) or self._connected_generation == generation:
+            return
+        self._connected_generation = generation
         self._reconnect_attempt = 0
-        self._is_reconnecting = False
-        if self._options.on_connect:
-            self._options.on_connect(self)
+        self._set_state(HandoffConnectionState.CONNECTED)
+        _call_safely(self._options.on_connect, self)
 
     def _handle_disconnect(
-        self, code: Optional[int] = None, reason: Optional[str] = None
+        self, generation: int, code: Optional[int] = None, reason: Optional[str] = None
     ) -> None:
-        if self._closed:
+        if not self._active(generation):
+            return  # an older connection, or close() already reported it
+        self._generation += 1  # ignore anything else this connection reports
+        self._connection = None
+
+        policy = _field(self._handoff.get("metadata"), "reconnect", "reconnect") or {}
+        if policy.get("allowed", True) is False:
             self._set_state(HandoffConnectionState.DISCONNECTED)
-            if self._options.on_disconnect:
-                self._options.on_disconnect(code, reason)
+            _call_safely(self._options.on_disconnect, code, reason)
             return
+        self._start_reconnect()
 
-        max_attempts = self._options.max_attempts
-        metadata = self._handoff.get("metadata") or {}
-        reconnect_policy = metadata.get("reconnect") or {}
-        can_reconnect = (
-            reconnect_policy.get("allowed", True) is not False
-            and self._reconnect_attempt < max_attempts
-        )
-
-        if can_reconnect:
-            asyncio.ensure_future(self._attempt_reconnect())
-        else:
-            self._set_state(HandoffConnectionState.DISCONNECTED)
-            if self._options.on_disconnect:
-                self._options.on_disconnect(code, reason)
+    def _start_reconnect(self) -> Optional["asyncio.Task[None]"]:
+        """Start the reconnect loop, or return the one already running."""
+        if self._closed:
+            return None
+        if self._reconnect_task is not None and not self._reconnect_task.done():
+            return self._reconnect_task
+        self._generation += 1
+        previous, self._connection = self._connection, None
+        if previous is not None:
+            self._track(asyncio.ensure_future(_close_quietly(previous)))
+        task = asyncio.ensure_future(self._attempt_reconnect())
+        self._reconnect_task = task
+        self._track(task)
+        return task
 
     async def _attempt_reconnect(self) -> None:
-        if self._closed or self._is_reconnecting:
-            return
+        """Reconnect with exponential backoff until connected, closed or out of attempts.
 
-        self._is_reconnecting = True
-        self._reconnect_attempt += 1
-
-        if self._reconnect_attempt > self._options.max_attempts:
-            self._is_reconnecting = False
-            self._set_state(HandoffConnectionState.FAILED)
-            if self._options.on_reconnect_failed:
-                self._options.on_reconnect_failed()
-            return
-
-        if self._options.on_reconnect:
-            self._options.on_reconnect(self._reconnect_attempt)
-
-        delay_ms = min(
-            self._options.backoff_ms * (2 ** (self._reconnect_attempt - 1))
-            + random.random() * 100,
-            self._options.max_backoff_ms,
-        )
-        await asyncio.sleep(delay_ms / 1000.0)
-
+        A failed attempt schedules the next one, so the connection ends either
+        CONNECTED, FAILED (``on_reconnect_failed``) or closed.
+        """
         if self._closed:
             return
-
-        if self._options.reconnect_command and self._client is not None:
-            try:
-                from afd.core.handoff import is_handoff
-
-                args = dict(self._options.reconnect_args or {})
-                if self._options.session_id:
-                    args["session_id"] = self._options.session_id
-
-                result = await self._client.call(
-                    self._options.reconnect_command, args
-                )
-
-                if result.success and result.data and is_handoff(result.data):
-                    self._handoff = dict(result.data)
-            except Exception:
-                pass
-
+        self._is_reconnecting = True
         try:
-            await self._connect(reconnecting=True)
-        except Exception:
-            if self._reconnect_attempt >= self._options.max_attempts:
-                self._is_reconnecting = False
-                self._set_state(HandoffConnectionState.FAILED)
-                if self._options.on_reconnect_failed:
-                    self._options.on_reconnect_failed()
+            while not self._closed:
+                self._reconnect_attempt += 1
+                attempt = self._reconnect_attempt
+                if attempt > self._options.max_attempts:
+                    self._set_state(HandoffConnectionState.FAILED)
+                    _call_safely(self._options.on_reconnect_failed)
+                    return
+
+                self._set_state(HandoffConnectionState.RECONNECTING)
+                _call_safely(self._options.on_reconnect, attempt)
+                delay_ms = min(
+                    self._options.backoff_ms * (2 ** (attempt - 1)) + random.random() * 100,
+                    self._options.max_backoff_ms,
+                )
+                await asyncio.sleep(delay_ms / 1000.0)
+                if self._closed:
+                    return
+
+                if self._options.reconnect_command and self._client is not None:
+                    await self._refresh_handoff()
+                    if self._closed:
+                        return
+
+                try:
+                    await self._connect(reconnecting=True)
+                except Exception as exc:
+                    if not self._closed:
+                        _call_safely(self._options.on_error, exc)
+                    continue
+                self._reconnect_attempt = 0
+                return
+        finally:
+            self._is_reconnecting = False
+
+    async def _refresh_handoff(self) -> None:
+        """Ask the reconnect command for a fresh handoff (keep the old one on failure)."""
+        from afd.core.handoff import is_handoff
+
+        args = dict(self._options.reconnect_args or {})
+        if self._options.session_id:
+            args["session_id"] = self._options.session_id
+        try:
+            result = await self._client.call(self._options.reconnect_command, args)
+        except Exception as exc:
+            _call_safely(self._options.on_error, exc)
+            return
+        data = getattr(result, "data", None)
+        if getattr(result, "success", False) and data and is_handoff(data):
+            self._handoff = dict(data)
 
     async def send(self, data: Any) -> None:
         """Send data through the connection.
@@ -476,19 +566,43 @@ class ReconnectingHandoffConnection:
         await self._connection.send(data)
 
     async def close(self) -> None:
-        """Close the connection and stop reconnection attempts."""
+        """Close the connection and stop reconnection attempts.
+
+        Cancels a reconnect in progress, waits for every background task, and
+        closes the current connection, so nothing stays open afterwards.
+        """
+        if self._closed:
+            return
         self._closed = True
         self._is_reconnecting = False
-        if self._connection:
-            await self._connection.close()
+        self._generation += 1
+
+        current = asyncio.current_task()
+        if self._reconnect_task is not None and self._reconnect_task is not current:
+            self._reconnect_task.cancel()
+        pending = [task for task in self._tasks if task is not current]
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+
+        connection, self._connection = self._connection, None
+        if connection is not None:
+            await _close_quietly(connection)
         self._set_state(HandoffConnectionState.DISCONNECTED)
+        _call_safely(self._options.on_disconnect, None, None)
 
     async def reconnect(self) -> None:
-        """Manually trigger a reconnection."""
-        if self._is_reconnecting:
-            return
+        """Manually trigger a reconnection and wait for it to finish.
+
+        Raises:
+            RuntimeError: If the connection was closed.
+        """
+        if self._closed:
+            raise RuntimeError("Cannot reconnect a closed connection")
         self._reconnect_attempt = 0
-        await self._attempt_reconnect()
+        task = self._start_reconnect()
+        if task is not None:
+            # Cancelling the caller must not kill the loop; close() stops it.
+            await asyncio.shield(task)
 
 
 async def create_reconnecting_handoff(
@@ -526,43 +640,46 @@ async def create_reconnecting_handoff(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class WebSocketHandoffHandler:
-    """WebSocket protocol handler using the ``websockets`` library."""
+def _auth_headers(credentials: Any, base: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    """Connection headers: base headers, credentials headers, and the bearer token.
 
-    @staticmethod
-    async def handle(
-        handoff: Dict[str, Any],
-        options: HandoffConnectionOptions,
-    ) -> HandoffConnection:
-        """Create a WebSocket connection from a handoff result."""
+    The token becomes ``Authorization: Bearer <token>`` unless the credentials
+    already set an Authorization header. It is never put in the URL, where it
+    would reach server and proxy logs.
+    """
+    headers: Dict[str, str] = dict(base or {})
+    if not isinstance(credentials, dict):
+        return headers
+    extra = credentials.get("headers")
+    if isinstance(extra, dict):
+        headers.update({str(key): str(value) for key, value in extra.items()})
+    token = credentials.get("token")
+    if token and not any(key.lower() == "authorization" for key in headers):
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
+
+def _decode_message(raw: Any) -> Any:
+    """A JSON message as its value; anything else (text or bytes) unchanged."""
+    text = raw
+    if isinstance(raw, (bytes, bytearray)):
         try:
-            import websockets
-        except ImportError as e:
-            raise ImportError(
-                "websockets is required for WebSocket handoff connections. "
-                "Install with: pip install afd[client]"
-            ) from e
-
-        endpoint = build_authenticated_endpoint(
-            handoff["endpoint"],
-            handoff.get("credentials"),
-        )
-        headers = {}
-        creds = handoff.get("credentials")
-        if creds and creds.get("headers"):
-            headers.update(creds["headers"])
-
-        return _WebSocketConnection(
-            endpoint=endpoint,
-            headers=headers,
-            options=options,
-            protocol=handoff.get("protocol", "websocket"),
-            raw_endpoint=handoff["endpoint"],
-        )
+            text = bytes(raw).decode("utf-8")
+        except UnicodeDecodeError:
+            return raw
+    try:
+        return json.loads(text)
+    except (TypeError, ValueError):
+        return raw
 
 
-class _WebSocketConnection:
-    """Internal WebSocket HandoffConnection implementation."""
+class _StreamConnection:
+    """Shared lifecycle of the built-in connections.
+
+    ``connect()`` opens the transport and starts a reader task that dispatches
+    every message and reports the disconnect when the stream ends. ``close()``
+    stops the reader, closes the transport and reports the disconnect once.
+    """
 
     def __init__(
         self,
@@ -570,148 +687,96 @@ class _WebSocketConnection:
         headers: Dict[str, str],
         options: HandoffConnectionOptions,
         protocol: str,
-        raw_endpoint: str,
+        open_timeout: float = DEFAULT_OPEN_TIMEOUT_S,
     ) -> None:
         self._endpoint_url = endpoint
         self._headers = headers
         self._options = options
         self._protocol_name = protocol
-        self._raw_endpoint = raw_endpoint
-        self._ws: Any = None
+        self._open_timeout = open_timeout
         self._state = HandoffConnectionState.DISCONNECTED
         self._message_callbacks: List[Callable[[Any], None]] = []
         self._error_callbacks: List[Callable[[Exception], None]] = []
         self._close_callbacks: List[Callable[[], None]] = []
+        self._reader: Optional[asyncio.Task[None]] = None
+        self._closed = False
+        self._finished = False
+
+    # Transport hooks for subclasses.
+    async def _open(self) -> None:
+        raise NotImplementedError
+
+    async def _read_loop(self) -> Tuple[Optional[int], Optional[str]]:
+        raise NotImplementedError
+
+    async def _close_transport(self) -> None:
+        raise NotImplementedError
+
+    def _set_state(self, state: HandoffConnectionState) -> None:
+        self._state = state
+        _call_safely(self._options.on_state_change, state)
+
+    def _emit_message(self, message: Any) -> None:
+        _call_safely(self._options.on_message, message)
+        for callback in list(self._message_callbacks):
+            _call_safely(callback, message)
+
+    def _emit_error(self, exc: Exception) -> None:
+        _call_safely(self._options.on_error, exc)
+        for callback in list(self._error_callbacks):
+            _call_safely(callback, exc)
+
+    def _finish(self, code: Optional[int], reason: Optional[str]) -> None:
+        """Report the disconnect (once)."""
+        if self._finished:
+            return
+        self._finished = True
+        self._set_state(HandoffConnectionState.DISCONNECTED)
+        for callback in list(self._close_callbacks):
+            _call_safely(callback)
+        _call_safely(self._options.on_disconnect, code, reason)
 
     async def connect(self) -> None:
-        import websockets
-
-        self._state = HandoffConnectionState.CONNECTING
-        if self._options.on_state_change:
-            self._options.on_state_change(self._state)
-
-        self._ws = await websockets.connect(
-            self._endpoint_url,
-            additional_headers=self._headers if self._headers else None,
-        )
-        self._state = HandoffConnectionState.CONNECTED
-        if self._options.on_state_change:
-            self._options.on_state_change(self._state)
-        if self._options.on_connect:
-            self._options.on_connect(self)
-
-    async def close(self) -> None:
-        if self._ws:
-            await self._ws.close()
-            self._ws = None
-        self._state = HandoffConnectionState.DISCONNECTED
-        for cb in self._close_callbacks:
-            cb()
-        if self._options.on_state_change:
-            self._options.on_state_change(self._state)
-
-    async def send(self, data: Any) -> None:
-        if not self._ws:
-            raise RuntimeError("WebSocket is not connected")
-        import json
-
-        await self._ws.send(json.dumps(data) if not isinstance(data, str) else data)
-
-    def on_message(self, callback: Callable[[Any], None]) -> None:
-        self._message_callbacks.append(callback)
-
-    def on_error(self, callback: Callable[[Exception], None]) -> None:
-        self._error_callbacks.append(callback)
-
-    def on_close(self, callback: Callable[[], None]) -> None:
-        self._close_callbacks.append(callback)
-
-    @property
-    def is_connected(self) -> bool:
-        return self._state == HandoffConnectionState.CONNECTED
-
-    @property
-    def state(self) -> HandoffConnectionState:
-        return self._state
-
-    @property
-    def protocol(self) -> str:
-        return self._protocol_name
-
-    @property
-    def endpoint(self) -> str:
-        return self._raw_endpoint
-
-
-class SseHandoffHandler:
-    """SSE (Server-Sent Events) protocol handler using the ``httpx`` library."""
-
-    @staticmethod
-    async def handle(
-        handoff: Dict[str, Any],
-        options: HandoffConnectionOptions,
-    ) -> HandoffConnection:
-        """Create an SSE connection from a handoff result."""
+        if self._closed:
+            raise RuntimeError("Cannot connect: the connection was closed")
+        self._set_state(HandoffConnectionState.CONNECTING)
         try:
-            import httpx  # noqa: F401
-        except ImportError as e:
-            raise ImportError(
-                "httpx is required for SSE handoff connections. "
-                "Install with: pip install afd[client]"
-            ) from e
+            await self._open()
+        except BaseException:
+            self._set_state(HandoffConnectionState.FAILED)
+            raise
+        if self._closed:  # close() ran during the handshake
+            await self._close_transport()
+            return
+        self._set_state(HandoffConnectionState.CONNECTED)
+        self._reader = asyncio.ensure_future(self._run_reader())
+        _call_safely(self._options.on_connect, self)
 
-        endpoint = handoff["endpoint"]
-        headers: Dict[str, str] = {"Accept": "text/event-stream"}
-        creds = handoff.get("credentials")
-        if creds:
-            if creds.get("token"):
-                headers["Authorization"] = f"Bearer {creds['token']}"
-            if creds.get("headers"):
-                headers.update(creds["headers"])
-
-        return _SseConnection(
-            endpoint=endpoint,
-            headers=headers,
-            options=options,
-            protocol=handoff.get("protocol", "sse"),
-        )
-
-
-class _SseConnection:
-    """Internal SSE HandoffConnection implementation."""
-
-    def __init__(
-        self,
-        endpoint: str,
-        headers: Dict[str, str],
-        options: HandoffConnectionOptions,
-        protocol: str,
-    ) -> None:
-        self._endpoint_url = endpoint
-        self._headers = headers
-        self._options = options
-        self._protocol_name = protocol
-        self._state = HandoffConnectionState.DISCONNECTED
-        self._message_callbacks: List[Callable[[Any], None]] = []
-        self._error_callbacks: List[Callable[[Exception], None]] = []
-        self._close_callbacks: List[Callable[[], None]] = []
-
-    async def connect(self) -> None:
-        self._state = HandoffConnectionState.CONNECTED
-        if self._options.on_state_change:
-            self._options.on_state_change(self._state)
-        if self._options.on_connect:
-            self._options.on_connect(self)
+    async def _run_reader(self) -> None:
+        code: Optional[int] = None
+        reason: Optional[str] = None
+        try:
+            code, reason = await self._read_loop()
+        except asyncio.CancelledError:
+            raise  # close() reports the disconnect
+        except Exception as exc:
+            if not self._closed:
+                self._emit_error(exc)
+        if self._closed:
+            return
+        await self._close_transport()
+        self._finish(code, reason)
 
     async def close(self) -> None:
-        self._state = HandoffConnectionState.DISCONNECTED
-        for cb in self._close_callbacks:
-            cb()
-        if self._options.on_state_change:
-            self._options.on_state_change(self._state)
-
-    async def send(self, data: Any) -> None:
-        raise NotImplementedError("SSE connections are server-push only; send() is not supported")
+        if self._closed:
+            return
+        self._closed = True
+        reader = self._reader
+        if reader is not None and reader is not asyncio.current_task() and not reader.done():
+            reader.cancel()
+            await asyncio.gather(reader, return_exceptions=True)
+        await self._close_transport()
+        self._finish(1000, "Client close")
 
     def on_message(self, callback: Callable[[Any], None]) -> None:
         self._message_callbacks.append(callback)
@@ -739,6 +804,160 @@ class _SseConnection:
         return self._endpoint_url
 
 
+class WebSocketHandoffHandler:
+    """WebSocket protocol handler using the ``websockets`` library (14+)."""
+
+    @staticmethod
+    async def handle(
+        handoff: Dict[str, Any],
+        options: HandoffConnectionOptions,
+    ) -> HandoffConnection:
+        """Create a WebSocket connection from a handoff result."""
+        try:
+            import websockets  # noqa: F401
+        except ImportError as e:
+            raise ImportError(
+                "websockets is required for WebSocket handoff connections. "
+                "Install with: pip install afd[client]"
+            ) from e
+
+        return _WebSocketConnection(
+            endpoint=handoff["endpoint"],
+            headers=_auth_headers(handoff.get("credentials")),
+            options=options,
+            protocol=handoff.get("protocol", "websocket"),
+        )
+
+
+class _WebSocketConnection(_StreamConnection):
+    """Internal WebSocket HandoffConnection implementation."""
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._ws: Any = None
+
+    async def _open(self) -> None:
+        from websockets.asyncio.client import connect
+
+        self._ws = await connect(
+            self._endpoint_url,
+            additional_headers=self._headers or None,
+            open_timeout=self._open_timeout,
+        )
+
+    async def _read_loop(self) -> Tuple[Optional[int], Optional[str]]:
+        from websockets.exceptions import ConnectionClosed
+
+        ws = self._ws
+        try:
+            async for raw in ws:
+                self._emit_message(_decode_message(raw))
+        except ConnectionClosed:
+            pass  # an abnormal close; the code says why
+        return ws.close_code, ws.close_reason
+
+    async def _close_transport(self) -> None:
+        ws = self._ws
+        if ws is not None:
+            try:
+                await ws.close()
+            except Exception:
+                logger.debug("Closing WebSocket failed", exc_info=True)
+
+    async def send(self, data: Any) -> None:
+        if self._ws is None or self._state != HandoffConnectionState.CONNECTED:
+            raise RuntimeError("Cannot send: WebSocket is not in connected state")
+        await self._ws.send(data if isinstance(data, (str, bytes)) else json.dumps(data))
+
+
+class SseHandoffHandler:
+    """SSE (Server-Sent Events) protocol handler using the ``httpx`` library."""
+
+    @staticmethod
+    async def handle(
+        handoff: Dict[str, Any],
+        options: HandoffConnectionOptions,
+    ) -> HandoffConnection:
+        """Create an SSE connection from a handoff result."""
+        try:
+            import httpx  # noqa: F401
+        except ImportError as e:
+            raise ImportError(
+                "httpx is required for SSE handoff connections. "
+                "Install with: pip install afd[client]"
+            ) from e
+
+        return _SseConnection(
+            endpoint=handoff["endpoint"],
+            headers=_auth_headers(
+                handoff.get("credentials"), {"Accept": "text/event-stream"}
+            ),
+            options=options,
+            protocol=handoff.get("protocol", "sse"),
+        )
+
+
+class _SseConnection(_StreamConnection):
+    """Internal SSE HandoffConnection: a streaming GET read by ``httpx``.
+
+    Each event's ``data`` reaches ``on_message`` (parsed as JSON when it is
+    JSON). The connection is server-push only.
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self._client: Any = None
+        self._response: Any = None
+
+    async def _open(self) -> None:
+        import httpx
+
+        self._client = httpx.AsyncClient(timeout=httpx.Timeout(self._open_timeout, read=None))
+        try:
+            request = self._client.build_request("GET", self._endpoint_url, headers=self._headers)
+            self._response = await self._client.send(request, stream=True)
+            if not self._response.is_success:
+                raise ConnectionError(
+                    f"SSE handoff endpoint returned HTTP {self._response.status_code}"
+                )
+            content_type = self._response.headers.get("content-type", "")
+            if not content_type.startswith("text/event-stream"):
+                raise ConnectionError(
+                    "SSE handoff endpoint did not return text/event-stream "
+                    f"(got {content_type or 'no content type'})"
+                )
+        except BaseException:
+            await self._close_transport()
+            raise
+
+    async def _read_loop(self) -> Tuple[Optional[int], Optional[str]]:
+        from afd.core.sse import SseDecoder
+
+        decoder = SseDecoder()
+        async for line in self._response.aiter_lines():
+            event = decoder.decode(line)
+            if event is not None:
+                self._emit_message(_decode_message(event.data))
+        return None, "Stream ended"
+
+    async def _close_transport(self) -> None:
+        response, self._response = self._response, None
+        client, self._client = self._client, None
+        try:
+            if response is not None:
+                await response.aclose()
+        except Exception:
+            logger.debug("Closing SSE response failed", exc_info=True)
+        try:
+            if client is not None:
+                await client.aclose()
+        except Exception:
+            logger.debug("Closing SSE client failed", exc_info=True)
+
+    async def send(self, data: Any) -> None:
+        raise NotImplementedError("SSE connections are server-push only; send() is not supported")
+
+
 def register_builtin_handlers() -> None:
     """Register built-in WebSocket and SSE handlers if their deps are available.
 
@@ -746,12 +965,14 @@ def register_builtin_handlers() -> None:
     """
     try:
         import websockets  # noqa: F401
+
         register_handoff_handler("websocket", WebSocketHandoffHandler.handle)
     except ImportError:
         pass
 
     try:
         import httpx  # noqa: F401
+
         register_handoff_handler("sse", SseHandoffHandler.handle)
     except ImportError:
         pass
@@ -767,6 +988,10 @@ def build_authenticated_endpoint(
     credentials: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Build an endpoint URL with authentication token as query parameter.
+
+    The built-in handlers do not use this: they send the token in an
+    ``Authorization`` header, because a token in a URL reaches server and
+    proxy logs. Use it only for a custom handler whose server requires it.
 
     Args:
         endpoint: The base endpoint URL.
@@ -819,42 +1044,43 @@ def parse_handoff_endpoint(endpoint: str) -> Dict[str, Any]:
     }
 
 
+def _expiry_timestamp(handoff: Dict[str, Any]) -> Optional[float]:
+    """The handoff's expiry as a POSIX timestamp, or None if absent or invalid."""
+    expires_at = _field(handoff.get("metadata"), "expiresAt", "expires_at")
+    if not isinstance(expires_at, str) or not expires_at:
+        return None
+
+    from datetime import datetime
+
+    try:
+        return datetime.fromisoformat(expires_at.replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        return None
+
+
 def is_handoff_expired(handoff: Dict[str, Any]) -> bool:
     """Check if handoff credentials have expired.
 
     Args:
-        handoff: HandoffResult dict.
+        handoff: HandoffResult dict (``expiresAt`` or ``expires_at``).
 
     Returns:
         True if credentials have expired.
 
     Example:
         >>> is_handoff_expired({"protocol": "ws", "endpoint": "ws://x",
-        ...     "metadata": {"expires_at": "2020-01-01T00:00:00Z"}})
+        ...     "metadata": {"expiresAt": "2020-01-01T00:00:00Z"}})
         True
     """
-    metadata = handoff.get("metadata")
-    if not metadata:
-        return False
-
-    expires_at = metadata.get("expires_at")
-    if not expires_at:
-        return False
-
-    from datetime import datetime, timezone
-
-    try:
-        expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-        return expiry.timestamp() < time.time()
-    except (ValueError, AttributeError):
-        return False
+    expiry = _expiry_timestamp(handoff)
+    return expiry is not None and expiry < time.time()
 
 
 def get_handoff_ttl(handoff: Dict[str, Any]) -> Optional[int]:
     """Get the time until handoff credentials expire in milliseconds.
 
     Args:
-        handoff: HandoffResult dict.
+        handoff: HandoffResult dict (``expiresAt`` or ``expires_at``).
 
     Returns:
         Milliseconds until expiration, None if no expiration set, 0 if expired.
@@ -862,19 +1088,8 @@ def get_handoff_ttl(handoff: Dict[str, Any]) -> Optional[int]:
     Example:
         >>> get_handoff_ttl({"protocol": "ws", "endpoint": "ws://x"})  # no expiry
     """
-    metadata = handoff.get("metadata")
-    if not metadata:
+    expiry = _expiry_timestamp(handoff)
+    if expiry is None:
         return None
-
-    expires_at = metadata.get("expires_at")
-    if not expires_at:
-        return None
-
-    from datetime import datetime, timezone
-
-    try:
-        expiry = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-        ttl_ms = int((expiry.timestamp() - time.time()) * 1000)
-        return ttl_ms if ttl_ms > 0 else 0
-    except (ValueError, AttributeError):
-        return None
+    ttl_ms = int((expiry - time.time()) * 1000)
+    return ttl_ms if ttl_ms > 0 else 0

@@ -4,6 +4,9 @@ Provides stricter Pydantic models for validating handoff data at the
 server boundary, mirroring the Zod schemas in the TypeScript
 ``handoff-schema.ts``.
 
+Like the core handoff models, these parse camelCase (the wire format,
+``sessionId``, ``expiresAt``) or snake_case keys.
+
 Key differences from core handoff models:
 - ``endpoint`` is validated as a URL (via ``AnyUrl``), not just ``min_length=1``
 - ``expires_at`` is validated as an ISO 8601 datetime, not just ``Optional[str]``
@@ -23,10 +26,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import AnyUrl, BaseModel, Field, field_validator
+from pydantic import AnyUrl, Field, field_validator
+
+from afd.core.wire import WireModel
 
 
-class HandoffCredentialsSchema(BaseModel):
+class HandoffCredentialsSchema(WireModel):
     """Server-side validation for handoff credentials.
 
     Re-validated at the server boundary for safety.
@@ -40,7 +45,7 @@ class HandoffCredentialsSchema(BaseModel):
     session_id: str | None = None
 
 
-class ReconnectPolicySchema(BaseModel):
+class ReconnectPolicySchema(WireModel):
     """Reconnection policy validated at server boundary."""
 
     allowed: bool
@@ -48,7 +53,7 @@ class ReconnectPolicySchema(BaseModel):
     backoff_ms: int | None = Field(default=None, ge=0)
 
 
-class HandoffMetadataSchema(BaseModel):
+class HandoffMetadataSchema(WireModel):
     """Server-side validation for handoff metadata.
 
     Stricter than core: ``expires_at`` is validated as ISO 8601 datetime.
@@ -81,7 +86,7 @@ class HandoffMetadataSchema(BaseModel):
         return v
 
 
-class HandoffResultSchema(BaseModel):
+class HandoffResultSchema(WireModel):
     """Server-side validation for handoff results.
 
     Stricter than core: ``endpoint`` is validated as a URL.

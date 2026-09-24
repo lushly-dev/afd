@@ -360,6 +360,7 @@ class McpClient:
 
         import httpx
 
+        from afd.core.sse import SseDecoder
         from afd.transports._mcp_protocol import derive_stream_url
 
         stream_url = derive_stream_url(self._config.resolved_url, name)
@@ -380,15 +381,18 @@ class McpClient:
                     body = await response.aread()
                     yield _stream_http_error(response.status_code, response.reason_phrase, body)
                     return
+                decoder = SseDecoder()
                 async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        payload = line[len("data: "):].strip()
-                        if payload == "[DONE]":
-                            return
-                        try:
-                            yield json.loads(payload)
-                        except json.JSONDecodeError:
-                            yield {"raw": payload}
+                    event = decoder.decode(line)
+                    if event is None:
+                        continue
+                    payload = event.data.strip()
+                    if payload == "[DONE]":
+                        return
+                    try:
+                        yield json.loads(payload)
+                    except json.JSONDecodeError:
+                        yield {"raw": payload}
 
     # ── Events ────────────────────────────────────────────────────────────
 
