@@ -76,7 +76,9 @@ class PipelineStep(WireModel):
             Python keyword collision with 'as').
         when: Condition for running this step. If the condition evaluates to
             false, the step is skipped.
-        stream: Enable streaming for this step.
+        stream: Deprecated, not implemented. ``True`` is rejected with
+            UNSUPPORTED_OPTION on this step before any step runs; ``False``
+            is accepted.
 
     Example:
         >>> step = PipelineStep(
@@ -872,6 +874,38 @@ PipelineConditionNot.model_rebuild()
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _stream_unsupported_error(index: int) -> CommandError:
+    """The ``UNSUPPORTED_OPTION`` error for step ``index``, which sets ``stream: true``."""
+    return CommandError(
+        code="UNSUPPORTED_OPTION",
+        message=f"Streaming pipeline steps are not supported (step {index} sets stream: true)",
+        suggestion=(
+            "Remove stream or set it to false; to stream one command, "
+            "use the /stream endpoint or McpClient.stream()"
+        ),
+    )
+
+
+def _unsupported_option(request: PipelineRequest) -> Optional[Tuple[int, CommandError]]:
+    """An option the request sets that the executor does not implement.
+
+    Returns the index of the step to blame and the ``UNSUPPORTED_OPTION``
+    error: step 0 for ``options.parallel``, otherwise the first step with
+    ``stream: true``. None when the request uses neither. Mirrors the
+    TypeScript ``executePipeline()``.
+    """
+    if request.options and request.options.parallel:
+        return 0, CommandError(
+            code="UNSUPPORTED_OPTION",
+            message="Parallel pipeline execution is not supported",
+            suggestion="Remove parallel or set it to false to execute steps sequentially",
+        )
+    for index, step in enumerate(request.steps):
+        if step.stream is True:
+            return index, _stream_unsupported_error(index)
+    return None
+
+
 async def _call_step(
     executor: Callable[[str, Dict[str, Any]], Any],
     command: str,
@@ -900,6 +934,11 @@ async def execute_pipeline(
     This is a standalone function that executes a pipeline using the provided
     executor function. The executor should be an async function that takes
     a command name and input dict, and returns a CommandResult.
+
+    Options the request accepts but the executor does not implement,
+    ``options.parallel`` and a step's ``stream: true``, fail that step (step 0
+    for ``parallel``) with UNSUPPORTED_OPTION and skip every other step, so no
+    command runs.
 
     Args:
         request: The pipeline request with steps and options.
@@ -937,20 +976,18 @@ async def execute_pipeline(
     continue_on_failure = options.continue_on_failure if options else False
     total_start_time = time.perf_counter()
 
-    if options and options.parallel and request.steps:
-        unsupported = CommandError(
-            code="UNSUPPORTED_OPTION",
-            message="Parallel pipeline execution is not supported",
-            suggestion="Remove parallel or set it to false to execute steps sequentially",
-        )
+    unsupported = _unsupported_option(request) if request.steps else None
+    if unsupported is not None:
+        # Blame one step and skip the rest, so no command runs.
+        failed_index, unsupported_error = unsupported
         for i, step in enumerate(request.steps):
             step_results.append(
                 StepResult(
                     index=i,
                     alias=step.as_,
                     command=step.command,
-                    status=StepStatus.FAILURE if i == 0 else StepStatus.SKIPPED,
-                    error=unsupported if i == 0 else None,
+                    status=StepStatus.FAILURE if i == failed_index else StepStatus.SKIPPED,
+                    error=unsupported_error if i == failed_index else None,
                     execution_time_ms=0,
                 )
             )

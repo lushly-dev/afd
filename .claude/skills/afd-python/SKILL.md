@@ -930,6 +930,7 @@ if result.success and is_handoff(result.data):
     conn = await client.create_reconnecting_handoff(result.data,
         ReconnectionOptions(
             reconnect_command='chat-reconnect',
+            session_id=result.data.get('credentials', {}).get('sessionId'),
             max_attempts=5,
             backoff_ms=1000,
         ),
@@ -939,7 +940,9 @@ if result.success and is_handoff(result.data):
 The built-in WebSocket and SSE handlers read messages in a background task and report
 a server close through `on_disconnect`. The credentials token is sent as an
 `Authorization: Bearer` header, never in the URL. `create_handoff()` returns camelCase
-keys (`sessionId`, `expiresAt`, `maxAttempts`, `backoffMs`).
+keys (`sessionId`, `expiresAt`, `maxAttempts`, `backoffMs`). A reconnect calls
+`reconnect_command` with `reconnect_args` plus `sessionId` from the `session_id`
+option, so declare the reconnect command's parameter as `sessionId`, as in TypeScript.
 
 ### Custom Protocol Handlers
 

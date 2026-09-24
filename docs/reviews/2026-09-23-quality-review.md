@@ -639,10 +639,6 @@ effective, and no test covers `BATCH_TIMEOUT` or `COMMAND_SKIPPED`.
 
 **Remaining follow-ups:**
 
-- `McpClient.stream()` does not send the `Mcp-Session-Id` header. The TS `initialize` response hardcodes its protocol version.
-- Python and Rust pipelines accept `stream: true` on a step and ignore it; TypeScript rejects it with `UNSUPPORTED_OPTION`. Python retry middleware backs off linearly, unlike TypeScript.
-- Python's `ReconnectingHandoffConnection` passes `session_id` to the reconnect command; TypeScript passes `sessionId`.
-- The dotted-name grouping in the CLI's `printTools` and the shell shorthand remain.
 - `mcp` must stay `<2` for the Python server (`mcp.server.fastmcp` was removed in 2.x).
 - A Windows reviewer should manually verify:
   - `gh issue create` with a title containing `&`;

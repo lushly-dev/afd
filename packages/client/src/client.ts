@@ -524,8 +524,11 @@ export class McpClient extends McpClientEventEmitter {
 	 * connected (`NOT_CONNECTED`).
 	 *
 	 * Over HTTP it posts to `<base>/stream/<command>`, where `<base>` is the client URL without
-	 * a trailing `/sse`, `/message` or `/messages`. With `transport: 'direct'` it runs the command
-	 * in process through core's `executeStream()`.
+	 * a trailing `/sse`, `/message` or `/messages`, in the client's MCP session: the request
+	 * carries the `Mcp-Session-Id` from `initialize`, so the stream sees the session's active
+	 * context (`afd-context-enter`). If the server has expired that session (404), the client
+	 * starts a new one and retries once, as it does for other requests. With
+	 * `transport: 'direct'` it runs the command in process through core's `executeStream()`.
 	 *
 	 * @param name - Command name to execute
 	 * @param args - Command arguments
@@ -593,6 +596,7 @@ export class McpClient extends McpClientEventEmitter {
 				url: deriveStreamUrl(this.config.url, name),
 				args,
 				headers: this.config.headers,
+				session: this.transport ?? undefined,
 				signal,
 				abort,
 				timeoutMs,

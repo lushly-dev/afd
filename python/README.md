@@ -245,6 +245,10 @@ the whole request before anything runs, and so does a malformed `when` condition
   They report `COMMAND_CANCELLED` or `BATCH_TIMEOUT`.
 - A handler that returns something other than a `CommandResult` gives its item or step
   an `INVALID_COMMAND_RESULT` failure instead of breaking the aggregate result.
+- Pipelines run sequentially. `options.parallel` and a step with `stream: true` are not
+  implemented: the offending step (step 0 for `parallel`) fails with
+  `UNSUPPORTED_OPTION` and every other step is skipped, before any command runs.
+  `DirectClient.pipe()` rejects a streaming step the same way.
 
 ### Telemetry
 
@@ -298,6 +302,11 @@ middleware = compose_middleware([
     create_timing_middleware(threshold_ms=500),
     create_retry_middleware(max_retries=3),
 ])
+
+# Retries back off exponentially like TypeScript's createRetryMiddleware: retry n waits
+# min(max_delay, retry_delay * 2 ** (n - 1)) ms (defaults 100 and 5000), randomized to
+# between half and all of that unless jitter=False.
+retry = create_retry_middleware(max_retries=5, retry_delay=200, max_delay=2000, jitter=False)
 
 # Fixed-window rate limit: 100 calls per minute per client. Expired windows are
 # evicted; at most max_keys (default 10,000) clients are tracked at once.
@@ -406,7 +415,9 @@ if result.success and is_handoff(result.data):
   (parsed as JSON when it is JSON) and a close by the server reaches `on_disconnect`.
 - A `credentials.token` is sent as an `Authorization: Bearer` header, never in the URL.
 - A reconnecting connection retries with exponential backoff until it connects, runs
-  out of attempts (`on_reconnect_failed`, state `failed`) or is closed.
+  out of attempts (`on_reconnect_failed`, state `failed`) or is closed. Before each
+  attempt it calls `reconnect_command` with `reconnect_args` plus `sessionId` (the
+  wire name, as in TypeScript) set from the `session_id` option.
 - `create_handoff()` returns the wire format (`sessionId`, `expectedLatency`,
   `expiresAt`, `maxAttempts`, `backoffMs`); the handoff helpers accept camelCase or
   snake_case.

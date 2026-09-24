@@ -894,6 +894,88 @@ async fn test_parallel_pipeline_is_rejected_before_execution() {
 }
 
 #[tokio::test]
+async fn test_streaming_step_is_rejected_before_execution() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let executor = counting_executor(Arc::clone(&calls));
+    // Deserialized from the wire, as `afd-pipe` receives it.
+    let request: PipelineRequest = serde_json::from_value(json!({
+        "steps": [
+            { "command": "one", "as": "first" },
+            { "command": "two", "stream": true },
+            { "command": "three", "stream": true }
+        ]
+    }))
+    .unwrap();
+
+    let result = execute_pipeline(&request, &executor, None).await;
+
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    let statuses: Vec<_> = result.steps.iter().map(|step| step.status).collect();
+    assert_eq!(
+        statuses,
+        vec![
+            StepStatus::Skipped,
+            StepStatus::Failure,
+            StepStatus::Skipped
+        ]
+    );
+    assert_eq!(result.steps[0].index, 0);
+    assert_eq!(result.steps[0].alias.as_deref(), Some("first"));
+    assert_eq!(result.steps[0].command, "one");
+    assert!(result.steps[0].error.is_none());
+    let error = result.steps[1].error.as_ref().unwrap();
+    assert_eq!(error.code, "UNSUPPORTED_OPTION");
+    assert_eq!(
+        error.message,
+        "Streaming pipeline steps are not supported (step 1 sets stream: true)"
+    );
+    assert!(error
+        .suggestion
+        .as_deref()
+        .unwrap()
+        .starts_with("Remove stream or set it to false"));
+    assert!(result.steps[2].error.is_none());
+    assert!(result.data.is_none());
+    assert_eq!(result.metadata.completed_steps, 0);
+    assert_eq!(result.metadata.total_steps, 3);
+}
+
+#[tokio::test]
+async fn test_stream_false_is_accepted() {
+    let result = execute_pipeline(
+        &PipelineRequest::new(vec![PipelineStep::new("one")
+            .with_input(json!([1, 2]))
+            .with_stream(false)]),
+        &echo_executor(),
+        None,
+    )
+    .await;
+
+    assert_eq!(result.steps[0].status, StepStatus::Success);
+    assert_eq!(result.data, Some(json!([1, 2])));
+}
+
+#[tokio::test]
+async fn test_parallel_is_blamed_on_step_zero_even_when_a_step_streams() {
+    let result = execute_pipeline(
+        &PipelineRequest::new(vec![
+            PipelineStep::new("one"),
+            PipelineStep::new("two").with_stream(true),
+        ])
+        .with_options(PipelineOptions::new().with_parallel(true)),
+        &echo_executor(),
+        None,
+    )
+    .await;
+
+    assert_eq!(
+        result.steps[0].error.as_ref().unwrap().message,
+        "Parallel pipeline execution is not supported"
+    );
+    assert_eq!(result.steps[1].status, StepStatus::Skipped);
+}
+
+#[tokio::test]
 async fn test_invalid_timeout_is_rejected_before_execution() {
     let calls = Arc::new(AtomicUsize::new(0));
     let executor = counting_executor(Arc::clone(&calls));

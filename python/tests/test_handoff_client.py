@@ -422,9 +422,10 @@ class TestReconnectingHandoff:
         conn = ReconnectingHandoffConnection(mock_client, handoff, opts)
         await conn._attempt_reconnect()
 
+        # The wire name, as TypeScript sends it; never the Python attribute name.
         mock_client.call.assert_called_once_with(
             "chat-reconnect",
-            {"room": "abc", "session_id": "session-123"},
+            {"room": "abc", "sessionId": "session-123"},
         )
 
     @pytest.mark.asyncio
@@ -696,6 +697,42 @@ class TestDirectClientHandoffMethods:
         result = await client.create_reconnecting_handoff(handoff)
         assert isinstance(result, ReconnectingHandoffConnection)
         assert result.protocol == "mock"
+
+    @pytest.mark.asyncio
+    @patch("afd.handoff_client.asyncio.sleep", new_callable=AsyncMock)
+    async def test_reconnect_command_receives_session_id_in_wire_format(self, mock_sleep):
+        """A reconnect command declared with ``sessionId`` resumes the session."""
+        from afd import success
+        from afd.direct import DirectClient, SimpleRegistry
+
+        received = []
+        registry = SimpleRegistry()
+
+        @registry.command(name="chat-reconnect")
+        async def chat_reconnect(room: str, sessionId: str):  # noqa: N803 - the wire name
+            received.append((room, sessionId))
+            return success({"protocol": "mock", "endpoint": f"mock://{room}/{sessionId}"})
+
+        endpoints = []
+
+        async def handler(handoff, options):
+            endpoints.append(handoff["endpoint"])
+            return MockConnection(endpoint=handoff["endpoint"])
+
+        register_handoff_handler("mock", handler)
+        conn = await DirectClient(registry).create_reconnecting_handoff(
+            {"protocol": "mock", "endpoint": "mock://original"},
+            ReconnectionOptions(
+                reconnect_command="chat-reconnect",
+                reconnect_args={"room": "abc"},
+                session_id="session-123",
+            ),
+        )
+        await conn._attempt_reconnect()
+        await conn.close()
+
+        assert received == [("abc", "session-123")]
+        assert endpoints == ["mock://original", "mock://abc/session-123"]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

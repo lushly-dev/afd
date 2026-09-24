@@ -42,6 +42,7 @@ from afd.core.pipeline import (
     PipelineContext as _PipelineContext,
     StepResult as _StepResult,
     StepStatus as _StepStatus,
+    _stream_unsupported_error,
     condition_error,
     evaluate_condition,
     resolve_variable,
@@ -125,12 +126,15 @@ class PipelineStep:
         when: Optional condition for execution: a pipeline condition such as
             ``{'$exists': '$prev.id'}``, or a reference string that must
             resolve to a truthy value (e.g. ``'$steps.user.active'``)
+        stream: Not implemented. ``True`` fails this step with
+            UNSUPPORTED_OPTION before any step runs, as in ``afd-pipe``
     """
 
     command: str
     input: Optional[Dict[str, Any]] = None
     alias: Optional[str] = None
     when: Optional[Union[str, Dict[str, Any]]] = None
+    stream: Optional[bool] = None
 
 
 @dataclass
@@ -655,6 +659,10 @@ class DirectClient:
         literal ``$``, and an unresolved reference is omitted from objects
         (``None`` in lists). The pipeline stops at the first failed step.
 
+        Streaming steps are not implemented: the first step with
+        ``stream: True`` fails with UNSUPPORTED_OPTION and every other step
+        is skipped, before any command runs.
+
         Args:
             steps: List of pipeline steps (dicts or PipelineStep objects)
             context: Optional context for tracing
@@ -683,6 +691,7 @@ class DirectClient:
                     input=step.get('input'),
                     alias=step.get('as') or step.get('alias'),
                     when=step.get('when'),
+                    stream=step.get('stream'),
                 ))
             else:
                 normalized_steps.append(step)
@@ -697,6 +706,13 @@ class DirectClient:
                 final=failure(invalid),
                 total_duration_ms=(time.perf_counter() - start_time) * 1000,
             )
+        streaming = next(
+            (index for index, step in enumerate(normalized_steps) if step.stream is True),
+            None,
+        )
+        if streaming is not None:
+            self._debug(f"[{trace_id}] Pipeline rejected: step {streaming} sets stream")
+            return _reject_streaming_step(normalized_steps, streaming, start_time)
 
         step_results: List[PipelineStepResult] = []
         outputs: Dict[str, Any] = {}
@@ -798,6 +814,35 @@ class DirectClient:
         if isinstance(condition, str):
             return bool(resolve_variable(condition, variables))
         return evaluate_condition(condition, variables)
+
+
+def _reject_streaming_step(
+    steps: List[PipelineStep],
+    failed_index: int,
+    start_time: float,
+) -> PipelineResult:
+    """Fail the streaming step with UNSUPPORTED_OPTION and skip the others, as
+    ``afd-pipe`` does. No command runs."""
+    error = _stream_unsupported_error(failed_index)
+    skipped = success(
+        {'skipped': True, 'reason': f'Pipeline rejected: step {failed_index} sets stream: true'}
+    )
+    return PipelineResult(
+        success=False,
+        steps=[
+            PipelineStepResult(
+                command=step.command,
+                alias=step.alias,
+                result=failure(error) if index == failed_index else skipped,
+                duration_ms=0,
+                skipped=index != failed_index,
+            )
+            for index, step in enumerate(steps)
+        ],
+        outputs={},
+        final=failure(error),
+        total_duration_ms=(time.perf_counter() - start_time) * 1000,
+    )
 
 
 def _validate_steps(

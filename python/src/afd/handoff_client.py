@@ -287,7 +287,9 @@ class ReconnectionOptions:
     Attributes:
         reconnect_command: Command to call for reconnection.
         reconnect_args: Arguments to pass to the reconnect command.
-        session_id: Session ID for reconnection.
+        session_id: Session ID for reconnection, sent to the reconnect command
+            as the ``sessionId`` argument (the camelCase wire name, as in
+            TypeScript).
         max_attempts: Maximum reconnection attempts.
         backoff_ms: Base backoff time in milliseconds.
         max_backoff_ms: Maximum backoff time in milliseconds.
@@ -534,12 +536,16 @@ class ReconnectingHandoffConnection:
             self._is_reconnecting = False
 
     async def _refresh_handoff(self) -> None:
-        """Ask the reconnect command for a fresh handoff (keep the old one on failure)."""
+        """Ask the reconnect command for a fresh handoff (keep the old one on failure).
+
+        The command gets ``reconnect_args`` plus ``sessionId`` (the wire name,
+        as in TypeScript) when ``session_id`` is set.
+        """
         from afd.core.handoff import is_handoff
 
         args = dict(self._options.reconnect_args or {})
         if self._options.session_id:
-            args["session_id"] = self._options.session_id
+            args["sessionId"] = self._options.session_id
         try:
             result = await self._client.call(self._options.reconnect_command, args)
         except Exception as exc:
