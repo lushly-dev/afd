@@ -45,9 +45,9 @@ describe('@lushly-dev/afd-core/connectors', () => {
 		);
 	});
 
-	it('keeps the deprecated root re-exports pointing at the same classes', () => {
-		expect(root.GitHubConnector).toBe(connectors.GitHubConnector);
-		expect(root.PackageManagerConnector).toBe(connectors.PackageManagerConnector);
+	it('is the only entry that exports them (the root re-exports were removed in 2.0)', () => {
+		expect(root).not.toHaveProperty('GitHubConnector');
+		expect(root).not.toHaveProperty('PackageManagerConnector');
 	});
 });
 

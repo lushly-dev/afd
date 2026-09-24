@@ -81,28 +81,16 @@ describe('Transport configuration', () => {
 		});
 	});
 
-	describe('backward compatibility with stdio option', () => {
-		it('uses stdio transport when deprecated stdio: true', () => {
-			server = createMcpServer({
-				name: 'test-server',
-				version: '1.0.0',
-				commands: [testCommand],
-				stdio: true,
-			});
-
-			expect(server.getTransport()).toBe('stdio');
-		});
-
-		it('uses http transport when deprecated stdio: false', () => {
-			server = createMcpServer({
-				name: 'test-server',
-				version: '1.0.0',
-				commands: [testCommand],
-				stdio: false,
-				port: 3302,
-			});
-
-			expect(server.getTransport()).toBe('http');
+	describe('removed stdio option', () => {
+		it('throws and points to the transport option', () => {
+			expect(() =>
+				createMcpServer({
+					name: 'test-server',
+					version: '1.0.0',
+					commands: [testCommand],
+					...({ stdio: false } as object),
+				})
+			).toThrow('Use transport: "stdio", "http" or "auto" instead');
 		});
 	});
 

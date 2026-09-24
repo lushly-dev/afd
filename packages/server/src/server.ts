@@ -232,7 +232,6 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 		devMode = false,
 		cors = devMode,
 		transport = 'auto',
-		stdio,
 		middleware = [],
 		onCommand,
 		onError,
@@ -243,10 +242,15 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 
 	// ── Transport resolution ────────────────────────────────────────────────
 
+	// Removed in 2.0. Fail loudly: silently ignoring it would switch `stdio: false` servers to
+	// auto-detection, which picks stdio whenever stdin is piped.
+	if ('stdio' in options) {
+		throw new Error(
+			'createMcpServer: the stdio option was removed in 2.0. Use transport: "stdio", "http" or "auto" instead.'
+		);
+	}
+
 	function resolveTransport(): 'stdio' | 'http' {
-		if (stdio !== undefined) {
-			return stdio ? 'stdio' : 'http';
-		}
 		if (transport === 'auto') {
 			return isStdinPiped() ? 'stdio' : 'http';
 		}
@@ -256,7 +260,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 	const resolvedTransport = resolveTransport();
 	const useStdio = resolvedTransport === 'stdio';
 	const useHttp = resolvedTransport === 'http';
-	const autoDetected = stdio === undefined && transport === 'auto';
+	const autoDetected = transport === 'auto';
 
 	// ── Shared execution/runtime wiring ─────────────────────────────────────
 

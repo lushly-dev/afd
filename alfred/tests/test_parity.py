@@ -440,7 +440,8 @@ async def test_parity_missing_files():
 NAME_GAP_BUDGET = {
     # 97 → 98 and 9 → 10: TypeScript's StreamExecutorOptions (the executeStream
     # timeout). Neither language has an executor options type, like ExecutorOptions.
-    "missing_from_python": 98,
+    # 98 → 97: 2.0 removed TypeScript's deprecated resolveReference alias.
+    "missing_from_python": 97,
     "missing_from_rust": 10,
 }
 

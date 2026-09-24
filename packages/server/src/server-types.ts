@@ -147,12 +147,6 @@ export interface McpServerOptions {
 	 */
 	transport?: McpTransport;
 
-	/**
-	 * @deprecated Use `transport: "stdio"` or `transport: "auto"` instead.
-	 * Enable stdio transport (default: true when transport is not specified)
-	 */
-	stdio?: boolean;
-
 	/** Middleware to run before command execution */
 	middleware?: CommandMiddleware[];
 

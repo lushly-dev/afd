@@ -111,8 +111,9 @@ describe('package entry points', () => {
 		});
 	});
 
-	it('keeps the deprecated root re-export of the command factory', () => {
-		expect(root.createViewStateCommands).toBe(commandsEntry.createViewStateCommands);
+	it('exports the command factory only from ./commands', () => {
+		expect(root).not.toHaveProperty('createViewStateCommands');
+		expect(commandsEntry.createViewStateCommands).toBeTypeOf('function');
 	});
 
 	it('bundles the root entry for the browser without the MCP transport', async () => {
