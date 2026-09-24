@@ -17,6 +17,21 @@ describe('escapeHtml', () => {
 	it('handles non-string input', () => {
 		expect(escapeHtml(123)).toBe('123');
 		expect(escapeHtml(null)).toBe('null');
+		expect(escapeHtml(undefined)).toBe('undefined');
+	});
+
+	it('escapes the string form of non-string values', () => {
+		const markup = { toString: () => '<img src=x onerror="alert(1)">' };
+		expect(escapeHtml(markup)).toBe('&lt;img src=x onerror=&quot;alert(1)&quot;&gt;');
+		expect(escapeHtml(new Error('<b>boom</b>'))).toBe('Error: &lt;b&gt;boom&lt;/b&gt;');
+		expect(escapeHtml(['<a>', '&'])).toBe('&lt;a&gt;,&amp;');
+	});
+
+	it("escapes single quotes so values are safe in '...' attributes", () => {
+		expect(escapeHtml("it's")).toBe('it&#39;s');
+		expect(`<div title='${escapeHtml("x' onmouseover='alert(1)")}'>`).toBe(
+			"<div title='x&#39; onmouseover=&#39;alert(1)'>"
+		);
 	});
 });
 
@@ -30,6 +45,11 @@ describe('styledSpan', () => {
 	it('adds bold style when requested', () => {
 		const result = styledSpan('bold text', StatusType.NEUTRAL, true);
 		expect(result).toContain('font-weight: bold');
+	});
+
+	it('falls back to inherit for an unknown status', () => {
+		const result = styledSpan('text', 'unknown' as typeof StatusType.NEUTRAL);
+		expect(result).toContain('color: inherit');
 	});
 });
 
@@ -205,6 +225,40 @@ describe('WebAdapter', () => {
 			// Should contain both filled and empty bar chars
 			expect(result).toContain('\u2588');
 			expect(result).toContain('\u2591');
+		});
+
+		it.each([
+			[1.5, '100%', '\u2588'.repeat(20)],
+			[-0.5, '0%', '\u2591'.repeat(20)],
+			[Number.NaN, '0%', '\u2591'.repeat(20)],
+			[Number.POSITIVE_INFINITY, '0%', '\u2591'.repeat(20)],
+		])('clamps the out-of-range confidence %d instead of throwing', (value, pct, bar) => {
+			const result = WebAdapter.renderConfidence(value);
+
+			expect(result).toContain(pct);
+			expect(result).toContain(bar);
+		});
+
+		it('renders a result with an out-of-range confidence', () => {
+			expect(() =>
+				WebAdapter.renderCommandResult({ success: true, data: 1, confidence: 2 })
+			).not.toThrow();
+		});
+	});
+
+	describe('renderResult JSON fallback', () => {
+		it('escapes quotes in JSON data', () => {
+			expect(WebAdapter.renderResult({ success: true, data: { note: "<it's>" } })).toContain(
+				'&quot;note&quot;: &quot;&lt;it&#39;s&gt;&quot;'
+			);
+		});
+	});
+
+	describe('renderWarning', () => {
+		it('escapes the message', () => {
+			expect(WebAdapter.renderWarning("<i>it's</i>")).toContain(
+				'Warning: &lt;i&gt;it&#39;s&lt;/i&gt;'
+			);
 		});
 	});
 
