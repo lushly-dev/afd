@@ -245,11 +245,17 @@ export function isSuccess<T>(
 /**
  * Type guard to check if a result is a failure.
  *
- * Requires `success === false` and an `error`, so `error` is narrowed to
- * `CommandError`.
+ * Depends only on `success === false`, as {@link isSuccess} depends only on
+ * `success === true`, so every result is exactly one of the two. `{ success:
+ * false }` without an `error` is a failure too.
+ *
+ * As `isSuccess` narrows `data` to `T` without checking that it is present,
+ * `isFailure` narrows `error` to `CommandError` without checking it. Results
+ * built with `failure()` always carry one; for results from an untrusted
+ * peer, read it defensively (`result.error?.code`).
  */
 export function isFailure<T>(
 	result: CommandResult<T>
-): result is CommandResult<T> & { error: CommandError } {
-	return result.success === false && result.error !== undefined;
+): result is CommandResult<T> & { success: false; error: CommandError } {
+	return result.success === false;
 }

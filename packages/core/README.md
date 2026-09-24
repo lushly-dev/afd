@@ -88,6 +88,9 @@ if (isFailure(result)) {
 ```
 
 `isSuccess` checks only `success === true`, so a void command's `success(undefined)` is a success.
+`isFailure` checks only `success === false`, so every result is exactly one of the two, and
+`{ success: false }` without an `error` is a failure. Results built with `failure()` always carry an
+`error`; read one from an untrusted peer defensively (`result.error?.code`).
 
 ### Defining Commands
 
