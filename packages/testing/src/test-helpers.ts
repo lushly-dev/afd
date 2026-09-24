@@ -149,11 +149,15 @@ export async function testCommandDefinition<TInput, TOutput>(
 /**
  * Test multiple inputs against a command.
  *
+ * A case passes when the result is valid and matches its expectations:
+ * `expectSuccess` compares the success flag, and `expectError` requires the
+ * command to fail with exactly that error code (a success does not pass).
+ *
  * @example
  * ```typescript
  * const results = await testCommandMultiple(createDocument.handler, [
  *   { input: { title: 'Doc 1' }, expectSuccess: true },
- *   { input: { title: '' }, expectSuccess: false },
+ *   { input: { title: '' }, expectError: 'VALIDATION_ERROR' },
  *   { input: {}, expectSuccess: false },
  * ]);
  * ```
@@ -196,8 +200,10 @@ export async function testCommandMultiple<TInput, TOutput>(
 			passed = passed && testResult.isSuccess === testCase.expectSuccess;
 		}
 
-		if (testCase.expectError && testResult.isFailure) {
-			passed = passed && testResult.result.error?.code === testCase.expectError;
+		// An expected error must actually occur, with the expected code
+		if (testCase.expectError !== undefined) {
+			passed =
+				passed && testResult.isFailure && testResult.result.error?.code === testCase.expectError;
 		}
 
 		results.push({
