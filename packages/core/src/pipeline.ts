@@ -19,8 +19,7 @@ export interface PipelineRequest {
 	id?: string;
 
 	/**
-	 * Ordered list of pipeline steps to execute.
-	 * Steps are executed sequentially unless parallel is enabled.
+	 * Ordered list of pipeline steps to execute, one after another.
 	 */
 	steps: PipelineStep[];
 
@@ -83,10 +82,13 @@ export interface PipelineStep {
 	when?: PipelineCondition;
 
 	/**
-	 * Enable streaming for this step.
+	 * Reserved for streaming a step's output. Not implemented: `executePipeline()` rejects a
+	 * request with `stream: true` with an `UNSUPPORTED_OPTION` failure on that step before
+	 * any command runs, the way it rejects `options.parallel`. `false` is accepted and has no
+	 * effect.
 	 *
-	 * When true, the step will emit StreamChunk events through the
-	 * pipeline's onProgress callback.
+	 * @deprecated Not implemented, and no chunk is ever emitted. To stream one command, use
+	 * the server's `/stream` endpoint or `executeStream()`.
 	 */
 	stream?: boolean;
 }
@@ -117,8 +119,10 @@ export interface PipelineOptions {
 	parallel?: boolean;
 
 	/**
-	 * Callback for streaming progress from steps.
+	 * Reserved for progress chunks from streaming steps. Not implemented: it is accepted but
+	 * never called, because steps do not stream (see {@link PipelineStep.stream}).
 	 *
+	 * @deprecated Not implemented; it is never called.
 	 * @param chunk - The stream chunk emitted
 	 * @param stepIndex - Index of the step emitting the chunk
 	 */

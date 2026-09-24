@@ -1,14 +1,12 @@
-// afd-override: max-lines=650 — all surface validation rules in one module for co-location
 /**
- * @fileoverview Surface validation rules.
+ * @fileoverview Surface validation rules for single commands and categories.
  *
- * Twelve rule functions, each returning `SurfaceFinding[]`.
+ * Each rule returns `SurfaceFinding[]`. The pairwise rules live in
+ * `pair-rules.ts` and the `requires` graph rules in `prerequisite-rules.ts`.
  */
 
-import { checkInjection } from './injection.js';
+import { checkInjection, INJECTION_PATTERNS } from './injection.js';
 import { computeComplexity } from './schema-complexity.js';
-import { compareSchemas } from './schema-overlap.js';
-import { buildSimilarityMatrix } from './similarity.js';
 import type { InjectionPattern, SurfaceCommand, SurfaceFinding } from './types.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -106,81 +104,6 @@ export const DESCRIPTION_VERBS = new Set([
 
 /** Default naming pattern: kebab-case with domain-action separation */
 const DEFAULT_NAMING_PATTERN = /^[a-z][a-z0-9]*-[a-z][a-z0-9-]*$/;
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// RULE 1: SIMILAR DESCRIPTIONS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Detect command pairs with highly similar descriptions.
- */
-export function checkSimilarDescriptions(
-	commands: SurfaceCommand[],
-	threshold: number
-): SurfaceFinding[] {
-	const findings: SurfaceFinding[] = [];
-	const matrix = buildSimilarityMatrix(commands);
-
-	for (const pair of matrix.pairs) {
-		if (pair.score < threshold) break; // sorted descending, done
-		const pct = Math.round(pair.score * 100);
-		findings.push({
-			rule: 'similar-descriptions',
-			severity: 'warning',
-			message: `Commands "${pair.commandA}" and "${pair.commandB}" have ${pct}% description similarity`,
-			commands: [pair.commandA, pair.commandB],
-			suggestion: 'Merge into a single command or make descriptions more distinct.',
-			evidence: { similarity: pair.score },
-		});
-	}
-
-	return findings;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// RULE 2: SCHEMA OVERLAP
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Detect command pairs with highly overlapping input schemas.
- */
-export function checkSchemaOverlap(
-	commands: SurfaceCommand[],
-	threshold: number
-): SurfaceFinding[] {
-	const findings: SurfaceFinding[] = [];
-	const withSchema = commands.filter((c) => c.jsonSchema?.properties);
-
-	for (let i = 0; i < withSchema.length; i++) {
-		for (let j = i + 1; j < withSchema.length; j++) {
-			const cmdA = withSchema[i];
-			const cmdB = withSchema[j];
-			if (!cmdA?.jsonSchema || !cmdB?.jsonSchema) continue;
-			const result = compareSchemas(cmdA.jsonSchema, cmdB.jsonSchema);
-
-			if (result.overlapRatio >= threshold) {
-				const pct = Math.round(result.overlapRatio * 100);
-				findings.push({
-					rule: 'schema-overlap',
-					severity: 'warning',
-					message: `Commands "${cmdA.name}" and "${cmdB.name}" share ${pct}% input fields (${result.sharedFields.join(', ')})`,
-					commands: [cmdA.name, cmdB.name],
-					suggestion:
-						'Consider merging these commands or ensure descriptions clearly differentiate when to use each.',
-					evidence: {
-						sharedFields: result.sharedFields,
-						uniqueToA: result.uniqueToA,
-						uniqueToB: result.uniqueToB,
-						overlapRatio: result.overlapRatio,
-						typesCompatible: result.typesCompatible,
-					},
-				});
-			}
-		}
-	}
-
-	return findings;
-}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // RULE 3: NAMING CONVENTION
@@ -290,14 +213,16 @@ export function checkMissingCategory(commands: SurfaceCommand[]): SurfaceFinding
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Scan descriptions for prompt injection patterns.
+ * Scan descriptions for prompt injection patterns: the built-in
+ * `INJECTION_PATTERNS` plus any `additionalPatterns` (which extend, never
+ * replace, the built-in ones).
  */
 export function checkDescriptionInjection(
 	commands: SurfaceCommand[],
-	additionalPatterns?: InjectionPattern[]
+	additionalPatterns: InjectionPattern[] = []
 ): SurfaceFinding[] {
 	const findings: SurfaceFinding[] = [];
-	const patterns = additionalPatterns ? [...additionalPatterns] : undefined;
+	const patterns = [...INJECTION_PATTERNS, ...additionalPatterns];
 
 	for (const cmd of commands) {
 		const matches = checkInjection(cmd.description, patterns);
@@ -471,40 +396,6 @@ export function checkSchemaComplexity(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// RULE 10: UNRESOLVED PREREQUISITES
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Flag `requires` entries that reference commands not in the surface.
- */
-export function checkUnresolvedPrerequisites(commands: SurfaceCommand[]): SurfaceFinding[] {
-	const findings: SurfaceFinding[] = [];
-	const known = new Set(commands.map((c) => c.name));
-
-	for (const cmd of commands) {
-		if (!cmd.requires) continue;
-		for (const req of cmd.requires) {
-			if (!known.has(req)) {
-				findings.push({
-					rule: 'unresolved-prerequisite',
-					severity: 'error',
-					message: `Command "${cmd.name}" requires "${req}" which is not registered`,
-					commands: [cmd.name],
-					suggestion: `Register "${req}" or remove it from the requires list.`,
-					evidence: { missingCommand: req },
-				});
-			}
-		}
-	}
-
-	return findings;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// RULE 11: CIRCULAR PREREQUISITES
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// ═══════════════════════════════════════════════════════════════════════════════
 // RULE 12: MISSING CONTEXT
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -531,74 +422,6 @@ export function checkMissingContext(
 					'Add a contexts array to scope this command, or leave it without contexts to make it universally available.',
 				evidence: { configuredContexts },
 			});
-		}
-	}
-
-	return findings;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// RULE 13: CIRCULAR PREREQUISITES
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Detect cycles in the `requires` dependency graph using DFS.
- */
-export function checkCircularPrerequisites(commands: SurfaceCommand[]): SurfaceFinding[] {
-	const findings: SurfaceFinding[] = [];
-
-	// Build adjacency list
-	const graph = new Map<string, string[]>();
-	for (const cmd of commands) {
-		if (cmd.requires && cmd.requires.length > 0) {
-			graph.set(cmd.name, cmd.requires);
-		}
-	}
-
-	const visited = new Set<string>();
-	const inStack = new Set<string>();
-	const reportedCycles = new Set<string>();
-
-	function dfs(node: string, path: string[]): void {
-		if (inStack.has(node)) {
-			// Found a cycle — extract the cycle portion of the path
-			const cycleStart = path.indexOf(node);
-			const cycle = path.slice(cycleStart);
-			cycle.push(node); // close the loop
-
-			// Deduplicate: normalize by sorting the cycle members
-			const key = [...cycle].slice(0, -1).sort().join(',');
-			if (!reportedCycles.has(key)) {
-				reportedCycles.add(key);
-				findings.push({
-					rule: 'circular-prerequisite',
-					severity: 'error',
-					message: `Circular prerequisite chain: ${cycle.join(' → ')}`,
-					commands: cycle.slice(0, -1),
-					suggestion: 'Break the cycle by removing one of the requires entries.',
-					evidence: { cycle },
-				});
-			}
-			return;
-		}
-
-		if (visited.has(node)) return;
-
-		visited.add(node);
-		inStack.add(node);
-
-		const neighbors = graph.get(node) ?? [];
-		for (const neighbor of neighbors) {
-			dfs(neighbor, [...path, node]);
-		}
-
-		inStack.delete(node);
-	}
-
-	// Run DFS from every node that has requires
-	for (const cmd of commands) {
-		if (!visited.has(cmd.name)) {
-			dfs(cmd.name, []);
 		}
 	}
 

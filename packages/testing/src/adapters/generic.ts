@@ -133,43 +133,22 @@ async function genericFixtureApplicator(
 		return { appliedCommands, warnings };
 	}
 
-	// Handle 'data' array - generic data seeding
-	if (fixture.data && Array.isArray(fixture.data)) {
-		for (const item of fixture.data) {
-			if (isDataItem(item)) {
-				try {
-					const result = await handler(item.command, item.input ?? {});
-					appliedCommands.push({
-						command: item.command,
-						input: item.input,
-						result,
-					});
-				} catch (error) {
-					warnings.push(
-						`Failed to apply ${item.command}: ${error instanceof Error ? error.message : String(error)}`
-					);
-				}
-			}
+	// 'data' (generic data seeding) runs first, then 'setup' (explicit setup
+	// steps). The first failed command stops the fixture: later commands would
+	// run against incomplete state.
+	const items = [
+		...(Array.isArray(fixture.data) ? fixture.data : []),
+		...(Array.isArray(fixture.setup) ? fixture.setup : []),
+	];
+	for (const item of items) {
+		if (!isDataItem(item)) {
+			warnings.push("Skipped a fixture entry without a string 'command'");
+			continue;
 		}
-	}
-
-	// Handle 'setup' commands - explicit setup steps
-	if (fixture.setup && Array.isArray(fixture.setup)) {
-		for (const step of fixture.setup) {
-			if (isDataItem(step)) {
-				try {
-					const result = await handler(step.command, step.input ?? {});
-					appliedCommands.push({
-						command: step.command,
-						input: step.input,
-						result,
-					});
-				} catch (error) {
-					warnings.push(
-						`Failed setup step ${step.command}: ${error instanceof Error ? error.message : String(error)}`
-					);
-				}
-			}
+		const result = await handler(item.command, item.input ?? {});
+		appliedCommands.push({ command: item.command, input: item.input, result });
+		if (!result.success) {
+			break;
 		}
 	}
 

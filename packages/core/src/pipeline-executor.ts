@@ -78,6 +78,59 @@ function rejectedPipeline(error?: CommandError): PipelineResult {
 	};
 }
 
+/**
+ * An option the envelope accepts but the executor does not implement, with the
+ * step to blame: `options.parallel` (step 0) or the first step with
+ * `stream: true`. Undefined when the request uses neither.
+ */
+function unsupportedOption(
+	request: PipelineRequest
+): { stepIndex: number; error: CommandError } | undefined {
+	if (request.options?.parallel) {
+		return {
+			stepIndex: 0,
+			error: {
+				code: 'UNSUPPORTED_OPTION',
+				message: 'Parallel pipeline execution is not supported',
+				suggestion: 'Remove parallel or set it to false to execute steps sequentially',
+			},
+		};
+	}
+	const stepIndex = request.steps.findIndex((step) => step.stream === true);
+	if (stepIndex === -1) return undefined;
+	return {
+		stepIndex,
+		error: {
+			code: 'UNSUPPORTED_OPTION',
+			message: `Streaming pipeline steps are not supported (step ${stepIndex} sets stream: true)`,
+			suggestion:
+				'Remove stream or set it to false; to stream one command, use the /stream endpoint or executeStream()',
+		},
+	};
+}
+
+/** Aggregate step results into the pipeline result. */
+function pipelineResult(
+	request: PipelineRequest,
+	stepResults: StepResult[],
+	startTime: number
+): PipelineResult {
+	// The pipeline output is the last successful step's data
+	const lastSuccessfulStep = [...stepResults].reverse().find((s) => s.status === 'success');
+	const metadata: PipelineMetadata = {
+		confidence: aggregatePipelineConfidence(stepResults),
+		confidenceBreakdown: buildConfidenceBreakdown(stepResults, request.steps),
+		reasoning: aggregatePipelineReasoning(stepResults),
+		warnings: aggregatePipelineWarnings(stepResults),
+		sources: aggregatePipelineSources(stepResults),
+		alternatives: aggregatePipelineAlternatives(stepResults),
+		executionTimeMs: Math.round((performance.now() - startTime) * 100) / 100,
+		completedSteps: stepResults.filter((s) => s.status === 'success').length,
+		totalSteps: request.steps.length,
+	};
+	return { data: lastSuccessfulStep?.data, metadata, steps: stepResults };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // EXECUTOR
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -95,7 +148,10 @@ function rejectedPipeline(error?: CommandError): PipelineResult {
  *
  * The request is validated before any step runs: a malformed envelope fails with
  * `INVALID_PIPELINE_REQUEST`, and step inputs or a request `input` nested deeper than 64 levels
- * fail with `VALIDATION_ERROR`. Each step's data is copied (`structuredClone`) as it enters the
+ * fail with `VALIDATION_ERROR`. Options the envelope accepts but the executor does not
+ * implement, `options.parallel` and a step's `stream: true`, fail that step (step 0 for
+ * `parallel`) with `UNSUPPORTED_OPTION` and skip every other step, so no command runs.
+ * Each step's data is copied (`structuredClone`) as it enters the
  * pipeline context and again when a reference resolves it, so a handler that mutates its input
  * cannot change another step's data.
  *
@@ -132,6 +188,22 @@ export async function executePipeline(
 	if (request.steps.length === 0) return rejectedPipeline();
 	const limitError = pipelineLimitError(request);
 	if (limitError) return rejectedPipeline(limitError);
+	const unsupported = unsupportedOption(request);
+	if (unsupported) {
+		// Blame one step and skip the rest, so no command runs.
+		const steps = request.steps.map(
+			(step, index): StepResult => ({
+				index,
+				alias: step.as,
+				command: step.command,
+				...(index === unsupported.stepIndex
+					? { status: 'failure', error: unsupported.error }
+					: { status: 'skipped' }),
+				executionTimeMs: 0,
+			})
+		);
+		return pipelineResult(request, steps, startTime);
+	}
 
 	const pipelineContext: PipelineContext = {
 		pipelineInput: copyPipelineData(request.input),
@@ -151,7 +223,7 @@ export async function executePipeline(
 		let resolvedInput: unknown = {};
 		let resolutionFailure: CommandResult | undefined;
 		try {
-			if (!options.parallel && step.when && !evaluateCondition(step.when, pipelineContext)) {
+			if (step.when && !evaluateCondition(step.when, pipelineContext)) {
 				stepResults.push({
 					index: i,
 					alias: step.as,
@@ -161,7 +233,7 @@ export async function executePipeline(
 				});
 				continue;
 			}
-			if (!options.parallel && step.input) {
+			if (step.input) {
 				resolvedInput = resolveVariables(step.input, pipelineContext);
 			}
 		} catch {
@@ -192,15 +264,6 @@ export async function executePipeline(
 		try {
 			if (resolutionFailure) {
 				result = resolutionFailure;
-			} else if (options.parallel) {
-				result = {
-					success: false,
-					error: {
-						code: 'UNSUPPORTED_OPTION',
-						message: 'Parallel pipeline execution is not supported',
-						suggestion: 'Remove parallel or set it to false to execute steps sequentially',
-					},
-				};
 			} else if (remainingMs !== undefined && remainingMs <= 0) {
 				controller.abort();
 				result = timeoutResult;
@@ -267,11 +330,7 @@ export async function executePipeline(
 			};
 			stepResults.push(stepResult);
 
-			if (
-				!options.continueOnFailure ||
-				result.error?.code === 'PIPELINE_TIMEOUT' ||
-				options.parallel
-			) {
+			if (!options.continueOnFailure || result.error?.code === 'PIPELINE_TIMEOUT') {
 				// Mark remaining steps as skipped
 				for (let j = i + 1; j < request.steps.length; j++) {
 					const remainingStep = request.steps[j];
@@ -312,28 +371,5 @@ export async function executePipeline(
 		}
 	}
 
-	const totalExecutionTimeMs = performance.now() - startTime;
-
-	// Get the last successful step's data as the pipeline output
-	const lastSuccessfulStep = [...stepResults].reverse().find((s) => s.status === 'success');
-	const finalData = lastSuccessfulStep?.data;
-
-	// Build metadata using helper functions
-	const metadata: PipelineMetadata = {
-		confidence: aggregatePipelineConfidence(stepResults),
-		confidenceBreakdown: buildConfidenceBreakdown(stepResults, request.steps),
-		reasoning: aggregatePipelineReasoning(stepResults),
-		warnings: aggregatePipelineWarnings(stepResults),
-		sources: aggregatePipelineSources(stepResults),
-		alternatives: aggregatePipelineAlternatives(stepResults),
-		executionTimeMs: Math.round(totalExecutionTimeMs * 100) / 100,
-		completedSteps: stepResults.filter((s) => s.status === 'success').length,
-		totalSteps: request.steps.length,
-	};
-
-	return {
-		data: finalData,
-		metadata,
-		steps: stepResults,
-	};
+	return pipelineResult(request, stepResults, startTime);
 }

@@ -19,6 +19,7 @@ Example:
 """
 
 import asyncio
+import math
 import time
 from enum import Enum
 from typing import Any, Callable, Dict, Generic, List, Optional, Tuple, TypeVar, Union
@@ -30,11 +31,11 @@ from pydantic import (
     PrivateAttr,
     SerializerFunctionWrapHandler,
     field_serializer,
+    field_validator,
 )
 
 from afd.core.errors import _omit_unset_cause
 from afd.core.metadata import Alternative, Source, Warning
-from afd.core.result import CommandError, CommandResult, ResultMetadata
 from afd.core.pipeline_variables import (
     ABSENT,
     MAX_INPUT_DEPTH,
@@ -47,6 +48,12 @@ from afd.core.pipeline_variables import (
     json_view,
     resolve_input,
     resolve_string,
+)
+from afd.core.result import (
+    CommandError,
+    CommandResult,
+    ResultMetadata,
+    coerce_command_result,
 )
 from afd.core.wire import WIRE_MODEL_CONFIG, WireModel
 
@@ -85,6 +92,17 @@ class PipelineStep(WireModel):
     as_: Optional[str] = Field(default=None, alias="as")
     when: Optional["PipelineCondition"] = None
     stream: Optional[bool] = None
+
+    @field_validator("when", mode="before")
+    @classmethod
+    def _check_when(cls, value: Any) -> Any:
+        """Reject a malformed ``when`` with the exact problem, before any step runs."""
+        if value is None:
+            return value
+        problem = condition_error(value)
+        if problem:
+            raise ValueError(f"invalid when condition: {problem}")
+        return value
 
 
 class PipelineOptions(WireModel):
@@ -140,77 +158,83 @@ class PipelineRequest(WireModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+# A condition object has exactly one operator key; any other key is an error.
+_CONDITION_CONFIG = ConfigDict(populate_by_name=True, extra="forbid")
+
+
 class PipelineConditionExists(BaseModel):
     """Check if a field exists in the context."""
 
     exists: str = Field(alias="$exists")
-    model_config = {"populate_by_name": True}
+    model_config = _CONDITION_CONFIG
 
 
 class PipelineConditionEq(BaseModel):
     """Check if a field equals a value."""
 
     eq: tuple[str, Any] = Field(alias="$eq")
-    model_config = {"populate_by_name": True}
+    model_config = _CONDITION_CONFIG
 
 
 class PipelineConditionNe(BaseModel):
     """Check if a field does not equal a value."""
 
     ne: tuple[str, Any] = Field(alias="$ne")
-    model_config = {"populate_by_name": True}
+    model_config = _CONDITION_CONFIG
 
 
 class PipelineConditionGt(BaseModel):
     """Check if a field is greater than a value."""
 
     gt: tuple[str, float] = Field(alias="$gt")
-    model_config = {"populate_by_name": True}
+    model_config = _CONDITION_CONFIG
 
 
 class PipelineConditionGte(BaseModel):
     """Check if a field is greater than or equal to a value."""
 
     gte: tuple[str, float] = Field(alias="$gte")
-    model_config = {"populate_by_name": True}
+    model_config = _CONDITION_CONFIG
 
 
 class PipelineConditionLt(BaseModel):
     """Check if a field is less than a value."""
 
     lt: tuple[str, float] = Field(alias="$lt")
-    model_config = {"populate_by_name": True}
+    model_config = _CONDITION_CONFIG
 
 
 class PipelineConditionLte(BaseModel):
     """Check if a field is less than or equal to a value."""
 
     lte: tuple[str, float] = Field(alias="$lte")
-    model_config = {"populate_by_name": True}
+    model_config = _CONDITION_CONFIG
 
 
 class PipelineConditionAnd(BaseModel):
     """Logical AND - all conditions must be true."""
 
     and_: List["PipelineCondition"] = Field(alias="$and")
-    model_config = {"populate_by_name": True}
+    model_config = _CONDITION_CONFIG
 
 
 class PipelineConditionOr(BaseModel):
     """Logical OR - any condition must be true."""
 
     or_: List["PipelineCondition"] = Field(alias="$or")
-    model_config = {"populate_by_name": True}
+    model_config = _CONDITION_CONFIG
 
 
 class PipelineConditionNot(BaseModel):
     """Logical NOT - negates a condition."""
 
     not_: "PipelineCondition" = Field(alias="$not")
-    model_config = {"populate_by_name": True}
+    model_config = _CONDITION_CONFIG
 
 
-# Union type for all condition types
+# Union type for all condition types. There is no catch-all branch: a
+# PipelineStep rejects a malformed or unknown operator (``$exist``) when it is
+# validated, so no step of a pipeline with a bad condition ever runs.
 PipelineCondition = Union[
     PipelineConditionExists,
     PipelineConditionEq,
@@ -222,7 +246,6 @@ PipelineCondition = Union[
     PipelineConditionAnd,
     PipelineConditionOr,
     PipelineConditionNot,
-    Dict[str, Any],
 ]
 
 
@@ -553,9 +576,9 @@ def condition_error(condition: Any, depth: int = 1) -> Optional[str]:
     if operator in ("$eq", "$ne"):
         return None if _is_ref_pair(operand) else f"{operator} takes [reference, value]"
     if operator in _COMPARISONS:
-        if _is_ref_pair(operand) and is_number(operand[1]):
+        if _is_ref_pair(operand) and is_number(operand[1]) and math.isfinite(operand[1]):
             return None
-        return f"{operator} takes [reference, number]"
+        return f"{operator} takes [reference, finite number]"
     if operator in ("$and", "$or"):
         if not isinstance(operand, (list, tuple)):
             return f"{operator} takes a list of conditions"
@@ -849,6 +872,25 @@ PipelineConditionNot.model_rebuild()
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+async def _call_step(
+    executor: Callable[[str, Dict[str, Any]], Any],
+    command: str,
+    payload: Dict[str, Any],
+) -> Any:
+    """Run one step. An exception from the executor becomes a failed result."""
+    try:
+        return await executor(command, payload)
+    except Exception as exc:
+        return CommandResult(
+            success=False,
+            error=CommandError(
+                code="COMMAND_EXECUTION_ERROR",
+                message=str(exc),
+                suggestion="Check the command implementation and retry",
+            ),
+        )
+
+
 async def execute_pipeline(
     request: PipelineRequest,
     executor: Callable[[str, Dict[str, Any]], Any],
@@ -941,22 +983,24 @@ async def execute_pipeline(
             resolve_variables(step.input, pipeline_context) if step.input else {}
         )
 
-        # Execute the command
+        # Execute the command. _call_step never raises (except on cancellation),
+        # so a TimeoutError here is always the pipeline deadline, never one
+        # the command raised itself.
         try:
             if options and options.timeout_ms is not None:
                 elapsed_ms = (time.perf_counter() - total_start_time) * 1000
                 remaining_s = (options.timeout_ms - elapsed_ms) / 1000
                 if remaining_s <= 0:
                     raise asyncio.TimeoutError
-                result = await asyncio.wait_for(
-                    executor(step.command, resolved_input), timeout=remaining_s
+                raw_result = await asyncio.wait_for(
+                    _call_step(executor, step.command, resolved_input), timeout=remaining_s
                 )
             else:
-                result = await executor(step.command, resolved_input)
+                raw_result = await _call_step(executor, step.command, resolved_input)
         except asyncio.TimeoutError:
             timeout_error = CommandError(
                 code="PIPELINE_TIMEOUT",
-                message=f"Pipeline timeout exceeded ({options.timeout_ms}ms)",
+                message=f"Pipeline timeout exceeded ({options.timeout_ms if options else 0}ms)",
                 suggestion="Increase timeout_ms or reduce the number of pipeline steps",
                 retryable=True,
             )
@@ -982,15 +1026,10 @@ async def execute_pipeline(
                     )
                 )
             break
-        except Exception as exc:
-            result = CommandResult(
-                success=False,
-                error=CommandError(
-                    code="COMMAND_EXECUTION_ERROR",
-                    message=str(exc),
-                    suggestion="Check the command implementation and retry",
-                ),
-            )
+
+        # The command has run: from here on nothing may raise. A handler that
+        # returned a plain dict (or anything else) becomes a failed step.
+        result = coerce_command_result(raw_result, step.command)
 
         step_end_time = time.perf_counter()
         execution_time_ms = (step_end_time - step_start_time) * 1000

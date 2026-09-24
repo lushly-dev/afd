@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SessionSync } from './session-sync.js';
+import type { SessionSyncMessage } from './session-sync-message.js';
 
 // Mock browser APIs
 const mockBroadcastChannelInstances: Array<{
@@ -23,14 +24,21 @@ class MockBroadcastChannel {
 
 const mockStorage = new Map<string, string>();
 const mockLocalStorage = {
-	getItem: vi.fn((key: string) => mockStorage.get(key) ?? null),
-	setItem: vi.fn((key: string, value: string) => {
-		mockStorage.set(key, value);
-	}),
-	removeItem: vi.fn((key: string) => {
-		mockStorage.delete(key);
-	}),
+	getItem: vi.fn<(key: string) => string | null>(),
+	setItem: vi.fn<(key: string, value: string) => void>(),
+	removeItem: vi.fn<(key: string) => void>(),
 };
+
+/** Restore the working storage implementations a previous test may have replaced. */
+function resetLocalStorage() {
+	mockLocalStorage.getItem.mockReset().mockImplementation((key) => mockStorage.get(key) ?? null);
+	mockLocalStorage.setItem.mockReset().mockImplementation((key, value) => {
+		mockStorage.set(key, value);
+	});
+	mockLocalStorage.removeItem.mockReset().mockImplementation((key) => {
+		mockStorage.delete(key);
+	});
+}
 
 function getChannel() {
 	const channel = mockBroadcastChannelInstances[0];
@@ -54,11 +62,17 @@ beforeEach(() => {
 	mockBroadcastChannelInstances.length = 0;
 	mockStorage.clear();
 	vi.clearAllMocks();
+	resetLocalStorage();
 });
 
 afterEach(() => {
+	vi.useRealTimers();
 	vi.unstubAllGlobals();
 });
+
+function deliver(data: unknown) {
+	getChannel().onmessage?.({ data } as MessageEvent);
+}
 
 describe('SessionSync', () => {
 	it('notifies subscribers via BroadcastChannel', async () => {
@@ -70,14 +84,12 @@ describe('SessionSync', () => {
 		});
 
 		// Simulate receiving a message from another tab
-		const channel = getChannel();
-		channel.onmessage?.({ data: { status: 'signed-out' } } as MessageEvent);
+		deliver({ type: 'signed-in', userId: 'u1' });
 
 		// Wait for debounce (0ms but still async via setTimeout)
 		await new Promise((r) => setTimeout(r, 10));
 
-		expect(received).toHaveLength(1);
-		expect(received[0]).toEqual({ status: 'signed-out' });
+		expect(received).toEqual([{ type: 'signed-in', userId: 'u1' }]);
 
 		sync.dispose();
 	});
@@ -86,9 +98,9 @@ describe('SessionSync', () => {
 		const sync = new SessionSync();
 		const channel = getChannel();
 
-		sync.notifySessionChanged({ event: 'sign-out' });
+		sync.notifySessionChanged({ type: 'signed-out' });
 
-		expect(channel.postMessage).toHaveBeenCalledWith({ event: 'sign-out' });
+		expect(channel.postMessage).toHaveBeenCalledWith({ type: 'signed-out' });
 
 		sync.dispose();
 	});
@@ -103,8 +115,7 @@ describe('SessionSync', () => {
 
 		unsubscribe();
 
-		const channel = getChannel();
-		channel.onmessage?.({ data: 'test' } as MessageEvent);
+		deliver({ type: 'signed-out' });
 
 		await new Promise((r) => setTimeout(r, 10));
 
@@ -248,7 +259,8 @@ describe('SessionSync', () => {
 		});
 
 		sync.dispose();
-		sync.notifySessionChanged({ event: 'test' });
+		sync.notifySessionChanged({ type: 'signed-out' });
+		deliver({ type: 'signed-out' });
 
 		await new Promise((r) => setTimeout(r, 10));
 
@@ -263,17 +275,284 @@ describe('SessionSync', () => {
 			received.push(data);
 		});
 
-		const channel = getChannel();
-		channel.onmessage?.({ data: 'first' } as MessageEvent);
-		channel.onmessage?.({ data: 'second' } as MessageEvent);
-		channel.onmessage?.({ data: 'third' } as MessageEvent);
+		deliver({ type: 'profile-updated', userId: 'first' });
+		deliver({ type: 'profile-updated', userId: 'second' });
+		deliver({ type: 'profile-updated', userId: 'third' });
 
 		await new Promise((r) => setTimeout(r, 100));
 
-		// Only the last one should be delivered due to debouncing
-		expect(received).toHaveLength(1);
-		expect(received[0]).toBe('third');
+		// Only the last one of the type is delivered
+		expect(received).toEqual([{ type: 'profile-updated', userId: 'third' }]);
 
 		sync.dispose();
+	});
+
+	describe('message delivery', () => {
+		it('delivers a sign-out followed by another message type', async () => {
+			vi.useFakeTimers();
+			const sync = new SessionSync({ debounceMs: 50 });
+			const received: SessionSyncMessage[] = [];
+			sync.onSessionChanged((message) => received.push(message));
+
+			deliver({ type: 'signed-out' });
+			deliver({ type: 'profile-updated' });
+			await vi.advanceTimersByTimeAsync(100);
+
+			expect(received).toEqual([{ type: 'signed-out' }, { type: 'profile-updated' }]);
+			sync.dispose();
+		});
+
+		it('delivers a sign-out at once and drops the messages it supersedes', async () => {
+			vi.useFakeTimers();
+			const sync = new SessionSync({ debounceMs: 50 });
+			const received: SessionSyncMessage[] = [];
+			sync.onSessionChanged((message) => received.push(message));
+
+			deliver({ type: 'session-refreshed' });
+			deliver({ type: 'signed-out' });
+			expect(received).toEqual([{ type: 'signed-out' }]);
+
+			await vi.advanceTimersByTimeAsync(100);
+			expect(received).toEqual([{ type: 'signed-out' }]);
+			sync.dispose();
+		});
+
+		it('debounces each message type separately', async () => {
+			vi.useFakeTimers();
+			const sync = new SessionSync({ debounceMs: 50 });
+			const received: SessionSyncMessage[] = [];
+			sync.onSessionChanged((message) => received.push(message));
+
+			deliver({ type: 'signed-in', userId: 'u1' });
+			deliver({ type: 'profile-updated', userId: 'u1' });
+			deliver({ type: 'signed-in', userId: 'u2' });
+			await vi.advanceTimersByTimeAsync(100);
+
+			expect(received).toEqual([
+				{ type: 'profile-updated', userId: 'u1' },
+				{ type: 'signed-in', userId: 'u2' },
+			]);
+			sync.dispose();
+		});
+
+		it('drops invalid payloads and strips unknown fields', async () => {
+			vi.useFakeTimers();
+			const sync = new SessionSync({ debounceMs: 0 });
+			const received: SessionSyncMessage[] = [];
+			sync.onSessionChanged((message) => received.push(message));
+
+			for (const payload of [
+				'signed-out',
+				null,
+				{ status: 'signed-out' },
+				{ type: 'unknown' },
+				{ type: 'signed-in', userId: 42 },
+			]) {
+				deliver(payload);
+			}
+			deliver({ type: 'signed-out', token: 'secret' });
+			await vi.advanceTimersByTimeAsync(10);
+
+			expect(received).toEqual([{ type: 'signed-out' }]);
+			sync.dispose();
+		});
+
+		it('rejects an invalid outgoing message', () => {
+			const sync = new SessionSync();
+			const invalid = { type: 'logout' } as unknown as SessionSyncMessage;
+
+			expect(() => sync.notifySessionChanged(invalid)).toThrow(TypeError);
+			expect(getChannel().postMessage).not.toHaveBeenCalled();
+			sync.dispose();
+		});
+
+		it('keeps delivering to later listeners when one throws', () => {
+			vi.spyOn(globalThis, 'queueMicrotask').mockImplementation(() => {});
+			const sync = new SessionSync();
+			const received: SessionSyncMessage[] = [];
+			sync.onSessionChanged(() => {
+				throw new Error('listener failed');
+			});
+			sync.onSessionChanged((message) => received.push(message));
+
+			deliver({ type: 'signed-out' });
+
+			expect(received).toEqual([{ type: 'signed-out' }]);
+			sync.dispose();
+			vi.restoreAllMocks();
+		});
+
+		it('raises visibility-refresh after the tab was hidden long enough', async () => {
+			vi.useFakeTimers();
+			const documentStub = {
+				visibilityState: 'visible',
+				addEventListener: vi.fn(),
+				removeEventListener: vi.fn(),
+			};
+			vi.stubGlobal('document', documentStub);
+			const sync = new SessionSync({ debounceMs: 0, visibilityRefreshMs: 1_000 });
+			const received: SessionSyncMessage[] = [];
+			sync.onSessionChanged((message) => received.push(message));
+			const handler = documentStub.addEventListener.mock.calls[0]?.[1] as () => void;
+
+			documentStub.visibilityState = 'hidden';
+			handler();
+			vi.advanceTimersByTime(500);
+			documentStub.visibilityState = 'visible';
+			handler();
+			await vi.advanceTimersByTimeAsync(10);
+			expect(received).toEqual([]);
+
+			documentStub.visibilityState = 'hidden';
+			handler();
+			vi.advanceTimersByTime(1_000);
+			documentStub.visibilityState = 'visible';
+			handler();
+			await vi.advanceTimersByTimeAsync(10);
+			expect(received).toEqual([{ type: 'visibility-refresh' }]);
+
+			sync.dispose();
+			expect(documentStub.removeEventListener).toHaveBeenCalledWith('visibilitychange', handler);
+		});
+	});
+
+	describe('localStorage fallback', () => {
+		function createStorageSync() {
+			vi.stubGlobal('BroadcastChannel', undefined);
+			const windowStub = { addEventListener: vi.fn(), removeEventListener: vi.fn() };
+			vi.stubGlobal('window', windowStub);
+			const sync = new SessionSync({ debounceMs: 0 });
+			const handler = windowStub.addEventListener.mock.calls[0]?.[1] as (e: StorageEvent) => void;
+			return { sync, handler, windowStub };
+		}
+
+		it('broadcasts through a storage write', () => {
+			const { sync } = createStorageSync();
+
+			sync.notifySessionChanged({ type: 'signed-in', userId: 'u1' });
+
+			expect(mockLocalStorage.setItem).toHaveBeenCalledWith(
+				'afd-auth-sync',
+				JSON.stringify({ type: 'signed-in', userId: 'u1' })
+			);
+			expect(mockLocalStorage.removeItem).toHaveBeenCalledWith('afd-auth-sync');
+			sync.dispose();
+		});
+
+		it('validates messages from storage events', async () => {
+			vi.useFakeTimers();
+			const { sync, handler, windowStub } = createStorageSync();
+			const received: SessionSyncMessage[] = [];
+			sync.onSessionChanged((message) => received.push(message));
+
+			handler({ key: 'afd-auth-sync', newValue: '{not json' } as StorageEvent);
+			handler({ key: 'afd-auth-sync', newValue: '"signed-out"' } as StorageEvent);
+			handler({ key: 'other-key', newValue: '{"type":"signed-out"}' } as StorageEvent);
+			handler({ key: 'afd-auth-sync', newValue: '{"type":"signed-out"}' } as StorageEvent);
+			await vi.advanceTimersByTimeAsync(10);
+
+			expect(received).toEqual([{ type: 'signed-out' }]);
+			sync.dispose();
+			expect(windowStub.removeEventListener).toHaveBeenCalledWith('storage', handler);
+		});
+	});
+
+	describe('refresh lock timestamps', () => {
+		it('treats a lock timestamp far in the future as stale', () => {
+			const sync = new SessionSync();
+			mockStorage.set(
+				'afd-auth-refresh-lock',
+				JSON.stringify({ ownerId: 'other', lockId: 'x', timestamp: Date.now() + 3_600_000 })
+			);
+
+			expect(sync.acquireRefreshLock()).toBe(true);
+			sync.dispose();
+		});
+
+		it('still honours a lock timestamp within the clock skew', () => {
+			const sync = new SessionSync();
+			mockStorage.set(
+				'afd-auth-refresh-lock',
+				JSON.stringify({ ownerId: 'other', lockId: 'x', timestamp: Date.now() + 500 })
+			);
+
+			expect(sync.acquireRefreshLock()).toBe(false);
+			sync.dispose();
+		});
+	});
+
+	describe('acquireRefreshLockAsync', () => {
+		it('confirms the lock after lockCheckDelayMs', async () => {
+			vi.useFakeTimers();
+			const sync = new SessionSync({ lockCheckDelayMs: 50 });
+
+			const acquired = sync.acquireRefreshLockAsync();
+			await vi.advanceTimersByTimeAsync(49);
+			let settled = false;
+			void acquired.then(() => {
+				settled = true;
+			});
+			await Promise.resolve();
+			expect(settled).toBe(false);
+
+			await vi.advanceTimersByTimeAsync(1);
+			await expect(acquired).resolves.toBe(true);
+			sync.releaseRefreshLock();
+			expect(mockStorage.has('afd-auth-refresh-lock')).toBe(false);
+			sync.dispose();
+		});
+
+		it('declines when another tab overwrote the lock during the delay', async () => {
+			vi.useFakeTimers();
+			const sync = new SessionSync({ lockCheckDelayMs: 50 });
+
+			const acquired = sync.acquireRefreshLockAsync();
+			// Another tab read the empty key before our write and wrote its own lock.
+			mockStorage.set(
+				'afd-auth-refresh-lock',
+				JSON.stringify({ ownerId: 'other-tab', lockId: 'y', timestamp: Date.now() })
+			);
+			await vi.advanceTimersByTimeAsync(50);
+
+			await expect(acquired).resolves.toBe(false);
+			sync.releaseRefreshLock();
+			expect(mockStorage.has('afd-auth-refresh-lock')).toBe(true);
+			sync.dispose();
+		});
+
+		it('declines without waiting when a live lock exists or after disposal', async () => {
+			const holder = new SessionSync();
+			const other = new SessionSync();
+			expect(holder.acquireRefreshLock()).toBe(true);
+
+			await expect(other.acquireRefreshLockAsync()).resolves.toBe(false);
+
+			other.dispose();
+			await expect(other.acquireRefreshLockAsync()).resolves.toBe(false);
+			holder.dispose();
+		});
+
+		it('removes its lock when disposed during the delay', async () => {
+			vi.useFakeTimers();
+			const sync = new SessionSync({ lockCheckDelayMs: 50 });
+
+			const acquired = sync.acquireRefreshLockAsync();
+			expect(mockStorage.has('afd-auth-refresh-lock')).toBe(true);
+			sync.dispose();
+			await vi.advanceTimersByTimeAsync(50);
+
+			await expect(acquired).resolves.toBe(false);
+			expect(mockStorage.has('afd-auth-refresh-lock')).toBe(false);
+		});
+
+		it('proceeds without coordination when storage writes are denied', async () => {
+			mockLocalStorage.setItem.mockImplementationOnce(() => {
+				throw new Error('quota exceeded');
+			});
+			const sync = new SessionSync();
+
+			await expect(sync.acquireRefreshLockAsync()).resolves.toBe(true);
+			sync.dispose();
+		});
 	});
 });

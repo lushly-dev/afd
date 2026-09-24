@@ -13,13 +13,7 @@ import type {
 	PipelineRequest,
 	PipelineResult,
 } from '@lushly-dev/afd-core';
-import {
-	failure,
-	findSimilarTools,
-	isBatchRequest,
-	isPipelineRequest,
-	truncateName,
-} from '@lushly-dev/afd-core';
+import { failure, isBatchRequest, isPipelineRequest, truncateName } from '@lushly-dev/afd-core';
 import type { ContextState } from './bootstrap/afd-context.js';
 import {
 	commandAction,
@@ -27,6 +21,7 @@ import {
 	filterByContext,
 	type GroupByFn,
 	isAccessibleInContext,
+	notFoundSuggestion,
 	notInContextError,
 } from './command-routing.js';
 import { resolveContextState } from './context-scope.js';
@@ -95,9 +90,13 @@ const emptyPipelineResult = {
 // ROUTER
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/**
+ * Wrap a result as MCP tool content. The JSON is compact: the text is read by an
+ * agent, and indentation only adds tokens.
+ */
 function resultContent(data: unknown, isError: boolean): ToolCallResult {
 	return {
-		content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
+		content: [{ type: 'text', text: JSON.stringify(data) }],
 		isError,
 	};
 }
@@ -182,20 +181,18 @@ export function createToolRouter(deps: ToolRouterDeps) {
 						true
 					);
 				}
-				// Not found at all — suggest similar
-				const allNames = commands.map((c) => c.name);
-				const suggestions = findSimilarTools(commandName, allNames, 3);
-				const suggestionText =
-					suggestions.length > 0
-						? `Did you mean '${suggestions[0]}'? Use afd-discover to list all commands.`
-						: 'Use afd-discover to list all commands.';
+				// Not found at all — suggest a few close matches the caller can use
+				const callable = filterByContext(commands, contextState?.getActive());
 				return resultContent(
 					{
 						success: false,
 						error: {
 							code: 'COMMAND_NOT_FOUND',
 							message: `Command '${truncateName(commandName)}' not found`,
-							suggestion: suggestionText,
+							suggestion: notFoundSuggestion(
+								commandName,
+								callable.map((c) => c.name)
+							),
 						},
 					},
 					true

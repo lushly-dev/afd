@@ -6,14 +6,19 @@ import { STATUS_COLORS, StatusType, type StatusTypeValue } from './css-variables
 
 /**
  * Escape HTML special characters (fast regex version, no DOM).
+ *
+ * Any value is converted with `String(value)` first and then escaped, so a number, an object
+ * with a custom `toString()` or an error message cannot inject markup. `&`, `<`, `>`, `"` and
+ * `'` are escaped, which makes the result safe in element content and in single- or
+ * double-quoted attribute values.
  */
 export function escapeHtml(text: unknown): string {
-	if (typeof text !== 'string') return String(text);
-	return text
+	return String(text)
 		.replace(/&/g, '&amp;')
 		.replace(/</g, '&lt;')
 		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;');
+		.replace(/"/g, '&quot;')
+		.replace(/'/g, '&#39;');
 }
 
 /**

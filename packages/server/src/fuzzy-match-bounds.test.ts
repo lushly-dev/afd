@@ -105,12 +105,51 @@ describe('fuzzy matching of untrusted command names', () => {
 		expect(ms).toBeLessThan(MAX_RESPONSE_MS);
 		expect(result.success).toBe(true);
 		expect(result.data).toHaveLength(10);
+		// Each name is echoed cut to 128 characters, not in full (~88 KB each).
+		expect(JSON.stringify(result).length).toBeLessThan(10_000);
 		for (const [i, entry] of result.data.entries()) {
+			expect(entry.name).toBe(`${String(i).repeat(128)}…`);
 			expect(entry.found).toBe(false);
 			expect(entry.error.code).toBe('COMMAND_NOT_FOUND');
 			expect(entry.error.message).toBe(`No command named '${String(i).repeat(128)}…'`);
 			expect(entry.error.suggestion).toBe('Use afd-discover to list all commands.');
 		}
+	});
+
+	it('suggests at most three close matches, never every command, for an unknown tool', async () => {
+		const url = await host();
+		const target = commands[0]?.name as string;
+		// Unknown tool names fall through to command execution (COMMAND_NOT_FOUND there).
+		const result = await call(url, target.slice(0, -1), {});
+
+		expect(result.error.code).toBe('COMMAND_NOT_FOUND');
+		const suggestion: string = result.error.suggestion;
+		expect(suggestion).toMatch(/^Did you mean '/);
+		expect(suggestion).toContain('afd-discover');
+		const named = commands.filter((command) => suggestion.includes(`'${command.name}'`));
+		expect(named.length).toBeGreaterThan(0);
+		expect(named.length).toBeLessThanOrEqual(3);
+
+		const unrelated = await call(url, 'zzzz', {});
+		expect(unrelated.error.suggestion).toBe('Use afd-discover to list all commands.');
+	});
+
+	it('returns compact JSON tool results', async () => {
+		const url = await host();
+		const response = await fetch(`${url}/message`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'tools/call',
+				params: { name: 'afd-discover', arguments: { limit: 5 } },
+			}),
+		});
+		const body = (await response.json()) as { result: { content: [{ text: string }] } };
+		const text = body.result.content[0].text;
+		expect(text).not.toContain('\n');
+		expect(text).toBe(JSON.stringify(JSON.parse(text)));
 	});
 
 	it('still suggests close matches for normal-length names', async () => {

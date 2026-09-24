@@ -19,7 +19,7 @@
  * job: basic-workflow
  * tags: [smoke, p0]
  * steps:
- *   - command: todo.create
+ *   - command: todo-create
  *     input: { title: "Buy groceries" }
  *     expect:
  *       success: true
@@ -44,20 +44,39 @@ export interface Scenario {
 	/** Starting state configuration */
 	fixture?: FixtureConfig;
 
-	/** Isolation mode: fresh (default) or chained */
+	/**
+	 * @deprecated Not implemented. The YAML parser rejects it and the executors
+	 * report an `unsupported` error instead of silently ignoring it.
+	 */
 	isolation?: 'fresh' | 'chained';
 
-	/** Dependencies if isolation is 'chained' */
+	/**
+	 * @deprecated Not implemented. The YAML parser rejects it and the executors
+	 * report an `unsupported` error instead of silently ignoring it.
+	 */
 	dependsOn?: string[];
 
-	/** Per-scenario timeout in milliseconds */
+	/**
+	 * Per-scenario timeout in milliseconds. When it passes, the running step is
+	 * abandoned, the remaining steps are skipped and the scenario is reported as
+	 * an `error` with a `timeout` error.
+	 */
 	timeout?: number;
 
 	/** Steps to execute */
 	steps: Step[];
 
-	/** Final verification after all steps */
+	/**
+	 * @deprecated Not implemented. The YAML parser rejects it and the executors
+	 * report an `unsupported` error instead of silently ignoring it.
+	 */
 	verify?: Verification;
+
+	/**
+	 * Absolute path of the file this scenario was parsed from. Set by
+	 * `parseScenarioFile`; relative fixture paths resolve against its directory.
+	 */
+	sourcePath?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -68,7 +87,10 @@ export interface Scenario {
  * Configuration for scenario starting state.
  */
 export interface FixtureConfig {
-	/** Path to fixture file (JSON) */
+	/**
+	 * Path to fixture file (JSON). A relative path resolves against the scenario
+	 * file's directory (or the executor's `basePath` for scenarios built in code).
+	 */
 	file: string;
 
 	/** Optional base fixture to inherit from */
@@ -88,7 +110,7 @@ export interface FixtureConfig {
  * Each step executes a command and verifies the result.
  */
 export interface Step {
-	/** Command name to execute (e.g., "todo.create") */
+	/** Command name to execute (e.g., "todo-create") */
 	command: string;
 
 	/** Input parameters for the command */
@@ -111,11 +133,14 @@ export interface Step {
 /**
  * Expected outcome of a step.
  *
- * Supports various assertion types:
- * - Exact match: `data.id: "xbox"`
- * - Pattern: `reasoning: contains "override"`
- * - Existence: `data.createdAt: exists`
- * - Numeric: `data.count: gte 5`
+ * Data assertions are exact values or matcher objects (see `AssertionMatcher`):
+ * - Exact match: `data: { id: "xbox" }`
+ * - Pattern: `data: { name: { contains: "box" } }`
+ * - Existence: `data: { createdAt: { exists: true } }`
+ * - Numeric: `data: { count: { gte: 5 } }`
+ *
+ * `data` is only checked when `success` is true, and `error` only when
+ * `success` is false; the parser rejects the other combinations.
  */
 export interface Expectation {
 	/** Whether command should succeed */
@@ -126,8 +151,15 @@ export interface Expectation {
 
 	/** Expected error details (for failure tests) */
 	error?: {
+		/** Error code, compared exactly */
 		code?: string;
+		/** Substring the error message must contain */
 		message?: string;
+		/**
+		 * Recovery suggestion: a string the suggestion must contain, or a
+		 * matcher object such as `{ contains: "view-state-list" }`
+		 */
+		suggestion?: string | AssertionMatcher;
 	};
 
 	/** Pattern match on reasoning field */
@@ -167,15 +199,26 @@ export type AssertionValue = string | number | boolean | null | AssertionMatcher
 /**
  * Matchers for complex assertions.
  *
+ * An object is a matcher only when every key is a matcher key. Mixing matcher
+ * keys with other keys (for example `{ exists: true, name: "Bob" }`) is an
+ * error, so a typo such as `matchs` can never be silently ignored. To compare
+ * against a literal object whose keys look like matchers, use `equals`.
+ *
  * @example
  * ```yaml
  * expect:
- *   data.count: { gte: 5 }
- *   data.name: { contains: "xbox" }
- *   data.items: { length: 3 }
+ *   success: true
+ *   data:
+ *     count: { gte: 5 }
+ *     name: { contains: "xbox" }
+ *     items: { length: 3 }
+ *     settings: { equals: { exists: true } }
  * ```
  */
 export interface AssertionMatcher {
+	/** Value deep-equals the given value */
+	equals?: unknown;
+
 	/** Value contains substring */
 	contains?: string;
 
@@ -205,30 +248,26 @@ export interface AssertionMatcher {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TYPE GUARDS
+// UNSUPPORTED FIELDS
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * Check if a value is an AssertionMatcher object.
+ * Scenario fields the format declares but the runner does not implement.
+ * The parser rejects them and the executors report an `unsupported` error,
+ * so a scenario relying on them cannot pass without checking anything.
  */
-export function isAssertionMatcher(value: unknown): value is AssertionMatcher {
-	if (typeof value !== 'object' || value === null) {
-		return false;
-	}
-	const keys = Object.keys(value);
-	const matcherKeys = [
-		'contains',
-		'matches',
-		'exists',
-		'notExists',
-		'length',
-		'includes',
-		'gte',
-		'lte',
-		'between',
-	];
-	return keys.some((k) => matcherKeys.includes(k));
-}
+export const UNSUPPORTED_SCENARIO_FIELDS: Readonly<Record<string, string>> = {
+	verify:
+		"'verify' is not supported: final verification is not implemented. Add a last step that reads the state and asserts on it instead.",
+	isolation:
+		"'isolation' is not supported: scenarios always run against the handler's current state. Use a fixture (for example with clearFirst) to start from a known state.",
+	dependsOn:
+		"'dependsOn' is not supported: scenarios cannot depend on each other. Give each scenario its own fixture or setup steps.",
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// TYPE GUARDS
+// ═══════════════════════════════════════════════════════════════════════════════
 
 /**
  * Check if a value is a valid Scenario.

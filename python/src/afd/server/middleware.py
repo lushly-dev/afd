@@ -11,11 +11,11 @@ Example:
 import asyncio
 import json
 import logging
+import math
 import sys
 import time
-
-from contextlib import contextmanager
-from dataclasses import dataclass, field
+from collections import OrderedDict
+from dataclasses import dataclass
 from typing import (
     Any,
     Awaitable,
@@ -429,21 +429,50 @@ def create_tracing_middleware(
 # =============================================================================
 
 
+DEFAULT_RATE_LIMIT_MAX_KEYS = 10_000
+"""Default number of distinct clients the rate limiter tracks at once."""
+
+
 def create_rate_limit_middleware(
     max_requests: int,
     window_ms: float,
     *,
     key_fn: Optional[Callable[[CommandContext], str]] = None,
+    max_keys: int = DEFAULT_RATE_LIMIT_MAX_KEYS,
 ) -> CommandMiddleware:
-    """Create in-memory sliding window rate limiting middleware.
+    """Create in-memory fixed-window rate limiting middleware.
+
+    Each key may make ``max_requests`` calls per window. A key's window
+    starts at its first call and ends ``window_ms`` later, when its count
+    resets. This is a fixed window, not a sliding one: a client can make up
+    to ``2 * max_requests`` calls across a window boundary.
+
+    Memory is bounded. Expired windows are evicted as calls arrive, so idle
+    keys do not accumulate, and at most ``max_keys`` keys are tracked at
+    once: a new key beyond that is rejected with ``RATE_LIMITED`` until a
+    window expires (tracked keys are never evicted early, which would reset
+    their budget). Same behavior as the TypeScript middleware.
 
     Args:
         max_requests: Maximum requests per window.
         window_ms: Window size in milliseconds.
-        key_fn: Key function for client identification. Defaults to 'global'.
+        key_fn: Key function for client identification. Defaults to 'global'
+            (one budget shared by everyone). Key on a caller identity; a
+            per-call value such as ``trace_id`` never limits anything.
+        max_keys: Maximum distinct keys tracked at once (default 10,000).
+
+    Raises:
+        ValueError: If ``window_ms`` or ``max_keys`` is not positive, or
+            ``max_requests`` is negative (0 rejects every call).
     """
+    if max_requests < 0 or window_ms <= 0 or max_keys < 1:
+        raise ValueError(
+            "Rate limit window_ms and max_keys must be positive and max_requests not negative"
+        )
     _key_fn = key_fn or (lambda _ctx: "global")
-    windows: Dict[str, Dict[str, Any]] = {}
+    # key -> [count, reset_at]. Every window has the same length and starts at
+    # a monotonic "now", so insertion order is expiry order.
+    windows: "OrderedDict[str, List[float]]" = OrderedDict()
 
     async def middleware(
         command_name: str,
@@ -454,13 +483,29 @@ def create_rate_limit_middleware(
         key = _key_fn(context)
         now = time.monotonic() * 1000  # convert to ms
 
+        while windows:
+            _, oldest = next(iter(windows.items()))
+            if oldest[1] > now:
+                break
+            windows.popitem(last=False)
+
         window = windows.get(key)
-        if window is None or now >= window["reset_at"]:
-            window = {"count": 0, "reset_at": now + window_ms}
+        if window is None:
+            if len(windows) >= max_keys:
+                return CommandResult(
+                    success=False,
+                    error=CommandError(
+                        code="RATE_LIMITED",
+                        message="Rate limit client capacity reached",
+                        suggestion="Retry after the current rate limit window expires",
+                        retryable=True,
+                    ),
+                )
+            window = [0, now + window_ms]
             windows[key] = window
 
-        if window["count"] >= max_requests:
-            retry_secs = max(1, int((window["reset_at"] - now) / 1000))
+        if window[0] >= max_requests:
+            retry_secs = max(1, math.ceil((window[1] - now) / 1000))
             return CommandResult(
                 success=False,
                 error=CommandError(
@@ -471,9 +516,10 @@ def create_rate_limit_middleware(
                 ),
             )
 
-        window["count"] += 1
+        window[0] += 1
         return await next_fn()
 
+    middleware._windows = windows  # type: ignore[attr-defined]  # for tests
     return middleware
 
 
@@ -571,15 +617,15 @@ def create_telemetry_middleware(
                 ),
             )
 
+            # A failing sink must not change the command result, but is logged.
             try:
                 record_result = sink.record(event)
                 if asyncio.isfuture(record_result) or asyncio.iscoroutine(record_result):
-                    try:
-                        await record_result
-                    except Exception:
-                        pass
+                    await record_result
             except Exception:
-                pass
+                logging.getLogger("afd.middleware").warning(
+                    "Telemetry sink failed to record '%s'", command_name, exc_info=True
+                )
 
         if result is None:
             from afd.core.result import failure

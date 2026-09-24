@@ -88,7 +88,10 @@ export interface McpServerOptions {
 	/** Exact additional browser origins. Same-origin requests are allowed by default; devMode permits any origin. */
 	allowedOrigins?: string[];
 
-	/** Maximum request body size in bytes (default: 1048576). */
+	/**
+	 * Maximum request body size in bytes (default: 1048576). Also caps the UTF-8 size of the
+	 * `input` query parameter of `GET /stream`; larger input is refused with HTTP 413.
+	 */
 	maxBodyBytes?: number;
 
 	/**

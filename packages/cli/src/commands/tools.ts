@@ -2,21 +2,17 @@
  * @fileoverview Tools command
  */
 
-import type { McpTool } from '@lushly-dev/afd-core';
 import type { Command } from 'commander';
 import ora from 'ora';
-import { ensureConnected } from '../connection.js';
+import { type ConnectFlags, requireClient } from '../connection.js';
 import { type OutputFormat, printError, printTools } from '../output.js';
+import { matchesCategory } from '../tool-category.js';
+import { headerOption } from './options.js';
 
-/**
- * Whether a tool belongs to a category.
- *
- * AFD servers advertise `_meta.category`; tools without one fall back to the
- * kebab-case `domain-` name prefix (e.g. `todo` matches `todo-create`).
- */
-export function matchesCategory(tool: McpTool, category: string): boolean {
-	const advertised = tool._meta?.category;
-	return advertised !== undefined ? advertised === category : tool.name.startsWith(`${category}-`);
+interface ToolsOptions extends ConnectFlags {
+	category?: string;
+	format: OutputFormat;
+	refresh?: boolean;
 }
 
 /**
@@ -29,13 +25,9 @@ export function registerToolsCommand(program: Command): void {
 		.option('-c, --category <name>', 'Filter by _meta.category (or "<name>-" name prefix)')
 		.option('-f, --format <format>', 'Output format (json, text)', 'text')
 		.option('--refresh', 'Force refresh from server')
-		.action(async (options) => {
-			const client = await ensureConnected();
-
-			if (!client) {
-				printError('Not connected. Run "afd connect <url>" first.');
-				process.exit(1);
-			}
+		.addOption(headerOption())
+		.action(async (options: ToolsOptions) => {
+			const client = await requireClient(options);
 
 			const spinner = ora('Fetching tools...').start();
 
@@ -48,12 +40,13 @@ export function registerToolsCommand(program: Command): void {
 				}
 
 				// Filter by category if specified
-				if (options.category) {
-					tools = tools.filter((t) => matchesCategory(t, options.category));
+				const { category } = options;
+				if (category) {
+					tools = tools.filter((t) => matchesCategory(t, category));
 				}
 
 				spinner.stop();
-				printTools(tools, { format: options.format as OutputFormat });
+				printTools(tools, { format: options.format });
 			} catch (error) {
 				spinner.fail('Failed to fetch tools');
 				printError('Could not retrieve tools', error instanceof Error ? error : undefined);

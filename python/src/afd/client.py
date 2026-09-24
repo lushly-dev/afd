@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import (
@@ -29,8 +30,6 @@ from typing import (
     Literal,
     Optional,
     Sequence,
-    Tuple,
-    Union,
 )
 
 from pydantic import ValidationError
@@ -45,6 +44,8 @@ from afd.transports.base import (
 
 # Lazy imports for optional transports
 _Transport = Any  # Actual Transport protocol from base
+
+logger = logging.getLogger("afd.client")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -360,6 +361,7 @@ class McpClient:
 
         import httpx
 
+        from afd.core.sse import SseDecoder
         from afd.transports._mcp_protocol import derive_stream_url
 
         stream_url = derive_stream_url(self._config.resolved_url, name)
@@ -380,15 +382,18 @@ class McpClient:
                     body = await response.aread()
                     yield _stream_http_error(response.status_code, response.reason_phrase, body)
                     return
+                decoder = SseDecoder()
                 async for line in response.aiter_lines():
-                    if line.startswith("data: "):
-                        payload = line[len("data: "):].strip()
-                        if payload == "[DONE]":
-                            return
-                        try:
-                            yield json.loads(payload)
-                        except json.JSONDecodeError:
-                            yield {"raw": payload}
+                    event = decoder.decode(line)
+                    if event is None:
+                        continue
+                    payload = event.data.strip()
+                    if payload == "[DONE]":
+                        return
+                    try:
+                        yield json.loads(payload)
+                    except json.JSONDecodeError:
+                        yield {"raw": payload}
 
     # ── Events ────────────────────────────────────────────────────────────
 
@@ -424,7 +429,8 @@ class McpClient:
             try:
                 handler(*args)
             except Exception:
-                pass  # Don't let handler errors crash the client
+                # A handler error must not crash the client, but must not vanish.
+                logger.exception("McpClient %r event handler raised", event)
 
     # ── Reconnection ──────────────────────────────────────────────────────
 

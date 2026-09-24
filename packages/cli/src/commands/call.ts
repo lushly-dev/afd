@@ -4,8 +4,20 @@
 
 import type { Command } from 'commander';
 import ora from 'ora';
-import { ensureConnected } from '../connection.js';
+import { describeArgsError, parseToolArgs } from '../args.js';
+import type { CliTransport } from '../config.js';
+import { type ConnectFlags, requireClient } from '../connection.js';
 import { type OutputFormat, printError, printResult } from '../output.js';
+import { terminalText } from '../terminal.js';
+import { headerOption, transportOption } from './options.js';
+
+interface CallOptions extends ConnectFlags {
+	connect?: string;
+	transport?: CliTransport;
+	timeout?: string;
+	format: OutputFormat;
+	verbose?: boolean;
+}
 
 /**
  * Register the call command.
@@ -14,51 +26,43 @@ export function registerCallCommand(program: Command): void {
 	program
 		.command('call')
 		.description('Call a tool/command')
-		.argument('<name>', 'Tool name (e.g., document.create)')
-		.argument('[args]', 'JSON arguments or key=value pairs')
+		.argument('<name>', 'Tool name (e.g., document-create)')
+		.argument('[args]', 'JSON object or key=value pairs (quote values with spaces)')
 		.option('--connect <url>', 'Use an MCP server URL for this call without changing saved config')
-		.option('--transport <type>', 'Transport type for --connect (sse, http; default: http)')
+		.addOption(
+			transportOption(
+				'Transport type for --connect (default: http)',
+				undefined,
+				'--transport <type>'
+			)
+		)
 		.option('--timeout <ms>', 'Connection timeout in milliseconds')
+		.addOption(headerOption())
 		.option('-f, --format <format>', 'Output format (json, text)', 'text')
 		.option('-v, --verbose', 'Show detailed output including reasoning and sources')
-		.action(async (name: string, args: string | undefined, options) => {
-			const client = await ensureConnected({
+		.action(async (name: string, args: string | undefined, options: CallOptions) => {
+			let parsedArgs: Record<string, unknown>;
+			try {
+				parsedArgs = parseToolArgs(args);
+			} catch (error) {
+				printError(describeArgsError(error));
+				return process.exit(1);
+			}
+
+			const client = await requireClient(options, {
 				url: options.connect,
-				transport: options.transport as 'sse' | 'http',
+				transport: options.transport,
 				timeout: options.timeout ? Number.parseInt(options.timeout, 10) : undefined,
 			});
 
-			if (!client) {
-				printError('Not connected. Run "afd connect <url>" first.');
-				process.exit(1);
-			}
-
-			// Parse arguments
-			let parsedArgs: Record<string, unknown> = {};
-
-			if (args) {
-				try {
-					// Try JSON first
-					if (args.startsWith('{')) {
-						parsedArgs = JSON.parse(args);
-					} else {
-						// Parse key=value pairs
-						parsedArgs = parseKeyValuePairs(args);
-					}
-				} catch (_error) {
-					printError('Invalid arguments format. Use JSON or key=value pairs.');
-					process.exit(1);
-				}
-			}
-
-			const spinner = ora(`Calling ${name}...`).start();
+			const spinner = ora(`Calling ${terminalText(name)}...`).start();
 
 			try {
 				const result = await client.call(name, parsedArgs);
 				spinner.stop();
 
 				printResult(result, {
-					format: options.format as OutputFormat,
+					format: options.format,
 					verbose: options.verbose,
 				});
 
@@ -67,32 +71,9 @@ export function registerCallCommand(program: Command): void {
 					process.exit(1);
 				}
 			} catch (error) {
-				spinner.fail(`Failed to call ${name}`);
+				spinner.fail(`Failed to call ${terminalText(name)}`);
 				printError('Command execution failed', error instanceof Error ? error : undefined);
 				process.exit(1);
 			}
 		});
-}
-
-/**
- * Parse key=value pairs into an object.
- */
-function parseKeyValuePairs(input: string): Record<string, unknown> {
-	const result: Record<string, unknown> = {};
-	const pairs = input.split(/\s+/);
-
-	for (const pair of pairs) {
-		const [key, ...valueParts] = pair.split('=');
-		if (key && valueParts.length > 0) {
-			const value = valueParts.join('=');
-			// Try to parse as JSON for complex values
-			try {
-				result[key] = JSON.parse(value);
-			} catch {
-				result[key] = value;
-			}
-		}
-	}
-
-	return result;
 }

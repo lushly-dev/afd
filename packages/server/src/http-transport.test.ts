@@ -299,6 +299,54 @@ describe('GET /stream', () => {
 		expect(await posted.text()).toContain('"written":"x"');
 		expect(await (await fetch(`${url}/stream/item-get`)).text()).toContain('"type":"complete"');
 	});
+
+	it('caps query input at maxBodyBytes, like a POST body', async () => {
+		const { url } = await host({ maxBodyBytes: 64 });
+		const fits = JSON.stringify({ id: 'x'.repeat(40) });
+		const tooLarge = JSON.stringify({ id: 'x'.repeat(80) });
+		// Multibyte characters count as their UTF-8 bytes: 30 × 3 bytes > 64.
+		const multibyte = JSON.stringify({ id: '€'.repeat(30) });
+
+		const ok = await fetch(`${url}/stream/item-get?input=${encodeURIComponent(fits)}`);
+		expect(ok.status).toBe(200);
+		expect(await ok.text()).toContain('"type":"complete"');
+		for (const input of [tooLarge, multibyte]) {
+			const viaGet = await fetch(`${url}/stream/item-get?input=${encodeURIComponent(input)}`);
+			expect(viaGet.status).toBe(413);
+			expect(await viaGet.json()).toMatchObject({
+				success: false,
+				error: { code: 'HTTP_413', suggestion: expect.stringContaining('POST') },
+			});
+			expect((await post(url, '/stream/item-get', JSON.parse(input))).status).toBe(413);
+		}
+		expect(seen).toHaveLength(1);
+	});
+
+	it('caps query input that a large host header limit lets through', async () => {
+		seen.length = 0;
+		const handler = createMcpHandler({
+			name: 'transport-test',
+			version: '1',
+			host: '127.0.0.1',
+			commands: [readItem],
+			maxBodyBytes: 32 * 1024,
+		});
+		// The host raises Node's 16 KiB header limit; the stream input cap still applies.
+		const server = createServer({ maxHeaderSize: 256 * 1024 }, handler);
+		await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+		cleanups.push(async () => {
+			handler.dispose();
+			server.closeAllConnections();
+			await new Promise<void>((resolve) => server.close(() => resolve()));
+		});
+		const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+		const input = encodeURIComponent(JSON.stringify({ id: 'x'.repeat(64 * 1024) }));
+
+		const response = await fetch(`${url}/stream/item-get?input=${input}`);
+
+		expect(response.status).toBe(413);
+		expect(seen).toHaveLength(0);
+	});
 });
 
 describe('/sse connections', () => {

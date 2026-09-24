@@ -43,6 +43,9 @@ export interface ExecuteOptions {
 
 	/** Additional environment variables */
 	env?: Record<string, string>;
+
+	/** Kills the CLI process when aborted */
+	signal?: AbortSignal;
 }
 
 // ============================================================================
@@ -78,7 +81,7 @@ export type ExecuteResult = ExecuteSuccess | ExecuteError;
  * @example
  * ```typescript
  * const cli = new CliWrapper({ serverUrl: "http://localhost:3000/mcp" });
- * const result = await cli.execute("todo.create", { title: "Buy groceries" });
+ * const result = await cli.execute("todo-create", { title: "Buy groceries" });
  * if (result.success) {
  *   console.log(result.result.data);
  * }
@@ -102,7 +105,7 @@ export class CliWrapper {
 	/**
 	 * Execute a command via the AFD CLI.
 	 *
-	 * @param command - Command name (e.g., "todo.create")
+	 * @param command - Command name (e.g., "todo-create")
 	 * @param input - Input parameters as an object
 	 * @param options - Execution options
 	 */
@@ -122,7 +125,12 @@ export class CliWrapper {
 		}
 
 		try {
-			const { stdout, stderr, exitCode } = await this.spawn(args, timeout, options?.env);
+			const { stdout, stderr, exitCode } = await this.spawn(
+				args,
+				timeout,
+				options?.env,
+				options?.signal
+			);
 			const durationMs = Date.now() - startTime;
 
 			if (this.config.verbose) {
@@ -195,7 +203,8 @@ export class CliWrapper {
 	private spawn(
 		args: string[],
 		timeout: number,
-		extraEnv?: Record<string, string>
+		extraEnv?: Record<string, string>,
+		signal?: AbortSignal
 	): Promise<{ stdout: string; stderr: string; exitCode: number }> {
 		return new Promise((resolve, reject) => {
 			const env = {
@@ -212,6 +221,7 @@ export class CliWrapper {
 				shell: false,
 				windowsVerbatimArguments: invocation.windowsVerbatimArguments,
 				timeout,
+				signal,
 			});
 
 			let stdout = '';

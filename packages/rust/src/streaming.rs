@@ -7,10 +7,11 @@
 //! `error`).
 
 use serde::{de::Deserializer, ser::Serializer, Deserialize, Serialize};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crate::errors::CommandError;
 use crate::result::ResultMetadata;
+use crate::time::Instant;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STREAM CHUNK TYPES

@@ -187,6 +187,7 @@ export type CommandToolMeta = {
 	category?: string;
 	requires?: string[];
 	mutation?: boolean;
+	destructive?: boolean;
 	examples?: CommandExample[];
 	outputSchema?: JsonSchema;
 	contexts?: string[];

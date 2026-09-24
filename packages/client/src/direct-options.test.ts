@@ -128,17 +128,13 @@ describe('DirectClient allow option', () => {
 describe('DirectClient timeout', () => {
 	it('returns a TIMEOUT failure when the command outlasts context.timeout', async () => {
 		const { registry } = createRegistry({
-			'slow-run': async () => {
-				await delay(200);
-				return { success: true, data: 'late' };
-			},
+			// Never settles: without an enforced timeout the test itself times out.
+			'slow-run': () => new Promise<CommandResult>(() => {}),
 		});
 		const client = createDirectClient(registry);
 
-		const started = performance.now();
 		const result = await client.call('slow-run', {}, { timeout: 20 });
 
-		expect(performance.now() - started).toBeLessThan(150);
 		expect(result.success).toBe(false);
 		expect(result.error).toMatchObject({
 			code: 'TIMEOUT',
@@ -234,7 +230,7 @@ describe('DirectClient timeout', () => {
 		expect(isEnforceableTimeout(1)).toBe(true);
 	});
 
-	it('propagates a rejection that happens before the deadline', async () => {
+	it('returns a failure for a rejection that happens before the deadline', async () => {
 		const { registry } = createRegistry({
 			'broken-run': async () => {
 				throw new Error('registry exploded');
@@ -242,9 +238,11 @@ describe('DirectClient timeout', () => {
 		});
 		const client = createDirectClient(registry);
 
-		await expect(client.call('broken-run', {}, { timeout: 1000 })).rejects.toThrow(
-			'registry exploded'
-		);
+		const result = await client.call('broken-run', {}, { timeout: 1000 });
+
+		expect(result.success).toBe(false);
+		expect(result.error?.code).toBe('COMMAND_EXECUTION_ERROR');
+		expect(JSON.stringify(result)).not.toContain('registry exploded');
 	});
 
 	it('does not leak a rejection that happens after the deadline', async () => {
@@ -337,5 +335,75 @@ describe('isUnknownToolError', () => {
 		expect(result.error?.suggestion).toBe(
 			'Call one of the commands returned by listCommandNames()'
 		);
+	});
+});
+
+describe('DirectClient failures instead of rejections', () => {
+	it('returns COMMAND_EXECUTION_ERROR when a hand-written registry throws', async () => {
+		const { registry } = createRegistry({
+			'todo-explode': async () => {
+				throw new Error('database password is hunter2');
+			},
+		});
+		const client = createDirectClient(registry);
+
+		const result = await client.call('todo-explode', {});
+
+		expect(result).toEqual({
+			success: false,
+			error: {
+				code: 'COMMAND_EXECUTION_ERROR',
+				message: 'An internal error occurred',
+				suggestion: 'Contact support if this persists',
+			},
+		});
+		expect(JSON.stringify(result)).not.toContain('hunter2');
+	});
+
+	it('returns a failure when client middleware throws', async () => {
+		const { registry, calls } = createRegistry(todoHandlers);
+		const client = createDirectClient(registry, {
+			middleware: [
+				() => {
+					throw new Error('middleware broke');
+				},
+			],
+		});
+
+		const result = await client.call('todo-list', {});
+
+		expect(result.error?.code).toBe('COMMAND_EXECUTION_ERROR');
+		expect(calls).toEqual([]);
+	});
+
+	it('records a throwing pipeline step as a failed step', async () => {
+		const { registry } = createRegistry({
+			...todoHandlers,
+			'todo-explode': async () => {
+				throw new Error('boom');
+			},
+		});
+		const client = createDirectClient(registry);
+
+		const result = await client.pipe([
+			{ command: 'todo-list', input: {} },
+			{ command: 'todo-explode', input: {} },
+		]);
+
+		expect(result.steps.map((step) => step.status)).toEqual(['success', 'failure']);
+		expect(result.steps[1]?.error?.code).toBe('COMMAND_EXECUTION_ERROR');
+	});
+
+	it('marks UNKNOWN_TOOL as not retryable and always suggests something', async () => {
+		const { registry } = createRegistry(todoHandlers);
+		const client = createDirectClient(registry);
+
+		const result = await client.call('todo-craete', {});
+
+		expect(result.error).toMatchObject({
+			code: 'UNKNOWN_TOOL',
+			suggestion: "Did you mean 'todo-create'?",
+			retryable: false,
+		});
 	});
 });

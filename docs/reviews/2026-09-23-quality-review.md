@@ -635,11 +635,14 @@ effective, and no test covers `BATCH_TIMEOUT` or `COMMAND_SKIPPED`.
 
 **Wave 2 (architecture) on the third review branch:** shared golden wire fixtures (`spec/wire`) round-tripped by TypeScript, Python and Rust (H12 and the Python wire drift fixed); one pipeline variable spec (`spec/pipeline-variables.md`) implemented in all three languages (Theme 3); per-session context and a `createContext` request hook (H3, Theme 4); JSON-RPC-conformant HTTP errors, notifications and capped SSE; input-mode schemas (H5); usable, validated bootstrap and meta-tools; `createDirectRegistry` for DirectClient; transport-free `@lushly-dev/afd-server/define` and core `/connectors` subpaths (Theme 9, root re-exports deprecated until the next major); the core registry shares the server's batch/stream executor (Theme 2); exposure resolves per flag everywhere.
 
-**Follow-ups found while fixing:**
+**Wave 3 (package-level fixes) on the fourth review branch:** H8 (the rest) and H11 in Python, with sandboxed testing tools (the Python half of H15), child-process cleanup on cancellation, a bounded rate limiter and wire-format built-in payloads; H13, H14 and H15 in `@lushly-dev/afd-testing`; H16 in the todo-directclient and todo examples; the Rust registry now enforces parameters, `expose` and timeouts, and the Rust todo backend runs the conformance suite (34/34 in all three languages). Auth, client, CLI, local-db, adapters, core and server each received their medium and low findings, and alfred now checks wire-fixture coverage in `parity` and every `defineCommand` in `quality`. The TS server now advertises `_meta.destructive`, and `afd-detail` validates its arguments (Wave 2).
 
-- `afd-detail` with a missing or non-string `command` still throws a `TypeError` (TS). Middleware exceptions on direct Python tool calls still reach FastMCP with their text.
-- The TS server never emits `_meta.destructive`, so `afd validate --execute` can only skip `mutation: true` tools.
-- `connect --no-reconnect` is now a no-op in the CLI. The dotted-name grouping in `printTools` and the shell shorthand remain.
+**Remaining follow-ups:**
+
+- `McpClient.stream()` does not send the `Mcp-Session-Id` header. The TS `initialize` response hardcodes its protocol version.
+- Python and Rust pipelines accept `stream: true` on a step and ignore it; TypeScript rejects it with `UNSUPPORTED_OPTION`. Python retry middleware backs off linearly, unlike TypeScript.
+- Python's `ReconnectingHandoffConnection` passes `session_id` to the reconnect command; TypeScript passes `sessionId`.
+- The dotted-name grouping in the CLI's `printTools` and the shell shorthand remain.
 - `mcp` must stay `<2` for the Python server (`mcp.server.fastmcp` was removed in 2.x).
 - A Windows reviewer should manually verify:
   - `gh issue create` with a title containing `&`;

@@ -3,14 +3,14 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use crate::commands::{
     CommandContext, CommandDefinition, CommandHandler, CommandParameter, CommandRegistry,
 };
-use crate::result::{success_with, CommandResult, ResultOptions};
+use crate::result::{failure, success_with, CommandResult, ResultOptions};
 
-use super::{BOOTSTRAP_CATEGORY, BOOTSTRAP_TAGS};
+use super::{bootstrap_expose, RegistryRef, BOOTSTRAP_CATEGORY, BOOTSTRAP_TAGS};
 
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
@@ -36,6 +36,9 @@ pub struct CommandInfo {
     pub tags: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mutation: Option<bool>,
+    /// Commands to call first (always listed when set).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requires: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,12 +50,24 @@ pub struct HelpOutput {
     pub grouped_by_category: HashMap<String, Vec<CommandInfo>>,
 }
 
+/// Handler for `afd-help`.
 pub struct AfdHelpHandler {
-    registry: Arc<CommandRegistry>,
+    registry: RegistryRef,
 }
 
 impl AfdHelpHandler {
+    /// Describe `registry`, keeping it alive.
     pub fn new(registry: Arc<CommandRegistry>) -> Self {
+        Self::from_ref(RegistryRef::Strong(registry))
+    }
+
+    /// Describe `registry` without keeping it alive, for a handler that is
+    /// registered into that same registry.
+    pub fn from_weak(registry: Weak<CommandRegistry>) -> Self {
+        Self::from_ref(RegistryRef::Weak(registry))
+    }
+
+    pub(crate) fn from_ref(registry: RegistryRef) -> Self {
         Self { registry }
     }
 }
@@ -62,10 +77,13 @@ impl CommandHandler for AfdHelpHandler {
     async fn execute(
         &self,
         input: serde_json::Value,
-        _context: CommandContext,
+        context: CommandContext,
     ) -> CommandResult<serde_json::Value> {
         let input: HelpInput = serde_json::from_value(input).unwrap_or_default();
-        let all_commands = self.registry.list();
+        let all_commands = match self.registry.describable_commands(&context) {
+            Ok(commands) => commands,
+            Err(error) => return failure(*error),
+        };
         let filtered = input.filter.is_some();
 
         let commands: Vec<_> = if let Some(ref filter_text) = input.filter {
@@ -105,6 +123,7 @@ impl CommandHandler for AfdHelpHandler {
                 category: if is_full { cmd.category.clone() } else { None },
                 tags: if is_full { cmd.tags.clone() } else { None },
                 mutation: if is_full { Some(cmd.mutation) } else { None },
+                requires: cmd.requires.clone().filter(|requires| !requires.is_empty()),
             };
             let category = cmd
                 .category
@@ -147,7 +166,13 @@ impl CommandHandler for AfdHelpHandler {
     }
 }
 
+/// Create `afd-help` for `registry`, keeping it alive. To register it into
+/// `registry` itself, use [`super::register_bootstrap_commands`].
 pub fn create_afd_help_command(registry: Arc<CommandRegistry>) -> CommandDefinition {
+    command(AfdHelpHandler::new(registry))
+}
+
+pub(super) fn command(handler: AfdHelpHandler) -> CommandDefinition {
     CommandDefinition::new(
         "afd-help",
         "List all available commands with tags and grouping",
@@ -157,11 +182,12 @@ pub fn create_afd_help_command(registry: Arc<CommandRegistry>) -> CommandDefinit
                 .with_default(serde_json::json!("brief"))
                 .with_enum(vec![serde_json::json!("brief"), serde_json::json!("full")]),
         ],
-        AfdHelpHandler::new(registry),
+        handler,
     )
     .with_category(BOOTSTRAP_CATEGORY)
     .with_tags(BOOTSTRAP_TAGS.iter().map(|s| s.to_string()).collect())
     .with_version("1.0.0")
+    .with_expose(bootstrap_expose())
 }
 
 #[cfg(test)]
@@ -183,7 +209,7 @@ mod tests {
     }
 
     fn create_test_registry() -> Arc<CommandRegistry> {
-        let mut registry = CommandRegistry::new();
+        let registry = CommandRegistry::new();
         let cmd1 = CommandDefinition::new(
             "todo-create",
             "Create a new todo",

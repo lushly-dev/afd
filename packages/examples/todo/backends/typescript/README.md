@@ -32,6 +32,17 @@ file instead of being treated as empty.
 | `PORT` | `3100` | HTTP server port |
 | `HOST` | `localhost` | HTTP server host |
 | `TRANSPORT` | `auto` | Transport mode: `auto`, `http`, or `stdio` |
+| `ALLOWED_ORIGINS` | (none) | Extra exact browser origins, comma-separated (`*` and `null` are refused) |
+| `NODE_ENV` | | `development` accepts any browser origin and returns verbose errors |
+
+### Browser access
+
+Browsers may call the server from the dev frontends in the
+[todo README](../../README.md): `pnpm dev:web` (`http://localhost:3000`) and the
+Vite dev servers (`http://localhost:5173`, and `5174` when both frontends run),
+on `localhost` or `127.0.0.1`. Any other page gets `403 Origin is not allowed`;
+add its exact origin to `ALLOWED_ORIGINS`. The list is built in
+`src/server-options.ts` and tested in `src/server-options.test.ts`.
 
 ### Examples
 

@@ -193,6 +193,17 @@ export class TerminalReporter {
 		const stepSummary = `  ${result.passedSteps} passed, ${result.failedSteps} failed, ${result.skippedSteps} skipped`;
 		this.write(colorize(stepSummary, outcomeColor, this.config.colors));
 
+		// Scenario-level error (fixture, timeout, parse, unsupported field)
+		if (result.error) {
+			this.write(
+				colorize(
+					`  Error (${result.error.type}): ${result.error.message}`,
+					'red',
+					this.config.colors
+				)
+			);
+		}
+
 		// Verbose: show all steps
 		if (this.config.verbose) {
 			this.write('');
@@ -269,9 +280,10 @@ export class TerminalReporter {
 
 		const passColor = summary.passedScenarios > 0 ? 'green' : 'dim';
 		const failColor = summary.failedScenarios > 0 ? 'red' : 'dim';
+		const errorColor = summary.errorScenarios > 0 ? 'red' : 'dim';
 
 		this.write(
-			`  Scenarios: ${colorize(`${summary.passedScenarios} passed`, passColor, this.config.colors)}, ${colorize(`${summary.failedScenarios} failed`, failColor, this.config.colors)}`
+			`  Scenarios: ${colorize(`${summary.passedScenarios} passed`, passColor, this.config.colors)}, ${colorize(`${summary.failedScenarios} failed`, failColor, this.config.colors)}, ${colorize(`${summary.errorScenarios} errors`, errorColor, this.config.colors)}, ${summary.skippedScenarios} skipped`
 		);
 		this.write(
 			`  Steps: ${summary.passedSteps} passed, ${summary.failedSteps} failed, ${summary.skippedSteps} skipped`
@@ -279,12 +291,12 @@ export class TerminalReporter {
 		this.write(`  Pass rate: ${(summary.passRate * 100).toFixed(1)}%`);
 		this.write(`  Duration: ${this.formatDuration(durationMs)}`);
 
-		if (summary.failedScenarios === 0) {
+		// Errors count as failures: a report with only errored scenarios did not pass
+		const notPassing = summary.failedScenarios + summary.errorScenarios;
+		if (notPassing === 0) {
 			this.write(colorize('\n✓ All scenarios passed!', 'green', this.config.colors));
 		} else {
-			this.write(
-				colorize(`\n✗ ${summary.failedScenarios} scenario(s) failed`, 'red', this.config.colors)
-			);
+			this.write(colorize(`\n✗ ${notPassing} scenario(s) failed`, 'red', this.config.colors));
 		}
 	}
 

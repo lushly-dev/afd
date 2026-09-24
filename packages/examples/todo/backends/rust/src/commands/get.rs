@@ -1,26 +1,38 @@
-use afd::{CommandHandler, CommandResult, CommandError, CommandContext, success, failure};
-use crate::store;
+use super::{not_found, ok, schema, Command};
+use crate::store::TodoStore;
+use afd::{failure, CommandResult};
 use serde::Deserialize;
-use async_trait::async_trait;
+use serde_json::{json, Value};
+use std::sync::Arc;
+
+pub struct Get(pub Arc<TodoStore>);
 
 #[derive(Deserialize)]
-pub struct GetInput {
-    pub id: String,
+pub struct Input {
+    id: String,
 }
 
-pub struct GetHandler;
+impl Command for Get {
+    type Input = Input;
+    const NAME: &'static str = "todo-get";
+    const DESCRIPTION: &'static str = "Get a single todo by ID";
+    const MUTATION: bool = false;
 
-#[async_trait]
-impl CommandHandler for GetHandler {
-    async fn execute(&self, input: serde_json::Value, _context: CommandContext) -> CommandResult<serde_json::Value> {
-        let input: GetInput = match serde_json::from_value(input) {
-            Ok(i) => i,
-            Err(e) => return failure(CommandError::validation(&e.to_string(), None)),
-        };
+    fn schema() -> Value {
+        json!({
+            "type": "object",
+            "properties": { "id": schema::id() },
+            "required": ["id"]
+        })
+    }
 
-        match store::get(&input.id) {
-            Some(todo) => success(serde_json::to_value(todo).unwrap()),
-            None => failure(CommandError::not_found("Todo", &input.id)),
+    fn run(&self, input: Input) -> CommandResult<Value> {
+        match self.0.get(&input.id) {
+            Some(todo) => {
+                let reasoning = format!("Retrieved todo \"{}\"", todo.title);
+                ok(&todo, reasoning, 1.0, Vec::new())
+            }
+            None => failure(not_found(&input.id)),
         }
     }
 }

@@ -47,11 +47,11 @@ describe('MCP Server', () => {
 	});
 
 	it('should handle initialize request', async () => {
-		const request: JsonRpcRequest = {
+		const request = {
 			jsonrpc: '2.0',
 			id: 1,
 			method: 'initialize',
-		};
+		} satisfies JsonRpcRequest;
 
 		const response = await server.handleRequest(request);
 
@@ -71,11 +71,11 @@ describe('MCP Server', () => {
 	});
 
 	it('should handle ping request', async () => {
-		const request: JsonRpcRequest = {
+		const request = {
 			jsonrpc: '2.0',
 			id: 2,
 			method: 'ping',
-		};
+		} satisfies JsonRpcRequest;
 
 		const response = await server.handleRequest(request);
 
@@ -84,11 +84,11 @@ describe('MCP Server', () => {
 	});
 
 	it('should handle tools/list request', async () => {
-		const request: JsonRpcRequest = {
+		const request = {
 			jsonrpc: '2.0',
 			id: 3,
 			method: 'tools/list',
-		};
+		} satisfies JsonRpcRequest;
 
 		const response = await server.handleRequest(request);
 
@@ -105,11 +105,11 @@ describe('MCP Server', () => {
 	});
 
 	it('should handle unknown method with error', async () => {
-		const request: JsonRpcRequest = {
+		const request = {
 			jsonrpc: '2.0',
 			id: 4,
 			method: 'unknown/method',
-		};
+		} satisfies JsonRpcRequest;
 
 		const response = await server.handleRequest(request);
 
@@ -167,7 +167,7 @@ describe('MCP Tools', () => {
 		});
 
 		it('should return undefined for unknown tool', () => {
-			const tool = getTool('unknown.tool');
+			const tool = getTool('unknown-tool');
 
 			expect(tool).toBeUndefined();
 		});
@@ -193,30 +193,37 @@ describe('MCP Tools', () => {
 		});
 
 		it('rejects primitive tool input before command execution', async () => {
-			await expect(
-				executeTool(createToolRegistry(), 'scenario-coverage', 'known-command')
-			).rejects.toThrow('Input must be an object');
+			const result = await executeTool(createToolRegistry(), 'scenario-coverage', 'known-command');
+
+			expect(result).toMatchObject({
+				success: false,
+				error: {
+					code: 'VALIDATION_ERROR',
+					message: expect.stringContaining('Input must be an object'),
+				},
+			});
 		});
 
 		it.each([
-			['scenario-coverage', {}, 'knownCommands'],
 			['scenario-create', { name: 'Missing job' }, 'job'],
 			['scenario-suggest', {}, 'context'],
 		] as const)('requires declared input for %s', async (tool, input, missingField) => {
-			await expect(executeTool(createToolRegistry(), tool, input)).rejects.toThrow(
-				`Missing required field: ${missingField}`
-			);
+			const result = await executeTool(createToolRegistry(), tool, input);
+
+			expect(result.success).toBe(false);
+			expect(result.error?.code).toBe('VALIDATION_ERROR');
+			expect(result.error?.message).toContain(`Missing required field '${missingField}'`);
+			expect(result.error?.suggestion).toBeDefined();
 		});
 
 		it('executes registry handlers for valid create and suggest inputs', async () => {
-			const registry = createToolRegistry();
 			const directory = mkdtempSync(join(tmpdir(), 'afd-mcp-tools-'));
+			const registry = createToolRegistry({ cwd: directory });
 
 			try {
 				const created = await executeTool(registry, 'scenario-create', {
 					name: 'Create item',
 					job: 'item-create',
-					directory,
 				});
 				const suggested = await executeTool(registry, 'scenario-suggest', {
 					context: 'command',
@@ -234,7 +241,7 @@ describe('MCP Tools', () => {
 	describe('executeTool', () => {
 		it('should return error for unknown tool', async () => {
 			const registry = createToolRegistry();
-			const result = await executeTool(registry, 'unknown.tool', {});
+			const result = await executeTool(registry, 'unknown-tool', {});
 
 			expect(result.success).toBe(false);
 			expect(result.error?.code).toBe('UNKNOWN_TOOL');
@@ -313,6 +320,7 @@ describe('Agent Hints', () => {
 					passedScenarios: 1,
 					failedScenarios: 0,
 					errorScenarios: 0,
+					skippedScenarios: 0,
 					totalSteps: 1,
 					passedSteps: 1,
 					failedSteps: 0,
@@ -351,6 +359,7 @@ describe('Agent Hints', () => {
 					passedScenarios: 0,
 					failedScenarios: 1,
 					errorScenarios: 0,
+					skippedScenarios: 0,
 					totalSteps: 1,
 					passedSteps: 0,
 					failedSteps: 1,
@@ -369,15 +378,15 @@ describe('Agent Hints', () => {
 
 	describe('generateCoverageHints', () => {
 		it('should suggest creating tests for untested commands', () => {
-			const hints = generateCoverageHints(['todo.list'], ['todo.create', 'todo.delete'], 33);
+			const hints = generateCoverageHints(['todo-list'], ['todo-create', 'todo-delete'], 33);
 
-			expect(hints.untestedCommands).toContain('todo.create');
-			expect(hints.untestedCommands).toContain('todo.delete');
+			expect(hints.untestedCommands).toContain('todo-create');
+			expect(hints.untestedCommands).toContain('todo-delete');
 			expect(hints.nextSteps.some((s) => s.includes('no test coverage'))).toBe(true);
 		});
 
 		it('should prioritize mutation commands', () => {
-			const hints = generateCoverageHints([], ['todo.create', 'todo.delete', 'todo.list'], 0);
+			const hints = generateCoverageHints([], ['todo-create', 'todo-delete', 'todo-list'], 0);
 
 			expect(hints.nextSteps.some((s) => s.includes('Priority'))).toBe(true);
 		});
@@ -404,7 +413,7 @@ describe('scenario-suggest', () => {
 		it('should suggest scenarios for a specific command', async () => {
 			const result = await scenarioSuggest({
 				context: 'command',
-				command: 'todo.create',
+				command: 'todo-create',
 			});
 
 			expect(result.success).toBe(true);
@@ -478,7 +487,7 @@ describe('scenario-suggest', () => {
 
 			expect(result.success).toBe(true);
 			expect(result.data?.suggestions.length).toBeGreaterThan(0);
-			expect(result.data?.suggestions.some((s) => s.commands?.includes('todo.create'))).toBe(true);
+			expect(result.data?.suggestions.some((s) => s.commands?.includes('todo-create'))).toBe(true);
 		});
 
 		it('should return empty suggestions for no changed files', async () => {
@@ -496,7 +505,7 @@ describe('scenario-suggest', () => {
 		it('should include skeleton when requested', async () => {
 			const result = await scenarioSuggest({
 				context: 'command',
-				command: 'todo.create',
+				command: 'todo-create',
 				includeSkeleton: true,
 			});
 
@@ -511,7 +520,7 @@ describe('scenario-suggest', () => {
 		it('should respect limit parameter', async () => {
 			const result = await scenarioSuggest({
 				context: 'command',
-				command: 'todo.create',
+				command: 'todo-create',
 				limit: 2,
 			});
 
@@ -522,7 +531,7 @@ describe('scenario-suggest', () => {
 		it('should sort by priority and confidence', async () => {
 			const result = await scenarioSuggest({
 				context: 'command',
-				command: 'todo.create',
+				command: 'todo-create',
 			});
 
 			expect(result.success).toBe(true);

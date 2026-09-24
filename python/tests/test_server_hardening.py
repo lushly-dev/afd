@@ -97,7 +97,7 @@ class TestDiscoveryOnlySeesMcpExposedCommands:
         assert "todo-create" in [info.name for info in schema_result.data.schemas]
 
     @pytest.mark.asyncio
-    async def test_afd_detail_via_batch_treats_private_command_as_not_found(self):
+    async def test_afd_detail_cannot_run_inside_a_batch(self):
         server = _server_with_private_command(tool_strategy="individual")
 
         result = await server.call_tool(
@@ -110,8 +110,21 @@ class TestDiscoveryOnlySeesMcpExposedCommands:
             },
         )
 
-        for item in result.results:
-            entry = item.result.data[0]
+        assert result.success is False
+        assert result.error.code == "INVALID_BATCH_REQUEST"
+        assert result.results == []
+        assert PRIVATE_DESCRIPTION not in _dump(result)
+        assert PRIVATE_FIELD not in _dump(result)
+
+    @pytest.mark.asyncio
+    async def test_afd_detail_treats_private_command_as_not_found(self):
+        server = _server_with_private_command(tool_strategy="individual")
+
+        result = await server.call_tool(
+            "afd-detail", {"command": [PRIVATE_NAME, "secret-rotat"]}
+        )
+
+        for entry in result.data:
             assert entry["found"] is False
             assert entry["error"]["code"] == "COMMAND_NOT_FOUND"
             assert "inputSchema" not in entry
@@ -228,6 +241,115 @@ class TestHandlerExceptions:
         assert pipe.steps[0].error.code == "COMMAND_EXECUTION_ERROR"
         assert "hunter2" not in _dump(batch)
         assert "hunter2" not in _dump(pipe)
+
+
+class TestMiddlewareExceptionsOnDirectCalls:
+    """A middleware that raises on a direct tool call is sanitized like a handler."""
+
+    def _server(self, **kwargs):
+        async def exploding_middleware(name, input, context, next_fn):
+            raise RuntimeError(LEAKY_MESSAGE)
+
+        server = create_server(
+            "hardening", tool_strategy="lazy", middleware=[exploding_middleware], **kwargs
+        )
+
+        @server.command(name="todo-create", description="Create", expose=ExposeOptions(mcp=True))
+        async def todo_create(input):
+            return success({})
+
+        return server
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("tool", "args"),
+        [
+            ("todo-create", {}),
+            ("afd-call", {"command": "todo-create", "input": {}}),
+        ],
+    )
+    async def test_call_tool_returns_a_sanitized_failure(self, tool, args, caplog):
+        server = self._server()
+
+        with caplog.at_level(logging.ERROR, logger="afd.server"):
+            result = await server.call_tool(tool, args)
+
+        assert result.success is False
+        assert result.error.code == "COMMAND_EXECUTION_ERROR"
+        assert result.error.message == "An internal error occurred"
+        assert "hunter2" not in _dump(result)
+        assert any(record.exc_info for record in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_execute_returns_a_sanitized_failure(self):
+        result = await self._server().execute("todo-create", {})
+
+        assert result.error.code == "COMMAND_EXECUTION_ERROR"
+        assert "hunter2" not in _dump(result)
+
+    @pytest.mark.asyncio
+    async def test_over_mcp_the_text_never_reaches_the_client(self):
+        from mcp.shared.memory import create_connected_server_and_client_session
+
+        mcp = self._server()._create_mcp_server()
+        async with create_connected_server_and_client_session(mcp._mcp_server) as session:
+            result = await session.call_tool("afd-call", {"command": "todo-create"})
+
+        assert result.isError is True
+        assert "hunter2" not in result.content[0].text
+        assert json.loads(result.content[0].text)["error"]["code"] == "COMMAND_EXECUTION_ERROR"
+
+    @pytest.mark.asyncio
+    async def test_dev_mode_returns_the_middleware_error_text(self):
+        result = await self._server(dev_mode=True).call_tool("todo-create", {})
+
+        assert result.error.message == LEAKY_MESSAGE
+
+
+class TestPerCallCaching:
+    @pytest.mark.asyncio
+    async def test_router_is_reused_between_calls(self):
+        server = _server_with_private_command()
+
+        await server.call_tool("todo-create", {"title": "a"})
+        router = server._router
+        await server.call_tool("todo-create", {"title": "b"})
+
+        assert router is not None
+        assert server._router is router
+
+    @pytest.mark.asyncio
+    async def test_registering_a_command_invalidates_the_cache(self):
+        server = _server_with_private_command()
+        await server.call_tool("todo-create", {"title": "a"})
+
+        @server.command(name="todo-late", description="Late", expose=ExposeOptions(mcp=True))
+        async def todo_late(input):
+            return success({"late": True})
+
+        result = await server.call_tool("todo-late", {})
+        via_call = await server.call_tool("afd-call", {"command": "todo-late"})
+
+        assert result.data == {"late": True}
+        assert via_call.data == {"late": True}
+
+    @pytest.mark.asyncio
+    async def test_signature_is_inspected_once_not_per_call(self, monkeypatch):
+        import afd.server.decorators as decorators
+
+        server = _server_with_private_command()
+        calls = []
+        original = decorators.inspect.signature
+        monkeypatch.setattr(
+            decorators.inspect,
+            "signature",
+            lambda *args, **kwargs: calls.append(args) or original(*args, **kwargs),
+        )
+
+        for _ in range(3):
+            await server.call_tool("todo-create", {"title": "x"})
+
+        assert calls == []
 
 
 class TestInputValidationErrors:

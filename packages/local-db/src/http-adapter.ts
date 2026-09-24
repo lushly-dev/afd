@@ -1,3 +1,4 @@
+import { assertValidName, DataAdapterError, UPSERT_TABLES } from './adapter-support.js';
 import type {
 	BatchOperation,
 	BatchResult,
@@ -8,7 +9,7 @@ import type {
 } from './types.js';
 
 /** Table name → API path mapping. Override via constructor options. */
-const DEFAULT_PATH_MAP: Record<string, string> = {
+const DEFAULT_PATH_MAP: Readonly<Record<string, string>> = {
 	accounts: '/accounts',
 	settings: '/settings',
 	flags: '/flags',
@@ -17,24 +18,21 @@ const DEFAULT_PATH_MAP: Record<string, string> = {
 	annotations: '/annotations',
 	feature_data: '/feature-data',
 	chat_sessions: '/chat/sessions',
-	chat_messages: '/chat/sessions',
+	chat_messages: '/chat/messages',
 	keyboard_shortcuts: '/shortcuts',
 };
-
-/** Tables that use PUT (upsert) instead of PATCH for updates. */
-const UPSERT_TABLES = new Set([
-	'settings',
-	'flags',
-	'feature_flags',
-	'feature_data',
-	'keyboard_shortcuts',
-]);
 
 export interface HttpAdapterOptions {
 	/** Custom table → path mappings (merged with defaults). */
 	pathMap?: Record<string, string>;
 	/** Custom fetch implementation (for testing or Node environments). */
 	fetch?: typeof globalThis.fetch;
+}
+
+/** One percent-encoded path segment for a table or record name. */
+function segment(kind: 'table' | 'record id', value: string): string {
+	assertValidName(kind, value);
+	return encodeURIComponent(value);
 }
 
 /**
@@ -48,6 +46,10 @@ export interface HttpAdapterOptions {
  * - DELETE /path/:id — delete
  * - POST /batch — atomic batch
  * - GET /health — health check
+ *
+ * A table without a `pathMap` entry is sent as one percent-encoded path segment, so names such
+ * as `constructor` or `../admin` stay inside the base path. Failures reject with a
+ * `DataAdapterError` carrying the HTTP `status`.
  */
 export class HttpAdapter implements DataAdapter {
 	private readonly baseUrl: string;
@@ -61,7 +63,12 @@ export class HttpAdapter implements DataAdapter {
 	}
 
 	private resolvePath(table: string): string {
-		return this.pathMap[table] ?? `/${table}`;
+		const mapped = Object.hasOwn(this.pathMap, table) ? this.pathMap[table] : undefined;
+		return mapped ?? `/${segment('table', table)}`;
+	}
+
+	private recordPath(table: string, id: string): string {
+		return `${this.resolvePath(table)}/${segment('record id', id)}`;
 	}
 
 	private url(path: string, params?: Record<string, string>): string {
@@ -80,15 +87,14 @@ export class HttpAdapter implements DataAdapter {
 		if (!res.ok) {
 			if (res.status === 404 && options?.allowNotFound) return null as T;
 			const body = await res.text().catch(() => '');
-			throw new Error(`HTTP ${res.status}: ${body || res.statusText}`);
+			throw new DataAdapterError(res.status, `HTTP ${res.status}: ${body || res.statusText}`);
 		}
 		if (res.status === 204) return undefined as T;
 		return res.json() as Promise<T>;
 	}
 
 	async get<T>(table: string, id: string): Promise<T | null> {
-		const path = this.resolvePath(table);
-		return this.request<T | null>(this.url(`${path}/${encodeURIComponent(id)}`), undefined, {
+		return this.request<T | null>(this.url(this.recordPath(table, id)), undefined, {
 			allowNotFound: true,
 		});
 	}
@@ -113,21 +119,32 @@ export class HttpAdapter implements DataAdapter {
 		});
 	}
 
+	/**
+	 * Update a record: `PUT` (upsert) for the upsert tables such as `settings`, otherwise `PATCH`,
+	 * which rejects with a 404 `DataAdapterError` for a missing record.
+	 */
 	async update<T>(table: string, id: string, patch: Partial<T>): Promise<T> {
-		const path = this.resolvePath(table);
 		const method = UPSERT_TABLES.has(table) ? 'PUT' : 'PATCH';
-		return this.request<T>(this.url(`${path}/${encodeURIComponent(id)}`), {
+		return this.request<T>(this.url(this.recordPath(table, id)), {
 			method,
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify(patch),
 		});
 	}
 
+	/** Delete a record. Deleting a record that does not exist (404) succeeds, as in `MemoryAdapter`. */
 	async remove(table: string, id: string): Promise<void> {
-		const path = this.resolvePath(table);
-		await this.request<void>(this.url(`${path}/${encodeURIComponent(id)}`), { method: 'DELETE' });
+		await this.request<void>(
+			this.url(this.recordPath(table, id)),
+			{ method: 'DELETE' },
+			{ allowNotFound: true }
+		);
 	}
 
+	/**
+	 * Send the operations to `POST /batch` in one request. Atomicity is the server's job: it
+	 * must apply all operations or none, as `DataAdapter.batch()` describes.
+	 */
 	async batch(operations: BatchOperation[]): Promise<BatchResult> {
 		return this.request<BatchResult>(this.url('/batch'), {
 			method: 'POST',

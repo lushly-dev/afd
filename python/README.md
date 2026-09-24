@@ -225,7 +225,26 @@ CommandResult.model_validate({"success": True, "undoCommand": "todo-delete"})
 
 The MCP server sends failures with `isError: true`, and a missing or mistyped
 argument returns a `VALIDATION_ERROR` result with `details.errors`,
-`details.missingFields` and a `suggestion`.
+`details.missingFields` and a `suggestion`. Every command result carries
+`metadata.executionTimeMs` and a per-call `metadata.traceId`, as in TypeScript. An
+exception from a handler or a middleware becomes a `COMMAND_EXECUTION_ERROR` whose
+message is "An internal error occurred" unless `create_server(dev_mode=True)`.
+
+### Batches and Pipelines
+
+`afd-batch` and `afd-pipe` run commands, never built-in tools: a batch item or pipeline
+step naming `afd-batch`, `afd-pipe`, `afd-call`, `afd-discover` or `afd-detail` rejects
+the whole request before anything runs, and so does a malformed `when` condition
+(for example `$exist` or `{"$eq": "x"}`).
+
+- A batch holds at most 500 commands, with `parallelism` at most 16. Configure the caps
+  with `create_server(max_batch_size=..., max_batch_parallelism=...)`; a larger request
+  returns `INVALID_BATCH_REQUEST`.
+- When a batch stops (a failure with `stopOnError`, or its `timeout`), commands still
+  running are cancelled and awaited, so nothing keeps running after the result is sent.
+  They report `COMMAND_CANCELLED` or `BATCH_TIMEOUT`.
+- A handler that returns something other than a `CommandResult` gives its item or step
+  an `INVALID_COMMAND_RESULT` failure instead of breaking the aggregate result.
 
 ### Telemetry
 
@@ -279,6 +298,16 @@ middleware = compose_middleware([
     create_timing_middleware(threshold_ms=500),
     create_retry_middleware(max_retries=3),
 ])
+
+# Fixed-window rate limit: 100 calls per minute per client. Expired windows are
+# evicted; at most max_keys (default 10,000) clients are tracked at once.
+from afd.server import create_rate_limit_middleware
+
+limit = create_rate_limit_middleware(
+    max_requests=100,
+    window_ms=60_000,
+    key_fn=lambda ctx: ctx.extra.get("client_id", "anonymous"),
+)
 ```
 
 ## MCP Client (Network)
@@ -365,11 +394,33 @@ if result.success and is_handoff(result.data):
     conn = await create_reconnecting_handoff(client, result.data,
         ReconnectionOptions(
             reconnect_command='chat-reconnect',
-            session_id=result.data.get('credentials', {}).get('session_id'),
+            session_id=result.data.get('credentials', {}).get('sessionId'),
             on_reconnect=lambda n: print(f'Reconnecting (attempt {n})'),
         ),
     )
+
+    await conn.close()  # stops any reconnect in progress; nothing stays open
 ```
+
+- The built-in handlers read in a background task: every message reaches `on_message`
+  (parsed as JSON when it is JSON) and a close by the server reaches `on_disconnect`.
+- A `credentials.token` is sent as an `Authorization: Bearer` header, never in the URL.
+- A reconnecting connection retries with exponential backoff until it connects, runs
+  out of attempts (`on_reconnect_failed`, state `failed`) or is closed.
+- `create_handoff()` returns the wire format (`sessionId`, `expectedLatency`,
+  `expiresAt`, `maxAttempts`, `backoffMs`); the handoff helpers accept camelCase or
+  snake_case.
+
+## CLI
+
+```bash
+afd connect http://localhost:3100/sse   # SSE endpoint (an .../message URL uses HTTP)
+afd tools
+afd call todo-create '{"title": "Hello"}'
+```
+
+`afd connect` takes a server URL (or `mock` for testing); it does not start or name
+servers.
 
 ## Packages
 

@@ -5,7 +5,10 @@
  * for CI/CD pre-flight checks without running commands.
  */
 
+import { dirname } from 'node:path';
+import { findExpectationProblems } from '../types/matchers.js';
 import type { Scenario } from '../types/scenario.js';
+import { UNSUPPORTED_SCENARIO_FIELDS } from '../types/scenario.js';
 import { loadFixture } from './fixture-loader.js';
 
 /**
@@ -70,6 +73,17 @@ export async function validateScenario(
 		errors.push('Scenario must have at least one step');
 	}
 
+	const declared: Record<string, unknown> = {
+		verify: scenario.verify,
+		isolation: scenario.isolation,
+		dependsOn: scenario.dependsOn,
+	};
+	for (const [field, message] of Object.entries(UNSUPPORTED_SCENARIO_FIELDS)) {
+		if (declared[field] !== undefined) {
+			errors.push(message);
+		}
+	}
+
 	// Validate each step
 	for (const [index, step] of (scenario.steps ?? []).entries()) {
 		const stepNum = index + 1;
@@ -80,6 +94,10 @@ export async function validateScenario(
 
 		if (!step.expect) {
 			warnings.push(`Step ${stepNum}: Missing 'expect' - step result won't be validated`);
+		} else {
+			for (const problem of findExpectationProblems(step.expect)) {
+				errors.push(`Step ${stepNum}: ${problem}`);
+			}
 		}
 
 		// Check for invalid step references
@@ -104,7 +122,7 @@ export async function validateScenario(
 	// Validate fixture if present and checkFixtures is enabled
 	if (scenario.fixture && options.checkFixtures !== false) {
 		const fixtureResult = await loadFixture(scenario.fixture, {
-			basePath: options.basePath,
+			basePath: scenario.sourcePath ? dirname(scenario.sourcePath) : options.basePath,
 		});
 
 		if (!fixtureResult.success) {

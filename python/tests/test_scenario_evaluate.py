@@ -61,6 +61,12 @@ def _write_scenario(directory: str, filename: str, content: str) -> str:
 	return path
 
 
+@pytest.fixture(autouse=True)
+def _project_root(tmp_path, monkeypatch):
+	"""scenario-evaluate reads only inside the project root (the working directory)."""
+	monkeypatch.chdir(tmp_path)
+
+
 class TestScenarioEvaluate:
 	"""Tests for the scenario-evaluate command."""
 

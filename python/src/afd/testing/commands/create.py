@@ -9,11 +9,13 @@ Port of packages/testing/src/commands/create.ts
 from __future__ import annotations
 
 import os
+import re
 from typing import Any
 
 import yaml
 
 from afd.core.result import CommandResult, error, success
+from afd.testing.commands._files import SCENARIO_SUFFIXES, project_root, resolve_inside
 
 
 def _blank_template(name: str, job: str, tags: list[str] | None = None) -> dict[str, Any]:
@@ -162,17 +164,44 @@ TEMPLATES = {
 }
 
 
-def scenario_create(input: dict[str, Any] | None = None) -> CommandResult[Any]:
+# Line breaks YAML (1.1, as PyYAML reads it) recognizes, plus other control characters.
+_HEADER_UNSAFE = re.compile(r"[\x00-\x1f\x7f\x85\u2028\u2029]+")
+
+
+def _scenario_slug(name: str) -> str:
+	"""A file name stem from a scenario name: letters and digits joined by '-'."""
+	stem = name
+	for suffix in SCENARIO_SUFFIXES:
+		if stem.lower().endswith(suffix):
+			stem = stem[: -len(suffix)]
+	return re.sub(r"[\W_]+", "-", stem.lower()).strip("-")
+
+
+def _header_text(value: str) -> str:
+	"""A value that cannot break out of a one-line YAML comment."""
+	return _HEADER_UNSAFE.sub(" ", value).strip()
+
+
+def scenario_create(
+	input: dict[str, Any] | None = None,
+	*,
+	root: str | os.PathLike[str] | None = None,
+) -> CommandResult[Any]:
 	"""Generate a new JTBD scenario file from a template.
 
 	Input:
 		name: str - Scenario name (required)
 		job: str - Job description (required)
 		template: str - Template type (basic, crud, workflow, validation)
-		directory: str - Output directory (default: ./scenarios)
+		directory: str - Output directory (default: ./scenarios), inside the project root
 		commands: list[str] - Commands to include
 		tags: list[str] - Tags to apply
 		overwrite: bool - Overwrite existing file
+
+	Args:
+		root: Project root that ``directory`` must stay inside (default: the
+			current working directory). ``..`` segments, absolute paths and
+			symlinks that leave the root are refused.
 
 	Returns:
 		CommandResult with created scenario data.
@@ -184,16 +213,16 @@ def scenario_create(input: dict[str, Any] | None = None) -> CommandResult[Any]:
 	directory = params.get("directory", "./scenarios")
 	commands = params.get("commands")
 	tags = params.get("tags")
-	overwrite = params.get("overwrite", False)
+	overwrite = params.get("overwrite", False) is True
 
-	if not name:
+	if not name or not isinstance(name, str):
 		return error(
 			"VALIDATION_ERROR",
 			"Missing required field: name",
 			suggestion="Provide a 'name' for the scenario.",
 		)
 
-	if not job:
+	if not job or not isinstance(job, str):
 		return error(
 			"VALIDATION_ERROR",
 			"Missing required field: job",
@@ -208,31 +237,47 @@ def scenario_create(input: dict[str, Any] | None = None) -> CommandResult[Any]:
 			suggestion=f"Available templates: {', '.join(TEMPLATES.keys())}",
 		)
 
+	slug = _scenario_slug(name)
+	if not slug:
+		return error(
+			"VALIDATION_ERROR",
+			"The scenario name must contain letters or digits",
+			suggestion="Use a name such as 'create-todo'; it becomes the file name.",
+		)
+
+	# The directory and file are agent-controlled: keep both inside the project.
+	base = project_root(root)
+	target_dir = resolve_inside(str(directory), base) if isinstance(directory, str) else None
+	filename = f"{slug}.scenario.yaml"
+	filepath = target_dir / filename if target_dir is not None else None
+	if filepath is None or resolve_inside(filepath, base) is None:
+		return error(
+			"VALIDATION_ERROR",
+			f"Scenario directory is outside the project root: {str(directory)[:200]}",
+			suggestion="Use a directory inside the project, such as ./scenarios.",
+			details={"field": "directory"},
+		)
+	display_path = os.path.join(directory, filename)
+
 	# Generate scenario
 	if template_type == "crud" and commands:
 		scenario_data = template_fn(name, job, tags, commands)
 	else:
 		scenario_data = template_fn(name, job, tags)
 
-	# Determine file path
-	filename = name.lower().replace(" ", "-").replace("_", "-")
-	if not filename.endswith(".scenario.yaml"):
-		filename = f"{filename}.scenario.yaml"
-	filepath = os.path.join(directory, filename)
-
-	# Check if file exists
-	if os.path.exists(filepath) and not overwrite:
+	# Checked before writing, so "overwritten" is true only when a file was replaced.
+	existed = filepath.exists()
+	if existed and not overwrite:
 		return error(
 			"ALREADY_EXISTS",
-			f"Scenario file already exists: {filepath}",
+			f"Scenario file already exists: {display_path}",
 			suggestion="Set overwrite=true to replace, or choose a different name.",
 		)
 
-	# Create directory if needed
-	os.makedirs(directory, exist_ok=True)
+	os.makedirs(target_dir, exist_ok=True)
 
-	# Write YAML
-	yaml_content = f"# JTBD Scenario: {name}\n"
+	# Write YAML. The header is a comment: newlines in the name must not end it.
+	yaml_content = f"# JTBD Scenario: {_header_text(name)}\n"
 	yaml_content += f"# Template: {template_type}\n\n"
 	yaml_content += yaml.dump(scenario_data, default_flow_style=False, sort_keys=False)
 
@@ -241,11 +286,11 @@ def scenario_create(input: dict[str, Any] | None = None) -> CommandResult[Any]:
 
 	return success(
 		{
-			"path": filepath,
+			"path": display_path,
 			"scenario": scenario_data,
 			"template": template_type,
-			"overwritten": overwrite and os.path.exists(filepath),
+			"overwritten": existed,
 		},
-		reasoning=f"Created {template_type} scenario '{name}' at {filepath}.",
+		reasoning=f"Created {template_type} scenario '{_header_text(name)}' at {display_path}.",
 		confidence=0.95,
 	)

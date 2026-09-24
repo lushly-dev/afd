@@ -244,7 +244,7 @@ def _python_server():
         return success(
             {"id": "todo-1", "title": input.title},
             sources=[Source(type="document", accessed_at="2026-01-01T00:00:00Z")],
-            metadata=ResultMetadata(execution_time_ms=1.5),
+            metadata=ResultMetadata(timestamp="2026-01-01T00:00:00Z", region="eu"),
             undo_command="todo-delete",
         )
 
@@ -292,7 +292,11 @@ class TestPythonClientAgainstPythonServer:
         assert isinstance(created, CommandResult)
         assert created.undo_command == "todo-delete"
         assert created.sources[0].accessed_at == "2026-01-01T00:00:00Z"
-        assert created.metadata.execution_time_ms == 1.5
+        # The handler's metadata survives; the server adds executionTimeMs and traceId.
+        assert created.metadata.timestamp == "2026-01-01T00:00:00Z"
+        assert created.metadata.model_extra == {"region": "eu"}
+        assert created.metadata.execution_time_ms >= 0
+        assert created.metadata.trace_id
 
         assert missing.success is False
         assert missing.error.code == "NOT_FOUND"

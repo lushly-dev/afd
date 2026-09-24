@@ -15,6 +15,8 @@
  * @module @lushly-dev/local-db
  */
 
+// Errors shared by every adapter
+export { DataAdapterError } from './adapter-support.js';
 // HTTP adapter
 export type { HttpAdapterOptions } from './http-adapter.js';
 export { createHttpAdapter, HttpAdapter } from './http-adapter.js';

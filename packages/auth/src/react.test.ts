@@ -111,7 +111,7 @@ describe('createAuthHooks', () => {
 							status: 'authenticated',
 							session: {
 								id: state.session.id,
-								expiresAt: new Date(state.session.expiresAt),
+								expiresAt: state.session.expiresAt && new Date(state.session.expiresAt),
 							},
 							user: { ...state.user },
 						}

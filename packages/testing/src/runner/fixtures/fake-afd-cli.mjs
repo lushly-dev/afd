@@ -24,16 +24,25 @@ if (command === 'malformed') {
 	process.exit(0);
 }
 
-const parsedInput = input?.startsWith('{') ? JSON.parse(input) : {};
-const success = command !== 'fail-command';
-console.log(
-	JSON.stringify(
-		success
-			? { success: true, data: parsedInput }
-			: {
-					success: false,
-					error: { code: 'EXPECTED_FAILURE', message: 'Expected failure', suggestion: 'Retry' },
-				}
-	)
-);
-process.exit(success ? 0 : 1);
+if (command === 'hang') {
+	// Never answers: used to check that timeouts kill the process
+	setInterval(() => {}, 1000);
+} else {
+	respond();
+}
+
+function respond() {
+	const parsedInput = input?.startsWith('{') ? JSON.parse(input) : {};
+	const success = command !== 'fail-command';
+	console.log(
+		JSON.stringify(
+			success
+				? { success: true, data: parsedInput }
+				: {
+						success: false,
+						error: { code: 'EXPECTED_FAILURE', message: 'Expected failure', suggestion: 'Retry' },
+					}
+		)
+	);
+	process.exit(success ? 0 : 1);
+}

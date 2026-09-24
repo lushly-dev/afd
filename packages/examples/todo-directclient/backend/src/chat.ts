@@ -1,5 +1,5 @@
 /**
- * @fileoverview AI Chat endpoint using Gemini 2.0 Flash with DirectClient
+ * @fileoverview AI Chat endpoint using Gemini with DirectClient
  *
  * This demonstrates the full AFD loop:
  * 1. User sends message
@@ -24,6 +24,7 @@ import {
 	Type,
 } from '@google/genai';
 import { DirectClient } from '@lushly-dev/afd-client';
+import { PublicError } from './chat-http.js';
 import { registry } from './registry.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -33,6 +34,9 @@ import { registry } from './registry.js';
 const MAX_RETRIES = parseInt(process.env.GEMINI_MAX_RETRIES ?? '3', 10);
 const BASE_RETRY_DELAY_MS = parseInt(process.env.GEMINI_RETRY_DELAY_MS ?? '1000', 10);
 const _REQUEST_TIMEOUT_MS = parseInt(process.env.GEMINI_TIMEOUT_MS ?? '30000', 10);
+// Model output is untrusted (a todo title can carry a prompt injection), so the
+// tool-calling loop is bounded: at most this many rounds of tool calls per message.
+const MAX_TOOL_ROUNDS = parseInt(process.env.GEMINI_MAX_TOOL_ROUNDS ?? '5', 10);
 
 // Initialize Gemini client
 const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
@@ -338,7 +342,7 @@ export async function processChat(userMessage: string): Promise<ChatResponse> {
 	if (!genAI) {
 		metrics.errorCount++;
 		metrics.errorsByType.config = (metrics.errorsByType.config || 0) + 1;
-		throw new Error('Gemini API key not configured. Set GOOGLE_API_KEY in .env');
+		throw new PublicError('Gemini API key not configured. Set GOOGLE_API_KEY in .env');
 	}
 
 	const toolExecutions: ToolExecution[] = [];
@@ -368,6 +372,7 @@ Be concise in your responses.`,
 
 		// Process function calls in a loop
 		const messages: Content[] = [{ role: 'user', parts: [{ text: userMessage }] }];
+		let rounds = 0;
 
 		while (response.candidates?.[0]?.content?.parts) {
 			const parts = response.candidates[0].content.parts;
@@ -378,6 +383,11 @@ Be concise in your responses.`,
 			if (functionCalls.length === 0) {
 				// No more function calls, we have the final response
 				break;
+			}
+			if (++rounds > MAX_TOOL_ROUNDS) {
+				throw new PublicError(
+					`Stopped after ${MAX_TOOL_ROUNDS} rounds of tool calls. Try a simpler request.`
+				);
 			}
 
 			// Execute each function call via DirectClient
@@ -464,7 +474,7 @@ Be concise in your responses.`,
 			metrics.errorsByType[catError.category] = (metrics.errorsByType[catError.category] || 0) + 1;
 
 			console.error(`❌ [${requestId}] ${catError.category}: ${catError.message}`);
-			throw new Error(catError.userMessage);
+			throw new PublicError(catError.userMessage);
 		}
 
 		// Handle uncategorized errors

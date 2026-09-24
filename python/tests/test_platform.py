@@ -269,7 +269,9 @@ class TestExecCommand:
     async def test_debug_logging(self, capsys):
         await exec_command(["echo", "test"], ExecOptions(debug=True))
         captured = capsys.readouterr()
-        assert "[exec] echo test" in captured.out
+        # Debug output goes to stderr: stdout may be a stdio JSON-RPC stream.
+        assert "[exec] echo test" in captured.err
+        assert "[exec]" not in captured.out
 
     async def test_duration_ms_measured(self):
         result = await exec_command([sys.executable, "-c", "import time; time.sleep(0.05)"])

@@ -8,24 +8,12 @@ Port of packages/testing/src/commands/coverage.ts
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from afd.core.result import CommandResult, error, success
+from afd.testing.commands._files import find_scenario_files
 from afd.testing.scenarios.coverage import scenario_coverage
 from afd.testing.scenarios.parser import parse_scenario_file
-
-
-def _find_scenario_files(directory: str) -> list[str]:
-	results: list[str] = []
-	if not os.path.isdir(directory):
-		return results
-	for root, dirs, files in os.walk(directory):
-		dirs[:] = [d for d in dirs if not d.startswith(".") and d != "node_modules"]
-		for f in files:
-			if f.endswith(".scenario.yaml") or f.endswith(".scenario.yml"):
-				results.append(os.path.join(root, f))
-	return sorted(results)
 
 
 def scenario_coverage_cmd(input: dict[str, Any] | None = None) -> CommandResult[Any]:
@@ -47,7 +35,7 @@ def scenario_coverage_cmd(input: dict[str, Any] | None = None) -> CommandResult[
 	output_format = params.get("format", "json")
 
 	# Discover and parse scenarios
-	files = _find_scenario_files(directory)
+	files = find_scenario_files(directory)
 	parsed_scenarios = []
 	for filepath in files:
 		result = parse_scenario_file(filepath)

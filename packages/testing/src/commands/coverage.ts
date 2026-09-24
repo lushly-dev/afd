@@ -1,5 +1,3 @@
-// afd-override: max-lines=600
-// Coverage analysis is one cohesive report pipeline; split when it reaches this ratchet.
 /**
  * @lushly-dev/afd-testing - scenario-coverage command
  *
@@ -9,9 +7,11 @@
  * - Jobs: What user jobs are covered
  */
 
+import * as fs from 'node:fs';
 import { type CommandResult, failure, success } from '@lushly-dev/afd-core';
 import { parseScenarioFile } from '../parsers/yaml.js';
 import type { Scenario, Step } from '../types/scenario.js';
+import { formatCoverageMarkdown, formatCoverageTerminal } from './coverage-format.js';
 import { scenarioList } from './list.js';
 
 // ============================================================================
@@ -42,6 +42,9 @@ export interface ScenarioCoverageInput {
 
 	/** Output format */
 	format?: 'terminal' | 'json' | 'markdown';
+
+	/** Write the formatted report to this file path */
+	output?: string;
 }
 
 /**
@@ -178,10 +181,6 @@ function extractExpectedErrors(steps: Step[]): string[] {
 		if (step.expect?.error?.code) {
 			errors.push(step.expect.error.code);
 		}
-		// Also check if success: false is expected
-		if (step.expect?.success === false && step.expect?.error?.code) {
-			errors.push(step.expect.error.code);
-		}
 	}
 	return errors;
 }
@@ -199,7 +198,7 @@ function extractExpectedErrors(steps: Step[]): string[] {
  * // Coverage against known commands
  * const result = await scenarioCoverage({
  *   directory: './scenarios',
- *   knownCommands: ['todo.create', 'todo.list', 'todo.update', 'todo.delete']
+ *   knownCommands: ['todo-create', 'todo-list', 'todo-update', 'todo-delete']
  * });
  * ```
  */
@@ -207,8 +206,9 @@ export async function scenarioCoverage(
 	input: ScenarioCoverageInput
 ): Promise<CommandResult<ScenarioCoverageOutput>> {
 	try {
-		// Collect scenarios to analyze
+		// Collect scenarios to analyze; unparseable files become warnings
 		const scenariosToAnalyze: Array<{ scenario: Scenario; path: string }> = [];
+		const parseErrors: string[] = [];
 
 		if (input.scenarios && input.scenarios.length > 0) {
 			// Analyze specific scenarios
@@ -216,6 +216,8 @@ export async function scenarioCoverage(
 				const result = await parseScenarioFile(scenarioPath);
 				if (result.success) {
 					scenariosToAnalyze.push({ scenario: result.scenario, path: scenarioPath });
+				} else {
+					parseErrors.push(`${scenarioPath}: ${result.error}`);
 				}
 			}
 		} else {
@@ -229,8 +231,13 @@ export async function scenarioCoverage(
 			if (!listResult.success || !listResult.data) {
 				return failure({
 					code: 'LIST_ERROR',
-					message: 'Failed to list scenarios',
+					message: listResult.error?.message ?? 'Failed to list scenarios',
+					suggestion: 'Check that the directory exists and contains .scenario.yaml files',
 				});
+			}
+
+			for (const parseFailure of listResult.data.parseErrors) {
+				parseErrors.push(`${parseFailure.path}: ${parseFailure.error}`);
 			}
 
 			// Parse each scenario
@@ -238,6 +245,8 @@ export async function scenarioCoverage(
 				const result = await parseScenarioFile(summary.path);
 				if (result.success) {
 					scenariosToAnalyze.push({ scenario: result.scenario, path: summary.path });
+				} else {
+					parseErrors.push(`${summary.path}: ${result.error}`);
 				}
 			}
 		}
@@ -378,13 +387,16 @@ export async function scenarioCoverage(
 		if (input.knownCommands && input.knownCommands.length > 0) {
 			summary.commands.known = input.knownCommands.length;
 			summary.commands.untested = input.knownCommands.filter((cmd) => !testedCommands.has(cmd));
-			summary.commands.coverage = (summary.commands.tested / summary.commands.known) * 100;
+			summary.commands.coverage =
+				((summary.commands.known - summary.commands.untested.length) / summary.commands.known) *
+				100;
 		}
 
 		if (input.knownErrors && input.knownErrors.length > 0) {
 			summary.errors.known = input.knownErrors.length;
 			summary.errors.untested = input.knownErrors.filter((err) => !testedErrors.has(err));
-			summary.errors.coverage = (summary.errors.tested / summary.errors.known) * 100;
+			summary.errors.coverage =
+				((summary.errors.known - summary.errors.untested.length) / summary.errors.known) * 100;
 		}
 
 		// Format output
@@ -409,151 +421,25 @@ export async function scenarioCoverage(
 		}
 
 		output.formattedOutput = formattedOutput;
+		if (input.output) {
+			await fs.promises.writeFile(input.output, formattedOutput);
+		}
 
 		return success(output, {
 			reasoning: `Analyzed ${summary.totalScenarios} scenarios covering ${summary.commands.tested} commands and ${summary.jobs.count} jobs`,
-			confidence: summary.commands.coverage ? summary.commands.coverage / 100 : undefined,
+			confidence:
+				summary.commands.coverage !== undefined ? summary.commands.coverage / 100 : undefined,
+			warnings:
+				parseErrors.length > 0
+					? parseErrors.map((message) => ({ code: 'PARSE_ERROR', message }))
+					: undefined,
 		});
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		return failure({
 			code: 'COVERAGE_ERROR',
 			message: `Failed to calculate coverage: ${message}`,
+			suggestion: 'Check the scenario paths and the output path, then run again',
 		});
 	}
-}
-
-// ============================================================================
-// Output Formatters
-// ============================================================================
-
-/**
- * Format coverage for terminal output.
- */
-export function formatCoverageTerminal(output: ScenarioCoverageOutput): string {
-	const lines: string[] = [];
-	const { summary, commandCoverage, jobCoverage } = output;
-
-	lines.push('');
-	lines.push('JTBD Scenario Coverage');
-	lines.push('━'.repeat(60));
-	lines.push('');
-
-	// Summary
-	lines.push(`Scenarios: ${summary.totalScenarios}`);
-	lines.push(`Steps: ${summary.totalSteps}`);
-	lines.push(
-		`Commands tested: ${summary.commands.tested}${summary.commands.known ? ` / ${summary.commands.known}` : ''}`
-	);
-	if (summary.commands.coverage !== undefined) {
-		lines.push(`Command coverage: ${summary.commands.coverage.toFixed(1)}%`);
-	}
-	lines.push(`Error codes tested: ${summary.errors.tested}`);
-	lines.push(`Jobs covered: ${summary.jobs.count}`);
-	lines.push('');
-
-	// Untested commands
-	if (summary.commands.untested && summary.commands.untested.length > 0) {
-		lines.push('⚠️  Untested commands:');
-		for (const cmd of summary.commands.untested) {
-			lines.push(`   - ${cmd}`);
-		}
-		lines.push('');
-	}
-
-	// Top commands by usage
-	lines.push('Top commands by usage:');
-	const topCommands = commandCoverage.slice(0, 5);
-	for (const cmd of topCommands) {
-		const errorFlag = cmd.hasErrorTests ? ' ✓errors' : '';
-		lines.push(
-			`  ${cmd.command}: ${cmd.stepCount} steps in ${cmd.scenarioCount} scenarios${errorFlag}`
-		);
-	}
-	lines.push('');
-
-	// Jobs
-	lines.push('Jobs:');
-	for (const job of jobCoverage) {
-		const tags = job.tags.length > 0 ? ` [${job.tags.join(', ')}]` : '';
-		lines.push(`  ${job.job}: ${job.scenarioCount} scenarios (~${job.avgSteps} steps)${tags}`);
-	}
-	lines.push('');
-
-	return lines.join('\n');
-}
-
-/**
- * Format coverage as Markdown.
- */
-export function formatCoverageMarkdown(output: ScenarioCoverageOutput): string {
-	const lines: string[] = [];
-	const { summary, commandCoverage, errorCoverage, jobCoverage } = output;
-
-	lines.push('# JTBD Scenario Coverage Report');
-	lines.push('');
-
-	// Summary
-	lines.push('## Summary');
-	lines.push('');
-	lines.push('| Metric | Value |');
-	lines.push('|--------|-------|');
-	lines.push(`| Scenarios | ${summary.totalScenarios} |`);
-	lines.push(`| Total Steps | ${summary.totalSteps} |`);
-	lines.push(
-		`| Commands Tested | ${summary.commands.tested}${summary.commands.known ? ` / ${summary.commands.known}` : ''} |`
-	);
-	if (summary.commands.coverage !== undefined) {
-		lines.push(`| Command Coverage | ${summary.commands.coverage.toFixed(1)}% |`);
-	}
-	lines.push(`| Error Codes Tested | ${summary.errors.tested} |`);
-	lines.push(`| Jobs Covered | ${summary.jobs.count} |`);
-	lines.push('');
-
-	// Untested
-	if (summary.commands.untested && summary.commands.untested.length > 0) {
-		lines.push('### ⚠️ Untested Commands');
-		lines.push('');
-		for (const cmd of summary.commands.untested) {
-			lines.push(`- \`${cmd}\``);
-		}
-		lines.push('');
-	}
-
-	// Command coverage table
-	lines.push('## Command Coverage');
-	lines.push('');
-	lines.push('| Command | Scenarios | Steps | Error Tests |');
-	lines.push('|---------|-----------|-------|-------------|');
-	for (const cmd of commandCoverage) {
-		lines.push(
-			`| \`${cmd.command}\` | ${cmd.scenarioCount} | ${cmd.stepCount} | ${cmd.hasErrorTests ? '✅' : '❌'} |`
-		);
-	}
-	lines.push('');
-
-	// Error coverage table
-	if (errorCoverage.length > 0) {
-		lines.push('## Error Coverage');
-		lines.push('');
-		lines.push('| Error Code | Scenarios |');
-		lines.push('|------------|-----------|');
-		for (const err of errorCoverage) {
-			lines.push(`| \`${err.errorCode}\` | ${err.scenarioCount} |`);
-		}
-		lines.push('');
-	}
-
-	// Job coverage table
-	lines.push('## Job Coverage');
-	lines.push('');
-	lines.push('| Job | Scenarios | Avg Steps | Tags |');
-	lines.push('|-----|-----------|-----------|------|');
-	for (const job of jobCoverage) {
-		const tags = job.tags.join(', ') || '-';
-		lines.push(`| ${job.job} | ${job.scenarioCount} | ${job.avgSteps} | ${tags} |`);
-	}
-	lines.push('');
-
-	return lines.join('\n');
 }

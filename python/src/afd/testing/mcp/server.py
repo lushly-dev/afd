@@ -49,7 +49,7 @@ class McpTestingServer:
 		self.version = version
 		self._verbose = verbose
 		self._tools = generate_tools()
-		self._registry = create_tool_registry(command_handler)
+		self._registry = create_tool_registry(command_handler, cwd=cwd)
 
 	def _log(self, *args: Any) -> None:
 		if self._verbose:

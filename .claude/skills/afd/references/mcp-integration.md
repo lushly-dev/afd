@@ -77,7 +77,10 @@ The server exposes these endpoints:
 | `/message` | POST | MCP JSON-RPC requests |
 | `/rpc` | POST | Simple JSON-RPC for browser clients |
 | `/batch` | POST | Batch command execution |
-| `/stream/:command` | GET | SSE streaming command execution |
+| `/stream/:command` | POST | SSE chunks from one command, input in the JSON body |
+| `/stream/:command?input=...` | GET | Legacy form with JSON input in the query (not for `mutation: true` commands; input capped like a POST body) |
+
+`/stream` is not incremental: the handler runs to completion, then its result is sent as chunks (one `data` chunk per array item, or one for any other value, then `complete`).
 
 ## Client Setup
 

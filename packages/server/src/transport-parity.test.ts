@@ -418,11 +418,13 @@ describe('Cross-transport parity', () => {
 			expect(directResult.error?.code).toBe('UNKNOWN_TOOL');
 		});
 
-		it('server includes available commands in suggestion', async () => {
-			const serverResult = await serverExec.call('nonexistent-command', {});
+		it('server suggests close matches and afd-discover, never the whole command list', async () => {
+			const unrelated = await serverExec.call('nonexistent-command', {});
+			expect(unrelated.error?.suggestion).toBe('Use afd-discover to list all commands.');
 
-			expect(serverResult.error?.suggestion).toContain('test-greet');
-			expect(serverResult.error?.suggestion).toContain('test-fail');
+			const typo = await serverExec.call('test-gret', {});
+			expect(typo.error?.suggestion).toMatch(/^Did you mean 'test-greet'\?/);
+			expect(typo.error?.suggestion).toContain('afd-discover');
 		});
 
 		it('DirectClient includes structured recovery data for unknown commands', async () => {

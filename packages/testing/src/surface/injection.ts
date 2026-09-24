@@ -36,11 +36,32 @@ export const INJECTION_PATTERNS: InjectionPattern[] = [
 	},
 ];
 
+/** Stateless copies of patterns that carry the stateful `g` or `y` flag. */
+const statelessCopies = new WeakMap<RegExp, RegExp>();
+
+/**
+ * A regex whose `exec` gives the same answer on every call. `exec` on a `g`
+ * or `y` regex starts at `lastIndex`, so repeated scans would alternate
+ * between match and miss.
+ */
+function stateless(regex: RegExp): RegExp {
+	if (!regex.global && !regex.sticky) {
+		return regex;
+	}
+	let copy = statelessCopies.get(regex);
+	if (!copy) {
+		copy = new RegExp(regex.source, regex.flags.replace(/[gy]/g, ''));
+		statelessCopies.set(regex, copy);
+	}
+	return copy;
+}
+
 /**
  * Check a description for injection patterns.
  *
  * @param description - The command description to scan
- * @param patterns - Patterns to check (defaults to built-in patterns)
+ * @param patterns - Patterns to check (defaults to built-in patterns). To add
+ *   patterns, pass `[...INJECTION_PATTERNS, ...yours]`.
  * @returns Array of matches found
  */
 export function checkInjection(
@@ -50,7 +71,7 @@ export function checkInjection(
 	const matches: InjectionMatch[] = [];
 
 	for (const pattern of patterns) {
-		const match = pattern.pattern.exec(description);
+		const match = stateless(pattern.pattern).exec(description);
 		if (match) {
 			matches.push({
 				patternId: pattern.id,

@@ -177,8 +177,8 @@ function _showWarnings(warnings) {
       <div class="toast-content">
         <div class="toast-message">${escapeHtml(warning.message)}</div>
         <div class="toast-meta">
-          <span>${warning.code}</span>
-          ${warning.severity ? `<span>Severity: ${warning.severity}</span>` : ''}
+          <span>${escapeHtml(warning.code)}</span>
+          ${warning.severity ? `<span>Severity: ${escapeHtml(warning.severity)}</span>` : ''}
         </div>
       </div>
       <button class="toast-close" onclick="this.parentElement.remove()">×</button>
@@ -435,7 +435,7 @@ function updateTrustPanel(result, commandName) {
 				const icon = getSourceIcon(source.type);
 				const relevancePercent = source.relevance ? `${Math.round(source.relevance * 100)}%` : '';
 				const link = source.url
-					? `<a href="${escapeHtml(source.url)}" target="_blank" class="source-link">${escapeHtml(source.title || source.url)}</a>`
+					? `<a href="${escapeHtml(safeUrl(source.url))}" target="_blank" rel="noopener noreferrer" class="source-link">${escapeHtml(source.title || source.url)}</a>`
 					: `<span>${escapeHtml(source.title || 'Unknown source')}</span>`;
 
 				return `
@@ -459,7 +459,7 @@ function updateTrustPanel(result, commandName) {
 				const icon = getPlanStepIcon(step.status);
 				return `
           <div class="plan-step">
-            <div class="plan-step-icon ${step.status || 'pending'}">${icon}</div>
+            <div class="plan-step-icon ${escapeHtml(step.status || 'pending')}">${icon}</div>
             <div class="plan-step-content">
               <div class="plan-step-name">${idx + 1}. ${escapeHtml(step.name || step.action)}</div>
               ${step.description ? `<div class="plan-step-desc">${escapeHtml(step.description)}</div>` : ''}
@@ -909,31 +909,33 @@ function renderTodos(todos) {
 		return;
 	}
 
+	// Every server value is escaped for its context: HTML text and attributes with
+	// escapeHtml, and IDs inside inline handlers as JS string literals (jsArg).
 	todoList.innerHTML = todos
-		.map(
-			(todo) => `
-      <li class="todo-item ${todo.completed ? 'completed' : ''}" data-id="${todo.id}">
+		.map((todo) => {
+			const id = jsArg(todo.id);
+			const priority = escapeHtml(todo.priority);
+			return `
+      <li class="todo-item ${todo.completed ? 'completed' : ''}" data-id="${escapeHtml(todo.id)}">
         <input type="checkbox" class="todo-select" ${
 					selectedIds.has(todo.id) ? 'checked' : ''
-				} onchange="toggleSelection('${todo.id}')">
-        <div class="todo-checkbox ${
-					todo.completed ? 'checked' : ''
-				}" onclick="toggleTodo('${todo.id}')"></div>
+				} onchange="toggleSelection(${id})">
+        <div class="todo-checkbox ${todo.completed ? 'checked' : ''}" onclick="toggleTodo(${id})"></div>
         <div class="todo-content">
-          <div class="todo-title" id="title-${todo.id}">${escapeHtml(todo.title)}</div>
+          <div class="todo-title" id="title-${escapeHtml(todo.id)}">${escapeHtml(todo.title)}</div>
           <div class="todo-meta">
-            <span class="priority-badge priority-${todo.priority}">${todo.priority}</span>
+            <span class="priority-badge priority-${priority}">${priority}</span>
             &nbsp;·&nbsp;
-            ${formatDate(todo.createdAt)}
+            ${escapeHtml(formatDate(todo.createdAt))}
           </div>
         </div>
         <div class="todo-actions">
-          <button onclick="editTodo('${todo.id}')">Edit</button>
-          <button onclick="deleteTodo('${todo.id}')">Delete</button>
+          <button onclick="editTodo(${id})">Edit</button>
+          <button onclick="deleteTodo(${id})">Delete</button>
         </div>
       </li>
-    `
-		)
+    `;
+		})
 		.join('');
 
 	updateBatchUI();
@@ -1102,13 +1104,36 @@ function setFilter(filter) {
 // UTILITIES
 // ═══════════════════════════════════════════════════════════════════════════════
 
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
 /**
- * Escape HTML to prevent XSS.
+ * Escape a value for HTML text and quoted attribute values. Quotes are escaped
+ * too: `textContent`/`innerHTML` round-tripping leaves them, which lets a value
+ * break out of an attribute.
  */
 function escapeHtml(text) {
-	const div = document.createElement('div');
-	div.textContent = text;
-	return div.innerHTML;
+	return String(text ?? '').replace(/[&<>"']/g, (ch) => HTML_ESCAPES[ch]);
+}
+
+/**
+ * A value as a JS string literal inside a double-quoted inline handler, such as
+ * onclick="toggleTodo(${jsArg(id)})". JSON.stringify makes the JS literal and
+ * escapeHtml keeps it inside the attribute.
+ */
+function jsArg(value) {
+	return escapeHtml(JSON.stringify(String(value)));
+}
+
+/**
+ * An http(s) URL for a link, or '#': a `javascript:` URL in an href runs on click.
+ */
+function safeUrl(url) {
+	try {
+		const parsed = new URL(url, window.location.href);
+		return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : '#';
+	} catch {
+		return '#';
+	}
 }
 
 /**

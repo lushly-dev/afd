@@ -2,19 +2,24 @@
  * @lushly-dev/afd-testing - YAML Scenario Parser
  *
  * Parses .scenario.yaml files into typed Scenario objects.
- * Uses the 'yaml' package for parsing with strict validation.
+ *
+ * The parser is strict: a field it would otherwise ignore is an error, so a
+ * typo or an unimplemented feature can never produce a green run that checked
+ * nothing. YAML syntax errors report the line but never echo the source.
  */
 
 import { readFile } from 'node:fs/promises';
-import { parse as parseYaml } from 'yaml';
+import { resolve } from 'node:path';
+import { parse as parseYaml, YAMLError } from 'yaml';
+import { findExpectationProblems } from '../types/matchers.js';
 import type {
+	AssertionMatcher,
 	Expectation,
 	FixtureConfig,
 	Scenario,
 	Step,
-	Verification,
 } from '../types/scenario.js';
-import { isScenario } from '../types/scenario.js';
+import { UNSUPPORTED_SCENARIO_FIELDS } from '../types/scenario.js';
 
 // ============================================================================
 // Parser Result Types
@@ -35,294 +40,239 @@ export interface ParseError {
 export type ParseResult = ParseSuccess | ParseError;
 
 // ============================================================================
-// YAML Schema Validation
+// Schema
+// ============================================================================
+
+const SCENARIO_KEYS = [
+	'name',
+	'description',
+	'job',
+	'tags',
+	'version',
+	'fixture',
+	'timeout',
+	'steps',
+] as const;
+const STEP_KEYS = ['command', 'input', 'description', 'expect', 'continueOnFailure'] as const;
+const EXPECT_KEYS = ['success', 'data', 'error', 'reasoning', 'confidence'] as const;
+const EXPECT_ERROR_KEYS = ['code', 'message', 'suggestion'] as const;
+const FIXTURE_KEYS = ['file', 'base', 'overrides'] as const;
+
+/** A shape problem found while validating the parsed YAML. */
+class ScenarioShapeError extends Error {}
+
+function fail(message: string): never {
+	throw new ScenarioShapeError(message);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function checkKeys(obj: Record<string, unknown>, allowed: readonly string[], where: string): void {
+	const unknown = Object.keys(obj).filter((key) => !allowed.includes(key));
+	if (unknown.length > 0) {
+		const list = unknown.map((key) => `'${key}'`).join(', ');
+		fail(
+			`Unknown ${unknown.length === 1 ? 'field' : 'fields'} ${list} in ${where} (allowed: ${allowed.join(', ')})`
+		);
+	}
+}
+
+function requireString(value: unknown, message: string): string {
+	if (typeof value !== 'string' || value.trim() === '') {
+		fail(message);
+	}
+	return value;
+}
+
+function optionalString(value: unknown, where: string): string | undefined {
+	if (value === undefined || value === null) return undefined;
+	if (typeof value !== 'string') fail(`${where} must be a string`);
+	return value;
+}
+
+function optionalRecord(value: unknown, where: string): Record<string, unknown> | undefined {
+	if (value === undefined || value === null) return undefined;
+	if (!isRecord(value)) fail(`${where} must be an object`);
+	return value;
+}
+
+// ============================================================================
+// Validation
 // ============================================================================
 
 /**
- * Validate and transform raw YAML into a Scenario object
+ * Validate and transform raw YAML into a Scenario object.
  */
-function validateScenarioYaml(raw: unknown, filePath: string): ParseResult {
-	if (typeof raw !== 'object' || raw === null) {
-		return {
-			success: false,
-			error: 'Scenario file must contain a YAML object',
-			path: filePath,
-		};
+function toScenario(raw: unknown): Scenario {
+	if (!isRecord(raw)) {
+		fail('Scenario file must contain a YAML object');
 	}
 
-	const obj = raw as Record<string, unknown>;
+	for (const [field, message] of Object.entries(UNSUPPORTED_SCENARIO_FIELDS)) {
+		if (field in raw) fail(message);
+	}
+	checkKeys(raw, SCENARIO_KEYS, 'scenario');
 
-	// Validate required 'name' field
-	if (typeof obj.name !== 'string' || obj.name.trim() === '') {
-		return {
-			success: false,
-			error: "Scenario must have a non-empty 'name' field",
-			path: filePath,
-		};
+	const name = requireString(raw.name, "Scenario must have a non-empty 'name' field");
+	const description = requireString(
+		raw.description,
+		"Scenario must have a non-empty 'description' field"
+	);
+	const job = requireString(
+		raw.job,
+		"Scenario must have a non-empty 'job' field (kebab-case identifier)"
+	);
+
+	if (!Array.isArray(raw.steps) || raw.steps.length === 0) {
+		fail('Scenario must have at least one step');
 	}
 
-	// Validate required 'description' field
-	if (typeof obj.description !== 'string' || obj.description.trim() === '') {
-		return {
-			success: false,
-			error: "Scenario must have a non-empty 'description' field",
-			path: filePath,
-		};
+	let tags: string[] = [];
+	if (raw.tags !== undefined && raw.tags !== null) {
+		if (!Array.isArray(raw.tags) || !raw.tags.every((tag) => typeof tag === 'string')) {
+			fail("'tags' must be a list of strings");
+		}
+		tags = raw.tags;
 	}
 
-	// Validate required 'job' field (kebab-case identifier)
-	if (typeof obj.job !== 'string' || obj.job.trim() === '') {
-		return {
-			success: false,
-			error: "Scenario must have a non-empty 'job' field (kebab-case identifier)",
-			path: filePath,
-		};
+	let timeout: number | undefined;
+	if (raw.timeout !== undefined && raw.timeout !== null) {
+		if (typeof raw.timeout !== 'number' || !Number.isFinite(raw.timeout) || raw.timeout <= 0) {
+			fail("'timeout' must be a positive number of milliseconds");
+		}
+		timeout = raw.timeout;
 	}
 
-	// Validate 'steps' array
-	if (!Array.isArray(obj.steps) || obj.steps.length === 0) {
-		return {
-			success: false,
-			error: 'Scenario must have at least one step',
-			path: filePath,
-		};
-	}
-
-	// Parse tags (optional, defaults to empty array)
-	const tags = Array.isArray(obj.tags)
-		? obj.tags.filter((t): t is string => typeof t === 'string')
-		: [];
-
-	// Parse steps
-	const stepsResult = parseSteps(obj.steps, filePath);
-	if (!stepsResult.success) {
-		return stepsResult;
-	}
-
-	// Parse optional fixture
-	const fixtureResult = parseFixture(obj.fixture);
-	if (!fixtureResult.success) {
-		return { ...fixtureResult, path: filePath };
-	}
-
-	// Parse optional verification (called 'verify' in schema)
-	const verifyResult = parseVerification(obj.verify);
-	if (!verifyResult.success) {
-		return { ...verifyResult, path: filePath };
-	}
-
-	// Build the scenario object
-	const scenario: Scenario = {
-		name: obj.name,
-		description: obj.description,
-		job: obj.job,
+	return {
+		name,
+		description,
+		job,
 		tags,
-		version: typeof obj.version === 'string' ? obj.version : undefined,
-		fixture: fixtureResult.fixture,
-		isolation: obj.isolation === 'fresh' || obj.isolation === 'chained' ? obj.isolation : undefined,
-		dependsOn: Array.isArray(obj.dependsOn)
-			? obj.dependsOn.filter((d): d is string => typeof d === 'string')
-			: undefined,
-		timeout: typeof obj.timeout === 'number' ? obj.timeout : undefined,
-		steps: stepsResult.steps,
-		verify: verifyResult.verification,
+		version: optionalString(raw.version, "'version'"),
+		fixture: parseFixture(raw.fixture),
+		timeout,
+		steps: raw.steps.map((item, index) => parseStep(item, index + 1)),
 	};
-
-	// Final type guard check
-	if (!isScenario(scenario)) {
-		return {
-			success: false,
-			error: 'Parsed scenario failed validation',
-			path: filePath,
-		};
-	}
-
-	return { success: true, scenario };
 }
 
 /**
- * Parse steps array from YAML
+ * Parse one step.
  */
-function parseSteps(
-	raw: unknown[],
-	filePath: string
-): { success: true; steps: Step[] } | ParseError {
-	const steps: Step[] = [];
+function parseStep(raw: unknown, stepNum: number): Step {
+	if (!isRecord(raw)) {
+		fail(`Step ${stepNum} must be an object`);
+	}
+	checkKeys(raw, STEP_KEYS, `step ${stepNum}`);
 
-	for (let i = 0; i < raw.length; i++) {
-		const item = raw[i];
-		if (typeof item !== 'object' || item === null) {
-			return {
-				success: false,
-				error: `Step ${i + 1} must be an object`,
-				path: filePath,
-			};
-		}
+	const command = requireString(
+		raw.command,
+		`Step ${stepNum} must have a non-empty 'command' field`
+	);
 
-		const step = item as Record<string, unknown>;
-
-		// Command (required)
-		if (typeof step.command !== 'string' || step.command.trim() === '') {
-			return {
-				success: false,
-				error: `Step ${i + 1} must have a non-empty 'command' field`,
-				path: filePath,
-			};
-		}
-
-		// Parse expect (required per Step interface)
-		const expectResult = parseExpectation(step.expect, i + 1, filePath);
-		if (!expectResult) {
-			return {
-				success: false,
-				error: `Step ${i + 1} must have an 'expect' block`,
-				path: filePath,
-			};
-		}
-		if (!expectResult.success) {
-			return expectResult;
-		}
-
-		// Parse input (optional)
-		const input =
-			typeof step.input === 'object' && step.input !== null
-				? (step.input as Record<string, unknown>)
-				: undefined;
-
-		steps.push({
-			command: step.command,
-			input,
-			description: typeof step.description === 'string' ? step.description : undefined,
-			expect: expectResult.expectation,
-			continueOnFailure: step.continueOnFailure === true,
-		});
+	if (raw.expect === undefined || raw.expect === null) {
+		fail(`Step ${stepNum} must have an 'expect' block`);
 	}
 
-	return { success: true, steps };
+	const continueOnFailure = raw.continueOnFailure;
+	if (continueOnFailure !== undefined && typeof continueOnFailure !== 'boolean') {
+		fail(`Step ${stepNum} 'continueOnFailure' must be true or false`);
+	}
+
+	return {
+		command,
+		input: optionalRecord(raw.input, `Step ${stepNum} 'input'`),
+		description: optionalString(raw.description, `Step ${stepNum} 'description'`),
+		expect: parseExpectation(raw.expect, stepNum),
+		continueOnFailure: continueOnFailure === true,
+	};
 }
 
 /**
- * Parse expectation from a step
+ * Parse the expectation of a step.
  */
-function parseExpectation(
-	raw: unknown,
-	stepNum: number,
-	filePath: string
-): { success: true; expectation: Expectation } | ParseError | null {
-	if (raw === undefined || raw === null) {
-		return null;
+function parseExpectation(raw: unknown, stepNum: number): Expectation {
+	if (!isRecord(raw)) {
+		fail(`Step ${stepNum} 'expect' must be an object`);
+	}
+	checkKeys(raw, EXPECT_KEYS, `step ${stepNum} 'expect'`);
+
+	if (typeof raw.success !== 'boolean') {
+		fail(`Step ${stepNum} 'expect' must have a boolean 'success' field`);
 	}
 
-	if (typeof raw !== 'object') {
-		return {
-			success: false,
-			error: `Step ${stepNum} 'expect' must be an object`,
-			path: filePath,
-		};
-	}
-
-	const obj = raw as Record<string, unknown>;
-
-	// Check for 'success' field (required)
-	if (typeof obj.success !== 'boolean') {
-		return {
-			success: false,
-			error: `Step ${stepNum} 'expect' must have a boolean 'success' field`,
-			path: filePath,
-		};
-	}
-
-	// Parse error block (for failure tests)
-	let error: Expectation['error'] | undefined;
-	if (typeof obj.error === 'object' && obj.error !== null) {
-		const errObj = obj.error as Record<string, unknown>;
+	let error: Expectation['error'];
+	const rawError = optionalRecord(raw.error, `Step ${stepNum} 'expect.error'`);
+	if (rawError) {
+		checkKeys(rawError, EXPECT_ERROR_KEYS, `step ${stepNum} 'expect.error'`);
+		const suggestion = rawError.suggestion;
 		error = {
-			code: typeof errObj.code === 'string' ? errObj.code : undefined,
-			message: typeof errObj.message === 'string' ? errObj.message : undefined,
+			code: optionalString(rawError.code, `Step ${stepNum} 'expect.error.code'`),
+			message: optionalString(rawError.message, `Step ${stepNum} 'expect.error.message'`),
+			// Checked with the other assertions by findExpectationProblems below
+			...(suggestion !== undefined && suggestion !== null
+				? { suggestion: suggestion as string | AssertionMatcher }
+				: {}),
 		};
+	}
+
+	let confidence: number | undefined;
+	if (raw.confidence !== undefined && raw.confidence !== null) {
+		if (typeof raw.confidence !== 'number' || raw.confidence < 0 || raw.confidence > 1) {
+			fail(`Step ${stepNum} 'expect.confidence' must be a number between 0 and 1`);
+		}
+		confidence = raw.confidence;
 	}
 
 	const expectation: Expectation = {
-		success: obj.success,
-		data:
-			typeof obj.data === 'object' && obj.data !== null
-				? (obj.data as Record<string, unknown>)
-				: undefined,
+		success: raw.success,
+		data: optionalRecord(raw.data, `Step ${stepNum} 'expect.data'`),
 		error,
-		reasoning: typeof obj.reasoning === 'string' ? obj.reasoning : undefined,
-		confidence: typeof obj.confidence === 'number' ? obj.confidence : undefined,
+		reasoning: optionalString(raw.reasoning, `Step ${stepNum} 'expect.reasoning'`),
+		confidence,
 	};
 
-	return { success: true, expectation };
+	const problems = findExpectationProblems(expectation);
+	if (problems.length > 0) {
+		fail(`Step ${stepNum}: ${problems.join('; ')}`);
+	}
+
+	return expectation;
 }
 
 /**
- * Parse fixture configuration
- * FixtureConfig has: file (required), base?, overrides?
+ * Parse the fixture configuration: `file` (required), `base`, `overrides`.
  */
-function parseFixture(raw: unknown): { success: true; fixture?: FixtureConfig } | ParseError {
+function parseFixture(raw: unknown): FixtureConfig | undefined {
 	if (raw === undefined || raw === null) {
-		return { success: true, fixture: undefined };
+		return undefined;
 	}
-
-	if (typeof raw !== 'object') {
-		return {
-			success: false,
-			error: 'Fixture must be an object',
-		};
+	if (!isRecord(raw)) {
+		fail('Fixture must be an object');
 	}
+	checkKeys(raw, FIXTURE_KEYS, 'fixture');
 
-	const obj = raw as Record<string, unknown>;
-
-	// 'file' is required in FixtureConfig
-	if (typeof obj.file !== 'string' || obj.file.trim() === '') {
-		return {
-			success: false,
-			error: "Fixture must have a 'file' field (path to fixture JSON)",
-		};
-	}
-
-	const fixture: FixtureConfig = {
-		file: obj.file,
-		base: typeof obj.base === 'string' ? obj.base : undefined,
-		overrides:
-			typeof obj.overrides === 'object' && obj.overrides !== null
-				? (obj.overrides as Record<string, unknown>)
-				: undefined,
+	return {
+		file: requireString(raw.file, "Fixture must have a 'file' field (path to fixture JSON)"),
+		base: optionalString(raw.base, "Fixture 'base'"),
+		overrides: optionalRecord(raw.overrides, "Fixture 'overrides'"),
 	};
-
-	return { success: true, fixture };
 }
 
 /**
- * Parse verification configuration
- * Verification has: snapshot?, assertions?, custom?
+ * Convert a YAML syntax error to a message and line without echoing the source.
  */
-function parseVerification(
-	raw: unknown
-): { success: true; verification?: Verification } | ParseError {
-	if (raw === undefined || raw === null) {
-		return { success: true, verification: undefined };
+function describeYamlError(err: unknown, source: string): { message: string; line?: number } {
+	const text = err instanceof Error ? err.message : String(err);
+	// Keep only the first line and cap the length: never echo file contents.
+	const message = (text.split('\n')[0] ?? '').slice(0, 200);
+	if (err instanceof YAMLError) {
+		const offset = err.pos[0];
+		const line = source.slice(0, offset).split('\n').length;
+		return { message, line };
 	}
-
-	if (typeof raw !== 'object') {
-		return {
-			success: false,
-			error: 'Verification must be an object',
-		};
-	}
-
-	const obj = raw as Record<string, unknown>;
-
-	const verification: Verification = {
-		snapshot: typeof obj.snapshot === 'string' ? obj.snapshot : undefined,
-		assertions: Array.isArray(obj.assertions)
-			? obj.assertions.filter((a): a is string => typeof a === 'string')
-			: undefined,
-		custom: typeof obj.custom === 'string' ? obj.custom : undefined,
-	};
-
-	return { success: true, verification };
+	return { message };
 }
 
 // ============================================================================
@@ -330,29 +280,41 @@ function parseVerification(
 // ============================================================================
 
 /**
- * Parse a scenario from a YAML string
+ * Parse a scenario from a YAML string.
  */
 export function parseScenarioString(yaml: string, filePath = '<string>'): ParseResult {
+	let raw: unknown;
 	try {
-		const raw = parseYaml(yaml);
-		return validateScenarioYaml(raw, filePath);
+		raw = parseYaml(yaml, { prettyErrors: false });
 	} catch (err) {
-		const message = err instanceof Error ? err.message : String(err);
+		const { message, line } = describeYamlError(err, yaml);
 		return {
 			success: false,
-			error: `YAML parse error: ${message}`,
+			error: `YAML parse error${line ? ` at line ${line}` : ''}: ${message}`,
 			path: filePath,
+			line,
 		};
+	}
+
+	try {
+		return { success: true, scenario: toScenario(raw) };
+	} catch (err) {
+		if (err instanceof ScenarioShapeError) {
+			return { success: false, error: err.message, path: filePath };
+		}
+		throw err;
 	}
 }
 
 /**
- * Parse a scenario from a file path
+ * Parse a scenario from a file path. The result records the file's absolute
+ * path as `scenario.sourcePath`, so relative fixture paths resolve against
+ * the scenario file rather than the process working directory.
  */
 export async function parseScenarioFile(filePath: string): Promise<ParseResult> {
+	let content: string;
 	try {
-		const content = await readFile(filePath, 'utf-8');
-		return parseScenarioString(content, filePath);
+		content = await readFile(filePath, 'utf-8');
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		return {
@@ -361,6 +323,12 @@ export async function parseScenarioFile(filePath: string): Promise<ParseResult> 
 			path: filePath,
 		};
 	}
+
+	const result = parseScenarioString(content, filePath);
+	if (result.success) {
+		result.scenario.sourcePath = resolve(filePath);
+	}
+	return result;
 }
 
 /**

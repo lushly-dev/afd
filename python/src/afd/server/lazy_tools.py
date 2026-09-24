@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from difflib import get_close_matches
-from typing import Any, Iterable, Sequence
+from typing import Any, Sequence
 
 from afd.core.commands import CommandDefinition, command_to_mcp_tool, serialize_command_examples
 from afd.core.result import CommandResult, success
@@ -156,7 +156,8 @@ def execute_detail(
             "handoff": command.handoff,
             "handoffProtocol": command.handoff_protocol,
         }
-        entries.append(entry)
+        # Wire format: unset fields are omitted, never null.
+        entries.append({key: value for key, value in entry.items() if value is not None})
 
     return success(
         entries,

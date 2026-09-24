@@ -63,6 +63,11 @@ Map AFD variables to Violet design tokens:
 | `renderWarning(message)` | Render warning message |
 | `renderResult(result)` | Auto-detect and render CommandResult |
 
+All text is escaped with `escapeHtml(value)`, also exported: it converts any value with
+`String(value)` and escapes `&`, `<`, `>`, `"` and `'`, so the output is safe in element content
+and in quoted attributes. Confidence values outside `[0, 1]` are clamped, and a non-finite one
+renders as 0%.
+
 ### Options
 
 ```typescript

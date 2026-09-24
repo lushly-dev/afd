@@ -290,7 +290,8 @@ describe('DirectClient', () => {
 			const name = 'todo-'.repeat(20 * 1024);
 			const start = performance.now();
 			const result = await client.call(name, {});
-			expect(performance.now() - start).toBeLessThan(100);
+			// Generous for loaded CI runners; a quadratic fuzzy match takes far longer.
+			expect(performance.now() - start).toBeLessThan(1_000);
 
 			expect(result.success).toBe(false);
 			expect(result.error?.code).toBe('UNKNOWN_TOOL');
@@ -455,19 +456,25 @@ describe('DirectTransport', () => {
 				params: { name: 'test-command', arguments: {} },
 			});
 
-			expect(response.error).toBeDefined();
-			expect(response.error?.message).toBe('Intentional test error');
+			// The exception becomes a sanitized CommandResult failure, not a JSON-RPC error
+			expect(response.error).toBeUndefined();
+			expect(toolCallContent(response).isError).toBe(true);
+			expect(firstContentJson(response)).toMatchObject({
+				success: false,
+				error: { code: 'COMMAND_EXECUTION_ERROR' },
+			});
+			expect(JSON.stringify(response)).not.toContain('Intentional test error');
 			expect(errorsCaught[0]?.message).toBe('Intentional test error');
 		});
 
-		it('returns UnknownToolError via MCP for unknown tools', async () => {
+		it('returns UNKNOWN_TOOL as a CommandResult failure with a suggestion', async () => {
 			await transport.connect();
 
 			const response = await transport.send({
 				jsonrpc: '2.0',
 				id: 7,
 				method: 'tools/call',
-				params: { name: 'nonexistent-tool', arguments: {} },
+				params: { name: 'todo-creat', arguments: {} },
 			});
 
 			// Should return as a result with isError=true, not as an MCP error
@@ -475,10 +482,50 @@ describe('DirectTransport', () => {
 
 			const content = firstContentJson(response);
 			expect(content).toMatchObject({
-				error: 'UNKNOWN_TOOL',
-				requested_tool: 'nonexistent-tool',
-				available_tools: expect.arrayContaining(['todo-create']),
+				success: false,
+				error: {
+					code: 'UNKNOWN_TOOL',
+					suggestion: "Did you mean 'todo-create'?",
+					retryable: false,
+				},
+				data: {
+					error: 'UNKNOWN_TOOL',
+					requested_tool: 'todo-creat',
+					available_tools: expect.arrayContaining(['todo-create']),
+				},
 			});
+		});
+
+		it('rejects tools/call without a string name as invalid params', async () => {
+			await transport.connect();
+
+			const response = await transport.send({
+				jsonrpc: '2.0',
+				id: 8,
+				method: 'tools/call',
+				params: { arguments: {} },
+			});
+
+			expect(response.error?.code).toBe(-32602);
+		});
+
+		it('answers -32603 without the exception text when listing throws', async () => {
+			const errors: Error[] = [];
+			const broken = new DirectTransport({
+				execute: async () => ({ success: true }),
+				listCommandNames: () => [],
+				listCommands: () => {
+					throw new Error('secret path /etc/x');
+				},
+				hasCommand: () => false,
+			});
+			broken.onError((error) => errors.push(error));
+
+			const response = await broken.send({ jsonrpc: '2.0', id: 9, method: 'tools/list' });
+
+			expect(response.error?.code).toBe(-32603);
+			expect(response.error?.message).not.toContain('secret');
+			expect(errors[0]?.message).toBe('secret path /etc/x');
 		});
 	});
 });

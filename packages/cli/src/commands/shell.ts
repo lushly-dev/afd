@@ -3,13 +3,46 @@
  */
 
 import * as readline from 'node:readline';
-import { createClient } from '@lushly-dev/afd-client';
 import chalk from 'chalk';
 import type { Command } from 'commander';
-import { getConfig, setConfig } from '../config.js';
-import { printError, printResult, printStatus, printSuccess, printTools } from '../output.js';
-import { getClient, setClient } from './connect.js';
-import { matchesCategory } from './tools.js';
+import { describeArgsError, parseToolArgs } from '../args.js';
+import { type CliTransport, getConfig, saveConnection } from '../config.js';
+import {
+	type ConnectFlags,
+	closeClient,
+	createCliClient,
+	getClient,
+	headersOrExit,
+	inferTransport,
+	setClient,
+} from '../connection.js';
+import { redactUrl } from '../credentials.js';
+import { printClientStatus, printError, printResult, printSuccess, printTools } from '../output.js';
+import { terminalText } from '../terminal.js';
+import { matchesCategory } from '../tool-category.js';
+import { headerOption, TRANSPORTS, transportOption } from './options.js';
+
+interface ShellOptions extends ConnectFlags {
+	url?: string;
+	transport?: CliTransport;
+	timeout?: string;
+	reconnect: boolean;
+}
+
+/** Settings shared by every connection the shell opens, and its exit state. */
+interface ShellSession {
+	timeout: number;
+	/** `--no-reconnect` turns this off for every connection. */
+	reconnect: boolean;
+	/** Request headers; never saved. */
+	headers: Record<string, string>;
+	/** Set by `exit`: lines still queued after it are ignored. */
+	exiting: boolean;
+	close: () => void;
+}
+
+/** Shape of an AFD command name (`todo-create`, legacy `todo.create`) for shorthand calls. */
+const COMMAND_NAME = /^[A-Za-z0-9_]+(?:[-.][A-Za-z0-9_]+)+$/;
 
 /**
  * Register the shell command.
@@ -18,41 +51,56 @@ export function registerShellCommand(program: Command): void {
 	program
 		.command('shell')
 		.description('Start an interactive shell')
-		.option('-u, --url <url>', 'Server URL to connect to')
-		.action(async (options) => {
+		.option('-u, --url <url>', 'Server URL to connect to (default: the saved connection)')
+		.addOption(
+			transportOption('Transport (default: the saved one, or sse for a /sse URL, else http)')
+		)
+		.option('--timeout <ms>', 'Request timeout in milliseconds (default: the saved timeout)')
+		.option('--no-reconnect', 'Do not reconnect automatically when the connection drops')
+		.addOption(headerOption())
+		.action(async (options: ShellOptions) => {
+			const config = getConfig();
+			const session: ShellSession = {
+				timeout: options.timeout ? Number.parseInt(options.timeout, 10) : (config.timeout ?? 30000),
+				reconnect: options.reconnect !== false,
+				headers: headersOrExit(options.header),
+				exiting: false,
+				close: () => undefined,
+			};
+
 			console.log(chalk.bold('AFD Interactive Shell'));
 			console.log(chalk.dim('Type "help" for available commands, "exit" to quit'));
 			console.log();
 
-			// Auto-connect if URL provided or saved
-			const url = options.url || getConfig().serverUrl;
-			if (url) {
-				try {
-					console.log(chalk.dim(`Connecting to ${url}...`));
-					const client = createClient({ url });
-					await client.connect();
-					setClient(client);
-					printSuccess('Connected');
-					setConfig('serverUrl', url);
-				} catch (error) {
-					printError('Auto-connect failed', error instanceof Error ? error : undefined);
-				}
+			// Auto-connect to --url (and save it), or reopen the saved connection.
+			if (options.url) {
+				const url = options.url;
+				const transport = options.transport ?? inferTransport(url);
+				await openConnection(session, { url, transport, autoReconnect: session.reconnect }, true);
+				console.log();
+			} else if (config.serverUrl) {
+				const url = config.serverUrl;
+				const transport = options.transport ?? config.transport ?? inferTransport(url);
+				// `afd connect --no-reconnect` saved the preference with the connection.
+				const autoReconnect = session.reconnect && config.autoReconnect !== false;
+				await openConnection(session, { url, transport, autoReconnect }, false);
 				console.log();
 			}
 
-			// Start REPL
 			const rl = readline.createInterface({
 				input: process.stdin,
 				output: process.stdout,
 				prompt: getPrompt(),
 			});
+			session.close = () => rl.close();
 
 			let closed = false;
 			const handleLine = async (line: string): Promise<void> => {
+				if (session.exiting) return;
 				const trimmed = line.trim();
 				if (trimmed) {
 					try {
-						await processCommand(trimmed);
+						await processCommand(session, trimmed);
 					} catch (error) {
 						printError('Command failed', error instanceof Error ? error : undefined);
 					}
@@ -74,12 +122,13 @@ export function registerShellCommand(program: Command): void {
 				return queue;
 			});
 
-			// The shell's lifetime is the command's lifetime: the CLI entry point
-			// disconnects the client only after this resolves.
+			// The shell's lifetime is the command's lifetime: it disconnects only
+			// after every queued line has run.
 			await new Promise<void>((resolve) => {
 				rl.on('close', () => {
 					closed = true;
-					void queue.then(() => {
+					void queue.then(async () => {
+						await closeClient();
 						console.log();
 						console.log('Goodbye!');
 						resolve();
@@ -93,22 +142,27 @@ export function registerShellCommand(program: Command): void {
  * Get the shell prompt.
  */
 function getPrompt(): string {
-	const client = getClient();
-	const connected = client?.isConnected();
-
-	if (connected) {
+	if (getClient()?.isConnected()) {
 		return `${chalk.green('afd') + chalk.dim(':') + chalk.cyan('connected')}> `;
 	}
 	return `${chalk.yellow('afd')}> `;
 }
 
-/**
- * Process a shell command.
- */
-async function processCommand(input: string): Promise<void> {
-	const [cmd, ...args] = input.split(/\s+/);
+/** Split off the first whitespace-delimited word; the rest of the line stays raw. */
+function splitHead(text: string): { head: string; rest: string } {
+	const match = /^(\S*)\s*([\s\S]*)$/.exec(text.trim());
+	return { head: match?.[1] ?? '', rest: match?.[2] ?? '' };
+}
 
-	switch (cmd?.toLowerCase()) {
+/**
+ * Process a shell command. Only the first word is split off; tool arguments
+ * are parsed from the raw rest of the line, so whitespace inside JSON strings
+ * and quoted values survives.
+ */
+async function processCommand(session: ShellSession, input: string): Promise<void> {
+	const { head: cmd, rest } = splitHead(input);
+
+	switch (cmd.toLowerCase()) {
 		case 'help':
 		case '?':
 			printHelp();
@@ -116,17 +170,14 @@ async function processCommand(input: string): Promise<void> {
 
 		case 'exit':
 		case 'quit':
-		case 'q': {
-			const client = getClient();
-			if (client) {
-				await client.disconnect();
-			}
-			process.exit(0);
+		case 'q':
+			// Closing the input lets queued work finish and the client disconnect.
+			session.exiting = true;
+			session.close();
 			break;
-		}
 
 		case 'connect':
-			await handleConnect(args);
+			await handleConnect(session, rest);
 			break;
 
 		case 'disconnect':
@@ -134,30 +185,48 @@ async function processCommand(input: string): Promise<void> {
 			break;
 
 		case 'status':
-			handleStatus();
+			printClientStatus(getClient());
 			break;
 
 		case 'tools':
 		case 'list':
-			await handleTools(args);
+			await handleTools(rest);
 			break;
 
-		case 'call':
-			await handleCall(args);
+		case 'call': {
+			const { head: name, rest: args } = splitHead(rest);
+			await handleCall(name, args);
 			break;
+		}
 
 		case 'clear':
 			console.clear();
 			break;
 
 		default:
-			// Try as a tool call
-			if (cmd?.includes('.')) {
-				await handleCall([cmd, ...args]);
+			if (await isToolName(cmd)) {
+				await handleCall(cmd, rest);
 			} else {
-				printError(`Unknown command: ${cmd}. Type "help" for available commands.`);
+				printError(
+					`Unknown command: ${cmd}. Type "help" for shell commands or "tools" to list tools.`
+				);
 			}
 	}
+}
+
+/**
+ * Whether a word that is not a shell command should be called as a tool: it
+ * names a listed tool, or it has the shape of an AFD command name. The second
+ * case covers grouped and lazy servers, which do not list every command.
+ */
+async function isToolName(name: string): Promise<boolean> {
+	const client = getClient();
+	if (client?.isConnected()) {
+		let tools = client.getTools();
+		if (tools.length === 0) tools = await client.refreshTools();
+		if (tools.some((tool) => tool.name === name)) return true;
+	}
+	return COMMAND_NAME.test(name);
 }
 
 /**
@@ -166,10 +235,10 @@ async function processCommand(input: string): Promise<void> {
 function printHelp(): void {
 	console.log(chalk.bold('Available Commands:'));
 	console.log();
-	console.log(`  ${chalk.cyan('connect <url>')}     Connect to an MCP server`);
+	console.log(`  ${chalk.cyan('connect <url> [sse|http]')} Connect to an MCP server`);
 	console.log(`  ${chalk.cyan('disconnect')}        Disconnect from server`);
 	console.log(`  ${chalk.cyan('status')}            Show connection status`);
-	console.log(`  ${chalk.cyan('tools')}             List available tools`);
+	console.log(`  ${chalk.cyan('tools [category]')}  List available tools`);
 	console.log(`  ${chalk.cyan('call <name> [args]')} Call a tool`);
 	console.log(`  ${chalk.cyan('<name> [args]')}     Shorthand for call`);
 	console.log(`  ${chalk.cyan('clear')}             Clear the screen`);
@@ -178,75 +247,77 @@ function printHelp(): void {
 	console.log();
 	console.log(chalk.dim('Examples:'));
 	console.log(chalk.dim('  connect http://localhost:3100/sse'));
-	console.log(chalk.dim('  call document.create {"title":"Test"}'));
-	console.log(chalk.dim('  document.get id=doc-123'));
+	console.log(chalk.dim('  call todo-create {"title": "Buy milk"}'));
+	console.log(chalk.dim('  todo-get id=todo-123'));
+	console.log(chalk.dim('  todo-update id=todo-123 title="Buy oat milk"'));
 }
 
 /**
- * Handle connect command.
+ * Open a connection with the session's timeout, reconnect policy and headers,
+ * replacing the current one. `save` stores it as the default connection.
  */
-async function handleConnect(args: string[]): Promise<void> {
-	const url = args[0];
-	if (!url) {
-		printError('Usage: connect <url>');
+async function openConnection(
+	session: ShellSession,
+	target: { url: string; transport: CliTransport; autoReconnect: boolean },
+	save: boolean
+): Promise<void> {
+	await closeClient();
+	const shownUrl = redactUrl(target.url);
+	console.log(chalk.dim(`Connecting to ${terminalText(shownUrl)}...`));
+
+	const client = createCliClient({ ...target, timeout: session.timeout, headers: session.headers });
+	try {
+		await client.connect();
+		setClient(client);
+		if (save) {
+			saveConnection({ ...target, timeout: session.timeout });
+		}
+		printSuccess(`Connected to ${shownUrl}`);
+	} catch (error) {
+		await client.disconnect().catch(() => undefined);
+		printError('Connection failed', error instanceof Error ? error : undefined);
+	}
+}
+
+/**
+ * Handle `connect <url> [sse|http]`.
+ */
+async function handleConnect(session: ShellSession, rest: string): Promise<void> {
+	const [url, transport, ...extra] = rest.split(/\s+/).filter(Boolean);
+	const valid = transport === undefined || (TRANSPORTS as readonly string[]).includes(transport);
+	if (!url || !valid || extra.length > 0) {
+		printError('Usage: connect <url> [sse|http]');
 		return;
 	}
 
-	const existingClient = getClient();
-	if (existingClient) {
-		await existingClient.disconnect();
-	}
-
-	try {
-		const client = createClient({ url });
-		await client.connect();
-		setClient(client);
-		setConfig('serverUrl', url);
-		printSuccess(`Connected to ${url}`);
-	} catch (error) {
-		printError('Connection failed', error instanceof Error ? error : undefined);
-	}
+	await openConnection(
+		session,
+		{
+			url,
+			transport: (transport as CliTransport | undefined) ?? inferTransport(url),
+			autoReconnect: session.reconnect,
+		},
+		true
+	);
 }
 
 /**
  * Handle disconnect command.
  */
 async function handleDisconnect(): Promise<void> {
-	const client = getClient();
-	if (!client) {
+	if (!getClient()) {
 		printError('Not connected');
 		return;
 	}
 
-	await client.disconnect();
-	setClient(null);
+	await closeClient();
 	printSuccess('Disconnected');
 }
 
 /**
- * Handle status command.
+ * Handle `tools [category]`.
  */
-function handleStatus(): void {
-	const client = getClient();
-
-	if (!client) {
-		printStatus({ connected: false });
-		return;
-	}
-
-	const status = client.getStatus();
-	printStatus({
-		connected: status.state === 'connected',
-		url: status.url,
-		serverName: status.serverInfo?.name,
-		serverVersion: status.serverInfo?.version,
-	});
-}
-
-/**
- * Handle tools command.
- */
-async function handleTools(args: string[]): Promise<void> {
+async function handleTools(rest: string): Promise<void> {
 	const client = getClient();
 	if (!client?.isConnected()) {
 		printError('Not connected');
@@ -258,8 +329,7 @@ async function handleTools(args: string[]): Promise<void> {
 		tools = await client.refreshTools();
 	}
 
-	// Filter by category
-	const category = args[0];
+	const category = rest.trim();
 	if (category) {
 		tools = tools.filter((t) => matchesCategory(t, category));
 	}
@@ -268,47 +338,26 @@ async function handleTools(args: string[]): Promise<void> {
 }
 
 /**
- * Handle call command.
+ * Handle a tool call; `rawArgs` is the unsplit rest of the line.
  */
-async function handleCall(args: string[]): Promise<void> {
+async function handleCall(name: string, rawArgs: string): Promise<void> {
 	const client = getClient();
 	if (!client?.isConnected()) {
 		printError('Not connected');
 		return;
 	}
 
-	const [name, ...rest] = args;
 	if (!name) {
 		printError('Usage: call <name> [args]');
 		return;
 	}
 
-	// Parse arguments
-	let parsedArgs: Record<string, unknown> = {};
-	const argsStr = rest.join(' ');
-
-	if (argsStr) {
-		try {
-			if (argsStr.startsWith('{')) {
-				parsedArgs = JSON.parse(argsStr);
-			} else {
-				// Parse key=value pairs
-				for (const pair of argsStr.split(/\s+/)) {
-					const [key, ...valueParts] = pair.split('=');
-					if (key && valueParts.length > 0) {
-						const value = valueParts.join('=');
-						try {
-							parsedArgs[key] = JSON.parse(value);
-						} catch {
-							parsedArgs[key] = value;
-						}
-					}
-				}
-			}
-		} catch (_error) {
-			printError('Invalid arguments. Use JSON or key=value format.');
-			return;
-		}
+	let parsedArgs: Record<string, unknown>;
+	try {
+		parsedArgs = parseToolArgs(rawArgs);
+	} catch (error) {
+		printError(describeArgsError(error));
+		return;
 	}
 
 	try {

@@ -1,34 +1,48 @@
-use afd::{CommandHandler, CommandResult, CommandError, CommandContext, success, failure};
-use crate::store;
+use super::{not_found, ok, schema, Command};
+use crate::store::TodoStore;
+use afd::{failure, CommandResult};
 use serde::{Deserialize, Serialize};
-use async_trait::async_trait;
+use serde_json::{json, Value};
+use std::sync::Arc;
+
+pub struct Delete(pub Arc<TodoStore>);
 
 #[derive(Deserialize)]
-pub struct DeleteInput {
-    pub id: String,
+pub struct Input {
+    id: String,
 }
 
 #[derive(Serialize)]
-pub struct DeleteOutput {
-    pub id: String,
-    pub deleted: bool,
+struct Output {
+    deleted: bool,
+    id: String,
 }
 
-pub struct DeleteHandler;
+impl Command for Delete {
+    type Input = Input;
+    const NAME: &'static str = "todo-delete";
+    const DESCRIPTION: &'static str = "Delete a todo";
+    const MUTATION: bool = true;
 
-#[async_trait]
-impl CommandHandler for DeleteHandler {
-    async fn execute(&self, input: serde_json::Value, _context: CommandContext) -> CommandResult<serde_json::Value> {
-        let input: DeleteInput = match serde_json::from_value(input) {
-            Ok(i) => i,
-            Err(e) => return failure(CommandError::validation(&e.to_string(), None)),
-        };
+    fn schema() -> Value {
+        json!({
+            "type": "object",
+            "properties": { "id": schema::id() },
+            "required": ["id"]
+        })
+    }
 
-        let deleted = store::delete(&input.id);
-        if deleted {
-            success(serde_json::to_value(DeleteOutput { id: input.id, deleted: true }).unwrap())
-        } else {
-            failure(CommandError::not_found("Todo", &input.id))
+    fn run(&self, input: Input) -> CommandResult<Value> {
+        match self.0.delete(&input.id) {
+            Some(todo) => {
+                let reasoning = format!("Deleted todo \"{}\"", todo.title);
+                let output = Output {
+                    deleted: true,
+                    id: input.id,
+                };
+                ok(&output, reasoning, 1.0, Vec::new())
+            }
+            None => failure(not_found(&input.id)),
         }
     }
 }

@@ -1,0 +1,3 @@
+# This is a binary crate: commit its lockfile (the repository root ignores
+# Cargo.lock for the library crate). CI builds with --locked.
+!Cargo.lock

@@ -1,6 +1,7 @@
 import { createBatchResult, success } from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
 import { createContextState } from './bootstrap/afd-context.js';
+import { createExecutionEngine } from './execution.js';
 import { defineCommand, type ZodCommandDefinition } from './schema.js';
 import { createToolRouter } from './tool-router.js';
 import { getToolsList } from './tools.js';
@@ -367,5 +368,44 @@ describe('grouped strategy with context enforcement', () => {
 
 		const result = await router('doc', { action: 'create', params: { title: 'Test' } });
 		expect(result.isError).toBe(false);
+	});
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Not-found suggestions
+// ═══════════════════════════════════════════════════════════════════════════════
+
+describe('not-found suggestions respect the active context', () => {
+	it('suggests only commands callable in the active context', async () => {
+		const state = createContextState();
+		state.enter('print');
+		const engine = createExecutionEngine({
+			commandMap: new Map(allCommands.map((c) => [c.name, c])),
+			middleware: [],
+			devMode: false,
+			contextState: state,
+		});
+		const router = createToolRouter({
+			...engine,
+			commands: allCommands,
+			toolStrategy: 'lazy',
+			devMode: false,
+			contextState: state,
+		});
+
+		// 'doc-creat' is closest to doc-create, which is outside the 'print' context.
+		const direct = await engine.executeCommand('doc-creat', {});
+		const viaCall = JSON.parse(
+			(await router('afd-call', { command: 'doc-creat' })).content[0]?.text ?? '{}'
+		);
+		for (const suggestion of [direct.error?.suggestion, viaCall.error.suggestion]) {
+			expect(suggestion).not.toContain('doc-create');
+			expect(suggestion).toContain('afd-discover');
+		}
+
+		state.exit();
+		expect((await engine.executeCommand('doc-creat', {})).error?.suggestion).toContain(
+			"Did you mean 'doc-create'?"
+		);
 	});
 });

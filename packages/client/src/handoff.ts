@@ -37,13 +37,14 @@
  */
 
 import type {
+	CommandResult,
 	HandoffCredentials,
 	HandoffMetadata,
 	HandoffProtocol,
 	HandoffResult,
 } from '@lushly-dev/afd-core';
 import { isHandoff, isHandoffProtocol } from '@lushly-dev/afd-core';
-import type { DirectClient } from './direct.js';
+import { backoffDelay, CancellableDelay } from './backoff.js';
 import { builtinHandlers } from './handlers.js';
 
 export type { HandoffCredentials, HandoffMetadata, HandoffProtocol, HandoffResult };
@@ -353,6 +354,14 @@ export interface ReconnectionOptions extends HandoffConnectionOptions {
 }
 
 /**
+ * The client `createReconnectingHandoff()` calls `reconnectCommand` with. Both `McpClient` and
+ * `DirectClient` satisfy it.
+ */
+export interface HandoffCommandClient {
+	call(name: string, args?: Record<string, unknown>): Promise<CommandResult<unknown>>;
+}
+
+/**
  * Represents a reconnecting handoff connection with automatic retry logic.
  */
 export interface ReconnectingHandoffConnection extends HandoffConnection {
@@ -380,7 +389,11 @@ export interface ReconnectingHandoffConnection extends HandoffConnection {
  * - Exponential backoff between attempts
  * - Session resumption via reconnect command
  *
- * @param client - The DirectClient to use for reconnection commands
+ * If the initial connection fails, the promise rejects and nothing keeps running: the
+ * connection is closed, so late events from the failed attempt (such as a browser WebSocket's
+ * `close` after its `error`) cannot start a reconnect loop.
+ *
+ * @param client - The client (`McpClient` or `DirectClient`) that runs `reconnectCommand`
  * @param handoff - The initial handoff result
  * @param options - Reconnection options and callbacks
  * @returns A promise that resolves to a ReconnectingHandoffConnection
@@ -404,7 +417,7 @@ export interface ReconnectingHandoffConnection extends HandoffConnection {
  * ```
  */
 export async function createReconnectingHandoff(
-	client: DirectClient,
+	client: HandoffCommandClient,
 	handoff: HandoffResult,
 	options: ReconnectionOptions = {}
 ): Promise<ReconnectingHandoffConnection> {
@@ -430,8 +443,7 @@ export async function createReconnectingHandoff(
 	let closed = false;
 	let connectionGeneration = 0;
 	let reconnectPromise: Promise<void> | null = null;
-	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-	let reconnectDelayResolve: (() => void) | null = null;
+	const backoff = new CancellableDelay();
 
 	const setState = (newState: HandoffConnectionState) => {
 		state = newState;
@@ -481,24 +493,6 @@ export async function createReconnectingHandoff(
 		return conn;
 	};
 
-	const waitForBackoff = (delay: number): Promise<void> =>
-		new Promise((resolve) => {
-			reconnectDelayResolve = resolve;
-			reconnectTimer = setTimeout(() => {
-				reconnectTimer = null;
-				reconnectDelayResolve = null;
-				resolve();
-			}, delay);
-		});
-
-	const cancelBackoff = () => {
-		if (reconnectTimer) clearTimeout(reconnectTimer);
-		reconnectTimer = null;
-		const resolve = reconnectDelayResolve;
-		reconnectDelayResolve = null;
-		resolve?.();
-	};
-
 	const runReconnectLoop = async (): Promise<void> => {
 		isReconnecting = true;
 		try {
@@ -506,16 +500,15 @@ export async function createReconnectingHandoff(
 				reconnectAttempt = attempt;
 				setState('reconnecting');
 				onReconnect?.(attempt);
-				const delay = Math.min(backoffMs * 2 ** (attempt - 1) + Math.random() * 100, maxBackoffMs);
-				await waitForBackoff(delay);
+				await backoff.wait(backoffDelay(attempt, backoffMs, maxBackoffMs));
 				if (closed) return;
 
 				if (reconnectCommand) {
 					try {
 						const args = { ...reconnectArgs };
 						if (sessionId) args.sessionId = sessionId;
-						const result = await client.call<HandoffResult>(reconnectCommand, args);
-						if (result.success && result.data && isHandoff(result.data)) {
+						const result = await client.call(reconnectCommand, args);
+						if (result.success && isHandoff(result.data)) {
 							currentHandoff = result.data;
 						}
 					} catch {
@@ -554,8 +547,16 @@ export async function createReconnectingHandoff(
 		return reconnectPromise;
 	};
 
-	// Initial connection
-	await connect(false);
+	// Initial connection. On failure the caller gets the rejection and owns nothing, so close
+	// this connection: callbacks the failed attempt fires later are ignored instead of starting
+	// a background reconnect loop.
+	try {
+		await connect(false);
+	} catch (error) {
+		closed = true;
+		connectionGeneration++;
+		throw error;
+	}
 
 	const reconnectingConnection: ReconnectingHandoffConnection = {
 		get state() {
@@ -585,7 +586,7 @@ export async function createReconnectingHandoff(
 			if (closed) return;
 			closed = true;
 			isReconnecting = false;
-			cancelBackoff();
+			backoff.cancel();
 			currentConnection?.close();
 			currentConnection = null;
 			setState('disconnected');

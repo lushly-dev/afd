@@ -47,6 +47,13 @@ root entry, even `import { success } from '@lushly-dev/afd-core'`, pulls in
 import from `@lushly-dev/afd-core/result` and `@lushly-dev/afd-core/commands`,
 or define commands through `@lushly-dev/afd-server/define`.
 
+### Running processes
+
+`exec(['git', 'status'], options)` from the `platform` subpath never uses a shell. It
+captures at most `maxOutputBytes` (default 10 MiB, `DEFAULT_MAX_OUTPUT_BYTES`) from each of
+stdout and stderr. Past that it kills the process and returns
+`errorCode: 'OUTPUT_LIMIT_EXCEEDED'` with the output captured up to the limit.
+
 ## Usage
 
 ### Creating Command Results
@@ -88,6 +95,9 @@ if (isFailure(result)) {
 ```
 
 `isSuccess` checks only `success === true`, so a void command's `success(undefined)` is a success.
+`isFailure` checks only `success === false`, so every result is exactly one of the two, and
+`{ success: false }` without an `error` is a failure. Results built with `failure()` always carry an
+`error`; read one from an untrusted peer defensively (`result.error?.code`).
 
 ### Defining Commands
 
@@ -149,7 +159,15 @@ The registry follows the same rules as the MCP server:
   or stack. Pass `createCommandRegistry({ devMode: true })` to include them.
 
 Batch and stream execution live in `executeBatch()` and `executeStream()`, which take an
-`execute` callback like `executePipeline()`, so other hosts can reuse the same semantics.
+`execute` callback like `executePipeline()`, so other hosts can reuse the same semantics. The MCP
+server uses them too.
+
+`executeStream()` does not stream incrementally: the command runs to completion, then its result is
+turned into chunks (one `data` chunk per array item, or one for any other value, then `complete`).
+`StreamableCommand` is metadata only. `registry.executeStream(name, input, { signal, timeout })`
+honors both options: `timeout` is a deadline for the whole stream, after which the command's
+signal aborts and the stream ends with a `STREAM_TIMEOUT` error chunk, even if the command ignores
+the signal.
 
 ### Creating Errors
 
@@ -231,6 +249,10 @@ const result = await executePipeline(
   any step runs. A malformed request fails with `INVALID_PIPELINE_REQUEST`.
 - Step data is copied (`structuredClone`) when it is recorded and when it is resolved, so a handler
   that mutates its input cannot change another step's data.
+- Steps run one after another. `options.parallel: true` and a step with `stream: true` are not
+  implemented: the offending step (step 0 for `parallel`) fails with `UNSUPPORTED_OPTION` and every
+  other step is skipped, before any command runs. `PipelineStep.stream` and `options.onProgress` are
+  deprecated; `onProgress` is accepted but never called.
 
 ## Types
 
@@ -275,6 +297,9 @@ interface CommandError {
 and any `code`, `suggestion` and `retryable` fields, drops everything else (such as a
 Node system error's `path`), never puts the stack in `details`, and keeps `cause` only
 when it is a `CommandError`. `isCommandError()` returns `false` for `Error` instances.
+A Node system error (`ENOENT`, `EACCES`, ... with Node's `errno` or `syscall`, or a common
+POSIX code) keeps its code, but its message, which names the file or address, is replaced
+with a generic one such as `A system error occurred: ENOENT (no such file or directory)`.
 
 ### CommandDefinition
 

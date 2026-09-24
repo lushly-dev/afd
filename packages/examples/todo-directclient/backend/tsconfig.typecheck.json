@@ -4,6 +4,6 @@
 		"noEmit": true,
 		"rootDir": "."
 	},
-	"include": ["src/**/*", "demo-direct-client.ts", "test-direct-client.ts"],
+	"include": ["src/**/*", "demo-direct-client.ts", "test-direct-client.ts", "vitest.config.ts"],
 	"exclude": ["node_modules", "dist"]
 }

@@ -19,7 +19,7 @@ export interface AgentHints {
 	/** Should the agent retry this operation? */
 	shouldRetry: boolean;
 
-	/** Related commands to consider */
+	/** Names of related tools to consider (tool names only, never arguments) */
 	relatedCommands: string[];
 
 	/** Suggested next actions */
@@ -82,14 +82,16 @@ export function generateTestReportHints(report: TestReport): AgentHints {
 	};
 
 	// Check for failures
-	const failedScenarios = scenarios.filter((s) => s.outcome === 'fail' || s.outcome === 'error');
+	const failedScenarios = scenarios.filter(
+		(s) => s.outcome === 'fail' || s.outcome === 'error' || s.outcome === 'partial'
+	);
 
 	if (failedScenarios.length > 0) {
 		hints.nextSteps.push(
 			`Review ${failedScenarios.length} failed scenario(s)`,
-			'Run with --verbose for detailed step output'
+			'Call scenario-suggest with context "failed" for regression test ideas'
 		);
-		hints.relatedCommands.push('scenario-suggest --context failed');
+		hints.relatedCommands.push('scenario-suggest');
 
 		// Extract error types from failed steps
 		const errorTypes = new Set<string>();
@@ -153,16 +155,14 @@ export function generateCoverageHints(
 
 	if (untestedCommands.length > 0) {
 		hints.untestedCommands = untestedCommands;
-		hints.relatedCommands.push('scenario-create --template crud');
+		hints.relatedCommands.push('scenario-create');
 		hints.nextSteps.push(
 			`${untestedCommands.length} command(s) have no test coverage`,
-			'Consider using scenario-create to generate test templates'
+			'Call scenario-create (for example with template "crud") to generate test scenarios'
 		);
 
 		// Prioritize high-value commands
-		const priorityCommands = untestedCommands.filter(
-			(cmd) => cmd.includes('.create') || cmd.includes('.delete')
-		);
+		const priorityCommands = untestedCommands.filter((cmd) => /-(create|delete)\b/.test(cmd));
 		if (priorityCommands.length > 0) {
 			hints.nextSteps.push(`Priority: Test ${priorityCommands.join(', ')} (mutation commands)`);
 		}
@@ -235,11 +235,9 @@ function getRelatedCommands<T>(commandName: string, result: CommandResult<T>): s
 		}
 	}
 
-	// On failure, suggest diagnostic commands
-	if (!result.success) {
-		if (!related.includes('scenario-suggest')) {
-			related.push('scenario-suggest --context failed');
-		}
+	// On failure, suggest the diagnostic tool
+	if (!result.success && !related.includes('scenario-suggest')) {
+		related.push('scenario-suggest');
 	}
 
 	return related;

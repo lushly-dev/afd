@@ -12,66 +12,27 @@
  *   afd call todo-create '{"title": "My first todo"}'
  */
 
-import { createLoggingMiddleware, createMcpServer } from '@lushly-dev/afd-server';
+import { createMcpServer } from '@lushly-dev/afd-server';
 import { allCommands } from './commands/index.js';
+import { createTodoServerOptions } from './server-options.js';
 
-// Configuration from environment
-const PORT = parseInt(process.env.PORT ?? '3100', 10);
-const HOST = process.env.HOST ?? 'localhost';
-const LOG_LEVEL = process.env.LOG_LEVEL ?? 'info';
 // Transport mode: "auto" (default), "http" (for UI), or "stdio" (for MCP clients)
 const TRANSPORT = (process.env.TRANSPORT ?? 'auto') as 'auto' | 'http' | 'stdio';
 
 /**
- * Dev mode: enables verbose errors, permissive CORS, stack traces.
+ * Dev mode: enables verbose errors, stack traces and any browser origin.
  * Set NODE_ENV=development to enable, or NODE_ENV=production for secure defaults.
  */
 const DEV_MODE = process.env.NODE_ENV === 'development';
 
 /**
- * Create and configure the MCP server.
- */
-function createServer() {
-	return createMcpServer({
-		name: 'todo-app',
-		version: '1.0.0',
-		commands: allCommands,
-		// Adds the afd-help, afd-docs and afd-schema bootstrap tools
-		bootstrap: true,
-		port: PORT,
-		host: HOST,
-		devMode: DEV_MODE,
-		// Transport mode from environment
-		transport: TRANSPORT,
-		// CORS follows devMode by default (permissive in dev, restrictive in prod)
-		// Explicitly set cors: true here for the UI to work in both modes
-		cors: true,
-
-		// Add logging middleware - verbose in dev mode
-		middleware:
-			DEV_MODE || LOG_LEVEL === 'debug'
-				? [createLoggingMiddleware({ logInput: true, logResult: true })]
-				: [createLoggingMiddleware()],
-
-		// Log command execution
-		onCommand(command, input, result) {
-			if (LOG_LEVEL === 'debug') {
-				console.error(`[Command] ${command}:`, { input, result });
-			}
-		},
-
-		// Log errors
-		onError(error) {
-			console.error('[Error]', error);
-		},
-	});
-}
-
-/**
  * Main entry point.
  */
 async function main() {
-	const server = createServer();
+	// Browser access: the dev frontends from the README (ports 3000, 5173 and 5174)
+	// plus ALLOWED_ORIGINS. See server-options.ts.
+	const options = createTodoServerOptions(process.env);
+	const server = createMcpServer({ ...options, transport: TRANSPORT });
 
 	// Only log startup messages if running interactively (TTY/HTTP mode)
 	// In stdio mode, stderr output can interfere with MCP protocol on some clients
@@ -84,7 +45,7 @@ async function main() {
 		console.error(
 			`  Mode: ${
 				DEV_MODE
-					? '🔧 DEVELOPMENT (verbose errors, permissive CORS)'
+					? '🔧 DEVELOPMENT (verbose errors, any browser origin)'
 					: '🔒 PRODUCTION (secure defaults)'
 			}`
 		);
@@ -100,8 +61,12 @@ async function main() {
 		console.error('Connect with the AFD CLI:');
 		console.error(`  afd connect ${server.getUrl()}/sse`);
 		console.error('');
-		console.error('Or open the UI:');
-		console.error(`  Open ui/index.html in a browser`);
+		console.error('Or start a frontend (from packages/examples/todo):');
+		console.error('  pnpm dev:web     # http://localhost:3000');
+		console.error('  pnpm dev:react   # http://localhost:5173');
+		if (!DEV_MODE) {
+			console.error(`  Allowed browser origins: ${options.allowedOrigins?.join(', ')}`);
+		}
 		console.error('');
 		console.error('Available commands:');
 		for (const cmd of server.getCommands()) {

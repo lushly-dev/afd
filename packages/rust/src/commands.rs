@@ -8,11 +8,12 @@ use futures_util::{stream::FuturesUnordered, FutureExt, StreamExt};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::fmt;
 use std::future::Future;
 use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
-use std::sync::{Arc, OnceLock};
-use std::time::{Duration, Instant};
+use std::sync::{Arc, OnceLock, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::time::Duration;
 
 use crate::batch::{
     create_batch_result, create_failed_batch_result, BatchCommandResult, BatchRequest, BatchResult,
@@ -21,6 +22,8 @@ use crate::batch::{
 use crate::errors::{error_codes, CommandError};
 use crate::handoff::HandoffCommandLike;
 use crate::result::{failure, CommandResult, ResultMetadata};
+use crate::time::Instant;
+use crate::validation::validate_input;
 
 type BatchExecutionFuture<'a> =
     Pin<Box<dyn Future<Output = (usize, BatchCommandResult<serde_json::Value>)> + Send + 'a>>;
@@ -252,18 +255,100 @@ impl<T> CommandExample<T> {
     }
 }
 
+/// An interface that invokes commands. Each has a flag in [`ExposeOptions`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum CommandInterface {
+    /// Command palette (exposed by default).
+    Palette,
+    /// External MCP agents (opt-in).
+    Mcp,
+    /// In-app AI assistant (exposed by default).
+    Agent,
+    /// Terminal/CLI (opt-in).
+    Cli,
+}
+
+impl CommandInterface {
+    /// The interface name, as used for the `expose` keys.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Palette => "palette",
+            Self::Mcp => "mcp",
+            Self::Agent => "agent",
+            Self::Cli => "cli",
+        }
+    }
+}
+
+impl fmt::Display for CommandInterface {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Controls which interfaces a command is exposed to.
+///
+/// A flag that is left out takes its own default, as in TypeScript's
+/// `isExposedTo`: `palette` and `agent` default to `true`, `mcp` and `cli` to
+/// `false`. So `{"mcp": true}` deserializes to palette, agent and MCP
+/// exposure, the same as `ExposeOptions::new().with_mcp(true)`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ExposeOptions {
+    /// Command palette (default `true`).
     #[serde(default = "default_true")]
     pub palette: bool,
+    /// External MCP agents (default `false`: opt in).
     #[serde(default = "default_false")]
     pub mcp: bool,
+    /// In-app AI assistant (default `true`).
     #[serde(default = "default_true")]
     pub agent: bool,
+    /// Terminal/CLI (default `false`: opt in).
     #[serde(default = "default_false")]
     pub cli: bool,
+}
+
+impl ExposeOptions {
+    /// The default exposure: palette and agent, not MCP or CLI.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set palette exposure.
+    pub fn with_palette(mut self, exposed: bool) -> Self {
+        self.palette = exposed;
+        self
+    }
+
+    /// Set MCP exposure.
+    pub fn with_mcp(mut self, exposed: bool) -> Self {
+        self.mcp = exposed;
+        self
+    }
+
+    /// Set in-app agent exposure.
+    pub fn with_agent(mut self, exposed: bool) -> Self {
+        self.agent = exposed;
+        self
+    }
+
+    /// Set CLI exposure.
+    pub fn with_cli(mut self, exposed: bool) -> Self {
+        self.cli = exposed;
+        self
+    }
+
+    /// Whether these options expose a command to `interface`.
+    pub fn is_exposed_to(&self, interface: CommandInterface) -> bool {
+        match interface {
+            CommandInterface::Palette => self.palette,
+            CommandInterface::Mcp => self.mcp,
+            CommandInterface::Agent => self.agent,
+            CommandInterface::Cli => self.cli,
+        }
+    }
 }
 
 const fn default_true() -> bool {
@@ -290,25 +375,45 @@ pub fn default_expose() -> ExposeOptions {
     ExposeOptions::default()
 }
 
+/// Whether `command` is exposed to `interface` (TypeScript `isExposedTo`).
+pub fn is_exposed_to(command: &CommandDefinition, interface: CommandInterface) -> bool {
+    command.expose.is_exposed_to(interface)
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMMAND CONTEXT
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Context provided to command handlers.
+///
+/// Build it with [`CommandContext::new`] and the `with_*` methods.
 #[derive(Debug, Clone, Default)]
+#[non_exhaustive]
 pub struct CommandContext {
     /// Unique ID for this command invocation.
     pub trace_id: Option<String>,
 
-    /// Timeout in milliseconds.
+    /// Deadline for the command in milliseconds.
+    ///
+    /// [`CommandRegistry::execute`] enforces it with `tokio::time::timeout`
+    /// (the `native` feature, inside a Tokio runtime with time enabled) and
+    /// returns `TIMEOUT` when it passes. Without `native`, a context with a
+    /// timeout is rejected with `UNSUPPORTED_OPTION` before the handler runs.
     pub timeout_ms: Option<u64>,
+
+    /// The interface invoking the command.
+    ///
+    /// When set, [`CommandRegistry::execute`] rejects commands that are not
+    /// exposed to it with `COMMAND_NOT_EXPOSED`. Leave it unset for trusted
+    /// in-process calls.
+    pub interface: Option<CommandInterface>,
 
     /// Custom context values.
     pub extra: HashMap<String, serde_json::Value>,
 }
 
 impl CommandContext {
-    /// Create a new context with a trace ID.
+    /// Create an empty context.
     pub fn new() -> Self {
         Self::default()
     }
@@ -319,9 +424,21 @@ impl CommandContext {
         self
     }
 
-    /// Set the timeout.
+    /// Set the deadline in milliseconds.
     pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
         self.timeout_ms = Some(timeout_ms);
+        self
+    }
+
+    /// Set the invoking interface, which turns on exposure checks.
+    pub fn with_interface(mut self, interface: CommandInterface) -> Self {
+        self.interface = Some(interface);
+        self
+    }
+
+    /// Add a custom context value.
+    pub fn with_extra(mut self, key: impl Into<String>, value: serde_json::Value) -> Self {
+        self.extra.insert(key.into(), value);
         self
     }
 }
@@ -348,14 +465,37 @@ pub enum ExecutionTime {
 // COMMAND DEFINITION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Type alias for async command handler function.
+/// A boxed, `Send` future, as returned by middleware.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-/// Deferred execution function used by command middleware.
+/// Runs the rest of the middleware chain and then the handler.
 pub type MiddlewareNext =
     Arc<dyn Fn() -> BoxFuture<'static, CommandResult<serde_json::Value>> + Send + Sync>;
 
-/// Middleware function type for intercepting command execution.
+/// Middleware that wraps command execution, added with
+/// [`CommandRegistry::add_middleware`].
+///
+/// It receives the command name, the validated input, the context and `next`,
+/// and returns the result: usually `next().await`, possibly inspected or
+/// replaced.
+///
+/// # Example
+///
+/// ```rust
+/// use afd::{CommandMiddleware, CommandRegistry};
+/// use std::sync::Arc;
+///
+/// let logging: CommandMiddleware = Arc::new(|name, _input, _context, next| {
+///     Box::pin(async move {
+///         let result = next().await;
+///         println!("{name}: success={}", result.success);
+///         result
+///     })
+/// });
+///
+/// let registry = CommandRegistry::new();
+/// registry.add_middleware(logging);
+/// ```
 pub type CommandMiddleware = Arc<
     dyn Fn(
             String,
@@ -413,6 +553,18 @@ pub struct CommandDefinition {
     /// Tags for categorization.
     pub tags: Option<Vec<String>>,
 
+    /// Commands that should be called before this one.
+    ///
+    /// Metadata only: the registry does not enforce it. `afd-help` lists it.
+    pub requires: Option<Vec<String>>,
+
+    /// Contexts this command belongs to.
+    ///
+    /// Metadata for hosts that scope commands by an active context: see
+    /// [`CommandDefinition::is_accessible_in_context`]. The registry does not
+    /// enforce it.
+    pub contexts: Option<Vec<String>>,
+
     /// Whether this command performs side effects.
     pub mutation: bool,
 
@@ -446,6 +598,8 @@ impl CommandDefinition {
             handler: Arc::new(handler),
             version: None,
             tags: None,
+            requires: None,
+            contexts: None,
             mutation: false,
             execution_time: None,
             expose: default_expose(),
@@ -489,6 +643,37 @@ impl CommandDefinition {
         self
     }
 
+    /// Set the commands that should be called before this one (metadata only).
+    pub fn with_requires<I, S>(mut self, requires: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.requires = Some(requires.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Set the contexts this command belongs to (metadata only).
+    pub fn with_contexts<I, S>(mut self, contexts: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.contexts = Some(contexts.into_iter().map(Into::into).collect());
+        self
+    }
+
+    /// Whether this command is available while `active_context` is active.
+    ///
+    /// As in TypeScript: every command is available when no context is
+    /// active, and a command without `contexts` is available in every context.
+    pub fn is_accessible_in_context(&self, active_context: Option<&str>) -> bool {
+        match (active_context, self.contexts.as_deref()) {
+            (None, _) | (_, None | Some([])) => true,
+            (Some(active), Some(contexts)) => contexts.iter().any(|context| context == active),
+        }
+    }
+
     /// Set the command exposure configuration.
     pub fn with_expose(mut self, expose: ExposeOptions) -> Self {
         self.expose = expose;
@@ -514,7 +699,10 @@ impl CommandDefinition {
         self
     }
 
-    /// Execute the command.
+    /// Call the command's handler directly.
+    ///
+    /// This skips everything [`CommandRegistry::execute`] enforces: input
+    /// validation, parameter defaults, exposure, the timeout and middleware.
     pub async fn execute(
         &self,
         input: serde_json::Value,
@@ -542,86 +730,204 @@ impl HandoffCommandLike for CommandDefinition {
 // COMMAND REGISTRY
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Registry for managing command definitions.
+/// Registry for managing and executing command definitions.
+///
+/// Registration takes `&self` (the registry uses interior mutability), so a
+/// registry shared as `Arc<CommandRegistry>` can still gain commands, such as
+/// the bootstrap commands that describe it
+/// ([`register_bootstrap_commands`](crate::bootstrap::register_bootstrap_commands)).
+/// [`CommandRegistry::list`] returns commands in registration order.
+///
+/// [`CommandRegistry::execute`] enforces each command's metadata; see its
+/// documentation.
+#[derive(Default)]
 pub struct CommandRegistry {
-    commands: HashMap<String, Arc<CommandDefinition>>,
+    commands: RwLock<RegisteredCommands>,
+    middleware: RwLock<Vec<CommandMiddleware>>,
+}
+
+/// Commands by name, plus their registration order.
+#[derive(Default)]
+struct RegisteredCommands {
+    by_name: HashMap<String, Arc<CommandDefinition>>,
+    ordered: Vec<Arc<CommandDefinition>>,
+}
+
+/// Read a lock, ignoring poisoning: no registry invariant spans a panic.
+fn read_lock<T>(lock: &RwLock<T>) -> RwLockReadGuard<'_, T> {
+    lock.read().unwrap_or_else(PoisonError::into_inner)
+}
+
+fn write_lock<T>(lock: &RwLock<T>) -> RwLockWriteGuard<'_, T> {
+    lock.write().unwrap_or_else(PoisonError::into_inner)
 }
 
 impl CommandRegistry {
     /// Create a new empty registry.
     pub fn new() -> Self {
-        Self {
-            commands: HashMap::new(),
-        }
+        Self::default()
     }
 
     /// Register a command.
     ///
     /// # Errors
-    /// Returns an error if a command with the same name already exists.
-    pub fn register(&mut self, command: CommandDefinition) -> Result<(), String> {
+    /// Returns an error if the name is not `domain-action` kebab-case or a
+    /// command with the same name already exists.
+    pub fn register(&self, command: CommandDefinition) -> Result<(), String> {
         validate_command_name(&command.name)?;
 
-        if self.commands.contains_key(&command.name) {
+        let mut commands = write_lock(&self.commands);
+        if commands.by_name.contains_key(&command.name) {
             return Err(format!("Command '{}' is already registered", command.name));
         }
-        self.commands
-            .insert(command.name.clone(), Arc::new(command));
+        let command = Arc::new(command);
+        commands
+            .by_name
+            .insert(command.name.clone(), Arc::clone(&command));
+        commands.ordered.push(command);
         Ok(())
+    }
+
+    /// Add a middleware to the chain that wraps every command execution.
+    ///
+    /// Middleware runs in the order it was added (the first added is the
+    /// outermost), after input validation, with the validated input. Each one
+    /// calls `next()` to run the rest of the chain and can inspect or replace
+    /// the result, or return without calling `next()` to short-circuit.
+    pub fn add_middleware(&self, middleware: CommandMiddleware) {
+        write_lock(&self.middleware).push(middleware);
     }
 
     /// Get a command by name.
     pub fn get(&self, name: &str) -> Option<Arc<CommandDefinition>> {
-        self.commands.get(name).cloned()
+        read_lock(&self.commands).by_name.get(name).cloned()
     }
 
     /// Check if a command exists.
     pub fn has(&self, name: &str) -> bool {
-        self.commands.contains_key(name)
+        read_lock(&self.commands).by_name.contains_key(name)
     }
 
-    /// Get all registered commands.
+    /// Get all registered commands, in registration order.
     pub fn list(&self) -> Vec<Arc<CommandDefinition>> {
-        self.commands.values().cloned().collect()
+        read_lock(&self.commands).ordered.clone()
+    }
+
+    fn list_where(&self, keep: impl Fn(&CommandDefinition) -> bool) -> Vec<Arc<CommandDefinition>> {
+        read_lock(&self.commands)
+            .ordered
+            .iter()
+            .filter(|command| keep(command))
+            .cloned()
+            .collect()
     }
 
     /// Get commands by category.
     pub fn list_by_category(&self, category: &str) -> Vec<Arc<CommandDefinition>> {
-        self.commands
-            .values()
-            .filter(|cmd| cmd.category.as_deref() == Some(category))
-            .cloned()
-            .collect()
+        self.list_where(|command| command.category.as_deref() == Some(category))
+    }
+
+    /// Get the commands exposed to `interface`.
+    pub fn list_by_exposure(&self, interface: CommandInterface) -> Vec<Arc<CommandDefinition>> {
+        self.list_where(|command| command.expose.is_exposed_to(interface))
     }
 
     /// Get all handoff commands.
     pub fn list_handoff_commands(&self) -> Vec<Arc<CommandDefinition>> {
-        self.commands
-            .values()
-            .filter(|cmd| crate::handoff::is_handoff_command(cmd.as_ref()))
-            .cloned()
-            .collect()
+        self.list_where(crate::handoff::is_handoff_command)
     }
 
-    /// Execute a command by name.
+    /// Execute a command by name, enforcing its metadata.
+    ///
+    /// In order:
+    ///
+    /// 1. An unknown name returns `COMMAND_NOT_FOUND`.
+    /// 2. When `context.interface` is set, a command not exposed to that
+    ///    interface returns `COMMAND_NOT_EXPOSED` (see [`ExposeOptions`]).
+    /// 3. A `context.timeout_ms` without the `native` feature returns
+    ///    `UNSUPPORTED_OPTION`.
+    /// 4. The input is validated against the command's `parameters`, and
+    ///    parameter defaults are applied; invalid input returns
+    ///    `VALIDATION_ERROR` with the problems in `details.errors`.
+    /// 5. The middleware chain and then the handler run with the validated
+    ///    input. With `context.timeout_ms`, a run that outlasts it returns
+    ///    `TIMEOUT` (this needs a Tokio runtime with time enabled).
+    ///
+    /// The handler is not called when any check fails.
     pub async fn execute(
         &self,
         name: &str,
         input: serde_json::Value,
         context: Option<CommandContext>,
     ) -> CommandResult<serde_json::Value> {
-        let Some(command) = self.commands.get(name) else {
+        let context = context.unwrap_or_default();
+        let Some(command) = self.get(name) else {
             return failure(
                 CommandError::new(
                     error_codes::COMMAND_NOT_FOUND,
-                    format!("Command '{name}' not found"),
+                    format!("Command '{}' not found", truncate_name(name)),
                 )
-                .with_suggestion("Use 'afd tools' to see available commands")
+                .with_suggestion("Use 'afd-help' or 'afd tools' to see available commands")
                 .with_retryable(false),
             );
         };
 
-        command.execute(input, context.unwrap_or_default()).await
+        if let Some(interface) = context.interface {
+            if !command.expose.is_exposed_to(interface) {
+                return failure(
+                    CommandError::new(
+                        error_codes::COMMAND_NOT_EXPOSED,
+                        format!("Command '{name}' is not exposed to {interface}"),
+                    )
+                    .with_suggestion(format!(
+                        "Call it from an interface it is exposed to, or set expose.{interface} to true in its definition"
+                    ))
+                    .with_retryable(false),
+                );
+            }
+        }
+
+        if context.timeout_ms.is_some() && !cfg!(feature = "native") {
+            return failure(
+                CommandError::new(
+                    error_codes::UNSUPPORTED_OPTION,
+                    "Command timeouts require the native feature",
+                )
+                .with_suggestion("Enable the native feature or omit timeout_ms from the context")
+                .with_retryable(false),
+            );
+        }
+
+        let input = match validate_input(&command.name, &command.parameters, input) {
+            Ok(input) => input,
+            Err(error) => return failure(*error),
+        };
+
+        let timeout_ms = context.timeout_ms;
+        let middleware = read_lock(&self.middleware).clone();
+        let chain = middleware_chain(&command, &middleware, input, context);
+
+        match timeout_ms {
+            #[cfg(feature = "native")]
+            Some(timeout_ms) => {
+                match tokio::time::timeout(Duration::from_millis(timeout_ms), chain()).await {
+                    Ok(result) => result,
+                    Err(_) => failure(CommandError::timeout(&command.name, timeout_ms)),
+                }
+            }
+            _ => chain().await,
+        }
+    }
+
+    /// Execute multiple commands in a batch with a default context.
+    ///
+    /// See [`CommandRegistry::execute_batch_with_context`].
+    pub async fn execute_batch(
+        &self,
+        request: BatchRequest<serde_json::Value>,
+    ) -> BatchResult<serde_json::Value> {
+        self.execute_batch_with_context(request, CommandContext::new())
+            .await
     }
 
     /// Execute multiple commands in a batch.
@@ -631,9 +937,18 @@ impl CommandRegistry {
     /// whenever the batch itself ran. It is `false` only for an invalid
     /// request. A handler that panics produces an `INTERNAL_ERROR` result for
     /// its own command; the other results are kept.
-    pub async fn execute_batch(
+    ///
+    /// Every command runs through [`CommandRegistry::execute`] with a copy of
+    /// `context` (so exposure checks, validation, the timeout and middleware
+    /// apply to each) and a per-command trace ID, `<batch trace ID>-<index>`.
+    /// The batch trace ID is `context.trace_id`, or `batch-<timestamp>`.
+    /// The request's `context` entries are added to each command's
+    /// [`CommandContext::extra`], without replacing keys the caller set; they
+    /// never change the trace ID, interface or timeout.
+    pub async fn execute_batch_with_context(
         &self,
         request: BatchRequest<serde_json::Value>,
+        context: CommandContext,
     ) -> BatchResult<serde_json::Value> {
         let start_time = Instant::now();
         let started_at = chrono::Utc::now().to_rfc3339();
@@ -667,7 +982,7 @@ impl CommandRegistry {
         if options.timeout.is_some() {
             return create_failed_batch_result(
                 CommandError::new(
-                    "UNSUPPORTED_OPTION",
+                    error_codes::UNSUPPORTED_OPTION,
                     "Batch deadlines require the native feature",
                 )
                 .with_suggestion("Enable the native feature or omit timeout")
@@ -683,7 +998,14 @@ impl CommandRegistry {
             );
         }
 
-        let batch_trace_id = format!("batch-{}", chrono::Utc::now().timestamp_millis());
+        let batch_trace_id = context
+            .trace_id
+            .clone()
+            .unwrap_or_else(|| format!("batch-{}", chrono::Utc::now().timestamp_millis()));
+        let mut base_context = context;
+        for (key, value) in request.context.into_iter().flatten() {
+            base_context.extra.entry(key).or_insert(value);
+        }
         let total_commands = request.commands.len();
         let command_metadata: Vec<_> = request
             .commands
@@ -726,8 +1048,9 @@ impl CommandRegistry {
                     break;
                 };
                 let (id, command_name) = command_metadata[index].clone();
-                let context =
-                    CommandContext::new().with_trace_id(format!("{batch_trace_id}-{index}"));
+                let context = base_context
+                    .clone()
+                    .with_trace_id(format!("{batch_trace_id}-{index}"));
                 let timeout_error = &timeout_error;
                 active.push(Box::pin(async move {
                     let command_start = Instant::now();
@@ -817,6 +1140,55 @@ impl CommandRegistry {
 // EXECUTION HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// Longest command name echoed back in an error, as in TypeScript.
+const MAX_ECHOED_NAME_LENGTH: usize = crate::similarity::MAX_SIMILARITY_INPUT_LENGTH;
+
+/// `name` cut to [`MAX_ECHOED_NAME_LENGTH`] characters, with `…` when cut.
+fn truncate_name(name: &str) -> String {
+    match name.char_indices().nth(MAX_ECHOED_NAME_LENGTH) {
+        None => name.to_string(),
+        Some((end, _)) => format!("{}…", &name[..end]),
+    }
+}
+
+/// Build the middleware chain around `command`'s handler.
+///
+/// The returned function can be called more than once (a retry middleware
+/// calls `next()` again); each call clones the input and context.
+fn middleware_chain(
+    command: &Arc<CommandDefinition>,
+    middleware: &[CommandMiddleware],
+    input: serde_json::Value,
+    context: CommandContext,
+) -> MiddlewareNext {
+    let handler: MiddlewareNext = {
+        let command = Arc::clone(command);
+        let input = input.clone();
+        let context = context.clone();
+        Arc::new(move || {
+            let command = Arc::clone(&command);
+            let input = input.clone();
+            let context = context.clone();
+            Box::pin(async move { command.execute(input, context).await })
+        })
+    };
+
+    middleware.iter().rev().fold(handler, |next, layer| {
+        let layer = Arc::clone(layer);
+        let name = command.name.clone();
+        let input = input.clone();
+        let context = context.clone();
+        Arc::new(move || {
+            layer(
+                name.clone(),
+                input.clone(),
+                context.clone(),
+                Arc::clone(&next),
+            )
+        })
+    })
+}
+
 /// Milliseconds since `start`, rounded to two decimals as in TypeScript.
 pub(crate) fn elapsed_ms(start: Instant) -> f64 {
     (start.elapsed().as_secs_f64() * 100_000.0).round() / 100.0
@@ -851,12 +1223,6 @@ where
         .catch_unwind()
         .await
         .unwrap_or_else(|_| failure(handler_panic_error()))
-}
-
-impl Default for CommandRegistry {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -917,387 +1283,4 @@ pub fn create_command_registry() -> CommandRegistry {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::batch::{BatchCommand, BatchOptions};
-    use crate::result::success;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    struct TestHandler;
-
-    /// Panics when the input has `"panic": true`; otherwise echoes the input.
-    struct PanickingHandler;
-
-    #[async_trait]
-    impl CommandHandler for PanickingHandler {
-        async fn execute(
-            &self,
-            input: serde_json::Value,
-            _context: CommandContext,
-        ) -> CommandResult<serde_json::Value> {
-            if input.get("panic") == Some(&serde_json::Value::Bool(true)) {
-                panic!("handler bug");
-            }
-            success(input)
-        }
-    }
-
-    fn work_registry() -> (CommandRegistry, Arc<AtomicUsize>) {
-        let peak = Arc::new(AtomicUsize::new(0));
-        let mut registry = CommandRegistry::new();
-        registry
-            .register(CommandDefinition::new(
-                "work-run",
-                "Runs controlled work",
-                vec![],
-                ControlledHandler {
-                    active: Arc::new(AtomicUsize::new(0)),
-                    peak: Arc::clone(&peak),
-                },
-            ))
-            .unwrap();
-        (registry, peak)
-    }
-
-    struct ControlledHandler {
-        active: Arc<AtomicUsize>,
-        peak: Arc<AtomicUsize>,
-    }
-
-    #[async_trait]
-    impl CommandHandler for ControlledHandler {
-        async fn execute(
-            &self,
-            input: serde_json::Value,
-            _context: CommandContext,
-        ) -> CommandResult<serde_json::Value> {
-            let active = self.active.fetch_add(1, Ordering::SeqCst) + 1;
-            self.peak.fetch_max(active, Ordering::SeqCst);
-            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-            self.active.fetch_sub(1, Ordering::SeqCst);
-            if input.get("fail") == Some(&serde_json::Value::Bool(true)) {
-                failure(CommandError::new("EXPECTED", "controlled failure"))
-            } else {
-                success(input)
-            }
-        }
-    }
-
-    #[async_trait]
-    impl CommandHandler for TestHandler {
-        async fn execute(
-            &self,
-            input: serde_json::Value,
-            _context: CommandContext,
-        ) -> CommandResult<serde_json::Value> {
-            success(serde_json::json!({ "echo": input }))
-        }
-    }
-
-    #[tokio::test]
-    async fn test_command_registry() {
-        let mut registry = CommandRegistry::new();
-
-        let cmd = CommandDefinition::new(
-            "test-echo",
-            "Echoes input back",
-            vec![CommandParameter::required_string(
-                "message",
-                "Message to echo",
-            )],
-            TestHandler,
-        );
-
-        registry.register(cmd).unwrap();
-        assert!(registry.has("test-echo"));
-
-        let result = registry
-            .execute("test-echo", serde_json::json!({"message": "hello"}), None)
-            .await;
-
-        assert!(result.success);
-    }
-
-    #[tokio::test]
-    async fn test_batch_bounds_concurrency_and_preserves_order() {
-        let (registry, peak) = work_registry();
-        let request = BatchRequest::new(
-            (0..4)
-                .map(|index| {
-                    BatchCommand::new("work-run", serde_json::json!({"index": index}))
-                        .with_id(format!("request-{index}"))
-                })
-                .collect(),
-        )
-        .with_options(BatchOptions::new().with_parallelism(2));
-
-        let result = registry.execute_batch(request).await;
-
-        assert_eq!(peak.load(Ordering::SeqCst), 2);
-        assert_eq!(
-            result
-                .results
-                .iter()
-                .map(|result| (result.id.as_str(), result.index))
-                .collect::<Vec<_>>(),
-            vec![
-                ("request-0", 0),
-                ("request-1", 1),
-                ("request-2", 2),
-                ("request-3", 3)
-            ]
-        );
-        assert!(result
-            .metadata
-            .as_ref()
-            .and_then(|metadata| metadata.trace_id.as_deref())
-            .is_some_and(|trace_id| trace_id.starts_with("batch-")));
-    }
-
-    #[tokio::test]
-    async fn test_batch_continues_after_failure_by_default() {
-        let (registry, _) = work_registry();
-        let request = BatchRequest::new(vec![
-            BatchCommand::new("work-run", serde_json::json!({"fail": true})).with_id("first"),
-            BatchCommand::new("work-run", serde_json::json!({})),
-            BatchCommand::new("missing-command", serde_json::json!({})),
-        ]);
-
-        let result = registry.execute_batch(request).await;
-
-        assert!(result.success, "a batch that ran is successful");
-        assert_eq!(result.summary.success_count, 1);
-        assert_eq!(result.summary.failure_count, 2);
-        assert_eq!(result.summary.skipped_count, 0);
-        assert!(result.results[1].result.success);
-        assert_eq!(result.results[0].id, "first");
-        assert_eq!(result.results[1].id, "cmd-1");
-        assert_eq!(result.results[2].id, "cmd-2");
-        assert_eq!(
-            result.results[2].result.error.as_ref().unwrap().code,
-            "COMMAND_NOT_FOUND"
-        );
-        assert_eq!(
-            result.reasoning,
-            "Executed 3 commands: 1 succeeded, 2 failed"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_batch_stop_on_error_retains_skipped_correlation() {
-        let (registry, _) = work_registry();
-        let request = BatchRequest::new(vec![
-            BatchCommand::new("work-run", serde_json::json!({"fail": true})).with_id("first"),
-            BatchCommand::new("work-run", serde_json::json!({})).with_id("second"),
-        ])
-        .with_options(BatchOptions::new().with_stop_on_error(true));
-
-        let result = registry.execute_batch(request).await;
-
-        assert!(result.success);
-        assert_eq!(result.summary.failure_count, 1);
-        assert_eq!(result.summary.skipped_count, 1);
-        assert_eq!(result.results[1].id, "second");
-        assert_eq!(result.results[1].index, 1);
-        assert_eq!(result.results[1].command, "work-run");
-        assert_eq!(
-            result.results[1].result.error.as_ref().unwrap().code,
-            "COMMAND_SKIPPED"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_batch_honors_deadline_and_max_failures() {
-        let (registry, peak) = work_registry();
-        let timed_out = registry
-            .execute_batch(
-                BatchRequest::new(vec![
-                    BatchCommand::new("work-run", serde_json::json!({})).with_id("slow")
-                ])
-                .with_options(BatchOptions::new().with_timeout(1.0)),
-            )
-            .await;
-        #[cfg(feature = "native")]
-        assert_eq!(
-            timed_out.results[0].result.error.as_ref().unwrap().code,
-            "BATCH_TIMEOUT"
-        );
-        #[cfg(not(feature = "native"))]
-        {
-            assert!(!timed_out.success);
-            assert_eq!(timed_out.error.as_ref().unwrap().code, "UNSUPPORTED_OPTION");
-            assert!(timed_out.results.is_empty());
-            assert_eq!(peak.load(Ordering::SeqCst), 0);
-        }
-
-        let failure_limited = registry
-            .execute_batch(
-                BatchRequest::new(vec![
-                    BatchCommand::new("work-run", serde_json::json!({"fail": true})).with_id("one"),
-                    BatchCommand::new("work-run", serde_json::json!({"fail": true})).with_id("two"),
-                    BatchCommand::new("work-run", serde_json::json!({})).with_id("three"),
-                ])
-                .with_options(BatchOptions::new().with_max_failures(2)),
-            )
-            .await;
-        assert_eq!(failure_limited.summary.failure_count, 2);
-        assert_eq!(failure_limited.summary.skipped_count, 1);
-        assert_eq!(failure_limited.results[2].id, "three");
-        let _ = peak;
-    }
-
-    #[tokio::test]
-    async fn test_batch_rejects_invalid_options() {
-        let (registry, _) = work_registry();
-        for options in [
-            BatchOptions::new().with_parallelism(0),
-            BatchOptions::new().with_timeout(-5.0),
-            BatchOptions::new().with_timeout(f64::NAN),
-        ] {
-            let result = registry
-                .execute_batch(
-                    BatchRequest::new(vec![BatchCommand::new("work-run", serde_json::json!({}))])
-                        .with_options(options),
-                )
-                .await;
-            assert!(!result.success);
-            assert_eq!(result.error.as_ref().unwrap().code, "INVALID_BATCH_REQUEST");
-        }
-        let empty = registry.execute_batch(BatchRequest::new(vec![])).await;
-        assert!(!empty.success);
-    }
-
-    #[tokio::test]
-    async fn test_batch_huge_timeout_does_not_overflow() {
-        let (registry, _) = work_registry();
-        let result = registry
-            .execute_batch(
-                BatchRequest::new(vec![BatchCommand::new("work-run", serde_json::json!({}))])
-                    .with_options(BatchOptions::new().with_timeout(f64::MAX)),
-            )
-            .await;
-        assert_eq!(result.success, cfg!(feature = "native"));
-    }
-
-    #[tokio::test]
-    async fn test_batch_panicking_handler_keeps_other_results() {
-        let mut registry = CommandRegistry::new();
-        registry
-            .register(CommandDefinition::new(
-                "panic-run",
-                "Panics on request",
-                vec![],
-                PanickingHandler,
-            ))
-            .unwrap();
-        let request = BatchRequest::new(vec![
-            BatchCommand::new("panic-run", serde_json::json!({"n": 1})),
-            BatchCommand::new("panic-run", serde_json::json!({"panic": true})),
-            BatchCommand::new("panic-run", serde_json::json!({"n": 3})),
-        ])
-        .with_options(BatchOptions::new().with_parallelism(2));
-
-        let result = registry.execute_batch(request).await;
-
-        assert!(result.success);
-        assert_eq!(result.results.len(), 3);
-        assert_eq!(
-            result.results[0].result.data,
-            Some(serde_json::json!({"n": 1}))
-        );
-        let error = result.results[1].result.error.as_ref().unwrap();
-        assert_eq!(error.code, "INTERNAL_ERROR");
-        assert!(!error.message.contains("handler bug"));
-        assert_eq!(
-            result.results[2].result.data,
-            Some(serde_json::json!({"n": 3}))
-        );
-        assert_eq!(result.summary.success_count, 2);
-        assert_eq!(result.summary.failure_count, 1);
-    }
-
-    #[test]
-    fn test_validate_command_name() {
-        assert!(validate_command_name("todo-create").is_ok());
-        assert!(validate_command_name("create").is_err());
-        assert!(validate_command_name("TodoCreate").is_err());
-    }
-
-    #[test]
-    fn test_default_expose_values() {
-        let expose = default_expose();
-        assert!(expose.palette);
-        assert!(expose.agent);
-        assert!(!expose.mcp);
-        assert!(!expose.cli);
-    }
-
-    #[tokio::test]
-    async fn test_command_not_found() {
-        let registry = CommandRegistry::new();
-
-        let result = registry
-            .execute("nonexistent", serde_json::json!({}), None)
-            .await;
-
-        assert!(!result.success);
-        assert_eq!(result.error.as_ref().unwrap().code, "COMMAND_NOT_FOUND");
-    }
-
-    #[test]
-    fn test_command_to_mcp_tool() {
-        let cmd = CommandDefinition::new(
-            "test-create",
-            "Creates a test",
-            vec![
-                CommandParameter::required_string("name", "Test name"),
-                CommandParameter::optional_string("description", "Test description"),
-            ],
-            TestHandler,
-        );
-
-        let tool = command_to_mcp_tool(&cmd);
-
-        assert_eq!(tool.name, "test-create");
-        assert_eq!(tool.input_schema.required, vec!["name"]);
-        assert!(tool.input_schema.properties.contains_key("name"));
-        assert!(tool.input_schema.properties.contains_key("description"));
-    }
-
-    #[test]
-    fn test_handoff_command() {
-        let cmd =
-            CommandDefinition::new("stream-connect", "Connect to stream", vec![], TestHandler)
-                .as_handoff_with_protocol("websocket");
-
-        assert!(cmd.handoff);
-        assert_eq!(cmd.handoff_protocol, Some("websocket".to_string()));
-        assert!(crate::handoff::is_handoff_command(&cmd));
-    }
-
-    #[test]
-    fn test_list_handoff_commands() {
-        let mut registry = CommandRegistry::new();
-
-        let cmd1 = CommandDefinition::new("test-regular", "Regular command", vec![], TestHandler);
-
-        let cmd2 =
-            CommandDefinition::new("stream-connect", "Connect to stream", vec![], TestHandler)
-                .as_handoff_with_protocol("websocket");
-
-        let cmd3 = CommandDefinition::new(
-            "events-subscribe",
-            "Subscribe to events",
-            vec![],
-            TestHandler,
-        )
-        .with_tags(vec!["handoff".to_string(), "events".to_string()]);
-
-        registry.register(cmd1).unwrap();
-        registry.register(cmd2).unwrap();
-        registry.register(cmd3).unwrap();
-
-        let handoff_commands = registry.list_handoff_commands();
-        assert_eq!(handoff_commands.len(), 2);
-    }
-}
+mod tests;

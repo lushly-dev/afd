@@ -46,13 +46,39 @@ await db.remove('users', 'u1');
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `get` | `get<T>(table, id): Promise<T \| null>` | Get record by ID |
+| `get` | `get<T>(table, id): Promise<T \| null>` | Get record by ID (`null` if missing) |
 | `list` | `list<T>(table, params?): Promise<ListResult<T>>` | List with filter/sort/paginate |
 | `create` | `create<T>(table, data): Promise<T>` | Create a record |
-| `update` | `update<T>(table, id, patch): Promise<T>` | Update (merge patch) |
-| `remove` | `remove(table, id): Promise<void>` | Delete a record |
+| `update` | `update<T>(table, id, patch): Promise<T>` | Merge a patch; 404 if missing (upsert tables create) |
+| `remove` | `remove(table, id): Promise<void>` | Delete a record (missing is fine) |
 | `batch` | `batch(ops): Promise<BatchResult>` | Atomic multi-operation |
 | `health` | `health(): Promise<HealthStatus>` | Backend health check |
+
+### Contract
+
+`MemoryAdapter` and `HttpAdapter` pass one shared contract test suite, so tests written
+against the memory adapter describe production behavior:
+
+- **Records are JSON copies.** Changing a returned object, or the object you passed in, never
+  changes stored data. Values are stored as JSON, so a `Date` comes back as an ISO string and
+  `undefined` properties are dropped, exactly as over HTTP.
+- **`update()` of a missing record rejects** with a `DataAdapterError` whose `status` is 404, and
+  creates nothing. The upsert tables (`settings`, `flags`, `feature_flags`, `feature_data`,
+  `keyboard_shortcuts`) are the exception: there `update()` creates the record (`HttpAdapter`
+  sends `PUT`).
+- **`remove()` of a missing record succeeds.**
+- **Table and record names** can be any string except `''`, `.` and `..`, which reject with a
+  400 `DataAdapterError` (`code: 'INVALID_NAME'`). `HttpAdapter` sends an unmapped table as one
+  percent-encoded path segment, so names like `constructor` or `../admin` stay inside the base
+  URL.
+- **`batch()` is all or nothing.** Operations run in order (`PUT` upserts, `PATCH` needs an
+  existing record). If one fails (any status of 400 or more, except a `GET` of a missing record,
+  which reports 404 with `data: null`), no write is applied: the failed operation keeps its
+  status and error, every other operation reports `424`, and the summary counts all of them as
+  failed. `HttpAdapter` sends the batch as one `POST /batch`, so the server must implement the
+  same semantics.
+- **Errors** reject with `DataAdapterError` (`status`, `code`: `NOT_FOUND`, `CONFLICT`,
+  `INVALID_NAME` or `HTTP_<status>`).
 
 ### `QueryParams`
 
@@ -89,7 +115,9 @@ const db = createHttpAdapter(baseUrl, {
 });
 ```
 
-Default path mapping: `accounts` → `/accounts`, `flags` → `/flags`, `settings` → `/settings`, etc.
+Default path mapping: `accounts` → `/accounts`, `flags` → `/flags`, `settings` → `/settings`,
+`chat_sessions` → `/chat/sessions`, `chat_messages` → `/chat/messages`, etc. Other tables map to
+`/<encoded table name>`.
 
 Uses PUT for upsert-style tables (settings, flags), PATCH for entity tables (accounts, annotations).
 

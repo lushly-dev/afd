@@ -75,6 +75,18 @@ describe('test helpers', () => {
 		expect(results[0]?.description).toBe('valid input');
 	});
 
+	it('fails a case whose expected error does not occur', async () => {
+		const results = await testCommandMultiple(
+			async () => success({ saved: true }),
+			[
+				{ input: {}, expectError: 'INVALID' },
+				{ input: {}, expectSuccess: true, expectError: 'INVALID' },
+			]
+		);
+
+		expect(results.map((result) => result.passed)).toEqual([false, false]);
+	});
+
 	it('creates mock commands for success, failure, and thrown errors', async () => {
 		const echo = createMockCommand<{ value: number }, number>('test-echo', ({ value }) => value);
 		const throws = createMockCommand('test-throw', () => {

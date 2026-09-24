@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => {
 	spinner.start.mockReturnValue(spinner);
 	return {
 		ensureConnected: vi.fn(),
+		tryConnect: vi.fn(),
 		getClient: vi.fn().mockReturnValue(null),
 		setClient: vi.fn(),
 		createClient: vi.fn(),
@@ -27,6 +28,7 @@ const mocks = vi.hoisted(() => {
 		validateResult: vi.fn(),
 		config: {} as Record<string, unknown>,
 		setConfig: vi.fn(),
+		saveConnection: vi.fn(),
 		deleteConfig: vi.fn(),
 		reporter: {
 			reportScenarioStart: vi.fn(),
@@ -39,17 +41,26 @@ const mocks = vi.hoisted(() => {
 			steps: [],
 			durationMs: 1,
 		},
+		executorOptions: [] as Array<Record<string, unknown>>,
 	};
 });
 
-vi.mock('../connection.js', () => ({
-	ensureConnected: mocks.ensureConnected,
-	getClient: mocks.getClient,
-	setClient: mocks.setClient,
-}));
+vi.mock('../connection.js', async (importOriginal) => {
+	const actual = await importOriginal<typeof import('../connection.js')>();
+	return {
+		...actual,
+		ensureConnected: mocks.ensureConnected,
+		requireClient: (_flags: unknown, options?: unknown) => mocks.ensureConnected(options),
+		tryConnect: mocks.tryConnect,
+		getClient: mocks.getClient,
+		setClient: mocks.setClient,
+	};
+});
 vi.mock('../config.js', () => ({
 	getConfig: () => mocks.config,
+	getConfigPath: () => '/tmp/afd-cli-nodejs/config.json',
 	setConfig: mocks.setConfig,
+	saveConnection: mocks.saveConnection,
 	deleteConfig: mocks.deleteConfig,
 }));
 vi.mock('@lushly-dev/afd-client', () => ({ createClient: mocks.createClient }));
@@ -73,15 +84,16 @@ vi.mock('@lushly-dev/afd-testing', () => ({
 				onScenarioStart: (scenario: { job: string; description: string }) => void;
 				onStepComplete: (step: { command: string }, result: unknown) => void;
 			}
-		) {}
+		) {
+			mocks.executorOptions.push(options);
+		}
 		async execute(scenario: {
 			job: string;
 			description: string;
 			steps: Array<{ command: string }>;
 		}) {
 			this.options.onScenarioStart(scenario);
-			const step = scenario.steps[0];
-			if (step) {
+			for (const step of scenario.steps) {
 				const result = await this.options.handler(step.command, {});
 				this.options.onStepComplete(step, result);
 			}
@@ -120,6 +132,10 @@ async function run(...args: string[]): Promise<void> {
 describe('CLI command workflows', () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		mocks.executorOptions = [];
+		mocks.tryConnect.mockImplementation(async (options: unknown) => ({
+			client: await mocks.ensureConnected(options),
+		}));
 		mocks.spinner.start.mockReturnValue(mocks.spinner);
 		mocks.getClient.mockReturnValue(null);
 		mocks.scenarioResult.outcome = 'pass';
@@ -325,6 +341,13 @@ describe('CLI command workflows', () => {
 		await run('disconnect');
 
 		expect(mocks.createClient).toHaveBeenCalledWith({
+			url: 'http://test/mcp',
+			transport: 'http',
+			timeout: 25,
+			autoReconnect: false,
+		});
+		// URL, transport, timeout and the reconnect choice are saved together.
+		expect(mocks.saveConnection).toHaveBeenCalledWith({
 			url: 'http://test/mcp',
 			transport: 'http',
 			timeout: 25,
@@ -694,5 +717,253 @@ describe('CLI command workflows', () => {
 		} finally {
 			await rm(directory, { recursive: true, force: true });
 		}
+	});
+	it('stops after the first failing scenario unless --no-stop-on-failure is given', async () => {
+		const first = {
+			name: 'first',
+			job: 'first-job',
+			description: 'First',
+			steps: [{ command: 'health-ping' }],
+		};
+		const second = {
+			name: 'second',
+			job: 'second-job',
+			description: 'Second',
+			steps: [{ command: 'health-score' }, { command: 'health-score' }, { command: 'health-ping' }],
+		};
+		mocks.glob.mockResolvedValue(['/tmp/a.scenario.yaml', '/tmp/b.scenario.yaml']);
+		mocks.parseScenarioFile.mockImplementation(async (file: string) => ({
+			success: true,
+			scenario: file.includes('/a.') ? first : second,
+		}));
+		// Some steps passed and some failed: still a failed scenario.
+		mocks.scenarioResult.outcome = 'partial';
+		mocks.calculateSummary.mockReturnValue({ failedScenarios: 1, errorScenarios: 0 });
+		mocks.createClient.mockReturnValue(client());
+
+		await run('scenario', 'run', 'scenarios', '--server', 'http://test/mcp');
+		expect(mocks.reporter.reportScenarioStart).toHaveBeenCalledTimes(1);
+
+		vi.clearAllMocks();
+		mocks.createClient.mockReturnValue(client());
+		await run(
+			'scenario',
+			'run',
+			'scenarios',
+			'--server',
+			'http://test/mcp',
+			'--no-stop-on-failure'
+		);
+		expect(mocks.reporter.reportScenarioStart).toHaveBeenCalledTimes(2);
+
+		// Each step is reported against its own scenario, although both scenarios
+		// use health-ping.
+		const progress = mocks.reporter.reportStepProgress.mock.calls.map(
+			([step, , index, total]) => `${(step as { command: string }).command} ${index}/${total}`
+		);
+		expect(progress).toEqual([
+			'health-ping 0/1',
+			'health-score 0/3',
+			'health-score 1/3',
+			'health-ping 2/3',
+		]);
+		// A failed step still skips the rest of its own scenario.
+		expect(mocks.executorOptions.at(-1)).not.toHaveProperty('stopOnFailure');
+		expect(process.exit).toHaveBeenCalledWith(1);
+	});
+
+	it('connects scenario runs with --header values and without auto-reconnect', async () => {
+		mocks.glob.mockResolvedValue(['/tmp/a.scenario.yaml']);
+		mocks.parseScenarioFile.mockResolvedValue({
+			success: true,
+			scenario: { name: 'a', job: 'a', description: 'A', steps: [{ command: 'x-y' }] },
+		});
+		mocks.calculateSummary.mockReturnValue({ failedScenarios: 0, errorScenarios: 0 });
+		mocks.createClient.mockReturnValue(client());
+
+		await run(
+			'scenario',
+			'run',
+			'a.scenario.yaml',
+			'--server',
+			'http://test/mcp',
+			'--transport',
+			'http',
+			'--header',
+			'Authorization: Bearer scenario'
+		);
+
+		expect(mocks.createClient).toHaveBeenCalledWith({
+			url: 'http://test/mcp',
+			transport: 'http',
+			timeout: 30000,
+			autoReconnect: false,
+			headers: { Authorization: 'Bearer scenario' },
+		});
+		expect(mocks.setClient).toHaveBeenCalledWith(null);
+	});
+
+	it('hands the scenario reporter sanitized copies of server text', async () => {
+		const scenario = {
+			name: 'evil',
+			job: 'evil\x1b]0;pwned\x07-job',
+			description: 'Evil\x1b[2A',
+			steps: [{ command: 'health-ping' }],
+		};
+		mocks.glob.mockResolvedValue(['/tmp/evil.scenario.yaml']);
+		mocks.parseScenarioFile.mockResolvedValue({ success: true, scenario });
+		mocks.calculateSummary.mockReturnValue({ failedScenarios: 0, errorScenarios: 0 });
+		const evilResult = { success: false, error: { code: 'E', message: 'bad\x1b[2Kthing' } };
+		mocks.createClient.mockReturnValue(client({ call: vi.fn().mockResolvedValue(evilResult) }));
+
+		await run('scenario', 'run', 'evil.scenario.yaml', '--server', 'http://test/mcp');
+
+		expect(mocks.reporter.reportScenarioStart).toHaveBeenCalledWith('evil-job', 'Evil');
+		expect(mocks.reporter.reportStepProgress).toHaveBeenCalledWith(
+			{ command: 'health-ping' },
+			{ success: false, error: { code: 'E', message: 'badthing' } },
+			0,
+			1
+		);
+	});
+
+	it('sanitizes tool names and messages in per-command validation', async () => {
+		const ESC = '\x1b';
+		const connected = client({
+			refreshTools: vi.fn().mockResolvedValue([
+				{
+					name: `evil${ESC}]0;pwned\x07-tool`,
+					description: 'A tool with an evil name',
+					inputSchema: { type: 'object' },
+				},
+				{ name: 'throws-tool', description: 'Throws when called', inputSchema: { type: 'object' } },
+			]),
+			call: vi
+				.fn()
+				.mockResolvedValueOnce({ success: true, data: 1 })
+				.mockRejectedValueOnce(new Error(`network ${ESC}[2Adown`)),
+		});
+		mocks.ensureConnected.mockResolvedValue(connected);
+		mocks.validateResult.mockReturnValue({
+			valid: false,
+			errors: [{ path: `data${ESC}[1A`, message: `bad ${ESC}]8;;x${ESC}\\value` }],
+			warnings: [],
+		});
+
+		await run('validate', '--execute', '--verbose');
+
+		const output = vi.mocked(console.log).mock.calls.flat().join('\n');
+		expect(output).not.toContain(ESC);
+		expect(output).toContain('evil-tool');
+		expect(output).toContain('data: bad value');
+		expect(output).toContain('Error: network down');
+	});
+
+	it('sanitizes batch and stream text output', async () => {
+		const ESC = '\x1b';
+		const batch = vi.fn().mockResolvedValue({
+			success: true,
+			results: [
+				{
+					id: `id${ESC}[2A`,
+					index: 0,
+					command: `cmd${ESC}]0;t\x07`,
+					result: {
+						success: false,
+						error: { code: 'E', message: `m${ESC}[2K`, suggestion: `s${ESC}c` },
+					},
+					durationMs: 1,
+				},
+			],
+			summary: { total: 1, successCount: 0, failureCount: 1, skippedCount: 0 },
+			timing: { totalMs: 1, averageMs: 1, startedAt: '', completedAt: '' },
+			confidence: 0.5,
+			reasoning: `why${ESC}[1A`,
+			warnings: [{ commandId: 'c', code: 'W', message: `w${ESC}]8;;u${ESC}\\` }],
+			error: { code: 'B', message: `batch${ESC}[H`, suggestion: `fix${ESC}[J` },
+		});
+		const stream = vi.fn().mockImplementation(async function* () {
+			yield { type: 'progress', progress: 0.5, message: `half${ESC}[2A` };
+			yield { type: 'data', data: `chunk${ESC}]0;title\x07\n`, index: 0, isLast: true };
+			yield { type: 'complete', totalChunks: 1, totalDurationMs: 2, reasoning: `r${ESC}[2J` };
+		});
+		mocks.ensureConnected.mockResolvedValue(client({ batch, stream }));
+
+		await run('batch', '[{"command":"x-y"}]', '--verbose');
+		await run('stream', 'x-y');
+
+		const output = [
+			...vi.mocked(console.log).mock.calls.flat(),
+			...vi.mocked(process.stdout.write).mock.calls.map(([chunk]) => String(chunk)),
+		].join('\n');
+		for (const text of [
+			'id',
+			'cmd',
+			'[E] m',
+			's',
+			'why',
+			'w (c)',
+			'[B] batch',
+			'fix',
+			'half',
+			'chunk',
+			'r',
+		]) {
+			expect(output).toContain(text);
+		}
+		expect(output).not.toContain(ESC);
+		expect(output).not.toContain('\x07');
+	});
+	it('connect warns about saved URL credentials, notes unsaved headers, and redacts failures', async () => {
+		const connected = client();
+		mocks.createClient.mockReturnValue(connected);
+
+		await run(
+			'connect',
+			'http://alice:pw@test/sse?token=abc123',
+			'--header',
+			'Authorization: Bearer hdr-secret'
+		);
+
+		expect(mocks.createClient).toHaveBeenCalledWith(
+			expect.objectContaining({ headers: { Authorization: 'Bearer hdr-secret' } })
+		);
+		expect(JSON.stringify(mocks.saveConnection.mock.calls)).not.toContain('hdr-secret');
+		const output = vi.mocked(console.log).mock.calls.flat().join('\n');
+		expect(output).toContain('http://***@test/sse?token=***');
+		expect(output).toContain('The URL contains credentials');
+		expect(output).toContain('Request headers are not saved');
+		expect(output).not.toContain('abc123');
+
+		vi.mocked(console.error).mockClear();
+		const failing = client({ connect: vi.fn().mockRejectedValue(new Error('HTTP error: 401')) });
+		mocks.createClient.mockReturnValue(failing);
+		mocks.getClient.mockReturnValue(failing);
+
+		await run('connect', 'http://test/sse?token=abc123');
+
+		expect(process.exit).toHaveBeenCalledWith(1);
+		expect(failing.disconnect).toHaveBeenCalled();
+		const errors = vi.mocked(console.error).mock.calls.flat().join('\n');
+		expect(errors).toContain('Could not connect to http://test/sse?token=***');
+		expect(errors).toContain('HTTP error: 401');
+		expect(errors).not.toContain('abc123');
+	});
+
+	it('status explains why the saved connection could not be opened', async () => {
+		mocks.tryConnect.mockResolvedValueOnce({ client: null });
+		await run('status');
+		expect(console.log).toHaveBeenCalledWith(expect.stringContaining('Not connected'));
+		expect(console.error).not.toHaveBeenCalled();
+
+		mocks.tryConnect.mockResolvedValueOnce({
+			client: null,
+			url: 'http://test/sse?key=k1',
+			error: new Error('HTTP error: 401 Unauthorized'),
+		});
+		await run('status');
+		const errors = vi.mocked(console.error).mock.calls.flat().join('\n');
+		expect(errors).toContain('Could not connect to http://test/sse?key=***');
+		expect(errors).toContain('401 Unauthorized');
 	});
 });

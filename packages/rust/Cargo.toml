@@ -10,32 +10,29 @@ readme = "README.md"
 keywords = ["afd", "agent", "mcp", "ai", "commands"]
 categories = ["development-tools", "api-bindings"]
 
-[lib]
-crate-type = ["cdylib", "rlib"]
-
 [features]
 default = ["native"]
-native = ["tokio/full"]
-wasm = ["wasm-bindgen", "wasm-bindgen-futures", "js-sys", "web-sys"]
+# Command, batch and pipeline deadlines through `tokio::time::timeout`. The
+# host application provides the Tokio runtime (with its time driver enabled).
+native = ["dep:tokio"]
+# Browser WebAssembly (`wasm32-unknown-unknown`): measures durations with
+# `web-time`, because `std::time::Instant::now()` traps on that target.
+wasm = ["dep:web-time"]
 
 [dependencies]
 # Core dependencies
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 async-trait = "0.1"
-thiserror = "2.0"
 chrono = { version = "0.4", features = ["serde"] }
 regex = "1.10"
 futures-util = "0.3"
 
-# Native-only
-tokio = { version = "1.0", features = ["full"], optional = true }
+# Native-only: only `tokio::time::timeout` is used.
+tokio = { version = "1.0", default-features = false, features = ["time"], optional = true }
 
 # WASM-only
-wasm-bindgen = { version = "0.2", optional = true }
-wasm-bindgen-futures = { version = "0.4", optional = true }
-js-sys = { version = "0.3", optional = true }
-web-sys = { version = "0.3", features = ["console"], optional = true }
+web-time = { version = "1.1", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full", "test-util"] }
@@ -44,14 +41,3 @@ pretty_assertions = "1.4"
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
-
-# Distribution configuration
-[workspace.metadata.dist]
-targets = [
-    "x86_64-unknown-linux-gnu",
-    "aarch64-unknown-linux-gnu",
-    "x86_64-apple-darwin",
-    "aarch64-apple-darwin",
-    "x86_64-pc-windows-msvc",
-]
-installers = ["shell", "powershell", "homebrew", "npm"]

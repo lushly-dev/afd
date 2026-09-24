@@ -65,7 +65,11 @@ impl std::fmt::Display for HandoffProtocol {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// Credentials for authenticating the handoff connection.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+///
+/// `Debug` output redacts the token, the header values and the session ID,
+/// so credentials do not end up in `{:?}` logs. Serialization is unchanged:
+/// the credentials are meant to reach the client.
+#[derive(Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HandoffCredentials {
     /// Authentication token (JWT, API key, etc.)
@@ -79,6 +83,27 @@ pub struct HandoffCredentials {
     /// Session identifier for reconnection
     #[serde(skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+}
+
+/// Stands in for a secret value in `Debug` output.
+const REDACTED: &str = "[redacted]";
+
+impl std::fmt::Debug for HandoffCredentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Header names are kept (they help debugging); their values may be
+        // bearer tokens or cookies.
+        let headers = self.headers.as_ref().map(|headers| {
+            headers
+                .keys()
+                .map(|name| (name.as_str(), REDACTED))
+                .collect::<std::collections::BTreeMap<_, _>>()
+        });
+        f.debug_struct("HandoffCredentials")
+            .field("token", &self.token.as_ref().map(|_| REDACTED))
+            .field("headers", &headers)
+            .field("session_id", &self.session_id.as_ref().map(|_| REDACTED))
+            .finish()
+    }
 }
 
 impl HandoffCredentials {
@@ -418,8 +443,10 @@ pub fn get_handoff_protocol<T: HandoffCommandLike>(command: &T) -> Option<&str> 
 
 /// Check if a handoff has expired based on its metadata.
 ///
-/// Returns `true` if the handoff has an `expires_at` timestamp that is in the past.
-/// Returns `false` if there's no expiration or if the timestamp can't be parsed.
+/// Returns `true` if the handoff's `expires_at` is in the past, or is not a
+/// valid RFC 3339 timestamp: a malformed expiry is treated as expired (fail
+/// closed), never as "never expires". Returns `false` only when there is no
+/// `expires_at` or it is in the future.
 pub fn is_handoff_expired(handoff: &HandoffResult) -> bool {
     let Some(metadata) = &handoff.metadata else {
         return false;
@@ -428,11 +455,9 @@ pub fn is_handoff_expired(handoff: &HandoffResult) -> bool {
         return false;
     };
 
-    // Try to parse ISO 8601 timestamp
-    if let Ok(expires) = chrono::DateTime::parse_from_rfc3339(expires_at) {
-        expires < chrono::Utc::now()
-    } else {
-        false
+    match chrono::DateTime::parse_from_rfc3339(expires_at) {
+        Ok(expires) => expires < chrono::Utc::now(),
+        Err(_) => true,
     }
 }
 
@@ -705,6 +730,50 @@ mod tests {
         let handoff = HandoffResult::websocket("wss://example.com")
             .with_metadata(HandoffMetadata::new().with_expires_at("2099-12-31T23:59:59Z"));
         assert!(!is_handoff_expired(&handoff));
+    }
+
+    #[test]
+    fn test_malformed_expiry_counts_as_expired() {
+        for malformed in ["", "tomorrow", "2099-12-31", "2099-13-01T00:00:00Z"] {
+            let handoff = HandoffResult::websocket("wss://example.com")
+                .with_metadata(HandoffMetadata::new().with_expires_at(malformed));
+            assert!(
+                is_handoff_expired(&handoff),
+                "{malformed:?} must fail closed"
+            );
+            assert!(get_handoff_ttl(&handoff).is_none());
+        }
+    }
+
+    #[test]
+    fn test_credentials_debug_redacts_secrets() {
+        let credentials = HandoffCredentials::new()
+            .with_token("jwt-secret-token")
+            .with_session_id("session-secret")
+            .with_header("Authorization", "Bearer header-secret");
+        let handoff =
+            HandoffResult::websocket("wss://example.com/ws").with_credentials(credentials.clone());
+
+        for debug in [
+            format!("{credentials:?}"),
+            format!("{credentials:#?}"),
+            format!("{handoff:?}"),
+        ] {
+            for secret in ["jwt-secret-token", "session-secret", "header-secret"] {
+                assert!(!debug.contains(secret), "{secret} leaked in {debug}");
+            }
+            assert!(debug.contains("[redacted]"), "{debug}");
+            assert!(debug.contains("Authorization"), "{debug}");
+        }
+
+        assert_eq!(
+            format!("{:?}", HandoffCredentials::new()),
+            "HandoffCredentials { token: None, headers: None, session_id: None }"
+        );
+        // Serialization still carries the token to the client.
+        assert!(serde_json::to_string(&credentials)
+            .unwrap()
+            .contains("jwt-secret-token"));
     }
 
     #[test]

@@ -1,9 +1,9 @@
 name: Conformance
 
 # Runs the todo example's shared conformance suite (spec/test-cases.json)
-# against the TypeScript and Python backends, plus the Python backend's own
-# tests. The Python backend installs the repository's python/ package, so
-# changes there are checked too.
+# against the TypeScript, Python and Rust backends, plus each backend's own
+# checks. The Python backend installs the repository's python/ package and the
+# Rust backend depends on packages/rust, so changes there are checked too.
 
 on:
   push:
@@ -12,6 +12,7 @@ on:
       - 'packages/examples/todo/**'
       - 'packages/server/**'
       - 'packages/core/**'
+      - 'packages/rust/**'
       - 'python/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/conformance.yml'
@@ -21,6 +22,7 @@ on:
       - 'packages/examples/todo/**'
       - 'packages/server/**'
       - 'packages/core/**'
+      - 'packages/rust/**'
       - 'python/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/conformance.yml'
@@ -84,6 +86,70 @@ jobs:
           changes=$(git status --porcelain)
           if [ -n "$changes" ]; then
             echo "::error::Building and testing the todo example changed the working tree:"
+            echo "$changes"
+            exit 1
+          fi
+
+  todo-rust:
+    name: Todo conformance (Rust)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # rustup is preinstalled on GitHub-hosted runners. `rustup toolchain install`
+      # (no args) installs the toolchain pinned in the backend's rust-toolchain.toml.
+      - name: Install Rust toolchain
+        working-directory: packages/examples/todo/backends/rust
+        run: rustup toolchain install
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: packages/examples/todo/backends/rust
+
+      - name: Format
+        working-directory: packages/examples/todo/backends/rust
+        run: cargo fmt --check
+
+      # --locked fails if Cargo.lock is stale (for example after a dependency
+      # change in packages/rust); run `cargo build` in the backend and commit
+      # the updated Cargo.lock to fix.
+      - name: Clippy
+        working-directory: packages/examples/todo/backends/rust
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Rust backend tests
+        working-directory: packages/examples/todo/backends/rust
+        run: cargo test --locked
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.x
+          cache: pnpm
+
+      # The runner needs only tsx and the MCP SDK; no package build is required.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Conformance (Rust backend)
+        run: pnpm --dir packages/examples/todo test:conformance:rs
+
+      - name: Check the working tree is unchanged
+        run: |
+          changes=$(git status --porcelain)
+          if [ -n "$changes" ]; then
+            echo "::error::Building and testing the Rust backend changed the working tree:"
             echo "$changes"
             exit 1
           fi

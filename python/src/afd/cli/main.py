@@ -12,11 +12,9 @@ from typing import Any
 from urllib.parse import urlparse
 
 import click
-from rich.console import Console
 
 from afd.cli.output import (
     console,
-    error_console,
     print_connecting,
     print_disconnecting,
     print_error,
@@ -27,7 +25,7 @@ from afd.cli.output import (
     print_tools,
     print_warning,
 )
-from afd.transports import FastMCPTransport, HttpTransport, MockTransport, SseTransport, Transport
+from afd.transports import HttpTransport, MockTransport, SseTransport, Transport
 
 # State file for persistent connection info
 STATE_FILE = Path.home() / ".afd" / "state.json"
@@ -63,14 +61,20 @@ def _save_state(state: dict[str, Any]) -> None:
 def _get_transport(server: str | None = None) -> Transport:
     """
     Get a transport instance.
-    
+
     Args:
-        server: Server name or URL. Special values:
-            - "mock" or "mock:" prefix for MockTransport
-            - Otherwise uses FastMCPTransport
-    
+        server: Server URL, or a special value:
+            - "mock" or a "mock:" prefix for MockTransport
+            - an http(s) URL ending in /message or /messages for HttpTransport
+            - any other http(s) URL (an SSE endpoint such as /sse) for SseTransport
+
     Returns:
         Configured transport instance
+
+    Raises:
+        click.ClickException: If no server is given or saved, or the target is
+            not a URL. The CLI has no stdio or named-server transport, so it
+            refuses rather than "connecting" to an empty in-process server.
     """
     if server is None:
         # Load from state
@@ -78,9 +82,9 @@ def _get_transport(server: str | None = None) -> Transport:
         server = state.get("server")
         if not server:
             raise click.ClickException(
-                "No server connected. Use 'afd connect <server>' first."
+                "No server connected. Use 'afd connect <url>' first."
             )
-    
+
     # Check for mock transport
     if server == "mock" or server.startswith("mock:"):
         return MockTransport()
@@ -92,8 +96,12 @@ def _get_transport(server: str | None = None) -> Transport:
             return HttpTransport(server)
         return SseTransport(server)
 
-    # Default to FastMCP transport
-    return FastMCPTransport(server_name=server)
+    raise click.ClickException(
+        f"'{server}' is not a server URL. Connect to a running server by URL, for example "
+        "'afd connect http://localhost:3100/sse' (SSE) or "
+        "'afd connect http://localhost:3100/message' (HTTP), or use 'afd connect mock' "
+        "for testing. Named and stdio servers are not supported by the CLI."
+    )
 
 
 @click.group()
@@ -109,7 +117,7 @@ def cli(ctx: click.Context, json_output: bool, quiet: bool) -> None:
 
     \b
     Examples:
-        afd connect my-server
+        afd connect http://localhost:3100/sse
         afd tools
         afd call user.create '{"name": "Alice"}'
     """
@@ -126,23 +134,26 @@ def connect(ctx: click.Context, server: str, timeout: float) -> None:
     """
     Connect to an MCP server.
 
-    SERVER can be a server name, URL, or special value:
+    SERVER is the server's URL, or a special value:
     \b
-    - mock         Use mock transport for testing
-    - <name>       Connect to named server
+    - http(s)://host/sse       SSE endpoint of an MCP server
+    - http(s)://host/message   HTTP message endpoint
+    - mock                     Use mock transport for testing
     
     \b
     Examples:
-        afd connect my-server
+        afd connect http://localhost:3100/sse
         afd connect mock
     """
     quiet = ctx.obj.get("quiet", False)
-    
+
+    # Rejects a non-URL target before claiming to connect to it.
+    transport = _get_transport(server)
+
     if not quiet:
         print_connecting(server)
-    
+
     async def _connect() -> None:
-        transport = _get_transport(server)
         try:
             await transport.connect()
             

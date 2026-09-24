@@ -150,9 +150,12 @@ export const WebAdapter = {
 	},
 
 	/**
-	 * Render a confidence indicator (0-1 scale).
+	 * Render a confidence indicator (0-1 scale). Values outside [0, 1] are clamped and a
+	 * non-finite value renders as 0, so a server's bad value cannot throw after the command
+	 * already succeeded.
 	 */
-	renderConfidence(confidence: number, reasoning?: string): string {
+	renderConfidence(rawConfidence: number, reasoning?: string): string {
+		const confidence = Number.isFinite(rawConfidence) ? Math.min(1, Math.max(0, rawConfidence)) : 0;
 		const pct = Math.round(confidence * 100);
 		const barWidth = 20;
 		const filled = Math.round(confidence * barWidth);

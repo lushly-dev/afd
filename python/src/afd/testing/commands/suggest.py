@@ -8,24 +8,12 @@ Port of packages/testing/src/commands/suggest.ts
 
 from __future__ import annotations
 
-import os
 import re
 from typing import Any
 
 from afd.core.result import CommandResult, error, success
+from afd.testing.commands._files import find_scenario_files
 from afd.testing.scenarios.parser import parse_scenario_file
-
-
-def _find_scenario_files(directory: str) -> list[str]:
-	results: list[str] = []
-	if not os.path.isdir(directory):
-		return results
-	for root, dirs, files in os.walk(directory):
-		dirs[:] = [d for d in dirs if not d.startswith(".") and d != "node_modules"]
-		for f in files:
-			if f.endswith(".scenario.yaml") or f.endswith(".scenario.yml"):
-				results.append(os.path.join(root, f))
-	return sorted(results)
 
 
 def _map_file_to_commands(filepath: str) -> list[str]:
@@ -197,7 +185,7 @@ def _suggest_from_uncovered(
 
 	# Find commands already covered
 	covered: set[str] = set()
-	files = _find_scenario_files(directory)
+	files = find_scenario_files(directory)
 	for filepath in files:
 		result = parse_scenario_file(filepath)
 		if result.success:
@@ -229,7 +217,7 @@ def _suggest_from_uncovered(
 def _suggest_from_failed(directory: str) -> list[dict[str, Any]]:
 	suggestions: list[dict[str, Any]] = []
 
-	files = _find_scenario_files(directory)
+	files = find_scenario_files(directory)
 	for filepath in files:
 		result = parse_scenario_file(filepath)
 		if result.success:

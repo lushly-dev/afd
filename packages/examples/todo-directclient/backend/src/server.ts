@@ -11,6 +11,7 @@
 
 import { createLoggingMiddleware, createMcpServer } from '@lushly-dev/afd-server';
 import { allCommands } from './commands/index.js';
+import { DEFAULT_CHAT_PORT, defaultAllowedOrigins, parsePositiveInt } from './http-security.js';
 
 // Configuration from environment
 const PORT = parseInt(process.env.PORT ?? '3200', 10); // Different port from main todo example
@@ -18,6 +19,8 @@ const HOST = process.env.HOST ?? 'localhost';
 const LOG_LEVEL = process.env.LOG_LEVEL ?? 'info';
 const TRANSPORT = (process.env.TRANSPORT ?? 'auto') as 'auto' | 'http' | 'stdio';
 const DEV_MODE = process.env.NODE_ENV === 'development';
+// The UI served by the chat server polls this server's /health.
+const CHAT_PORT = parsePositiveInt('CHAT_PORT', process.env.CHAT_PORT, DEFAULT_CHAT_PORT);
 
 /**
  * Create and configure the MCP server.
@@ -34,6 +37,8 @@ function createServer() {
 		devMode: DEV_MODE,
 		transport: TRANSPORT,
 		cors: true,
+		// Exact browser origins only: the chat server's page, on each loopback name.
+		allowedOrigins: defaultAllowedOrigins(CHAT_PORT),
 		middleware:
 			DEV_MODE || LOG_LEVEL === 'debug'
 				? [createLoggingMiddleware({ logInput: true, logResult: true })]

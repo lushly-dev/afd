@@ -9,39 +9,42 @@ Port of packages/testing/src/commands/evaluate.ts
 from __future__ import annotations
 
 import asyncio
+import logging
+import os
 import time
 from datetime import datetime, timezone
 from typing import Any
 
 from afd.core.result import CommandResult, error, success
+from afd.testing.commands._files import (
+	SCENARIO_SUFFIXES,
+	find_scenario_files,
+	project_root,
+	resolve_inside,
+)
 from afd.testing.scenarios.executor import InProcessExecutor, InProcessExecutorConfig
 from afd.testing.scenarios.parser import parse_scenario_file
 from afd.testing.scenarios.types import (
 	Scenario,
 	ScenarioResult,
 	TestReport,
-	TestSummary,
 	calculate_summary,
 )
 
-
-def _find_scenario_files(directory: str) -> list[str]:
-	"""Reuse list command's file discovery."""
-	import os
-
-	results: list[str] = []
-	if not os.path.isdir(directory):
-		return results
-	for root, dirs, files in os.walk(directory):
-		dirs[:] = [d for d in dirs if not d.startswith(".") and d != "node_modules"]
-		for f in files:
-			if f.endswith(".scenario.yaml") or f.endswith(".scenario.yml"):
-				results.append(os.path.join(root, f))
-	return sorted(results)
+logger = logging.getLogger("afd.testing")
 
 
-async def scenario_evaluate(input: dict[str, Any] | None = None) -> CommandResult[Any]:
+async def scenario_evaluate(
+	input: dict[str, Any] | None = None,
+	*,
+	root: str | os.PathLike[str] | None = None,
+) -> CommandResult[Any]:
 	"""Execute JTBD scenarios and return detailed test results.
+
+	``directory`` and ``scenarios`` must stay inside ``root`` (default: the
+	current working directory), and explicit scenario files must be
+	``*.scenario.yaml`` or ``*.scenario.yml``: an agent cannot make the
+	evaluator read or run files elsewhere.
 
 	Input:
 		handler: Callable - Command handler function (required for execution)
@@ -94,11 +97,42 @@ async def scenario_evaluate(input: dict[str, Any] | None = None) -> CommandResul
 			suggestion="Pass 'timeout' as a positive number of milliseconds, or omit it.",
 		)
 
-	# Discover scenario files
+	# Discover scenario files, inside the project root only.
+	base = project_root(root)
 	if scenario_files:
+		if not isinstance(scenario_files, list) or not all(
+			isinstance(f, str) for f in scenario_files
+		):
+			return error(
+				"VALIDATION_ERROR",
+				"'scenarios' must be a list of file paths",
+				suggestion="Pass scenario file paths relative to the project root.",
+			)
+		for scenario_file in scenario_files:
+			if (
+				not scenario_file.endswith(SCENARIO_SUFFIXES)
+				or resolve_inside(scenario_file, base) is None
+			):
+				return error(
+					"VALIDATION_ERROR",
+					f"Not a scenario file inside the project root: {scenario_file[:200]}",
+					suggestion=(
+						"Pass *.scenario.yaml files inside the project, "
+						"or use 'directory' to discover them."
+					),
+					details={"field": "scenarios"},
+				)
 		files = scenario_files
 	else:
-		files = _find_scenario_files(directory)
+		scenario_dir = resolve_inside(str(directory), base)
+		if scenario_dir is None:
+			return error(
+				"VALIDATION_ERROR",
+				f"Scenario directory is outside the project root: {str(directory)[:200]}",
+				suggestion="Use a directory inside the project, such as ./scenarios.",
+				details={"field": "directory"},
+			)
+		files = find_scenario_files(str(scenario_dir))
 
 	if not files:
 		return error(
@@ -143,7 +177,9 @@ async def scenario_evaluate(input: dict[str, Any] | None = None) -> CommandResul
 				result = await executor.execute(scenario)
 			else:
 				result = await asyncio.wait_for(executor.execute(scenario), timeout / 1000)
-		except Exception:
+		except Exception as exc:
+			if not isinstance(exc, asyncio.TimeoutError):
+				logger.warning("Scenario %s raised", filepath, exc_info=True)
 			return ScenarioResult(
 				scenario_path=filepath,
 				job_name=scenario.job,

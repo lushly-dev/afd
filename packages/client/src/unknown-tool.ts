@@ -50,6 +50,29 @@ export function createUnknownToolError(
 	};
 }
 
+/**
+ * The `UNKNOWN_TOOL` failure that DirectClient returns and DirectTransport sends to McpClient:
+ * a CommandResult whose `data` is the {@link UnknownToolError} and whose `error` always carries a
+ * `suggestion` (the closest match, or where to find valid names).
+ */
+export function unknownToolFailure(
+	requestedTool: string,
+	availableTools: string[]
+): CommandResult<UnknownToolError> {
+	const unknownToolError = createUnknownToolError(requestedTool, availableTools);
+	return {
+		success: false,
+		data: unknownToolError,
+		error: {
+			code: 'UNKNOWN_TOOL',
+			message: unknownToolError.message,
+			suggestion:
+				unknownToolError.hint ?? 'Call one of the commands returned by listCommandNames()',
+			retryable: false,
+		},
+	};
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPE GUARD
 // ═══════════════════════════════════════════════════════════════════════════

@@ -4,12 +4,15 @@ AFD Linter - Multi-language linting for Agent-First Development patterns.
 Supports Python, TypeScript, and Rust codebases.
 """
 
+import logging
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
+
+logger = logging.getLogger("afd.lint")
 
 # ─── Suppression / calibration primitives ────────────────────────────────────
 #
@@ -199,14 +202,14 @@ class AFDLinter:
     """Multi-language linter for AFD patterns."""
 
     # File extensions by language
-    EXTENSIONS: dict[Language, set[str]] = {
-        Language.PYTHON: {".py"},
-        Language.TYPESCRIPT: {".ts", ".tsx", ".js", ".jsx"},
-        Language.RUST: {".rs"},
+    EXTENSIONS: ClassVar[Mapping[Language, frozenset[str]]] = {
+        Language.PYTHON: frozenset({".py"}),
+        Language.TYPESCRIPT: frozenset({".ts", ".tsx", ".js", ".jsx"}),
+        Language.RUST: frozenset({".rs"}),
     }
 
     # Directories to skip
-    SKIP_DIRS = {
+    SKIP_DIRS: ClassVar[frozenset[str]] = frozenset({
         # Package managers
         "node_modules",
         ".venv",
@@ -237,10 +240,10 @@ class AFDLinter:
         ".nuxt",
         ".output",
         ".turbo",
-    }
+    })
 
     # Additional path patterns to skip (substrings)
-    SKIP_PATH_PATTERNS = {
+    SKIP_PATH_PATTERNS: ClassVar[frozenset[str]] = frozenset({
         "chrome-profile",
         "chromadb",
         "Extensions/",
@@ -248,7 +251,7 @@ class AFDLinter:
         ".claude/",
         "/.git/",
         "\\\\Extensions\\\\",
-    }
+    })
 
     def __init__(
         self,
@@ -302,9 +305,13 @@ class AFDLinter:
 
             try:
                 content = file_path.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue  # unreadable (vanished, permissions): nothing to lint
+            try:
                 self._lint_file(file_path, content, language, result)
             except Exception:
-                continue
+                # A rule bug must not end the run, nor pass silently.
+                logger.warning("Linting %s failed", file_path, exc_info=True)
 
         return result
 

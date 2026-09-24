@@ -6,8 +6,11 @@
  */
 
 import { AuthAdapterError } from '../errors.js';
-import type { AuthAdapter, AuthSessionState, SignInOptions } from '../types.js';
+import { type ListenerErrorHandler, ListenerSet } from '../listeners.js';
+import { areSessionStatesEqual } from '../session-state.js';
+import type { AuthAdapter, AuthSessionState, SignInOptions, SignInOutcome } from '../types.js';
 import { LOADING, UNAUTHENTICATED } from '../types.js';
+import { isKnownNetworkFailure } from './provider-errors.js';
 
 /** Minimal interface for better-auth client — avoids hard import */
 interface BetterAuthErrorResponse {
@@ -34,6 +37,7 @@ interface BetterAuthClient {
 		social: (params: {
 			provider: string;
 			callbackURL?: string;
+			scopes?: string[];
 		}) => Promise<BetterAuthMethodResponse>;
 		email: (params: { email: string; password: string }) => Promise<BetterAuthMethodResponse>;
 	};
@@ -54,20 +58,27 @@ interface BetterAuthSessionData {
 export interface BetterAuthAdapterOptions {
 	/** better-auth client instance */
 	client: BetterAuthClient;
+	/**
+	 * Receives errors thrown by `onAuthStateChange` subscribers. Without it,
+	 * they are rethrown in a microtask. Either way the other subscribers still
+	 * run.
+	 */
+	onListenerError?: ListenerErrorHandler;
 }
 
 export class BetterAuthAdapter implements AuthAdapter {
 	private readonly client: BetterAuthClient;
-	private listeners = new Set<(state: AuthSessionState) => void>();
+	private readonly listeners: ListenerSet<AuthSessionState>;
 	private currentState: AuthSessionState = LOADING;
 	private unsubscribeStore: (() => void) | null = null;
 
 	constructor(options: BetterAuthAdapterOptions) {
 		this.client = options.client;
+		this.listeners = new ListenerSet(options.onListenerError);
 		this.setupSubscription();
 	}
 
-	async signIn(options: SignInOptions): Promise<void> {
+	async signIn(options: SignInOptions): Promise<SignInOutcome> {
 		try {
 			let result: BetterAuthMethodResponse;
 			if (options.method === 'credentials') {
@@ -79,6 +90,7 @@ export class BetterAuthAdapter implements AuthAdapter {
 				result = await this.client.signIn.social({
 					provider: options.provider,
 					callbackURL: options.redirectTo,
+					scopes: options.scopes,
 				});
 			}
 
@@ -89,6 +101,7 @@ export class BetterAuthAdapter implements AuthAdapter {
 				}
 				throw AuthAdapterError.providerError('better-auth', this.describeError(providerError));
 			}
+			return toSignInOutcome(result);
 		} catch (error) {
 			throw this.mapThrownError(error);
 		}
@@ -111,12 +124,7 @@ export class BetterAuthAdapter implements AuthAdapter {
 	}
 
 	onAuthStateChange(callback: (state: AuthSessionState) => void): { unsubscribe: () => void } {
-		this.listeners.add(callback);
-		return {
-			unsubscribe: () => {
-				this.listeners.delete(callback);
-			},
-		};
+		return this.listeners.add(callback);
 	}
 
 	/**
@@ -151,9 +159,7 @@ export class BetterAuthAdapter implements AuthAdapter {
 		if (areSessionStatesEqual(newState, this.currentState)) return;
 
 		this.currentState = newState;
-		for (const listener of this.listeners) {
-			listener(newState);
-		}
+		this.listeners.emit(newState);
 	}
 
 	private getResolvedProviderError(
@@ -211,26 +217,15 @@ export class BetterAuthAdapter implements AuthAdapter {
 	}
 }
 
-function isKnownNetworkFailure(error: unknown, message: string): boolean {
-	if (error instanceof Error && (error.name === 'NetworkError' || error.name === 'TimeoutError')) {
-		return true;
+/**
+ * Better Auth answers a social sign-in with `{ url, redirect: true }` and
+ * navigates the browser there; the session exists only after the callback.
+ */
+function toSignInOutcome(result: BetterAuthMethodResponse): SignInOutcome {
+	const data = result?.data;
+	if (typeof data === 'object' && data !== null && 'redirect' in data && data.redirect === true) {
+		const url = 'url' in data && typeof data.url === 'string' ? data.url : undefined;
+		return url === undefined ? { kind: 'redirect' } : { kind: 'redirect', url };
 	}
-
-	return /failed to fetch|fetch failed|network (?:request )?failed|connection (?:refused|reset|closed)|request timed out/i.test(
-		message
-	);
-}
-
-function areSessionStatesEqual(left: AuthSessionState, right: AuthSessionState): boolean {
-	if (left.status !== right.status) return false;
-	if (left.status !== 'authenticated' || right.status !== 'authenticated') return true;
-
-	return (
-		left.session.id === right.session.id &&
-		left.session.expiresAt.getTime() === right.session.expiresAt.getTime() &&
-		left.user.id === right.user.id &&
-		left.user.email === right.user.email &&
-		left.user.name === right.user.name &&
-		left.user.image === right.user.image
-	);
+	return { kind: 'signed-in' };
 }

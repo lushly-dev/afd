@@ -1,12 +1,16 @@
 /**
  * @fileoverview @lushly-dev/afd-client - MCP client library for Agent-First Development
  *
- * This package provides a client for connecting to MCP servers:
+ * This package provides clients for AFD command servers:
  *
- * - **McpClient**: Main client class with connection management
- * - **Transports**: SSE and HTTP transports for communication
+ * - **McpClient**: Client for AFD MCP servers (`createMcpServer()`), with connection management
+ * - **Transports**: SSE and HTTP for AFD servers, direct for an in-process registry
+ * - **DirectClient**: Zero-overhead in-process command execution
  * - **Type-safe**: Full TypeScript support with CommandResult integration
  * - **Handoff Support**: Protocol handlers for streaming connections
+ *
+ * McpClient does not implement the MCP Streamable HTTP transport, so it cannot talk to servers
+ * built on the official MCP SDK.
  *
  * @packageDocumentation
  */
@@ -21,7 +25,18 @@ export type {
 	McpToolCallParams,
 	McpToolCallResult,
 } from '@lushly-dev/afd-core';
-export { createClient, McpClient } from './client.js';
+export {
+	createClient,
+	McpClient,
+	type RequestOptions,
+	SERVER_DEADLINE_MARGIN_MS,
+} from './client.js';
+export {
+	HttpStatusError,
+	JsonRpcResponseError,
+	NotConnectedError,
+	RequestTimeoutError,
+} from './client-errors.js';
 export {
 	type CommandDefinition,
 	type CommandParameter,
@@ -46,6 +61,7 @@ export {
 	createReconnectingHandoff,
 	getHandoffTTL,
 	getProtocolHandler,
+	type HandoffCommandClient,
 	type HandoffConnection,
 	type HandoffConnectionOptions,
 	type HandoffConnectionState,
@@ -74,6 +90,7 @@ export type {
 	ConnectionState,
 	McpClientConfig,
 	McpClientEvents,
+	McpTransportType,
 	PendingRequest,
 	TransportType,
 } from './types.js';

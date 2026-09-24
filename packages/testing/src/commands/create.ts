@@ -8,7 +8,16 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { type CommandResult, failure, success } from '@lushly-dev/afd-core';
 import * as yaml from 'yaml';
-import type { Expectation, FixtureConfig, Scenario, Step } from '../types/scenario.js';
+import { parseScenarioString } from '../parsers/yaml.js';
+import type { Scenario } from '../types/scenario.js';
+import {
+	blankTemplate,
+	crudTemplate,
+	errorHandlingTemplate,
+	stepsFromCommands,
+	stepsFromInput,
+	workflowTemplate,
+} from './create-templates.js';
 
 // ============================================================================
 // Types
@@ -18,7 +27,7 @@ import type { Expectation, FixtureConfig, Scenario, Step } from '../types/scenar
  * Input for scenario-create command.
  */
 export interface ScenarioCreateInput {
-	/** Scenario name */
+	/** Scenario name; also the file name unless `filename` is set. Must not contain path separators. */
 	name: string;
 
 	/** Job name (user goal being tested) */
@@ -30,7 +39,7 @@ export interface ScenarioCreateInput {
 	/** Output directory */
 	directory?: string;
 
-	/** Output filename (without extension) */
+	/** Output filename (without extension). Must not contain path separators. */
 	filename?: string;
 
 	/** Tags for categorization */
@@ -41,6 +50,12 @@ export interface ScenarioCreateInput {
 
 	/** Initial steps to include */
 	steps?: ScenarioStepInput[];
+
+	/**
+	 * Commands to include, one step each expecting success. Ignored when
+	 * `steps` is given; replaces the template's steps otherwise.
+	 */
+	commands?: string[];
 
 	/** Whether to overwrite existing file */
 	overwrite?: boolean;
@@ -86,204 +101,25 @@ export interface ScenarioCreateOutput {
 	overwritten: boolean;
 }
 
-// ============================================================================
-// Templates
-// ============================================================================
-
 /**
- * Create fixture config from file path.
+ * Check that a scenario or file name is a single path segment.
  */
-function createFixtureConfig(filePath?: string): FixtureConfig | undefined {
-	if (!filePath) return undefined;
-	return { file: filePath };
+function invalidFileName(value: string): string | undefined {
+	if (value.trim() === '') return 'must not be empty';
+	if (/[\\/]/.test(value)) return 'must not contain path separators';
+	if (value === '.' || value === '..') return "must not be '.' or '..'";
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: rejecting control characters is the point
+	if (/[\u0000-\u001f\u007f]/.test(value)) return 'must not contain control characters';
+	return undefined;
 }
 
 /**
- * Generate a blank template.
+ * Make a value safe for a single-line YAML comment: line breaks and other
+ * control characters become spaces.
  */
-function blankTemplate(input: ScenarioCreateInput): Scenario {
-	return {
-		name: input.name,
-		description: input.description ?? `Test scenario for ${input.job}`,
-		job: input.job,
-		tags: input.tags ?? [],
-		fixture: createFixtureConfig(input.fixture),
-		steps: input.steps ? stepsFromInput(input.steps) : [],
-	};
-}
-
-/**
- * Generate a CRUD template.
- */
-function crudTemplate(input: ScenarioCreateInput): Scenario {
-	const resourceName = input.name.replace(/-/g, ' ');
-	const commandPrefix = input.name.split('-')[0] ?? 'resource';
-
-	return {
-		name: input.name,
-		description: input.description ?? `CRUD operations for ${resourceName}`,
-		job: input.job,
-		tags: input.tags ?? ['crud', 'smoke'],
-		fixture: createFixtureConfig(input.fixture),
-		steps: [
-			{
-				description: `Create ${resourceName}`,
-				command: `${commandPrefix}.create`,
-				input: { name: `Test ${resourceName}` },
-				expect: {
-					success: true,
-					data: { name: `Test ${resourceName}` },
-				},
-			},
-			{
-				description: `Read ${resourceName}`,
-				command: `${commandPrefix}.get`,
-				input: { id: '${{ steps[0].data.id }}' },
-				expect: {
-					success: true,
-					data: { name: `Test ${resourceName}` },
-				},
-			},
-			{
-				description: `Update ${resourceName}`,
-				command: `${commandPrefix}.update`,
-				input: { id: '${{ steps[0].data.id }}', name: `Updated ${resourceName}` },
-				expect: {
-					success: true,
-					data: { name: `Updated ${resourceName}` },
-				},
-			},
-			{
-				description: `Delete ${resourceName}`,
-				command: `${commandPrefix}.delete`,
-				input: { id: '${{ steps[0].data.id }}' },
-				expect: {
-					success: true,
-				},
-			},
-			{
-				description: `Verify deleted`,
-				command: `${commandPrefix}.get`,
-				input: { id: '${{ steps[0].data.id }}' },
-				expect: {
-					success: false,
-					error: { code: 'NOT_FOUND' },
-				},
-			},
-		],
-	};
-}
-
-/**
- * Generate an error handling template.
- */
-function errorHandlingTemplate(input: ScenarioCreateInput): Scenario {
-	const commandPrefix = input.name.split('-')[0] ?? 'resource';
-
-	return {
-		name: input.name,
-		description: input.description ?? `Error handling tests for ${input.name}`,
-		job: input.job,
-		tags: input.tags ?? ['error', 'negative'],
-		fixture: createFixtureConfig(input.fixture),
-		steps: [
-			{
-				description: 'Invalid input',
-				command: `${commandPrefix}.create`,
-				input: {},
-				expect: {
-					success: false,
-					error: { code: 'VALIDATION_ERROR' },
-				},
-			},
-			{
-				description: 'Not found',
-				command: `${commandPrefix}.get`,
-				input: { id: 'non-existent-id' },
-				expect: {
-					success: false,
-					error: { code: 'NOT_FOUND' },
-				},
-			},
-			{
-				description: 'Invalid update',
-				command: `${commandPrefix}.update`,
-				input: { id: 'non-existent-id', name: 'test' },
-				expect: {
-					success: false,
-					error: { code: 'NOT_FOUND' },
-				},
-			},
-		],
-	};
-}
-
-/**
- * Generate a workflow template.
- */
-function workflowTemplate(input: ScenarioCreateInput): Scenario {
-	return {
-		name: input.name,
-		description: input.description ?? `Workflow test for ${input.job}`,
-		job: input.job,
-		tags: input.tags ?? ['workflow', 'integration'],
-		fixture: createFixtureConfig(input.fixture),
-		steps: [
-			{
-				description: 'Setup - Create initial state',
-				command: 'setup.initialize',
-				input: {},
-				expect: { success: true },
-			},
-			{
-				description: 'Step 1 - First action',
-				command: 'action.first',
-				input: { setupId: '${{ steps[0].data.id }}' },
-				expect: { success: true },
-			},
-			{
-				description: 'Step 2 - Second action',
-				command: 'action.second',
-				input: { previousId: '${{ steps[1].data.id }}' },
-				expect: { success: true },
-			},
-			{
-				description: 'Verification - Check final state',
-				command: 'verify.state',
-				input: { id: '${{ steps[0].data.id }}' },
-				expect: {
-					success: true,
-					data: { status: 'completed' },
-				},
-			},
-		],
-	};
-}
-
-/**
- * Convert step inputs to full Step objects.
- */
-function stepsFromInput(inputs: ScenarioStepInput[]): Step[] {
-	return inputs.map((input): Step => {
-		const expect: Expectation = {
-			success: input.expectSuccess ?? true,
-		};
-
-		if (input.expectData) {
-			expect.data = input.expectData;
-		}
-		if (input.expectError) {
-			expect.success = false;
-			expect.error = { code: input.expectError };
-		}
-
-		return {
-			description: input.description,
-			command: input.command,
-			input: input.input,
-			expect,
-		};
-	});
+function commentSafe(value: string): string {
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: replacing control characters is the point
+	return value.replace(/[\u0000-\u001f\u007f\u0085\u2028\u2029]+/g, ' ').trim();
 }
 
 // ============================================================================
@@ -314,7 +150,7 @@ function stepsFromInput(inputs: ScenarioStepInput[]): Step[] {
  *   name: 'custom-workflow',
  *   job: 'Complete custom workflow',
  *   steps: [
- *     { name: 'Step 1', command: 'action.do', expectSuccess: true },
+ *     { description: 'Step 1', command: 'action-do', expectSuccess: true },
  *   ],
  * });
  * ```
@@ -322,6 +158,20 @@ function stepsFromInput(inputs: ScenarioStepInput[]): Step[] {
 export async function scenarioCreate(
 	input: ScenarioCreateInput
 ): Promise<CommandResult<ScenarioCreateOutput>> {
+	for (const [field, value] of [
+		['name', input.name],
+		['filename', input.filename],
+	] as const) {
+		const problem = value === undefined ? undefined : invalidFileName(value);
+		if (problem) {
+			return failure({
+				code: 'INVALID_NAME',
+				message: `${field} ${problem}`,
+				suggestion: `Use a plain name such as "todo-create"; choose the location with 'directory'`,
+			});
+		}
+	}
+
 	try {
 		// Generate scenario from template
 		let scenario: Scenario;
@@ -341,9 +191,11 @@ export async function scenarioCreate(
 				break;
 		}
 
-		// Override with user-provided steps if any
+		// Override with user-provided steps or commands if any
 		if (input.steps && input.steps.length > 0) {
 			scenario.steps = stepsFromInput(input.steps);
+		} else if (input.commands && input.commands.length > 0) {
+			scenario.steps = stepsFromCommands(input.commands);
 		}
 
 		// Determine output path
@@ -361,14 +213,23 @@ export async function scenarioCreate(
 			});
 		}
 
+		// Generate YAML content, and refuse to write a file the parser would reject
+		const yamlContent = generateYaml(scenario);
+		const check = parseScenarioString(yamlContent, outputPath);
+		if (!check.success) {
+			return failure({
+				code: 'INVALID_SCENARIO',
+				message: `The generated scenario would not parse: ${check.error}`,
+				suggestion:
+					'Fix the step inputs: data expectations need expectSuccess true, and expectError implies a failure',
+			});
+		}
+
 		// Ensure directory exists
 		const dirPath = path.dirname(outputPath);
 		if (!fs.existsSync(dirPath)) {
 			fs.mkdirSync(dirPath, { recursive: true });
 		}
-
-		// Generate YAML content
-		const yamlContent = generateYaml(scenario);
 
 		// Write file
 		fs.writeFileSync(outputPath, yamlContent, 'utf-8');
@@ -388,6 +249,7 @@ export async function scenarioCreate(
 		return failure({
 			code: 'CREATE_ERROR',
 			message: `Failed to create scenario: ${message}`,
+			suggestion: 'Check that the directory is writable',
 		});
 	}
 }
@@ -438,8 +300,8 @@ function generateYaml(scenario: Scenario): string {
 
 	doc.contents = doc.createNode(scenarioObj);
 
-	// Add header comment
-	const header = `# JTBD Scenario: ${scenario.job}\n# Generated by @lushly-dev/afd-testing\n\n`;
+	// Add header comment (a newline in the job must not start a YAML line)
+	const header = `# JTBD Scenario: ${commentSafe(scenario.job)}\n# Generated by @lushly-dev/afd-testing\n\n`;
 
 	return (
 		header +
@@ -448,31 +310,4 @@ function generateYaml(scenario: Scenario): string {
 			lineWidth: 80,
 		})
 	);
-}
-
-/**
- * List available templates.
- */
-export function listTemplates(): Array<{
-	name: string;
-	description: string;
-}> {
-	return [
-		{
-			name: 'blank',
-			description: 'Empty scenario with just job and description',
-		},
-		{
-			name: 'crud',
-			description: 'Create, Read, Update, Delete test pattern',
-		},
-		{
-			name: 'error-handling',
-			description: 'Tests for error cases and validation',
-		},
-		{
-			name: 'workflow',
-			description: 'Multi-step workflow with state verification',
-		},
-	];
 }

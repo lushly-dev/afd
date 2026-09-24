@@ -11,9 +11,10 @@ import json
 import os
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
+from afd.platform import _kill_and_reap
 from afd.testing.scenarios.types import StepError, create_step_error
 
 
@@ -24,7 +25,7 @@ class CliConfig:
 	cli_path: str = "afd"
 	cwd: str | None = None
 	env: dict[str, str] | None = None
-	timeout: int = 30000
+	timeout: int = 30000  # ms; the process is killed when it expires
 	server_url: str | None = None
 	verbose: bool = False
 
@@ -192,9 +193,10 @@ class CliWrapper:
 				proc.communicate(), timeout=timeout_ms / 1000
 			)
 		except asyncio.TimeoutError:
-			proc.kill()
-			await proc.wait()
 			raise TimeoutError(f"Command timed out after {timeout_ms}ms") from None
+		finally:
+			# Also when the awaiting task is cancelled: never leave an orphan.
+			await _kill_and_reap(proc)
 
 		stdout = stdout_bytes.decode("utf-8", errors="replace") if stdout_bytes else ""
 		stderr = stderr_bytes.decode("utf-8", errors="replace") if stderr_bytes else ""

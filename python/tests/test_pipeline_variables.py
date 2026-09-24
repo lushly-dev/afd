@@ -386,13 +386,20 @@ class TestExecutePipelineLimits:
         assert executor.calls == []
         assert result.steps[0].error.code == "VALIDATION_ERROR"
 
+    def test_malformed_when_is_rejected_when_the_step_is_built(self):
+        with pytest.raises(ValueError, match=r"\$gt takes \[reference, finite number\]"):
+            PipelineStep(command="two", when={"$gt": ["$prev.count", "many"]})
+
     @pytest.mark.asyncio
     async def test_malformed_when_is_rejected_before_any_step_runs(self):
+        # model_construct skips validation; execute_pipeline still checks up front.
         executor = _Recorder()
         request = PipelineRequest(
             steps=[
                 PipelineStep(command="one"),
-                PipelineStep(command="two", when={"$gt": ["$prev.count", "many"]}),
+                PipelineStep.model_construct(
+                    command="two", when={"$gt": ["$prev.count", "many"]}
+                ),
             ]
         )
 

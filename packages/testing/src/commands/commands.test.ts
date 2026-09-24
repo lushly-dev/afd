@@ -8,13 +8,10 @@ import { fileURLToPath } from 'node:url';
 import { failure, success } from '@lushly-dev/afd-core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { scenarioCoverage } from '../commands/coverage.js';
-import { listTemplates, scenarioCreate } from '../commands/create.js';
-import {
-	formatJunit,
-	formatMarkdown,
-	formatTerminal,
-	scenarioEvaluate,
-} from '../commands/evaluate.js';
+import { scenarioCreate } from '../commands/create.js';
+import { listTemplates } from '../commands/create-templates.js';
+import { scenarioEvaluate } from '../commands/evaluate.js';
+import { formatJunit, formatMarkdown, formatTerminal } from '../commands/evaluate-format.js';
 import { scenarioList } from '../commands/list.js';
 import type { CommandHandler } from '../runner/executor.js';
 
@@ -33,7 +30,7 @@ description: Test creating a new todo item
 job: todo-management
 tags: [smoke, crud]
 steps:
-  - command: todo.create
+  - command: todo-create
     input: { title: "Buy groceries" }
     expect:
       success: true
@@ -45,7 +42,7 @@ description: Test listing todo items
 job: todo-management
 tags: [smoke]
 steps:
-  - command: todo.list
+  - command: todo-list
     expect:
       success: true
 `,
@@ -55,7 +52,7 @@ description: Test error cases
 job: error-tests
 tags: [error, negative]
 steps:
-  - command: todo.get
+  - command: todo-get
     input: { id: "non-existent" }
     expect:
       success: false
@@ -66,11 +63,11 @@ steps:
 // Mock command handler
 const mockHandler: CommandHandler = async (command, input) => {
 	switch (command) {
-		case 'todo.create':
+		case 'todo-create':
 			return success({ id: '1', title: (input as Record<string, unknown>).title });
-		case 'todo.list':
+		case 'todo-list':
 			return success({ items: [] });
-		case 'todo.get':
+		case 'todo-get':
 			if ((input as Record<string, unknown>).id === 'non-existent') {
 				return failure({ code: 'NOT_FOUND', message: 'Todo not found' });
 			}
@@ -245,6 +242,7 @@ describe('formatters', () => {
 			passedScenarios: 1,
 			failedScenarios: 0,
 			errorScenarios: 0,
+			skippedScenarios: 0,
 			totalSteps: 1,
 			passedSteps: 1,
 			failedSteps: 0,
@@ -309,12 +307,12 @@ describe('scenario-coverage', () => {
 	it('identifies untested commands', async () => {
 		const result = await scenarioCoverage({
 			directory: TEST_DIR,
-			knownCommands: ['todo.create', 'todo.list', 'todo.delete', 'todo.update'],
+			knownCommands: ['todo-create', 'todo-list', 'todo-delete', 'todo-update'],
 		});
 
 		expect(result.success).toBe(true);
-		expect(result.data?.summary.commands.untested).toContain('todo.delete');
-		expect(result.data?.summary.commands.untested).toContain('todo.update');
+		expect(result.data?.summary.commands.untested).toContain('todo-delete');
+		expect(result.data?.summary.commands.untested).toContain('todo-update');
 	});
 
 	it('reports error code coverage', async () => {
@@ -374,9 +372,10 @@ describe('scenario-create', () => {
 		const path = result.data?.path;
 		if (!path) throw new Error('scenario-create returned no path');
 		const content = fs.readFileSync(path, 'utf-8');
-		expect(content).toContain('todo.create');
-		expect(content).toContain('todo.update');
-		expect(content).toContain('todo.delete');
+		expect(content).toContain('todo-create');
+		expect(content).toContain('todo-update');
+		expect(content).toContain('todo-delete');
+		expect(content).not.toMatch(/todo\.[a-z]/);
 	});
 
 	it('creates error-handling template', async () => {

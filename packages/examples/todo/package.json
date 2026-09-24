@@ -7,6 +7,7 @@
 	"scripts": {
 		"test:conformance:ts": "pnpm --dir backends/typescript build && tsx dx/run-conformance.ts --backend ts",
 		"test:conformance:py": "tsx dx/run-conformance.ts --backend py",
+		"test:conformance:rs": "cargo build --locked --manifest-path backends/rust/Cargo.toml && tsx dx/run-conformance.ts --backend rs",
 		"typecheck": "tsc -p tsconfig.typecheck.json",
 		"dev:ts": "cd backends/typescript && pnpm dev",
 		"dev:py": "uv run --project backends/python todo-server",

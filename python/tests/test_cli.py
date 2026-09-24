@@ -123,13 +123,30 @@ class TestConnectCommand:
 
         with (
             patch.object(_cli_main_module, "SseTransport", return_value=sse_transport) as sse_ctor,
-            patch.object(_cli_main_module, "FastMCPTransport", side_effect=AssertionError("FastMCPTransport should not be used for URLs")),
         ):
             result = runner.invoke(cli, ["connect", "http://example.com/sse"])
 
         assert result.exit_code == 0
         sse_ctor.assert_called_once_with("http://example.com/sse")
         sse_transport.connect.assert_called_once()
+
+    @pytest.mark.parametrize("target", ["my-server", "todo-app", "localhost:3100", "ftp://host/sse"])
+    def test_connect_rejects_a_target_that_is_not_a_url(self, runner, temp_state_file, target):
+        """A name used to report "Connected" against an empty in-process server."""
+        result = runner.invoke(cli, ["connect", target])
+
+        assert result.exit_code == 1
+        assert "is not a server URL" in result.output
+        assert "Connected" not in result.output
+        assert not temp_state_file.exists()
+
+    def test_saved_name_from_an_older_version_is_rejected(self, runner, temp_state_file):
+        _save_state({"server": "my-server"})
+
+        result = runner.invoke(cli, ["tools"])
+
+        assert result.exit_code == 1
+        assert "is not a server URL" in result.output
 
     def test_tools_url_uses_remote_transport(self, runner, temp_state_file):
         """Should use a remote transport when a URL is supplied to server options."""
@@ -140,7 +157,6 @@ class TestConnectCommand:
 
         with (
             patch.object(_cli_main_module, "SseTransport", return_value=sse_transport),
-            patch.object(_cli_main_module, "FastMCPTransport", side_effect=AssertionError("FastMCPTransport should not be used for URLs")),
         ):
             result = runner.invoke(cli, ["tools", "-s", "http://example.com/sse"])
 

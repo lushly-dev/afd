@@ -439,6 +439,21 @@ const server = createMcpServer({
 });
 ```
 
+### Retries
+
+`createRetryMiddleware` reruns a command whose failure code passes `shouldRetry` (default: `TRANSIENT_ERROR` and `TIMEOUT`), up to `maxRetries` times (default: 3). The backoff is exponential and capped: retry `n` backs off `min(maxDelay, retryDelay * 2 ** (n - 1))`, with `retryDelay` defaulting to 100 ms and `maxDelay` to 5000 ms. With `jitter` (the default) each wait is a random time between half and all of that backoff; `jitter: false` waits exactly the backoff. When `context.signal` aborts, for example because the client disconnected or a batch deadline passed, the wait ends and the last failure is returned without further retries. Retry only commands that are safe to repeat.
+
+```typescript
+import { createRetryMiddleware } from '@lushly-dev/afd-server';
+
+const retry = createRetryMiddleware({
+  maxRetries: 4,
+  retryDelay: 200,  // 200, 400, 800, 1600 ms before jitter
+  maxDelay: 1000,   // ...capped at 1000 ms
+  shouldRetry: (code) => code === 'UPSTREAM_UNAVAILABLE',
+});
+```
+
 ### Custom Middleware
 
 ```typescript
@@ -609,7 +624,7 @@ The server exposes these endpoints:
 | `/health` | GET | Health check |
 | `/batch` | POST | Batch command execution |
 | `/stream/:name` | POST | SSE chunks with command input in the JSON body |
-| `/stream/:name?input=...` | GET | Legacy streaming with JSON input in the query; refused (HTTP 405) for `mutation: true` commands |
+| `/stream/:name?input=...` | GET | Legacy streaming with JSON input in the query; refused (HTTP 405) for `mutation: true` commands; input over `maxBodyBytes` is refused (HTTP 413) |
 
 ### JSON-RPC Behavior (`/message` and `/rpc`)
 
@@ -627,6 +642,12 @@ The server exposes these endpoints:
 | `-32001` | Unknown or expired `Mcp-Session-Id` | 404 |
 
 Command failures are not protocol errors: they stay AFD `CommandResult` failures inside `result`. `/batch` and `/stream` are not JSON-RPC and answer errors with `{ success: false, error: { code, message, suggestion } }`.
+
+### Streaming (`/stream`)
+
+`/stream/:name` answers with Server-Sent Events, one `event: chunk` per `StreamChunk`. It is not incremental streaming: the command's handler runs to completion first, and the chunks are produced from its final result afterwards. An array result becomes one `data` chunk per item, any other result a single `data` chunk, followed by a `complete` chunk; a failure becomes one `error` chunk. No `progress` chunks are emitted, and the time to the first chunk is the handler's full run time. Handlers return a single `CommandResult`; returning an async iterable is not supported, and the `StreamableCommand` marker from core is metadata only. If the client disconnects, the command's `context.signal` aborts.
+
+Batch (`/batch`, `afd-batch`) and stream execution use the core `executeBatch()` and `executeStream()` executors with the server's command execution as the callback, so they behave like the core registry and DirectClient.
 
 ### Sessions (`Mcp-Session-Id`)
 
@@ -680,7 +701,7 @@ console.log(result.data.greeting); // "Hello, World!"
 
 HTTP requests validate Host and browser Origin before dispatch. The default Host allowlist contains the configured host and loopback names. Requests without an Origin (such as CLI clients) and same-origin browser requests are accepted. Cross-site browser requests are rejected unless their exact Origin is listed in `allowedOrigins`. `cors: true` adds response headers for accepted origins; it does not disable request validation. `devMode: true` intentionally permits any browser origin, while Host checks remain enabled.
 
-All POST endpoints require `Content-Type: application/json`. Request bodies are limited to 1 MiB by default; set `maxBodyBytes` to change the limit. Configure `allowedHosts` and `allowedOrigins` explicitly when embedding behind a proxy. Forwarded headers are not trusted automatically.
+All POST endpoints require `Content-Type: application/json`. Request bodies, and the `input` query parameter of `GET /stream`, are limited to 1 MiB (UTF-8 bytes) by default; set `maxBodyBytes` to change the limit. Larger input is refused with HTTP 413 whatever header size limit the host sets. Configure `allowedHosts` and `allowedOrigins` explicitly when embedding behind a proxy. Forwarded headers are not trusted automatically.
 
 POST streaming is preferred because input stays out of URLs. Legacy GET streaming remains supported and applies the same browser-origin policy.
 
@@ -766,6 +787,12 @@ Agents discover commands at runtime: `afd-discover` (filter/list) → `afd-detai
 | `afd-pipe` | Pipeline execution with step references |
 
 The meta-tools are routable in every strategy. Their arguments are validated against the schemas they advertise: invalid `afd-call`, `afd-discover` and `afd-detail` arguments return a `VALIDATION_ERROR` result (with `details.errors`), and invalid `afd-batch`/`afd-pipe` envelopes return `INVALID_BATCH_REQUEST`/`INVALID_PIPELINE_REQUEST`. A `null` argument to `afd-call`, `afd-discover` or `afd-detail` counts as omitted.
+
+Output is kept small so lazy discovery stays cheap:
+
+- Tool results are compact JSON (no indentation).
+- An unknown command name, whether called directly, through `afd-call`, `/rpc`, a batch entry or a pipeline step, returns `COMMAND_NOT_FOUND`. Its suggestion names at most three close matches callable in the active context and points to `afd-discover`, for example `Did you mean 'todo-create'? Other close matches: 'todo-update'. Use afd-discover to list all commands.` It never lists every command.
+- `afd-detail` entries for unknown names echo the requested name cut to 128 characters plus `…`. Found commands keep their exact name.
 
 ## Bootstrap Tools
 
@@ -858,7 +885,7 @@ const server = createMcpServer({
 
 ### Pipeline execution limits
 
-Pipelines run sequentially. `parallel: true` returns an actionable `UNSUPPORTED_OPTION` failure before invoking a command. `timeoutMs` bounds each awaited step by the remaining pipeline deadline and aborts its `context.signal`; handlers must honor that signal to stop their own work. A timed-out mutation may still finish if its handler ignores cancellation, so inspect partial results before retrying. Numeric `$steps[n]` references use original request indices, including skipped or failed steps. `$first` refers to original step zero; `$prev` keeps the last successful result.
+Pipelines run sequentially. `parallel: true` and a step with `stream: true` (deprecated, not implemented) return an actionable `UNSUPPORTED_OPTION` failure on the offending step before invoking any command; `onProgress` is deprecated and never called. `timeoutMs` bounds each awaited step by the remaining pipeline deadline and aborts its `context.signal`; handlers must honor that signal to stop their own work. A timed-out mutation may still finish if its handler ignores cancellation, so inspect partial results before retrying. Numeric `$steps[n]` references use original request indices, including skipped or failed steps. `$first` refers to original step zero; `$prev` keeps the last successful result.
 
 Variable references follow [`spec/pipeline-variables.md`](../../spec/pipeline-variables.md). `afd-pipe` accepts an optional top-level `input` (any JSON value) that steps read as `$input` and `$input.<path>`; `$input` never exposes the server's execution context (trace ID, auth or other context values), which it used to. Only whole strings of the reference forms are resolved: other `$` strings such as `$9.99` are literals, and `$$` sends a literal `$`. Paths follow only own keys of plain JSON objects and in-bounds array indices, so `constructor`, `__proto__` and other `__`-prefixed segments never resolve. Unresolved references are omitted from objects, become `null` in arrays, and make `when` comparisons false. Step inputs or `input` nested deeper than 64 levels are rejected with `VALIDATION_ERROR` before any step runs. Step data is copied between steps, so a handler that mutates its input cannot change another step's data.
 

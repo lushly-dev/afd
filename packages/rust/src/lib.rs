@@ -36,8 +36,11 @@
 //!
 //! ## Features
 //!
-//! - `native` (default): Includes async runtime support via tokio
-//! - `wasm`: Enables WebAssembly compatibility via wasm-bindgen
+//! - `native` (default): command, batch and pipeline deadlines through
+//!   `tokio::time::timeout` (Tokio's `time` feature only; the application
+//!   provides the runtime)
+//! - `wasm`: browser WebAssembly (`wasm32-unknown-unknown`), measuring
+//!   durations with `web-time`
 
 /// Compiles and runs the README examples as doctests.
 #[doc = include_str!("../README.md")]
@@ -58,7 +61,20 @@ pub mod result;
 pub mod similarity;
 pub mod streaming;
 pub mod telemetry;
+mod validation;
 mod wire;
+
+/// A monotonic `Instant` for every supported target.
+///
+/// `std::time::Instant::now()` traps on `wasm32-unknown-unknown`, so the
+/// `wasm` feature switches to `web-time`, which reads `performance.now()`
+/// there and is `std::time::Instant` everywhere else.
+mod time {
+    #[cfg(not(feature = "wasm"))]
+    pub(crate) use std::time::Instant;
+    #[cfg(feature = "wasm")]
+    pub(crate) use web_time::Instant;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // RE-EXPORTS: Result types
@@ -92,10 +108,11 @@ pub use metadata::{
 // ═══════════════════════════════════════════════════════════════════════════════
 
 pub use commands::{
-    command_to_mcp_tool, create_command_registry, default_expose, validate_command_name,
-    CommandContext, CommandDefinition, CommandExample, CommandHandler, CommandMiddleware,
-    CommandParameter, CommandRegistry, ExecutionTime, ExposeOptions, JsonSchema, JsonSchemaType,
-    McpInputSchema, McpTool,
+    command_to_mcp_tool, create_command_registry, default_expose, is_exposed_to,
+    validate_command_name, BoxFuture, CommandContext, CommandDefinition, CommandExample,
+    CommandHandler, CommandInterface, CommandMiddleware, CommandParameter, CommandRegistry,
+    ExecutionTime, ExposeOptions, JsonSchema, JsonSchemaType, McpInputSchema, McpTool,
+    MiddlewareNext,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -112,11 +129,13 @@ pub use connectors::{
 // ═══════════════════════════════════════════════════════════════════════════════
 
 pub use mcp::{
-    create_mcp_error_response, create_mcp_request, create_mcp_response, is_mcp_notification,
-    is_mcp_request, is_mcp_response, text_content, McpClientCapabilities, McpContent, McpError,
-    McpErrorCode, McpErrorCodes, McpId, McpImageContent, McpInitializeParams, McpInitializeResult,
-    McpNotification, McpRequest, McpResourceContent, McpResponse, McpServerCapabilities,
-    McpTextContent, McpToolCallParams, McpToolCallResult, McpToolsListResult,
+    audio_content, create_mcp_error_response, create_mcp_null_id_error_response,
+    create_mcp_request, create_mcp_response, is_mcp_notification, is_mcp_request, is_mcp_response,
+    resource_link_content, text_content, McpAudioContent, McpClientCapabilities, McpContent,
+    McpError, McpErrorCode, McpErrorCodes, McpId, McpImageContent, McpInitializeParams,
+    McpInitializeResult, McpNotification, McpRequest, McpResourceContent, McpResourceLinkContent,
+    McpResponse, McpServerCapabilities, McpTextContent, McpToolCallParams, McpToolCallResult,
+    McpToolsListResult,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -166,9 +185,10 @@ pub use pipeline::{
 // ═══════════════════════════════════════════════════════════════════════════════
 
 pub use bootstrap::{
-    get_bootstrap_commands, AfdDocsHandler, AfdHelpHandler, AfdSchemaHandler, CommandInfo,
-    DocsInput, DocsOutput, HelpInput, HelpOutput, SchemaFormat, SchemaInfo, SchemaInput,
-    SchemaOutput, BOOTSTRAP_CATEGORY, BOOTSTRAP_TAGS,
+    get_bootstrap_commands, register_bootstrap_commands, AfdDocsHandler, AfdHelpHandler,
+    AfdSchemaHandler, CommandInfo, DocsInput, DocsOutput, HelpInput, HelpOutput, SchemaFormat,
+    SchemaInfo, SchemaInput, SchemaOutput, BOOTSTRAP_CATEGORY, BOOTSTRAP_COMMAND_NAMES,
+    BOOTSTRAP_TAGS,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

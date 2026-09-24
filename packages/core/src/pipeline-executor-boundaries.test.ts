@@ -80,6 +80,53 @@ describe('pipeline execution boundaries', () => {
 		expect(result.steps[1]?.status).toBe('skipped');
 		expect(execute).not.toHaveBeenCalled();
 	});
+	it('rejects a streaming step before running any command', async () => {
+		const execute = vi.fn(async () => ({ success: true }));
+		const result = await executePipeline(
+			{
+				steps: [
+					{ command: 'one', as: 'first' },
+					{ command: 'two', stream: true },
+					{ command: 'three', stream: true },
+				],
+			},
+			execute
+		);
+
+		expect(execute).not.toHaveBeenCalled();
+		expect(result.steps.map((step) => step.status)).toEqual(['skipped', 'failure', 'skipped']);
+		expect(result.steps[0]).toMatchObject({ index: 0, alias: 'first', command: 'one' });
+		expect(result.steps[1]?.error).toMatchObject({
+			code: 'UNSUPPORTED_OPTION',
+			message: expect.stringContaining('step 1'),
+			suggestion: expect.stringContaining('Remove stream'),
+		});
+		expect(result.data).toBeUndefined();
+		expect(result.metadata).toMatchObject({ completedSteps: 0, totalSteps: 3 });
+	});
+	it('accepts stream: false and never calls onProgress', async () => {
+		const onProgress = vi.fn();
+		const result = await executePipeline(
+			{ options: { onProgress }, steps: [{ command: 'one', stream: false }] },
+			async () => ({ success: true, data: [1, 2] })
+		);
+
+		expect(result.steps[0]?.status).toBe('success');
+		expect(result.data).toEqual([1, 2]);
+		expect(onProgress).not.toHaveBeenCalled();
+	});
+	it('blames step 0 for parallel even when a later step streams', async () => {
+		const result = await executePipeline(
+			{
+				options: { parallel: true },
+				steps: [{ command: 'one' }, { command: 'two', stream: true }],
+			},
+			async () => ({ success: true })
+		);
+
+		expect(result.steps[0]?.error?.message).toBe('Parallel pipeline execution is not supported');
+		expect(result.steps[1]?.status).toBe('skipped');
+	});
 	it('converts executor exceptions to structured step failures', async () => {
 		const result = await executePipeline({ steps: [{ command: 'throws' }] }, async () => {
 			throw new Error('handler exploded');

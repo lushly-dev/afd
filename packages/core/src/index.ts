@@ -34,7 +34,7 @@ export {
 	isBatchResult,
 } from './batch.js';
 // Batch and stream executors (shared by the registry and hosts such as the MCP server)
-export type { ExecutorOptions } from './command-execution.js';
+export type { ExecutorOptions, StreamExecutorOptions } from './command-execution.js';
 export { executeBatch, executeStream, executionFailure } from './command-execution.js';
 // Command types
 export type {

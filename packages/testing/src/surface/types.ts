@@ -45,7 +45,11 @@ export interface SurfaceValidationOptions {
 	/** Suppress specific findings. Rule name or `rule:commandA:commandB` for pair-specific suppression. */
 	suppressions?: string[];
 
-	/** Additional injection patterns to check alongside built-in patterns */
+	/**
+	 * Additional injection patterns, checked together with the built-in
+	 * `INJECTION_PATTERNS` (they extend the built-in list; they never replace it).
+	 * Use `detectInjection: false` to turn injection detection off.
+	 */
 	additionalInjectionPatterns?: InjectionPattern[];
 
 	/** Enable schema complexity scoring. Default: true */
@@ -193,6 +197,12 @@ export interface SimilarityOptions {
 
 	/** Additional stop words to exclude */
 	additionalStopWords?: string[];
+
+	/**
+	 * `buildSimilarityMatrix` only: keep only pairs scoring at or above this
+	 * value in `pairs` (`get()` still scores any pair). Default: keep every pair.
+	 */
+	threshold?: number;
 }
 
 /**

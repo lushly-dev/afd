@@ -407,7 +407,11 @@ as the TypeScript server:
 - unset fields are omitted, never `null`;
 - failures are sent with MCP `isError: true`;
 - a missing or mistyped argument returns `VALIDATION_ERROR` with `details.errors`,
-  `details.expectedFields`/`missingFields`/`unexpectedFields` and a `suggestion`.
+  `details.expectedFields`/`missingFields`/`unexpectedFields` and a `suggestion`;
+- every command result carries `metadata.executionTimeMs` and a per-call
+  `metadata.traceId`;
+- built-in payloads (`afd-schema`, `afd-help`, `afd-detail`, `create_handoff()`) follow
+  the same rules.
 
 Use `afd.core.wire.to_wire(result)` to produce the same JSON yourself.
 
@@ -466,6 +470,20 @@ The shared lazy-tool workflow is:
 3. `afd-call` to execute the selected command
 
 `afd-call`, `afd-batch`, and `afd-pipe` are available in every tool strategy, not just lazy mode.
+
+Batch and pipeline rules:
+
+- Items and steps must be commands. `afd-batch`, `afd-pipe`, `afd-call`,
+  `afd-discover` and `afd-detail` inside a batch or pipeline, or a malformed `when`
+  condition, reject the whole request before anything runs. Commands cannot use those
+  five names.
+- A batch holds at most 500 commands with `parallelism` at most 16
+  (`create_server(max_batch_size=..., max_batch_parallelism=...)`); more returns
+  `INVALID_BATCH_REQUEST`.
+- When a batch stops (`stopOnError` failure or `timeout`), in-flight commands are
+  cancelled (`COMMAND_CANCELLED` / `BATCH_TIMEOUT`) and awaited before it returns.
+- A handler that returns something other than a `CommandResult` gives its item an
+  `INVALID_COMMAND_RESULT` failure.
 
 ```python
 from afd import McpClient, McpClientConfig
@@ -917,6 +935,11 @@ if result.success and is_handoff(result.data):
         ),
     )
 ```
+
+The built-in WebSocket and SSE handlers read messages in a background task and report
+a server close through `on_disconnect`. The credentials token is sent as an
+`Authorization: Bearer` header, never in the URL. `create_handoff()` returns camelCase
+keys (`sessionId`, `expiresAt`, `maxAttempts`, `backoffMs`).
 
 ### Custom Protocol Handlers
 

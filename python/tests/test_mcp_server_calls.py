@@ -456,7 +456,7 @@ class TestCreateToolRegistry:
         """scenario-evaluate should map stopOnFailure to fail_fast."""
         registry = create_tool_registry(command_handler=AsyncMock())
 
-        async def fake_evaluate(input):
+        async def fake_evaluate(input, **kwargs):
             return {"success": True, "data": {"fail_fast": input.get("fail_fast")}}
 
         with patch("afd.testing.commands.evaluate.scenario_evaluate", side_effect=fake_evaluate):

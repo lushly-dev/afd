@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from afd.core.commands import CommandContext, CommandDefinition, CommandParameter
 from afd.core.result import CommandResult, success
+from afd.core.wire import WireModel
 from afd.server.bootstrap.afd_context import BOOTSTRAP_EXPOSE
 from afd.server.validation import _input_validation_failure
 
@@ -21,7 +22,7 @@ class AfdSchemaInput(BaseModel):
     )
 
 
-class SchemaInfo(BaseModel):
+class SchemaInfo(WireModel):
     """Schema information for one command."""
 
     name: str
@@ -31,7 +32,7 @@ class SchemaInfo(BaseModel):
     typescript: str | None = None
 
 
-class AfdSchemaOutput(BaseModel):
+class AfdSchemaOutput(WireModel):
     """Output for ``afd-schema``."""
 
     schemas: List[SchemaInfo]

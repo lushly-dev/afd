@@ -103,12 +103,16 @@ class TestResultWireFormat:
         is_error, body = await _call(_server(), "todo-create", {"title": "Buy milk"})
 
         assert is_error is False
+        # The server sets executionTimeMs and traceId (run-dependent), as in TypeScript.
+        metadata = body.pop("metadata")
+        assert metadata.pop("executionTimeMs") >= 0
+        assert metadata.pop("traceId").startswith("trace-")
+        assert metadata == {"commandVersion": "1.0.0"}
         assert body == {
             "success": True,
             "data": {"id": "todo-1", "title": "Buy milk", "description": None},
             "reasoning": "Created",
             "sources": [{"type": "document", "accessedAt": "2026-01-01T00:00:00Z"}],
-            "metadata": {"executionTimeMs": 1.5, "commandVersion": "1.0.0"},
             "undoCommand": "todo-delete",
             "undoArgs": {"id": "todo-1"},
         }
@@ -118,6 +122,7 @@ class TestResultWireFormat:
         is_error, body = await _call(_server(), "todo-get", {"id": "x"})
 
         assert is_error is True
+        assert set(body.pop("metadata")) == {"executionTimeMs", "traceId"}
         assert body == {
             "success": False,
             "error": {
@@ -267,3 +272,112 @@ class TestValidationBeforeAfd:
 
         assert is_error is False
         assert body["data"]["title"] == "Ok"
+
+
+_SCHEMA_KEYS = ("inputSchema", "outputSchema", "input", "details", "undoArgs")
+
+
+def _payload_problems(value: Any, path: str = "") -> list:
+    """snake_case keys and nulls anywhere outside free-form schemas and inputs."""
+    problems = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            where = f"{path}.{key}" if path else key
+            if "_" in key:
+                problems.append(f"{where} is snake_case")
+            if item is None:
+                problems.append(f"{where} is null")
+            if key not in _SCHEMA_KEYS:
+                problems += _payload_problems(item, where)
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            problems += _payload_problems(item, f"{path}.{index}")
+    return problems
+
+
+def _payload_server():
+    from afd.core.handoff import create_handoff
+    from afd.server import ContextConfig
+
+    class DocInput(BaseModel):
+        doc_id: str
+
+    class DocOutput(BaseModel):
+        doc_id: str
+        page_count: int
+
+    server = create_server(
+        "payload-wire",
+        tool_strategy="lazy",
+        contexts=[ContextConfig(name="editing", description="Edit documents")],
+    )
+
+    @server.command(
+        name="doc-get",
+        description="Get a document",
+        input_schema=DocInput,
+        output_schema=DocOutput,
+        expose=MCP,
+    )
+    async def doc_get(input: DocInput):
+        return success(DocOutput(doc_id=input.doc_id, page_count=1))
+
+    @server.command(name="chat-connect", description="Open a chat channel", expose=MCP)
+    async def chat_connect(input):
+        return success(
+            create_handoff(
+                "websocket",
+                "wss://chat.example.com/room",
+                token="t",
+                session_id="s-1",
+                expected_latency=20,
+                expires_at="2026-01-01T00:00:00Z",
+                reconnect_allowed=True,
+                reconnect_max_attempts=3,
+                reconnect_backoff_ms=500,
+            )
+        )
+
+    return server
+
+
+class TestCommandPayloadWireFormat:
+    """Built-in command payloads follow the wire rules too (camelCase, no nulls)."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("tool", "args"),
+        [
+            ("afd-schema", {}),
+            ("afd-schema", {"format": "typescript"}),
+            ("afd-help", {"format": "full"}),
+            ("afd-docs", {}),
+            ("afd-context-list", {}),
+            ("afd-detail", {"command": ["doc-get", "chat-connect", "nope"]}),
+            ("afd-call", {"command": "chat-connect"}),
+        ],
+    )
+    async def test_payload_has_no_snake_case_keys_or_nulls(self, tool, args):
+        is_error, body = await _call(_payload_server(), tool, args)
+
+        assert is_error is False
+        assert _payload_problems(body) == []
+
+    @pytest.mark.asyncio
+    async def test_afd_schema_uses_input_schema_key(self):
+        _, body = await _call(_payload_server(), "afd-schema", {})
+
+        doc = next(item for item in body["data"]["schemas"] if item["name"] == "doc-get")
+        assert set(doc) >= {"name", "description", "inputSchema", "outputSchema"}
+        assert "doc_id" in doc["inputSchema"]["properties"]
+
+    @pytest.mark.asyncio
+    async def test_handoff_payload_is_camel_case(self):
+        _, body = await _call(_payload_server(), "afd-call", {"command": "chat-connect"})
+
+        assert body["data"]["credentials"] == {"token": "t", "sessionId": "s-1"}
+        assert body["data"]["metadata"]["reconnect"] == {
+            "allowed": True,
+            "maxAttempts": 3,
+            "backoffMs": 500,
+        }

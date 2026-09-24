@@ -73,6 +73,7 @@
     }
     .message .user { font-weight: 600; color: #00d4ff; }
     .message .time { font-size: 0.8em; color: #888; margin-left: 10px; }
+    .message .text { margin-top: 5px; white-space: pre-wrap; overflow-wrap: anywhere; font-family: inherit; }
     .input-area {
       display: flex;
       gap: 10px;
@@ -142,8 +143,8 @@
           <option value="random">random</option>
           <option value="dev">dev</option>
         </select>
-        <input type="text" id="nickname" placeholder="Your nickname" value="demo-user">
-        <button type="button" onclick="connect()">Connect</button>
+        <input type="text" id="nickname" placeholder="Your nickname" value="demo-user" maxlength="50">
+        <button type="button" id="connectBtn">Connect</button>
       </div>
     </div>
 
@@ -152,139 +153,19 @@
     </div>
     
     <div class="input-area">
-      <input type="text" id="message" placeholder="Type a message..." disabled onkeypress="if(event.key==='Enter')sendMessage()">
-      <button type="button" onclick="sendMessage()" id="sendBtn" disabled>Send</button>
+      <input type="text" id="message" placeholder="Type a message..." maxlength="2000" disabled>
+      <button type="button" id="sendBtn" disabled>Send</button>
     </div>
 
     <div class="handoff-info">
       <h4>🔐 Handoff Pattern Flow</h4>
-      <div class="step"><span class="step-num">1</span>Client calls <code>chat-connect</code> command via HTTP</div>
+      <div class="step"><span class="step-num">1</span>Client calls the <code>chat-connect</code> command through the MCP server's <code>/rpc</code> route</div>
       <div class="step"><span class="step-num">2</span>Server returns <code>HandoffResult</code> with WebSocket URL + token</div>
       <div class="step"><span class="step-num">3</span>Client connects to WebSocket using the token</div>
       <div class="step"><span class="step-num">4</span>Real-time messages flow over WebSocket</div>
     </div>
   </div>
 
-  <script>
-    const chatBox = document.getElementById('chat');
-    const statusEl = document.getElementById('status');
-    const messageInput = document.getElementById('message');
-    const sendBtn = document.getElementById('sendBtn');
-    const joinForm = document.getElementById('joinForm');
-    
-    let ws = null;
-    const _sessionToken = null;
-    
-    function addMessage(type, text) {
-      const div = document.createElement('div');
-      div.className = `message ${type === 'system' ? 'system' : type === 'error' ? 'error' : ''}`;
-      const time = new Date().toLocaleTimeString();
-      div.innerHTML = `<span class="user">${type}:</span><span class="time">${time}</span><pre style="margin-top:5px;white-space:pre-wrap;font-family:inherit">${text}</pre>`;
-      chatBox.appendChild(div);
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-    
-    async function _connect() {
-      const room = document.getElementById('room').value;
-      const nickname = document.getElementById('nickname').value || 'anonymous';
-      
-      statusEl.className = 'status connecting';
-      statusEl.textContent = '🔄 Step 1: Calling chat-connect command...';
-      addMessage('system', `Calling chat-connect { room: "${room}", nickname: "${nickname}" }`);
-      
-      try {
-        // Step 1: Call chat-connect via HTTP to get handoff token
-        const response = await fetch('http://localhost:3200/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'chat-connect',
-            params: { roomId: room, nickname }
-          })
-        });
-        
-        const data = await response.json();
-        
-        if (data.error) {
-          throw new Error(data.error.message);
-        }
-        
-        const rawResult = data.result;
-        // Unwrap AFD success envelope
-        const result = rawResult.success ? rawResult.data : rawResult;
-        const wsUrl = `${result.endpoint}?token=${result.credentials.token}`;
-        addMessage('system', `✓ Received HandoffResult:\n  - protocol: ${result.protocol}\n  - endpoint: ${result.endpoint}\n  - token: ${result.credentials.token.substring(0,8)}...`);
-        
-        // Step 2: Connect to WebSocket using the handoff URL
-        statusEl.textContent = '🔄 Step 2: Connecting to WebSocket...';
-        
-        ws = new WebSocket(wsUrl);
-        
-        ws.onopen = () => {
-          statusEl.className = 'status connected';
-          statusEl.textContent = `✓ Connected to ${room} as ${nickname}`;
-          addMessage('system', '✓ WebSocket connected! You can now send messages.');
-          
-          messageInput.disabled = false;
-          sendBtn.disabled = false;
-          joinForm.style.display = 'none';
-        };
-        
-        ws.onclose = (e) => {
-          statusEl.className = 'status disconnected';
-          statusEl.textContent = `Disconnected (${e.code}: ${e.reason || 'closed'})`;
-          messageInput.disabled = true;
-          sendBtn.disabled = true;
-          joinForm.style.display = 'block';
-        };
-        
-        ws.onerror = () => {
-          addMessage('error', 'WebSocket error');
-        };
-        
-        ws.onmessage = (event) => {
-          try {
-            const msg = JSON.parse(event.data);
-            switch(msg.type) {
-              case 'welcome':
-                addMessage('system', `Welcome to ${msg.roomId}! Participants: ${msg.participants.join(', ')}`);
-                break;
-              case 'message':
-                addMessage(msg.sender, msg.text);
-                break;
-              case 'user_joined':
-                addMessage('system', `${msg.nickname} joined the room`);
-                break;
-              case 'user_left':
-                addMessage('system', `${msg.nickname} left the room`);
-                break;
-              case 'error':
-                addMessage('error', msg.message);
-                break;
-              default:
-                addMessage('system', JSON.stringify(msg));
-            }
-          } catch {
-            addMessage('server', event.data);
-          }
-        };
-        
-      } catch (err) {
-        statusEl.className = 'status disconnected';
-        statusEl.textContent = 'Connection failed';
-        addMessage('error', `Failed: ${err.message}\n\nMake sure the server is running with HTTP support on port 3000.`);
-      }
-    }
-    
-    function _sendMessage() {
-      const text = messageInput.value.trim();
-      if (!text || !ws || ws.readyState !== WebSocket.OPEN) return;
-      
-      ws.send(JSON.stringify({ type: 'message', text }));
-      messageInput.value = '';
-    }
-  </script>
+  <script type="module" src="demo.js"></script>
 </body>
 </html>

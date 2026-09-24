@@ -384,6 +384,7 @@ class TestSpawn:
 		wrapper = CliWrapper()
 		mock_proc = MagicMock()
 		mock_proc.communicate = AsyncMock(return_value=(b"", b""))
+		mock_proc.returncode = None  # still running
 		mock_proc.kill = MagicMock()
 		mock_proc.wait = AsyncMock()
 

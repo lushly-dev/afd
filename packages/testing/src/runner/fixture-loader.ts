@@ -6,11 +6,18 @@
  * - JSON fixture files
  * - Base fixture inheritance
  * - Inline overrides
+ * - Application through an app adapter (see `registerAdapter`)
  */
 
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { type CommandResult, failure } from '@lushly-dev/afd-core';
+import { genericAdapter } from '../adapters/generic.js';
+import { detectAdapter } from '../adapters/registry.js';
+import { todoAdapter } from '../adapters/todo.js';
+import type { AdapterContext, AppAdapter } from '../adapters/types.js';
 import type { FixtureConfig } from '../types/scenario.js';
+import { resolveInsideRoot } from './sandbox.js';
 
 // ============================================================================
 // Types
@@ -59,30 +66,54 @@ export type LoadFixtureResult =
  * Result from applying a fixture.
  */
 export interface ApplyFixtureResult {
-	/** Whether application succeeded */
+	/** Whether every fixture command succeeded */
 	success: boolean;
 
-	/** Error message if failed */
+	/** Error message if failed, naming the failing command and its error code */
 	error?: string;
 
 	/** Commands that were applied with their inputs */
 	appliedCommands: AppliedCommand[];
+
+	/** Warnings reported by the fixture adapter */
+	warnings?: string[];
 }
 
 /**
  * Options for fixture loading.
  */
 export interface LoadFixtureOptions {
-	/** Base directory for resolving relative paths */
+	/** Base directory for resolving relative paths (default: process.cwd()) */
 	basePath?: string;
 
-	/** Validate fixture structure */
+	/** Validate the merged fixture with its adapter's `fixture.validate` */
 	validate?: boolean;
+
+	/**
+	 * Reject fixture files (including `base`) that resolve outside this
+	 * directory, lexically or through a symlinked parent.
+	 */
+	rootDir?: string;
 }
+
+/**
+ * Executes one fixture command. Must return the command's real
+ * `CommandResult`: a failed result fails the fixture.
+ */
+export type FixtureCommandHandler = (
+	command: string,
+	input?: Record<string, unknown>,
+	context?: { signal?: AbortSignal }
+) => Promise<CommandResult<unknown>>;
 
 // ============================================================================
 // Fixture Loader
 // ============================================================================
+
+function locate(base: string, file: string, rootDir: string | undefined, label: string): string {
+	const target = resolve(base, file);
+	return rootDir ? resolveInsideRoot(rootDir, target, label) : target;
+}
 
 /**
  * Load a fixture from configuration.
@@ -95,7 +126,7 @@ export interface LoadFixtureOptions {
  * ```typescript
  * const result = await loadFixture({
  *   file: "./fixtures/seeded-todos.json",
- *   overrides: { todos: [{ id: "custom", title: "Custom todo" }] }
+ *   overrides: { todos: [{ title: "Custom todo" }] }
  * });
  * if (result.success) {
  *   console.log(result.data);
@@ -110,7 +141,7 @@ export async function loadFixture(
 
 	try {
 		// 1. Load the main fixture file
-		const fixturePath = resolve(basePath, config.file);
+		const fixturePath = locate(basePath, config.file, options.rootDir, 'Fixture file');
 		const mainData = await loadJsonFile(fixturePath);
 
 		if (!mainData.success) {
@@ -121,7 +152,12 @@ export async function loadFixture(
 
 		// 2. If there's a base fixture, load and merge it
 		if (config.base) {
-			const baseFixturePath = resolve(dirname(fixturePath), config.base);
+			const baseFixturePath = locate(
+				dirname(fixturePath),
+				config.base,
+				options.rootDir,
+				'Fixture base'
+			);
 			const baseData = await loadJsonFile(baseFixturePath);
 
 			if (!baseData.success) {
@@ -141,6 +177,14 @@ export async function loadFixture(
 			mergedData = deepMerge(mergedData, config.overrides as FixtureData);
 		}
 
+		// 4. Optionally validate with the fixture's adapter
+		if (options.validate) {
+			const validationError = await validateWithAdapter(mergedData);
+			if (validationError) {
+				return { success: false, error: validationError, path: fixturePath };
+			}
+		}
+
 		return {
 			success: true,
 			data: mergedData,
@@ -155,18 +199,12 @@ export async function loadFixture(
 }
 
 /**
- * Load a JSON file and parse it.
+ * Load a JSON file and parse it. Errors never echo the file's contents.
  */
 async function loadJsonFile(filePath: string): Promise<LoadFixtureResult> {
+	let content: string;
 	try {
-		const content = await readFile(filePath, 'utf-8');
-		const data = JSON.parse(content) as FixtureData;
-
-		return {
-			success: true,
-			data,
-			path: filePath,
-		};
+		content = await readFile(filePath, 'utf-8');
 	} catch (err) {
 		if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
 			return {
@@ -175,18 +213,20 @@ async function loadJsonFile(filePath: string): Promise<LoadFixtureResult> {
 				path: filePath,
 			};
 		}
-
-		if (err instanceof SyntaxError) {
-			return {
-				success: false,
-				error: `Invalid JSON in fixture file: ${err.message}`,
-				path: filePath,
-			};
-		}
-
 		return {
 			success: false,
 			error: err instanceof Error ? err.message : String(err),
+			path: filePath,
+		};
+	}
+
+	try {
+		return { success: true, data: JSON.parse(content) as FixtureData, path: filePath };
+	} catch (err) {
+		const position = err instanceof Error ? /position (\d+)/.exec(err.message)?.[1] : undefined;
+		return {
+			success: false,
+			error: `Invalid JSON in fixture file: ${filePath}${position ? ` (at position ${position})` : ''}`,
 			path: filePath,
 		};
 	}
@@ -234,9 +274,6 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 // Fixture Application
 // ============================================================================
 
-import { detectAdapter } from '../adapters/registry.js';
-import type { AdapterContext, AppAdapter } from '../adapters/types.js';
-
 /**
  * Options for applying a fixture.
  */
@@ -247,187 +284,124 @@ export interface ApplyFixtureOptions {
 	cwd?: string;
 	/** Environment variables */
 	env?: Record<string, string>;
+	/** Stops applying fixture commands once aborted */
+	signal?: AbortSignal;
+}
+
+/**
+ * Pick the adapter for a fixture: a registered adapter for its `app`, the
+ * built-in todo adapter for `app: "todo"`, or the generic adapter for a
+ * fixture with a `setup` or `data` command list.
+ */
+function resolveFixtureAdapter(data: FixtureData): AppAdapter | undefined {
+	const registered = detectAdapter(data);
+	if (registered) return registered;
+	if (data.app === todoAdapter.name) return todoAdapter;
+	if (Array.isArray(data.setup) || Array.isArray(data.data)) return genericAdapter;
+	return undefined;
+}
+
+function noAdapterError(data: FixtureData): string {
+	return typeof data.app === 'string'
+		? `No fixture adapter for app '${data.app}'. Register one with registerAdapter(), or list the commands to run in a 'setup' array.`
+		: "Fixture has nothing to apply: set 'app' to an app with a registered adapter, or list the commands to run in a 'setup' array.";
+}
+
+async function validateWithAdapter(data: FixtureData): Promise<string | undefined> {
+	const adapter = resolveFixtureAdapter(data);
+	if (!adapter) {
+		return noAdapterError(data);
+	}
+	const validation = await adapter.fixture.validate?.(data);
+	if (validation && !validation.valid) {
+		return `Invalid fixture: ${(validation.errors ?? ['failed validation']).join('; ')}`;
+	}
+	return undefined;
+}
+
+function isCommandResult(value: unknown): value is CommandResult<unknown> {
+	return (
+		typeof value === 'object' &&
+		value !== null &&
+		typeof (value as { success?: unknown }).success === 'boolean'
+	);
+}
+
+function describeFailure(command: string, result: CommandResult<unknown>): string {
+	const error = result.error;
+	const detail = error ? `${error.code}: ${error.message}` : 'the command reported success: false';
+	return `Fixture command '${command}' failed with ${detail}`;
 }
 
 /**
  * Apply fixture data to a system via commands.
  *
- * This function takes loaded fixture data and a command handler,
- * then executes the appropriate commands to set up initial state.
- *
- * Supports:
- * - Adapter-based application (if adapter registered)
- * - Legacy app-specific handling (todo, violet)
- * - Generic setup commands fallback
+ * The adapter is chosen by `resolveFixtureAdapter` (or `options.adapter`).
+ * Each command's real `CommandResult` is passed to the adapter; the first
+ * failed command fails the whole application, and adapter warnings are
+ * returned in `warnings`.
  *
  * @param data - Loaded fixture data
- * @param handler - Command execution function
+ * @param handler - Command execution function returning a `CommandResult`
  * @param options - Application options
  * @returns Result of fixture application
  */
 export async function applyFixture(
 	data: FixtureData,
-	handler: (command: string, input?: Record<string, unknown>) => Promise<unknown>,
+	handler: FixtureCommandHandler,
 	options: ApplyFixtureOptions = {}
 ): Promise<ApplyFixtureResult> {
-	const appliedCommands: AppliedCommand[] = [];
+	const adapter = options.adapter ?? resolveFixtureAdapter(data);
+	if (!adapter) {
+		return { success: false, error: noAdapterError(data), appliedCommands: [] };
+	}
+
+	const executed: AppliedCommand[] = [];
+	let firstFailure: string | undefined;
+
+	const context: AdapterContext = {
+		cli: adapter.cli.command,
+		handler: async (command, input) => {
+			options.signal?.throwIfAborted();
+			const returned: unknown = await handler(command, input, { signal: options.signal });
+			executed.push({ command, input });
+			const result = isCommandResult(returned)
+				? returned
+				: failure({
+						code: 'INVALID_COMMAND_RESULT',
+						message: 'the handler did not return a CommandResult',
+						suggestion: 'Return success(...) or failure(...) from the fixture command handler',
+					});
+			if (!result.success && firstFailure === undefined) {
+				firstFailure = describeFailure(command, result);
+			}
+			return result;
+		},
+		cwd: options.cwd,
+		env: options.env,
+	};
 
 	try {
-		// Try to use adapter if available
-		const adapter = options.adapter ?? detectAdapter(data);
-
-		if (adapter) {
-			const context: AdapterContext = {
-				cli: adapter.cli.command,
-				handler: async (cmd, input) => {
-					const result = await handler(cmd, input);
-					return {
-						success: true,
-						data: result,
-					} as import('@lushly-dev/afd-core').CommandResult<unknown>;
-				},
-				cwd: options.cwd,
-				env: options.env,
-			};
-
-			const adapterResult = await adapter.fixture.apply(data, context);
-			return {
-				success: true,
-				appliedCommands: adapterResult.appliedCommands.map((cmd) => ({
-					command: cmd.command,
-					input: cmd.input,
-				})),
-			};
-		}
-
-		// Fallback to legacy app-specific handling
-		const app = data.app ?? 'generic';
-
-		switch (app) {
-			case 'todo':
-				return await applyTodoFixture(data, handler, appliedCommands);
-
-			case 'violet':
-				return await applyVioletFixture(data, handler, appliedCommands);
-
-			default:
-				// Generic fixture: look for 'setup' commands array
-				if (Array.isArray(data.setup)) {
-					for (const cmd of data.setup) {
-						if (typeof cmd === 'object' && cmd.command) {
-							const input = cmd.input as Record<string, unknown> | undefined;
-							await handler(cmd.command as string, input);
-							appliedCommands.push({ command: cmd.command as string, input });
-						}
-					}
-				}
-				return { success: true, appliedCommands };
-		}
+		const adapterResult = await adapter.fixture.apply(data, context);
+		const warnings =
+			adapterResult.warnings && adapterResult.warnings.length > 0
+				? adapterResult.warnings
+				: undefined;
+		const appliedCommands = adapterResult.appliedCommands.map((cmd) => ({
+			command: cmd.command,
+			input: cmd.input,
+		}));
+		return {
+			success: firstFailure === undefined,
+			...(firstFailure !== undefined ? { error: firstFailure } : {}),
+			appliedCommands,
+			...(warnings ? { warnings } : {}),
+		};
 	} catch (err) {
 		return {
 			success: false,
-			error: err instanceof Error ? err.message : String(err),
-			appliedCommands,
+			error: firstFailure ?? (err instanceof Error ? err.message : String(err)),
+			appliedCommands: executed,
 		};
 	}
-}
-
-/**
- * Apply todo app fixture.
- */
-async function applyTodoFixture(
-	data: FixtureData,
-	handler: (command: string, input?: Record<string, unknown>) => Promise<unknown>,
-	appliedCommands: AppliedCommand[]
-): Promise<ApplyFixtureResult> {
-	// Clear existing todos first
-	if (data.clearFirst !== false) {
-		const input = { all: true };
-		await handler('todo.clear', input);
-		appliedCommands.push({ command: 'todo.clear', input });
-	}
-
-	// Create todos from fixture
-	const todos = data.todos as Array<Record<string, unknown>> | undefined;
-	if (todos && Array.isArray(todos)) {
-		for (const todo of todos) {
-			const input = {
-				title: todo.title,
-				description: todo.description,
-				priority: todo.priority ?? 'medium',
-			};
-			await handler('todo.create', input);
-			appliedCommands.push({ command: 'todo.create', input });
-
-			// If todo is completed, toggle it
-			if (todo.completed) {
-				// Note: We can't easily toggle by ID here without tracking created IDs
-				// This is a limitation - fixtures work best with predictable state
-			}
-		}
-	}
-
-	return { success: true, appliedCommands };
-}
-
-/**
- * Apply Violet (design token) app fixture.
- */
-async function applyVioletFixture(
-	data: FixtureData,
-	handler: (command: string, input?: Record<string, unknown>) => Promise<unknown>,
-	appliedCommands: AppliedCommand[]
-): Promise<ApplyFixtureResult> {
-	// Create nodes first
-	const nodes = data.nodes as Array<Record<string, unknown>> | undefined;
-	if (nodes && Array.isArray(nodes)) {
-		for (const node of nodes) {
-			const input = {
-				id: node.id,
-				name: node.name,
-				type: node.type,
-				parentId: node.parentId,
-				includes: node.includes,
-				tags: node.tags,
-			};
-			await handler('node.create', input);
-			appliedCommands.push({ command: 'node.create', input });
-		}
-	}
-
-	// Apply operations (token add/override/subtract)
-	const operations = data.operations as Array<Record<string, unknown>> | undefined;
-	if (operations && Array.isArray(operations)) {
-		for (const op of operations) {
-			const opType = op.type as string;
-			const command = `token.${opType}`;
-			const input = {
-				node: op.nodeId,
-				token: op.token,
-				value: op.value,
-				from: op.sourceNodeId,
-				ancestor: op.ancestorId,
-			};
-			await handler(command, input);
-			appliedCommands.push({ command, input });
-		}
-	}
-
-	// Set constraints
-	const constraints = data.constraints as Array<Record<string, unknown>> | undefined;
-	if (constraints && Array.isArray(constraints)) {
-		for (const constraint of constraints) {
-			const input = {
-				node: constraint.nodeId,
-				id: constraint.id,
-				type: constraint.type,
-				tokens: constraint.tokens,
-				...constraint, // Pass through other constraint-specific fields
-			};
-			await handler('constraints.set', input);
-			appliedCommands.push({ command: 'constraints.set', input });
-		}
-	}
-
-	return { success: true, appliedCommands };
 }

@@ -203,6 +203,51 @@ describe('BetterAuthAdapter', () => {
 		adapter.dispose();
 	});
 
+	it('reports a social sign-in redirect and forwards scopes', async () => {
+		const { client } = createMockClient();
+		client.signIn.social.mockResolvedValue({
+			data: { url: 'https://github.com/login/oauth/authorize?x=1', redirect: true },
+			error: null,
+		});
+		const adapter = new BetterAuthAdapter({ client });
+
+		const outcome = await adapter.signIn({
+			method: 'oauth',
+			provider: 'github',
+			scopes: ['repo'],
+			redirectTo: '/done',
+		});
+
+		expect(outcome).toEqual({
+			kind: 'redirect',
+			url: 'https://github.com/login/oauth/authorize?x=1',
+		});
+		expect(client.signIn.social).toHaveBeenCalledWith({
+			provider: 'github',
+			callbackURL: '/done',
+			scopes: ['repo'],
+		});
+		adapter.dispose();
+	});
+
+	it('reports a redirect without a url and a signed-in credentials sign-in', async () => {
+		const { client } = createMockClient();
+		client.signIn.social.mockResolvedValue({ data: { redirect: true }, error: null });
+		client.signIn.email.mockResolvedValue({
+			data: { redirect: false, token: 't', user: { id: 'u1' } },
+			error: null,
+		});
+		const adapter = new BetterAuthAdapter({ client });
+
+		await expect(adapter.signIn({ method: 'oauth', provider: 'github' })).resolves.toEqual({
+			kind: 'redirect',
+		});
+		await expect(
+			adapter.signIn({ method: 'credentials', email: 'test@example.com', password: 'pass' })
+		).resolves.toEqual({ kind: 'signed-in' });
+		adapter.dispose();
+	});
+
 	it('delegates signOut to client', async () => {
 		const { client } = createMockClient();
 		const adapter = new BetterAuthAdapter({ client });
@@ -262,6 +307,27 @@ describe('BetterAuthAdapter', () => {
 			adapter.signIn({ method: 'credentials', email: 'test@example.com', password: 'pass' })
 		).rejects.toMatchObject({ code: 'NETWORK_ERROR', retryable: true });
 
+		adapter.dispose();
+	});
+
+	it('keeps notifying later listeners when one throws', () => {
+		const { client, _emit } = createMockClient();
+		const errors: unknown[] = [];
+		const adapter = new BetterAuthAdapter({
+			client,
+			onListenerError: (error) => errors.push(error),
+		});
+		const failure = new Error('listener failed');
+		const seen: string[] = [];
+		adapter.onAuthStateChange(() => {
+			throw failure;
+		});
+		adapter.onAuthStateChange((state) => seen.push(state.status));
+
+		expect(() => _emit({ data: null, isPending: false })).not.toThrow();
+
+		expect(seen).toEqual(['unauthenticated']);
+		expect(errors).toEqual([failure]);
 		adapter.dispose();
 	});
 

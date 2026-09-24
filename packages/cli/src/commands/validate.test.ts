@@ -1,13 +1,8 @@
 import type { McpTool } from '@lushly-dev/afd-core';
 import { validateCommandSurface } from '@lushly-dev/afd-testing';
 import { describe, expect, it } from 'vitest';
-import { matchesCategory } from './tools.js';
-import {
-	getExecutionInput,
-	getExecutionSkipReason,
-	mapToolsToSurfaceCommands,
-	validateToolListing,
-} from './validate.js';
+import { getExecutionInput, getExecutionSkipReason, validateToolListing } from './validate.js';
+import { mapToolsToSurfaceCommands } from './validate-surface.js';
 
 function tool(overrides: Partial<McpTool> = {}): McpTool {
 	return {
@@ -96,16 +91,6 @@ describe('--execute safety', () => {
 		expect(getExecutionInput(tool({ _meta: { examples: [{ title: 'x', input: [1] }] } }))).toEqual(
 			{}
 		);
-	});
-});
-
-describe('category matching', () => {
-	it('prefers _meta.category and falls back to the kebab-case name prefix', () => {
-		expect(matchesCategory(tool({ _meta: { category: 'todo' } }), 'todo')).toBe(true);
-		expect(matchesCategory(tool({ name: 'todo-legacy' }), 'todo')).toBe(true);
-		expect(matchesCategory(tool({ _meta: { category: 'tasks' } }), 'todo')).toBe(false);
-		expect(matchesCategory(tool({ name: 'todo.create' }), 'todo')).toBe(false);
-		expect(matchesCategory(tool({ name: 'todos-list' }), 'todo')).toBe(false);
 	});
 });
 

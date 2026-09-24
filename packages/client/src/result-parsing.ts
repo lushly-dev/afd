@@ -61,6 +61,55 @@ export function createBatchFailure<T>(
 	};
 }
 
+/**
+ * The error for a batch or pipeline whose request got no result: it timed out or the connection
+ * failed after the request may have reached the server, so some or all commands may have run.
+ *
+ * @param cause - The request error, already converted with `toCommandError()`
+ */
+export function outcomeUnknownError(
+	cause: CommandError,
+	operation: 'batch' | 'pipeline'
+): CommandError {
+	return {
+		code: 'OUTCOME_UNKNOWN',
+		message: `No ${operation} result was received (${cause.message}). The server may have run some or all of its commands.`,
+		suggestion: `Check the effect of each command before retrying: running the ${operation} again can repeat writes that already happened.`,
+		retryable: false,
+		details: { cause: cause.code, ...cause.details },
+	};
+}
+
+/**
+ * A failed batch whose outcome is unknown. It reports no per-command statuses: `results` is
+ * empty and every summary count except `total` is zero, because no command is known to have
+ * failed or succeeded.
+ */
+export function createUnknownOutcomeBatch<T>(
+	commands: BatchCommand[],
+	startedAt: string,
+	error: CommandError
+): BatchResult<T> {
+	return {
+		...createBatchFailure<T>(commands, startedAt, error, error.message),
+		summary: { total: commands.length, successCount: 0, failureCount: 0, skippedCount: 0 },
+	};
+}
+
+/**
+ * A pipeline whose outcome is unknown. Like core's rejected pipelines it carries the error on a
+ * single pipeline-level entry (`index: -1`) instead of inventing a status for each step.
+ */
+export function createUnknownOutcomePipeline<T>(
+	request: PipelineRequest,
+	error: CommandError
+): PipelineResult<T> {
+	return {
+		...createPipelineFailure<T>(request),
+		steps: [{ index: -1, command: '', status: 'failure', error, executionTimeMs: 0 }],
+	};
+}
+
 export function createPipelineFailure<T>(
 	request: PipelineRequest,
 	error?: CommandError

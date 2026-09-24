@@ -13,6 +13,7 @@ from afd.core.handoff import (
     is_handoff_command,
     is_handoff_protocol,
 )
+from afd.core.wire import to_wire
 
 
 class TestHandoffResult:
@@ -364,9 +365,9 @@ class TestCreateHandoff:
             expires_at="2025-01-15T12:00:00Z",
             description="Chat connection",
         )
-        assert result["metadata"]["expected_latency"] == 50
+        assert result["metadata"]["expectedLatency"] == 50
         assert result["metadata"]["capabilities"] == ["text", "presence"]
-        assert result["metadata"]["expires_at"] == "2025-01-15T12:00:00Z"
+        assert result["metadata"]["expiresAt"] == "2025-01-15T12:00:00Z"
         assert result["metadata"]["description"] == "Chat connection"
 
     def test_creates_handoff_with_reconnect_policy(self):
@@ -379,8 +380,47 @@ class TestCreateHandoff:
             reconnect_backoff_ms=1000,
         )
         assert result["metadata"]["reconnect"]["allowed"] is True
-        assert result["metadata"]["reconnect"]["max_attempts"] == 5
-        assert result["metadata"]["reconnect"]["backoff_ms"] == 1000
+        assert result["metadata"]["reconnect"]["maxAttempts"] == 5
+        assert result["metadata"]["reconnect"]["backoffMs"] == 1000
+
+    def test_created_dict_is_in_the_wire_format(self):
+        """create_handoff output is camelCase, has no nulls, and parses as a HandoffResult."""
+        result = create_handoff(
+            "websocket",
+            "wss://example.com/chat",
+            token="abc123",
+            session_id="s-1",
+            expected_latency=5,
+            expires_at="2025-01-15T12:00:00Z",
+            reconnect_allowed=True,
+            reconnect_max_attempts=3,
+            reconnect_backoff_ms=250,
+        )
+
+        assert result == {
+            "protocol": "websocket",
+            "endpoint": "wss://example.com/chat",
+            "credentials": {"token": "abc123", "sessionId": "s-1"},
+            "metadata": {
+                "expectedLatency": 5,
+                "expiresAt": "2025-01-15T12:00:00Z",
+                "reconnect": {"allowed": True, "maxAttempts": 3, "backoffMs": 250},
+            },
+        }
+        parsed = HandoffResult.model_validate(result)
+        assert parsed.credentials.session_id == "s-1"
+        assert parsed.metadata.reconnect.max_attempts == 3
+        assert to_wire(parsed) == result
+
+    def test_is_handoff_checks_camel_case_fields(self):
+        assert is_handoff({"protocol": "ws", "endpoint": "ws://x", "credentials": {"sessionId": 1}}) is False
+        assert is_handoff({"protocol": "ws", "endpoint": "ws://x", "metadata": {"expiresAt": 1}}) is False
+        assert (
+            is_handoff(
+                {"protocol": "ws", "endpoint": "ws://x", "metadata": {"reconnect": {"allowed": True, "maxAttempts": "5"}}}
+            )
+            is False
+        )
 
     def test_handoff_result_validates_created_dict(self):
         """Test that create_handoff output passes is_handoff validation."""

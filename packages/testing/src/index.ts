@@ -78,6 +78,7 @@ export { evaluateResult } from './runner/evaluator.js';
 // Executor
 export type {
 	CommandHandler,
+	ExecuteScenarioOptions,
 	ExecutorConfig,
 	InProcessExecutorConfig,
 	ScenarioValidationResult,
@@ -94,6 +95,7 @@ export type {
 	AppliedCommand,
 	ApplyFixtureOptions,
 	ApplyFixtureResult,
+	FixtureCommandHandler,
 	FixtureData,
 	LoadFixtureOptions,
 	LoadFixtureResult,
@@ -107,10 +109,12 @@ export {
 	createVerboseReporter,
 	TerminalReporter,
 } from './runner/reporter.js';
+export { isAssertionMatcher } from './types/matchers.js';
 // Report types
 export type {
 	AssertionResult,
 	EnvironmentInfo,
+	ScenarioError,
 	ScenarioOutcome,
 	ScenarioResult,
 	StepError,
@@ -138,7 +142,7 @@ export type {
 	Step,
 	Verification,
 } from './types/scenario.js';
-export { isAssertionMatcher, isScenario } from './types/scenario.js';
+export { isScenario } from './types/scenario.js';
 
 // ============================================================================
 // App Adapters (Phase 4)
@@ -197,33 +201,28 @@ export type {
 	ScenarioCoverageInput,
 	ScenarioCoverageOutput,
 } from './commands/coverage.js';
-export {
-	formatCoverageMarkdown,
-	formatCoverageTerminal,
-	scenarioCoverage,
-} from './commands/coverage.js';
+export { scenarioCoverage } from './commands/coverage.js';
+export { formatCoverageMarkdown, formatCoverageTerminal } from './commands/coverage-format.js';
 // scenario-create
 export type {
 	ScenarioCreateInput,
 	ScenarioCreateOutput,
 	ScenarioStepInput,
 } from './commands/create.js';
-export { listTemplates, scenarioCreate } from './commands/create.js';
+export { scenarioCreate } from './commands/create.js';
+export { listTemplates } from './commands/create-templates.js';
 // scenario-evaluate
 export type {
 	ScenarioEvaluateInput,
 	ScenarioEvaluateOutput,
 } from './commands/evaluate.js';
-export {
-	formatJunit,
-	formatMarkdown,
-	formatTerminal,
-	scenarioEvaluate,
-} from './commands/evaluate.js';
+export { scenarioEvaluate } from './commands/evaluate.js';
+export { formatJunit, formatMarkdown, formatTerminal } from './commands/evaluate-format.js';
 // scenario-list
 export type {
 	ScenarioListInput,
 	ScenarioListOutput,
+	ScenarioParseFailure,
 	ScenarioSummary,
 } from './commands/list.js';
 export { formatScenarioTable, scenarioList } from './commands/list.js';
@@ -261,12 +260,10 @@ export {
 	runStdioServer,
 } from './mcp/server.js';
 // MCP Tools
+export { generateTools, getTool, type McpTool } from './mcp/tool-schemas.js';
 export {
 	createToolRegistry,
 	executeTool,
-	generateTools,
-	getTool,
-	type McpTool,
 	type RegisteredTool,
 	type ToolExecutionContext,
 	type ToolHandler,

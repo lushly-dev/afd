@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 import os
+
+import pytest
 import yaml
 
 from afd.testing.commands.create import scenario_create
@@ -266,6 +268,11 @@ class TestScenarioList:
 
 class TestScenarioCreate:
 	"""Tests for the scenario-create command."""
+
+	@pytest.fixture(autouse=True)
+	def _project_root(self, tmp_path, monkeypatch):
+		"""scenario-create writes only inside the project root (the working directory)."""
+		monkeypatch.chdir(tmp_path)
 
 	def test_missing_name(self, tmp_path):
 		"""Returns validation error when name is missing."""

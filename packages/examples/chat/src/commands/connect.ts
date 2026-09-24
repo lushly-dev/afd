@@ -53,8 +53,8 @@ export const chatConnect = defineCommand<typeof inputSchema, HandoffResult>({
 			nickname: input.nickname ?? 'Anonymous',
 		});
 
-		// Get WebSocket base URL from environment or use default
-		const wsBaseUrl = process.env.WS_BASE_URL ?? 'ws://localhost:3001';
+		// Get WebSocket base URL from environment or use the local WebSocket server
+		const wsBaseUrl = process.env.WS_BASE_URL ?? `ws://localhost:${process.env.WS_PORT ?? '3001'}`;
 
 		return success<HandoffResult>(
 			{

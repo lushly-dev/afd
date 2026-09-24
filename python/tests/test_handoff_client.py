@@ -378,11 +378,15 @@ class TestReconnectingHandoff:
         conn._reconnect_attempt = 0
         await conn._attempt_reconnect()
 
-        # asyncio.sleep should have been called with backoff value (in seconds)
-        if mock_sleep.called:
-            delay = mock_sleep.call_args[0][0]
-            # First attempt: min(1000 * 2^0 + jitter, 30000) / 1000
-            assert 1.0 <= delay <= 1.2  # 1000ms + up to 100ms jitter
+        # Two failed attempts are rescheduled; the third connects.
+        delays = [call.args[0] for call in mock_sleep.call_args_list]
+        assert len(delays) == 3
+        # Attempt n waits min(1000 * 2^(n-1) + up to 100ms jitter, 30000) ms.
+        assert 1.0 <= delays[0] <= 1.1
+        assert 2.0 <= delays[1] <= 2.1
+        assert 4.0 <= delays[2] <= 4.1
+        assert conn.state == HandoffConnectionState.CONNECTED
+        assert conn.reconnect_attempt == 0
 
     @pytest.mark.asyncio
     @patch("afd.handoff_client.asyncio.sleep", new_callable=AsyncMock)
@@ -725,7 +729,6 @@ class TestBuiltinHandlers:
                 "endpoint": "https://example.com/events",
             }
             conn = await SseHandoffHandler.handle(handoff, HandoffConnectionOptions())
-            await conn.connect()
             with pytest.raises(NotImplementedError, match="server-push only"):
                 await conn.send({"test": True})
         except ImportError:

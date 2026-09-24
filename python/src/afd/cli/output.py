@@ -12,7 +12,7 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich.tree import Tree
 
-from afd.core import CommandResult, is_success
+from afd.core import CommandResult
 from afd.transports import ToolInfo
 
 # Global console instance

@@ -6,7 +6,7 @@
  *
  * @example
  * ```typescript
- * import { registry } from '@afd/experiment-in-process';
+ * import { registry } from '@afd/example-todo-directclient';
  *
  * // Direct execution - ~0.1-1ms vs ~10-100ms for MCP
  * const result = await registry.execute('todo-create', { title: 'Fast!' });

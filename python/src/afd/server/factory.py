@@ -6,15 +6,23 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Protocol, Type, TypeVar, runtime_checkable
+from typing import (
+    Any,
+    Protocol,
+    TypeVar,
+    runtime_checkable,
+)
 
 from pydantic import BaseModel, ConfigDict, create_model
 from pydantic import ValidationError as PydanticValidationError
 
 from afd.core.batch import (
+    BatchCommand,
     BatchCommandResult,
+    BatchOptions,
     BatchRequest,
     BatchResult,
     BatchTiming,
@@ -22,11 +30,11 @@ from afd.core.batch import (
     create_failed_batch_result,
 )
 from afd.core.commands import (
+    DEFAULT_EXPOSE,
     CommandContext,
     CommandDefinition,
     CommandExample,
     CommandRegistry,
-    DEFAULT_EXPOSE,
     ExposeOptions,
     create_command_registry,
 )
@@ -38,7 +46,7 @@ from afd.core.pipeline import (
     create_pipeline_failure,
     execute_pipeline,
 )
-from afd.core.result import CommandResult, error
+from afd.core.result import CommandResult, ResultMetadata, coerce_command_result, error
 from afd.core.wire import to_wire
 from afd.server.bootstrap import ContextState, create_context_state, get_bootstrap_commands
 from afd.server.decorators import (
@@ -49,8 +57,8 @@ from afd.server.decorators import (
     has_command_metadata,
 )
 from afd.server.middleware import CommandMiddleware
-from afd.server.tool_router import ToolRouterDeps, create_tool_router
-from afd.server.tools import filter_commands_by_context, get_tools_list
+from afd.server.tool_router import ToolRouterDeps, create_tool_router, new_trace_id
+from afd.server.tools import get_tools_list
 from afd.server.types import ContextConfig, GroupByFn, ToolStrategy
 
 TInput = TypeVar("TInput", bound=BaseModel)
@@ -58,6 +66,20 @@ TOutput = TypeVar("TOutput")
 
 # Never log to stdout: the stdio transport uses it for JSON-RPC.
 logger = logging.getLogger("afd.server")
+
+META_TOOL_NAMES: frozenset[str] = frozenset(
+    {"afd-call", "afd-batch", "afd-pipe", "afd-discover", "afd-detail"}
+)
+"""Tools the router handles itself. They are not commands: a command cannot use
+these names, and batch items and pipeline steps cannot call them."""
+
+_CONTEXT_COMMAND_NAMES = frozenset({"afd-context-enter", "afd-context-exit"})
+
+DEFAULT_MAX_BATCH_SIZE = 500
+"""Default maximum number of commands in one ``afd-batch`` request."""
+
+DEFAULT_MAX_BATCH_PARALLELISM = 16
+"""Default maximum ``options.parallelism`` of one ``afd-batch`` request."""
 
 
 @runtime_checkable
@@ -77,27 +99,34 @@ class ServerConfig:
 
     name: str
     version: str = "1.0.0"
-    description: Optional[str] = None
-    transport: Optional[str] = "fastmcp"
-    middleware: List[CommandMiddleware] = field(default_factory=list)
+    description: str | None = None
+    transport: str | None = "fastmcp"
+    middleware: list[CommandMiddleware] = field(default_factory=list)
     tool_strategy: ToolStrategy = "individual"
-    contexts: List[ContextConfig] = field(default_factory=list)
-    group_by: Optional[GroupByFn] = None
+    contexts: list[ContextConfig] = field(default_factory=list)
+    group_by: GroupByFn | None = None
     dev_mode: bool = False
+    max_batch_size: int = DEFAULT_MAX_BATCH_SIZE
+    max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM
 
 
 class MCPServer:
     """AFD MCP server for exposing commands and built-in tools."""
 
     def __init__(self, config: ServerConfig):
+        if config.max_batch_size < 1 or config.max_batch_parallelism < 1:
+            raise ValueError("max_batch_size and max_batch_parallelism must be at least 1")
         self.config = config
         self._registry = create_command_registry()
-        self._commands: Dict[str, Callable] = {}
-        self._metadata: Dict[str, CommandMetadata] = {}
+        self._commands: dict[str, Callable] = {}
+        self._metadata: dict[str, CommandMetadata] = {}
         self._mcp_server = None
-        self._middleware: List[CommandMiddleware] = list(config.middleware)
+        self._middleware: list[CommandMiddleware] = list(config.middleware)
         self._context_state: ContextState = create_context_state()
-        self._bootstrap_commands: Optional[List[CommandDefinition]] = None
+        self._bootstrap_commands: list[CommandDefinition] | None = None
+        # Per-call caches, rebuilt after register() or a context change.
+        self._command_index: dict[str, CommandDefinition] | None = None
+        self._router: Callable[[str, Any], Any] | None = None
 
     @property
     def name(self) -> str:
@@ -115,22 +144,22 @@ class MCPServer:
     def context_state(self) -> ContextState:
         return self._context_state
 
-    def list_contexts(self) -> List[ContextConfig]:
+    def list_contexts(self) -> list[ContextConfig]:
         return list(self.config.contexts)
 
     def command(
         self,
         name: str,
         description: str,
-        category: Optional[str] = None,
-        input_schema: Optional[Type[BaseModel]] = None,
-        output_schema: Optional[Type[BaseModel]] = None,
-        tags: Optional[List[str]] = None,
+        category: str | None = None,
+        input_schema: type[BaseModel] | None = None,
+        output_schema: type[BaseModel] | None = None,
+        tags: list[str] | None = None,
         mutation: bool = False,
-        examples: Optional[List[CommandExample | Dict[str, Any]]] = None,
-        requires: Optional[List[str]] = None,
-        contexts: Optional[List[str]] = None,
-        expose: Optional[ExposeOptions] = None,
+        examples: list[CommandExample | dict[str, Any]] | None = None,
+        requires: list[str] | None = None,
+        contexts: list[str] | None = None,
+        expose: ExposeOptions | None = None,
     ) -> Callable:
         """Decorator to register a command with this server."""
 
@@ -154,7 +183,14 @@ class MCPServer:
         return decorator
 
     def register(self, func: Callable) -> None:
-        """Register an already-decorated command function."""
+        """Register an already-decorated command function.
+
+        Raises:
+            ValueError: If the function is not decorated, or its name is one of
+                the router's built-in tools (``afd-call``, ``afd-batch``,
+                ``afd-pipe``, ``afd-discover``, ``afd-detail``), which would
+                make the command unreachable.
+        """
 
         if not has_command_metadata(func):
             raise ValueError(f"Function {func.__name__} is not decorated with @define_command")
@@ -163,15 +199,26 @@ class MCPServer:
         metadata = get_command_metadata(func)
         if definition is None or metadata is None:
             raise ValueError(f"Function {func.__name__} is missing command metadata")
+        if definition.name in META_TOOL_NAMES:
+            raise ValueError(
+                f"Command name '{definition.name}' is reserved: the tool router handles "
+                f"'{definition.name}' itself, so the command would be unreachable. "
+                "Rename the command."
+            )
 
         self._registry.register(definition)
         self._commands[definition.name] = func
         self._metadata[definition.name] = metadata
+        self._invalidate_caches()
         self._sync_mcp_tool_definitions()
 
-    def _get_bootstrap_commands(self) -> List[CommandDefinition]:
+    def _invalidate_caches(self) -> None:
+        self._command_index = None
+        self._router = None
+
+    def _get_bootstrap_commands(self) -> list[CommandDefinition]:
         if self._bootstrap_commands is None:
-            options: Dict[str, Any] = {
+            options: dict[str, Any] = {
                 "get_json_schema": lambda command: command.input_schema or {},
             }
             if self.config.contexts:
@@ -187,19 +234,31 @@ class MCPServer:
             )
         return list(self._bootstrap_commands)
 
+    def _get_command_index(self) -> dict[str, CommandDefinition]:
+        """Name -> definition for registered and bootstrap commands (cached)."""
+        if self._command_index is None:
+            index = {command.name: command for command in self._get_bootstrap_commands()}
+            # A registered command shadows a bootstrap command of the same name.
+            index.update({command.name: command for command in self._registry.list()})
+            self._command_index = index
+        return self._command_index
+
     def list_commands(
         self,
         *,
         include_bootstrap: bool = False,
         context_filtered: bool = False,
-    ) -> List[CommandDefinition]:
+    ) -> list[CommandDefinition]:
         """List registered commands."""
 
         commands = list(self._registry.list())
         if include_bootstrap:
             commands.extend(self._get_bootstrap_commands())
         if context_filtered:
-            commands = filter_commands_by_context(commands, self._context_state.get_active())
+            active_context = self._context_state.get_active()
+            commands = [
+                command for command in commands if _in_context(command, active_context)
+            ]
         return commands
 
     def _find_command(
@@ -208,11 +267,17 @@ class MCPServer:
         *,
         include_bootstrap: bool = True,
         context_filtered: bool = False,
-    ) -> Optional[CommandDefinition]:
-        for command in self.list_commands(include_bootstrap=include_bootstrap, context_filtered=context_filtered):
-            if command.name == name:
-                return command
-        return None
+    ) -> CommandDefinition | None:
+        command = (
+            self._get_command_index().get(name)
+            if include_bootstrap
+            else self._registry.get(name)
+        )
+        if command is None:
+            return None
+        if context_filtered and not _in_context(command, self._context_state.get_active()):
+            return None
+        return command
 
     def _is_exposed_to(self, command: CommandDefinition, interface: str) -> bool:
         expose = command.expose if command.expose is not None else DEFAULT_EXPOSE
@@ -224,7 +289,7 @@ class MCPServer:
         interface: str = "mcp",
         include_bootstrap: bool = True,
         context_filtered: bool = False,
-    ) -> List[CommandDefinition]:
+    ) -> list[CommandDefinition]:
         """List commands exposed on a specific interface."""
 
         return [
@@ -240,7 +305,7 @@ class MCPServer:
         self,
         command: CommandDefinition,
         input: Any,
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
     ) -> CommandResult:
         context = context or CommandContext()
 
@@ -267,12 +332,22 @@ class MCPServer:
                 suggestion="Use afd-context-list to inspect contexts, or afd-context-enter to switch.",
             )
 
+        start = time.perf_counter()
         try:
-            return await command.handler(input, context)
+            result = await command.handler(input, context)
         except Exception as exc:
             return self._internal_error(command.name, exc)
+        if isinstance(result, CommandResult):
+            # Server metadata, as in TypeScript: executionTimeMs, commandVersion, traceId.
+            result = _with_execution_metadata(
+                result,
+                execution_time_ms=(time.perf_counter() - start) * 1000,
+                command_version=command.version,
+                trace_id=context.trace_id,
+            )
+        return result
 
-    def _internal_error(self, command_name: str, exc: Exception) -> CommandResult:
+    def _internal_error(self, command_name: str, exc: BaseException) -> CommandResult:
         """Log an unexpected exception and return a failure that is safe to send remotely.
 
         The exception text is only returned when ``dev_mode`` is enabled.
@@ -294,11 +369,22 @@ class MCPServer:
             suggestion="Contact support if this persists",
         )
 
+    def _as_command_result(self, command_name: str, result: Any) -> CommandResult:
+        """Coerce a batch item or pipeline step result (see coerce_command_result)."""
+        if isinstance(result, CommandResult):
+            return result
+        logger.warning(
+            "Command '%s' returned %s instead of a CommandResult",
+            command_name,
+            type(result).__name__,
+        )
+        return coerce_command_result(result, command_name)
+
     async def _execute_command_direct(
         self,
         name: str,
         input: Any,
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
     ) -> CommandResult:
         command = self._find_command(name, include_bootstrap=True, context_filtered=True)
         if command is None:
@@ -311,51 +397,62 @@ class MCPServer:
                 )
             return error(
                 "COMMAND_NOT_FOUND",
-                f"Command '{name}' not found",
+                f"Command '{name[:128]}' not found",
                 suggestion="Use afd-help or afd-discover to inspect available commands.",
             )
         return await self._invoke_command(command, input, context)
+
+    async def _execute_command(
+        self,
+        name: str,
+        input: Any,
+        context: CommandContext | None = None,
+    ) -> Any:
+        """Run a command (never a built-in tool) through the middleware chain.
+
+        An exception from a handler or a middleware becomes a sanitized
+        COMMAND_EXECUTION_ERROR result (see ``_internal_error``), as in the
+        TypeScript server, so it never reaches the transport with its text.
+        """
+        context = context or CommandContext()
+
+        async def run_handler() -> CommandResult:
+            return await self._execute_command_direct(name, input, context)
+
+        next_fn: Callable[[], Any] = run_handler
+        for middleware in reversed(self._middleware):
+            next_fn = (lambda mw, nxt: (lambda: mw(name, input, context, nxt)))(middleware, next_fn)
+
+        try:
+            result = await next_fn()
+        except Exception as exc:
+            result = self._internal_error(name, exc)
+        self._refresh_dynamic_tools(name, result)
+        return result
 
     async def execute(
         self,
         name: str,
         input: Any,
-        context: Optional[CommandContext] = None,
+        context: CommandContext | None = None,
     ) -> Any:
         """Execute a command or built-in tool by name."""
 
-        if name in {"afd-call", "afd-batch", "afd-pipe", "afd-discover", "afd-detail"}:
+        if name in META_TOOL_NAMES:
             return await self.route_tool_call(name, input)
-
-        context = context or CommandContext()
-
-        if not self._middleware:
-            result = await self._execute_command_direct(name, input, context)
-            self._refresh_dynamic_tools(name, result)
-            return result
-
-        async def run_handler() -> CommandResult:
-            return await self._execute_command_direct(name, input, context)
-
-        next_fn = run_handler
-        for middleware in reversed(self._middleware):
-            current_next = next_fn
-            next_fn = (lambda mw, nxt: (lambda: mw(name, input, context, nxt)))(middleware, current_next)
-
-        result = await next_fn()
-        self._refresh_dynamic_tools(name, result)
-        return result
+        return await self._execute_command(name, input, context)
 
     def _refresh_dynamic_tools(self, name: str, result: Any) -> None:
-        """Refresh live MCP tool registration after context-changing commands."""
+        """Refresh caches and live MCP tools after context-changing commands."""
 
         if (
-            self._mcp_server is not None
-            and name in {"afd-context-enter", "afd-context-exit"}
+            name in _CONTEXT_COMMAND_NAMES
             and isinstance(result, CommandResult)
             and result.success
         ):
-            self._sync_mcp_tool_definitions()
+            self._router = None
+            if self._mcp_server is not None:
+                self._sync_mcp_tool_definitions()
 
     def _install_fastmcp_context_error_translation(self) -> None:
         """Translate stale direct tool calls into actionable context errors when possible."""
@@ -409,14 +506,69 @@ class MCPServer:
         tool_manager.call_tool = wrapped_call_tool
         tool_manager._afd_context_error_translation = True
 
+    # ── Batch ──────────────────────────────────────────────────────────────
+
+    def _batch_problems(self, request: BatchRequest) -> list[dict[str, Any]]:
+        """Envelope problems that reject a whole batch before any command runs."""
+        problems: list[dict[str, Any]] = []
+        count = len(request.commands)
+        if count == 0:
+            problems.append(
+                {"path": "commands", "message": "A batch needs at least one command", "code": "too_short"}
+            )
+        elif count > self.config.max_batch_size:
+            problems.append(
+                {
+                    "path": "commands",
+                    "message": (
+                        f"A batch accepts at most {self.config.max_batch_size} commands "
+                        f"(got {count})"
+                    ),
+                    "code": "too_long",
+                }
+            )
+        parallelism = request.options.parallelism if request.options else 1
+        if parallelism > self.config.max_batch_parallelism:
+            problems.append(
+                {
+                    "path": "options.parallelism",
+                    "message": (
+                        f"parallelism must be at most {self.config.max_batch_parallelism} "
+                        f"(got {parallelism})"
+                    ),
+                    "code": "less_than_equal",
+                }
+            )
+        for index, item in enumerate(request.commands):
+            if item.command in META_TOOL_NAMES:
+                problems.append(
+                    {
+                        "path": f"commands.{index}.command",
+                        "message": (
+                            f"'{item.command}' is a built-in tool, not a command, "
+                            "and cannot run inside a batch"
+                        ),
+                        "code": "reserved_tool",
+                    }
+                )
+        return problems
+
     async def _execute_batch(
         self,
         request: BatchRequest | dict[str, Any],
-        context: Optional[CommandContext] = None,
-    ):
+        context: CommandContext | None = None,
+    ) -> BatchResult:
+        """Run a batch with partial-success semantics.
+
+        Nothing keeps running after the result is returned: when the batch
+        stops (``stopOnError`` failure or the ``timeout`` deadline) or is
+        itself cancelled, commands still in flight are cancelled and awaited.
+        Every item is coerced to a CommandResult, so aggregation never raises
+        after commands have run.
+        """
         start_time = time.perf_counter()
         started_at = datetime.now(timezone.utc).isoformat()
-        results: List[BatchCommandResult] = []
+        context = context or CommandContext()
         if not isinstance(request, BatchRequest):
             payload = dict(request)
             options = dict(payload.get("options") or {})
@@ -430,104 +582,157 @@ class MCPServer:
             except PydanticValidationError as exc:
                 return _invalid_batch(_describe_validation_error(exc))
 
-        options = request.options
-        parallelism = options.parallelism if options else 1
-        timeout_ms = options.timeout if options else None
-        semaphore = asyncio.Semaphore(parallelism)
+        problems = self._batch_problems(request)
+        if problems:
+            return _invalid_batch(
+                problems,
+                suggestion=(
+                    f"Send 1 to {self.config.max_batch_size} commands with parallelism at most "
+                    f"{self.config.max_batch_parallelism}. Batch only commands: call afd-batch, "
+                    "afd-pipe, afd-call, afd-discover and afd-detail as separate tool calls."
+                ),
+            )
+
+        options = request.options or BatchOptions()
+        commands = request.commands
+        total = len(commands)
+        parallelism = min(options.parallelism, total)
+        deadline = None if options.timeout is None else start_time + options.timeout / 1000
+        batch_trace_id = context.trace_id or new_trace_id("batch")
+        results: list[BatchCommandResult | None] = [None] * total
+        in_flight: dict[asyncio.Task[CommandResult], tuple[int, float]] = {}
+        next_index = 0
         stopped = False
         timed_out = False
-
-        async def run_command(index: int):
-            nonlocal stopped, timed_out
-            batch_command = request.commands[index]
-            async with semaphore:
-                if stopped or timed_out:
-                    return None
-                command_start = time.perf_counter()
-                remaining = None
-                if timeout_ms is not None:
-                    remaining = (timeout_ms / 1000) - (time.perf_counter() - start_time)
-                try:
-                    if remaining is not None and remaining <= 0:
-                        raise asyncio.TimeoutError
-                    execution = self.execute(batch_command.command, batch_command.input, context)
-                    command_result = (
-                        await asyncio.wait_for(execution, timeout=remaining)
-                        if remaining is not None
-                        else await execution
-                    )
-                except asyncio.TimeoutError:
-                    timed_out = True
-                    command_result = CommandResult(
-                        success=False,
-                        error=CommandError(
-                            code="BATCH_TIMEOUT",
-                            message=f"Batch timeout exceeded ({timeout_ms}ms)",
-                            suggestion="Increase timeout or reduce the number of commands",
-                            retryable=True,
-                        ),
-                    )
-                except Exception as exc:
-                    command_result = self._internal_error(batch_command.command, exc)
-                duration_ms = (time.perf_counter() - command_start) * 1000
-                if options and options.stop_on_error and not command_result.success:
-                    stopped = True
-                return BatchCommandResult(
-                    id=batch_command.id or f"cmd-{index}",
-                    index=index,
-                    command=batch_command.command,
-                    result=command_result,
-                    duration_ms=duration_ms,
-                )
-
-        scheduled = await asyncio.gather(
-            *(run_command(index) for index in range(len(request.commands)))
+        timeout_error = CommandError(
+            code="BATCH_TIMEOUT",
+            message=f"Batch timeout exceeded ({options.timeout}ms)",
+            suggestion="Increase timeout or reduce the number of commands",
+            retryable=True,
         )
-        for index, result in enumerate(scheduled):
-            if result is not None:
-                results.append(result)
-                continue
-            batch_command = request.commands[index]
-            command_error = CommandError(
-                code="BATCH_TIMEOUT" if timed_out else "COMMAND_SKIPPED",
-                message=(
-                    f"Batch timeout exceeded ({timeout_ms}ms)"
-                    if timed_out
-                    else "Command skipped because batch execution stopped after a failure"
-                ),
-                suggestion=(
-                    "Increase timeout or reduce the number of commands"
-                    if timed_out
-                    else "Disable stop_on_error to execute every command"
-                ),
-                retryable=True if timed_out else None,
+        cancelled_error = CommandError(
+            code="COMMAND_CANCELLED",
+            message="Command cancelled because the batch stopped after a failure",
+            suggestion=(
+                "It may have partially run: check its effects, then retry it on its own "
+                "or disable stopOnError"
+            ),
+        )
+
+        def record(index: int, result: CommandResult, started: float) -> None:
+            item = commands[index]
+            results[index] = BatchCommandResult(
+                id=item.id or f"cmd-{index}",
+                index=index,
+                command=item.command,
+                result=result,
+                duration_ms=(time.perf_counter() - started) * 1000,
             )
-            results.append(
-                BatchCommandResult(
-                    id=batch_command.id or f"cmd-{index}",
+
+        try:
+            while True:
+                while (
+                    not stopped
+                    and not timed_out
+                    and next_index < total
+                    and len(in_flight) < parallelism
+                ):
+                    if deadline is not None and time.perf_counter() >= deadline:
+                        timed_out = True
+                        break
+                    index = next_index
+                    next_index += 1
+                    item_context = CommandContext(
+                        trace_id=f"{batch_trace_id}-{index}",
+                        timeout=context.timeout,
+                        extra=dict(context.extra),
+                    )
+                    task = asyncio.ensure_future(
+                        self._run_batch_item(commands[index], item_context)
+                    )
+                    in_flight[task] = (index, time.perf_counter())
+                if not in_flight or stopped or timed_out:
+                    break
+                wait_s = None if deadline is None else max(0.0, deadline - time.perf_counter())
+                done, _ = await asyncio.wait(
+                    in_flight, timeout=wait_s, return_when=asyncio.FIRST_COMPLETED
+                )
+                if not done:
+                    timed_out = True
+                    break
+                for task in done:
+                    index, started = in_flight.pop(task)
+                    result = task.result()
+                    record(index, result, started)
+                    if options.stop_on_error and not result.success:
+                        stopped = True
+
+            # The batch has stopped: cancel what is still running and wait for
+            # it, so that no command keeps running after the result is sent.
+            if in_flight:
+                pending = dict(in_flight)
+                in_flight.clear()
+                await _cancel_and_wait(pending)
+                for task, (index, started) in pending.items():
+                    if not task.cancelled() and task.exception() is None:
+                        record(index, task.result(), started)  # finished first
+                    else:
+                        failed = timeout_error if timed_out else cancelled_error
+                        record(index, CommandResult(success=False, error=failed), started)
+        finally:
+            # Reached with tasks in flight only when the batch itself is
+            # cancelled (for example, the client went away).
+            if in_flight:
+                await _cancel_and_wait(in_flight)
+
+        final: list[BatchCommandResult] = []
+        for index, item_result in enumerate(results):
+            if item_result is None:
+                item = commands[index]
+                skipped = timeout_error if timed_out else CommandError(
+                    code="COMMAND_SKIPPED",
+                    message="Command skipped because batch execution stopped after a failure",
+                    suggestion="Disable stopOnError to execute every command",
+                )
+                item_result = BatchCommandResult(
+                    id=item.id or f"cmd-{index}",
                     index=index,
-                    command=batch_command.command,
-                    result=CommandResult(success=False, error=command_error),
+                    command=item.command,
+                    result=CommandResult(success=False, error=skipped),
                     duration_ms=0,
                 )
-            )
+            final.append(item_result)
 
         total_ms = (time.perf_counter() - start_time) * 1000
         timing = BatchTiming(
             total_ms=total_ms,
-            average_ms=(total_ms / len(results)) if results else 0,
+            average_ms=total_ms / len(final),
             started_at=started_at,
             completed_at=datetime.now(timezone.utc).isoformat(),
         )
-        return create_batch_result(results, timing)
+        return create_batch_result(final, timing, metadata=ResultMetadata(trace_id=batch_trace_id))
+
+    async def _run_batch_item(
+        self, item: BatchCommand, context: CommandContext
+    ) -> CommandResult:
+        """Run one batch command. Never raises, except when cancelled."""
+        try:
+            result = await self._execute_command(item.command, item.input, context)
+        except Exception as exc:
+            result = self._internal_error(item.command, exc)
+        return self._as_command_result(item.command, result)
+
+    # ── Pipeline ───────────────────────────────────────────────────────────
 
     async def _execute_pipeline(
         self,
         request: PipelineRequest | dict[str, Any],
-        context: Optional[CommandContext] = None,
-    ):
+        context: CommandContext | None = None,
+    ) -> PipelineResult[Any]:
         if not isinstance(request, PipelineRequest):
             # Options accept camelCase (continueOnFailure, timeoutMs) and snake_case.
+            # Conditions are validated here too, so a malformed `when` rejects
+            # the whole pipeline before any step runs.
             try:
                 request = PipelineRequest.model_validate(request)
             except PydanticValidationError as exc:
@@ -544,47 +749,83 @@ class MCPServer:
                     )
                 )
 
-        async def executor(command_name: str, payload: Dict[str, Any]) -> CommandResult:
+        reserved = [
+            {
+                "path": f"steps.{index}.command",
+                "message": (
+                    f"'{step.command}' is a built-in tool, not a command, "
+                    "and cannot run as a pipeline step"
+                ),
+                "code": "reserved_tool",
+            }
+            for index, step in enumerate(request.steps)
+            if step.command in META_TOOL_NAMES
+        ]
+        if reserved:
+            return create_pipeline_failure(
+                CommandError(
+                    code="INVALID_PIPELINE_REQUEST",
+                    message="Pipeline steps cannot call built-in tools",
+                    suggestion=(
+                        "Use command names in steps. Call afd-batch, afd-pipe, afd-call, "
+                        "afd-discover and afd-detail as separate tool calls."
+                    ),
+                    retryable=False,
+                    details={"errors": reserved},
+                )
+            )
+
+        step_context = context or CommandContext()
+
+        async def executor(command_name: str, payload: dict[str, Any]) -> CommandResult:
             try:
-                result = await self.execute(command_name, payload, context)
+                result = await self._execute_command(command_name, payload, step_context)
             except Exception as exc:
-                return self._internal_error(command_name, exc)
-            if not isinstance(result, CommandResult):
-                raise TypeError(f"Pipeline step '{command_name}' did not return a CommandResult")
-            return result
+                result = self._internal_error(command_name, exc)
+            return self._as_command_result(command_name, result)
 
         return await execute_pipeline(request, executor)
 
-    def _create_router(self) -> Callable[[str, Any], Any]:
-        commands = self.list_exposed_commands(interface="mcp", include_bootstrap=True, context_filtered=False)
-        return create_tool_router(
-            ToolRouterDeps(
-                execute_command=self.execute,
-                execute_batch=self._execute_batch,
-                execute_pipeline=self._execute_pipeline,
-                commands=commands,
-                tool_strategy=self.config.tool_strategy,
-                group_by_fn=self.config.group_by,
-                # Only MCP-exposed commands are visible to MCP routing and
-                # discovery (afd-call, afd-detail), as in the TS server.
-                all_commands=commands,
-                exposed_command_names={command.name for command in commands},
-                context_state=self._context_state,
+    # ── Tool routing ───────────────────────────────────────────────────────
+
+    def _get_router(self) -> Callable[[str, Any], Any]:
+        """The tool router, built once and rebuilt after register() or a context change."""
+        if self._router is None:
+            commands = self.list_exposed_commands(
+                interface="mcp", include_bootstrap=True, context_filtered=False
             )
-        )
+            self._router = create_tool_router(
+                ToolRouterDeps(
+                    execute_command=self._execute_command,
+                    execute_batch=self._execute_batch,
+                    execute_pipeline=self._execute_pipeline,
+                    commands=commands,
+                    tool_strategy=self.config.tool_strategy,
+                    group_by_fn=self.config.group_by,
+                    # Only MCP-exposed commands are visible to MCP routing and
+                    # discovery (afd-call, afd-detail), as in the TS server.
+                    all_commands=commands,
+                    exposed_command_names={command.name for command in commands},
+                    context_state=self._context_state,
+                )
+            )
+        return self._router
+
+    def _create_router(self) -> Callable[[str, Any], Any]:
+        """Compatibility alias for :meth:`_get_router`."""
+        return self._get_router()
 
     async def route_tool_call(self, tool_name: str, args: Any = None) -> Any:
         """Route a tool call through the shared tool router."""
 
-        router = self._create_router()
-        return await router(tool_name, args or {})
+        return await self._get_router()(tool_name, args or {})
 
     async def call_tool(self, tool_name: str, args: Any = None) -> Any:
         """Compatibility wrapper for invoking an MCP-visible tool directly."""
 
         return await self.route_tool_call(tool_name, args or {})
 
-    def get_tool_definitions(self) -> List[Dict[str, Any]]:
+    def get_tool_definitions(self) -> list[dict[str, Any]]:
         """Return the MCP-visible tool definitions for the current strategy."""
 
         return get_tools_list(
@@ -594,7 +835,7 @@ class MCPServer:
             active_context=self._context_state.get_active(),
         )
 
-    def get_mcp_tools(self) -> List[Dict[str, Any]]:
+    def get_mcp_tools(self) -> list[dict[str, Any]]:
         """Compatibility wrapper returning current MCP-visible tool definitions."""
 
         return self.get_tool_definitions()
@@ -614,7 +855,7 @@ class MCPServer:
             tool = self._create_fastmcp_tool(tool_definition)
             tool_manager._tools[tool.name] = tool
 
-    def _build_input_model(self, tool_name: str, schema: Dict[str, Any]) -> Type[BaseModel]:
+    def _build_input_model(self, tool_name: str, schema: dict[str, Any]) -> type[BaseModel]:
         """Build a FastMCP argument model that passes arguments through unchanged.
 
         The advertised ``inputSchema`` is the command's schema, but FastMCP does
@@ -635,7 +876,7 @@ class MCPServer:
             __base__=PassthroughArgs,
         )
 
-    def _create_fastmcp_tool(self, tool_definition: Dict[str, Any]):
+    def _create_fastmcp_tool(self, tool_definition: dict[str, Any]):
         from mcp.server.fastmcp.tools import Tool
         from mcp.server.fastmcp.utilities.func_metadata import FuncMetadata
 
@@ -696,6 +937,42 @@ class MCPServer:
             raise ValueError(f"Unknown transport: {transport}")
 
 
+def _in_context(command: CommandDefinition, active_context: str | None) -> bool:
+    """Whether a command is visible in the active context (universal commands always are)."""
+    return not active_context or not command.contexts or active_context in command.contexts
+
+
+def _with_execution_metadata(
+    result: CommandResult,
+    *,
+    execution_time_ms: float,
+    command_version: str | None,
+    trace_id: str | None,
+) -> CommandResult:
+    """A copy of ``result`` whose metadata carries the server's execution fields.
+
+    The handler's own result object is never mutated (it may be shared).
+    """
+    updates: dict[str, Any] = {"execution_time_ms": round(execution_time_ms, 2)}
+    if command_version:
+        updates["command_version"] = command_version
+    if trace_id:
+        updates["trace_id"] = trace_id
+    metadata = (
+        result.metadata.model_copy(update=updates)
+        if result.metadata is not None
+        else ResultMetadata(**updates)
+    )
+    return result.model_copy(update={"metadata": metadata})
+
+
+async def _cancel_and_wait(tasks: dict[asyncio.Task[Any], Any]) -> None:
+    """Cancel tasks and wait until every one of them has finished."""
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+
 def _is_error_result(result: Any) -> bool:
     """Return the MCP ``isError`` flag for a routed tool result.
 
@@ -721,7 +998,7 @@ def _tool_call_result(result: Any) -> Any:
     )
 
 
-def _describe_validation_error(exc: PydanticValidationError) -> List[Dict[str, Any]]:
+def _describe_validation_error(exc: PydanticValidationError) -> list[dict[str, Any]]:
     """Field paths and messages of a pydantic error, without input values."""
     return [
         {
@@ -733,13 +1010,14 @@ def _describe_validation_error(exc: PydanticValidationError) -> List[Dict[str, A
     ]
 
 
-def _invalid_batch(problem: Any) -> BatchResult:
+def _invalid_batch(problem: Any, *, suggestion: str | None = None) -> BatchResult:
     """A failed BatchResult for a request whose envelope is invalid."""
     return create_failed_batch_result(
         CommandError(
             code="INVALID_BATCH_REQUEST",
             message="Invalid batch request",
-            suggestion=(
+            suggestion=suggestion
+            or (
                 "Provide { commands: [{ command, input }], options: { stopOnError, "
                 "timeout (or timeoutMs), parallelism } }"
             ),
@@ -752,13 +1030,15 @@ def _invalid_batch(problem: Any) -> BatchResult:
 def create_server(
     name: str,
     version: str = "1.0.0",
-    description: Optional[str] = None,
-    middleware: Optional[List[CommandMiddleware]] = None,
+    description: str | None = None,
+    middleware: list[CommandMiddleware] | None = None,
     *,
     tool_strategy: ToolStrategy = "individual",
-    contexts: Optional[List[ContextConfig]] = None,
-    group_by: Optional[GroupByFn] = None,
+    contexts: list[ContextConfig] | None = None,
+    group_by: GroupByFn | None = None,
     dev_mode: bool = False,
+    max_batch_size: int = DEFAULT_MAX_BATCH_SIZE,
+    max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM,
 ) -> MCPServer:
     """Create a new AFD MCP server.
 
@@ -768,6 +1048,12 @@ def create_server(
             instead of the exception text. The exception and its traceback are
             logged to the ``afd.server`` logger either way. Mirrors the
             TypeScript server's ``devMode`` option.
+        max_batch_size: Most commands one ``afd-batch`` request may hold
+            (default 500). A larger batch returns ``INVALID_BATCH_REQUEST``
+            without running anything.
+        max_batch_parallelism: Highest ``options.parallelism`` an ``afd-batch``
+            request may ask for (default 16). A higher value returns
+            ``INVALID_BATCH_REQUEST``.
     """
 
     normalized_contexts = [
@@ -776,7 +1062,7 @@ def create_server(
         else ContextConfig(**item)
         if isinstance(item, dict)
         else ContextConfig(
-            name=getattr(item, "name"),
+            name=item.name,
             description=getattr(item, "description", None),
             triggers=list(getattr(item, "triggers", []) or []),
             priority=getattr(item, "priority", None),
@@ -793,5 +1079,7 @@ def create_server(
         contexts=normalized_contexts,
         group_by=group_by,
         dev_mode=dev_mode,
+        max_batch_size=max_batch_size,
+        max_batch_parallelism=max_batch_parallelism,
     )
     return MCPServer(config)

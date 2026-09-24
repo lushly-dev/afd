@@ -21,8 +21,8 @@
 		"typecheck": "tsc -p tsconfig.typecheck.json",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"lint": "biome check src/",
-		"format": "biome format --write src/"
+		"lint": "biome check src/ tests/ vitest.config.ts",
+		"format": "biome format --write src/ tests/ vitest.config.ts"
 	},
 	"devDependencies": {
 		"@lushly-dev/afd-core": "workspace:*",

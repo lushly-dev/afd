@@ -100,7 +100,7 @@ interface SurfaceValidationOptions {
   skipCategories?: string[];           // Categories to exclude from analysis
   strict?: boolean;                    // Treat warnings as errors
   suppressions?: string[];             // Suppress specific findings
-  additionalInjectionPatterns?: InjectionPattern[];
+  additionalInjectionPatterns?: InjectionPattern[]; // Added to the built-in patterns
   checkSchemaComplexity?: boolean;    // Default: true
   schemaComplexityThreshold?: number; // Default: 13 (warning threshold)
 }
@@ -147,14 +147,25 @@ Start an MCP server exposing all scenario commands:
 ```typescript
 import { createMcpTestingServer, runStdioServer } from '@lushly-dev/afd-testing';
 
-// Create server with command handler
+// Handle JSON-RPC requests programmatically
 const server = createMcpTestingServer({
-  handler: async (command, input) => registry.execute(command, input),
+  commandHandler: async (command, input) => registry.execute(command, input),
+  cwd: process.cwd(), // tools may only read and write inside this directory
 });
 
-// Start with stdio transport
-await runStdioServer(server);
+// Or serve over stdio: one JSON-RPC message per line on stdin, responses on stdout
+await runStdioServer({
+  commandHandler: async (command, input) => registry.execute(command, input),
+});
 ```
+
+`commandHandler` runs the commands that `scenario-evaluate` executes. Every path
+argument (`directory`, `scenarios`, `output`, and the fixture files that scenarios
+name) is resolved against `cwd`; a path that leaves it, including through a
+symlinked directory, returns `PATH_OUTSIDE_WORKSPACE`. Tool arguments are checked
+against each tool's `inputSchema` (types, enums, required fields, no unknown
+fields) and invalid input returns `VALIDATION_ERROR`. Notifications (messages
+without an `id`) get no response.
 
 ### MCP Tools
 
@@ -162,34 +173,36 @@ All scenario commands are exposed as MCP tools:
 
 | Tool | Description |
 |------|-------------|
-| `scenario_list` | List and filter scenarios |
-| `scenario_evaluate` | Run scenarios with reporting |
-| `scenario_coverage` | Calculate coverage metrics |
-| `scenario_create` | Generate scenario files |
-| `scenario_suggest` | AI-powered suggestions |
+| `scenario-list` | List and filter scenarios, including files that failed to parse |
+| `scenario-evaluate` | Run scenarios and return a report (`failFast`, `timeout`, `concurrency`, `format`, `output`) |
+| `scenario-coverage` | Calculate command, error and job coverage |
+| `scenario-create` | Generate a scenario file from a template |
+| `scenario-suggest` | Heuristic suggestions from keyword and file-name rules (no AI model) |
 
 ### Agent Hints
 
 All results include `_agentHints` for AI interpretation:
 
 ```typescript
-import { enhanceWithAgentHints } from '@lushly-dev/afd-testing';
+import { enhanceWithAgentHints, scenarioEvaluate } from '@lushly-dev/afd-testing';
 
 const result = await scenarioEvaluate({ handler, directory });
-const enhanced = enhanceWithAgentHints(result, 'scenario.evaluate');
+const enhanced = enhanceWithAgentHints('scenario-evaluate', result);
 
 // Result includes:
 // _agentHints: {
 //   shouldRetry: false,
-//   relatedCommands: ['scenario.suggest --context failed'],
-//   nextSteps: ['Review failed scenarios', 'Run with --verbose'],
+//   relatedCommands: ['scenario-coverage', 'scenario-suggest'], // tool names only
+//   nextSteps: ['Run scenario-coverage to check test coverage'],
 //   interpretationConfidence: 0.95
 // }
 ```
 
-### scenario.suggest
+### scenario-suggest
 
-AI-powered scenario suggestions based on context:
+Heuristic scenario suggestions based on context. Each strategy applies keyword and
+file-name rules; no AI model is called, and each suggestion's `confidence` is the
+fixed score of the rule that produced it:
 
 ```typescript
 import { scenarioSuggest } from '@lushly-dev/afd-testing';
@@ -328,11 +341,16 @@ const customAdapter: AppAdapter = {
 };
 ```
 
+`fixture.apply` receives `context.handler`, which returns each command's real
+`CommandResult`. Stop at the first failed result: `applyFixture` fails the
+fixture on any failed command (naming it and its error code) whether or not the
+adapter stops, and it returns the adapter's `warnings` to the caller.
+
 ## Scenario Commands (Phase 2)
 
 Batch operations and management commands for JTBD scenarios.
 
-### scenario.list
+### scenario-list
 
 List and filter scenarios in a directory.
 
@@ -374,7 +392,13 @@ for (const s of result.data.scenarios) {
 }
 ```
 
-### scenario.evaluate
+Files that fail to parse are returned in `parseErrors` (and as `PARSE_ERROR`
+warnings) instead of being dropped. `recursive: false` searches only the top
+directory, `pattern` matches file names (default `*.scenario.yaml`), and `format`
+(`'table' | 'json' | 'names'`) adds a `formattedOutput`. `status: 'passed'` or
+`'failed'` returns `UNSUPPORTED_FILTER`, because scenario-list keeps no run history.
+
+### scenario-evaluate
 
 Batch execute scenarios with parallel support and multiple output formats.
 
@@ -396,7 +420,7 @@ const filtered = await scenarioEvaluate({
   directory: './scenarios',
   job: 'todo-management',
   tags: ['smoke'],
-  failFast: true,  // Stop on first failure
+  failFast: true,  // After the first failing scenario, report the rest as 'skip'
 });
 
 // Parallel execution
@@ -404,7 +428,7 @@ const parallel = await scenarioEvaluate({
   handler,
   directory: './scenarios',
   concurrency: 4,  // Run 4 scenarios at once
-  timeout: 30000,  // 30s per scenario
+  timeout: 30000,  // 30s per scenario; a timed-out scenario is cancelled and reported as an error
 });
 
 // Output formats for CI
@@ -418,7 +442,12 @@ const junit = await scenarioEvaluate({
 // Available formats: 'terminal', 'json', 'junit', 'markdown'
 ```
 
-### scenario.coverage
+Scenario files that fail to parse are reported as `error` scenarios
+(`error.type: 'parse_error'`) and make the exit code 1; they are never skipped
+silently. The report summary counts `passedScenarios`, `failedScenarios`,
+`errorScenarios` and `skippedScenarios`.
+
+### scenario-coverage
 
 Calculate coverage metrics across commands, errors, and jobs.
 
@@ -452,11 +481,12 @@ for (const cmd of detailed.data.commandCoverage) {
 const markdown = await scenarioCoverage({
   directory: './scenarios',
   format: 'markdown',
+  output: './coverage.md',  // Optional: also write the report to a file
 });
 console.log(markdown.data.formattedOutput);
 ```
 
-### scenario.create
+### scenario-create
 
 Generate scenario files from templates.
 
@@ -466,7 +496,7 @@ import { scenarioCreate, listTemplates } from '@lushly-dev/afd-testing';
 // See available templates
 const templates = listTemplates();
 // [
-//   { name: 'blank', description: 'Empty scenario with just job and description' },
+//   { name: 'blank', description: 'One placeholder step to replace with the command under test' },
 //   { name: 'crud', description: 'Create, Read, Update, Delete test pattern' },
 //   { name: 'error-handling', description: 'Tests for error cases and validation' },
 //   { name: 'workflow', description: 'Multi-step workflow with state verification' },
@@ -509,6 +539,11 @@ const custom = await scenarioCreate({
 });
 ```
 
+`name` and `filename` must be plain file names (no path separators); choose the
+location with `directory`. `commands: ['todo-create', 'todo-list']` adds one step
+per command expecting success. Every generated file is parsed before it is
+written, so a template never produces a scenario the runner would reject.
+
 ## JTBD Scenario Runner
 
 Test user journeys and jobs-to-be-done through YAML scenario files.
@@ -517,106 +552,100 @@ Test user journeys and jobs-to-be-done through YAML scenario files.
 
 ```yaml
 # scenarios/create-and-complete-todo.scenario.yaml
-scenario:
-  name: "Create and complete a todo"
-  description: "Tests the complete lifecycle of a todo item"
-  tags: ["smoke", "crud"]
+name: Create and complete a todo
+description: Tests the complete lifecycle of a todo item
+job: create-and-complete
+tags: [smoke, crud]
+timeout: 30000                          # Optional: per-scenario timeout in ms
 
-setup:
-  fixture:
-    file: "fixtures/seeded-todos.json"
+fixture:
+  file: ../fixtures/seeded-todos.json   # Relative to this scenario file
 
 steps:
-  - name: "Create a new todo"
+  - description: Create a new todo
     command: todo-create
     input:
-      title: "Buy groceries"
-      priority: "high"
+      title: Buy groceries
+      priority: high
     expect:
       success: true
       data:
-        title: "Buy groceries"
+        title: Buy groceries
         completed: false
 
-  - name: "Complete the todo"
+  - description: Complete the todo
     command: todo-toggle
     input:
-      id: "${{ steps[0].data.id }}"  # Reference previous step
+      id: ${{ steps[0].data.id }}        # Reference a previous step
     expect:
       success: true
       data:
         completed: true
 
-  - name: "Delete the todo"
+  - description: Delete the todo
     command: todo-delete
     input:
-      id: "${{ steps[0].data.id }}"
+      id: ${{ steps[0].data.id }}
     expect:
       success: true
 ```
 
+The parser is strict: an unknown field at any level (a typo such as `fixtures:` or
+`date:`) is a parse error rather than something silently ignored. `verify`,
+`isolation` and `dependsOn` are not implemented, so they are rejected with a
+"not supported" error instead of producing a green run that checked nothing.
+Parse errors report the line number and never echo the file's contents.
+
 ### Running Scenarios
 
 ```typescript
-import { parseScenarioString, InProcessExecutor, TerminalReporter } from '@lushly-dev/afd-testing';
-import { readFile } from 'node:fs/promises';
+import { InProcessExecutor, parseScenarioFile, TerminalReporter } from '@lushly-dev/afd-testing';
 
-// Parse scenario file
-const yaml = await readFile('scenarios/my-scenario.yaml', 'utf-8');
-const parseResult = parseScenarioString(yaml);
-
-if (!parseResult.success) {
-  console.error('Parse error:', parseResult.error);
+const parsed = await parseScenarioFile('scenarios/create-and-complete-todo.scenario.yaml');
+if (!parsed.success) {
+  console.error('Parse error:', parsed.error);
   process.exit(1);
 }
 
-// Create executor with your command handler
-const executor = new InProcessExecutor(
-  async (command, input) => {
-    // Execute command against your system
-    return myCommandRegistry.execute(command, input);
-  },
-  { basePath: './scenarios' }
-);
+// The handler receives the run's AbortSignal as an optional third argument
+const executor = new InProcessExecutor({
+  handler: async (command, input, context) =>
+    myCommandRegistry.execute(command, input, { signal: context?.signal }),
+});
 
-// Run scenario
-const result = await executor.run(parseResult.scenario);
+// Optionally cancel the whole run from outside
+const result = await executor.execute(parsed.scenario, { signal: AbortSignal.timeout(60_000) });
 
-// Report results
-const reporter = new TerminalReporter();
-reporter.report([result]);
+new TerminalReporter().reportScenario(result);
 
-// Exit with appropriate code
-process.exit(result.status === 'passed' ? 0 : 1);
+// 'pass', 'fail', 'partial', 'error' (fixture, timeout, abort...) or 'skip'
+process.exit(result.outcome === 'pass' ? 0 : 1);
 ```
+
+When a scenario times out or is aborted, the running step is abandoned, the
+remaining steps are skipped, and the result has `outcome: 'error'` with
+`error: { type: 'timeout' | 'aborted', message }`. `ScenarioExecutor` (which runs
+steps through the `afd` CLI) behaves the same way and kills the CLI process.
 
 ### Dry Run Mode
 
 Validate scenarios without executing them using `validateScenario()`:
 
 ```typescript
-import { parseScenarioString, validateScenario, InProcessExecutor } from '@lushly-dev/afd-testing';
+import { validateScenario, InProcessExecutor } from '@lushly-dev/afd-testing';
 
-// Validate scenario structure before execution
-const validation = validateScenario(parseResult.scenario, {
-  availableCommands: ['todo-create', 'todo-get', 'todo-list', 'todo-toggle'],
-  fixtures: fixtureIndex,  // Optional: Map<string, FixtureData>
-});
+// Structure, step references, expectations and fixture files
+const validation = await validateScenario(parsed.scenario, { checkFixtures: true });
 
 if (!validation.valid) {
   console.error('Validation errors:', validation.errors);
-  // Example: ["Unknown command 'todo-unknown' in step 3"]
+  // Example: ["Step 3: Invalid reference to step 4 (can only reference earlier steps)"]
   process.exit(1);
 }
 
-// Or use dryRun option in executor
-const executor = new InProcessExecutor(handler, {
-  basePath: './scenarios',
-  dryRun: true,  // Validates but doesn't execute
-});
-
-const result = await executor.run(scenario);
-// result.steps will have status 'skipped' with reason
+// Or use dryRun in the executor: loads the fixture, but runs no command
+const executor = new InProcessExecutor({ handler, dryRun: true });
+const result = await executor.execute(parsed.scenario);
 ```
 
 ### Error Messages
@@ -624,20 +653,23 @@ const result = await executor.run(scenario);
 When assertions fail, detailed messages show expected vs actual values:
 
 ```typescript
-// Example assertion failure output:
-// "2 assertions failed: data.total: expected 99, got 2; data.completed: expected true, got false"
-
-// In scenario results:
+// result.stepResults[n].error for a failed step:
 {
-  name: "Check stats",
-  status: "failed",
-  error: "2 assertions failed: data.total: expected 99, got 2; data.completed: expected true, got false"
+  type: 'expectation_mismatch',
+  message: '2 assertions failed:\n  - data.total: expected 99, got 2\n  - data.completed: expected true, got false'
 }
 ```
 
 ### Fixtures
 
-Fixtures pre-seed test data before scenario execution.
+Fixtures pre-seed test data before the first step. A fixture is applied through
+the adapter for its `app` (see [App Adapters](#app-adapters-phase-4)): a
+registered adapter, the built-in `todo` adapter, or the generic adapter for a
+fixture with a `setup` or `data` command list. Every command's real
+`CommandResult` is checked: the first failed command stops the fixture and the
+scenario is reported as an `error` at the fixture step
+(`error.type: 'fixture_failed'`, naming the command and its error code), and no
+step runs. A fixture for an app with no adapter is an error, not a no-op.
 
 #### JSON Fixture File
 
@@ -656,30 +688,20 @@ Fixtures pre-seed test data before scenario execution.
 #### Using Fixtures in Scenarios
 
 ```yaml
-setup:
-  fixture:
-    file: "fixtures/base.json"        # Main fixture file
-    base: "fixtures/common.json"       # Optional base (inherited)
-    overrides:                         # Optional inline overrides
-      todos:
-        - title: "Override todo"
+fixture:
+  file: fixtures/base.json          # Main fixture file, relative to the scenario file
+  base: common.json                 # Optional base, relative to the main fixture file
+  overrides:                        # Optional inline overrides
+    todos:
+      - title: Override todo
 ```
 
-#### Fixture Inheritance
-
-```yaml
-# Override priority of merge: base → file → overrides
-setup:
-  fixture:
-    base: "common-setup.json"          # Applied first
-    file: "specific-setup.json"        # Merged on top
-    overrides:                         # Highest priority
-      clearFirst: false
-```
+Merge order is base → file → overrides; arrays are replaced, not concatenated.
 
 #### Supported Fixture Structures
 
-**Todo App:**
+**Todo App** (`todo-clear` with `{ all: true }` unless `clearFirst` is `false`, then
+`todo-create` per todo and `todo-toggle` for completed ones):
 ```json
 {
   "app": "todo",
@@ -690,23 +712,7 @@ setup:
 }
 ```
 
-**Violet Design System:**
-```json
-{
-  "app": "violet",
-  "nodes": [
-    { "id": "string", "name": "string", "type": "root|product", "parentId": "string" }
-  ],
-  "operations": [
-    { "type": "add|override|subtract", "nodeId": "string", "token": "string", "value": "any" }
-  ],
-  "constraints": [
-    { "nodeId": "string", "id": "string", "type": "enum|range", "tokens": ["string"] }
-  ]
-}
-```
-
-**Generic (Custom Apps):**
+**Generic (any app):** commands to run in order, `data` first, then `setup`.
 ```json
 {
   "app": "custom",
@@ -716,32 +722,30 @@ setup:
 }
 ```
 
+For any other structure, register an adapter with `registerAdapter()`.
+
 #### Programmatic Fixture Loading
 
 Use `loadFixture()` and `applyFixture()` for direct fixture handling:
 
 ```typescript
-import { loadFixture, applyFixture, AppliedCommand } from '@lushly-dev/afd-testing';
+import { applyFixture, loadFixture } from '@lushly-dev/afd-testing';
 
-// Load fixture from file
-const fixture = await loadFixture('fixtures/test-data.json', {
-  basePath: './scenarios',
-  baseFile: 'fixtures/common.json',  // Optional inheritance
-  overrides: { clearFirst: true },    // Optional inline overrides
-});
+const loaded = await loadFixture(
+  { file: 'fixtures/test-data.json', base: 'common.json', overrides: { clearFirst: true } },
+  { basePath: './scenarios', validate: true }
+);
+if (!loaded.success) throw new Error(loaded.error);
 
-// Apply fixture to your system
-const result = await applyFixture(fixture, async (command, input) => {
-  return myRegistry.execute(command, input);
-});
+// The handler must return each command's CommandResult
+const result = await applyFixture(loaded.data, (command, input) =>
+  myRegistry.execute(command, input)
+);
 
-// Result includes applied commands with full details
-console.log(result.appliedCommands);
-// [
-//   { command: 'store-clear', input: {} },
-//   { command: 'todo-create', input: { title: 'Test', priority: 'high' } }
-// ]
-console.log(`Applied ${result.appliedCommands.length} commands`);
+if (!result.success) {
+  console.error(result.error); // "Fixture command 'todo-create' failed with VALIDATION_ERROR: ..."
+}
+console.log(result.appliedCommands, result.warnings);
 ```
 
 ### Step References
@@ -755,7 +759,7 @@ Reference data from previous steps using `${{ steps[N].path }}` syntax.
 input:
   id: "${{ steps[0].data.id }}"           # Returns actual type (string, number, etc.)
 
-# Embedded reference (string interpolation)  
+# Embedded reference (string interpolation; objects are embedded as JSON)
 input:
   message: "Created todo ${{ steps[0].data.id }}"  # Returns string
 
@@ -768,33 +772,33 @@ input:
   firstItem: "${{ steps[0].data.items[0].name }}"
 ```
 
+A reference that does not resolve (a step that has not run, or a path with no
+value) fails the step with a `reference_error`; it is never sent as an empty
+string or `undefined`.
+
 #### Reference Examples
 
 ```yaml
 steps:
-  - name: "Create user"
+  - description: Create user
     command: user-create
     input:
-      email: "test@example.com"
+      email: test@example.com
+    expect: { success: true }
     # Result: { data: { id: "user-123", email: "test@example.com" } }
 
-  - name: "Create todo for user"
+  - description: Create todo for user
     command: todo-create
     input:
-      title: "My todo"
-      userId: "${{ steps[0].data.id }}"     # → "user-123"
-    # Result: { data: { id: "todo-456" } }
+      title: My todo
+      userId: ${{ steps[0].data.id }}     # → "user-123"
+    expect: { success: true }
 
-  - name: "Get todo"
+  - description: Get todo
     command: todo-get
     input:
-      id: "${{ steps[1].data.id }}"         # → "todo-456"
-
-  - name: "Verify ownership"
-    command: todo-verify
-    input:
-      todoId: "${{ steps[1].data.id }}"     # → "todo-456"
-      userId: "${{ steps[0].data.id }}"     # → "user-123"
+      id: ${{ steps[1].data.id }}         # → the new todo's id
+    expect: { success: true }
 ```
 
 ### Expectations
@@ -819,15 +823,38 @@ expect:
     # Other fields ignored
 ```
 
+#### Matchers
+
+An object whose keys are **all** matcher keys is a matcher; any other object is
+a nested set of field assertions. Mixing the two (for example
+`{ exists: true, name: Bob }`), a typo next to a matcher (`{ matches: '^A', matchs: 'x' }`)
+or a matcher with the wrong type of value is a parse error.
+
+| Matcher | Example | Passes when |
+|---------|---------|-------------|
+| `equals` | `settings: { equals: { exists: true } }` | Value deep-equals (use it for literal objects that look like matchers) |
+| `contains` | `name: { contains: box }` | String contains the substring |
+| `matches` | `id: { matches: '^todo-' }` | String matches the regular expression |
+| `exists` / `notExists` | `createdAt: { exists: true }` | Value is (not) null or undefined |
+| `length` | `items: { length: 3 }` | Array or string has this length |
+| `includes` | `tags: { includes: urgent }` | Array contains the value |
+| `gte` / `lte` | `count: { gte: 5 }` | Number is at least / at most the value |
+| `between` | `score: { between: [1, 10] }` | Number is within the inclusive range |
+
 #### Error Expectations
 
 ```yaml
 expect:
   success: false
   error:
-    code: "NOT_FOUND"
-    message: "Todo not found"   # Optional
+    code: "NOT_FOUND"            # Exact
+    message: "Todo not found"    # Optional: message contains this text
+    suggestion:                  # Optional: a string to contain, or a matcher
+      contains: todo-list
 ```
+
+`data` is only checked when `success` is `true`, and `error` only when it is
+`false`; the parser rejects the other combinations.
 
 ## Usage
 
@@ -913,6 +940,9 @@ const results = await testCommandMultiple(myCommand.handler, [
 // Check all tests passed
 const allPassed = results.every(r => r.passed);
 ```
+
+A case with `expectError` passes only if the command fails with exactly that
+error code; a success does not satisfy it.
 
 ### Custom Assertions
 

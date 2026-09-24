@@ -58,7 +58,7 @@ alfred/  # Quality bot — lint, parity, quality (see alfred/AGENTS.md)
 
 **Principle: for TypeScript, lefthook IS the CI pipeline.** `pnpm check` runs the exact same steps as the `CI` workflow (`ci.yml`). If it passes locally, that workflow passes remotely.
 
-Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/rust/`) or alfred. Each has its own path-filtered workflow, listed below. The TypeScript and Python todo example backends run the shared conformance suite in `conformance.yml`; the Rust todo backend is not in any gate yet.
+Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/rust/`) or alfred. Each has its own path-filtered workflow, listed below. The TypeScript, Python and Rust todo example backends all run the shared conformance suite in `conformance.yml`.
 
 | Layer | When | What |
 |-------|------|------|
@@ -68,7 +68,7 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 | **CI** (`ci.yml`) | Push to main / PR | Same as quality gate — safety net for skipped hooks |
 | **Python** (`python.yml`) | Push to main / PR touching `python/**` | `uv lock --check`; ruff (F821, F841, B904); pytest on 3.10, 3.11, 3.12; wheel install smoke test per extra (base, client, server, cli) |
 | **Rust** (`rust.yml`) | Push to main / PR touching `packages/rust/**` | `cargo fmt --check`; clippy `-D warnings` and `cargo test`, each with default and no default features |
-| **Conformance** (`conformance.yml`) | Push to main / PR touching the todo example, `packages/server`, `packages/core`, `python/` or the lockfile | Todo example: Python backend pytest, then the 34-case conformance suite against the TypeScript and Python backends |
+| **Conformance** (`conformance.yml`) | Push to main / PR touching the todo example, `packages/server`, `packages/core`, `python/` or the lockfile | Todo example: Python backend pytest, Rust backend fmt/clippy/test, then the 34-case conformance suite against the TypeScript, Python and Rust backends |
 | **Alfred** (`alfred.yml`) | Push to main / PR touching `alfred/**` | ruff, pytest, wheel smoke test |
 | **Release** (GitHub Actions) | Push to main | `pnpm check` → Changesets opens a version PR or publishes to npm |
 

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { CommandResult } from './result.js';
 import { error, failure, isFailure, isSuccess, success } from './result.js';
 
 describe('success', () => {
@@ -143,6 +144,27 @@ describe('isFailure', () => {
 		if (isFailure(result)) {
 			// TypeScript should know result.error exists
 			expect(result.error.code).toBe('ERROR');
+		}
+	});
+
+	it('depends only on success === false, so a failure without an error is a failure', () => {
+		const bare: CommandResult<string> = { success: false };
+		expect(isFailure(bare)).toBe(true);
+		expect(isSuccess(bare)).toBe(false);
+		expect(isFailure({ success: false, data: 'stale' })).toBe(true);
+		expect(isFailure({ success: true, error: { code: 'X', message: 'ignored' } })).toBe(false);
+	});
+
+	it('classifies every result as exactly one of success or failure', () => {
+		const results: CommandResult<unknown>[] = [
+			{ success: true },
+			{ success: false },
+			success(undefined),
+			success(null),
+			failure({ code: 'ERROR', message: 'Failed' }),
+		];
+		for (const result of results) {
+			expect(isSuccess(result)).not.toBe(isFailure(result));
 		}
 	});
 });

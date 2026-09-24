@@ -6,6 +6,7 @@ import {
 	defaultCommandGroup,
 	filterByContext,
 	isAccessibleInContext,
+	notFoundSuggestion,
 	notInContextError,
 } from './command-routing.js';
 import { defineCommand } from './schema.js';
@@ -68,5 +69,30 @@ describe('context scoping', () => {
 			message: "Command 'doc-edit' is not available in context 'printing'",
 			suggestion: 'Use afd-context-list to see available contexts, or afd-context-enter to switch.',
 		});
+	});
+});
+
+describe('not-found suggestions', () => {
+	const names = ['todo-create', 'todo-created', 'todo-creates', 'todo-creator', 'user-get'];
+
+	it('names at most three close matches, best first, and points to afd-discover', () => {
+		const suggestion = notFoundSuggestion('todo-creat', names);
+		expect(suggestion).toMatch(
+			/^Did you mean 'todo-create'\? Other close matches: '[a-z-]+', '[a-z-]+'\. Use afd-discover to list all commands\.$/
+		);
+	});
+
+	it('names a single match without the other-matches clause', () => {
+		expect(notFoundSuggestion('user-gt', ['user-get', 'billing-report-export'])).toBe(
+			"Did you mean 'user-get'? Use afd-discover to list all commands."
+		);
+	});
+
+	it('only points to afd-discover when nothing is close or the name is too long', () => {
+		expect(notFoundSuggestion('zzzz', names)).toBe('Use afd-discover to list all commands.');
+		expect(notFoundSuggestion('t'.repeat(10_000), names)).toBe(
+			'Use afd-discover to list all commands.'
+		);
+		expect(notFoundSuggestion('todo-create', [])).toBe('Use afd-discover to list all commands.');
 	});
 });

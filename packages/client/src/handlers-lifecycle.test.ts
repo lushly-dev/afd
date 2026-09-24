@@ -98,6 +98,46 @@ describe('built-in handoff SSE lifecycle', () => {
 			).rejects.toThrow();
 		}
 	);
+	it('parses authenticated SSE with the spec-compliant shared parser', async () => {
+		const onMessage = vi.fn(),
+			onDisconnect = vi.fn();
+		const body = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(
+					new TextEncoder().encode(
+						': keep-alive\n\ndata:{"compact":true}\n\ndata: {"multi":\ndata: "line"}\n\ndata: plain\r\n\r\n'
+					)
+				);
+				controller.close();
+			},
+		});
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body)));
+
+		await sseHandler({ ...handoff, credentials: { token: 'test' } }, { onMessage, onDisconnect });
+		await vi.waitFor(() => expect(onDisconnect).toHaveBeenCalledOnce());
+
+		expect(onMessage.mock.calls).toEqual([[{ compact: true }], [{ multi: 'line' }], ['plain']]);
+	});
+	it('stops an authenticated SSE stream whose event exceeds the size bound', async () => {
+		const onError = vi.fn(),
+			onDisconnect = vi.fn(),
+			cancel = vi.fn();
+		const body = new ReadableStream<Uint8Array>({
+			pull(controller) {
+				controller.enqueue(new TextEncoder().encode(`data: ${'x'.repeat(64 * 1024)}`));
+			},
+			cancel,
+		});
+		vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body)));
+
+		await sseHandler({ ...handoff, credentials: { token: 'test' } }, { onError, onDisconnect });
+		await vi.waitFor(() => expect(onDisconnect).toHaveBeenCalledOnce());
+
+		expect(onError).toHaveBeenCalledWith(
+			expect.objectContaining({ name: 'SseEventTooLargeError' })
+		);
+		expect(cancel).toHaveBeenCalled();
+	});
 	it('reports background reader failures with actionable disconnect state', async () => {
 		const onError = vi.fn(),
 			onDisconnect = vi.fn();
