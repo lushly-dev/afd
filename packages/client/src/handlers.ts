@@ -25,6 +25,7 @@ import type {
 	HandoffConnectionState,
 	ProtocolHandler,
 } from './handoff.js';
+import { readSseEvents } from './sse-parser.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // WEBSOCKET HANDLER
@@ -130,6 +131,9 @@ export const websocketHandler: ProtocolHandler = async (
 		};
 
 		ws.onclose = (event) => {
+			// A browser reports a failed handshake as `error` then `close` (1006). The error
+			// already rejected the connection, so there is nothing left to disconnect.
+			if (state === 'failed') return;
 			if (state === 'connecting') {
 				setState('failed');
 				const closeError = new Error(
@@ -243,36 +247,25 @@ async function createFetchBasedSse(
 	setState('connected');
 	options.onConnect?.(response);
 
-	// Read SSE stream in background
+	// Read SSE stream in background with the shared spec-compliant, size-bounded parser
 	const reader = response.body.getReader();
-	const decoder = new TextDecoder();
-	let buffer = '';
 
 	const readLoop = async () => {
 		try {
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) break;
-
-				buffer += decoder.decode(value, { stream: true });
-				const lines = buffer.split('\n');
-				buffer = lines.pop() ?? '';
-
-				for (const line of lines) {
-					if (line.startsWith('data: ')) {
-						const raw = line.slice(6);
-						try {
-							options.onMessage?.(JSON.parse(raw));
-						} catch {
-							options.onMessage?.(raw);
-						}
-					}
+			for await (const event of readSseEvents(reader)) {
+				let message: unknown;
+				try {
+					message = JSON.parse(event.data);
+				} catch {
+					message = event.data;
 				}
+				options.onMessage?.(message);
 			}
 		} catch (err) {
 			if (!abortController.signal.aborted) {
 				options.onError?.(err instanceof Error ? err : new Error(String(err)));
 			}
+			await reader.cancel().catch(() => {});
 		} finally {
 			setState('disconnected');
 			options.onDisconnect?.();

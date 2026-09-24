@@ -12,13 +12,31 @@ pnpm add @lushly-dev/afd-client
 
 ## Overview
 
-This package provides a client for connecting to MCP (Model Context Protocol) servers. It supports:
+This package provides clients for AFD command servers. It supports:
 
 - **SSE Transport**: Real-time streaming with Server-Sent Events
 - **HTTP Transport**: Simple request/response communication
 - **Direct Transport**: Zero-overhead in-process execution for co-located agents
-- **Auto-reconnection**: Automatic reconnection with exponential backoff
+- **Auto-reconnection**: Exponential backoff with jitter and a cap
 - **Type-safe API**: Full TypeScript support with CommandResult integration
+
+### Supported servers
+
+`McpClient` talks to **AFD servers**: `createMcpServer()` from `@lushly-dev/afd-server`
+(and the AFD Python server), through their HTTP transport:
+
+| Route | Used for |
+|-------|----------|
+| `GET <base>/sse` | Event stream of the `sse` transport |
+| `POST <base>/message` | JSON-RPC requests (`initialize`, `tools/list`, `tools/call`) |
+| `GET <base>/health` | Reachability check on connect (`http` transport) |
+| `POST <base>/stream/<command>` | `stream()` |
+
+`McpClient` is **not a general MCP client**. It does not implement the MCP Streamable HTTP
+transport (the `Accept: application/json, text/event-stream` negotiation and its session
+handling), and it ignores the `endpoint` event of the legacy MCP SSE transport. Servers built
+on the official MCP SDK answer it with HTTP 406 or 400. To talk to those servers, use the
+official `@modelcontextprotocol/sdk` client.
 
 ## Usage
 
@@ -102,6 +120,18 @@ client.on('toolsChanged', (tools) => {
 await client.connect();
 ```
 
+- `connected` fires once the server is initialized **and** the tools list is loaded, so
+  `client.getTools()` is ready inside the handler. A failed tools refresh does not fail the
+  connection; the list stays empty.
+- While reconnecting, each attempt emits `reconnecting`; failed attempts emit nothing else. If
+  every attempt fails, the client emits one `error` ("Max reconnection attempts reached", with the
+  last failure as `cause`) and moves to the `error` state.
+- The delay before attempt *n* is `reconnectDelay * 2^(n-1)` plus up to 100 ms of jitter, capped
+  at `maxReconnectDelay`.
+- The `sse` transport notices a closed event stream. The `http` transport has no persistent
+  connection, so it reports the connection as lost after 3 consecutive requests get no HTTP
+  response at all; `autoReconnect` then applies to it too.
+
 ### Client Status
 
 ```typescript
@@ -127,25 +157,87 @@ console.log('Content:', rawResult.content);
 console.log('Is error:', rawResult.isError);
 ```
 
+`callTool()` and `request()` take an optional `{ timeout }` that overrides the client timeout
+for that request. They throw `NotConnectedError`, `RequestTimeoutError`, `JsonRpcResponseError`
+(with the JSON-RPC `code` and `data`) or `HttpStatusError`; `call()`, `batch()`, `pipe()` and
+`stream()` never throw and return these as failures instead.
+
+### Batches and Pipelines
+
+```typescript
+const batch = await client.batch(
+  [
+    { command: 'todo-create', input: { title: 'First' } },
+    { command: 'todo-create', input: { title: 'Second' } },
+  ],
+  { timeout: 60_000 } // server-side deadline for the whole batch
+);
+
+const pipeline = await client.pipe(
+  [{ command: 'user-get', input: { id: 1 }, as: 'user' }],
+  { timeoutMs: 60_000 } // server-side deadline for the whole pipeline
+);
+```
+
+The request waits for the batch `timeout` or pipeline `timeoutMs` plus a 5 second margin
+(`SERVER_DEADLINE_MARGIN_MS`), and never less than the client `timeout`, so the server's own
+timeout result arrives first.
+
+If the server rejected the request (a JSON-RPC error, an HTTP 4xx) or the client was not
+connected, nothing ran and the result is a definite failure. If the request timed out or the
+connection failed after it was sent, the server may already have run some commands, so the
+client does not guess: the result is an `OUTCOME_UNKNOWN` failure with `retryable: false`. A
+batch then has no per-command `results` and zero success and failure counts; a pipeline has a
+single pipeline-level step entry (`index: -1`) carrying the error. Check the commands' effects
+before retrying.
+
+### Streaming
+
+```typescript
+for await (const chunk of client.stream('report-generate', { month: 9 }, { timeout: 60_000 })) {
+  if (chunk.type === 'data') render(chunk.data);
+  if (chunk.type === 'error') console.error(chunk.error.code, chunk.error.suggestion);
+}
+```
+
+`stream()` posts to `<base>/stream/<command>`, where `<base>` is the client URL without a
+trailing `/sse`, `/message` or `/messages` (so `https://host/api/mcp/sse` streams from
+`https://host/api/mcp/stream/<command>`). It parses the event stream per the SSE spec
+(`data:` with or without a space, multi-line `data`, comments, CRLF), and the last chunk is
+always a `complete` or `error` chunk. The client makes the error chunk itself when:
+
+| Code | When |
+|------|------|
+| `NOT_CONNECTED` | `stream()` was called before `connect()` (nothing is sent) |
+| `STREAM_TRUNCATED` | The stream ended without a `complete` or `error` chunk |
+| `STREAM_TIMEOUT` | `options.timeout` passed |
+| `STREAM_CANCELLED` | `options.signal` aborted, or `disconnect()` was called |
+| `STREAM_EVENT_TOO_LARGE` | One event exceeded `maxStreamEventSize` (default 1 MiB) |
+
 ## Configuration
 
 ```typescript
 interface McpClientConfig {
-  // Required
-  url: string;                    // Server URL
+  url?: string;                   // Server URL (required unless transport is 'direct')
+  endpoint?: string;              // Alias for url
 
-  // Optional
-  transport?: 'sse' | 'http';     // Default: 'sse'
+  transport?: 'sse' | 'http' | 'direct'; // Default: 'sse'
+  registry?: DirectRegistry;      // Required with transport: 'direct'
   clientName?: string;            // Default: '@lushly-dev/afd-client'
   clientVersion?: string;         // Default: '0.1.0'
   timeout?: number;               // Default: 30000 (30s)
   autoReconnect?: boolean;        // Default: true
   maxReconnectAttempts?: number;  // Default: 5
-  reconnectDelay?: number;        // Default: 1000 (1s)
+  reconnectDelay?: number;        // Default: 1000 (1s), doubles per attempt
+  maxReconnectDelay?: number;     // Default: 30000 (30s)
+  maxStreamEventSize?: number;    // Default: 1048576 characters
   headers?: Record<string, string>;
   debug?: boolean;                // Default: false
 }
 ```
+
+Other transport names (`'websocket'`, `'stdio'`) are rejected by the type and, for JavaScript
+callers, by the constructor with an error that names the supported ones.
 
 ## Transports
 
@@ -171,7 +263,27 @@ const client = createClient({
 });
 ```
 
-### Direct Transport (Zero Overhead)
+### Direct Transport with McpClient
+
+`transport: 'direct'` runs an `McpClient` against an in-process registry, so code written for a
+remote AFD server works unchanged in tests or embedded setups. `call()`, `batch()`, `pipe()`
+and `stream()` all work (batches and pipelines run through the same core executors as the
+server). No URL is needed.
+
+```typescript
+import { createClient } from '@lushly-dev/afd-client';
+import { createDirectRegistry } from '@lushly-dev/afd-server';
+
+const client = createClient({ transport: 'direct', registry: createDirectRegistry(commands) });
+await client.connect();
+const result = await client.call('todo-list', {});
+```
+
+An unknown command returns an `UNKNOWN_TOOL` failure whose `suggestion` names the closest
+command, exactly as `DirectClient` does, and a command that throws returns a
+`COMMAND_EXECUTION_ERROR` failure without the exception text.
+
+### DirectClient (Zero Overhead)
 
 For co-located agents (same runtime as the application), use `createDirectClient` to bypass all transport overhead. Build the registry with `createDirectRegistry` from `@lushly-dev/afd-server`: it runs each call through the same engine as the MCP server (Zod input validation, middleware, error sanitization) and only offers commands exposed to agents (`expose.agent`, on by default).
 
@@ -195,6 +307,10 @@ if (isUnknownToolError(result)) {
 `call<T>()` returns `CommandResult<T> | CommandResult<UnknownToolError>`, so
 `result.success` alone does not narrow it. Rule out the unknown-tool case with
 `isUnknownToolError(result)` first.
+
+`call()` never rejects. If a registry, handler or client middleware throws, it returns a
+`COMMAND_EXECUTION_ERROR` failure without the exception text (turn on `debug` to log the
+exception), the same result `createDirectRegistry()` and the MCP server give.
 
 **Performance comparison:**
 
@@ -306,6 +422,34 @@ if (isFailure(result)) {
   }
 }
 ```
+
+Protocol and transport errors map to AFD codes with a `suggestion` and no stack trace. The
+server's own `error.data.suggestion` is used when it sends one.
+
+| Cause | `code` | `retryable` |
+|-------|--------|-------------|
+| JSON-RPC -32700 | `PARSE_ERROR` | no |
+| JSON-RPC -32600 | `INVALID_REQUEST` | no |
+| JSON-RPC -32601 | `METHOD_NOT_FOUND` | no |
+| JSON-RPC -32602 | `INVALID_INPUT` | no |
+| JSON-RPC -32603 | `INTERNAL_ERROR` | yes |
+| JSON-RPC -32000 (AFD: Host, Origin, Content-Type or size rejected) | `REQUEST_REJECTED` | no |
+| JSON-RPC -32001 (AFD: unknown or expired `Mcp-Session-Id`) | `SESSION_NOT_FOUND` | yes |
+| Other JSON-RPC codes | `JSON_RPC_ERROR` | no |
+| Other HTTP status | `HTTP_<status>` | 5xx and 429 only |
+| No response within `timeout` | `TIMEOUT` | yes |
+| Network failure | `CONNECTION_ERROR` | yes |
+| Called before `connect()` | `NOT_CONNECTED` | no |
+
+The details carry `jsonRpcCode` for JSON-RPC errors.
+
+## Handoff Reconnection
+
+`createReconnectingHandoff(client, handoff, options)` accepts any client with a
+`call(name, args)` method (`HandoffCommandClient`), so both `McpClient` and `DirectClient` work.
+If the initial connection fails, the promise rejects and nothing keeps running: a browser
+WebSocket that reports a failed handshake as `error` followed by `close` (1006) does not start
+a background reconnect loop.
 
 ## License
 

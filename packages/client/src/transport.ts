@@ -5,6 +5,39 @@
 import type { McpRequest, McpResponse } from '@lushly-dev/afd-core';
 import { isMcpResponse } from '@lushly-dev/afd-core';
 import { EventSource } from 'eventsource';
+import { HttpStatusError } from './client-errors.js';
+
+/**
+ * Consecutive network failures (no HTTP response at all) after which `HttpTransport` reports the
+ * connection as lost, so `McpClient` can reconnect.
+ */
+export const HTTP_FAILURES_BEFORE_CONNECTION_LOST = 3;
+
+async function readJsonBody(response: Response): Promise<unknown> {
+	try {
+		return await response.json();
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Read a JSON-RPC response. A non-2xx status with a JSON-RPC error body (the AFD server answers
+ * parse errors, invalid envelopes, rejected requests and unknown sessions this way) is returned
+ * as that error response; any other non-2xx status throws `HttpStatusError`.
+ */
+async function readRpcResponse(response: Response): Promise<McpResponse> {
+	if (!response.ok) {
+		const body = await readJsonBody(response);
+		if (isMcpResponse(body) && body.error) return body;
+		throw new HttpStatusError(response.status, response.statusText);
+	}
+	const data = await response.json();
+	if (!isMcpResponse(data)) {
+		throw new Error('Invalid MCP response received');
+	}
+	return data;
+}
 
 /**
  * Transport interface for MCP communication.
@@ -98,6 +131,11 @@ class McpSession {
  * This transport:
  * 1. Connects via SSE to receive messages from server
  * 2. Sends requests via HTTP POST
+ *
+ * It speaks the AFD server's HTTP transport: requests go to the URL with its trailing `/sse`
+ * replaced by `/message`. The `endpoint` event of the legacy MCP SSE transport is not read, so
+ * servers that announce a different message URL (such as official MCP SDK servers) are not
+ * supported.
  */
 export class SseTransport implements Transport {
 	private eventSource: EventSource | null = null;
@@ -235,18 +273,7 @@ export class SseTransport implements Transport {
 				request,
 				requestSignal
 			);
-
-			if (!response.ok) {
-				throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
-			}
-
-			const data = await response.json();
-
-			if (!isMcpResponse(data)) {
-				throw new Error('Invalid MCP response received');
-			}
-
-			return data;
+			return await readRpcResponse(response);
 		} finally {
 			this.activeControllers.delete(controller);
 		}
@@ -283,11 +310,14 @@ export class SseTransport implements Transport {
 
 /**
  * HTTP transport for MCP (request/response only, no streaming).
+ *
+ * Connection loss is detected from consecutive requests that get no HTTP response at all.
  */
 export class HttpTransport implements Transport {
 	private messageHandler: ((response: McpResponse) => void) | null = null;
 	private closeHandler: (() => void) | null = null;
 	private connected = false;
+	private consecutiveFailures = 0;
 	private messageUrl: string;
 	private activeControllers = new Set<AbortController>();
 	private readonly session = new McpSession();
@@ -347,22 +377,15 @@ export class HttpTransport implements Transport {
 	async send(request: McpRequest, signal?: AbortSignal): Promise<McpResponse> {
 		const { controller, signal: requestSignal } = this.createRequestController(signal);
 		try {
-			const response = await this.session.post(
-				this.messageUrl,
-				this.headers,
-				request,
-				requestSignal
-			);
-
-			if (!response.ok) {
-				throw new Error(`HTTP error: ${response.status} ${response.statusText}`);
+			let response: Response;
+			try {
+				response = await this.session.post(this.messageUrl, this.headers, request, requestSignal);
+			} catch (error) {
+				if (!requestSignal.aborted) this.recordNetworkFailure();
+				throw error;
 			}
-
-			const data = await response.json();
-
-			if (!isMcpResponse(data)) {
-				throw new Error('Invalid MCP response received');
-			}
+			this.consecutiveFailures = 0;
+			const data = await readRpcResponse(response);
 
 			// For HTTP transport, also dispatch through message handler
 			if (this.messageHandler) {
@@ -373,6 +396,19 @@ export class HttpTransport implements Transport {
 		} finally {
 			this.activeControllers.delete(controller);
 		}
+	}
+
+	/**
+	 * HTTP has no persistent connection to watch, so a request that gets no response at all
+	 * counts as a failure. After {@link HTTP_FAILURES_BEFORE_CONNECTION_LOST} in a row the
+	 * transport reports the connection as lost (its close handler runs, which lets `McpClient`
+	 * reconnect). Any HTTP response, even an error status, resets the count.
+	 */
+	private recordNetworkFailure(): void {
+		this.consecutiveFailures++;
+		if (this.consecutiveFailures < HTTP_FAILURES_BEFORE_CONNECTION_LOST || !this.connected) return;
+		this.connected = false;
+		this.closeHandler?.();
 	}
 
 	isConnected(): boolean {

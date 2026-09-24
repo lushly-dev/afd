@@ -22,14 +22,17 @@ import type {
 	CommandMiddleware,
 	CommandResult,
 	HandoffResult,
-	McpRequest,
-	McpResponse,
-	McpTool,
 	PipelineRequest,
 	PipelineResult,
 	PipelineStep,
 } from '@lushly-dev/afd-core';
-import { executePipeline, failure, truncateName, validationError } from '@lushly-dev/afd-core';
+import {
+	executePipeline,
+	executionFailure,
+	failure,
+	truncateName,
+	validationError,
+} from '@lushly-dev/afd-core';
 import { runWithTimeout } from './direct-timeout.js';
 import { validateInput } from './direct-validation.js';
 import type {
@@ -39,11 +42,11 @@ import type {
 	ReconnectionOptions,
 } from './handoff.js';
 import { connectHandoff, createReconnectingHandoff } from './handoff.js';
-import type { Transport } from './transport.js';
 import type { UnknownToolError } from './unknown-tool.js';
-import { createUnknownToolError } from './unknown-tool.js';
+import { unknownToolFailure } from './unknown-tool.js';
 
-// Re-export extracted types for backward compatibility
+// Re-export extracted modules for backward compatibility
+export { DirectTransport } from './direct-transport.js';
 export type { CommandDefinition, CommandParameter } from './direct-validation.js';
 export { isUnknownToolError, type UnknownToolError } from './unknown-tool.js';
 
@@ -51,241 +54,6 @@ export { isUnknownToolError, type UnknownToolError } from './unknown-tool.js';
 import type { DirectCallContext, DirectClientOptions, DirectRegistry } from './direct-types.js';
 
 export type { DirectCallContext, DirectClientOptions, DirectRegistry } from './direct-types.js';
-
-/**
- * Direct transport for in-process command execution.
- *
- * This transport calls the command registry directly, bypassing
- * all MCP protocol overhead. It provides:
- *
- * - **Zero latency**: ~0.01-0.1ms per call (vs 10-100ms for MCP)
- * - **No serialization**: Objects passed directly (no JSON encode/decode)
- * - **Same API**: Compatible with Transport interface for drop-in use
- *
- * Trade-offs:
- * - Requires same runtime (Node.js, Bun, etc.)
- * - No process isolation (exceptions propagate)
- * - Registry must be importable
- */
-export class DirectTransport implements Transport {
-	private connected = false;
-	private messageHandler: ((response: McpResponse) => void) | null = null;
-	private errorHandler: ((error: Error) => void) | null = null;
-	private closeHandler: (() => void) | null = null;
-	private requestIdCounter = 0;
-
-	constructor(private readonly registry: DirectRegistry) {}
-
-	/**
-	 * Connect (no-op for direct transport, always succeeds immediately).
-	 */
-	async connect(): Promise<void> {
-		this.connected = true;
-	}
-
-	/**
-	 * Disconnect (marks as disconnected).
-	 */
-	disconnect(): void {
-		this.connected = false;
-		if (this.closeHandler) {
-			this.closeHandler();
-		}
-	}
-
-	/**
-	 * Send a request by executing the command directly.
-	 *
-	 * This bypasses MCP protocol and calls the registry directly.
-	 */
-	async send(request: McpRequest): Promise<McpResponse> {
-		const requestId = request.id ?? ++this.requestIdCounter;
-
-		try {
-			// Handle MCP protocol methods
-			if (request.method === 'initialize') {
-				return this.handleInitialize(requestId);
-			}
-
-			if (request.method === 'tools/list') {
-				return this.handleToolsList(requestId);
-			}
-
-			if (request.method === 'tools/call') {
-				// SAFETY: When method is 'tools/call', params conforms to ToolCallParams per the MCP protocol spec.
-				const params = request.params as unknown as ToolCallParams;
-				return await this.handleToolCall(requestId, params);
-			}
-
-			// Unknown method
-			return {
-				jsonrpc: '2.0',
-				id: requestId,
-				error: {
-					code: -32601,
-					message: `Method not found: ${request.method}`,
-				},
-			};
-		} catch (error) {
-			const err = error instanceof Error ? error : new Error(String(error));
-
-			if (this.errorHandler) {
-				this.errorHandler(err);
-			}
-
-			return {
-				jsonrpc: '2.0',
-				id: requestId,
-				error: {
-					code: -32603,
-					message: err.message,
-				},
-			};
-		}
-	}
-
-	/**
-	 * Check if connected.
-	 */
-	isConnected(): boolean {
-		return this.connected;
-	}
-
-	/**
-	 * Set message handler (called after each response).
-	 */
-	onMessage(handler: (response: McpResponse) => void): void {
-		this.messageHandler = handler;
-	}
-
-	/**
-	 * Set error handler.
-	 */
-	onError(handler: (error: Error) => void): void {
-		this.errorHandler = handler;
-	}
-
-	/**
-	 * Set close handler.
-	 */
-	onClose(handler: () => void): void {
-		this.closeHandler = handler;
-	}
-
-	// ═══════════════════════════════════════════════════════════════════════════
-	// MCP PROTOCOL HANDLERS
-	// ═══════════════════════════════════════════════════════════════════════════
-
-	private handleInitialize(requestId: string | number): McpResponse {
-		return {
-			jsonrpc: '2.0',
-			id: requestId,
-			result: {
-				protocolVersion: '2024-11-05',
-				capabilities: {
-					tools: { listChanged: false },
-				},
-				serverInfo: {
-					name: 'direct-transport',
-					version: '1.0.0',
-				},
-			},
-		};
-	}
-
-	private handleToolsList(requestId: string | number): McpResponse {
-		const commands = this.registry.listCommands();
-
-		const tools: McpTool[] = commands.map((cmd) => ({
-			name: cmd.name,
-			description: cmd.description,
-			inputSchema: {
-				type: 'object' as const,
-				properties: {},
-			},
-		}));
-
-		return {
-			jsonrpc: '2.0',
-			id: requestId,
-			result: {
-				tools,
-			},
-		};
-	}
-
-	private async handleToolCall(
-		requestId: string | number,
-		params: ToolCallParams
-	): Promise<McpResponse> {
-		const { name, arguments: args } = params;
-
-		// Check if the command exists - return structured error if not
-		if (!this.registry.hasCommand(name)) {
-			const availableTools = this.registry.listCommandNames();
-			const unknownToolError = createUnknownToolError(name, availableTools);
-
-			// Return as a successful MCP response with error content
-			// This allows the agent to receive and process the error
-			const content = [
-				{
-					type: 'text' as const,
-					text: JSON.stringify(unknownToolError),
-				},
-			];
-
-			const response: McpResponse = {
-				jsonrpc: '2.0',
-				id: requestId,
-				result: {
-					content,
-					isError: true,
-				},
-			};
-
-			if (this.messageHandler) {
-				this.messageHandler(response);
-			}
-
-			return response;
-		}
-
-		// Execute the command directly
-		const result = await this.registry.execute(name, args ?? {});
-
-		// Convert CommandResult to MCP response format
-		const content = [
-			{
-				type: 'text' as const,
-				text: JSON.stringify(result),
-			},
-		];
-
-		const response: McpResponse = {
-			jsonrpc: '2.0',
-			id: requestId,
-			result: {
-				content,
-				isError: !result.success,
-			},
-		};
-
-		// Dispatch through message handler if set
-		if (this.messageHandler) {
-			this.messageHandler(response);
-		}
-
-		return response;
-	}
-}
-
-/**
- * Tool call parameters from MCP protocol.
- */
-interface ToolCallParams {
-	name: string;
-	arguments?: Record<string, unknown>;
-}
 
 /**
  * Generate a unique trace ID.
@@ -396,22 +164,9 @@ export class DirectClient {
 
 		// Check if the command exists - return structured error if not
 		if (!this.registry.hasCommand(name)) {
-			const unknownToolError = createUnknownToolError(name, this.listCommandNames());
-
 			this.debug(`[${traceId}] Unknown command: ${name}`);
-
-			// Return as a CommandResult with the UnknownToolError as data
-			// This allows agents to receive structured information for recovery
-			return {
-				success: false,
-				data: unknownToolError,
-				error: {
-					code: 'UNKNOWN_TOOL',
-					message: unknownToolError.message,
-					suggestion:
-						unknownToolError.hint ?? 'Call one of the commands returned by listCommandNames()',
-				},
-			};
+			// The UnknownToolError is the data, so agents get structured recovery information.
+			return unknownToolFailure(name, this.listCommandNames());
 		}
 
 		// Input validation (if registry supports getCommand)
@@ -459,7 +214,11 @@ export class DirectClient {
 		return result;
 	}
 
-	/** Run the registry through the client middleware (none: the zero-overhead path). */
+	/**
+	 * Run the registry through the client middleware (none: the zero-overhead path). A registry,
+	 * handler or middleware that throws gives a `COMMAND_EXECUTION_ERROR` failure (without the
+	 * exception text), as `createDirectRegistry()` and the MCP server do, instead of a rejection.
+	 */
 	private async execute<T>(
 		name: string,
 		args: Record<string, unknown> | undefined,
@@ -473,7 +232,12 @@ export class DirectClient {
 			const currentNext = next;
 			next = () => mw(name, args ?? {}, commandContext, currentNext);
 		}
-		return (await next()) as CommandResult<T>;
+		try {
+			return (await next()) as CommandResult<T>;
+		} catch (error) {
+			this.debug(`Command '${truncateName(name)}' threw:`, error);
+			return executionFailure(error);
+		}
 	}
 
 	/**

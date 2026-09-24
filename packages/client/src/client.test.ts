@@ -137,12 +137,12 @@ describe('McpClient - call', () => {
 });
 
 describe('McpClient - batch', () => {
-	it('returns failed batch when callTool throws', async () => {
+	it('returns a definite NOT_CONNECTED failure when nothing was sent', async () => {
 		const client = new McpClient({ url: 'http://localhost:3100/sse' });
 		const result = await client.batch([{ command: 'test-cmd', input: { a: 1 } }]);
 		expect(result.success).toBe(false);
 		expect(result.summary.failureCount).toBe(1);
-		expect(result.error?.code).toBe('BATCH_ERROR');
+		expect(result.error?.code).toBe('NOT_CONNECTED');
 	});
 
 	it('calls afd-batch and preserves every failed command result', async () => {
@@ -177,7 +177,7 @@ describe('McpClient - batch', () => {
 			{ command: 'two', input: {} },
 		]);
 
-		expect(callTool).toHaveBeenCalledWith('afd-batch', expect.any(Object));
+		expect(callTool).toHaveBeenCalledWith('afd-batch', expect.any(Object), { timeout: 30000 });
 		expect(result.results).toEqual(batchResult.results);
 		expect(result.summary.failureCount).toBe(2);
 	});
@@ -422,8 +422,10 @@ describe('McpClient - stream cleanup', () => {
 			},
 			cancel,
 		});
-		vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, body }));
+		const fetchMock = mockHttpConnection();
 		const client = new McpClient({ url: 'http://localhost:3100/message', transport: 'http' });
+		await client.connect();
+		fetchMock.mockResolvedValueOnce({ ok: true, body });
 
 		for await (const chunk of client.stream('items-stream')) {
 			expect(chunk.type).toBe('data');
