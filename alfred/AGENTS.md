@@ -59,23 +59,30 @@ Wraps the `AFDLinter` from the `afd` Python package. Scans Python, TypeScript, a
 
 **Returns:** `{ passed, files_checked, error_count, warning_count, issues[] }`
 
-### `alfred parity` — Cross-Language API Surface Sync
+### `alfred parity` — Cross-Language API Surface and Wire-Shape Sync
 
-Compares public exports across TypeScript, Python, and Rust entry points to detect API drift.
+Two checks.
+
+**Name parity** compares public exports across the TypeScript, Python, and Rust entry points to detect API drift.
 
 | Entry Point | Source |
 |-------------|--------|
-| TypeScript | `packages/core/src/index.ts` (export statements) |
-| Python | `python/src/afd/__init__.py` (`__all__` list) |
-| Rust | `packages/rust/src/lib.rs` (`pub use` re-exports) |
+| TypeScript | `packages/core/src/index.ts`: `export { a, b as c } from`, `export type { }`, inline `type`, `export * from` (followed into the module), `export * as ns`, and direct `export function/const/class/interface/type/enum` declarations; comments ignored |
+| Python | `python/src/afd/__init__.py`: `__all__` read with `ast`, including `__all__ +=`, `.extend()`, `.append()` and `__all__ + [...]` |
+| Rust | `packages/rust/src/lib.rs`: `pub use` in every form (single items, groups, nested groups, `self`, `as` aliases, `*` followed into the module) and top-level `pub fn/struct/enum/trait/type/const/static`; `pub(crate)`, `#[cfg(test)]` and items inside blocks ignored |
 
 - TypeScript is treated as the **source of truth**
 - Normalizes naming (camelCase → snake_case) for cross-language comparison
 - Filters out TS-only platform utilities (`exec`, path/OS helpers, connectors)
 - Skips version-related exports (`__version__`, `VERSION`, `is_native`, `is_wasm`)
-- Confidence = `1.0 - (total_gaps / total_ts_exports)`
 
-**Returns:** `{ typescript_count, python_count, rust_count, missing_from_python[], missing_from_rust[], missing_from_typescript[], extra_in_* }`
+**Wire shapes** checks the golden fixtures in `spec/wire/*.json` (see `spec/wire/README.md`): each must be valid JSON and be referenced by name in all three round-trip suites (`packages/server/src/wire-fixtures.test.ts`, `python/tests/test_wire_fixtures.py`, `packages/rust/tests/wire_fixtures.rs`). An uncovered fixture, a missing suite, or a missing `spec/wire` is a gap.
+
+- `total_gaps` = `name_gaps` + `wire_fixtures.gaps`; the CLI exits 1 when it is above zero
+- Confidence = `1.0 - total_gaps / (TS exports + fixtures × 3)`
+- `tests/test_parity.py::test_parity_on_real_repo` holds the repo to budgets: no uncovered fixture, core exports found in every language, and `missing_from_python` / `missing_from_rust` no larger than `NAME_GAP_BUDGET` (lower the budget when a gap closes)
+
+**Returns:** `{ counts, missing_from_python[], missing_from_rust[], missing_from_typescript[], extra_in_*[], name_gaps, wire_fixtures: { fixtures[], suites, missing_suites[], invalid_fixtures[], uncovered{}, gaps }, total_gaps }`
 
 ### `alfred quality` — Command Description Quality
 
