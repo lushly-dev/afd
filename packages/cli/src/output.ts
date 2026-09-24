@@ -74,23 +74,28 @@ export function printResult<T>(result: CommandResult<T>, options: OutputOptions 
 			}
 		}
 	} else if (isFailure(result)) {
+		// isFailure only checks `success === false`; a server may omit `error`.
+		const error: Partial<CommandError> & Pick<CommandError, 'code' | 'message'> = result.error ?? {
+			code: 'UNKNOWN_ERROR',
+			message: 'The command failed without error details',
+		};
 		console.log(chalk.red('✗ Failed'));
 		console.log();
-		console.log(chalk.bold('Error:'), formatErrorSummary(result.error));
+		console.log(chalk.bold('Error:'), formatErrorSummary(error));
 
-		if (result.error.suggestion) {
+		if (error.suggestion) {
 			console.log();
-			console.log(chalk.dim('Suggestion:'), terminalText(result.error.suggestion));
+			console.log(chalk.dim('Suggestion:'), terminalText(error.suggestion));
 		}
 
-		if (result.error.retryable) {
+		if (error.retryable) {
 			console.log(chalk.dim('(This error may be resolved by retrying)'));
 		}
 
-		if (verbose && result.error.details) {
+		if (verbose && error.details) {
 			console.log();
 			console.log(chalk.dim('Details:'));
-			console.log(formatValue(result.error.details));
+			console.log(formatValue(error.details));
 		}
 	}
 }

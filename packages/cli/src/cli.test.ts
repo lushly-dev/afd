@@ -188,6 +188,18 @@ describe('Output formatting', () => {
 			logSpy.mockRestore();
 		});
 
+		it('prints a failure that has no error object without throwing', () => {
+			const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+			expect(() => printResult({ success: false }, { format: 'text' })).not.toThrow();
+
+			const output = logSpy.mock.calls.map((c) => c.join(' ')).join('\n');
+			expect(output).toContain('Failed');
+			expect(output).toContain('UNKNOWN_ERROR');
+
+			logSpy.mockRestore();
+		});
+
 		it('prints confidence bar when present', () => {
 			const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
