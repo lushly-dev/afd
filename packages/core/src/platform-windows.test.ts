@@ -148,4 +148,18 @@ describe('exec spawn arguments', () => {
 
 		expect(result.stdout).toBe('héllo 😀');
 	});
+
+	it('stops capturing at maxOutputBytes, kills the child and drops a cut character', async () => {
+		setPlatform('linux');
+		const child = fakeChild([Buffer.from('hé', 'utf8'), Buffer.from('llo', 'utf8')]);
+		mockSpawn.mockImplementation((() => child) as unknown as typeof spawn);
+
+		// 'h' is 1 byte and 'é' 2 bytes: a 2-byte limit cuts 'é' in half.
+		const result = await exec(['echo'], { maxOutputBytes: 2 });
+
+		expect(result.errorCode).toBe(ExecErrorCode.OUTPUT_LIMIT_EXCEEDED);
+		expect(result.stdout).toBe('h');
+		expect(child.kill).toHaveBeenCalledTimes(1);
+		expect(child.kill).toHaveBeenCalledWith('SIGKILL');
+	});
 });

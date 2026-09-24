@@ -9,6 +9,7 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, sep } from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import { prepareSpawn } from './windows-spawn.js';
 
 export type { PreparedSpawn, PrepareSpawnOptions } from './windows-spawn.js';
@@ -41,7 +42,12 @@ export enum ExecErrorCode {
 	EXIT_CODE = 'EXIT_CODE',
 	/** Failed to spawn the process */
 	SPAWN_FAILED = 'SPAWN_FAILED',
+	/** stdout or stderr exceeded `maxOutputBytes`; the process was killed */
+	OUTPUT_LIMIT_EXCEEDED = 'OUTPUT_LIMIT_EXCEEDED',
 }
+
+/** Default for {@link ExecOptions.maxOutputBytes}: 10 MiB per stream. */
+export const DEFAULT_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
 
 /** Options for cross-platform exec */
 export interface ExecOptions {
@@ -53,6 +59,13 @@ export interface ExecOptions {
 	debug?: boolean;
 	/** Environment variables to merge with process.env */
 	env?: Record<string, string>;
+	/**
+	 * Maximum bytes captured from each of stdout and stderr (default:
+	 * {@link DEFAULT_MAX_OUTPUT_BYTES}, 10 MiB). When either stream exceeds it,
+	 * the process is killed and the result has `errorCode`
+	 * `OUTPUT_LIMIT_EXCEEDED`, with the output captured up to the limit.
+	 */
+	maxOutputBytes?: number;
 }
 
 /** Result from exec() with error codes for observability */
@@ -121,6 +134,19 @@ export function exec(cmd: string[], options: ExecOptions = {}): Promise<ExecResu
 			);
 			return;
 		}
+		const maxOutputBytes = options.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
+		if (!Number.isSafeInteger(maxOutputBytes) || maxOutputBytes < 0) {
+			resolve(
+				createExecResult(
+					'',
+					'maxOutputBytes must be a nonnegative integer',
+					1,
+					0,
+					ExecErrorCode.SPAWN_FAILED
+				)
+			);
+			return;
+		}
 
 		const startTime = Date.now();
 
@@ -133,92 +159,58 @@ export function exec(cmd: string[], options: ExecOptions = {}): Promise<ExecResu
 		const command = cmd[0] as string;
 		const args = cmd.slice(1);
 
-		let stdoutData = '';
-		let stderrData = '';
+		let child: ChildProcess | undefined;
 		let timedOut = false;
+		let outputLimitExceeded = false;
 		let timeoutId: ReturnType<typeof setTimeout> | undefined;
+		const onOverflow = () => {
+			if (outputLimitExceeded) return;
+			outputLimitExceeded = true;
+			child?.kill('SIGKILL');
+		};
+		const stdout = createOutputCapture(maxOutputBytes, onOverflow);
+		const stderr = createOutputCapture(maxOutputBytes, onOverflow);
+		const finish = (exitCode: number, errorCode?: ExecErrorCode, stderrText = stderr.text()) => {
+			if (timeoutId) clearTimeout(timeoutId);
+			const durationMs = Date.now() - startTime;
+			resolve(
+				createExecResult(stdout.text().trim(), stderrText.trim(), exitCode, durationMs, errorCode)
+			);
+		};
 
 		try {
 			const env = options.env ? { ...process.env, ...options.env } : process.env;
 			const invocation = prepareSpawn(command, args, { cwd: options.cwd, env });
-			const child: ChildProcess = spawn(invocation.command, invocation.args, {
+			const spawned = spawn(invocation.command, invocation.args, {
 				cwd: options.cwd,
 				env,
 				shell: false,
 				windowsVerbatimArguments: invocation.windowsVerbatimArguments,
 			});
+			child = spawned;
 
 			// Handle timeout
 			if (options.timeout && options.timeout > 0) {
 				timeoutId = setTimeout(() => {
 					timedOut = true;
-					child.kill('SIGKILL');
+					spawned.kill('SIGKILL');
 				}, options.timeout);
 			}
 
-			// Decode as a stream so multibyte characters split across chunks stay intact
-			child.stdout?.setEncoding('utf8');
-			child.stdout?.on('data', (data: string) => {
-				stdoutData += data;
+			spawned.stdout?.on('data', (data: Buffer) => stdout.write(data));
+			spawned.stderr?.on('data', (data: Buffer) => stderr.write(data));
+
+			spawned.on('error', (error: Error) => {
+				finish(1, ExecErrorCode.SPAWN_FAILED, error.message);
 			});
 
-			child.stderr?.setEncoding('utf8');
-			child.stderr?.on('data', (data: string) => {
-				stderrData += data;
-			});
-
-			child.on('error', (error: Error) => {
-				if (timeoutId) clearTimeout(timeoutId);
-				const durationMs = Date.now() - startTime;
-				resolve(
-					createExecResult(
-						stdoutData.trim(),
-						error.message,
-						1,
-						durationMs,
-						ExecErrorCode.SPAWN_FAILED
-					)
-				);
-			});
-
-			child.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
-				if (timeoutId) clearTimeout(timeoutId);
-				const durationMs = Date.now() - startTime;
+			spawned.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
 				const exitCode = code ?? 1;
-
-				if (timedOut) {
-					resolve(
-						createExecResult(
-							stdoutData.trim(),
-							stderrData.trim(),
-							exitCode,
-							durationMs,
-							ExecErrorCode.TIMEOUT
-						)
-					);
-				} else if (signal) {
-					resolve(
-						createExecResult(
-							stdoutData.trim(),
-							stderrData.trim(),
-							exitCode,
-							durationMs,
-							ExecErrorCode.SIGNAL
-						)
-					);
-				} else if (exitCode !== 0) {
-					resolve(
-						createExecResult(
-							stdoutData.trim(),
-							stderrData.trim(),
-							exitCode,
-							durationMs,
-							ExecErrorCode.EXIT_CODE
-						)
-					);
-				} else {
-					resolve(createExecResult(stdoutData.trim(), stderrData.trim(), 0, durationMs));
-				}
+				if (outputLimitExceeded) finish(exitCode, ExecErrorCode.OUTPUT_LIMIT_EXCEEDED);
+				else if (timedOut) finish(exitCode, ExecErrorCode.TIMEOUT);
+				else if (signal) finish(exitCode, ExecErrorCode.SIGNAL);
+				else if (exitCode !== 0) finish(exitCode, ExecErrorCode.EXIT_CODE);
+				else finish(0);
 			});
 		} catch (error) {
 			const durationMs = Date.now() - startTime;
@@ -226,6 +218,37 @@ export function exec(cmd: string[], options: ExecOptions = {}): Promise<ExecResu
 			resolve(createExecResult('', message, 1, durationMs, ExecErrorCode.SPAWN_FAILED));
 		}
 	});
+}
+
+/**
+ * Collect a child stream's output as UTF-8 text, keeping at most `limit` bytes.
+ * Decoding is incremental, so a multibyte character split across chunks stays
+ * intact, and a character cut by the limit is dropped rather than garbled.
+ * `onOverflow` runs once when more than `limit` bytes arrive.
+ */
+function createOutputCapture(limit: number, onOverflow: () => void) {
+	const decoder = new StringDecoder('utf8');
+	let text = '';
+	let bytes = 0;
+	let full = false;
+	return {
+		write(chunk: Buffer): void {
+			if (full) return;
+			const room = limit - bytes;
+			if (chunk.length > room) {
+				text += decoder.write(chunk.subarray(0, room));
+				bytes = limit;
+				full = true;
+				onOverflow();
+				return;
+			}
+			bytes += chunk.length;
+			text += decoder.write(chunk);
+		},
+		text(): string {
+			return full ? text : text + decoder.end();
+		},
+	};
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

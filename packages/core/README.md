@@ -47,6 +47,13 @@ root entry, even `import { success } from '@lushly-dev/afd-core'`, pulls in
 import from `@lushly-dev/afd-core/result` and `@lushly-dev/afd-core/commands`,
 or define commands through `@lushly-dev/afd-server/define`.
 
+### Running processes
+
+`exec(['git', 'status'], options)` from the `platform` subpath never uses a shell. It
+captures at most `maxOutputBytes` (default 10 MiB, `DEFAULT_MAX_OUTPUT_BYTES`) from each of
+stdout and stderr. Past that it kills the process and returns
+`errorCode: 'OUTPUT_LIMIT_EXCEEDED'` with the output captured up to the limit.
+
 ## Usage
 
 ### Creating Command Results

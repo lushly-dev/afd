@@ -2,6 +2,7 @@ import { tmpdir } from 'node:os';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	createExecResult,
+	DEFAULT_MAX_OUTPUT_BYTES,
 	ExecErrorCode,
 	exec,
 	findUp,
@@ -114,6 +115,47 @@ describe('exec', () => {
 		const result = await exec(cmd, { timeout: 100 });
 
 		expect(result.errorCode).toBe(ExecErrorCode.TIMEOUT);
+	});
+
+	it('kills a process whose stdout exceeds maxOutputBytes', async () => {
+		// Writes forever: without the bound, memory would grow until the timeout.
+		const script = "setInterval(() => process.stdout.write('x'.repeat(65536)), 1)";
+		const result = await exec([process.execPath, '-e', script], {
+			maxOutputBytes: 100_000,
+			timeout: 10_000,
+		});
+
+		expect(result.errorCode).toBe(ExecErrorCode.OUTPUT_LIMIT_EXCEEDED);
+		expect(result.stdout).toBe('x'.repeat(100_000));
+		expect(result.durationMs).toBeLessThan(10_000);
+	});
+
+	it('bounds stderr too', async () => {
+		const script = "process.stderr.write('e'.repeat(5000)); setInterval(() => {}, 1000)";
+		const result = await exec([process.execPath, '-e', script], {
+			maxOutputBytes: 1000,
+			timeout: 10_000,
+		});
+
+		expect(result.errorCode).toBe(ExecErrorCode.OUTPUT_LIMIT_EXCEEDED);
+		expect(result.stderr).toBe('e'.repeat(1000));
+	});
+
+	it('keeps output that fits the limit and uses a 10 MiB default', async () => {
+		const script = "process.stdout.write('y'.repeat(2 * 1024 * 1024))";
+		const result = await exec([process.execPath, '-e', script]);
+
+		expect(result.errorCode).toBeUndefined();
+		expect(result.stdout).toHaveLength(2 * 1024 * 1024);
+		expect(DEFAULT_MAX_OUTPUT_BYTES).toBe(10 * 1024 * 1024);
+	});
+
+	it('rejects an invalid maxOutputBytes without spawning', async () => {
+		for (const maxOutputBytes of [-1, 1.5, Number.NaN]) {
+			const result = await exec(['echo', 'x'], { maxOutputBytes });
+			expect(result.errorCode).toBe(ExecErrorCode.SPAWN_FAILED);
+			expect(result.stderr).toContain('maxOutputBytes');
+		}
 	});
 
 	it('passes environment variables', async () => {
@@ -233,5 +275,6 @@ describe('ExecErrorCode enum', () => {
 		expect(ExecErrorCode.SIGNAL).toBe('SIGNAL');
 		expect(ExecErrorCode.EXIT_CODE).toBe('EXIT_CODE');
 		expect(ExecErrorCode.SPAWN_FAILED).toBe('SPAWN_FAILED');
+		expect(ExecErrorCode.OUTPUT_LIMIT_EXCEEDED).toBe('OUTPUT_LIMIT_EXCEEDED');
 	});
 });
