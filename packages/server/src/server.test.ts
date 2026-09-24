@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineCommand } from './schema.js';
 import { createMcpServer, isStdinPiped, type McpServer } from './server.js';
+import { getToolsList } from './tools.js';
 
 // Simple test command
 const testCommand = defineCommand({
@@ -263,6 +264,25 @@ describe('Command definition passthrough', () => {
 		expect(cmd?.mutation).toBe(false);
 		// Empty arrays are preserved on the definition but _meta emission in tools.ts checks length > 0
 		expect(cmd?.requires).toEqual([]);
+	});
+
+	it('advertises destructive in the tool _meta so clients can skip it', () => {
+		const reset = defineCommand({
+			expose: { mcp: true },
+			name: 'db-reset',
+			description: 'Delete every record',
+			mutation: true,
+			destructive: true,
+			input: z.object({}),
+			handler: async () => ({ success: true, data: {} }),
+		});
+
+		const tool = getToolsList([reset, testCommand], 'individual').find(
+			(t) => t.name === 'db-reset'
+		);
+		expect(tool?._meta).toMatchObject({ mutation: true, destructive: true });
+		const echo = getToolsList([testCommand], 'individual').find((t) => t.name === 'test-echo');
+		expect(echo?._meta).not.toHaveProperty('destructive');
 	});
 });
 
