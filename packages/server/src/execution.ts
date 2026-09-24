@@ -226,10 +226,11 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 	 * Execute a command and stream its result.
 	 *
 	 * Delegates to the core `executeStream()` with {@link executeCommand} as the
-	 * callback. The command runs to completion first: an array result is then
-	 * emitted as one data chunk per item, any other result as a single data
-	 * chunk, followed by a complete chunk. `context.signal` cancels the stream
-	 * with a `STREAM_ABORTED` error chunk.
+	 * callback. This is not incremental streaming: the handler runs to
+	 * completion first, then an array result is emitted as one data chunk per
+	 * item, any other result as a single data chunk, followed by a complete
+	 * chunk. `context.signal` cancels the stream with a `STREAM_ABORTED` error
+	 * chunk.
 	 */
 	function executeStream(
 		commandName: string,

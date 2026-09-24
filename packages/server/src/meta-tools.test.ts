@@ -176,6 +176,20 @@ describe('meta-tool argument validation over HTTP', () => {
 		const ok = await call(url, 'afd-pipe', { steps: [{ command: 'item-get' }] });
 		expect(ok.value.steps[0].status).toBe('success');
 	});
+
+	it('rejects a streaming pipeline step with UNSUPPORTED_OPTION before running a step', async () => {
+		const url = await host();
+		const streamed = await call(url, 'afd-pipe', {
+			steps: [{ command: 'item-get' }, { command: 'item-get', stream: true }],
+		});
+
+		expect(streamed.isError).toBe(true);
+		expect(streamed.value.steps.map((step: { status: string }) => step.status)).toEqual([
+			'skipped',
+			'failure',
+		]);
+		expect(streamed.value.steps[1].error.code).toBe('UNSUPPORTED_OPTION');
+	});
 });
 
 describe('meta-tool definitions', () => {

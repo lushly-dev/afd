@@ -149,7 +149,12 @@ The registry follows the same rules as the MCP server:
   or stack. Pass `createCommandRegistry({ devMode: true })` to include them.
 
 Batch and stream execution live in `executeBatch()` and `executeStream()`, which take an
-`execute` callback like `executePipeline()`, so other hosts can reuse the same semantics.
+`execute` callback like `executePipeline()`, so other hosts can reuse the same semantics. The MCP
+server uses them too.
+
+`executeStream()` does not stream incrementally: the command runs to completion, then its result is
+turned into chunks (one `data` chunk per array item, or one for any other value, then `complete`).
+`StreamableCommand` is metadata only.
 
 ### Creating Errors
 
@@ -231,6 +236,10 @@ const result = await executePipeline(
   any step runs. A malformed request fails with `INVALID_PIPELINE_REQUEST`.
 - Step data is copied (`structuredClone`) when it is recorded and when it is resolved, so a handler
   that mutates its input cannot change another step's data.
+- Steps run one after another. `options.parallel: true` and a step with `stream: true` are not
+  implemented: the offending step (step 0 for `parallel`) fails with `UNSUPPORTED_OPTION` and every
+  other step is skipped, before any command runs. `PipelineStep.stream` and `options.onProgress` are
+  deprecated; `onProgress` is accepted but never called.
 
 ## Types
 

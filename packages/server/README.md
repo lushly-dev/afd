@@ -643,6 +643,12 @@ The server exposes these endpoints:
 
 Command failures are not protocol errors: they stay AFD `CommandResult` failures inside `result`. `/batch` and `/stream` are not JSON-RPC and answer errors with `{ success: false, error: { code, message, suggestion } }`.
 
+### Streaming (`/stream`)
+
+`/stream/:name` answers with Server-Sent Events, one `event: chunk` per `StreamChunk`. It is not incremental streaming: the command's handler runs to completion first, and the chunks are produced from its final result afterwards. An array result becomes one `data` chunk per item, any other result a single `data` chunk, followed by a `complete` chunk; a failure becomes one `error` chunk. No `progress` chunks are emitted, and the time to the first chunk is the handler's full run time. Handlers return a single `CommandResult`; returning an async iterable is not supported, and the `StreamableCommand` marker from core is metadata only. If the client disconnects, the command's `context.signal` aborts.
+
+Batch (`/batch`, `afd-batch`) and stream execution use the core `executeBatch()` and `executeStream()` executors with the server's command execution as the callback, so they behave like the core registry and DirectClient.
+
 ### Sessions (`Mcp-Session-Id`)
 
 When `contexts` are configured, `initialize` on `/message` returns an `Mcp-Session-Id` response header. Repeat it on later `/message`, `/rpc`, `/batch` and `/stream` requests to use that session's context stack. Requests without the header are stateless. An unknown or expired session ID is answered with HTTP 404; start a new session with `initialize`. `@lushly-dev/afd-client` does this automatically. Without `contexts`, no session is issued and the header is ignored.
@@ -879,7 +885,7 @@ const server = createMcpServer({
 
 ### Pipeline execution limits
 
-Pipelines run sequentially. `parallel: true` returns an actionable `UNSUPPORTED_OPTION` failure before invoking a command. `timeoutMs` bounds each awaited step by the remaining pipeline deadline and aborts its `context.signal`; handlers must honor that signal to stop their own work. A timed-out mutation may still finish if its handler ignores cancellation, so inspect partial results before retrying. Numeric `$steps[n]` references use original request indices, including skipped or failed steps. `$first` refers to original step zero; `$prev` keeps the last successful result.
+Pipelines run sequentially. `parallel: true` and a step with `stream: true` (deprecated, not implemented) return an actionable `UNSUPPORTED_OPTION` failure on the offending step before invoking any command; `onProgress` is deprecated and never called. `timeoutMs` bounds each awaited step by the remaining pipeline deadline and aborts its `context.signal`; handlers must honor that signal to stop their own work. A timed-out mutation may still finish if its handler ignores cancellation, so inspect partial results before retrying. Numeric `$steps[n]` references use original request indices, including skipped or failed steps. `$first` refers to original step zero; `$prev` keeps the last successful result.
 
 Variable references follow [`spec/pipeline-variables.md`](../../spec/pipeline-variables.md). `afd-pipe` accepts an optional top-level `input` (any JSON value) that steps read as `$input` and `$input.<path>`; `$input` never exposes the server's execution context (trace ID, auth or other context values), which it used to. Only whole strings of the reference forms are resolved: other `$` strings such as `$9.99` are literals, and `$$` sends a literal `$`. Paths follow only own keys of plain JSON objects and in-bounds array indices, so `constructor`, `__proto__` and other `__`-prefixed segments never resolve. Unresolved references are omitted from objects, become `null` in arrays, and make `when` comparisons false. Step inputs or `input` nested deeper than 64 levels are rejected with `VALIDATION_ERROR` before any step runs. Step data is copied between steps, so a handler that mutates its input cannot change another step's data.
 

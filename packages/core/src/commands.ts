@@ -410,12 +410,13 @@ export interface CommandRegistry {
 	): Promise<BatchResult<TOutput>>;
 
 	/**
-	 * Execute a command that yields streaming results.
+	 * Execute a command and return its result as stream chunks.
 	 *
-	 * Returns an AsyncGenerator that yields StreamChunks (progress, data,
-	 * complete, or error). Use for long-running operations or large results.
-	 * The command runs through `execute()` with `context`, so exposure checks
-	 * apply.
+	 * Returns an AsyncGenerator of StreamChunks. The command runs through
+	 * `execute()` with `context` (so exposure checks apply) and completes before
+	 * any chunk is produced: an array result becomes one data chunk per item,
+	 * anything else one data chunk, followed by a complete chunk (or an error
+	 * chunk). It does not stream incrementally or emit progress chunks.
 	 *
 	 * @param name - Command name
 	 * @param input - Command input

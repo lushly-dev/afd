@@ -320,7 +320,10 @@ export interface StreamCallbacks<T = unknown> {
 /**
  * Marker interface for commands that support streaming.
  *
- * Extends the standard CommandDefinition with streaming metadata.
+ * Extends the standard CommandDefinition with streaming metadata. It is
+ * metadata only: handlers still return one `CommandResult`, and the executors
+ * (`executeStream()`, the server's `/stream`) produce chunks from that result
+ * after the handler completes.
  */
 export interface StreamableCommand {
 	/**

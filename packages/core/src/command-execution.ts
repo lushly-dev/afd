@@ -261,12 +261,14 @@ function abortedChunk(message: string, chunksEmitted: number, resumeFrom?: numbe
 /**
  * Execute a command and stream its result.
  *
- * The command runs once through `execute` with `context` (so `interface`
- * reaches the host's exposure check). An array result is emitted as one data
- * chunk per item, any other result as a single data chunk, followed by a
- * complete chunk. A failure result becomes an error chunk. `context.signal`
- * cancels the stream: an aborted signal yields a `STREAM_ABORTED` error chunk
- * before execution, after it, or between data chunks.
+ * This is not incremental streaming: the command runs once, to completion,
+ * through `execute` with `context` (so `interface` reaches the host's exposure
+ * check), and the chunks are produced from its final result afterwards. An
+ * array result is emitted as one data chunk per item, any other result as a
+ * single data chunk, followed by a complete chunk; no progress chunks are
+ * emitted. A failure result becomes an error chunk. `context.signal` cancels
+ * the stream: an aborted signal yields a `STREAM_ABORTED` error chunk before
+ * execution, after it, or between data chunks.
  *
  * @param commandName - Command to execute
  * @param input - Command input
