@@ -1,15 +1,15 @@
 # Todo Example
 
-Multi-stack implementation of a Todo application demonstrating **Agent-First Development (AFD)** patterns. This example features both TypeScript and Python backends that are validated against a shared conformance test suite.
+Multi-stack implementation of a Todo application demonstrating **Agent-First Development (AFD)** patterns. This example features TypeScript, Python and Rust backends that are validated against a shared conformance test suite.
 
 ## Architecture
 
 - **Spec-First**: All backends must comply with the [API Contract](./spec/test-cases.json).
-- **Multi-Stack**: Identical functionality implemented in TypeScript and Python.
+- **Multi-Stack**: Identical functionality implemented in TypeScript, Python and Rust.
 - **MCP-Native**: Backends are Model Context Protocol (MCP) servers, ready for AI agents.
 - **Thin UI**: Frontends are thin surfaces that invoke commands via MCP.
-- **Shared Storage**: Both backends use the same JSON file for data persistence.
-- **Conformance in CI**: `.github/workflows/conformance.yml` runs the suite against both backends.
+- **Shared Storage**: The TypeScript and Python backends use the same JSON file for data persistence (the Rust backend keeps its data in memory).
+- **Conformance in CI**: `.github/workflows/conformance.yml` runs the suite against all three backends.
 
 The TypeScript commands explicitly set `expose: { mcp: true }`. AFD commands are
 private to external MCP clients by default, so every command intended for a remote
@@ -43,8 +43,15 @@ pnpm test:conformance:ts
 pnpm test:conformance:py
 ```
 
-The runner spawns each backend over stdio with `TODO_STORE_TYPE=memory`, runs every case in
-[spec/test-cases.json](./spec/test-cases.json), and exits non-zero if any case fails.
+**Rust Backend** (needs a Rust toolchain; `backends/rust/rust-toolchain.toml` pins it):
+
+```bash
+pnpm test:conformance:rs
+```
+
+The runner spawns the TypeScript and Python backends over stdio with `TODO_STORE_TYPE=memory`,
+and the Rust backend as an HTTP server on a free local port (MCP over HTTP). It runs every
+case in [spec/test-cases.json](./spec/test-cases.json) and exits non-zero if any case fails.
 
 ### 3. Start a Backend (Manual)
 
@@ -77,7 +84,8 @@ pnpm dev:react
 
 ## Storage Configuration
 
-Both backends support file-based storage (default) or in-memory storage:
+The TypeScript and Python backends support file-based storage (default) or in-memory storage
+(the Rust backend is in-memory only):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -128,7 +136,10 @@ The frontends work with any backend that serves their HTTP endpoint, because the
 | Rust       | Vanilla  | `cargo run -- server` + `pnpm dev:web` |
 | Rust       | React    | `cargo run -- server` + `pnpm dev:react` |
 
-The frontends POST JSON-RPC to `http://localhost:3100/message`. The Python backend is a stdio
+The frontends POST JSON-RPC to `http://localhost:3100/message`. The TypeScript and Rust
+backends accept browser requests from the dev frontends' origins (`http://localhost:3000` for
+`pnpm dev:web`, `http://localhost:5173` and `5174` for Vite, also on `127.0.0.1`) and refuse
+other origins with 403; add yours with `ALLOWED_ORIGINS`. The Python backend is a stdio
 MCP server without that HTTP endpoint, so use it from an MCP client (see below) and the
 conformance suite rather than the web frontends.
 
@@ -153,9 +164,10 @@ All three backends can be configured as MCP servers in VS Code. Edit `.vscode/mc
       "disabled": true
     },
     
-    // Rust backend (HTTP/SSE transport - requires manual server start)
+    // Rust backend (MCP over HTTP, JSON responses - requires manual server start)
     "afd-todo-rust": {
-      "url": "http://127.0.0.1:3100/sse",
+      "type": "http",
+      "url": "http://127.0.0.1:3100/mcp",
       "disabled": true
     }
   }
@@ -168,7 +180,7 @@ All three backends can be configured as MCP servers in VS Code. Edit `.vscode/mc
 |---------|-----------|------------|-------|
 | TypeScript | stdio | ✅ Yes | VS Code spawns the process |
 | Python | stdio | ✅ Yes | VS Code spawns the process |
-| Rust | HTTP/SSE | ❌ No | Must start server manually first |
+| Rust | HTTP (`POST /mcp`, no SSE) | ❌ No | Must start server manually first |
 
 ### Switching Backends
 
