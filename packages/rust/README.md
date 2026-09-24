@@ -238,8 +238,9 @@ async fn main() {
   `cargo check --target wasm32-unknown-unknown --no-default-features --features wasm`.
 
 Builds without `native` reject deadline options with `UNSUPPORTED_OPTION` before invoking any
-command. Execution without a deadline remains available. Parallel pipelines are currently rejected
-in every build; batch concurrency is supported through `parallelism`.
+command. Execution without a deadline remains available. Parallel pipelines and pipeline steps with
+`stream: true` are currently rejected with `UNSUPPORTED_OPTION` in every build, before any step
+runs; batch concurrency is supported through `parallelism`.
 
 ## License
 

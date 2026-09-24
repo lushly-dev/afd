@@ -308,6 +308,76 @@ class TestPipelineConditionsAreValidatedUpFront:
         ]
 
 
+class TestStreamingStepsAreRejected:
+    """``stream: true`` is not implemented, so it is rejected before any step runs (as in TS)."""
+
+    @pytest.mark.asyncio
+    async def test_afd_pipe_rejects_a_streaming_step_with_unsupported_option(self):
+        writes: list = []
+        server = _server(writes)
+
+        result = await server.call_tool(
+            "afd-pipe",
+            {"steps": [{"command": "todo-create"}, {"command": "todo-create", "stream": True}]},
+        )
+
+        assert writes == []
+        assert [step.status for step in result.steps] == [
+            StepStatus.SKIPPED,
+            StepStatus.FAILURE,
+        ]
+        assert result.steps[1].error.code == "UNSUPPORTED_OPTION"
+        assert "step 1" in result.steps[1].error.message
+        assert result.steps[1].error.suggestion.startswith("Remove stream")
+
+    @pytest.mark.asyncio
+    async def test_afd_pipe_accepts_stream_false(self):
+        writes: list = []
+        server = _server(writes)
+
+        result = await server.call_tool(
+            "afd-pipe", {"steps": [{"command": "todo-create", "stream": False}]}
+        )
+
+        assert [step.status for step in result.steps] == [StepStatus.SUCCESS]
+        assert len(writes) == 1
+
+    @pytest.mark.asyncio
+    async def test_direct_client_pipe_rejects_a_streaming_step(self):
+        from afd.direct import DirectClient, SimpleRegistry
+        from afd.direct import PipelineStep as DirectStep
+
+        calls: list = []
+        registry = SimpleRegistry()
+
+        @registry.command(name="item-get")
+        async def item_get():
+            calls.append("item-get")
+            return success({"id": 1})
+
+        client = DirectClient(registry)
+        result = await client.pipe(
+            [{"command": "item-get", "as": "item"}, {"command": "item-get", "stream": True}]
+        )
+
+        assert calls == []
+        assert result.success is False
+        assert [step.skipped for step in result.steps] == [True, False]
+        assert result.steps[0].alias == "item"
+        assert result.steps[1].result.error.code == "UNSUPPORTED_OPTION"
+        assert "step 1" in result.steps[1].result.error.message
+        assert result.final.error.code == "UNSUPPORTED_OPTION"
+        assert result.outputs == {}
+
+        typed = await client.pipe([DirectStep(command="item-get", stream=True)])
+        assert calls == []
+        assert typed.steps[0].result.error.code == "UNSUPPORTED_OPTION"
+
+        accepted = await client.pipe([{"command": "item-get", "stream": False}])
+        assert accepted.success is True
+        assert calls == ["item-get"]
+
+
 class TestBatchStopsCancelSiblings:
     @pytest.mark.asyncio
     async def test_stop_on_error_cancels_in_flight_siblings(self):

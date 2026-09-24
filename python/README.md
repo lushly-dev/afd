@@ -245,6 +245,10 @@ the whole request before anything runs, and so does a malformed `when` condition
   They report `COMMAND_CANCELLED` or `BATCH_TIMEOUT`.
 - A handler that returns something other than a `CommandResult` gives its item or step
   an `INVALID_COMMAND_RESULT` failure instead of breaking the aggregate result.
+- Pipelines run sequentially. `options.parallel` and a step with `stream: true` are not
+  implemented: the offending step (step 0 for `parallel`) fails with
+  `UNSUPPORTED_OPTION` and every other step is skipped, before any command runs.
+  `DirectClient.pipe()` rejects a streaming step the same way.
 
 ### Telemetry
 

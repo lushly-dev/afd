@@ -42,6 +42,9 @@
 //! - [`execute_pipeline`] rejects step inputs and the request `input` nested
 //!   deeper than [`MAX_INPUT_DEPTH`] levels (the outermost object or array is
 //!   level 1) with `VALIDATION_ERROR` before any step runs.
+//! - Options that are accepted but not implemented, `options.parallel` and a
+//!   step's `stream: true`, fail that step (step 0 for `parallel`) with
+//!   `UNSUPPORTED_OPTION` and skip every other step, so no command runs.
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -179,7 +182,8 @@ pub struct PipelineStep {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub when: Option<PipelineCondition>,
 
-    /// Enable streaming for this step.
+    /// Not implemented: `Some(true)` fails this step with `UNSUPPORTED_OPTION`
+    /// before any step runs, as in TypeScript. `Some(false)` is accepted.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
 }
@@ -214,7 +218,8 @@ impl PipelineStep {
         self
     }
 
-    /// Enable or disable streaming.
+    /// Set `stream`. Streaming steps are not implemented: `true` makes
+    /// [`execute_pipeline`] reject the pipeline with `UNSUPPORTED_OPTION`.
     pub fn with_stream(mut self, stream: bool) -> Self {
         self.stream = Some(stream);
         self
@@ -1572,6 +1577,23 @@ fn preflight(
                 "UNSUPPORTED_OPTION",
                 "Parallel pipeline execution is not supported".to_string(),
                 "Remove parallel or set it to false to execute steps sequentially",
+                false,
+            ),
+        ));
+    }
+    if let Some(index) = request
+        .steps
+        .iter()
+        .position(|step| step.stream == Some(true))
+    {
+        return Some((
+            index,
+            pipeline_error(
+                "UNSUPPORTED_OPTION",
+                format!(
+                    "Streaming pipeline steps are not supported (step {index} sets stream: true)"
+                ),
+                "Remove stream or set it to false; to stream one command, use the /stream endpoint",
                 false,
             ),
         ));

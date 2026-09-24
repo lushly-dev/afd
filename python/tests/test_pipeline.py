@@ -817,6 +817,77 @@ class TestExecutePipeline:
         assert calls == 0
         assert result.steps[0].error.code == "UNSUPPORTED_OPTION"
 
+    @pytest.mark.asyncio
+    async def test_streaming_step_rejected_before_execution(self):
+        """A step with stream: true fails with UNSUPPORTED_OPTION, as in TypeScript."""
+        calls = 0
+
+        async def executor(command: str, input: dict):
+            nonlocal calls
+            calls += 1
+            return success({})
+
+        result = await execute_pipeline(
+            PipelineRequest.model_validate(
+                {
+                    "steps": [
+                        {"command": "one", "as": "first"},
+                        {"command": "two", "stream": True},
+                        {"command": "three", "stream": True},
+                    ]
+                }
+            ),
+            executor,
+        )
+
+        assert calls == 0
+        assert [step.status for step in result.steps] == [
+            StepStatus.SKIPPED,
+            StepStatus.FAILURE,
+            StepStatus.SKIPPED,
+        ]
+        assert result.steps[0].index == 0
+        assert result.steps[0].alias == "first"
+        assert result.steps[0].command == "one"
+        assert result.steps[0].error is None
+        error = result.steps[1].error
+        assert error.code == "UNSUPPORTED_OPTION"
+        assert error.message == (
+            "Streaming pipeline steps are not supported (step 1 sets stream: true)"
+        )
+        assert error.suggestion.startswith("Remove stream or set it to false")
+        assert result.steps[2].error is None
+        assert result.data is None
+        assert result.metadata.completed_steps == 0
+        assert result.metadata.total_steps == 3
+
+    @pytest.mark.asyncio
+    async def test_stream_false_is_accepted(self):
+        result = await execute_pipeline(
+            PipelineRequest(steps=[PipelineStep(command="one", stream=False)]),
+            lambda command, input: _async_value(success([1, 2])),
+        )
+
+        assert result.steps[0].status == StepStatus.SUCCESS
+        assert result.data == [1, 2]
+
+    @pytest.mark.asyncio
+    async def test_parallel_is_blamed_on_step_zero_even_when_a_step_streams(self):
+        result = await execute_pipeline(
+            PipelineRequest(
+                steps=[PipelineStep(command="one"), PipelineStep(command="two", stream=True)],
+                options=PipelineOptions(parallel=True),
+            ),
+            lambda command, input: _async_value(success({})),
+        )
+
+        assert result.steps[0].error.message == "Parallel pipeline execution is not supported"
+        assert result.steps[1].status == StepStatus.SKIPPED
+
+
+async def _async_value(value):
+    return value
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # HELPER FUNCTION TESTS
