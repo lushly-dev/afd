@@ -9,13 +9,13 @@ export default defineConfig({
 			reporter: ['text', 'json', 'html'],
 			include: ['src/**/*.ts'],
 			exclude: ['src/**/*.test.ts', 'src/index.ts'],
-			// Measured 2026-09-23: 84.93% statements, 78.18% branches, 90.47% functions,
-			// 85.16% lines. Thresholds sit just below; raise them as coverage improves.
+			// Measured 2026-09-24: 95.97% statements, 93.6% branches, 95.72% functions,
+			// 96.99% lines. Thresholds sit just below; raise them as coverage improves.
 			thresholds: {
-				statements: 84,
-				branches: 78,
-				functions: 90,
-				lines: 85,
+				statements: 95,
+				branches: 93,
+				functions: 95,
+				lines: 96,
 			},
 		},
 	},
