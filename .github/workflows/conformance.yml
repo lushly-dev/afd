@@ -52,7 +52,7 @@ jobs:
 
       # Sets UV_PYTHON, so every uv command below uses Python 3.12.
       - name: Install uv and Python 3.12
-        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6.8.0
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           python-version: '3.12'
           enable-cache: true
