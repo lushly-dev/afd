@@ -33,7 +33,7 @@ dependencies = [
     "lushly-botcore>=0.2.0",
     "afd>=0.2.0",
     "click>=8.0",
-    "rich>=13.0",
+    "rich>=15.0.0",
 ]
 
 [project.optional-dependencies]
