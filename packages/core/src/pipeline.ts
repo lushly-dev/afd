@@ -751,7 +751,6 @@ export function buildConfidenceBreakdown(
 export {
 	evaluateCondition,
 	getNestedValue,
-	resolveReference,
 	resolveVariable,
 	resolveVariables,
 } from './pipeline-variables.js';

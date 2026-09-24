@@ -26,7 +26,6 @@ import {
 	isPipelineRequest,
 	isPipelineResult,
 	isPipelineStep,
-	resolveReference,
 	resolveVariable,
 	resolveVariables,
 } from './pipeline.js';
@@ -825,31 +824,5 @@ describe('getNestedValue', () => {
 
 	it('returns undefined for array access on non-array', () => {
 		expect(getNestedValue({ items: 'not-array' }, 'items[0]')).toBeUndefined();
-	});
-});
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// BACKWARDS COMPATIBILITY TESTS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-describe('resolveReference (backwards compatibility)', () => {
-	it('is an alias for resolveVariable', () => {
-		expect(resolveReference).toBe(resolveVariable);
-	});
-
-	it('works identically to resolveVariable', () => {
-		const context: PipelineContext = {
-			previousResult: {
-				index: 0,
-				command: 'test',
-				status: 'success',
-				executionTimeMs: 10,
-				data: { id: 123 },
-			},
-			steps: [],
-		};
-
-		expect(resolveReference('$prev.id', context)).toBe(123);
-		expect(resolveVariable('$prev.id', context)).toBe(123);
 	});
 });

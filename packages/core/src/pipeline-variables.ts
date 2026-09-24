@@ -339,10 +339,3 @@ export function evaluateCondition(condition: PipelineCondition, context: Pipelin
 	if ('$not' in condition) return !evaluateCondition(condition.$not, context);
 	return false;
 }
-
-/**
- * Alias for resolveVariable (backwards compatibility).
- *
- * @deprecated Use resolveVariable instead
- */
-export const resolveReference = resolveVariable;
