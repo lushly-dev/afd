@@ -41,7 +41,7 @@ steps:
         completed: { equals: false }
         id: { exists: true }
 
-  - command: todo-complete
+  - command: todo-toggle
     description: Mark the todo as completed
     input:
       id: \${{ steps[0].data.id }}  # Reference previous step output
@@ -55,12 +55,5 @@ steps:
     expect:
       success: true
       data:
-        items:
-          length: { gte: 1 }
-
-# Optional: Final state verification
-# verify:
-#   snapshot: ./snapshots/expected-final-state.json
-#   assertions:
-#     - "All todos should be completed"
+        total: { gte: 1 }
 `;
