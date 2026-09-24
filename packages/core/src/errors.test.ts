@@ -169,6 +169,55 @@ describe('wrapError', () => {
 		expect(JSON.parse(JSON.stringify(wrapped))).not.toHaveProperty('syscall');
 	});
 
+	it('replaces a system error message, which holds the path, with one naming the code', () => {
+		const systemError = Object.assign(
+			new Error("ENOENT: no such file or directory, open '/srv/app/.secrets'"),
+			{ errno: -2, code: 'ENOENT', syscall: 'open', path: '/srv/app/.secrets' }
+		);
+		const wrapped = wrapError(systemError);
+
+		expect(wrapped.message).toBe('A system error occurred: ENOENT (no such file or directory)');
+		expect(JSON.stringify(wrapped)).not.toContain('/srv/app');
+		expect(wrapped.suggestion).toBe('Please try again. If this persists, contact support.');
+	});
+
+	it('detects real Node system errors', async () => {
+		const { readFile } = await import('node:fs/promises');
+		const missing = '/nonexistent-afd-dir/secret-file.txt';
+		const thrown = await readFile(missing).catch((error: unknown) => error);
+
+		const wrapped = wrapError(thrown);
+
+		expect(wrapped.code).toBe('ENOENT');
+		expect(wrapped.message).not.toContain('secret-file');
+	});
+
+	it('uses the code alone for an uncommon system error code', () => {
+		const wrapped = wrapError(
+			Object.assign(new Error('EFOO: odd failure at /srv/app/data'), {
+				code: 'EFOO',
+				syscall: 'read',
+			})
+		);
+		expect(wrapped).toMatchObject({ code: 'EFOO', message: 'A system error occurred: EFOO' });
+	});
+
+	it('recognizes common system codes without errno or syscall', () => {
+		const wrapped = wrapError(
+			Object.assign(new Error("EACCES: permission denied, open '/etc/shadow'"), {
+				code: 'EACCES',
+			})
+		);
+		expect(wrapped.message).toBe('A system error occurred: EACCES (permission denied)');
+	});
+
+	it('keeps the message of errors whose codes are not system error codes', () => {
+		for (const code of ['ERROR', 'EXPECTED', 'ERR_INVALID_ARG_TYPE', 'TOKEN_EXPIRED', 'enoent']) {
+			const wrapped = wrapError(Object.assign(new Error('Keep this message'), { code }));
+			expect(wrapped).toMatchObject({ code, message: 'Keep this message' });
+		}
+	});
+
 	it('keeps the code, suggestion and retryable of structured Error subclasses', () => {
 		class ProviderError extends Error {
 			readonly code = 'TOKEN_EXPIRED';

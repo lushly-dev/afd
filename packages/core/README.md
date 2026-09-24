@@ -287,6 +287,9 @@ interface CommandError {
 and any `code`, `suggestion` and `retryable` fields, drops everything else (such as a
 Node system error's `path`), never puts the stack in `details`, and keeps `cause` only
 when it is a `CommandError`. `isCommandError()` returns `false` for `Error` instances.
+A Node system error (`ENOENT`, `EACCES`, ... with Node's `errno` or `syscall`, or a common
+POSIX code) keeps its code, but its message, which names the file or address, is replaced
+with a generic one such as `A system error occurred: ENOENT (no such file or directory)`.
 
 ### CommandDefinition
 

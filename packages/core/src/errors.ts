@@ -233,6 +233,64 @@ export function internalError(message: string, cause?: Error): CommandError {
 }
 
 /**
+ * Common POSIX error codes that Node system errors carry, with a generic
+ * description. Their messages name the file, directory or address involved.
+ */
+const SYSTEM_ERROR_DESCRIPTIONS: Readonly<Record<string, string>> = {
+	EACCES: 'permission denied',
+	EADDRINUSE: 'address already in use',
+	EADDRNOTAVAIL: 'address not available',
+	EAGAIN: 'resource temporarily unavailable',
+	EBADF: 'bad file descriptor',
+	EBUSY: 'resource busy or locked',
+	ECONNABORTED: 'connection aborted',
+	ECONNREFUSED: 'connection refused',
+	ECONNRESET: 'connection reset by peer',
+	EEXIST: 'file already exists',
+	EHOSTUNREACH: 'host is unreachable',
+	EISDIR: 'illegal operation on a directory',
+	ELOOP: 'too many symbolic links',
+	EMFILE: 'too many open files',
+	ENAMETOOLONG: 'name too long',
+	ENETUNREACH: 'network is unreachable',
+	ENFILE: 'too many open files in the system',
+	ENOENT: 'no such file or directory',
+	ENOSPC: 'no space left on device',
+	ENOTDIR: 'not a directory',
+	ENOTEMPTY: 'directory not empty',
+	ENOTFOUND: 'host not found',
+	EPERM: 'operation not permitted',
+	EPIPE: 'broken pipe',
+	EROFS: 'read-only file system',
+	ETIMEDOUT: 'operation timed out',
+	EXDEV: 'cross-device link not permitted',
+};
+
+/**
+ * Whether an error with this `code` is a Node system error (`ENOENT`,
+ * `EACCES`, ...): an `E`-prefixed code with Node's `errno` or `syscall`
+ * field, or one of the common codes above.
+ */
+function isSystemError(code: string, fields: { errno?: unknown; syscall?: unknown }): boolean {
+	if (!/^E[A-Z0-9_]+$/.test(code)) return false;
+	return (
+		typeof fields.errno === 'number' ||
+		typeof fields.syscall === 'string' ||
+		Object.hasOwn(SYSTEM_ERROR_DESCRIPTIONS, code)
+	);
+}
+
+/** A message naming a system error's code, never the path or address its own message holds. */
+function systemErrorMessage(code: string): string {
+	const description = Object.hasOwn(SYSTEM_ERROR_DESCRIPTIONS, code)
+		? SYSTEM_ERROR_DESCRIPTIONS[code]
+		: undefined;
+	return description
+		? `A system error occurred: ${code} (${description})`
+		: `A system error occurred: ${code}`;
+}
+
+/**
  * Whether a value is a native `Error`, including one from another realm.
  */
 function isNativeError(value: unknown): value is Error {
@@ -247,7 +305,11 @@ function isNativeError(value: unknown): value is Error {
  *   `message` and, when present and correctly typed, its own `code`,
  *   `suggestion` and `retryable` fields, so structured errors such as
  *   `AuthAdapterError` keep their code. Every other field, such as a Node
- *   system error's `errno`, `syscall` and `path`, is dropped. `cause` is set
+ *   system error's `errno`, `syscall` and `path`, is dropped. A Node system
+ *   error (an `E`-prefixed `code` such as `ENOENT` or `EACCES`, with `errno`
+ *   or `syscall`, or a common POSIX code) also gets a generic message naming
+ *   its code, such as `A system error occurred: ENOENT (no such file or
+ *   directory)`, because its own message contains the path. `cause` is set
  *   only when the error's cause is itself a `CommandError`. The stack is never
  *   put in `details`: it is kept on a non-enumerable `stack` property for
  *   logging, and is not serialized.
@@ -259,12 +321,19 @@ export function wrapError(error: unknown): CommandError {
 	}
 
 	if (isNativeError(error)) {
-		const fields = error as Error & { code?: unknown; suggestion?: unknown; retryable?: unknown };
+		const fields = error as Error & {
+			code?: unknown;
+			errno?: unknown;
+			syscall?: unknown;
+			suggestion?: unknown;
+			retryable?: unknown;
+		};
 		const code =
 			typeof fields.code === 'string' && fields.code.length > 0
 				? fields.code
 				: ErrorCodes.INTERNAL_ERROR;
-		const wrapped = createError(code, error.message, {
+		const message = isSystemError(code, fields) ? systemErrorMessage(code) : error.message;
+		const wrapped = createError(code, message, {
 			suggestion: typeof fields.suggestion === 'string' ? fields.suggestion : DEFAULT_SUGGESTION,
 			retryable: typeof fields.retryable === 'boolean' ? fields.retryable : true,
 		});
