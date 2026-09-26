@@ -850,3 +850,31 @@ async fn test_command_not_found_truncates_long_names() {
     assert!(message.len() < 200, "{} bytes echoed", message.len());
     assert!(message.contains('…'));
 }
+
+#[test]
+fn test_truncate_name_counts_utf16_code_units() {
+    // Expected values come from the TypeScript `truncateName`.
+    let emoji = "\u{1F600}";
+    for (name, expected) in [
+        ("todo-create".to_string(), "todo-create".to_string()),
+        ("a".repeat(128), "a".repeat(128)),
+        ("a".repeat(129), format!("{}…", "a".repeat(128))),
+        (emoji.repeat(64), emoji.repeat(64)),
+        (
+            format!("{}a", emoji.repeat(64)),
+            format!("{}…", emoji.repeat(64)),
+        ),
+        (emoji.repeat(100), format!("{}…", emoji.repeat(64))),
+        // The emoji would straddle the cut, so it is dropped whole.
+        (
+            format!("a{}", emoji.repeat(100)),
+            format!("a{}…", emoji.repeat(63)),
+        ),
+        (
+            format!("{}{emoji}tail", "a".repeat(127)),
+            format!("{}…", "a".repeat(127)),
+        ),
+    ] {
+        assert_eq!(truncate_name(&name), expected);
+    }
+}

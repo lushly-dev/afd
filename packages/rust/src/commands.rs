@@ -1143,12 +1143,18 @@ impl CommandRegistry {
 /// Longest command name echoed back in an error, as in TypeScript.
 const MAX_ECHOED_NAME_LENGTH: usize = crate::similarity::MAX_SIMILARITY_INPUT_LENGTH;
 
-/// `name` cut to [`MAX_ECHOED_NAME_LENGTH`] characters, with `…` when cut.
+/// `name` cut to [`MAX_ECHOED_NAME_LENGTH`] UTF-16 code units, with `…` when
+/// cut, as in TypeScript. An astral character that straddles the cut is
+/// dropped whole rather than split.
 fn truncate_name(name: &str) -> String {
-    match name.char_indices().nth(MAX_ECHOED_NAME_LENGTH) {
-        None => name.to_string(),
-        Some((end, _)) => format!("{}…", &name[..end]),
+    let mut units = 0;
+    for (end, character) in name.char_indices() {
+        units += character.len_utf16();
+        if units > MAX_ECHOED_NAME_LENGTH {
+            return format!("{}…", &name[..end]);
+        }
     }
+    name.to_string()
 }
 
 /// Build the middleware chain around `command`'s handler.
