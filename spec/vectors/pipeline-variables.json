@@ -1,0 +1,495 @@
+{
+	"description": "Pipeline variable references and conditions (spec/pipeline-variables.md), with values produced by the TypeScript implementation. Regenerate with node spec/vectors/generate-pipeline-variables.mjs.",
+	"context": {
+		"input": {
+			"q": "milk",
+			"n": 2,
+			"nested": {
+				"deep": [
+					1,
+					{
+						"v": "x"
+					}
+				]
+			}
+		},
+		"steps": [
+			{
+				"index": 0,
+				"alias": "user",
+				"status": "success",
+				"data": {
+					"0": "zero",
+					"id": "u1",
+					"name": "Ada",
+					"items": [10, 20, 30],
+					"nothing": null,
+					"constructor": "c",
+					"key with space": 1
+				}
+			},
+			{
+				"index": 1,
+				"alias": "broken",
+				"status": "failure"
+			},
+			{
+				"index": 2,
+				"status": "success",
+				"data": {
+					"id": "t9",
+					"done": false,
+					"count": 3
+				}
+			}
+		],
+		"previous": 2
+	},
+	"references": [
+		{
+			"reference": "$prev",
+			"resolved": true,
+			"value": {
+				"id": "t9",
+				"done": false,
+				"count": 3
+			}
+		},
+		{
+			"reference": "$prev.id",
+			"resolved": true,
+			"value": "t9"
+		},
+		{
+			"reference": "$prev.missing",
+			"resolved": false
+		},
+		{
+			"reference": "$prev.id.deeper",
+			"resolved": false
+		},
+		{
+			"reference": "$prev.",
+			"resolved": true,
+			"value": "$prev."
+		},
+		{
+			"reference": "$prevx",
+			"resolved": true,
+			"value": "$prevx"
+		},
+		{
+			"reference": "$prev.a b",
+			"resolved": true,
+			"value": "$prev.a b"
+		},
+		{
+			"reference": "$prev.a b",
+			"resolved": true,
+			"value": "$prev.a b"
+		},
+		{
+			"reference": "$first",
+			"resolved": true,
+			"value": {
+				"0": "zero",
+				"id": "u1",
+				"name": "Ada",
+				"items": [10, 20, 30],
+				"nothing": null,
+				"constructor": "c",
+				"key with space": 1
+			}
+		},
+		{
+			"reference": "$first.name",
+			"resolved": true,
+			"value": "Ada"
+		},
+		{
+			"reference": "$first.items",
+			"resolved": true,
+			"value": [10, 20, 30]
+		},
+		{
+			"reference": "$first.items[1]",
+			"resolved": true,
+			"value": 20
+		},
+		{
+			"reference": "$first.items.2",
+			"resolved": true,
+			"value": 30
+		},
+		{
+			"reference": "$first.items.01",
+			"resolved": true,
+			"value": 20
+		},
+		{
+			"reference": "$first.items[3]",
+			"resolved": false
+		},
+		{
+			"reference": "$first.items[99999999999999999999]",
+			"resolved": false
+		},
+		{
+			"reference": "$first.0",
+			"resolved": true,
+			"value": "zero"
+		},
+		{
+			"reference": "$first.nothing",
+			"resolved": true,
+			"value": null
+		},
+		{
+			"reference": "$first.nothing.x",
+			"resolved": false
+		},
+		{
+			"reference": "$first.constructor",
+			"resolved": true,
+			"value": "c"
+		},
+		{
+			"reference": "$first.__proto__",
+			"resolved": false
+		},
+		{
+			"reference": "$first.__class__",
+			"resolved": false
+		},
+		{
+			"reference": "$first.items.length",
+			"resolved": false
+		},
+		{
+			"reference": "$steps[0].id",
+			"resolved": true,
+			"value": "u1"
+		},
+		{
+			"reference": "$steps[1]",
+			"resolved": false
+		},
+		{
+			"reference": "$steps[2].done",
+			"resolved": true,
+			"value": false
+		},
+		{
+			"reference": "$steps[3]",
+			"resolved": false
+		},
+		{
+			"reference": "$steps[0][1]",
+			"resolved": true,
+			"value": "$steps[0][1]"
+		},
+		{
+			"reference": "$steps.user.name",
+			"resolved": true,
+			"value": "Ada"
+		},
+		{
+			"reference": "$steps.user[0]",
+			"resolved": true,
+			"value": "$steps.user[0]"
+		},
+		{
+			"reference": "$steps.broken",
+			"resolved": false
+		},
+		{
+			"reference": "$steps.nobody",
+			"resolved": false
+		},
+		{
+			"reference": "$steps.__proto__",
+			"resolved": false
+		},
+		{
+			"reference": "$steps",
+			"resolved": true,
+			"value": "$steps"
+		},
+		{
+			"reference": "$stepsx",
+			"resolved": true,
+			"value": "$stepsx"
+		},
+		{
+			"reference": "$input",
+			"resolved": true,
+			"value": {
+				"q": "milk",
+				"n": 2,
+				"nested": {
+					"deep": [
+						1,
+						{
+							"v": "x"
+						}
+					]
+				}
+			}
+		},
+		{
+			"reference": "$input.q",
+			"resolved": true,
+			"value": "milk"
+		},
+		{
+			"reference": "$input.nested.deep[1].v",
+			"resolved": true,
+			"value": "x"
+		},
+		{
+			"reference": "$input.nested.deep.1.v",
+			"resolved": true,
+			"value": "x"
+		},
+		{
+			"reference": "$9.99",
+			"resolved": true,
+			"value": "$9.99"
+		},
+		{
+			"reference": "$HOME",
+			"resolved": true,
+			"value": "$HOME"
+		},
+		{
+			"reference": "$",
+			"resolved": true,
+			"value": "$"
+		},
+		{
+			"reference": "$$prev",
+			"resolved": true,
+			"value": "$prev"
+		},
+		{
+			"reference": "$$$prev",
+			"resolved": true,
+			"value": "$$prev"
+		},
+		{
+			"reference": "plain",
+			"resolved": true,
+			"value": "plain"
+		},
+		{
+			"reference": "",
+			"resolved": true,
+			"value": ""
+		},
+		{
+			"reference": "$prev.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"resolved": false
+		},
+		{
+			"reference": "$prev.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"resolved": true,
+			"value": "$prev.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		}
+	],
+	"conditions": [
+		{
+			"condition": {
+				"$exists": "$prev.id"
+			},
+			"expected": true
+		},
+		{
+			"condition": {
+				"$exists": "$prev.missing"
+			},
+			"expected": false
+		},
+		{
+			"condition": {
+				"$exists": "$first.nothing"
+			},
+			"expected": false
+		},
+		{
+			"condition": {
+				"$exists": "$steps.nobody.id"
+			},
+			"expected": false
+		},
+		{
+			"condition": {
+				"$exists": "not-a-reference"
+			},
+			"expected": false
+		},
+		{
+			"condition": {
+				"$exists": "$$prev"
+			},
+			"expected": false
+		},
+		{
+			"condition": {
+				"$eq": ["$prev.done", false]
+			},
+			"expected": true
+		},
+		{
+			"condition": {
+				"$eq": ["$first.items", [10, 20, 30]]
+			},
+			"expected": true
+		},
+		{
+			"condition": {
+				"$eq": [
+					"$input",
+					{
+						"q": "milk",
+						"n": 2,
+						"nested": {
+							"deep": [
+								1,
+								{
+									"v": "x"
+								}
+							]
+						}
+					}
+				]
+			},
+			"expected": true
+		},
+		{
+			"condition": {
+				"$eq": ["$input.n", 2]
+			},
+			"expected": true
+		},
+		{
+			"condition": {
+				"$eq": ["$first.nothing", null]
+			},
+			"expected": true
+		},
+		{
+			"condition": {
+				"$eq": ["$steps.nobody", null]
+			},
+			"expected": false
+		},
+		{
+			"condition": {
+				"$ne": ["$steps.nobody", "x"]
+			},
+			"expected": false
+		},
+		{
+			"condition": {
+				"$ne": ["$prev.id", "other"]
+			},
+			"expected": true
+		},
+		{
+			"condition": {
+				"$ne": ["$prev.id", "t9"]
+			},
+			"expected": false
+		},
+		{
+			"condition": {
+				"$gt": ["$prev.count", 2]
+			},
+			"expected": true
+		},
+		{
+			"condition": {
+				"$gte": ["$prev.count", 3]
+			},
+			"expected": true
+		},
+		{
+			"condition": {
+				"$lt": ["$prev.count", 3]
+			},
+			"expected": false
+		},
+		{
+			"condition": {
+				"$lte": ["$prev.count", 3]
+			},
+			"expected": true
+		},
+		{
+			"condition": {
+				"$gt": ["$prev.id", 1]
+			},
+			"expected": false
+		},
+		{
+			"condition": {
+				"$lt": ["$steps.nobody", 1]
+			},
+			"expected": false
+		},
+		{
+			"condition": {
+				"$and": []
+			},
+			"expected": true
+		},
+		{
+			"condition": {
+				"$or": []
+			},
+			"expected": false
+		},
+		{
+			"condition": {
+				"$and": [
+					{
+						"$exists": "$prev.id"
+					},
+					{
+						"$gt": ["$input.n", 1]
+					}
+				]
+			},
+			"expected": true
+		},
+		{
+			"condition": {
+				"$or": [
+					{
+						"$exists": "$steps.nobody"
+					},
+					{
+						"$eq": ["$input.q", "milk"]
+					}
+				]
+			},
+			"expected": true
+		},
+		{
+			"condition": {
+				"$not": {
+					"$exists": "$steps.nobody"
+				}
+			},
+			"expected": true
+		},
+		{
+			"condition": {
+				"$not": {
+					"$eq": ["$prev.id", "t9"]
+				}
+			},
+			"expected": false
+		}
+	]
+}

@@ -8,6 +8,7 @@
 		"test:conformance:ts": "pnpm --dir backends/typescript build && tsx dx/run-conformance.ts --backend ts",
 		"test:conformance:py": "tsx dx/run-conformance.ts --backend py",
 		"test:conformance:rs": "cargo build --locked --manifest-path backends/rust/Cargo.toml && tsx dx/run-conformance.ts --backend rs",
+		"test:conformance:cpp": "cmake -S backends/cpp -B backends/cpp/build/release -DCMAKE_BUILD_TYPE=Release -DAFD_WARNINGS_AS_ERRORS=ON && cmake --build backends/cpp/build/release --target todo-server-cpp && tsx dx/run-conformance.ts --backend cpp",
 		"typecheck": "tsc -p tsconfig.typecheck.json",
 		"dev:ts": "cd backends/typescript && pnpm dev",
 		"dev:py": "uv run --project backends/python todo-server",

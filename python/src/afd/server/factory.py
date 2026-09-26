@@ -47,6 +47,7 @@ from afd.core.pipeline import (
     execute_pipeline,
 )
 from afd.core.result import CommandResult, ResultMetadata, coerce_command_result, error
+from afd.core.similarity import truncate_name
 from afd.core.wire import to_wire
 from afd.server.bootstrap import ContextState, create_context_state, get_bootstrap_commands
 from afd.server.decorators import (
@@ -397,7 +398,7 @@ class MCPServer:
                 )
             return error(
                 "COMMAND_NOT_FOUND",
-                f"Command '{name[:128]}' not found",
+                f"Command '{truncate_name(name)}' not found",
                 suggestion="Use afd-help or afd-discover to inspect available commands.",
             )
         return await self._invoke_command(command, input, context)

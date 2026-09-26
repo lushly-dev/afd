@@ -1,11 +1,11 @@
 # Todo Example Specification
 
-This directory contains the shared API contract for the Todo example. All backend implementations (TypeScript, Python and Rust) must follow this specification to ensure interoperability with all frontend implementations (Vanilla JS, React, etc.).
+This directory contains the shared API contract for the Todo example. All backend implementations (TypeScript, Python, Rust and C++) must follow this specification to ensure interoperability with all frontend implementations (Vanilla JS, React, etc.).
 
 ## Files
 
 - `commands.schema.json`: JSON Schema defining the input and output for all 11 commands,
-  keyed by MCP tool name. The TypeScript and Python test suites fail if it does not list
+  keyed by MCP tool name. The TypeScript, Python and C++ test suites fail if it does not list
   exactly the commands their backend defines.
 - `test-cases.json`: Conformance test cases used to verify backend implementations.
 - `README.md`: This file.
@@ -20,8 +20,10 @@ store and runs every case in `test-cases.json`:
 | TypeScript | `pnpm test:conformance:ts` | MCP over stdio |
 | Python | `pnpm test:conformance:py` | MCP over stdio |
 | Rust | `pnpm test:conformance:rs` | MCP streamable HTTP, on a free local port |
+| C++ | `pnpm test:conformance:cpp` | MCP over stdio |
 
-The Rust script needs a Rust toolchain (`backends/rust/rust-toolchain.toml` pins it). Before each
+The Rust script needs a Rust toolchain (`backends/rust/rust-toolchain.toml` pins it). The C++
+script needs CMake 3.25+ and a C++20 compiler; it builds `todo-server-cpp` first. Before each
 case the runner calls `todo-clear` with `{ "all": true }`, then runs the `setup` steps (a step's
 `capture` stores its `data`, which later inputs reference as `"$name.field"`), then the command.
 
