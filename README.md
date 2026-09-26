@@ -220,42 +220,204 @@ Features like [command trust config](./docs/features/complete/command-trust-conf
 
 > **Note**: This is the per-command workflow. For the full 4-phase **project implementation roadmap** (Foundation → Expansion → Refinement → Ecosystem), see [Implementation Phases](./.claude/skills/afd-developer/references/implementation-phases.md).
 
-## Getting Started
+## Quickstart
 
-### Installation
+Five minutes from an empty folder to a command that a terminal, a test and an agent can all call. You need Node.js 22.12 or later.
+
+> **Note:** these steps use the 2.0 packages. If `npm view @lushly-dev/afd-cli version` still prints 1.x, build the CLI from source first ([Working on AFD itself](#working-on-afd-itself)); the 1.x CLI can hang after `afd connect`.
+
+### 1. Create a project
 
 ```bash
-# From source (private repo)
+mkdir todo-afd && cd todo-afd
+npm init -y && npm pkg set type=module
+npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod
+npm install -D tsx
+```
+
+### 2. Define commands and serve them
+
+Create `server.ts`:
+
+```typescript
+import { createMcpServer, defineCommand, failure, success } from '@lushly-dev/afd-server';
+import { z } from 'zod';
+
+const todos = new Map<string, { id: string; title: string; done: boolean }>();
+
+const createTodo = defineCommand({
+  name: 'todo-create',
+  description: 'Create a todo item from a title',
+  category: 'todo',
+  expose: { mcp: true, cli: true }, // remote surfaces are opt-in
+  mutation: true,
+  input: z.object({ title: z.string().min(1, 'Title is required') }),
+  async handler({ title }) {
+    const todo = { id: crypto.randomUUID().slice(0, 8), title, done: false };
+    todos.set(todo.id, todo);
+    return success(todo, { reasoning: `Created "${title}"`, confidence: 1 });
+  },
+});
+
+const getTodo = defineCommand({
+  name: 'todo-get',
+  description: 'Get a todo item by its id',
+  category: 'todo',
+  expose: { mcp: true, cli: true },
+  input: z.object({ id: z.string() }),
+  async handler({ id }) {
+    const todo = todos.get(id);
+    if (!todo) {
+      return failure({
+        code: 'NOT_FOUND',
+        message: `No todo with id "${id}"`,
+        suggestion: 'Call todo-create first, then use the id it returns',
+      });
+    }
+    return success(todo);
+  },
+});
+
+const server = createMcpServer({
+  name: 'todo',
+  version: '0.1.0',
+  commands: [createTodo, getTodo],
+  transport: 'http',
+  port: 3100,
+});
+
+await server.start();
+console.log(`AFD server running at ${server.getUrl()}`);
+```
+
+Start it:
+
+```bash
+npx tsx server.ts
+```
+
+### 3. Validate from the terminal
+
+In a second terminal, connect once, then call commands the way an agent would. Try the failure first:
+
+```bash
+npx afd connect http://localhost:3100/sse
+npx afd call todo-create '{"title":""}'
+```
+
+```
+✗ Failed
+
+Error: [VALIDATION_ERROR] Input validation failed
+
+Suggestion: title: Title is required. Expected fields: title
+```
+
+Then the happy path, and a lookup that fails with a recovery path:
+
+```bash
+npx afd call todo-create '{"title":"Buy groceries"}'
+npx afd call todo-get '{"id":"nope"}'
+```
+
+```
+✓ Success
+
+Data:
+{
+  "id": "e9867058",
+  "title": "Buy groceries",
+  "done": false
+}
+
+Confidence: ██████████ 100%
+```
+
+```
+✗ Failed
+
+Error: [NOT_FOUND] No todo with id "nope"
+
+Suggestion: Call todo-create first, then use the id it returns
+```
+
+`npx afd tools` shows what an MCP agent sees. By default commands are grouped by category, so both appear as one `todo` tool with `create` and `get` actions, next to the built-in `afd-call`, `afd-batch`, `afd-pipe` and `afd-detail` tools.
+
+### 4. Test the job
+
+Create `scenarios/todo-lifecycle.scenario.yaml`. Step 1 uses the id step 0 returned:
+
+```yaml
+name: Create and fetch a todo
+description: As a user, I can create a todo and fetch it back
+job: todo-lifecycle
+tags: [smoke, step-refs]
+
+steps:
+  - command: todo-create
+    description: Create a todo
+    input: { title: Buy groceries }
+    expect: { success: true }
+
+  - command: todo-get
+    description: Fetch it by the id step 0 returned
+    input:
+      id: ${{ steps[0].data.id }}
+    expect:
+      success: true
+      data: { title: Buy groceries }
+```
+
+```bash
+npx afd scenario run scenarios/ --server http://localhost:3100/sse
+```
+
+```
+▸ todo-lifecycle
+  As a user, I can create a todo and fetch it back
+  ✓ [1/2] todo-create 3ms
+  ✓ [2/2] todo-get 2ms
+
+✓ todo-lifecycle (7ms)
+  2 passed, 0 failed, 0 skipped
+
+Summary
+  1 passed, 0 failed
+
+✓ All scenarios passed!
+```
+
+### 5. Hand it to an agent
+
+The server speaks MCP, so any MCP client can use it. In Claude Code:
+
+```bash
+claude mcp add --transport sse todo http://localhost:3100/sse
+```
+
+For an agent that runs inside your own app, skip the network: `createDirectRegistry` and DirectClient run the same commands in-process (see [afd-directclient](./.claude/skills/afd-directclient/SKILL.md)).
+
+### Next steps
+
+- **Teach your coding agent AFD:** `npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd` (also `afd-typescript`, `afd-python`, `afd-rust` and others in [`.claude/skills`](./.claude/skills)).
+- **Add agent-UX metadata:** `destructive` and `confirmPrompt`, `undoable`, `requires`, `examples` and output schemas. See the [command schema guide](./.claude/skills/afd/references/command-schema.md).
+- **Scale the tool list:** `toolStrategy: 'lazy'` for large command sets, and `bootstrap: true` for `afd-help`, `afd-docs` and `afd-schema` ([MCP integration](./.claude/skills/afd/references/mcp-integration.md)).
+- **Lint the surface:** `npx afd validate --surface` checks names, descriptions, overlap, injection risks and schema complexity ([surface validation](./.claude/skills/afd/references/surface-validation.md)).
+- **Build a UI on top:** call the same commands from the browser with `createClient` from `@lushly-dev/afd-client`.
+
+### Working on AFD itself
+
+To build the packages and CLI from source:
+
+```bash
+git clone https://github.com/lushly-dev/afd.git
 cd afd
 pnpm install    # Also installs Lefthook git hooks
 pnpm build
 node packages/cli/dist/bin.js --help
 ```
 
-> `pnpm check` runs all quality gates (lint, typecheck, test, build) manually.
-
-### Connect to an MCP Server
-
-```bash
-# Connect to a running MCP server
-afd connect http://localhost:3100/sse
-
-# List available commands
-afd tools
-
-# Call a command
-afd call document.create '{"title": "Test"}'
-```
-
-### Validate Your Commands
-
-```bash
-# Run validation suite
-afd validate
-
-# Validate specific category
-afd validate --category document
-```
+> `pnpm check` runs all quality gates (lint, typecheck, test, build) manually. See [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## CLI Reference
 
