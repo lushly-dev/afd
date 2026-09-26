@@ -1,10 +1,13 @@
 // AFD landing page — entry point. Every module degrades to a static page.
 
 import { initAgentView } from './agent-view.js';
+import { initCommandLayer } from './command-layer.js';
 import { initExplorer } from './explorer.js';
 import { highlightAll } from './highlight.js';
+import { initHero } from './hero.js';
+import { initHonesty } from './honesty.js';
 import { initRunner } from './runner.js';
-import { initSurfaces } from './surfaces.js';
+import { call } from './runtime.js';
 import { initTabs } from './util.js';
 
 function initReveal() {
@@ -95,14 +98,12 @@ function initInstall() {
 	if (!install) return;
 	initTabs(install.querySelector('[role="tablist"]'));
 	const copy = install.querySelector('[data-copy]');
+	const LANGUAGE = { 'install-ts': 'typescript', 'install-py': 'python', 'install-rs': 'rust' };
+	// Copying is a command too: install-copy, visible in the command log.
 	copy.addEventListener('click', async () => {
 		const panel = install.querySelector('[role="tabpanel"]:not([hidden])');
-		try {
-			await navigator.clipboard.writeText(panel.textContent.trim());
-			copy.textContent = 'Copied';
-		} catch {
-			copy.textContent = 'Select & copy';
-		}
+		const result = await call('install-copy', { language: LANGUAGE[panel.id] }, { surface: 'ui' });
+		copy.textContent = result.success ? 'Copied' : 'Select & copy';
 		copy.classList.add('is-done');
 		setTimeout(() => {
 			copy.textContent = 'Copy';
@@ -138,7 +139,9 @@ for (const init of [
 	initInstall,
 	initCopyTargets,
 	initSteps,
-	initSurfaces,
+	initCommandLayer,
+	initHero,
+	initHonesty,
 	initExplorer,
 	initRunner,
 	initAgentView,

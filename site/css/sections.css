@@ -168,65 +168,6 @@ pre.surface__body {
 	white-space: normal;
 }
 
-.mini-form {
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
-	gap: 0.6rem;
-	background: var(--cream);
-	color: var(--charcoal);
-	font-family: var(--font-sans);
-	font-size: 1.05rem;
-	white-space: normal;
-}
-
-.mini-form__input,
-.mini-form__select {
-	padding: 0.45rem 0.7rem;
-	border: var(--rule-thin) solid var(--charcoal);
-	background: #fff;
-}
-
-.mini-form__row {
-	display: flex;
-	gap: 0.6rem;
-}
-
-.mini-form__select {
-	flex: 1;
-}
-
-.mini-form__button {
-	padding: 0.45rem 0.9rem;
-	background: var(--teal);
-	color: var(--cream);
-	font-family: var(--font-mono);
-	font-size: 0.75rem;
-	font-weight: 700;
-	text-transform: uppercase;
-	border: var(--rule-thin) solid var(--charcoal);
-	box-shadow: 3px 3px 0 var(--charcoal);
-	transition:
-		transform 150ms ease,
-		box-shadow 150ms ease;
-}
-
-.surface.is-active .mini-form__button {
-	animation: press 2.6s var(--ease-out);
-}
-
-@keyframes press {
-	10%,
-	22% {
-		transform: translate(3px, 3px);
-		box-shadow: 0 0 0 var(--charcoal);
-	}
-	34% {
-		transform: none;
-		box-shadow: 3px 3px 0 var(--charcoal);
-	}
-}
-
 .surfaces__rail {
 	width: 100%;
 	height: clamp(2.5rem, 5vw, 4.5rem);
@@ -266,16 +207,6 @@ pre.surface__body {
 .surfaces__via {
 	margin-left: auto;
 	color: var(--teal-glow);
-}
-
-.surfaces__result .code.is-flash {
-	animation: flash 0.9s var(--ease-out);
-}
-
-@keyframes flash {
-	from {
-		box-shadow: 14px 14px 0 var(--teal);
-	}
 }
 
 @media (max-width: 960px) {
@@ -448,28 +379,6 @@ pre.surface__body {
 }
 
 /* ── 02 · Honesty check ────────────────────────────────────── */
-
-.honesty__quote {
-	font-family: var(--font-display);
-	font-size: clamp(2.1rem, 6.2vw, 7.5rem);
-	line-height: 0.95;
-	letter-spacing: -0.025em;
-	text-transform: uppercase;
-	max-width: 19ch;
-	text-wrap: balance;
-}
-
-.honesty__quote mark {
-	background: var(--charcoal);
-	color: var(--cream);
-	padding: 0 0.12em;
-	box-shadow: 0.08em 0.08em 0 var(--red);
-}
-
-.honesty__caption {
-	margin-top: 1.5rem;
-	color: var(--muted);
-}
 
 .inversion {
 	display: grid;

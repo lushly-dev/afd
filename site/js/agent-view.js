@@ -1,6 +1,8 @@
 // Agent view: swap the page for what an agent reads (llms.txt), framed as an
 // `afd call` so the site practices what it describes. ?view=agent opens it.
 
+import { call, provide } from './runtime.js';
+
 const escape = (text) =>
 	text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -49,9 +51,15 @@ export function initAgentView() {
 		if (on) await render(code);
 	};
 
-	toggle.addEventListener('click', () => set(toggle.getAttribute('aria-pressed') !== 'true'));
-	view.querySelector('[data-agent-exit]').addEventListener('click', () => {
-		set(false);
+	// The view is switched by the view-set command, whoever calls it.
+	provide('setView', (name) => set(name === 'agent'));
+
+	toggle.addEventListener('click', () => {
+		const next = toggle.getAttribute('aria-pressed') === 'true' ? 'human' : 'agent';
+		call('view-set', { view: next }, { surface: 'ui' });
+	});
+	view.querySelector('[data-agent-exit]').addEventListener('click', async () => {
+		await call('view-set', { view: 'human' }, { surface: 'ui' });
 		toggle.focus();
 	});
 

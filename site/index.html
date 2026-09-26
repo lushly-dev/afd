@@ -29,6 +29,7 @@
 	<link rel="stylesheet" href="css/base.css">
 	<link rel="stylesheet" href="css/components.css">
 	<link rel="stylesheet" href="css/sections.css">
+	<link rel="stylesheet" href="css/command-layer.css">
 
 	<script>document.documentElement.classList.add('js');</script>
 	<script type="module" src="js/main.js"></script>
@@ -108,39 +109,64 @@
 		</div>
 	</div>
 
-	<!-- One command, three surfaces -->
-	<figure class="surfaces reveal" aria-labelledby="surfaces-caption">
-		<figcaption id="surfaces-caption" class="surfaces__caption mono-label">
-			One command <span aria-hidden="true">·</span> three surfaces <span aria-hidden="true">·</span> one result
+	<!-- FIG. 01 — One command, three surfaces. Every surface is live. -->
+	<figure class="surfaces" aria-labelledby="surfaces-caption" data-surfaces>
+		<figcaption id="surfaces-caption" class="surfaces__caption">
+			<span class="fig-label mono-label">Fig. 01</span>
+			<span class="mono-label">One command · three surfaces · one result. <span class="surfaces__try">All three are live. Try one.</span></span>
 		</figcaption>
 
 		<div class="surfaces__grid">
-			<div class="surface" data-surface="0">
-				<div class="surface__bar mono-label"><span class="surface__dot"></span>Terminal</div>
-				<pre class="surface__body"><code class="lang-term">$ afd call todo-create \
-  '{"title":"Buy groceries",
-    "priority":"high"}'</code></pre>
-			</div>
-
-			<div class="surface" data-surface="1">
-				<div class="surface__bar mono-label"><span class="surface__dot"></span>Agent · MCP</div>
-				<div class="surface__body">
-					<p class="agent-msg">“Add groceries to my list. It’s urgent.”</p>
-					<pre><code class="lang-json">tool_use: "todo"
-{ "action": "create",
-  "params": { "title": "Buy groceries",
-              "priority": "high" } }</code></pre>
+			<!-- Terminal: a real command line over the page's AFD registry -->
+			<div class="surface surface--human" data-surface="0">
+				<div class="surface__bar mono-label"><span class="surface__dot"></span>Terminal<span class="surface__who">you</span></div>
+				<div class="term" data-terminal>
+					<pre class="term__out" aria-live="polite"></pre>
+					<form class="term__line" autocomplete="off">
+						<label class="term__prompt" for="term-input">$</label>
+						<input id="term-input" class="term__input" type="text" spellcheck="false" autocapitalize="off" aria-label="Terminal. Type an afd command, for example afd call todo-create with a title" placeholder="afd call todo-create title=&quot;Buy milk&quot;">
+					</form>
 				</div>
 			</div>
 
-			<div class="surface" data-surface="2">
-				<div class="surface__bar mono-label"><span class="surface__dot"></span>Web app</div>
-				<div class="surface__body mini-form" aria-hidden="true">
-					<span class="mini-form__input">Buy groceries</span>
-					<span class="mini-form__row">
-						<span class="mini-form__select">High ▾</span>
-						<span class="mini-form__button">Add todo</span>
-					</span>
+			<!-- Agent: a scripted model, calling the real command -->
+			<div class="surface surface--agent" data-surface="1">
+				<div class="surface__bar mono-label"><span class="surface__dot"></span>Agent · MCP<span class="surface__who">simulated model, real command</span></div>
+				<div class="surface__body agent" data-agent>
+					<p class="agent-msg" data-agent-prompt>“Add groceries to my list. It’s urgent.”</p>
+					<pre class="agent__call" data-agent-call aria-live="polite"><code class="lang-json">tool_use: "todo"
+{ "action": "create",
+  "params": { "title": "Buy groceries",
+              "priority": "high" } }</code></pre>
+					<div class="agent__confirm" data-agent-confirm hidden>
+						<p><strong>todo-clear</strong> is marked <span class="hazard">destructive</span>. Let the agent run it?</p>
+						<div class="agent__confirm-actions">
+							<button type="button" class="mini-btn mini-btn--danger" data-agent-allow>Allow</button>
+							<button type="button" class="mini-btn" data-agent-deny>Deny</button>
+						</div>
+					</div>
+					<button type="button" class="mini-btn mini-btn--agent" data-agent-run>Run the agent ▸</button>
+				</div>
+			</div>
+
+			<!-- Web app: a real form calling the same command -->
+			<div class="surface surface--human" data-surface="2">
+				<div class="surface__bar mono-label"><span class="surface__dot"></span>Web app<span class="surface__who">you</span></div>
+				<div class="surface__body app">
+					<form class="app__form" data-app-form>
+						<label class="visually-hidden" for="app-title">Todo title</label>
+						<input id="app-title" class="app__input" name="title" type="text" placeholder="What needs doing?" maxlength="80">
+						<div class="app__row">
+							<label class="visually-hidden" for="app-priority">Priority</label>
+							<select id="app-priority" class="app__select" name="priority">
+								<option value="low">Low</option>
+								<option value="medium" selected>Medium</option>
+								<option value="high">High</option>
+							</select>
+							<button class="app__button" type="submit">Add todo</button>
+						</div>
+					</form>
+					<ul class="app__list" data-app-list aria-label="Todos"></ul>
 				</div>
 			</div>
 		</div>
@@ -149,17 +175,17 @@
 			<path data-rail="0" d="M50 0 C50 34, 150 26, 150 60" />
 			<path data-rail="1" d="M150 0 L150 60" />
 			<path data-rail="2" d="M250 0 C250 34, 150 26, 150 60" />
+			<path class="rail-pulse" data-pulse="0" d="M50 0 C50 34, 150 26, 150 60" />
+			<path class="rail-pulse" data-pulse="1" d="M150 0 L150 60" />
+			<path class="rail-pulse" data-pulse="2" d="M250 0 C250 34, 150 26, 150 60" />
 		</svg>
 
 		<div class="surfaces__result">
-			<div class="code code--accent">
-				<div class="code__bar"><span>todo-create → CommandResult</span><span class="surfaces__via"></span></div>
-				<pre><code class="lang-json">{
-  "success": true,
-  "data": { "id": "todo-8f2c", "title": "Buy groceries", "priority": "high", "completed": false },
-  "confidence": 1,
-  "reasoning": "Created todo \"Buy groceries\" with high priority"
-}</code></pre>
+			<div class="code result-panel" data-result>
+				<div class="code__bar"><span data-result-title>Command layer · CommandResult</span><span class="surfaces__via" data-result-via></span></div>
+				<pre><code data-result-code><span class="tok-com">// Run a command from any surface above.
+// Every result lands here, and in the command log below.</span></code></pre>
+				<span class="stamp" data-result-stamp aria-hidden="true"></span>
 			</div>
 		</div>
 	</figure>
@@ -211,13 +237,23 @@
 <!-- ============================================================
      02 · THE HONESTY CHECK
      ============================================================ -->
-<section id="honesty" class="section honesty">
-	<p class="eyebrow reveal">02 · The inversion</p>
-	<blockquote class="honesty__quote reveal">
-		<p>“If it can’t be done via <mark>CLI</mark>, the architecture is wrong.”</p>
-	</blockquote>
-	<p class="honesty__caption mono-label reveal">The honesty check. One rule, applied to every feature.</p>
+<section id="honesty" class="slab slab--red" aria-labelledby="honesty-quote">
+	<span class="crop crop--tl" aria-hidden="true"></span>
+	<span class="crop crop--tr" aria-hidden="true"></span>
+	<span class="crop crop--bl" aria-hidden="true"></span>
+	<span class="crop crop--br" aria-hidden="true"></span>
+	<span class="slab__numeral" aria-hidden="true">02</span>
+	<div class="slab__inner">
+		<p class="slab__fig"><span class="fig-label mono-label">Fig. 02</span><span class="mono-label">The honesty check</span></p>
+		<blockquote class="slab__quote" id="honesty-quote" data-honesty>
+			<p>“If it can’t be done via <mark>CLI</mark>, the architecture is wrong.”</p>
+		</blockquote>
+		<p class="slab__caption mono-label">One rule, applied to every feature. No UI-only code paths. No exceptions.</p>
+	</div>
+</section>
 
+<section id="inversion" class="section inversion-section">
+	<p class="eyebrow reveal">02 · The inversion</p>
 	<div class="inversion">
 		<figure class="inversion__card inversion__card--before reveal" aria-labelledby="inv-before">
 			<figcaption id="inv-before" class="mono-label">UI-first</figcaption>
@@ -751,6 +787,36 @@ Summary
 		<p class="mono-label">© 2026 lushly-dev</p>
 	</div>
 </footer>
+
+<!-- ============================================================
+     THE COMMAND LAYER — every interaction on this page is a command,
+     run by the real afd-core registry. The dock shows each call.
+     ============================================================ -->
+<div class="dock" data-dock hidden>
+	<span class="dock__pulse" data-dock-pulse aria-hidden="true"></span>
+	<span class="dock__label mono-label"><span class="dock__mark" aria-hidden="true"></span>Command layer</span>
+	<span class="dock__ticker mono-label" data-dock-ticker aria-live="polite">Every click on this page is a command.</span>
+	<button type="button" class="dock__btn mono-label" data-palette-open aria-haspopup="dialog"><kbd data-palette-key>⌘K</kbd> Commands</button>
+	<button type="button" class="dock__btn mono-label" data-log-toggle aria-expanded="false" aria-controls="command-log">Log <span class="dock__count" data-log-count>0</span></button>
+</div>
+
+<section class="log" id="command-log" data-log hidden aria-label="Command log">
+	<header class="log__head">
+		<p class="mono-label">Command log <span class="log__sub">· this tab’s CommandResults</span></p>
+		<button type="button" class="log__clear mono-label" data-log-clear>log-clear</button>
+	</header>
+	<ol class="log__list" data-log-list></ol>
+	<p class="log__empty" data-log-empty>Nothing yet. Click a nav link, copy an install line or add a todo, and the command it ran shows up here.</p>
+</section>
+
+<dialog class="palette" data-palette aria-label="Command palette">
+	<form method="dialog" class="palette__form" role="search">
+		<label class="palette__prompt mono-label" for="palette-input">afd&gt;</label>
+		<input id="palette-input" class="palette__input" type="text" autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="palette-list" aria-autocomplete="list" placeholder="Search commands, or type a todo to create">
+	</form>
+	<ul class="palette__list" id="palette-list" role="listbox" aria-label="Commands" data-palette-list></ul>
+	<p class="palette__foot mono-label">↑↓ move · ↵ run · esc close · every row is a real command</p>
+</dialog>
 
 </body>
 </html>
