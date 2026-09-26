@@ -6,6 +6,7 @@
 	<title>AFD — Agent-First Development</title>
 	<meta name="description" content="Build software where AI agents are first-class users. Commands are the product. UI is a swappable surface.">
 	<meta name="theme-color" content="#F4F0EA">
+	<link rel="icon" href="svg/favicon.svg" type="image/svg+xml">
 
 	<!-- Open Graph -->
 	<meta property="og:title" content="AFD — Commands Are the Product">
@@ -45,7 +46,7 @@
 	</div>
 	<div class="hero-top animate-up">
 		<span class="mono-label">Agent-First Development</span>
-		<span class="hero-badge mono-label">Beta v0.6.0</span>
+		<span class="hero-badge mono-label" data-afd-version>v2.0.0</span>
 	</div>
 	<h1 class="hero-title animate-up delay-1">
 		<span>COMMANDS</span>
@@ -129,7 +130,7 @@
 	<div class="section-divider"></div>
 
 	<div class="animate-up">
-		<h2 class="section-title"><span class="serif-text accent-red" accent-red>ERRORS</span><br /> TALK BACK</h2>
+		<h2 class="section-title"><span class="serif-text accent-red">ERRORS</span><br /> TALK BACK</h2>
 		<p class="mono-label accent-teal">When things break, agents shouldn't have to guess.</p>
 	</div>
 	<div class="grid-2 error-comparison">
@@ -291,32 +292,36 @@ cargo add afd</code></pre>
 		</div>
 		<div class="animate-up delay-1 packages-list">
 			<div class="package-item">
-				<h3 class="package-item__name">@afd/core</h3>
+				<h3 class="package-item__name">@lushly-dev/afd-core</h3>
 				<p class="mono-label">CommandResult, CommandError, batching, streaming.</p>
 			</div>
 			<div class="package-item">
-				<h3 class="package-item__name">@afd/server</h3>
+				<h3 class="package-item__name">@lushly-dev/afd-server</h3>
 				<p class="mono-label">Zod-based MCP server factory with middleware.</p>
 			</div>
 			<div class="package-item">
-				<h3 class="package-item__name">@afd/client</h3>
+				<h3 class="package-item__name">@lushly-dev/afd-client</h3>
 				<p class="mono-label">MCP client + DirectClient for ~0.03ms in-process calls.</p>
 			</div>
 			<div class="package-item">
-				<h3 class="package-item__name">@afd/cli</h3>
+				<h3 class="package-item__name">@lushly-dev/afd-cli</h3>
 				<p class="mono-label">Connect, call, validate, explore commands.</p>
 			</div>
 			<div class="package-item">
-				<h3 class="package-item__name">@afd/auth</h3>
+				<h3 class="package-item__name">@lushly-dev/afd-auth</h3>
 				<p class="mono-label">Provider-agnostic auth — middleware, session sync.</p>
 			</div>
 			<div class="package-item">
-				<h3 class="package-item__name">@afd/testing</h3>
+				<h3 class="package-item__name">@lushly-dev/afd-testing</h3>
 				<p class="mono-label">JTBD scenario runner, surface validation.</p>
 			</div>
 			<div class="package-item">
-				<h3 class="package-item__name">@afd/adapters</h3>
+				<h3 class="package-item__name">@lushly-dev/afd-adapters</h3>
 				<p class="mono-label">Frontend adapters for rendering CommandResult.</p>
+			</div>
+			<div class="package-item">
+				<h3 class="package-item__name">@lushly-dev/afd-view-state</h3>
+				<p class="mono-label">UI view state as commands — agents drive the UI too.</p>
 			</div>
 			<div class="package-item">
 				<h3 class="package-item__name">afd (Python)</h3>
@@ -338,7 +343,7 @@ cargo add afd</code></pre>
 		<img src="svg/alfred.svg" alt="Alfred, the Botcore Agent" class="botcore-avatar" />
 		<h2 class="section-title">BOTCORE.</h2>
 		<p class="serif-text section-lead">The agentic development layer built on AFD.</p>
-		<p>Shared bot infrastructure — 52 bundled skills for linting, testing, releasing, code review, and browser automation. All built on AFD's command-first patterns. It's how AFD powers its own development with Alfred.</p>
+		<p>Shared bot infrastructure — 50+ bundled skills for linting, testing, releasing, code review, and browser automation. All built on AFD's command-first patterns. It's how AFD powers its own development with Alfred.</p>
 		<a href="https://github.com/lushly-dev/botcore" class="btn" rel="noopener">Explore Botcore →</a>
 	</div>
 </section>

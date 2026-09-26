@@ -34,7 +34,7 @@
 	--text-2xl: 3rem;
 	--text-h3: clamp(1.5rem, 4vw, 4rem);
 	--text-h2: clamp(2.2rem, 8vw, 10rem);
-	--text-h1: clamp(2.8rem, 11vw, 13rem);
+	--text-h1: clamp(2rem, 10.5vw, 13rem);
 
 	/* ── Typography — Weight ────────────────────── */
 	--weight-light: 300;
@@ -318,8 +318,6 @@ h3 {
 .hero-title {
 	display: flex;
 	flex-direction: column;
-	word-break: break-word;
-	hyphens: auto;
 }
 
 .hero-title span {

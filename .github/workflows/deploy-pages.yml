@@ -3,7 +3,7 @@ name: Deploy site to GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ['site/**']
+    paths: ['site/**', 'packages/core/package.json']
   workflow_dispatch:
 
 permissions:
@@ -23,6 +23,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Stamp the released package version so the site never shows a stale one.
+      - name: Stamp release version
+        run: |
+          version=$(node -p "require('./packages/core/package.json').version")
+          sed -i -E "s|(data-afd-version>)[^<]*|\1v${version}|g" site/index.html
+          if [ -f site/llms.txt ]; then sed -i -E "s|^(Version: )v.*|\1v${version}|" site/llms.txt; fi
 
       - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
