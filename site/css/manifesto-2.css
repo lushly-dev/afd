@@ -2751,3 +2751,63 @@ textarea[aria-invalid="true"] {
 		animation: none;
 	}
 }
+
+/* ── Giant section numerals: filled tone-on-tone on the colour fields ── */
+
+.slab,
+.handoff,
+.recovery,
+.build-story,
+.finale {
+	position: relative;
+	isolation: isolate;
+	overflow: clip;
+}
+
+.big-numeral {
+	position: absolute;
+	right: -0.05em;
+	bottom: -0.2em;
+	z-index: 0;
+	font-family: var(--display);
+	font-size: clamp(220px, 34vw, 560px);
+	line-height: 1;
+	letter-spacing: -0.04em;
+	color: var(--numeral-fill);
+	pointer-events: none;
+	user-select: none;
+}
+
+.handoff > .wrap,
+.recovery > .wrap,
+.build-story > .wrap,
+.finale > .wrap {
+	position: relative;
+	z-index: 1;
+}
+
+/* Same deeper red as the hero slash */
+.slab,
+.recovery {
+	--numeral-fill: #e0321e;
+}
+
+.slab .big-numeral {
+	font-size: clamp(240px, 40vw, 640px);
+	bottom: -0.22em;
+}
+
+.handoff,
+.build-story {
+	--numeral-fill: #2e3a33;
+}
+
+.finale {
+	--numeral-fill: #232826;
+}
+
+/* The recovery terminal fills the right side, so its numeral sits bottom-left. */
+.recovery .big-numeral {
+	right: auto;
+	left: -0.05em;
+}
