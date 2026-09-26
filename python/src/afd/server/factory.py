@@ -57,6 +57,7 @@ from afd.server.decorators import (
     get_command_metadata,
     has_command_metadata,
 )
+from afd.core.builtin_names import META_TOOL_NAMES as _SHARED_META_TOOL_NAMES
 from afd.server.middleware import CommandMiddleware
 from afd.server.tool_router import ToolRouterDeps, create_tool_router, new_trace_id
 from afd.server.tools import get_tools_list
@@ -68,10 +69,8 @@ TOutput = TypeVar("TOutput")
 # Never log to stdout: the stdio transport uses it for JSON-RPC.
 logger = logging.getLogger("afd.server")
 
-META_TOOL_NAMES: frozenset[str] = frozenset(
-    {"afd-call", "afd-batch", "afd-pipe", "afd-discover", "afd-detail"}
-)
-"""Tools the router handles itself. They are not commands: a command cannot use
+META_TOOL_NAMES: frozenset[str] = _SHARED_META_TOOL_NAMES
+"""Tools the router handles itself (defined in ``afd.core.builtin_names``). They are not commands: a command cannot use
 these names, and batch items and pipeline steps cannot call them."""
 
 _CONTEXT_COMMAND_NAMES = frozenset({"afd-context-enter", "afd-context-exit"})

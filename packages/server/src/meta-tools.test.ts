@@ -13,6 +13,7 @@ import {
 	callTool,
 	detailTool,
 	discoverTool,
+	META_TOOL_NAMES,
 	pipeTool,
 } from './meta-tools.js';
 import { defineCommand } from './schema.js';
@@ -193,6 +194,11 @@ describe('meta-tool argument validation over HTTP', () => {
 });
 
 describe('meta-tool definitions', () => {
+	it('match the shared AFD_META_TOOL_NAMES list in afd-core', () => {
+		const names = [callTool, batchTool, pipeTool, discoverTool, detailTool].map((t) => t.name);
+		expect([...META_TOOL_NAMES].sort()).toEqual(names.sort());
+	});
+
 	it('advertise the schemas the router validates', () => {
 		expect(callTool.inputSchema).toMatchObject({
 			type: 'object',

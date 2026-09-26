@@ -25,6 +25,8 @@ from afd.cli.output import (
     print_tools,
     print_warning,
 )
+from afd.cli.surface_commands import collect_surface_commands
+from afd.core.builtin_names import is_builtin_name
 from afd.transports import HttpTransport, MockTransport, SseTransport, Transport
 
 # State file for persistent connection info
@@ -418,7 +420,7 @@ def validate(
         transport = _get_transport(server)
         try:
             await transport.connect()
-            commands, configured_contexts = await _load_surface_commands(transport)
+            commands, configured_contexts, source_warnings = await _load_surface_commands(transport)
             result = validate_command_surface(
                 commands,
                 SurfaceValidationOptions(
@@ -435,6 +437,7 @@ def validate(
                     json.dumps(
                         {
                             "valid": result.valid,
+                            "warnings": source_warnings,
                             "findings": [
                                 {
                                     "rule": finding.rule,
@@ -461,6 +464,8 @@ def validate(
                     )
                 )
             else:
+                for warning in source_warnings:
+                    print_warning(warning)
                 print_info(f"Surface validation analyzed {result.summary.command_count} commands")
                 severity_buckets = {
                     "error": [finding for finding in result.findings if not finding.suppressed and finding.severity == "error"],
@@ -507,8 +512,15 @@ def validate(
         sys.exit(1)
 
 
-async def _load_surface_commands(transport: Transport) -> tuple[list[dict[str, Any]], list[str]]:
-    """Load command surface data using bootstrap tools when available."""
+async def _load_surface_commands(
+    transport: Transport,
+) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    """Load the commands to validate, configured contexts, and warnings.
+
+    Uses the bootstrap tools (afd-help, afd-schema) when they are listed, else the
+    tool listing (grouped tools expanded, lazy servers enumerated with
+    afd-discover). AFD's built-in tools are skipped either way.
+    """
     tools = await transport.list_tools()
     tool_names = {tool.name for tool in tools}
     configured_contexts: list[str] = []
@@ -545,7 +557,7 @@ async def _load_surface_commands(transport: Transport) -> tuple[list[dict[str, A
         }
         commands: list[dict[str, Any]] = []
         for item in help_payload.get("commands", []):
-            if not isinstance(item, dict):
+            if not isinstance(item, dict) or is_builtin_name(str(item.get("name", ""))):
                 continue
             schema = schema_map.get(item["name"], {})
             commands.append(
@@ -561,22 +573,10 @@ async def _load_surface_commands(transport: Transport) -> tuple[list[dict[str, A
                     "contexts": item.get("contexts"),
                 }
             )
-        return commands, configured_contexts
+        return commands, configured_contexts, []
 
-    commands = []
-    for tool in tools:
-        meta = tool.meta or {}
-        commands.append(
-            {
-                "name": tool.name,
-                "description": tool.description or "",
-                "jsonSchema": tool.input_schema or {"type": "object", "properties": {}},
-                "outputJsonSchema": meta.get("outputSchema"),
-                "requires": meta.get("requires"),
-                "contexts": meta.get("contexts"),
-            }
-        )
-    return commands, configured_contexts
+    commands, warnings = await collect_surface_commands(transport, tools)
+    return commands, configured_contexts, warnings
 
 
 @cli.command()

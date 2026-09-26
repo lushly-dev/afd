@@ -136,6 +136,13 @@ afd validate --surface --skip-category internal --suppress missing-category
 afd validate --surface --strict --verbose
 ```
 
+`afd validate --surface` validates the server's commands whatever its `toolStrategy`:
+grouped tools are expanded into the commands listed in their `_meta.actions`, lazy
+servers are enumerated with `afd-discover` and `afd-detail`, and the tools AFD provides
+itself (`afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`, `afd-help`,
+`afd-docs`, `afd-schema`, `afd-context-*`; `AFD_BUILTIN_TOOL_NAMES` in
+`@lushly-dev/afd-core`) are skipped.
+
 ## Agent Integration (Phase 3)
 
 MCP server and tools for AI agent integration.

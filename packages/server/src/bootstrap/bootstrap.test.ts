@@ -7,7 +7,11 @@ import { createContextState } from './afd-context.js';
 import { createAfdDocsCommand } from './afd-docs.js';
 import { createAfdHelpCommand } from './afd-help.js';
 import { createAfdSchemaCommand } from './afd-schema.js';
-import { getBootstrapCommands } from './registry.js';
+import {
+	BOOTSTRAP_COMMAND_NAMES,
+	CONTEXT_COMMAND_NAMES,
+	getBootstrapCommands,
+} from './registry.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Test Fixtures
@@ -421,6 +425,17 @@ describe('bootstrap tools built with defineCommand', () => {
 		}
 		const names = getBootstrapCommands(() => []).map((cmd) => cmd.name);
 		expect(names).toEqual(['afd-help', 'afd-docs', 'afd-schema']);
+		expect(names).toEqual([...BOOTSTRAP_COMMAND_NAMES]);
+	});
+
+	it('name the context commands as the shared CONTEXT_COMMAND_NAMES list', () => {
+		const names = getBootstrapCommands(() => [], {
+			contexts: [{ name: 'editing', description: 'Editing' }],
+			contextState: createContextState(),
+		})
+			.map((cmd) => cmd.name)
+			.filter((name) => !BOOTSTRAP_COMMAND_NAMES.includes(name));
+		expect(names).toEqual([...CONTEXT_COMMAND_NAMES]);
 	});
 
 	it('describe ZodCommandDefinitions: requires, parameters from jsonSchema, schemas', async () => {
