@@ -119,7 +119,7 @@ Each item below is a header in `include/afd/` with an implementation in `src/`.
   - `parse_bounded(text, max_depth = 256, max_bytes)`:
     - It tracks depth in the parser callback and **fails on its own "too deep" flag**. nlohmann silently drops a rejected subtree and still reports success (spike).
     - Its tests must cover input at the limit and one level beyond it.
-  - `json_equal(a, b)`, a structural comparison.
+  - No separate `json_equal`: `afd::Json` is the sorted-key `nlohmann::json`, whose `==` is already structural, ignores key order and compares numbers across integer and floating-point types (Phase 0 spike).
 - **`expected.hpp`:** a minimal `afd::Expected<T, E>` for the C++20 build (a stand-in for C++23's `std::expected`).
 - **`errors.hpp`:**
   - `CommandError {code, message, suggestion?, retryable?, details?, cause?}`, with `cause` held as `std::shared_ptr<const CommandError>`.
@@ -320,7 +320,7 @@ Each item below is a header in `include/afd/` with an implementation in `src/`.
 - **`when` evaluation:**
   - `$exists` is false for both absent and `null`.
   - Every comparison involving an absent operand is false, `$ne` included.
-  - `$eq`/`$ne` use the key-order-insensitive `json_equal`.
+  - `$eq`/`$ne` use `afd::Json`'s `==`, which is structural and ignores key order.
   - `$and: []` is true and `$or: []` is false.
 - **Depth:** request and step inputs deeper than 64 levels are rejected, and the check is iterative.
 

@@ -1,5 +1,12 @@
 # Compiler options shared by every afd-cpp target (the library and its tests).
 
+include(CheckCXXCompilerFlag)
+
+# Partial designated initializers (`ErrorOptions{.suggestion = "..."}`) are the intended style
+# for option structs (proposal D1). Clang 21+ warns about the omitted fields under -Wextra.
+check_cxx_compiler_flag(-Wno-missing-designated-field-initializers
+                        AFD_HAS_NO_MISSING_DESIGNATED_FIELD_INITIALIZERS)
+
 set(AFD_MACRO_HYGIENE_PRELUDE ${CMAKE_CURRENT_LIST_DIR}/macro_hygiene_prelude.hpp)
 
 function(afd_configure_target target)
@@ -20,6 +27,9 @@ function(afd_configure_target target)
                     -Wold-style-cast
                     -Wnon-virtual-dtor
                     -Woverloaded-virtual)
+        if(AFD_HAS_NO_MISSING_DESIGNATED_FIELD_INITIALIZERS)
+            target_compile_options(${target} PRIVATE -Wno-missing-designated-field-initializers)
+        endif()
         if(AFD_WARNINGS_AS_ERRORS)
             target_compile_options(${target} PRIVATE -Werror)
         endif()
