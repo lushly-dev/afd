@@ -6,6 +6,16 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Added
 
+- `CommandRegistry`:
+  - `register_command` rejects invalid, reserved and duplicate names, a missing handler, unsupported schemas, and examples that fail their schema.
+  - `execute` follows the TypeScript engine's dispatch order and errors: COMMAND_NOT_FOUND with "did you mean" matches, COMMAND_NOT_EXPOSED, COMMAND_NOT_IN_CONTEXT, VALIDATION_ERROR, metadata stamping, `on_command`, and COMMAND_EXECUTION_ERROR for exceptions.
+  - Listing by category, exposure and handoff.
+- `CommandDefinition`, `CommandContext`, `ExposeOptions`, `Handler`, `Middleware` and `validate_command_name`.
+- `CompiledSchema`: a JSON Schema subset validator that returns the parsed input (defaults applied, undeclared members stripped), with Zod 4 issue codes and the TypeScript VALIDATION_ERROR shape. It accepts every todo example input schema.
+- `find_similar_tools`, `calculate_similarity` and `truncate_name`, counting UTF-16 code units. Their output matches TypeScript on the same inputs.
+- `default_middleware`: trace ID, logging and timing.
+- `DirectClient`: allow-list, UNKNOWN_TOOL recovery data, trace IDs, surface exposure, timeouts and client middleware.
+- Runtime seams: `Clock` (`SystemClock`, `ManualClock`), `RandomSource` (`SeededRandom`) and `CancellationToken`.
 - The wire types, which round-trip every `spec/wire` fixture:
   - `CommandResult` and `ResultMetadata`, which keeps unknown keys in `extra`;
   - `CommandError`, including `cause`;

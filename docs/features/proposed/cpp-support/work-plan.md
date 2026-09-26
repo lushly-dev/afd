@@ -250,6 +250,18 @@ Each item below is a header in `include/afd/` with an implementation in `src/`.
   5. Client-side middleware.
   - `pipe()` arrives in Phase 3.
 
+### As built (Phase 2)
+
+These are the deviations from the plan above, each for a concrete reason:
+- **`TaskRunner` moves to Phase 3.** Only batch parallelism needs it, and nothing in Phase 2 would exercise it.
+- **`CommandParameter` builders are deferred.** Inputs are declared as JSON Schema, and the builders are a parity follow-up.
+- **Renamed from TypeScript:**
+  - `requires` becomes `CommandDefinition::prerequisites`, because `requires` is a C++20 keyword.
+  - `interface` becomes `CommandContext::surface`, because `<windows.h>` defines `interface` as a macro. The macro-hygiene prelude now defines it too.
+- **`register_command` rejects invalid names.** TypeScript's `defineCommand` only warns; the Rust registry also rejects them.
+- **Schema compile checks only what inputs can reach.** It follows each `$ref` once and ignores unreferenced definitions. That way the shared todo contract, whose output-only `Todo` uses `format`, compiles as is.
+- **Field lists in VALIDATION_ERROR are alphabetical** (sorted-key JSON). TypeScript lists fields in declaration order.
+
 ### Tests
 
 - Port the behavioral cases (not the code) from the TypeScript engine, middleware and DirectClient test suites in `packages/server/src/*.test.ts` and `packages/client/src/*.test.ts`:
