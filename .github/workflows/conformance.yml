@@ -1,9 +1,10 @@
 name: Conformance
 
 # Runs the todo example's shared conformance suite (spec/test-cases.json)
-# against the TypeScript, Python and Rust backends, plus each backend's own
-# checks. The Python backend installs the repository's python/ package and the
-# Rust backend depends on packages/rust, so changes there are checked too.
+# against the TypeScript, Python, Rust and C++ backends, plus each backend's own
+# checks. The Python backend installs the repository's python/ package, the
+# Rust backend depends on packages/rust and the C++ backend on packages/cpp, so
+# changes there are checked too.
 
 on:
   push:
@@ -13,6 +14,7 @@ on:
       - 'packages/server/**'
       - 'packages/core/**'
       - 'packages/rust/**'
+      - 'packages/cpp/**'
       - 'python/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/conformance.yml'
@@ -23,6 +25,7 @@ on:
       - 'packages/server/**'
       - 'packages/core/**'
       - 'packages/rust/**'
+      - 'packages/cpp/**'
       - 'python/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/conformance.yml'
@@ -150,6 +153,52 @@ jobs:
           changes=$(git status --porcelain)
           if [ -n "$changes" ]; then
             echo "::error::Building and testing the Rust backend changed the working tree:"
+            echo "$changes"
+            exit 1
+          fi
+
+  todo-cpp:
+    name: Todo conformance (C++)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # CMake and a C++20 compiler are preinstalled on GitHub-hosted runners.
+      - name: Build the C++ backend and its tests
+        working-directory: packages/examples/todo/backends/cpp
+        run: |
+          cmake --preset release
+          cmake --build --preset release
+
+      - name: C++ backend tests
+        working-directory: packages/examples/todo/backends/cpp
+        run: ctest --preset release
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.x
+          cache: pnpm
+
+      # The runner needs only tsx and the MCP SDK; no package build is required.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Conformance (C++ backend)
+        run: pnpm --dir packages/examples/todo test:conformance:cpp
+
+      - name: Check the working tree is unchanged
+        run: |
+          changes=$(git status --porcelain)
+          if [ -n "$changes" ]; then
+            echo "::error::Building and testing the C++ backend changed the working tree:"
             echo "$changes"
             exit 1
           fi

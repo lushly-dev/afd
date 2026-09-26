@@ -2,7 +2,7 @@
 
 The C++20 implementation of [AFD (Agent-First Development)](../../README.md). It is being built in phases; see the [proposal](../../docs/features/proposed/cpp-support/proposal.md) and the [work plan](../../docs/features/proposed/cpp-support/work-plan.md).
 
-> **Status: Phase 3.** The wire types, the validating `CommandRegistry`, middleware, `DirectClient`, and batch, pipeline and stream execution are in place. The todo conformance backend comes in Phase 4. Do not depend on the package until `afd-cpp-v0.1.0`.
+> **Status: Phase 4.** The library is feature-complete for v0.1: the wire types, the validating `CommandRegistry`, middleware, `DirectClient`, and batch, pipeline and stream execution. The [C++ todo backend](../examples/todo/backends/cpp/README.md) passes the 34-case conformance suite. Parity tooling and packaging come in Phases 5 and 6. Do not depend on the package until `afd-cpp-v0.1.0`.
 
 ## Design in brief
 

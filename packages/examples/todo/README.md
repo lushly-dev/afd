@@ -1,15 +1,15 @@
 # Todo Example
 
-Multi-stack implementation of a Todo application demonstrating **Agent-First Development (AFD)** patterns. This example features TypeScript, Python and Rust backends that are validated against a shared conformance test suite.
+Multi-stack implementation of a Todo application demonstrating **Agent-First Development (AFD)** patterns. This example features TypeScript, Python, Rust and C++ backends that are validated against a shared conformance test suite.
 
 ## Architecture
 
 - **Spec-First**: All backends must comply with the [API Contract](./spec/test-cases.json).
-- **Multi-Stack**: Identical functionality implemented in TypeScript, Python and Rust.
+- **Multi-Stack**: Identical functionality implemented in TypeScript, Python, Rust and C++.
 - **MCP-Native**: Backends are Model Context Protocol (MCP) servers, ready for AI agents.
 - **Thin UI**: Frontends are thin surfaces that invoke commands via MCP.
-- **Shared Storage**: The TypeScript and Python backends use the same JSON file for data persistence (the Rust backend keeps its data in memory).
-- **Conformance in CI**: `.github/workflows/conformance.yml` runs the suite against all three backends.
+- **Shared Storage**: The TypeScript and Python backends use the same JSON file for data persistence (the Rust and C++ backends keep their data in memory).
+- **Conformance in CI**: `.github/workflows/conformance.yml` runs the suite against all four backends.
 
 The TypeScript commands explicitly set `expose: { mcp: true }`. AFD commands are
 private to external MCP clients by default, so every command intended for a remote
@@ -49,7 +49,13 @@ pnpm test:conformance:py
 pnpm test:conformance:rs
 ```
 
-The runner spawns the TypeScript and Python backends over stdio with `TODO_STORE_TYPE=memory`,
+**C++ Backend** (needs CMake 3.25+ and a C++20 compiler; see [backends/cpp](./backends/cpp/README.md)):
+
+```bash
+pnpm test:conformance:cpp
+```
+
+The runner spawns the TypeScript, Python and C++ backends over stdio with `TODO_STORE_TYPE=memory`,
 and the Rust backend as an HTTP server on a free local port (MCP over HTTP). It runs every
 case in [spec/test-cases.json](./spec/test-cases.json) and exits non-zero if any case fails.
 

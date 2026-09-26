@@ -12,8 +12,9 @@ This directory contains the shared API contract for the Todo example. All backen
 
 ## Conformance Test Cases
 
-`pnpm test:conformance:ts` and `pnpm test:conformance:py` (from `packages/examples/todo`) start a
-backend over stdio with an in-memory store and run every case in `test-cases.json`. Before each
+`pnpm test:conformance:ts`, `test:conformance:py`, `test:conformance:rs` and `test:conformance:cpp`
+(from `packages/examples/todo`) start a backend with an in-memory store (over stdio, or over HTTP
+for Rust) and run every case in `test-cases.json`. Before each
 case the runner calls `todo-clear` with `{ "all": true }`, then runs the `setup` steps (a step's
 `capture` stores its `data`, which later inputs reference as `"$name.field"`), then the command.
 

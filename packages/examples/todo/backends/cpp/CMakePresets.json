@@ -1,0 +1,25 @@
+{
+	"version": 6,
+	"cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+	"configurePresets": [
+		{
+			"name": "release",
+			"displayName": "Release build of the server and its tests",
+			"binaryDir": "${sourceDir}/build/${presetName}",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release",
+				"AFD_WARNINGS_AS_ERRORS": "ON"
+			}
+		}
+	],
+	"buildPresets": [{ "name": "release", "configurePreset": "release", "configuration": "Release" }],
+	"testPresets": [
+		{
+			"name": "release",
+			"configurePreset": "release",
+			"configuration": "Release",
+			"output": { "outputOnFailure": true },
+			"execution": { "noTestsAction": "error" }
+		}
+	]
+}

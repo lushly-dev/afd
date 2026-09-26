@@ -11,6 +11,8 @@ on:
       - 'spec/pipeline-variables.md'
       # schema_test compiles every todo input schema.
       - 'packages/examples/todo/spec/**'
+      # The format job also checks the C++ todo backend.
+      - 'packages/examples/todo/backends/cpp/**'
       - '.github/workflows/cpp.yml'
   pull_request:
     branches: [main]
@@ -20,6 +22,8 @@ on:
       - 'spec/vectors/**'
       - 'spec/pipeline-variables.md'
       - 'packages/examples/todo/spec/**'
+      # The format job also checks the C++ todo backend.
+      - 'packages/examples/todo/backends/cpp/**'
       - '.github/workflows/cpp.yml'
 
 permissions:
@@ -45,7 +49,8 @@ jobs:
       - name: Check formatting
         working-directory: packages/cpp
         run: |
-          find include src tests cmake \( -name '*.cpp' -o -name '*.hpp' \) -print0 \
+          find include src tests cmake fuzz ../examples/todo/backends/cpp/src ../examples/todo/backends/cpp/tests \
+            \( -name '*.cpp' -o -name '*.hpp' \) -print0 \
             | xargs -0 uvx --from "clang-format==${CLANG_FORMAT_VERSION}" clang-format --dry-run -Werror
 
   build:
