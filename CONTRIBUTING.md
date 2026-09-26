@@ -184,7 +184,7 @@ docs(python): update command naming guide
 chore(deps): update dependencies
 ```
 
-**Allowed scopes**: `core`, `server`, `client`, `auth`, `cli`, `testing`, `adapters`, `examples`, `alfred`, `python`, `rust`, `deps`
+**Allowed scopes**: `core`, `server`, `client`, `auth`, `cli`, `testing`, `adapters`, `examples`, `alfred`, `python`, `rust`, `cpp`, `deps`
 
 ## Submitting Changes
 
@@ -217,6 +217,7 @@ packages/
   adapters/   # Frontend rendering adapters for CommandResult
   examples/   # Multi-stack example (TS, Python, Rust) + DirectClient demo
   rust/       # Rust crate implementation
+  cpp/        # C++ library implementation (afd-cpp)
 python/       # Python package (pip install afd)
 alfred/       # Quality bot (lint, parity, quality)
 ```

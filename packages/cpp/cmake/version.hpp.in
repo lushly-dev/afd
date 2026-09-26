@@ -1,0 +1,20 @@
+// Generated from cmake/version.hpp.in. Do not edit.
+#pragma once
+
+#include <string_view>
+
+#define AFD_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define AFD_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define AFD_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define AFD_VERSION_STRING "@PROJECT_VERSION@"
+
+namespace afd {
+
+/// The version of the afd-cpp headers in use.
+inline constexpr std::string_view header_version = AFD_VERSION_STRING;
+
+/// The version of the compiled afd-cpp library. Differs from `header_version` only when the
+/// headers and the library come from different builds.
+std::string_view library_version() noexcept;
+
+} // namespace afd
