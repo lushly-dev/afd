@@ -2278,21 +2278,9 @@ textarea[aria-invalid="true"] {
 	right: 6px;
 }
 
-/* The red poster becomes a drawing sheet: faint grid, crop marks */
+/* Crop marks on the red poster */
 .opening {
 	position: relative;
-	background-color: var(--red);
-	background-image:
-		linear-gradient(rgba(24, 27, 26, 0.09) 1px, transparent 1px),
-		linear-gradient(90deg, rgba(24, 27, 26, 0.09) 1px, transparent 1px),
-		linear-gradient(rgba(24, 27, 26, 0.045) 1px, transparent 1px),
-		linear-gradient(90deg, rgba(24, 27, 26, 0.045) 1px, transparent 1px);
-	background-size:
-		120px 120px,
-		120px 120px,
-		24px 24px,
-		24px 24px;
-	background-position: -1px -1px;
 }
 
 /* ── The honesty check: the one loud moment mid-page ────────── */
@@ -2418,11 +2406,7 @@ textarea[aria-invalid="true"] {
 	place-items: center;
 	height: 122px;
 	padding-top: 16px;
-	background-color: var(--paper);
-	background-image:
-		linear-gradient(rgba(24, 27, 26, 0.06) 1px, transparent 1px),
-		linear-gradient(90deg, rgba(24, 27, 26, 0.06) 1px, transparent 1px);
-	background-size: 12px 12px;
+	background: var(--paper);
 	color: var(--ink);
 	font-size: 12px;
 	line-height: 1.25;
@@ -2509,11 +2493,7 @@ textarea[aria-invalid="true"] {
 
 .finale {
 	padding-block: clamp(80px, 10vw, 140px);
-	background-color: var(--ink);
-	background-image:
-		linear-gradient(rgba(244, 240, 234, 0.045) 1px, transparent 1px),
-		linear-gradient(90deg, rgba(244, 240, 234, 0.045) 1px, transparent 1px);
-	background-size: 24px 24px;
+	background: var(--ink);
 	color: var(--paper);
 }
 
