@@ -4,67 +4,24 @@
 #include <cstdint>
 #include <utility>
 
+#include "detail/utf8.hpp"
+
 namespace afd {
 namespace {
 
+using detail::decode_utf8;
+using detail::DecodedChar;
+using detail::utf16_length;
+using detail::utf16_units;
+
 constexpr double min_suggestion_similarity = 0.4;
-
-struct DecodedChar {
-    char32_t code_point;
-    std::size_t byte_length;
-};
-
-// Decodes one UTF-8 sequence at `text[i]`. Invalid bytes decode to U+FFFD, one byte at a time.
-DecodedChar decode(std::string_view text, std::size_t i) {
-    const auto byte = [&](std::size_t k) { return static_cast<unsigned char>(text[k]); };
-    const unsigned char lead = byte(i);
-    if (lead < 0x80) {
-        return {lead, 1};
-    }
-    std::size_t length = 0;
-    char32_t code_point = 0;
-    char32_t minimum = 0;
-    if ((lead & 0xE0) == 0xC0) {
-        length = 2;
-        code_point = lead & 0x1Fu;
-        minimum = 0x80;
-    } else if ((lead & 0xF0) == 0xE0) {
-        length = 3;
-        code_point = lead & 0x0Fu;
-        minimum = 0x800;
-    } else if ((lead & 0xF8) == 0xF0) {
-        length = 4;
-        code_point = lead & 0x07u;
-        minimum = 0x10000;
-    } else {
-        return {0xFFFD, 1};
-    }
-    if (i + length > text.size()) {
-        return {0xFFFD, 1};
-    }
-    for (std::size_t k = 1; k < length; ++k) {
-        if ((byte(i + k) & 0xC0) != 0x80) {
-            return {0xFFFD, 1};
-        }
-        code_point = (code_point << 6) | (byte(i + k) & 0x3Fu);
-    }
-    if (code_point < minimum || code_point > 0x10FFFF ||
-        (code_point >= 0xD800 && code_point <= 0xDFFF)) {
-        return {0xFFFD, 1};
-    }
-    return {code_point, length};
-}
-
-std::size_t utf16_units(char32_t code_point) {
-    return code_point >= 0x10000 ? 2 : 1;
-}
 
 // `text` as UTF-16 code units, with ASCII letters lowercased.
 std::u16string lowered_utf16(std::string_view text) {
     std::u16string units;
     units.reserve(text.size());
     for (std::size_t i = 0; i < text.size();) {
-        const DecodedChar decoded = decode(text, i);
+        const DecodedChar decoded = decode_utf8(text, i);
         i += decoded.byte_length;
         char32_t c = decoded.code_point;
         if (c >= U'A' && c <= U'Z') {
@@ -79,16 +36,6 @@ std::u16string lowered_utf16(std::string_view text) {
         }
     }
     return units;
-}
-
-std::size_t utf16_length(std::string_view text) {
-    std::size_t length = 0;
-    for (std::size_t i = 0; i < text.size();) {
-        const DecodedChar decoded = decode(text, i);
-        i += decoded.byte_length;
-        length += utf16_units(decoded.code_point);
-    }
-    return length;
 }
 
 // Two-row Levenshtein distance, keeping the shorter string on the inner loop.
@@ -176,7 +123,7 @@ std::string truncate_name(std::string_view name, std::size_t max_length) {
     std::size_t units = 0;
     std::size_t end = 0;
     while (end < name.size()) {
-        const DecodedChar decoded = decode(name, end);
+        const DecodedChar decoded = decode_utf8(name, end);
         if (units + utf16_units(decoded.code_point) > max_length) {
             break;
         }

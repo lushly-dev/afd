@@ -1,0 +1,1 @@
+{"steps":[{"command":"a-b","stream":true}],"options":{"parallel":true}}

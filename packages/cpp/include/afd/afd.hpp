@@ -5,6 +5,7 @@
 #include "afd/command.hpp"
 #include "afd/direct_client.hpp"
 #include "afd/errors.hpp"
+#include "afd/execution.hpp"
 #include "afd/expected.hpp"
 #include "afd/json.hpp"
 #include "afd/metadata.hpp"

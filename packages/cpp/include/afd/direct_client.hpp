@@ -3,6 +3,7 @@
 #pragma once
 
 #include "afd/command.hpp"
+#include "afd/pipeline.hpp"
 #include "afd/registry.hpp"
 #include "afd/result.hpp"
 #include "afd/runtime.hpp"
@@ -49,6 +50,13 @@ public:
     /// 5. Client middleware, then `CommandRegistry::execute`.
     [[nodiscard]] CommandResult call(std::string_view name, const Json& args = Json::object(),
                                      CommandContext context = {}) const;
+
+    /// Runs a pipeline whose steps go through `call`, so every step gets this client's
+    /// allow-list, exposure and timeouts. Steps get the trace ID `<trace>-step-<k>`, where `k`
+    /// counts the calls actually made.
+    [[nodiscard]] PipelineResult pipe(const PipelineRequest& request,
+                                      CommandContext context = {}) const;
+    [[nodiscard]] PipelineResult pipe(const Json& request, CommandContext context = {}) const;
 
     /// Names this client may call, in registration order.
     [[nodiscard]] std::vector<std::string> list_command_names() const;

@@ -118,7 +118,7 @@ The maintainer confirmed every decision marked **(confirmed)**, and every recomm
 - Synchronous handlers with a runner interface keep the library runtime-agnostic. They also work in single-threaded WebAssembly, and they are what most C++ call sites expect.
 - The registry takes an optional host-supplied `TaskRunner`:
   - **Inline (default):** batch `parallelism` is an upper bound; entries run one after another.
-  - **Thread pool (native builds):** honors real overlap. Waits race the batch or pipeline deadline, as the TypeScript `Promise.race` does.
+  - **Thread runner (native builds):** honors real overlap. *Corrected in Phase 3:* it does not return at the deadline the way TypeScript's `Promise.race` does. That would abandon a running handler, which could then touch an executor or registry the caller has already destroyed. Every runner is cooperative: the deadline is on the handler's cancellation token, and a late finish is reported as BATCH_TIMEOUT or PIPELINE_TIMEOUT. That is the same wire result; only the return time differs.
 - `CommandContext::cancellation` replaces `AbortSignal`. It is a token with a flag and a deadline that handlers can poll without a timer thread.
 - With the inline runner, a deadline is enforced before each entry starts and again when it completes. An overrun is reported as `BATCH_TIMEOUT` or `PIPELINE_TIMEOUT` with the same wire result as TypeScript. The C++ call returns when the handler returns, because a synchronous handler cannot be preempted. This limitation is documented, not hidden.
 - An injectable `Clock` in `RegistryOptions` covers durations, deadlines and `startedAt`/`completedAt`, so timing tests are deterministic without sleeping.

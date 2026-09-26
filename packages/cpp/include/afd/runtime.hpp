@@ -3,7 +3,9 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -66,6 +68,8 @@ struct CancellationState {
     std::atomic<bool> cancelled{false};
     std::optional<double> deadline_ms;
     std::shared_ptr<const Clock> clock;
+    /// Cancelling the parent cancels this state too (TypeScript's `AbortSignal.any`).
+    std::shared_ptr<const CancellationState> parent;
 };
 } // namespace detail
 
@@ -79,6 +83,8 @@ public:
     [[nodiscard]] bool is_cancelled() const noexcept;
     /// The steady-clock deadline, in `Clock::steady_ms` units, if one is set.
     [[nodiscard]] std::optional<double> deadline_ms() const noexcept;
+    /// Whether this token's own deadline (not a parent's cancellation) has passed.
+    [[nodiscard]] bool deadline_passed() const noexcept;
 
 private:
     friend class CancellationSource;
@@ -93,6 +99,10 @@ public:
     CancellationSource();
     /// A source whose tokens also report cancelled once `clock.steady_ms()` passes `deadline_ms`.
     CancellationSource(double deadline_ms, std::shared_ptr<const Clock> clock);
+    /// A source whose tokens also report cancelled when `parent` does, and, when `deadline_ms` is
+    /// set, once `clock.steady_ms()` passes it.
+    CancellationSource(const CancellationToken& parent, std::optional<double> deadline_ms,
+                       std::shared_ptr<const Clock> clock);
 
     [[nodiscard]] CancellationToken token() const { return CancellationToken(state_); }
     void cancel() noexcept { state_->cancelled.store(true); }
@@ -100,5 +110,30 @@ public:
 private:
     std::shared_ptr<detail::CancellationState> state_;
 };
+
+/// Runs work items, possibly concurrently (proposal D4). Batch execution hands it one task per
+/// worker; `parallelism` is honored only as far as the runner allows.
+class TaskRunner {
+public:
+    virtual ~TaskRunner() = default;
+    /// Runs `task(0)` through `task(count - 1)` and returns once every one has finished.
+    virtual void run_all(std::size_t count, const std::function<void(std::size_t)>& task) = 0;
+};
+
+/// Runs tasks one after another on the calling thread. The default, and the only runner in
+/// builds without threads (Emscripten). Batch `parallelism` is then an upper bound only.
+class InlineTaskRunner final : public TaskRunner {
+public:
+    void run_all(std::size_t count, const std::function<void(std::size_t)>& task) override;
+};
+
+#if AFD_ENABLE_THREADS
+/// Runs each task on its own `std::thread` (the first on the calling thread) and joins them.
+/// Handlers then run concurrently, so they must be thread-safe.
+class ThreadTaskRunner final : public TaskRunner {
+public:
+    void run_all(std::size_t count, const std::function<void(std::size_t)>& task) override;
+};
+#endif
 
 } // namespace afd

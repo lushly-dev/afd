@@ -155,4 +155,24 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
     return result;
 }
 
+PipelineResult DirectClient::pipe(const PipelineRequest& request, CommandContext context) const {
+    return pipe(Json(request), std::move(context));
+}
+
+PipelineResult DirectClient::pipe(const Json& request, CommandContext context) const {
+    if (!context.trace_id || context.trace_id->empty()) {
+        context.trace_id = generate_trace_id(*options_.clock, *options_.random);
+    }
+    const std::string trace = *context.trace_id;
+    std::size_t step = 0;
+    const CommandExecutor execute = [&](std::string_view name, const Json& input,
+                                        CommandContext& step_context) {
+        CommandContext call_context = step_context;
+        call_context.trace_id = trace + "-step-" + std::to_string(step++);
+        return call(name, input, call_context);
+    };
+    return execute_pipeline(request, execute, context,
+                            {.clock = options_.clock, .random = options_.random});
+}
+
 } // namespace afd

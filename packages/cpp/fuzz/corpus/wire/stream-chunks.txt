@@ -1,0 +1,41 @@
+[
+	{
+		"type": "progress",
+		"progress": 0.5,
+		"currentStep": 1,
+		"totalSteps": 2,
+		"message": "Halfway",
+		"estimatedTimeRemainingMs": 0
+	},
+	{
+		"type": "data",
+		"data": {
+			"id": "todo-1"
+		},
+		"index": 0,
+		"isLast": false,
+		"chunkId": "chunk-0"
+	},
+	{
+		"type": "complete",
+		"totalChunks": 1,
+		"totalDurationMs": 0,
+		"data": [
+			{
+				"id": "todo-1"
+			}
+		],
+		"reasoning": "Streamed 1 todo",
+		"confidence": 1
+	},
+	{
+		"type": "error",
+		"error": {
+			"code": "STREAM_ERROR",
+			"message": "Upstream closed",
+			"retryable": true
+		},
+		"chunksBeforeError": 1,
+		"recoverable": false
+	}
+]
