@@ -25,38 +25,43 @@ Phases 1–4 form the critical path, about 3–4 weeks in total. Phase 5's alfre
 
 ### 0.1 Accept the proposal
 
-- [ ] Triage #270 and settle the decisions marked *(confirm)* in the proposal, plus the [open questions](#open-questions) below. Record the answers in `proposal.md`.
-- [ ] Add a "C++ Support" row to the proposed-features table in `docs/features/README.md`.
-- [ ] Confirm that the port does not wait on the companion issues (#271–#276). The C++ port targets the contract as it is today. Each companion feature lands in all languages if and when it is accepted on its own merits (proposal, "Companion issues").
-- [ ] Review every scope item below against the proposal's [scope principle](./proposal.md#scope-principle-host-agnostic). Anything that fails goes back to the requester's application.
+- [x] Triage #270 and settle the decisions marked *(confirm)* in the proposal, plus the [open questions](#open-questions) below. Record the answers in `proposal.md`.
+- [x] Add a "C++ Support" row to the proposed-features table in `docs/features/README.md`.
+- [x] Confirm that the port does not wait on the companion issues (#271–#276). The C++ port targets the contract as it is today. Each companion feature lands in all languages if and when it is accepted on its own merits (proposal, "Companion issues").
+- [x] Review every scope item below against the proposal's [scope principle](./proposal.md#scope-principle-host-agnostic). Anything that fails goes back to the requester's application.
 
 ### 0.2 Repo prep PR (no C++ code)
 
 Research found these hazards. Each would fail an existing gate as soon as a C++ build tree exists.
 
-- [ ] **`.gitignore`:** add `packages/cpp/build/` and `packages/examples/todo/backends/cpp/build/`.
+- [x] **`.gitignore`:** add `packages/cpp/build/` and `packages/examples/todo/backends/cpp/build/`.
   - `conformance.yml` fails when the working tree is dirty (lines 84-91 and 148-155).
-- [ ] **`scripts/check-portability.mjs`:** skip `/packages/cpp/` and `/backends/cpp/build/` the same way it skips `/packages/rust/` (lines 84-88).
+- [x] **`scripts/check-portability.mjs`:** skip the CMake build trees `packages/cpp/build/` and `packages/examples/todo/backends/cpp/build/`. As built, only the build trees are skipped, not the whole package as with `/packages/rust/`, so the rest of `packages/cpp` stays checked.
   - The script ignores `.gitignore`.
   - CMake writes absolute `/Users/<name>/` paths into `CMakeConfigureLog.yaml`, `compile_commands.json` and `_deps/**`. Those are portability *errors* in pre-push and in `pnpm check`.
-- [ ] **`.editorconfig`:** add a `[*.{cpp,hpp,h,cmake}]` block and a `[CMakeLists.txt]` block. Recommendation: 4 spaces, 100 columns. Without them, C++ files inherit the repo's tab indentation.
-- [ ] **`packages/cpp/.clang-format`:** matching the `.editorconfig` settings, as the single source of formatting.
-- [ ] **Biome and CMake JSON:** decide whether Biome should reformat `packages/cpp/**/*.json` (for example `CMakePresets.json`) with tabs, as lefthook does to every `*.json`. It does no harm; either accept it or add an ignore in `biome.json`.
+- [x] **`.editorconfig`:** add a `[*.{cpp,hpp,h,cmake}]` block and a `[CMakeLists.txt]` block. Recommendation: 4 spaces, 100 columns. Without them, C++ files inherit the repo's tab indentation.
+- [x] **`packages/cpp/.clang-format`:** matching the `.editorconfig` settings, as the single source of formatting.
+- [x] **Biome and CMake JSON:** decide whether Biome should reformat `packages/cpp/**/*.json` (for example `CMakePresets.json`) with tabs, as lefthook does to every `*.json`. It does no harm; either accept it or add an ignore in `biome.json`. *Decided: accept it; no `biome.json` change.*
 
 ### 0.3 Spike (1 day, disposable)
 
 Build a hello-registry in a scratch branch and verify:
 
-- [ ] Parsing with nlohmann `allow_exceptions=false` under `-fno-exceptions -fno-rtti` with `JSON_NOEXCEPTION`:
+- [x] Parsing with nlohmann `allow_exceptions=false` under `-fno-exceptions -fno-rtti` with `JSON_NOEXCEPTION`:
   - it compiles, and malformed input returns `discarded` instead of aborting;
   - the parser does not recurse;
   - destroying 100k-deep input does not overflow the stack;
   - `dump()` depth behavior is understood.
-- [ ] Cross-type numeric equality (`0 == 0.0`) and the number formatting behind D9.
-- [ ] An Emscripten build of the spike that runs under Node, plus the steady clock's behavior there.
-- [ ] The spike compiles with a force-included macro-hygiene prelude. It defines the portable collisions from the proposal's constraints: function-like `min`/`max` (as `<windows.h>` does) and lowercase `check`/`verify`/`require` (as Apple's `AssertMacros.h` does).
+- [x] Cross-type numeric equality (`0 == 0.0`) and the number formatting behind D9.
+- [x] An Emscripten build of the spike that runs under Node, plus the steady clock's behavior there.
+- [x] The spike compiles with a force-included macro-hygiene prelude. It defines the portable collisions from the proposal's constraints: function-like `min`/`max` (as `<windows.h>` does) and lowercase `check`/`verify`/`require` (as Apple's `AssertMacros.h` does).
 
 **Exit:** decisions recorded; the prep PR merged; spike findings folded into proposal D2–D4.
+
+**Status: complete (2026-09-26).**
+- The proposal and plan landed in #277 and the repo prep in #280.
+- The maintainer accepted every recommendation.
+- The spike results are in the proposal's [Phase 0 spike evidence](./proposal.md#phase-0-spike-evidence).
 
 ---
 
@@ -109,9 +114,11 @@ Each item below is a header in `include/afd/` with an implementation in `src/`.
 
 - **`json.hpp`:**
   - `using Json = nlohmann::json;`.
-  - `wire::number(double)`, which follows D9.
+  - `wire::number(double)`, which follows D9. It normalizes integral values, including `-0.0`, to integers, and has tests against the values in the spike table.
   - `wire::iso8601_utc(ms)`, which writes `2026-01-01T00:00:00.000Z` with a hand-written civil-date conversion, no `<format>`.
-  - `parse_bounded(text, max_depth, max_bytes)`.
+  - `parse_bounded(text, max_depth = 256, max_bytes)`:
+    - It tracks depth in the parser callback and **fails on its own "too deep" flag**. nlohmann silently drops a rejected subtree and still reports success (spike).
+    - Its tests must cover input at the limit and one level beyond it.
   - `json_equal(a, b)`, a structural comparison.
 - **`expected.hpp`:** a minimal `afd::Expected<T, E>` for the C++20 build (a stand-in for C++23's `std::expected`).
 - **`errors.hpp`:**
@@ -567,7 +574,7 @@ These belong in the requesting application, built on the public API.
 
 ## Open questions
 
-These are for the maintainers. Each has a recommendation.
+**Resolved 2026-09-26: the maintainer accepted every recommendation below.**
 
 1. **Is the reference the TypeScript server engine,** rather than the core registry? *Recommended: yes* (proposal, "What the same AFD means").
 2. **Execution model:** synchronous handlers plus a pluggable runner, or C++20 coroutines from the start? *Recommended: synchronous first* (D4).
