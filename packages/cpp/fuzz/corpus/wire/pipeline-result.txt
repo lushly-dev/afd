@@ -1,0 +1,132 @@
+{
+	"data": {
+		"id": "todo-2",
+		"title": "Buy milk",
+		"completed": false
+	},
+	"metadata": {
+		"confidence": 0.92,
+		"confidenceBreakdown": [
+			{
+				"step": 0,
+				"alias": "first",
+				"command": "fixture-minimal",
+				"confidence": 1
+			},
+			{
+				"step": 1,
+				"command": "fixture-full",
+				"confidence": 0.92,
+				"reasoning": "Created todo \"Buy milk\""
+			}
+		],
+		"reasoning": [
+			{
+				"stepIndex": 1,
+				"command": "fixture-full",
+				"reasoning": "Created todo \"Buy milk\""
+			}
+		],
+		"warnings": [
+			{
+				"code": "DUPLICATE_TITLE",
+				"message": "A todo with this title already exists",
+				"severity": "caution",
+				"details": {
+					"existingId": "todo-1"
+				},
+				"stepIndex": 1
+			}
+		],
+		"sources": [
+			{
+				"type": "document",
+				"id": "doc-7",
+				"title": "Team guidelines",
+				"url": "https://example.com/guidelines",
+				"location": "section 2",
+				"accessedAt": "2026-01-01T00:00:00.000Z",
+				"relevance": 0.8,
+				"stepIndex": 1
+			}
+		],
+		"alternatives": [
+			{
+				"data": {
+					"id": "todo-3",
+					"title": "Buy milk",
+					"completed": true
+				},
+				"reason": "Could have been created as completed",
+				"confidence": 0.2,
+				"label": "Completed",
+				"stepIndex": 1
+			}
+		],
+		"executionTimeMs": 0,
+		"completedSteps": 2,
+		"totalSteps": 2
+	},
+	"steps": [
+		{
+			"index": 0,
+			"alias": "first",
+			"command": "fixture-minimal",
+			"status": "success",
+			"data": {
+				"id": "todo-1",
+				"title": "Buy milk"
+			},
+			"executionTimeMs": 0,
+			"metadata": {}
+		},
+		{
+			"index": 1,
+			"command": "fixture-full",
+			"status": "success",
+			"data": {
+				"id": "todo-2",
+				"title": "Buy milk",
+				"completed": false
+			},
+			"executionTimeMs": 0,
+			"metadata": {
+				"confidence": 0.92,
+				"reasoning": "Created todo \"Buy milk\"",
+				"warnings": [
+					{
+						"code": "DUPLICATE_TITLE",
+						"message": "A todo with this title already exists",
+						"severity": "caution",
+						"details": {
+							"existingId": "todo-1"
+						}
+					}
+				],
+				"sources": [
+					{
+						"type": "document",
+						"id": "doc-7",
+						"title": "Team guidelines",
+						"url": "https://example.com/guidelines",
+						"location": "section 2",
+						"accessedAt": "2026-01-01T00:00:00.000Z",
+						"relevance": 0.8
+					}
+				],
+				"alternatives": [
+					{
+						"data": {
+							"id": "todo-3",
+							"title": "Buy milk",
+							"completed": true
+						},
+						"reason": "Could have been created as completed",
+						"confidence": 0.2,
+						"label": "Completed"
+					}
+				]
+			}
+		}
+	]
+}

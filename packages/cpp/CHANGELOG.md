@@ -6,6 +6,20 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Added
 
+- **Batch execution.**
+  - `execute_batch`, and `CommandRegistry::execute_batch`.
+  - `parse_batch_request` performs the envelope checks.
+  - Semantics follow the TypeScript executor: bounded workers, `stopOnError` with COMMAND_SKIPPED, one deadline with BATCH_TIMEOUT, `<trace>-<index>` trace IDs, and TypeScript's aggregation and reasoning text.
+- **Pipeline execution.**
+  - `execute_pipeline`, `CommandRegistry::execute_pipeline` and `DirectClient::pipe`.
+  - `parse_pipeline_request`, `resolve_variables`, `resolve_variable` and `evaluate_condition` implement every rule in `spec/pipeline-variables.md`.
+  - Also: UNSUPPORTED_OPTION for `parallel` and `stream`, 64-level nesting limits, PIPELINE_TIMEOUT, and TypeScript's metadata aggregation.
+- **Stream execution.**
+  - `execute_stream` and `CommandRegistry::execute_stream`, which return the chunk sequence.
+  - `consume_stream`, `collect_stream_data`, and the chunk factories.
+- **Runtime.** `TaskRunner` (`InlineTaskRunner`, `ThreadTaskRunner`), and `CancellationSource` chaining to a parent token.
+- **`spec/vectors/pipeline-variables.json`,** generated from TypeScript. The C++ resolver and conditions must match it.
+- **Fuzz targets** (`AFD_BUILD_FUZZERS`), and TSan and fuzz-smoke CI jobs.
 - `CommandRegistry`:
   - `register_command` rejects invalid, reserved and duplicate names, a missing handler, unsupported schemas, and examples that fail their schema.
   - `execute` follows the TypeScript engine's dispatch order and errors: COMMAND_NOT_FOUND with "did you mean" matches, COMMAND_NOT_EXPOSED, COMMAND_NOT_IN_CONTEXT, VALIDATION_ERROR, metadata stamping, `on_command`, and COMMAND_EXECUTION_ERROR for exceptions.

@@ -7,14 +7,19 @@ on:
       - 'packages/cpp/**'
       # The C++ tests round-trip these golden fixtures and implement this spec.
       - 'spec/wire/**'
+      - 'spec/vectors/**'
       - 'spec/pipeline-variables.md'
+      # schema_test compiles every todo input schema.
+      - 'packages/examples/todo/spec/**'
       - '.github/workflows/cpp.yml'
   pull_request:
     branches: [main]
     paths:
       - 'packages/cpp/**'
       - 'spec/wire/**'
+      - 'spec/vectors/**'
       - 'spec/pipeline-variables.md'
+      - 'packages/examples/todo/spec/**'
       - '.github/workflows/cpp.yml'
 
 permissions:
@@ -59,6 +64,10 @@ jobs:
             os: ubuntu-latest
             preset: asan
             cxx: clang++
+          - name: linux-clang-tsan
+            os: ubuntu-latest
+            preset: tsan
+            cxx: clang++
           - name: noexcept-nortti
             os: ubuntu-latest
             preset: noexcept-nortti
@@ -94,6 +103,37 @@ jobs:
 
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
+
+  fuzz:
+    name: C++ (fuzz smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: packages/cpp
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build fuzz targets (libFuzzer, ASan, UBSan)
+        env:
+          CXX: clang++
+        run: |
+          cmake -S . -B build/fuzz -DCMAKE_BUILD_TYPE=RelWithDebInfo -DAFD_BUILD_FUZZERS=ON -DAFD_BUILD_TESTS=OFF -DAFD_WARNINGS_AS_ERRORS=ON
+          cmake --build build/fuzz
+
+      # Each target runs for 60 s from a scratch copy of its seed corpus, so new inputs never
+      # dirty the checkout. A crash fails the job and leaves the reproducer in the log.
+      - name: Fuzz each target for 60 seconds
+        run: |
+          for target in parse_bounded pipeline schema similarity wire; do
+            corpus="$RUNNER_TEMP/corpus-$target"
+            cp -r "fuzz/corpus/$target" "$corpus"
+            "build/fuzz/fuzz/afd_fuzz_$target" -max_total_time=60 -timeout=10 -rss_limit_mb=2048 "$corpus"
+          done
 
   emscripten:
     name: C++ (emscripten)

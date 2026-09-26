@@ -2,16 +2,21 @@ afd_fetch_doctest()
 
 add_executable(
     afd_tests
+    batch_test.cpp
     command_test.cpp
     direct_client_test.cpp
     json_test.cpp
     main.cpp
     middleware_test.cpp
+    pipeline_test.cpp
+    pipeline_variables_test.cpp
     registry_test.cpp
     result_test.cpp
     schema_test.cpp
     similarity_test.cpp
     smoke_test.cpp
+    stream_test.cpp
+    vectors_test.cpp
     wire_fixtures_test.cpp)
 target_link_libraries(afd_tests PRIVATE afd::afd afd_doctest)
 # main.cpp compiles doctest's implementation; in a unity build it must not share a translation
@@ -22,6 +27,9 @@ afd_configure_target(afd_tests)
 # The golden wire fixtures every AFD implementation round-trips (spec/wire/README.md).
 cmake_path(SET afd_wire_dir NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/wire")
 target_compile_definitions(afd_tests PRIVATE AFD_WIRE_DIR="${afd_wire_dir}")
+# Language-neutral behavior vectors, generated from the TypeScript implementation.
+cmake_path(SET afd_vectors_dir NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/vectors")
+target_compile_definitions(afd_tests PRIVATE AFD_VECTORS_DIR="${afd_vectors_dir}")
 # The todo example's shared contract, whose input schemas the validator must accept.
 cmake_path(SET afd_todo_spec_dir NORMALIZE "${PROJECT_SOURCE_DIR}/../examples/todo/spec")
 target_compile_definitions(afd_tests PRIVATE AFD_TODO_SPEC_DIR="${afd_todo_spec_dir}")

@@ -3,11 +3,15 @@
 // AFD means").
 #pragma once
 
+#include "afd/batch.hpp"
 #include "afd/command.hpp"
+#include "afd/execution.hpp"
 #include "afd/json.hpp"
+#include "afd/pipeline.hpp"
 #include "afd/result.hpp"
 #include "afd/runtime.hpp"
 #include "afd/schema.hpp"
+#include "afd/streaming.hpp"
 
 #include <functional>
 #include <map>
@@ -36,8 +40,13 @@ struct RegistryOptions {
         on_command;
     /// Receives exceptions from handlers and hooks.
     std::function<void(std::string_view message)> on_error;
-    /// Times handlers. Defaults to `SystemClock`.
+    /// Times handlers, and drives batch, pipeline and stream deadlines. Defaults to `SystemClock`.
     std::shared_ptr<const Clock> clock;
+    /// Runs batch workers. Defaults to `InlineTaskRunner` (no overlap). With `ThreadTaskRunner`,
+    /// handlers run concurrently and must be thread-safe.
+    std::shared_ptr<TaskRunner> runner;
+    /// For generated pipeline IDs. Defaults to a randomly seeded `SeededRandom`.
+    std::shared_ptr<RandomSource> random;
 };
 
 /// A registered command.
@@ -87,7 +96,27 @@ public:
     [[nodiscard]] CommandResult execute(std::string_view name, const Json& input = Json::object(),
                                         CommandContext context = {}) const;
 
+    /// Executes a batch; each command goes through `execute`. See `afd::execute_batch`.
+    [[nodiscard]] BatchResult execute_batch(const Json& request,
+                                            const CommandContext& context = {}) const;
+    [[nodiscard]] BatchResult execute_batch(const BatchRequest& request,
+                                            const CommandContext& context = {}) const;
+
+    /// Executes a pipeline; each step goes through `execute`. See `afd::execute_pipeline`.
+    [[nodiscard]] PipelineResult execute_pipeline(const Json& request,
+                                                  const CommandContext& context = {}) const;
+    [[nodiscard]] PipelineResult execute_pipeline(const PipelineRequest& request,
+                                                  const CommandContext& context = {}) const;
+
+    /// Executes one command as stream chunks. See `afd::execute_stream`.
+    [[nodiscard]] std::vector<StreamChunk>
+    execute_stream(std::string_view name, const Json& input = Json::object(),
+                   const CommandContext& context = {},
+                   std::optional<double> timeout_ms = std::nullopt) const;
+
 private:
+    [[nodiscard]] ExecutorOptions executor_options() const;
+    [[nodiscard]] CommandExecutor executor() const;
     [[nodiscard]] CommandResult run_chain(const RegisteredCommand& command, const Json& input,
                                           CommandContext& context) const;
     void report_error(std::string_view message) const;

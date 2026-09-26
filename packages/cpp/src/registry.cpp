@@ -69,6 +69,54 @@ CommandRegistry::CommandRegistry(RegistryOptions options) : options_(std::move(o
     if (!options_.clock) {
         options_.clock = std::make_shared<SystemClock>();
     }
+    if (!options_.runner) {
+        options_.runner = std::make_shared<InlineTaskRunner>();
+    }
+    if (!options_.random) {
+        options_.random = std::make_shared<SeededRandom>();
+    }
+}
+
+ExecutorOptions CommandRegistry::executor_options() const {
+    return {.dev_mode = options_.dev_mode,
+            .clock = options_.clock,
+            .random = options_.random,
+            .runner = options_.runner};
+}
+
+CommandExecutor CommandRegistry::executor() const {
+    return [this](std::string_view name, const Json& input, CommandContext& context) {
+        return execute(name, input, context);
+    };
+}
+
+BatchResult CommandRegistry::execute_batch(const Json& request,
+                                           const CommandContext& context) const {
+    return afd::execute_batch(request, executor(), context, executor_options());
+}
+
+BatchResult CommandRegistry::execute_batch(const BatchRequest& request,
+                                           const CommandContext& context) const {
+    return afd::execute_batch(request, executor(), context, executor_options());
+}
+
+PipelineResult CommandRegistry::execute_pipeline(const Json& request,
+                                                 const CommandContext& context) const {
+    return afd::execute_pipeline(request, executor(), context, executor_options());
+}
+
+PipelineResult CommandRegistry::execute_pipeline(const PipelineRequest& request,
+                                                 const CommandContext& context) const {
+    return afd::execute_pipeline(request, executor(), context, executor_options());
+}
+
+std::vector<StreamChunk> CommandRegistry::execute_stream(std::string_view name, const Json& input,
+                                                         const CommandContext& context,
+                                                         std::optional<double> timeout_ms) const {
+    StreamOptions options;
+    static_cast<ExecutorOptions&>(options) = executor_options();
+    options.timeout = timeout_ms;
+    return afd::execute_stream(name, input, executor(), context, options);
 }
 
 std::optional<std::string> CommandRegistry::register_command(CommandDefinition command) {

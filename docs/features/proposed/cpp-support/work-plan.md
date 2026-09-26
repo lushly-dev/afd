@@ -383,6 +383,20 @@ Put the pipeline-variable rules and the batch-control cases in language-neutral 
 
 A follow-up issue wires the same files into TypeScript, Python and Rust. This follows the quality review's recommendation to replace name parity with fixture comparison, and it cuts the four-language cost of every future `parity` issue.
 
+### As built (Phase 3)
+
+- **One executor, as planned.** `execute_batch`, `execute_pipeline` and `execute_stream` take a `CommandExecutor`. `CommandRegistry::execute_batch/execute_pipeline/execute_stream` and `DirectClient::pipe` all delegate to them.
+- **Cooperative deadlines with every runner** (proposal D4, corrected). `ThreadTaskRunner` gives real overlap, but nothing returns before running handlers do: abandoning a handler could leave it using state the caller has freed. A late finish gets the same BATCH_TIMEOUT or PIPELINE_TIMEOUT result as in TypeScript.
+- **`CancellationSource` can chain to a parent token,** the counterpart of `AbortSignal.any`. Batch commands, pipeline steps and streams see both the caller's cancellation and the deadline.
+- **A stream is a `std::vector<StreamChunk>`,** not a generator. TypeScript's `executeStream` also runs the command to completion before yielding. `consume_stream` returns the final chunk, and `collect_stream_data` returns `Expected` instead of throwing.
+- **Pipeline executor exceptions follow `dev_mode` redaction** (research finding 8). TypeScript returns the raw message.
+- **Shared vectors are started.** `spec/vectors/pipeline-variables.json` holds 48 references and 27 conditions, generated from the TypeScript implementation by `spec/vectors/generate-pipeline-variables.mjs`. The C++ tests require identical results. Adopting the file in Python and Rust remains follow-on item 6.
+- **Fuzz targets** exist for `parse_bounded`, pipelines, schemas, similarity and the wire types.
+  - They are built with `AFD_BUILD_FUZZERS`.
+  - CI runs each for 60 s under libFuzzer, ASan and UBSan.
+  - Elsewhere they build as standalone drivers that replay the seed corpus as ctest tests.
+- **A TSan CI job** runs the suite with `AFD_ENABLE_THREADS`, including a threaded batch through the real registry.
+
 ### Tests and fuzzing
 
 - The conformance minimum from `spec/pipeline-variables.md`:
