@@ -42,6 +42,7 @@ Feature specifications organized by lifecycle stage.
 
 | Feature | Description |
 |---------|-------------|
+| [C++ Support](./proposed/cpp-support/) | Engine-free C++20 implementation of AFD core, conformance-tested against `spec/wire` (#270) |
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |

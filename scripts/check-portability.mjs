@@ -18,7 +18,8 @@
  * - Markdown files (*.md)
  * - vite/vitest config localhost references
  *
- * Excluded directories: alfred/, python/, packages/rust/ (own tooling)
+ * Excluded directories: alfred/, python/, packages/rust/ (own tooling),
+ * and the C++ CMake build trees packages/cpp/build/ and packages/examples/todo/backends/cpp/build/
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -36,6 +37,7 @@ const CHECK_EXTENSIONS = new Set([
 	'.yml',
 ]);
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'coverage', 'alfred', 'python']);
+const CPP_BUILD_DIR = /\/(?:packages\/cpp|packages\/examples\/todo\/backends\/cpp)\/build\//;
 const ESCAPE_HATCH = /portability-ok\s*:/i;
 const PATTERNS = [
 	{
@@ -84,6 +86,9 @@ function isSkippedPath(normalizedPath) {
 	// Skip packages/rust/ specifically (contains slash so check manually)
 	if (normalizedPath.includes('/packages/rust/') || normalizedPath.includes('\\packages\\rust\\'))
 		return true;
+	// Skip C++ CMake build trees: CMake writes machine-specific absolute paths into them
+	// (CMakeConfigureLog.yaml, compile_commands.json, FetchContent _deps/).
+	if (CPP_BUILD_DIR.test(normalizedPath.replace(/\\/g, '/'))) return true;
 	return false;
 }
 

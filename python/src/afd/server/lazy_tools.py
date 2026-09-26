@@ -2,14 +2,31 @@
 
 from __future__ import annotations
 
-from difflib import get_close_matches
 from typing import Any, Sequence
 
 from afd.core.commands import CommandDefinition, command_to_mcp_tool, serialize_command_examples
 from afd.core.result import CommandResult, success
+from afd.core.similarity import find_similar_tools, truncate_name
 
-# Requested names are untrusted: cap them before fuzzy matching and echoing.
-_MAX_COMMAND_NAME_LENGTH = 128
+# How many close matches a COMMAND_NOT_FOUND suggestion names at most.
+_MAX_NOT_FOUND_MATCHES = 3
+
+
+def _not_found_suggestion(command_name: str, command_names: Sequence[str]) -> str:
+    """Recovery guidance for an unknown (untrusted, never echoed) command name.
+
+    Names at most three close matches (none for very long names) and points
+    to afd-discover. It never lists every command, which in lazy mode would
+    load the whole surface into the agent's context on a single typo.
+    """
+    discover = "Use afd-discover to list all commands."
+    matches = find_similar_tools(command_name, command_names, _MAX_NOT_FOUND_MATCHES)
+    if not matches:
+        return discover
+    best, *others = matches
+    quoted_others = ", ".join(f"'{name}'" for name in others)
+    also_close = f" Other close matches: {quoted_others}." if others else ""
+    return f"Did you mean '{best}'?{also_close} {discover}"
 
 
 def _truncate_description(description: str, max_length: int = 120) -> str:
@@ -117,20 +134,16 @@ def execute_detail(
     for name in names:
         command = command_map.get(name)
         if command is None:
-            name = name[:_MAX_COMMAND_NAME_LENGTH]
-            suggestion = get_close_matches(name, available_names, n=1)
+            # Echo a bounded name: an unknown name is untrusted and can be huge.
+            shown = truncate_name(name)
             entries.append(
                 {
-                    "name": name,
+                    "name": shown,
                     "found": False,
                     "error": {
                         "code": "COMMAND_NOT_FOUND",
-                        "message": f"No command named '{name}'",
-                        "suggestion": (
-                            f"Did you mean '{suggestion[0]}'? Use afd-discover to list commands."
-                            if suggestion
-                            else "Use afd-discover to list commands."
-                        ),
+                        "message": f"No command named '{shown}'",
+                        "suggestion": _not_found_suggestion(name, available_names),
                     },
                 }
             )

@@ -14,10 +14,21 @@ itself follows Rust conventions and does not mirror every TypeScript or Python f
 
 ## Installation
 
+The crate is not published to crates.io yet. Add it as a git dependency; Cargo finds the `afd`
+package in `packages/rust` on its own:
+
+```bash
+cargo add afd --git https://github.com/lushly-dev/afd
+```
+
+Or edit `Cargo.toml` directly:
+
 ```toml
 [dependencies]
-afd = "0.1"
+afd = { git = "https://github.com/lushly-dev/afd" }
 ```
+
+Add `rev = "<commit sha>"` to pin a specific commit. For WebAssembly, see [Features](#features).
 
 ## Quick Start
 
@@ -155,6 +166,14 @@ assert_eq!(request.steps[1].alias, None);
 
 `CommandRegistry::execute` enforces each command's metadata before its handler runs:
 
+- **Unknown names.** `COMMAND_NOT_FOUND` carries the same suggestion as the TypeScript server: up
+  to three close matches, for example `Did you mean 'todo-create'? Other close matches:
+  'todo-list'.` It never lists every command. When the `CommandContext` names an `interface`, only
+  commands exposed to that interface are matched, so an unexposed name is never suggested. The
+  suggestion ends with `Use afd-help to list all commands.` when `afd-help` is registered and
+  callable (TypeScript points to `afd-discover`, which Rust does not have). Otherwise it ends with
+  `Check the command name against the available commands.` The registry does not track an active
+  context, so, unlike TypeScript, matches are not filtered by `contexts`.
 - **Input validation.** The input is checked against the declared `parameters` (required fields,
   JSON types, `enum` values, and a parameter's full `schema` when it has one). Parameter defaults
   are filled in. Invalid input returns `VALIDATION_ERROR` with a suggestion that lists the expected
