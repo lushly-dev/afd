@@ -60,15 +60,15 @@ struct CommandContext {
 };
 
 /// A command handler. Receives the validated input (defaults applied, undeclared keys removed).
-using Handler = std::function<CommandResult(const Json& input, CommandContext& context)>;
+using CommandHandler = std::function<CommandResult(const Json& input, CommandContext& context)>;
 
 /// Calls the rest of the middleware chain and then the handler.
 using Next = std::function<CommandResult()>;
 
 /// Middleware around every execution. Receives the validated input and the shared context. It
 /// may short-circuit by returning without calling `next`, or call `next` more than once (retry).
-using Middleware = std::function<CommandResult(std::string_view name, const Json& input,
-                                               CommandContext& context, const Next& next)>;
+using CommandMiddleware = std::function<CommandResult(std::string_view name, const Json& input,
+                                                      CommandContext& context, const Next& next)>;
 
 /// A command. Fields are in the order designated initializers must follow:
 ///
@@ -88,7 +88,7 @@ struct CommandDefinition {
     Json input_schema = Json{{"type", "object"}};
     /// JSON Schema of `data` on success, for introspection only (never enforced).
     std::optional<Json> output_schema;
-    Handler handler;
+    CommandHandler handler;
     std::optional<std::string> version;
     std::vector<std::string> tags;
     /// Commands that should run first. Planning metadata only; never enforced. TypeScript's

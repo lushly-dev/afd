@@ -109,6 +109,14 @@ std::variant<CompleteChunk, ErrorChunk> consume_stream(const std::vector<StreamC
 Expected<std::vector<Json>, CommandError>
 collect_stream_data(const std::vector<StreamChunk>& chunks);
 
+bool is_progress_chunk(const StreamChunk& chunk) noexcept;
+bool is_data_chunk(const StreamChunk& chunk) noexcept;
+bool is_complete_chunk(const StreamChunk& chunk) noexcept;
+bool is_error_chunk(const StreamChunk& chunk) noexcept;
+
+/// Whether `value` is an object whose `type` is progress, data, complete or error.
+bool is_stream_chunk(const Json& value);
+
 /// Reads a chunk of any type from JSON without throwing.
 Expected<StreamChunk> stream_chunk_from_json(const Json& value);
 

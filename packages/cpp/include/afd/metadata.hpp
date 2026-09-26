@@ -73,6 +73,22 @@ struct Warning {
     static Expected<Warning> from_json(const Json& value);
 };
 
+/// A source of `type`, with any of `options`' other fields.
+Source create_source(std::string type, Source options = {});
+
+/// A pending plan step.
+PlanStep create_step(std::string id, std::string action,
+                     std::optional<std::string> description = std::nullopt);
+
+/// `step` with a new status. `result` is kept only when the new status is complete; otherwise the
+/// step's existing result stays.
+PlanStep update_step_status(PlanStep step, PlanStepStatus status,
+                            std::optional<Json> result = std::nullopt);
+
+/// A warning; severity defaults to `warning`.
+Warning create_warning(std::string code, std::string message,
+                       WarningSeverity severity = WarningSeverity::warning);
+
 void to_json(Json& out, const Source& source);
 void to_json(Json& out, PlanStepStatus status);
 void to_json(Json& out, const PlanStepError& error);

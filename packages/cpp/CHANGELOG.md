@@ -4,8 +4,22 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ## Unreleased
 
+### Changed
+
+- Renamed to match TypeScript: `Handler` → `CommandHandler`, `Middleware` → `CommandMiddleware`, `RegistryOptions` → `CommandRegistryOptions`.
+
 ### Added
 
+- **Handoff:**
+  - the types `HandoffResult`, `HandoffCredentials`, `HandoffMetadata`, `ReconnectPolicy` and `CreateHandoffOptions`;
+  - the helpers `create_handoff`, `default_reconnect_policy`, `is_handoff`, `is_handoff_protocol`, `is_reconnect_policy`, `is_handoff_command` and `get_handoff_protocol`.
+- **Parity helpers:**
+  - `ErrorCode`;
+  - `create_source`, `create_step`, `update_step_status`, `create_warning`;
+  - `is_progress_chunk`, `is_data_chunk`, `is_complete_chunk`, `is_error_chunk`, `is_stream_chunk`;
+  - `is_batch_request`, `is_batch_result`, `create_batch_request`;
+  - `is_pipeline_request`, `is_pipeline_result`, `create_pipeline`.
+- **Tooling:** `alfred parity` now tracks the C++ API, and the `afd-cpp` agent skill is added.
 - **Batch execution.**
   - `execute_batch`, and `CommandRegistry::execute_batch`.
   - `parse_batch_request` performs the envelope checks.
@@ -24,7 +38,7 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
   - `register_command` rejects invalid, reserved and duplicate names, a missing handler, unsupported schemas, and examples that fail their schema.
   - `execute` follows the TypeScript engine's dispatch order and errors: COMMAND_NOT_FOUND with "did you mean" matches, COMMAND_NOT_EXPOSED, COMMAND_NOT_IN_CONTEXT, VALIDATION_ERROR, metadata stamping, `on_command`, and COMMAND_EXECUTION_ERROR for exceptions.
   - Listing by category, exposure and handoff.
-- `CommandDefinition`, `CommandContext`, `ExposeOptions`, `Handler`, `Middleware` and `validate_command_name`.
+- `CommandDefinition`, `CommandContext`, `ExposeOptions`, `CommandHandler`, `CommandMiddleware` and `validate_command_name`.
 - `CompiledSchema`: a JSON Schema subset validator that returns the parsed input (defaults applied, undeclared members stripped), with Zod 4 issue codes and the TypeScript VALIDATION_ERROR shape. It accepts every todo example input schema.
 - `find_similar_tools`, `calculate_similarity` and `truncate_name`, counting UTF-16 code units. Their output matches TypeScript on the same inputs.
 - `default_middleware`: trace ID, logging and timing.

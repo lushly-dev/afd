@@ -11,6 +11,7 @@ from alfred.commands.parity import (
     _normalize,
     alfred_parity,
     check_wire_fixtures,
+    parse_cpp_exports,
     parse_python_exports,
     parse_rust_exports,
     parse_typescript_exports,
@@ -287,6 +288,96 @@ fn private_fn() {}
     }
 
 
+# ─── C++ ─────────────────────────────────────────────────────────────────────
+
+
+def _cpp_names(entries):
+    return sorted(e.name for e in entries)
+
+
+def test_parse_cpp_exports_namespace_scope_declarations():
+    header = """
+    #pragma once
+    #include <string>
+    namespace afd {
+    /// A doc comment mentioning struct NotExported { int x; };
+    struct CommandResult {
+        bool success = false;
+        void member_function();          // members are not exports
+    };
+    enum class PlanStepStatus { pending, complete };
+    using CommandExecutor = std::function<void()>;
+    inline constexpr std::size_t max_similarity_input_length = 128;
+    class [[nodiscard]] Expected;
+    [[nodiscard]] CommandResult success(Json data, ResultOptions options = {});
+    CommandResult success(Json data);    // an overload counts once
+    template <class Chunk>
+        requires std::same_as<Chunk, StreamChunk>
+    void to_json(Json& out, const Chunk& chunk) { visit(out); }
+    bool is_success(const CommandResult& result) noexcept;
+    namespace error_codes {
+    inline constexpr char NOT_FOUND[] = "NOT_FOUND";
+    }
+    namespace detail {
+    struct Hidden {};
+    void hidden_helper();
+    }
+    }  // namespace afd
+    namespace other { struct Elsewhere {}; }
+    """
+    entries = parse_cpp_exports(header)
+    assert _cpp_names(entries) == [
+        "CommandExecutor",
+        "CommandResult",
+        "PlanStepStatus",
+        "error_codes",
+        "is_success",
+        "max_similarity_input_length",
+        "success",
+    ]
+    kinds = {e.name: e.kind for e in entries}
+    assert kinds["CommandResult"] == "type"
+    assert kinds["success"] == "function"
+
+
+def test_cpp_literals_and_comments_do_not_confuse_the_scanner():
+    header = (
+        "namespace afd {\n"
+        'inline constexpr char open_brace[] = "{";\n'
+        'inline constexpr char close_brace = \'}\';\n'
+        'const char* raw() { return R"x(}; // not a comment { )x"; }\n'
+        "/* struct Commented {}; */\n"
+        "#define MACRO(x) struct FromMacro {}\n"
+        "struct AfterLiterals {};\n"
+        "}\n"
+    )
+    assert _cpp_names(parse_cpp_exports(header)) == [
+        "AfterLiterals",
+        "close_brace",
+        "open_brace",
+        "raw",
+    ]
+
+
+def test_cpp_includes_are_followed_and_idioms_skipped(tmp_path):
+    include = tmp_path / "include"
+    (include / "afd").mkdir(parents=True)
+    (include / "afd" / "afd.hpp").write_text(
+        '#include "afd/a.hpp"\n#include "afd/missing.hpp"\n#include <vector>\n', encoding="utf-8"
+    )
+    (include / "afd" / "a.hpp").write_text(
+        '#include "afd/a.hpp"\n'  # a cycle is followed once
+        "namespace afd {\n"
+        "using Json = nlohmann::json;\n"
+        "void to_json(Json& out, const Thing& thing);\n"
+        "struct Thing {};\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    entries = parse_cpp_exports((include / "afd" / "afd.hpp").read_text(), include)
+    assert _cpp_names(entries) == ["Thing"]
+
+
 # ─── Wire fixture coverage ───────────────────────────────────────────────────
 
 
@@ -307,7 +398,7 @@ def test_wire_fixtures_fully_covered(tmp_path):
     report = check_wire_fixtures(tmp_path)
     assert report["fixtures"] == ["batch-b.json", "result-a.json"]
     assert report["gaps"] == 0
-    assert report["uncovered"] == {"typescript": [], "python": [], "rust": []}
+    assert report["uncovered"] == {"typescript": [], "python": [], "rust": [], "cpp": []}
 
 
 def test_wire_fixture_missing_from_one_suite(tmp_path):
@@ -333,8 +424,8 @@ def test_wire_missing_suite_invalid_fixture_and_missing_dir(tmp_path):
     assert report["missing_suites"] == ["python"]
     assert report["invalid_fixtures"] == ["broken.json"]
     assert report["uncovered"]["python"] == ["batch-b.json", "broken.json", "result-a.json"]
-    # broken.json is invalid (1) and unreferenced by TS and Rust (2); Python misses all 3.
-    assert report["gaps"] == 1 + 2 + 3
+    # broken.json is invalid (1) and unreferenced by TS, Rust and C++ (3); Python misses all 3.
+    assert report["gaps"] == 1 + 3 + 3
 
     empty = tmp_path / "empty"
     empty.mkdir()
@@ -374,6 +465,18 @@ def fake_repo(tmp_path):
         "pub use result::{\n"
         "    success, failure, CommandResult,\n"
         "};\n",
+        encoding="utf-8",
+    )
+
+    cpp_dir = tmp_path / "packages" / "cpp" / "include" / "afd"
+    cpp_dir.mkdir(parents=True)
+    (cpp_dir / "afd.hpp").write_text('#include "afd/result.hpp"\n', encoding="utf-8")
+    (cpp_dir / "result.hpp").write_text(
+        "namespace afd {\n"
+        "struct CommandResult { bool success = false; };\n"
+        "CommandResult success(Json data);\n"
+        "CommandResult failure(CommandError error);\n"
+        "}  // namespace afd\n",
         encoding="utf-8",
     )
 
@@ -420,8 +523,9 @@ async def test_parity_counts_uncovered_wire_fixtures(fake_repo):
         "typescript": ["new-shape.json"],
         "python": ["new-shape.json"],
         "rust": ["new-shape.json"],
+        "cpp": ["new-shape.json"],
     }
-    assert result.data["total_gaps"] == 3
+    assert result.data["total_gaps"] == 4
     assert result.confidence < 1.0
 
 
@@ -443,6 +547,11 @@ NAME_GAP_BUDGET = {
     # 98 → 97: 2.0 removed TypeScript's deprecated resolveReference alias.
     "missing_from_python": 97,
     "missing_from_rust": 10,
+    # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
+    # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps
+    # conditions as validated JSON); telemetry; timeout controllers and streamable commands;
+    # the pipeline aggregation helpers; CommandParameter and createCommandRegistry.
+    "missing_from_cpp": 73,
 }
 
 # Exports every language must have; if one disappears the parser is broken.
@@ -470,14 +579,14 @@ async def test_parity_on_real_repo():
     assert result.success is True
     data = result.data
 
-    # Every golden wire fixture is round-tripped by all three suites.
+    # Every golden wire fixture is round-tripped by all four suites.
     wire = data["wire_fixtures"]
     on_disk = sorted(p.name for p in (REPO_ROOT / "spec" / "wire").glob("*.json"))
     assert wire["fixtures"] == on_disk
     assert len(on_disk) >= 6
     assert wire["missing_suites"] == []
     assert wire["invalid_fixtures"] == []
-    assert wire["uncovered"] == {"typescript": [], "python": [], "rust": []}
+    assert wire["uncovered"] == {"typescript": [], "python": [], "rust": [], "cpp": []}
     assert wire["gaps"] == 0
 
     # The parsers find the core surface in every language.
@@ -492,6 +601,13 @@ async def test_parity_on_real_repo():
             parse_rust_exports(
                 (REPO_ROOT / "packages/rust/src/lib.rs").read_text(),
                 REPO_ROOT / "packages/rust/src",
+            ),
+        ),
+        (
+            "cpp",
+            parse_cpp_exports(
+                (REPO_ROOT / "packages/cpp/include/afd/afd.hpp").read_text(),
+                REPO_ROOT / "packages/cpp/include",
             ),
         ),
     ):

@@ -470,6 +470,25 @@ std::string random_suffix(RandomSource& random) {
 
 // --- public API ---------------------------------------------------------------------------
 
+bool is_pipeline_request(const Json& request) {
+    return parse_pipeline_request(request).has_value();
+}
+
+bool is_pipeline_result(const Json& value) {
+    // `data` may be absent on the wire (no successful step), so only metadata and steps are
+    // required.
+    return value.is_object() && value.contains("metadata") && value.contains("steps") &&
+           value["steps"].is_array();
+}
+
+PipelineRequest create_pipeline(std::vector<PipelineStep> steps,
+                                std::optional<PipelineOptions> options) {
+    PipelineRequest request;
+    request.steps = std::move(steps);
+    request.options = std::move(options);
+    return request;
+}
+
 void to_json(Json& out, const PipelineStep& step) {
     out = Json::object();
     out["command"] = step.command;

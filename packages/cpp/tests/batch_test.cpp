@@ -295,9 +295,9 @@ TEST_CASE("the registry runs batches through execute, with validation and middle
 #if AFD_ENABLE_THREADS
 TEST_CASE("the registry serves a threaded batch (run under TSan in CI)") {
     std::atomic<int> handled{0};
-    afd::CommandRegistry registry(
-        afd::RegistryOptions{.middleware = afd::default_middleware({.logging = std::nullopt}),
-                             .runner = std::make_shared<afd::ThreadTaskRunner>()});
+    afd::CommandRegistry registry(afd::CommandRegistryOptions{
+        .middleware = afd::default_middleware({.logging = std::nullopt}),
+        .runner = std::make_shared<afd::ThreadTaskRunner>()});
     REQUIRE_FALSE(registry
                       .register_command(
                           {.name = "work-run",

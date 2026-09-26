@@ -29,9 +29,9 @@ namespace afd {
 inline constexpr std::string_view reserved_command_names[] = {"afd-call", "afd-batch", "afd-pipe",
                                                               "afd-discover", "afd-detail"};
 
-struct RegistryOptions {
+struct CommandRegistryOptions {
     /// Run around every execution, first entry outermost.
-    std::vector<Middleware> middleware;
+    std::vector<CommandMiddleware> middleware;
     /// Include exception messages in COMMAND_EXECUTION_ERROR results.
     bool dev_mode = false;
     /// Called after every execution that reached the middleware chain, with the raw input. Not
@@ -59,7 +59,7 @@ struct RegisteredCommand {
 /// so one registry can serve several threads.
 class CommandRegistry {
 public:
-    explicit CommandRegistry(RegistryOptions options = {});
+    explicit CommandRegistry(CommandRegistryOptions options = {});
 
     /// Registers `command`. Returns an error message, or `std::nullopt` on success. Rejects
     /// invalid and reserved names, duplicates, a missing handler, an unsupported input schema,
@@ -67,7 +67,7 @@ public:
     [[nodiscard]] std::optional<std::string> register_command(CommandDefinition command);
 
     /// Adds middleware inside any already added.
-    void use(Middleware middleware);
+    void use(CommandMiddleware middleware);
 
     [[nodiscard]] std::shared_ptr<const RegisteredCommand> get(std::string_view name) const;
     [[nodiscard]] bool has(std::string_view name) const;
@@ -121,7 +121,7 @@ private:
                                           CommandContext& context) const;
     void report_error(std::string_view message) const;
 
-    RegistryOptions options_;
+    CommandRegistryOptions options_;
     mutable std::shared_mutex mutex_;
     std::map<std::string, std::shared_ptr<const RegisteredCommand>, std::less<>> commands_;
     std::vector<std::shared_ptr<const RegisteredCommand>> order_;

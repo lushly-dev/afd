@@ -966,3 +966,4 @@ pip install afd[client]  # adds websockets + httpx
 - `afd-developer` - Core AFD methodology
 - `afd-typescript` - TypeScript implementation patterns
 - `afd-rust` - Rust implementation patterns
+- `afd-cpp` - C++ implementation patterns

@@ -38,7 +38,7 @@ std::string random_uuid(RandomSource& random) {
     return out;
 }
 
-Middleware create_auto_trace_id_middleware(TraceIdOptions options) {
+CommandMiddleware create_auto_trace_id_middleware(TraceIdOptions options) {
     auto generate = std::move(options.generate);
     if (!generate) {
         std::shared_ptr<RandomSource> random =
@@ -53,7 +53,7 @@ Middleware create_auto_trace_id_middleware(TraceIdOptions options) {
     };
 }
 
-Middleware create_logging_middleware(LoggingOptions options) {
+CommandMiddleware create_logging_middleware(LoggingOptions options) {
     auto log =
         options.log ? std::move(options.log) : std::function<void(std::string_view)>(write_stderr);
     auto clock = or_system_clock(std::move(options.clock));
@@ -70,7 +70,7 @@ Middleware create_logging_middleware(LoggingOptions options) {
     };
 }
 
-Middleware create_timing_middleware(TimingOptions options) {
+CommandMiddleware create_timing_middleware(TimingOptions options) {
     auto on_slow =
         options.on_slow
             ? std::move(options.on_slow)
@@ -92,8 +92,8 @@ Middleware create_timing_middleware(TimingOptions options) {
     };
 }
 
-std::vector<Middleware> default_middleware(DefaultMiddlewareOptions options) {
-    std::vector<Middleware> stack;
+std::vector<CommandMiddleware> default_middleware(DefaultMiddlewareOptions options) {
+    std::vector<CommandMiddleware> stack;
     if (options.trace_id) {
         stack.push_back(create_auto_trace_id_middleware(std::move(*options.trace_id)));
     }

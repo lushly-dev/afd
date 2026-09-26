@@ -44,6 +44,17 @@ struct BatchRequest {
 /// finite `timeout` >= 0 and an integer `parallelism` > 0. Rejects with INVALID_BATCH_REQUEST.
 Expected<BatchRequest, CommandError> parse_batch_request(const Json& request);
 
+/// Whether `request` passes `parse_batch_request`.
+bool is_batch_request(const Json& request);
+
+/// Whether `value` has the shape of a BatchResult: `success`, `summary`, `timing` and a `results`
+/// array.
+bool is_batch_result(const Json& value);
+
+/// A request whose commands without an ID get `cmd-<index>`.
+BatchRequest create_batch_request(std::vector<BatchCommand> commands,
+                                  std::optional<BatchOptions> options = std::nullopt);
+
 void to_json(Json& out, const BatchCommand& command);
 void to_json(Json& out, const BatchOptions& options);
 void to_json(Json& out, const BatchRequest& request);

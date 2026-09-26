@@ -23,7 +23,7 @@ can skip the expensive reasoning.
 | Command | Description |
 |---------|-------------|
 | `alfred_lint(path)` | Run AFD architecture compliance validation |
-| `alfred_parity(path)` | Check cross-language API surface parity (TS, Python, Rust) |
+| `alfred_parity(path)` | Check cross-language API surface parity (TS, Python, Rust, C++) |
 | `alfred_quality(path)` | Validate semantic quality of command descriptions |
 
 ## Usage (via alfred-run)

@@ -65,7 +65,7 @@ std::string issue_summary(const ValidationFailure& failure) {
 
 } // namespace
 
-CommandRegistry::CommandRegistry(RegistryOptions options) : options_(std::move(options)) {
+CommandRegistry::CommandRegistry(CommandRegistryOptions options) : options_(std::move(options)) {
     if (!options_.clock) {
         options_.clock = std::make_shared<SystemClock>();
     }
@@ -170,7 +170,7 @@ std::optional<std::string> CommandRegistry::register_command(CommandDefinition c
     return std::nullopt;
 }
 
-void CommandRegistry::use(Middleware middleware) {
+void CommandRegistry::use(CommandMiddleware middleware) {
     const std::unique_lock lock(mutex_);
     options_.middleware.push_back(std::move(middleware));
 }
@@ -337,7 +337,7 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
 
 CommandResult CommandRegistry::run_chain(const RegisteredCommand& command, const Json& input,
                                          CommandContext& context) const {
-    std::vector<Middleware> middleware;
+    std::vector<CommandMiddleware> middleware;
     {
         const std::shared_lock lock(mutex_);
         middleware = options_.middleware;
@@ -365,7 +365,7 @@ CommandResult CommandRegistry::run_chain(const RegisteredCommand& command, const
     chain[middleware.size()] = run_handler;
     for (std::size_t i = middleware.size(); i-- > 0;) {
         const Next& inner = chain[i + 1];
-        const Middleware& step = middleware[i];
+        const CommandMiddleware& step = middleware[i];
         chain[i] = [&step, &inner, &definition, &input, &context]() {
             return step(definition.name, input, context, inner);
         };

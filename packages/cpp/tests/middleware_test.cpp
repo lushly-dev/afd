@@ -8,11 +8,11 @@
 
 namespace {
 
-std::unique_ptr<afd::CommandRegistry> registry_with(std::vector<afd::Middleware> middleware,
+std::unique_ptr<afd::CommandRegistry> registry_with(std::vector<afd::CommandMiddleware> middleware,
                                                     std::shared_ptr<afd::ManualClock> clock,
                                                     double handler_ms = 0) {
     auto registry = std::make_unique<afd::CommandRegistry>(
-        afd::RegistryOptions{.middleware = std::move(middleware), .clock = clock});
+        afd::CommandRegistryOptions{.middleware = std::move(middleware), .clock = clock});
     const auto error = registry->register_command(afd::CommandDefinition{
         .name = "todo-list",
         .description = "List todos",

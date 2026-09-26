@@ -6,6 +6,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6.svg?logo=typescript&logoColor=white)](#)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](#)
 [![Rust](https://img.shields.io/badge/Rust-1.70+-DEA584.svg?logo=rust&logoColor=white)](#)
+[![C++](https://img.shields.io/badge/C++-20-00599C.svg?logo=cplusplus&logoColor=white)](#)
 [![Node](https://img.shields.io/badge/Node-%E2%89%A522.12-339933.svg?logo=node.js&logoColor=white)](#)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-8b5cf6?style=flat-square)](#)
 [![Companion: botcore](https://img.shields.io/badge/Companion-botcore-6d28d9?style=flat-square&logo=github)](https://github.com/lushly-dev/botcore)
@@ -174,7 +175,7 @@ By designing for agents first, your software automatically becomes API-first (ag
 
 ## What's in the Toolkit
 
-AFD ships as packages across **TypeScript, Python, and Rust**, all sharing the same AFD capability set and agent-visible contract, even when the language-specific APIs differ:
+AFD ships as packages across **TypeScript, Python, Rust, and C++**, all sharing the same AFD capability set and agent-visible contract, even when the language-specific APIs differ:
 
 | Package | What it does |
 |---------|-------------|
@@ -187,6 +188,7 @@ AFD ships as packages across **TypeScript, Python, and Rust**, all sharing the s
 | **@afd/adapters** | Frontend adapters for rendering `CommandResult` → styled HTML with CSS variable theming |
 | **afd** *(Python)* | Functional AFD parity in idiomatic Python — `CommandResult`, MCP server/client, middleware, validation, telemetry, batch/streaming, testing, handoff |
 | **afd** *(Rust)* | `CommandResult` types, `CommandRegistry`, batch/stream support, WASM-compatible |
+| **afd-cpp** *(C++20, pre-release)* | [`packages/cpp`](./packages/cpp): `CommandResult` types, validating `CommandRegistry`, middleware, `DirectClient`, batch/pipeline/stream execution; engine-free, builds without exceptions or RTTI and for WebAssembly |
 
 AFD stays framework-agnostic at the command layer. React or browser integrations belong in examples and ecosystem layers, not in the core parity target.
 
@@ -286,7 +288,7 @@ afd validate --category document
 
 | Example | Description |
 |---------|-------------|
-| [Todo App](./packages/examples/todo) | Multi-stack example with 3 backends (TypeScript, Python, Rust) and 2 frontends (Vanilla JS, React). Features shared storage, trust UI, remote change detection, and full MCP integration |
+| [Todo App](./packages/examples/todo) | Multi-stack example with 4 backends (TypeScript, Python, Rust, C++) and 2 frontends (Vanilla JS, React). Features shared storage, trust UI, remote change detection, and full MCP integration |
 
 ## Testing
 

@@ -162,6 +162,25 @@ Expected<BatchRequest, CommandError> parse_batch_request(const Json& request) {
     return parsed;
 }
 
+bool is_batch_request(const Json& request) {
+    return parse_batch_request(request).has_value();
+}
+
+bool is_batch_result(const Json& value) {
+    return value.is_object() && value.contains("success") && value.contains("summary") &&
+           value.contains("timing") && value.contains("results") && value["results"].is_array();
+}
+
+BatchRequest create_batch_request(std::vector<BatchCommand> commands,
+                                  std::optional<BatchOptions> options) {
+    for (std::size_t i = 0; i < commands.size(); ++i) {
+        if (!commands[i].id) {
+            commands[i].id = "cmd-" + std::to_string(i);
+        }
+    }
+    return BatchRequest{std::move(commands), std::move(options)};
+}
+
 void to_json(Json& out, const BatchCommand& command) {
     out = Json::object();
     detail::put(out, "id", command.id);
