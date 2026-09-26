@@ -1,9 +1,9 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding agents working with code in this repository.
 
 > **Documentation Policy**: Skills are the source of truth for detailed knowledge.
-> This file is a routing table. See [afd skill](skills/afd/) for core AFD patterns.
+> This file is a routing table. See [afd skill](.claude/skills/afd/) for core AFD patterns.
 > **First time?** See [SETUP.md](SETUP.md) for installation, tooling, and environment setup.
 
 ## Commands
@@ -19,7 +19,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | `pnpm check` | TypeScript quality gate (lint + build + typecheck + test:coverage) — mirrors `ci.yml` exactly |
 | `pnpm changeset` | Create a changeset describing your change and its semver impact |
 | `pnpm version-packages` | Consume changesets, bump versions, update CHANGELOGs |
-| `pnpm publish:npm` | Publish all @lushly-dev/* packages to npm |
+| `pnpm publish:npm` | Build and publish all @lushly-dev/* packages to npm |
 | `cd packages/server && pnpm vitest run src/server.test.ts` | Run single test file |
 
 ## Architecture
@@ -34,7 +34,10 @@ packages/
 ├── auth/       # @lushly-dev/afd-auth — Provider-agnostic auth adapter
 ├── cli/        # @lushly-dev/afd-cli — Command-line tool
 ├── testing/    # @lushly-dev/afd-testing — JTBD scenario runner + surface validation
+├── view-state/ # @lushly-dev/afd-view-state — UI view state management via commands
 ├── adapters/   # @lushly-dev/afd-adapters — Frontend adapters for rendering CommandResult
+├── local-db/   # @lushly-dev/local-db — Async data adapter with swappable backends (Memory, HTTP, Browser)
+├── rust/       # afd crate — Rust core types and utilities
 └── examples/
     ├── todo/                # Multi-stack example (TS, Python, Rust backends)
     └── todo-directclient/   # DirectClient + AI integration example
@@ -68,7 +71,7 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 | **Python** (`python.yml`) | Push to main / PR touching `python/**` | `uv lock --check`; ruff (F821, F841, B904); pytest on 3.10, 3.11, 3.12; wheel install smoke test per extra (base, client, server, cli) |
 | **Rust** (`rust.yml`) | Push to main / PR touching `packages/rust/**` | `cargo fmt --check`; clippy `-D warnings` and `cargo test`, each with default and no default features |
 | **Conformance** (`conformance.yml`) | Push to main / PR touching the todo example, `packages/server`, `packages/core`, `python/` or the lockfile | Todo example: Python backend pytest, Rust backend fmt/clippy/test, then the 34-case conformance suite against the TypeScript, Python and Rust backends |
-| **Alfred** (`alfred.yml`) | Push to main / PR touching `alfred/**` | ruff, pytest, wheel smoke test |
+| **Alfred** (`alfred.yml`) | Push to main / PR touching `alfred/**`, `python/**`, `spec/**` or `packages/**` | ruff, pytest (including the `alfred parity` name-gap budgets), wheel smoke test |
 | **Release** (GitHub Actions) | Push to main | `pnpm check` → Changesets opens a version PR or publishes to npm |
 
 **Key rules:**
@@ -84,14 +87,14 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 
 | Skill | When to Use |
 |-------|-------------|
-| [afd](skills/afd/) | Core AFD patterns, command design, workflow |
-| [afd-developer](skills/afd-developer/) | AFD philosophy, honesty check, define-validate-surface |
-| [afd-python](skills/afd-python/) | Python implementation with Pydantic, FastMCP |
-| [afd-typescript](skills/afd-typescript/) | TypeScript patterns, Zod schemas, defineCommand, createMcpServer, createMcpHandler |
-| [afd-rust](skills/afd-rust/) | Rust implementation patterns |
-| [afd-auth](skills/afd-auth/) | Auth adapter, middleware, commands, session sync, React hooks |
-| [afd-directclient](skills/afd-directclient/) | DirectClient, pipe() pipelines, pipeline variable resolution |
-| [afd-contracts](skills/afd-contracts/) | TypeSpec-based contract system for multi-layer API schema sync |
-| [optimistic-mutations](skills/optimistic-mutations/) | Optimistic mutation patterns for interactive AFD clients |
-| [do-release](skills/do-release/) | Release workflow: version bump, changelog, quality gate, tag, publish |
-| [run-dev-checks](skills/run-dev-checks/) | Dev commands, quality gates, lefthook, CI alignment |
+| [afd](.claude/skills/afd/) | Core AFD patterns, command design, workflow |
+| [afd-developer](.claude/skills/afd-developer/) | AFD philosophy, honesty check, define-validate-surface |
+| [afd-python](.claude/skills/afd-python/) | Python implementation with Pydantic, FastMCP |
+| [afd-typescript](.claude/skills/afd-typescript/) | TypeScript patterns, Zod schemas, defineCommand, createMcpServer, createMcpHandler |
+| [afd-rust](.claude/skills/afd-rust/) | Rust implementation patterns |
+| [afd-auth](.claude/skills/afd-auth/) | Auth adapter, middleware, commands, session sync, React hooks |
+| [afd-directclient](.claude/skills/afd-directclient/) | DirectClient, pipe() pipelines, pipeline variable resolution |
+| [afd-contracts](.claude/skills/afd-contracts/) | TypeSpec-based contract system for multi-layer API schema sync |
+| [optimistic-mutations](.claude/skills/optimistic-mutations/) | Optimistic mutation patterns for interactive AFD clients |
+| [do-release](.claude/skills/do-release/) | Release workflow: version bump, changelog, quality gate, tag, publish |
+| [run-dev-checks](.claude/skills/run-dev-checks/) | Dev commands, quality gates, lefthook, CI alignment |
