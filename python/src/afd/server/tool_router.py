@@ -12,6 +12,7 @@ from afd.core.batch import BatchRequest, is_batch_request
 from afd.core.commands import CommandContext, CommandDefinition
 from afd.core.pipeline import PipelineRequest, is_pipeline_request
 from afd.core.result import CommandResult, error
+from afd.core.similarity import truncate_name
 from afd.server.lazy_tools import execute_detail, execute_discover
 from afd.server.tools import derive_group_action, derive_group_name
 
@@ -114,7 +115,7 @@ def create_tool_router(deps: ToolRouterDeps):
                     )
                 return error(
                     "COMMAND_NOT_FOUND",
-                    f"Command '{command_name[:128]}' not found",
+                    f"Command '{truncate_name(command_name)}' not found",
                     suggestion="Use afd-discover or afd-help to list available commands.",
                 )
 

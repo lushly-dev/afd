@@ -38,6 +38,7 @@ from typing import (
 
 from afd.core.result import CommandResult, coerce_command_result, failure, success
 from afd.core.errors import CommandError, not_found_error, validation_error
+from afd.core.similarity import find_similar_tools, truncate_name
 from afd.core.pipeline import (
     PipelineContext as _PipelineContext,
     StepResult as _StepResult,
@@ -184,67 +185,15 @@ class UnknownToolError:
     hint: Optional[str] = None
 
 
-def _levenshtein_similarity(a: str, b: str) -> float:
-    """Calculate similarity between two strings (0 to 1)."""
-    a_lower = a.lower()
-    b_lower = b.lower()
-    
-    if a_lower == b_lower:
-        return 1.0
-    
-    len_a, len_b = len(a_lower), len(b_lower)
-    
-    # Create distance matrix
-    matrix = [[0] * (len_b + 1) for _ in range(len_a + 1)]
-    
-    for i in range(len_a + 1):
-        matrix[i][0] = i
-    for j in range(len_b + 1):
-        matrix[0][j] = j
-    
-    for i in range(1, len_a + 1):
-        for j in range(1, len_b + 1):
-            cost = 0 if a_lower[i - 1] == b_lower[j - 1] else 1
-            matrix[i][j] = min(
-                matrix[i - 1][j] + 1,      # deletion
-                matrix[i][j - 1] + 1,      # insertion
-                matrix[i - 1][j - 1] + cost  # substitution
-            )
-    
-    max_len = max(len_a, len_b)
-    if max_len == 0:
-        return 1.0
-    return 1.0 - matrix[len_a][len_b] / max_len
-
-
-# Untrusted tool names are capped before fuzzy matching (the Levenshtein
-# matrix is O(len(a) * len(b))) and before being echoed back.
-_MAX_TOOL_NAME_LENGTH = 128
-
-
-def _find_similar_tools(
-    requested: str,
-    available: List[str],
-    max_suggestions: int = 3
-) -> List[str]:
-    """Find similar tool names for suggestions."""
-    scored = [
-        (tool, _levenshtein_similarity(requested, tool))
-        for tool in available
-    ]
-    filtered = [(t, s) for t, s in scored if s >= 0.4]
-    filtered.sort(key=lambda x: x[1], reverse=True)
-    return [t for t, _ in filtered[:max_suggestions]]
-
-
 def _create_unknown_tool_error(
     requested: str,
     available: List[str]
 ) -> UnknownToolError:
     """Create a structured unknown tool error."""
-    requested = requested[:_MAX_TOOL_NAME_LENGTH]
-    suggestions = _find_similar_tools(requested, available)
+    suggestions = find_similar_tools(requested, available)
     hint = f"Did you mean '{suggestions[0]}'?" if suggestions else None
+    # The requested name is untrusted: echo a bounded copy.
+    requested = truncate_name(requested)
     
     return UnknownToolError(
         error="UNKNOWN_TOOL",

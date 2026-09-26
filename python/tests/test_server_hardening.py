@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from afd import ExposeOptions, success
 from afd.core.pipeline import PipelineRequest, PipelineStep, StepStatus, execute_pipeline
+from afd.core.result import coerce_command_result
 from afd.direct import DirectClient, SimpleRegistry
 from afd.server import create_server
 
@@ -418,7 +419,7 @@ class TestUntrustedCommandNames:
 
         entry = detail.data[0]
         assert entry["found"] is False
-        assert entry["name"] == name[:128]
+        assert entry["name"] == name[:128] + "…"
         assert len(entry["error"]["message"]) < 200
 
     @pytest.mark.asyncio
@@ -434,5 +435,100 @@ class TestUntrustedCommandNames:
 
         assert result.success is False
         assert result.error.code == "UNKNOWN_TOOL"
-        assert result.data.requested_tool == name[:128]
+        assert result.data.requested_tool == name[:128] + "…"
+        assert result.data.suggestions == []
         assert len(result.error.message) < 200
+
+
+# Names are measured in UTF-16 code units, like the TypeScript reference
+# (packages/core/src/similarity.ts). An emoji is one Python character but two
+# units, so 64 emoji fill the 128-unit cap and 65 exceed it.
+GRIN = "\U0001f600"
+BEAM = "\U0001f601"
+
+
+def _direct_client(*names: str) -> DirectClient:
+    registry = SimpleRegistry()
+    for name in names:
+        registry.register(name, lambda input, context: success({}))
+    return DirectClient(registry)
+
+
+class TestUntrustedNamesUseUtf16Units:
+    @pytest.mark.asyncio
+    async def test_direct_client_scores_emoji_by_code_unit(self):
+        # Each emoji differs from the other only in its low surrogate, so the
+        # names are 4 units apart by 2 edits: similarity 0.5, a suggestion.
+        result = await _direct_client(BEAM * 2).call(GRIN * 2, {})
+
+        assert result.data.suggestions == [BEAM * 2]
+
+    @pytest.mark.asyncio
+    async def test_direct_client_matches_names_up_to_128_units(self):
+        result = await _direct_client(GRIN * 64).call(GRIN * 63 + BEAM, {})
+
+        assert result.data.suggestions == [GRIN * 64]
+
+    @pytest.mark.asyncio
+    async def test_direct_client_skips_names_over_128_units(self):
+        # 65 emoji: 65 Python characters, 130 UTF-16 units.
+        result = await _direct_client(GRIN * 65).call(GRIN * 64 + BEAM, {})
+
+        assert result.data.suggestions == []
+
+    @pytest.mark.asyncio
+    async def test_direct_client_truncates_at_128_units(self):
+        name = "a" * 127 + GRIN + "tail"
+
+        result = await _direct_client("todo-create").call(name, {})
+
+        assert result.data.requested_tool == "a" * 127 + "…"
+        assert result.error.message == f"Tool '{'a' * 127}…' not found in registry"
+
+    @pytest.mark.asyncio
+    async def test_afd_detail_truncates_at_128_units(self):
+        server = _server_with_private_command(tool_strategy="lazy")
+
+        detail = await server.call_tool("afd-detail", {"command": GRIN * 65})
+
+        entry = detail.data[0]
+        assert entry["name"] == GRIN * 64 + "…"
+        assert entry["error"]["message"] == f"No command named '{GRIN * 64}…'"
+
+    @pytest.mark.asyncio
+    async def test_afd_detail_skips_fuzzy_matching_over_128_units(self):
+        # The first 128 units of the request are exactly a command name, so
+        # matching a truncated request would suggest it.
+        command_name = "todo-" + "a" * 123
+        server = create_server("hardening", tool_strategy="lazy")
+
+        @server.command(name=command_name, description="Long", expose=ExposeOptions(mcp=True))
+        async def long_name(input):
+            return success({})
+
+        near = await server.call_tool("afd-detail", {"command": command_name[:-1] + "b"})
+        over = await server.call_tool("afd-detail", {"command": command_name + "a"})
+
+        assert f"Did you mean '{command_name}'?" in near.data[0]["error"]["suggestion"]
+        assert over.data[0]["error"]["suggestion"] == "Use afd-discover to list all commands."
+
+    @pytest.mark.asyncio
+    async def test_afd_call_truncates_at_128_units(self):
+        server = _server_with_private_command(tool_strategy="lazy")
+
+        result = await server.call_tool("afd-call", {"command": GRIN * 65})
+
+        assert result.error.message == f"Command '{GRIN * 64}…' not found"
+
+    @pytest.mark.asyncio
+    async def test_execute_truncates_at_128_units(self):
+        server = _server_with_private_command()
+
+        result = await server.execute("a" * 127 + GRIN + "tail", {})
+
+        assert result.error.message == f"Command '{'a' * 127}…' not found"
+
+    def test_invalid_command_result_truncates_at_128_units(self):
+        result = coerce_command_result("not a result", GRIN * 65)
+
+        assert result.error.message.startswith(f"Command '{GRIN * 64}…' returned str")

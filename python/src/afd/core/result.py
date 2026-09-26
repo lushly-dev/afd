@@ -24,6 +24,7 @@ from pydantic import ConfigDict, Field, SerializerFunctionWrapHandler, field_ser
 # same class.
 from afd.core.errors import CommandError, _omit_unset_cause
 from afd.core.metadata import Alternative, PlanStep, Source, Warning
+from afd.core.similarity import truncate_name
 from afd.core.wire import WIRE_MODEL_CONFIG, WireModel
 
 T = TypeVar("T")
@@ -271,7 +272,7 @@ def coerce_command_result(value: Any, command: str) -> CommandResult[Any]:
         error=CommandError(
             code=INVALID_COMMAND_RESULT,
             message=(
-                f"Command '{command[:128]}' returned {type(value).__name__} "
+                f"Command '{truncate_name(command)}' returned {type(value).__name__} "
                 "instead of a CommandResult"
             ),
             suggestion=(
