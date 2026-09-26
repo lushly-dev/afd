@@ -26,7 +26,7 @@ auto untrusted = afd::parse_bounded(text);                   // depth- and size-
 
 - **Reading.** `T::from_json` returns `afd::Expected<T>`, never throws, and reports the path of the first problem. `null` members read as absent, except `data` and `result`, where `null` is a value.
 - **Writing.** Converting to `afd::Json` omits unset fields. Integral numbers are written as integers, as JavaScript does.
-- **Designated initializers.** Option structs are meant for partial designated initializers, such as `{.suggestion = "…"}`. Clang 21 and later warn about the omitted fields under `-Wextra`. afd-cpp turns that warning off for its own targets, and you may want `-Wno-missing-designated-field-initializers` in yours.
+- **Designated initializers.** Option structs are meant for partial designated initializers, such as `{.suggestion = "…"}`. Clang 21 and later, and newer GCC, warn about the omitted fields under `-Wextra`. afd-cpp turns that warning off for its own targets. In your own code you may want `-Wno-missing-designated-field-initializers` (Clang) or `-Wno-missing-field-initializers` (GCC).
 
 ## Building
 

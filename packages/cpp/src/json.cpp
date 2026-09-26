@@ -89,7 +89,9 @@ std::string iso8601_utc(std::int64_t ms) {
     unsigned day = 0;
     civil_from_days(days, year, month, day);
 
-    char buffer[32];
+    // Sized for the widest values the format could print, so GCC's -Wformat-truncation can prove
+    // the output always fits. Real output is 24 characters.
+    char buffer[128];
     std::snprintf(
         buffer, sizeof buffer, "%04lld-%02u-%02uT%02lld:%02lld:%02lld.%03lldZ",
         static_cast<long long>(year), month, day, static_cast<long long>(ms_of_day / 3600000),

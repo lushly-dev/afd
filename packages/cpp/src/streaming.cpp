@@ -139,8 +139,4 @@ void to_json(Json& out, const ErrorChunk& chunk) {
     detail::put(out, "resumeFrom", chunk.resume_from);
 }
 
-void to_json(Json& out, const StreamChunk& chunk) {
-    std::visit([&out](const auto& alternative) { to_json(out, alternative); }, chunk);
-}
-
 } // namespace afd

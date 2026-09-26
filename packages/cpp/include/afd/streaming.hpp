@@ -6,6 +6,7 @@
 #include "afd/json.hpp"
 #include "afd/result.hpp"
 
+#include <concepts>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -63,6 +64,15 @@ void to_json(Json& out, const ProgressChunk& chunk);
 void to_json(Json& out, const DataChunk& chunk);
 void to_json(Json& out, const CompleteChunk& chunk);
 void to_json(Json& out, const ErrorChunk& chunk);
-void to_json(Json& out, const StreamChunk& chunk);
+
+/// Serializes whichever chunk `chunk` holds. A constrained template rather than a plain
+/// `to_json(Json&, const StreamChunk&)` overload: a non-template overload taking the variant makes
+/// every `Json j = value` consider converting `value` to a StreamChunk, which recursively asks
+/// whether Json is constructible from `value` and breaks libstdc++ ("depends on itself").
+template <class Chunk>
+    requires std::same_as<Chunk, StreamChunk>
+void to_json(Json& out, const Chunk& chunk) {
+    std::visit([&out](const auto& alternative) { to_json(out, alternative); }, chunk);
+}
 
 } // namespace afd
