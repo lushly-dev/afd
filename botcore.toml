@@ -26,6 +26,10 @@ skip = [
     "afd-python",
     "afd-rust",
     "afd-typescript",
+    # Repo-local session loop skills (adapted from Lushly).
+    "do-end-session",
+    "do-init-afd",
+    "do-prepare-pr",
 ]
 
 # Per-package overrides for Python and Rust subdirectories

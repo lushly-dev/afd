@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 > **Documentation Policy**: Skills are the source of truth for detailed knowledge.
-> This file is a routing table. See [afd skill](skills/afd/) for core AFD patterns.
+> This file is a routing table. See [afd skill](.claude/skills/afd/) for core AFD patterns.
 > **First time?** See [SETUP.md](SETUP.md) for installation, tooling, and environment setup.
 
 ## Commands
@@ -84,14 +84,17 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 
 | Skill | When to Use |
 |-------|-------------|
-| [afd](skills/afd/) | Core AFD patterns, command design, workflow |
-| [afd-developer](skills/afd-developer/) | AFD philosophy, honesty check, define-validate-surface |
-| [afd-python](skills/afd-python/) | Python implementation with Pydantic, FastMCP |
-| [afd-typescript](skills/afd-typescript/) | TypeScript patterns, Zod schemas, defineCommand, createMcpServer, createMcpHandler |
-| [afd-rust](skills/afd-rust/) | Rust implementation patterns |
-| [afd-auth](skills/afd-auth/) | Auth adapter, middleware, commands, session sync, React hooks |
-| [afd-directclient](skills/afd-directclient/) | DirectClient, pipe() pipelines, pipeline variable resolution |
-| [afd-contracts](skills/afd-contracts/) | TypeSpec-based contract system for multi-layer API schema sync |
-| [optimistic-mutations](skills/optimistic-mutations/) | Optimistic mutation patterns for interactive AFD clients |
-| [do-release](skills/do-release/) | Release workflow: version bump, changelog, quality gate, tag, publish |
-| [run-dev-checks](skills/run-dev-checks/) | Dev commands, quality gates, lefthook, CI alignment |
+| [afd](.claude/skills/afd/) | Core AFD patterns, command design, workflow |
+| [afd-developer](.claude/skills/afd-developer/) | AFD philosophy, honesty check, define-validate-surface |
+| [afd-python](.claude/skills/afd-python/) | Python implementation with Pydantic, FastMCP |
+| [afd-typescript](.claude/skills/afd-typescript/) | TypeScript patterns, Zod schemas, defineCommand, createMcpServer, createMcpHandler |
+| [afd-rust](.claude/skills/afd-rust/) | Rust implementation patterns |
+| [afd-auth](.claude/skills/afd-auth/) | Auth adapter, middleware, commands, session sync, React hooks |
+| [afd-directclient](.claude/skills/afd-directclient/) | DirectClient, pipe() pipelines, pipeline variable resolution |
+| [afd-contracts](.claude/skills/afd-contracts/) | TypeSpec-based contract system for multi-layer API schema sync |
+| [optimistic-mutations](.claude/skills/optimistic-mutations/) | Optimistic mutation patterns for interactive AFD clients |
+| [do-release](.claude/skills/do-release/) | Release workflow: version bump, changelog, quality gate, tag, publish |
+| [run-dev-checks](.claude/skills/run-dev-checks/) | Dev commands, quality gates, lefthook, CI alignment |
+| [do-init-afd](.claude/skills/do-init-afd/) | Session start: preflight, refresh base, adopt task, report state |
+| [do-prepare-pr](.claude/skills/do-prepare-pr/) | Ship: base sync, independent review, docs/changeset, gates, PR, authorized merge |
+| [do-end-session](.claude/skills/do-end-session/) | Session close: verify landing, file findings, capture knowledge, archive report |
