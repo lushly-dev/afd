@@ -26,12 +26,19 @@ configure_file(cmake/version.hpp.in ${CMAKE_CURRENT_BINARY_DIR}/include/afd/vers
 add_library(
     afd
     src/batch.cpp
+    src/command.cpp
     src/detail/json_io.cpp
+    src/direct_client.cpp
     src/errors.cpp
     src/json.cpp
     src/metadata.cpp
+    src/middleware.cpp
     src/pipeline.cpp
+    src/registry.cpp
     src/result.cpp
+    src/runtime.cpp
+    src/schema.cpp
+    src/similarity.cpp
     src/streaming.cpp
     src/version.cpp)
 add_library(afd::afd ALIAS afd)

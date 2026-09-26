@@ -2,14 +2,44 @@
 
 The C++20 implementation of [AFD (Agent-First Development)](../../README.md). It is being built in phases; see the [proposal](../../docs/features/proposed/cpp-support/proposal.md) and the [work plan](../../docs/features/proposed/cpp-support/work-plan.md).
 
-> **Status: Phase 1.** The wire types (`CommandResult`, batch, pipeline and stream results) are in place and round-trip every `spec/wire` fixture. The registry and executors come in Phases 2 and 3. Do not depend on the package until `afd-cpp-v0.1.0`.
+> **Status: Phase 2.** The wire types, the validating `CommandRegistry`, middleware and the in-process `DirectClient` are in place. Batch, pipeline and stream execution come in Phase 3. Do not depend on the package until `afd-cpp-v0.1.0`.
 
 ## Design in brief
 
 - **Host-agnostic:** no dependency on any engine, framework or async runtime. Hosts build their own integration on the public API.
 - **One runtime dependency:** [nlohmann/json](https://github.com/nlohmann/json), 3.11 or later. A host's own copy is used when `find_package(nlohmann_json)` finds one; otherwise 3.12.0 is downloaded and hash-verified.
-- **Embeddable:** builds and passes its tests with exceptions and RTTI off, as a unity build, and with the common `min`/`max` and `check`/`verify`/`require` macros defined.
+- **Embeddable:** builds and passes its tests with exceptions and RTTI off, as a unity build, and with the common `min`/`max`, `interface` and `check`/`verify`/`require` macros defined.
 - **WebAssembly:** builds with Emscripten, and the tests run under Node.
+
+## Commands
+
+```cpp
+#include <afd/afd.hpp>
+
+auto registry = std::make_shared<afd::CommandRegistry>(
+    afd::RegistryOptions{.middleware = afd::default_middleware()});
+
+auto error = registry->register_command(afd::CommandDefinition{
+    .name = "todo-create",
+    .description = "Create a todo",
+    .input_schema = afd::Json::parse(R"({"type": "object",
+        "properties": {"title": {"type": "string", "minLength": 1}}, "required": ["title"]})"),
+    .handler = [](const afd::Json& input, afd::CommandContext&) {
+        return afd::success({{"title", input["title"]}}, {.reasoning = "Created"});
+    },
+    .mutation = true,
+});
+
+afd::CommandResult result = registry->execute("todo-create", {{"title", "Buy milk"}});
+
+afd::DirectClient agent(registry);          // an in-process agent: sees only commands exposed to it
+afd::CommandResult typo = agent.call("todo-crate");  // UNKNOWN_TOOL with "Did you mean 'todo-create'?"
+```
+
+- **Dispatch order.** `execute` follows the TypeScript engine: lookup, exposure, context, validation, middleware, handler, metadata, `on_command`. Errors carry the TypeScript codes and text.
+- **Input schemas.** These are JSON Schema; `afd/schema.hpp` lists the supported subset. An unsupported keyword fails registration, so a schema is never silently under-enforced.
+- **Handlers are synchronous.** A timeout is a deadline on `context.cancellation` for the handler to poll, plus a TIMEOUT result for a late finish. Nothing is interrupted.
+- **Names that differ from TypeScript:** `requires` is `prerequisites` (a C++20 keyword), and the context's `interface` is `surface` (a `<windows.h>` macro).
 
 ## Wire types
 
@@ -73,6 +103,6 @@ Library code must be exception-free and RTTI-free:
 - Never call a throwing accessor on unchecked data (`at`, `get<T>`).
 - Parse JSON with `allow_exceptions = false`.
 - Write `(std::min)(…)`.
-- Never name anything `check`, `verify` or `require`.
+- Never name anything `check`, `verify`, `require` or `interface`.
 
 CI (`.github/workflows/cpp.yml`) runs every preset on Linux, macOS and Windows, plus Emscripten.

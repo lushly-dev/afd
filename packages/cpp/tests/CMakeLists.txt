@@ -1,12 +1,30 @@
 afd_fetch_doctest()
 
-add_executable(afd_tests main.cpp json_test.cpp result_test.cpp smoke_test.cpp wire_fixtures_test.cpp)
+add_executable(
+    afd_tests
+    command_test.cpp
+    direct_client_test.cpp
+    json_test.cpp
+    main.cpp
+    middleware_test.cpp
+    registry_test.cpp
+    result_test.cpp
+    schema_test.cpp
+    similarity_test.cpp
+    smoke_test.cpp
+    wire_fixtures_test.cpp)
 target_link_libraries(afd_tests PRIVATE afd::afd afd_doctest)
+# main.cpp compiles doctest's implementation; in a unity build it must not share a translation
+# unit with a test file that included doctest.h first.
+set_source_files_properties(main.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)
 afd_configure_target(afd_tests)
 
 # The golden wire fixtures every AFD implementation round-trips (spec/wire/README.md).
 cmake_path(SET afd_wire_dir NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/wire")
 target_compile_definitions(afd_tests PRIVATE AFD_WIRE_DIR="${afd_wire_dir}")
+# The todo example's shared contract, whose input schemas the validator must accept.
+cmake_path(SET afd_todo_spec_dir NORMALIZE "${PROJECT_SOURCE_DIR}/../examples/todo/spec")
+target_compile_definitions(afd_tests PRIVATE AFD_TODO_SPEC_DIR="${afd_todo_spec_dir}")
 
 # Keep every assertion working in builds without exceptions (proposal D3).
 target_compile_definitions(afd_tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS)
