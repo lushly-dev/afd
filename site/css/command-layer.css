@@ -1029,10 +1029,18 @@ body.has-dock {
    layer, on drafting paper. Collapses to a stack on small screens.
    ============================================================ */
 
+/* No min-height: the hero is as tall as its content, so tall screens
+   don't get a band of empty paper under it. */
 .hero {
-	min-height: calc(100svh - var(--nav-h));
+	isolation: isolate;
+	overflow: clip;
 	padding-top: clamp(1rem, 2vw, 1.75rem);
-	padding-bottom: clamp(3rem, 6vw, 6rem);
+	padding-bottom: clamp(4rem, 7vw, 7rem);
+}
+
+.hero > :not(.hero-bg) {
+	position: relative;
+	z-index: 1;
 }
 
 .hero .hero-top {
@@ -1049,7 +1057,7 @@ body.has-dock {
 	display: grid;
 	grid-template-columns: minmax(17rem, 4fr) minmax(0, 8fr);
 	gap: clamp(2rem, 4vw, 4.5rem);
-	align-items: start;
+	align-items: stretch;
 	margin-top: clamp(1.5rem, 2.5vw, 2.25rem);
 }
 
@@ -1086,13 +1094,9 @@ body.has-dock {
 	--grid: rgba(24, 24, 24, 0.07);
 	position: relative;
 	height: 32rem;
-	background-color: rgba(255, 255, 255, 0.25);
-	background-image:
-		linear-gradient(var(--grid) 1px, transparent 1px),
-		linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-	background-size: 24px 24px;
-	background-position: -1px -1px;
-	border: 1px solid rgba(24, 24, 24, 0.14);
+	background: rgba(244, 240, 234, 0.72);
+	backdrop-filter: blur(2px);
+	border: 1px solid rgba(24, 24, 24, 0.18);
 }
 
 .stage .crop {
@@ -1336,4 +1340,177 @@ body.has-dock {
 	align-items: center;
 	justify-content: space-between;
 	gap: 0.75rem;
+}
+
+/* ── The drawing sheet behind the hero ─────────────────────── */
+
+.hero-bg {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	pointer-events: none;
+	--minor: rgba(24, 24, 24, 0.045);
+	--major: rgba(24, 24, 24, 0.085);
+	background-image:
+		linear-gradient(var(--major) 1px, transparent 1px),
+		linear-gradient(90deg, var(--major) 1px, transparent 1px),
+		linear-gradient(var(--minor) 1px, transparent 1px),
+		linear-gradient(90deg, var(--minor) 1px, transparent 1px);
+	background-size:
+		120px 120px,
+		120px 120px,
+		24px 24px,
+		24px 24px;
+	background-position: -1px -1px;
+	-webkit-mask-image: linear-gradient(to bottom, #000 75%, transparent);
+	mask-image: linear-gradient(to bottom, #000 75%, transparent);
+}
+
+/* Edge coordinates, like a technical drawing */
+.hero-ticks {
+	position: absolute;
+	display: flex;
+	justify-content: space-around;
+	font-family: var(--font-mono);
+	font-size: 0.62rem;
+	letter-spacing: 0.1em;
+	color: rgba(24, 24, 24, 0.35);
+}
+
+.hero-ticks--x {
+	top: 0.35rem;
+	left: 2rem;
+	right: 2rem;
+}
+
+.hero-ticks--y {
+	top: 2rem;
+	bottom: 2rem;
+	left: 0.5rem;
+	flex-direction: column;
+}
+
+/* The command layer, drifting underneath everything */
+.hero-field {
+	position: absolute;
+	inset: 12% 0 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: space-around;
+	overflow: hidden;
+	transform: rotate(-4deg) scale(1.1);
+	transform-origin: center;
+}
+
+.hero-field__row {
+	overflow: hidden;
+	white-space: nowrap;
+}
+
+.hero-field__track {
+	display: inline-flex;
+	gap: 2.5rem;
+	font-family: var(--font-mono);
+	font-weight: 700;
+	font-size: clamp(1.1rem, 1.8vw, 2rem);
+	letter-spacing: -0.01em;
+	color: rgba(24, 24, 24, 0.07);
+	animation: drift calc(90s + var(--row) * 12s) linear infinite;
+}
+
+.hero-field__row:nth-child(even) .hero-field__track {
+	animation-direction: reverse;
+}
+
+.hero-field__track span::before {
+	content: "▸ ";
+}
+
+/* When the page runs a command, its name lights up in the layer. */
+.hero-field__track span.is-lit {
+	color: var(--teal);
+	text-shadow: 0 0 18px rgba(7, 188, 191, 0.35);
+	transition: color 0.2s ease;
+}
+
+.hero-field__track span.is-fading {
+	transition: color 2.4s ease, text-shadow 2.4s ease;
+}
+
+@keyframes drift {
+	to {
+		transform: translateX(-50%);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.hero-field__track {
+		animation: none;
+	}
+}
+
+/* Drawing title block */
+.title-block {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	margin-top: auto;
+	border: 2px solid var(--charcoal);
+	background: var(--cream);
+	font-family: var(--font-mono);
+	font-size: 0.7rem;
+	line-height: 1.35;
+}
+
+.title-block > div {
+	padding: 0.45rem 0.6rem;
+	border-right: 1px solid var(--charcoal);
+	border-bottom: 1px solid var(--charcoal);
+}
+
+.title-block > div:nth-child(3n),
+.title-block__wide + div {
+	border-right: 0;
+}
+
+.title-block__wide {
+	grid-column: span 2;
+}
+
+.title-block dt {
+	font-size: 0.58rem;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--muted);
+}
+
+.title-block dd {
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+}
+
+.title-block > div:nth-last-child(-n + 2) {
+	border-bottom: 0;
+}
+
+.title-block__live {
+	display: inline-block;
+	width: 0.55rem;
+	height: 0.55rem;
+	margin-right: 0.4rem;
+	background: #1fa463;
+	border-radius: 50%;
+	animation: blink 1.6s steps(1) infinite;
+}
+
+@media (max-width: 1180px) {
+	.title-block {
+		display: none;
+	}
+}
+
+@media (max-width: 640px) {
+	.hero-ticks {
+		display: none;
+	}
 }

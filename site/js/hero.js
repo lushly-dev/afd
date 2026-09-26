@@ -407,6 +407,25 @@ export function initHero() {
 		if (entry.surface in SURFACE_INDEX) show(entry);
 	});
 
+	// Every command the page runs lights up in the drifting command layer behind the hero.
+	const field = document.querySelector('[data-hero-field]');
+	onCommand((entry) => {
+		if (!field || !entry.result.success) return;
+		const matches = [...field.querySelectorAll(`[data-cmd="${CSS.escape(entry.name)}"]`)];
+		const visible = matches.filter((el) => {
+			const r = el.getBoundingClientRect();
+			return r.right > 0 && r.left < window.innerWidth && r.bottom > 0 && r.top < window.innerHeight;
+		});
+		for (const el of visible.slice(0, 3)) {
+			el.classList.remove('is-fading');
+			el.classList.add('is-lit');
+			setTimeout(() => {
+				el.classList.add('is-fading');
+				el.classList.remove('is-lit');
+			}, 900);
+		}
+	});
+
 	// Windows drop onto the stage one by one after the headline is typed.
 	if (!reducedMotion.matches) figure.querySelector('.stage')?.classList.add('is-entering');
 
