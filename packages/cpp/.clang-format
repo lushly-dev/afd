@@ -1,0 +1,26 @@
+# Formatting for afd-cpp. Matches the C++ block in the repository .editorconfig.
+# See docs/features/proposed/cpp-support/work-plan.md (Phase 0).
+BasedOnStyle: LLVM
+Standard: c++20
+IndentWidth: 4
+ColumnLimit: 100
+AccessModifierOffset: -4
+PointerAlignment: Left
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakTemplateDeclarations: Yes
+BreakBeforeBraces: Attach
+NamespaceIndentation: None
+FixNamespaceComments: true
+IncludeBlocks: Regroup
+IncludeCategories:
+  - Regex: '^"afd/'
+    Priority: 1
+  - Regex: '^<nlohmann/'
+    Priority: 2
+  - Regex: '^<[a-z_]+>$'
+    Priority: 3
+  - Regex: '.*'
+    Priority: 4
+SortIncludes: CaseSensitive

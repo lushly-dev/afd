@@ -45,6 +45,10 @@ playwright-report/
 # Rust
 Cargo.lock
 
+# C++ (CMake build trees; see packages/cpp)
+/packages/cpp/build/
+/packages/examples/todo/backends/cpp/build/
+
 # Misc
 *.plan.md
 !PLAN/**/*.plan.md
