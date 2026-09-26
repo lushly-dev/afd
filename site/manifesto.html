@@ -1,0 +1,795 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>AFD - Command Manifesto</title>
+		<meta
+			name="description"
+			content="Commands are the product. Agent-First Development gives people and agents the same software, through whatever interface comes next."
+		>
+		<meta name="theme-color" content="#f74431">
+		<link rel="canonical" href="https://afd.dev/">
+		<link rel="icon" href="svg/favicon.svg" type="image/svg+xml">
+		<link rel="alternate" type="text/markdown" href="llms.txt" title="AFD for agents">
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link
+			href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+			rel="stylesheet"
+		>
+		<link rel="stylesheet" href="css/manifesto.css">
+		<link rel="stylesheet" href="css/design-switch.css">
+		<script type="module" src="js/manifesto.js"></script>
+	</head>
+	<body>
+		<nav class="design-switch" aria-label="Page design">
+			<span class="design-switch__label">Design</span>
+			<a href="index.html">Field Manual</a>
+			<a href="direction.html">Clear Guide</a>
+			<a href="manifesto.html" aria-current="page">Command Manifesto</a>
+		</nav>
+		<a class="skip-link" href="#main">Skip to content</a>
+		<header class="manifesto-nav">
+			<a class="wordmark" href="#top" aria-label="AFD home"><span aria-hidden="true">/</span>AFD</a>
+			<nav aria-label="Primary">
+				<a href="#inversion">The idea</a><a href="#agent-ux">Agent UX</a
+				><a href="#build">The build</a>
+			</nav>
+			<div class="nav-actions">
+				<button type="button" class="agent-toggle" aria-pressed="false" aria-controls="agent-view">
+					Agent view
+				</button><a class="github-link" href="https://github.com/lushly-dev/afd"
+					>GitHub <i class="icon icon--out" aria-hidden="true"></i></a
+				>
+			</div>
+		</header>
+		<section id="agent-view" class="agent-view wrap" hidden aria-label="Agent view">
+			<div class="agent-view__bar">
+				<a href="llms.txt">Raw llms.txt <i class="icon icon--out" aria-hidden="true"></i></a
+				><button type="button" data-agent-exit>Back to the human view</button>
+			</div>
+			<pre tabindex="0"><code></code></pre>
+		</section>
+		<main id="main">
+			<section class="opening" id="top">
+				<div class="wrap">
+					<div class="opening-label">
+						<h1>Agent-First Development</h1>
+						<span class="edition">Open source.<br>Open to a new kind of user.</span>
+					</div>
+					<div class="opening-statement">
+						<p class="display">
+							<span class="display-line"><span>Commands</span> <span>are</span></span>
+							<span class="display-line"><span>the</span> <em>product.</em></span>
+						</p>
+					</div>
+					<div class="opening-footer">
+						<p>A command-first methodology.<br>Libraries for TypeScript, Python and Rust.</p>
+						<div class="opening-actions">
+							<a href="#inversion" class="button button--ink"
+								>See it in action <i class="icon icon--down" aria-hidden="true"></i></a
+							>
+							<a href="#start" class="text-link"
+								>Build with AFD <i class="icon icon--out" aria-hidden="true"></i></a
+							>
+						</div>
+					</div>
+				</div>
+			</section>
+			<section class="experience" id="inversion" data-experience>
+				<div class="wrap">
+					<div class="experience-heading">
+						<h2>Change the interface.<br><span>Keep the software.</span></h2>
+						<span class="local-label"><b aria-hidden="true"></b>Live / local to this tab</span>
+					</div>
+					<div class="surface-toolbar">
+						<span class="surface-name">Launch list <span data-task-count>0</span></span>
+						<div class="surface-tabs" role="tablist" aria-label="Launch list interface">
+							<button
+								type="button"
+								role="tab"
+								id="surface-list"
+								aria-controls="task-panel"
+								aria-selected="true"
+								data-surface="list"
+							>
+								<i class="icon icon--list" aria-hidden="true"></i>List
+							</button>
+							<button
+								type="button"
+								role="tab"
+								id="surface-board"
+								aria-controls="task-panel"
+								aria-selected="false"
+								tabindex="-1"
+								data-surface="board"
+							>
+								<i class="icon icon--board" aria-hidden="true"></i>Board
+							</button>
+							<button
+								type="button"
+								role="tab"
+								id="surface-terminal"
+								aria-controls="terminal-panel"
+								aria-selected="false"
+								tabindex="-1"
+								data-surface="terminal"
+							>
+								<i class="icon icon--terminal" aria-hidden="true"></i>Terminal
+							</button>
+							<button
+								type="button"
+								role="tab"
+								id="surface-agent"
+								aria-controls="agent-panel"
+								aria-selected="false"
+								tabindex="-1"
+								data-surface="agent"
+							>
+								<i class="icon icon--bot" aria-hidden="true"></i>Agent
+							</button>
+						</div>
+					</div>
+					<div class="surface-stage" data-stage data-mode="list">
+						<div id="task-panel" role="tabpanel" aria-labelledby="surface-list">
+							<form class="task-form" data-create-form novalidate>
+								<label class="sr-only" for="task-title">Task title</label>
+								<input
+									id="task-title"
+									name="title"
+									placeholder="What needs doing?"
+									maxlength="80"
+									autocomplete="off"
+								><label class="sr-only" for="task-priority">Task priority</label
+								><select id="task-priority" name="priority">
+									<option value="high">High</option>
+									<option value="medium" selected>Medium</option>
+									<option value="low">Low</option>
+								</select><button
+									type="submit"
+									class="icon-button"
+									aria-label="Add task"
+									title="Add task"
+								>
+									<i class="icon icon--plus" aria-hidden="true"></i>
+								</button>
+							</form>
+							<div class="task-scroll">
+								<div class="board-headings" aria-hidden="true">
+									<span>High priority</span><span>Medium priority</span><span>Low priority</span>
+								</div>
+								<ul class="tasks" data-tasks aria-label="Shared launch tasks"></ul>
+							</div>
+						</div>
+						<div
+							id="terminal-panel"
+							class="terminal-panel"
+							role="tabpanel"
+							aria-labelledby="surface-terminal"
+							hidden
+						>
+							<form data-cli-form novalidate>
+								<div class="terminal-prompt">
+									<span aria-hidden="true">$</span><label for="cli-command">afd call</label
+									><select id="cli-command" name="command">
+										<option value="todo-list">todo-list</option>
+										<option value="todo-create">todo-create</option>
+									</select><button
+										type="submit"
+										class="icon-button"
+										aria-label="Run command"
+										title="Run command"
+									>
+										<i class="icon icon--return" aria-hidden="true"></i>
+									</button>
+								</div>
+								<label class="sr-only" for="cli-input">Command input JSON</label
+								><textarea id="cli-input" name="input" rows="2" spellcheck="false">{}</textarea>
+							</form>
+							<pre class="terminal-output" tabindex="0"><code data-cli-output></code></pre>
+						</div>
+						<div
+							id="agent-panel"
+							class="agent-panel"
+							role="tabpanel"
+							aria-labelledby="surface-agent"
+							hidden
+						>
+							<div>
+								<span class="mono agent-color">AGENT / scripted</span>
+								<h3>Same tools.<br>Different operator.</h3>
+								<p data-agent-summary>Ready to take a turn.</p>
+							</div>
+							<form class="agent-form" data-agent-form>
+								<label for="quick-agent-title">Task to hand over</label>
+								<input
+									id="quick-agent-title"
+									name="title"
+									value="Let the agent take a turn"
+									maxlength="80"
+									required
+								><input type="hidden" name="priority" value="high">
+								<button type="submit" class="button button--mint">
+									Hand to agent <i class="icon icon--right" aria-hidden="true"></i>
+								</button>
+							</form>
+						</div>
+					</div>
+					<div class="command-rail" data-command-rail>
+						<span class="rail-label">COMMAND LAYER</span>
+						<div class="rail-flow">
+							<span data-command-source>CLI</span><span class="rail-track" aria-hidden="true"></span
+							><strong data-command-name>todo-list</strong
+							><span class="rail-track" aria-hidden="true"></span
+							><span data-command-state>success</span>
+						</div>
+						<button type="button" data-result-open>
+							Inspect result <i class="icon icon--out" aria-hidden="true"></i>
+						</button>
+					</div>
+					<div class="experience-caption">
+						<p data-demo-status role="status">Ready.</p>
+						<span>Different surfaces. One shared state.</span>
+					</div>
+				</div>
+			</section>
+			<section class="thesis wrap" id="problem">
+				<span class="section-index">01 / THE INVERSION</span>
+				<div>
+					<h2>Your app isn't its buttons.</h2>
+					<p>
+						It's what those buttons <em>do.</em> Put that capability in a command, and a screen
+						becomes a choice. So does a terminal. So does an agent.
+					</p>
+					<p class="thesis-cost">
+						Keep business logic out of the screen. Don't build a second API just to let an agent in.
+					</p>
+					<div class="honesty-check" id="honesty">
+						<span class="mono">THE HONESTY CHECK</span>
+						<p>If it can't be done via CLI, the architecture is wrong.</p>
+					</div>
+				</div>
+				<a
+					href="https://github.com/lushly-dev/afd/blob/main/docs/whitepaper/AFD-Whitepaper.md"
+					class="text-link"
+					>Read the thinking <i class="icon icon--out" aria-hidden="true"></i></a
+				>
+			</section>
+			<section class="handoff" id="workflow">
+				<div class="wrap handoff-layout">
+					<div class="story-copy">
+						<span class="section-index">02 / THE HANDOFF</span>
+						<h2>Your turn.<br><span class="agent-color">Their turn.</span></h2>
+						<p>
+							An agent shouldn't have to pretend to be a person clicking a button. Give it the same
+							capability, directly.
+						</p>
+						<form class="agent-form handoff-form" data-agent-form>
+							<label for="handoff-title">A task for the agent</label>
+							<input
+								id="handoff-title"
+								name="title"
+								value="Ship a smaller interface"
+								maxlength="80"
+								required
+							>
+							<div class="form-row">
+								<label class="sr-only" for="handoff-priority">Agent task priority</label
+								><select id="handoff-priority" name="priority">
+									<option value="high" selected>High priority</option>
+									<option value="medium">Medium priority</option>
+									<option value="low">Low priority</option>
+								</select><button class="button button--mint" type="submit">
+									Hand to agent <i class="icon icon--right" aria-hidden="true"></i>
+								</button>
+							</div>
+						</form>
+						<p class="fine-print">Scripted agent. Real commands. No model or account needed.</p>
+					</div>
+					<div class="agent-session">
+						<div class="session-heading">
+							<span><i class="icon icon--bot" aria-hidden="true"></i> Agent session</span
+							><span data-session-state>STANDBY</span>
+						</div>
+						<p class="agent-quote" data-agent-quote>
+							“Give me a capability.<br>I'll take it from here.”
+						</p>
+						<ol class="agent-steps">
+							<li data-agent-step="read">
+								<span class="step-number">01</span>
+								<div>
+									<code>todo-list</code>
+									<p data-step-read>Read the shared state.</p>
+								</div>
+								<span class="step-state" data-step-state>waiting</span>
+							</li>
+							<li data-agent-step="create">
+								<span class="step-number">02</span>
+								<div>
+									<code>todo-create</code>
+									<p data-step-create>Create the requested task.</p>
+								</div>
+								<span class="step-state" data-step-state>waiting</span>
+							</li>
+							<li data-agent-step="verify">
+								<span class="step-number">03</span>
+								<div>
+									<code>todo-list</code>
+									<p data-step-verify>Verify the result.</p>
+								</div>
+								<span class="step-state" data-step-state>waiting</span>
+							</li>
+						</ol>
+						<div class="session-foot">
+							<p data-agent-status role="status">Waiting for your handoff.</p>
+							<a href="#inversion"
+								>Back to the shared list <i class="icon icon--out" aria-hidden="true"></i></a
+							>
+						</div>
+					</div>
+				</div>
+			</section>
+			<section class="agent-design" id="agent-ux">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index">03 / DESIGN FOR THE AGENT</span>
+						<h2>Access isn't enough.<br><span>Agents need good UX.</span></h2>
+					</div>
+					<div class="agent-design-layout">
+						<div class="agent-design-copy">
+							<p>
+								A person gets labels, feedback and a chance to change their mind. An agent deserves
+								the same care in its command contract.
+							</p>
+							<dl class="design-principles">
+								<div>
+									<dt>Make intent legible.</dt>
+									<dd>Named capabilities, typed inputs and explicit prerequisites.</dd>
+								</div>
+								<div>
+									<dt>Return more than data.</dt>
+									<dd>Reasoning, warnings and a useful next step when something fails.</dd>
+								</div>
+								<div>
+									<dt>Keep people in control.</dt>
+									<dd>
+										Confirm consequential actions. Offer undo where possible. Say when it isn't.
+									</dd>
+								</div>
+							</dl>
+						</div>
+						<div class="contract-tool">
+							<div class="contract-tabs" role="tablist" aria-label="Agent experience">
+								<button
+									type="button"
+									role="tab"
+									id="contract-discover-tab"
+									aria-controls="contract-discover"
+									aria-selected="true"
+								>
+									Discover
+								</button>
+								<button
+									type="button"
+									role="tab"
+									id="contract-result-tab"
+									aria-controls="contract-result"
+									aria-selected="false"
+									tabindex="-1"
+								>
+									Understand
+								</button>
+								<button
+									type="button"
+									role="tab"
+									id="contract-control-tab"
+									aria-controls="contract-control"
+									aria-selected="false"
+									tabindex="-1"
+								>
+									Keep control
+								</button>
+							</div>
+							<div
+								id="contract-discover"
+								role="tabpanel"
+								aria-labelledby="contract-discover-tab"
+								class="contract-panel"
+							>
+								<div class="contract-caption">
+									<label for="contract-command">LIVE COMMAND CONTRACT</label
+									><select id="contract-command" data-contract-command>
+										<option value="todo-create">todo-create</option>
+										<option value="todo-list">todo-list</option>
+										<option value="todo-clear">todo-clear</option>
+									</select>
+								</div>
+								<pre
+									tabindex="0"
+									aria-label="Selected command metadata"
+								><code data-contract-metadata></code></pre>
+								<p>
+									Know what a command takes, what it does and whether it changes state before
+									calling it.
+								</p>
+							</div>
+							<div
+								id="contract-result"
+								role="tabpanel"
+								aria-labelledby="contract-result-tab"
+								class="contract-panel"
+								hidden
+							>
+								<div class="contract-caption">
+									<span>LATEST LIVE RESULT</span><code data-contract-result-name>todo-list</code>
+								</div>
+								<pre
+									tabindex="0"
+									aria-label="Latest command result"
+								><code data-contract-result></code></pre>
+								<p>
+									Reasoning explains the outcome. Confidence is a signal, not permission to act.
+								</p>
+							</div>
+							<div
+								id="contract-control"
+								role="tabpanel"
+								aria-labelledby="contract-control-tab"
+								class="contract-panel"
+								hidden
+							>
+								<div class="contract-caption"><code>todo-clear</code><span>DESTRUCTIVE</span></div>
+								<div class="control-decision">
+									<span class="decision-mark" aria-hidden="true">!</span>
+									<h3>A pause before<br>the point of no return.</h3>
+									<p>Delete the shared demo tasks in this tab. No undo.</p>
+									<button type="button" class="button button--mint" data-delete-request>
+										Request deletion <i class="icon icon--right" aria-hidden="true"></i>
+									</button>
+									<p class="control-status" data-control-status role="status">
+										No deletion requested.
+									</p>
+								</div>
+								<p>
+									This caller asks before execution. Destructive metadata describes risk; it doesn't
+									enforce authorization.
+								</p>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+			<section class="recovery" id="result">
+				<div class="wrap recovery-layout">
+					<div class="story-copy">
+						<span class="section-index">04 / THE RECOVERY</span>
+						<h2>A dead end.<br>Or a way<br><em>forward.</em></h2>
+						<p>
+							“Something went wrong” isn't an answer. A useful error tells the next operator what to
+							do.
+						</p>
+						<div class="recovery-controls">
+							<button type="button" class="button button--ink" data-break>
+								Send invalid input <i class="icon icon--right" aria-hidden="true"></i>
+							</button><button type="button" class="button button--outline" data-fix disabled>
+								Apply suggestion <i class="icon icon--return" aria-hidden="true"></i>
+							</button>
+						</div>
+					</div>
+					<div class="recovery-lab">
+						<div class="lab-heading">
+							<span data-recovery-state>REQUEST / READY</span><span>todo-create</span>
+						</div>
+						<pre
+							class="request-code"
+						><code data-recovery-input>{ "title": "", "priority": "high" }</code></pre>
+						<div class="recovery-response">
+							<div class="response-label">
+								<span data-recovery-label>What comes back matters.</span
+								><span data-recovery-marker aria-hidden="true">?</span>
+							</div>
+							<pre tabindex="0"><code data-recovery-output>// No title. No task.
+// The command will explain what's missing.</code></pre>
+						</div>
+						<div class="recovery-note">
+							<span class="mono" data-recovery-note-label>THE DIFFERENCE</span>
+							<p data-recovery-note role="status">
+								An error can be the next step, not the last one.
+							</p>
+						</div>
+					</div>
+				</div>
+			</section>
+			<section class="build-story" id="build">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index">05 / BUILD WITH AN AGENT</span>
+						<h2>Before it draws a screen,<br><span>give it something to prove.</span></h2>
+					</div>
+					<div class="build-story-layout">
+						<div class="build-brief">
+							<span class="mono">A BRIEF FOR YOUR CODING AGENT</span>
+							<blockquote>
+								Build the capability.<br>Prove the job works.<br>Then design the interface.
+							</blockquote>
+							<p>
+								A coding agent can implement a typed command, call it from the terminal and verify
+								the result before a single component exists. The UI comes after the behavior is
+								real.
+							</p>
+							<a
+								class="text-link"
+								href="https://github.com/lushly-dev/afd/tree/main/.claude/skills/afd"
+								>Read the AFD skill <i class="icon icon--out" aria-hidden="true"></i></a
+							>
+						</div>
+						<ol class="build-sequence" aria-label="Example development workflow">
+							<li>
+								<span class="step-number">01</span>
+								<div>
+									<h3>Define the contract.</h3>
+									<p>
+										<code>todo-create</code>
+										takes a title and priority, returns a structured result, and rejects missing
+										input.
+									</p>
+								</div>
+							</li>
+							<li>
+								<span class="step-number">02</span>
+								<div>
+									<h3>Exercise both paths.</h3>
+									<p>
+										Call the command with an empty title, then a valid one. Verify the error is
+										actionable and the task is created.
+									</p>
+								</div>
+							</li>
+							<li>
+								<span class="step-number">03</span>
+								<div>
+									<h3>Test the whole job.</h3>
+									<p>
+										Create a task, list it, check the outcome. A scenario tests the user's goal
+										across commands.
+									</p>
+								</div>
+							</li>
+							<li>
+								<span class="step-number">04</span>
+								<div>
+									<h3>Give it a surface.</h3>
+									<p>
+										Connect the form to the proven command. Keep the rules in the command layer, not
+										in the component.
+									</p>
+								</div>
+							</li>
+						</ol>
+					</div>
+					<div class="evidence" id="testing">
+						<div class="evidence-heading">
+							<h3>Don't take the manifesto on faith.</h3>
+							<span class="mono">INSPECT THE WORK</span>
+						</div>
+						<div class="evidence-grid">
+							<article>
+								<span class="evidence-number">34 / 3</span>
+								<h4>One contract. Three backends.</h4>
+								<p>
+									34 shared test cases. A CI workflow that runs them against the TypeScript, Python
+									and Rust todo backends.
+								</p>
+								<div class="evidence-links">
+									<a
+										href="https://github.com/lushly-dev/afd/blob/main/packages/examples/todo/spec/test-cases.json"
+										>Test cases <i class="icon icon--out" aria-hidden="true"></i></a
+									><a
+										href="https://github.com/lushly-dev/afd/blob/main/.github/workflows/conformance.yml"
+										>CI workflow <i class="icon icon--out" aria-hidden="true"></i></a
+									>
+								</div>
+							</article>
+							<article>
+								<span class="evidence-number">A → B</span>
+								<h4>Test a job, not just a function.</h4>
+								<p>
+									Readable YAML scenarios express a goal, command steps and expected outcomes. Start
+									with creating and verifying a task.
+								</p>
+								<a
+									href="https://github.com/lushly-dev/afd/blob/main/packages/examples/todo/scenarios/create-and-complete.scenario.yaml"
+									>Read the scenario <i class="icon icon--out" aria-hidden="true"></i></a
+								>
+							</article>
+							<article>
+								<img src="svg/alfred.svg" width="56" height="56" alt="" loading="lazy">
+								<h4>Used to build its own tools.</h4>
+								<p>
+									Alfred checks AFD architecture, language parity and command quality through CLI
+									and MCP, returning CommandResult.
+								</p>
+								<a href="https://github.com/lushly-dev/afd/blob/main/alfred/AGENTS.md"
+									>Meet Alfred <i class="icon icon--out" aria-hidden="true"></i></a
+								>
+							</article>
+						</div>
+					</div>
+				</div>
+			</section>
+			<section class="start" id="start">
+				<div class="wrap">
+					<div class="start-heading">
+						<span class="section-index">06 / START SMALL</span>
+						<h2>Capability first.<br><span>Everything else follows.</span></h2>
+					</div>
+					<div class="build-steps">
+						<div>
+							<span class="step-number">01</span>
+							<h3>Define.</h3>
+							<p>A named command. Typed input.<br>A structured result.</p>
+						</div>
+						<div>
+							<span class="step-number">02</span>
+							<h3>Validate.</h3>
+							<p>Prove it works from the terminal.<br>Before there's a screen.</p>
+						</div>
+						<div>
+							<span class="step-number">03</span>
+							<h3>Surface.</h3>
+							<p>Build for the person.<br>Connect the agent.</p>
+						</div>
+					</div>
+					<div class="install">
+						<p class="install-premise">
+							Packages, not a platform. Add AFD to your stack, one capability at a time.
+						</p>
+						<div class="install-top">
+							<h3>Start with one command.</h3>
+							<div class="install-tabs" role="tablist" aria-label="Installation language">
+								<button
+									type="button"
+									role="tab"
+									id="install-ts"
+									aria-controls="install-typescript"
+									aria-selected="true"
+									data-language="typescript"
+								>
+									TypeScript
+								</button><button
+									type="button"
+									role="tab"
+									id="install-py"
+									aria-controls="install-python"
+									aria-selected="false"
+									tabindex="-1"
+									data-language="python"
+								>
+									Python
+								</button><button
+									type="button"
+									role="tab"
+									id="install-rs"
+									aria-controls="install-rust"
+									aria-selected="false"
+									tabindex="-1"
+									data-language="rust"
+								>
+									Rust
+								</button>
+							</div>
+						</div>
+						<div class="install-command">
+							<pre
+								id="install-typescript"
+								role="tabpanel"
+								aria-labelledby="install-ts"
+							><code>npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod</code></pre>
+							<pre
+								id="install-python"
+								role="tabpanel"
+								aria-labelledby="install-py"
+								hidden
+							><code>pip install afd</code></pre>
+							<pre
+								id="install-rust"
+								role="tabpanel"
+								aria-labelledby="install-rs"
+								hidden
+							><code>cargo add afd --git https://github.com/lushly-dev/afd</code></pre>
+							<button
+								type="button"
+								class="icon-button"
+								data-copy-install
+								aria-label="Copy install command"
+								title="Copy install command"
+							>
+								<i class="icon icon--copy" aria-hidden="true"></i>
+							</button>
+						</div>
+						<p class="copy-status" data-copy-status role="status"></p>
+						<div class="skill-install">
+							<h3>Give your coding agent the method.</h3>
+							<p>
+								Add the AFD skill to your project: command design, validation and the
+								define-validate-surface workflow.
+							</p>
+							<div class="install-command">
+								<pre
+								><code>npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd</code></pre>
+								<button
+									type="button"
+									class="icon-button"
+									data-copy-skill
+									aria-label="Copy AFD skill install command"
+									title="Copy AFD skill install command"
+								>
+									<i class="icon icon--copy" aria-hidden="true"></i>
+								</button>
+							</div>
+							<p class="copy-status" data-skill-copy-status role="status"></p>
+						</div>
+						<div class="start-links">
+							<a class="button button--red" href="https://github.com/lushly-dev/afd#quickstart"
+								>Open the quickstart <i class="icon icon--out" aria-hidden="true"></i></a
+							><a href="llms.txt" class="text-link"
+								>Bring your agent <i class="icon icon--out" aria-hidden="true"></i></a
+							>
+						</div>
+					</div>
+				</div>
+			</section>
+		</main>
+		<footer class="footer wrap">
+			<div class="founder-note">
+				<span class="section-index">A DESIGNER'S PERSPECTIVE</span>
+				<p>
+					AFD grew out of thirty years of building interfaces, and the realization that the most
+					durable layer isn't the UI. It's the commands underneath.
+				</p>
+				<a href="https://github.com/Falkicon">Jason Falk / Creator of AFD</a>
+			</div>
+			<a href="#top" class="wordmark" aria-label="AFD home"><span aria-hidden="true">/</span>AFD</a>
+			<p>
+				Built by <a href="https://github.com/Falkicon">Jason Falk</a>.<br>For people. And the agents
+				working with them.
+			</p>
+			<nav aria-label="Footer">
+				<a href="https://github.com/lushly-dev/afd">Source</a
+				><a href="https://github.com/lushly-dev/afd/blob/main/LICENSE">MIT License</a>
+			</nav>
+			<span class="footer-edition">COMMAND MANIFESTO / 2026</span>
+		</footer>
+		<dialog class="result-dialog" aria-labelledby="result-dialog-title" data-result-dialog>
+			<div class="dialog-heading">
+				<h2 id="result-dialog-title">CommandResult</h2>
+				<button
+					type="button"
+					class="icon-button"
+					data-result-close
+					aria-label="Close result"
+					title="Close"
+				>
+					<i class="icon icon--close" aria-hidden="true"></i>
+				</button>
+			</div>
+			<pre tabindex="0"><code data-raw-result></code></pre>
+		</dialog>
+		<dialog
+			class="confirm-dialog"
+			aria-labelledby="confirm-title"
+			aria-describedby="confirm-description"
+			data-confirm-dialog
+		>
+			<span class="mono">LOCAL DEMO / DESTRUCTIVE ACTION</span>
+			<h2 id="confirm-title">Delete the demo tasks?</h2>
+			<p id="confirm-description" data-confirm-description></p>
+			<p>No undo. Nothing outside this browser tab is affected.</p>
+			<div class="confirm-actions">
+				<button type="button" class="button button--outline" data-delete-cancel>Cancel</button
+				><button type="button" class="button button--ink" data-delete-confirm>Delete tasks</button>
+			</div>
+		</dialog>
+	</body>
+</html>
