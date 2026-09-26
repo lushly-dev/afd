@@ -2,375 +2,691 @@
 <html lang="en">
 <head>
 	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title>AFD — Agent-First Development</title>
-	<meta name="description" content="Build software where AI agents are first-class users. Commands are the product. UI is a swappable surface.">
-	<meta name="theme-color" content="#F4F0EA">
+	<meta name="description" content="Build software where AI agents are first-class users. Define commands first, prove them in the terminal, and treat every UI as a swappable surface.">
+	<meta name="theme-color" content="#f4f0ea">
+	<link rel="canonical" href="https://afd.dev/">
 	<link rel="icon" href="svg/favicon.svg" type="image/svg+xml">
+	<link rel="alternate" type="text/markdown" href="llms.txt" title="AFD, written for agents">
 
-	<!-- Open Graph -->
+	<!-- Open Graph / social -->
+	<meta property="og:type" content="website">
+	<meta property="og:url" content="https://afd.dev/">
 	<meta property="og:title" content="AFD — Commands Are the Product">
 	<meta property="og:description" content="Build software where AI agents are first-class users. Commands are the product. UI is a swappable surface.">
-	<meta property="og:url" content="https://afd.dev">
-	<meta property="og:type" content="website">
+	<meta property="og:image" content="https://afd.dev/og.png">
+	<meta property="og:image:width" content="1200">
+	<meta property="og:image:height" content="630">
+	<meta property="og:image:alt" content="AFD: Commands are the product.">
+	<meta name="twitter:card" content="summary_large_image">
 
 	<!-- Fonts -->
 	<link rel="preconnect" href="https://fonts.googleapis.com">
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Darker+Grotesque:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
+	<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Darker+Grotesque:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&family=Playfair+Display:ital,wght@1,700&display=swap" rel="stylesheet">
 
-	<link rel="stylesheet" href="styles.css">
+	<link rel="stylesheet" href="css/base.css">
+	<link rel="stylesheet" href="css/components.css">
+	<link rel="stylesheet" href="css/sections.css">
+
+	<script>document.documentElement.classList.add('js');</script>
+	<script type="module" src="js/main.js"></script>
 </head>
-<body class="theme-light">
+<body>
+
+<a class="skip-link" href="#main">Skip to content</a>
 
 <!-- ============================================================
      NAV
      ============================================================ -->
-<nav id="site-nav" class="site-nav">
-	<div class="nav-logo"><img src="svg/afd-logo.svg" alt="AFD" class="nav-logo__img"></div>
-	<ul class="nav-links">
-		<li><a href="#problem">Problem</a></li>
-		<li><a href="#workflow">Workflow</a></li>
-		<li><a href="#testing">Testing</a></li>
-		<li><a href="#toolkit">Toolkit</a></li>
-		<li><a href="https://github.com/lushly-dev/afd" target="_blank" rel="noopener">GitHub</a></li>
-	</ul>
-</nav>
+<header class="site-nav" id="site-nav">
+	<a href="#top" class="logo" aria-label="AFD, back to top"><span class="logo__slash">/</span>AFD</a>
+	<nav aria-label="Primary">
+		<button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-menu">Menu</button>
+		<ul class="nav-links" id="nav-menu">
+			<li><a href="#problem">Why</a></li>
+			<li><a href="#workflow">Workflow</a></li>
+			<li><a href="#result">CommandResult</a></li>
+			<li><a href="#testing">Testing</a></li>
+			<li><a href="#toolkit">Toolkit</a></li>
+			<li><a href="https://github.com/lushly-dev/afd">GitHub</a></li>
+		</ul>
+	</nav>
+	<button class="agent-toggle" type="button" aria-pressed="false" aria-controls="agent-view" title="Show this page the way an agent reads it">Agent view</button>
+</header>
+
+<!-- The page, as an agent reads it. Filled from llms.txt by js/agent-view.js. -->
+<section id="agent-view" class="agent-view" hidden aria-label="Agent view">
+	<div class="agent-view__bar mono-label">
+		<span>This is afd.dev the way an agent reads it</span>
+		<a href="llms.txt">Raw llms.txt</a>
+		<button type="button" data-agent-exit>Back to the human view</button>
+	</div>
+	<pre><code></code></pre>
+</section>
+
+<main id="main">
 
 <!-- ============================================================
-     SECTION 1: HERO
+     HERO
      ============================================================ -->
-<section id="hero" class="section section--light hero">
-	<div class="hero-bg" aria-hidden="true">
-		<img src="svg/hero-prompt.svg" alt="" class="hero-bg__svg">
-	</div>
-	<div class="hero-top animate-up">
+<section id="top" class="section hero">
+	<div class="hero-top">
 		<span class="mono-label">Agent-First Development</span>
-		<span class="hero-badge mono-label" data-afd-version>v2.0.0</span>
+		<span class="hero-badge mono-label"><span data-afd-version>v2.0.0</span> · MIT</span>
 	</div>
-	<h1 class="hero-title animate-up delay-1">
-		<span>COMMANDS</span>
-		<span>ARE THE</span>
-		<span class="hero-title__accent serif-text">PRODUCT.</span>
+
+	<h1 class="hero-title">
+		<span>Commands</span>
+		<span>are the</span>
+		<span class="accent-word">product.</span>
 	</h1>
-	<div class="hero-body grid-2 animate-up delay-2">
-		<p class="hero-subtitle">
-			Software was built for fingers and eyes. Agents don't have either. AFD flips the model: define commands first, validate in the terminal, paint the UI last. The command layer is the product. Everything else is a surface.
-		</p>
+
+	<div class="hero-body">
+		<p class="lede hero-lede">Software was built for fingers and eyes. Agents have neither. AFD flips the order: define the command, prove it in the terminal, paint the UI last. Agents, scripts and buttons all call the same layer.</p>
+
 		<div class="hero-actions">
-			<a href="https://github.com/lushly-dev/afd" class="btn btn--primary" rel="noopener">View on GitHub</a>
-		</div>
-	</div>
-</section>
-
-<!-- ============================================================
-     SECTION 2: THE OPACITY PROBLEM
-     ============================================================ -->
-<section id="problem" class="inset-frame section--dark">
-	<div class="grid-2">
-		<div class="animate-up">
-			<h2 class="section-title">THE<br>OPACITY<br><span class="serif-text accent-red">PROBLEM</span></h2>
-			<p class="mono-label accent-red">Your app is a black box to AI.</p>
-			<p>Traditional apps work fine for humans. Click a button, fill a form, read a screen. But an LLM staring at your codebase is a brilliant engineer locked behind a keyhole. It can read your source. It can't <em>use</em> your product.</p>
-			<div class="diagram diagram--keyhole">
-				<img src="svg/keyhole-2.svg" alt="Keyhole diagram — an agent peering through a narrow opening in the UI wall" class="diagram__svg">
-			</div>			
-			<p>Capabilities hide behind visual interfaces. State lives in components. Features only fire through mouse events. The API you bolt on later copies the UI. Badly. Two systems, one always out of sync.</p>
-		</div>
-		<div class="structural-card structural-card--red animate-up delay-1">
-			<div class="card-number">01</div>
-			<h3 class="serif-text">THE INVERSION</h3>
-			<p>Define the command. Validate it in the terminal. Only then do you build the button. If it fails in the CLI, the architecture is wrong.</p>
-			<div class="diagram diagram--inversion">
-				<img src="svg/inversion-2.svg" alt="Command-to-UI inversion diagram" class="diagram__svg">
+			<div class="code install" data-tabs>
+				<div class="tabs" role="tablist" aria-label="Install AFD">
+					<button role="tab" type="button" aria-selected="true" aria-controls="install-ts" id="tab-ts">TypeScript</button>
+					<button role="tab" type="button" aria-selected="false" aria-controls="install-py" id="tab-py" tabindex="-1">Python</button>
+					<button role="tab" type="button" aria-selected="false" aria-controls="install-rs" id="tab-rs" tabindex="-1">Rust</button>
+					<button class="copy-btn" type="button" data-copy>Copy</button>
+				</div>
+				<pre role="tabpanel" id="install-ts" aria-labelledby="tab-ts"><code>npm install @lushly-dev/afd-core @lushly-dev/afd-server</code></pre>
+				<pre role="tabpanel" id="install-py" aria-labelledby="tab-py" hidden><code>pip install afd</code></pre>
+				<pre role="tabpanel" id="install-rs" aria-labelledby="tab-rs" hidden><code>cargo add afd --git https://github.com/lushly-dev/afd</code></pre>
 			</div>
-			<div class="card-quote mono-label">
-				"If it can't be done via CLI, the architecture is wrong."
+			<div class="hero-buttons">
+				<a class="btn btn--primary" href="https://github.com/lushly-dev/afd#getting-started">Get started</a>
+				<a class="btn" href="https://github.com/lushly-dev/afd/blob/main/docs/whitepaper/AFD-Whitepaper.md">Read the whitepaper</a>
 			</div>
 		</div>
 	</div>
-</section>
 
-<!-- ============================================================
-     SECTION 3: AGENTS GET JUDGMENT
-     ============================================================ -->
-<section id="judgment" class="section section--light">
-	<div class="grid-2">
-		<div class="animate-up">
-			<h2 class="section-title">AGENTS GET<br><span class="serif-text accent-teal">JUDGMENT.</span></h2>
-			<p class="section-lead">Most tools hand agents raw data and wish them luck. AFD gives agents the same trust signals that make human UX work: confidence scores, transparent reasoning, recovery paths when things break, and a plan for what to do next.</p>
-			<p class="section-lead">The agent doesn't have to guess whether a match is reliable. It doesn't have to invent a fallback when a lookup fails. The system already knows.</p>
-		</div>
-		<div class="code-block animate-up delay-1">
-<pre><code>{
-  "success": true,
-  "data": { "id": 42, "role": "admin" },
-  "confidence": 0.85,
-  "reasoning": "Matched by email.",
-  "warnings": [{
-    "message": "Elevated privileges."
-  }],
-  "suggestions": [
-    "Review role assignments"
-  ]
-}</code></pre>
-			<div class="code-annotations">
-				<div class="code-annotation mono-label"><span class="accent-teal">confidence</span> → Should I trust this?</div>
-				<div class="code-annotation mono-label"><span class="accent-teal">reasoning</span> → What happened and why?</div>
-				<div class="code-annotation mono-label"><span class="accent-teal">suggestions</span> → What do I do next?</div>
+	<!-- One command, three surfaces -->
+	<figure class="surfaces reveal" aria-labelledby="surfaces-caption">
+		<figcaption id="surfaces-caption" class="surfaces__caption mono-label">
+			One command <span aria-hidden="true">·</span> three surfaces <span aria-hidden="true">·</span> one result
+		</figcaption>
+
+		<div class="surfaces__grid">
+			<div class="surface" data-surface="0">
+				<div class="surface__bar mono-label"><span class="surface__dot"></span>Terminal</div>
+				<pre class="surface__body"><code class="lang-term">$ afd call todo-create \
+  '{"title":"Buy groceries",
+    "priority":"high"}'</code></pre>
 			</div>
-		</div>
-	</div>
-	
-	<div class="diagram diagram--judgment animate-up delay-2">
-		<object type="image/svg+xml" data="svg/judgment-3.svg" class="diagram__svg" role="img" aria-label="Command Result diagram — structured fields flowing from a command result manifest to an AI agent"></object>
-	</div>
 
-	<!-- Errors Talk Back — second beat of the Judgment story -->
-	<div class="section-divider"></div>
-
-	<div class="animate-up">
-		<h2 class="section-title"><span class="serif-text accent-red">ERRORS</span><br /> TALK BACK</h2>
-		<p class="mono-label accent-teal">When things break, agents shouldn't have to guess.</p>
-	</div>
-	<div class="grid-2 error-comparison">
-		<div class="animate-up delay-1">
-			<div class="code-block code-block--muted">
-<pre><code>{
-  "status": 404,
-  "message": "Not found"
-}</code></pre>
-			</div>
-			<p class="mono-label error-label">THE BLANK WALL</p>
-		</div>
-		<div class="animate-up delay-2">
-			<div class="code-block code-block--accent">
-<pre><code>{
-  "success": false,
-  "error": {
-    "code": "NOT_FOUND",
-    "message": "No user with email 'jdoe@example.com'",
-    "suggestion": "Try user-search with partial match"
-  }
-}</code></pre>
-			</div>
-			<p class="mono-label error-label accent-teal">THE RECOVERY PATH</p>
-		</div>
-	</div>
-	<p class="error-closing animate-up delay-3 mono-label">A 404 and a blank wall versus a diagnosis and a next step. The agent doesn't stall or churn. It recovers.</p>
-</section>
-
-<!-- ============================================================
-     SECTION 4: DEFINE. VALIDATE. SURFACE.
-     ============================================================ -->
-<section id="workflow" class="inset-frame section--dark">
-	<h2 class="section-title section-title--centered animate-up">DEFINE.<br>VALIDATE.<br><span class="serif-text hero-title__accent">SURFACE.</span></h2>
-	<div class="grid-3">
-		<div class="structural-card animate-up">
-			<div class="card-number serif-text">01</div>
-			<h3>DEFINE</h3>
-			<p>Write the command. Typed schema. Explicit inputs. Structured error states. The schema is the contract between your code and every agent that will ever call it.</p>
-		</div>
-		<div class="structural-card structural-card--red animate-up delay-1">
-			<div class="card-number serif-text">02</div>
-			<h3>VALIDATE</h3>
-			<p>Run it in the terminal. Hit every edge case. Confirm error recovery paths. If the command breaks here, you just saved yourself from shipping a broken button.</p>
-		</div>
-		<div class="structural-card animate-up delay-2">
-			<div class="card-number serif-text">03</div>
-			<h3>SURFACE</h3>
-			<p>Now build the UI. It's a thin wrapper over proven logic. Agents plug into the same commands your React components call. Zero translation layer. Full parity.</p>
-		</div>
-	</div>
-
-	<p class="section-kicker mono-label animate-up delay-3">Paradigms change. Commands don't. CLI gave way to GUI. Conversational AI is replacing both. The command layer stays.</p>
-</section>
-
-<!-- ============================================================
-     SECTION 5: AGENTS BUILD FASTER
-     ============================================================ -->
-<section id="velocity" class="section section--light">
-	<div class="grid-2">
-		<div class="animate-up">
-			<h2 class="section-title">AGENTS BUILD<br>APPS <span class="serif-text hero-title__accent">FASTER.</span></h2>
-			<p class="mono-label accent-teal">The abstraction isn't theoretical. It changes how fast you ship.</p>
-			<p>You define a command. Validate it in the terminal. The agent iterates on logic in seconds — no browser, no clicking, no waiting for renders. Once the command passes, the agent builds UI against it.</p>
-			<p>Then the feedback comes in. The layout is wrong. The flow needs rethinking. Rip the UI out. Rebuild it. Rewire it to the same commands that have been passing tests the entire time. When logic lives in the UI, agents shift a component and corrupt a data flow. Fix one thing, break three. Separate them, and the UI becomes disposable — rebuildable in minutes while the logic stays proven.</p>
-		</div>
-		<div class="animate-up delay-1">
-			<div class="comparison-card comparison-card--before">
-				<h3 class="mono-label">WITHOUT AFD</h3>
-				<ul class="comparison-list">
-					<li>Agent edits UI → breaks business logic → cascade</li>
-					<li>Every iteration requires browser testing</li>
-					<li>Fixing one component breaks two others</li>
-					<li>State scattered across UI components</li>
-					<li>Compound debugging: fix → break → fix → break</li>
-				</ul>
-			</div>
-			<div class="comparison-card comparison-card--after">
-				<h3 class="mono-label">WITH AFD</h3>
-				<ul class="comparison-list">
-					<li>Commands pass tests the entire time</li>
-					<li>Agent iterates logic via CLI in seconds</li>
-					<li>UI is a thin layer — rip it out, rebuild, rewire</li>
-					<li>State changes verified through commands</li>
-					<li>Feedback loop: minutes, not hours</li>
-				</ul>
-			</div>
-		</div>
-	</div>
-</section>
-
-<!-- ============================================================
-     SECTION 6: TEST THE JOB, NOT THE UI
-     ============================================================ -->
-<section id="testing" class="inset-frame section--dark">
-	<div class="grid-2">
-		<div class="animate-up">
-			<h2 class="section-title">TEST THE JOB.<br><span class="serif-text hero-title__accent">NOT THE UI.</span></h2>
-			<p class="mono-label accent-red">Jobs-to-Be-Done scenario testing. Built in.</p>
-			<p>Test suites check buttons and endpoints. AFD tests the job the user hired your software to do.</p>
-			<p>Write a YAML scenario that describes a user journey — create a todo, complete it, delete it. Each step calls a command, asserts the result, and passes data forward. No browser. No Selenium. No flaky CSS selectors. Just the job, validated end to end through the command layer.</p>
-			<p class="section-closing">JTBD scenarios test the jobs. Surface validation audits the command surface itself — naming collisions, schema drift, prompt injection. Together, they replace fragile E2E suites.</p>
-		</div>
-		<div class="animate-up delay-1">
-			<div class="code-block">
-<pre><code>scenario:
-  name: "Create and complete a todo"
-  tags: ["smoke", "crud"]
-
-steps:
-  - name: "Create a new todo"
-    command: todo-create
-    input:
-      title: "Buy groceries"
-      priority: "high"
-    expect:
-      success: true
-      data:
-        title: "Buy groceries"
-        completed: false
-
-  - name: "Complete the todo"
-    command: todo-toggle
-    input:
-      id: "${{ steps[0].data.id }}"
-    expect:
-      success: true
-      data:
-        completed: true</code></pre>
-			</div>
-			<div class="code-annotations">
-				<div class="code-annotation mono-label"><span class="accent-teal">steps[0].data.id</span> → Data flows forward automatically.</div>
-				<div class="code-annotation mono-label"><span class="accent-teal">expect.success</span> → Assert on CommandResult. Confidence, reasoning — all testable.</div>
-				<div class="code-annotation mono-label"><span class="accent-teal">tags: ["smoke"]</span> → Filter and run subsets. CI-friendly.</div>
-			</div>
-		</div>
-	</div>
-</section>
-
-<!-- ============================================================
-     SECTION 7: THE TOOLKIT
-     ============================================================ -->
-<section id="toolkit" class="section section--light">
-	<div class="grid-2">
-		<div class="animate-up">
-			<h2 class="serif-text section-title">THE<br>TOOLKIT</h2>
-			<p class="mono-label accent-teal">TypeScript · Python · Rust</p>
-			<p>AFD ships as packages you install, not a platform you migrate to. Pick a language. Add the package. Define your first command.</p>
-			<div class="install-block animate-up">
-				<div class="code-block code-block--install">
-<pre><code>npm install @lushly-dev/afd-core @lushly-dev/afd-server
-pip install afd
-cargo add afd</code></pre>
+			<div class="surface" data-surface="1">
+				<div class="surface__bar mono-label"><span class="surface__dot"></span>Agent · MCP</div>
+				<div class="surface__body">
+					<p class="agent-msg">“Add groceries to my list. It’s urgent.”</p>
+					<pre><code class="lang-json">tool_use: "todo-create"
+{ "title": "Buy groceries",
+  "priority": "high" }</code></pre>
 				</div>
 			</div>
-			<div class="diagram diagram--stack">
-				<img src="svg/toolkit-stack.svg" alt="Stack diagram — Core block with TS, PY, RS, and MCP nodes" class="diagram__svg">
+
+			<div class="surface" data-surface="2">
+				<div class="surface__bar mono-label"><span class="surface__dot"></span>Web app</div>
+				<div class="surface__body mini-form" aria-hidden="true">
+					<span class="mini-form__input">Buy groceries</span>
+					<span class="mini-form__row">
+						<span class="mini-form__select">High ▾</span>
+						<span class="mini-form__button">Add todo</span>
+					</span>
+				</div>
 			</div>
 		</div>
-		<div class="animate-up delay-1 packages-list">
-			<div class="package-item">
-				<h3 class="package-item__name">@lushly-dev/afd-core</h3>
-				<p class="mono-label">CommandResult, CommandError, batching, streaming.</p>
+
+		<svg class="surfaces__rail" viewBox="0 0 300 60" preserveAspectRatio="none" aria-hidden="true">
+			<path data-rail="0" d="M50 0 C50 34, 150 26, 150 60" />
+			<path data-rail="1" d="M150 0 L150 60" />
+			<path data-rail="2" d="M250 0 C250 34, 150 26, 150 60" />
+		</svg>
+
+		<div class="surfaces__result">
+			<div class="code code--accent">
+				<div class="code__bar"><span>todo-create → CommandResult</span><span class="surfaces__via"></span></div>
+				<pre><code class="lang-json">{
+  "success": true,
+  "data": { "id": "todo-8f2c", "title": "Buy groceries", "priority": "high", "completed": false },
+  "confidence": 1,
+  "reasoning": "Created todo \"Buy groceries\" with high priority"
+}</code></pre>
 			</div>
-			<div class="package-item">
-				<h3 class="package-item__name">@lushly-dev/afd-server</h3>
-				<p class="mono-label">Zod-based MCP server factory with middleware.</p>
+		</div>
+	</figure>
+</section>
+
+<!-- ============================================================
+     01 · THE KEYHOLE
+     ============================================================ -->
+<section id="problem" class="section section--dark inset-frame">
+	<div class="split">
+		<div class="reveal">
+			<p class="eyebrow">01 · The opacity problem</p>
+			<h2 class="problem-title">Your app is a <span class="accent-block">keyhole.</span></h2>
+			<p class="lede">An LLM can read every line of your source and still can’t use your product.</p>
+			<p>The capabilities hide behind buttons. The state lives in components. Features only fire on mouse events. So you bolt on an API later. It copies the UI, badly, and now you maintain two systems that are never quite in sync.</p>
+		</div>
+
+		<figure class="two-views reveal" style="--delay: 1" aria-label="The same todo list, as a person sees it and as an agent sees it">
+			<div class="view view--human">
+				<p class="view__label mono-label">What a person sees</p>
+				<div class="mini-app" aria-hidden="true">
+					<div class="mini-app__row is-done"><span class="mini-app__check"></span>Ship v2.0<span class="mini-app__tag">high</span></div>
+					<div class="mini-app__row"><span class="mini-app__check"></span>Buy groceries<span class="mini-app__tag">high</span></div>
+					<div class="mini-app__row"><span class="mini-app__check"></span>Call the plumber<span class="mini-app__tag mini-app__tag--low">low</span></div>
+					<div class="mini-app__add">+ Add todo</div>
+				</div>
 			</div>
-			<div class="package-item">
-				<h3 class="package-item__name">@lushly-dev/afd-client</h3>
-				<p class="mono-label">MCP client + DirectClient for ~0.03ms in-process calls.</p>
+			<div class="view view--agent">
+				<p class="view__label mono-label">What an agent sees</p>
+				<div class="keyhole">
+					<pre><code>&lt;div class="css-1x9f"&gt;
+  &lt;div class="css-7kq2" onClick={…}&gt;
+    &lt;svg viewBox="0 0 24 24"&gt;…&lt;/svg&gt;
+  &lt;/div&gt;
+  &lt;span class="css-q0ra"&gt;Buy groceries&lt;/span&gt;
+  &lt;span class="css-t4lp"&gt;high&lt;/span&gt;
+&lt;/div&gt;
+&lt;div class="css-m2zd" role="button"
+     tabindex="0" onClick={…}&gt;
+  + Add todo
+&lt;/div&gt;</code></pre>
+				</div>
+				<p class="view__verdict mono-label">No capabilities. No schema. No error it can act on.</p>
 			</div>
-			<div class="package-item">
-				<h3 class="package-item__name">@lushly-dev/afd-cli</h3>
-				<p class="mono-label">Connect, call, validate, explore commands.</p>
+		</figure>
+	</div>
+</section>
+
+<!-- ============================================================
+     02 · THE HONESTY CHECK
+     ============================================================ -->
+<section id="honesty" class="section honesty">
+	<p class="eyebrow reveal">02 · The inversion</p>
+	<blockquote class="honesty__quote reveal">
+		<p>“If it can’t be done via <mark>CLI</mark>, the architecture is wrong.”</p>
+	</blockquote>
+	<p class="honesty__caption mono-label reveal">The honesty check. One rule, applied to every feature.</p>
+
+	<div class="inversion">
+		<figure class="inversion__card inversion__card--before reveal" aria-labelledby="inv-before">
+			<figcaption id="inv-before" class="mono-label">UI-first</figcaption>
+			<ol class="chain">
+				<li class="chain__node">UI<small>where the logic lives</small></li>
+				<li class="chain__node">API<small>extracted later</small></li>
+				<li class="chain__node chain__node--faded">Agent<small>maybe</small></li>
+			</ol>
+		</figure>
+
+		<figure class="inversion__card inversion__card--after reveal" style="--delay: 1" aria-labelledby="inv-after">
+			<figcaption id="inv-after" class="mono-label">Agent-first</figcaption>
+			<div class="hub">
+				<div class="hub__core">Commands<small>single source of truth</small></div>
+				<ul class="hub__spokes">
+					<li>CLI</li>
+					<li>MCP agent</li>
+					<li>Web UI</li>
+					<li>DirectClient</li>
+					<li>AI chat</li>
+					<li class="hub__next">Whatever’s next</li>
+				</ul>
 			</div>
-			<div class="package-item">
-				<h3 class="package-item__name">@lushly-dev/afd-auth</h3>
-				<p class="mono-label">Provider-agnostic auth — middleware, session sync.</p>
+		</figure>
+	</div>
+
+	<ul class="honesty__points">
+		<li class="reveal"><strong>No UI-only code paths.</strong> If a person can do it, an agent can do it.</li>
+		<li class="reveal" style="--delay: 1"><strong>Abstraction, enforced.</strong> Logic can’t hide in a click handler if the CLI has to reach it.</li>
+		<li class="reveal" style="--delay: 2"><strong>Portable by default.</strong> No UI dependency means the same commands run on a server, a phone or a kiosk.</li>
+	</ul>
+</section>
+
+<!-- ============================================================
+     03 · DEFINE, VALIDATE, SURFACE
+     ============================================================ -->
+<section id="workflow" class="section section--dark inset-frame">
+	<div class="section-head reveal">
+		<p class="eyebrow">03 · The workflow</p>
+		<h2>Define.<br>Validate.<br><span class="accent-block">Surface.</span></h2>
+	</div>
+
+	<div class="steps">
+		<ol class="steps__nav" aria-label="Workflow steps">
+			<li><a href="#step-define" data-step-link="0" aria-current="step"><span class="steps__num">01</span>Define</a></li>
+			<li><a href="#step-validate" data-step-link="1"><span class="steps__num">02</span>Validate</a></li>
+			<li><a href="#step-surface" data-step-link="2"><span class="steps__num">03</span>Surface</a></li>
+		</ol>
+
+		<div class="steps__panels">
+			<article class="step-panel reveal" id="step-define" data-step="0">
+				<h3 class="step-panel__title"><span class="steps__num">01</span>Define the command</h3>
+				<p>Typed input, typed output, named errors. The schema is the contract every agent will read, so it’s written first.</p>
+				<div class="code">
+					<div class="code__bar"><span>commands/create.ts</span></div>
+					<pre><code class="lang-ts">import { defineCommand, success } from '@lushly-dev/afd-server';
+import { z } from 'zod';
+
+const input = z.object({
+  title: z.string().min(1, 'Title is required').max(200),
+  priority: z.enum(['low', 'medium', 'high']).default('medium'),
+});
+
+export const createTodo = defineCommand({
+  name: 'todo-create',
+  description: 'Create a new todo item',
+  expose: { mcp: true },
+  mutation: true,
+  input,
+  errors: ['VALIDATION_ERROR'],
+
+  async handler(input) {
+    const todo = store.create(input);
+    return success(todo, {
+      reasoning: `Created todo "${todo.title}" with ${input.priority} priority`,
+      confidence: 1.0,
+    });
+  },
+});</code></pre>
+				</div>
+			</article>
+
+			<article class="step-panel reveal" id="step-validate" data-step="1">
+				<h3 class="step-panel__title"><span class="steps__num">02</span>Validate in the terminal</h3>
+				<p>Call it. Break it. Read the errors the way an agent will. If it doesn’t work here, you just avoided shipping a broken button.</p>
+				<div class="code">
+					<div class="code__bar"><span>zsh</span></div>
+					<pre><code class="lang-term">$ afd call todo-create '{"title":""}'
+✗ Failed
+
+Error: [VALIDATION_ERROR] Input validation failed
+
+Suggestion: title: Title is required
+
+$ afd call todo-create '{"title":"Buy groceries","priority":"high"}'
+✓ Success
+
+Data:
+  id: todo-8f2c
+  title: Buy groceries
+  priority: high
+  completed: false
+
+Confidence: ██████████ 100%</code></pre>
+				</div>
+			</article>
+
+			<article class="step-panel reveal" id="step-surface" data-step="2">
+				<h3 class="step-panel__title"><span class="steps__num">03</span>Surface it last</h3>
+				<p>The UI is a thin wrapper over a command that already passes. Agents call the same command your components do. No translation layer, full parity.</p>
+				<div class="code">
+					<div class="code__bar"><span>AddTodo.tsx</span></div>
+					<pre><code class="lang-ts">export function AddTodo() {
+  const [title, setTitle] = useState('');
+
+  async function add() {
+    const result = await callTool&lt;Todo&gt;('todo-create', { title });
+    if (!result.success) {
+      // The error already says how to recover.
+      return toast.error(result.error.message, result.error.suggestion);
+    }
+    setTitle('');
+  }
+
+  return (
+    &lt;form onSubmit={(e) =&gt; { e.preventDefault(); add(); }}&gt;
+      &lt;input value={title} onChange={(e) =&gt; setTitle(e.target.value)} /&gt;
+      &lt;button&gt;Add todo&lt;/button&gt;
+    &lt;/form&gt;
+  );
+}</code></pre>
+				</div>
+			</article>
+		</div>
+	</div>
+
+	<p class="workflow-kicker mono-label reveal">Hate the layout? Rip the UI out and rebuild it. The commands underneath have been passing the whole time.</p>
+</section>
+
+<!-- ============================================================
+     04 · COMMANDRESULT
+     ============================================================ -->
+<section id="result" class="section">
+	<div class="section-head result-head reveal">
+		<p class="eyebrow">04 · CommandResult</p>
+		<h2>Agents get <span class="accent-word">judgment.</span></h2>
+		<p class="lede">Most tools hand agents raw data and wish them luck. A CommandResult carries the trust signals that make human UX work: how sure the system is, why it did what it did, and what to do next.</p>
+	</div>
+
+	<div class="explorer reveal" data-explorer>
+		<div class="code explorer__code">
+			<div class="tabs" role="tablist" aria-label="Result type">
+				<button role="tab" type="button" aria-selected="true" aria-controls="explorer-success" id="explorer-tab-success" data-mode-tab="success">Success</button>
+				<button role="tab" type="button" aria-selected="false" aria-controls="explorer-failure" id="explorer-tab-failure" data-mode-tab="failure" tabindex="-1">Failure</button>
+				<span class="explorer__hint mono-label">Pick a field</span>
 			</div>
-			<div class="package-item">
-				<h3 class="package-item__name">@lushly-dev/afd-testing</h3>
-				<p class="mono-label">JTBD scenario runner, surface validation.</p>
+<pre role="tabpanel" id="explorer-success" aria-labelledby="explorer-tab-success"><code>{
+  <button type="button" class="field" data-field="success" aria-pressed="false">"success"</button>: <span class="tok-kw">true</span>,
+  <button type="button" class="field" data-field="data" aria-pressed="false">"data"</button>: { <span class="tok-key">"id"</span>: <span class="tok-num">42</span>, <span class="tok-key">"name"</span>: <span class="tok-str">"Jane Doe"</span>, <span class="tok-key">"role"</span>: <span class="tok-str">"admin"</span> },
+  <button type="button" class="field field--afd" data-field="confidence" aria-pressed="true">"confidence"</button>: <span class="tok-num">0.85</span>,
+  <button type="button" class="field field--afd" data-field="reasoning" aria-pressed="false">"reasoning"</button>: <span class="tok-str">"Matched by email. 2 accounts share this domain."</span>,
+  <button type="button" class="field field--afd" data-field="warnings" aria-pressed="false">"warnings"</button>: [{ <span class="tok-key">"message"</span>: <span class="tok-str">"Admin: confirm before mutating"</span> }],
+  <button type="button" class="field field--afd" data-field="suggestions" aria-pressed="false">"suggestions"</button>: [<span class="tok-str">"Run user-permissions to review roles"</span>],
+  <button type="button" class="field field--afd" data-field="sources" aria-pressed="false">"sources"</button>: [{ <span class="tok-key">"type"</span>: <span class="tok-str">"database"</span>, <span class="tok-key">"title"</span>: <span class="tok-str">"users"</span> }]
+}</code></pre>
+<pre role="tabpanel" id="explorer-failure" aria-labelledby="explorer-tab-failure" hidden><code>{
+  <button type="button" class="field" data-field="fail-success" aria-pressed="false">"success"</button>: <span class="tok-kw">false</span>,
+  <span class="tok-key">"error"</span>: {
+    <button type="button" class="field field--afd" data-field="code" aria-pressed="false">"code"</button>: <span class="tok-str">"NOT_FOUND"</span>,
+    <button type="button" class="field field--afd" data-field="message" aria-pressed="false">"message"</button>: <span class="tok-str">"No user with email 'jdoe@example.com'"</span>,
+    <button type="button" class="field field--afd" data-field="suggestion" aria-pressed="false">"suggestion"</button>: <span class="tok-str">"Try user-search with a partial match"</span>,
+    <button type="button" class="field field--afd" data-field="retryable" aria-pressed="false">"retryable"</button>: <span class="tok-kw">false</span>
+  }
+}</code></pre>
+		</div>
+
+		<aside class="explorer__panel" aria-live="polite">
+			<p class="explorer__field mono-label">confidence: 0.85</p>
+			<p class="explorer__thought">“This match isn’t certain. I should verify before I act on it.”</p>
+			<p class="explorer__note">A calibrated score from 0 to 1. Agents can gate risky actions on it, and UIs can show it as a trust badge.</p>
+			<div class="blank-wall" hidden>
+				<p class="mono-label muted">What most APIs send instead</p>
+				<pre><code>{ "status": 404, "message": "Not found" }</code></pre>
+				<p class="muted">A blank wall. The agent stalls, retries blindly or makes something up.</p>
 			</div>
-			<div class="package-item">
-				<h3 class="package-item__name">@lushly-dev/afd-adapters</h3>
-				<p class="mono-label">Frontend adapters for rendering CommandResult.</p>
+		</aside>
+	</div>
+</section>
+
+<!-- ============================================================
+     05 · TEST THE JOB
+     ============================================================ -->
+<section id="testing" class="section section--dark inset-frame">
+	<div class="split">
+		<div class="reveal">
+			<p class="eyebrow">05 · Testing</p>
+			<h2 class="testing-title">Test the job.</h2>
+			<p class="testing-sub mono-label text-red">Not the UI.</p>
+			<p>Most suites test buttons and endpoints. AFD tests the job someone hired your software to do. A YAML scenario walks through a real journey: each step calls a command, checks the result and hands data to the next step.</p>
+			<p>No browser, no Selenium, no flaky CSS selectors. Surface validation then audits the command set itself for naming collisions, schema drift and prompt injection.</p>
+		</div>
+
+		<div class="reveal" style="--delay: 1">
+			<div class="code testing-yaml">
+				<div class="code__bar"><span>scenarios/todo-lifecycle.scenario.yaml</span></div>
+				<pre><code class="lang-yaml">name: Update and complete a created todo
+job: todo-lifecycle
+tags: [smoke, step-refs]
+
+steps:
+  - command: todo-create
+    input: { title: Test step references }
+    expect: { success: true }
+
+  - command: todo-update
+    input:
+      id: ${{ steps[0].data.id }}
+      priority: high
+    expect:
+      data: { priority: high }</code></pre>
 			</div>
-			<div class="package-item">
-				<h3 class="package-item__name">@lushly-dev/afd-view-state</h3>
-				<p class="mono-label">UI view state as commands — agents drive the UI too.</p>
+
+			<div class="code runner" data-runner>
+				<div class="code__bar"><span>afd scenario run</span></div>
+				<pre><code class="runner__out"><span class="tok-prompt">afd scenario run scenarios/</span>
+<span class="runner__line">
+Create and Complete Todo</span><span class="runner__line">
+  <span class="tok-ok">✓</span> todo-clear    Clear all todos             <span class="tok-label">2ms</span></span><span class="runner__line">
+  <span class="tok-ok">✓</span> todo-create   Create a new todo item      <span class="tok-label">4ms</span></span><span class="runner__line">
+  <span class="tok-ok">✓</span> todo-list     Verify it appears           <span class="tok-label">1ms</span></span><span class="runner__line">
+  <span class="tok-ok">✓</span> todo-stats    Stats show one pending      <span class="tok-label">1ms</span></span><span class="runner__line">
+
+Update and Complete Created Todo</span><span class="runner__line">
+  <span class="tok-ok">✓</span> todo-create   Create a todo to work with  <span class="tok-label">3ms</span></span><span class="runner__line">
+  <span class="tok-ok">✓</span> todo-update   Update it by step 0's id    <span class="tok-label">2ms</span></span><span class="runner__line">
+  <span class="tok-ok">✓</span> todo-get      Verify the update           <span class="tok-label">1ms</span></span><span class="runner__line">
+
+<span class="tok-label">Summary</span>
+  Scenarios: <span class="tok-ok">4 passed</span>, 0 failed</span><span class="runner__line">
+<span class="tok-ok">✓ All scenarios passed!</span></span></code></pre>
 			</div>
-			<div class="package-item">
-				<h3 class="package-item__name">afd (Python)</h3>
-				<p class="mono-label">Pydantic CommandResult, FastMCP server.</p>
-			</div>
-			<div class="package-item package-item--last">
-				<h3 class="package-item__name">afd (Rust)</h3>
-				<p class="mono-label">CommandResult types, CommandRegistry, WASM.</p>
-			</div>
+		</div>
+	</div>
+
+	<div class="conformance reveal">
+		<div class="conformance__text">
+			<h3>34 cases. Three backends. One contract.</h3>
+			<p class="muted">The same conformance suite runs in CI against the TypeScript, Python and Rust todo backends. Same inputs, same CommandResult, or the build fails.</p>
+		</div>
+		<div class="matrix" data-matrix role="img" aria-label="All 34 conformance cases pass on the TypeScript, Python and Rust backends">
+			<div class="matrix__row"><span class="matrix__lang mono-label">TypeScript</span><span class="matrix__cells"></span><span class="matrix__score mono-label">34/34</span></div>
+			<div class="matrix__row"><span class="matrix__lang mono-label">Python</span><span class="matrix__cells"></span><span class="matrix__score mono-label">34/34</span></div>
+			<div class="matrix__row"><span class="matrix__lang mono-label">Rust</span><span class="matrix__cells"></span><span class="matrix__score mono-label">34/34</span></div>
 		</div>
 	</div>
 </section>
 
 <!-- ============================================================
-     SECTION 8: BOTCORE
+     06 · TWO LOOPS
      ============================================================ -->
-<section id="botcore" class="section section--dark botcore-section">
-	<div class="botcore-inner animate-up">
-		<img src="svg/alfred.svg" alt="Alfred, the Botcore Agent" class="botcore-avatar" />
-		<h2 class="section-title">BOTCORE.</h2>
-		<p class="serif-text section-lead">The agentic development layer built on AFD.</p>
-		<p>Shared bot infrastructure — 50+ bundled skills for linting, testing, releasing, code review, and browser automation. All built on AFD's command-first patterns. It's how AFD powers its own development with Alfred.</p>
-		<a href="https://github.com/lushly-dev/botcore" class="btn" rel="noopener">Explore Botcore →</a>
+<section id="velocity" class="section loops-section">
+	<div class="section-head reveal">
+		<p class="eyebrow">06 · Velocity</p>
+		<h2>Two loops.</h2>
+		<p class="lede">When an agent builds against the UI, every change needs a browser. When it builds against commands, it needs one terminal call.</p>
+	</div>
+
+	<div class="loops reveal" data-loops>
+		<div class="loop loop--slow" data-loop="slow" data-step-ms="1500">
+			<div class="loop__head">
+				<p class="mono-label">Logic in the UI</p>
+				<p class="loop__count mono-label"><span data-loop-count>1</span> loop</p>
+			</div>
+			<ol class="loop__track">
+				<li>Edit component</li>
+				<li>Rebuild</li>
+				<li>Open browser</li>
+				<li>Click through</li>
+				<li>Find what broke</li>
+			</ol>
+		</div>
+
+		<div class="loop loop--fast" data-loop="fast" data-step-ms="420">
+			<div class="loop__head">
+				<p class="mono-label">Logic in commands</p>
+				<p class="loop__count mono-label"><span data-loop-count>6</span> loops</p>
+			</div>
+			<ol class="loop__track">
+				<li>Edit handler</li>
+				<li>afd call</li>
+				<li>✓ Pass</li>
+			</ol>
+		</div>
+	</div>
+
+	<div class="loops-copy split">
+		<p class="reveal">Logic tangled into components is fragile under an agent’s hands. It moves a component and corrupts a data flow. Fix one thing, break three.</p>
+		<p class="reveal" style="--delay: 1">Pull the logic into commands and the UI becomes disposable. Feedback says the flow is wrong? Rebuild the screen in minutes against commands that never stopped passing.</p>
 	</div>
 </section>
+
+<!-- ============================================================
+     07 · PARADIGMS CHANGE
+     ============================================================ -->
+<section id="durability" class="section section--dark timeline-section">
+	<div class="section-head reveal">
+		<p class="eyebrow">07 · Durability</p>
+		<h2>Paradigms change.<br><span class="accent-word">Commands don’t.</span></h2>
+	</div>
+
+	<div class="timeline reveal" role="img" aria-label="Interfaces move from command line to GUI to conversation to ambient AI, while the same command layer runs underneath all of them">
+		<ol class="timeline__eras">
+			<li><span class="mono-label">Then</span>Command line</li>
+			<li><span class="mono-label">Then</span>Full GUI</li>
+			<li><span class="mono-label">Now</span>Chat + GUI</li>
+			<li><span class="mono-label">Soon</span>Minimal UI + AI</li>
+			<li><span class="mono-label">Later</span>Ambient AI</li>
+			<li class="timeline__unknown"><span class="mono-label">Next</span>???</li>
+		</ol>
+		<div class="timeline__rail">
+			<p class="timeline__label mono-label">Your command layer</p>
+			<div class="timeline__marquee">
+				<div class="timeline__track">
+					<span>todo-create</span><span>todo-list</span><span>todo-toggle</span><span>user-get</span><span>order-list</span><span>invoice-send</span><span>report-build</span>
+					<span>todo-create</span><span>todo-list</span><span>todo-toggle</span><span>user-get</span><span>order-list</span><span>invoice-send</span><span>report-build</span>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<p class="timeline-copy reveal">MCP is today’s standard. Function calling is another, and more will come. Design for agents first and you get an API, a schema, testable behavior and automation for free. The command layer outlasts every protocol that sits on top of it.</p>
+</section>
+
+<!-- ============================================================
+     08 · TOOLKIT
+     ============================================================ -->
+<section id="toolkit" class="section">
+	<div class="section-head reveal">
+		<p class="eyebrow">08 · Toolkit</p>
+		<h2>The toolkit.</h2>
+		<p class="lede">Packages you install, not a platform you migrate to. TypeScript, Python and Rust share one agent-visible contract.</p>
+	</div>
+
+	<div class="kit">
+		<div class="kit__group kit__group--core reveal">
+			<p class="kit__heading mono-label">The contract</p>
+			<a class="pkg" href="https://www.npmjs.com/package/@lushly-dev/afd-core">
+				<code class="pkg__code lang-ts">interface CommandResult&lt;T&gt; {
+  success: boolean;
+  data?: T;
+  error?: CommandError;
+  confidence?: number;
+  reasoning?: string;
+  warnings?: Warning[];
+  suggestions?: string[];
+  sources?: Source[];
+  plan?: PlanStep[];
+  alternatives?: T[];
+}</code>
+				<span class="pkg__scope mono-label">@lushly-dev/</span>
+				<span class="pkg__name">afd-core</span>
+				<span class="pkg__desc">CommandResult, CommandError, batching, streaming and pipelines. Everything else builds on these types.</span>
+			</a>
+		</div>
+
+		<div class="kit__group reveal" style="--delay: 1">
+			<p class="kit__heading mono-label">Serve &amp; call</p>
+			<a class="pkg" href="https://www.npmjs.com/package/@lushly-dev/afd-server">
+				<span class="pkg__name">afd-server</span>
+				<span class="pkg__desc">Zod commands and an MCP server factory with middleware.</span>
+			</a>
+			<a class="pkg" href="https://www.npmjs.com/package/@lushly-dev/afd-client">
+				<span class="pkg__name">afd-client</span>
+				<span class="pkg__desc">MCP client, plus DirectClient for ~0.03 ms in-process calls.</span>
+			</a>
+		</div>
+
+		<div class="kit__group reveal" style="--delay: 2">
+			<p class="kit__heading mono-label">Validate</p>
+			<a class="pkg" href="https://www.npmjs.com/package/@lushly-dev/afd-cli">
+				<span class="pkg__name">afd-cli</span>
+				<span class="pkg__desc">Connect, call, validate and explore commands from a shell.</span>
+			</a>
+			<a class="pkg" href="https://www.npmjs.com/package/@lushly-dev/afd-testing">
+				<span class="pkg__name">afd-testing</span>
+				<span class="pkg__desc">JTBD scenario runner, surface validation and mock servers.</span>
+			</a>
+		</div>
+
+		<div class="kit__group reveal">
+			<p class="kit__heading mono-label">Build apps</p>
+			<a class="pkg" href="https://www.npmjs.com/package/@lushly-dev/afd-auth">
+				<span class="pkg__name">afd-auth</span>
+				<span class="pkg__desc">Provider-agnostic auth: middleware, session sync, React hooks.</span>
+			</a>
+			<a class="pkg" href="https://www.npmjs.com/package/@lushly-dev/afd-view-state">
+				<span class="pkg__name">afd-view-state</span>
+				<span class="pkg__desc">UI view state as commands, so agents can drive the screen too.</span>
+			</a>
+			<a class="pkg" href="https://www.npmjs.com/package/@lushly-dev/afd-adapters">
+				<span class="pkg__name">afd-adapters</span>
+				<span class="pkg__desc">Render any CommandResult as themed HTML.</span>
+			</a>
+		</div>
+
+		<div class="kit__group kit__group--langs reveal" style="--delay: 1">
+			<p class="kit__heading mono-label">Beyond TypeScript</p>
+			<a class="pkg" href="https://pypi.org/project/afd/">
+				<span class="pkg__name">afd <small>Python</small></span>
+				<span class="pkg__desc">Pydantic results, FastMCP server, middleware, testing and handoff.</span>
+			</a>
+			<a class="pkg" href="https://github.com/lushly-dev/afd/tree/main/packages/rust">
+				<span class="pkg__name">afd <small>Rust</small></span>
+				<span class="pkg__desc">CommandResult types and a CommandRegistry. WASM-compatible.</span>
+			</a>
+		</div>
+	</div>
+
+	<div class="shipped reveal">
+		<p class="mono-label muted">Also shipped</p>
+		<ul class="chips">
+			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/command-pipeline">Pipelines</a></li>
+			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/handoff-pattern">Real-time handoff</a></li>
+			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/command-exposure-undo">Exposure &amp; undo</a></li>
+			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/command-trust-config">Trust config</a></li>
+			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/command-prerequisites">Prerequisites</a></li>
+			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/middleware-defaults">Middleware defaults</a></li>
+			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/lazy-loading-discovery">Lazy tool discovery</a></li>
+			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/semantic-quality-validation">Surface validation</a></li>
+			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/schema-complexity-scoring">Schema complexity scoring</a></li>
+		</ul>
+	</div>
+</section>
+
+<!-- ============================================================
+     09 · BOTCORE
+     ============================================================ -->
+<section id="botcore" class="section section--dark botcore">
+	<div class="botcore__inner reveal">
+		<img src="svg/alfred.svg" alt="Alfred, the botcore agent" class="botcore__avatar" width="140" height="140">
+		<p class="eyebrow">09 · Built with AFD</p>
+		<h2>Botcore.</h2>
+		<p class="lede">Shared agent tooling for every repo, built on AFD.</p>
+		<p class="muted">Commands, 50+ bundled skills and quality gates in one <code>pip install</code>, so the agents in each of your repositories stop drifting apart. It’s how AFD’s own bot, Alfred, lints, tests, reviews and releases this project.</p>
+		<a href="https://github.com/lushly-dev/botcore" class="btn">Explore botcore <span aria-hidden="true">→</span></a>
+	</div>
+</section>
+
+</main>
 
 <!-- ============================================================
      FOOTER
      ============================================================ -->
-<footer id="footer" class="footer section--light">
-	<div class="footer-byline animate-up">
-		<p class="footer-quote serif-text">AFD grew from 30 years of building interfaces — and the realization that the most durable layer isn't the UI. It's the commands underneath.</p>
-		<p class="footer-author">— Jason Falk</p>
-		<p class="mono-label footer-credits">Principal Design & UX Engineering Leader, Microsoft — Data Cloud Studios, AI Adoption & Systems</p>
-		<p class="mono-label footer-credits" style="margin-top: var(--space-sm); opacity: 0.6;">Previously:</p>
-		<p class="mono-label footer-credits">Co-creator of <a href="https://fast.design" target="_blank" rel="noopener">FAST</a> · Design Director for Power BI, Microsoft Fabric, and Edge</p>
-		<p class="mono-label footer-credits">Creator of Microsoft Web Framework — the design system behind 130,000+ Microsoft.com pages since 2016</p>
+<footer class="footer section--light">
+	<div class="footer-note">
+		<p class="footer-quote">AFD grew out of thirty years of building interfaces, and the realization that the most durable layer isn’t the UI. It’s the commands underneath.</p>
+		<p class="footer-author">Jason Falk · <a href="https://github.com/Falkicon">@Falkicon</a></p>
+		<p class="footer-credits mono-label">Design &amp; UX engineering leader at Microsoft. Co-creator of <a href="https://fast.design">FAST</a>, creator of Microsoft Web Framework.</p>
 	</div>
 	<div class="footer-bottom">
-		<div class="nav-logo"><img src="svg/afd-logo.svg" alt="AFD" class="nav-logo__img"></div>
-		<div class="footer-links mono-label">
-			<a href="https://github.com/lushly-dev/afd" rel="noopener">GitHub</a>
-			<span>·</span>
-			<a href="https://github.com/lushly-dev/afd/blob/main/LICENSE" rel="noopener">MIT License</a>
-		</div>
-		<div class="mono-label">© 2026 LUSHLY-DEV</div>
+		<a href="#top" class="logo" aria-label="AFD, back to top"><span class="logo__slash">/</span>AFD</a>
+		<ul class="footer-links mono-label">
+			<li><a href="https://github.com/lushly-dev/afd">GitHub</a></li>
+			<li><a href="https://github.com/lushly-dev/afd/blob/main/docs/whitepaper/AFD-Whitepaper.md">Whitepaper</a></li>
+			<li><a href="https://github.com/lushly-dev/afd/blob/main/CHANGELOG.md">Changelog</a></li>
+			<li><a href="https://www.npmjs.com/org/lushly-dev">npm</a></li>
+			<li><a href="https://pypi.org/project/afd/">PyPI</a></li>
+			<li><a href="llms.txt">llms.txt</a></li>
+			<li><a href="https://github.com/lushly-dev/afd/blob/main/LICENSE">MIT License</a></li>
+		</ul>
+		<p class="mono-label">© 2026 lushly-dev</p>
 	</div>
 </footer>
 
-<script src="script.js"></script>
 </body>
 </html>

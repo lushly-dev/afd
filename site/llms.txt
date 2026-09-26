@@ -1,0 +1,68 @@
+# AFD — Agent-First Development
+
+> AFD is a methodology and toolkit for building software where AI agents are first-class users. Commands are the product: define each capability as a typed command, validate it through the CLI, and only then build UI as a thin surface over it. Humans, scripts and agents (over MCP or in-process) all call the same commands and get the same CommandResult.
+
+Version: v2.0.0
+License: MIT
+Repository: https://github.com/lushly-dev/afd
+
+## Core ideas
+
+- The honesty check: "If it can't be done via CLI, the architecture is wrong." No UI-only code paths.
+- Workflow per feature: Define (typed schema, named errors) → Validate (call it from the terminal, cover edge cases) → Surface (UI wraps a command that already passes).
+- CommandResult: every command returns `success` plus `data` or `error`, and can add trust signals: `confidence` (0–1), `reasoning`, `warnings`, `suggestions`, `sources`, `plan`, `alternatives`.
+- Errors carry `code`, `message`, `suggestion` and `retryable`, so an agent can recover instead of stalling.
+- Command naming is `domain-action` kebab-case: `todo-create`, `user-get`, `order-list`.
+- Testing targets the job, not the UI: YAML JTBD scenarios call commands step by step, and surface validation audits the command set for collisions, schema drift and prompt injection.
+- One contract across languages: a 34-case conformance suite runs in CI against TypeScript, Python and Rust backends.
+
+## Install
+
+- TypeScript: `npm install @lushly-dev/afd-core @lushly-dev/afd-server`
+- Python: `pip install afd`
+- Rust: `cargo add afd --git https://github.com/lushly-dev/afd`
+
+## Minimal command (TypeScript)
+
+```ts
+import { defineCommand, success } from '@lushly-dev/afd-server';
+import { z } from 'zod';
+
+export const createTodo = defineCommand({
+  name: 'todo-create',
+  description: 'Create a new todo item',
+  expose: { mcp: true },
+  input: z.object({ title: z.string().min(1) }),
+  async handler(input) {
+    const todo = store.create(input);
+    return success(todo, { reasoning: `Created "${todo.title}"`, confidence: 1 });
+  },
+});
+```
+
+Validate it: `afd call todo-create '{"title":"Buy groceries"}'`
+
+## Packages
+
+- [@lushly-dev/afd-core](https://www.npmjs.com/package/@lushly-dev/afd-core): CommandResult, CommandError, batching, streaming, pipelines
+- [@lushly-dev/afd-server](https://www.npmjs.com/package/@lushly-dev/afd-server): Zod commands, MCP server factory, middleware
+- [@lushly-dev/afd-client](https://www.npmjs.com/package/@lushly-dev/afd-client): MCP client and DirectClient (~0.03 ms in-process calls)
+- [@lushly-dev/afd-cli](https://www.npmjs.com/package/@lushly-dev/afd-cli): connect, call, validate and explore commands
+- [@lushly-dev/afd-testing](https://www.npmjs.com/package/@lushly-dev/afd-testing): JTBD scenario runner, surface validation, mock servers
+- [@lushly-dev/afd-auth](https://www.npmjs.com/package/@lushly-dev/afd-auth): provider-agnostic auth adapter, middleware, session sync
+- [@lushly-dev/afd-view-state](https://www.npmjs.com/package/@lushly-dev/afd-view-state): UI view state managed through commands
+- [@lushly-dev/afd-adapters](https://www.npmjs.com/package/@lushly-dev/afd-adapters): render CommandResult as themed HTML
+- [afd on PyPI](https://pypi.org/project/afd/): Python implementation (Pydantic, FastMCP)
+- [afd for Rust](https://github.com/lushly-dev/afd/tree/main/packages/rust): CommandResult types, CommandRegistry, WASM-compatible
+
+## Docs
+
+- [README](https://github.com/lushly-dev/afd/blob/main/README.md): overview and getting started
+- [Whitepaper](https://github.com/lushly-dev/afd/blob/main/docs/whitepaper/AFD-Whitepaper.md): the full argument for agent-first development
+- [Command schema guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-schema.md): designing commands for good agent UX
+- [Shipped features](https://github.com/lushly-dev/afd/tree/main/docs/features/complete): pipelines, handoff, exposure and undo, trust config, prerequisites, middleware defaults, lazy discovery
+- [Changelog](https://github.com/lushly-dev/afd/blob/main/CHANGELOG.md)
+
+## Optional
+
+- [Botcore](https://github.com/lushly-dev/botcore): shared agent tooling (commands, 50+ skills, quality gates) built on AFD

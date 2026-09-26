@@ -1,0 +1,135 @@
+// AFD landing page — entry point. Every module degrades to a static page.
+
+import { initAgentView } from './agent-view.js';
+import { initExplorer } from './explorer.js';
+import { highlightAll } from './highlight.js';
+import { initLoops } from './loops.js';
+import { initRunner } from './runner.js';
+import { initSurfaces } from './surfaces.js';
+import { initTabs } from './util.js';
+
+function initReveal() {
+	if (!('IntersectionObserver' in window)) return;
+	const observer = new IntersectionObserver(
+		(entries) => {
+			for (const entry of entries) {
+				if (!entry.isIntersecting) continue;
+				entry.target.classList.add('is-visible');
+				observer.unobserve(entry.target);
+			}
+		},
+		{ rootMargin: '0px 0px -8% 0px', threshold: 0.05 },
+	);
+	for (const el of document.querySelectorAll('.reveal')) {
+		const rect = el.getBoundingClientRect();
+		if (rect.top < window.innerHeight && rect.bottom > 0) el.classList.add('is-visible');
+		else observer.observe(el);
+	}
+	document.documentElement.classList.add('reveal-ready');
+}
+
+function initNav() {
+	const nav = document.getElementById('site-nav');
+	const toggle = nav.querySelector('.nav-toggle');
+	const menu = document.getElementById('nav-menu');
+
+	const setOpen = (open) => {
+		toggle.setAttribute('aria-expanded', String(open));
+		toggle.textContent = open ? 'Close' : 'Menu';
+		menu.classList.toggle('is-open', open);
+	};
+	toggle.addEventListener('click', () => setOpen(toggle.getAttribute('aria-expanded') !== 'true'));
+	menu.addEventListener('click', (event) => {
+		if (event.target.closest('a')) setOpen(false);
+	});
+	document.addEventListener('keydown', (event) => {
+		if (event.key === 'Escape' && menu.classList.contains('is-open')) {
+			setOpen(false);
+			toggle.focus();
+		}
+	});
+
+	const onScroll = () => nav.classList.toggle('is-scrolled', window.scrollY > 8);
+	onScroll();
+	window.addEventListener('scroll', onScroll, { passive: true });
+
+	// Mark the nav link for the section in view.
+	const links = new Map(
+		[...menu.querySelectorAll('a[href^="#"]')].map((a) => [a.getAttribute('href').slice(1), a]),
+	);
+	const observer = new IntersectionObserver(
+		(entries) => {
+			for (const entry of entries) {
+				if (!entry.isIntersecting) continue;
+				for (const link of links.values()) link.removeAttribute('aria-current');
+				links.get(entry.target.id)?.setAttribute('aria-current', 'true');
+			}
+		},
+		{ rootMargin: '-45% 0px -50% 0px' },
+	);
+	for (const id of links.keys()) {
+		const section = document.getElementById(id);
+		if (section) observer.observe(section);
+	}
+}
+
+function initInstall() {
+	const install = document.querySelector('[data-tabs]');
+	if (!install) return;
+	initTabs(install.querySelector('[role="tablist"]'));
+	const copy = install.querySelector('[data-copy]');
+	copy.addEventListener('click', async () => {
+		const panel = install.querySelector('[role="tabpanel"]:not([hidden])');
+		try {
+			await navigator.clipboard.writeText(panel.textContent.trim());
+			copy.textContent = 'Copied';
+		} catch {
+			copy.textContent = 'Select & copy';
+		}
+		copy.classList.add('is-done');
+		setTimeout(() => {
+			copy.textContent = 'Copy';
+			copy.classList.remove('is-done');
+		}, 1800);
+	});
+}
+
+// Stepped workflow: highlight the step whose panel is mid-screen.
+function initSteps() {
+	const links = [...document.querySelectorAll('[data-step-link]')];
+	if (!links.length) return;
+	const observer = new IntersectionObserver(
+		(entries) => {
+			for (const entry of entries) {
+				if (!entry.isIntersecting) continue;
+				const step = entry.target.dataset.step;
+				for (const link of links) {
+					if (link.dataset.stepLink === step) link.setAttribute('aria-current', 'step');
+					else link.removeAttribute('aria-current');
+				}
+			}
+		},
+		{ rootMargin: '-40% 0px -55% 0px' },
+	);
+	for (const panel of document.querySelectorAll('[data-step]')) observer.observe(panel);
+}
+
+// Run every module independently so one failure can't take the page down.
+for (const init of [
+	highlightAll,
+	initNav,
+	initInstall,
+	initSteps,
+	initSurfaces,
+	initExplorer,
+	initRunner,
+	initLoops,
+	initAgentView,
+	initReveal,
+]) {
+	try {
+		init();
+	} catch (error) {
+		console.error(`[afd.dev] ${init.name} failed`, error);
+	}
+}
