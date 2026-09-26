@@ -40,6 +40,7 @@ On September 26, 2026, `alfred parity` reports:
 - `typescript`: 186 exports
 - `python`: 179 exports
 - `rust`: 225 exports
+- `cpp`: 158 exports (tracked since #297)
 - `missing_from_rust`: 10 exports
 
 None of the 10 remaining gaps are from this plan's list. Each one entered the TypeScript barrel after #181:
