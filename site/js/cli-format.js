@@ -14,7 +14,13 @@ export function confidenceBar(confidence) {
 
 /** Highlight a JSON value (keys, strings, numbers, literals). */
 export function jsonHtml(value, indent = 2) {
-	const text = JSON.stringify(value, null, indent) ?? 'undefined';
+	// 'inline' = one line with spaces after commas and colons, so it wraps nicely.
+	const text =
+		(indent === 'inline'
+			? JSON.stringify(value)
+					?.replace(/,(?=["{[])/g, ', ')
+					.replace(/":/g, '": ')
+			: JSON.stringify(value, null, indent)) ?? 'undefined';
 	return escape(text).replace(
 		/(&quot;|")((?:[^"\\]|\\.)*?)\1(\s*:)?|\b(true|false|null)\b|-?\b\d+(?:\.\d+)?\b/g,
 		(match, _q, _body, colon, literal) => {

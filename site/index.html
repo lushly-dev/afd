@@ -84,10 +84,10 @@
 		<span>the <span class="accent-word">product.</span></span>
 	</h1>
 
+	<div class="hero-main">
 	<div class="hero-body">
 		<div class="hero-copy">
 			<p class="hero-def">A methodology plus TypeScript, Python and Rust libraries. Define a typed command once and serve it as an MCP tool, a CLI call and an in-app agent action.</p>
-			<p class="hero-lede">Software was built for fingers and eyes. Agents have neither. So AFD flips the order: prove each command in the terminal first, and paint the UI last.</p>
 		</div>
 
 		<div class="hero-actions">
@@ -116,9 +116,13 @@
 			<span class="mono-label">One command · three surfaces · one result. <span class="surfaces__try">All three are live. Try one.</span></span>
 		</figcaption>
 
-		<div class="surfaces__grid">
+		<div class="stage">
+			<span class="crop crop--tl" aria-hidden="true"></span>
+			<span class="crop crop--tr" aria-hidden="true"></span>
+			<span class="crop crop--bl" aria-hidden="true"></span>
+			<span class="crop crop--br" aria-hidden="true"></span>
 			<!-- Terminal: a real command line over the page's AFD registry -->
-			<div class="surface surface--human" data-surface="0">
+			<div class="surface surface--human win win--term" data-surface="0">
 				<div class="surface__bar mono-label"><span class="surface__dot"></span>Terminal<span class="surface__who">you</span></div>
 				<div class="term" data-terminal>
 					<pre class="term__out" aria-live="polite"></pre>
@@ -130,14 +134,12 @@
 			</div>
 
 			<!-- Agent: a scripted model, calling the real command -->
-			<div class="surface surface--agent" data-surface="1">
+			<div class="surface surface--agent win win--agent" data-surface="1">
 				<div class="surface__bar mono-label"><span class="surface__dot"></span>Agent · MCP<span class="surface__who">simulated model, real command</span></div>
 				<div class="surface__body agent" data-agent>
 					<p class="agent-msg" data-agent-prompt>“Add groceries to my list. It’s urgent.”</p>
 					<pre class="agent__call" data-agent-call aria-live="polite"><code class="lang-json">tool_use: "todo"
-{ "action": "create",
-  "params": { "title": "Buy groceries",
-              "priority": "high" } }</code></pre>
+{"action": "create", "params": {"title": "Buy groceries", "priority": "high"}}</code></pre>
 					<div class="agent__confirm" data-agent-confirm hidden>
 						<p><strong>todo-clear</strong> is marked <span class="hazard">destructive</span>. Let the agent run it?</p>
 						<div class="agent__confirm-actions">
@@ -145,12 +147,15 @@
 							<button type="button" class="mini-btn" data-agent-deny>Deny</button>
 						</div>
 					</div>
-					<button type="button" class="mini-btn mini-btn--agent" data-agent-run>Run the agent ▸</button>
+					<div class="agent__foot">
+						<button type="button" class="mini-btn mini-btn--agent" data-agent-run>Run agent ▸</button>
+						<span class="agent__note">Scripted model · real command</span>
+					</div>
 				</div>
 			</div>
 
 			<!-- Web app: a real form calling the same command -->
-			<div class="surface surface--human" data-surface="2">
+			<div class="surface surface--human win win--app" data-surface="2">
 				<div class="surface__bar mono-label"><span class="surface__dot"></span>Web app<span class="surface__who">you</span></div>
 				<div class="surface__body app">
 					<form class="app__form" data-app-form>
@@ -169,26 +174,19 @@
 					<ul class="app__list" data-app-list aria-label="Todos"></ul>
 				</div>
 			</div>
-		</div>
 
-		<svg class="surfaces__rail" viewBox="0 0 300 60" preserveAspectRatio="none" aria-hidden="true">
-			<path data-rail="0" d="M50 0 C50 34, 150 26, 150 60" />
-			<path data-rail="1" d="M150 0 L150 60" />
-			<path data-rail="2" d="M250 0 C250 34, 150 26, 150 60" />
-			<path class="rail-pulse" data-pulse="0" d="M50 0 C50 34, 150 26, 150 60" />
-			<path class="rail-pulse" data-pulse="1" d="M150 0 L150 60" />
-			<path class="rail-pulse" data-pulse="2" d="M250 0 C250 34, 150 26, 150 60" />
-		</svg>
-
-		<div class="surfaces__result">
+			<div class="win win--layer">
 			<div class="code result-panel" data-result>
+				<span class="layer-pulse" data-layer-pulse aria-hidden="true"></span>
 				<div class="code__bar"><span data-result-title>Command layer · CommandResult</span><span class="surfaces__via" data-result-via></span></div>
 				<pre><code data-result-code><span class="tok-com">// Run a command from any surface above.
 // Every result lands here, and in the command log below.</span></code></pre>
 				<span class="stamp" data-result-stamp aria-hidden="true"></span>
 			</div>
+			</div>
 		</div>
 	</figure>
+	</div>
 </section>
 
 <!-- ============================================================

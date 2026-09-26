@@ -413,6 +413,8 @@
 }
 
 .app__list {
+	flex: 1;
+	min-height: 0;
 	list-style: none;
 	overflow: auto;
 }
@@ -1019,4 +1021,319 @@ body.has-dock {
 	.log__item pre {
 		padding-left: 1rem;
 	}
+}
+
+/* ============================================================
+   The hero as a stage: a full-width headline, then the three
+   live surfaces as overlapping windows sitting on the command
+   layer, on drafting paper. Collapses to a stack on small screens.
+   ============================================================ */
+
+.hero {
+	min-height: calc(100svh - var(--nav-h));
+	padding-top: clamp(1rem, 2vw, 1.75rem);
+	padding-bottom: clamp(3rem, 6vw, 6rem);
+}
+
+.hero .hero-top {
+	margin-bottom: clamp(0.75rem, 1.5vw, 1.25rem);
+}
+
+.hero .hero-title {
+	font-size: clamp(3rem, 9.3vw, 10.5rem);
+	line-height: 0.84;
+	letter-spacing: -0.035em;
+}
+
+.hero-main {
+	display: grid;
+	grid-template-columns: minmax(17rem, 4fr) minmax(0, 8fr);
+	gap: clamp(2rem, 4vw, 4.5rem);
+	align-items: start;
+	margin-top: clamp(1.5rem, 2.5vw, 2.25rem);
+}
+
+.hero-main .hero-body {
+	display: flex;
+	flex-direction: column;
+	gap: 1.75rem;
+	margin-top: 0;
+}
+
+.hero-main .hero-copy {
+	max-width: 30rem;
+}
+
+.hero-main .hero-def {
+	font-size: clamp(1.3rem, 1.05rem + 0.6vw, 1.7rem);
+}
+
+.hero-main .hero-actions {
+	gap: 1.25rem;
+}
+
+.hero-main .surfaces {
+	margin-top: 0;
+}
+
+.hero-main .surfaces__caption {
+	justify-content: flex-start;
+	margin-bottom: 1rem;
+}
+
+/* Drafting paper */
+.stage {
+	--grid: rgba(24, 24, 24, 0.07);
+	position: relative;
+	height: 32rem;
+	background-color: rgba(255, 255, 255, 0.25);
+	background-image:
+		linear-gradient(var(--grid) 1px, transparent 1px),
+		linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+	background-size: 24px 24px;
+	background-position: -1px -1px;
+	border: 1px solid rgba(24, 24, 24, 0.14);
+}
+
+.stage .crop {
+	border-color: var(--charcoal);
+}
+
+.stage .crop--tl {
+	top: -0.7rem;
+	left: -0.7rem;
+}
+
+.stage .crop--tr {
+	top: -0.7rem;
+	right: -0.7rem;
+}
+
+.stage .crop--bl {
+	bottom: -0.7rem;
+	left: -0.7rem;
+}
+
+.stage .crop--br {
+	bottom: -0.7rem;
+	right: -0.7rem;
+}
+
+/* Windows */
+.win {
+	--r: 0deg;
+	position: absolute;
+	transform: rotate(var(--r));
+	transition:
+		transform 0.5s var(--ease-out),
+		box-shadow var(--dur) var(--ease-out),
+		border-color var(--dur) var(--ease-out);
+}
+
+.win--term {
+	--r: -1.4deg;
+	--n: 1;
+	left: 2%;
+	top: 1.25rem;
+	width: 47%;
+	z-index: 3;
+}
+
+.win--agent {
+	--r: 1deg;
+	--n: 2;
+	left: 37.5%;
+	top: 3rem;
+	width: 32%;
+	z-index: 4;
+}
+
+.win--app {
+	--r: 2deg;
+	--n: 3;
+	right: 2%;
+	top: 0.75rem;
+	width: 29%;
+	z-index: 3;
+}
+
+.win--layer {
+	--n: 0;
+	left: 7%;
+	right: 7%;
+	top: 16.75rem;
+	bottom: 1.25rem;
+	z-index: 1;
+}
+
+.stage .term,
+.stage .agent,
+.stage .app {
+	height: 13rem;
+}
+
+.stage .surface__who {
+	display: none;
+}
+
+.stage .agent__call {
+	font-size: 0.72rem;
+}
+
+/* Hover, focus or firing brings a window to the front. */
+.win:hover,
+.win:focus-within {
+	z-index: 7;
+}
+
+.win.is-front {
+	z-index: 6;
+}
+
+.win.is-active {
+	transform: translate(-4px, -8px) rotate(var(--r));
+}
+
+/* The command layer is the floor everything lands on. */
+.win--layer .result-panel {
+	height: 100%;
+	display: flex;
+	flex-direction: column;
+	--code-border: var(--charcoal);
+	--code-shadow: var(--teal);
+	box-shadow: 10px 10px 0 var(--teal);
+}
+
+.win--layer .result-panel.is-failure {
+	box-shadow: 10px 10px 0 var(--red);
+}
+
+.win--layer .result-panel pre {
+	flex: 1;
+	min-height: 0;
+	overflow: auto;
+	padding: 1.1rem 1.5rem;
+}
+
+.win--layer .stamp {
+	top: 2.9rem;
+}
+
+.layer-pulse {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: -3px;
+	height: 5px;
+	background: var(--human);
+	clip-path: inset(0 calc(100% - var(--x, 50%)) 0 var(--x, 50%));
+	opacity: 0;
+	z-index: 2;
+}
+
+.layer-pulse[data-surface="agent"] {
+	background: var(--agent-glow);
+}
+
+.layer-pulse.is-firing {
+	animation: spread 0.9s var(--ease-out);
+}
+
+@keyframes spread {
+	0% {
+		opacity: 1;
+		clip-path: inset(0 calc(100% - var(--x, 50%) - 6px) 0 calc(var(--x, 50%) - 6px));
+	}
+	70% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+		clip-path: inset(0 0 0 0);
+	}
+}
+
+/* Entrance: the floor first, then each window drops in and settles. */
+.stage.is-entering .win {
+	animation: drop 0.75s var(--ease-out) backwards;
+	animation-delay: calc(1.05s + var(--n) * 0.14s);
+}
+
+@keyframes drop {
+	from {
+		opacity: 0;
+		transform: translateY(-2.5rem) rotate(calc(var(--r) * 4));
+	}
+}
+
+@media (max-width: 1180px) {
+	.hero-main {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.hero-main .hero-body {
+		display: grid;
+		grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+		align-items: start;
+	}
+
+	.hero-main .hero-copy {
+		max-width: none;
+	}
+}
+
+@media (max-width: 860px) {
+	.hero {
+		min-height: 0;
+	}
+
+	.hero-main .hero-body {
+		display: flex;
+	}
+
+	.stage {
+		height: auto;
+		display: flex;
+		flex-direction: column;
+		gap: 1.25rem;
+		padding: 1rem;
+	}
+
+	.win,
+	.win--term,
+	.win--agent,
+	.win--app,
+	.win--layer {
+		position: relative;
+		inset: auto;
+		width: auto;
+		--r: 0deg;
+	}
+
+	.win--layer .result-panel pre {
+		max-height: 18rem;
+	}
+
+	.stage .term,
+	.stage .agent,
+	.stage .app {
+		height: auto;
+		min-height: 12rem;
+	}
+}
+
+.agent__note {
+	font-family: var(--font-mono);
+	font-size: 0.66rem;
+	color: #8c877f;
+	text-transform: uppercase;
+	letter-spacing: 0.05em;
+}
+
+.agent__foot {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
 }

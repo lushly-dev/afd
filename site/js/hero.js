@@ -73,22 +73,26 @@ function makeResultPanel(figure) {
 	const code = figure.querySelector('[data-result-code]');
 	const stamp = figure.querySelector('[data-result-stamp]');
 	const surfaces = [...figure.querySelectorAll('[data-surface]')];
-	const pulses = [...figure.querySelectorAll('[data-pulse]')];
+	const layerPulse = figure.querySelector('[data-layer-pulse]');
 
 	return async function show(entry) {
 		const index = SURFACE_INDEX[entry.surface];
 		surfaces.forEach((el, n) => {
 			el.classList.toggle('is-active', n === index);
+			// The window that fired comes to the front, like a real desktop.
+			el.classList.toggle('is-front', n === index);
 		});
 		if (index !== undefined && !reducedMotion.matches) {
-			const pulse = pulses[index];
-			// Dash lengths are in screen pixels (non-scaling stroke), so measure the path.
-			const box = pulse.getBoundingClientRect();
-			pulse.style.setProperty('--len', `${Math.hypot(box.width, box.height) * 1.15 + 28}px`);
-			pulse.classList.remove('is-firing');
-			void pulse.getBoundingClientRect();
-			pulse.classList.add('is-firing');
-			await wait(420);
+			// The call lands on the command layer right under the window it came from.
+			const from = surfaces[index].getBoundingClientRect();
+			const to = panel.getBoundingClientRect();
+			const x = Math.min(Math.max(from.left + from.width / 2 - to.left, 0), to.width);
+			layerPulse.style.setProperty('--x', `${x}px`);
+			layerPulse.dataset.surface = entry.surface;
+			layerPulse.classList.remove('is-firing');
+			void layerPulse.offsetWidth;
+			layerPulse.classList.add('is-firing');
+			await wait(320);
 		}
 		title.textContent = `${entry.name} → CommandResult`;
 		via.textContent = SURFACE_LABEL[entry.surface] ?? '';
@@ -283,7 +287,7 @@ function makeAgent(root) {
 
 	const toolCall = ({ command, params }) => {
 		const action = command.replace(/^todo-/, '');
-		return `<span class="tok-label">tool_use:</span> <span class="tok-str">"todo"</span>\n${jsonHtml({ action, params })}`;
+		return `<span class="tok-label">tool_use:</span> <span class="tok-str">"todo"</span>\n${jsonHtml({ action, params }, 'inline')}`;
 	};
 
 	const askConfirm = () =>
@@ -322,7 +326,7 @@ function makeAgent(root) {
 			await call(turn.command, turn.params, { surface: 'agent' });
 		}
 		runBtn.disabled = false;
-		runBtn.textContent = step % AGENT_SCRIPT.length === 0 ? 'Run the agent again ▸' : 'Next agent turn ▸';
+		runBtn.textContent = step % AGENT_SCRIPT.length === 0 ? 'Run again ▸' : 'Next turn ▸';
 		busy = false;
 	}
 
@@ -403,6 +407,9 @@ export function initHero() {
 		if (entry.surface in SURFACE_INDEX) show(entry);
 	});
 
+	// Windows drop onto the stage one by one after the headline is typed.
+	if (!reducedMotion.matches) figure.querySelector('.stage')?.classList.add('is-entering');
+
 	// Play one pass through all three surfaces the first time the figure is
 	// seen, unless the visitor gets there first or prefers less motion.
 	if (reducedMotion.matches) return;
@@ -415,7 +422,7 @@ export function initHero() {
 		async () => {
 			if (played || touched) return;
 			played = true;
-			await wait(1400);
+			await wait(2600);
 			if (touched) return;
 			await terminal.type('afd call todo-create \'{"title":"Ship the site","priority":"high"}\'');
 			await wait(1500);
@@ -426,6 +433,6 @@ export function initHero() {
 			await app.fill('Write the changelog', 'medium');
 		},
 		() => {},
-		0.45
+		0.2
 	);
 }
