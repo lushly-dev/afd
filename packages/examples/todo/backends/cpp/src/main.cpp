@@ -17,7 +17,7 @@
 int main(int argc, char** argv) {
     auto clock = std::make_shared<afd::SystemClock>();
     auto store = std::make_shared<todo::TodoStore>(clock, std::make_shared<afd::SeededRandom>());
-    afd::CommandRegistry registry(afd::RegistryOptions{.clock = clock});
+    afd::CommandRegistry registry(afd::CommandRegistryOptions{.clock = clock});
     if (const auto error = todo::register_todo_commands(registry, store)) {
         std::fprintf(stderr, "failed to register commands: %s\n", error->c_str());
         return 2;

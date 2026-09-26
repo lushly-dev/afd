@@ -37,14 +37,14 @@ struct TimingOptions {
 };
 
 /// Sets `context.trace_id` when it is empty.
-Middleware create_auto_trace_id_middleware(TraceIdOptions options = {});
+CommandMiddleware create_auto_trace_id_middleware(TraceIdOptions options = {});
 
 /// Logs "[<traceId>] Executing: <name>" and "[<traceId>] Completed: <name> (<ms>ms) -
 /// SUCCESS|FAILURE".
-Middleware create_logging_middleware(LoggingOptions options = {});
+CommandMiddleware create_logging_middleware(LoggingOptions options = {});
 
 /// Reports commands slower than `slow_threshold_ms`.
-Middleware create_timing_middleware(TimingOptions options = {});
+CommandMiddleware create_timing_middleware(TimingOptions options = {});
 
 struct DefaultMiddlewareOptions {
     /// `std::nullopt` disables that middleware.
@@ -54,7 +54,7 @@ struct DefaultMiddlewareOptions {
 };
 
 /// Trace ID (outermost), then logging, then timing.
-std::vector<Middleware> default_middleware(DefaultMiddlewareOptions options = {});
+std::vector<CommandMiddleware> default_middleware(DefaultMiddlewareOptions options = {});
 
 /// A random UUID v4 ("xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx") drawn from `random`.
 std::string random_uuid(RandomSource& random);

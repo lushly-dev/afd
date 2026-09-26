@@ -142,6 +142,16 @@ struct PipelineRequest {
     std::optional<Json> input;
 };
 
+/// Whether `request` passes `parse_pipeline_request`.
+bool is_pipeline_request(const Json& request);
+
+/// Whether `value` has the shape of a PipelineResult: `data`, `metadata` and a `steps` array.
+bool is_pipeline_result(const Json& value);
+
+/// A request for `steps`, with `options` when given.
+PipelineRequest create_pipeline(std::vector<PipelineStep> steps,
+                                std::optional<PipelineOptions> options = std::nullopt);
+
 void to_json(Json& out, const PipelineStep& step);
 void to_json(Json& out, const PipelineOptions& options);
 void to_json(Json& out, const PipelineRequest& request);

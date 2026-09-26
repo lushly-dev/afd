@@ -89,7 +89,8 @@ afd::Warning warning(const char* code, std::string message, afd::WarningSeverity
 }
 
 afd::CommandDefinition command(const char* name, const char* description,
-                               std::vector<std::string> tags, bool mutation, afd::Handler handler) {
+                               std::vector<std::string> tags, bool mutation,
+                               afd::CommandHandler handler) {
     afd::CommandDefinition definition;
     definition.name = name;
     definition.description = description;

@@ -535,6 +535,28 @@ backends/cpp/
 
 **Exit:** `alfred.yml` is green with a C++ budget, and the skill passes the skill linter.
 
+### As built (Phase 5)
+
+- **`parse_cpp_exports`** lexes the headers: comments, string literals (including raw strings), character literals and preprocessor lines.
+  - It tracks namespace and brace scope, and reads the declarations directly in `namespace afd`, following `#include "afd/..."` from `afd/afd.hpp`.
+  - A nested public namespace counts as one export, so `afd::error_codes` lines up with TypeScript's `ErrorCodes`. `afd::detail` and C++ idioms are skipped (`to_json`, `Json`, `Expected`, the version constants).
+- **Budget:** `missing_from_cpp` starts at 73. The C++ wire round-trip suite is registered, and C++ joins the core-exports check and the wire-coverage assertions.
+- **Renamed to TypeScript's names** (nothing is released yet): `Handler` → `CommandHandler`, `Middleware` → `CommandMiddleware`, `RegistryOptions` → `CommandRegistryOptions`.
+- **Added:**
+  - the handoff types and helpers, which were in v0.1 scope but missed in Phases 1–3;
+  - `ErrorCode`;
+  - `create_source`, `create_step`, `update_step_status`, `create_warning`;
+  - the stream-chunk guards;
+  - `is_batch_request`, `is_batch_result`, `create_batch_request`;
+  - `is_pipeline_request`, `is_pipeline_result`, `create_pipeline`.
+- **The remaining gaps are deliberate:**
+  - MCP JSON-RPC types and helpers;
+  - the typed pipeline-condition structs and their guards (C++ keeps conditions as validated JSON);
+  - telemetry, timeout controllers and streamable-command helpers;
+  - the pipeline aggregation helpers;
+  - `CommandParameter` and `createCommandRegistry`.
+- **The `afd-cpp` skill:** every C++ example in it is compiled and run against the library, and the test example runs under doctest.
+
 ---
 
 ## Phase 6: Packaging and release

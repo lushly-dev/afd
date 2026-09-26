@@ -139,12 +139,12 @@ TEST_CASE("contexts: a command outside the active context is unavailable") {
 
 TEST_CASE("validation runs before middleware and the handler, which get the parsed input") {
     std::vector<std::string> calls;
-    afd::CommandRegistry registry(
-        afd::RegistryOptions{.middleware = {[&](std::string_view, const afd::Json& input,
-                                                afd::CommandContext&, const afd::Next& next) {
-                                 calls.push_back("middleware:" + input.dump());
-                                 return next();
-                             }}});
+    afd::CommandRegistry registry(afd::CommandRegistryOptions{
+        .middleware = {[&](std::string_view, const afd::Json& input, afd::CommandContext&,
+                           const afd::Next& next) {
+            calls.push_back("middleware:" + input.dump());
+            return next();
+        }}});
     add(registry, echo_command());
 
     const auto invalid = registry.execute("todo-create", {{"title", ""}});
@@ -169,17 +169,17 @@ TEST_CASE("middleware: first is outermost, may short-circuit, may retry") {
         };
     };
     afd::CommandRegistry registry(
-        afd::RegistryOptions{.middleware = {tracer("outer"), tracer("inner")}});
+        afd::CommandRegistryOptions{.middleware = {tracer("outer"), tracer("inner")}});
     add(registry, echo_command());
     CHECK(registry.execute("todo-create", {{"title", "x"}}).success);
     CHECK(order ==
           std::vector<std::string>{"outer:before", "inner:before", "inner:after", "outer:after"});
 
     afd::CommandRegistry blocking(
-        afd::RegistryOptions{.middleware = {[](std::string_view, const afd::Json&,
-                                               afd::CommandContext&, const afd::Next&) {
-                                 return afd::error("BLOCKED", "Blocked by policy");
-                             }}});
+        afd::CommandRegistryOptions{.middleware = {[](std::string_view, const afd::Json&,
+                                                      afd::CommandContext&, const afd::Next&) {
+                                        return afd::error("BLOCKED", "Blocked by policy");
+                                    }}});
     int handled = 0;
     auto counted = echo_command();
     counted.handler = [&](const afd::Json& input, afd::CommandContext&) {
@@ -194,11 +194,11 @@ TEST_CASE("middleware: first is outermost, may short-circuit, may retry") {
 
     int attempts = 0;
     afd::CommandRegistry retrying(
-        afd::RegistryOptions{.middleware = {[](std::string_view, const afd::Json&,
-                                               afd::CommandContext&, const afd::Next& next) {
-                                 auto result = next();
-                                 return result.success ? result : next();
-                             }}});
+        afd::CommandRegistryOptions{.middleware = {[](std::string_view, const afd::Json&,
+                                                      afd::CommandContext&, const afd::Next& next) {
+                                        auto result = next();
+                                        return result.success ? result : next();
+                                    }}});
     auto flaky = echo_command();
     flaky.handler = [&](const afd::Json& input, afd::CommandContext&) {
         return ++attempts == 1 ? afd::error("TRANSIENT_ERROR", "Try again") : afd::success(input);
@@ -210,7 +210,7 @@ TEST_CASE("middleware: first is outermost, may short-circuit, may retry") {
 
 TEST_CASE("the handler's result is stamped with timing, version and the post-middleware trace ID") {
     auto clock = std::make_shared<afd::ManualClock>();
-    afd::CommandRegistry registry(afd::RegistryOptions{
+    afd::CommandRegistry registry(afd::CommandRegistryOptions{
         .middleware = {[](std::string_view, const afd::Json&, afd::CommandContext& context,
                           const afd::Next& next) {
             context.trace_id = "trace-from-middleware";
@@ -238,7 +238,7 @@ TEST_CASE("the handler's result is stamped with timing, version and the post-mid
 
 TEST_CASE("handler failures are stamped too; a missing version is omitted") {
     afd::CommandRegistry registry(
-        afd::RegistryOptions{.clock = std::make_shared<afd::ManualClock>()});
+        afd::CommandRegistryOptions{.clock = std::make_shared<afd::ManualClock>()});
     auto failing = echo_command();
     failing.version = std::nullopt;
     failing.handler = [](const afd::Json&, afd::CommandContext&) {
@@ -254,8 +254,8 @@ TEST_CASE("handler failures are stamped too; a missing version is omitted") {
 TEST_CASE("on_command sees executions that reached the chain, with the raw input") {
     std::vector<std::string> seen;
     afd::CommandRegistry registry(
-        afd::RegistryOptions{.on_command = [&](std::string_view name, const afd::Json& input,
-                                               const afd::CommandResult& result) {
+        afd::CommandRegistryOptions{.on_command = [&](std::string_view name, const afd::Json& input,
+                                                      const afd::CommandResult& result) {
             seen.push_back(std::string(name) + " " + input.dump() + " " +
                            (result.success ? "ok" : "fail"));
         }});
@@ -278,7 +278,7 @@ TEST_CASE(
         return command;
     };
 
-    afd::CommandRegistry production(afd::RegistryOptions{
+    afd::CommandRegistry production(afd::CommandRegistryOptions{
         .on_error = [&](std::string_view message) { reported.emplace_back(message); }});
     add(production, throwing());
     const afd::Json hidden = production.execute("todo-create", {{"title", "x"}});
@@ -286,7 +286,7 @@ TEST_CASE(
         "message":"An internal error occurred","suggestion":"Contact support if this persists"}})"));
     CHECK(reported == std::vector<std::string>{"database password is hunter2"});
 
-    afd::CommandRegistry development(afd::RegistryOptions{.dev_mode = true});
+    afd::CommandRegistry development(afd::CommandRegistryOptions{.dev_mode = true});
     add(development, throwing());
     const auto shown = development.execute("todo-create", {{"title", "x"}});
     CHECK(shown.error->message == "database password is hunter2");
@@ -294,7 +294,7 @@ TEST_CASE(
 }
 
 TEST_CASE("an exception from on_command never changes the result") {
-    afd::CommandRegistry registry(afd::RegistryOptions{
+    afd::CommandRegistry registry(afd::CommandRegistryOptions{
         .on_command = [](std::string_view, const afd::Json&, const afd::CommandResult&) {
             throw std::runtime_error("telemetry is down");
         }});

@@ -138,6 +138,32 @@ Expected<Warning> Warning::from_json(const Json& value) {
     return detail::parse_document<Warning>(value);
 }
 
+Source create_source(std::string type, Source options) {
+    options.type = std::move(type);
+    return options;
+}
+
+PlanStep create_step(std::string id, std::string action, std::optional<std::string> description) {
+    PlanStep step;
+    step.id = std::move(id);
+    step.action = std::move(action);
+    step.status = PlanStepStatus::pending;
+    step.description = std::move(description);
+    return step;
+}
+
+PlanStep update_step_status(PlanStep step, PlanStepStatus status, std::optional<Json> result) {
+    step.status = status;
+    if (status == PlanStepStatus::complete) {
+        step.result = std::move(result);
+    }
+    return step;
+}
+
+Warning create_warning(std::string code, std::string message, WarningSeverity severity) {
+    return Warning{std::move(code), std::move(message), severity, std::nullopt};
+}
+
 void to_json(Json& out, const Source& source) {
     out = Json::object();
     out["type"] = source.type;

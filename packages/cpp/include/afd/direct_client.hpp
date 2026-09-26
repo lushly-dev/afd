@@ -23,7 +23,7 @@ struct DirectClientOptions {
     /// Further restricts which commands this client may call.
     std::function<bool(std::string_view name)> allow;
     /// Client-side middleware, run around the registry's own chain.
-    std::vector<Middleware> middleware;
+    std::vector<CommandMiddleware> middleware;
     /// Copied into `context.extra["source"]` on every call when set.
     std::optional<std::string> source;
     /// For trace IDs and timeouts. Defaults to `SystemClock` and a randomly seeded `SeededRandom`.

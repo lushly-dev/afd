@@ -21,6 +21,7 @@ check_agents = true
 skip = [
     "afd",
     "afd-contracts",
+    "afd-cpp",
     "afd-developer",
     "afd-directclient",
     "afd-python",

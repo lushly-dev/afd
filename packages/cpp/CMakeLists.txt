@@ -38,6 +38,7 @@ add_library(
     src/detail/json_io.cpp
     src/direct_client.cpp
     src/errors.cpp
+    src/handoff.cpp
     src/json.cpp
     src/metadata.cpp
     src/middleware.cpp
