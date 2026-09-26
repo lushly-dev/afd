@@ -1,6 +1,6 @@
 :root {
 	--ink: #181b1a;
-	--paper: #fafaf7;
+	--paper: #f4f0ea; /* Field Manual paper */
 	--red: #f74431;
 	--mint: #a3ebcd;
 	--muted: #5e6460;
@@ -2176,5 +2176,447 @@ textarea[aria-invalid="true"] {
 		animation: none !important;
 		transition: none !important;
 		scroll-behavior: auto !important;
+	}
+}
+
+
+/* ============================================================
+   Command Manifesto 2 — Field Manual details on the manifesto:
+   figure labels, crop marks and faint drafting grids, a red
+   honesty slab, drawn human patterns in the agent-UX tabs, a
+   get-started finale and a wipe into the agent view.
+   ============================================================ */
+
+/* Figure labels */
+.section-index {
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
+.fig-chip {
+	display: inline-block;
+	margin-right: 10px;
+	padding: 1px 7px;
+	background: var(--ink);
+	color: var(--paper);
+	font-weight: 600;
+}
+
+.handoff .fig-chip,
+.finale .fig-chip {
+	background: var(--mint);
+	color: var(--ink);
+}
+
+/* Registration crop marks */
+.crop {
+	position: absolute;
+	z-index: 2;
+	width: 18px;
+	height: 18px;
+	border: 0 solid var(--ink);
+	pointer-events: none;
+}
+
+.crop--tl {
+	top: 12px;
+	left: 12px;
+	border-top-width: 2px;
+	border-left-width: 2px;
+}
+
+.crop--tr {
+	top: 12px;
+	right: 12px;
+	border-top-width: 2px;
+	border-right-width: 2px;
+}
+
+.crop--bl {
+	bottom: 12px;
+	left: 12px;
+	border-bottom-width: 2px;
+	border-left-width: 2px;
+}
+
+.crop--br {
+	bottom: 12px;
+	right: 12px;
+	border-bottom-width: 2px;
+	border-right-width: 2px;
+}
+
+.surface-stage {
+	position: relative;
+}
+
+.surface-stage .crop {
+	top: auto;
+	bottom: auto;
+	width: 12px;
+	height: 12px;
+	opacity: 0.35;
+}
+
+.surface-stage .crop--tl,
+.surface-stage .crop--tr {
+	top: 6px;
+}
+
+.surface-stage .crop--bl,
+.surface-stage .crop--br {
+	bottom: 6px;
+}
+
+.surface-stage .crop--tl,
+.surface-stage .crop--bl {
+	left: 6px;
+}
+
+.surface-stage .crop--tr,
+.surface-stage .crop--br {
+	right: 6px;
+}
+
+/* The red poster becomes a drawing sheet: faint grid, crop marks */
+.opening {
+	position: relative;
+	background-color: var(--red);
+	background-image:
+		linear-gradient(rgba(24, 27, 26, 0.09) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(24, 27, 26, 0.09) 1px, transparent 1px),
+		linear-gradient(rgba(24, 27, 26, 0.045) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(24, 27, 26, 0.045) 1px, transparent 1px);
+	background-size:
+		120px 120px,
+		120px 120px,
+		24px 24px,
+		24px 24px;
+	background-position: -1px -1px;
+}
+
+/* ── The honesty check: the one loud moment mid-page ────────── */
+
+.slab {
+	position: relative;
+	overflow: clip;
+	padding-block: clamp(80px, 11vw, 170px);
+	background: var(--red);
+	color: var(--ink);
+}
+
+.slab__inner {
+	position: relative;
+	z-index: 1;
+}
+
+.slab .fig-chip {
+	background: var(--ink);
+	color: var(--red);
+}
+
+.slab__numeral {
+	position: absolute;
+	right: -0.06em;
+	bottom: -0.22em;
+	font-family: var(--display);
+	font-size: clamp(220px, 40vw, 640px);
+	line-height: 1;
+	color: transparent;
+	-webkit-text-stroke: 2px rgba(24, 27, 26, 0.22);
+	pointer-events: none;
+	user-select: none;
+}
+
+.slab__quote {
+	margin: 28px 0 0;
+	font-family: var(--display);
+	font-size: clamp(40px, 6.6vw, 118px);
+	line-height: 0.93;
+	letter-spacing: -0.02em;
+	text-transform: uppercase;
+	max-width: 17ch;
+	text-wrap: balance;
+}
+
+.slab__quote mark {
+	display: inline-block;
+	padding: 0 0.12em;
+	background: var(--ink);
+	color: var(--paper);
+	box-shadow: 0.07em 0.07em 0 var(--mint);
+}
+
+.slab__quote.is-armed .lit-word {
+	color: rgba(24, 27, 26, 0.26);
+	transition: color 0.35s ease;
+}
+
+.slab__quote.is-armed .lit-word.is-lit {
+	color: var(--ink);
+}
+
+.slab__quote.is-armed mark {
+	opacity: 0.3;
+	transition: opacity 0.3s ease;
+}
+
+.slab__quote.is-armed mark.is-stamped {
+	opacity: 1;
+	animation: m2-slam 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes m2-slam {
+	0% {
+		opacity: 0;
+		transform: scale(1.5) rotate(-5deg);
+	}
+	55% {
+		opacity: 1;
+		transform: scale(0.97) rotate(-0.5deg);
+	}
+	100% {
+		transform: none;
+	}
+}
+
+.slab__caption {
+	margin-top: 28px;
+	font: 500 12px / 1.7 var(--mono);
+	text-transform: uppercase;
+	letter-spacing: 0.06em;
+}
+
+/* ── Agent UX tabs: the human pattern, drawn, beside the agent's ── */
+
+.contract-panel {
+	grid-template-rows: auto auto minmax(0, 1fr) auto;
+	height: 520px;
+}
+
+.translate {
+	display: grid;
+	grid-template-columns: 200px auto minmax(0, 1fr);
+	align-items: center;
+	gap: 16px;
+}
+
+.translate__arrow {
+	font: 600 18px var(--mono);
+	color: var(--mint);
+}
+
+.translate__agent {
+	font-size: 14px;
+	line-height: 1.45;
+	color: #c9d2cb;
+}
+
+.ux-art {
+	position: relative;
+	display: grid;
+	place-items: center;
+	height: 122px;
+	padding-top: 16px;
+	background-color: var(--paper);
+	background-image:
+		linear-gradient(rgba(24, 27, 26, 0.06) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(24, 27, 26, 0.06) 1px, transparent 1px);
+	background-size: 12px 12px;
+	color: var(--ink);
+	font-size: 12px;
+	line-height: 1.25;
+}
+
+.ux-art::before {
+	content: "People get";
+	position: absolute;
+	top: 5px;
+	left: 7px;
+	font: 600 9px var(--mono);
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: #c42a1a;
+}
+
+.ux-art i {
+	font-style: normal;
+}
+
+.ua-menu,
+.ua-dialog {
+	display: flex;
+	flex-direction: column;
+	background: #fff;
+	border: 2px solid var(--ink);
+}
+
+.ua-menu span {
+	padding: 1px 10px;
+	border-bottom: 1px solid rgba(24, 27, 26, 0.1);
+}
+
+.ua-more {
+	color: #c42a1a;
+	font-weight: 700;
+}
+
+.ua-dialog {
+	gap: 2px;
+	padding: 6px 9px;
+	box-shadow: 3px 3px 0 var(--red);
+}
+
+.ua-dialog span {
+	color: var(--muted);
+	font-size: 11px;
+}
+
+.ua-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 5px;
+	margin-top: 4px;
+}
+
+.ua-actions i {
+	padding: 1px 6px;
+	border: 2px solid var(--ink);
+	font: 600 9px var(--mono);
+	text-transform: uppercase;
+}
+
+.ua-actions .ua-danger {
+	background: var(--red);
+}
+
+.ua-toast {
+	display: flex;
+	gap: 14px;
+	padding: 7px 10px;
+	background: var(--ink);
+	color: var(--paper);
+	box-shadow: 3px 3px 0 var(--red);
+}
+
+.ua-toast i {
+	color: var(--mint);
+	font: 600 10px var(--mono);
+	text-transform: uppercase;
+}
+
+/* ── Finale: afd call get-started ──────────────────────────── */
+
+.finale {
+	padding-block: clamp(80px, 10vw, 140px);
+	background-color: var(--ink);
+	background-image:
+		linear-gradient(rgba(244, 240, 234, 0.045) 1px, transparent 1px),
+		linear-gradient(90deg, rgba(244, 240, 234, 0.045) 1px, transparent 1px);
+	background-size: 24px 24px;
+	color: var(--paper);
+}
+
+.finale .section-index {
+	color: #bdcfc1;
+}
+
+.finale__line {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 22px;
+	margin: 28px 0 32px;
+	font: 600 clamp(28px, 4.6vw, 72px) / 1 var(--mono);
+	letter-spacing: -0.03em;
+}
+
+.finale__prompt {
+	color: var(--mint);
+}
+
+.finale__cmd::after {
+	content: "";
+	display: inline-block;
+	width: 0.5em;
+	height: 0.85em;
+	margin-left: 0.1em;
+	background: var(--red);
+	vertical-align: -0.1em;
+	animation: m2-blink 1s steps(1) infinite;
+}
+
+@keyframes m2-blink {
+	50% {
+		opacity: 0;
+	}
+}
+
+.finale__run {
+	font-size: 14px;
+	letter-spacing: 0;
+}
+
+.finale__out {
+	max-width: 880px;
+	padding: 24px 28px;
+	border: 1px solid rgba(244, 240, 234, 0.2);
+	box-shadow: 8px 8px 0 var(--red);
+	background: #101211;
+	font: 13px / 1.75 var(--mono);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.finale__out a {
+	color: var(--mint);
+}
+
+.finale__out .tok-label {
+	color: #8f9a93;
+}
+
+.finale__out .tok-ok {
+	color: var(--mint);
+	font-weight: 600;
+}
+
+/* ── A wipe into the agent view ────────────────────────────── */
+
+::view-transition-old(root) {
+	animation: none;
+}
+
+::view-transition-new(root) {
+	animation: m2-wipe 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes m2-wipe {
+	from {
+		clip-path: inset(0 0 100% 0);
+	}
+	to {
+		clip-path: inset(0);
+	}
+}
+
+@media (max-width: 850px) {
+	.translate {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.translate__arrow {
+		display: none;
+	}
+
+	.contract-panel {
+		height: auto;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.slab__quote.is-armed mark.is-stamped,
+	.finale__cmd::after {
+		animation: none;
 	}
 }

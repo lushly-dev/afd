@@ -54,6 +54,10 @@
 		</section>
 		<main id="main">
 			<section class="opening" id="top">
+				<span class="crop crop--tl" aria-hidden="true"></span>
+				<span class="crop crop--tr" aria-hidden="true"></span>
+				<span class="crop crop--bl" aria-hidden="true"></span>
+				<span class="crop crop--br" aria-hidden="true"></span>
 				<div class="wrap">
 					<div class="opening-label">
 						<h1>Agent-First Development</h1>
@@ -133,6 +137,10 @@
 						</div>
 					</div>
 					<div class="surface-stage" data-stage data-mode="list">
+							<span class="crop crop--tl" aria-hidden="true"></span>
+							<span class="crop crop--tr" aria-hidden="true"></span>
+							<span class="crop crop--bl" aria-hidden="true"></span>
+							<span class="crop crop--br" aria-hidden="true"></span>
 						<div id="task-panel" role="tabpanel" aria-labelledby="surface-list">
 							<form class="task-form" data-create-form novalidate>
 								<label class="sr-only" for="task-title">Task title</label>
@@ -236,7 +244,7 @@
 				</div>
 			</section>
 			<section class="thesis wrap" id="problem">
-				<span class="section-index">01 / THE INVERSION</span>
+				<span class="section-index"><span class="fig-chip">Fig. 01</span>The inversion</span>
 				<div>
 					<h2>Your app isn't its buttons.</h2>
 					<p>
@@ -246,10 +254,6 @@
 					<p class="thesis-cost">
 						Keep business logic out of the screen. Don't build a second API just to let an agent in.
 					</p>
-					<div class="honesty-check" id="honesty">
-						<span class="mono">THE HONESTY CHECK</span>
-						<p>If it can't be done via CLI, the architecture is wrong.</p>
-					</div>
 				</div>
 				<a
 					href="https://github.com/lushly-dev/afd/blob/main/docs/whitepaper/AFD-Whitepaper.md"
@@ -257,10 +261,24 @@
 					>Read the thinking <i class="icon icon--out" aria-hidden="true"></i></a
 				>
 			</section>
+			<section class="slab" id="honesty" aria-labelledby="honesty-quote">
+				<span class="crop crop--tl" aria-hidden="true"></span>
+				<span class="crop crop--tr" aria-hidden="true"></span>
+				<span class="crop crop--bl" aria-hidden="true"></span>
+				<span class="crop crop--br" aria-hidden="true"></span>
+				<span class="slab__numeral" aria-hidden="true">01</span>
+				<div class="wrap slab__inner">
+					<span class="section-index"><span class="fig-chip">Fig. 01b</span>The honesty check</span>
+					<blockquote class="slab__quote" id="honesty-quote" data-honesty>
+						<p>“If it can’t be done via <mark>CLI</mark>, the architecture is wrong.”</p>
+					</blockquote>
+					<p class="slab__caption">One rule, applied to every feature. No UI-only code paths.</p>
+				</div>
+			</section>
 			<section class="handoff" id="workflow">
 				<div class="wrap handoff-layout">
 					<div class="story-copy">
-						<span class="section-index">02 / THE HANDOFF</span>
+						<span class="section-index"><span class="fig-chip">Fig. 02</span>The handoff</span>
 						<h2>Your turn.<br><span class="agent-color">Their turn.</span></h2>
 						<p>
 							An agent shouldn't have to pretend to be a person clicking a button. Give it the same
@@ -334,7 +352,7 @@
 			<section class="agent-design" id="agent-ux">
 				<div class="wrap">
 					<div class="editorial-heading">
-						<span class="section-index">03 / DESIGN FOR THE AGENT</span>
+						<span class="section-index"><span class="fig-chip">Fig. 03</span>Design for the agent</span>
 						<h2>Access isn't enough.<br><span>Agents need good UX.</span></h2>
 					</div>
 					<div class="agent-design-layout">
@@ -406,6 +424,11 @@
 										<option value="todo-clear">todo-clear</option>
 									</select>
 								</div>
+								<div class="translate" aria-hidden="true">
+									<div class="ux-art"><div class="ua-menu"><span>New task</span><span>Board view</span><span>Export</span><span class="ua-more">More ▸</span></div></div>
+									<span class="translate__arrow">→</span>
+									<span class="translate__agent">A person discovers what an app can do by looking at its menus. An agent reads the contract.</span>
+								</div>
 								<pre
 									tabindex="0"
 									aria-label="Selected command metadata"
@@ -425,6 +448,11 @@
 								<div class="contract-caption">
 									<span>LATEST LIVE RESULT</span><code data-contract-result-name>todo-list</code>
 								</div>
+								<div class="translate" aria-hidden="true">
+									<div class="ux-art"><div class="ua-toast"><span>Task added · high priority</span><i>View</i></div></div>
+									<span class="translate__arrow">→</span>
+									<span class="translate__agent">A person gets feedback on screen. An agent gets reasoning and a next step in the result.</span>
+								</div>
 								<pre
 									tabindex="0"
 									aria-label="Latest command result"
@@ -441,6 +469,11 @@
 								hidden
 							>
 								<div class="contract-caption"><code>todo-clear</code><span>DESTRUCTIVE</span></div>
+								<div class="translate" aria-hidden="true">
+									<div class="ux-art"><div class="ua-dialog"><strong>Delete all tasks?</strong><span>This can’t be undone.</span><div class="ua-actions"><i>Cancel</i><i class="ua-danger">Delete</i></div></div></div>
+									<span class="translate__arrow">→</span>
+									<span class="translate__agent">A person gets a confirmation dialog. An agent’s caller gets the same pause.</span>
+								</div>
 								<div class="control-decision">
 									<span class="decision-mark" aria-hidden="true">!</span>
 									<h3>A pause before<br>the point of no return.</h3>
@@ -464,7 +497,7 @@
 			<section class="recovery" id="result">
 				<div class="wrap recovery-layout">
 					<div class="story-copy">
-						<span class="section-index">04 / THE RECOVERY</span>
+						<span class="section-index"><span class="fig-chip">Fig. 04</span>The recovery</span>
 						<h2>A dead end.<br>Or a way<br><em>forward.</em></h2>
 						<p>
 							“Something went wrong” isn't an answer. A useful error tells the next operator what to
@@ -505,7 +538,7 @@
 			<section class="build-story" id="build">
 				<div class="wrap">
 					<div class="editorial-heading">
-						<span class="section-index">05 / BUILD WITH AN AGENT</span>
+						<span class="section-index"><span class="fig-chip">Fig. 05</span>Build with an agent</span>
 						<h2>Before it draws a screen,<br><span>give it something to prove.</span></h2>
 					</div>
 					<div class="build-story-layout">
@@ -622,7 +655,7 @@
 			<section class="start" id="start">
 				<div class="wrap">
 					<div class="start-heading">
-						<span class="section-index">06 / START SMALL</span>
+						<span class="section-index"><span class="fig-chip">Fig. 06</span>Start small</span>
 						<h2>Capability first.<br><span>Everything else follows.</span></h2>
 					</div>
 					<div class="build-steps">
@@ -739,6 +772,20 @@
 							>
 						</div>
 					</div>
+				</div>
+			</section>
+			<section class="finale" id="get-started">
+				<div class="wrap">
+					<span class="section-index"><span class="fig-chip">Fig. 07</span>Your turn</span>
+					<form class="finale__line" data-finale>
+						<span class="finale__prompt" aria-hidden="true">$</span>
+						<label class="finale__cmd" for="finale-run">afd call get-started</label>
+						<button class="button button--red finale__run" id="finale-run" type="submit">Run <i class="icon icon--right" aria-hidden="true"></i></button>
+					</form>
+					<pre class="finale__out" data-finale-out aria-live="polite" tabindex="0"><span class="tok-label">Install</span>      npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod
+<span class="tok-label">Quickstart</span>   <a href="https://github.com/lushly-dev/afd#quickstart">https://github.com/lushly-dev/afd#quickstart</a>
+<span class="tok-label">For agents</span>   npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd
+<span class="tok-label">Source</span>       <a href="https://github.com/lushly-dev/afd">https://github.com/lushly-dev/afd</a></pre>
 				</div>
 			</section>
 		</main>

@@ -1,5 +1,6 @@
 import { initAgentView } from './agent-view.js';
-import { jsonHtml } from './cli-format.js';
+import { escape, jsonHtml } from './cli-format.js';
+import { initHonesty } from './honesty.js';
 import { call, getTodos, listCommands, onCommand, provide } from './runtime.js';
 import { initTabs, reducedMotion } from './util.js';
 
@@ -445,3 +446,30 @@ for (const [title, priority] of [
 }
 await call('todo-list', {}, { surface: 'cli' });
 rail.classList.remove('is-firing');
+
+/* ── Command Manifesto 2 additions ─────────────────────────── */
+
+// The honesty slab lights up word by word as it scrolls in, then stamps CLI.
+initHonesty();
+
+// Finale: run the real get-started command and show its CommandResult.
+const finaleForm = document.querySelector('[data-finale]');
+const finaleOut = document.querySelector('[data-finale-out]');
+finaleForm?.addEventListener('submit', async (event) => {
+	event.preventDefault();
+	const result = await call('get-started', {}, { surface: 'cli' });
+	const linkify = (html) => html.replace(/(https:\/\/[^\s"<]+)/g, '<a href="$1">$1</a>');
+	const lines = [
+		result.success ? '<span class="tok-ok">✓ Success</span>' : '<span class="tok-err">✗ Failed</span>',
+		'',
+		'<span class="tok-label">Data:</span>',
+		linkify(jsonHtml(result.data ?? result.error)),
+		'',
+		`<span class="tok-label">Reasoning:</span> ${escape(result.reasoning ?? '')}`,
+	];
+	finaleOut.innerHTML = '';
+	for (const line of lines) {
+		finaleOut.insertAdjacentHTML('beforeend', `${line}\n`);
+		if (!reducedMotion.matches) await new Promise((resolve) => setTimeout(resolve, 90));
+	}
+});
