@@ -324,6 +324,107 @@ async fn test_command_not_found() {
     assert_eq!(result.error.as_ref().unwrap().code, "COMMAND_NOT_FOUND");
 }
 
+/// The `COMMAND_NOT_FOUND` suggestion for `name`, called through `interface`.
+async fn not_found_suggestion_for(
+    registry: &CommandRegistry,
+    name: &str,
+    interface: Option<CommandInterface>,
+) -> String {
+    let context = interface.map(|interface| CommandContext::new().with_interface(interface));
+    let result = registry.execute(name, serde_json::json!({}), context).await;
+    let error = result.error.expect("an unknown command fails");
+    assert_eq!(error.code, "COMMAND_NOT_FOUND");
+    assert_eq!(error.retryable, Some(false));
+    error
+        .suggestion
+        .expect("COMMAND_NOT_FOUND has a suggestion")
+}
+
+#[tokio::test]
+async fn test_command_not_found_suggests_close_matches_like_typescript() {
+    let registry = CommandRegistry::new();
+    for name in [
+        "todo-create",
+        "todo-list",
+        "todo-get",
+        "todo-update",
+        "user-get",
+    ] {
+        registry
+            .register(CommandDefinition::new(name, name, vec![], TestHandler))
+            .unwrap();
+    }
+
+    // Expected strings are TypeScript `notFoundSuggestion` output for the same
+    // names, with its afd-discover pointer replaced (no afd-help is registered).
+    assert_eq!(
+        not_found_suggestion_for(&registry, "todo-crate", None).await,
+        "Did you mean 'todo-create'? Other close matches: 'todo-update', 'todo-list'. \
+         Check the command name against the available commands."
+    );
+    assert_eq!(
+        not_found_suggestion_for(&registry, "zzzzzzz", None).await,
+        "Check the command name against the available commands."
+    );
+    // An oversized name is not fuzzy-matched, and is never echoed.
+    let oversized = "todo-crate".repeat(20);
+    let suggestion = not_found_suggestion_for(&registry, &oversized, None).await;
+    assert_eq!(
+        suggestion,
+        "Check the command name against the available commands."
+    );
+}
+
+#[tokio::test]
+async fn test_command_not_found_suggests_only_callable_commands() {
+    let registry = Arc::new(CommandRegistry::new());
+    registry
+        .register(CommandDefinition::new(
+            "todo-create",
+            "Create",
+            vec![],
+            TestHandler,
+        ))
+        .unwrap();
+    registry
+        .register(
+            CommandDefinition::new("todo-list", "List", vec![], TestHandler)
+                .with_expose(ExposeOptions::new().with_mcp(true)),
+        )
+        .unwrap();
+    crate::bootstrap::register_bootstrap_commands(&registry).unwrap();
+
+    // Without an interface every command is a candidate, afd-help included.
+    assert_eq!(
+        not_found_suggestion_for(&registry, "todo-lis", None).await,
+        "Did you mean 'todo-list'? Other close matches: 'todo-create'. \
+         Use afd-help to list all commands."
+    );
+    assert_eq!(
+        not_found_suggestion_for(&registry, "afd-hepl", None).await,
+        "Did you mean 'afd-help'? Other close matches: 'afd-schema', 'afd-docs'. \
+         Use afd-help to list all commands."
+    );
+
+    // todo-create is not exposed to MCP, so an MCP caller never sees its name.
+    assert_eq!(
+        not_found_suggestion_for(&registry, "todo-crate", Some(CommandInterface::Mcp)).await,
+        "Did you mean 'todo-list'? Use afd-help to list all commands."
+    );
+    assert_eq!(
+        not_found_suggestion_for(&registry, "todo-crate", Some(CommandInterface::Agent)).await,
+        "Did you mean 'todo-create'? Other close matches: 'todo-list'. \
+         Use afd-help to list all commands."
+    );
+
+    // Nothing, afd-help included, is exposed to the CLI: no names and no pointer
+    // to a command the caller cannot run.
+    assert_eq!(
+        not_found_suggestion_for(&registry, "todo-lis", Some(CommandInterface::Cli)).await,
+        "Check the command name against the available commands."
+    );
+}
+
 #[test]
 fn test_command_to_mcp_tool() {
     let cmd = CommandDefinition::new(

@@ -16,3 +16,11 @@ indent_size = 2
 [*.{yml,yaml,json,toml}]
 indent_style = space
 indent_size = 2
+[*.{c,cc,cpp,cxx,h,hh,hpp,hxx,ipp,cmake}]
+indent_style = space
+indent_size = 4
+max_line_length = 100
+
+[CMakeLists.txt]
+indent_style = space
+indent_size = 4

@@ -841,7 +841,10 @@ impl CommandRegistry {
     ///
     /// In order:
     ///
-    /// 1. An unknown name returns `COMMAND_NOT_FOUND`.
+    /// 1. An unknown name returns `COMMAND_NOT_FOUND`. Its suggestion names up
+    ///    to three close matches, as in TypeScript, chosen among the commands
+    ///    exposed to `context.interface` (all commands when it is unset), and
+    ///    points to `afd-help` when that is one of them.
     /// 2. When `context.interface` is set, a command not exposed to that
     ///    interface returns `COMMAND_NOT_EXPOSED` (see [`ExposeOptions`]).
     /// 3. A `context.timeout_ms` without the `native` feature returns
@@ -862,12 +865,24 @@ impl CommandRegistry {
     ) -> CommandResult<serde_json::Value> {
         let context = context.unwrap_or_default();
         let Some(command) = self.get(name) else {
+            // Suggest only names the caller could call: an interface caller must
+            // not learn the names of commands that are not exposed to it.
+            let callable: Vec<String> = read_lock(&self.commands)
+                .ordered
+                .iter()
+                .filter(|candidate| {
+                    context
+                        .interface
+                        .is_none_or(|interface| candidate.expose.is_exposed_to(interface))
+                })
+                .map(|candidate| candidate.name.clone())
+                .collect();
             return failure(
                 CommandError::new(
                     error_codes::COMMAND_NOT_FOUND,
                     format!("Command '{}' not found", truncate_name(name)),
                 )
-                .with_suggestion("Use 'afd-help' or 'afd tools' to see available commands")
+                .with_suggestion(not_found_suggestion(name, &callable))
                 .with_retryable(false),
             );
         };
@@ -1155,6 +1170,45 @@ fn truncate_name(name: &str) -> String {
         }
     }
     name.to_string()
+}
+
+/// How many close matches a `COMMAND_NOT_FOUND` suggestion names at most, as in TypeScript.
+const MAX_NOT_FOUND_MATCHES: usize = 3;
+
+/// The bootstrap command that lists the commands a caller can call.
+const HELP_COMMAND: &str = "afd-help";
+
+/// Recovery guidance for an unknown command name, as in TypeScript's
+/// `notFoundSuggestion`: at most [`MAX_NOT_FOUND_MATCHES`] close matches
+/// (bounded fuzzy matching; none for very long names), never the whole list,
+/// and a pointer to `afd-help`.
+///
+/// TypeScript points to `afd-discover`, which its server always routes. Here
+/// the pointer is `afd-help`, and only when `callable` contains it: it exists
+/// only after [`register_bootstrap_commands`](crate::bootstrap::register_bootstrap_commands),
+/// and is not exposed to every interface.
+///
+/// `name` is untrusted and never echoed; `callable` holds the names the caller
+/// may call, in registration order (ties keep that order, as in TypeScript).
+fn not_found_suggestion(name: &str, callable: &[String]) -> String {
+    let list = if callable.iter().any(|candidate| candidate == HELP_COMMAND) {
+        "Use afd-help to list all commands."
+    } else {
+        "Check the command name against the available commands."
+    };
+    let mut matches =
+        crate::similarity::find_similar_tools(name, callable, Some(MAX_NOT_FOUND_MATCHES))
+            .into_iter();
+    let Some(best) = matches.next() else {
+        return list.to_string();
+    };
+    let others: Vec<String> = matches.map(|other| format!("'{other}'")).collect();
+    let also_close = if others.is_empty() {
+        String::new()
+    } else {
+        format!(" Other close matches: {}.", others.join(", "))
+    };
+    format!("Did you mean '{best}'?{also_close} {list}")
 }
 
 /// Build the middleware chain around `command`'s handler.
