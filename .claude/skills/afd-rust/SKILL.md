@@ -307,6 +307,9 @@ let logging: CommandMiddleware = Arc::new(|name, _input, _context, next| {
 registry.add_middleware(logging);
 
 // Execute command. Before the handler runs, the registry:
+// - rejects an unknown name (COMMAND_NOT_FOUND) with up to three close matches, as in TypeScript,
+//   drawn only from commands exposed to the context's interface, and a pointer to afd-help
+//   when the caller can call it (TypeScript points to afd-discover, which Rust does not have),
 // - validates input against `parameters` and fills defaults (VALIDATION_ERROR),
 // - checks `expose` when the context names an interface (COMMAND_NOT_EXPOSED),
 // - applies `timeout_ms` (TIMEOUT; needs the `native` feature).
@@ -640,10 +643,17 @@ async fn test_command_execution() {
 async fn test_command_not_found() {
     let registry = CommandRegistry::new();
 
-    let result = registry.execute("nonexistent", serde_json::json!({}), None).await;
+    registry.register(create_test_command()).unwrap(); // "test-echo"
 
-    assert!(!result.success);
-    assert_eq!(result.error.unwrap().code, "COMMAND_NOT_FOUND");
+    let result = registry.execute("test-ecko", serde_json::json!({}), None).await;
+
+    let error = result.error.unwrap();
+    assert_eq!(error.code, "COMMAND_NOT_FOUND");
+    // Close matches, then where to look (no afd-help is registered here)
+    assert_eq!(
+        error.suggestion.as_deref(),
+        Some("Did you mean 'test-echo'? Check the command name against the available commands.")
+    );
 }
 ```
 
