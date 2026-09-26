@@ -2660,3 +2660,94 @@ textarea[aria-invalid="true"] {
 .start {
 	background: var(--paper);
 }
+
+/* ── Hero: taller, with the AFD slash as a Swiss poster shape ── */
+
+.opening {
+	--slash-w: clamp(200px, 27vw, 500px);
+	--slash-x: 57%;
+	--slash-tone: #e0321e;
+	isolation: isolate;
+	overflow: hidden;
+}
+
+/* Most of the viewport, with a sliver of the demo still showing below. */
+.opening > .wrap {
+	position: relative;
+	z-index: 1;
+	min-height: max(560px, min(920px, calc(100svh - var(--nav-h) - 42px - 72px)));
+}
+
+.opening-art {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	pointer-events: none;
+}
+
+/* Same lean as the "/" in the wordmark */
+.slash {
+	position: absolute;
+	top: -12%;
+	bottom: -12%;
+	left: var(--slash-x);
+	width: var(--slash-w);
+	background: var(--slash-tone);
+	transform: skewX(-20deg);
+	animation: m2-slash-in 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.slash--thin {
+	left: calc(var(--slash-x) + var(--slash-w) + 4vw);
+	width: clamp(8px, 0.9vw, 16px);
+	background: #c92a18;
+	animation-delay: 0.12s;
+}
+
+@keyframes m2-slash-in {
+	from {
+		opacity: 0;
+		transform: skewX(-20deg) translateX(30vw);
+	}
+}
+
+/* Variant: fine diagonal rules at the slash angle, fading in from the right */
+.opening[data-hero="stripes"] .slash {
+	display: none;
+}
+
+.opening[data-hero="stripes"] .opening-art {
+	background: repeating-linear-gradient(110deg, transparent 0 20px, rgba(150, 28, 14, 0.42) 20px 23px);
+	-webkit-mask-image: linear-gradient(90deg, transparent 20%, #000 70%);
+	mask-image: linear-gradient(90deg, transparent 20%, #000 70%);
+}
+
+/* Variant: a warm gradient under a translucent slash */
+.opening[data-hero="gradient"] {
+	background: radial-gradient(120% 95% at 85% 5%, #ff8163 0%, var(--red) 48%, #d52f1c 100%);
+}
+
+.opening[data-hero="gradient"] .slash {
+	background: linear-gradient(180deg, rgba(255, 190, 170, 0.28), rgba(150, 28, 14, 0.32));
+}
+
+.opening[data-hero="gradient"] .slash--thin {
+	background: rgba(150, 28, 14, 0.45);
+}
+
+@media (max-width: 850px) {
+	.opening {
+		--slash-x: 48%;
+		--slash-w: 42vw;
+	}
+
+	.slash--thin {
+		display: none;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.slash {
+		animation: none;
+	}
+}
