@@ -22,6 +22,7 @@ export const SECTIONS = [
 	'testing',
 	'toolkit',
 	'botcore',
+	'start',
 ];
 
 const INSTALL = {
@@ -224,6 +225,30 @@ registry.register({
 				reasoning:
 					input.view === 'agent' ? 'Showing llms.txt, the agent-readable page' : 'Back to the page',
 				confidence: 1,
+			}
+		);
+	},
+});
+
+registry.register({
+	name: 'get-started',
+	description: 'Everything you need to start with AFD',
+	category: 'page',
+	expose: EVERYWHERE,
+	parameters: [],
+	async handler() {
+		return success(
+			{
+				install: INSTALL,
+				quickstart: 'https://github.com/lushly-dev/afd#quickstart',
+				forYourAgent: 'npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd',
+				source: 'https://github.com/lushly-dev/afd',
+			},
+			{
+				reasoning:
+					'Three ways in: install a package, follow the 5-minute quickstart, or teach your coding agent the patterns first.',
+				confidence: 1,
+				suggestions: ['Start with the quickstart: define one command and call it from the terminal'],
 			}
 		);
 	},

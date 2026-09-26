@@ -7,6 +7,7 @@ import { highlightAll } from './highlight.js';
 import { initHero } from './hero.js';
 import { initHonesty } from './honesty.js';
 import { initRunner } from './runner.js';
+import { initSections } from './sections.js';
 import { call } from './runtime.js';
 import { initTabs } from './util.js';
 
@@ -112,33 +113,13 @@ function initInstall() {
 	});
 }
 
-// Stepped workflow: highlight the step whose panel is mid-screen.
-function initSteps() {
-	const links = [...document.querySelectorAll('[data-step-link]')];
-	if (!links.length) return;
-	const observer = new IntersectionObserver(
-		(entries) => {
-			for (const entry of entries) {
-				if (!entry.isIntersecting) continue;
-				const step = entry.target.dataset.step;
-				for (const link of links) {
-					if (link.dataset.stepLink === step) link.setAttribute('aria-current', 'step');
-					else link.removeAttribute('aria-current');
-				}
-			}
-		},
-		{ rootMargin: '-40% 0px -55% 0px' },
-	);
-	for (const panel of document.querySelectorAll('[data-step]')) observer.observe(panel);
-}
-
 // Run every module independently so one failure can't take the page down.
 for (const init of [
 	highlightAll,
 	initNav,
 	initInstall,
 	initCopyTargets,
-	initSteps,
+	initSections,
 	initCommandLayer,
 	initHero,
 	initHonesty,

@@ -19,6 +19,7 @@ const SECTION_LABEL = {
 	testing: 'Testing',
 	toolkit: 'Toolkit',
 	botcore: 'Botcore',
+	start: 'Get started',
 };
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 const compact = (input) => (input && Object.keys(input).length ? JSON.stringify(input) : '');

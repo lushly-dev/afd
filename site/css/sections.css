@@ -1253,7 +1253,7 @@ pre.surface__body {
 .botcore code {
 	font-family: var(--font-mono);
 	font-size: 0.75em;
-	color: var(--cream);
+	color: var(--fg);
 }
 
 .botcore .btn {

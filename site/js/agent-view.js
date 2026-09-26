@@ -35,7 +35,7 @@ export function initAgentView() {
 	if (!toggle || !view) return;
 	const code = view.querySelector('code');
 
-	const set = async (on) => {
+	const apply = async (on) => {
 		toggle.setAttribute('aria-pressed', String(on));
 		toggle.textContent = on ? 'Human view' : 'Agent view';
 		view.hidden = !on;
@@ -49,6 +49,15 @@ export function initAgentView() {
 
 		window.scrollTo({ top: 0 });
 		if (on) await render(code);
+	};
+
+	// Switch with a wipe where the browser supports view transitions.
+	const set = (on) => {
+		if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+			return apply(on);
+		}
+		document.documentElement.dataset.viewTo = on ? 'agent' : 'human';
+		return document.startViewTransition(() => apply(on)).finished;
 	};
 
 	// The view is switched by the view-set command, whoever calls it.

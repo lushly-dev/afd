@@ -30,6 +30,7 @@
 	<link rel="stylesheet" href="css/components.css">
 	<link rel="stylesheet" href="css/sections.css">
 	<link rel="stylesheet" href="css/command-layer.css">
+	<link rel="stylesheet" href="css/field-manual.css">
 
 	<script>document.documentElement.classList.add('js');</script>
 	<script type="module" src="js/main.js"></script>
@@ -215,10 +216,11 @@
 <!-- ============================================================
      01 · THE KEYHOLE
      ============================================================ -->
-<section id="problem" class="section section--dark inset-frame">
+<section id="problem" class="section section--dark night">
+	<span class="section-numeral" aria-hidden="true">01</span>
 	<div class="split">
 		<div class="reveal">
-			<p class="eyebrow">01 · The opacity problem</p>
+			<p class="eyebrow"><span class="fig-label mono-label">Fig. 01</span>The opacity problem</p>
 			<h2 class="problem-title">Your app is a <span class="accent-block">keyhole.</span></h2>
 			<p class="lede">An LLM can read every line of your source and still can’t use your product.</p>
 			<p>The capabilities hide behind buttons. The state lives in components. Features only fire on mouse events. So you bolt on an API later. It copies the UI, badly, and now you maintain two systems that are never quite in sync.</p>
@@ -236,7 +238,7 @@
 			</div>
 			<div class="view view--agent">
 				<p class="view__label mono-label">What an agent sees</p>
-				<div class="keyhole">
+				<div class="keyhole" data-keyhole>
 					<pre><code>&lt;div class="css-1x9f"&gt;
   &lt;div class="css-7kq2" onClick={…}&gt;
     &lt;svg viewBox="0 0 24 24"&gt;…&lt;/svg&gt;
@@ -249,7 +251,8 @@
   + Add todo
 &lt;/div&gt;</code></pre>
 				</div>
-				<p class="view__verdict mono-label">No capabilities. No schema. No error it can act on.</p>
+				<p class="view__verdict mono-label" data-keyhole-verdict>No capabilities. No schema. No error it can act on.</p>
+				<button type="button" class="mini-btn mini-btn--agent keyhole__toggle" data-keyhole-toggle aria-pressed="false">Give it commands ▸</button>
 			</div>
 		</figure>
 	</div>
@@ -274,7 +277,8 @@
 </section>
 
 <section id="inversion" class="section inversion-section">
-	<p class="eyebrow reveal">02 · The inversion</p>
+	<span class="section-numeral" aria-hidden="true">02</span>
+	<p class="eyebrow reveal"><span class="fig-label mono-label">Fig. 02</span>The inversion</p>
 	<div class="inversion">
 		<figure class="inversion__card inversion__card--before reveal" aria-labelledby="inv-before">
 			<figcaption id="inv-before" class="mono-label">UI-first</figcaption>
@@ -312,24 +316,21 @@
      03 · DEFINE, VALIDATE, SURFACE
      ============================================================ -->
 <section id="workflow" class="section section--dark inset-frame">
+	<span class="section-numeral" aria-hidden="true">03</span>
 	<div class="section-head reveal">
-		<p class="eyebrow">03 · The workflow</p>
+		<p class="eyebrow"><span class="fig-label mono-label">Fig. 03</span>The workflow</p>
 		<h2>Define.<br>Validate.<br><span class="accent-block">Surface.</span></h2>
 	</div>
 
 	<div class="steps">
-		<ol class="steps__nav" aria-label="Workflow steps">
-			<li><a href="#step-define" data-step-link="0" aria-current="step"><span class="steps__num">01</span>Define</a></li>
-			<li><a href="#step-validate" data-step-link="1"><span class="steps__num">02</span>Validate</a></li>
-			<li><a href="#step-surface" data-step-link="2"><span class="steps__num">03</span>Surface</a></li>
-		</ol>
-
 		<div class="steps__panels">
-			<article class="step-panel reveal" id="step-define" data-step="0">
+			<div class="step-panel" id="step-define" data-step="0">
+				<div class="step-panel__text">
 				<h3 class="step-panel__title"><span class="steps__num">01</span>Define the command</h3>
 				<p>Typed input, typed output, named errors. The schema is the contract every agent will read, so it’s written first.</p>
+				</div>
 				<div class="code">
-					<div class="code__bar"><span>commands/create.ts</span></div>
+					<div class="code__bar"><span>commands/create.ts</span><span class="step-count">01 / 03</span></div>
 					<pre><code class="lang-ts">import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
 
@@ -355,13 +356,15 @@ export const createTodo = defineCommand({
   },
 });</code></pre>
 				</div>
-			</article>
+			</div>
 
-			<article class="step-panel reveal" id="step-validate" data-step="1">
+			<div class="step-panel" id="step-validate" data-step="1">
+				<div class="step-panel__text">
 				<h3 class="step-panel__title"><span class="steps__num">02</span>Validate in the terminal</h3>
 				<p>Call it. Break it. Read the errors the way an agent will. If it doesn’t work here, you just avoided shipping a broken button.</p>
+				</div>
 				<div class="code">
-					<div class="code__bar"><span>zsh</span></div>
+					<div class="code__bar"><span>zsh</span><span class="step-count">02 / 03</span></div>
 					<pre><code class="lang-term">$ afd call todo-create '{"title":""}'
 ✗ Failed
 
@@ -382,13 +385,15 @@ Data:
 
 Confidence: ██████████ 100%</code></pre>
 				</div>
-			</article>
+			</div>
 
-			<article class="step-panel reveal" id="step-surface" data-step="2">
+			<div class="step-panel" id="step-surface" data-step="2">
+				<div class="step-panel__text">
 				<h3 class="step-panel__title"><span class="steps__num">03</span>Surface it last</h3>
 				<p>The UI is a thin wrapper over a command that already passes. Agents call the same command your components do. No translation layer, full parity.</p>
+				</div>
 				<div class="code">
-					<div class="code__bar"><span>AddTodo.tsx</span></div>
+					<div class="code__bar"><span>AddTodo.tsx</span><span class="step-count">03 / 03</span></div>
 					<pre><code class="lang-ts">import { createClient } from '@lushly-dev/afd-client';
 
 const client = createClient({ url: '/sse' });
@@ -412,8 +417,15 @@ export function AddTodo() {
     &lt;/form&gt;
   );
 }</code></pre>
+					<form class="preview" data-preview-form>
+						<span class="preview__label mono-label">Rendered · live</span>
+						<label class="visually-hidden" for="preview-title">Todo title</label>
+						<input id="preview-title" class="app__input" name="title" placeholder="Add a todo" maxlength="80">
+						<button class="app__button" type="submit">Add todo</button>
+						<span class="preview__result mono-label" data-preview-result aria-live="polite">calls todo-create</span>
+					</form>
 				</div>
-			</article>
+			</div>
 		</div>
 	</div>
 
@@ -424,8 +436,9 @@ export function AddTodo() {
      04 · COMMANDRESULT
      ============================================================ -->
 <section id="result" class="section">
+	<span class="section-numeral" aria-hidden="true">04</span>
 	<div class="section-head result-head reveal">
-		<p class="eyebrow">04 · CommandResult</p>
+		<p class="eyebrow"><span class="fig-label mono-label">Fig. 04</span>CommandResult</p>
 		<h2>Agents get <span class="accent-word">judgment.</span></h2>
 		<p class="lede">Most tools hand agents raw data and wish them luck. A CommandResult carries the trust signals that make human UX work: how sure the system is, why it did what it did, and what to do next.</p>
 	</div>
@@ -440,7 +453,7 @@ export function AddTodo() {
 <pre role="tabpanel" id="explorer-success" aria-labelledby="explorer-tab-success"><code>{
   <button type="button" class="field" data-field="success" aria-pressed="false">"success"</button>: <span class="tok-kw">true</span>,
   <button type="button" class="field" data-field="data" aria-pressed="false">"data"</button>: { <span class="tok-key">"id"</span>: <span class="tok-num">42</span>, <span class="tok-key">"name"</span>: <span class="tok-str">"Jane Doe"</span>, <span class="tok-key">"role"</span>: <span class="tok-str">"admin"</span> },
-  <button type="button" class="field field--afd" data-field="confidence" aria-pressed="true">"confidence"</button>: <span class="tok-num">0.85</span>,
+  <button type="button" class="field field--afd" data-field="confidence" aria-pressed="true">"confidence"</button>: <span class="tok-num" data-dial-json>0.85</span>,
   <button type="button" class="field field--afd" data-field="reasoning" aria-pressed="false">"reasoning"</button>: <span class="tok-str">"Matched by email. 2 accounts share this domain."</span>,
   <button type="button" class="field field--afd" data-field="warnings" aria-pressed="false">"warnings"</button>: [{ <span class="tok-key">"code"</span>: <span class="tok-str">"ELEVATED_ROLE"</span>, <span class="tok-key">"message"</span>: <span class="tok-str">"Confirm before mutating"</span> }],
   <button type="button" class="field field--afd" data-field="suggestions" aria-pressed="false">"suggestions"</button>: [<span class="tok-str">"Run user-permissions to review roles"</span>],
@@ -468,14 +481,24 @@ export function AddTodo() {
 			</div>
 		</aside>
 	</div>
+	<div class="dial reveal" data-dial>
+		<div class="dial__head">
+			<label class="mono-label" for="dial-input"><span class="fig-label">Fig. 04b</span>Drag the confidence. Watch the decision change.</label>
+			<output class="dial__value" for="dial-input" data-dial-value>0.85</output>
+		</div>
+		<input class="dial__input" id="dial-input" type="range" min="0" max="1" step="0.01" value="0.85" aria-describedby="dial-decision">
+		<div class="dial__scale mono-label" aria-hidden="true"><span>0 · ask</span><span>0.6 · verify</span><span>0.9 · act</span><span>1.0</span></div>
+		<p class="dial__decision" id="dial-decision" data-dial-decision><strong>Verify first.</strong> The match is probably right. Confirm it with user-get by id before changing anything.</p>
+	</div>
 </section>
 
 <!-- ============================================================
      05 · AGENT UX — NOT JUST AN MCP SERVER
      ============================================================ -->
-<section id="agent-ux" class="section section--dark inset-frame">
+<section id="agent-ux" class="section section--dark slab--teal">
+	<span class="section-numeral" aria-hidden="true">05</span>
 	<div class="section-head ux-head reveal">
-		<p class="eyebrow">05 · Agent UX</p>
+		<p class="eyebrow"><span class="fig-label mono-label">Fig. 05</span>Agent UX</p>
 		<h2>Not just an <span class="accent-block">MCP server.</span></h2>
 		<p class="lede">AFD started with one question: what if we applied UX design to AI agents? Every good interface pattern has an agent equivalent. AFD ships them as command metadata that the server, CLI and tests all understand.</p>
 	</div>
@@ -483,6 +506,7 @@ export function AddTodo() {
 	<ul class="ux-grid">
 		<li class="ux-card reveal">
 			<p class="ux-card__human mono-label">Progressive disclosure</p>
+			<div class="ux-art" aria-hidden="true"><div class="ua-menu"><span>New todo</span><span>Search</span><span>Export</span><span class="ua-more">More ▸</span></div></div>
 			<h3 class="ux-card__title">Tool strategies</h3>
 			<code class="ux-card__code">toolStrategy: 'lazy'</code>
 			<p>Grouped by default: one tool per domain. Switch to lazy and agents see five meta-tools and pull schemas on demand, so hundreds of commands don’t flood the context window.</p>
@@ -490,6 +514,7 @@ export function AddTodo() {
 		</li>
 		<li class="ux-card reveal" style="--delay: 1">
 			<p class="ux-card__human mono-label">Confirmation dialogs</p>
+			<div class="ux-art" aria-hidden="true"><div class="ua-dialog"><strong>Delete all todos?</strong><span>This can’t be undone.</span><div class="ua-actions"><i>Cancel</i><i class="ua-danger">Delete</i></div></div></div>
 			<h3 class="ux-card__title">Destructive actions</h3>
 			<code class="ux-card__code">destructive: true,<br>confirmPrompt: 'Delete all todos?'</code>
 			<p>The frontend asks before an agent’s delete runs: the same dialog a click would get, instead of a silent bypass.</p>
@@ -497,6 +522,7 @@ export function AddTodo() {
 		</li>
 		<li class="ux-card reveal" style="--delay: 2">
 			<p class="ux-card__human mono-label">Permissions</p>
+			<div class="ux-art" aria-hidden="true"><div class="ua-toggles"><span>Palette<i class="on"></i></span><span>In-app agent<i class="on"></i></span><span>External MCP<i></i></span></div></div>
 			<h3 class="ux-card__title">Per-surface exposure</h3>
 			<code class="ux-card__code">expose: { mcp: true, cli: true }</code>
 			<p>Each command opts in per surface. External MCP access is off until you turn it on; the command palette and in-app agent are on by default.</p>
@@ -504,6 +530,7 @@ export function AddTodo() {
 		</li>
 		<li class="ux-card reveal">
 			<p class="ux-card__human mono-label">Undo</p>
+			<div class="ux-art" aria-hidden="true"><div class="ua-toast"><span>Todo deleted</span><i>Undo</i></div></div>
 			<h3 class="ux-card__title">Reversible actions</h3>
 			<code class="ux-card__code">undoable: true</code>
 			<p>Agents and UIs know which steps have a way back before they take them, so they can be bolder with those and careful with the rest.</p>
@@ -511,6 +538,7 @@ export function AddTodo() {
 		</li>
 		<li class="ux-card reveal" style="--delay: 1">
 			<p class="ux-card__human mono-label">Helpful error messages</p>
+			<div class="ux-art" aria-hidden="true"><div class="ua-field"><span class="ua-input ua-invalid"></span><span class="ua-error">Title is required. Try “Buy milk”.</span></div></div>
 			<h3 class="ux-card__title">Recovery paths</h3>
 			<code class="ux-card__code">suggestion: 'Try user-search with a partial match'</code>
 			<p>Every error carries a stable code, a next step and whether a retry can help. The agent recovers instead of stalling.</p>
@@ -518,6 +546,7 @@ export function AddTodo() {
 		</li>
 		<li class="ux-card reveal" style="--delay: 2">
 			<p class="ux-card__human mono-label">Wayfinding</p>
+			<div class="ux-art" aria-hidden="true"><div class="ua-steps"><i class="done">1</i><b></b><i class="here">2</i><b></b><i>3</i><span>Sign in first</span></div></div>
 			<h3 class="ux-card__title">Prerequisites</h3>
 			<code class="ux-card__code">requires: ['auth-sign-in']</code>
 			<p>Agents learn the order of operations up front, from the tool list, instead of from an UNAUTHORIZED error halfway through.</p>
@@ -525,6 +554,7 @@ export function AddTodo() {
 		</li>
 		<li class="ux-card reveal">
 			<p class="ux-card__human mono-label">Affordances</p>
+			<div class="ux-art" aria-hidden="true"><div class="ua-field"><span class="ua-input">e.g. Buy milk</span><span class="ua-tip">Title · up to 200 characters</span></div></div>
 			<h3 class="ux-card__title">Examples &amp; output schemas</h3>
 			<code class="ux-card__code">examples: [{ title, input }],<br>output: TodoSchema</code>
 			<p>Examples are checked against the input schema when you define the command. Output schemas tell agents the field names before they chain one command into the next.</p>
@@ -532,6 +562,7 @@ export function AddTodo() {
 		</li>
 		<li class="ux-card reveal" style="--delay: 1">
 			<p class="ux-card__human mono-label">Usability testing</p>
+			<div class="ux-art" aria-hidden="true"><div class="ua-checks"><span><i class="ok">✓</i>Finds “create”</span><span><i class="ok">✓</i>Understands errors</span><span><i class="bad">✗</i>Confuses two buttons</span></div></div>
 			<h3 class="ux-card__title">Surface validation</h3>
 			<code class="ux-card__code">afd validate --surface</code>
 			<p>Lints the whole command set for agent usability: name collisions, overlapping schemas, injection risks and inputs too complex for an agent to fill in reliably.</p>
@@ -539,6 +570,7 @@ export function AddTodo() {
 		</li>
 		<li class="ux-card reveal" style="--delay: 2">
 			<p class="ux-card__human mono-label">Help menu</p>
+			<div class="ux-art" aria-hidden="true"><div class="ua-help"><i>?</i><div><span>Docs</span><span>Keyboard shortcuts</span><span>What’s new</span></div></div></div>
 			<h3 class="ux-card__title">Self-description</h3>
 			<code class="ux-card__code">bootstrap: true</code>
 			<p>Adds afd-help, afd-docs and afd-schema, so agents can ask the server what it does. The docs come from the registry, so they can’t drift from the code.</p>
@@ -553,9 +585,10 @@ export function AddTodo() {
      06 · BUILT FOR YOUR CODING AGENT
      ============================================================ -->
 <section id="build" class="section">
+	<span class="section-numeral" aria-hidden="true">06</span>
 	<div class="split build">
 		<div class="reveal">
-			<p class="eyebrow">06 · Agent-buildable</p>
+			<p class="eyebrow"><span class="fig-label mono-label">Fig. 06</span>Agent-buildable</p>
 			<h2 class="build__title">Built for the agent writing your code.</h2>
 			<p class="lede">The same structure that makes an app usable by agents makes it buildable by them.</p>
 			<p>A coding agent working against commands gets a tight loop: edit a handler, run <code>afd call</code>, read the structured error, fix. No browser, no screenshots, no guessing which click broke the data flow. When the UI needs rethinking, it rebuilds the screen against commands that never stopped passing.</p>
@@ -614,9 +647,10 @@ export function AddTodo() {
      07 · TEST THE JOB
      ============================================================ -->
 <section id="testing" class="section section--dark inset-frame">
+	<span class="section-numeral" aria-hidden="true">07</span>
 	<div class="split">
 		<div class="reveal">
-			<p class="eyebrow">07 · Testing</p>
+			<p class="eyebrow"><span class="fig-label mono-label">Fig. 07</span>Testing</p>
 			<h2 class="testing-title">Test the job.</h2>
 			<p class="testing-sub mono-label text-red">Not the UI.</p>
 			<p>Most suites test buttons and endpoints. AFD tests the job someone hired your software to do. A YAML scenario walks through a real journey: each step calls a command, checks the result and hands data to the next step.</p>
@@ -687,8 +721,9 @@ Summary
      08 · TOOLKIT
      ============================================================ -->
 <section id="toolkit" class="section">
+	<span class="section-numeral" aria-hidden="true">08</span>
 	<div class="section-head reveal">
-		<p class="eyebrow">08 · Toolkit</p>
+		<p class="eyebrow"><span class="fig-label mono-label">Fig. 08</span>Toolkit</p>
 		<h2>The toolkit.</h2>
 		<p class="lede">Packages you install, not a platform you migrate to. TypeScript, Python and Rust share one agent-visible contract.</p>
 	</div>
@@ -772,15 +807,33 @@ Summary
 <!-- ============================================================
      09 · BOTCORE
      ============================================================ -->
-<section id="botcore" class="section section--dark botcore">
+<section id="botcore" class="section botcore">
+	<span class="section-numeral" aria-hidden="true">09</span>
 	<div class="botcore__inner reveal">
 		<img src="svg/alfred.svg" alt="Alfred, the botcore agent" class="botcore__avatar" width="140" height="140">
-		<p class="eyebrow">09 · Built with AFD</p>
+		<p class="eyebrow"><span class="fig-label mono-label">Fig. 09</span>Built with AFD</p>
 		<h2>Botcore.</h2>
 		<p class="lede">Shared agent tooling for every repo, built on AFD.</p>
 		<p class="muted">Commands, 50+ bundled skills and quality gates in one <code>pip install</code>, so the agents in each of your repositories stop drifting apart. AFD’s own quality bot, Alfred, is built the same way: its lint, parity and quality commands keep this repo’s TypeScript, Python and Rust in step.</p>
 		<a href="https://github.com/lushly-dev/botcore" class="btn">Explore botcore <span aria-hidden="true">→</span></a>
 	</div>
+</section>
+
+<!-- ============================================================
+     10 · YOUR TURN
+     ============================================================ -->
+<section id="start" class="section section--dark finale">
+	<span class="section-numeral" aria-hidden="true">10</span>
+	<p class="eyebrow reveal"><span class="fig-label mono-label">Fig. 10</span>Your turn</p>
+	<form class="finale__line reveal" data-finale>
+		<span class="finale__prompt" aria-hidden="true">$</span>
+		<label class="finale__cmd" for="finale-run">afd call get-started</label>
+		<button class="btn btn--primary finale__run" id="finale-run" type="submit">Run ↵</button>
+	</form>
+	<pre class="code finale__out" data-finale-out aria-live="polite"><span class="tok-label">Install</span>      npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod
+<span class="tok-label">Quickstart</span>   <a class="finale__link" href="https://github.com/lushly-dev/afd#quickstart">https://github.com/lushly-dev/afd#quickstart</a>
+<span class="tok-label">For agents</span>   npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd
+<span class="tok-label">Source</span>       <a class="finale__link" href="https://github.com/lushly-dev/afd">https://github.com/lushly-dev/afd</a></pre>
 </section>
 
 </main>
