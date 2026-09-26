@@ -522,12 +522,12 @@ backends/cpp/
   - Related Skills.
 - **Register the skill** in:
   - `botcore.toml` `[skills]`;
-  - the skill tables in `AGENTS.md` and `.claude/CLAUDE.md`;
+  - the skill table in `AGENTS.md`;
   - the Related Skills footers of `afd-typescript`, `afd-python`, `afd-rust` and `afd-developer`.
 - **Repository docs:**
   - `README.md`: the badges and the language lists at lines 6-8, 177, 189 and 289.
   - `CONTRIBUTING.md`: the `cpp` commit scope and the local commands.
-  - The CI tables in `AGENTS.md` and `.claude/CLAUDE.md`: a `cpp.yml` row, plus a key rule, "Changed `packages/cpp/`? Run `cmake --preset dev && cmake --build --preset dev && ctest --preset dev`".
+  - The CI table in `AGENTS.md`: a `cpp.yml` row, plus a key rule, "Changed `packages/cpp/`? Run `cmake --preset dev && cmake --build --preset dev && ctest --preset dev`".
   - `spec/wire/README.md`: the list of round-trip tests, and "all four languages in the same PR".
   - `docs/features/README.md`.
   - `.claude/skills/do-release`: a C++ section.
@@ -635,7 +635,8 @@ These drifts and stale items turned up while planning. They are outside #270's s
 4. **`docs/features/active/rust-parity/rust-parity.plan.md` is stale.**
    - It still says Active and cites the March 2026 counts, although the work shipped in #181. Current `missing_from_rust` is 10, within the budget in `alfred/tests/test_parity.py`.
    - It should move to `complete/`.
-5. **`packages/examples/todo/spec/README.md` is stale:** it names only the TypeScript and Python backends.
-6. **`.claude/skills/afd-rust/SKILL.md` gives the wrong not-found message** (around line 156). The code produces `Todo with ID '123' not found`.
+   - *Fixed in #289:* now `docs/features/complete/rust-parity/plan.md`.
+5. **`packages/examples/todo/spec/README.md` is stale:** it names only the TypeScript and Python backends. *Fixed in #289.*
+6. **`.claude/skills/afd-rust/SKILL.md` gives the wrong not-found message** (around line 156). The code produces `Todo with ID '123' not found`. *Fixed in #289.*
 7. **The `alfred parity` command exits 1 today.** It reports 224 name gaps, 117 of them `missing_from_typescript`. The effective gate is the budget in `test_parity.py`. C++-only helpers must stay in `afd::detail`, or they add to `missing_from_typescript`.
 8. **The TypeScript pipeline executor returns an executor exception's raw message** (`packages/core/src/pipeline-executor.ts:293-295`). It does not use the engine's `devMode` redaction. Check whether that is intended.

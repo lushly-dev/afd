@@ -13,7 +13,7 @@
 | Package | `packages/cpp` (working name `afd-cpp`, namespace `afd`, CMake target `afd::afd`) |
 | Behavioral reference | TypeScript: `packages/server/src/execution.ts` (single command), `packages/core/src/command-execution.ts` (batch, stream), `packages/core/src/pipeline-executor.ts` (pipeline) |
 | Contracts | `spec/wire/*.json`, `spec/pipeline-variables.md`, `packages/examples/todo/spec/{commands.schema.json,test-cases.json}` |
-| Precedent | [Rust Support](../rust-support/00-overview.md), [Rust Parity Closure](../../active/rust-parity/rust-parity.plan.md) |
+| Precedent | [Rust Support](../rust-support/00-overview.md), [Rust Parity Closure](../../complete/rust-parity/plan.md) |
 | Work plan | [work-plan.md](./work-plan.md) |
 | Updated | 2026-09-26 |
 
