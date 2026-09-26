@@ -16,7 +16,7 @@ const FIELDS = {
 	confidence: {
 		label: 'confidence: 0.85',
 		thought: '“This match isn’t certain. I should verify before I act on it.”',
-		note: 'A calibrated score from 0 to 1. Agents can gate risky actions on it, and UIs can show it as a trust badge.',
+		note: 'A score from 0 to 1 that the command sets: 1 for exact operations, lower for fuzzy matches and inferences. Agents can gate risky actions on it; UIs can show it as a trust badge.',
 	},
 	reasoning: {
 		label: 'reasoning',

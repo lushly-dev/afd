@@ -48,6 +48,7 @@
 			<li><a href="#problem">Why</a></li>
 			<li><a href="#workflow">Workflow</a></li>
 			<li><a href="#result">CommandResult</a></li>
+			<li><a href="#agent-ux">Agent UX</a></li>
 			<li><a href="#testing">Testing</a></li>
 			<li><a href="#toolkit">Toolkit</a></li>
 			<li><a href="https://github.com/lushly-dev/afd">GitHub</a></li>
@@ -74,17 +75,19 @@
 <section id="top" class="section hero">
 	<div class="hero-top">
 		<span class="mono-label">Agent-First Development</span>
-		<span class="hero-badge mono-label"><span data-afd-version>v2.0.0</span> · MIT</span>
+		<span class="hero-badge mono-label"><span data-afd-version>v1.0.0</span> · MIT</span>
 	</div>
 
 	<h1 class="hero-title">
-		<span>Commands</span>
-		<span>are the</span>
-		<span class="accent-word">product.</span>
+		<span>Commands are</span>
+		<span>the <span class="accent-word">product.</span></span>
 	</h1>
 
 	<div class="hero-body">
-		<p class="lede hero-lede">Software was built for fingers and eyes. Agents have neither. AFD flips the order: define the command, prove it in the terminal, paint the UI last. Agents, scripts and buttons all call the same layer.</p>
+		<div class="hero-copy">
+			<p class="hero-def">A methodology plus TypeScript, Python and Rust libraries. Define a typed command once and serve it as an MCP tool, a CLI call and an in-app agent action.</p>
+			<p class="hero-lede">Software was built for fingers and eyes. Agents have neither. So AFD flips the order: prove each command in the terminal first, and paint the UI last.</p>
+		</div>
 
 		<div class="hero-actions">
 			<div class="code install" data-tabs>
@@ -94,13 +97,13 @@
 					<button role="tab" type="button" aria-selected="false" aria-controls="install-rs" id="tab-rs" tabindex="-1">Rust</button>
 					<button class="copy-btn" type="button" data-copy>Copy</button>
 				</div>
-				<pre role="tabpanel" id="install-ts" aria-labelledby="tab-ts"><code>npm install @lushly-dev/afd-core @lushly-dev/afd-server</code></pre>
+				<pre role="tabpanel" id="install-ts" aria-labelledby="tab-ts"><code>npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod</code></pre>
 				<pre role="tabpanel" id="install-py" aria-labelledby="tab-py" hidden><code>pip install afd</code></pre>
 				<pre role="tabpanel" id="install-rs" aria-labelledby="tab-rs" hidden><code>cargo add afd --git https://github.com/lushly-dev/afd</code></pre>
 			</div>
 			<div class="hero-buttons">
-				<a class="btn btn--primary" href="https://github.com/lushly-dev/afd#getting-started">Get started</a>
-				<a class="btn" href="https://github.com/lushly-dev/afd/blob/main/docs/whitepaper/AFD-Whitepaper.md">Read the whitepaper</a>
+				<a class="btn btn--primary" href="https://github.com/lushly-dev/afd#quickstart">5-minute quickstart</a>
+				<a class="btn" href="https://github.com/lushly-dev/afd">View on GitHub</a>
 			</div>
 		</div>
 	</div>
@@ -123,9 +126,10 @@
 				<div class="surface__bar mono-label"><span class="surface__dot"></span>Agent · MCP</div>
 				<div class="surface__body">
 					<p class="agent-msg">“Add groceries to my list. It’s urgent.”</p>
-					<pre><code class="lang-json">tool_use: "todo-create"
-{ "title": "Buy groceries",
-  "priority": "high" }</code></pre>
+					<pre><code class="lang-json">tool_use: "todo"
+{ "action": "create",
+  "params": { "title": "Buy groceries",
+              "priority": "high" } }</code></pre>
 				</div>
 			</div>
 
@@ -229,11 +233,11 @@
 			<div class="hub">
 				<div class="hub__core">Commands<small>single source of truth</small></div>
 				<ul class="hub__spokes">
-					<li>CLI</li>
-					<li>MCP agent</li>
-					<li>Web UI</li>
-					<li>DirectClient</li>
-					<li>AI chat</li>
+					<li>CLI<small>afd call, scripts, CI</small></li>
+					<li>MCP agent<small>Claude, Codex, any MCP client</small></li>
+					<li>Web UI<small>a thin wrapper over the client</small></li>
+					<li>In-app copilot<small>DirectClient, ~0.03 ms in-process</small></li>
+					<li>Your UI state<small>view-state commands agents can drive</small></li>
 					<li class="hub__next">Whatever’s next</li>
 				</ul>
 			</div>
@@ -306,16 +310,18 @@ export const createTodo = defineCommand({
 
 Error: [VALIDATION_ERROR] Input validation failed
 
-Suggestion: title: Title is required
+Suggestion: title: Title is required. Expected fields: title
 
 $ afd call todo-create '{"title":"Buy groceries","priority":"high"}'
 ✓ Success
 
 Data:
-  id: todo-8f2c
-  title: Buy groceries
-  priority: high
-  completed: false
+{
+  "id": "todo-8f2c",
+  "title": "Buy groceries",
+  "priority": "high",
+  "completed": false
+}
 
 Confidence: ██████████ 100%</code></pre>
 				</div>
@@ -326,11 +332,15 @@ Confidence: ██████████ 100%</code></pre>
 				<p>The UI is a thin wrapper over a command that already passes. Agents call the same command your components do. No translation layer, full parity.</p>
 				<div class="code">
 					<div class="code__bar"><span>AddTodo.tsx</span></div>
-					<pre><code class="lang-ts">export function AddTodo() {
+					<pre><code class="lang-ts">import { createClient } from '@lushly-dev/afd-client';
+
+const client = createClient({ url: '/sse' });
+
+export function AddTodo() {
   const [title, setTitle] = useState('');
 
   async function add() {
-    const result = await callTool&lt;Todo&gt;('todo-create', { title });
+    const result = await client.call&lt;Todo&gt;('todo-create', { title });
     if (!result.success) {
       // The error already says how to recover.
       return toast.error(result.error.message, result.error.suggestion);
@@ -375,7 +385,7 @@ Confidence: ██████████ 100%</code></pre>
   <button type="button" class="field" data-field="data" aria-pressed="false">"data"</button>: { <span class="tok-key">"id"</span>: <span class="tok-num">42</span>, <span class="tok-key">"name"</span>: <span class="tok-str">"Jane Doe"</span>, <span class="tok-key">"role"</span>: <span class="tok-str">"admin"</span> },
   <button type="button" class="field field--afd" data-field="confidence" aria-pressed="true">"confidence"</button>: <span class="tok-num">0.85</span>,
   <button type="button" class="field field--afd" data-field="reasoning" aria-pressed="false">"reasoning"</button>: <span class="tok-str">"Matched by email. 2 accounts share this domain."</span>,
-  <button type="button" class="field field--afd" data-field="warnings" aria-pressed="false">"warnings"</button>: [{ <span class="tok-key">"message"</span>: <span class="tok-str">"Admin: confirm before mutating"</span> }],
+  <button type="button" class="field field--afd" data-field="warnings" aria-pressed="false">"warnings"</button>: [{ <span class="tok-key">"code"</span>: <span class="tok-str">"ELEVATED_ROLE"</span>, <span class="tok-key">"message"</span>: <span class="tok-str">"Confirm before mutating"</span> }],
   <button type="button" class="field field--afd" data-field="suggestions" aria-pressed="false">"suggestions"</button>: [<span class="tok-str">"Run user-permissions to review roles"</span>],
   <button type="button" class="field field--afd" data-field="sources" aria-pressed="false">"sources"</button>: [{ <span class="tok-key">"type"</span>: <span class="tok-str">"database"</span>, <span class="tok-key">"title"</span>: <span class="tok-str">"users"</span> }]
 }</code></pre>
@@ -393,7 +403,7 @@ Confidence: ██████████ 100%</code></pre>
 		<aside class="explorer__panel" aria-live="polite">
 			<p class="explorer__field mono-label">confidence: 0.85</p>
 			<p class="explorer__thought">“This match isn’t certain. I should verify before I act on it.”</p>
-			<p class="explorer__note">A calibrated score from 0 to 1. Agents can gate risky actions on it, and UIs can show it as a trust badge.</p>
+			<p class="explorer__note">A score from 0 to 1 that the command sets: 1 for exact operations, lower for fuzzy matches and inferences. Agents can gate risky actions on it; UIs can show it as a trust badge.</p>
 			<div class="blank-wall" hidden>
 				<p class="mono-label muted">What most APIs send instead</p>
 				<pre><code>{ "status": 404, "message": "Not found" }</code></pre>
@@ -404,12 +414,152 @@ Confidence: ██████████ 100%</code></pre>
 </section>
 
 <!-- ============================================================
-     05 · TEST THE JOB
+     05 · AGENT UX — NOT JUST AN MCP SERVER
+     ============================================================ -->
+<section id="agent-ux" class="section section--dark inset-frame">
+	<div class="section-head ux-head reveal">
+		<p class="eyebrow">05 · Agent UX</p>
+		<h2>Not just an <span class="accent-block">MCP server.</span></h2>
+		<p class="lede">AFD started with one question: what if we applied UX design to AI agents? Every good interface pattern has an agent equivalent. AFD ships them as command metadata that the server, CLI and tests all understand.</p>
+	</div>
+
+	<ul class="ux-grid">
+		<li class="ux-card reveal">
+			<p class="ux-card__human mono-label">Progressive disclosure</p>
+			<h3 class="ux-card__title">Tool strategies</h3>
+			<code class="ux-card__code">toolStrategy: 'lazy'</code>
+			<p>Grouped by default: one tool per domain. Switch to lazy and agents see five meta-tools and pull schemas on demand, so hundreds of commands don’t flood the context window.</p>
+			<a class="ux-card__link" href="https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-taxonomy.md">Tool strategies <span aria-hidden="true">→</span></a>
+		</li>
+		<li class="ux-card reveal" style="--delay: 1">
+			<p class="ux-card__human mono-label">Confirmation dialogs</p>
+			<h3 class="ux-card__title">Destructive actions</h3>
+			<code class="ux-card__code">destructive: true,<br>confirmPrompt: 'Delete all todos?'</code>
+			<p>The frontend asks before an agent’s delete runs: the same dialog a click would get, instead of a silent bypass.</p>
+			<a class="ux-card__link" href="https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-trust-config.md">Trust config <span aria-hidden="true">→</span></a>
+		</li>
+		<li class="ux-card reveal" style="--delay: 2">
+			<p class="ux-card__human mono-label">Permissions</p>
+			<h3 class="ux-card__title">Per-surface exposure</h3>
+			<code class="ux-card__code">expose: { mcp: true, cli: true }</code>
+			<p>Each command opts in per surface. External MCP access is off until you turn it on; the command palette and in-app agent are on by default.</p>
+			<a class="ux-card__link" href="https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-exposure-undo.md">Exposure &amp; undo <span aria-hidden="true">→</span></a>
+		</li>
+		<li class="ux-card reveal">
+			<p class="ux-card__human mono-label">Undo</p>
+			<h3 class="ux-card__title">Reversible actions</h3>
+			<code class="ux-card__code">undoable: true</code>
+			<p>Agents and UIs know which steps have a way back before they take them, so they can be bolder with those and careful with the rest.</p>
+			<a class="ux-card__link" href="https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-exposure-undo.md">Exposure &amp; undo <span aria-hidden="true">→</span></a>
+		</li>
+		<li class="ux-card reveal" style="--delay: 1">
+			<p class="ux-card__human mono-label">Helpful error messages</p>
+			<h3 class="ux-card__title">Recovery paths</h3>
+			<code class="ux-card__code">suggestion: 'Try user-search with a partial match'</code>
+			<p>Every error carries a stable code, a next step and whether a retry can help. The agent recovers instead of stalling.</p>
+			<a class="ux-card__link" href="https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-schema.md">Command schema guide <span aria-hidden="true">→</span></a>
+		</li>
+		<li class="ux-card reveal" style="--delay: 2">
+			<p class="ux-card__human mono-label">Wayfinding</p>
+			<h3 class="ux-card__title">Prerequisites</h3>
+			<code class="ux-card__code">requires: ['auth-sign-in']</code>
+			<p>Agents learn the order of operations up front, from the tool list, instead of from an UNAUTHORIZED error halfway through.</p>
+			<a class="ux-card__link" href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/command-prerequisites">Prerequisites <span aria-hidden="true">→</span></a>
+		</li>
+		<li class="ux-card reveal">
+			<p class="ux-card__human mono-label">Affordances</p>
+			<h3 class="ux-card__title">Examples &amp; output schemas</h3>
+			<code class="ux-card__code">examples: [{ title, input }],<br>output: TodoSchema</code>
+			<p>Examples are checked against the input schema when you define the command. Output schemas tell agents the field names before they chain one command into the next.</p>
+			<a class="ux-card__link" href="https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-schema.md">Command schema guide <span aria-hidden="true">→</span></a>
+		</li>
+		<li class="ux-card reveal" style="--delay: 1">
+			<p class="ux-card__human mono-label">Usability testing</p>
+			<h3 class="ux-card__title">Surface validation</h3>
+			<code class="ux-card__code">afd validate --surface</code>
+			<p>Lints the whole command set for agent usability: name collisions, overlapping schemas, injection risks and inputs too complex for an agent to fill in reliably.</p>
+			<a class="ux-card__link" href="https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/surface-validation.md">Surface validation <span aria-hidden="true">→</span></a>
+		</li>
+		<li class="ux-card reveal" style="--delay: 2">
+			<p class="ux-card__human mono-label">Help menu</p>
+			<h3 class="ux-card__title">Self-description</h3>
+			<code class="ux-card__code">bootstrap: true</code>
+			<p>Adds afd-help, afd-docs and afd-schema, so agents can ask the server what it does. The docs come from the registry, so they can’t drift from the code.</p>
+			<a class="ux-card__link" href="https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/mcp-integration.md">MCP integration <span aria-hidden="true">→</span></a>
+		</li>
+	</ul>
+
+	<p class="ux-more reveal">Plus <a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/command-pipeline">pipelines</a> (<code>afd-pipe</code> chains commands in one call), batching, <a href="https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/handoff-pattern.md">real-time handoff</a> to WebSocket and SSE, and <a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/middleware-defaults">zero-config observability</a>.</p>
+</section>
+
+<!-- ============================================================
+     06 · BUILT FOR YOUR CODING AGENT
+     ============================================================ -->
+<section id="build" class="section">
+	<div class="split build">
+		<div class="reveal">
+			<p class="eyebrow">06 · Agent-buildable</p>
+			<h2 class="build__title">Built for the agent writing your code.</h2>
+			<p class="lede">The same structure that makes an app usable by agents makes it buildable by them.</p>
+			<p>A coding agent working against commands gets a tight loop: edit a handler, run <code>afd call</code>, read the structured error, fix. No browser, no screenshots, no guessing which click broke the data flow. When the UI needs rethinking, it rebuilds the screen against commands that never stopped passing.</p>
+
+			<h3 class="build__skills-title mono-label">Teach your agent AFD</h3>
+			<p>The repo ships skills for Claude Code, Codex and any agent that reads <code>SKILL.md</code>:</p>
+			<ul class="skills">
+				<li><a href="https://github.com/lushly-dev/afd/tree/main/.claude/skills/afd">afd</a></li>
+				<li><a href="https://github.com/lushly-dev/afd/tree/main/.claude/skills/afd-developer">afd-developer</a></li>
+				<li><a href="https://github.com/lushly-dev/afd/tree/main/.claude/skills/afd-typescript">afd-typescript</a></li>
+				<li><a href="https://github.com/lushly-dev/afd/tree/main/.claude/skills/afd-python">afd-python</a></li>
+				<li><a href="https://github.com/lushly-dev/afd/tree/main/.claude/skills/afd-rust">afd-rust</a></li>
+				<li><a href="https://github.com/lushly-dev/afd/tree/main/.claude/skills/afd-auth">afd-auth</a></li>
+				<li><a href="https://github.com/lushly-dev/afd/tree/main/.claude/skills/afd-directclient">afd-directclient</a></li>
+				<li><a href="https://github.com/lushly-dev/afd/tree/main/.claude/skills/afd-contracts">afd-contracts</a></li>
+			</ul>
+			<div class="code install install--skills">
+				<div class="code__bar"><span>Add a skill to your project</span><button class="copy-btn" type="button" data-copy-target="skill-cmd">Copy</button></div>
+				<pre id="skill-cmd"><code>npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd</code></pre>
+			</div>
+		</div>
+
+		<div class="reveal" style="--delay: 1">
+			<div class="code transcript">
+				<div class="code__bar"><span>Coding agent session</span></div>
+				<pre><code><span class="tx-user">› Add a priority filter to todo-list</span>
+
+<span class="tx-step">●</span> Edit <span class="tok-label">commands/list.ts</span> <span class="tx-diff">+6 −1</span>
+
+<span class="tx-step">●</span> Run <span class="tok-prompt">afd call todo-list '{"priority":"urgent"}'</span>
+  <span class="tok-err">✗ Failed</span>
+  <span class="tok-label">Error:</span> [VALIDATION_ERROR] Input validation failed
+  <span class="tok-label">Suggestion:</span> priority: Invalid option: expected
+  one of "low"|"medium"|"high"
+
+<span class="tx-think">● No "urgent" level. I'll use "high" and add an
+  example to the schema so the next caller gets it right.</span>
+
+<span class="tx-step">●</span> Edit <span class="tok-label">commands/list.ts</span> <span class="tx-diff">+4</span>
+
+<span class="tx-step">●</span> Run <span class="tok-prompt">afd call todo-list '{"priority":"high"}'</span>
+  <span class="tok-ok">✓ Success</span>  <span class="tok-label">Confidence:</span> 100%
+
+<span class="tx-step">●</span> Run <span class="tok-prompt">afd scenario run scenarios/ --server …</span>
+  <span class="tok-ok">✓ All scenarios passed!</span>
+
+<span class="tx-think">● Done. The filter works from the CLI, so the UI
+  can call it next.</span></code></pre>
+			</div>
+			<p class="transcript__note mono-label muted">Illustrative session. The CLI lines follow afd-cli’s real output format.</p>
+		</div>
+	</div>
+</section>
+
+<!-- ============================================================
+     07 · TEST THE JOB
      ============================================================ -->
 <section id="testing" class="section section--dark inset-frame">
 	<div class="split">
 		<div class="reveal">
-			<p class="eyebrow">05 · Testing</p>
+			<p class="eyebrow">07 · Testing</p>
 			<h2 class="testing-title">Test the job.</h2>
 			<p class="testing-sub mono-label text-red">Not the UI.</p>
 			<p>Most suites test buttons and endpoints. AFD tests the job someone hired your software to do. A YAML scenario walks through a real journey: each step calls a command, checks the result and hands data to the next step.</p>
@@ -419,40 +569,45 @@ Confidence: ██████████ 100%</code></pre>
 		<div class="reveal" style="--delay: 1">
 			<div class="code testing-yaml">
 				<div class="code__bar"><span>scenarios/todo-lifecycle.scenario.yaml</span></div>
-				<pre><code class="lang-yaml">name: Update and complete a created todo
+				<pre><code class="lang-yaml">name: Create and fetch a todo
+description: As a user, I can create a todo and fetch it back
 job: todo-lifecycle
 tags: [smoke, step-refs]
 
 steps:
   - command: todo-create
-    input: { title: Test step references }
+    description: Create a todo
+    input: { title: Buy groceries }
     expect: { success: true }
 
-  - command: todo-update
+  - command: todo-get
+    description: Fetch it by the id step 0 returned
     input:
       id: ${{ steps[0].data.id }}
-      priority: high
     expect:
-      data: { priority: high }</code></pre>
+      success: true
+      data: { title: Buy groceries }</code></pre>
 			</div>
 
 			<div class="code runner" data-runner>
 				<div class="code__bar"><span>afd scenario run</span></div>
-				<pre><code class="runner__out"><span class="tok-prompt">afd scenario run scenarios/</span>
-<span class="runner__line">
-Create and Complete Todo</span><span class="runner__line">
-  <span class="tok-ok">✓</span> todo-clear    Clear all todos             <span class="tok-label">2ms</span></span><span class="runner__line">
-  <span class="tok-ok">✓</span> todo-create   Create a new todo item      <span class="tok-label">4ms</span></span><span class="runner__line">
-  <span class="tok-ok">✓</span> todo-list     Verify it appears           <span class="tok-label">1ms</span></span><span class="runner__line">
-  <span class="tok-ok">✓</span> todo-stats    Stats show one pending      <span class="tok-label">1ms</span></span><span class="runner__line">
+				<pre><code class="runner__out"><span class="tok-prompt">afd scenario run scenarios/ --server http://localhost:3100/sse</span><span class="runner__line">
+<span class="tok-ok">✔</span> Found 1 scenario(s)</span><span class="runner__line">
+<span class="tok-ok">✔</span> Connected to server</span><span class="runner__line">
 
-Update and Complete Created Todo</span><span class="runner__line">
-  <span class="tok-ok">✓</span> todo-create   Create a todo to work with  <span class="tok-label">3ms</span></span><span class="runner__line">
-  <span class="tok-ok">✓</span> todo-update   Update it by step 0's id    <span class="tok-label">2ms</span></span><span class="runner__line">
-  <span class="tok-ok">✓</span> todo-get      Verify the update           <span class="tok-label">1ms</span></span><span class="runner__line">
+▸ todo-lifecycle</span><span class="runner__line">
+  <span class="tok-label">As a user, I can create a todo and fetch it back</span></span><span class="runner__line">
+  <span class="tok-ok">✓</span> [1/2] todo-create <span class="tok-label">3ms</span></span><span class="runner__line">
+  <span class="tok-ok">✓</span> [2/2] todo-get <span class="tok-label">2ms</span></span><span class="runner__line">
 
-<span class="tok-label">Summary</span>
-  Scenarios: <span class="tok-ok">4 passed</span>, 0 failed</span><span class="runner__line">
+<span class="tok-ok">✓</span> todo-lifecycle <span class="tok-label">(7ms)</span>
+  2 passed, 0 failed, 0 skipped</span><span class="runner__line">
+
+<span class="tok-label">────────────────────────────────────────</span>
+Summary
+  <span class="tok-ok">1 passed</span>, 0 failed
+  Total time: 7ms</span><span class="runner__line">
+
 <span class="tok-ok">✓ All scenarios passed!</span></span></code></pre>
 			</div>
 		</div>
@@ -469,82 +624,6 @@ Update and Complete Created Todo</span><span class="runner__line">
 			<div class="matrix__row"><span class="matrix__lang mono-label">Rust</span><span class="matrix__cells"></span><span class="matrix__score mono-label">34/34</span></div>
 		</div>
 	</div>
-</section>
-
-<!-- ============================================================
-     06 · TWO LOOPS
-     ============================================================ -->
-<section id="velocity" class="section loops-section">
-	<div class="section-head reveal">
-		<p class="eyebrow">06 · Velocity</p>
-		<h2>Two loops.</h2>
-		<p class="lede">When an agent builds against the UI, every change needs a browser. When it builds against commands, it needs one terminal call.</p>
-	</div>
-
-	<div class="loops reveal" data-loops>
-		<div class="loop loop--slow" data-loop="slow" data-step-ms="1500">
-			<div class="loop__head">
-				<p class="mono-label">Logic in the UI</p>
-				<p class="loop__count mono-label"><span data-loop-count>1</span> loop</p>
-			</div>
-			<ol class="loop__track">
-				<li>Edit component</li>
-				<li>Rebuild</li>
-				<li>Open browser</li>
-				<li>Click through</li>
-				<li>Find what broke</li>
-			</ol>
-		</div>
-
-		<div class="loop loop--fast" data-loop="fast" data-step-ms="420">
-			<div class="loop__head">
-				<p class="mono-label">Logic in commands</p>
-				<p class="loop__count mono-label"><span data-loop-count>6</span> loops</p>
-			</div>
-			<ol class="loop__track">
-				<li>Edit handler</li>
-				<li>afd call</li>
-				<li>✓ Pass</li>
-			</ol>
-		</div>
-	</div>
-
-	<div class="loops-copy split">
-		<p class="reveal">Logic tangled into components is fragile under an agent’s hands. It moves a component and corrupts a data flow. Fix one thing, break three.</p>
-		<p class="reveal" style="--delay: 1">Pull the logic into commands and the UI becomes disposable. Feedback says the flow is wrong? Rebuild the screen in minutes against commands that never stopped passing.</p>
-	</div>
-</section>
-
-<!-- ============================================================
-     07 · PARADIGMS CHANGE
-     ============================================================ -->
-<section id="durability" class="section section--dark timeline-section">
-	<div class="section-head reveal">
-		<p class="eyebrow">07 · Durability</p>
-		<h2>Paradigms change.<br><span class="accent-word">Commands don’t.</span></h2>
-	</div>
-
-	<div class="timeline reveal" role="img" aria-label="Interfaces move from command line to GUI to conversation to ambient AI, while the same command layer runs underneath all of them">
-		<ol class="timeline__eras">
-			<li><span class="mono-label">Then</span>Command line</li>
-			<li><span class="mono-label">Then</span>Full GUI</li>
-			<li><span class="mono-label">Now</span>Chat + GUI</li>
-			<li><span class="mono-label">Soon</span>Minimal UI + AI</li>
-			<li><span class="mono-label">Later</span>Ambient AI</li>
-			<li class="timeline__unknown"><span class="mono-label">Next</span>???</li>
-		</ol>
-		<div class="timeline__rail">
-			<p class="timeline__label mono-label">Your command layer</p>
-			<div class="timeline__marquee">
-				<div class="timeline__track">
-					<span>todo-create</span><span>todo-list</span><span>todo-toggle</span><span>user-get</span><span>order-list</span><span>invoice-send</span><span>report-build</span>
-					<span>todo-create</span><span>todo-list</span><span>todo-toggle</span><span>user-get</span><span>order-list</span><span>invoice-send</span><span>report-build</span>
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<p class="timeline-copy reveal">MCP is today’s standard. Function calling is another, and more will come. Design for agents first and you get an API, a schema, testable behavior and automation for free. The command layer outlasts every protocol that sits on top of it.</p>
 </section>
 
 <!-- ============================================================
@@ -631,21 +710,6 @@ Update and Complete Created Todo</span><span class="runner__line">
 			</a>
 		</div>
 	</div>
-
-	<div class="shipped reveal">
-		<p class="mono-label muted">Also shipped</p>
-		<ul class="chips">
-			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/command-pipeline">Pipelines</a></li>
-			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/handoff-pattern">Real-time handoff</a></li>
-			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/command-exposure-undo">Exposure &amp; undo</a></li>
-			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/command-trust-config">Trust config</a></li>
-			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/command-prerequisites">Prerequisites</a></li>
-			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/middleware-defaults">Middleware defaults</a></li>
-			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/lazy-loading-discovery">Lazy tool discovery</a></li>
-			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/semantic-quality-validation">Surface validation</a></li>
-			<li><a href="https://github.com/lushly-dev/afd/tree/main/docs/features/complete/schema-complexity-scoring">Schema complexity scoring</a></li>
-		</ul>
-	</div>
 </section>
 
 <!-- ============================================================
@@ -657,7 +721,7 @@ Update and Complete Created Todo</span><span class="runner__line">
 		<p class="eyebrow">09 · Built with AFD</p>
 		<h2>Botcore.</h2>
 		<p class="lede">Shared agent tooling for every repo, built on AFD.</p>
-		<p class="muted">Commands, 50+ bundled skills and quality gates in one <code>pip install</code>, so the agents in each of your repositories stop drifting apart. It’s how AFD’s own bot, Alfred, lints, tests, reviews and releases this project.</p>
+		<p class="muted">Commands, 50+ bundled skills and quality gates in one <code>pip install</code>, so the agents in each of your repositories stop drifting apart. AFD’s own quality bot, Alfred, is built the same way: its lint, parity and quality commands keep this repo’s TypeScript, Python and Rust in step.</p>
 		<a href="https://github.com/lushly-dev/botcore" class="btn">Explore botcore <span aria-hidden="true">→</span></a>
 	</div>
 </section>

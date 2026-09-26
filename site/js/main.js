@@ -3,7 +3,6 @@
 import { initAgentView } from './agent-view.js';
 import { initExplorer } from './explorer.js';
 import { highlightAll } from './highlight.js';
-import { initLoops } from './loops.js';
 import { initRunner } from './runner.js';
 import { initSurfaces } from './surfaces.js';
 import { initTabs } from './util.js';
@@ -73,6 +72,24 @@ function initNav() {
 	}
 }
 
+// Any button with data-copy-target copies that element's text.
+function initCopyTargets() {
+	for (const button of document.querySelectorAll('[data-copy-target]')) {
+		button.addEventListener('click', async () => {
+			const target = document.getElementById(button.dataset.copyTarget);
+			try {
+				await navigator.clipboard.writeText(target.textContent.trim());
+				button.textContent = 'Copied';
+			} catch {
+				button.textContent = 'Select & copy';
+			}
+			setTimeout(() => {
+				button.textContent = 'Copy';
+			}, 1800);
+		});
+	}
+}
+
 function initInstall() {
 	const install = document.querySelector('[data-tabs]');
 	if (!install) return;
@@ -119,11 +136,11 @@ for (const init of [
 	highlightAll,
 	initNav,
 	initInstall,
+	initCopyTargets,
 	initSteps,
 	initSurfaces,
 	initExplorer,
 	initRunner,
-	initLoops,
 	initAgentView,
 	initReveal,
 ]) {

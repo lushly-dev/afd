@@ -1,8 +1,8 @@
 # AFD — Agent-First Development
 
-> AFD is a methodology and toolkit for building software where AI agents are first-class users. Commands are the product: define each capability as a typed command, validate it through the CLI, and only then build UI as a thin surface over it. Humans, scripts and agents (over MCP or in-process) all call the same commands and get the same CommandResult.
+> AFD is a methodology plus TypeScript, Python and Rust libraries for building software where AI agents are first-class users. Commands are the product: define each capability as a typed command, validate it through the CLI, and only then build UI as a thin surface over it. Humans, scripts and agents (over MCP or in-process) all call the same commands and get the same CommandResult.
 
-Version: v2.0.0
+Version: v1.0.0
 License: MIT
 Repository: https://github.com/lushly-dev/afd
 
@@ -15,10 +15,11 @@ Repository: https://github.com/lushly-dev/afd
 - Command naming is `domain-action` kebab-case: `todo-create`, `user-get`, `order-list`.
 - Testing targets the job, not the UI: YAML JTBD scenarios call commands step by step, and surface validation audits the command set for collisions, schema drift and prompt injection.
 - One contract across languages: a 34-case conformance suite runs in CI against TypeScript, Python and Rust backends.
+- AFD is UX design for non-human users. Each classic interface pattern has an agent equivalent that AFD ships as command metadata (see "Agent UX" below).
 
 ## Install
 
-- TypeScript: `npm install @lushly-dev/afd-core @lushly-dev/afd-server`
+- TypeScript: `npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod`
 - Python: `pip install afd`
 - Rust: `cargo add afd --git https://github.com/lushly-dev/afd`
 
@@ -40,7 +41,36 @@ export const createTodo = defineCommand({
 });
 ```
 
-Validate it: `afd call todo-create '{"title":"Buy groceries"}'`
+Serve it with `createMcpServer({ name, version, commands: [createTodo], transport: 'http', port: 3100 }).start()`, then validate it:
+
+```bash
+npx afd connect http://localhost:3100/sse
+npx afd call todo-create '{"title":"Buy groceries"}'
+```
+
+Full walkthrough: [5-minute quickstart](https://github.com/lushly-dev/afd#quickstart)
+
+## Agent UX (human UX pattern → AFD mechanism)
+
+- Progressive disclosure → tool strategies: `toolStrategy: 'grouped'` (default, one tool per category), `'individual'`, or `'lazy'` (five meta-tools: afd-discover, afd-detail, afd-call, afd-batch, afd-pipe). [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-taxonomy.md)
+- Confirmation dialogs → `destructive: true` with `confirmPrompt`. [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-trust-config.md)
+- Permissions → per-surface `expose: { palette, agent, mcp, cli }`; `mcp` and `cli` are opt-in. [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-exposure-undo.md)
+- Undo → `undoable: true`.
+- Helpful errors → every error has `code`, `message`, `suggestion`, optional `retryable`. [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-schema.md)
+- Wayfinding → `requires: ['auth-sign-in']` declares prerequisites, exposed as `_meta.requires`.
+- Affordances → `examples` (validated at define time) and `output` schemas.
+- Usability testing → `afd validate --surface` lints the command set for collisions, overlap, injection and schema complexity. [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/surface-validation.md)
+- Help menu → `bootstrap: true` adds `afd-help`, `afd-docs`, `afd-schema`. [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/mcp-integration.md)
+
+## For coding agents
+
+The repo ships agent skills (SKILL.md format, read by Claude Code, Codex and others): afd, afd-developer, afd-typescript, afd-python, afd-rust, afd-auth, afd-directclient, afd-contracts. Add one to a project with:
+
+```bash
+npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd
+```
+
+Recommended loop: edit a command handler, `afd call` it, read `error.suggestion`, fix, then `afd scenario run scenarios/ --server <url>`.
 
 ## Packages
 

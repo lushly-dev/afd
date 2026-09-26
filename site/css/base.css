@@ -31,7 +31,7 @@
 	--fs-lede: clamp(1.45rem, 1.15rem + 1vw, 2.2rem);
 	--fs-h3: clamp(1.4rem, 1rem + 1.6vw, 2.6rem);
 	--fs-h2: clamp(2.4rem, 7vw, 8.5rem);
-	--fs-h1: clamp(2.5rem, 12.5vw, 10.5rem);
+	--fs-h1: clamp(2.75rem, 8.4vw, 8.75rem);
 
 	/* ── Space ─────────────────────────────────────────────── */
 	--gutter: clamp(1rem, 4vw, 4rem);

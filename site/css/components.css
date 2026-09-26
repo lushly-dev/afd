@@ -350,34 +350,6 @@
 	color: var(--teal-glow);
 }
 
-/* ── Chips ─────────────────────────────────────────────────── */
-
-.chips {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.6rem;
-	list-style: none;
-}
-
-.chips a {
-	display: inline-block;
-	padding: 0.4rem 0.8rem;
-	border: var(--rule-thin) solid var(--fg);
-	font-family: var(--font-mono);
-	font-size: 0.8rem;
-	text-decoration: none;
-	text-transform: uppercase;
-	letter-spacing: 0.04em;
-	transition:
-		background var(--dur) var(--ease-out),
-		color var(--dur) var(--ease-out);
-}
-
-.chips a:hover {
-	background: var(--fg);
-	color: var(--bg);
-}
-
 /* ── Footer ────────────────────────────────────────────────── */
 
 .footer {
