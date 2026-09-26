@@ -37,6 +37,31 @@ ErrorChunk timeout_chunk(double timeout_ms, std::int64_t chunks_emitted,
 
 } // namespace
 
+bool is_progress_chunk(const StreamChunk& chunk) noexcept {
+    return std::holds_alternative<ProgressChunk>(chunk);
+}
+
+bool is_data_chunk(const StreamChunk& chunk) noexcept {
+    return std::holds_alternative<DataChunk>(chunk);
+}
+
+bool is_complete_chunk(const StreamChunk& chunk) noexcept {
+    return std::holds_alternative<CompleteChunk>(chunk);
+}
+
+bool is_error_chunk(const StreamChunk& chunk) noexcept {
+    return std::holds_alternative<ErrorChunk>(chunk);
+}
+
+bool is_stream_chunk(const Json& value) {
+    if (!value.is_object()) {
+        return false;
+    }
+    const auto type = value.find("type");
+    return type != value.end() &&
+           (*type == "progress" || *type == "data" || *type == "complete" || *type == "error");
+}
+
 ProgressChunk create_progress_chunk(double progress, ProgressChunk options) {
     options.progress = (std::max)(0.0, (std::min)(1.0, progress));
     return options;

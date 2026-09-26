@@ -33,6 +33,9 @@ struct CommandError {
 
 void to_json(Json& out, const CommandError& error);
 
+/// An error code: usually one of `error_codes`, or an application's own.
+using ErrorCode = std::string;
+
 /// Optional fields for `create_error` and `error`.
 struct ErrorOptions {
     std::optional<std::string> suggestion;

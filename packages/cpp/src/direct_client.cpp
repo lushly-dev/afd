@@ -121,7 +121,7 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
     chain.back() = [&]() { return registry_->execute(command_name, args, context); };
     for (std::size_t i = options_.middleware.size(); i-- > 0;) {
         const Next& inner = chain[i + 1];
-        const Middleware& step = options_.middleware[i];
+        const CommandMiddleware& step = options_.middleware[i];
         chain[i] = [&step, &inner, &command_name, &args, &context]() {
             return step(command_name, args, context, inner);
         };

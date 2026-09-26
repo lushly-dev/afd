@@ -38,8 +38,9 @@ packages/
 ├── adapters/   # @lushly-dev/afd-adapters — Frontend adapters for rendering CommandResult
 ├── local-db/   # @lushly-dev/local-db — Async data adapter with swappable backends (Memory, HTTP, Browser)
 ├── rust/       # afd crate — Rust core types and utilities
+├── cpp/        # afd-cpp — C++20 implementation (CMake; see packages/cpp/README.md)
 └── examples/
-    ├── todo/                # Multi-stack example (TS, Python, Rust backends)
+    ├── todo/                # Multi-stack example (TS, Python, Rust, C++ backends)
     └── todo-directclient/   # DirectClient + AI integration example
 
 python/  # Python AFD package (pip install afd) — CommandResult, MCP server/client, middleware, validation, telemetry, batch/streaming, testing, handoff
@@ -60,7 +61,7 @@ alfred/  # Quality bot — lint, parity, quality (see alfred/AGENTS.md)
 
 **Principle: for TypeScript, lefthook IS the CI pipeline.** `pnpm check` runs the exact same steps as the `CI` workflow (`ci.yml`). If it passes locally, that workflow passes remotely.
 
-Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/rust/`) or alfred. Each has its own path-filtered workflow, listed below. The TypeScript, Python, Rust and C++ todo example backends all run the shared conformance suite in `conformance.yml`.
+Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/rust/`), C++ (`packages/cpp/`) or alfred. Each has its own path-filtered workflow, listed below. The TypeScript, Python, Rust and C++ todo example backends all run the shared conformance suite in `conformance.yml`.
 
 | Layer | When | What |
 |-------|------|------|
@@ -70,13 +71,14 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 | **CI** (`ci.yml`) | Push to main / PR | Same as quality gate — safety net for skipped hooks |
 | **Python** (`python.yml`) | Push to main / PR touching `python/**` | `uv lock --check`; ruff (F821, F841, B904); pytest on 3.10, 3.11, 3.12; wheel install smoke test per extra (base, client, server, cli) |
 | **Rust** (`rust.yml`) | Push to main / PR touching `packages/rust/**` | `cargo fmt --check`; clippy `-D warnings` and `cargo test`, each with default and no default features |
+| **C++** (`cpp.yml`) | Push to main / PR touching `packages/cpp/**`, `spec/wire`, `spec/vectors`, the todo spec or the C++ todo backend | clang-format (pinned); GCC; Clang with ASan+UBSan and with TSan; no-exceptions/no-RTTI unity build with the macro-hygiene check; macOS; MSVC; Emscripten with tests under Node; 60 s libFuzzer run per fuzz target |
 | **Conformance** (`conformance.yml`) | Push to main / PR touching the todo example, `packages/server`, `packages/core`, `packages/rust`, `packages/cpp`, `python/` or the lockfile | Todo example: Python backend pytest, Rust backend fmt/clippy/test, C++ backend build/test, then the 34-case conformance suite against the TypeScript, Python, Rust and C++ backends |
 | **Alfred** (`alfred.yml`) | Push to main / PR touching `alfred/**`, `python/**`, `spec/**` or `packages/**` | ruff, pytest (including the `alfred parity` name-gap budgets), wheel smoke test |
 | **Release** (GitHub Actions) | Push to main | `pnpm check` → Changesets opens a version PR or publishes to npm |
 
 **Key rules:**
 - Always run `pnpm check` before pushing — catches everything `ci.yml` would catch
-- Changed `python/` or `packages/rust/`? `pnpm check` does not test them. Run the commands from `python.yml` or `rust.yml` locally (`cd python && uv run pytest -q`; `cd packages/rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test`)
+- Changed `python/`, `packages/rust/` or `packages/cpp/`? `pnpm check` does not test them. Run the commands from `python.yml`, `rust.yml` or `cpp.yml` locally (`cd python && uv run pytest -q`; `cd packages/rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test`; `cd packages/cpp && cmake --preset dev && cmake --build --preset dev && ctest --preset dev`)
 - Workflow actions are pinned to full commit SHAs with a `# vX.Y.Z` comment; Dependabot updates them
 - Changesets manages versioning — run `pnpm changeset` to describe publishable package changes
 - All `@lushly-dev/*` packages share one version (fixed versioning)
@@ -92,6 +94,7 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 | [afd-python](.claude/skills/afd-python/) | Python implementation with Pydantic, FastMCP |
 | [afd-typescript](.claude/skills/afd-typescript/) | TypeScript patterns, Zod schemas, defineCommand, createMcpServer, createMcpHandler |
 | [afd-rust](.claude/skills/afd-rust/) | Rust implementation patterns |
+| [afd-cpp](.claude/skills/afd-cpp/) | C++ implementation patterns (afd-cpp), embedding constraints, host integrations |
 | [afd-auth](.claude/skills/afd-auth/) | Auth adapter, middleware, commands, session sync, React hooks |
 | [afd-directclient](.claude/skills/afd-directclient/) | DirectClient, pipe() pipelines, pipeline variable resolution |
 | [afd-contracts](.claude/skills/afd-contracts/) | TypeSpec-based contract system for multi-layer API schema sync |

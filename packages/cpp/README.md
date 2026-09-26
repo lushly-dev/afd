@@ -17,7 +17,7 @@ The C++20 implementation of [AFD (Agent-First Development)](../../README.md). It
 #include <afd/afd.hpp>
 
 auto registry = std::make_shared<afd::CommandRegistry>(
-    afd::RegistryOptions{.middleware = afd::default_middleware()});
+    afd::CommandRegistryOptions{.middleware = afd::default_middleware()});
 
 auto error = registry->register_command(afd::CommandDefinition{
     .name = "todo-create",
@@ -56,7 +56,7 @@ std::vector<afd::StreamChunk> chunks = registry->execute_stream("todo-list");
 ```
 
 - **Semantics** follow `packages/core/src/command-execution.ts` and `pipeline-executor.ts`. Pipeline references follow [`spec/pipeline-variables.md`](../../spec/pipeline-variables.md), and results match the TypeScript-generated vectors in `spec/vectors`.
-- **Concurrency.** Pass `RegistryOptions{.runner = std::make_shared<afd::ThreadTaskRunner>()}` for real batch parallelism; handlers must then be thread-safe. The default `InlineTaskRunner` runs commands one at a time.
+- **Concurrency.** Pass `CommandRegistryOptions{.runner = std::make_shared<afd::ThreadTaskRunner>()}` for real batch parallelism; handlers must then be thread-safe. The default `InlineTaskRunner` runs commands one at a time.
 - **Deadlines are cooperative.** A handler sees the deadline on `context.cancellation`, and a late finish is reported as BATCH_TIMEOUT or PIPELINE_TIMEOUT. Nothing is interrupted.
 
 ## Wire types

@@ -700,3 +700,4 @@ if afd::is_wasm() {
 - `afd-developer` - Core AFD methodology
 - `afd-typescript` - TypeScript implementation patterns
 - `afd-python` - Python implementation patterns
+- `afd-cpp` - C++ implementation patterns
