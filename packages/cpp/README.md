@@ -2,7 +2,7 @@
 
 The C++20 implementation of [AFD (Agent-First Development)](../../README.md). It is being built in phases; see the [proposal](../../docs/features/proposed/cpp-support/proposal.md) and the [work plan](../../docs/features/proposed/cpp-support/work-plan.md).
 
-> **Status: Phase 4.** The library is feature-complete for v0.1: the wire types, the validating `CommandRegistry`, middleware, `DirectClient`, and batch, pipeline and stream execution. The [C++ todo backend](../examples/todo/backends/cpp/README.md) passes the 34-case conformance suite. Parity tooling and packaging come in Phases 5 and 6. Do not depend on the package until `afd-cpp-v0.1.0`.
+> **Status: v0.1 release candidate.** The library is feature-complete for v0.1: the wire types, the validating `CommandRegistry`, middleware, `DirectClient`, and batch, pipeline and stream execution. The [C++ todo backend](../examples/todo/backends/cpp/README.md) passes the 34-case conformance suite, `alfred parity` tracks the API, and the package installs with a CMake config. Releases are tagged `afd-cpp-vX.Y.Z`.
 
 ## Design in brief
 
@@ -76,6 +76,41 @@ auto untrusted = afd::parse_bounded(text);                   // depth- and size-
 - **Writing.** Converting to `afd::Json` omits unset fields. Integral numbers are written as integers, as JavaScript does.
 - **Designated initializers.** Option structs are meant for partial designated initializers, such as `{.suggestion = "…"}`. Clang and GCC warn about the omitted fields under `-Wextra`. afd-cpp turns that warning off for its own targets. In your own code you may want `-Wno-missing-field-initializers`, which covers both compilers.
 
+## Using the package
+
+afd-cpp is not on a package registry. Take a tagged release (`afd-cpp-vX.Y.Z`) in one of three ways, and link `afd::afd`.
+
+**FetchContent:**
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(afd
+    GIT_REPOSITORY https://github.com/lushly-dev/afd.git
+    GIT_TAG afd-cpp-v0.1.0
+    SOURCE_SUBDIR packages/cpp)
+FetchContent_MakeAvailable(afd)
+target_link_libraries(my_app PRIVATE afd::afd)
+```
+
+**An installed package:**
+
+```bash
+cmake -S packages/cpp -B build -DCMAKE_BUILD_TYPE=Release -DAFD_BUILD_TESTS=OFF
+cmake --build build --config Release
+cmake --install build --config Release --prefix /opt/afd
+```
+
+```cmake
+find_package(afd 0.1 CONFIG REQUIRED)  # with CMAKE_PREFIX_PATH=/opt/afd
+target_link_libraries(my_app PRIVATE afd::afd)
+```
+
+The install includes the nlohmann/json that afd downloaded, unless `AFD_USE_SYSTEM_JSON` is on, in which case the consumer must find the same one. Minor versions may break the API before 1.0, so the version file accepts only the same major and minor version.
+
+**A vendored copy:** `add_subdirectory(path/to/packages/cpp)`.
+
+As a subproject, afd builds only the library: tests, examples and install rules are off unless you turn them on. [`examples/quickstart.cpp`](examples/quickstart.cpp) is a complete program that defines a command, executes it and calls it through `DirectClient`; CI builds it both ways against [`tests/consumer`](tests/consumer/CMakeLists.txt).
+
 ## Building
 
 This needs CMake 3.25 or later and a C++20 compiler: GCC 12+, Clang 16+, Apple Clang 15+ or MSVC 2022. Emscripten is optional.
@@ -103,6 +138,8 @@ Build trees go to `packages/cpp/build/<preset>/`, which git ignores. Set `CMAKE_
 | Option | Default | Effect |
 |---|---|---|
 | `AFD_BUILD_TESTS` | ON when top-level | Build the doctest suite |
+| `AFD_BUILD_EXAMPLES` | ON when top-level | Build `examples/` (and test them when `AFD_BUILD_TESTS` is on) |
+| `AFD_INSTALL` | ON when top-level | Generate install rules and the `afd` CMake package |
 | `AFD_WARNINGS_AS_ERRORS` | OFF (ON in presets) | `-Werror` or `/WX` |
 | `AFD_USE_SYSTEM_JSON` | OFF | Require `nlohmann_json` from `find_package` instead of downloading it |
 | `AFD_ENABLE_THREADS` | ON (OFF for Emscripten) | Build `ThreadTaskRunner` and link `Threads::Threads` |

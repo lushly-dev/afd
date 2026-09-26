@@ -109,6 +109,45 @@ jobs:
       - name: Test
         run: ctest --preset ${{ matrix.preset }}
 
+  package:
+    name: C++ (package, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    defaults:
+      run:
+        working-directory: packages/cpp
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Install afd (and the nlohmann/json it downloads) to a prefix, then build the quickstart
+      # as an outside project twice: once through find_package, once through FetchContent.
+      - name: Build and install
+        run: |
+          cmake -S . -B "$RUNNER_TEMP/afd-build" -DCMAKE_BUILD_TYPE=Release -DAFD_BUILD_TESTS=OFF -DAFD_WARNINGS_AS_ERRORS=ON
+          cmake --build "$RUNNER_TEMP/afd-build" --config Release
+          cmake --install "$RUNNER_TEMP/afd-build" --config Release --prefix "$RUNNER_TEMP/afd-prefix"
+
+      - name: Consume with find_package
+        run: |
+          cmake -S tests/consumer -B "$RUNNER_TEMP/consumer-find" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/afd-prefix"
+          cmake --build "$RUNNER_TEMP/consumer-find" --config Release
+          ctest --test-dir "$RUNNER_TEMP/consumer-find" -C Release --output-on-failure
+
+      - name: Consume with FetchContent
+        run: |
+          cmake -S tests/consumer -B "$RUNNER_TEMP/consumer-fetch" -DCMAKE_BUILD_TYPE=Release -DAFD_CONSUME=fetchcontent
+          cmake --build "$RUNNER_TEMP/consumer-fetch" --config Release
+          ctest --test-dir "$RUNNER_TEMP/consumer-fetch" -C Release --output-on-failure
+
   fuzz:
     name: C++ (fuzz smoke)
     runs-on: ubuntu-latest
