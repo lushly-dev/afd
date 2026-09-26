@@ -2600,3 +2600,63 @@ textarea[aria-invalid="true"] {
 		animation: none;
 	}
 }
+
+/* ── Fig. 05 on dark green, proof on mint, Fig. 06 on paper ─── */
+
+.build-story {
+	--muted: #b9c6bd;
+	--line: rgba(244, 240, 234, 0.18);
+	background: #252e29;
+	color: var(--paper);
+}
+
+.build-story .fig-chip {
+	background: var(--mint);
+	color: var(--ink);
+}
+
+.build-story .section-index,
+.build-story .mono {
+	color: #bdcfc1;
+}
+
+.build-story h2 span {
+	color: var(--mint);
+}
+
+.build-story a {
+	color: var(--paper);
+}
+
+.build-story code {
+	color: var(--mint);
+}
+
+.evidence-band {
+	--muted: #3f4a44;
+	--line: rgba(24, 27, 26, 0.25);
+	padding-block: 56px 72px;
+	background: var(--mint);
+	color: var(--ink);
+}
+
+.evidence-band .evidence {
+	margin-top: 0;
+	border-top: 0;
+}
+
+.evidence-band .evidence-heading {
+	padding-top: 0;
+}
+
+.evidence-band .evidence-heading h3 {
+	font-family: var(--display);
+	font-size: clamp(26px, 3vw, 40px);
+	font-weight: 400;
+	text-transform: uppercase;
+	letter-spacing: -0.01em;
+}
+
+.start {
+	background: var(--paper);
+}
