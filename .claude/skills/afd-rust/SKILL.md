@@ -307,7 +307,9 @@ let logging: CommandMiddleware = Arc::new(|name, _input, _context, next| {
 registry.add_middleware(logging);
 
 // Execute command. Before the handler runs, the registry:
-// - validates input against `parameters` and fills defaults (VALIDATION_ERROR),
+// - validates input against `parameters`, fills defaults and drops undeclared
+//   keys, as Zod does in TypeScript (VALIDATION_ERROR, "Input validation failed",
+//   issues in `suggestion`, `details.errors[]` with `path`/`message`/`code`/`expected`),
 // - checks `expose` when the context names an interface (COMMAND_NOT_EXPOSED),
 // - applies `timeout_ms` (TIMEOUT; needs the `native` feature).
 let context = CommandContext::new()
@@ -397,6 +399,14 @@ Status clarity for cross-language planning:
 - Shared today: output schemas, examples, enforced exposure and input validation, middleware, `requires`/`contexts` metadata, bootstrap commands (`register_bootstrap_commands`), pipelines, discovery helpers, telemetry, handoff
 - Not yet part of the Rust crate surface: an MCP server, active-context scoping at execution time (`contexts` is metadata; use `CommandDefinition::is_accessible_in_context`), and the server-side tool strategies exposed in TypeScript and Python
 - Parity decisions SHOULD compare agent-visible behavior first, then document Rust-specific gaps explicitly instead of assuming every TS/Python feature already exists in the crate
+
+Engine behavior that matches TypeScript (`packages/server/src/execution.ts`, `validation.ts`, `packages/core/src/similarity.ts`):
+
+- `VALIDATION_ERROR` uses the message `Input validation failed` and puts the issues in `suggestion`, formatted as `formatEnhancedValidationError`. `details` holds `errors` (`path` joined with dots or `(root)`, `message`, a Zod `code`, and `expected` for `invalid_type`), `expectedFields`, and `unexpectedFields`/`missingFields` when they are not empty.
+- Handlers and middleware receive the validated input without undeclared keys. This includes nested objects whose schema lists `properties` and has no `additionalProperties`.
+- Echoed unknown names are cut to 128 UTF-16 code units. `find_similar_tools` and `calculate_similarity` measure lengths and edit distance in UTF-16 code units.
+
+Documented differences (see `packages/rust/README.md`, "Command registry"): the wording of each issue `message`; at most 50 issues in `details.errors` and 5 in `suggestion`; a command without `parameters` gets its input unchanged; a top-level `null` parameter counts as absent.
 
 ### Warnings
 

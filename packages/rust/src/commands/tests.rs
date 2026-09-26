@@ -456,14 +456,15 @@ async fn test_execute_validates_input_before_the_handler() {
         assert!(error
             .suggestion
             .as_deref()
-            .is_some_and(|suggestion| suggestion.contains("title (string, required)")));
+            .is_some_and(|suggestion| suggestion.ends_with("Expected fields: title, priority")));
     }
     assert!(missing
         .error
         .as_ref()
         .unwrap()
-        .message
-        .contains("title is required"));
+        .suggestion
+        .as_deref()
+        .is_some_and(|suggestion| suggestion.starts_with("title: is required")));
     assert_eq!(calls.load(Ordering::SeqCst), 0, "the handler must not run");
 }
 
@@ -849,4 +850,136 @@ async fn test_command_not_found_truncates_long_names() {
     let message = result.error.unwrap().message;
     assert!(message.len() < 200, "{} bytes echoed", message.len());
     assert!(message.contains('…'));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PARITY WITH THE TYPESCRIPT ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Expected values come from running the same input through
+// `packages/server/src/execution.ts` and `packages/core/src/similarity.ts`.
+
+#[tokio::test]
+async fn test_validation_failure_matches_typescript() {
+    let (registry, _) = validating_registry();
+
+    let result = registry
+        .execute(
+            "todo-create",
+            serde_json::json!({"title": 7, "priority": "urgent", "typo": true}),
+            None,
+        )
+        .await;
+
+    let error = result.error.unwrap();
+    assert_eq!(error.message, "Input validation failed");
+    assert_eq!(
+        error.suggestion.as_deref(),
+        Some(
+            "- title: must be a string, got number\n\
+             - priority: must be one of \"low\", \"medium\", \"high\". \
+             Unknown field(s): typo. Expected fields: title, priority"
+        )
+    );
+    assert_eq!(
+        serde_json::to_value(error.details.unwrap()).unwrap(),
+        serde_json::json!({
+            "errors": [
+                {
+                    "path": "title",
+                    "message": "must be a string, got number",
+                    "code": "invalid_type",
+                    "expected": "string",
+                },
+                {
+                    "path": "priority",
+                    "message": "must be one of \"low\", \"medium\", \"high\"",
+                    "code": "invalid_value",
+                },
+            ],
+            "expectedFields": ["title", "priority"],
+            "unexpectedFields": ["typo"],
+        })
+    );
+}
+
+#[tokio::test]
+async fn test_missing_field_failure_matches_typescript() {
+    let (registry, _) = validating_registry();
+
+    let result = registry
+        .execute("todo-create", serde_json::json!({}), None)
+        .await;
+
+    let error = result.error.unwrap();
+    assert_eq!(error.message, "Input validation failed");
+    assert_eq!(
+        error.suggestion.as_deref(),
+        Some(
+            "title: is required. Missing required field(s): title. \
+             Expected fields: title, priority"
+        )
+    );
+    assert_eq!(
+        serde_json::to_value(error.details.unwrap()).unwrap(),
+        serde_json::json!({
+            "errors": [{
+                "path": "title",
+                "message": "is required",
+                "code": "invalid_type",
+                "expected": "string",
+            }],
+            "expectedFields": ["title", "priority"],
+            "missingFields": ["title"],
+        })
+    );
+}
+
+#[tokio::test]
+async fn test_handler_and_middleware_never_see_undeclared_keys() {
+    let (registry, _) = validating_registry();
+    let seen: Log = Arc::default();
+    let log = Arc::clone(&seen);
+    registry.add_middleware(Arc::new(move |_name, input, _context, next| {
+        log.lock().unwrap().push(input.to_string());
+        next()
+    }));
+
+    let result = registry
+        .execute(
+            "todo-create",
+            serde_json::json!({"title": "Buy milk", "typo": true, "__proto__": {}}),
+            None,
+        )
+        .await;
+
+    let expected = serde_json::json!({"title": "Buy milk", "priority": "medium"});
+    assert_eq!(result.data.unwrap()["input"], expected);
+    assert_eq!(*seen.lock().unwrap(), vec![expected.to_string()]);
+}
+
+#[test]
+fn test_truncate_name_counts_utf16_code_units() {
+    let emoji = "\u{1F600}";
+    // A surrogate pair that would straddle the cut is dropped whole.
+    assert_eq!(
+        truncate_name(&format!("{}{emoji}tail", "a".repeat(127))),
+        format!("{}…", "a".repeat(127))
+    );
+    assert_eq!(
+        truncate_name(&format!("{}{emoji}", "a".repeat(128))),
+        format!("{}…", "a".repeat(128))
+    );
+    // 64 emoji are 128 code units: not cut. 65 are cut after 64.
+    assert_eq!(truncate_name(&emoji.repeat(64)), emoji.repeat(64));
+    assert_eq!(
+        truncate_name(&emoji.repeat(65)),
+        format!("{}…", emoji.repeat(64))
+    );
+    // A BMP character is one code unit however many bytes it takes.
+    assert_eq!(
+        truncate_name(&"é".repeat(200)),
+        format!("{}…", "é".repeat(128))
+    );
+    assert_eq!(truncate_name("todo-create"), "todo-create");
 }
