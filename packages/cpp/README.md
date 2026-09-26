@@ -2,7 +2,7 @@
 
 The C++20 implementation of [AFD (Agent-First Development)](../../README.md). It is being built in phases; see the [proposal](../../docs/features/proposed/cpp-support/proposal.md) and the [work plan](../../docs/features/proposed/cpp-support/work-plan.md).
 
-> **Status: Phase 1, skeleton.** The package builds and is tested in every supported configuration, but has no AFD types yet. Do not depend on it until `afd-cpp-v0.1.0`.
+> **Status: Phase 1.** The wire types (`CommandResult`, batch, pipeline and stream results) are in place and round-trip every `spec/wire` fixture. The registry and executors come in Phases 2 and 3. Do not depend on the package until `afd-cpp-v0.1.0`.
 
 ## Design in brief
 
@@ -10,6 +10,23 @@ The C++20 implementation of [AFD (Agent-First Development)](../../README.md). It
 - **One runtime dependency:** [nlohmann/json](https://github.com/nlohmann/json), 3.11 or later. A host's own copy is used when `find_package(nlohmann_json)` finds one; otherwise 3.12.0 is downloaded and hash-verified.
 - **Embeddable:** builds and passes its tests with exceptions and RTTI off, as a unity build, and with the common `min`/`max` and `check`/`verify`/`require` macros defined.
 - **WebAssembly:** builds with Emscripten, and the tests run under Node.
+
+## Wire types
+
+```cpp
+#include <afd/afd.hpp>
+
+afd::CommandResult created = afd::success({{"id", "todo-1"}}, {.confidence = 0.9, .reasoning = "Created"});
+afd::Json wire = created;                                    // camelCase, unset fields omitted
+auto parsed = afd::CommandResult::from_json(wire);           // never throws
+if (!parsed) { /* parsed.error() == "error.code: expected a string", etc. */ }
+
+auto untrusted = afd::parse_bounded(text);                   // depth- and size-limited parse
+```
+
+- **Reading.** `T::from_json` returns `afd::Expected<T>`, never throws, and reports the path of the first problem. `null` members read as absent, except `data` and `result`, where `null` is a value.
+- **Writing.** Converting to `afd::Json` omits unset fields. Integral numbers are written as integers, as JavaScript does.
+- **Designated initializers.** Option structs are meant for partial designated initializers, such as `{.suggestion = "…"}`. Clang and GCC warn about the omitted fields under `-Wextra`. afd-cpp turns that warning off for its own targets. In your own code you may want `-Wno-missing-field-initializers`, which covers both compilers.
 
 ## Building
 

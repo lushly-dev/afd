@@ -20,6 +20,11 @@ function(afd_configure_target target)
                     -Wold-style-cast
                     -Wnon-virtual-dtor
                     -Woverloaded-virtual)
+        # Partial designated initializers (`ErrorOptions{.suggestion = "..."}`) are the intended
+        # style for option structs (proposal D1). Clang and GCC warn about the omitted fields
+        # under -Wextra: Clang 18 and newer GCC as -Wmissing-field-initializers, Clang 21+ as
+        # its -Wmissing-designated-field-initializers subgroup. Turning off the group covers all.
+        target_compile_options(${target} PRIVATE -Wno-missing-field-initializers)
         if(AFD_WARNINGS_AS_ERRORS)
             target_compile_options(${target} PRIVATE -Werror)
         endif()

@@ -23,12 +23,24 @@ include(AfdTargetOptions)
 
 configure_file(cmake/version.hpp.in ${CMAKE_CURRENT_BINARY_DIR}/include/afd/version.hpp @ONLY)
 
-add_library(afd src/version.cpp)
+add_library(
+    afd
+    src/batch.cpp
+    src/detail/json_io.cpp
+    src/errors.cpp
+    src/json.cpp
+    src/metadata.cpp
+    src/pipeline.cpp
+    src/result.cpp
+    src/streaming.cpp
+    src/version.cpp)
 add_library(afd::afd ALIAS afd)
 target_compile_features(afd PUBLIC cxx_std_20)
 target_include_directories(
-    afd PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-               $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>)
+    afd
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+           $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
+    PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(afd PUBLIC nlohmann_json::nlohmann_json)
 afd_configure_target(afd)
 if(AFD_MACRO_HYGIENE_CHECK)
