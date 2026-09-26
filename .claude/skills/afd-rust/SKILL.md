@@ -153,7 +153,7 @@ use afd::CommandError;
 
 // Not found
 let err = CommandError::not_found("Todo", "123");
-// -> { code: "NOT_FOUND", message: "Todo '123' not found" }
+// -> { code: "NOT_FOUND", message: "Todo with ID '123' not found" }
 
 // Validation error
 let err = CommandError::validation(

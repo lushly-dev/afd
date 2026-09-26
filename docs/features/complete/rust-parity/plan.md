@@ -2,37 +2,66 @@
 
 ## Overview
 
-The Rust AFD crate already covers the core result model, batch primitives, streaming basics, pipelines, bootstrap helpers, and handoff metadata, but it still lags the TypeScript barrel export surface in meaningful ways.
+When this plan was written, the Rust AFD crate covered the core result model, batch primitives, streaming basics, pipelines, bootstrap helpers, and handoff metadata, but it lagged the TypeScript barrel export surface in meaningful ways.
 
-As of March 21, 2026, the canonical parity check is:
+The canonical parity check is:
 
 ```bash
 uv run --project alfred alfred parity --path .
 ```
 
-That command currently reports:
+On March 21, 2026, that command reported:
 
 - `typescript`: 183 exports
 - `python`: 170 exports
 - `rust`: 130 exports
 - `missing_from_rust`: 78 exports
 
-This plan tracks the Rust-side closure work only. TypeScript remains the source of truth for parity, and Python drift is out of scope except where it clarifies intended AFD behavior.
+This plan tracked the Rust-side closure work only. TypeScript remains the source of truth for parity, and Python drift is out of scope except where it clarifies intended AFD behavior.
 
 ## Status
 
 | Field | Value |
 |---|---|
-| Status | Active |
+| Status | Complete |
 | Author | jasfalk |
-| Updated | 2026-03-21 |
+| Updated | 2026-09-26 |
+| Shipped In | 98af776, "Complete Rust export parity (#181)" |
 | Package | `packages/rust` |
 | Source Of Truth | `uv run --project alfred alfred parity --path .` |
 | Depends On | Existing Rust crate foundation in `docs/features/proposed/rust-support/` |
 
+## Outcome
+
+All five waves shipped in #181 on March 21, 2026. It added `connectors.rs`, `mcp.rs`, `similarity.rs`, and `telemetry.rs`, and extended `batch.rs`, `commands.rs`, `errors.rs`, `handoff.rs`, `pipeline.rs`, `result.rs`, `streaming.rs`, and the `lib.rs` re-exports. At that commit, `alfred parity` reported `rust`: 211 exports and `missing_from_rust`: 0.
+
+On September 26, 2026, `alfred parity` reports:
+
+- `typescript`: 186 exports
+- `python`: 179 exports
+- `rust`: 225 exports
+- `missing_from_rust`: 10 exports
+
+None of the 10 remaining gaps are from this plan's list. Each one entered the TypeScript barrel after #181:
+
+| Missing from Rust | TypeScript export | Added to the TypeScript barrel in |
+|---|---|---|
+| `commands_to_mcp_tools` | `commandsToMcpTools` | #225 |
+| `is_mcp_exposed` | `isMcpExposed` | #225 |
+| `max_similarity_input_length` | `MAX_SIMILARITY_INPUT_LENGTH` | #232 |
+| `truncate_name` | `truncateName` | #232 |
+| `command_registry_options` | `CommandRegistryOptions` | #250 |
+| `execute_batch` | `executeBatch` | #250 |
+| `execute_stream` | `executeStream` | #250 |
+| `execution_failure` | `executionFailure` | #250 |
+| `executor_options` | `ExecutorOptions` | #250 |
+| `stream_executor_options` | `StreamExecutorOptions` | #251 |
+
+This plan no longer tracks them. `NAME_GAP_BUDGET` in `alfred/tests/test_parity.py` holds `missing_from_rust` at 10 or fewer, and the Alfred workflow runs that test on pushes to main and pull requests that touch `packages/**`. When a gap closes, lower the budget.
+
 ## Problem
 
-Rust currently exposes only part of the AFD public surface expected by the TypeScript core package. The gaps are not cosmetic:
+Before this work, Rust exposed only part of the AFD public surface expected by the TypeScript core package. The gaps were not cosmetic:
 
 - core command ergonomics are missing (`ExposeOptions`, `defaultExpose`, `CommandExample`, `CommandMiddleware`, `validateCommandName`)
 - the MCP type and helper layer is substantially incomplete
@@ -46,9 +75,9 @@ This creates three problems:
 2. the public API story drifts across languages even when concepts are shared
 3. parity regressions are easy to miss because the missing areas are spread across multiple modules
 
-## Current Reality
+## Starting Point (2026-03-21)
 
-The official parity command currently reports these Rust gap clusters:
+The official parity command reported these Rust gap clusters:
 
 - `24` MCP exports missing
 - `24` pipeline exports missing
@@ -61,7 +90,7 @@ The official parity command currently reports these Rust gap clusters:
 - `2` similarity exports missing
 - `1` batch export missing
 
-The current Rust crate layout relevant to this work is:
+The Rust crate layout relevant to this work was:
 
 - `packages/rust/src/commands.rs`
 - `packages/rust/src/errors.rs`
@@ -308,8 +337,9 @@ Recommendation:
 
 ## Follow-On Work
 
-Once this plan is complete, reassess:
+Still open:
 
 - whether `docs/features/proposed/rust-support/` should move from proposed to complete
 - whether `alfred parity` should gain a narrower Rust-only mode or machine-readable wave summaries
-- whether parity should become part of regular Rust CI for the crate
+
+Settled: parity is part of regular CI through the `NAME_GAP_BUDGET` test in the Alfred workflow (see [Outcome](#outcome)), not the Rust workflow.

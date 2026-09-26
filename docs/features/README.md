@@ -15,7 +15,6 @@ Feature specifications organized by lifecycle stage.
 | Feature | Description |
 |---------|-------------|
 | [Python Parity Closure](./active/python-parity/) | Close the export-surface gap between TypeScript and Python using `alfred parity` as the tracking source |
-| [Rust Parity Closure](./active/rust-parity/) | Close the export-surface gap between TypeScript and Rust using `alfred parity` as the tracking source |
 
 ## Complete Features
 
@@ -33,6 +32,7 @@ Feature specifications organized by lifecycle stage.
 | [Lazy Loading & Discovery](./complete/lazy-loading-discovery/) | `afd-discover`/`afd-detail`/`afd-call` tool strategy for lazy command enumeration |
 | [Middleware Defaults](./complete/middleware-defaults/) | Zero-config observability bundle (`defaultMiddleware()`) |
 | [Output Shape Predictability](./complete/output-shape-predictability/) | Optional `output` Zod schema for agent response shape introspection |
+| [Rust Parity Closure](./complete/rust-parity/) | Closed the export-surface gap between TypeScript and Rust (78 missing exports to 0 in #181), tracked with `alfred parity` |
 | [Schema Complexity Scoring](./complete/schema-complexity-scoring/) | Weighted input schema complexity analysis |
 | [Schema Examples](./complete/schema-examples/) | Concrete input examples on commands for agent consumption |
 | [Semantic Quality Validation](./complete/semantic-quality-validation/) | Cross-command surface analysis for naming, schema overlap, injection |
