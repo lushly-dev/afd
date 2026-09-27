@@ -23,7 +23,8 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
   - `create_source`, `create_step`, `update_step_status`, `create_warning`;
   - `is_progress_chunk`, `is_data_chunk`, `is_complete_chunk`, `is_error_chunk`, `is_stream_chunk`;
   - `is_batch_request`, `is_batch_result`, `create_batch_request`;
-  - `is_pipeline_request`, `is_pipeline_result`, `create_pipeline`.
+  - `is_pipeline_request`, `is_pipeline_result`, `create_pipeline`;
+  - the built-in tool names `afd_meta_tool_names`, `afd_bootstrap_command_names`, `afd_context_command_names`, `afd_builtin_tool_names` and `is_afd_builtin_name` (`afd/builtin_names.hpp`); `reserved_command_names` now refers to `afd_meta_tool_names`.
 - **Tooling:** `alfred parity` now tracks the C++ API, and the `afd-cpp` agent skill is added.
 - **Batch execution.**
   - `execute_batch`, and `CommandRegistry::execute_batch`.

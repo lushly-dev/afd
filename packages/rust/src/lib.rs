@@ -50,6 +50,7 @@ pub struct ReadmeDoctests;
 // Module declarations
 pub mod batch;
 pub mod bootstrap;
+pub mod builtin_names;
 pub mod commands;
 pub mod connectors;
 pub mod errors;
@@ -189,6 +190,15 @@ pub use bootstrap::{
     AfdSchemaHandler, CommandInfo, DocsInput, DocsOutput, HelpInput, HelpOutput, SchemaFormat,
     SchemaInfo, SchemaInput, SchemaOutput, BOOTSTRAP_CATEGORY, BOOTSTRAP_COMMAND_NAMES,
     BOOTSTRAP_TAGS,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RE-EXPORTS: Names of the tools an AFD server provides itself
+// ═══════════════════════════════════════════════════════════════════════════════
+
+pub use builtin_names::{
+    is_afd_builtin_name, AFD_BOOTSTRAP_COMMAND_NAMES, AFD_BUILTIN_TOOL_NAMES,
+    AFD_CONTEXT_COMMAND_NAMES, AFD_META_TOOL_NAMES,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

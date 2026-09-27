@@ -4,6 +4,7 @@
 #pragma once
 
 #include "afd/batch.hpp"
+#include "afd/builtin_names.hpp"
 #include "afd/command.hpp"
 #include "afd/execution.hpp"
 #include "afd/json.hpp"
@@ -26,8 +27,7 @@ namespace afd {
 
 /// Names the MCP tool router handles itself; a command with one of these names is unreachable, so
 /// registration rejects it.
-inline constexpr std::string_view reserved_command_names[] = {"afd-call", "afd-batch", "afd-pipe",
-                                                              "afd-discover", "afd-detail"};
+inline constexpr const auto& reserved_command_names = afd_meta_tool_names;
 
 struct CommandRegistryOptions {
     /// Run around every execution, first entry outermost.

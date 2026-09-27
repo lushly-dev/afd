@@ -6,7 +6,7 @@
  */
 
 import type { CommandError, CommandExample, CommandResult, JsonSchema } from '@lushly-dev/afd-core';
-import { failure } from '@lushly-dev/afd-core';
+import { AFD_META_TOOL_NAMES, failure } from '@lushly-dev/afd-core';
 import { z } from 'zod';
 import { zodToJsonSchema } from './schema.js';
 import type { ValidationError } from './validation.js';
@@ -247,11 +247,9 @@ export const detailTool = metaTool(
 	detailArgsSchema
 );
 
-/** Tool names handled by the router before any command lookup. */
-export const META_TOOL_NAMES: readonly string[] = [
-	callTool.name,
-	batchTool.name,
-	pipeTool.name,
-	discoverTool.name,
-	detailTool.name,
-];
+/**
+ * Tool names handled by the router before any command lookup. The list lives in
+ * afd-core so clients (such as `afd validate --surface`) can tell these tools
+ * apart from commands; meta-tools.test.ts checks it matches the tools above.
+ */
+export const META_TOOL_NAMES: readonly string[] = AFD_META_TOOL_NAMES;

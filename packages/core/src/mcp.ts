@@ -104,14 +104,35 @@ export interface McpTool {
 	};
 
 	/** AFD extensions carried through MCP tools/list. */
-	_meta?: {
-		category?: string;
-		requires?: string[];
-		mutation?: boolean;
-		examples?: Array<{ title: string; input: unknown }>;
-		outputSchema?: Record<string, unknown>;
-		contexts?: string[];
+	_meta?: McpToolCommandMeta & {
+		/** Grouped tools only: one entry per command the tool dispatches to. */
+		actions?: McpToolAction[];
 	};
+}
+
+/** Per-command AFD metadata advertised in a tool's `_meta`. */
+export interface McpToolCommandMeta {
+	category?: string;
+	requires?: string[];
+	mutation?: boolean;
+	destructive?: boolean;
+	examples?: Array<{ title: string; input: unknown }>;
+	outputSchema?: Record<string, unknown>;
+	contexts?: string[];
+}
+
+/**
+ * One action of a grouped tool (`toolStrategy: 'grouped'`), as listed in its
+ * `_meta.actions`: the underlying command and its input schema.
+ */
+export interface McpToolAction extends McpToolCommandMeta {
+	/** Value of the grouped tool's `action` argument */
+	action: string;
+	/** Full command name (usable with afd-call and afd-detail) */
+	command: string;
+	description: string;
+	/** Input schema of the command, sent as the grouped tool's `params` */
+	inputSchema: McpTool['inputSchema'];
 }
 
 /**
