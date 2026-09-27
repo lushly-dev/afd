@@ -1,0 +1,172 @@
+/* ============================================================
+   AFD site design tokens — Command Manifesto 2
+   ------------------------------------------------------------
+   Two layers:
+   1. Primitives (--afd-*): the raw palette. Use them only for
+      component-internal detail (demo chrome, chips, borders)
+      that has no semantic role of its own.
+   2. Semantic tokens: what a value is FOR (fields, text, accents,
+      the type ramp, spacing, motion). Section and component CSS
+      reaches for these first. Change a role here, not in every rule.
+
+   Documented in .claude/skills/afd-site-design/ (decisions and
+   patterns) and rendered at site/styleguide.html.
+   ============================================================ */
+
+:root {
+	/* ── 1. Primitives ─────────────────────────────────────── */
+
+	/* Neutrals: ink and paper, with a cool stone ramp between */
+	--afd-black: #000000;
+	--afd-ink: #181b1a;
+	--afd-ink-raised: #222824;
+	--afd-ink-soft: #48534b;
+	--afd-stone-700: #4d5b50;
+	--afd-stone-600: #5e6460;
+	--afd-sage-500: #6b7d6e;
+	--afd-stone-500: #869089;
+	--afd-stone-400: #adb6ab;
+	--afd-stone-300: #bec6bd;
+	--afd-stone-200: #d8dcd6;
+	--afd-stone-100: #eceee8;
+	--afd-paper: #f4f0ea;
+	--afd-paper-bright: #f8f9f3;
+	--afd-white: #ffffff;
+
+	/* Signal reds: the hero red, a deeper tone-on-tone, a readable
+	   red for small text on light, and the lighter salmon */
+	--afd-red: #f74431;
+	--afd-red-700: #e0321e;
+	--afd-red-ink: #c42a1a;
+	--afd-red-300: #ff897a;
+	--afd-red-200: #ffab99;
+	--afd-salmon: #f96e5b;
+	--afd-salmon-700: #ef5d49;
+
+	/* Agent greens: the deep field, a raised tone, and mint */
+	--afd-green-900: #20352c;
+	--afd-green-800: #252e29;
+	--afd-green-700: #2e3a33;
+	--afd-green-200: #bdcfc1;
+	--afd-mint: #a3ebcd;
+	--afd-mint-600: #92dfbf;
+	--afd-mint-ink: #2c5e4b;
+
+	--afd-blue-ink: #146ba0;
+
+	/* ── 2. Semantic colour ────────────────────────────────── */
+
+	/* Page and text on light surfaces */
+	--color-page: var(--afd-paper);
+	--color-surface: var(--afd-paper-bright);
+	--color-text: var(--afd-ink);
+	--color-text-muted: var(--afd-stone-600);
+	--color-text-subtle: var(--afd-stone-500);
+	--color-line: var(--afd-stone-200);
+	--color-rule: var(--afd-ink);
+
+	/* Text and lines on dark fields (ink, deep green) */
+	--color-on-dark: var(--afd-paper);
+	--color-on-dark-muted: var(--afd-green-200);
+	--color-on-dark-subtle: var(--afd-stone-500);
+	--color-on-dark-line: color-mix(in srgb, var(--afd-paper) 18%, transparent);
+
+	/* Lines on saturated fields (red, salmon, mint) */
+	--color-on-color-line: color-mix(in srgb, var(--afd-ink) 22%, transparent);
+
+	/* Section fields. Each colour has one job; see the skill. */
+	--field-signal: var(--afd-red); /* the hero only: the loudest statement */
+	--field-rule: var(--afd-salmon); /* the honesty check: loud, but below the hero */
+	--field-agent: var(--afd-mint); /* agent UX: the differentiator */
+	--field-deep: var(--afd-green-800); /* the agent at work: handoff, build */
+	--field-ink: var(--afd-ink); /* demos, proof, the finale */
+	--field-rest: var(--afd-paper); /* cream rests between colour fields */
+
+	/* Tone-on-tone fills for giant numerals and the hero slash,
+	   one per field */
+	--numeral-on-signal: var(--afd-red-700);
+	--numeral-on-rule: var(--afd-salmon-700);
+	--numeral-on-agent: var(--afd-mint-600);
+	--numeral-on-deep: var(--afd-green-700);
+	--numeral-on-ink: var(--afd-ink-raised);
+
+	/* Accents: red means a person or UI, mint means an agent */
+	--accent-human: var(--afd-red);
+	--accent-human-text: var(--afd-red-ink);
+	--accent-agent: var(--afd-mint);
+	--accent-agent-text: var(--afd-mint-ink);
+
+	/* Code and terminal panels */
+	--color-code-bg: var(--afd-ink);
+	--color-code-text: var(--afd-paper);
+	--color-code-comment: var(--afd-stone-500);
+	--color-link: var(--afd-blue-ink);
+
+	/* ── 3. Type ───────────────────────────────────────────── */
+
+	--font-display: "Archivo Black", "Arial Black", sans-serif;
+	--font-sans: "Space Grotesk", sans-serif;
+	--font-mono: "IBM Plex Mono", monospace;
+
+	/* One ramp. Every font-size on the page is one of these. */
+	--t-label: 11px; /* mono labels, figure chips, captions */
+	--t-code: 12px; /* code, terminal, tables */
+	--t-small: 14px; /* notes and secondary UI */
+	--t-body: 17px; /* running text */
+	--t-lead: clamp(19px, 1.1rem + 0.35vw, 23px); /* opening paragraphs, light */
+	--t-title: clamp(26px, 1.2rem + 1.3vw, 40px); /* sub-headlines, step titles */
+	--t-statement: clamp(34px, 1.3rem + 4.6vw, 96px); /* section headlines */
+	--t-display: clamp(46px, 1.5rem + 7.5vw, 150px); /* the hero only */
+
+	--weight-thin: 300; /* the second line of a statement, leads */
+	--weight-regular: 400;
+	--weight-medium: 500;
+	--weight-strong: 600;
+
+	--leading-tight: 0.95; /* display and statements */
+	--leading-snug: 1.2;
+	--leading-body: 1.55;
+	--tracking-display: -0.025em;
+	--tracking-thin: -0.04em; /* light Space Grotesk at statement size */
+	--tracking-label: 0.06em; /* uppercase mono */
+
+	/* ── 4. Space ──────────────────────────────────────────── */
+
+	--space-1: 4px;
+	--space-2: 8px;
+	--space-3: 12px;
+	--space-4: 16px;
+	--space-5: 24px;
+	--space-6: 32px;
+	--space-7: 48px;
+	--space-8: 64px;
+	--space-9: 96px;
+	--section-pad: clamp(96px, 5rem + 6vw, 184px); /* every section, top and bottom */
+	--heading-gap: clamp(48px, 2rem + 3vw, 96px); /* below a section headline */
+	--wrap-max: 1280px;
+
+	/* ── 5. Structure ──────────────────────────────────────── */
+
+	--rule-thin: 1px;
+	--rule: 2px;
+	--rule-heavy: 3px;
+	--radius: 4px; /* controls only; fields and panels are square */
+	--shadow-offset: 8px 8px 0;
+	--crop-size: 18px;
+
+	/* ── 6. Motion ─────────────────────────────────────────── */
+
+	--ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+	--motion-fast: 0.3s; /* state changes, hovers */
+	--motion-base: 0.6s; /* stamps, slams */
+	--motion-enter: 1.1s; /* one-time entrances (the hero slash) */
+
+	/* ── 7. Layers ─────────────────────────────────────────── */
+
+	--layer-art: 0; /* numerals, slash */
+	--layer-content: 1;
+	--layer-marks: 2; /* crop marks */
+	--layer-nav: 100;
+	--layer-switch: 12000; /* the design switcher */
+	--layer-dialog: 13000;
+}

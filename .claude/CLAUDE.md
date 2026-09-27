@@ -93,5 +93,6 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 | [afd-auth](skills/afd-auth/) | Auth adapter, middleware, commands, session sync, React hooks |
 | [afd-directclient](skills/afd-directclient/) | DirectClient, pipe() pipelines, pipeline variable resolution |
 | [afd-contracts](skills/afd-contracts/) | TypeSpec-based contract system for multi-layer API schema sync |
+| [afd-site-design](skills/afd-site-design/) | afd.dev design system: tokens, colour fields, type ramp, section patterns, motion rules |
 | [do-release](skills/do-release/) | Release workflow: version bump, changelog, quality gate, tag, publish |
 | [run-dev-checks](skills/run-dev-checks/) | Dev commands, quality gates, lefthook, CI alignment |
