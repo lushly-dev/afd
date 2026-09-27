@@ -15,7 +15,7 @@
 		<link rel="preconnect" href="https://fonts.googleapis.com">
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 		<link
-			href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+			href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
 			rel="stylesheet"
 		>
 		<link rel="stylesheet" href="css/manifesto-2.css">
@@ -251,7 +251,7 @@
 			<section class="thesis wrap" id="problem">
 				<span class="section-index"><span class="fig-chip">Fig. 01</span>The inversion</span>
 				<div>
-					<h2>Your app isn't its buttons.</h2>
+					<h2 class="lit" data-lit>Your app isn't<br><span>its buttons.</span></h2>
 					<p>
 						It's what those buttons <em>do.</em> Put that capability in a command, and a screen
 						becomes a choice. So does a terminal. So does an agent.
@@ -265,20 +265,6 @@
 					class="text-link"
 					>Read the thinking <i class="icon icon--out" aria-hidden="true"></i></a
 				>
-			</section>
-			<section class="slab" id="honesty" aria-labelledby="honesty-quote">
-				<span class="crop crop--tl" aria-hidden="true"></span>
-				<span class="crop crop--tr" aria-hidden="true"></span>
-				<span class="crop crop--bl" aria-hidden="true"></span>
-				<span class="crop crop--br" aria-hidden="true"></span>
-				<span class="big-numeral" aria-hidden="true">01</span>
-				<div class="wrap slab__inner">
-					<span class="section-index"><span class="fig-chip">Fig. 01b</span>The honesty check</span>
-					<blockquote class="slab__quote" id="honesty-quote" data-honesty>
-						<p>“If it can’t be done via <mark>CLI</mark>, the architecture is wrong.”</p>
-					</blockquote>
-					<p class="slab__caption">One rule, applied to every feature. No UI-only code paths.</p>
-				</div>
 			</section>
 			<section class="handoff" id="workflow">
 				<span class="big-numeral" aria-hidden="true">02</span>
@@ -356,6 +342,7 @@
 				</div>
 			</section>
 			<section class="agent-design" id="agent-ux">
+				<span class="big-numeral" aria-hidden="true">03</span>
 				<div class="wrap">
 					<div class="editorial-heading">
 						<span class="section-index"><span class="fig-chip">Fig. 03</span>Design for the agent</span>
@@ -501,11 +488,10 @@
 				</div>
 			</section>
 			<section class="recovery" id="result">
-				<span class="big-numeral" aria-hidden="true">04</span>
 				<div class="wrap recovery-layout">
 					<div class="story-copy">
 						<span class="section-index"><span class="fig-chip">Fig. 04</span>The recovery</span>
-						<h2>A dead end.<br>Or a way<br><em>forward.</em></h2>
+						<h2>A dead end.<br><span>Or a way <em>forward.</em></span></h2>
 						<p>
 							“Something went wrong” isn't an answer. A useful error tells the next operator what to
 							do.
@@ -542,12 +528,26 @@
 					</div>
 				</div>
 			</section>
-			<section class="build-story" id="build">
+			<section class="slab" id="honesty" aria-labelledby="honesty-quote">
+				<span class="crop crop--tl" aria-hidden="true"></span>
+				<span class="crop crop--tr" aria-hidden="true"></span>
+				<span class="crop crop--bl" aria-hidden="true"></span>
+				<span class="crop crop--br" aria-hidden="true"></span>
 				<span class="big-numeral" aria-hidden="true">05</span>
+				<div class="wrap slab__inner">
+					<span class="section-index"><span class="fig-chip">Fig. 05</span>The honesty check</span>
+					<blockquote class="slab__quote lit" id="honesty-quote" data-lit>
+						<p>“If it can’t be done via <mark>CLI</mark>, the architecture is wrong.”</p>
+					</blockquote>
+					<p class="slab__caption">One rule, applied to every feature. No UI-only code paths.</p>
+				</div>
+			</section>
+			<section class="build-story" id="build">
+				<span class="big-numeral" aria-hidden="true">06</span>
 				<div class="wrap">
 					<div class="editorial-heading">
-						<span class="section-index"><span class="fig-chip">Fig. 05</span>Build with an agent</span>
-						<h2>Before it draws a screen,<br><span>give it something to prove.</span></h2>
+						<span class="section-index"><span class="fig-chip">Fig. 06</span>Build with an agent</span>
+						<h2 class="lit" data-lit>Before it draws a screen,<br><span>give it something to prove.</span></h2>
 					</div>
 					<div class="build-story-layout">
 						<div class="build-brief">
@@ -616,7 +616,7 @@
 				<div class="wrap">
 					<div class="evidence" id="testing">
 						<div class="evidence-heading">
-							<h3>Don't take the manifesto on faith.</h3>
+							<h3>Don't take it<br><span>on faith.</span></h3>
 							<span class="mono">INSPECT THE WORK</span>
 						</div>
 						<div class="evidence-grid">
@@ -667,7 +667,7 @@
 			<section class="start" id="start">
 				<div class="wrap">
 					<div class="start-heading">
-						<span class="section-index"><span class="fig-chip">Fig. 06</span>Start small</span>
+						<span class="section-index"><span class="fig-chip">Fig. 07</span>Start small</span>
 						<h2>Capability first.<br><span>Everything else follows.</span></h2>
 					</div>
 					<div class="build-steps">
@@ -787,9 +787,9 @@
 				</div>
 			</section>
 			<section class="finale" id="get-started">
-				<span class="big-numeral" aria-hidden="true">07</span>
+				<span class="big-numeral" aria-hidden="true">08</span>
 				<div class="wrap">
-					<span class="section-index"><span class="fig-chip">Fig. 07</span>Your turn</span>
+					<span class="section-index"><span class="fig-chip">Fig. 08</span>Your turn</span>
 					<form class="finale__line" data-finale>
 						<span class="finale__prompt" aria-hidden="true">$</span>
 						<label class="finale__cmd" for="finale-run">afd call get-started</label>
