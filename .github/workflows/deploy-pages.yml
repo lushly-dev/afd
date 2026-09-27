@@ -3,8 +3,9 @@ name: Deploy site to GitHub Pages
 on:
   push:
     branches: [main]
-    paths: ['site/**']
-  # Redeploy after each release so the version badge picks up what was published.
+    # The page runs afd-core in the browser, so a core change redeploys it too.
+    paths: ['site/**', 'packages/core/**', 'scripts/build-site-runtime.mjs']
+  # Redeploy after each release so the stamped version picks up what was published.
   workflow_run:
     workflows: [Release]
     types: [completed]
@@ -28,8 +29,25 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Stamp the version npm actually serves, so the badge never runs ahead
-      # of (or behind) what `npm install` gives people.
+      - name: Install pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.x
+          cache: pnpm
+
+      # The site's live demos run the real afd-core registry in the browser.
+      # Rebuild that bundle from this commit so it always matches the source.
+      - name: Build the site's afd-core bundle
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm -F @lushly-dev/afd-core build
+          node scripts/build-site-runtime.mjs
+
+      # Stamp the version npm actually serves into llms.txt (and any
+      # data-afd-version element), so it matches what `npm install` gives people.
       - name: Stamp published version
         run: |
           version=$(npm view @lushly-dev/afd-core version)
