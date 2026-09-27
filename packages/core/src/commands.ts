@@ -267,6 +267,20 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	handoffProtocol?: 'websocket' | 'webrtc' | 'sse' | 'http-stream' | string;
 
 	/**
+	 * Whether this command performs destructive or irreversible actions.
+	 * When true, frontends SHOULD prompt for user confirmation before
+	 * applying the result locally.
+	 */
+	destructive?: boolean;
+
+	/**
+	 * Custom confirmation prompt message for destructive commands.
+	 * If not provided, frontends MAY use a generic confirmation message.
+	 * @example "Delete 'Buy groceries' permanently?"
+	 */
+	confirmPrompt?: string;
+
+	/**
 	 * Whether this command can be undone.
 	 * Implementation is consumer-specific (e.g., FAST-AF uses `${methodName}Undo()` convention).
 	 */

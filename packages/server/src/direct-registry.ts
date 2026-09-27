@@ -56,6 +56,7 @@ export interface DirectRegistryCommand {
 	category?: string;
 	mutation?: boolean;
 	destructive?: boolean;
+	undoable?: boolean;
 	/** JSON Schema of the command input. */
 	inputSchema: JsonSchema;
 }
@@ -189,6 +190,7 @@ export function createDirectRegistry(
 				category: command.category,
 				mutation: command.mutation,
 				destructive: command.destructive,
+				undoable: command.undoable,
 				inputSchema: command.jsonSchema,
 			}));
 		},

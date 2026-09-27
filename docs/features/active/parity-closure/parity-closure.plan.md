@@ -68,15 +68,15 @@ Already under way, from before this plan or from the 2026-09-26 review:
 
 TypeScript leads this wave. It is small and unblocks everything after it.
 
-| # | Item | Size |
-|---|---|---|
-| 1.1 | Load `spec/vectors/pipeline-variables.json` in the TypeScript, Python and Rust test suites; C++ already does. | S per language |
-| 1.2 | **`spec/error-codes.md`:** every emitted code, whether it is retryable, and which layer emits it, plus the D4 rules. Add the missing codes to TypeScript `ErrorCodes` (about 25), Python `ErrorCodes`, Rust `error_codes` and C++ `error_codes`. | M |
-| 1.3 | **`spec/validation.md` and `spec/vectors/validation.json`:** see the list below the table. Generate the vectors from TypeScript, marking the astral-character cases where TypeScript differs. | M |
-| 1.4 | **`spec/vectors/batch-controls.json`,** from `packages/server/src/execution-controls.test.ts`. The C++ work plan already recommends this file. | S–M |
-| 1.5 | **Command metadata:** list the canonical fields in the spec. Fix the TypeScript split ([#275](https://github.com/lushly-dev/afd/issues/275)): core `CommandDefinition` and `defineCommand` both carry `destructive`, `confirmPrompt` and `undoable`, and `toCommandDefinition()` keeps them. | S (TS minor) |
-| 1.6 | **One default reconnect policy.** The TypeScript client's fallback of 5 attempts becomes core's 3. | S |
-| 1.7 | **Contract 1.0:** add the AFD contract version constant (see the [versioning plan](../versioning/versioning.plan.md#1-a-versioned-afd-contract)). Declare 1.0 once 1.1–1.4 pass in all four languages. | S |
+| # | Item | Size | State |
+|---|---|---|---|
+| 1.1 | Load `spec/vectors/pipeline-variables.json` in the TypeScript, Python and Rust test suites; C++ already does. | S per language | Open |
+| 1.2 | **`spec/error-codes.md`:** every emitted code, whether it is retryable, and which layer emits it, plus the D4 rules. Add the missing codes to TypeScript `ErrorCodes` (about 25), Python `ErrorCodes`, Rust `error_codes` and C++ `error_codes`. | M | Open |
+| 1.3 | **`spec/validation.md` and `spec/vectors/validation.json`:** see the list below the table. Generate the vectors from TypeScript, marking the astral-character cases where TypeScript differs. | M | Open |
+| 1.4 | **`spec/vectors/batch-controls.json`,** from `packages/server/src/execution-controls.test.ts`. The C++ work plan already recommends this file. | S–M | Open |
+| 1.5 | **Command metadata:** list the canonical fields in the spec. Fix the TypeScript split ([#275](https://github.com/lushly-dev/afd/issues/275)): core `CommandDefinition` and `defineCommand` both carry `destructive`, `confirmPrompt` and `undoable`, and `toCommandDefinition()` keeps them. | S (TS minor) | Done: canonical fields in [`spec/command-metadata.md`](../../../../spec/command-metadata.md); `_meta`, afd-detail, afd-help, afd-docs and `afd tools` report `undoable` |
+| 1.6 | **One default reconnect policy.** The TypeScript client's fallback of 5 attempts becomes core's 3. | S | Done for TypeScript. Python's handoff client also falls back to 5; see Wave 2 |
+| 1.7 | **Contract 1.0:** add the AFD contract version constant (see the [versioning plan](../versioning/versioning.plan.md#1-a-versioned-afd-contract)). Declare 1.0 once 1.1–1.4 pass in all four languages. | S | Open |
 
 The validation spec (1.3) covers:
 - stripping unknown keys;
@@ -96,7 +96,7 @@ Each language works against the Wave 1 vectors, and the four can proceed in para
 - A 1 MiB event-size cap in `SseDecoder`. (S)
 - `is_success` checks only `success`, and `failure()` accepts every result option. (S)
 - Decorator metadata: `version`, `errors`, `execution_time`, `destructive`, `confirm_prompt` and `undoable`; `handoff` through `MCPServer.command`. Call `validate_command_name`, and reserve the bootstrap names. (M)
-- `create_handoff` applies the default reconnect policy. There is one `TelemetryEvent`, and it serializes in camelCase. (S)
+- `create_handoff` applies the default reconnect policy, and the handoff client falls back to it instead of 5 attempts. There is one `TelemetryEvent`, and it serializes in camelCase. (S)
 - Export cleanup: resolve the `afd.direct` name collisions, then re-export the 60 implemented names and lower the budget. (M)
 
 **Rust (L overall):**
