@@ -43,7 +43,7 @@ Every contribution should follow these patterns:
 
 ### 1. Commands Return `CommandResult`
 
-All handlers — TypeScript, Python, and Rust — must return `CommandResult`:
+All handlers — TypeScript, Python, Rust, and C++ — must return `CommandResult`:
 
 ```typescript
 return success(data, { confidence: 0.95, reasoning: 'Cache hit' });
@@ -85,10 +85,11 @@ After adding commands, run `alfred quality` to validate description quality (imp
 
 ## Multi-Language Parity
 
-AFD ships implementations in TypeScript, Python, and Rust. TypeScript is the source of truth for the API surface. When adding exports to `packages/core/src/index.ts`, mirror them in:
+AFD ships implementations in TypeScript, Python, Rust, and C++. TypeScript is the source of truth for the API surface. When adding exports to `packages/core/src/index.ts`, mirror them in:
 
 - **Python**: `python/src/afd/__init__.py` (`__all__` list)
 - **Rust**: `packages/rust/src/lib.rs` (`pub use` re-exports)
+- **C++**: `packages/cpp/include/afd/` (declarations in `namespace afd`, reached from `afd/afd.hpp`; C++ uses TypeScript's names in snake_case)
 
 Run `alfred parity` to detect drift. The tool normalizes naming conventions (camelCase ↔ snake_case) across languages.
 
@@ -126,7 +127,7 @@ Alfred provides deterministic architecture compliance — agents and humans skip
 | Command | What it checks |
 |---------|----------------|
 | `alfred lint` | 6 AFD architecture rules (CommandResult, actionable errors, kebab naming, no-fetch-in-UI, no-business-in-UI, layer imports) |
-| `alfred parity` | API surface sync across TypeScript, Python, and Rust |
+| `alfred parity` | API surface sync across TypeScript, Python, Rust, and C++ |
 | `alfred quality` | Command description quality (length, imperative voice, duplicates) |
 
 ## Development Workflow
@@ -184,7 +185,7 @@ docs(python): update command naming guide
 chore(deps): update dependencies
 ```
 
-**Allowed scopes**: `core`, `server`, `client`, `auth`, `cli`, `testing`, `adapters`, `examples`, `alfred`, `python`, `rust`, `deps`
+**Allowed scopes**: `core`, `server`, `client`, `auth`, `cli`, `testing`, `adapters`, `examples`, `alfred`, `python`, `rust`, `cpp`, `deps`
 
 ## Submitting Changes
 
@@ -215,8 +216,9 @@ packages/
   cli/        # Command-line interface
   testing/    # JTBD scenario runner + surface validation
   adapters/   # Frontend rendering adapters for CommandResult
-  examples/   # Multi-stack example (TS, Python, Rust) + DirectClient demo
+  examples/   # Multi-stack example (TS, Python, Rust, C++) + DirectClient demo
   rust/       # Rust crate implementation
+  cpp/        # C++ library implementation (afd-cpp)
 python/       # Python package (pip install afd)
 alfred/       # Quality bot (lint, parity, quality)
 ```

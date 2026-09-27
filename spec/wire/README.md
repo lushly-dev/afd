@@ -19,7 +19,8 @@ constructors that the stream route uses).
   types back to JSON, and the result must equal the file (object key order aside). This is enforced by:
   - TypeScript: `packages/server/src/wire-fixtures.test.ts`, which also regenerates the files;
   - Python: `python/tests/test_wire_fixtures.py`;
-  - Rust: `packages/rust/tests/wire_fixtures.rs`.
+  - Rust: `packages/rust/tests/wire_fixtures.rs`;
+  - C++: `packages/cpp/tests/wire_fixtures_test.cpp`.
 - Keys are camelCase.
 - Optional fields that are not set are **omitted**, never `null`.
 - Run-dependent values are normalized in the files: durations (`*Ms`) are `0`, timestamps (`*At`) are
@@ -27,7 +28,7 @@ constructors that the stream route uses).
 
 ## Changing a shape
 
-A change to any of these files is a wire-format change. Make it deliberately in all three
+A change to any of these files is a wire-format change. Make it deliberately in all four
 languages in the same pull request.
 
 To regenerate the files after an intentional TypeScript change:

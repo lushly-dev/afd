@@ -24,10 +24,11 @@ Release a new version using the repo's versioning flows for npm packages and Pyt
 
 ## AFD-Specific Release Tracks
 
-The AFD monorepo uses two release tracks:
+The AFD monorepo uses three release tracks:
 
 - **npm packages** — [@changesets/cli](https://github.com/changesets/changesets) versions and publishes the `@lushly-dev/*` packages with fixed versioning.
 - **Python package** — `python/pyproject.toml` is versioned separately and published through `publish-python.yml` on `python-v*` tags or GitHub Releases.
+- **C++ library (afd-cpp)** — versioned independently in `packages/cpp/CMakeLists.txt` (`project(afd VERSION ...)`), with its own `packages/cpp/CHANGELOG.md`, released as `afd-cpp-v<version>` tags. It is not on a package registry; consumers use CMake (`add_subdirectory`, `FetchContent` or an installed package). Changesets does not cover it.
 
 ### How npm Changesets Work
 
@@ -55,6 +56,15 @@ When the Python `afd` package changes:
 2. Update `CHANGELOG.md`
 3. Push a `python-v<version>` tag or publish a GitHub Release
 4. Let `.github/workflows/publish-python.yml` build, test, and publish to PyPI
+
+### C++ Release Flow
+
+When `packages/cpp` changes in a way worth releasing:
+
+1. Bump `project(afd VERSION x.y.z)` in `packages/cpp/CMakeLists.txt` (it generates `afd/version.hpp`)
+2. Move `Unreleased` in `packages/cpp/CHANGELOG.md` under the new version
+3. Check that `cpp.yml` and `conformance.yml` are green on `main`
+4. Tag `afd-cpp-v<version>` and create a GitHub Release from the changelog section
 
 ### Automated CI Flow
 

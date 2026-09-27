@@ -1,0 +1,1 @@
+{"input":{"q":"milk"},"steps":[{"command":"todo-search","input":{"query":"$input.q"},"as":"s"},{"command":"todo-get","input":{"id":"$prev.query","x":["$steps.s","$$prev"]},"when":{"$and":[{"$exists":"$prev"},{"$not":{"$eq":["$first",1]}}]}}],"options":{"timeoutMs":100,"continueOnFailure":true}}

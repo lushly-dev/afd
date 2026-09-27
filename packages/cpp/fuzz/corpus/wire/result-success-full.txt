@@ -1,0 +1,77 @@
+{
+	"success": true,
+	"data": {
+		"id": "todo-2",
+		"title": "Buy milk",
+		"completed": false
+	},
+	"confidence": 0.92,
+	"reasoning": "Created todo \"Buy milk\"",
+	"sources": [
+		{
+			"type": "document",
+			"id": "doc-7",
+			"title": "Team guidelines",
+			"url": "https://example.com/guidelines",
+			"location": "section 2",
+			"accessedAt": "2026-01-01T00:00:00.000Z",
+			"relevance": 0.8
+		}
+	],
+	"plan": [
+		{
+			"id": "validate",
+			"action": "Validate input",
+			"status": "complete"
+		},
+		{
+			"id": "store",
+			"action": "Store todo",
+			"status": "failed",
+			"description": "Write to the store",
+			"dependsOn": [
+				"validate"
+			],
+			"error": {
+				"code": "STORE_BUSY",
+				"message": "Store was busy; retried"
+			},
+			"progress": 1
+		}
+	],
+	"alternatives": [
+		{
+			"data": {
+				"id": "todo-3",
+				"title": "Buy milk",
+				"completed": true
+			},
+			"reason": "Could have been created as completed",
+			"confidence": 0.2,
+			"label": "Completed"
+		}
+	],
+	"warnings": [
+		{
+			"code": "DUPLICATE_TITLE",
+			"message": "A todo with this title already exists",
+			"severity": "caution",
+			"details": {
+				"existingId": "todo-1"
+			}
+		}
+	],
+	"suggestions": [
+		"Use todo-list to review existing todos"
+	],
+	"metadata": {
+		"region": "test",
+		"executionTimeMs": 0,
+		"commandVersion": "2.1.0",
+		"traceId": "trace-fixture"
+	},
+	"undoCommand": "todo-delete",
+	"undoArgs": {
+		"id": "todo-2"
+	}
+}

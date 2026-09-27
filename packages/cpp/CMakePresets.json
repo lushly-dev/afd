@@ -1,0 +1,157 @@
+{
+	"version": 6,
+	"cmakeMinimumRequired": {
+		"major": 3,
+		"minor": 25,
+		"patch": 0
+	},
+	"configurePresets": [
+		{
+			"name": "base",
+			"hidden": true,
+			"binaryDir": "${sourceDir}/build/${presetName}",
+			"cacheVariables": {
+				"AFD_BUILD_TESTS": "ON",
+				"AFD_WARNINGS_AS_ERRORS": "ON",
+				"CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+			}
+		},
+		{
+			"name": "dev",
+			"displayName": "Debug build with tests",
+			"inherits": "base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug"
+			}
+		},
+		{
+			"name": "release",
+			"displayName": "Release build with tests",
+			"inherits": "base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release"
+			}
+		},
+		{
+			"name": "asan",
+			"displayName": "AddressSanitizer and UndefinedBehaviorSanitizer (GCC or Clang)",
+			"inherits": "base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug",
+				"CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer -fno-sanitize-recover=all",
+				"CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined"
+			}
+		},
+		{
+			"name": "tsan",
+			"displayName": "ThreadSanitizer (Clang)",
+			"inherits": "base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Debug",
+				"CMAKE_CXX_FLAGS": "-fsanitize=thread -fno-omit-frame-pointer",
+				"CMAKE_EXE_LINKER_FLAGS": "-fsanitize=thread",
+				"AFD_ENABLE_THREADS": "ON"
+			}
+		},
+		{
+			"name": "noexcept-nortti",
+			"displayName": "No exceptions, no RTTI, unity build, macro-hygiene prelude (GCC or Clang)",
+			"inherits": "base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release",
+				"CMAKE_CXX_FLAGS": "-fno-exceptions -fno-rtti -DJSON_NOEXCEPTION",
+				"CMAKE_UNITY_BUILD": "ON",
+				"AFD_MACRO_HYGIENE_CHECK": "ON"
+			}
+		},
+		{
+			"name": "emscripten",
+			"displayName": "WebAssembly via Emscripten (configure with emcmake); tests run under Node",
+			"inherits": "base",
+			"cacheVariables": {
+				"CMAKE_BUILD_TYPE": "Release",
+				"CMAKE_CXX_FLAGS": "-fno-exceptions -DJSON_NOEXCEPTION"
+			}
+		}
+	],
+	"buildPresets": [
+		{
+			"name": "dev",
+			"configurePreset": "dev",
+			"configuration": "Debug"
+		},
+		{
+			"name": "release",
+			"configurePreset": "release",
+			"configuration": "Release"
+		},
+		{
+			"name": "asan",
+			"configurePreset": "asan",
+			"configuration": "Debug"
+		},
+		{
+			"name": "tsan",
+			"configurePreset": "tsan",
+			"configuration": "Debug"
+		},
+		{
+			"name": "noexcept-nortti",
+			"configurePreset": "noexcept-nortti",
+			"configuration": "Release"
+		},
+		{
+			"name": "emscripten",
+			"configurePreset": "emscripten",
+			"configuration": "Release"
+		}
+	],
+	"testPresets": [
+		{
+			"name": "test-base",
+			"hidden": true,
+			"output": {
+				"outputOnFailure": true
+			},
+			"execution": {
+				"noTestsAction": "error"
+			}
+		},
+		{
+			"name": "dev",
+			"inherits": "test-base",
+			"configurePreset": "dev",
+			"configuration": "Debug"
+		},
+		{
+			"name": "release",
+			"inherits": "test-base",
+			"configurePreset": "release",
+			"configuration": "Release"
+		},
+		{
+			"name": "asan",
+			"inherits": "test-base",
+			"configurePreset": "asan",
+			"configuration": "Debug"
+		},
+		{
+			"name": "tsan",
+			"inherits": "test-base",
+			"configurePreset": "tsan",
+			"configuration": "Debug"
+		},
+		{
+			"name": "noexcept-nortti",
+			"inherits": "test-base",
+			"configurePreset": "noexcept-nortti",
+			"configuration": "Release"
+		},
+		{
+			"name": "emscripten",
+			"inherits": "test-base",
+			"configurePreset": "emscripten",
+			"configuration": "Release"
+		}
+	]
+}

@@ -119,7 +119,7 @@ Each item below is a header in `include/afd/` with an implementation in `src/`.
   - `parse_bounded(text, max_depth = 256, max_bytes)`:
     - It tracks depth in the parser callback and **fails on its own "too deep" flag**. nlohmann silently drops a rejected subtree and still reports success (spike).
     - Its tests must cover input at the limit and one level beyond it.
-  - `json_equal(a, b)`, a structural comparison.
+  - No separate `json_equal`: `afd::Json` is the sorted-key `nlohmann::json`, whose `==` is already structural, ignores key order and compares numbers across integer and floating-point types (Phase 0 spike).
 - **`expected.hpp`:** a minimal `afd::Expected<T, E>` for the C++20 build (a stand-in for C++23's `std::expected`).
 - **`errors.hpp`:**
   - `CommandError {code, message, suggestion?, retryable?, details?, cause?}`, with `cause` held as `std::shared_ptr<const CommandError>`.
@@ -250,6 +250,18 @@ Each item below is a header in `include/afd/` with an implementation in `src/`.
   5. Client-side middleware.
   - `pipe()` arrives in Phase 3.
 
+### As built (Phase 2)
+
+These are the deviations from the plan above, each for a concrete reason:
+- **`TaskRunner` moves to Phase 3.** Only batch parallelism needs it, and nothing in Phase 2 would exercise it.
+- **`CommandParameter` builders are deferred.** Inputs are declared as JSON Schema, and the builders are a parity follow-up.
+- **Renamed from TypeScript:**
+  - `requires` becomes `CommandDefinition::prerequisites`, because `requires` is a C++20 keyword.
+  - `interface` becomes `CommandContext::surface`, because `<windows.h>` defines `interface` as a macro. The macro-hygiene prelude now defines it too.
+- **`register_command` rejects invalid names.** TypeScript's `defineCommand` only warns; the Rust registry also rejects them.
+- **Schema compile checks only what inputs can reach.** It follows each `$ref` once and ignores unreferenced definitions. That way the shared todo contract, whose output-only `Todo` uses `format`, compiles as is.
+- **Field lists in VALIDATION_ERROR are alphabetical** (sorted-key JSON). TypeScript lists fields in declaration order.
+
 ### Tests
 
 - Port the behavioral cases (not the code) from the TypeScript engine, middleware and DirectClient test suites in `packages/server/src/*.test.ts` and `packages/client/src/*.test.ts`:
@@ -320,7 +332,7 @@ Each item below is a header in `include/afd/` with an implementation in `src/`.
 - **`when` evaluation:**
   - `$exists` is false for both absent and `null`.
   - Every comparison involving an absent operand is false, `$ne` included.
-  - `$eq`/`$ne` use the key-order-insensitive `json_equal`.
+  - `$eq`/`$ne` use `afd::Json`'s `==`, which is structural and ignores key order.
   - `$and: []` is true and `$or: []` is false.
 - **Depth:** request and step inputs deeper than 64 levels are rejected, and the check is iterative.
 
@@ -370,6 +382,20 @@ Put the pipeline-variable rules and the batch-control cases in language-neutral 
 - `spec/vectors/batch-controls.json`.
 
 A follow-up issue wires the same files into TypeScript, Python and Rust. This follows the quality review's recommendation to replace name parity with fixture comparison, and it cuts the four-language cost of every future `parity` issue.
+
+### As built (Phase 3)
+
+- **One executor, as planned.** `execute_batch`, `execute_pipeline` and `execute_stream` take a `CommandExecutor`. `CommandRegistry::execute_batch/execute_pipeline/execute_stream` and `DirectClient::pipe` all delegate to them.
+- **Cooperative deadlines with every runner** (proposal D4, corrected). `ThreadTaskRunner` gives real overlap, but nothing returns before running handlers do: abandoning a handler could leave it using state the caller has freed. A late finish gets the same BATCH_TIMEOUT or PIPELINE_TIMEOUT result as in TypeScript.
+- **`CancellationSource` can chain to a parent token,** the counterpart of `AbortSignal.any`. Batch commands, pipeline steps and streams see both the caller's cancellation and the deadline.
+- **A stream is a `std::vector<StreamChunk>`,** not a generator. TypeScript's `executeStream` also runs the command to completion before yielding. `consume_stream` returns the final chunk, and `collect_stream_data` returns `Expected` instead of throwing.
+- **Pipeline executor exceptions follow `dev_mode` redaction** (research finding 8). TypeScript returns the raw message.
+- **Shared vectors are started.** `spec/vectors/pipeline-variables.json` holds 48 references and 27 conditions, generated from the TypeScript implementation by `spec/vectors/generate-pipeline-variables.mjs`. The C++ tests require identical results. Adopting the file in Python and Rust remains follow-on item 6.
+- **Fuzz targets** exist for `parse_bounded`, pipelines, schemas, similarity and the wire types.
+  - They are built with `AFD_BUILD_FUZZERS`.
+  - CI runs each for 60 s under libFuzzer, ASan and UBSan.
+  - Elsewhere they build as standalone drivers that replay the seed corpus as ctest tests.
+- **A TSan CI job** runs the suite with `AFD_ENABLE_THREADS`, including a threaded batch through the real registry.
 
 ### Tests and fuzzing
 
@@ -452,6 +478,15 @@ backends/cpp/
 
 **Exit:** 34/34 cases pass in `conformance.yml`, and the tree stays clean after the run.
 
+### As built (Phase 4)
+
+- **34/34 conformance cases passed on the first run.** The run starts the built binary over stdio, like the TypeScript and Python backends.
+- **The shared schema is embedded as a CMake-generated byte array,** not a raw string literal. The 10.9 KB file is too close to MSVC's string-literal limits for a literal.
+- **`StdioClientTransport` needs no port or health check.** The runner starts `backends/cpp/build/release/todo-server-cpp` directly.
+- **The backend carries a copy of `packages/cpp/.clang-format`,** because clang-format only looks in parent directories. The `cpp.yml` format job checks the backend too.
+- **Title sorting approximates `localeCompare`,** as the backend README documents.
+
+
 ---
 
 ## Phase 5: Parity, skill and docs
@@ -500,28 +535,61 @@ backends/cpp/
 
 **Exit:** `alfred.yml` is green with a C++ budget, and the skill passes the skill linter.
 
+### As built (Phase 5)
+
+- **`parse_cpp_exports`** lexes the headers: comments, string literals (including raw strings), character literals and preprocessor lines.
+  - It tracks namespace and brace scope, and reads the declarations directly in `namespace afd`, following `#include "afd/..."` from `afd/afd.hpp`.
+  - A nested public namespace counts as one export, so `afd::error_codes` lines up with TypeScript's `ErrorCodes`. `afd::detail` and C++ idioms are skipped (`to_json`, `Json`, `Expected`, the version constants).
+- **Budget:** `missing_from_cpp` starts at 73. The C++ wire round-trip suite is registered, and C++ joins the core-exports check and the wire-coverage assertions.
+- **Renamed to TypeScript's names** (nothing is released yet): `Handler` → `CommandHandler`, `Middleware` → `CommandMiddleware`, `RegistryOptions` → `CommandRegistryOptions`.
+- **Added:**
+  - the handoff types and helpers, which were in v0.1 scope but missed in Phases 1–3;
+  - `ErrorCode`;
+  - `create_source`, `create_step`, `update_step_status`, `create_warning`;
+  - the stream-chunk guards;
+  - `is_batch_request`, `is_batch_result`, `create_batch_request`;
+  - `is_pipeline_request`, `is_pipeline_result`, `create_pipeline`.
+- **The remaining gaps are deliberate:**
+  - MCP JSON-RPC types and helpers;
+  - the typed pipeline-condition structs and their guards (C++ keeps conditions as validated JSON);
+  - telemetry, timeout controllers and streamable-command helpers;
+  - the pipeline aggregation helpers;
+  - `CommandParameter` and `createCommandRegistry`.
+- **The `afd-cpp` skill:** every C++ example in it is compiled and run against the library, and the test example runs under doctest.
+
 ---
 
 ## Phase 6: Packaging and release
 
 **Goal:** consumers can take a tagged release without copying source.
 
-- [ ] Add `install()` rules, `afdConfig.cmake` with a version file, and the exported `afd::afd` target. Generate `include/afd/version.hpp` (`AFD_VERSION_MAJOR/MINOR/PATCH`).
-- [ ] Consumer tests in CI:
+- [x] Add `install()` rules, `afdConfig.cmake` with a version file, and the exported `afd::afd` target. Generate `include/afd/version.hpp` (`AFD_VERSION_MAJOR/MINOR/PATCH`).
+- [x] Consumer tests in CI:
   - install, then build a tiny project with `find_package(afd 0.1 CONFIG REQUIRED)`;
   - build the same project through `FetchContent`;
   - build a `packages/cpp/examples/quickstart.cpp` that matches the README, playing the role of Rust's README doctests.
 - [ ] Release process:
   - Tag `afd-cpp-v0.1.0` and write GitHub release notes from `packages/cpp/CHANGELOG.md`.
   - Document the steps in the `do-release` skill. Changesets does not cover this package.
-- [ ] Dependency updates: Dependabot has no CMake ecosystem. Keep every pin in `cmake/AfdDependencies.cmake`, with a documented update procedure. See the [open questions](#open-questions) for Renovate.
-- [ ] Embeddability gate, generic and not tied to any host:
+- [x] Dependency updates: Dependabot has no CMake ecosystem. Keep every pin in `cmake/AfdDependencies.cmake`, with a documented update procedure. See the [open questions](#open-questions) for Renovate.
+- [x] Embeddability gate, generic and not tied to any host:
   - the noexcept-nortti job;
   - a CMake unity build;
   - the macro-hygiene prelude;
   - MSVC with `/W4 /WX`.
 
   This proves that hosts which disable exceptions or RTTI, or use unity builds, can consume the library. No specific host is named or installed in CI.
+
+### As built (Phase 6)
+
+- **Install rules:** `install(TARGETS afd EXPORT afdTargets)`, the public headers plus the generated `afd/version.hpp`, and `lib/cmake/afd/` with `afdConfig.cmake`, `afdConfigVersion.cmake` and `afdTargets.cmake` (namespace `afd::`).
+  - `afdConfig.cmake` calls `find_dependency(nlohmann_json 3.11)`, and `find_dependency(Threads)` when the library was built with `AFD_ENABLE_THREADS`.
+  - When afd downloads nlohmann/json, `JSON_Install` is set so the prefix is self-contained.
+  - Compatibility is `SameMinorVersion`: before 1.0, a minor bump may break the API.
+- **Subproject defaults:** `AFD_INSTALL`, `AFD_BUILD_EXAMPLES` and `AFD_BUILD_TESTS` default to `PROJECT_IS_TOP_LEVEL`, so `FetchContent` and `add_subdirectory` users build only the library.
+- **Consumer tests:** `examples/quickstart.cpp` asserts its own output (a success, then the "Did you mean 'todo-create'?" suggestion from `DirectClient`). It runs in every preset's ctest, including noexcept-nortti and Emscripten. The `package` job in `cpp.yml` installs afd on Linux and Windows, then builds `tests/consumer` with `find_package` and with `FetchContent`, and runs it.
+- **Dependency updates:** every pin (URL and SHA-256) is in `cmake/AfdDependencies.cmake`, with the procedure in its header comment. Dependabot has no CMake ecosystem; Renovate remains an open question.
+- **Release:** the steps are in the `do-release` skill. The `afd-cpp-v0.1.0` tag and GitHub release are created after this PR merges, with maintainer sign-off.
 
 ---
 
