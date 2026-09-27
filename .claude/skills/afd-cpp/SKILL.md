@@ -241,13 +241,26 @@ TEST_CASE("todo-create validates and stamps metadata") {
 
 ## Current Parity Note
 
-`alfred parity` tracks `missing_from_cpp` (budget in `alfred/tests/test_parity.py`). The remaining
-gaps are deliberate:
-- **MCP JSON-RPC types and helpers.** Transports live in hosts and examples.
-- **The typed pipeline-condition structs and their guards.** C++ keeps conditions as validated JSON.
-- **Telemetry, timeout controllers and streamable-command helpers.**
-- **The pipeline aggregation helpers,** which are internal to `execute_pipeline`.
-- **`CommandParameter` builders and `createCommandRegistry`.**
+`alfred parity` tracks `missing_from_cpp` (budget in `alfred/tests/test_parity.py`). The
+cross-language matrix is [`docs/language-parity.md`](../../../docs/language-parity.md).
+
+**Deferred.** These gaps are planned for later:
+- **MCP JSON-RPC types and helpers,** including command-to-tool conversion. Transports live in hosts and examples.
+- **The meta-tools and bootstrap commands:** `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`, `afd-help`, `afd-docs`, `afd-schema`.
+- **Retry, rate-limit and telemetry middleware,** and the telemetry types.
+- **Connectors, `CommandParameter` builders and streamable-command metadata.**
+
+**By design.** These are not gaps:
+- **Typed pipeline-condition structs and their guards.** C++ keeps conditions as validated JSON.
+- **Timeout controllers.** `CancellationSource` covers them.
+- **`createCommandRegistry`.** The TypeScript core registry is not the reference.
+
+**Internal, and cheap to expose:** the pipeline aggregation helpers, `get_nested_value`, `is_batch_command` and `is_pipeline_step`.
+
+**Divergences a caller can see:**
+- Error suggestions name `afd-discover` and `afd-context-*`, which C++ does not provide.
+- `output_schema` and `prerequisites` are stored but never emitted.
+- The JSON Schema subset rejects `pattern`, `format`, `const` and the combinators.
 
 ## Related Skills
 

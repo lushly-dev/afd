@@ -175,7 +175,7 @@ By designing for agents first, your software automatically becomes API-first (ag
 
 ## What's in the Toolkit
 
-AFD ships as packages across **TypeScript, Python, Rust, and C++**, all sharing the same AFD capability set and agent-visible contract, even when the language-specific APIs differ:
+AFD ships as packages across **TypeScript, Python, Rust, and C++**. All four share the wire contract (`spec/wire`) and pass the same todo conformance suite. Their language-specific APIs differ, and so does their scope. TypeScript and Python include MCP servers and clients; Rust and C++ are in-process libraries. See [Language Parity](./docs/language-parity.md) for the capability matrix and known gaps.
 
 | Package | What it does |
 |---------|-------------|
@@ -186,8 +186,8 @@ AFD ships as packages across **TypeScript, Python, Rust, and C++**, all sharing 
 | **@afd/cli** | CLI for connecting, calling, validating, and exploring commands |
 | **@afd/auth** | Provider-agnostic auth adapter — middleware, commands, session sync, React hooks, adapters for Mock/Convex/BetterAuth |
 | **@afd/adapters** | Frontend adapters for rendering `CommandResult` → styled HTML with CSS variable theming |
-| **afd** *(Python)* | Functional AFD parity in idiomatic Python — `CommandResult`, MCP server/client, middleware, validation, telemetry, batch/streaming, testing, handoff |
-| **afd** *(Rust)* | `CommandResult` types, `CommandRegistry`, batch/stream support, WASM-compatible |
+| **afd** *(Python)* | Idiomatic Python AFD: `CommandResult`, MCP server/client, middleware, validation, telemetry, batch, pipelines, stream types, testing, handoff |
+| **afd** *(Rust)* | `CommandResult` types, validating `CommandRegistry`, batch and pipeline execution, stream types, bootstrap commands; WASM-compatible; no MCP server yet |
 | **afd-cpp** *(C++20, pre-release)* | [`packages/cpp`](./packages/cpp): `CommandResult` types, validating `CommandRegistry`, middleware, `DirectClient`, batch/pipeline/stream execution; engine-free, builds without exceptions or RTTI and for WebAssembly |
 
 AFD stays framework-agnostic at the command layer. React or browser integrations belong in examples and ecosystem layers, not in the core parity target.
