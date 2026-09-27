@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from afd import ExposeOptions, success
 from afd.cli.main import _load_surface_commands
 from afd.cli.surface_commands import collect_surface_commands, is_opaque_grouped_tool
-from afd.core.builtin_names import BUILTIN_TOOL_NAMES, META_TOOL_NAMES
+from afd import AFD_BUILTIN_TOOL_NAMES, AFD_META_TOOL_NAMES, is_afd_builtin_name
 from afd.server import create_server
 from afd.server.factory import META_TOOL_NAMES as SERVER_META_TOOL_NAMES
 from afd.testing.surface.validate import validate_command_surface
@@ -171,8 +171,10 @@ OPAQUE_GROUPED_TOOL = ToolInfo(
 
 
 def test_builtin_names_match_the_server():
-    assert META_TOOL_NAMES == SERVER_META_TOOL_NAMES
-    assert {"afd-help", "afd-docs", "afd-schema", "afd-context-list"} <= BUILTIN_TOOL_NAMES
+    assert AFD_META_TOOL_NAMES == SERVER_META_TOOL_NAMES
+    assert {"afd-help", "afd-docs", "afd-schema", "afd-context-list"} <= AFD_BUILTIN_TOOL_NAMES
+    assert is_afd_builtin_name("afd-context-enter")
+    assert not is_afd_builtin_name("todo-create")
 
 
 @pytest.mark.asyncio

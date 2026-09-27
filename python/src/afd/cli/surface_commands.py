@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from afd.core.builtin_names import is_builtin_name
+from afd.core.builtin_names import is_afd_builtin_name
 from afd.transports.base import ToolInfo, Transport
 
 DISCOVER_PAGE_SIZE = 200
@@ -94,14 +94,14 @@ def commands_from_tools(tools: list[ToolInfo]) -> list[dict[str, Any]]:
     """
     commands: list[dict[str, Any]] = []
     for tool in tools:
-        if is_builtin_name(tool.name):
+        if is_afd_builtin_name(tool.name):
             continue
         actions = _grouped_actions(tool)
         if actions is None:
             commands.append(_tool_to_command(tool))
             continue
         commands.extend(
-            _action_to_command(action) for action in actions if not is_builtin_name(action["command"])
+            _action_to_command(action) for action in actions if not is_afd_builtin_name(action["command"])
         )
     return commands
 
@@ -117,7 +117,7 @@ async def collect_surface_commands(
     tools are validated as they are and a warning says why.
     """
     commands = commands_from_tools(tools)
-    opaque = {tool.name for tool in tools if not is_builtin_name(tool.name) and is_opaque_grouped_tool(tool)}
+    opaque = {tool.name for tool in tools if not is_afd_builtin_name(tool.name) and is_opaque_grouped_tool(tool)}
     lazy = not commands and any(tool.name == "afd-discover" for tool in tools)
     if not lazy and not opaque:
         return commands, []
@@ -169,7 +169,7 @@ async def _discover_commands(transport: Transport) -> list[dict[str, Any]]:
             break
         offset += len(entries)
 
-    wanted = [name for name in dict.fromkeys(names) if not is_builtin_name(name)]
+    wanted = [name for name in dict.fromkeys(names) if not is_afd_builtin_name(name)]
     commands: list[dict[str, Any]] = []
     for start in range(0, len(wanted), DETAIL_BATCH_SIZE):
         batch = wanted[start : start + DETAIL_BATCH_SIZE]

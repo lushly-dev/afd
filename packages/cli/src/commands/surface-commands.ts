@@ -11,7 +11,7 @@
  * surface, and flagging them tells the user nothing they can fix.
  */
 
-import type { CommandResult, JsonSchema, McpTool, McpToolAction } from '@lushly-dev/afd-core';
+import type { CommandResult, JsonSchema, McpTool } from '@lushly-dev/afd-core';
 import { isAfdBuiltinName } from '@lushly-dev/afd-core';
 import type { SurfaceCommand } from '@lushly-dev/afd-testing';
 
@@ -41,6 +41,9 @@ export interface SurfaceCommandSet {
 }
 
 type Json = Record<string, unknown>;
+
+/** One entry of a grouped tool's `_meta.actions`. */
+type McpToolAction = NonNullable<NonNullable<McpTool['_meta']>['actions']>[number];
 
 function isRecord(value: unknown): value is Json {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);

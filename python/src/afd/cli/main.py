@@ -26,7 +26,7 @@ from afd.cli.output import (
     print_warning,
 )
 from afd.cli.surface_commands import collect_surface_commands
-from afd.core.builtin_names import is_builtin_name
+from afd.core.builtin_names import is_afd_builtin_name
 from afd.transports import HttpTransport, MockTransport, SseTransport, Transport
 
 # State file for persistent connection info
@@ -557,7 +557,7 @@ async def _load_surface_commands(
         }
         commands: list[dict[str, Any]] = []
         for item in help_payload.get("commands", []):
-            if not isinstance(item, dict) or is_builtin_name(str(item.get("name", ""))):
+            if not isinstance(item, dict) or is_afd_builtin_name(str(item.get("name", ""))):
                 continue
             schema = schema_map.get(item["name"], {})
             commands.append(

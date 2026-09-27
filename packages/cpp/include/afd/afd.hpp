@@ -2,6 +2,7 @@
 #pragma once
 
 #include "afd/batch.hpp"
+#include "afd/builtin_names.hpp"
 #include "afd/command.hpp"
 #include "afd/direct_client.hpp"
 #include "afd/errors.hpp"

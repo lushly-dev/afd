@@ -115,10 +115,8 @@ export type {
 	McpServerCapabilities,
 	McpTextContent,
 	McpTool,
-	McpToolAction,
 	McpToolCallParams,
 	McpToolCallResult,
-	McpToolCommandMeta,
 	McpToolsListResult,
 } from './mcp.js';
 export {
