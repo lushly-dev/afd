@@ -4,8 +4,10 @@ description: >
   Rust implementation patterns for AFD commands using the afd crate,
   CommandResult types, and async handlers. Covers command definition,
   schema design with JSON Schema, error handling, registry patterns,
-  and testing. Use when: implementing commands in Rust, building Rust
-  MCP servers, working with CommandResult types, or debugging Rust AFD code.
+  and testing. The crate is an in-process library with MCP wire types but
+  no MCP server. Use when: implementing commands in Rust, embedding AFD in
+  a Rust or WebAssembly application, working with CommandResult types, or
+  debugging Rust AFD code.
   Triggers: rust afd, rs command, CommandResult rust, CommandHandler,
   rust implementation, afd crate, cargo afd.
 ---
@@ -153,7 +155,7 @@ use afd::CommandError;
 
 // Not found
 let err = CommandError::not_found("Todo", "123");
-// -> { code: "NOT_FOUND", message: "Todo '123' not found" }
+// -> { code: "NOT_FOUND", message: "Todo with ID '123' not found" }
 
 // Validation error
 let err = CommandError::validation(
@@ -383,23 +385,35 @@ let error = create_error_chunk(CommandError::internal("Stream interrupted"), 2, 
 let chunk: StreamChunk = progress.into();
 ```
 
-## Metadata Types
-
 ## Current Parity Note
 
-The Rust crate now includes parity helpers for:
+The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-parity.md). `alfred parity` reports 10 names missing from Rust, and most of those are export artifacts. The real gaps are behavioral.
 
-- command ergonomics: `CommandExample`, `ExposeOptions`, `default_expose`, `validate_command_name`
-- streaming: `StreamableCommand`, `consume_stream`, `create_timeout_controller`
-- handoff and telemetry: `create_handoff`, `default_reconnect_policy`, `TelemetryEvent`
-- MCP and pipelines: `create_mcp_request`, `create_mcp_response`, `execute_pipeline`
-- discovery helpers: `calculate_similarity`, `find_similar_tools`
+- **Shared with TypeScript today:**
+  - wire shapes (round-trip `spec/wire`);
+  - enforced exposure and input validation;
+  - the middleware chain;
+  - `requires` and `contexts` metadata;
+  - bootstrap commands (`register_bootstrap_commands`);
+  - batch execution (`CommandRegistry::execute_batch`) and pipelines per `spec/pipeline-variables.md`;
+  - stream chunk types;
+  - similarity helpers;
+  - handoff and telemetry types.
+- **Not in the crate yet:**
+  - an MCP server, tool strategies and meta-tools;
+  - a stream executor;
+  - built-in middleware (trace ID, logging, timing, retry, rate limit, telemetry);
+  - active-context scoping (`contexts` is metadata; use `CommandDefinition::is_accessible_in_context`);
+  - result metadata stamping and `onCommand` hooks;
+  - `destructive`, `confirmPrompt` and `undoable`.
+- **Known divergences from TypeScript:**
+  - single `execute` does not catch handler panics, and batch and pipeline report them as `INTERNAL_ERROR` rather than `COMMAND_EXECUTION_ERROR`;
+  - `is_success` requires `data`;
+  - undeclared input keys reach handlers;
+  - examples are not validated.
+- **Parity decisions** SHOULD compare agent-visible behavior first, then record Rust-specific gaps in the matrix instead of assuming every TypeScript or Python feature already exists in the crate.
 
-Status clarity for cross-language planning:
-
-- Shared today: output schemas, examples, enforced exposure and input validation, middleware, `requires`/`contexts` metadata, bootstrap commands (`register_bootstrap_commands`), pipelines, discovery helpers, telemetry, handoff
-- Not yet part of the Rust crate surface: an MCP server, active-context scoping at execution time (`contexts` is metadata; use `CommandDefinition::is_accessible_in_context`), and the server-side tool strategies exposed in TypeScript and Python
-- Parity decisions SHOULD compare agent-visible behavior first, then document Rust-specific gaps explicitly instead of assuming every TS/Python feature already exists in the crate
+## Metadata Types
 
 ### Warnings
 

@@ -55,7 +55,7 @@ Expert guidance for building software with the Agent-First Development methodolo
 
 ### Functional Parity Rule
 
-When comparing implementations across TypeScript, Python, and Rust, treat parity as a shared capability contract, not a promise that every API or module name will match exactly.
+When comparing implementations across TypeScript, Python, Rust, and C++, treat parity as a shared capability contract, not a promise that every API or module name will match exactly. The current capability matrix, including which gaps are intentional, is [`docs/language-parity.md`](../../../docs/language-parity.md).
 
 - Core AFD surfaces MUST stay framework-agnostic.
 - React or browser integrations SHOULD live in examples or ecosystem layers.

@@ -9,7 +9,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Accepted: decisions confirmed 2026-09-26; Phase 0 complete ([lushly-dev/afd#270](https://github.com/lushly-dev/afd/issues/270)) |
+| Status | Implemented: v0.1 release candidate. Implementation phases 1–6 are merged (#290, #293–#298) and CI is green; the `afd-cpp-v0.1.0` tag is not cut yet ([lushly-dev/afd#270](https://github.com/lushly-dev/afd/issues/270)). Cross-language gaps: [language parity](../../../language-parity.md). |
 | Package | `packages/cpp` (working name `afd-cpp`, namespace `afd`, CMake target `afd::afd`) |
 | Behavioral reference | TypeScript: `packages/server/src/execution.ts` (single command), `packages/core/src/command-execution.ts` (batch, stream), `packages/core/src/pipeline-executor.ts` (pipeline) |
 | Contracts | `spec/wire/*.json`, `spec/pipeline-variables.md`, `packages/examples/todo/spec/{commands.schema.json,test-cases.json}` |
@@ -85,7 +85,7 @@ The quality review ([2026-09-23](../../../reviews/2026-09-23-quality-review.md),
 
 The maintainer confirmed every decision marked **(confirmed)**, and every recommendation in the work plan's [open questions](./work-plan.md#open-questions), on 2026-09-26. The [Phase 0 spike](#phase-0-spike-evidence) supplied the evidence behind D2, D3, D4 and D9.
 
-**D1. Language and toolchain (confirmed).** Target C++20 with CMake 3.24 or later. CI defines the supported floor: GCC 12, Clang 16, Apple Clang 15, MSVC 2022 and a pinned Emscripten.
+**D1. Language and toolchain (confirmed).** Target C++20 with CMake 3.25 or later. CI defines the supported floor: GCC 12, Clang 16, Apple Clang 15, MSVC 2022 and a pinned Emscripten.
 - Public headers avoid features whose library support still varies: `<format>`, coroutines, modules, `std::jthread`/`std::stop_token` and C++23 `std::expected`.
 - Why C++20 rather than C++17:
   - **Designated initializers** let a command definition read like the TypeScript object literal: `CommandDefinition{.name = "todo-create", .description = …}`. Command definitions are the code AFD users write most.
@@ -121,7 +121,7 @@ The maintainer confirmed every decision marked **(confirmed)**, and every recomm
   - **Thread runner (native builds):** honors real overlap. *Corrected in Phase 3:* it does not return at the deadline the way TypeScript's `Promise.race` does. That would abandon a running handler, which could then touch an executor or registry the caller has already destroyed. Every runner is cooperative: the deadline is on the handler's cancellation token, and a late finish is reported as BATCH_TIMEOUT or PIPELINE_TIMEOUT. That is the same wire result; only the return time differs.
 - `CommandContext::cancellation` replaces `AbortSignal`. It is a token with a flag and a deadline that handlers can poll without a timer thread.
 - With the inline runner, a deadline is enforced before each entry starts and again when it completes. An overrun is reported as `BATCH_TIMEOUT` or `PIPELINE_TIMEOUT` with the same wire result as TypeScript. The C++ call returns when the handler returns, because a synchronous handler cannot be preempted. This limitation is documented, not hidden.
-- An injectable `Clock` in `RegistryOptions` covers durations, deadlines and `startedAt`/`completedAt`, so timing tests are deterministic without sleeping.
+- An injectable `Clock` in `CommandRegistryOptions` covers durations, deadlines and `startedAt`/`completedAt`, so timing tests are deterministic without sleeping.
   - It is a test seam for the library itself, not a `CommandContext` feature.
   - Exposing a clock to handlers is #274's decision, made for all languages.
 - Asynchronous (completion-based) handlers are deferred until a concrete consumer needs them.
@@ -207,20 +207,22 @@ The spike was a disposable program built with Apple Clang 17, and with Emscripte
 
 ## Success criteria
 
-- [ ] All six `spec/wire` fixtures round-trip. The test fails on any fixture it has no mapping for, as `packages/rust/tests/wire_fixtures.rs` does.
-- [ ] `spec/pipeline-variables.md` is implemented, with every test in its conformance minimum.
-- [ ] The batch and pipeline control cases in `packages/server/src/execution-controls.test.ts` are ported and pass.
-- [ ] The C++ todo backend passes 34/34 cases in `conformance.yml`.
-- [ ] `cpp.yml` is green for:
+Checked 2026-09-26 against `0777217` and the `main` CI runs.
+
+- [x] All six `spec/wire` fixtures round-trip. The test fails on any fixture it has no mapping for, as `packages/rust/tests/wire_fixtures.rs` does.
+- [x] `spec/pipeline-variables.md` is implemented, with every test in its conformance minimum.
+- [x] The batch and pipeline control cases in `packages/server/src/execution-controls.test.ts` are ported and pass.
+- [x] The C++ todo backend passes 34/34 cases in `conformance.yml`.
+- [x] `cpp.yml` is green for:
   - Linux GCC;
   - Linux Clang with ASan and UBSan;
   - macOS;
   - Windows MSVC;
   - Emscripten, with tests run under Node;
   - no exceptions and no RTTI.
-- [ ] `alfred parity` reports C++, with a `missing_from_cpp` budget and a C++ wire round-trip entry.
-- [ ] An `afd-cpp` skill exists, and repository docs list four languages.
-- [ ] The package can be consumed through `find_package`, `FetchContent` and `add_subdirectory`, and the quick start compiles in CI.
+- [x] `alfred parity` reports C++, with a `missing_from_cpp` budget and a C++ wire round-trip entry.
+- [x] An `afd-cpp` skill exists, and repository docs list four languages: the skill, `README.md`, `AGENTS.md`, `CLAUDE.md` and `site/index.html`.
+- [x] The package can be consumed through `find_package`, `FetchContent` and `add_subdirectory`, and the quick start compiles in CI.
 
 ## Companion issues (#271–#276)
 
