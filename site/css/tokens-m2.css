@@ -167,6 +167,5 @@
 	--layer-content: 1;
 	--layer-marks: 2; /* crop marks */
 	--layer-nav: 100;
-	--layer-switch: 12000; /* the design switcher */
 	--layer-dialog: 13000;
 }

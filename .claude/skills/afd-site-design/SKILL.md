@@ -1,8 +1,8 @@
 ---
 name: afd-site-design
 description: >
-  Design system and decision record for the afd.dev website (site/), current
-  direction Command Manifesto 2. Covers the semantic token layer, colour-field
+  Design system and decision record for the afd.dev website (site/), the
+  Command Manifesto 2 design. Covers the semantic token layer, colour-field
   placement rules, the eight-step type ramp, the heavy-plus-thin statement
   pattern, section anatomy (figure labels, giant numerals, crop marks), motion
   rules, the live command runtime and the verification checklist.
@@ -30,8 +30,7 @@ breathe.**
 | `site/js/runtime.js` | The page's command registry (shared by every design). |
 | `site/js/vendor/afd-core.js` | Bundled afd-core. Rebuild with `node scripts/build-site-runtime.mjs`. |
 | `site/styleguide.html` | Living style guide. Reads tokens from the CSS, so it can't drift. |
-| `site/DESIGN-REVIEW.md` | Narrative review and history of the directions. |
-| `site/field-manual.html`, `direction.html`, `manifesto.html` | Earlier directions (Field Manual, Clear Guide, Command Manifesto), kept for comparison behind the design switcher. Don't restyle them. |
+| [references/history.md](references/history.md) | How the design got here: the reviews and trade-offs behind the earlier directions. |
 
 ## Principles
 

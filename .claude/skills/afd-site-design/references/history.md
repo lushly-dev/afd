@@ -1,8 +1,9 @@
 # Website design comparison
 
-> **File names changed.** Command Manifesto 2 is now the main page, `index.html`.
-> The Field Manual moved to `field-manual.html`. References below to `index.html`
-> (with line numbers) describe the Field Manual as it was when reviewed.
+> **History.** This is the design review written while three directions were
+> compared (Field Manual, Clear Guide, Command Manifesto). Command Manifesto 2
+> became `site/index.html`; the other pages were removed. File and line references
+> below describe those pages as they were; see the git history of `site/` to view them.
 
 Reviewed 2026-09-26 at branch commit `10788d1`.
 

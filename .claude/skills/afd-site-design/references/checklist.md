@@ -47,5 +47,3 @@ Run this before committing a site design change.
   a real 1440×900 window instead.
 - **Hidden tabs.** Background tabs throttle timers, so the demo autoplay and typing
   crawl. That isn't a bug.
-- **Other designs.** `field-manual.html`, `direction.html` and `manifesto.html` are kept for
-  comparison. Only the design switcher link on those pages should change.

@@ -2675,7 +2675,7 @@ textarea[aria-invalid="true"] {
 .opening > .wrap {
 	position: relative;
 	z-index: 1;
-	min-height: max(560px, min(920px, calc(100svh - var(--nav-h) - 42px - 72px)));
+	min-height: max(560px, min(920px, calc(100svh - var(--nav-h) - 72px)));
 }
 
 .opening-art {

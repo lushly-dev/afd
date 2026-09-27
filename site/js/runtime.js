@@ -1,7 +1,7 @@
-// afd.dev is an AFD app. Every interaction on the page is a command, executed
-// by the real @lushly-dev/afd-core registry (bundled in vendor/). Clicks, the
-// command palette, the hero terminal and the simulated agent all go through
-// call(), and every result is broadcast so the command log can show it.
+// afd.dev is an AFD app. The page's demos run real commands on the
+// @lushly-dev/afd-core registry (bundled in vendor/). The web UI, the
+// terminal and the scripted agent all go through call(), and every result is
+// broadcast to onCommand() listeners, which render it.
 
 import {
 	createCommandRegistry,
@@ -12,17 +12,16 @@ import {
 
 export const SECTIONS = [
 	'top',
-	'problem',
-	'honesty',
 	'inversion',
+	'problem',
 	'workflow',
-	'result',
 	'agent-ux',
+	'result',
+	'honesty',
 	'build',
 	'testing',
-	'toolkit',
-	'botcore',
 	'start',
+	'get-started',
 ];
 
 const INSTALL = {
@@ -251,18 +250,6 @@ registry.register({
 				suggestions: ['Start with the quickstart: define one command and call it from the terminal'],
 			}
 		);
-	},
-});
-
-registry.register({
-	name: 'log-clear',
-	description: 'Clear the command log',
-	category: 'page',
-	// A UI-only housekeeping command: not exposed to agents or the CLI.
-	expose: { palette: true, agent: false, cli: false },
-	parameters: [],
-	async handler() {
-		return success({ cleared: true }, { reasoning: 'Cleared the command log', confidence: 1 });
 	},
 });
 
