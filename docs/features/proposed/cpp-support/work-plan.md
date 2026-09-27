@@ -139,7 +139,7 @@ Each item below is a header in `include/afd/` with an implementation in `src/`.
 
 ### Tests
 
-- **`tests/wire_fixtures.cpp`:**
+- **`tests/wire_fixtures_test.cpp`:**
   - Enumerate `spec/wire/*.json` through a compile definition `AFD_WIRE_DIR`.
   - Dispatch on the file name, **spelled as quoted string literals**, because alfred's `check_wire_fixtures` greps for them.
   - Fail on any unmapped fixture.
@@ -253,7 +253,7 @@ Each item below is a header in `include/afd/` with an implementation in `src/`.
 ### As built (Phase 2)
 
 These are the deviations from the plan above, each for a concrete reason:
-- **`TaskRunner` moves to Phase 3.** Only batch parallelism needs it, and nothing in Phase 2 would exercise it.
+- **`TaskRunner` moves to Phase 3.** Only batch parallelism needs it, and nothing in Phase 2 would exercise it. Its interface also changed; see [As built (Phase 3)](#as-built-phase-3).
 - **`CommandParameter` builders are deferred.** Inputs are declared as JSON Schema, and the builders are a parity follow-up.
 - **Renamed from TypeScript:**
   - `requires` becomes `CommandDefinition::prerequisites`, because `requires` is a C++20 keyword.
@@ -386,6 +386,9 @@ A follow-up issue wires the same files into TypeScript, Python and Rust. This fo
 ### As built (Phase 3)
 
 - **One executor, as planned.** `execute_batch`, `execute_pipeline` and `execute_stream` take a `CommandExecutor`. `CommandRegistry::execute_batch/execute_pipeline/execute_stream` and `DirectClient::pipe` all delegate to them.
+- **`TaskRunner::run_all`, not `submit`.** PR 2a planned `submit(std::function<void()>)`, a `ThreadPoolTaskRunner` and a separate completion primitive with `wait_until`. As built, `run_all(count, task)` runs `task(0)` through `task(count - 1)` and returns once all have finished, so no completion primitive is needed (`include/afd/runtime.hpp`).
+  - `InlineTaskRunner` runs the tasks in order on the calling thread. It is the default, and the only runner without threads, as under Emscripten.
+  - `ThreadTaskRunner`, not `ThreadPoolTaskRunner`, runs the first task on the calling thread and each other task on its own `std::thread`, then joins them. It is built only with `AFD_ENABLE_THREADS`.
 - **Cooperative deadlines with every runner** (proposal D4, corrected). `ThreadTaskRunner` gives real overlap, but nothing returns before running handlers do: abandoning a handler could leave it using state the caller has freed. A late finish gets the same BATCH_TIMEOUT or PIPELINE_TIMEOUT result as in TypeScript.
 - **`CancellationSource` can chain to a parent token,** the counterpart of `AbortSignal.any`. Batch commands, pipeline steps and streams see both the caller's cancellation and the deadline.
 - **A stream is a `std::vector<StreamChunk>`,** not a generator. TypeScript's `executeStream` also runs the command to completion before yielding. `consume_stream` returns the final chunk, and `collect_stream_data` returns `Expected` instead of throwing.
@@ -502,7 +505,7 @@ backends/cpp/
     - It skips `afd::detail`, and it ignores test-only code.
   - Add a C++ mode to `_strip_comments` and `_skip_string` that handles raw strings `R"x(…)x"` and character literals.
   - Add `cpp`, `missing_from_cpp` and `extra_in_cpp` to `ParityReport`, and give `_diff_exports` a fourth input.
-  - Add `WIRE_ROUND_TRIP_TESTS["cpp"] = packages/cpp/tests/wire_fixtures.cpp`, and update the entry-file, count and reasoning code paths (lines 639-703).
+  - Add `WIRE_ROUND_TRIP_TESTS["cpp"] = packages/cpp/tests/wire_fixtures_test.cpp`, and update the entry-file, count and reasoning code paths (lines 639-703).
 - **`alfred/tests/test_parity.py`:**
   - Give the `fake_repo` fixture a C++ entry header.
   - Update the three-language wire-coverage test.
@@ -617,7 +620,7 @@ These belong in the requesting application, built on the public API.
 
 | Layer | What it proves | Where | CI |
 |---|---|---|---|
-| Wire fixtures | Types round-trip the canonical JSON | `packages/cpp/tests/wire_fixtures.cpp` | `cpp.yml`, all configurations |
+| Wire fixtures | Types round-trip the canonical JSON | `packages/cpp/tests/wire_fixtures_test.cpp` | `cpp.yml`, all configurations |
 | Ported behavior cases | Dispatch, validation, batch, pipeline and stream semantics match TypeScript | `packages/cpp/tests/*.cpp` | `cpp.yml` |
 | Shared vectors | Language-neutral pipeline and batch rules | `spec/vectors/*.json` | `cpp.yml` (other languages later) |
 | Conformance | The end-to-end product matches the other backends | `packages/examples/todo/spec/test-cases.json` | `conformance.yml` `todo-cpp` |
