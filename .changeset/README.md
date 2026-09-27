@@ -18,6 +18,8 @@ All `@lushly-dev/*` packages use **fixed versioning** — they always share the 
 Changesets only version the published npm packages in this monorepo.
 
 - If you changed one or more `@lushly-dev/*` packages, add a changeset.
-- If you changed only `python/` or docs/skills, do not add a no-op changeset.
-- Track Python-only work in `CHANGELOG.md`, then release it through the `python-v*`
-  tag / `publish-python.yml` flow after bumping `python/pyproject.toml`.
+- If you changed only `python/`, `packages/rust/`, `packages/cpp/` or docs/skills, do not add
+  a no-op changeset.
+- Record Python, Rust and C++ changes in `python/CHANGELOG.md`, `packages/rust/CHANGELOG.md`
+  and `packages/cpp/CHANGELOG.md`. Each is released on its own `python-v*`, `rust-v*` or
+  `cpp-v*` tag; the `do-release` skill has the steps.
