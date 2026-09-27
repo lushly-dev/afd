@@ -208,7 +208,7 @@ Then enable `afd-todo-rust` in mcp.json and reload VS Code.
 
 ## API Contract
 
-The source of truth for this example is the [test-cases.json](./spec/test-cases.json) file, which defines the expected inputs, outputs, and state transitions for all commands. [commands.schema.json](./spec/commands.schema.json) documents each command's input and result shape, and the TypeScript and Python test suites check that it lists exactly the commands each backend defines.
+The source of truth for this example is the [test-cases.json](./spec/test-cases.json) file, which defines the expected inputs, outputs, and state transitions for all commands. [commands.schema.json](./spec/commands.schema.json) documents each command's input and result shape, and the TypeScript, Python and C++ test suites check that it lists exactly the commands each backend defines. The Rust backend has no such check.
 
 ## Commands
 

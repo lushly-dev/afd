@@ -179,13 +179,13 @@ AFD ships as packages across **TypeScript, Python, Rust, and C++**. All four sha
 
 | Package | What it does |
 |---------|-------------|
-| **@afd/core** | Core types — `CommandResult`, `CommandError`, batching, streaming |
-| **@afd/server** | Zod-based MCP server factory with middleware (logging, timing, rate limiting, telemetry) |
-| **@afd/client** | MCP client with SSE/HTTP transports + `DirectClient` for ~0.03ms in-process execution |
-| **@afd/testing** | JTBD scenario runner, surface validation, coverage analysis, MCP agent integration |
-| **@afd/cli** | CLI for connecting, calling, validating, and exploring commands |
-| **@afd/auth** | Provider-agnostic auth adapter — middleware, commands, session sync, React hooks, adapters for Mock/Convex/BetterAuth |
-| **@afd/adapters** | Frontend adapters for rendering `CommandResult` → styled HTML with CSS variable theming |
+| **@lushly-dev/afd-core** | Core types — `CommandResult`, `CommandError`, batching, streaming |
+| **@lushly-dev/afd-server** | Zod-based MCP server factory with middleware (logging, timing, rate limiting, telemetry) |
+| **@lushly-dev/afd-client** | MCP client with SSE/HTTP transports + `DirectClient` for ~0.03ms in-process execution |
+| **@lushly-dev/afd-testing** | JTBD scenario runner, surface validation, coverage analysis, MCP agent integration |
+| **@lushly-dev/afd-cli** | CLI for connecting, calling, validating, and exploring commands |
+| **@lushly-dev/afd-auth** | Provider-agnostic auth adapter — middleware, commands, session sync, React hooks, adapters for Mock/Convex/BetterAuth |
+| **@lushly-dev/afd-adapters** | Frontend adapters for rendering `CommandResult` → styled HTML with CSS variable theming |
 | **afd** *(Python)* | Idiomatic Python AFD: `CommandResult`, MCP server/client, middleware, validation, telemetry, batch, pipelines, stream types, testing, handoff |
 | **afd** *(Rust)* | `CommandResult` types, validating `CommandRegistry`, batch and pipeline execution, stream types, bootstrap commands; WASM-compatible; no MCP server yet |
 | **afd-cpp** *(C++20, pre-release)* | [`packages/cpp`](./packages/cpp): `CommandResult` types, validating `CommandRegistry`, middleware, `DirectClient`, batch/pipeline/stream execution; engine-free, builds without exceptions or RTTI and for WebAssembly |
@@ -330,11 +330,11 @@ Commands run in isolation (no network, no database) to measure pure business log
 - [x] Command schema guide
 - [x] Trust framework documentation
 - [x] Implementation phases guide
-- [x] CLI tool (`@afd/cli`)
-- [x] MCP client library (`@afd/client`)
-- [x] MCP server library (`@afd/server`)
-- [x] Core types (`@afd/core`)
-- [x] Testing utilities (`@afd/testing`)
+- [x] CLI tool (`@lushly-dev/afd-cli`)
+- [x] MCP client library (`@lushly-dev/afd-client`)
+- [x] MCP server library (`@lushly-dev/afd-server`)
+- [x] Core types (`@lushly-dev/afd-core`)
+- [x] Testing utilities (`@lushly-dev/afd-testing`)
 - [x] Example implementations
 - [x] Performance testing framework
 - [ ] VS Code extension
