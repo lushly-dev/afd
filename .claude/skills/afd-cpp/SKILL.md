@@ -204,7 +204,7 @@ In practice, for library code:
 - **Never call a throwing accessor on unchecked data** (`at`, `get<T>`, `std::regex`). Parse with `allow_exceptions = false` or `parse_bounded`.
 - **Write `(std::min)(a, b)` and `(std::numeric_limits<T>::max)()`,** because `<windows.h>` defines `min` and `max` as macros.
 - **Never name anything `check`, `verify`, `require` or `interface`.**
-- **Guard catch blocks** with `#if defined(__cpp_exceptions)`.
+- **Guard catch blocks** with `#if AFD_HAS_EXCEPTIONS`, from the private `src/detail/exceptions.hpp`. It checks both `__cpp_exceptions` and MSVC's `_CPPUNWIND`.
 - **No global mutable state, and no dependence on static-initialization order.**
 
 ## Building Host Integrations

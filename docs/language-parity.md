@@ -279,7 +279,7 @@ The budgets in `alfred/tests/test_parity.py` equal these counts. Lower a budget 
 
 ## Documentation drift
 
-**Updated alongside this document:**
+**Updated:**
 
 - The [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans still showed their 2026-03-21 counts.
 - The [C++ proposal](./features/proposed/cpp-support/proposal.md) still read "Phase 0 complete", with no success criterion checked.
@@ -287,6 +287,12 @@ The budgets in `alfred/tests/test_parity.py` equal these counts. Lower a budget 
 - The root `README.md` said every language shares "the same AFD capability set", and listed Rust stream support.
 - The `afd` skill's parity rule named three languages.
 - The parity notes in the `afd-rust` and `afd-cpp` skills.
+- The `afd-rust` skill showed the not-found message as `"Todo '123' not found"`, and its description said "building Rust MCP servers".
+- The `afd-cpp` skill said to guard catch blocks with `__cpp_exceptions`. Library code uses `AFD_HAS_EXCEPTIONS`, which also checks MSVC's `_CPPUNWIND`.
+- The C++ `README.md` said the library was "being built in phases", fetched the uncut `afd-cpp-v0.1.0` tag, and said CI ran every preset on Linux, macOS and Windows.
+- The [C++ work plan](./features/proposed/cpp-support/work-plan.md) named the wire test `tests/wire_fixtures.cpp`, and did not record that `TaskRunner` shipped as `run_all` with `ThreadTaskRunner`.
+- `site/index.html` listed three languages, showed `cargo add afd` for a crate that is not on crates.io, and used the old `@afd/*` package names, as did the root `README.md`.
+- The todo `spec/README.md` said "TypeScript, Python, etc.". It and the todo `README.md` said only the TypeScript and Python suites check `commands.schema.json`; the C++ suite does too.
 
 **Still open:**
 
@@ -295,18 +301,6 @@ The budgets in `alfred/tests/test_parity.py` equal these counts. Lower a budget 
   - `README.md:58`: a handler with no `input_schema` receives the whole input dict as `title`.
   - `README.md:300-302`: `compose_middleware` takes varargs, and the timing option is `slow_threshold`, not `threshold_ms`.
   - `SKILL.md:528`: `server.run(port=…)` raises `TypeError`.
-- **`afd-rust` skill:**
-  - `SKILL.md:156` shows `"Todo '123' not found"`; the code says `"Todo with ID '123' not found"`.
-  - The description says "building Rust MCP servers", but the crate has none.
-- **C++ `README.md`:**
-  - The FetchContent example uses the `afd-cpp-v0.1.0` tag, which does not exist yet.
-  - "Being built in phases" is out of date.
-  - "CI runs every preset on Linux, macOS and Windows" is overstated: the sanitizer and no-exceptions presets run only on Linux.
-- **`site/index.html`:**
-  - It lists three languages.
-  - It shows `cargo add afd`, but the crate is not on crates.io.
-  - It uses the old `@afd/*` package names, as does the root `README.md` toolkit table. The packages are `@lushly-dev/afd-*`.
-- **`packages/examples/todo/spec/README.md:3`** still says "TypeScript, Python, etc."
 
 ## Recommended next steps
 

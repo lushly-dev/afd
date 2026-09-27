@@ -1,12 +1,13 @@
 # Todo Example Specification
 
-This directory contains the shared API contract for the Todo example. All backend implementations (TypeScript, Python, Rust and C++) must follow this specification to ensure interoperability with all frontend implementations (Vanilla JS, React, etc.).
+This directory contains the shared API contract for the Todo example. All four backend implementations (TypeScript, Python, Rust and C++) must follow this specification to ensure interoperability with all frontend implementations (Vanilla JS, React, etc.).
 
 ## Files
 
 - `commands.schema.json`: JSON Schema defining the input and output for all 11 commands,
-  keyed by MCP tool name. The TypeScript, Python and C++ test suites fail if it does not list
-  exactly the commands their backend defines.
+  keyed by MCP tool name. The TypeScript, Python and C++ backend test suites fail if it does
+  not list exactly the commands their backend defines; the C++ backend also validates every
+  input against it. The Rust backend has no such check.
 - `test-cases.json`: Conformance test cases used to verify backend implementations.
 - `README.md`: This file.
 

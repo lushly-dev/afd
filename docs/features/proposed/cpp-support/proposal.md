@@ -221,7 +221,7 @@ Checked 2026-09-26 against `0777217` and the `main` CI runs.
   - Emscripten, with tests run under Node;
   - no exceptions and no RTTI.
 - [x] `alfred parity` reports C++, with a `missing_from_cpp` budget and a C++ wire round-trip entry.
-- [ ] An `afd-cpp` skill exists, and repository docs list four languages. The skill, `README.md`, `AGENTS.md` and `CLAUDE.md` do; `site/index.html` still lists three.
+- [x] An `afd-cpp` skill exists, and repository docs list four languages: the skill, `README.md`, `AGENTS.md`, `CLAUDE.md` and `site/index.html`.
 - [x] The package can be consumed through `find_package`, `FetchContent` and `add_subdirectory`, and the quick start compiles in CI.
 
 ## Companion issues (#271–#276)
