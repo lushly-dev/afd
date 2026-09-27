@@ -276,55 +276,60 @@ steps:
 	<div class="grid-2">
 		<div class="animate-up">
 			<h2 class="serif-text section-title">THE<br>TOOLKIT</h2>
-			<p class="mono-label accent-teal">TypeScript · Python · Rust</p>
+			<p class="mono-label accent-teal">TypeScript · Python · Rust · C++</p>
 			<p>AFD ships as packages you install, not a platform you migrate to. Pick a language. Add the package. Define your first command.</p>
 			<div class="install-block animate-up">
 				<div class="code-block code-block--install">
 <pre><code>npm install @lushly-dev/afd-core @lushly-dev/afd-server
 pip install afd
-cargo add afd</code></pre>
+cargo add afd --git https://github.com/lushly-dev/afd
+# C++: CMake FetchContent, see packages/cpp/README.md</code></pre>
 				</div>
 			</div>
 			<div class="diagram diagram--stack">
-				<img src="svg/toolkit-stack.svg" alt="Stack diagram — Core block with TS, PY, RS, and MCP nodes" class="diagram__svg">
+				<img src="svg/toolkit-stack.svg" alt="Stack diagram — Core block with TS, PY, RS, C++, and MCP nodes" class="diagram__svg">
 			</div>
 		</div>
 		<div class="animate-up delay-1 packages-list">
 			<div class="package-item">
-				<h3 class="package-item__name">@afd/core</h3>
+				<h3 class="package-item__name">@lushly-dev/afd-core</h3>
 				<p class="mono-label">CommandResult, CommandError, batching, streaming.</p>
 			</div>
 			<div class="package-item">
-				<h3 class="package-item__name">@afd/server</h3>
+				<h3 class="package-item__name">@lushly-dev/afd-server</h3>
 				<p class="mono-label">Zod-based MCP server factory with middleware.</p>
 			</div>
 			<div class="package-item">
-				<h3 class="package-item__name">@afd/client</h3>
+				<h3 class="package-item__name">@lushly-dev/afd-client</h3>
 				<p class="mono-label">MCP client + DirectClient for ~0.03ms in-process calls.</p>
 			</div>
 			<div class="package-item">
-				<h3 class="package-item__name">@afd/cli</h3>
+				<h3 class="package-item__name">@lushly-dev/afd-cli</h3>
 				<p class="mono-label">Connect, call, validate, explore commands.</p>
 			</div>
 			<div class="package-item">
-				<h3 class="package-item__name">@afd/auth</h3>
+				<h3 class="package-item__name">@lushly-dev/afd-auth</h3>
 				<p class="mono-label">Provider-agnostic auth — middleware, session sync.</p>
 			</div>
 			<div class="package-item">
-				<h3 class="package-item__name">@afd/testing</h3>
+				<h3 class="package-item__name">@lushly-dev/afd-testing</h3>
 				<p class="mono-label">JTBD scenario runner, surface validation.</p>
 			</div>
 			<div class="package-item">
-				<h3 class="package-item__name">@afd/adapters</h3>
+				<h3 class="package-item__name">@lushly-dev/afd-adapters</h3>
 				<p class="mono-label">Frontend adapters for rendering CommandResult.</p>
 			</div>
 			<div class="package-item">
 				<h3 class="package-item__name">afd (Python)</h3>
 				<p class="mono-label">Pydantic CommandResult, FastMCP server.</p>
 			</div>
-			<div class="package-item package-item--last">
+			<div class="package-item">
 				<h3 class="package-item__name">afd (Rust)</h3>
 				<p class="mono-label">CommandResult types, CommandRegistry, WASM.</p>
+			</div>
+			<div class="package-item package-item--last">
+				<h3 class="package-item__name">afd-cpp (C++)</h3>
+				<p class="mono-label">CommandRegistry, DirectClient, WASM. Installs with CMake FetchContent.</p>
 			</div>
 		</div>
 	</div>

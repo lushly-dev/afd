@@ -4,8 +4,10 @@ description: >
   Rust implementation patterns for AFD commands using the afd crate,
   CommandResult types, and async handlers. Covers command definition,
   schema design with JSON Schema, error handling, registry patterns,
-  and testing. Use when: implementing commands in Rust, building Rust
-  MCP servers, working with CommandResult types, or debugging Rust AFD code.
+  and testing. The crate is an in-process library with MCP wire types but
+  no MCP server. Use when: implementing commands in Rust, embedding AFD in
+  a Rust or WebAssembly application, working with CommandResult types, or
+  debugging Rust AFD code.
   Triggers: rust afd, rs command, CommandResult rust, CommandHandler,
   rust implementation, afd crate, cargo afd.
 ---
@@ -153,7 +155,7 @@ use afd::CommandError;
 
 // Not found
 let err = CommandError::not_found("Todo", "123");
-// -> { code: "NOT_FOUND", message: "Todo '123' not found" }
+// -> { code: "NOT_FOUND", message: "Todo with ID '123' not found" }
 
 // Validation error
 let err = CommandError::validation(
