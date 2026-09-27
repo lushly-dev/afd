@@ -10,6 +10,11 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Added
 
+- **Packaging:**
+  - install rules and a relocatable CMake package: `find_package(afd 0.1 CONFIG)` provides `afd::afd`, with `SameMinorVersion` compatibility;
+  - when afd downloads nlohmann/json, the install includes it;
+  - the `AFD_INSTALL` and `AFD_BUILD_EXAMPLES` options, both on only when afd is the top-level project;
+  - `examples/quickstart.cpp`, and a consumer project that CI builds through `find_package` and `FetchContent` on Linux and Windows.
 - **Handoff:**
   - the types `HandoffResult`, `HandoffCredentials`, `HandoffMetadata`, `ReconnectPolicy` and `CreateHandoffOptions`;
   - the helpers `create_handoff`, `default_reconnect_policy`, `is_handoff`, `is_handoff_protocol`, `is_reconnect_policy`, `is_handoff_command` and `get_handoff_protocol`.

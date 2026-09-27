@@ -11,6 +11,11 @@ include(FetchContent)
 if(AFD_USE_SYSTEM_JSON)
     find_package(nlohmann_json 3.11 CONFIG REQUIRED)
 else()
+    # An installed afd package depends on nlohmann_json; when afd downloads it, install it
+    # alongside so the installed package is self-contained.
+    if(AFD_INSTALL)
+        set(JSON_Install ON CACHE INTERNAL "")
+    endif()
     FetchContent_Declare(
         nlohmann_json
         URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz
