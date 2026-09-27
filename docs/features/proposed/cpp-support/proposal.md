@@ -9,7 +9,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed (awaiting triage of [lushly-dev/afd#270](https://github.com/lushly-dev/afd/issues/270)) |
+| Status | Accepted: decisions confirmed 2026-09-26; Phase 0 complete ([lushly-dev/afd#270](https://github.com/lushly-dev/afd/issues/270)) |
 | Package | `packages/cpp` (working name `afd-cpp`, namespace `afd`, CMake target `afd::afd`) |
 | Behavioral reference | TypeScript: `packages/server/src/execution.ts` (single command), `packages/core/src/command-execution.ts` (batch, stream), `packages/core/src/pipeline-executor.ts` (pipeline) |
 | Contracts | `spec/wire/*.json`, `spec/pipeline-variables.md`, `packages/examples/todo/spec/{commands.schema.json,test-cases.json}` |
@@ -83,23 +83,23 @@ The quality review ([2026-09-23](../../../reviews/2026-09-23-quality-review.md),
 
 ## Key design decisions
 
-Each decision has a recommendation. Decisions marked **(confirm)** need a maintainer's sign-off in Phase 0.
+The maintainer confirmed every decision marked **(confirmed)**, and every recommendation in the work plan's [open questions](./work-plan.md#open-questions), on 2026-09-26. The [Phase 0 spike](#phase-0-spike-evidence) supplied the evidence behind D2, D3, D4 and D9.
 
-**D1. Language and toolchain (confirm).** Target C++20 with CMake 3.24 or later. CI defines the supported floor: GCC 12, Clang 16, Apple Clang 15, MSVC 2022 and a pinned Emscripten.
+**D1. Language and toolchain (confirmed).** Target C++20 with CMake 3.24 or later. CI defines the supported floor: GCC 12, Clang 16, Apple Clang 15, MSVC 2022 and a pinned Emscripten.
 - Public headers avoid features whose library support still varies: `<format>`, coroutines, modules, `std::jthread`/`std::stop_token` and C++23 `std::expected`.
 - Why C++20 rather than C++17:
   - **Designated initializers** let a command definition read like the TypeScript object literal: `CommandDefinition{.name = "todo-create", .description = …}`. Command definitions are the code AFD users write most.
   - `std::span` is also available.
   - Every mainstream compiler has supported these for several years.
-  - C++17 remains an option if maintainers value reach into older toolchains more than that ergonomics. It would cost builder-style definitions instead.
+  - C++17 was considered and declined. It would have widened reach into older toolchains, at the cost of builder-style definitions.
 
-**D2. JSON library (confirm): nlohmann/json 3.11 or later, with `afd::Json = nlohmann::json`.** It is the most widely used C++ JSON library: header-only, packaged by vcpkg, Conan and most Linux distributions, and buildable under Emscripten.
+**D2. JSON library (confirmed): nlohmann/json 3.11 or later (the spike used 3.12.0), with `afd::Json = nlohmann::json`.** It is the most widely used C++ JSON library: header-only, packaged by vcpkg, Conan and most Linux distributions, and buildable under Emscripten.
 - Its versioned ABI namespace avoids clashes when another library in the same program vendors its own copy.
 - Use the sorted-map `json`, not `ordered_json`. `ordered_json` equality is order-sensitive, which would break `$eq` structural comparison and fixture comparison.
 - Output keys come out alphabetical. That is acceptable, because every consumer compares structurally.
 - Resolution order: `find_package` first, then `FetchContent` pinned by URL and SHA-256. This lets a host supply its own copy.
 
-**D3. Builds without exceptions and RTTI are a supported, CI-gated configuration (confirm).**
+**D3. Builds without exceptions and RTTI are a supported, CI-gated configuration (confirmed).**
 - A large part of the C++ world compiles without exceptions, and often without RTTI:
   - Google-style and Chromium code;
   - LLVM;
@@ -112,13 +112,13 @@ Each decision has a recommendation. Decisions marked **(confirm)** need a mainta
 - Code never calls a throwing accessor on unchecked data (`at`, `get<T>`, `std::regex`, `std::stoi`). It parses with `allow_exceptions = false` and returns errors as values.
 - Handler exceptions are caught only when `__cpp_exceptions` is defined. They then map to `COMMAND_EXECUTION_ERROR` exactly as `executionFailure` does.
 
-**D4. Execution model (confirm): synchronous handlers, a pluggable runner and cooperative cancellation.**
+**D4. Execution model (confirmed): synchronous handlers, a pluggable runner and cooperative cancellation.**
 - A handler has the signature `CommandResult(const Json& input, CommandContext& ctx)`.
 - C++ has no standard async runtime. Building on one (Asio, a coroutine task library, TBB or an engine job system) would tie `afd-cpp` to that ecosystem.
 - Synchronous handlers with a runner interface keep the library runtime-agnostic. They also work in single-threaded WebAssembly, and they are what most C++ call sites expect.
 - The registry takes an optional host-supplied `TaskRunner`:
   - **Inline (default):** batch `parallelism` is an upper bound; entries run one after another.
-  - **Thread pool (native builds):** honors real overlap. Waits race the batch or pipeline deadline, as the TypeScript `Promise.race` does.
+  - **Thread runner (native builds):** honors real overlap. *Corrected in Phase 3:* it does not return at the deadline the way TypeScript's `Promise.race` does. That would abandon a running handler, which could then touch an executor or registry the caller has already destroyed. Every runner is cooperative: the deadline is on the handler's cancellation token, and a late finish is reported as BATCH_TIMEOUT or PIPELINE_TIMEOUT. That is the same wire result; only the return time differs.
 - `CommandContext::cancellation` replaces `AbortSignal`. It is a token with a flag and a deadline that handlers can poll without a timer thread.
 - With the inline runner, a deadline is enforced before each entry starts and again when it completes. An overrun is reported as `BATCH_TIMEOUT` or `PIPELINE_TIMEOUT` with the same wire result as TypeScript. The C++ call returns when the handler returns, because a synchronous handler cannot be preempted. This limitation is documented, not hidden.
 - An injectable `Clock` in `RegistryOptions` covers durations, deadlines and `startedAt`/`completedAt`, so timing tests are deterministic without sleeping.
@@ -155,16 +155,37 @@ Each decision has a recommendation. Decisions marked **(confirm)** need a mainta
 - the 1024-character reference limit.
 
 **D9. Wire numbers.** An integral double within ±(2^53−1) is written as a JSON integer, as `JSON.stringify` does. `packages/rust/src/wire.rs` does the same.
+- The spike confirmed this is needed: nlohmann writes `0.0`, `1.0`, `123456789012.0` and `-0.0` where JavaScript writes `0`, `1`, `123456789012` and `0`.
+- Two textual differences remain, and they are accepted:
+  - exponent formatting (`1e-07` against JavaScript's `1e-7`);
+  - integers above 2^53, which nlohmann keeps exact while JavaScript rounds them.
+- Every consumer compares parsed values, so neither difference changes a result.
 
-**D10. Conformance transport (confirm).**
+**D10. Conformance transport (confirmed).**
 - The todo runner (`packages/examples/todo/dx/run-conformance.ts`) is an MCP client, so the C++ todo backend ships a minimal **stdio** MCP loop. The TypeScript and Python backends use stdio, which needs no HTTP library, port or health check.
 - The loop lives in `packages/examples/todo/backends/cpp`, which keeps the library transport-free as #270 asks.
 - Promoting it to an optional `afd::mcp_stdio` target is a follow-up decision.
 
-**D11. Versioning (confirm).**
+**D11. Versioning (confirmed).**
 - The version is independent semver starting at `0.1.0`, as for Rust (`0.1.0`) and Python (`0.8.0`). Changesets does not apply, because there is no `package.json`.
 - The package keeps its own `packages/cpp/CHANGELOG.md` and uses tags of the form `afd-cpp-v0.1.0`.
 - Distribution is through a CMake package config (`find_package(afd CONFIG)`), `FetchContent` and `add_subdirectory`. vcpkg and Conan ports come later.
+
+## Phase 0 spike evidence
+
+The spike was a disposable program built with Apple Clang 17, and with Emscripten 6.0.10 run under Node 24. It used nlohmann/json 3.12.0 with `-fno-exceptions -fno-rtti -DJSON_NOEXCEPTION`.
+
+| Question | Result | Consequence |
+|---|---|---|
+| Does the core shape compile without exceptions and RTTI? | Yes. A registry with `std::function` handlers, middleware, `std::shared_mutex`, `std::optional`/`std::variant`, `std::span` and designated initializers had 0 warnings under `-Wall -Wextra -Wpedantic`, natively and under Emscripten. | D3, D4 and D5 hold. |
+| Does malformed input abort? | No. With `allow_exceptions = false`, 5 of 5 malformed documents returned `discarded`. `find()` on a missing key is safe. | Parse without exceptions; never call `at()` or `get<T>()` on unchecked data. |
+| Does the parser recurse? | No. Parsing and destroying 1,000,000-deep arrays works natively; 100,000 works under Emscripten. | Parsing hostile input is safe from stack overflow. |
+| Does `dump()` recurse? | **Yes.** It crashes with a segfault at 100,000 levels natively, and fails between 2,000 and 5,000 levels with Emscripten's default 64 KB stack. | Never serialize depth that has not been checked. `parse_bounded` defaults to a maximum depth of 256. |
+| Does a depth-bounded parse through the parser callback work? | Only with care. When the callback rejects a too-deep value, nlohmann silently drops that subtree, and the parse **still succeeds** (`is_discarded()` is false). | `parse_bounded` must fail on its own "too deep" flag, not on `is_discarded()`. |
+| Numeric equality | `0 == 0.0` and `1 == 1.0` are true. | Structural comparison works across integer and floating-point types. |
+| Object equality | `{a,b} == {b,a}` is true for `json` and **false** for `ordered_json`. | Confirms D2: use `json`. Output keys come out alphabetically. |
+| Macro hygiene | Force-including function-like `min`/`max` and lowercase `check`/`verify`/`require` before the standard library and nlohmann gives 0 errors with libc++. | The CI prelude is realistic. The library's own code must still avoid those names. |
+| Steady clock under Emscripten | Monotonic, and works under Node. | Deadlines and durations need no special case for WebAssembly. |
 
 ## Constraints
 
@@ -179,7 +200,7 @@ Each decision has a recommendation. Decisions marked **(confirm)** need a mainta
   - Names are capped at 128 before fuzzy matching, with a length-ratio pre-filter and a two-row Levenshtein.
   - Pipeline nesting is capped at 64, checked iteratively.
   - References longer than 1024 are literals.
-  - JSON parsing is bounded by depth and size.
+  - JSON parsing is bounded by depth (default 256) and size, and fails on the bound itself (see the spike evidence).
   - Serialization never recurses on untrusted depth.
   - Variable resolution follows only own keys of JSON data and rejects `__` segments.
 - **Deterministic under test:** clock, runner and random source are all injectable.

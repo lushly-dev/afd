@@ -210,6 +210,7 @@ afd shell
 - `afd-typescript` - TypeScript implementation patterns
 - `afd-python` - Python implementation patterns
 - `afd-rust` - Rust implementation patterns
+- `afd-cpp` - C++ implementation patterns
 - `pr-review` - PR review using AFD standards
 - `commit-messages` - Conventional commit format
 

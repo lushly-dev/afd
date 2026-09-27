@@ -1,0 +1,213 @@
+name: C++
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'packages/cpp/**'
+      # The C++ tests round-trip these golden fixtures and implement this spec.
+      - 'spec/wire/**'
+      - 'spec/vectors/**'
+      - 'spec/pipeline-variables.md'
+      # schema_test compiles every todo input schema.
+      - 'packages/examples/todo/spec/**'
+      # The format job also checks the C++ todo backend.
+      - 'packages/examples/todo/backends/cpp/**'
+      - '.github/workflows/cpp.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/cpp/**'
+      - 'spec/wire/**'
+      - 'spec/vectors/**'
+      - 'spec/pipeline-variables.md'
+      - 'packages/examples/todo/spec/**'
+      # The format job also checks the C++ todo backend.
+      - 'packages/examples/todo/backends/cpp/**'
+      - '.github/workflows/cpp.yml'
+
+permissions:
+  contents: read
+
+env:
+  CLANG_FORMAT_VERSION: '22.1.8'
+  EMSDK_VERSION: '6.0.10'
+
+jobs:
+  format:
+    name: C++ (clang-format)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      # clang-format is pinned through PyPI so local runs (`uvx --from clang-format==<v>`) match CI.
+      - name: Check formatting
+        working-directory: packages/cpp
+        run: |
+          find include src tests cmake fuzz ../examples/todo/backends/cpp/src ../examples/todo/backends/cpp/tests \
+            \( -name '*.cpp' -o -name '*.hpp' \) -print0 \
+            | xargs -0 uvx --from "clang-format==${CLANG_FORMAT_VERSION}" clang-format --dry-run -Werror
+
+  build:
+    name: C++ (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-gcc
+            os: ubuntu-latest
+            preset: release
+            cxx: g++
+          - name: linux-clang-sanitize
+            os: ubuntu-latest
+            preset: asan
+            cxx: clang++
+          - name: linux-clang-tsan
+            os: ubuntu-latest
+            preset: tsan
+            cxx: clang++
+          - name: noexcept-nortti
+            os: ubuntu-latest
+            preset: noexcept-nortti
+            cxx: clang++
+          - name: macos
+            os: macos-latest
+            preset: release
+            cxx: clang++
+          - name: windows-msvc
+            os: windows-latest
+            preset: release
+            cxx: ''
+
+    defaults:
+      run:
+        working-directory: packages/cpp
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Configure
+        shell: bash
+        env:
+          CXX: ${{ matrix.cxx }}
+        run: |
+          if [ -z "$CXX" ]; then unset CXX; fi
+          cmake --preset "${{ matrix.preset }}"
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }}
+
+  package:
+    name: C++ (package, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    defaults:
+      run:
+        working-directory: packages/cpp
+        shell: bash
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Install afd (and the nlohmann/json it downloads) to a prefix, then build the quickstart
+      # as an outside project twice: once through find_package, once through FetchContent.
+      - name: Build and install
+        run: |
+          cmake -S . -B "$RUNNER_TEMP/afd-build" -DCMAKE_BUILD_TYPE=Release -DAFD_BUILD_TESTS=OFF -DAFD_WARNINGS_AS_ERRORS=ON
+          cmake --build "$RUNNER_TEMP/afd-build" --config Release
+          cmake --install "$RUNNER_TEMP/afd-build" --config Release --prefix "$RUNNER_TEMP/afd-prefix"
+
+      - name: Consume with find_package
+        run: |
+          cmake -S tests/consumer -B "$RUNNER_TEMP/consumer-find" -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$RUNNER_TEMP/afd-prefix"
+          cmake --build "$RUNNER_TEMP/consumer-find" --config Release
+          ctest --test-dir "$RUNNER_TEMP/consumer-find" -C Release --output-on-failure
+
+      - name: Consume with FetchContent
+        run: |
+          cmake -S tests/consumer -B "$RUNNER_TEMP/consumer-fetch" -DCMAKE_BUILD_TYPE=Release -DAFD_CONSUME=fetchcontent
+          cmake --build "$RUNNER_TEMP/consumer-fetch" --config Release
+          ctest --test-dir "$RUNNER_TEMP/consumer-fetch" -C Release --output-on-failure
+
+  fuzz:
+    name: C++ (fuzz smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: packages/cpp
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build fuzz targets (libFuzzer, ASan, UBSan)
+        env:
+          CXX: clang++
+        run: |
+          cmake -S . -B build/fuzz -DCMAKE_BUILD_TYPE=RelWithDebInfo -DAFD_BUILD_FUZZERS=ON -DAFD_BUILD_TESTS=OFF -DAFD_WARNINGS_AS_ERRORS=ON
+          cmake --build build/fuzz
+
+      # Each target runs for 60 s from a scratch copy of its seed corpus, so new inputs never
+      # dirty the checkout. A crash fails the job and leaves the reproducer in the log.
+      - name: Fuzz each target for 60 seconds
+        run: |
+          for target in parse_bounded pipeline schema similarity wire; do
+            corpus="$RUNNER_TEMP/corpus-$target"
+            cp -r "fuzz/corpus/$target" "$corpus"
+            "build/fuzz/fuzz/afd_fuzz_$target" -max_total_time=60 -timeout=10 -rss_limit_mb=2048 "$corpus"
+          done
+
+  emscripten:
+    name: C++ (emscripten)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Cache emsdk
+        id: emsdk-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: emsdk
+          key: emsdk-${{ runner.os }}-${{ env.EMSDK_VERSION }}
+
+      # emsdk is cloned at a pinned tag instead of using a third-party setup action.
+      - name: Install Emscripten
+        if: steps.emsdk-cache.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 --branch "${EMSDK_VERSION}" https://github.com/emscripten-core/emsdk.git emsdk
+          ./emsdk/emsdk install "${EMSDK_VERSION}"
+          ./emsdk/emsdk activate "${EMSDK_VERSION}"
+
+      - name: Configure, build and test (tests run under Node)
+        working-directory: packages/cpp
+        run: |
+          source "${GITHUB_WORKSPACE}/emsdk/emsdk_env.sh"
+          emcmake cmake --preset emscripten
+          cmake --build --preset emscripten
+          ctest --preset emscripten

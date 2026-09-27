@@ -1,0 +1,12 @@
+{
+	"success": true,
+	"data": {
+		"id": "todo-1",
+		"title": "Buy milk"
+	},
+	"metadata": {
+		"executionTimeMs": 0,
+		"commandVersion": "1.0.0",
+		"traceId": "trace-fixture"
+	}
+}

@@ -1,0 +1,11 @@
+# The afd CMake package: find_package(afd 0.1 CONFIG REQUIRED), then link afd::afd.
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(nlohmann_json 3.11)
+if(@AFD_ENABLE_THREADS@)
+    find_dependency(Threads)
+endif()
+
+include(${CMAKE_CURRENT_LIST_DIR}/afdTargets.cmake)
+check_required_components(afd)
