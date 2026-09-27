@@ -389,7 +389,39 @@ Summary
 ✓ All scenarios passed!
 ```
 
-### 5. Hand it to an agent
+### 5. Lint the surface
+
+Surface validation checks the command set the way an agent will meet it: names, descriptions, overlapping schemas, injection risks and schema complexity.
+
+```bash
+npx afd validate --surface
+```
+
+```
+Surface Validation Results:
+
+  Grouped tools expanded into their commands: todo
+  Built-in AFD tools skipped: afd-batch, afd-pipe, afd-call, afd-detail
+
+ℹ INFO (2):
+  missing-output-schema: Command "todo-create" has no output schema — agents cannot predict response shape
+    Commands: todo-create
+  missing-output-schema: Command "todo-get" has no output schema — agents cannot predict response shape
+    Commands: todo-get
+
+Summary:
+  2 commands analyzed
+  12 rules evaluated in 2.02ms
+  0 errors
+  0 warnings
+  2 info
+
+✓ Surface validation passed!
+```
+
+It validates your commands, not AFD's built-in tools, and expands grouped tools into the commands inside them. The two info items are the next improvement: add an `output` schema to each command so agents know the result's shape before they call it.
+
+### 6. Hand it to an agent
 
 The server speaks MCP, so any MCP client can use it. In Claude Code:
 
@@ -404,7 +436,7 @@ For an agent that runs inside your own app, skip the network: `createDirectRegis
 - **Teach your coding agent AFD:** `npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd` (also `afd-typescript`, `afd-python`, `afd-rust` and others in [`.claude/skills`](./.claude/skills)).
 - **Add agent-UX metadata:** `destructive` and `confirmPrompt`, `undoable`, `requires`, `examples` and output schemas. See the [command schema guide](./.claude/skills/afd/references/command-schema.md).
 - **Scale the tool list:** `toolStrategy: 'lazy'` for large command sets, and `bootstrap: true` for `afd-help`, `afd-docs` and `afd-schema` ([MCP integration](./.claude/skills/afd/references/mcp-integration.md)).
-- **Lint the surface:** `npx afd validate --surface` checks names, descriptions, overlap, injection risks and schema complexity ([surface validation](./.claude/skills/afd/references/surface-validation.md)).
+- **Go deeper on linting:** the [surface validation guide](./.claude/skills/afd/references/surface-validation.md) covers every rule and how to configure them.
 - **Build a UI on top:** call the same commands from the browser with `createClient` from `@lushly-dev/afd-client`.
 
 ### Working on AFD itself
