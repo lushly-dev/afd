@@ -525,9 +525,3 @@ finaleForm?.addEventListener('submit', async (event) => {
 		if (!reducedMotion.matches) await new Promise((resolve) => setTimeout(resolve, 90));
 	}
 });
-
-// Hero background variants for comparison: ?hero=slash (default) | stripes | gradient
-const heroVariant = new URLSearchParams(window.location.search).get('hero');
-if (['slash', 'stripes', 'gradient'].includes(heroVariant)) {
-	document.querySelector('.opening')?.setAttribute('data-hero', heroVariant);
-}

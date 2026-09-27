@@ -2711,30 +2711,6 @@ textarea[aria-invalid="true"] {
 	}
 }
 
-/* Variant: fine diagonal rules at the slash angle, fading in from the right */
-.opening[data-hero="stripes"] .slash {
-	display: none;
-}
-
-.opening[data-hero="stripes"] .opening-art {
-	background: repeating-linear-gradient(110deg, transparent 0 20px, rgba(150, 28, 14, 0.42) 20px 23px);
-	-webkit-mask-image: linear-gradient(90deg, transparent 20%, var(--afd-black) 70%);
-	mask-image: linear-gradient(90deg, transparent 20%, var(--afd-black) 70%);
-}
-
-/* Variant: a warm gradient under a translucent slash */
-.opening[data-hero="gradient"] {
-	background: radial-gradient(120% 95% at 85% 5%, var(--afd-salmon) 0%, var(--red) 48%, var(--afd-red-700) 100%);
-}
-
-.opening[data-hero="gradient"] .slash {
-	background: linear-gradient(180deg, rgba(255, 190, 170, 0.28), rgba(150, 28, 14, 0.32));
-}
-
-.opening[data-hero="gradient"] .slash--thin {
-	background: rgba(150, 28, 14, 0.45);
-}
-
 @media (max-width: 850px) {
 	.opening {
 		--slash-x: 48%;

@@ -79,8 +79,8 @@ The AFD slash as a tone-on-tone poster shape, at the wordmark's lean (`skewX(-20
 </div>
 ```
 
-`?hero=stripes` and `?hero=gradient` are comparison variants of the hero background.
-Remove them once a final direction ships.
+The slash was chosen over two alternatives (diagonal stripes, a warm gradient); see
+`history.md`. Keep the hero to this one shape.
 
 ## "People get / agents get"
 

@@ -262,3 +262,16 @@ not rerun for this page-only change.
 
 Only Command Manifesto and this review were changed in the restoration pass.
 The other two designs, comparison switch and shared runtime are preserved.
+
+## Decisions after the directions were compared
+
+- **Hero background.** Three options were built side by side: a giant tone-on-tone
+  slash at the wordmark's angle, fine diagonal stripes, and a warm radial gradient.
+  The slash won: one confident Swiss shape tied to the brand mark, with the type fully
+  legible. Stripes read busier; the gradient pulled toward a generic tech look.
+- **No drafting grids.** Graph-paper backgrounds were tried on the hero, finale and
+  drawn patterns, and removed as noise.
+- **Colour budget.** Bright red is reserved for the hero. The honesty check moved
+  further down the page onto a slightly lighter salmon, so the two never share a screen.
+- **Type.** 48 ad-hoc font sizes were replaced by an eight-step ramp, with statements
+  pairing a heavy line and a thin line.
