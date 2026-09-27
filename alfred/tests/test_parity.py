@@ -545,8 +545,9 @@ NAME_GAP_BUDGET = {
     # 97 → 98 and 9 → 10: TypeScript's StreamExecutorOptions (the executeStream
     # timeout). Neither language has an executor options type, like ExecutorOptions.
     # 98 → 97: 2.0 removed TypeScript's deprecated resolveReference alias.
+    # Rust 10 → 9: afd exports execution_failure.
     "missing_from_python": 97,
-    "missing_from_rust": 10,
+    "missing_from_rust": 9,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps
     # conditions as validated JSON); telemetry; timeout controllers and streamable commands;

@@ -82,8 +82,8 @@ mod time {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 pub use result::{
-    error, failure, failure_with, is_failure, is_success, success, success_with, CommandResult,
-    FailureOptions, ResultMetadata, ResultOptions,
+    error, execution_failure, failure, failure_with, is_failure, is_success, success, success_with,
+    CommandResult, FailureOptions, ResultMetadata, ResultOptions,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

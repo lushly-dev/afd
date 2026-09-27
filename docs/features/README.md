@@ -17,7 +17,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | Feature | Description |
 |---------|-------------|
 | [Python Parity Closure](./active/python-parity/) | Close the export-surface gap between TypeScript and Python. 97 names are missing; 60 of them are implemented but not exported. |
-| [Rust Parity Closure](./active/rust-parity/) | Rust name closure is done: 10 names are missing, down from 78. The remaining work is behavioral; see Language Parity. |
+| [Rust Parity Closure](./active/rust-parity/) | Rust name closure is done: 9 names are missing, down from 78. The remaining work is behavioral; see Language Parity. |
 
 ## Complete Features
 
