@@ -6,8 +6,11 @@
 	<polygon points="60,60 250,50 260,240 40,250" fill="none" stroke="#181818" stroke-width="2" stroke-dasharray="12 8" />
 
 	<!-- Language Nodes -->
-	<polygon points="120,40 170,35 180,80 130,85" fill="#181818" stroke="#07bcbf" stroke-width="4" />
-	<text x="150" y="65" font-family="'JetBrains Mono', monospace" font-size="14" fill="#F4F0EA" font-weight="bold" text-anchor="middle">TS</text>
+	<polygon points="80,42 130,37 140,82 90,87" fill="#181818" stroke="#07bcbf" stroke-width="4" />
+	<text x="110" y="67" font-family="'JetBrains Mono', monospace" font-size="14" fill="#F4F0EA" font-weight="bold" text-anchor="middle">TS</text>
+
+	<polygon points="165,37 222,32 228,79 171,84" fill="#181818" />
+	<text x="197" y="63" font-family="'JetBrains Mono', monospace" font-size="14" fill="#F4F0EA" font-weight="bold" text-anchor="middle">C++</text>
 
 	<polygon points="40,120 90,110 100,165 45,170" fill="#181818" />
 	<text x="70" y="150" font-family="'JetBrains Mono', monospace" font-size="14" fill="#F4F0EA" font-weight="bold" text-anchor="middle">PY</text>
