@@ -150,6 +150,13 @@ from afd.core.mcp_types import (
     initialize_params,
     initialize_result,
 )
+from afd.core.builtin_names import (
+    AFD_BOOTSTRAP_COMMAND_NAMES,
+    AFD_BUILTIN_TOOL_NAMES,
+    AFD_CONTEXT_COMMAND_NAMES,
+    AFD_META_TOOL_NAMES,
+    is_afd_builtin_name,
+)
 from afd.core.wire import WireModel, to_wire, to_wire_json
 from afd.core.streaming import (
     ProgressChunk,
@@ -389,6 +396,12 @@ __all__ = [
     "mcp_error_response",
     "initialize_params",
     "initialize_result",
+    # Names of the tools an AFD server provides itself
+    "AFD_META_TOOL_NAMES",
+    "AFD_BOOTSTRAP_COMMAND_NAMES",
+    "AFD_CONTEXT_COMMAND_NAMES",
+    "AFD_BUILTIN_TOOL_NAMES",
+    "is_afd_builtin_name",
     # Streaming types
     "ProgressChunk",
     "DataChunk",

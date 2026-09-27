@@ -2,9 +2,11 @@
 // errors, middleware and metadata.
 #include "afd/afd.hpp"
 
+#include <iterator>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <doctest.h>
@@ -65,6 +67,35 @@ TEST_CASE("register_command rejects invalid, reserved, duplicate and incomplete 
         registry.register_command(bad_example) ==
         "Example \"No title\" for command \"todo-toggle\" fails schema validation: title: Invalid "
         "input: expected string, received undefined");
+}
+
+TEST_CASE("built-in tool names: the shared list and its predicate") {
+    static_assert(afd::is_afd_builtin_name("afd-call"));
+    static_assert(!afd::is_afd_builtin_name("todo-create"));
+
+    std::vector<std::string_view> combined;
+    combined.insert(combined.end(), std::begin(afd::afd_meta_tool_names),
+                    std::end(afd::afd_meta_tool_names));
+    combined.insert(combined.end(), std::begin(afd::afd_bootstrap_command_names),
+                    std::end(afd::afd_bootstrap_command_names));
+    combined.insert(combined.end(), std::begin(afd::afd_context_command_names),
+                    std::end(afd::afd_context_command_names));
+    CHECK(combined == std::vector<std::string_view>(std::begin(afd::afd_builtin_tool_names),
+                                                    std::end(afd::afd_builtin_tool_names)));
+
+    for (std::string_view name : {"afd-detail", "afd-help", "afd-context-enter"}) {
+        CHECK(afd::is_afd_builtin_name(name));
+    }
+    for (std::string_view name : {"afd", "afd-custom", "AFD-CALL", "todo"}) {
+        CHECK_FALSE(afd::is_afd_builtin_name(name));
+    }
+
+    // Registration rejects every meta-tool name.
+    afd::CommandRegistry registry;
+    for (std::string_view name : afd::afd_meta_tool_names) {
+        CHECK(registry.register_command(echo_command(std::string(name)))->find("is reserved") !=
+              std::string::npos);
+    }
 }
 
 TEST_CASE(
