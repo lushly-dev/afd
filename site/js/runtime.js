@@ -28,6 +28,13 @@ const INSTALL = {
 	typescript: 'npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod',
 	python: 'pip install afd',
 	rust: 'cargo add afd --git https://github.com/lushly-dev/afd',
+	// CMake, not a registry: afd-cpp is fetched from the repo until afd-cpp-v0.1.0 is tagged.
+	cpp: [
+		'include(FetchContent)',
+		'FetchContent_Declare(afd GIT_REPOSITORY https://github.com/lushly-dev/afd.git',
+		'    GIT_TAG main SOURCE_SUBDIR packages/cpp)',
+		'FetchContent_MakeAvailable(afd)',
+	].join('\n'),
 };
 
 const EVERYWHERE = { palette: true, agent: true, cli: true };
@@ -187,7 +194,7 @@ registry.register({
 		const language = input.language ?? 'typescript';
 		const command = INSTALL[language];
 		if (!command) {
-			return invalid('language', 'Invalid option: expected one of "typescript"|"python"|"rust"', [
+			return invalid('language', 'Invalid option: expected one of "typescript"|"python"|"rust"|"cpp"', [
 				'language',
 			]);
 		}

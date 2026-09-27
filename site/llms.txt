@@ -1,6 +1,6 @@
 # AFD — Agent-First Development
 
-> AFD is a methodology plus TypeScript, Python and Rust libraries for building software where AI agents are first-class users. Commands are the product: define each capability as a typed command, validate it through the CLI, and only then build UI as a thin surface over it. Humans, scripts and agents (over MCP or in-process) all call the same commands and get the same CommandResult.
+> AFD is a methodology plus TypeScript, Python, Rust and C++ libraries for building software where AI agents are first-class users. Commands are the product: define each capability as a typed command, validate it through the CLI, and only then build UI as a thin surface over it. Humans, scripts and agents (over MCP or in-process) all call the same commands and get the same CommandResult.
 
 Version: v1.0.0
 License: MIT
@@ -14,7 +14,7 @@ Repository: https://github.com/lushly-dev/afd
 - Errors carry `code`, `message`, `suggestion` and `retryable`, so an agent can recover instead of stalling.
 - Command naming is `domain-action` kebab-case: `todo-create`, `user-get`, `order-list`.
 - Testing targets the job, not the UI: YAML JTBD scenarios call commands step by step, and surface validation audits the command set for collisions, schema drift and prompt injection.
-- One contract across languages: a 34-case conformance suite runs in CI against TypeScript, Python and Rust backends.
+- One contract across languages: a 34-case conformance suite runs in CI against TypeScript, Python, Rust and C++ backends.
 - AFD is UX design for non-human users. Each classic interface pattern has an agent equivalent that AFD ships as command metadata (see "Agent UX" below).
 
 ## Install
@@ -22,6 +22,7 @@ Repository: https://github.com/lushly-dev/afd
 - TypeScript: `npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod`
 - Python: `pip install afd`
 - Rust: `cargo add afd --git https://github.com/lushly-dev/afd`
+- C++: CMake `FetchContent` from `https://github.com/lushly-dev/afd.git` with `SOURCE_SUBDIR packages/cpp`, then link `afd::afd`. Use `GIT_TAG main` or a commit SHA until `afd-cpp-v0.1.0` is tagged.
 
 ## Minimal command (TypeScript)
 
@@ -64,7 +65,7 @@ Full walkthrough: [5-minute quickstart](https://github.com/lushly-dev/afd#quicks
 
 ## For coding agents
 
-The repo ships agent skills (SKILL.md format, read by Claude Code, Codex and others): afd, afd-developer, afd-typescript, afd-python, afd-rust, afd-auth, afd-directclient, afd-contracts. Add one to a project with:
+The repo ships agent skills (SKILL.md format, read by Claude Code, Codex and others): afd, afd-developer, afd-typescript, afd-python, afd-rust, afd-cpp, afd-auth, afd-directclient, afd-contracts. Add one to a project with:
 
 ```bash
 npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd
@@ -84,6 +85,7 @@ Recommended loop: edit a command handler, `afd call` it, read `error.suggestion`
 - [@lushly-dev/afd-adapters](https://www.npmjs.com/package/@lushly-dev/afd-adapters): render CommandResult as themed HTML
 - [afd on PyPI](https://pypi.org/project/afd/): Python implementation (Pydantic, FastMCP)
 - [afd for Rust](https://github.com/lushly-dev/afd/tree/main/packages/rust): CommandResult types, CommandRegistry, WASM-compatible
+- [afd-cpp](https://github.com/lushly-dev/afd/tree/main/packages/cpp): C++20 CommandRegistry, DirectClient, batch, pipeline and stream execution; builds without exceptions or RTTI and for WebAssembly
 
 ## Docs
 

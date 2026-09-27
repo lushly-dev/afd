@@ -77,7 +77,7 @@
 						</p>
 					</div>
 					<div class="opening-footer">
-						<p>A command-first methodology.<br>Libraries for TypeScript, Python and Rust.</p>
+						<p>A command-first methodology.<br>Libraries for TypeScript, Python, Rust and C++.</p>
 						<div class="opening-actions">
 							<a href="#inversion" class="button button--ink"
 								>See it in action <i class="icon icon--down" aria-hidden="true"></i></a
@@ -623,11 +623,11 @@
 						</div>
 						<div class="evidence-grid">
 							<article>
-								<span class="evidence-number">34 / 3</span>
-								<h4>One contract. Three backends.</h4>
+								<span class="evidence-number">34 / 4</span>
+								<h4>One contract. Four backends.</h4>
 								<p>
-									34 shared test cases. A CI workflow that runs them against the TypeScript, Python
-									and Rust todo backends.
+									34 shared test cases. A CI workflow that runs them against the TypeScript, Python,
+									Rust and C++ todo backends.
 								</p>
 								<div class="evidence-links">
 									<a
@@ -725,6 +725,16 @@
 									data-language="rust"
 								>
 									Rust
+								</button><button
+									type="button"
+									role="tab"
+									id="install-cc"
+									aria-controls="install-cpp"
+									aria-selected="false"
+									tabindex="-1"
+									data-language="cpp"
+								>
+									C++
 								</button>
 							</div>
 						</div>
@@ -746,6 +756,15 @@
 								aria-labelledby="install-rs"
 								hidden
 							><code>cargo add afd --git https://github.com/lushly-dev/afd</code></pre>
+							<pre
+								id="install-cpp"
+								role="tabpanel"
+								aria-labelledby="install-cc"
+								hidden
+							><code>include(FetchContent)
+FetchContent_Declare(afd GIT_REPOSITORY https://github.com/lushly-dev/afd.git
+    GIT_TAG main SOURCE_SUBDIR packages/cpp)
+FetchContent_MakeAvailable(afd)</code></pre>
 							<button
 								type="button"
 								class="icon-button"
