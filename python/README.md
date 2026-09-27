@@ -228,7 +228,9 @@ argument returns a `VALIDATION_ERROR` result with `details.errors`,
 `details.missingFields` and a `suggestion`. Every command result carries
 `metadata.executionTimeMs` and a per-call `metadata.traceId`, as in TypeScript. An
 exception from a handler or a middleware becomes a `COMMAND_EXECUTION_ERROR` whose
-message is "An internal error occurred" unless `create_server(dev_mode=True)`.
+message is "An internal error occurred" unless `create_server(dev_mode=True)`. The core
+registry (`create_command_registry`), `execute_pipeline` and `SimpleRegistry` redact the
+same way and take the same `dev_mode` keyword.
 
 ### Batches and Pipelines
 
@@ -282,7 +284,10 @@ class MyMonitoringSink:
 
 ### Middleware
 
-Add cross-cutting concerns to command execution:
+Add cross-cutting concerns to command execution. As in TypeScript, middleware only runs
+for a call that reaches a handler: the server rejects an unknown, unexposed or
+out-of-context command, or invalid input, first. The `input` a middleware receives is
+the validated input the handler gets (the schema's model instance).
 
 ```python
 from afd.server import (
