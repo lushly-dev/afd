@@ -2792,11 +2792,6 @@ textarea[aria-invalid="true"] {
 	--numeral-fill: #e0321e;
 }
 
-.slab .big-numeral {
-	font-size: clamp(240px, 40vw, 640px);
-	bottom: -0.22em;
-}
-
 .handoff,
 .build-story {
 	--numeral-fill: #2e3a33;
