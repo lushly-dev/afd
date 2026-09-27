@@ -4,18 +4,21 @@
 
 When this plan was written, the Rust AFD crate covered the core result model, batch primitives, streaming basics, pipelines, bootstrap helpers, and handoff metadata, but it lagged the TypeScript barrel export surface in meaningful ways.
 
-The canonical parity check is:
+The canonical name check is:
 
 ```bash
 uv run --project alfred alfred parity --path .
 ```
 
-On March 21, 2026, that command reported:
+Counts over time:
 
-- `typescript`: 183 exports
-- `python`: 170 exports
-- `rust`: 130 exports
-- `missing_from_rust`: 78 exports
+| Date | TypeScript exports | Rust exports | `missing_from_rust` |
+|---|---|---|---|
+| 2026-03-21 (plan written) | 183 | 130 | 78 |
+| 2026-03-21 (`98af776`, #181) | 183 | 211 | 0 |
+| 2026-09-26 (`0777217`) | 186 | 225 | 10 (budget 10 in `alfred/tests/test_parity.py`) |
+
+**Waves 1–5 are closed** (#181 and later). The wire-shape and batch-default drift reported by the [2026-09-23 review](../../../reviews/2026-09-23-quality-review.md) is also fixed. The remaining work is behavioral. The name metric cannot see it, so it is tracked in [`docs/language-parity.md`](../../../language-parity.md).
 
 This plan tracked the Rust-side closure work only. TypeScript remains the source of truth for parity, and Python drift is out of scope except where it clarifies intended AFD behavior.
 
@@ -23,42 +26,57 @@ This plan tracked the Rust-side closure work only. TypeScript remains the source
 
 | Field | Value |
 |---|---|
-| Status | Complete |
+| Status | Complete: export names. Behavioral gaps are tracked in [`docs/language-parity.md`](../../../language-parity.md) |
 | Author | jasfalk |
 | Updated | 2026-09-26 |
 | Shipped In | 98af776, "Complete Rust export parity (#181)" |
 | Package | `packages/rust` |
-| Source Of Truth | `uv run --project alfred alfred parity --path .` |
+| Source Of Truth | `uv run --project alfred alfred parity --path .` for names; [`docs/language-parity.md`](../../../language-parity.md) for behavior |
 | Depends On | Existing Rust crate foundation in `docs/features/proposed/rust-support/` |
 
 ## Outcome
 
-All five waves shipped in #181 on March 21, 2026. It added `connectors.rs`, `mcp.rs`, `similarity.rs`, and `telemetry.rs`, and extended `batch.rs`, `commands.rs`, `errors.rs`, `handoff.rs`, `pipeline.rs`, `result.rs`, `streaming.rs`, and the `lib.rs` re-exports. At that commit, `alfred parity` reported `rust`: 211 exports and `missing_from_rust`: 0.
+All five waves shipped in #181 on March 21, 2026. It added `connectors.rs`, `mcp.rs`, `similarity.rs`, and `telemetry.rs`, and extended `batch.rs`, `commands.rs`, `errors.rs`, `handoff.rs`, `pipeline.rs`, `result.rs`, `streaming.rs`, and the `lib.rs` re-exports. At that commit, `missing_from_rust` was 0.
 
-On September 26, 2026, `alfred parity` reports:
+None of the 10 names missing today are from this plan's list. Each one entered the TypeScript barrel after #181:
 
-- `typescript`: 186 exports
-- `python`: 179 exports
-- `rust`: 225 exports
-- `cpp`: 158 exports (tracked since #297)
-- `missing_from_rust`: 10 exports
-
-None of the 10 remaining gaps are from this plan's list. Each one entered the TypeScript barrel after #181:
-
-| Missing from Rust | TypeScript export | Added to the TypeScript barrel in |
+| Name | Added to the TypeScript barrel in | Verdict |
 |---|---|---|
-| `commands_to_mcp_tools` | `commandsToMcpTools` | #225 |
-| `is_mcp_exposed` | `isMcpExposed` | #225 |
-| `max_similarity_input_length` | `MAX_SIMILARITY_INPUT_LENGTH` | #232 |
-| `truncate_name` | `truncateName` | #232 |
-| `command_registry_options` | `CommandRegistryOptions` | #250 |
-| `execute_batch` | `executeBatch` | #250 |
-| `execute_stream` | `executeStream` | #250 |
-| `execution_failure` | `executionFailure` | #250 |
-| `executor_options` | `ExecutorOptions` | #250 |
-| `stream_executor_options` | `StreamExecutorOptions` | #251 |
+| `is_mcp_exposed` | #225 | Export artifact: use `is_exposed_to(cmd, CommandInterface::Mcp)` |
+| `max_similarity_input_length` | #232 | Export artifact: public at `afd::similarity::MAX_SIMILARITY_INPUT_LENGTH`, not re-exported at the root |
+| `truncate_name` | #232 | Exists but private (`commands.rs`); counts chars, where TypeScript counts UTF-16 units |
+| `execute_batch` | #250 | Exists as `CommandRegistry::execute_batch`. There is no free function over an executor callback. |
+| `commands_to_mcp_tools` | #225 | A missing convenience: `list_by_exposure(Mcp)` plus `command_to_mcp_tool` |
+| `execute_stream`, `stream_executor_options` | #250, #251 | Genuine gap: Rust has no stream executor |
+| `execution_failure` | #250 | Genuine gap: a crash maps to `INTERNAL_ERROR`, not `COMMAND_EXECUTION_ERROR` |
+| `executor_options`, `command_registry_options` | #250 | There is no `devMode`. Rust never includes panic payloads, so these are N/A unless a dev mode is wanted. |
 
-This plan no longer tracks them. `NAME_GAP_BUDGET` in `alfred/tests/test_parity.py` holds `missing_from_rust` at 10 or fewer, and the Alfred workflow runs that test on pushes to main and pull requests that touch `packages/**`. When a gap closes, lower the budget.
+`NAME_GAP_BUDGET` in `alfred/tests/test_parity.py` holds `missing_from_rust` at 10 or fewer, and the Alfred workflow runs that test on pushes to main and pull requests that touch `packages/**`. When a gap closes, lower the budget.
+
+## Remaining Behavioral Work
+
+The name check cannot see these gaps. They are tracked in [`docs/language-parity.md`](../../../language-parity.md), not in this plan; close them there, or accept them there as Rust-specific.
+
+- **Error handling:**
+  - Single `CommandRegistry::execute` does not catch panics.
+  - `error_codes` has no `COMMAND_EXECUTION_ERROR`.
+- **Result guards:** `is_success` requires `data`, and `is_failure` requires `error`, unlike TypeScript.
+- **Missing from the single-command engine:**
+  - result metadata stamping (`executionTimeMs`, `commandVersion`, `traceId`);
+  - active-context scoping;
+  - `onCommand` and `onError` hooks;
+  - a cancellation signal;
+  - `list_by_tags`.
+- **Missing surfaces:** built-in middleware (trace ID, logging, timing, retry, rate limit, telemetry), and an MCP server with tool strategies and meta-tools.
+- **Validation:**
+  - undeclared keys pass through, where TypeScript strips them;
+  - the message text differs;
+  - lengths are counted in code points;
+  - there is no `minItems`, `maxItems`, `additionalProperties: false` or combinators;
+  - `pattern` regexes are compiled on each call.
+- **Metadata:** `destructive`, `confirmPrompt` and `undoable` are missing. Examples are not validated, and `returns` is not surfaced by `afd-schema`.
+- **Handoff guards:** `is_handoff_protocol` and `is_handoff_command` mean different things from TypeScript, and `handoff:<p>` tags are ignored.
+- **Tests:** `spec/vectors/pipeline-variables.json` is not consumed.
 
 ## Problem
 
@@ -77,6 +95,8 @@ This creates three problems:
 3. parity regressions are easy to miss because the missing areas are spread across multiple modules
 
 ## Starting Point (2026-03-21)
+
+> These clusters closed in #181. For the current state, see [Outcome](#outcome).
 
 The official parity command reported these Rust gap clusters:
 

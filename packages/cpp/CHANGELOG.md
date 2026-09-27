@@ -10,6 +10,11 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Added
 
+- **Packaging:**
+  - install rules and a relocatable CMake package: `find_package(afd 0.1 CONFIG)` provides `afd::afd`, with `SameMinorVersion` compatibility;
+  - when afd downloads nlohmann/json, the install includes it;
+  - the `AFD_INSTALL` and `AFD_BUILD_EXAMPLES` options, both on only when afd is the top-level project;
+  - `examples/quickstart.cpp`, and a consumer project that CI builds through `find_package` and `FetchContent` on Linux and Windows.
 - **Handoff:**
   - the types `HandoffResult`, `HandoffCredentials`, `HandoffMetadata`, `ReconnectPolicy` and `CreateHandoffOptions`;
   - the helpers `create_handoff`, `default_reconnect_policy`, `is_handoff`, `is_handoff_protocol`, `is_reconnect_policy`, `is_handoff_command` and `get_handoff_protocol`.
@@ -18,7 +23,8 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
   - `create_source`, `create_step`, `update_step_status`, `create_warning`;
   - `is_progress_chunk`, `is_data_chunk`, `is_complete_chunk`, `is_error_chunk`, `is_stream_chunk`;
   - `is_batch_request`, `is_batch_result`, `create_batch_request`;
-  - `is_pipeline_request`, `is_pipeline_result`, `create_pipeline`.
+  - `is_pipeline_request`, `is_pipeline_result`, `create_pipeline`;
+  - the built-in tool names `afd_meta_tool_names`, `afd_bootstrap_command_names`, `afd_context_command_names`, `afd_builtin_tool_names` and `is_afd_builtin_name` (`afd/builtin_names.hpp`); `reserved_command_names` now refers to `afd_meta_tool_names`.
 - **Tooling:** `alfred parity` now tracks the C++ API, and the `afd-cpp` agent skill is added.
 - **Batch execution.**
   - `execute_batch`, and `CommandRegistry::execute_batch`.

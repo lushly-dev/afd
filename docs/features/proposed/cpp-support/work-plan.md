@@ -563,22 +563,33 @@ backends/cpp/
 
 **Goal:** consumers can take a tagged release without copying source.
 
-- [ ] Add `install()` rules, `afdConfig.cmake` with a version file, and the exported `afd::afd` target. Generate `include/afd/version.hpp` (`AFD_VERSION_MAJOR/MINOR/PATCH`).
-- [ ] Consumer tests in CI:
+- [x] Add `install()` rules, `afdConfig.cmake` with a version file, and the exported `afd::afd` target. Generate `include/afd/version.hpp` (`AFD_VERSION_MAJOR/MINOR/PATCH`).
+- [x] Consumer tests in CI:
   - install, then build a tiny project with `find_package(afd 0.1 CONFIG REQUIRED)`;
   - build the same project through `FetchContent`;
   - build a `packages/cpp/examples/quickstart.cpp` that matches the README, playing the role of Rust's README doctests.
 - [ ] Release process:
   - Tag `afd-cpp-v0.1.0` and write GitHub release notes from `packages/cpp/CHANGELOG.md`.
   - Document the steps in the `do-release` skill. Changesets does not cover this package.
-- [ ] Dependency updates: Dependabot has no CMake ecosystem. Keep every pin in `cmake/AfdDependencies.cmake`, with a documented update procedure. See the [open questions](#open-questions) for Renovate.
-- [ ] Embeddability gate, generic and not tied to any host:
+- [x] Dependency updates: Dependabot has no CMake ecosystem. Keep every pin in `cmake/AfdDependencies.cmake`, with a documented update procedure. See the [open questions](#open-questions) for Renovate.
+- [x] Embeddability gate, generic and not tied to any host:
   - the noexcept-nortti job;
   - a CMake unity build;
   - the macro-hygiene prelude;
   - MSVC with `/W4 /WX`.
 
   This proves that hosts which disable exceptions or RTTI, or use unity builds, can consume the library. No specific host is named or installed in CI.
+
+### As built (Phase 6)
+
+- **Install rules:** `install(TARGETS afd EXPORT afdTargets)`, the public headers plus the generated `afd/version.hpp`, and `lib/cmake/afd/` with `afdConfig.cmake`, `afdConfigVersion.cmake` and `afdTargets.cmake` (namespace `afd::`).
+  - `afdConfig.cmake` calls `find_dependency(nlohmann_json 3.11)`, and `find_dependency(Threads)` when the library was built with `AFD_ENABLE_THREADS`.
+  - When afd downloads nlohmann/json, `JSON_Install` is set so the prefix is self-contained.
+  - Compatibility is `SameMinorVersion`: before 1.0, a minor bump may break the API.
+- **Subproject defaults:** `AFD_INSTALL`, `AFD_BUILD_EXAMPLES` and `AFD_BUILD_TESTS` default to `PROJECT_IS_TOP_LEVEL`, so `FetchContent` and `add_subdirectory` users build only the library.
+- **Consumer tests:** `examples/quickstart.cpp` asserts its own output (a success, then the "Did you mean 'todo-create'?" suggestion from `DirectClient`). It runs in every preset's ctest, including noexcept-nortti and Emscripten. The `package` job in `cpp.yml` installs afd on Linux and Windows, then builds `tests/consumer` with `find_package` and with `FetchContent`, and runs it.
+- **Dependency updates:** every pin (URL and SHA-256) is in `cmake/AfdDependencies.cmake`, with the procedure in its header comment. Dependabot has no CMake ecosystem; Renovate remains an open question.
+- **Release:** the steps are in the `do-release` skill. The `afd-cpp-v0.1.0` tag and GitHub release are created after this PR merges, with maintainer sign-off.
 
 ---
 

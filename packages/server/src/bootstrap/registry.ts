@@ -4,6 +4,7 @@
  * Provides a function to get all bootstrap commands for an AFD server.
  */
 
+import { AFD_BOOTSTRAP_COMMAND_NAMES, AFD_CONTEXT_COMMAND_NAMES } from '@lushly-dev/afd-core';
 import { z } from 'zod';
 import { defineCommand, type ZodCommandDefinition } from '../schema.js';
 import type { ContextConfig } from '../server-types.js';
@@ -19,14 +20,10 @@ import { createAfdSchemaCommand } from './afd-schema.js';
 import type { DescribedCommand, GetDescribedCommands } from './described-command.js';
 
 /** Names of the discovery bootstrap tools registered by `createMcpServer({ bootstrap: true })`. */
-export const BOOTSTRAP_COMMAND_NAMES: readonly string[] = ['afd-help', 'afd-docs', 'afd-schema'];
+export const BOOTSTRAP_COMMAND_NAMES: readonly string[] = AFD_BOOTSTRAP_COMMAND_NAMES;
 
 /** Names of the context tools registered when `createMcpServer({ contexts })` is set. */
-export const CONTEXT_COMMAND_NAMES: readonly string[] = [
-	'afd-context-list',
-	'afd-context-enter',
-	'afd-context-exit',
-];
+export const CONTEXT_COMMAND_NAMES: readonly string[] = AFD_CONTEXT_COMMAND_NAMES;
 
 /**
  * Get all bootstrap commands for an AFD server: afd-help, afd-docs and afd-schema,

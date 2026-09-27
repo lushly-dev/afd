@@ -3,17 +3,15 @@
  * server's tool listing.
  */
 
-import type { McpTool } from '@lushly-dev/afd-core';
-import {
-	type SurfaceCommand,
-	type SurfaceFinding,
-	validateCommandSurface,
-} from '@lushly-dev/afd-testing';
+import { type SurfaceFinding, validateCommandSurface } from '@lushly-dev/afd-testing';
 import chalk from 'chalk';
 import ora from 'ora';
 import { type ConnectFlags, requireClient } from '../connection.js';
 import { printError, printInfo, printSuccess, printWarning } from '../output.js';
 import { terminalText } from '../terminal.js';
+import { collectSurfaceCommands, type SurfaceCommandSet } from './surface-commands.js';
+
+export { mapToolsToSurfaceCommands } from './surface-commands.js';
 
 export interface SurfaceOptions extends ConnectFlags {
 	strict?: boolean;
@@ -23,18 +21,21 @@ export interface SurfaceOptions extends ConnectFlags {
 	suppress: string[];
 }
 
-/** Preserve AFD metadata advertised by a remote MCP tools/list response. */
-export function mapToolsToSurfaceCommands(tools: McpTool[]): SurfaceCommand[] {
-	return tools.map((tool) => ({
-		name: tool.name,
-		description: tool.description ?? '',
-		category: tool._meta?.category,
-		jsonSchema: tool.inputSchema as SurfaceCommand['jsonSchema'],
-		requires: tool._meta?.requires,
-		examples: tool._meta?.examples,
-		outputJsonSchema: tool._meta?.outputSchema as SurfaceCommand['outputJsonSchema'],
-		contexts: tool._meta?.contexts,
-	}));
+/** Say where the validated commands came from; names come from the server. */
+function printSource(set: SurfaceCommandSet): void {
+	const lines: string[] = [];
+	if (set.discovered) {
+		lines.push(`Commands listed with afd-discover and afd-detail (${set.commands.length})`);
+	}
+	if (set.expandedGroups.length > 0) {
+		lines.push(`Grouped tools expanded into their commands: ${set.expandedGroups.join(', ')}`);
+	}
+	if (set.skippedBuiltins.length > 0) {
+		lines.push(`Built-in AFD tools skipped: ${set.skippedBuiltins.join(', ')}`);
+	}
+	for (const line of lines) console.log(chalk.dim(`  ${terminalText(line)}`));
+	if (lines.length > 0) console.log();
+	for (const warning of set.warnings) printWarning(warning);
 }
 
 /** Print findings grouped by severity; finding text comes from server tool names and metadata. */
@@ -80,10 +81,13 @@ export async function runSurfaceValidation(options: SurfaceOptions): Promise<voi
 
 	try {
 		const tools = await client.refreshTools();
-		spinner.text = `Analyzing ${tools.length} commands...`;
+		spinner.text = 'Collecting commands...';
 
-		// Map MCP tool definitions to SurfaceCommand shape
-		const commands = mapToolsToSurfaceCommands(tools);
+		// Validate the server's commands: grouped tools expanded, lazy servers
+		// enumerated, AFD's built-in tools skipped.
+		const surface = await collectSurfaceCommands(tools, client);
+		const { commands } = surface;
+		spinner.text = `Analyzing ${commands.length} commands...`;
 		const configuredContexts = [...new Set(commands.flatMap((command) => command.contexts ?? []))];
 
 		const result = validateCommandSurface(commands, {
@@ -99,6 +103,7 @@ export async function runSurfaceValidation(options: SurfaceOptions): Promise<voi
 		console.log();
 		console.log(chalk.bold('Surface Validation Results:'));
 		console.log();
+		printSource(surface);
 
 		printFindings(result.findings, options.verbose === true);
 
