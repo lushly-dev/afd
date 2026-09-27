@@ -40,12 +40,12 @@ Run this before committing a site design change.
 
 - **Caching.** `python3 -m http.server` lets browsers cache CSS and JS. In the in-app
   browser, refresh with
-  `await Promise.all(['/manifesto-2.html','/css/manifesto-2.css','/css/tokens-m2.css','/js/manifesto-2.js'].map(a => fetch(a, {cache:'reload'}))); location.reload()`.
+  `await Promise.all(['/','/index.html','/css/manifesto-2.css','/css/tokens-m2.css','/js/manifesto-2.js'].map(a => fetch(a, {cache:'reload'}))); location.reload()`.
   People should hard-refresh (⌘⇧R).
 - **Headless screenshots.** A very tall headless Chrome window makes `vh` enormous, so
   sections sized in `vh` look wrong and scroll-driven effects look unlit. Check those in
   a real 1440×900 window instead.
 - **Hidden tabs.** Background tabs throttle timers, so the demo autoplay and typing
   crawl. That isn't a bug.
-- **Other designs.** `index.html`, `direction.html` and `manifesto.html` are kept for
+- **Other designs.** `field-manual.html`, `direction.html` and `manifesto.html` are kept for
   comparison. Only the design switcher link on those pages should change.

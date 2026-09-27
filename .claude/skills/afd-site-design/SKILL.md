@@ -23,15 +23,15 @@ breathe.**
 
 | File | What it is |
 |------|------------|
-| `site/manifesto-2.html` | **Current direction: Command Manifesto 2.** Edit this one. |
+| `site/index.html` | **The main page: Command Manifesto 2.** Edit this one. |
 | `site/css/tokens-m2.css` | **The token layer.** Every colour, size, space, motion and layer value. |
-| `site/css/manifesto-2.css` | Section and component styles. Uses tokens only. |
-| `site/js/manifesto-2.js` | Page behaviour: demo surfaces, handoff, recovery, light-up, finale. |
+| `site/css/manifesto-2.css` | Section and component styles for `index.html`. Uses tokens only. (Named for the direction; it styles the main page.) |
+| `site/js/manifesto-2.js` | Behaviour for `index.html`: demo surfaces, handoff, recovery, light-up, finale. |
 | `site/js/runtime.js` | The page's command registry (shared by every design). |
 | `site/js/vendor/afd-core.js` | Bundled afd-core. Rebuild with `node scripts/build-site-runtime.mjs`. |
 | `site/styleguide.html` | Living style guide. Reads tokens from the CSS, so it can't drift. |
 | `site/DESIGN-REVIEW.md` | Narrative review and history of the directions. |
-| `site/index.html`, `direction.html`, `manifesto.html` | Earlier directions (Field Manual, Clear Guide, Command Manifesto), kept for comparison behind the design switcher. Don't restyle them. |
+| `site/field-manual.html`, `direction.html`, `manifesto.html` | Earlier directions (Field Manual, Clear Guide, Command Manifesto), kept for comparison behind the design switcher. Don't restyle them. |
 
 ## Principles
 

@@ -1,7 +1,7 @@
 # Patterns
 
 Markup for the recurring pieces of Command Manifesto 2. All of them are live on
-`site/manifesto-2.html` and shown on `site/styleguide.html`.
+`site/index.html` and shown on `site/styleguide.html`.
 
 ## Figure label
 
