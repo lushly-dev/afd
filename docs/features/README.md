@@ -12,10 +12,12 @@ Feature specifications organized by lifecycle stage.
 
 ## Active Features
 
+Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Parity](../language-parity.md). The plans below cover the export names for each language.
+
 | Feature | Description |
 |---------|-------------|
-| [Python Parity Closure](./active/python-parity/) | Close the export-surface gap between TypeScript and Python using `alfred parity` as the tracking source |
-| [Rust Parity Closure](./active/rust-parity/) | Close the export-surface gap between TypeScript and Rust using `alfred parity` as the tracking source |
+| [Python Parity Closure](./active/python-parity/) | Close the export-surface gap between TypeScript and Python. 97 names are missing; 60 of them are implemented but not exported. |
+| [Rust Parity Closure](./active/rust-parity/) | Rust name closure is done: 10 names are missing, down from 78. The remaining work is behavioral; see Language Parity. |
 
 ## Complete Features
 
@@ -42,7 +44,7 @@ Feature specifications organized by lifecycle stage.
 
 | Feature | Description |
 |---------|-------------|
-| [C++ Support](./proposed/cpp-support/) | Engine-free C++20 implementation of AFD core, conformance-tested against `spec/wire` (#270) |
+| [C++ Support](./proposed/cpp-support/) | Engine-free C++20 implementation of AFD core, conformance-tested against `spec/wire` (#270). **Implemented:** v0.1 release candidate; it moves to `complete/` when `afd-cpp-v0.1.0` is tagged. |
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |

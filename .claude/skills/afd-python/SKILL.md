@@ -21,6 +21,7 @@ Python implementations SHOULD match the shared AFD capability set and agent-visi
 - Core command surfaces MUST stay framework-agnostic.
 - React or browser integrations SHOULD stay in examples or separate ecosystem layers.
 - Cross-language parity does NOT require a 1:1 port of TypeScript helper names or module boundaries.
+- Known gaps and divergences from TypeScript (dispatch order, exception redaction, `DirectClient` exposure, context state, missing executors) are tracked in [`docs/language-parity.md`](../../../docs/language-parity.md).
 
 ## Command Metadata Parity
 

@@ -7,6 +7,8 @@
 | Folder | Purpose |
 |--------|---------|
 | [features/](./features/) | Feature proposals, specs, and assets |
+| [language-parity.md](./language-parity.md) | Capability matrix and known gaps across the TypeScript, Python, Rust and C++ implementations |
+| [reviews/](./reviews/) | Dated repository review reports |
 | [whitepaper/](./whitepaper/) | High-level vision and architecture documents |
 
 ## Features
