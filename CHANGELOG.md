@@ -65,6 +65,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A follow-up quality review at `docs/reviews/2026-09-23-quality-review.md`, with its Wave 0–3 fixes applied.
 - CI for Python (pytest on 3.10–3.12, bug-class ruff rules, clean-venv install smoke test per extra), Rust (fmt, clippy `-D warnings`, tests with and without default features, pinned toolchain), and todo conformance (34 cases against the TypeScript, Python and Rust backends).
 - Every package type-checks its test files; server, adapters and auth enforce coverage thresholds; a repository contract test keeps both, and SHA-pinned workflow actions, in place.
+- **AFD contract version.** `spec/VERSION` (now `1.0-rc`) versions the shared contract: the wire fixtures, pipeline variables, behavior vectors and todo conformance suite. `spec/CHANGELOG.md` records its history and rules. Python exports it as `afd.CONTRACT_VERSION` and Rust as `afd::CONTRACT_VERSION`; `afd-help` returns it as `contractVersion` in both. `alfred parity` reports a constant that differs from `spec/VERSION`, and `scripts/check-versions.mjs` (in `pnpm check`) also checks the manifests against `docs/language-parity.md` and the README.
+- **Rust:** `rust-version = "1.82"` declares the crate's minimum supported Rust version. The README badge said 1.70, which no longer built.
 
 ## [0.8.0] - 2026-07-07
 

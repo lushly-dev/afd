@@ -28,6 +28,7 @@ The contract has three layers:
 |---|---|---|---|---|
 | Package | 9 `@lushly-dev/*` packages | `afd` | `afd` crate | `afd-cpp` (`afd::afd`) |
 | Version | 2.0.0 | 0.8.0 | 0.1.0 | 0.1.0, release candidate |
+| Contract | 1.0-rc (`AFD_CONTRACT_VERSION`) | 1.0-rc (`afd.CONTRACT_VERSION`) | 1.0-rc (`afd::CONTRACT_VERSION`) | 1.0-rc (`afd::contract_version`) |
 | Distribution | npm | PyPI | Git or path dependency; not on crates.io | CMake `FetchContent`, `find_package`, `add_subdirectory`; the `afd-cpp-v0.1.0` tag is not cut yet |
 | Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, FastMCP server, client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch and pipeline executors, bootstrap commands. No server or client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors. No server or client |
 | Todo backend | stdio (SDK) | stdio (FastMCP) | Streamable HTTP (hand-rolled, axum) | stdio (hand-rolled) |
@@ -42,6 +43,7 @@ The contract has three layers:
 | `spec/vectors/pipeline-variables.json`, 48 references and 27 conditions | Pipeline reference and `when` behavior | Generator only | **No** | **No** | Yes |
 | Todo conformance, 34 cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes | Yes | Yes | Yes |
 | `alfred parity` name budget (`alfred/tests/test_parity.py`) | Exported names | Reference | 97 missing (budget 97) | 10 missing (budget 10) | 73 missing (budget 73) |
+| `alfred parity` contract version, `scripts/check-versions.mjs` | The contract constant equals `spec/VERSION` | Yes | Yes | Yes | Yes |
 
 Limits of these checks:
 
@@ -314,5 +316,6 @@ The budgets in `alfred/tests/test_parity.py` equal these counts. Lower a budget 
 ## Keeping this current
 
 - Update the relevant row when a change adds, removes or changes a capability in any language. A change that closes a gap should also lower the `alfred` budget.
+- Update the Version and Contract rows with each release and each contract change (see [`spec/CHANGELOG.md`](../spec/CHANGELOG.md)). `node scripts/check-versions.mjs`, which `pnpm check` runs, fails when they disagree with the manifests or the contract constants.
 - Re-measure with `uv run --project alfred alfred parity --path .`. It exits 1 while any gap remains; `alfred/tests/test_parity.py` holds the budgets.
 - When TypeScript gains a shared capability, add a row with **No** or **Deferred** for the other languages, rather than leaving it out.

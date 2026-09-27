@@ -56,6 +56,7 @@ from afd.core.commands import (
     create_command_registry,
     validate_command_name,
 )
+from afd.core.contract import CONTRACT_VERSION
 from afd.core.mcp_types import (
     MCP_PROTOCOL_VERSION,
     JSONRPC_VERSION,
@@ -193,6 +194,8 @@ __all__ = [
     "serialize_command_examples",
     "create_command_registry",
     "validate_command_name",
+    # Contract version
+    "CONTRACT_VERSION",
     # MCP protocol types
     "MCP_PROTOCOL_VERSION",
     "JSONRPC_VERSION",
