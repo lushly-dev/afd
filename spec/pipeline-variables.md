@@ -62,7 +62,7 @@ absent operands are `false`.
   `$steps[0][1]` and `$steps.user[0]`.
 - A purely numeric segment is an own-key lookup on an object and an index on an array.
 - The `__` rule applies to aliases too: `$steps.__proto__` is unresolved.
-- `$$` unescaping applies at any string length. The 1024-character limit applies only to strings
+- `$$` unescaping applies at any string length. The 1024-unit limit applies only to strings
   that would otherwise be references.
 - `$exists` is `false` for `null` as well as absent values.
 - `$eq` and `$ne` compare **JSON values structurally** (deep equality of objects and arrays).
@@ -73,7 +73,8 @@ absent operands are `false`.
 - Step inputs, and the request `input`, nested deeper than **64** levels are rejected before any
   step runs. The outermost object or array counts as level 1. The pipeline returns a
   `VALIDATION_ERROR` failure and never overflows the stack.
-- A reference string longer than **1024** characters is a literal (it is never resolved).
+- A reference string longer than **1024** UTF-16 code units is a literal (it is never resolved).
+  The unit follows TypeScript's `string.length` (decision D3 of the parity closure plan, #283).
 
 ## Conformance
 

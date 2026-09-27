@@ -4,12 +4,12 @@ What each AFD implementation provides, where they differ, and which differences 
 
 | Field | Value |
 |---|---|
-| Updated | 2026-09-26 |
+| Updated | 2026-09-27 |
 | Reviewed at | `0777217` (`main`) |
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/active/rust-parity/rust-parity.plan.md) parity plans, which now link here |
 | Plans | [Parity closure](./features/active/parity-closure/parity-closure.plan.md) closes the gaps listed here; [Versioning and release](./features/active/versioning/versioning.plan.md) covers each implementation's version and the contract version |
-| Related | [`spec/wire`](../spec/wire/README.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/proposed/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
+| Related | [`spec/wire`](../spec/wire/README.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/validation.md`](../spec/validation.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/proposed/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
 
 ## What parity means
 
@@ -82,7 +82,7 @@ Limits of these checks:
 | `destructive`, `confirmPrompt`, `undoable` | Partial: the first two only on Zod `defineCommand`, `undoable` only on core (#275) | No | No | Yes |
 | Kebab-case name rule | Warns in `defineCommand` | Partial: `validate_command_name` exists but nothing calls it | Yes, rejects at registration | Yes, rejects at registration |
 | Duplicate and reserved names | Throws for meta-tools, and for bootstrap and context names when enabled | Partial: meta-tools only; a command named like a bootstrap tool silently shadows it | Partial: bootstrap names only | Yes: meta-tools (C++ has no bootstrap or context tools) |
-| Input validated before the handler | Zod; unknown keys stripped | Partial: Pydantic, skipped when `input` is `None` | Partial: JSON Schema subset; undeclared keys pass through | Yes: JSON Schema subset; unsupported keywords fail registration |
+| Input validated before the handler ([`spec/validation.md`](../spec/validation.md)) | Yes: Zod; passes every vector | Partial: Pydantic only, skipped when `input` is `None`; a JSON Schema `input_schema` is not enforced (#310) | Partial: no type lists, root `additionalProperties` or `$ref`; undeclared keys pass through (#311) | Partial: the required subset, and unsupported keywords fail registration; field lists come out sorted (#312) |
 | Examples validated at definition | Yes | Yes | No: stored only | Yes |
 | Output schema advertised | Yes (`_meta.outputSchema`) | Yes | Partial: `returns` not surfaced by `afd-schema` | No: stored, never emitted |
 | Command to MCP tool with `_meta` | Yes | Partial: no `category` or `destructive` in `_meta` | Partial: `command_to_mcp_tool`, no plural helper | Deferred |
@@ -172,7 +172,7 @@ These gaps are appropriate. They follow the framework-agnostic rule, a language'
 | Renames: `success_with`, `failure_with`, `ResultOptions` | Rust | They stand in for TypeScript's option spreads. |
 | Pythonic MCP names (`TextContent`, `ToolDefinition`, `mcp_request`) | Python | Same capability, different names. |
 | Typed condition guards (`isEqCondition` and nine more) | Missing in Python and C++ | They are TypeScript discriminated-union artifacts. Pydantic models (Python) and validated JSON (C++) do the same job. |
-| JSON Schema validation instead of Zod or Pydantic | Rust, C++ | Each language uses its own validator. The subsets still need a shared spec (see [Unintended gaps](#unintended-gaps)). |
+| JSON Schema validation instead of Zod or Pydantic | Rust, C++ | Each language uses its own validator. [`spec/validation.md`](../spec/validation.md) defines the subset every validator supports and the results it gives. |
 | No CLI | Rust, C++ | One CLI serves every language, provided the language ships an MCP server the CLI can reach. |
 | Platform utilities and connectors | Optional everywhere | These are ecosystem helpers, not the command contract. TypeScript removed them from the core barrel. |
 | Rust-only extensions: batch `maxFailures`, per-command `timeout_ms` | Rust | Additive. They should be documented or proposed for the other languages. |
@@ -217,20 +217,27 @@ Ordered by how much an agent or a security boundary is affected.
 
 ### Priority 2: shared executors and cross-language tests
 
-9. **Wire `spec/vectors` into TypeScript, Python and Rust.** Only C++ consumes it today.
+9. **Wire `spec/vectors` into every language.** C++ loads `pipeline-variables.json`, and TypeScript loads `validation.json`. The rest is parity closure item 1.1 and the Wave 2 validation items.
 10. **Add a stream executor to Python and Rust,** and a public batch executor to Python. Collapse Python's two pipeline engines into one.
 11. **Rust single-command engine:**
     - result metadata stamping;
     - active-context scoping;
     - `onCommand` and `onError` hooks;
     - the built-in middleware bundle.
-12. **Validation divergences.** None of these has a spec, so a shared `spec/vectors/validation.json` would pin them.
-    - **Rust** passes undeclared keys through; TypeScript strips them.
-    - **Message text:** Rust uses `"Input validation failed for '<cmd>': …"`; TypeScript uses `"Input validation failed"`.
-    - **String length:** TypeScript counts UTF-16 units; Python, Rust and C++ count code points. Rust also counts chars for name truncation and the reference cap.
-    - **JSON Schema subsets differ.**
-      - Rust has no `minItems` or `maxItems`: arrays reuse `minLength` and `maxLength`. It also has no `additionalProperties: false` and no combinators.
-      - C++ rejects `pattern`, `format`, `const` and the combinators.
+12. **Validation divergences.** [`spec/validation.md`](../spec/validation.md) specifies validation, and `spec/vectors/validation.json` pins it with 32 cases and 126 tests. TypeScript passes every case. Each issue lists that language's failing cases.
+    - **Python ([#310](https://github.com/lushly-dev/afd/issues/310)).**
+      - A JSON Schema `input_schema` is advertised but never enforced.
+      - With Pydantic models, the error codes are Pydantic's, and lax mode accepts `"7"` for an integer.
+      - `unexpectedFields` is sorted.
+    - **Rust ([#311](https://github.com/lushly-dev/afd/issues/311)).**
+      - Undeclared keys pass through, and the message names the command. #286 fixes both.
+      - It has no type lists, root `additionalProperties`, `$ref`, `minItems`/`maxItems` or exclusive bounds.
+      - An explicit `null` counts as absent (#282), and nested defaults are not applied (#284).
+      - Unsupported keywords are dropped silently.
+    - **C++ ([#312](https://github.com/lushly-dev/afd/issues/312)).**
+      - `afd::Json` sorts keys, so field lists and sibling issues come out alphabetical.
+      - A few `expected` and missing-field rules differ.
+    - **String length.** All four count code points (decision D3). TypeScript follows Zod, which counts code points from 4.5, and `@lushly-dev/afd-server` requires 4.5.4. Name truncation, similarity and the pipeline reference cap count UTF-16 units. Rust moves name truncation and similarity to UTF-16 units in #286 and #288. Python and Rust still count the reference cap in code points (#283).
 13. **Command metadata.**
     - Python's decorator lacks `version`, `errors`, `execution_time`, `destructive`, `confirm_prompt` and `undoable`.
     - Rust lacks `destructive`, `confirmPrompt` and `undoable`.
@@ -306,7 +313,7 @@ The budgets in `alfred/tests/test_parity.py` equal these counts. Lower a budget 
 ## Recommended next steps
 
 1. **Fix the Priority 1 items and the C++ `DirectClient` defect.** They are small, local changes.
-2. **Wire `spec/vectors/pipeline-variables.json` into the TypeScript, Python and Rust test suites.** Add vectors for validation (unknown keys, length units, messages) and for batch controls. The C++ work plan already recommends `batch-controls.json`.
+2. **Wire `spec/vectors/pipeline-variables.json` into the TypeScript, Python and Rust test suites,** and `spec/vectors/validation.json` into the Python, Rust and C++ ones. Add vectors for batch controls. The C++ work plan already recommends `batch-controls.json`.
 3. **Write the unknown and unexposed error codes into a spec,** and add the emitted codes to the `ErrorCodes` catalog.
 4. **Add an AFD-protocol conformance tier** that checks meta-tools, bootstrap, exposure, batch and pipeline over MCP. It should be optional per language, so Rust and C++ can join once they ship a server.
 5. **Python export cleanup:** resolve the `afd.direct` name collisions, then re-export the pipeline, similarity and registry contract. This removes 60 names from the budget.
