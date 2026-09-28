@@ -849,9 +849,11 @@ impl CommandRegistry {
     ///    interface returns `COMMAND_NOT_EXPOSED` (see [`ExposeOptions`]).
     /// 3. A `context.timeout_ms` without the `native` feature returns
     ///    `UNSUPPORTED_OPTION`.
-    /// 4. The input is validated against the command's `parameters`, and
-    ///    parameter defaults are applied; invalid input returns
-    ///    `VALIDATION_ERROR` with the problems in `details.errors`.
+    /// 4. The input is validated against the command's `parameters`, parameter
+    ///    defaults are applied, and undeclared keys are dropped, as Zod does in
+    ///    TypeScript. Invalid input returns `VALIDATION_ERROR` (`Input
+    ///    validation failed`) with the problems in `suggestion` and
+    ///    `details.errors`.
     /// 5. The middleware chain and then the handler run with the validated
     ///    input. With `context.timeout_ms`, a run that outlasts it returns
     ///    `TIMEOUT` (this needs a Tokio runtime with time enabled).
@@ -913,7 +915,7 @@ impl CommandRegistry {
             );
         }
 
-        let input = match validate_input(&command.name, &command.parameters, input) {
+        let input = match validate_input(&command.parameters, input) {
             Ok(input) => input,
             Err(error) => return failure(*error),
         };
@@ -1155,15 +1157,22 @@ impl CommandRegistry {
 // EXECUTION HELPERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Longest command name echoed back in an error, as in TypeScript.
+/// Longest command name (in UTF-16 code units) echoed back in an error, as in
+/// TypeScript.
 const MAX_ECHOED_NAME_LENGTH: usize = crate::similarity::MAX_SIMILARITY_INPUT_LENGTH;
 
-/// `name` cut to [`MAX_ECHOED_NAME_LENGTH`] characters, with `…` when cut.
+/// `name` cut to [`MAX_ECHOED_NAME_LENGTH`] UTF-16 code units, with `…` when
+/// cut, as TypeScript's `truncateName` does. A character that would straddle
+/// the cut (a surrogate pair) is left out whole.
 fn truncate_name(name: &str) -> String {
-    match name.char_indices().nth(MAX_ECHOED_NAME_LENGTH) {
-        None => name.to_string(),
-        Some((end, _)) => format!("{}…", &name[..end]),
+    let mut length = 0;
+    for (end, character) in name.char_indices() {
+        length += character.len_utf16();
+        if length > MAX_ECHOED_NAME_LENGTH {
+            return format!("{}…", &name[..end]);
+        }
     }
+    name.to_string()
 }
 
 /// How many close matches a `COMMAND_NOT_FOUND` suggestion names at most, as in TypeScript.
