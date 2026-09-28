@@ -7,17 +7,20 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
 | --- | --- | --- |
 | `pipeline-variables.json` | Reference resolution and `when` conditions ([`spec/pipeline-variables.md`](../pipeline-variables.md)) against one fixed pipeline context | `generate-pipeline-variables.mjs` |
 | `batch-controls.json` | Batch and pipeline execution controls: `stopOnError`, `parallelism`, the batch `timeout` and pipeline `timeoutMs` deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION`, and envelope validation | `generate-batch-controls.mjs` |
+| `validation.json` | Command input validation ([`spec/validation.md`](../validation.md)): unknown keys, the `VALIDATION_ERROR` shape, length units, the JSON Schema subset, explicit `null` and defaults | `generate-validation.mjs` |
 
 ## Contract
 
-- Every language loads every file in its test suite and requires identical results:
+- Every language loads every file in its test suite and requires identical results. Where a
+  language does not load a file yet, the entry is tracked in the
+  [parity closure plan](../../docs/features/active/parity-closure/parity-closure.plan.md):
 
-  | Language | `pipeline-variables.json` | `batch-controls.json` |
-  | --- | --- | --- |
-  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` |
-  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` |
-  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` |
-  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` |
+  | Language | `pipeline-variables.json` | `batch-controls.json` | `validation.json` |
+  | --- | --- | --- | --- |
+  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` | `packages/server/src/validation-vectors.test.ts` |
+  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` | Not yet ([#310](https://github.com/lushly-dev/afd/issues/310)) |
+  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` | Not yet ([#311](https://github.com/lushly-dev/afd/issues/311)) |
+  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | Not yet ([#312](https://github.com/lushly-dev/afd/issues/312)) |
 
 - Changes to `spec/vectors` run the Python, Rust and C++ workflows as well as `ci.yml`.
 
@@ -76,16 +79,29 @@ Comparison rules:
 - A statically typed language may reject an invalid envelope when it parses the request into its
   own types. Rust does this. That counts as the expected rejection, because nothing runs.
 
+### `validation.json`
+
+- [`spec/validation.md`](../validation.md#conformance) says how to compare results.
+- A case with `optionalKeywords` must fail to register in a language that does not support one
+  of them.
+- `exceptions` marks tests where a named language may differ, and says why.
+
 ## Regenerating
 
 After an intentional TypeScript change:
 
 ```bash
 pnpm -F @lushly-dev/afd-core build
+pnpm -F @lushly-dev/afd-server build
 node spec/vectors/generate-pipeline-variables.mjs
 node spec/vectors/generate-batch-controls.mjs
+node spec/vectors/generate-validation.mjs
 npx biome format --write spec/vectors
 ```
+
+- `generate-validation.mjs` defines its cases as Zod schemas, because that is how TypeScript
+  commands declare input. It records the JSON Schema TypeScript advertises for each case.
+- The TypeScript test builds the same cases and fails until the file is regenerated.
 
 A change to these files is a behavior change. Make it in every language that consumes them, in
 the same pull request.

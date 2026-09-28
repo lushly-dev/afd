@@ -7,12 +7,11 @@ version is separate from each implementation's own package version.
 ## Scope
 
 - [`wire/`](./wire/README.md): the golden wire fixtures;
-- [`pipeline-variables.md`](./pipeline-variables.md) and the behavior vectors in
-  [`vectors/`](./vectors/README.md);
+- [`pipeline-variables.md`](./pipeline-variables.md), [`validation.md`](./validation.md) and the
+  behavior vectors in [`vectors/`](./vectors/README.md);
 - the todo conformance suite (`packages/examples/todo/spec`, run by `conformance.yml`).
 
-The error-code and validation specs, and a protocol conformance tier, join the contract when they
-are written.
+The error-code spec and a protocol conformance tier join the contract when they are written.
 
 ## Version format
 
@@ -58,8 +57,12 @@ The first versioned contract. It covers:
   `vectors/pipeline-variables.json`;
 - the batch and pipeline execution controls, with 21 batch and 22 pipeline cases in
   `vectors/batch-controls.json`;
-- the 34 cases of the todo conformance suite.
+- the 34 cases of the todo conformance suite;
+- command input validation in `validation.md`, with 32 cases and 126 tests in
+  `vectors/validation.json`. Its open questions are listed at the end of `validation.md`.
 
-Every language round-trips the wire fixtures, loads both vector files and passes the conformance
-suite. The contract stays at `1.0-rc` until the error-code and validation specs are written
-(parity closure plan items 1.2 and 1.3).
+Every language round-trips the wire fixtures, loads `vectors/pipeline-variables.json` and
+`vectors/batch-controls.json`, and passes the conformance suite. Only TypeScript loads
+`vectors/validation.json` so far. The contract stays at `1.0-rc` until the error-code spec is
+written and every language loads the validation vectors (parity closure plan item 1.2 and
+#310, #311, #312).

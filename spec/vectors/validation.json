@@ -1,0 +1,3620 @@
+{
+	"description": "Command input validation (spec/validation.md), with results produced by the TypeScript implementation. Regenerate with node spec/vectors/generate-validation.mjs.",
+	"generatedWith": {
+		"zod": "4.5.4"
+	},
+	"cases": [
+		{
+			"id": "unknown-keys-stripped",
+			"section": "unknown-keys",
+			"description": "Keys a schema does not declare are removed before middleware and the handler run, at every level.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string"
+					},
+					"filter": {
+						"type": "object",
+						"properties": {
+							"tag": {
+								"type": "string"
+							}
+						},
+						"required": ["tag"]
+					},
+					"items": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "number"
+								}
+							},
+							"required": ["id"]
+						}
+					}
+				},
+				"required": ["title"]
+			},
+			"tests": [
+				{
+					"description": "Undeclared top-level keys are removed",
+					"input": {
+						"title": "a",
+						"extra": 1,
+						"other": {
+							"x": 1
+						}
+					},
+					"valid": true,
+					"data": {
+						"title": "a"
+					}
+				},
+				{
+					"description": "Undeclared keys in nested objects and array items are removed",
+					"input": {
+						"title": "a",
+						"filter": {
+							"tag": "t",
+							"extra": true
+						},
+						"items": [
+							{
+								"id": 1,
+								"extra": "x"
+							}
+						]
+					},
+					"valid": true,
+					"data": {
+						"title": "a",
+						"filter": {
+							"tag": "t"
+						},
+						"items": [
+							{
+								"id": 1
+							}
+						]
+					}
+				},
+				{
+					"description": "On failure, unexpectedFields lists undeclared top-level keys in input order; nested ones are not listed",
+					"input": {
+						"zeta": 1,
+						"title": 2,
+						"alpha": 3,
+						"filter": {
+							"tag": "t",
+							"extra": 1
+						}
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "title: Invalid input: expected string, received number. Unknown field(s): zeta, alpha. Expected fields: title, filter, items",
+						"details": {
+							"errors": [
+								{
+									"path": "title",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["title", "filter", "items"],
+							"unexpectedFields": ["zeta", "alpha"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "unknown-keys-empty-properties",
+			"section": "unknown-keys",
+			"description": "An object schema with no properties removes every key.",
+			"schema": {
+				"type": "object",
+				"properties": {}
+			},
+			"tests": [
+				{
+					"description": "Every key is removed",
+					"input": {
+						"a": 1,
+						"b": {
+							"c": 2
+						}
+					},
+					"valid": true,
+					"data": {}
+				}
+			]
+		},
+		{
+			"id": "additional-properties-false",
+			"section": "unknown-keys",
+			"description": "additionalProperties: false rejects undeclared keys with one unrecognized_keys issue per object, reported after the issues of its properties.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string"
+					},
+					"filter": {
+						"type": "object",
+						"properties": {
+							"tag": {
+								"type": "string"
+							}
+						},
+						"required": ["tag"],
+						"additionalProperties": false
+					}
+				},
+				"required": ["title"],
+				"additionalProperties": false
+			},
+			"tests": [
+				{
+					"description": "Declared keys only",
+					"input": {
+						"title": "a",
+						"filter": {
+							"tag": "t"
+						}
+					},
+					"valid": true,
+					"data": {
+						"title": "a",
+						"filter": {
+							"tag": "t"
+						}
+					}
+				},
+				{
+					"description": "An undeclared top-level key",
+					"input": {
+						"title": "a",
+						"extra": 1
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "Unrecognized key: \"extra\". Unknown field(s): extra. Expected fields: title, filter",
+						"details": {
+							"errors": [
+								{
+									"path": "(root)",
+									"message": "Unrecognized key: \"extra\"",
+									"code": "unrecognized_keys"
+								}
+							],
+							"expectedFields": ["title", "filter"],
+							"unexpectedFields": ["extra"]
+						}
+					}
+				},
+				{
+					"description": "Undeclared nested keys are named in one issue at the object path",
+					"input": {
+						"title": "a",
+						"filter": {
+							"tag": "t",
+							"b": 1,
+							"c": 2
+						}
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "filter: Unrecognized keys: \"b\", \"c\". Expected fields: title, filter",
+						"details": {
+							"errors": [
+								{
+									"path": "filter",
+									"message": "Unrecognized keys: \"b\", \"c\"",
+									"code": "unrecognized_keys"
+								}
+							],
+							"expectedFields": ["title", "filter"]
+						}
+					}
+				},
+				{
+					"description": "Property issues come before the object issue",
+					"input": {
+						"extra": 1,
+						"title": 2
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "- title: Invalid input: expected string, received number\n- Unrecognized key: \"extra\". Unknown field(s): extra. Expected fields: title, filter",
+						"details": {
+							"errors": [
+								{
+									"path": "title",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "(root)",
+									"message": "Unrecognized key: \"extra\"",
+									"code": "unrecognized_keys"
+								}
+							],
+							"expectedFields": ["title", "filter"],
+							"unexpectedFields": ["extra"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "additional-properties-empty-schema",
+			"section": "unknown-keys",
+			"description": "additionalProperties: {} keeps undeclared keys.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string"
+					},
+					"filter": {
+						"type": "object",
+						"properties": {
+							"tag": {
+								"type": "string"
+							}
+						},
+						"required": ["tag"],
+						"additionalProperties": {}
+					}
+				},
+				"required": ["title", "filter"],
+				"additionalProperties": {}
+			},
+			"tests": [
+				{
+					"description": "Undeclared keys are kept at every level",
+					"input": {
+						"title": "a",
+						"filter": {
+							"tag": "t",
+							"extra": [1]
+						},
+						"extra": {
+							"x": 1
+						}
+					},
+					"valid": true,
+					"data": {
+						"title": "a",
+						"filter": {
+							"tag": "t",
+							"extra": [1]
+						},
+						"extra": {
+							"x": 1
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "additional-properties-true",
+			"section": "unknown-keys",
+			"description": "additionalProperties: true keeps undeclared keys. TypeScript emits {} for this; the case rewrites it to the equivalent true.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": ["title"],
+				"additionalProperties": true
+			},
+			"tests": [
+				{
+					"description": "Undeclared keys are kept",
+					"input": {
+						"title": "a",
+						"extra": {
+							"x": 1
+						}
+					},
+					"valid": true,
+					"data": {
+						"title": "a",
+						"extra": {
+							"x": 1
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "additional-properties-schema",
+			"section": "unknown-keys",
+			"description": "An additionalProperties schema validates each undeclared key, which is kept. unexpectedFields still lists such keys.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": ["title"],
+				"additionalProperties": {
+					"type": "number"
+				}
+			},
+			"tests": [
+				{
+					"description": "A valid undeclared key is kept",
+					"input": {
+						"title": "a",
+						"count": 2
+					},
+					"valid": true,
+					"data": {
+						"title": "a",
+						"count": 2
+					}
+				},
+				{
+					"description": "An undeclared key is validated at its own path",
+					"input": {
+						"title": "a",
+						"count": "x"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "count: Invalid input: expected number, received string. Unknown field(s): count. Expected fields: title",
+						"details": {
+							"errors": [
+								{
+									"path": "count",
+									"message": "Invalid input: expected number, received string",
+									"code": "invalid_type",
+									"expected": "number"
+								}
+							],
+							"expectedFields": ["title"],
+							"unexpectedFields": ["count"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "error-shape",
+			"section": "error-shape",
+			"description": "The failure: message, details and the suggestion layout. Empty field lists are left out.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string",
+						"minLength": 1,
+						"description": "Todo title"
+					},
+					"priority": {
+						"default": "medium",
+						"type": "string",
+						"enum": ["low", "medium", "high"]
+					},
+					"done": {
+						"type": "boolean"
+					}
+				},
+				"required": ["title"]
+			},
+			"tests": [
+				{
+					"description": "Valid input",
+					"input": {
+						"title": "a"
+					},
+					"valid": true,
+					"data": {
+						"title": "a",
+						"priority": "medium"
+					}
+				},
+				{
+					"description": "One issue: \"path: message\"",
+					"input": {
+						"title": 5
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "title: Invalid input: expected string, received number. Expected fields: title, priority, done",
+						"details": {
+							"errors": [
+								{
+									"path": "title",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["title", "priority", "done"]
+						}
+					}
+				},
+				{
+					"description": "Several issues: one \"- path: message\" line each",
+					"input": {
+						"title": "",
+						"priority": "urgent",
+						"done": "no"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "- title: Too small: expected string to have >=1 characters\n- priority: Invalid option: expected one of \"low\"|\"medium\"|\"high\"\n- done: Invalid input: expected boolean, received string. Expected fields: title, priority, done",
+						"details": {
+							"errors": [
+								{
+									"path": "title",
+									"message": "Too small: expected string to have >=1 characters",
+									"code": "too_small"
+								},
+								{
+									"path": "priority",
+									"message": "Invalid option: expected one of \"low\"|\"medium\"|\"high\"",
+									"code": "invalid_value"
+								},
+								{
+									"path": "done",
+									"message": "Invalid input: expected boolean, received string",
+									"code": "invalid_type",
+									"expected": "boolean"
+								}
+							],
+							"expectedFields": ["title", "priority", "done"]
+						}
+					}
+				},
+				{
+					"description": "A missing required field",
+					"input": {},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "title: Invalid input: expected string, received undefined. Missing required field(s): title. Expected fields: title, priority, done",
+						"details": {
+							"errors": [
+								{
+									"path": "title",
+									"message": "Invalid input: expected string, received undefined",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["title", "priority", "done"],
+							"missingFields": ["title"]
+						}
+					}
+				},
+				{
+					"description": "Every part of the suggestion",
+					"input": {
+						"priority": "low",
+						"extra": 1
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "title: Invalid input: expected string, received undefined. Unknown field(s): extra. Missing required field(s): title. Expected fields: title, priority, done",
+						"details": {
+							"errors": [
+								{
+									"path": "title",
+									"message": "Invalid input: expected string, received undefined",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["title", "priority", "done"],
+							"unexpectedFields": ["extra"],
+							"missingFields": ["title"]
+						}
+					}
+				},
+				{
+					"description": "Input that is not an object is reported at (root)",
+					"input": [],
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "Invalid input: expected object, received array. Expected fields: title, priority, done",
+						"details": {
+							"errors": [
+								{
+									"path": "(root)",
+									"message": "Invalid input: expected object, received array",
+									"code": "invalid_type",
+									"expected": "object"
+								}
+							],
+							"expectedFields": ["title", "priority", "done"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "error-order",
+			"section": "error-shape",
+			"description": "Issues follow the order the schema declares its properties, with missing fields in place. Item issues come before the issues of their array.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"zulu": {
+						"type": "string"
+					},
+					"alpha": {
+						"type": "number"
+					},
+					"mike": {
+						"minItems": 2,
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					}
+				},
+				"required": ["zulu", "alpha", "mike"]
+			},
+			"tests": [
+				{
+					"description": "Declaration order, not input or alphabetical order",
+					"input": {
+						"mike": [1],
+						"zulu": 2
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "- zulu: Invalid input: expected string, received number\n- alpha: Invalid input: expected number, received undefined\n- mike.0: Invalid input: expected string, received number\n- mike: Too small: expected array to have >=2 items. Missing required field(s): alpha. Expected fields: zulu, alpha, mike",
+						"details": {
+							"errors": [
+								{
+									"path": "zulu",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "alpha",
+									"message": "Invalid input: expected number, received undefined",
+									"code": "invalid_type",
+									"expected": "number"
+								},
+								{
+									"path": "mike.0",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "mike",
+									"message": "Too small: expected array to have >=2 items",
+									"code": "too_small"
+								}
+							],
+							"expectedFields": ["zulu", "alpha", "mike"],
+							"missingFields": ["alpha"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "missing-required",
+			"section": "error-shape",
+			"description": "An absent required property is reported as its schema reports a value of the wrong type, with \"received undefined\".",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"count": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"level": {
+						"type": "string",
+						"enum": ["low", "high"]
+					},
+					"label": {
+						"type": ["string", "null"]
+					},
+					"value": {
+						"type": ["string", "number"]
+					}
+				},
+				"required": ["count", "level", "label", "value"]
+			},
+			"tests": [
+				{
+					"description": "Present",
+					"input": {
+						"count": 1,
+						"level": "low",
+						"label": null,
+						"value": "x"
+					},
+					"valid": true,
+					"data": {
+						"count": 1,
+						"level": "low",
+						"label": null,
+						"value": "x"
+					}
+				},
+				{
+					"description": "Absent: invalid_type with \"number\" for an integer, invalid_value for an enum",
+					"input": {},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "- count: Invalid input: expected number, received undefined\n- level: Invalid option: expected one of \"low\"|\"high\"\n- label: Invalid input: expected string, received undefined\n- value: Invalid input. Missing required field(s): count, level, label, value. Expected fields: count, level, label, value",
+						"details": {
+							"errors": [
+								{
+									"path": "count",
+									"message": "Invalid input: expected number, received undefined",
+									"code": "invalid_type",
+									"expected": "number"
+								},
+								{
+									"path": "level",
+									"message": "Invalid option: expected one of \"low\"|\"high\"",
+									"code": "invalid_value"
+								},
+								{
+									"path": "label",
+									"message": "Invalid input: expected string, received undefined",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "value",
+									"message": "Invalid input",
+									"code": "invalid_union"
+								}
+							],
+							"expectedFields": ["count", "level", "label", "value"],
+							"missingFields": ["count", "level", "label", "value"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "error-paths",
+			"section": "error-shape",
+			"description": "A path joins object keys and array indices with dots. Only top-level fields are listed in missingFields.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"filter": {
+						"type": "object",
+						"properties": {
+							"tags": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"range": {
+								"type": "object",
+								"properties": {
+									"from": {
+										"type": "number"
+									}
+								},
+								"required": ["from"]
+							}
+						},
+						"required": ["tags", "range"]
+					},
+					"items": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"id": {
+									"type": "number"
+								}
+							},
+							"required": ["id"]
+						}
+					}
+				},
+				"required": ["filter", "items"]
+			},
+			"tests": [
+				{
+					"description": "Nested paths",
+					"input": {
+						"filter": {
+							"tags": ["a", 2],
+							"range": {
+								"from": "x"
+							}
+						},
+						"items": [
+							{
+								"id": 1
+							},
+							{
+								"id": "b"
+							}
+						]
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "- filter.tags.1: Invalid input: expected string, received number\n- filter.range.from: Invalid input: expected number, received string\n- items.1.id: Invalid input: expected number, received string. Expected fields: filter, items",
+						"details": {
+							"errors": [
+								{
+									"path": "filter.tags.1",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "filter.range.from",
+									"message": "Invalid input: expected number, received string",
+									"code": "invalid_type",
+									"expected": "number"
+								},
+								{
+									"path": "items.1.id",
+									"message": "Invalid input: expected number, received string",
+									"code": "invalid_type",
+									"expected": "number"
+								}
+							],
+							"expectedFields": ["filter", "items"]
+						}
+					}
+				},
+				{
+					"description": "A missing nested field is reported by path only",
+					"input": {
+						"filter": {
+							"tags": []
+						},
+						"items": []
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "filter.range: Invalid input: expected object, received undefined. Expected fields: filter, items",
+						"details": {
+							"errors": [
+								{
+									"path": "filter.range",
+									"message": "Invalid input: expected object, received undefined",
+									"code": "invalid_type",
+									"expected": "object"
+								}
+							],
+							"expectedFields": ["filter", "items"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "string-length-code-points",
+			"section": "length-units",
+			"description": "minLength and maxLength count Unicode code points, not UTF-16 code units.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"code": {
+						"type": "string",
+						"minLength": 2,
+						"maxLength": 3
+					}
+				},
+				"required": ["code"]
+			},
+			"tests": [
+				{
+					"description": "ASCII",
+					"input": {
+						"code": "ab"
+					},
+					"valid": true,
+					"data": {
+						"code": "ab"
+					}
+				},
+				{
+					"description": "U+1F600 is one code point (two UTF-16 units), so it is too short",
+					"input": {
+						"code": "😀"
+					},
+					"exceptions": {
+						"typescript": "Zod before 4.5 counts UTF-16 code units, so a command schema built with it gives the other result. @lushly-dev/afd-server requires Zod 4.5 or later."
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "code: Too small: expected string to have >=2 characters. Expected fields: code",
+						"details": {
+							"errors": [
+								{
+									"path": "code",
+									"message": "Too small: expected string to have >=2 characters",
+									"code": "too_small"
+								}
+							],
+							"expectedFields": ["code"]
+						}
+					}
+				},
+				{
+					"description": "Two emoji are two code points (four UTF-16 units)",
+					"input": {
+						"code": "😀😀"
+					},
+					"exceptions": {
+						"typescript": "Zod before 4.5 counts UTF-16 code units, so a command schema built with it gives the other result. @lushly-dev/afd-server requires Zod 4.5 or later."
+					},
+					"valid": true,
+					"data": {
+						"code": "😀😀"
+					}
+				},
+				{
+					"description": "Three emoji are three code points (six UTF-16 units), which fits",
+					"input": {
+						"code": "😀😀😀"
+					},
+					"exceptions": {
+						"typescript": "Zod before 4.5 counts UTF-16 code units, so a command schema built with it gives the other result. @lushly-dev/afd-server requires Zod 4.5 or later."
+					},
+					"valid": true,
+					"data": {
+						"code": "😀😀😀"
+					}
+				},
+				{
+					"description": "Four emoji are four code points, which is too long",
+					"input": {
+						"code": "😀😀😀😀"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "code: Too big: expected string to have <=3 characters. Expected fields: code",
+						"details": {
+							"errors": [
+								{
+									"path": "code",
+									"message": "Too big: expected string to have <=3 characters",
+									"code": "too_big"
+								}
+							],
+							"expectedFields": ["code"]
+						}
+					}
+				},
+				{
+					"description": "\"a\" and one emoji are two code points (three UTF-16 units)",
+					"input": {
+						"code": "a😀"
+					},
+					"valid": true,
+					"data": {
+						"code": "a😀"
+					}
+				}
+			]
+		},
+		{
+			"id": "string-length-not-graphemes-or-bytes",
+			"section": "length-units",
+			"description": "Lengths count code points, not grapheme clusters or UTF-8 bytes.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"one": {
+						"type": "string",
+						"maxLength": 1
+					},
+					"two": {
+						"type": "string",
+						"maxLength": 2
+					},
+					"five": {
+						"type": "string",
+						"maxLength": 5
+					}
+				}
+			},
+			"tests": [
+				{
+					"description": "U+00E9 is one code point",
+					"input": {
+						"one": "é"
+					},
+					"valid": true,
+					"data": {
+						"one": "é"
+					}
+				},
+				{
+					"description": "\"e\" and U+0301 COMBINING ACUTE ACCENT are two code points, one grapheme",
+					"input": {
+						"one": "é"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "one: Too big: expected string to have <=1 characters. Expected fields: one, two, five",
+						"details": {
+							"errors": [
+								{
+									"path": "one",
+									"message": "Too big: expected string to have <=1 characters",
+									"code": "too_big"
+								}
+							],
+							"expectedFields": ["one", "two", "five"]
+						}
+					}
+				},
+				{
+					"description": "Two CJK characters are two code points (six UTF-8 bytes)",
+					"input": {
+						"two": "日本"
+					},
+					"valid": true,
+					"data": {
+						"two": "日本"
+					}
+				},
+				{
+					"description": "Three CJK characters are too long",
+					"input": {
+						"two": "日本語"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "two: Too big: expected string to have <=2 characters. Expected fields: one, two, five",
+						"details": {
+							"errors": [
+								{
+									"path": "two",
+									"message": "Too big: expected string to have <=2 characters",
+									"code": "too_big"
+								}
+							],
+							"expectedFields": ["one", "two", "five"]
+						}
+					}
+				},
+				{
+					"description": "A ZWJ family emoji is five code points (eight UTF-16 units, one grapheme), which fits",
+					"input": {
+						"five": "👨‍👩‍👧"
+					},
+					"exceptions": {
+						"typescript": "Zod before 4.5 counts UTF-16 code units, so a command schema built with it gives the other result. @lushly-dev/afd-server requires Zod 4.5 or later."
+					},
+					"valid": true,
+					"data": {
+						"five": "👨‍👩‍👧"
+					}
+				}
+			]
+		},
+		{
+			"id": "type",
+			"section": "keywords",
+			"description": "type, including integer and a list of types. Values are never coerced. A list with \"null\" reports the other type as expected.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"s": {
+						"type": "string"
+					},
+					"n": {
+						"type": "number"
+					},
+					"i": {
+						"type": "integer",
+						"minimum": -9007199254740991,
+						"maximum": 9007199254740991
+					},
+					"b": {
+						"type": "boolean"
+					},
+					"o": {
+						"type": "object",
+						"properties": {}
+					},
+					"a": {
+						"type": "array",
+						"items": {}
+					},
+					"nul": {
+						"type": "null"
+					},
+					"ns": {
+						"type": ["string", "null"]
+					},
+					"sn": {
+						"type": ["string", "number"]
+					}
+				},
+				"required": ["s", "n", "i", "b", "o", "a", "nul", "ns", "sn"]
+			},
+			"tests": [
+				{
+					"description": "Every type",
+					"input": {
+						"s": "x",
+						"n": 1.5,
+						"i": 3,
+						"b": true,
+						"o": {},
+						"a": [1, "x"],
+						"nul": null,
+						"ns": "y",
+						"sn": 2
+					},
+					"valid": true,
+					"data": {
+						"s": "x",
+						"n": 1.5,
+						"i": 3,
+						"b": true,
+						"o": {},
+						"a": [1, "x"],
+						"nul": null,
+						"ns": "y",
+						"sn": 2
+					}
+				},
+				{
+					"description": "null for a nullable string",
+					"input": {
+						"s": "x",
+						"n": 1.5,
+						"i": 3,
+						"b": true,
+						"o": {},
+						"a": [1, "x"],
+						"nul": null,
+						"ns": null,
+						"sn": 2
+					},
+					"valid": true,
+					"data": {
+						"s": "x",
+						"n": 1.5,
+						"i": 3,
+						"b": true,
+						"o": {},
+						"a": [1, "x"],
+						"nul": null,
+						"ns": null,
+						"sn": 2
+					}
+				},
+				{
+					"description": "A number is not a string",
+					"input": {
+						"s": 1,
+						"n": 1.5,
+						"i": 3,
+						"b": true,
+						"o": {},
+						"a": [1, "x"],
+						"nul": null,
+						"ns": "y",
+						"sn": 2
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "s: Invalid input: expected string, received number. Expected fields: s, n, i, b, o, a, nul, ns, sn",
+						"details": {
+							"errors": [
+								{
+									"path": "s",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["s", "n", "i", "b", "o", "a", "nul", "ns", "sn"]
+						}
+					}
+				},
+				{
+					"description": "A numeric string is not a number",
+					"input": {
+						"s": "x",
+						"n": "1",
+						"i": 3,
+						"b": true,
+						"o": {},
+						"a": [1, "x"],
+						"nul": null,
+						"ns": "y",
+						"sn": 2
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "n: Invalid input: expected number, received string. Expected fields: s, n, i, b, o, a, nul, ns, sn",
+						"details": {
+							"errors": [
+								{
+									"path": "n",
+									"message": "Invalid input: expected number, received string",
+									"code": "invalid_type",
+									"expected": "number"
+								}
+							],
+							"expectedFields": ["s", "n", "i", "b", "o", "a", "nul", "ns", "sn"]
+						}
+					}
+				},
+				{
+					"description": "A boolean is not a number",
+					"input": {
+						"s": "x",
+						"n": true,
+						"i": 3,
+						"b": true,
+						"o": {},
+						"a": [1, "x"],
+						"nul": null,
+						"ns": "y",
+						"sn": 2
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "n: Invalid input: expected number, received boolean. Expected fields: s, n, i, b, o, a, nul, ns, sn",
+						"details": {
+							"errors": [
+								{
+									"path": "n",
+									"message": "Invalid input: expected number, received boolean",
+									"code": "invalid_type",
+									"expected": "number"
+								}
+							],
+							"expectedFields": ["s", "n", "i", "b", "o", "a", "nul", "ns", "sn"]
+						}
+					}
+				},
+				{
+					"description": "A fraction is not an integer: expected is \"int\"",
+					"input": {
+						"s": "x",
+						"n": 1.5,
+						"i": 1.5,
+						"b": true,
+						"o": {},
+						"a": [1, "x"],
+						"nul": null,
+						"ns": "y",
+						"sn": 2
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "i: Invalid input: expected int, received number. Expected fields: s, n, i, b, o, a, nul, ns, sn",
+						"details": {
+							"errors": [
+								{
+									"path": "i",
+									"message": "Invalid input: expected int, received number",
+									"code": "invalid_type",
+									"expected": "int"
+								}
+							],
+							"expectedFields": ["s", "n", "i", "b", "o", "a", "nul", "ns", "sn"]
+						}
+					}
+				},
+				{
+					"description": "A string is not an integer: expected is \"number\"",
+					"input": {
+						"s": "x",
+						"n": 1.5,
+						"i": "7",
+						"b": true,
+						"o": {},
+						"a": [1, "x"],
+						"nul": null,
+						"ns": "y",
+						"sn": 2
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "i: Invalid input: expected number, received string. Expected fields: s, n, i, b, o, a, nul, ns, sn",
+						"details": {
+							"errors": [
+								{
+									"path": "i",
+									"message": "Invalid input: expected number, received string",
+									"code": "invalid_type",
+									"expected": "number"
+								}
+							],
+							"expectedFields": ["s", "n", "i", "b", "o", "a", "nul", "ns", "sn"]
+						}
+					}
+				},
+				{
+					"description": "An integer above 2^53 - 1 fails the maximum TypeScript advertises",
+					"input": {
+						"s": "x",
+						"n": 1.5,
+						"i": 9007199254740992,
+						"b": true,
+						"o": {},
+						"a": [1, "x"],
+						"nul": null,
+						"ns": "y",
+						"sn": 2
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "i: Too big: expected int to be <=9007199254740991. Expected fields: s, n, i, b, o, a, nul, ns, sn",
+						"details": {
+							"errors": [
+								{
+									"path": "i",
+									"message": "Too big: expected int to be <=9007199254740991",
+									"code": "too_big"
+								}
+							],
+							"expectedFields": ["s", "n", "i", "b", "o", "a", "nul", "ns", "sn"]
+						}
+					}
+				},
+				{
+					"description": "A string is not a boolean",
+					"input": {
+						"s": "x",
+						"n": 1.5,
+						"i": 3,
+						"b": "true",
+						"o": {},
+						"a": [1, "x"],
+						"nul": null,
+						"ns": "y",
+						"sn": 2
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "b: Invalid input: expected boolean, received string. Expected fields: s, n, i, b, o, a, nul, ns, sn",
+						"details": {
+							"errors": [
+								{
+									"path": "b",
+									"message": "Invalid input: expected boolean, received string",
+									"code": "invalid_type",
+									"expected": "boolean"
+								}
+							],
+							"expectedFields": ["s", "n", "i", "b", "o", "a", "nul", "ns", "sn"]
+						}
+					}
+				},
+				{
+					"description": "A number is not a boolean",
+					"input": {
+						"s": "x",
+						"n": 1.5,
+						"i": 3,
+						"b": 1,
+						"o": {},
+						"a": [1, "x"],
+						"nul": null,
+						"ns": "y",
+						"sn": 2
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "b: Invalid input: expected boolean, received number. Expected fields: s, n, i, b, o, a, nul, ns, sn",
+						"details": {
+							"errors": [
+								{
+									"path": "b",
+									"message": "Invalid input: expected boolean, received number",
+									"code": "invalid_type",
+									"expected": "boolean"
+								}
+							],
+							"expectedFields": ["s", "n", "i", "b", "o", "a", "nul", "ns", "sn"]
+						}
+					}
+				},
+				{
+					"description": "An array is not an object",
+					"input": {
+						"s": "x",
+						"n": 1.5,
+						"i": 3,
+						"b": true,
+						"o": [],
+						"a": [1, "x"],
+						"nul": null,
+						"ns": "y",
+						"sn": 2
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "o: Invalid input: expected object, received array. Expected fields: s, n, i, b, o, a, nul, ns, sn",
+						"details": {
+							"errors": [
+								{
+									"path": "o",
+									"message": "Invalid input: expected object, received array",
+									"code": "invalid_type",
+									"expected": "object"
+								}
+							],
+							"expectedFields": ["s", "n", "i", "b", "o", "a", "nul", "ns", "sn"]
+						}
+					}
+				},
+				{
+					"description": "An object is not an array",
+					"input": {
+						"s": "x",
+						"n": 1.5,
+						"i": 3,
+						"b": true,
+						"o": {},
+						"a": {},
+						"nul": null,
+						"ns": "y",
+						"sn": 2
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "a: Invalid input: expected array, received object. Expected fields: s, n, i, b, o, a, nul, ns, sn",
+						"details": {
+							"errors": [
+								{
+									"path": "a",
+									"message": "Invalid input: expected array, received object",
+									"code": "invalid_type",
+									"expected": "array"
+								}
+							],
+							"expectedFields": ["s", "n", "i", "b", "o", "a", "nul", "ns", "sn"]
+						}
+					}
+				},
+				{
+					"description": "0 is not null",
+					"input": {
+						"s": "x",
+						"n": 1.5,
+						"i": 3,
+						"b": true,
+						"o": {},
+						"a": [1, "x"],
+						"nul": 0,
+						"ns": "y",
+						"sn": 2
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "nul: Invalid input: expected null, received number. Expected fields: s, n, i, b, o, a, nul, ns, sn",
+						"details": {
+							"errors": [
+								{
+									"path": "nul",
+									"message": "Invalid input: expected null, received number",
+									"code": "invalid_type",
+									"expected": "null"
+								}
+							],
+							"expectedFields": ["s", "n", "i", "b", "o", "a", "nul", "ns", "sn"]
+						}
+					}
+				},
+				{
+					"description": "A number is not a nullable string",
+					"input": {
+						"s": "x",
+						"n": 1.5,
+						"i": 3,
+						"b": true,
+						"o": {},
+						"a": [1, "x"],
+						"nul": null,
+						"ns": 1,
+						"sn": 2
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "ns: Invalid input: expected string, received number. Expected fields: s, n, i, b, o, a, nul, ns, sn",
+						"details": {
+							"errors": [
+								{
+									"path": "ns",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["s", "n", "i", "b", "o", "a", "nul", "ns", "sn"]
+						}
+					}
+				},
+				{
+					"description": "A value of none of several non-null types is invalid_union",
+					"input": {
+						"s": "x",
+						"n": 1.5,
+						"i": 3,
+						"b": true,
+						"o": {},
+						"a": [1, "x"],
+						"nul": null,
+						"ns": "y",
+						"sn": true
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "sn: Invalid input. Expected fields: s, n, i, b, o, a, nul, ns, sn",
+						"details": {
+							"errors": [
+								{
+									"path": "sn",
+									"message": "Invalid input",
+									"code": "invalid_union"
+								}
+							],
+							"expectedFields": ["s", "n", "i", "b", "o", "a", "nul", "ns", "sn"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "enum",
+			"section": "keywords",
+			"description": "enum. A mismatch is invalid_value, even when the value also has the wrong type.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"priority": {
+						"type": "string",
+						"enum": ["low", "medium", "high"]
+					},
+					"level": {
+						"type": "number",
+						"enum": [1, 2, 3]
+					},
+					"mixed": {
+						"enum": ["a", 1, null]
+					}
+				},
+				"required": ["priority"]
+			},
+			"tests": [
+				{
+					"description": "Listed values",
+					"input": {
+						"priority": "low",
+						"level": 2,
+						"mixed": null
+					},
+					"valid": true,
+					"data": {
+						"priority": "low",
+						"level": 2,
+						"mixed": null
+					}
+				},
+				{
+					"description": "An unlisted string",
+					"input": {
+						"priority": "urgent"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "priority: Invalid option: expected one of \"low\"|\"medium\"|\"high\". Expected fields: priority, level, mixed",
+						"details": {
+							"errors": [
+								{
+									"path": "priority",
+									"message": "Invalid option: expected one of \"low\"|\"medium\"|\"high\"",
+									"code": "invalid_value"
+								}
+							],
+							"expectedFields": ["priority", "level", "mixed"]
+						}
+					}
+				},
+				{
+					"description": "A value of another type",
+					"input": {
+						"priority": 1
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "priority: Invalid option: expected one of \"low\"|\"medium\"|\"high\". Expected fields: priority, level, mixed",
+						"details": {
+							"errors": [
+								{
+									"path": "priority",
+									"message": "Invalid option: expected one of \"low\"|\"medium\"|\"high\"",
+									"code": "invalid_value"
+								}
+							],
+							"expectedFields": ["priority", "level", "mixed"]
+						}
+					}
+				},
+				{
+					"description": "An unlisted number",
+					"input": {
+						"priority": "low",
+						"level": 4
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "level: Invalid option: expected one of 1|2|3. Expected fields: priority, level, mixed",
+						"details": {
+							"errors": [
+								{
+									"path": "level",
+									"message": "Invalid option: expected one of 1|2|3",
+									"code": "invalid_value"
+								}
+							],
+							"expectedFields": ["priority", "level", "mixed"]
+						}
+					}
+				},
+				{
+					"description": "An enum of mixed types",
+					"input": {
+						"priority": "low",
+						"mixed": "b"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "mixed: Invalid option: expected one of \"a\"|1|null. Expected fields: priority, level, mixed",
+						"details": {
+							"errors": [
+								{
+									"path": "mixed",
+									"message": "Invalid option: expected one of \"a\"|1|null",
+									"code": "invalid_value"
+								}
+							],
+							"expectedFields": ["priority", "level", "mixed"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "string-length",
+			"section": "keywords",
+			"description": "minLength and maxLength are inclusive.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 5
+					}
+				},
+				"required": ["title"]
+			},
+			"tests": [
+				{
+					"description": "At the minimum",
+					"input": {
+						"title": "a"
+					},
+					"valid": true,
+					"data": {
+						"title": "a"
+					}
+				},
+				{
+					"description": "At the maximum",
+					"input": {
+						"title": "abcde"
+					},
+					"valid": true,
+					"data": {
+						"title": "abcde"
+					}
+				},
+				{
+					"description": "Below the minimum",
+					"input": {
+						"title": ""
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "title: Too small: expected string to have >=1 characters. Expected fields: title",
+						"details": {
+							"errors": [
+								{
+									"path": "title",
+									"message": "Too small: expected string to have >=1 characters",
+									"code": "too_small"
+								}
+							],
+							"expectedFields": ["title"]
+						}
+					}
+				},
+				{
+					"description": "Above the maximum",
+					"input": {
+						"title": "abcdef"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "title: Too big: expected string to have <=5 characters. Expected fields: title",
+						"details": {
+							"errors": [
+								{
+									"path": "title",
+									"message": "Too big: expected string to have <=5 characters",
+									"code": "too_big"
+								}
+							],
+							"expectedFields": ["title"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "numeric-bounds",
+			"section": "keywords",
+			"description": "minimum and maximum are inclusive; exclusiveMinimum and exclusiveMaximum are numbers and exclusive.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"inclusive": {
+						"type": "number",
+						"minimum": 1,
+						"maximum": 10
+					},
+					"exclusive": {
+						"type": "number",
+						"exclusiveMinimum": 0,
+						"exclusiveMaximum": 1
+					},
+					"count": {
+						"type": "integer",
+						"minimum": 0,
+						"maximum": 100
+					}
+				}
+			},
+			"tests": [
+				{
+					"description": "At the inclusive bounds",
+					"input": {
+						"inclusive": 1,
+						"count": 100
+					},
+					"valid": true,
+					"data": {
+						"inclusive": 1,
+						"count": 100
+					}
+				},
+				{
+					"description": "Inside the exclusive bounds",
+					"input": {
+						"inclusive": 10,
+						"exclusive": 0.5,
+						"count": 0
+					},
+					"valid": true,
+					"data": {
+						"inclusive": 10,
+						"exclusive": 0.5,
+						"count": 0
+					}
+				},
+				{
+					"description": "Below minimum",
+					"input": {
+						"inclusive": 0
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "inclusive: Too small: expected number to be >=1. Expected fields: inclusive, exclusive, count",
+						"details": {
+							"errors": [
+								{
+									"path": "inclusive",
+									"message": "Too small: expected number to be >=1",
+									"code": "too_small"
+								}
+							],
+							"expectedFields": ["inclusive", "exclusive", "count"]
+						}
+					}
+				},
+				{
+					"description": "Above maximum",
+					"input": {
+						"inclusive": 11
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "inclusive: Too big: expected number to be <=10. Expected fields: inclusive, exclusive, count",
+						"details": {
+							"errors": [
+								{
+									"path": "inclusive",
+									"message": "Too big: expected number to be <=10",
+									"code": "too_big"
+								}
+							],
+							"expectedFields": ["inclusive", "exclusive", "count"]
+						}
+					}
+				},
+				{
+					"description": "At exclusiveMinimum",
+					"input": {
+						"exclusive": 0
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "exclusive: Too small: expected number to be >0. Expected fields: inclusive, exclusive, count",
+						"details": {
+							"errors": [
+								{
+									"path": "exclusive",
+									"message": "Too small: expected number to be >0",
+									"code": "too_small"
+								}
+							],
+							"expectedFields": ["inclusive", "exclusive", "count"]
+						}
+					}
+				},
+				{
+					"description": "At exclusiveMaximum",
+					"input": {
+						"exclusive": 1
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "exclusive: Too big: expected number to be <1. Expected fields: inclusive, exclusive, count",
+						"details": {
+							"errors": [
+								{
+									"path": "exclusive",
+									"message": "Too big: expected number to be <1",
+									"code": "too_big"
+								}
+							],
+							"expectedFields": ["inclusive", "exclusive", "count"]
+						}
+					}
+				},
+				{
+					"description": "An integer below its minimum",
+					"input": {
+						"count": -1
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "count: Too small: expected number to be >=0. Expected fields: inclusive, exclusive, count",
+						"details": {
+							"errors": [
+								{
+									"path": "count",
+									"message": "Too small: expected number to be >=0",
+									"code": "too_small"
+								}
+							],
+							"expectedFields": ["inclusive", "exclusive", "count"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "items",
+			"section": "keywords",
+			"description": "items validates each element; minItems and maxItems are inclusive.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"tags": {
+						"minItems": 1,
+						"maxItems": 3,
+						"type": "array",
+						"items": {
+							"type": "string",
+							"minLength": 1
+						}
+					}
+				},
+				"required": ["tags"]
+			},
+			"tests": [
+				{
+					"description": "Valid",
+					"input": {
+						"tags": ["a", "b", "c"]
+					},
+					"valid": true,
+					"data": {
+						"tags": ["a", "b", "c"]
+					}
+				},
+				{
+					"description": "Too few items",
+					"input": {
+						"tags": []
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "tags: Too small: expected array to have >=1 items. Expected fields: tags",
+						"details": {
+							"errors": [
+								{
+									"path": "tags",
+									"message": "Too small: expected array to have >=1 items",
+									"code": "too_small"
+								}
+							],
+							"expectedFields": ["tags"]
+						}
+					}
+				},
+				{
+					"description": "Too many items",
+					"input": {
+						"tags": ["a", "b", "c", "d"]
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "tags: Too big: expected array to have <=3 items. Expected fields: tags",
+						"details": {
+							"errors": [
+								{
+									"path": "tags",
+									"message": "Too big: expected array to have <=3 items",
+									"code": "too_big"
+								}
+							],
+							"expectedFields": ["tags"]
+						}
+					}
+				},
+				{
+					"description": "An invalid item",
+					"input": {
+						"tags": ["a", ""]
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "tags.1: Too small: expected string to have >=1 characters. Expected fields: tags",
+						"details": {
+							"errors": [
+								{
+									"path": "tags.1",
+									"message": "Too small: expected string to have >=1 characters",
+									"code": "too_small"
+								}
+							],
+							"expectedFields": ["tags"]
+						}
+					}
+				},
+				{
+					"description": "An item of the wrong type",
+					"input": {
+						"tags": [1]
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "tags.0: Invalid input: expected string, received number. Expected fields: tags",
+						"details": {
+							"errors": [
+								{
+									"path": "tags.0",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["tags"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "ref-definitions",
+			"section": "keywords",
+			"description": "A local $ref into definitions, which TypeScript emits for a reused schema.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"$ref": "#/definitions/TodoId"
+					},
+					"related": {
+						"type": "array",
+						"items": {
+							"$ref": "#/definitions/TodoId"
+						}
+					}
+				},
+				"required": ["id"],
+				"definitions": {
+					"TodoId": {
+						"type": "string",
+						"minLength": 1
+					}
+				}
+			},
+			"tests": [
+				{
+					"description": "Valid",
+					"input": {
+						"id": "a",
+						"related": ["b"]
+					},
+					"valid": true,
+					"data": {
+						"id": "a",
+						"related": ["b"]
+					}
+				},
+				{
+					"description": "The referenced constraints apply",
+					"input": {
+						"id": ""
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "id: Too small: expected string to have >=1 characters. Expected fields: id, related",
+						"details": {
+							"errors": [
+								{
+									"path": "id",
+									"message": "Too small: expected string to have >=1 characters",
+									"code": "too_small"
+								}
+							],
+							"expectedFields": ["id", "related"]
+						}
+					}
+				},
+				{
+					"description": "A reference in array items",
+					"input": {
+						"id": "a",
+						"related": ["b", 1]
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "related.1: Invalid input: expected string, received number. Expected fields: id, related",
+						"details": {
+							"errors": [
+								{
+									"path": "related.1",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["id", "related"]
+						}
+					}
+				},
+				{
+					"description": "An absent reference is reported with the referenced type",
+					"input": {},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "id: Invalid input: expected string, received undefined. Missing required field(s): id. Expected fields: id, related",
+						"details": {
+							"errors": [
+								{
+									"path": "id",
+									"message": "Invalid input: expected string, received undefined",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["id", "related"],
+							"missingFields": ["id"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "ref-defs",
+			"section": "keywords",
+			"description": "The same schema with $defs instead of definitions. TypeScript emits definitions (draft-07); the case renames them.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"$ref": "#/$defs/TodoId"
+					},
+					"related": {
+						"type": "array",
+						"items": {
+							"$ref": "#/$defs/TodoId"
+						}
+					}
+				},
+				"required": ["id"],
+				"$defs": {
+					"TodoId": {
+						"type": "string",
+						"minLength": 1
+					}
+				}
+			},
+			"tests": [
+				{
+					"description": "Valid",
+					"input": {
+						"id": "a",
+						"related": ["b"]
+					},
+					"valid": true,
+					"data": {
+						"id": "a",
+						"related": ["b"]
+					}
+				},
+				{
+					"description": "The referenced constraints apply",
+					"input": {
+						"id": "a",
+						"related": [""]
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "related.0: Too small: expected string to have >=1 characters. Expected fields: id, related",
+						"details": {
+							"errors": [
+								{
+									"path": "related.0",
+									"message": "Too small: expected string to have >=1 characters",
+									"code": "too_small"
+								}
+							],
+							"expectedFields": ["id", "related"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "ref-recursive",
+			"section": "keywords",
+			"description": "A recursive $ref. Unknown keys are removed inside referenced objects, at any depth.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"root": {
+						"$ref": "#/definitions/__schema0"
+					}
+				},
+				"required": ["root"],
+				"definitions": {
+					"__schema0": {
+						"type": "object",
+						"properties": {
+							"name": {
+								"type": "string"
+							},
+							"children": {
+								"type": "array",
+								"items": {
+									"$ref": "#/definitions/__schema0"
+								}
+							}
+						},
+						"required": ["name"]
+					}
+				}
+			},
+			"tests": [
+				{
+					"description": "Nested nodes",
+					"input": {
+						"root": {
+							"name": "a",
+							"extra": 1,
+							"children": [
+								{
+									"name": "b",
+									"children": [
+										{
+											"name": "c",
+											"x": 2
+										}
+									]
+								}
+							]
+						}
+					},
+					"valid": true,
+					"data": {
+						"root": {
+							"name": "a",
+							"children": [
+								{
+									"name": "b",
+									"children": [
+										{
+											"name": "c"
+										}
+									]
+								}
+							]
+						}
+					}
+				},
+				{
+					"description": "An issue deep in the tree",
+					"input": {
+						"root": {
+							"name": "a",
+							"children": [
+								{
+									"name": "b",
+									"children": [
+										{
+											"name": 3
+										}
+									]
+								}
+							]
+						}
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "root.children.0.children.0.name: Invalid input: expected string, received number. Expected fields: root",
+						"details": {
+							"errors": [
+								{
+									"path": "root.children.0.children.0.name",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["root"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "ref-root",
+			"section": "keywords",
+			"description": "A $ref of \"#\" refers to the whole schema.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"name": {
+						"type": "string"
+					},
+					"children": {
+						"type": "array",
+						"items": {
+							"$ref": "#"
+						}
+					}
+				},
+				"required": ["name"]
+			},
+			"tests": [
+				{
+					"description": "Nested nodes",
+					"input": {
+						"name": "a",
+						"children": [
+							{
+								"name": "b",
+								"children": []
+							}
+						]
+					},
+					"valid": true,
+					"data": {
+						"name": "a",
+						"children": [
+							{
+								"name": "b",
+								"children": []
+							}
+						]
+					}
+				},
+				{
+					"description": "An issue in a child",
+					"input": {
+						"name": "a",
+						"children": [
+							{
+								"children": []
+							}
+						]
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "children.0.name: Invalid input: expected string, received undefined. Expected fields: name, children",
+						"details": {
+							"errors": [
+								{
+									"path": "children.0.name",
+									"message": "Invalid input: expected string, received undefined",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["name", "children"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "annotations",
+			"section": "keywords",
+			"description": "Annotation keywords (title, description, examples, deprecated) are accepted and have no effect.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string",
+						"title": "Title",
+						"description": "What to do",
+						"examples": ["Buy milk"]
+					},
+					"legacy": {
+						"deprecated": true,
+						"type": "string"
+					}
+				},
+				"required": ["title"],
+				"description": "Create a todo"
+			},
+			"tests": [
+				{
+					"description": "Valid",
+					"input": {
+						"title": "Buy milk",
+						"legacy": "x"
+					},
+					"valid": true,
+					"data": {
+						"title": "Buy milk",
+						"legacy": "x"
+					}
+				},
+				{
+					"description": "Invalid",
+					"input": {
+						"title": 1
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "title: Invalid input: expected string, received number. Expected fields: title, legacy",
+						"details": {
+							"errors": [
+								{
+									"path": "title",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["title", "legacy"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "null-for-optional",
+			"section": "null-and-defaults",
+			"description": "An explicit null is a value, not an absent property: it fails unless the type allows null, and a default does not replace it.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"title": {
+						"type": "string"
+					},
+					"note": {
+						"type": "string"
+					},
+					"done": {
+						"default": false,
+						"type": "boolean"
+					},
+					"label": {
+						"type": ["string", "null"]
+					},
+					"filter": {
+						"type": "object",
+						"properties": {
+							"limit": {
+								"type": "number"
+							}
+						}
+					}
+				},
+				"required": ["title"]
+			},
+			"tests": [
+				{
+					"description": "Absent optional properties",
+					"input": {
+						"title": "a"
+					},
+					"valid": true,
+					"data": {
+						"title": "a",
+						"done": false
+					}
+				},
+				{
+					"description": "null for an optional string",
+					"input": {
+						"title": "a",
+						"note": null
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "note: Invalid input: expected string, received null. Expected fields: title, note, done, label, filter",
+						"details": {
+							"errors": [
+								{
+									"path": "note",
+									"message": "Invalid input: expected string, received null",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["title", "note", "done", "label", "filter"]
+						}
+					}
+				},
+				{
+					"description": "null for a property with a default",
+					"input": {
+						"title": "a",
+						"done": null
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "done: Invalid input: expected boolean, received null. Expected fields: title, note, done, label, filter",
+						"details": {
+							"errors": [
+								{
+									"path": "done",
+									"message": "Invalid input: expected boolean, received null",
+									"code": "invalid_type",
+									"expected": "boolean"
+								}
+							],
+							"expectedFields": ["title", "note", "done", "label", "filter"]
+						}
+					}
+				},
+				{
+					"description": "null for a required property is not a missing field",
+					"input": {
+						"title": null
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "title: Invalid input: expected string, received null. Expected fields: title, note, done, label, filter",
+						"details": {
+							"errors": [
+								{
+									"path": "title",
+									"message": "Invalid input: expected string, received null",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["title", "note", "done", "label", "filter"]
+						}
+					}
+				},
+				{
+					"description": "null where the type allows it is kept",
+					"input": {
+						"title": "a",
+						"label": null
+					},
+					"valid": true,
+					"data": {
+						"title": "a",
+						"done": false,
+						"label": null
+					}
+				},
+				{
+					"description": "null for a nested optional property",
+					"input": {
+						"title": "a",
+						"filter": {
+							"limit": null
+						}
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "filter.limit: Invalid input: expected number, received null. Expected fields: title, note, done, label, filter",
+						"details": {
+							"errors": [
+								{
+									"path": "filter.limit",
+									"message": "Invalid input: expected number, received null",
+									"code": "invalid_type",
+									"expected": "number"
+								}
+							],
+							"expectedFields": ["title", "note", "done", "label", "filter"]
+						}
+					}
+				},
+				{
+					"description": "null for an optional object",
+					"input": {
+						"title": "a",
+						"filter": null
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "filter: Invalid input: expected object, received null. Expected fields: title, note, done, label, filter",
+						"details": {
+							"errors": [
+								{
+									"path": "filter",
+									"message": "Invalid input: expected object, received null",
+									"code": "invalid_type",
+									"expected": "object"
+								}
+							],
+							"expectedFields": ["title", "note", "done", "label", "filter"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "defaults",
+			"section": "null-and-defaults",
+			"description": "A default fills an absent property, at any depth, before middleware and the handler run. It is used as is: it is not validated, and defaults inside it are not applied.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"priority": {
+						"default": "medium",
+						"type": "string",
+						"enum": ["low", "medium", "high"]
+					},
+					"tags": {
+						"default": [],
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"filter": {
+						"default": {
+							"limit": 5
+						},
+						"type": "object",
+						"properties": {
+							"limit": {
+								"default": 20,
+								"type": "number"
+							},
+							"sort": {
+								"default": "asc",
+								"type": "string",
+								"enum": ["asc", "desc"]
+							}
+						}
+					},
+					"items": {
+						"type": "array",
+						"items": {
+							"type": "object",
+							"properties": {
+								"qty": {
+									"default": 1,
+									"type": "integer",
+									"minimum": -9007199254740991,
+									"maximum": 9007199254740991
+								}
+							}
+						}
+					},
+					"threshold": {
+						"default": 1,
+						"type": "number",
+						"minimum": 5
+					}
+				}
+			},
+			"tests": [
+				{
+					"description": "Top-level defaults, and an object default used as is",
+					"input": {},
+					"valid": true,
+					"data": {
+						"priority": "medium",
+						"tags": [],
+						"filter": {
+							"limit": 5
+						},
+						"threshold": 1
+					}
+				},
+				{
+					"description": "Nested defaults fill a present object",
+					"input": {
+						"filter": {}
+					},
+					"valid": true,
+					"data": {
+						"priority": "medium",
+						"tags": [],
+						"filter": {
+							"limit": 20,
+							"sort": "asc"
+						},
+						"threshold": 1
+					}
+				},
+				{
+					"description": "Present values are kept",
+					"input": {
+						"priority": "high",
+						"tags": ["x"],
+						"filter": {
+							"limit": 3
+						}
+					},
+					"valid": true,
+					"data": {
+						"priority": "high",
+						"tags": ["x"],
+						"filter": {
+							"limit": 3,
+							"sort": "asc"
+						},
+						"threshold": 1
+					}
+				},
+				{
+					"description": "Defaults fill objects inside arrays",
+					"input": {
+						"items": [
+							{},
+							{
+								"qty": 2
+							}
+						]
+					},
+					"valid": true,
+					"data": {
+						"priority": "medium",
+						"tags": [],
+						"filter": {
+							"limit": 5
+						},
+						"items": [
+							{
+								"qty": 1
+							},
+							{
+								"qty": 2
+							}
+						],
+						"threshold": 1
+					}
+				},
+				{
+					"description": "A present value is validated even when it equals the default",
+					"input": {
+						"threshold": 1
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "threshold: Too small: expected number to be >=5. Expected fields: priority, tags, filter, items, threshold",
+						"details": {
+							"errors": [
+								{
+									"path": "threshold",
+									"message": "Too small: expected number to be >=5",
+									"code": "too_small"
+								}
+							],
+							"expectedFields": ["priority", "tags", "filter", "items", "threshold"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "pattern",
+			"section": "optional-keywords",
+			"optionalKeywords": ["pattern"],
+			"description": "pattern is an ECMAScript regular expression, not anchored.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"slug": {
+						"type": "string",
+						"pattern": "^[a-z]+(-[a-z]+)*$"
+					},
+					"code": {
+						"type": "string",
+						"pattern": "[0-9]"
+					}
+				},
+				"required": ["slug"]
+			},
+			"tests": [
+				{
+					"description": "Matches",
+					"input": {
+						"slug": "buy-milk"
+					},
+					"valid": true,
+					"data": {
+						"slug": "buy-milk"
+					}
+				},
+				{
+					"description": "A pattern is not anchored: it can match part of the string",
+					"input": {
+						"slug": "a",
+						"code": "a1b"
+					},
+					"valid": true,
+					"data": {
+						"slug": "a",
+						"code": "a1b"
+					}
+				},
+				{
+					"description": "Does not match",
+					"input": {
+						"slug": "Buy Milk"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "slug: Invalid string: must match pattern /^[a-z]+(-[a-z]+)*$/. Expected fields: slug, code",
+						"details": {
+							"errors": [
+								{
+									"path": "slug",
+									"message": "Invalid string: must match pattern /^[a-z]+(-[a-z]+)*$/",
+									"code": "invalid_format"
+								}
+							],
+							"expectedFields": ["slug", "code"]
+						}
+					}
+				},
+				{
+					"description": "Matches nowhere in the string",
+					"input": {
+						"slug": "a",
+						"code": "abc"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "code: Invalid string: must match pattern /[0-9]/. Expected fields: slug, code",
+						"details": {
+							"errors": [
+								{
+									"path": "code",
+									"message": "Invalid string: must match pattern /[0-9]/",
+									"code": "invalid_format"
+								}
+							],
+							"expectedFields": ["slug", "code"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "format",
+			"section": "optional-keywords",
+			"optionalKeywords": ["format", "pattern"],
+			"description": "format, which TypeScript emits together with a pattern that enforces it.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"email": {
+						"type": "string",
+						"format": "email",
+						"pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+					},
+					"id": {
+						"type": "string",
+						"format": "uuid",
+						"pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+					},
+					"at": {
+						"type": "string",
+						"format": "date-time",
+						"pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+					}
+				}
+			},
+			"tests": [
+				{
+					"description": "Valid values",
+					"input": {
+						"email": "ada@example.com",
+						"id": "123e4567-e89b-12d3-a456-426614174000",
+						"at": "2026-09-27T12:00:00Z"
+					},
+					"valid": true,
+					"data": {
+						"email": "ada@example.com",
+						"id": "123e4567-e89b-12d3-a456-426614174000",
+						"at": "2026-09-27T12:00:00Z"
+					}
+				},
+				{
+					"description": "An invalid email",
+					"input": {
+						"email": "ada"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "email: Invalid email address. Expected fields: email, id, at",
+						"details": {
+							"errors": [
+								{
+									"path": "email",
+									"message": "Invalid email address",
+									"code": "invalid_format"
+								}
+							],
+							"expectedFields": ["email", "id", "at"]
+						}
+					}
+				},
+				{
+					"description": "An invalid UUID",
+					"input": {
+						"id": "123"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "id: Invalid UUID. Expected fields: email, id, at",
+						"details": {
+							"errors": [
+								{
+									"path": "id",
+									"message": "Invalid UUID",
+									"code": "invalid_format"
+								}
+							],
+							"expectedFields": ["email", "id", "at"]
+						}
+					}
+				},
+				{
+					"description": "An invalid date-time",
+					"input": {
+						"at": "2026-09-27"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "at: Invalid ISO datetime. Expected fields: email, id, at",
+						"details": {
+							"errors": [
+								{
+									"path": "at",
+									"message": "Invalid ISO datetime",
+									"code": "invalid_format"
+								}
+							],
+							"expectedFields": ["email", "id", "at"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "const",
+			"section": "optional-keywords",
+			"optionalKeywords": ["const"],
+			"description": "const. A mismatch is invalid_value, even when the value has another type.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"version": {
+						"type": "string",
+						"const": "v1"
+					}
+				},
+				"required": ["version"]
+			},
+			"tests": [
+				{
+					"description": "Equal",
+					"input": {
+						"version": "v1"
+					},
+					"valid": true,
+					"data": {
+						"version": "v1"
+					}
+				},
+				{
+					"description": "Another value",
+					"input": {
+						"version": "v2"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "version: Invalid input: expected \"v1\". Expected fields: version",
+						"details": {
+							"errors": [
+								{
+									"path": "version",
+									"message": "Invalid input: expected \"v1\"",
+									"code": "invalid_value"
+								}
+							],
+							"expectedFields": ["version"]
+						}
+					}
+				},
+				{
+					"description": "Another type",
+					"input": {
+						"version": 1
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "version: Invalid input: expected \"v1\". Expected fields: version",
+						"details": {
+							"errors": [
+								{
+									"path": "version",
+									"message": "Invalid input: expected \"v1\"",
+									"code": "invalid_value"
+								}
+							],
+							"expectedFields": ["version"]
+						}
+					}
+				},
+				{
+					"description": "Absent",
+					"input": {},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "version: Invalid input: expected \"v1\". Missing required field(s): version. Expected fields: version",
+						"details": {
+							"errors": [
+								{
+									"path": "version",
+									"message": "Invalid input: expected \"v1\"",
+									"code": "invalid_value"
+								}
+							],
+							"expectedFields": ["version"],
+							"missingFields": ["version"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "any-of",
+			"section": "optional-keywords",
+			"optionalKeywords": ["anyOf"],
+			"description": "anyOf. The first branch that matches gives the result, with its unknown keys removed. TypeScript emits anyOf for a union of objects and for a nullable object.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"target": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"id": {
+										"type": "string"
+									}
+								},
+								"required": ["id"]
+							},
+							{
+								"type": "object",
+								"properties": {
+									"name": {
+										"type": "string"
+									}
+								},
+								"required": ["name"]
+							}
+						]
+					},
+					"parent": {
+						"anyOf": [
+							{
+								"type": "object",
+								"properties": {
+									"id": {
+										"type": "string"
+									}
+								},
+								"required": ["id"]
+							},
+							{
+								"type": "null"
+							}
+						]
+					}
+				},
+				"required": ["target"]
+			},
+			"tests": [
+				{
+					"description": "The first branch",
+					"input": {
+						"target": {
+							"id": "a",
+							"extra": 1
+						}
+					},
+					"valid": true,
+					"data": {
+						"target": {
+							"id": "a"
+						}
+					}
+				},
+				{
+					"description": "The second branch",
+					"input": {
+						"target": {
+							"name": "n"
+						}
+					},
+					"valid": true,
+					"data": {
+						"target": {
+							"name": "n"
+						}
+					}
+				},
+				{
+					"description": "Both branches match: the first wins",
+					"input": {
+						"target": {
+							"id": "a",
+							"name": "n"
+						}
+					},
+					"valid": true,
+					"data": {
+						"target": {
+							"id": "a"
+						}
+					}
+				},
+				{
+					"description": "No branch matches",
+					"input": {
+						"target": {
+							"x": 1
+						}
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "target: Invalid input. Expected fields: target, parent",
+						"details": {
+							"errors": [
+								{
+									"path": "target",
+									"message": "Invalid input",
+									"code": "invalid_union"
+								}
+							],
+							"expectedFields": ["target", "parent"]
+						}
+					}
+				},
+				{
+					"description": "A nullable object",
+					"input": {
+						"target": {
+							"id": "a"
+						},
+						"parent": null
+					},
+					"valid": true,
+					"data": {
+						"target": {
+							"id": "a"
+						},
+						"parent": null
+					}
+				},
+				{
+					"description": "A nullable object with a value",
+					"input": {
+						"target": {
+							"id": "a"
+						},
+						"parent": {
+							"id": "p",
+							"z": 1
+						}
+					},
+					"valid": true,
+					"data": {
+						"target": {
+							"id": "a"
+						},
+						"parent": {
+							"id": "p"
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "one-of",
+			"section": "optional-keywords",
+			"optionalKeywords": ["oneOf", "const"],
+			"description": "oneOf: exactly one branch must match. When every branch is an object with a const property in common, TypeScript reports the issues of the branch that property selects.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"value": {
+						"oneOf": [
+							{
+								"type": "number"
+							},
+							{
+								"type": "integer",
+								"minimum": -9007199254740991,
+								"maximum": 9007199254740991
+							}
+						]
+					},
+					"shape": {
+						"oneOf": [
+							{
+								"type": "object",
+								"properties": {
+									"kind": {
+										"type": "string",
+										"const": "circle"
+									},
+									"r": {
+										"type": "number"
+									}
+								},
+								"required": ["kind", "r"]
+							},
+							{
+								"type": "object",
+								"properties": {
+									"kind": {
+										"type": "string",
+										"const": "square"
+									},
+									"side": {
+										"type": "number"
+									}
+								},
+								"required": ["kind", "side"]
+							}
+						]
+					}
+				}
+			},
+			"tests": [
+				{
+					"description": "Exactly one branch matches",
+					"input": {
+						"value": 1.5
+					},
+					"valid": true,
+					"data": {
+						"value": 1.5
+					}
+				},
+				{
+					"description": "Two branches match",
+					"input": {
+						"value": 1
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "value: Invalid input: more than one option matched. Expected fields: value, shape",
+						"details": {
+							"errors": [
+								{
+									"path": "value",
+									"message": "Invalid input: more than one option matched",
+									"code": "invalid_union"
+								}
+							],
+							"expectedFields": ["value", "shape"]
+						}
+					}
+				},
+				{
+					"description": "No branch matches",
+					"input": {
+						"value": "x"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "value: Invalid input. Expected fields: value, shape",
+						"details": {
+							"errors": [
+								{
+									"path": "value",
+									"message": "Invalid input",
+									"code": "invalid_union"
+								}
+							],
+							"expectedFields": ["value", "shape"]
+						}
+					}
+				},
+				{
+					"description": "A discriminated branch",
+					"input": {
+						"shape": {
+							"kind": "square",
+							"side": 2,
+							"extra": 1
+						}
+					},
+					"valid": true,
+					"data": {
+						"shape": {
+							"kind": "square",
+							"side": 2
+						}
+					}
+				},
+				{
+					"description": "An issue in the selected branch",
+					"input": {
+						"shape": {
+							"kind": "circle",
+							"r": "x"
+						}
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "shape.r: Invalid input: expected number, received string. Expected fields: value, shape",
+						"details": {
+							"errors": [
+								{
+									"path": "shape.r",
+									"message": "Invalid input: expected number, received string",
+									"code": "invalid_type",
+									"expected": "number"
+								}
+							],
+							"expectedFields": ["value", "shape"]
+						}
+					}
+				},
+				{
+					"description": "An unknown discriminator",
+					"input": {
+						"shape": {
+							"kind": "triangle"
+						}
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "shape.kind: Invalid discriminator value. Expected 'circle' | 'square'. Expected fields: value, shape",
+						"details": {
+							"errors": [
+								{
+									"path": "shape.kind",
+									"message": "Invalid discriminator value. Expected 'circle' | 'square'",
+									"code": "invalid_union"
+								}
+							],
+							"expectedFields": ["value", "shape"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "all-of",
+			"section": "optional-keywords",
+			"optionalKeywords": ["allOf"],
+			"description": "allOf: every branch must match. TypeScript also emits a one-branch allOf around the $ref of an optional or defaulted reused schema.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"code": {
+						"allOf": [
+							{
+								"type": "string",
+								"minLength": 2
+							},
+							{
+								"type": "string",
+								"maxLength": 4
+							}
+						]
+					},
+					"parent": {
+						"allOf": [
+							{
+								"$ref": "#/definitions/TodoId"
+							}
+						]
+					}
+				},
+				"required": ["code"],
+				"definitions": {
+					"TodoId": {
+						"type": "string",
+						"minLength": 1
+					}
+				}
+			},
+			"tests": [
+				{
+					"description": "Both match",
+					"input": {
+						"code": "abc",
+						"parent": "a"
+					},
+					"valid": true,
+					"data": {
+						"code": "abc",
+						"parent": "a"
+					}
+				},
+				{
+					"description": "The first fails",
+					"input": {
+						"code": "a"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "code: Too small: expected string to have >=2 characters. Expected fields: code, parent",
+						"details": {
+							"errors": [
+								{
+									"path": "code",
+									"message": "Too small: expected string to have >=2 characters",
+									"code": "too_small"
+								}
+							],
+							"expectedFields": ["code", "parent"]
+						}
+					}
+				},
+				{
+					"description": "The second fails",
+					"input": {
+						"code": "abcde"
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "code: Too big: expected string to have <=4 characters. Expected fields: code, parent",
+						"details": {
+							"errors": [
+								{
+									"path": "code",
+									"message": "Too big: expected string to have <=4 characters",
+									"code": "too_big"
+								}
+							],
+							"expectedFields": ["code", "parent"]
+						}
+					}
+				},
+				{
+					"description": "A reference wrapped in allOf",
+					"input": {
+						"code": "abc",
+						"parent": ""
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "parent: Too small: expected string to have >=1 characters. Expected fields: code, parent",
+						"details": {
+							"errors": [
+								{
+									"path": "parent",
+									"message": "Too small: expected string to have >=1 characters",
+									"code": "too_small"
+								}
+							],
+							"expectedFields": ["code", "parent"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "not",
+			"section": "optional-keywords",
+			"optionalKeywords": ["not"],
+			"description": "not. TypeScript emits only not: {} (z.never()), which no value satisfies; its issue has expected \"never\".",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"legacy": {
+						"not": {}
+					}
+				}
+			},
+			"tests": [
+				{
+					"description": "Absent",
+					"input": {},
+					"valid": true,
+					"data": {}
+				},
+				{
+					"description": "Present",
+					"input": {
+						"legacy": 1
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "legacy: Invalid input: expected never, received number. Expected fields: legacy",
+						"details": {
+							"errors": [
+								{
+									"path": "legacy",
+									"message": "Invalid input: expected never, received number",
+									"code": "invalid_type",
+									"expected": "never"
+								}
+							],
+							"expectedFields": ["legacy"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "multiple-of",
+			"section": "optional-keywords",
+			"optionalKeywords": ["multipleOf"],
+			"description": "multipleOf.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"step": {
+						"type": "number",
+						"multipleOf": 5
+					}
+				},
+				"required": ["step"]
+			},
+			"tests": [
+				{
+					"description": "A multiple",
+					"input": {
+						"step": 10
+					},
+					"valid": true,
+					"data": {
+						"step": 10
+					}
+				},
+				{
+					"description": "Not a multiple",
+					"input": {
+						"step": 7
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "step: Invalid number: must be a multiple of 5. Expected fields: step",
+						"details": {
+							"errors": [
+								{
+									"path": "step",
+									"message": "Invalid number: must be a multiple of 5",
+									"code": "not_multiple_of"
+								}
+							],
+							"expectedFields": ["step"]
+						}
+					}
+				}
+			]
+		}
+	]
+}
