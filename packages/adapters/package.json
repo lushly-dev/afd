@@ -31,7 +31,7 @@
 		"vitest": "^4.1.11"
 	},
 	"peerDependencies": {
-		"@lushly-dev/afd-core": ">=2.0.0"
+		"@lushly-dev/afd-core": "workspace:^"
 	},
 	"keywords": [
 		"afd",

@@ -54,25 +54,25 @@ Every release, whatever the implementation:
 - [ ] The implementation's CI is green on `main`: `ci.yml` (TypeScript), `python.yml`, `rust.yml` or `cpp.yml`, and `conformance.yml`.
 - [ ] Its changelog has a dated section for the version, with breaking changes first and migration notes for each.
 - [ ] The version is changed everywhere the track lists below.
-- [ ] `docs/language-parity.md`: the implementation's column in the **Version** row shows the new version, the **Distribution** row is still true (for example after the first crates.io release or the first C++ tag), and the **Updated** date is today.
+- [ ] `docs/language-parity.md`: the implementation's column in the **Version** row shows the new version (`node scripts/check-versions.mjs --write` sets it from the manifest), the **Distribution** row is still true (for example after the first crates.io release or the first C++ tag), and the **Updated** date is today.
 - [ ] Contract version checked, once `spec/VERSION` exists.
 - [ ] After the maintainer tags or merges: the package is installable and the tag exists.
 
 ## TypeScript (npm, Changesets)
 
 1. **During development:** each pull request that changes a published `@lushly-dev/*` package adds a changeset with `pnpm changeset` (patch, minor or major) and commits the file in `.changeset/`.
-2. **Version PR:** on every push to `main`, `release.yml` runs `pnpm check`. If changesets are pending, `changesets/action` opens a "chore: release packages" pull request that runs `pnpm version-packages`: it bumps all nine packages to one version and writes their changelogs.
+2. **Version PR:** on every push to `main`, `release.yml` runs `pnpm check`. If changesets are pending, `changesets/action` opens a "chore: release packages" pull request that runs `pnpm version-packages`: `changeset version` bumps all nine packages to one version and writes their changelogs, then `node scripts/check-versions.mjs --write` updates the TypeScript column of the Version row in `docs/language-parity.md`. The release commit therefore carries the docs change, and the `versions` pre-push hook, which runs when `changesets/action` pushes `changeset-release/main`, passes.
 3. **Publish:** merging that pull request runs `release.yml` again. With no changesets pending, it runs `pnpm publish:npm` (`changeset publish`), which publishes with provenance and creates the `@lushly-dev/<package>@X.Y.Z` tags and GitHub Releases.
-4. **Verify:** `npm view @lushly-dev/afd-core version`, then update the TypeScript column of the Version row in `docs/language-parity.md`.
+4. **Verify:** `npm view @lushly-dev/afd-core version`.
 
-Configuration is in `.changeset/config.json`: `"fixed": [["@lushly-dev/*"]]` keeps one version, `"access": "public"`, and `@changesets/changelog-github` links pull requests. Both automated steps need the npm credential and the Actions permission described in [Unblocking npm](#unblocking-npm).
+Configuration is in `.changeset/config.json`: `"fixed": [["@lushly-dev/*"]]` keeps one version, `"access": "public"`, and `@changesets/changelog-github` links pull requests. Internal peer dependencies use `workspace:^` (published as `^X.Y.Z`), and `onlyUpdatePeerDependentsWhenOutOfRange` (under `___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH`) stops Changesets from giving a peer dependent a major bump while the new version stays in range. Without both, any minor bump became a major one, and the fixed group spread it to all nine packages. Check `pnpm changeset status --verbose` before merging a changeset whose bump level matters. Both automated steps need the npm credential and the Actions permission described in [Unblocking npm](#unblocking-npm).
 
 ## Python (PyPI)
 
 1. Set the version in `python/pyproject.toml` and `__version__` in `python/src/afd/__init__.py`.
 2. Run `uv lock` in `python/`, `alfred/` and `packages/examples/todo/backends/python/`. All three lockfiles record the `afd` version, and `python.yml` runs `uv lock --check`.
 3. In `python/CHANGELOG.md`, date the release section, add an empty `## [Unreleased]` above it, and update its compare link.
-4. Update the Python column of the Version row in `docs/language-parity.md`.
+4. Run `node scripts/check-versions.mjs --write`. It updates the Python column of the Version row in `docs/language-parity.md` from `pyproject.toml`, and fails if `pyproject.toml` and `__version__` disagree.
 5. Commit `chore(python): release afd X.Y.Z`, open a pull request, and merge it after `python.yml` passes.
 6. **Maintainer:** tag the merge commit and push the tag.
    ```bash
@@ -90,7 +90,7 @@ Configuration is in `.changeset/config.json`: `"fixed": [["@lushly-dev/*"]]` kee
 1. Set the version in `packages/rust/Cargo.toml`.
 2. Date the release section in `packages/rust/CHANGELOG.md` and add an empty `## [Unreleased]` above it.
 3. Run `cd packages/rust && cargo publish --dry-run`, and the `rust.yml` checks: `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test`, and both again with `--no-default-features`.
-4. Update the Rust column of the Version row in `docs/language-parity.md`.
+4. Run `node scripts/check-versions.mjs --write`. It updates the Rust column of the Version row in `docs/language-parity.md` from `Cargo.toml`, and the README's Rust badge from `rust-version`.
 5. Commit `chore(rust): release afd X.Y.Z`, open a pull request, and merge it after `rust.yml` passes.
 6. **Maintainer:** tag the merge commit `rust-vX.Y.Z` and push the tag. `publish-rust.yml` checks that the tag matches `Cargo.toml`, runs `rust.yml`, and then runs `cargo publish` with a short-lived token from crates.io trusted publishing (`rust-lang/crates-io-auth-action`, environment `crates-io`). If crates.io already has that version, it skips the upload.
 7. **Verify:** <https://crates.io/crates/afd> and <https://docs.rs/afd>.
@@ -117,7 +117,7 @@ afd-cpp is on no registry. A release is a tag and a GitHub Release, and consumer
 
 1. Set `project(afd VERSION X.Y.Z)` in `packages/cpp/CMakeLists.txt`. It generates `afd/version.hpp`, and the CMake package uses `SameMinorVersion` compatibility.
 2. In `packages/cpp/CHANGELOG.md`, move `Unreleased` under the new version with the date, and add an empty `Unreleased` above it.
-3. Update the Version row in `docs/language-parity.md`. For the first release, `cpp-v0.1.0`, also remove "not cut yet" from the C++ README (status note, Using the package and the `FetchContent` example), the Distribution row in `docs/language-parity.md` and `docs/features/README.md`, and move the C++ proposal to `docs/features/complete/`.
+3. Run `node scripts/check-versions.mjs --write` to update the C++ column of the Version row in `docs/language-parity.md`. For the first release, `cpp-v0.1.0`, also remove "not cut yet" from the C++ README (status note, Using the package and the `FetchContent` example), the Distribution row in `docs/language-parity.md` and `docs/features/README.md`, and move the C++ proposal to `docs/features/complete/`.
 4. Merge after `cpp.yml` and `conformance.yml` pass on `main`.
 5. **Maintainer:** tag the merge commit `cpp-vX.Y.Z`, push the tag, and create a GitHub Release from the changelog section.
 
@@ -137,9 +137,9 @@ These steps change security settings, so the maintainer does them, in this order
 3. **Publish 2.0.0.** Re-run the failed Release run [35950563235](https://github.com/lushly-dev/afd/actions/runs/35950563235) for `b4a94e6` (Re-run all jobs, or `gh run rerun 35950563235`).
    - `b4a94e6` has no pending changesets, so Changesets publishes and tags exactly 2.0.0.
    - A re-run uses `release.yml` as it was at `b4a94e6`, which passes `NPM_TOKEN` as `NODE_AUTH_TOKEN` and requests `id-token: write`, so either credential from step 1 applies.
-   - Do not wait for a new push instead: `main` has a pending changeset, so a Release run there opens the 2.0.1 version pull request, and 2.0.0 would never reach npm.
+   - Do not wait for a new push instead: `main` has a pending changeset, so a Release run there opens the 2.1.0 version pull request, and 2.0.0 would never reach npm.
    - GitHub allows a re-run for 30 days after the original run, which started on 2026-09-24.
-4. **Next:** the following push to `main` opens the 2.0.1 release pull request. Check `npm view @lushly-dev/afd-core version` and the `@lushly-dev/*@2.0.0` tags.
+4. **Next:** the following push to `main` opens the 2.1.0 release pull request. Check `npm view @lushly-dev/afd-core version` and the `@lushly-dev/*@2.0.0` tags.
 
 ## Reference
 

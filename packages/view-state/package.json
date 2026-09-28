@@ -54,7 +54,7 @@
 		"zod": "^4.5.4"
 	},
 	"peerDependencies": {
-		"@lushly-dev/local-db": "workspace:*"
+		"@lushly-dev/local-db": "workspace:^"
 	},
 	"peerDependenciesMeta": {
 		"@lushly-dev/local-db": {
