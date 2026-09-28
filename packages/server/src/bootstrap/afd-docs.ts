@@ -95,6 +95,20 @@ export function createAfdDocsCommand(
 						lines.push('');
 					}
 
+					// Safety metadata
+					if (cmd.destructive !== undefined) {
+						lines.push(`**Destructive:** ${cmd.destructive ? 'Yes' : 'No'}`);
+						lines.push('');
+					}
+					if (cmd.confirmPrompt) {
+						lines.push(`**Confirmation prompt:** ${cmd.confirmPrompt}`);
+						lines.push('');
+					}
+					if (cmd.undoable !== undefined) {
+						lines.push(`**Undoable:** ${cmd.undoable ? 'Yes' : 'No'}`);
+						lines.push('');
+					}
+
 					// Parameters
 					const parameters =
 						cmd.parameters ?? (cmd.jsonSchema ? jsonSchemaToParameters(cmd.jsonSchema) : []);

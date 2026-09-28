@@ -1,19 +1,30 @@
 # Todo Example Specification
 
-This directory contains the shared API contract for the Todo example. All backend implementations (TypeScript, Python, etc.) must follow this specification to ensure interoperability with all frontend implementations (Vanilla JS, React, etc.).
+This directory contains the shared API contract for the Todo example. All four backend implementations (TypeScript, Python, Rust and C++) must follow this specification to ensure interoperability with all frontend implementations (Vanilla JS, React, etc.).
 
 ## Files
 
 - `commands.schema.json`: JSON Schema defining the input and output for all 11 commands,
-  keyed by MCP tool name. The TypeScript and Python test suites fail if it does not list
-  exactly the commands their backend defines.
+  keyed by MCP tool name. The TypeScript, Python and C++ backend test suites fail if it does
+  not list exactly the commands their backend defines; the C++ backend also validates every
+  input against it. The Rust backend has no such check.
 - `test-cases.json`: Conformance test cases used to verify backend implementations.
 - `README.md`: This file.
 
 ## Conformance Test Cases
 
-`pnpm test:conformance:ts` and `pnpm test:conformance:py` (from `packages/examples/todo`) start a
-backend over stdio with an in-memory store and run every case in `test-cases.json`. Before each
+Each backend has a script (run from `packages/examples/todo`) that starts it with an in-memory
+store and runs every case in `test-cases.json`:
+
+| Backend | Script | Transport |
+|---------|--------|-----------|
+| TypeScript | `pnpm test:conformance:ts` | MCP over stdio |
+| Python | `pnpm test:conformance:py` | MCP over stdio |
+| Rust | `pnpm test:conformance:rs` | MCP streamable HTTP, on a free local port |
+| C++ | `pnpm test:conformance:cpp` | MCP over stdio |
+
+The Rust script needs a Rust toolchain (`backends/rust/rust-toolchain.toml` pins it). The C++
+script needs CMake 3.25+ and a C++20 compiler; it builds `todo-server-cpp` first. Before each
 case the runner calls `todo-clear` with `{ "all": true }`, then runs the `setup` steps (a step's
 `capture` stores its `data`, which later inputs reference as `"$name.field"`), then the command.
 

@@ -1,14 +1,17 @@
-"""alfred_parity — Cross-language API surface and wire-shape sync.
+"""alfred_parity — Cross-language API surface, wire-shape and contract-version sync.
 
-Two checks:
+Three checks:
 
-- **Name parity.** Parses the public exports of the TypeScript, Python and Rust
-  entry points, normalizes naming conventions, and reports names missing from
+- **Name parity.** Parses the public exports of the TypeScript, Python, Rust and
+  C++ entry points, normalizes naming conventions, and reports names missing from
   each language (TypeScript is the source of truth).
 - **Wire shapes.** For every golden fixture in ``spec/wire/*.json``, verifies
-  that the TypeScript, Python and Rust round-trip test suites exist and
+  that the TypeScript, Python, Rust and C++ round-trip test suites exist and
   reference it. The suites themselves assert that each language parses and
   re-serializes the fixture unchanged (see ``spec/wire/README.md``).
+- **Contract version.** Reads ``spec/VERSION`` and the contract version constant
+  each language declares, and reports a constant that is missing or differs
+  (see ``spec/CHANGELOG.md``).
 """
 
 from __future__ import annotations
@@ -38,11 +41,14 @@ class ParityReport:
     typescript: list[ExportEntry] = field(default_factory=list)
     python: list[ExportEntry] = field(default_factory=list)
     rust: list[ExportEntry] = field(default_factory=list)
+    cpp: list[ExportEntry] = field(default_factory=list)
     missing_from_python: list[str] = field(default_factory=list)
     missing_from_rust: list[str] = field(default_factory=list)
+    missing_from_cpp: list[str] = field(default_factory=list)
     missing_from_typescript: list[str] = field(default_factory=list)
     extra_in_python: list[str] = field(default_factory=list)
     extra_in_rust: list[str] = field(default_factory=list)
+    extra_in_cpp: list[str] = field(default_factory=list)
     extra_in_typescript: list[str] = field(default_factory=list)
 
 
@@ -79,6 +85,11 @@ def _dedupe(entries: list[ExportEntry]) -> list[ExportEntry]:
     return unique
 
 
+# The contract version constant of each language. The contract-version check compares their
+# values with spec/VERSION, so name parity skips them: TypeScript's `AFD_CONTRACT_VERSION` carries
+# the `afd` namespace in its name and would otherwise not match `CONTRACT_VERSION`.
+_CONTRACT_VERSION_NAMES = {"AFD_CONTRACT_VERSION", "CONTRACT_VERSION", "contract_version"}
+
 # Names to exclude from parity checks (language-specific internals)
 _SKIP_NAMES = {
     "__version__",
@@ -86,6 +97,7 @@ _SKIP_NAMES = {
     "version",
     "is_native",
     "is_wasm",
+    *_CONTRACT_VERSION_NAMES,
 }
 
 # Names that are platform/connector-specific (only in TS, not expected elsewhere)
@@ -538,6 +550,189 @@ def parse_rust_exports(
     return _dedupe(entries)
 
 
+# ─── C++ ─────────────────────────────────────────────────────────────────────
+
+_CPP_INCLUDE_RE = re.compile(r'^[ \t]*#[ \t]*include[ \t]*"(afd/[^"]+)"', re.M)
+_CPP_IDENTIFIER_RE = re.compile(r"[A-Za-z_]\w*")
+_CPP_ATTRIBUTE_RE = re.compile(r"\[\[.*?\]\]", re.S)
+_CPP_NAMESPACE_RE = re.compile(r"\bnamespace\s+([A-Za-z_][\w:]*)?\s*$")
+_CPP_NOT_A_NAME = {
+    "if", "for", "while", "switch", "return", "sizeof", "decltype", "alignas", "alignof",
+    "noexcept", "requires", "static_assert", "operator", "typename", "new", "delete", "catch",
+}
+# C++ idioms with no TypeScript counterpart: nlohmann's ADL hooks, the JSON alias, the C++23
+# std::expected stand-in, and the version constants.
+_CPP_SKIP_NAMES = {
+    "to_json", "from_json", "Json", "Expected", "Unexpected", "unexpected",
+    "header_version", "library_version",
+}
+
+
+def _blank_cpp_code(content: str) -> str:
+    """Blank out C++ comments, string and character literal contents, and preprocessor lines.
+
+    Handles raw strings (``R"x(...)x"``) and keeps newlines, so a ``{``, ``}``, ``;`` or ``//``
+    inside a literal never reaches the scope scanner.
+    """
+    out = list(content)
+    i, n = 0, len(content)
+
+    def blank(start: int, end: int) -> None:
+        for j in range(start, min(end, n)):
+            if out[j] != "\n":
+                out[j] = " "
+
+    at_line_start = True
+    while i < n:
+        ch = content[i]
+        if at_line_start and ch == "#":
+            end = i
+            while end < n and content[end] != "\n":  # directives may continue with a backslash
+                end += 2 if content[end] == "\\" and end + 1 < n else 1
+            blank(i, end)
+            i = end
+            continue
+        if ch == "\n":
+            at_line_start = True
+            i += 1
+            continue
+        if not ch.isspace():
+            at_line_start = False
+        if content.startswith("//", i):
+            end = content.find("\n", i)
+            end = n if end < 0 else end
+            blank(i, end)
+            i = end
+        elif content.startswith("/*", i):
+            end = content.find("*/", i + 2)
+            end = n if end < 0 else end + 2
+            blank(i, end)
+            i = end
+        elif ch == "R" and content.startswith('"', i + 1) and (i == 0 or not content[i - 1].isalnum()):
+            open_paren = content.find("(", i + 2)
+            delimiter = content[i + 2 : open_paren] if open_paren >= 0 else ""
+            close = content.find(")" + delimiter + '"', open_paren)
+            end = n if open_paren < 0 or close < 0 else close + len(delimiter) + 2
+            blank(i + 2, end - 1)
+            i = end
+        elif ch == '"' or (ch == "'" and not (i > 0 and content[i - 1].isalnum())):
+            j = i + 1
+            while j < n and content[j] != ch and content[j] != "\n":
+                j += 2 if content[j] == "\\" else 1
+            blank(i + 1, j)
+            i = j + 1
+        else:
+            i += 1
+    return "".join(out)
+
+
+def _strip_template_heads(statement: str) -> str:
+    """Remove leading ``template <...>`` heads (angle brackets balanced)."""
+    s = statement.lstrip()
+    while s.startswith("template"):
+        start = s.find("<")
+        if start < 0:
+            break
+        depth, j = 0, start
+        while j < len(s):
+            depth += {"<": 1, ">": -1}.get(s[j], 0)
+            j += 1
+            if depth == 0:
+                break
+        s = s[j:].lstrip()
+    return s
+
+
+def _cpp_declared_name(statement: str) -> tuple[str, str] | None:
+    """The ``(name, kind)`` a namespace-scope C++ declaration introduces, if any."""
+    s = _strip_template_heads(_CPP_ATTRIBUTE_RE.sub(" ", statement)).strip()
+    if not s or s.startswith(("using namespace", "static_assert", "friend", "extern")):
+        return None
+    if m := re.match(r"(?:struct|class|union)\s+([A-Za-z_]\w*)", s):
+        return m.group(1), "type"
+    if m := re.match(r"enum\s+(?:class\s+|struct\s+)?([A-Za-z_]\w*)", s):
+        return m.group(1), "type"
+    if m := re.match(r"using\s+([A-Za-z_]\w*)\s*=", s):
+        return m.group(1), "type"
+    if m := re.search(r"\bconstexpr\b[^=(]*?\b([A-Za-z_]\w*)\s*(?:\[[^\]]*\])?\s*=", s):
+        return m.group(1), "function"
+    if "(" in s:
+        names = _CPP_IDENTIFIER_RE.findall(s[: s.index("(")])
+        if names and names[-1] not in _CPP_NOT_A_NAME and "operator" not in names:
+            return names[-1], "function"
+    return None
+
+
+def parse_cpp_exports(
+    content: str,
+    include_dir: Path | None = None,
+    _visited: set[Path] | None = None,
+) -> list[ExportEntry]:
+    """Parse the public surface of a C++ header (e.g. ``afd/afd.hpp``).
+
+    Collects what is declared directly in ``namespace afd``: classes, structs, enums, ``using``
+    aliases, ``constexpr`` constants and free functions (overloads count once). A nested public
+    namespace (``afd::error_codes``) is one export under its own name; ``afd::detail`` is skipped.
+    Class members and function bodies are ignored. ``#include "afd/..."`` directives are followed
+    into ``include_dir`` when given; missing headers (such as the generated ``version.hpp``) are
+    skipped. Comments, string contents and preprocessor lines are ignored.
+    """
+    visited = _visited if _visited is not None else set()
+    entries: list[ExportEntry] = []
+
+    if include_dir is not None:
+        for m in _CPP_INCLUDE_RE.finditer(content):
+            header = include_dir / m.group(1)
+            if header.is_file() and header not in visited:
+                visited.add(header)
+                entries.extend(
+                    parse_cpp_exports(header.read_text(encoding="utf-8"), include_dir, visited)
+                )
+
+    code = _blank_cpp_code(content)
+    scopes: list[str | None] = []  # a namespace name, or None for any other brace scope
+    statement_start = 0
+    parens = 0
+
+    def in_afd() -> bool:
+        return scopes == ["afd"]
+
+    def record(name: str, kind: str) -> None:
+        if name not in _CPP_SKIP_NAMES and name not in _SKIP_NAMES:
+            entries.append(_entry(name, kind))
+
+    for i, ch in enumerate(code):
+        if ch == "(":
+            parens += 1
+        elif ch == ")":
+            parens = max(0, parens - 1)
+        elif parens > 0:
+            continue  # braces and semicolons inside parentheses belong to the statement
+        elif ch == "{":
+            head = code[statement_start:i]
+            namespace = _CPP_NAMESPACE_RE.search(head)
+            if namespace:
+                names = (namespace.group(1) or "").split("::")
+                if in_afd() and names[0] and names[0] != "detail":
+                    record(names[0], "function")
+                scopes.append("::".join(names))  # `namespace a::b {` closes with one brace
+            else:
+                if in_afd() and (declared := _cpp_declared_name(head)):
+                    record(*declared)
+                scopes.append(None)
+            statement_start = i + 1
+        elif ch == "}":
+            if scopes:
+                scopes.pop()
+            statement_start = i + 1
+        elif ch == ";":
+            if in_afd() and (declared := _cpp_declared_name(code[statement_start:i])):
+                record(*declared)
+            statement_start = i + 1
+
+    return _dedupe(entries)
+
+
 # ─── Wire fixture coverage ───────────────────────────────────────────────────
 
 WIRE_FIXTURE_DIR = Path("spec") / "wire"
@@ -547,6 +742,7 @@ WIRE_ROUND_TRIP_TESTS = {
     "typescript": Path("packages") / "server" / "src" / "wire-fixtures.test.ts",
     "python": Path("python") / "tests" / "test_wire_fixtures.py",
     "rust": Path("packages") / "rust" / "tests" / "wire_fixtures.rs",
+    "cpp": Path("packages") / "cpp" / "tests" / "wire_fixtures_test.cpp",
 }
 
 
@@ -602,6 +798,99 @@ def check_wire_fixtures(root: Path) -> dict:
     return report
 
 
+# ─── Contract version ────────────────────────────────────────────────────────
+
+CONTRACT_VERSION_FILE = Path("spec") / "VERSION"
+
+# Where each language declares the AFD contract version it implements, and how to read it.
+CONTRACT_VERSION_SOURCES = {
+    "typescript": Path("packages") / "core" / "src" / "contract.ts",
+    "python": Path("python") / "src" / "afd" / "core" / "contract.py",
+    "rust": Path("packages") / "rust" / "src" / "lib.rs",
+    "cpp": Path("packages") / "cpp" / "cmake" / "version.hpp.in",
+}
+_CONTRACT_VERSION_PATTERNS = {
+    "typescript": re.compile(
+        r"\bexport\s+const\s+AFD_CONTRACT_VERSION\b[^=]*=\s*(['\"])([^'\"\n]*)\1"
+    ),
+    "rust": re.compile(r"\bpub\s+const\s+CONTRACT_VERSION\s*:[^=]*=\s*(\")([^\"\n]*)\""),
+    "cpp": re.compile(r"\bconstexpr\b[^;=]*\bcontract_version\s*=\s*(\")([^\"\n]*)\""),
+}
+
+
+def _python_contract_version(content: str) -> str | None:
+    """The string assigned to a module-level ``CONTRACT_VERSION``, if any."""
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return None
+    for stmt in tree.body:
+        if isinstance(stmt, ast.Assign):
+            targets, value = stmt.targets, stmt.value
+        elif isinstance(stmt, ast.AnnAssign) and stmt.value is not None:
+            targets, value = [stmt.target], stmt.value
+        else:
+            continue
+        if any(isinstance(t, ast.Name) and t.id == "CONTRACT_VERSION" for t in targets) and (
+            isinstance(value, ast.Constant) and isinstance(value.value, str)
+        ):
+            return value.value
+    return None
+
+
+def read_contract_version(language: str, content: str) -> str | None:
+    """The contract version ``content`` (a source file of ``language``) declares, if any.
+
+    Comments are ignored, so a commented-out declaration does not count.
+    """
+    if language == "python":
+        return _python_contract_version(content)
+    code = _strip_comments(content, rust=language == "rust")
+    m = _CONTRACT_VERSION_PATTERNS[language].search(code)
+    return m.group(2) if m else None
+
+
+def check_contract_version(root: Path) -> dict:
+    """Check that every language declares the contract version in ``spec/VERSION``.
+
+    A missing or empty ``spec/VERSION``, a language whose constant is not found, and a
+    language whose constant differs each count as one gap.
+    """
+    report: dict = {
+        "spec_file": CONTRACT_VERSION_FILE.as_posix(),
+        "expected": None,
+        "sources": {lang: path.as_posix() for lang, path in CONTRACT_VERSION_SOURCES.items()},
+        "versions": {},
+        "missing": [],
+        "mismatched": [],
+        "gaps": 0,
+    }
+    spec_file = root / CONTRACT_VERSION_FILE
+    expected = spec_file.read_text(encoding="utf-8").strip() if spec_file.is_file() else ""
+    if expected:
+        report["expected"] = expected
+    else:
+        report["missing_spec_version"] = True
+
+    for lang, relative in CONTRACT_VERSION_SOURCES.items():
+        source = root / relative
+        version = (
+            read_contract_version(lang, source.read_text(encoding="utf-8"))
+            if source.is_file()
+            else None
+        )
+        report["versions"][lang] = version
+        if version is None:
+            report["missing"].append(lang)
+        elif expected and version != expected:
+            report["mismatched"].append(lang)
+
+    report["gaps"] = (
+        (0 if expected else 1) + len(report["missing"]) + len(report["mismatched"])
+    )
+    return report
+
+
 # ─── Diffing ─────────────────────────────────────────────────────────────────
 
 
@@ -609,13 +898,16 @@ def _diff_exports(
     ts: list[ExportEntry],
     py: list[ExportEntry],
     rs: list[ExportEntry],
+    cpp: list[ExportEntry] | None = None,
 ) -> ParityReport:
     """Compare normalized export sets across languages."""
-    report = ParityReport(typescript=ts, python=py, rust=rs)
+    cpp = cpp or []
+    report = ParityReport(typescript=ts, python=py, rust=rs, cpp=cpp)
 
     ts_names = {e.normalized for e in ts}
     py_names = {e.normalized for e in py}
     rs_names = {e.normalized for e in rs}
+    cpp_names = {e.normalized for e in cpp}
 
     # Filter out TS-only platform utilities
     ts_core = {n for n in ts_names if n not in _TS_ONLY_PREFIXES}
@@ -623,12 +915,14 @@ def _diff_exports(
     # Missing from each language (relative to TS as source of truth)
     report.missing_from_python = sorted(ts_core - py_names)
     report.missing_from_rust = sorted(ts_core - rs_names)
-    report.missing_from_typescript = sorted((py_names | rs_names) - ts_names)
+    report.missing_from_cpp = sorted(ts_core - cpp_names) if cpp else []
+    report.missing_from_typescript = sorted((py_names | rs_names | cpp_names) - ts_names)
 
     # Extra in each language (not in TS core)
     report.extra_in_python = sorted(py_names - ts_core)
     report.extra_in_rust = sorted(rs_names - ts_core)
-    report.extra_in_typescript = sorted(ts_names - ts_core - py_names - rs_names)
+    report.extra_in_cpp = sorted(cpp_names - ts_core)
+    report.extra_in_typescript = sorted(ts_names - ts_core - py_names - rs_names - cpp_names)
 
     return report
 
@@ -637,27 +931,29 @@ def _diff_exports(
 
 
 async def alfred_parity(path: str | None = None) -> CommandResult[dict]:
-    """Check cross-language API surface and wire-shape parity (TS, Python, Rust).
+    """Check cross-language API surface, wire-shape and contract-version parity.
 
-    Parses public exports from each language's entry point, normalizes
-    naming conventions (camelCase → snake_case), and reports gaps. Also checks
-    that every golden fixture in ``spec/wire`` is round-tripped by the
-    TypeScript, Python and Rust test suites.
+    Parses public exports from each language's entry point (TS, Python, Rust,
+    C++), normalizes naming conventions (camelCase → snake_case), and reports
+    gaps. Also checks that every golden fixture in ``spec/wire`` is
+    round-tripped by the TypeScript, Python, Rust and C++ test suites, and that
+    each language's contract version constant equals ``spec/VERSION``.
 
     Args:
         path: Root of the AFD repo. Defaults to current working directory.
 
     Returns:
         CommandResult with gap report per language. ``total_gaps`` is
-        ``name_gaps`` plus ``wire_fixtures.gaps``.
+        ``name_gaps`` plus ``wire_fixtures.gaps`` plus ``contract_version.gaps``.
     """
     root = Path(path) if path else Path(".")
 
     ts_file = root / "packages" / "core" / "src" / "index.ts"
     py_file = root / "python" / "src" / "afd" / "__init__.py"
     rs_file = root / "packages" / "rust" / "src" / "lib.rs"
+    cpp_file = root / "packages" / "cpp" / "include" / "afd" / "afd.hpp"
 
-    missing_files = [str(f) for f in (ts_file, py_file, rs_file) if not f.exists()]
+    missing_files = [str(f) for f in (ts_file, py_file, rs_file, cpp_file) if not f.exists()]
     if missing_files:
         return error(
             "NOT_FOUND",
@@ -668,18 +964,36 @@ async def alfred_parity(path: str | None = None) -> CommandResult[dict]:
     ts_exports = parse_typescript_exports(ts_file.read_text(encoding="utf-8"), ts_file.parent)
     py_exports = parse_python_exports(py_file.read_text(encoding="utf-8"))
     rs_exports = parse_rust_exports(rs_file.read_text(encoding="utf-8"), rs_file.parent)
+    # Includes are "afd/<name>.hpp", relative to packages/cpp/include.
+    cpp_exports = parse_cpp_exports(cpp_file.read_text(encoding="utf-8"), cpp_file.parent.parent)
 
-    report = _diff_exports(ts_exports, py_exports, rs_exports)
+    report = _diff_exports(ts_exports, py_exports, rs_exports, cpp_exports)
     wire = check_wire_fixtures(root)
+    contract = check_contract_version(root)
 
     name_gaps = (
         len(report.missing_from_python)
         + len(report.missing_from_rust)
+        + len(report.missing_from_cpp)
         + len(report.missing_from_typescript)
     )
-    total_gaps = name_gaps + wire["gaps"]
-    total_checks = max(len(ts_exports) + len(wire["fixtures"]) * len(WIRE_ROUND_TRIP_TESTS), 1)
+    total_gaps = name_gaps + wire["gaps"] + contract["gaps"]
+    total_checks = max(
+        len(ts_exports)
+        + len(wire["fixtures"]) * len(WIRE_ROUND_TRIP_TESTS)
+        + len(CONTRACT_VERSION_SOURCES),
+        1,
+    )
     confidence = max(0.0, 1.0 - (total_gaps / total_checks))
+    contract_problems = [
+        f"{lang} {contract['versions'][lang] or 'missing'}"
+        for lang in contract["missing"] + contract["mismatched"]
+    ]
+    if not contract["expected"]:
+        contract_problems.insert(0, f"{contract['spec_file']} missing")
+    contract_summary = f"Contract version {contract['expected'] or '(none)'}: " + (
+        ", ".join(contract_problems) or "all four languages match"
+    )
 
     return success(
         data={
@@ -687,21 +1001,26 @@ async def alfred_parity(path: str | None = None) -> CommandResult[dict]:
                 "typescript": len(ts_exports),
                 "python": len(py_exports),
                 "rust": len(rs_exports),
+                "cpp": len(cpp_exports),
             },
             "missing_from_python": report.missing_from_python,
             "missing_from_rust": report.missing_from_rust,
+            "missing_from_cpp": report.missing_from_cpp,
             "missing_from_typescript": report.missing_from_typescript,
             "extra_in_python": report.extra_in_python,
             "extra_in_rust": report.extra_in_rust,
+            "extra_in_cpp": report.extra_in_cpp,
             "extra_in_typescript": report.extra_in_typescript,
             "name_gaps": name_gaps,
             "wire_fixtures": wire,
+            "contract_version": contract,
             "total_gaps": total_gaps,
         },
         confidence=confidence,
         reasoning=(
-            f"Parsed {len(ts_exports)} TS, {len(py_exports)} Python, {len(rs_exports)} Rust "
-            f"exports: {name_gaps} name gaps. Checked {len(wire['fixtures'])} wire fixtures "
-            f"against {len(WIRE_ROUND_TRIP_TESTS)} round-trip suites: {wire['gaps']} gaps."
+            f"Parsed {len(ts_exports)} TS, {len(py_exports)} Python, {len(rs_exports)} Rust, "
+            f"{len(cpp_exports)} C++ exports: {name_gaps} name gaps. Checked {len(wire['fixtures'])} wire fixtures "
+            f"against {len(WIRE_ROUND_TRIP_TESTS)} round-trip suites: {wire['gaps']} gaps. "
+            f"{contract_summary}."
         ),
     )

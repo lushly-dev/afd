@@ -1,5 +1,5 @@
 import type { CommandDefinition } from '@lushly-dev/afd-core';
-import { success } from '@lushly-dev/afd-core';
+import { AFD_CONTRACT_VERSION, success } from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineCommand } from '../schema.js';
@@ -7,7 +7,11 @@ import { createContextState } from './afd-context.js';
 import { createAfdDocsCommand } from './afd-docs.js';
 import { createAfdHelpCommand } from './afd-help.js';
 import { createAfdSchemaCommand } from './afd-schema.js';
-import { getBootstrapCommands } from './registry.js';
+import {
+	BOOTSTRAP_COMMAND_NAMES,
+	CONTEXT_COMMAND_NAMES,
+	getBootstrapCommands,
+} from './registry.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Test Fixtures
@@ -83,6 +87,16 @@ describe('createAfdHelpCommand', () => {
 		expect(result.data?.total).toBe(4);
 		expect(result.data?.filtered).toBe(false);
 		expect(result.data?.commands).toHaveLength(4);
+	});
+
+	it('reports the AFD contract version, filtered or not', async () => {
+		const cmd = createAfdHelpCommand(() => makeMockCommands());
+		const all = await cmd.handler({ format: 'brief' }, {});
+		const filtered = await cmd.handler({ filter: 'nothing-matches', format: 'full' }, {});
+
+		expect(all.data?.contractVersion).toBe(AFD_CONTRACT_VERSION);
+		expect(filtered.data?.contractVersion).toBe(AFD_CONTRACT_VERSION);
+		expect(filtered.data?.total).toBe(0);
 	});
 
 	it('filters by tag', async () => {
@@ -421,6 +435,17 @@ describe('bootstrap tools built with defineCommand', () => {
 		}
 		const names = getBootstrapCommands(() => []).map((cmd) => cmd.name);
 		expect(names).toEqual(['afd-help', 'afd-docs', 'afd-schema']);
+		expect(names).toEqual([...BOOTSTRAP_COMMAND_NAMES]);
+	});
+
+	it('name the context commands as the shared CONTEXT_COMMAND_NAMES list', () => {
+		const names = getBootstrapCommands(() => [], {
+			contexts: [{ name: 'editing', description: 'Editing' }],
+			contextState: createContextState(),
+		})
+			.map((cmd) => cmd.name)
+			.filter((name) => !BOOTSTRAP_COMMAND_NAMES.includes(name));
+		expect(names).toEqual([...CONTEXT_COMMAND_NAMES]);
 	});
 
 	it('describe ZodCommandDefinitions: requires, parameters from jsonSchema, schemas', async () => {

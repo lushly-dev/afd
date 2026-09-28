@@ -24,8 +24,8 @@ use crate::commands::{CommandContext, CommandDefinition, CommandRegistry, Expose
 use crate::errors::{error_codes, CommandError};
 use std::sync::{Arc, Weak};
 
-/// Names of the bootstrap commands.
-pub const BOOTSTRAP_COMMAND_NAMES: &[&str] = &["afd-help", "afd-docs", "afd-schema"];
+/// Names of the bootstrap commands ([`crate::AFD_BOOTSTRAP_COMMAND_NAMES`]).
+pub const BOOTSTRAP_COMMAND_NAMES: &[&str] = crate::builtin_names::AFD_BOOTSTRAP_COMMAND_NAMES;
 
 /// Get all bootstrap commands for `registry`.
 ///

@@ -6,14 +6,18 @@ from pathlib import Path
 import pytest
 
 from alfred.commands.parity import (
+    CONTRACT_VERSION_SOURCES,
     WIRE_ROUND_TRIP_TESTS,
     _camel_to_snake,
     _normalize,
     alfred_parity,
+    check_contract_version,
     check_wire_fixtures,
+    parse_cpp_exports,
     parse_python_exports,
     parse_rust_exports,
     parse_typescript_exports,
+    read_contract_version,
 )
 
 REPO_ROOT = Path(__file__).parent.parent.parent
@@ -287,6 +291,96 @@ fn private_fn() {}
     }
 
 
+# ─── C++ ─────────────────────────────────────────────────────────────────────
+
+
+def _cpp_names(entries):
+    return sorted(e.name for e in entries)
+
+
+def test_parse_cpp_exports_namespace_scope_declarations():
+    header = """
+    #pragma once
+    #include <string>
+    namespace afd {
+    /// A doc comment mentioning struct NotExported { int x; };
+    struct CommandResult {
+        bool success = false;
+        void member_function();          // members are not exports
+    };
+    enum class PlanStepStatus { pending, complete };
+    using CommandExecutor = std::function<void()>;
+    inline constexpr std::size_t max_similarity_input_length = 128;
+    class [[nodiscard]] Expected;
+    [[nodiscard]] CommandResult success(Json data, ResultOptions options = {});
+    CommandResult success(Json data);    // an overload counts once
+    template <class Chunk>
+        requires std::same_as<Chunk, StreamChunk>
+    void to_json(Json& out, const Chunk& chunk) { visit(out); }
+    bool is_success(const CommandResult& result) noexcept;
+    namespace error_codes {
+    inline constexpr char NOT_FOUND[] = "NOT_FOUND";
+    }
+    namespace detail {
+    struct Hidden {};
+    void hidden_helper();
+    }
+    }  // namespace afd
+    namespace other { struct Elsewhere {}; }
+    """
+    entries = parse_cpp_exports(header)
+    assert _cpp_names(entries) == [
+        "CommandExecutor",
+        "CommandResult",
+        "PlanStepStatus",
+        "error_codes",
+        "is_success",
+        "max_similarity_input_length",
+        "success",
+    ]
+    kinds = {e.name: e.kind for e in entries}
+    assert kinds["CommandResult"] == "type"
+    assert kinds["success"] == "function"
+
+
+def test_cpp_literals_and_comments_do_not_confuse_the_scanner():
+    header = (
+        "namespace afd {\n"
+        'inline constexpr char open_brace[] = "{";\n'
+        'inline constexpr char close_brace = \'}\';\n'
+        'const char* raw() { return R"x(}; // not a comment { )x"; }\n'
+        "/* struct Commented {}; */\n"
+        "#define MACRO(x) struct FromMacro {}\n"
+        "struct AfterLiterals {};\n"
+        "}\n"
+    )
+    assert _cpp_names(parse_cpp_exports(header)) == [
+        "AfterLiterals",
+        "close_brace",
+        "open_brace",
+        "raw",
+    ]
+
+
+def test_cpp_includes_are_followed_and_idioms_skipped(tmp_path):
+    include = tmp_path / "include"
+    (include / "afd").mkdir(parents=True)
+    (include / "afd" / "afd.hpp").write_text(
+        '#include "afd/a.hpp"\n#include "afd/missing.hpp"\n#include <vector>\n', encoding="utf-8"
+    )
+    (include / "afd" / "a.hpp").write_text(
+        '#include "afd/a.hpp"\n'  # a cycle is followed once
+        "namespace afd {\n"
+        "using Json = nlohmann::json;\n"
+        "void to_json(Json& out, const Thing& thing);\n"
+        "struct Thing {};\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    entries = parse_cpp_exports((include / "afd" / "afd.hpp").read_text(), include)
+    assert _cpp_names(entries) == ["Thing"]
+
+
 # ─── Wire fixture coverage ───────────────────────────────────────────────────
 
 
@@ -307,7 +401,7 @@ def test_wire_fixtures_fully_covered(tmp_path):
     report = check_wire_fixtures(tmp_path)
     assert report["fixtures"] == ["batch-b.json", "result-a.json"]
     assert report["gaps"] == 0
-    assert report["uncovered"] == {"typescript": [], "python": [], "rust": []}
+    assert report["uncovered"] == {"typescript": [], "python": [], "rust": [], "cpp": []}
 
 
 def test_wire_fixture_missing_from_one_suite(tmp_path):
@@ -333,14 +427,116 @@ def test_wire_missing_suite_invalid_fixture_and_missing_dir(tmp_path):
     assert report["missing_suites"] == ["python"]
     assert report["invalid_fixtures"] == ["broken.json"]
     assert report["uncovered"]["python"] == ["batch-b.json", "broken.json", "result-a.json"]
-    # broken.json is invalid (1) and unreferenced by TS and Rust (2); Python misses all 3.
-    assert report["gaps"] == 1 + 2 + 3
+    # broken.json is invalid (1) and unreferenced by TS, Rust and C++ (3); Python misses all 3.
+    assert report["gaps"] == 1 + 3 + 3
 
     empty = tmp_path / "empty"
     empty.mkdir()
     missing = check_wire_fixtures(empty)
     assert missing["missing_fixture_dir"] is True
     assert missing["gaps"] == 1
+
+
+# ─── Contract version ────────────────────────────────────────────────────────
+
+_CONTRACT_DECLARATIONS = {
+    "typescript": "export const AFD_CONTRACT_VERSION = '{v}';",
+    "python": 'CONTRACT_VERSION: str = "{v}"',
+    "rust": 'pub const CONTRACT_VERSION: &str = "{v}";',
+    "cpp": 'namespace afd { inline constexpr std::string_view contract_version = "{v}"; }',
+}
+
+
+def _write_contract_repo(root: Path, version: str = "1.0", **overrides: str) -> None:
+    """Write spec/VERSION and each language's constant (``overrides`` sets one language's).
+
+    A source that already exists, such as the fake repo's ``lib.rs``, keeps its other lines.
+    """
+    (root / "spec").mkdir(parents=True, exist_ok=True)
+    (root / "spec" / "VERSION").write_text(f"{version}\n", encoding="utf-8")
+    for lang, relative in CONTRACT_VERSION_SOURCES.items():
+        source = root / relative
+        source.parent.mkdir(parents=True, exist_ok=True)
+        kept = []
+        if source.is_file():
+            kept = [
+                line
+                for line in source.read_text(encoding="utf-8").splitlines()
+                if "contract_version" not in line.lower()
+            ]
+        declaration = _CONTRACT_DECLARATIONS[lang].replace("{v}", overrides.get(lang, version))
+        source.write_text("\n".join([*kept, declaration]) + "\n", encoding="utf-8")
+
+
+def test_read_contract_version_in_every_language():
+    assert read_contract_version("typescript", "export const AFD_CONTRACT_VERSION: string = \"2.1\";") == "2.1"
+    assert read_contract_version("python", "CONTRACT_VERSION = '2.1'\n") == "2.1"
+    assert read_contract_version("python", "CONTRACT_VERSION: Final[str] = '2.1'\n") == "2.1"
+    assert read_contract_version("rust", "pub const CONTRACT_VERSION: &'static str = \"2.1\";") == "2.1"
+    assert (
+        read_contract_version("cpp", 'inline constexpr std::string_view contract_version = "2.1";')
+        == "2.1"
+    )
+
+
+def test_read_contract_version_ignores_comments_and_other_names():
+    assert read_contract_version("typescript", "// export const AFD_CONTRACT_VERSION = '0.9';") is None
+    assert read_contract_version("typescript", "export const AFD_CONTRACT_VERSION_X = '0.9';") is None
+    assert read_contract_version("python", "# CONTRACT_VERSION = '0.9'\nOTHER = '1.0'\n") is None
+    assert read_contract_version("python", "def f(:\n") is None
+    assert read_contract_version("rust", "/* pub const CONTRACT_VERSION: &str = \"0.9\"; */") is None
+    assert (
+        read_contract_version("cpp", '// inline constexpr std::string_view contract_version = "0.9";')
+        is None
+    )
+
+
+def test_contract_version_all_match(tmp_path):
+    _write_contract_repo(tmp_path, "1.0-rc")
+    report = check_contract_version(tmp_path)
+    assert report["expected"] == "1.0-rc"
+    assert report["versions"] == dict.fromkeys(CONTRACT_VERSION_SOURCES, "1.0-rc")
+    assert report["missing"] == []
+    assert report["mismatched"] == []
+    assert report["gaps"] == 0
+
+
+def test_contract_version_mismatched_and_missing_constants(tmp_path):
+    _write_contract_repo(tmp_path, "1.1", rust="1.0")
+    (tmp_path / CONTRACT_VERSION_SOURCES["cpp"]).unlink()
+
+    report = check_contract_version(tmp_path)
+
+    assert report["versions"]["rust"] == "1.0"
+    assert report["versions"]["cpp"] is None
+    assert report["mismatched"] == ["rust"]
+    assert report["missing"] == ["cpp"]
+    assert report["gaps"] == 2
+
+
+def test_contract_version_without_spec_version(tmp_path):
+    _write_contract_repo(tmp_path, "1.0")
+    (tmp_path / "spec" / "VERSION").unlink()
+
+    report = check_contract_version(tmp_path)
+
+    assert report["missing_spec_version"] is True
+    assert report["expected"] is None
+    assert report["mismatched"] == []
+    assert report["gaps"] == 1
+
+
+def test_contract_version_constants_are_not_name_parity_exports():
+    """The contract check compares these by value; name parity would never match them."""
+    assert parse_typescript_exports("export const AFD_CONTRACT_VERSION = '1.0';") == []
+    assert parse_python_exports('__all__ = ["CONTRACT_VERSION"]') == []
+    assert parse_rust_exports('pub const CONTRACT_VERSION: &str = "1.0";') == []
+    assert (
+        parse_cpp_exports(
+            'namespace afd {\ninline constexpr std::string_view contract_version = "1.0";\n}\n'
+        )
+        == []
+    )
 
 
 # ─── Integration tests ───────────────────────────────────────────────────────
@@ -377,7 +573,20 @@ def fake_repo(tmp_path):
         encoding="utf-8",
     )
 
+    cpp_dir = tmp_path / "packages" / "cpp" / "include" / "afd"
+    cpp_dir.mkdir(parents=True)
+    (cpp_dir / "afd.hpp").write_text('#include "afd/result.hpp"\n', encoding="utf-8")
+    (cpp_dir / "result.hpp").write_text(
+        "namespace afd {\n"
+        "struct CommandResult { bool success = false; };\n"
+        "CommandResult success(Json data);\n"
+        "CommandResult failure(CommandError error);\n"
+        "}  // namespace afd\n",
+        encoding="utf-8",
+    )
+
     _write_wire_repo(tmp_path)
+    _write_contract_repo(tmp_path)
     return tmp_path
 
 
@@ -420,8 +629,21 @@ async def test_parity_counts_uncovered_wire_fixtures(fake_repo):
         "typescript": ["new-shape.json"],
         "python": ["new-shape.json"],
         "rust": ["new-shape.json"],
+        "cpp": ["new-shape.json"],
     }
-    assert result.data["total_gaps"] == 3
+    assert result.data["total_gaps"] == 4
+    assert result.confidence < 1.0
+
+
+@pytest.mark.asyncio
+async def test_parity_counts_contract_version_mismatches(fake_repo):
+    """A constant that differs from spec/VERSION is a gap, so `alfred parity` exits 1."""
+    _write_contract_repo(fake_repo, "1.0", python="0.9")
+    result = await alfred_parity(str(fake_repo))
+    assert result.data["name_gaps"] == 0
+    assert result.data["contract_version"]["mismatched"] == ["python"]
+    assert result.data["total_gaps"] == 1
+    assert "python 0.9" in result.reasoning
     assert result.confidence < 1.0
 
 
@@ -441,8 +663,14 @@ NAME_GAP_BUDGET = {
     # 97 → 98 and 9 → 10: TypeScript's StreamExecutorOptions (the executeStream
     # timeout). Neither language has an executor options type, like ExecutorOptions.
     # 98 → 97: 2.0 removed TypeScript's deprecated resolveReference alias.
+    # Rust 10 → 9: afd exports execution_failure.
     "missing_from_python": 97,
-    "missing_from_rust": 10,
+    "missing_from_rust": 9,
+    # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
+    # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps
+    # conditions as validated JSON); telemetry; timeout controllers and streamable commands;
+    # the pipeline aggregation helpers; CommandParameter and createCommandRegistry.
+    "missing_from_cpp": 73,
 }
 
 # Exports every language must have; if one disappears the parser is broken.
@@ -470,14 +698,14 @@ async def test_parity_on_real_repo():
     assert result.success is True
     data = result.data
 
-    # Every golden wire fixture is round-tripped by all three suites.
+    # Every golden wire fixture is round-tripped by all four suites.
     wire = data["wire_fixtures"]
     on_disk = sorted(p.name for p in (REPO_ROOT / "spec" / "wire").glob("*.json"))
     assert wire["fixtures"] == on_disk
     assert len(on_disk) >= 6
     assert wire["missing_suites"] == []
     assert wire["invalid_fixtures"] == []
-    assert wire["uncovered"] == {"typescript": [], "python": [], "rust": []}
+    assert wire["uncovered"] == {"typescript": [], "python": [], "rust": [], "cpp": []}
     assert wire["gaps"] == 0
 
     # The parsers find the core surface in every language.
@@ -494,10 +722,24 @@ async def test_parity_on_real_repo():
                 REPO_ROOT / "packages/rust/src",
             ),
         ),
+        (
+            "cpp",
+            parse_cpp_exports(
+                (REPO_ROOT / "packages/cpp/include/afd/afd.hpp").read_text(),
+                REPO_ROOT / "packages/cpp/include",
+            ),
+        ),
     ):
         missing = CORE_EXPORTS - {e.normalized for e in entries}
         assert not missing, f"{language} parser lost core exports: {sorted(missing)}"
         assert all(e.name.isidentifier() for e in entries), language
+
+    # Every language declares the contract version in spec/VERSION.
+    contract = data["contract_version"]
+    assert contract["expected"] == (REPO_ROOT / "spec" / "VERSION").read_text().strip()
+    assert contract["missing"] == []
+    assert contract["mismatched"] == []
+    assert contract["gaps"] == 0
 
     # Name gaps stay within budget.
     for key, budget in NAME_GAP_BUDGET.items():

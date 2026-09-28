@@ -1,0 +1,63 @@
+{
+	"success": true,
+	"results": [
+		{
+			"id": "first",
+			"index": 0,
+			"command": "fixture-minimal",
+			"result": {
+				"success": true,
+				"data": {
+					"id": "todo-1",
+					"title": "Buy milk"
+				},
+				"metadata": {
+					"executionTimeMs": 0,
+					"commandVersion": "1.0.0",
+					"traceId": "trace-fixture"
+				}
+			},
+			"durationMs": 0
+		},
+		{
+			"id": "second",
+			"index": 1,
+			"command": "fixture-failure",
+			"result": {
+				"success": false,
+				"error": {
+					"code": "NOT_FOUND",
+					"message": "Todo todo-42 not found",
+					"suggestion": "Use todo-list to see available todos",
+					"retryable": false,
+					"details": {
+						"id": "todo-42"
+					}
+				},
+				"metadata": {
+					"executionTimeMs": 0,
+					"commandVersion": "1.0.0",
+					"traceId": "trace-fixture"
+				}
+			},
+			"durationMs": 0
+		}
+	],
+	"summary": {
+		"total": 2,
+		"successCount": 1,
+		"failureCount": 1,
+		"skippedCount": 0
+	},
+	"timing": {
+		"totalMs": 0,
+		"averageMs": 0,
+		"startedAt": "2026-01-01T00:00:00.000Z",
+		"completedAt": "2026-01-01T00:00:00.000Z"
+	},
+	"confidence": 0.75,
+	"reasoning": "Executed 2 commands: 1 succeeded, 1 failed",
+	"metadata": {
+		"traceId": "trace-fixture"
+	}
+}

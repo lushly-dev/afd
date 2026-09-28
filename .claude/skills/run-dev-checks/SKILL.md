@@ -53,7 +53,7 @@ Expert guidance for botcore's development command suite — language-aware linti
 
 <rules>
 `pnpm check` runs the exact same steps as the TypeScript CI workflow (`ci.yml`). If it passes locally, that workflow passes remotely.
-The quality gate runs: lint → build → typecheck → test:coverage + portability, file-size, orphan-files.
+The quality gate runs: lint → build → typecheck → test:coverage + portability, file-size, orphan-files, versions.
 Never add a check to `ci.yml` without adding it to lefthook's `check` group first.
 Never add a check to lefthook without verifying CI runs the same command.
 Drift between local and remote gates is a bug — the `check` group is the single source of truth for TypeScript.
@@ -65,7 +65,7 @@ Lefthook and `pnpm check` do not cover Python (`python/`), Rust (`packages/rust/
 | Layer | When | Speed | What |
 |-------|------|-------|------|
 | **Pre-commit** | `git commit` | ~8s | Lint staged files, portability, file-size, typecheck |
-| **Pre-push** | `git push` | ~25s | Full lint, test, typecheck, portability, file-size, orphan-files |
+| **Pre-push** | `git push` | ~25s | Full lint, test, typecheck, portability, file-size, orphan-files, versions |
 | **On-demand** (`pnpm check`) | Before release / manual | ~25s | Same as pre-push + build + test:coverage |
 
 Pre-commit catches formatting. Pre-push catches regressions. `pnpm check` catches everything `ci.yml` would catch.

@@ -1,0 +1,1 @@
+{"type":"object","properties":{"a":{"$ref":"#/definitions/A"}},"definitions":{"A":{"type":"array","items":{"$ref":"#/definitions/A"}}}}

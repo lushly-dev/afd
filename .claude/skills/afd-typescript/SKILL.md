@@ -599,3 +599,4 @@ class CommandRegistry {
 - `afd-developer` - Core AFD methodology
 - `afd-python` - Python implementation patterns
 - `afd-rust` - Rust implementation patterns
+- `afd-cpp` - C++ implementation patterns

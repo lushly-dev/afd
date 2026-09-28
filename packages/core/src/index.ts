@@ -33,6 +33,14 @@ export {
 	isBatchRequest,
 	isBatchResult,
 } from './batch.js';
+// Names of the tools an AFD server provides itself
+export {
+	AFD_BOOTSTRAP_COMMAND_NAMES,
+	AFD_BUILTIN_TOOL_NAMES,
+	AFD_CONTEXT_COMMAND_NAMES,
+	AFD_META_TOOL_NAMES,
+	isAfdBuiltinName,
+} from './builtin-tools.js';
 // Batch and stream executors (shared by the registry and hosts such as the MCP server)
 export type { ExecutorOptions, StreamExecutorOptions } from './command-execution.js';
 export { executeBatch, executeStream, executionFailure } from './command-execution.js';
@@ -58,6 +66,8 @@ export {
 	isMcpExposed,
 	validateCommandName,
 } from './commands.js';
+// The AFD contract version this package implements (spec/VERSION)
+export { AFD_CONTRACT_VERSION } from './contract.js';
 // Error types
 export type { CommandError, ErrorCode } from './errors.js';
 export {

@@ -50,6 +50,7 @@ pub struct ReadmeDoctests;
 // Module declarations
 pub mod batch;
 pub mod bootstrap;
+pub mod builtin_names;
 pub mod commands;
 pub mod connectors;
 pub mod errors;
@@ -81,8 +82,8 @@ mod time {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 pub use result::{
-    error, failure, failure_with, is_failure, is_success, success, success_with, CommandResult,
-    FailureOptions, ResultMetadata, ResultOptions,
+    error, execution_failure, failure, failure_with, is_failure, is_success, success, success_with,
+    CommandResult, FailureOptions, ResultMetadata, ResultOptions,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -192,6 +193,15 @@ pub use bootstrap::{
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// RE-EXPORTS: Names of the tools an AFD server provides itself
+// ═══════════════════════════════════════════════════════════════════════════════
+
+pub use builtin_names::{
+    is_afd_builtin_name, AFD_BOOTSTRAP_COMMAND_NAMES, AFD_BUILTIN_TOOL_NAMES,
+    AFD_CONTEXT_COMMAND_NAMES, AFD_META_TOOL_NAMES,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // RE-EXPORTS: Handoff types
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -216,6 +226,15 @@ pub use similarity::{calculate_similarity, find_similar_tools};
 
 /// Crate version.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// The AFD contract version (`spec/VERSION` in the repository) this crate implements.
+///
+/// The contract covers the wire shapes, the pipeline variables, the behavior vectors and the todo
+/// conformance suite that every AFD language shares. Its `MAJOR.MINOR` version is independent of
+/// [`VERSION`]: implementations that report the same contract version are meant to agree on
+/// everything it covers. It reads `1.0-rc` until every language loads every vector file. `afd-help`
+/// reports it as `contractVersion`.
+pub const CONTRACT_VERSION: &str = "1.0-rc";
 
 /// Check if the crate was compiled with native (tokio) support.
 pub const fn is_native() -> bool {

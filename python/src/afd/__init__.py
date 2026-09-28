@@ -120,6 +120,7 @@ from afd.core.commands import (
     serialize_command_examples,
     validate_command_name,
 )
+from afd.core.contract import CONTRACT_VERSION
 from afd.core.mcp_types import (
     MCP_PROTOCOL_VERSION,
     JSONRPC_VERSION,
@@ -149,6 +150,13 @@ from afd.core.mcp_types import (
     mcp_error_response,
     initialize_params,
     initialize_result,
+)
+from afd.core.builtin_names import (
+    AFD_BOOTSTRAP_COMMAND_NAMES,
+    AFD_BUILTIN_TOOL_NAMES,
+    AFD_CONTEXT_COMMAND_NAMES,
+    AFD_META_TOOL_NAMES,
+    is_afd_builtin_name,
 )
 from afd.core.wire import WireModel, to_wire, to_wire_json
 from afd.core.streaming import (
@@ -290,6 +298,7 @@ __version__ = "0.8.0"
 __all__ = [
     # Version
     "__version__",
+    "CONTRACT_VERSION",
     # Result types
     "CommandResult",
     "ResultMetadata",
@@ -389,6 +398,12 @@ __all__ = [
     "mcp_error_response",
     "initialize_params",
     "initialize_result",
+    # Names of the tools an AFD server provides itself
+    "AFD_META_TOOL_NAMES",
+    "AFD_BOOTSTRAP_COMMAND_NAMES",
+    "AFD_CONTEXT_COMMAND_NAMES",
+    "AFD_BUILTIN_TOOL_NAMES",
+    "is_afd_builtin_name",
     # Streaming types
     "ProgressChunk",
     "DataChunk",

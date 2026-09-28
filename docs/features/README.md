@@ -12,10 +12,13 @@ Feature specifications organized by lifecycle stage.
 
 ## Active Features
 
+Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Parity](../language-parity.md), and the Language Parity Closure plan closes them. The Python plan covers export names only; the Rust one is complete.
+
 | Feature | Description |
 |---------|-------------|
-| [Python Parity Closure](./active/python-parity/) | Close the export-surface gap between TypeScript and Python using `alfred parity` as the tracking source |
-| [Rust Parity Closure](./active/rust-parity/) | Close the export-surface gap between TypeScript and Rust using `alfred parity` as the tracking source |
+| [Python Parity Closure](./active/python-parity/) | Close the export-surface gap between TypeScript and Python. 97 names are missing; 60 of them are implemented but not exported. |
+| [Language Parity Closure](./active/parity-closure/parity-closure.plan.md) | Close the unintended cross-language gaps in [Language Parity](../language-parity.md): spec first, in waves 0–4, with every undeclared gap decided |
+| [Versioning and Release](./active/versioning/versioning.plan.md) | Independent semver for each implementation plus a versioned AFD contract; show each language's version; unblock the stalled npm 2.0.0 release |
 
 ## Complete Features
 
@@ -33,6 +36,7 @@ Feature specifications organized by lifecycle stage.
 | [Lazy Loading & Discovery](./complete/lazy-loading-discovery/) | `afd-discover`/`afd-detail`/`afd-call` tool strategy for lazy command enumeration |
 | [Middleware Defaults](./complete/middleware-defaults/) | Zero-config observability bundle (`defaultMiddleware()`) |
 | [Output Shape Predictability](./complete/output-shape-predictability/) | Optional `output` Zod schema for agent response shape introspection |
+| [Rust Parity Closure](./complete/rust-parity/) | Closed the export-surface gap between TypeScript and Rust (78 missing exports to 0 in #181), tracked with `alfred parity`. The remaining behavioral work is Wave 2 of Language Parity Closure. |
 | [Schema Complexity Scoring](./complete/schema-complexity-scoring/) | Weighted input schema complexity analysis |
 | [Schema Examples](./complete/schema-examples/) | Concrete input examples on commands for agent consumption |
 | [Semantic Quality Validation](./complete/semantic-quality-validation/) | Cross-command surface analysis for naming, schema overlap, injection |
@@ -42,7 +46,7 @@ Feature specifications organized by lifecycle stage.
 
 | Feature | Description |
 |---------|-------------|
-| [C++ Support](./proposed/cpp-support/) | Engine-free C++20 implementation of AFD core, conformance-tested against `spec/wire` (#270) |
+| [C++ Support](./proposed/cpp-support/) | Engine-free C++20 implementation of AFD core, conformance-tested against `spec/wire` (#270). **Implemented:** v0.1 release candidate; it moves to `complete/` when `cpp-v0.1.0` is tagged. |
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |

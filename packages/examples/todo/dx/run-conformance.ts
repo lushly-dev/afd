@@ -9,7 +9,7 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { ConformanceRunner, wireProblems } from './conformance.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const BACKENDS = ['ts', 'py', 'rs'] as const;
+const BACKENDS = ['ts', 'py', 'rs', 'cpp'] as const;
 type Backend = (typeof BACKENDS)[number];
 
 function isBackend(value: string | undefined): value is Backend {
@@ -99,6 +99,13 @@ async function run() {
 		transport = new StdioClientTransport({
 			command: 'uv',
 			args: ['run', '--project', path.join(__dirname, '../backends/python'), 'todo-server'],
+			env: { ...process.env, TODO_STORE_TYPE: 'memory' } as Record<string, string>,
+		});
+	} else if (target === 'cpp') {
+		// Built by `pnpm test:conformance:cpp` (CMake); speaks MCP over stdio like ts and py.
+		const executable = process.platform === 'win32' ? 'todo-server-cpp.exe' : 'todo-server-cpp';
+		transport = new StdioClientTransport({
+			command: path.join(__dirname, '../backends/cpp/build/release', executable),
 			env: { ...process.env, TODO_STORE_TYPE: 'memory' } as Record<string, string>,
 		});
 	} else {

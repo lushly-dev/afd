@@ -4,20 +4,22 @@
 
 The Python AFD package already covers the result model, telemetry basics, handoff primitives, direct client support, platform helpers, and connector implementations, but it still lags the TypeScript core barrel in several shared contract areas.
 
-As of March 21, 2026, the canonical parity check is:
+The canonical name check is:
 
 ```bash
 uv run --project alfred alfred parity --path .
 ```
 
-That command currently reports:
+Counts over time:
 
-- `typescript`: 185 exports
-- `python`: 170 exports
-- `rust`: 211 exports
-- `missing_from_python`: 90 exports
+| Date | TypeScript exports | Python exports | `missing_from_python` |
+|---|---|---|---|
+| 2026-03-21 (plan written) | 185 | 170 | 90 |
+| 2026-09-26 (`0777217`) | 186 | 179 | 97 (budget 97 in `alfred/tests/test_parity.py`) |
 
-This plan tracks Python-side parity closure only. TypeScript remains the reference surface for shared core exports, and Rust is already caught up for `missing_from_rust`.
+The count grew because TypeScript added exports, such as the shared executors, faster than Python re-exported its own. Most of Wave 3 is implemented but not exported (see [Status by wave](#status-by-wave-2026-09-26)).
+
+This plan tracks Python name parity only. Behavioral gaps are tracked in the cross-language matrix, [`docs/language-parity.md`](../../../language-parity.md). Examples are dispatch order, exception redaction, the `DirectClient` boundary and context state. Several of them matter more than the names below.
 
 ## Status
 
@@ -25,10 +27,28 @@ This plan tracks Python-side parity closure only. TypeScript remains the referen
 |---|---|
 | Status | Active |
 | Author | jasfalk |
-| Updated | 2026-03-21 |
+| Updated | 2026-09-26 |
 | Package | `python/src/afd` |
-| Source Of Truth | `uv run --project alfred alfred parity --path .` |
+| Source Of Truth | `uv run --project alfred alfred parity --path .` for names; [`docs/language-parity.md`](../../../language-parity.md) for behavior |
 | Depends On | Current TypeScript core barrel and existing Python package foundation |
+
+## Status by wave (2026-09-26)
+
+| Wave | Done | Still open |
+|---|---|---|
+| 1: Core ergonomics | `CommandExample`, `JsonSchema`, `command_to_mcp_tool` and `validate_command_name` are exported from `afd`. `CommandHandler`, `CommandRegistry`, `create_command_registry` and `WarningSeverity` are implemented but exported only from `afd.core`. | `CommandMiddleware` in core (it lives in `afd.server.middleware`), `create_progress_chunk_with_steps`, `create_timeout_controller`. `validate_command_name` is never called during registration. The core registry has no `dev_mode`, so it returns exception text. |
+| 2: Handoff and MCP names | 13 MCP names have Pythonic equivalents in `afd.core.mcp_types`: `TextContent`, `ToolDefinition`, `mcp_request` and others. | `default_reconnect_policy`, which `create_handoff` also fails to apply. `McpNotification`, `McpErrorCodes`, `McpErrorCode` and `McpToolsListResult`. `CreateHandoffOptions`, `McpId`, the capability types and the `is_mcp_*` guards need no Python counterpart. |
+| 3: Pipeline contract | Every type, the 10 condition models, `create_pipeline`, `evaluate_condition`, `get_nested_value`, `resolve_variable(s)`, the five `aggregate_*` helpers, `build_confidence_breakdown`, the `is_pipeline_*` guards and `execute_pipeline` are implemented in `afd.core.pipeline`. | Export them. First resolve the collisions: `afd.PipelineStep`, `PipelineResult`, `CommandDefinition` and `CommandContext` currently resolve to the `afd.direct` dataclasses. `DirectClient.pipe` is a second pipeline engine. The `is_*_condition` guards need no counterpart. |
+| 4: Similarity and cleanup | `calculate_similarity`, `find_similar_tools`, `truncate_name` and `MAX_SIMILARITY_INPUT_LENGTH` are implemented in `afd.core.similarity`. | Export them, and do the final `__init__.py` cleanup. |
+| New since this plan | — | Shared executors TypeScript added after March: `execute_batch`, `execute_stream`, `execution_failure`, `ExecutorOptions`, `StreamExecutorOptions`, `CommandRegistryOptions`, plus `is_exposed_to`, `is_mcp_exposed` and `commands_to_mcp_tools`. Python has batch only as the private `MCPServer._execute_batch`, and no stream executor. |
+
+Of the 97 missing names:
+
+- **60** exist and only need exporting.
+- **17** are genuine gaps.
+- **20** are TypeScript typing artifacts.
+
+See [Name parity](../../../language-parity.md#name-parity-alfred-parity) for the full breakdown.
 
 ## Problem
 
@@ -48,7 +68,9 @@ This creates three problems:
 
 ## Current Reality
 
-The official parity command currently reports these Python gap clusters:
+> The cluster counts below are from 2026-03-21. For the current state, see [Status by wave](#status-by-wave-2026-09-26).
+
+The official parity command reported these Python gap clusters:
 
 - `30+` pipeline exports missing
 - `20+` MCP exports missing
@@ -282,16 +304,8 @@ This work is complete when:
 
 ## Immediate Next Step
 
-Start with a Wave 1 inventory against:
+The inventory this section originally asked for was done on 2026-09-26 (see [Status by wave](#status-by-wave-2026-09-26)). Next:
 
-- `python/src/afd/core/commands.py`
-- `python/src/afd/core/streaming.py`
-- `python/src/afd/core/errors.py`
-- `python/src/afd/core/metadata.py`
-- `python/src/afd/__init__.py`
-
-and determine which missing names are:
-
-1. already implemented but not exported
-2. implemented under adjacent names and need compatibility aliases
-3. genuinely missing behavior that needs new code
+1. **Resolve the name collisions** between `afd.direct` and `afd.core`: `PipelineStep`, `PipelineResult`, `CommandDefinition`, `CommandContext`, `CommandParameter`.
+2. **Re-export the implemented contract** from `afd`: pipeline, similarity, registry and `WarningSeverity`. Lower the `missing_from_python` budget in the same pull request.
+3. **Add the genuinely missing behavior:** the shared batch and stream executors, the exposure helpers, the timeout controller, and the default reconnect policy.

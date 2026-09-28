@@ -12,7 +12,7 @@ from afd.core.similarity import find_similar_tools, truncate_name
 _MAX_NOT_FOUND_MATCHES = 3
 
 
-def _not_found_suggestion(command_name: str, command_names: Sequence[str]) -> str:
+def not_found_suggestion(command_name: str, command_names: Sequence[str]) -> str:
     """Recovery guidance for an unknown (untrusted, never echoed) command name.
 
     Names at most three close matches (none for very long names) and points
@@ -143,7 +143,7 @@ def execute_detail(
                     "error": {
                         "code": "COMMAND_NOT_FOUND",
                         "message": f"No command named '{shown}'",
-                        "suggestion": _not_found_suggestion(name, available_names),
+                        "suggestion": not_found_suggestion(name, available_names),
                     },
                 }
             )

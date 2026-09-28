@@ -59,30 +59,33 @@ Wraps the `AFDLinter` from the `afd` Python package. Scans Python, TypeScript, a
 
 **Returns:** `{ passed, files_checked, error_count, warning_count, issues[] }`
 
-### `alfred parity` — Cross-Language API Surface and Wire-Shape Sync
+### `alfred parity` — Cross-Language API Surface, Wire-Shape and Contract-Version Sync
 
-Two checks.
+Three checks.
 
-**Name parity** compares public exports across the TypeScript, Python, and Rust entry points to detect API drift.
+**Name parity** compares public exports across the TypeScript, Python, Rust and C++ entry points to detect API drift.
 
 | Entry Point | Source |
 |-------------|--------|
 | TypeScript | `packages/core/src/index.ts`: `export { a, b as c } from`, `export type { }`, inline `type`, `export * from` (followed into the module), `export * as ns`, and direct `export function/const/class/interface/type/enum` declarations; comments ignored |
 | Python | `python/src/afd/__init__.py`: `__all__` read with `ast`, including `__all__ +=`, `.extend()`, `.append()` and `__all__ + [...]` |
 | Rust | `packages/rust/src/lib.rs`: `pub use` in every form (single items, groups, nested groups, `self`, `as` aliases, `*` followed into the module) and top-level `pub fn/struct/enum/trait/type/const/static`; `pub(crate)`, `#[cfg(test)]` and items inside blocks ignored |
+| C++ | `packages/cpp/include/afd/afd.hpp`, following `#include "afd/..."`: declarations directly in `namespace afd` (classes, structs, enums, `using` aliases, `constexpr` constants, free functions); a nested public namespace such as `afd::error_codes` counts as one export; `afd::detail`, class members, function bodies, comments, string contents and preprocessor lines ignored; C++ idioms with no TypeScript counterpart (`to_json`, `Json`, `Expected`, the version constants) skipped |
 
 - TypeScript is treated as the **source of truth**
 - Normalizes naming (camelCase → snake_case) for cross-language comparison
 - Filters out TS-only platform utilities (`exec`, path/OS helpers, connectors)
-- Skips version-related exports (`__version__`, `VERSION`, `is_native`, `is_wasm`)
+- Skips version-related exports (`__version__`, `VERSION`, `is_native`, `is_wasm`) and the contract version constants (`AFD_CONTRACT_VERSION`, `CONTRACT_VERSION`, `contract_version`), which the contract-version check compares by value
 
-**Wire shapes** checks the golden fixtures in `spec/wire/*.json` (see `spec/wire/README.md`): each must be valid JSON and be referenced by name in all three round-trip suites (`packages/server/src/wire-fixtures.test.ts`, `python/tests/test_wire_fixtures.py`, `packages/rust/tests/wire_fixtures.rs`). An uncovered fixture, a missing suite, or a missing `spec/wire` is a gap.
+**Wire shapes** checks the golden fixtures in `spec/wire/*.json` (see `spec/wire/README.md`): each must be valid JSON and be referenced by name in all four round-trip suites (`packages/server/src/wire-fixtures.test.ts`, `python/tests/test_wire_fixtures.py`, `packages/rust/tests/wire_fixtures.rs`, `packages/cpp/tests/wire_fixtures_test.cpp`). An uncovered fixture, a missing suite, or a missing `spec/wire` is a gap.
 
-- `total_gaps` = `name_gaps` + `wire_fixtures.gaps`; the CLI exits 1 when it is above zero
-- Confidence = `1.0 - total_gaps / (TS exports + fixtures × 3)`
-- `tests/test_parity.py::test_parity_on_real_repo` holds the repo to budgets: no uncovered fixture, core exports found in every language, and `missing_from_python` / `missing_from_rust` no larger than `NAME_GAP_BUDGET` (lower the budget when a gap closes)
+**Contract version** reads `spec/VERSION` (see `spec/CHANGELOG.md`) and the constant each language declares: `AFD_CONTRACT_VERSION` in `packages/core/src/contract.ts`, `CONTRACT_VERSION` in `python/src/afd/core/contract.py` (read with `ast`) and `packages/rust/src/lib.rs`, and `contract_version` in `packages/cpp/cmake/version.hpp.in`. Comments are ignored. A missing `spec/VERSION`, a constant that is not found, and a constant that differs each count as one gap.
 
-**Returns:** `{ counts, missing_from_python[], missing_from_rust[], missing_from_typescript[], extra_in_*[], name_gaps, wire_fixtures: { fixtures[], suites, missing_suites[], invalid_fixtures[], uncovered{}, gaps }, total_gaps }`
+- `total_gaps` = `name_gaps` + `wire_fixtures.gaps` + `contract_version.gaps`; the CLI exits 1 when it is above zero
+- Confidence = `1.0 - total_gaps / (TS exports + fixtures × 4 + 4)`
+- `tests/test_parity.py::test_parity_on_real_repo` holds the repo to budgets: no uncovered fixture, every contract constant equal to `spec/VERSION`, core exports found in every language, and `missing_from_python` / `missing_from_rust` / `missing_from_cpp` no larger than `NAME_GAP_BUDGET` (lower the budget when a gap closes)
+
+**Returns:** `{ counts, missing_from_python[], missing_from_rust[], missing_from_cpp[], missing_from_typescript[], extra_in_*[], name_gaps, wire_fixtures: { fixtures[], suites, missing_suites[], invalid_fixtures[], uncovered{}, gaps }, contract_version: { spec_file, expected, sources{}, versions{}, missing[], mismatched[], gaps }, total_gaps }`
 
 ### `alfred quality` — Command Description Quality
 

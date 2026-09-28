@@ -31,8 +31,8 @@ export const GROUPED_PARAMS_SCHEMA_BUDGET = 8_192;
 
 /**
  * The `_meta` fields of a command (category, requires, mutation, destructive,
- * examples, outputSchema, contexts). Empty fields are omitted; returns undefined
- * when none is set.
+ * undoable, examples, outputSchema, contexts). Empty fields are omitted; returns
+ * undefined when none is set.
  */
 function commandMeta(cmd: ZodCommandDefinition): CommandToolMeta | undefined {
 	const meta: CommandToolMeta = {
@@ -40,6 +40,7 @@ function commandMeta(cmd: ZodCommandDefinition): CommandToolMeta | undefined {
 		...(cmd.requires?.length && { requires: cmd.requires }),
 		...(cmd.mutation != null && { mutation: cmd.mutation }),
 		...(cmd.destructive != null && { destructive: cmd.destructive }),
+		...(cmd.undoable != null && { undoable: cmd.undoable }),
 		...(cmd.examples?.length && { examples: cmd.examples }),
 		...(cmd.outputJsonSchema && { outputSchema: cmd.outputJsonSchema }),
 		...(cmd.contexts?.length && { contexts: cmd.contexts }),

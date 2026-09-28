@@ -22,6 +22,9 @@ export interface DescribedCommand {
 	category?: string;
 	tags?: string[];
 	mutation?: boolean;
+	destructive?: boolean;
+	confirmPrompt?: string;
+	undoable?: boolean;
 	requires?: string[];
 	examples?: CommandExample[];
 	expose?: ExposeOptions;

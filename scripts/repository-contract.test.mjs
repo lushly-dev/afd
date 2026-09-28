@@ -67,6 +67,33 @@ test('release documentation and workflow agree with root scripts', () => {
 	assert.ok(publishAction > qualityGate, 'quality gate must finish before Changesets can publish');
 });
 
+test('publish workflows check the tag against the manifest before publishing', () => {
+	const python = read('.github/workflows/publish-python.yml');
+	const pythonCheck = python.indexOf('- name: Validate version matches tag');
+	assert.ok(pythonCheck >= 0, 'publish-python.yml must compare the tag with pyproject.toml');
+	const pythonCheckStep = python.slice(pythonCheck, python.indexOf('- name:', pythonCheck + 1));
+	assert.doesNotMatch(
+		pythonCheckStep,
+		/^\s+if:/m,
+		'the Python version check must run for tag pushes and GitHub Releases alike'
+	);
+	assert.match(
+		python,
+		/if: github\.event_name == 'push' \|\| startsWith\(github\.event\.release\.tag_name, 'python-v'\)/,
+		'GitHub Releases for other implementations must not publish Python'
+	);
+	assert.ok(python.indexOf('uses: pypa/gh-action-pypi-publish@') > pythonCheck);
+
+	const rust = read('.github/workflows/publish-rust.yml');
+	const rustCheck = rust.indexOf('- name: Validate version matches tag');
+	const rustCi = rust.indexOf('uses: ./.github/workflows/rust.yml');
+	const rustPublish = rust.indexOf('run: cargo publish');
+	assert.ok(rustCheck >= 0, 'publish-rust.yml must compare the tag with Cargo.toml');
+	assert.ok(rustCi > rustCheck && rustPublish > rustCi, 'publish-rust.yml must run rust.yml first');
+	assert.match(rust, /needs: \[version, check\]/);
+	assert.match(read('.github/workflows/rust.yml'), /^ {2}workflow_call:/m);
+});
+
 test('workflow actions are pinned to full commit SHAs', () => {
 	const workflowDirectory = '.github/workflows';
 	for (const entry of readdirSync(new URL(`../${workflowDirectory}/`, import.meta.url))) {

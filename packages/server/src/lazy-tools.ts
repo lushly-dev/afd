@@ -42,6 +42,7 @@ interface DetailResult {
 	outputSchema?: JsonSchema;
 	destructive?: boolean;
 	confirmPrompt?: string;
+	undoable?: boolean;
 	handoff?: boolean;
 	handoffProtocol?: string;
 	version?: string;
@@ -207,6 +208,7 @@ export function executeDetail(
 			...(cmd.outputJsonSchema && { outputSchema: cmd.outputJsonSchema }),
 			destructive: cmd.destructive,
 			confirmPrompt: cmd.confirmPrompt,
+			undoable: cmd.undoable,
 			handoff: cmd.handoff,
 			handoffProtocol: cmd.handoffProtocol,
 			version: cmd.version,

@@ -148,6 +148,7 @@ class _HttpBasedTransport:
                 name=tool["name"],
                 description=tool.get("description", ""),
                 input_schema=tool.get("inputSchema"),
+                meta=tool.get("_meta"),
             ))
         return tools
 
