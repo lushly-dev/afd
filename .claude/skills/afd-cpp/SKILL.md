@@ -32,7 +32,7 @@ the TypeScript server engine.
 ## Build and Include
 
 ```cmake
-# From this repository, or FetchContent / find_package once released.
+# From this repository, or FetchContent (GIT_TAG cpp-vX.Y.Z) / find_package once released.
 add_subdirectory(path/to/afd/packages/cpp afd)
 target_link_libraries(my_app PRIVATE afd::afd)
 ```

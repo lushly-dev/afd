@@ -9,7 +9,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Implemented: v0.1 release candidate. Implementation phases 1–6 are merged (#290, #293–#298) and CI is green; the `afd-cpp-v0.1.0` tag is not cut yet ([lushly-dev/afd#270](https://github.com/lushly-dev/afd/issues/270)). Cross-language gaps: [language parity](../../../language-parity.md). |
+| Status | Implemented: v0.1 release candidate. Implementation phases 1–6 are merged (#290, #293–#298) and CI is green; the `cpp-v0.1.0` tag is not cut yet ([lushly-dev/afd#270](https://github.com/lushly-dev/afd/issues/270)). Cross-language gaps: [language parity](../../../language-parity.md). |
 | Package | `packages/cpp` (working name `afd-cpp`, namespace `afd`, CMake target `afd::afd`) |
 | Behavioral reference | TypeScript: `packages/server/src/execution.ts` (single command), `packages/core/src/command-execution.ts` (batch, stream), `packages/core/src/pipeline-executor.ts` (pipeline) |
 | Contracts | `spec/wire/*.json`, `spec/pipeline-variables.md`, `packages/examples/todo/spec/{commands.schema.json,test-cases.json}` |
@@ -168,7 +168,7 @@ The maintainer confirmed every decision marked **(confirmed)**, and every recomm
 
 **D11. Versioning (confirmed).**
 - The version is independent semver starting at `0.1.0`, as for Rust (`0.1.0`) and Python (`0.8.0`). Changesets does not apply, because there is no `package.json`.
-- The package keeps its own `packages/cpp/CHANGELOG.md` and uses tags of the form `afd-cpp-v0.1.0`.
+- The package keeps its own `packages/cpp/CHANGELOG.md` and uses tags of the form `cpp-v0.1.0`, the `<language>-vX.Y.Z` scheme that the versioning plan (V3) set for every implementation outside npm.
 - Distribution is through a CMake package config (`find_package(afd CONFIG)`), `FetchContent` and `add_subdirectory`. vcpkg and Conan ports come later.
 
 ## Phase 0 spike evidence

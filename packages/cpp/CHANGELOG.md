@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to afd-cpp are documented here. The package is versioned independently of the npm packages (proposal D11) and is released with tags of the form `afd-cpp-vX.Y.Z`.
+All notable changes to afd-cpp are documented here. The package is versioned independently of the npm packages (proposal D11) and is released with tags of the form `cpp-vX.Y.Z`.
 
 ## Unreleased
 

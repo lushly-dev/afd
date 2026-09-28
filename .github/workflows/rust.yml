@@ -17,6 +17,8 @@ on:
       - 'spec/wire/**'
       - 'spec/VERSION'
       - '.github/workflows/rust.yml'
+  # publish-rust.yml runs these same checks before `cargo publish`.
+  workflow_call:
 
 permissions:
   contents: read

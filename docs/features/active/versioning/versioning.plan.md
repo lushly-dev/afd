@@ -23,7 +23,7 @@ All of the following was verified on 2026-09-26.
 |---|---|---|---|---|
 | Version on `main` | 2.0.0 | 0.8.0 | 0.1.0 | 0.1.0 |
 | Latest published | **npm 1.0.0** (2026-03-16) | PyPI 0.8.0 | Never published. The name `afd` is free on crates.io. | None; consumed through CMake |
-| Last tag | `@lushly-dev/*@1.0.0` | `python-v0.8.0` (2026-09-05) | None | None. `afd-cpp-v0.1.0` is planned. |
+| Last tag | `@lushly-dev/*@1.0.0` | `python-v0.8.0` (2026-09-05) | None | None. `cpp-v0.1.0` is planned. |
 | Unreleased on `main` | **2.0.0** (breaking; release PR #252 merged 2026-09-24), plus one pending changeset (2.0.1) | 8 commits, including 3 breaking ones (#225, #232, #250). The wire format moved to camelCase, so 0.8.0 on PyPI does not match the current contract. | Everything | Everything |
 | Release path | `changesets/action` in `release.yml` | A `python-v*` tag or a GitHub Release triggers `publish-python.yml` | None defined | Tag plus GitHub Release (`do-release` skill) |
 | Changelog | Per package (changesets) | None; entries go to the root `CHANGELOG.md` | None | `packages/cpp/CHANGELOG.md` |

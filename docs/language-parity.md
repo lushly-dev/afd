@@ -30,7 +30,7 @@ The contract has three layers:
 | Package | 9 `@lushly-dev/*` packages | `afd` | `afd` crate | `afd-cpp` (`afd::afd`) |
 | Version | 2.0.0 | 0.8.0 | 0.1.0 | 0.1.0, release candidate |
 | Contract | 1.0-rc (`AFD_CONTRACT_VERSION`) | 1.0-rc (`afd.CONTRACT_VERSION`) | 1.0-rc (`afd::CONTRACT_VERSION`) | 1.0-rc (`afd::contract_version`) |
-| Distribution | npm | PyPI | Git or path dependency; not on crates.io | CMake `FetchContent`, `find_package`, `add_subdirectory`; the `afd-cpp-v0.1.0` tag is not cut yet |
+| Distribution | npm | PyPI | Git or path dependency; not on crates.io | CMake `FetchContent`, `find_package`, `add_subdirectory`; the `cpp-v0.1.0` tag is not cut yet |
 | Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, FastMCP server, client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch and pipeline executors, bootstrap commands. No server or client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors. No server or client |
 | Todo backend | stdio (SDK) | stdio (FastMCP) | Streamable HTTP (hand-rolled, axum) | stdio (hand-rolled) |
 | CI | `ci.yml` (`pnpm check`) | `python.yml` | `rust.yml` | `cpp.yml` |
@@ -291,7 +291,7 @@ The budgets in `alfred/tests/test_parity.py` equal these counts. Lower a budget 
 - The parity notes in the `afd-rust` and `afd-cpp` skills.
 - The `afd-rust` skill showed the not-found message as `"Todo '123' not found"`, and its description said "building Rust MCP servers".
 - The `afd-cpp` skill said to guard catch blocks with `__cpp_exceptions`. Library code uses `AFD_HAS_EXCEPTIONS`, which also checks MSVC's `_CPPUNWIND`.
-- The C++ `README.md` said the library was "being built in phases", fetched the uncut `afd-cpp-v0.1.0` tag, and said CI ran every preset on Linux, macOS and Windows.
+- The C++ `README.md` said the library was "being built in phases", fetched a release tag that was not cut yet, and said CI ran every preset on Linux, macOS and Windows.
 - The [C++ work plan](./features/proposed/cpp-support/work-plan.md) named the wire test `tests/wire_fixtures.cpp`, and did not record that `TaskRunner` shipped as `run_all` with `ThreadTaskRunner`.
 - `site/index.html` listed three languages, showed `cargo add afd` for a crate that is not on crates.io, and used the old `@afd/*` package names, as did the root `README.md`.
 - The todo `spec/README.md` said "TypeScript, Python, etc.". It and the todo `README.md` said only the TypeScript and Python suites check `commands.schema.json`; the C++ suite does too.

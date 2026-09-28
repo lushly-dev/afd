@@ -46,7 +46,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 
 | Feature | Description |
 |---------|-------------|
-| [C++ Support](./proposed/cpp-support/) | Engine-free C++20 implementation of AFD core, conformance-tested against `spec/wire` (#270). **Implemented:** v0.1 release candidate; it moves to `complete/` when `afd-cpp-v0.1.0` is tagged. |
+| [C++ Support](./proposed/cpp-support/) | Engine-free C++20 implementation of AFD core, conformance-tested against `spec/wire` (#270). **Implemented:** v0.1 release candidate; it moves to `complete/` when `cpp-v0.1.0` is tagged. |
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |

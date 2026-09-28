@@ -1,8 +1,15 @@
 # Publish Python Package to PyPI
 #
 # Triggers on:
-#   - GitHub Release (manual, for major releases)
-#   - Tag push matching 'python-v*' (e.g., python-v0.1.2)
+#   - Tag push matching 'python-v*' (e.g., python-v0.9.0)
+#   - A published GitHub Release whose tag matches 'python-v*'. Releases for the
+#     other implementations (cpp-v*, rust-v*, npm packages) do not run the jobs.
+#
+# Either way, the tag must match `version` in pyproject.toml.
+#
+# Publishing a GitHub Release with a new tag also pushes that tag, so both
+# events run this workflow. The upload skips files that are already on PyPI, so
+# the second run passes without publishing.
 #
 # Uses PyPI Trusted Publishing (OIDC) - no API tokens needed!
 #
@@ -31,6 +38,7 @@ permissions:
 jobs:
   test:
     name: Test Python Package
+    if: github.event_name == 'push' || startsWith(github.event.release.tag_name, 'python-v')
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -39,9 +47,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       
       - name: Validate version matches tag
-        if: startsWith(github.ref, 'refs/tags/python-v')
+        env:
+          TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name }}
         run: |
-          TAG_VERSION="${GITHUB_REF#refs/tags/python-v}"
+          TAG_VERSION="${TAG#python-v}"
           PYPROJECT_VERSION=$(grep -Po '(?<=^version = ")[^"]+' pyproject.toml)
           echo "Tag version: $TAG_VERSION"
           echo "pyproject.toml version: $PYPROJECT_VERSION"
@@ -110,3 +119,6 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         # No credentials needed - uses OIDC trusted publishing
+        with:
+          # A release and its tag push both run this workflow; see the header.
+          skip-existing: true
