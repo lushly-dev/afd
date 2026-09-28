@@ -32,10 +32,11 @@ Python command definitions now carry the same planning and discovery metadata th
 - Use `contexts=` to scope commands to named contexts.
 - Use `examples=` with concrete payloads. Examples are validated against the input model at decoration time.
 - Use `category=` when grouped tools should use a stable explicit group name instead of the first kebab-case segment.
+- Use `expose=ExposeOptions(mcp=True)` on every command agents should call over MCP. MCP exposure is opt-in (`ExposeOptions` defaults to `mcp=False`): an unexposed command is invisible over MCP. It is not listed as a tool, and `afd-call` returns `COMMAND_NOT_FOUND` for it.
 
 ```python
 from pydantic import BaseModel, Field
-from afd import CommandResult, success
+from afd import CommandResult, ExposeOptions, success
 from afd.server import create_server
 
 
@@ -60,6 +61,7 @@ server = create_server("docs", tool_strategy="lazy")
     requires=["workspace-open"],
     contexts=["editing"],
     examples=[{"title": "Basic draft", "input": {"title": "Q2 plan"}}],
+    expose=ExposeOptions(mcp=True),
 )
 async def create_doc(input: DraftInput) -> CommandResult[DraftOutput]:
     return success(DraftOutput(id="doc-1"), reasoning="Created draft document")
@@ -73,7 +75,7 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 import uuid
 
-from afd import success, error, CommandResult
+from afd import success, error, CommandResult, ExposeOptions
 from afd.server import create_server, MCPServer
 ```
 
@@ -82,8 +84,11 @@ from afd.server import create_server, MCPServer
 ### Basic Command with Decorator
 
 ```python
+import uuid
+from typing import Dict, Optional
+
 from pydantic import BaseModel, Field
-from afd import success, error, CommandResult
+from afd import success, error, CommandResult, ExposeOptions
 from afd.server import create_server
 
 # Create server
@@ -105,6 +110,10 @@ class CreateTodoOutput(BaseModel):
     id: str
     title: str
     priority: str
+    completed: bool = False
+
+# In-memory store
+todos: Dict[str, CreateTodoOutput] = {}
 
 # Define command
 @server.command(
@@ -116,7 +125,8 @@ class CreateTodoOutput(BaseModel):
     requires=["workspace-open"],
     contexts=["editing"],
     examples=[{"title": "Basic todo", "input": {"title": "Buy milk"}}],
-    mutation=True
+    mutation=True,
+    expose=ExposeOptions(mcp=True),
 )
 async def create_todo(input: CreateTodoInput) -> CommandResult[CreateTodoOutput]:
     if input.priority not in ["low", "medium", "high"]:
@@ -169,6 +179,7 @@ class ListTodosOutput(BaseModel):
     input_schema=ListTodosInput,
     output_schema=ListTodosOutput,
     examples=[{"title": "High priority", "input": {"priority": "high", "limit": 10}}],
+    expose=ExposeOptions(mcp=True),
 )
 async def list_todos(input: ListTodosInput) -> CommandResult[ListTodosOutput]:
     items = list(todos.values())
@@ -370,7 +381,8 @@ return error(
 ### Basic Server
 
 ```python
-from afd.server import create_server
+from afd import ExposeOptions
+from afd.server import ContextConfig, create_server
 
 server = create_server(
     name="todo-app",
@@ -383,12 +395,29 @@ server = create_server(
     ],
 )
 
-# Register commands using decorators
-@server.command(name="todo-create", output_schema=CreateTodoOutput, contexts=["editing"], ...)
-async def create_todo(input): ...
+# Register commands using decorators (models from the examples above).
+# MCP exposure is opt-in.
+MCP = ExposeOptions(mcp=True)
 
-@server.command(name="todo-list", output_schema=ListTodosOutput, contexts=["reviewing"], ...)
-async def list_todos(input): ...
+@server.command(
+    name="todo-create",
+    description="Create a new todo item",
+    input_schema=CreateTodoInput,
+    output_schema=CreateTodoOutput,
+    contexts=["editing"],
+    expose=MCP,
+)
+async def create_todo(input: CreateTodoInput): ...
+
+@server.command(
+    name="todo-list",
+    description="List todo items",
+    input_schema=ListTodosInput,
+    output_schema=ListTodosOutput,
+    contexts=["reviewing"],
+    expose=MCP,
+)
+async def list_todos(input: ListTodosInput): ...
 
 # Run server
 if __name__ == "__main__":
@@ -518,16 +547,22 @@ afd validate --surface --strict
 
 When contexts are configured, agents can use `afd-context-list`, `afd-context-enter`, and `afd-context-exit` to switch scopes before calling context-bound commands.
 
-### Server with Custom Port
+### Serving over HTTP
+
+`server.run()` serves stdio. For a network endpoint, pick an HTTP transport:
 
 ```python
-import os
-
-PORT = int(os.environ.get("PORT", 3100))
+import asyncio
 
 if __name__ == "__main__":
-    server.run(port=PORT)
+    # SSE: clients connect to http://127.0.0.1:8000/sse
+    server.run(transport="sse")
+
+    # Or Streamable HTTP at http://127.0.0.1:8000/mcp (run_async only)
+    # asyncio.run(server.run_async("streamable-http"))
 ```
+
+`run()` accepts `"stdio"` or `"sse"`; `run_async()` also accepts `"streamable-http"`. Neither takes a host or port, so the server listens on FastMCP's default, `127.0.0.1:8000` (setting `FASTMCP_PORT` does not change it). Connect afd's client to the SSE endpoint with `create_client("http://127.0.0.1:8000/sse")`. For `/mcp`, use a Streamable HTTP client such as the `mcp` package's `streamablehttp_client`: afd's `transport="http"` client sends plain JSON-RPC POSTs, which the endpoint rejects with `406 Not Acceptable`.
 
 ## Complete Command Example
 
@@ -540,8 +575,11 @@ from pydantic import BaseModel, Field
 from datetime import datetime
 import uuid
 
-from afd import success, error, CommandResult
-from afd.server import create_server
+from afd import success, error, CommandResult, ExposeOptions
+from afd.server import ContextConfig, create_server
+
+# Commands are only reachable over MCP when they opt in
+MCP = ExposeOptions(mcp=True)
 
 # Domain Model
 class Todo(BaseModel):
@@ -600,7 +638,8 @@ class DeleteTodoOutput(BaseModel):
     requires=["workspace-open"],
     contexts=["editing"],
     examples=[{"title": "Basic create", "input": {"title": "Plan sprint"}}],
-    mutation=True
+    mutation=True,
+    expose=MCP,
 )
 async def create_todo(input: CreateTodoInput) -> CommandResult[TodoOutput]:
     todo = TodoOutput(
@@ -619,6 +658,7 @@ async def create_todo(input: CreateTodoInput) -> CommandResult[TodoOutput]:
     input_schema=IdInput,
     output_schema=TodoOutput,
     contexts=["editing", "reviewing"],
+    expose=MCP,
 )
 async def get_todo(input: IdInput) -> CommandResult[TodoOutput]:
     if input.id not in todos:
@@ -636,7 +676,8 @@ async def get_todo(input: IdInput) -> CommandResult[TodoOutput]:
     input_schema=IdInput,
     output_schema=DeleteTodoOutput,
     contexts=["editing"],
-    mutation=True
+    mutation=True,
+    expose=MCP,
 )
 async def delete_todo(input: IdInput) -> CommandResult[DeleteTodoOutput]:
     if input.id not in todos:

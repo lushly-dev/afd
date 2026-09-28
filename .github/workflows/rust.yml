@@ -7,12 +7,15 @@ on:
       - 'packages/rust/**'
       # tests/wire_fixtures.rs round-trips these golden fixtures.
       - 'spec/wire/**'
+      # tests/contract_version.rs checks CONTRACT_VERSION against it.
+      - 'spec/VERSION'
       - '.github/workflows/rust.yml'
   pull_request:
     branches: [main]
     paths:
       - 'packages/rust/**'
       - 'spec/wire/**'
+      - 'spec/VERSION'
       - '.github/workflows/rust.yml'
 
 permissions:

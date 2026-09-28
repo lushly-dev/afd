@@ -12,6 +12,7 @@ from afd.core.commands import (
     CommandExample,
     CommandParameter,
 )
+from afd.core.contract import CONTRACT_VERSION
 from afd.core.result import CommandResult, success
 from afd.core.wire import WireModel
 from afd.server.bootstrap.afd_context import BOOTSTRAP_EXPOSE
@@ -42,6 +43,7 @@ class CommandInfo(WireModel):
 class AfdHelpOutput(WireModel):
     """Output for ``afd-help``."""
 
+    contract_version: str = Field(description="The AFD contract version this server implements")
     commands: List[CommandInfo]
     total: int
     filtered: bool
@@ -94,6 +96,7 @@ async def _afd_help_handler(
         grouped_by_category.setdefault(category, []).append(info)
 
     output = AfdHelpOutput(
+        contract_version=CONTRACT_VERSION,
         commands=command_infos,
         total=len(command_infos),
         filtered=filtered,
