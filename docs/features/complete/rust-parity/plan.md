@@ -17,6 +17,7 @@ Counts over time:
 | 2026-03-21 (plan written) | 183 | 130 | 78 |
 | 2026-03-21 (`98af776`, #181) | 183 | 211 | 0 |
 | 2026-09-26 (`0777217`) | 186 | 225 | 10 (budget 10 in `alfred/tests/test_parity.py`) |
+| 2026-09-27 (`1568dd3`) | 191 | 230 | 10 |
 
 **Waves 1–5 are closed** (#181 and later). The wire-shape and batch-default drift reported by the [2026-09-23 review](../../../reviews/2026-09-23-quality-review.md) is also fixed. The remaining work is behavioral. The name metric cannot see it, so it is tracked in [`docs/language-parity.md`](../../../language-parity.md).
 
@@ -44,7 +45,7 @@ None of the 10 names missing today are from this plan's list. Each one entered t
 |---|---|---|
 | `is_mcp_exposed` | #225 | Export artifact: use `is_exposed_to(cmd, CommandInterface::Mcp)` |
 | `max_similarity_input_length` | #232 | Export artifact: public at `afd::similarity::MAX_SIMILARITY_INPUT_LENGTH`, not re-exported at the root |
-| `truncate_name` | #232 | Exists but private (`commands.rs`); counts chars, where TypeScript counts UTF-16 units |
+| `truncate_name` | #232 | Exists but private (`commands.rs`); counts UTF-16 code units like TypeScript since #286 |
 | `execute_batch` | #250 | Exists as `CommandRegistry::execute_batch`. There is no free function over an executor callback. |
 | `commands_to_mcp_tools` | #225 | A missing convenience: `list_by_exposure(Mcp)` plus `command_to_mcp_tool` |
 | `execute_stream`, `stream_executor_options` | #250, #251 | Genuine gap: Rust has no stream executor |
@@ -68,9 +69,7 @@ The name check cannot see these gaps. They are tracked in [`docs/language-parity
   - a cancellation signal;
   - `list_by_tags`.
 - **Missing surfaces:** built-in middleware (trace ID, logging, timing, retry, rate limit, telemetry), and an MCP server with tool strategies and meta-tools.
-- **Validation:**
-  - undeclared keys pass through, where TypeScript strips them;
-  - the message text differs;
+- **Validation** (#286 now drops undeclared keys and matches the TypeScript message and shape):
   - lengths are counted in code points;
   - there is no `minItems`, `maxItems`, `additionalProperties: false` or combinators;
   - `pattern` regexes are compiled on each call.
