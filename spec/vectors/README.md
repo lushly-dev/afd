@@ -6,6 +6,7 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
 | File | Covers | Generator |
 | --- | --- | --- |
 | `pipeline-variables.json` | Reference resolution and `when` conditions ([`spec/pipeline-variables.md`](../pipeline-variables.md)) against one fixed pipeline context | `generate-pipeline-variables.mjs` |
+| `error-codes.json` | The shared error-code catalog of [`spec/error-codes.md`](../error-codes.md), in catalog order | Written by hand; TypeScript's `ErrorCodes` must equal it |
 | `batch-controls.json` | Batch and pipeline execution controls: `stopOnError`, `parallelism`, the batch `timeout` and pipeline `timeoutMs` deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION`, and envelope validation | `generate-batch-controls.mjs` |
 | `validation.json` | Command input validation ([`spec/validation.md`](../validation.md)): unknown keys, the `VALIDATION_ERROR` shape, length units, the JSON Schema subset, explicit `null` and defaults | `generate-validation.mjs` |
 
@@ -15,12 +16,12 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
   language does not load a file yet, the entry is tracked in the
   [parity closure plan](../../docs/features/active/parity-closure/parity-closure.plan.md):
 
-  | Language | `pipeline-variables.json` | `batch-controls.json` | `validation.json` |
-  | --- | --- | --- | --- |
-  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` | `packages/server/src/validation-vectors.test.ts` |
-  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` | Not yet ([#310](https://github.com/lushly-dev/afd/issues/310)) |
-  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` | Not yet ([#311](https://github.com/lushly-dev/afd/issues/311)) |
-  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | Not yet ([#312](https://github.com/lushly-dev/afd/issues/312)) |
+  | Language | `pipeline-variables.json` | `batch-controls.json` | `validation.json` | `error-codes.json` |
+  | --- | --- | --- | --- | --- |
+  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` | `packages/server/src/validation-vectors.test.ts` | `packages/core/src/errors.test.ts` |
+  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` | Not yet ([#310](https://github.com/lushly-dev/afd/issues/310)) | `python/tests/test_error_codes.py` |
+  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` | Not yet ([#311](https://github.com/lushly-dev/afd/issues/311)) | `packages/rust/tests/error_codes.rs` |
+  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | Not yet ([#312](https://github.com/lushly-dev/afd/issues/312)) | `packages/cpp/tests/vectors_test.cpp` |
 
 - Changes to `spec/vectors` run the Python, Rust and C++ workflows as well as `ci.yml`.
 

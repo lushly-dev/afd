@@ -9,7 +9,7 @@
 use serde::{de::Deserializer, ser::Serializer, Deserialize, Serialize};
 use std::time::Duration;
 
-use crate::errors::CommandError;
+use crate::errors::{error_codes, CommandError};
 use crate::result::ResultMetadata;
 use crate::time::Instant;
 
@@ -593,7 +593,7 @@ where
 
     let error = create_error_chunk(
         CommandError::new(
-            "STREAM_ENDED_UNEXPECTEDLY",
+            error_codes::STREAM_ENDED_UNEXPECTEDLY,
             "Stream ended without completion or error signal",
         )
         .with_suggestion("This may indicate a connection issue. Try again.")

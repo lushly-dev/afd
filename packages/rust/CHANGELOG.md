@@ -27,6 +27,7 @@ The first release on crates.io. Until now the crate was only available as a git 
 - `execution_failure(message, dev_mode)` and `error_codes::COMMAND_EXECUTION_ERROR`, matching the TypeScript and C++ helpers (#306).
 - `afd::CONTRACT_VERSION`, the AFD contract version from `spec/VERSION` (now `1.0-rc`). `afd-help` returns it as `contractVersion` (#313).
 - `rust-version = "1.82"` declares the minimum supported Rust version. The README badge said 1.70, which no longer built (#313).
+- `error_codes` holds the 42-code shared catalog of `spec/error-codes.md`, adding `COMMAND_NOT_IN_CONTEXT`, `COMMAND_NOT_ALLOWED`, `UNKNOWN_TOOL`, `AMBIGUOUS_ACTION`, `INVALID_GROUPED_CALL`, the context, batch, pipeline and stream codes. `tests/error_codes.rs` checks it against `spec/vectors/error-codes.json`, and the executors use the constants instead of string literals.
 
 ### Changed
 

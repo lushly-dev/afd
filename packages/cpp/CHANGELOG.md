@@ -7,6 +7,7 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 ### Changed
 
 - Renamed to match TypeScript: `Handler` → `CommandHandler`, `Middleware` → `CommandMiddleware`, `RegistryOptions` → `CommandRegistryOptions`.
+- Error suggestions name only tools the host provides (`spec/error-codes.md`, D4). An unknown command's suggestion ends with "Use afd-help to list all commands." when the caller can call `afd-help`, otherwise "Check the command name against the available commands.", instead of naming `afd-discover`. `COMMAND_NOT_IN_CONTEXT` names the contexts the command belongs to instead of the `afd-context-*` tools.
 
 ### Fixed
 
@@ -14,6 +15,7 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Added
 
+- **Error codes:** `error_codes` adds `AMBIGUOUS_ACTION`, `INVALID_GROUPED_CALL`, `SESSION_REQUIRED`, `CONTEXT_NOT_FOUND` and `CONTEXT_DEPTH_EXCEEDED`, completing the 42-code shared catalog of `spec/error-codes.md`. `vectors_test.cpp` checks it against `spec/vectors/error-codes.json`.
 - **Contract version:** `afd::contract_version` in `afd/version.hpp` is the AFD contract version this library implements (`spec/VERSION`, now `1.0-rc`).
 - **Packaging:**
   - install rules and a relocatable CMake package: `find_package(afd 0.1 CONFIG)` provides `afd::afd`, with `SameMinorVersion` compatibility;

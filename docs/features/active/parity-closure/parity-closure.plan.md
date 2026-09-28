@@ -8,7 +8,7 @@
 |---|---|
 | Status | Active: accepted 2026-09-27, with every recommendation (D1–D8) |
 | Author | jasfalk |
-| Updated | 2026-09-27 |
+| Updated | 2026-09-28 |
 | Tracks | [`docs/language-parity.md`](../../../language-parity.md) |
 | Supersedes | The name-only [Python parity plan](../python-parity/python-parity.plan.md) (see [Tracking](#tracking)). The Rust parity plan is marked complete in #289. |
 | Related | [Versioning and release plan](../versioning/versioning.plan.md), [C++ proposal](../../proposed/cpp-support/proposal.md), [Rust support](../../proposed/rust-support/00-overview.md) |
@@ -71,7 +71,7 @@ TypeScript leads this wave. It is small and unblocks everything after it.
 | # | Item | Size | State |
 |---|---|---|---|
 | 1.1 | Load `spec/vectors/pipeline-variables.json` in the TypeScript, Python and Rust test suites; C++ already does. | S per language | Done in #317: all four suites load it. Python and Rust now treat a literal `when` operand as absent, and Rust's `$eq` compares numbers by value |
-| 1.2 | **`spec/error-codes.md`:** every emitted code, whether it is retryable, and which layer emits it, plus the D4 rules. Add the missing codes to TypeScript `ErrorCodes` (about 25), Python `ErrorCodes`, Rust `error_codes` and C++ `error_codes`. | M | Open |
+| 1.2 | **`spec/error-codes.md`:** every emitted code, whether it is retryable, and which layer emits it, plus the D4 rules. Add the missing codes to TypeScript `ErrorCodes` (about 25), Python `ErrorCodes`, Rust `error_codes` and C++ `error_codes`. | M | Done: [`spec/error-codes.md`](../../../../spec/error-codes.md); the 42 shared codes in all four catalogs, checked against `spec/vectors/error-codes.json`; D4 fixes in TypeScript, Python and C++. Python's MCP unknown-tool answer is [#325](https://github.com/lushly-dev/afd/issues/325) |
 | 1.3 | **`spec/validation.md` and `spec/vectors/validation.json`:** see the list below the table. Generate the vectors from TypeScript, marking the astral-character cases where TypeScript differs. | M | Done for TypeScript: [`spec/validation.md`](../../../../spec/validation.md), 32 cases in [`spec/vectors/validation.json`](../../../../spec/vectors/validation.json); Python, Rust and C++ load them in Wave 2 (#310, #311, #312) |
 | 1.4 | **`spec/vectors/batch-controls.json`,** from `packages/server/src/execution-controls.test.ts`. The C++ work plan already recommends this file. | S–M | Done in #317: 21 batch and 22 pipeline cases from `generate-batch-controls.mjs`, loaded by all four suites. Python and Rust envelope validation and Rust's pipeline deadline now match TypeScript. TypeScript's `afd-batch` tool still differs from `executeBatch` ([#314](https://github.com/lushly-dev/afd/issues/314)) |
 | 1.5 | **Command metadata:** list the canonical fields in the spec. Fix the TypeScript split ([#275](https://github.com/lushly-dev/afd/issues/275)): core `CommandDefinition` and `defineCommand` both carry `destructive`, `confirmPrompt` and `undoable`, and `toCommandDefinition()` keeps them. | S (TS minor) | Done in #308: canonical fields in [`spec/command-metadata.md`](../../../../spec/command-metadata.md); `_meta`, afd-detail, afd-help, afd-docs and `afd tools` report `undoable` |
@@ -143,14 +143,14 @@ Each language works against the Wave 1 vectors, and the four can proceed in para
   - `create_progress_chunk_with_steps`;
   - a `StreamExecutorOptions` alias.
 - `to_json` for `CommandDefinition`, and `command_to_mcp_tool`, so `output_schema`, `prerequisites` and `_meta` reach the wire. The todo backend uses them. (M)
-- Error suggestions follow D4: they name only the tools the host provides. (S)
+- Error suggestions follow D4: they name only the tools the host provides. (S) Done in 1.2.
 - Retry, rate-limit and telemetry middleware, `TelemetryEvent`/`TelemetrySink`, and `compose_middleware`. These are the proposal's deferred middleware. (M)
 - `list_by_tags`. (S)
 
 **TypeScript (M overall):**
 - `MockServer` runs on the server engine (`createDirectRegistry`), so scenario tests get production semantics. (M)
 - D8: the engine enforces `CommandContext.timeout`. (S)
-- Complete the `ErrorCodes` catalog as part of 1.2. (S)
+- Complete the `ErrorCodes` catalog as part of 1.2. (S) Done.
 
 ### Wave 3: surfaces
 

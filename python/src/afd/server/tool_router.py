@@ -66,7 +66,6 @@ def create_tool_router(deps: ToolRouterDeps):
         command.name for command in deps.commands
     }
     commands_by_name = _index_by_name(deps.commands)
-    all_commands_by_name = _index_by_name(all_commands)
     get_group = deps.group_by_fn or derive_group_name
     commands_by_group: dict[str, list[CommandDefinition]] = {}
     all_commands_by_group: dict[str, list[CommandDefinition]] = {}
@@ -79,7 +78,7 @@ def create_tool_router(deps: ToolRouterDeps):
     def mcp_context(prefix: str, active_context: str | None) -> CommandContext:
         return CommandContext(
             trace_id=new_trace_id(prefix),
-            extra={"interface": "mcp", "active_context": active_context},
+            extra={"interface": "mcp", "remote": True, "active_context": active_context},
         )
 
     def not_in_context(name: str, active_context: str | None) -> CommandResult[Any]:
@@ -104,15 +103,9 @@ def create_tool_router(deps: ToolRouterDeps):
 
             command = commands_by_name.get(command_name)
             if command is None:
-                registered = all_commands_by_name.get(command_name)
-                if registered is not None:
-                    if not is_command_accessible(registered, active_context):
-                        return not_in_context(command_name, active_context)
-                    return error(
-                        "COMMAND_NOT_EXPOSED",
-                        f"Command '{command_name}' exists but is not exposed via this server",
-                        suggestion="Enable MCP exposure for the command or use a different interface.",
-                    )
+                # An unexposed command gets the same answer as an unknown one, so a
+                # remote caller cannot learn that a private command exists
+                # (spec/error-codes.md, D4).
                 callable_names = [
                     item.name
                     for item in deps.commands

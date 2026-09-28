@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::errors::CommandError;
+use crate::errors::{error_codes, CommandError};
 use crate::result::{CommandResult, ResultMetadata};
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -419,7 +419,7 @@ fn is_skipped<T>(result: &BatchCommandResult<T>) -> bool {
         .error
         .as_ref()
         .map(|error| error.code.as_str())
-        == Some("COMMAND_SKIPPED")
+        == Some(error_codes::COMMAND_SKIPPED)
 }
 
 fn plural(count: usize) -> &'static str {

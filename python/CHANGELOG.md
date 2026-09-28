@@ -36,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Handoff:** the client sends the token as an `Authorization: Bearer` header instead of a query parameter. `ReconnectingHandoffConnection` passes the session to its reconnect command as `sessionId`, the wire name TypeScript uses, instead of `session_id`; the `ReconnectionOptions.session_id` attribute is unchanged, but a reconnect command that read `session_id` must read `sessionId` (#251, #253).
 - **Retry middleware:** `create_retry_middleware()` backs off exponentially with a cap and jitter, like TypeScript, instead of linearly: retry `n` waits `min(max_delay, retry_delay * 2 ** (n - 1))` ms, randomized to between half and all of that. Invalid options (a negative or non-integer `max_retries`, a negative `retry_delay` or `max_delay`, an infinite `max_delay`) raise `ValueError`, as in TypeScript (#253).
 - **Dispatch order:** the MCP server checks a call in the TypeScript order before any middleware runs: lookup, exposure, active context, then input validation. Logging, retry, rate-limit and telemetry middleware no longer see unknown commands or invalid input, and a rejected call no longer spends a rate-limit slot. Middleware receives the validated input (the schema's model instance), and a handler exception passes out through the middleware before it becomes `COMMAND_EXECUTION_ERROR`. An unknown command gets the "Did you mean" suggestion on `server.execute`, batch and pipeline steps, and `afd-call`, naming only commands the caller could call. `input=None` validates as `{}`, so a missing required field returns `VALIDATION_ERROR` instead of crashing the handler (#304).
+- **Unknown and unexposed commands** follow `spec/error-codes.md` (D4). `INVALID_INTERFACE` is gone: in the core registry and the server, an interface other than `palette`, `mcp`, `agent` or `cli` exposes nothing and returns `COMMAND_NOT_EXPOSED` (`retryable: false`), and an empty interface is treated as no interface, as in TypeScript.
 
 ### Added
 
@@ -45,6 +46,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The similarity helpers in `afd.core.similarity` (#279).
 - CI: `python.yml` runs pytest on Python 3.10–3.12, bug-class ruff rules, `uv lock --check`, and a clean-venv install smoke test for each extra (#234).
 - `afd.CONTRACT_VERSION`, the AFD contract version from `spec/VERSION` (now `1.0-rc`). `afd-help` returns it as `contractVersion` (#313).
+- `ErrorCodes` holds the 42-code shared catalog of `spec/error-codes.md`, adding the routing, context, batch, pipeline and stream codes the engines already emit, such as `COMMAND_NOT_EXPOSED`, `UNKNOWN_TOOL`, `BATCH_TIMEOUT` and `STREAM_TIMEOUT`. `tests/test_error_codes.py` checks it against `spec/vectors/error-codes.json`.
 
 ### Changed
 
@@ -63,6 +65,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The handoff client reads WebSocket and SSE connections in the background, and `ReconnectingHandoffConnection` cleans up its tasks on `close()` (#251).
 - `exec_command()` and the testing `CliWrapper` kill and reap child processes when the caller is cancelled. The rate limiter evicts expired windows and tracks at most `max_keys` keys. Blind excepts now log, and a crashing `SimpleRegistry` handler is `COMMAND_EXECUTION_ERROR` (#251).
 - `afd validate --surface` validates a server's commands, not its tools, when the server does not list `afd-help`/`afd-schema` (for example a TypeScript server). Grouped tools are expanded from `_meta.actions`, lazy servers are enumerated with `afd-discover` and `afd-detail`, and AFD's built-in tools are skipped. The HTTP transport keeps `_meta` in `tools/list` (#292).
+- **Security:** `afd-batch` and `afd-pipe` answered a command that is not MCP-exposed with `COMMAND_NOT_EXPOSED`, revealing that it exists; they now answer `COMMAND_NOT_FOUND`, exactly as for an unknown name. A tools/call for such a command no longer returns `COMMAND_NOT_IN_CONTEXT` when a context is active.
+- `DirectClient`'s `UNKNOWN_TOOL` error has a `suggestion` (the closest match, or `list_command_names()`) and `retryable: false`, as in TypeScript and C++.
+- The core registry's `COMMAND_NOT_IN_CONTEXT` suggestion names the command's contexts instead of the `afd-context-*` tools, which the core registry does not provide.
 - A `when` condition treats a first operand that is not a reference (`"$$prev"`, `"text"`) as absent, as TypeScript does, so `{"$exists": "$$prev"}` is false. `tests/test_pipeline_vectors.py` and `tests/test_batch_controls_vectors.py` now load the shared `spec/vectors` files (#317).
 - **Security:** the core registry (`create_command_registry`), the core pipeline (`execute_pipeline`) and `SimpleRegistry` no longer return exception text. A raising handler returns `COMMAND_EXECUTION_ERROR` with "An internal error occurred" and is logged, unless the new `dev_mode=True` is set. The shared helper is `afd.core.execution_failure` (#304).
 

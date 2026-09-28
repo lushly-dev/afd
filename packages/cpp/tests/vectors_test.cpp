@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <vector>
 
 #include <doctest.h>
 
@@ -62,4 +63,55 @@ TEST_CASE("pipeline references and conditions match the TypeScript vectors") {
         CHECK(afd::evaluate_condition(vector.at("condition"), context) ==
               vector.at("expected").get<bool>());
     }
+}
+
+TEST_CASE("error_codes is the shared catalog in spec/vectors/error-codes.json") {
+    // C++ cannot enumerate a namespace, so the constants are listed here: a missing one fails to
+    // compile, and a wrong value or order fails the comparison.
+    const std::vector<std::string> catalog = {
+        afd::error_codes::VALIDATION_ERROR,
+        afd::error_codes::INVALID_INPUT,
+        afd::error_codes::MISSING_REQUIRED_FIELD,
+        afd::error_codes::INVALID_FORMAT,
+        afd::error_codes::NOT_FOUND,
+        afd::error_codes::ALREADY_EXISTS,
+        afd::error_codes::CONFLICT,
+        afd::error_codes::UNAUTHORIZED,
+        afd::error_codes::FORBIDDEN,
+        afd::error_codes::TOKEN_EXPIRED,
+        afd::error_codes::RATE_LIMITED,
+        afd::error_codes::QUOTA_EXCEEDED,
+        afd::error_codes::SERVICE_UNAVAILABLE,
+        afd::error_codes::TIMEOUT,
+        afd::error_codes::CONNECTION_ERROR,
+        afd::error_codes::INTERNAL_ERROR,
+        afd::error_codes::NOT_IMPLEMENTED,
+        afd::error_codes::UNKNOWN_ERROR,
+        afd::error_codes::COMMAND_NOT_FOUND,
+        afd::error_codes::INVALID_COMMAND_ARGS,
+        afd::error_codes::COMMAND_CANCELLED,
+        afd::error_codes::COMMAND_EXECUTION_ERROR,
+        afd::error_codes::COMMAND_NOT_EXPOSED,
+        afd::error_codes::COMMAND_NOT_IN_CONTEXT,
+        afd::error_codes::COMMAND_NOT_ALLOWED,
+        afd::error_codes::UNKNOWN_TOOL,
+        afd::error_codes::AMBIGUOUS_ACTION,
+        afd::error_codes::INVALID_GROUPED_CALL,
+        afd::error_codes::SESSION_REQUIRED,
+        afd::error_codes::CONTEXT_NOT_FOUND,
+        afd::error_codes::CONTEXT_DEPTH_EXCEEDED,
+        afd::error_codes::INVALID_BATCH_REQUEST,
+        afd::error_codes::BATCH_TIMEOUT,
+        afd::error_codes::COMMAND_SKIPPED,
+        afd::error_codes::INVALID_PIPELINE_REQUEST,
+        afd::error_codes::PIPELINE_TIMEOUT,
+        afd::error_codes::UNSUPPORTED_OPTION,
+        afd::error_codes::STREAM_ABORTED,
+        afd::error_codes::STREAM_TIMEOUT,
+        afd::error_codes::STREAM_ERROR,
+        afd::error_codes::STREAM_ENDED_UNEXPECTEDLY,
+        afd::error_codes::COMMAND_FAILED,
+    };
+    const afd::Json vectors = load_vectors("error-codes.json");
+    CHECK(catalog == vectors.at("codes").get<std::vector<std::string>>());
 }

@@ -469,6 +469,11 @@ class DirectClient:
                 error={
                     "code": "UNKNOWN_TOOL",
                     "message": error_data.message,
+                    # Always a suggestion (spec/error-codes.md, D4): the closest
+                    # match, or where to find valid names.
+                    "suggestion": error_data.hint
+                    or "Call one of the commands returned by list_command_names()",
+                    "retryable": False,
                 },
             )
         

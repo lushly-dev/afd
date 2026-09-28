@@ -994,7 +994,7 @@ impl CommandRegistry {
         {
             // TypeScript's error. The suggestion also names maxFailures, a Rust extension.
             return create_failed_batch_result(
-                CommandError::new("INVALID_BATCH_REQUEST", "Invalid batch request envelope")
+                CommandError::new(error_codes::INVALID_BATCH_REQUEST, "Invalid batch request envelope")
                     .with_suggestion(
                         "Provide at least one command with a nonempty command name and optional string ID, and valid boolean stopOnError, nonnegative timeout, and positive integer parallelism and maxFailures options",
                     )
@@ -1038,7 +1038,7 @@ impl CommandRegistry {
             .collect();
         let timeout_error = || {
             CommandError::new(
-                "BATCH_TIMEOUT",
+                error_codes::BATCH_TIMEOUT,
                 format!(
                     "Batch timeout exceeded ({}ms)",
                     options.timeout.unwrap_or(0.0)
@@ -1111,7 +1111,7 @@ impl CommandRegistry {
                     .result
                     .error
                     .as_ref()
-                    .is_some_and(|error| error.code == "BATCH_TIMEOUT");
+                    .is_some_and(|error| error.code == error_codes::BATCH_TIMEOUT);
                 stopped = timed_out
                     || stop_on_error
                     || max_failures.is_some_and(|maximum| failures >= maximum);
@@ -1129,7 +1129,7 @@ impl CommandRegistry {
                         timeout_error()
                     } else {
                         CommandError::new(
-                            "COMMAND_SKIPPED",
+                            error_codes::COMMAND_SKIPPED,
                             "Command skipped because batch execution stopped after a failure",
                         )
                         .with_suggestion("Disable stopOnError to execute every command")

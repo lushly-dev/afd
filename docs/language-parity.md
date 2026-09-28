@@ -4,12 +4,12 @@ What each AFD implementation provides, where they differ, and which differences 
 
 | Field | Value |
 |---|---|
-| Updated | 2026-09-27 |
+| Updated | 2026-09-28 |
 | Reviewed at | `0777217` (`main`) |
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans, which now link here |
 | Plans | [Parity closure](./features/active/parity-closure/parity-closure.plan.md) closes the gaps listed here; [Versioning and release](./features/active/versioning/versioning.plan.md) covers each implementation's version and the contract version |
-| Related | [`spec/wire`](../spec/wire/README.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/command-metadata.md`](../spec/command-metadata.md), [`spec/validation.md`](../spec/validation.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/proposed/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
+| Related | [`spec/wire`](../spec/wire/README.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/command-metadata.md`](../spec/command-metadata.md), [`spec/validation.md`](../spec/validation.md), [`spec/error-codes.md`](../spec/error-codes.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/proposed/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
 
 ## What parity means
 
@@ -43,6 +43,7 @@ The contract has three layers:
 | `spec/wire` round-trip, 6 fixtures | Wire shapes | Yes (generator) | Yes | Yes | Yes |
 | `spec/vectors/pipeline-variables.json`, 48 references and 27 conditions | Pipeline reference and `when` behavior | Yes (generator) | Yes | Yes | Yes |
 | `spec/vectors/batch-controls.json`, 21 batch and 22 pipeline cases | `stopOnError`, `parallelism`, deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION` and envelope validation in the batch and pipeline executors | Yes (generator) | Yes, through `afd-batch` and `afd-pipe` | Yes | Yes |
+| `spec/vectors/error-codes.json`, 42 codes | The shared `ErrorCodes` catalog of `spec/error-codes.md` | Yes | Yes | Yes | Yes |
 | Todo conformance, 34 cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes | Yes | Yes | Yes |
 | `alfred parity` name budget (`alfred/tests/test_parity.py`) | Exported names | Reference | 97 missing (budget 97) | 9 missing (budget 9) | 73 missing (budget 73) |
 | `alfred parity` contract version, `scripts/check-versions.mjs` | The contract constant equals `spec/VERSION` | Yes | Yes | Yes | Yes |
@@ -55,7 +56,7 @@ Limits of these checks:
   - the batch, pipeline or stream executors;
   - unknown-command handling.
 - **Name parity is not behavioral parity.** Rust is 9 names short of TypeScript but has no MCP server and no stream executor. Python is 97 names short, but 61 of those exist and are just not exported (see [Name parity](#name-parity-alfred-parity)).
-- **The behavior vectors cover pipeline references, conditions and executor controls only.** Validation, error codes, streams and single-command dispatch have no vectors yet, so a change there can still drift unnoticed.
+- **The behavior vectors cover pipeline references, conditions, executor controls, validation (loaded by TypeScript only so far) and the error-code catalog.** Streams and single-command dispatch have no vectors yet, so a change there can still drift unnoticed.
 
 ## Capability matrix
 
@@ -73,7 +74,7 @@ Limits of these checks:
 |---|---|---|---|---|
 | `CommandResult`, `CommandError`, metadata shapes (camelCase, unset omitted) | Yes | Yes | Yes | Yes |
 | `Warning`, `Source`, `PlanStep`, `Alternative` | Yes | Yes | Yes | Yes |
-| `ErrorCodes` catalog (22 codes) | Yes | Yes | Yes | Yes, plus 15 executor codes |
+| `ErrorCodes` catalog: the 42 shared codes of [`spec/error-codes.md`](../spec/error-codes.md), checked against `spec/vectors/error-codes.json` | Yes | Yes | Yes | Yes |
 | `success` / `failure` / `error` constructors | Yes | Partial: `failure()` accepts only `warnings` and `metadata` | Partial: `FailureOptions` has no `alternatives` or `undo*` | Yes |
 | `isSuccess` / `isFailure` test only `success` | Yes | Partial: `is_success` also requires `data` | Yes | Yes |
 
@@ -257,18 +258,17 @@ Ordered by how much an agent or a security boundary is affected.
 16. **C++ metadata cannot reach the wire.**
     - There is no command-to-MCP-tool conversion and no `to_json` for `CommandDefinition`.
     - The todo backend's `tools/list` sends no `_meta` or `outputSchema`.
-    - Suggestions copied verbatim from TypeScript name `afd-discover` and `afd-context-*`, which C++ does not have.
+    - Suggestions no longer name `afd-discover` and `afd-context-*`, which C++ does not have (fixed): an unknown command points to `afd-help` when the caller can call it, as in Rust, and `COMMAND_NOT_IN_CONTEXT` names the command's contexts.
 
 ### Priority 3: reference decisions that affect every language
 
 17. **The TypeScript server does not speak MCP Streamable HTTP.** It advertises protocol `2024-11-05` over custom routes. The conformance runner reaches the Rust backend over Streamable HTTP, but the TypeScript client cannot.
-18. **Unknown and unexposed commands get different codes depending on the entry point**, even within TypeScript:
-    - an unexposed command over MCP gives `COMMAND_NOT_FOUND`;
-    - the core registry and `createDirectRegistry` give `COMMAND_NOT_EXPOSED`;
-    - `DirectClient` gives `UNKNOWN_TOOL`.
-
-    Python, Rust and C++ each copied one of these. Decide per entry point, then write it into a spec.
-19. **The TypeScript `ErrorCodes` catalog omits about 25 codes the engines emit,** for example `COMMAND_NOT_EXPOSED`, `BATCH_TIMEOUT` and `STREAM_TIMEOUT`. The other languages therefore add them ad hoc.
+18. **Unknown and unexposed commands (decided: D4).** [`spec/error-codes.md`](../spec/error-codes.md#unknown-and-unexposed-commands-d4) writes the TypeScript split down as the rule: remote MCP gives `COMMAND_NOT_FOUND` for both, an in-process registry called with an interface gives `COMMAND_NOT_EXPOSED`, and `DirectClient` gives `UNKNOWN_TOOL` with a `suggestion`. Suggestions name only tools the host provides. Fixed to match:
+    - **TypeScript and Python:** the router's unreachable `COMMAND_NOT_EXPOSED` branch in `afd-call` is gone.
+    - **Python:** `afd-batch` and `afd-pipe` no longer reveal a private command with `COMMAND_NOT_EXPOSED`, and the context check no longer reveals it through tools/call. `INVALID_INTERFACE` is gone: an unknown interface exposes nothing, and an empty one is no interface. `DirectClient`'s `UNKNOWN_TOOL` has a `suggestion` and `retryable: false`. The core registry's `COMMAND_NOT_IN_CONTEXT` names the command's contexts instead of the `afd-context-*` tools it lacks.
+    - **C++:** see item 16.
+    - **Open:** a Python MCP server answers an unlisted tool name with FastMCP's plain "Unknown tool" text, and its suggestions name `afd-discover` and `afd-detail` in tool strategies that do not serve them ([#325](https://github.com/lushly-dev/afd/issues/325)).
+19. **The `ErrorCodes` catalog (fixed).** TypeScript's catalog omitted 20 codes the engines emit, so each language added its own. [`spec/error-codes.md`](../spec/error-codes.md) now lists every emitted code with its meaning, retryability and emitting layer, and separates the 42-code shared catalog from transport-specific and package codes. All four languages define the shared catalog, and each test suite checks it against `spec/vectors/error-codes.json`.
 20. **The TypeScript `MockServer` runs on the core registry.** It has no Zod validation, did-you-mean, middleware or context scoping, so scenario tests run different semantics from production.
 
 ## Defects found in this review
@@ -322,7 +322,7 @@ The budgets in `alfred/tests/test_parity.py` equal these counts. Lower a budget 
 
 1. **Fix the Priority 1 items and the C++ `DirectClient` defect.** They are small, local changes.
 2. **Load `spec/vectors/validation.json` in the Python, Rust and C++ test suites** (#310, #311, #312). All four suites already load `pipeline-variables.json` and `batch-controls.json`.
-3. **Write the unknown and unexposed error codes into a spec,** and add the emitted codes to the `ErrorCodes` catalog.
+3. **Write the unknown and unexposed error codes into a spec,** and add the emitted codes to the `ErrorCodes` catalog. Done: [`spec/error-codes.md`](../spec/error-codes.md).
 4. **Add an AFD-protocol conformance tier** that checks meta-tools, bootstrap, exposure, batch and pipeline over MCP. It should be optional per language, so Rust and C++ can join once they ship a server.
 5. **Python export cleanup:** resolve the `afd.direct` name collisions, then re-export the pipeline, similarity and registry contract. This removes 61 names from the budget.
 6. **Decide the undeclared gaps** listed under [Declared deferred](#declared-deferred), and record each decision here.

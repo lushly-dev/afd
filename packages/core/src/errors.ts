@@ -88,7 +88,10 @@ export interface CommandError {
 /**
  * Standard error codes for common scenarios.
  *
- * Use these for consistency across AFD applications.
+ * Use these for consistency across AFD applications. This is the shared
+ * catalog from `spec/error-codes.md`: Python, Rust and C++ define the same
+ * codes. Transport-specific codes, such as `HTTP_<status>` and the client's
+ * `OUTCOME_UNKNOWN`, are listed in the spec but not here.
  */
 export const ErrorCodes = {
 	// Validation Errors (4xx range)
@@ -126,6 +129,34 @@ export const ErrorCodes = {
 	INVALID_COMMAND_ARGS: 'INVALID_COMMAND_ARGS',
 	COMMAND_CANCELLED: 'COMMAND_CANCELLED',
 	COMMAND_EXECUTION_ERROR: 'COMMAND_EXECUTION_ERROR',
+
+	// Routing and access
+	COMMAND_NOT_EXPOSED: 'COMMAND_NOT_EXPOSED',
+	COMMAND_NOT_IN_CONTEXT: 'COMMAND_NOT_IN_CONTEXT',
+	COMMAND_NOT_ALLOWED: 'COMMAND_NOT_ALLOWED',
+	UNKNOWN_TOOL: 'UNKNOWN_TOOL',
+	AMBIGUOUS_ACTION: 'AMBIGUOUS_ACTION',
+	INVALID_GROUPED_CALL: 'INVALID_GROUPED_CALL',
+
+	// Contexts
+	SESSION_REQUIRED: 'SESSION_REQUIRED',
+	CONTEXT_NOT_FOUND: 'CONTEXT_NOT_FOUND',
+	CONTEXT_DEPTH_EXCEEDED: 'CONTEXT_DEPTH_EXCEEDED',
+
+	// Batch and pipeline
+	INVALID_BATCH_REQUEST: 'INVALID_BATCH_REQUEST',
+	BATCH_TIMEOUT: 'BATCH_TIMEOUT',
+	COMMAND_SKIPPED: 'COMMAND_SKIPPED',
+	INVALID_PIPELINE_REQUEST: 'INVALID_PIPELINE_REQUEST',
+	PIPELINE_TIMEOUT: 'PIPELINE_TIMEOUT',
+	UNSUPPORTED_OPTION: 'UNSUPPORTED_OPTION',
+
+	// Streaming
+	STREAM_ABORTED: 'STREAM_ABORTED',
+	STREAM_TIMEOUT: 'STREAM_TIMEOUT',
+	STREAM_ERROR: 'STREAM_ERROR',
+	STREAM_ENDED_UNEXPECTEDLY: 'STREAM_ENDED_UNEXPECTEDLY',
+	COMMAND_FAILED: 'COMMAND_FAILED',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];
