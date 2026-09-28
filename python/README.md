@@ -237,6 +237,10 @@ step naming `afd-batch`, `afd-pipe`, `afd-call`, `afd-discover` or `afd-detail` 
 the whole request before anything runs, and so does a malformed `when` condition
 (for example `$exist` or `{"$eq": "x"}`).
 
+- The envelope is checked as TypeScript checks it. A blank command name, `null` in place
+  of an omitted optional field, or a string where a boolean or number belongs returns a
+  failed `BatchResult` with `INVALID_BATCH_REQUEST`, or a `PipelineResult` whose one
+  step (index -1) carries `INVALID_PIPELINE_REQUEST`, and nothing runs.
 - A batch holds at most 500 commands, with `parallelism` at most 16. Configure the caps
   with `create_server(max_batch_size=..., max_batch_parallelism=...)`; a larger request
   returns `INVALID_BATCH_REQUEST`.

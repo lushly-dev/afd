@@ -48,7 +48,7 @@ from afd.core.pipeline import (
 )
 from afd.core.result import CommandResult, ResultMetadata, coerce_command_result, error
 from afd.core.similarity import truncate_name
-from afd.core.wire import to_wire
+from afd.core.wire import WIRE_ENVELOPE, to_wire
 from afd.server.bootstrap import ContextState, create_context_state, get_bootstrap_commands
 from afd.server.decorators import (
     CommandMetadata,
@@ -555,10 +555,15 @@ class MCPServer:
 
     async def _execute_batch(
         self,
-        request: BatchRequest | dict[str, Any],
+        request: Any,
         context: CommandContext | None = None,
     ) -> BatchResult:
         """Run a batch with partial-success semantics.
+
+        Any request that is not a valid envelope (see ``WIRE_ENVELOPE``), is
+        empty or exceeds the server's limits returns a failed BatchResult with
+        ``INVALID_BATCH_REQUEST`` before any command runs, as TypeScript's
+        ``executeBatch()`` does.
 
         Nothing keeps running after the result is returned: when the batch
         stops (``stopOnError`` failure or the ``timeout`` deadline) or is
@@ -570,15 +575,16 @@ class MCPServer:
         started_at = datetime.now(timezone.utc).isoformat()
         context = context or CommandContext()
         if not isinstance(request, BatchRequest):
-            payload = dict(request)
-            options = dict(payload.get("options") or {})
-            if "timeoutMs" in options:
+            payload = request
+            options = request.get("options") if isinstance(request, dict) else None
+            if isinstance(options, dict) and "timeoutMs" in options:
                 if "timeout" in options:
                     return _invalid_batch("Specify only one of timeout or timeoutMs")
+                options = dict(options)
                 options["timeout"] = options.pop("timeoutMs")
-            payload["options"] = options
+                payload = {**request, "options": options}
             try:
-                request = BatchRequest.model_validate(payload)
+                request = BatchRequest.model_validate(payload, context=WIRE_ENVELOPE)
             except PydanticValidationError as exc:
                 return _invalid_batch(_describe_validation_error(exc))
 
@@ -726,15 +732,21 @@ class MCPServer:
 
     async def _execute_pipeline(
         self,
-        request: PipelineRequest | dict[str, Any],
+        request: Any,
         context: CommandContext | None = None,
     ) -> PipelineResult[Any]:
+        """Run a pipeline of commands.
+
+        An invalid envelope (see ``WIRE_ENVELOPE``) returns a PipelineResult
+        whose one synthetic step (index -1, command "") carries
+        ``INVALID_PIPELINE_REQUEST``, before any step runs, as in TypeScript.
+        """
         if not isinstance(request, PipelineRequest):
             # Options accept camelCase (continueOnFailure, timeoutMs) and snake_case.
             # Conditions are validated here too, so a malformed `when` rejects
             # the whole pipeline before any step runs.
             try:
-                request = PipelineRequest.model_validate(request)
+                request = PipelineRequest.model_validate(request, context=WIRE_ENVELOPE)
             except PydanticValidationError as exc:
                 return create_pipeline_failure(
                     CommandError(
@@ -1015,7 +1027,7 @@ def _invalid_batch(problem: Any, *, suggestion: str | None = None) -> BatchResul
     return create_failed_batch_result(
         CommandError(
             code="INVALID_BATCH_REQUEST",
-            message="Invalid batch request",
+            message="Invalid batch request envelope",
             suggestion=suggestion
             or (
                 "Provide { commands: [{ command, input }], options: { stopOnError, "

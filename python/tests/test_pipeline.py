@@ -3,6 +3,7 @@
 import asyncio
 
 import pytest
+from pydantic import ValidationError
 
 from afd import success, error
 from afd.core.pipeline import (
@@ -40,6 +41,7 @@ from afd.core.pipeline import (
 )
 from afd.core.result import ResultMetadata
 from afd.core.metadata import Warning, Source, WarningSeverity
+from afd.core.wire import WIRE_ENVELOPE
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -70,6 +72,20 @@ class TestPipelineStep:
         # When using a dict as condition, it's stored as-is
         assert step.when is not None
 
+    @pytest.mark.parametrize("name", ["", " ", "\t"])
+    def test_blank_command_name_is_rejected(self, name):
+        with pytest.raises(ValidationError, match="nonempty command name"):
+            PipelineStep(command=name)
+
+    @pytest.mark.parametrize("stream", ["true", 1, 0])
+    def test_stream_accepts_only_a_boolean(self, stream):
+        with pytest.raises(ValidationError):
+            PipelineStep.model_validate({"command": "x", "stream": stream})
+
+    def test_array_input_is_rejected(self):
+        with pytest.raises(ValidationError):
+            PipelineStep.model_validate({"command": "x", "input": []})
+
 
 class TestPipelineRequest:
     """Tests for PipelineRequest type."""
@@ -99,6 +115,54 @@ class TestPipelineRequest:
             input={"userId": 456},
         )
         assert request.input == {"userId": 456}
+
+    @pytest.mark.parametrize(
+        "options",
+        [
+            {"continueOnFailure": "false"},
+            {"parallel": 1},
+            {"timeoutMs": True},
+            {"timeoutMs": "50"},
+            {"timeoutMs": -5},
+            {"onProgress": 1},
+        ],
+    )
+    def test_options_are_not_coerced(self, options):
+        with pytest.raises(ValidationError):
+            PipelineOptions.model_validate(options)
+
+    @pytest.mark.parametrize(
+        ("payload", "path"),
+        [
+            ({"id": None, "steps": []}, ("id",)),
+            ({"steps": [], "options": None}, ("options",)),
+            ({"steps": [], "options": {"timeoutMs": None}}, ("options", "timeoutMs")),
+            ({"steps": [{"command": "x", "as": None}]}, ("steps", 0, "as")),
+            ({"steps": [{"command": "x", "input": None}]}, ("steps", 0, "input")),
+            ({"steps": [{"command": "x", "when": None}]}, ("steps", 0, "when")),
+            ({"steps": [{"command": "x", "stream": None}]}, ("steps", 0, "stream")),
+        ],
+    )
+    def test_null_is_rejected_in_a_wire_envelope(self, payload, path):
+        # As in TypeScript's isPipelineRequest: omit an optional field, never send null.
+        with pytest.raises(ValidationError) as caught:
+            PipelineRequest.model_validate(payload, context=WIRE_ENVELOPE)
+        assert caught.value.errors()[0]["loc"] == path
+
+    def test_null_request_input_is_accepted_in_a_wire_envelope(self):
+        request = PipelineRequest.model_validate(
+            {"steps": [], "input": None}, context=WIRE_ENVELOPE
+        )
+        assert request.input is None
+
+    def test_python_callers_may_pass_none(self):
+        request = PipelineRequest(
+            id=None,
+            steps=[PipelineStep(command="x", input=None, as_=None, when=None, stream=None)],
+            options=None,
+        )
+        assert request.steps[0].as_ is None
+        assert create_pipeline([PipelineStep(command="x")]).options is None
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

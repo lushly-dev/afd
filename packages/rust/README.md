@@ -115,7 +115,8 @@ assert_eq!(json, r#"{"success":true,"data":"hello"}"#);
 A batch runs every command and collects all results, unless `stopOnError` is set.
 `BatchResult.success` is `true` whenever the batch ran, even if some commands failed; the
 `summary`, `confidence` and each command's `result` report how they fared. It is `false` only
-when the batch itself was invalid.
+when the batch itself was invalid, with TypeScript's `INVALID_BATCH_REQUEST` error. A command
+`id` or an option set to `null` fails to deserialize.
 
 ```rust
 use afd::{BatchCommand, BatchOptions, BatchRequest};
@@ -145,6 +146,9 @@ Step inputs can reference earlier results. Resolution follows
 - Unresolved references are omitted from objects and become `null` in arrays.
 - Paths only reach own keys and in-bounds indices; segments starting with `__` never resolve.
 - Inputs nested deeper than 64 levels are rejected with `VALIDATION_ERROR` before any step runs.
+- A `PipelineRequest` whose envelope TypeScript would reject with `INVALID_PIPELINE_REQUEST` fails
+  to deserialize: a blank command, a step `input` that is not an object, a negative `timeoutMs`,
+  `options.onProgress`, or `null` for an optional field other than `input`.
 
 ```rust
 use afd::{PipelineCondition, PipelineRequest, PipelineStep};

@@ -1,0 +1,1719 @@
+{
+	"description": "Batch and pipeline execution controls (stopOnError, parallelism, deadlines, continueOnFailure, unsupported options and envelope validation), with expected values produced by the TypeScript executors on a virtual clock. See spec/vectors/README.md for how to run a case. Regenerate with node spec/vectors/generate-batch-controls.mjs.",
+	"handlers": "Each case maps command names to handlers. A handler takes delayMs milliseconds on the clock (or, with untilCancelled, runs until the executor cancels it at the deadline), then fails with fail if given, and otherwise succeeds with its input as data.",
+	"batch": [
+		{
+			"name": "results keep request order and IDs; IDs default to cmd-<index>",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"commands": [
+					{
+						"command": "work-run",
+						"input": {
+							"index": 0
+						}
+					},
+					{
+						"id": "second",
+						"command": "work-run",
+						"input": {
+							"index": 1
+						}
+					},
+					{
+						"command": "work-run",
+						"input": {
+							"index": 2
+						}
+					}
+				]
+			},
+			"expected": {
+				"calls": [
+					{
+						"command": "work-run",
+						"input": {
+							"index": 0
+						}
+					},
+					{
+						"command": "work-run",
+						"input": {
+							"index": 1
+						}
+					},
+					{
+						"command": "work-run",
+						"input": {
+							"index": 2
+						}
+					}
+				],
+				"peakConcurrency": 1,
+				"success": true,
+				"summary": {
+					"total": 3,
+					"successCount": 3,
+					"failureCount": 0,
+					"skippedCount": 0
+				},
+				"results": [
+					{
+						"id": "cmd-0",
+						"index": 0,
+						"command": "work-run",
+						"success": true,
+						"data": {
+							"index": 0
+						}
+					},
+					{
+						"id": "second",
+						"index": 1,
+						"command": "work-run",
+						"success": true,
+						"data": {
+							"index": 1
+						}
+					},
+					{
+						"id": "cmd-2",
+						"index": 2,
+						"command": "work-run",
+						"success": true,
+						"data": {
+							"index": 2
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "parallelism bounds overlap and keeps request order and IDs",
+			"handlers": {
+				"work-slow": {
+					"delayMs": 20
+				},
+				"work-run": {
+					"delayMs": 5
+				}
+			},
+			"request": {
+				"commands": [
+					{
+						"id": "request-0",
+						"command": "work-slow",
+						"input": {
+							"index": 0
+						}
+					},
+					{
+						"id": "request-1",
+						"command": "work-run",
+						"input": {
+							"index": 1
+						}
+					},
+					{
+						"id": "request-2",
+						"command": "work-run",
+						"input": {
+							"index": 2
+						}
+					},
+					{
+						"id": "request-3",
+						"command": "work-run",
+						"input": {
+							"index": 3
+						}
+					}
+				],
+				"options": {
+					"parallelism": 2
+				}
+			},
+			"expected": {
+				"calls": [
+					{
+						"command": "work-slow",
+						"input": {
+							"index": 0
+						}
+					},
+					{
+						"command": "work-run",
+						"input": {
+							"index": 1
+						}
+					},
+					{
+						"command": "work-run",
+						"input": {
+							"index": 2
+						}
+					},
+					{
+						"command": "work-run",
+						"input": {
+							"index": 3
+						}
+					}
+				],
+				"peakConcurrency": 2,
+				"success": true,
+				"summary": {
+					"total": 4,
+					"successCount": 4,
+					"failureCount": 0,
+					"skippedCount": 0
+				},
+				"results": [
+					{
+						"id": "request-0",
+						"index": 0,
+						"command": "work-slow",
+						"success": true,
+						"data": {
+							"index": 0
+						}
+					},
+					{
+						"id": "request-1",
+						"index": 1,
+						"command": "work-run",
+						"success": true,
+						"data": {
+							"index": 1
+						}
+					},
+					{
+						"id": "request-2",
+						"index": 2,
+						"command": "work-run",
+						"success": true,
+						"data": {
+							"index": 2
+						}
+					},
+					{
+						"id": "request-3",
+						"index": 3,
+						"command": "work-run",
+						"success": true,
+						"data": {
+							"index": 3
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "without stopOnError every command runs",
+			"handlers": {
+				"work-run": {},
+				"work-fail": {
+					"fail": {
+						"code": "EXPECTED",
+						"message": "stop"
+					}
+				}
+			},
+			"request": {
+				"commands": [
+					{
+						"command": "work-run",
+						"input": {
+							"index": 0
+						}
+					},
+					{
+						"command": "work-fail",
+						"input": {
+							"index": 1
+						}
+					},
+					{
+						"command": "work-run",
+						"input": {
+							"index": 2
+						}
+					}
+				]
+			},
+			"expected": {
+				"calls": [
+					{
+						"command": "work-run",
+						"input": {
+							"index": 0
+						}
+					},
+					{
+						"command": "work-fail",
+						"input": {
+							"index": 1
+						}
+					},
+					{
+						"command": "work-run",
+						"input": {
+							"index": 2
+						}
+					}
+				],
+				"peakConcurrency": 1,
+				"success": true,
+				"summary": {
+					"total": 3,
+					"successCount": 2,
+					"failureCount": 1,
+					"skippedCount": 0
+				},
+				"results": [
+					{
+						"id": "cmd-0",
+						"index": 0,
+						"command": "work-run",
+						"success": true,
+						"data": {
+							"index": 0
+						}
+					},
+					{
+						"id": "cmd-1",
+						"index": 1,
+						"command": "work-fail",
+						"success": false,
+						"error": {
+							"code": "EXPECTED",
+							"message": "stop"
+						}
+					},
+					{
+						"id": "cmd-2",
+						"index": 2,
+						"command": "work-run",
+						"success": true,
+						"data": {
+							"index": 2
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "stopOnError stops scheduling after a failure; the rest are COMMAND_SKIPPED",
+			"handlers": {
+				"work-run": {},
+				"work-fail": {
+					"fail": {
+						"code": "EXPECTED",
+						"message": "stop"
+					}
+				}
+			},
+			"request": {
+				"commands": [
+					{
+						"command": "work-fail",
+						"input": {
+							"index": 0
+						}
+					},
+					{
+						"command": "work-run",
+						"input": {
+							"index": 1
+						}
+					},
+					{
+						"command": "work-run",
+						"input": {
+							"index": 2
+						}
+					}
+				],
+				"options": {
+					"stopOnError": true
+				}
+			},
+			"expected": {
+				"calls": [
+					{
+						"command": "work-fail",
+						"input": {
+							"index": 0
+						}
+					}
+				],
+				"peakConcurrency": 1,
+				"success": true,
+				"summary": {
+					"total": 3,
+					"successCount": 0,
+					"failureCount": 1,
+					"skippedCount": 2
+				},
+				"results": [
+					{
+						"id": "cmd-0",
+						"index": 0,
+						"command": "work-fail",
+						"success": false,
+						"error": {
+							"code": "EXPECTED",
+							"message": "stop"
+						}
+					},
+					{
+						"id": "cmd-1",
+						"index": 1,
+						"command": "work-run",
+						"success": false,
+						"error": {
+							"code": "COMMAND_SKIPPED",
+							"message": "Command skipped because batch execution stopped after a failure"
+						},
+						"durationMs": 0
+					},
+					{
+						"id": "cmd-2",
+						"index": 2,
+						"command": "work-run",
+						"success": false,
+						"error": {
+							"code": "COMMAND_SKIPPED",
+							"message": "Command skipped because batch execution stopped after a failure"
+						},
+						"durationMs": 0
+					}
+				]
+			}
+		},
+		{
+			"name": "the deadline is enforced while a command is awaited",
+			"handlers": {
+				"work-hang": {
+					"untilCancelled": true
+				}
+			},
+			"request": {
+				"commands": [
+					{
+						"command": "work-hang",
+						"input": {
+							"index": 0
+						}
+					}
+				],
+				"options": {
+					"timeout": 20
+				}
+			},
+			"expected": {
+				"calls": [
+					{
+						"command": "work-hang",
+						"input": {
+							"index": 0
+						}
+					}
+				],
+				"peakConcurrency": 1,
+				"success": true,
+				"summary": {
+					"total": 1,
+					"successCount": 0,
+					"failureCount": 1,
+					"skippedCount": 0
+				},
+				"results": [
+					{
+						"id": "cmd-0",
+						"index": 0,
+						"command": "work-hang",
+						"success": false,
+						"error": {
+							"code": "BATCH_TIMEOUT",
+							"message": "Batch timeout exceeded (20ms)",
+							"retryable": true
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "a command running at the deadline, and every later one, gets BATCH_TIMEOUT",
+			"handlers": {
+				"work-run": {
+					"delayMs": 1
+				},
+				"work-slow": {
+					"delayMs": 500
+				}
+			},
+			"request": {
+				"commands": [
+					{
+						"command": "work-run",
+						"input": {
+							"index": 0
+						}
+					},
+					{
+						"command": "work-slow",
+						"input": {
+							"index": 1
+						}
+					},
+					{
+						"command": "work-run",
+						"input": {
+							"index": 2
+						}
+					}
+				],
+				"options": {
+					"timeout": 50
+				}
+			},
+			"expected": {
+				"calls": [
+					{
+						"command": "work-run",
+						"input": {
+							"index": 0
+						}
+					},
+					{
+						"command": "work-slow",
+						"input": {
+							"index": 1
+						}
+					}
+				],
+				"peakConcurrency": 1,
+				"success": true,
+				"summary": {
+					"total": 3,
+					"successCount": 1,
+					"failureCount": 2,
+					"skippedCount": 0
+				},
+				"results": [
+					{
+						"id": "cmd-0",
+						"index": 0,
+						"command": "work-run",
+						"success": true,
+						"data": {
+							"index": 0
+						}
+					},
+					{
+						"id": "cmd-1",
+						"index": 1,
+						"command": "work-slow",
+						"success": false,
+						"error": {
+							"code": "BATCH_TIMEOUT",
+							"message": "Batch timeout exceeded (50ms)",
+							"retryable": true
+						}
+					},
+					{
+						"id": "cmd-2",
+						"index": 2,
+						"command": "work-run",
+						"success": false,
+						"error": {
+							"code": "BATCH_TIMEOUT",
+							"message": "Batch timeout exceeded (50ms)",
+							"retryable": true
+						},
+						"durationMs": 0
+					}
+				]
+			}
+		},
+		{
+			"name": "timeout 0 times out every command without running any",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"commands": [
+					{
+						"command": "work-run",
+						"input": {
+							"index": 0
+						}
+					},
+					{
+						"command": "work-run",
+						"input": {
+							"index": 1
+						}
+					}
+				],
+				"options": {
+					"timeout": 0
+				}
+			},
+			"expected": {
+				"calls": [],
+				"peakConcurrency": 0,
+				"success": true,
+				"summary": {
+					"total": 2,
+					"successCount": 0,
+					"failureCount": 2,
+					"skippedCount": 0
+				},
+				"results": [
+					{
+						"id": "cmd-0",
+						"index": 0,
+						"command": "work-run",
+						"success": false,
+						"error": {
+							"code": "BATCH_TIMEOUT",
+							"message": "Batch timeout exceeded (0ms)",
+							"retryable": true
+						},
+						"durationMs": 0
+					},
+					{
+						"id": "cmd-1",
+						"index": 1,
+						"command": "work-run",
+						"success": false,
+						"error": {
+							"code": "BATCH_TIMEOUT",
+							"message": "Batch timeout exceeded (0ms)",
+							"retryable": true
+						},
+						"durationMs": 0
+					}
+				]
+			}
+		},
+		{
+			"name": "invalid envelope: a batch with no commands; nothing runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"commands": []
+			},
+			"expected": {
+				"calls": [],
+				"success": false,
+				"error": {
+					"code": "INVALID_BATCH_REQUEST",
+					"message": "Invalid batch request envelope"
+				},
+				"results": []
+			}
+		},
+		{
+			"name": "invalid envelope: a blank command name; nothing runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"commands": [
+					{
+						"command": "  "
+					}
+				]
+			},
+			"expected": {
+				"calls": [],
+				"success": false,
+				"error": {
+					"code": "INVALID_BATCH_REQUEST",
+					"message": "Invalid batch request envelope"
+				},
+				"results": []
+			}
+		},
+		{
+			"name": "invalid envelope: a numeric ID; nothing runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"commands": [
+					{
+						"command": "work-run",
+						"id": 7
+					}
+				]
+			},
+			"expected": {
+				"calls": [],
+				"success": false,
+				"error": {
+					"code": "INVALID_BATCH_REQUEST",
+					"message": "Invalid batch request envelope"
+				},
+				"results": []
+			}
+		},
+		{
+			"name": "invalid envelope: a null ID; nothing runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"commands": [
+					{
+						"command": "work-run",
+						"id": null
+					}
+				]
+			},
+			"expected": {
+				"calls": [],
+				"success": false,
+				"error": {
+					"code": "INVALID_BATCH_REQUEST",
+					"message": "Invalid batch request envelope"
+				},
+				"results": []
+			}
+		},
+		{
+			"name": "invalid envelope: a null command entry; nothing runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"commands": [
+					{
+						"command": "work-run",
+						"input": {}
+					},
+					null
+				]
+			},
+			"expected": {
+				"calls": [],
+				"success": false,
+				"error": {
+					"code": "INVALID_BATCH_REQUEST",
+					"message": "Invalid batch request envelope"
+				},
+				"results": []
+			}
+		},
+		{
+			"name": "invalid envelope: parallelism 0; nothing runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"commands": [
+					{
+						"command": "work-run"
+					}
+				],
+				"options": {
+					"parallelism": 0
+				}
+			},
+			"expected": {
+				"calls": [],
+				"success": false,
+				"error": {
+					"code": "INVALID_BATCH_REQUEST",
+					"message": "Invalid batch request envelope"
+				},
+				"results": []
+			}
+		},
+		{
+			"name": "invalid envelope: fractional parallelism; nothing runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"commands": [
+					{
+						"command": "work-run"
+					}
+				],
+				"options": {
+					"parallelism": 1.5
+				}
+			},
+			"expected": {
+				"calls": [],
+				"success": false,
+				"error": {
+					"code": "INVALID_BATCH_REQUEST",
+					"message": "Invalid batch request envelope"
+				},
+				"results": []
+			}
+		},
+		{
+			"name": "invalid envelope: a negative timeout; nothing runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"commands": [
+					{
+						"command": "work-run"
+					}
+				],
+				"options": {
+					"timeout": -1
+				}
+			},
+			"expected": {
+				"calls": [],
+				"success": false,
+				"error": {
+					"code": "INVALID_BATCH_REQUEST",
+					"message": "Invalid batch request envelope"
+				},
+				"results": []
+			}
+		},
+		{
+			"name": "invalid envelope: a string stopOnError; nothing runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"commands": [
+					{
+						"command": "work-run"
+					}
+				],
+				"options": {
+					"stopOnError": "false"
+				}
+			},
+			"expected": {
+				"calls": [],
+				"success": false,
+				"error": {
+					"code": "INVALID_BATCH_REQUEST",
+					"message": "Invalid batch request envelope"
+				},
+				"results": []
+			}
+		},
+		{
+			"name": "invalid envelope: null options; nothing runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"commands": [
+					{
+						"command": "work-run"
+					}
+				],
+				"options": null
+			},
+			"expected": {
+				"calls": [],
+				"success": false,
+				"error": {
+					"code": "INVALID_BATCH_REQUEST",
+					"message": "Invalid batch request envelope"
+				},
+				"results": []
+			}
+		},
+		{
+			"name": "invalid envelope: commands given as an object; nothing runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"commands": {}
+			},
+			"expected": {
+				"calls": [],
+				"success": false,
+				"error": {
+					"code": "INVALID_BATCH_REQUEST",
+					"message": "Invalid batch request envelope"
+				},
+				"results": []
+			}
+		},
+		{
+			"name": "invalid envelope: an envelope without commands; nothing runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {},
+			"expected": {
+				"calls": [],
+				"success": false,
+				"error": {
+					"code": "INVALID_BATCH_REQUEST",
+					"message": "Invalid batch request envelope"
+				},
+				"results": []
+			}
+		},
+		{
+			"name": "invalid envelope: an array envelope; nothing runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": [],
+			"expected": {
+				"calls": [],
+				"success": false,
+				"error": {
+					"code": "INVALID_BATCH_REQUEST",
+					"message": "Invalid batch request envelope"
+				},
+				"results": []
+			}
+		},
+		{
+			"name": "invalid envelope: a null envelope; nothing runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": null,
+			"expected": {
+				"calls": [],
+				"success": false,
+				"error": {
+					"code": "INVALID_BATCH_REQUEST",
+					"message": "Invalid batch request envelope"
+				},
+				"results": []
+			}
+		}
+	],
+	"pipeline": [
+		{
+			"name": "an empty pipeline runs nothing and returns no steps",
+			"handlers": {},
+			"request": {
+				"steps": []
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 0,
+				"steps": []
+			}
+		},
+		{
+			"name": "a failure stops the pipeline; later steps are skipped without an error",
+			"handlers": {
+				"fail-now": {
+					"fail": {
+						"code": "EXPECTED",
+						"message": "failed on purpose"
+					}
+				},
+				"then-run": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "fail-now"
+					},
+					{
+						"command": "then-run"
+					}
+				]
+			},
+			"expected": {
+				"calls": [
+					{
+						"command": "fail-now",
+						"input": {}
+					}
+				],
+				"completedSteps": 0,
+				"totalSteps": 2,
+				"steps": [
+					{
+						"index": 0,
+						"command": "fail-now",
+						"status": "failure",
+						"error": {
+							"code": "EXPECTED",
+							"message": "failed on purpose"
+						}
+					},
+					{
+						"index": 1,
+						"command": "then-run",
+						"status": "skipped"
+					}
+				]
+			}
+		},
+		{
+			"name": "continueOnFailure runs every step; a failed step is absent to references",
+			"handlers": {
+				"fail-now": {
+					"fail": {
+						"code": "EXPECTED",
+						"message": "failed on purpose"
+					}
+				},
+				"then-run": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "fail-now"
+					},
+					{
+						"command": "then-run",
+						"input": {
+							"x": "$steps[0]",
+							"y": 1
+						}
+					}
+				],
+				"options": {
+					"continueOnFailure": true
+				}
+			},
+			"expected": {
+				"calls": [
+					{
+						"command": "fail-now",
+						"input": {}
+					},
+					{
+						"command": "then-run",
+						"input": {
+							"y": 1
+						}
+					}
+				],
+				"data": {
+					"y": 1
+				},
+				"completedSteps": 1,
+				"totalSteps": 2,
+				"steps": [
+					{
+						"index": 0,
+						"command": "fail-now",
+						"status": "failure",
+						"error": {
+							"code": "EXPECTED",
+							"message": "failed on purpose"
+						}
+					},
+					{
+						"index": 1,
+						"command": "then-run",
+						"status": "success",
+						"data": {
+							"y": 1
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "a step running at the deadline fails, and later steps are skipped with PIPELINE_TIMEOUT even with continueOnFailure",
+			"handlers": {
+				"quick-a": {},
+				"slow-b": {
+					"delayMs": 500
+				},
+				"quick-c": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "quick-a"
+					},
+					{
+						"command": "slow-b"
+					},
+					{
+						"command": "quick-c"
+					}
+				],
+				"options": {
+					"timeoutMs": 50,
+					"continueOnFailure": true
+				}
+			},
+			"expected": {
+				"calls": [
+					{
+						"command": "quick-a",
+						"input": {}
+					},
+					{
+						"command": "slow-b",
+						"input": {}
+					}
+				],
+				"data": {},
+				"completedSteps": 1,
+				"totalSteps": 3,
+				"steps": [
+					{
+						"index": 0,
+						"command": "quick-a",
+						"status": "success",
+						"data": {}
+					},
+					{
+						"index": 1,
+						"command": "slow-b",
+						"status": "failure",
+						"error": {
+							"code": "PIPELINE_TIMEOUT",
+							"message": "Pipeline timeout exceeded (50ms)",
+							"retryable": true
+						}
+					},
+					{
+						"index": 2,
+						"command": "quick-c",
+						"status": "skipped",
+						"error": {
+							"code": "PIPELINE_TIMEOUT",
+							"message": "Pipeline timeout exceeded (50ms)",
+							"retryable": true
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "the deadline is enforced while a step is awaited",
+			"handlers": {
+				"work-hang": {
+					"untilCancelled": true
+				}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "work-hang"
+					}
+				],
+				"options": {
+					"timeoutMs": 20
+				}
+			},
+			"expected": {
+				"calls": [
+					{
+						"command": "work-hang",
+						"input": {}
+					}
+				],
+				"completedSteps": 0,
+				"totalSteps": 1,
+				"steps": [
+					{
+						"index": 0,
+						"command": "work-hang",
+						"status": "failure",
+						"error": {
+							"code": "PIPELINE_TIMEOUT",
+							"message": "Pipeline timeout exceeded (20ms)",
+							"retryable": true
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "timeoutMs 0 times out the first step without running it",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "work-run"
+					},
+					{
+						"command": "work-run"
+					}
+				],
+				"options": {
+					"timeoutMs": 0
+				}
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 2,
+				"steps": [
+					{
+						"index": 0,
+						"command": "work-run",
+						"status": "failure",
+						"error": {
+							"code": "PIPELINE_TIMEOUT",
+							"message": "Pipeline timeout exceeded (0ms)",
+							"retryable": true
+						}
+					},
+					{
+						"index": 1,
+						"command": "work-run",
+						"status": "skipped",
+						"error": {
+							"code": "PIPELINE_TIMEOUT",
+							"message": "Pipeline timeout exceeded (0ms)",
+							"retryable": true
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "parallel fails step 0 with UNSUPPORTED_OPTION and skips the rest, running nothing",
+			"handlers": {
+				"work-one": {},
+				"work-two": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "work-one"
+					},
+					{
+						"command": "work-two"
+					}
+				],
+				"options": {
+					"parallel": true
+				}
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 2,
+				"steps": [
+					{
+						"index": 0,
+						"command": "work-one",
+						"status": "failure",
+						"error": {
+							"code": "UNSUPPORTED_OPTION",
+							"message": "Parallel pipeline execution is not supported"
+						}
+					},
+					{
+						"index": 1,
+						"command": "work-two",
+						"status": "skipped"
+					}
+				]
+			}
+		},
+		{
+			"name": "a streaming step fails with UNSUPPORTED_OPTION and every other step is skipped",
+			"handlers": {
+				"work-one": {},
+				"work-two": {},
+				"work-three": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "work-one",
+						"as": "first"
+					},
+					{
+						"command": "work-two",
+						"stream": true
+					},
+					{
+						"command": "work-three",
+						"stream": true
+					}
+				]
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 3,
+				"steps": [
+					{
+						"index": 0,
+						"command": "work-one",
+						"alias": "first",
+						"status": "skipped"
+					},
+					{
+						"index": 1,
+						"command": "work-two",
+						"status": "failure",
+						"error": {
+							"code": "UNSUPPORTED_OPTION",
+							"message": "Streaming pipeline steps are not supported (step 1 sets stream: true)"
+						}
+					},
+					{
+						"index": 2,
+						"command": "work-three",
+						"status": "skipped"
+					}
+				]
+			}
+		},
+		{
+			"name": "parallel is blamed on step 0 even when a later step streams",
+			"handlers": {
+				"work-one": {},
+				"work-two": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "work-one"
+					},
+					{
+						"command": "work-two",
+						"stream": true
+					}
+				],
+				"options": {
+					"parallel": true
+				}
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 2,
+				"steps": [
+					{
+						"index": 0,
+						"command": "work-one",
+						"status": "failure",
+						"error": {
+							"code": "UNSUPPORTED_OPTION",
+							"message": "Parallel pipeline execution is not supported"
+						}
+					},
+					{
+						"index": 1,
+						"command": "work-two",
+						"status": "skipped"
+					}
+				]
+			}
+		},
+		{
+			"name": "stream: false and parallel: false are accepted",
+			"handlers": {
+				"work-one": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "work-one",
+						"stream": false
+					}
+				],
+				"options": {
+					"parallel": false
+				}
+			},
+			"expected": {
+				"calls": [
+					{
+						"command": "work-one",
+						"input": {}
+					}
+				],
+				"data": {},
+				"completedSteps": 1,
+				"totalSteps": 1,
+				"steps": [
+					{
+						"index": 0,
+						"command": "work-one",
+						"status": "success",
+						"data": {}
+					}
+				]
+			}
+		},
+		{
+			"name": "invalid envelope: a blank command name; no step runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": " "
+					}
+				]
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 0,
+				"steps": [
+					{
+						"index": -1,
+						"command": "",
+						"status": "failure",
+						"error": {
+							"code": "INVALID_PIPELINE_REQUEST",
+							"message": "Invalid pipeline request envelope"
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "invalid envelope: an array step input; no step runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "work-run",
+						"input": []
+					}
+				]
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 0,
+				"steps": [
+					{
+						"index": -1,
+						"command": "",
+						"status": "failure",
+						"error": {
+							"code": "INVALID_PIPELINE_REQUEST",
+							"message": "Invalid pipeline request envelope"
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "invalid envelope: a null alias; no step runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "work-run",
+						"as": null
+					}
+				]
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 0,
+				"steps": [
+					{
+						"index": -1,
+						"command": "",
+						"status": "failure",
+						"error": {
+							"code": "INVALID_PIPELINE_REQUEST",
+							"message": "Invalid pipeline request envelope"
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "invalid envelope: a non-string $exists; no step runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "work-run",
+						"when": {
+							"$exists": 1
+						}
+					}
+				]
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 0,
+				"steps": [
+					{
+						"index": -1,
+						"command": "",
+						"status": "failure",
+						"error": {
+							"code": "INVALID_PIPELINE_REQUEST",
+							"message": "Invalid pipeline request envelope"
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "invalid envelope: a non-numeric $gt bound; no step runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "work-run",
+						"when": {
+							"$gt": ["$prev", true]
+						}
+					}
+				]
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 0,
+				"steps": [
+					{
+						"index": -1,
+						"command": "",
+						"status": "failure",
+						"error": {
+							"code": "INVALID_PIPELINE_REQUEST",
+							"message": "Invalid pipeline request envelope"
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "invalid envelope: a condition with two operators; no step runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "work-run",
+						"when": {
+							"$exists": "$prev",
+							"$not": {}
+						}
+					}
+				]
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 0,
+				"steps": [
+					{
+						"index": -1,
+						"command": "",
+						"status": "failure",
+						"error": {
+							"code": "INVALID_PIPELINE_REQUEST",
+							"message": "Invalid pipeline request envelope"
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "invalid envelope: a malformed condition on a later step; no step runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "work-run"
+					},
+					{
+						"command": "work-run",
+						"when": {
+							"$eq": null
+						}
+					}
+				]
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 0,
+				"steps": [
+					{
+						"index": -1,
+						"command": "",
+						"status": "failure",
+						"error": {
+							"code": "INVALID_PIPELINE_REQUEST",
+							"message": "Invalid pipeline request envelope"
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "invalid envelope: a negative timeoutMs; no step runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "work-run"
+					}
+				],
+				"options": {
+					"timeoutMs": -5
+				}
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 0,
+				"steps": [
+					{
+						"index": -1,
+						"command": "",
+						"status": "failure",
+						"error": {
+							"code": "INVALID_PIPELINE_REQUEST",
+							"message": "Invalid pipeline request envelope"
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "invalid envelope: a non-function onProgress; no step runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"steps": [
+					{
+						"command": "work-run"
+					}
+				],
+				"options": {
+					"onProgress": 1
+				}
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 0,
+				"steps": [
+					{
+						"index": -1,
+						"command": "",
+						"status": "failure",
+						"error": {
+							"code": "INVALID_PIPELINE_REQUEST",
+							"message": "Invalid pipeline request envelope"
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "invalid envelope: steps given as an object; no step runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"steps": {}
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 0,
+				"steps": [
+					{
+						"index": -1,
+						"command": "",
+						"status": "failure",
+						"error": {
+							"code": "INVALID_PIPELINE_REQUEST",
+							"message": "Invalid pipeline request envelope"
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "invalid envelope: a numeric ID; no step runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": {
+				"id": 7,
+				"steps": []
+			},
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 0,
+				"steps": [
+					{
+						"index": -1,
+						"command": "",
+						"status": "failure",
+						"error": {
+							"code": "INVALID_PIPELINE_REQUEST",
+							"message": "Invalid pipeline request envelope"
+						}
+					}
+				]
+			}
+		},
+		{
+			"name": "invalid envelope: an array envelope; no step runs",
+			"handlers": {
+				"work-run": {}
+			},
+			"request": [],
+			"expected": {
+				"calls": [],
+				"completedSteps": 0,
+				"totalSteps": 0,
+				"steps": [
+					{
+						"index": -1,
+						"command": "",
+						"status": "failure",
+						"error": {
+							"code": "INVALID_PIPELINE_REQUEST",
+							"message": "Invalid pipeline request envelope"
+						}
+					}
+				]
+			}
+		}
+	]
+}

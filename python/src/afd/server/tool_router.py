@@ -8,9 +8,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
-from afd.core.batch import BatchRequest, is_batch_request
 from afd.core.commands import CommandContext, CommandDefinition
-from afd.core.pipeline import PipelineRequest, is_pipeline_request
 from afd.core.result import CommandResult, error
 from afd.core.similarity import truncate_name
 from afd.server.lazy_tools import execute_detail, execute_discover
@@ -20,8 +18,10 @@ from afd.server.tools import derive_group_action, derive_group_name
 @dataclass
 class ToolRouterDeps:
     execute_command: Callable[[str, Any, CommandContext | None], Awaitable[CommandResult[Any]]]
-    execute_batch: Callable[[BatchRequest | dict[str, Any], CommandContext | None], Awaitable[Any]]
-    execute_pipeline: Callable[[PipelineRequest | dict[str, Any], CommandContext | None], Awaitable[Any]]
+    # The batch and pipeline executors validate the whole envelope themselves
+    # and return a failed BatchResult or PipelineResult for an invalid one.
+    execute_batch: Callable[[Any, CommandContext | None], Awaitable[Any]]
+    execute_pipeline: Callable[[Any, CommandContext | None], Awaitable[Any]]
     commands: list[CommandDefinition]
     tool_strategy: str
     group_by_fn: Callable[[CommandDefinition], str | None] | None = None
@@ -145,21 +145,9 @@ def create_tool_router(deps: ToolRouterDeps):
             return execute_detail(visible_all_commands, exposed_command_names, args or {})
 
         if tool_name == "afd-batch":
-            if not is_batch_request(args):
-                return error(
-                    "INVALID_BATCH_REQUEST",
-                    "Invalid batch request format",
-                    suggestion="Provide { commands: [...] } with command objects.",
-                )
             return await deps.execute_batch(args, mcp_context("batch", active_context))
 
         if tool_name == "afd-pipe":
-            if not is_pipeline_request(args):
-                return error(
-                    "INVALID_PIPELINE_REQUEST",
-                    "Invalid pipeline request format",
-                    suggestion="Provide { steps: [...] } with pipeline step objects.",
-                )
             return await deps.execute_pipeline(args, mcp_context("pipeline", active_context))
 
         if deps.tool_strategy == "grouped":
