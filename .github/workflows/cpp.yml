@@ -9,6 +9,8 @@ on:
       - 'spec/wire/**'
       - 'spec/vectors/**'
       - 'spec/pipeline-variables.md'
+      # smoke_test checks afd::contract_version against it.
+      - 'spec/VERSION'
       # schema_test compiles every todo input schema.
       - 'packages/examples/todo/spec/**'
       # The format job also checks the C++ todo backend.
@@ -21,6 +23,7 @@ on:
       - 'spec/wire/**'
       - 'spec/vectors/**'
       - 'spec/pipeline-variables.md'
+      - 'spec/VERSION'
       - 'packages/examples/todo/spec/**'
       # The format job also checks the C++ todo backend.
       - 'packages/examples/todo/backends/cpp/**'

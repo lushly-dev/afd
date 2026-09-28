@@ -65,8 +65,11 @@ pre-push:
     orphan-files:
       run: node scripts/check-orphan-files.mjs
 
+    versions:
+      run: node scripts/check-versions.mjs
+
     tooling-tests:
-      run: node --test scripts/check-file-size.test.mjs scripts/repository-contract.test.mjs
+      run: node --test scripts/check-file-size.test.mjs scripts/check-versions.test.mjs scripts/repository-contract.test.mjs
 
 # On-demand quality gate — run with: npx lefthook run check
 # Mirrors the TypeScript CI workflow (ci.yml) exactly so local `pnpm check` = remote CI.
@@ -96,5 +99,8 @@ check:
     orphan-files:
       run: node scripts/check-orphan-files.mjs
 
+    versions:
+      run: node scripts/check-versions.mjs
+
     tooling-tests:
-      run: node --test scripts/check-file-size.test.mjs scripts/repository-contract.test.mjs
+      run: node --test scripts/check-file-size.test.mjs scripts/check-versions.test.mjs scripts/repository-contract.test.mjs

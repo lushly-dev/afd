@@ -5,7 +5,7 @@
  */
 
 import type { CommandExample } from '@lushly-dev/afd-core';
-import { success } from '@lushly-dev/afd-core';
+import { AFD_CONTRACT_VERSION, success } from '@lushly-dev/afd-core';
 import { z } from 'zod';
 import { defineCommand, type ZodCommandDefinition } from '../schema.js';
 import { describableCommands, type GetDescribedCommands } from './described-command.js';
@@ -26,6 +26,8 @@ interface CommandInfo {
 }
 
 interface HelpOutput {
+	/** The AFD contract version this server implements (`AFD_CONTRACT_VERSION`). */
+	contractVersion: string;
 	commands: CommandInfo[];
 	total: number;
 	filtered: boolean;
@@ -36,6 +38,7 @@ interface HelpOutput {
  * Create the afd-help bootstrap command.
  *
  * Lists only MCP-exposed commands. `requires` is always included when set.
+ * The output also carries the AFD contract version the server implements.
  *
  * @param getCommands - Function to get all registered commands
  */
@@ -101,6 +104,7 @@ export function createAfdHelpCommand(
 			}
 
 			const output: HelpOutput = {
+				contractVersion: AFD_CONTRACT_VERSION,
 				commands: commandInfos,
 				total: commandInfos.length,
 				filtered,

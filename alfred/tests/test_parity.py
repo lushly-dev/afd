@@ -6,15 +6,18 @@ from pathlib import Path
 import pytest
 
 from alfred.commands.parity import (
+    CONTRACT_VERSION_SOURCES,
     WIRE_ROUND_TRIP_TESTS,
     _camel_to_snake,
     _normalize,
     alfred_parity,
+    check_contract_version,
     check_wire_fixtures,
     parse_cpp_exports,
     parse_python_exports,
     parse_rust_exports,
     parse_typescript_exports,
+    read_contract_version,
 )
 
 REPO_ROOT = Path(__file__).parent.parent.parent
@@ -434,6 +437,108 @@ def test_wire_missing_suite_invalid_fixture_and_missing_dir(tmp_path):
     assert missing["gaps"] == 1
 
 
+# ─── Contract version ────────────────────────────────────────────────────────
+
+_CONTRACT_DECLARATIONS = {
+    "typescript": "export const AFD_CONTRACT_VERSION = '{v}';",
+    "python": 'CONTRACT_VERSION: str = "{v}"',
+    "rust": 'pub const CONTRACT_VERSION: &str = "{v}";',
+    "cpp": 'namespace afd { inline constexpr std::string_view contract_version = "{v}"; }',
+}
+
+
+def _write_contract_repo(root: Path, version: str = "1.0", **overrides: str) -> None:
+    """Write spec/VERSION and each language's constant (``overrides`` sets one language's).
+
+    A source that already exists, such as the fake repo's ``lib.rs``, keeps its other lines.
+    """
+    (root / "spec").mkdir(parents=True, exist_ok=True)
+    (root / "spec" / "VERSION").write_text(f"{version}\n", encoding="utf-8")
+    for lang, relative in CONTRACT_VERSION_SOURCES.items():
+        source = root / relative
+        source.parent.mkdir(parents=True, exist_ok=True)
+        kept = []
+        if source.is_file():
+            kept = [
+                line
+                for line in source.read_text(encoding="utf-8").splitlines()
+                if "contract_version" not in line.lower()
+            ]
+        declaration = _CONTRACT_DECLARATIONS[lang].replace("{v}", overrides.get(lang, version))
+        source.write_text("\n".join([*kept, declaration]) + "\n", encoding="utf-8")
+
+
+def test_read_contract_version_in_every_language():
+    assert read_contract_version("typescript", "export const AFD_CONTRACT_VERSION: string = \"2.1\";") == "2.1"
+    assert read_contract_version("python", "CONTRACT_VERSION = '2.1'\n") == "2.1"
+    assert read_contract_version("python", "CONTRACT_VERSION: Final[str] = '2.1'\n") == "2.1"
+    assert read_contract_version("rust", "pub const CONTRACT_VERSION: &'static str = \"2.1\";") == "2.1"
+    assert (
+        read_contract_version("cpp", 'inline constexpr std::string_view contract_version = "2.1";')
+        == "2.1"
+    )
+
+
+def test_read_contract_version_ignores_comments_and_other_names():
+    assert read_contract_version("typescript", "// export const AFD_CONTRACT_VERSION = '0.9';") is None
+    assert read_contract_version("typescript", "export const AFD_CONTRACT_VERSION_X = '0.9';") is None
+    assert read_contract_version("python", "# CONTRACT_VERSION = '0.9'\nOTHER = '1.0'\n") is None
+    assert read_contract_version("python", "def f(:\n") is None
+    assert read_contract_version("rust", "/* pub const CONTRACT_VERSION: &str = \"0.9\"; */") is None
+    assert (
+        read_contract_version("cpp", '// inline constexpr std::string_view contract_version = "0.9";')
+        is None
+    )
+
+
+def test_contract_version_all_match(tmp_path):
+    _write_contract_repo(tmp_path, "1.0-rc")
+    report = check_contract_version(tmp_path)
+    assert report["expected"] == "1.0-rc"
+    assert report["versions"] == dict.fromkeys(CONTRACT_VERSION_SOURCES, "1.0-rc")
+    assert report["missing"] == []
+    assert report["mismatched"] == []
+    assert report["gaps"] == 0
+
+
+def test_contract_version_mismatched_and_missing_constants(tmp_path):
+    _write_contract_repo(tmp_path, "1.1", rust="1.0")
+    (tmp_path / CONTRACT_VERSION_SOURCES["cpp"]).unlink()
+
+    report = check_contract_version(tmp_path)
+
+    assert report["versions"]["rust"] == "1.0"
+    assert report["versions"]["cpp"] is None
+    assert report["mismatched"] == ["rust"]
+    assert report["missing"] == ["cpp"]
+    assert report["gaps"] == 2
+
+
+def test_contract_version_without_spec_version(tmp_path):
+    _write_contract_repo(tmp_path, "1.0")
+    (tmp_path / "spec" / "VERSION").unlink()
+
+    report = check_contract_version(tmp_path)
+
+    assert report["missing_spec_version"] is True
+    assert report["expected"] is None
+    assert report["mismatched"] == []
+    assert report["gaps"] == 1
+
+
+def test_contract_version_constants_are_not_name_parity_exports():
+    """The contract check compares these by value; name parity would never match them."""
+    assert parse_typescript_exports("export const AFD_CONTRACT_VERSION = '1.0';") == []
+    assert parse_python_exports('__all__ = ["CONTRACT_VERSION"]') == []
+    assert parse_rust_exports('pub const CONTRACT_VERSION: &str = "1.0";') == []
+    assert (
+        parse_cpp_exports(
+            'namespace afd {\ninline constexpr std::string_view contract_version = "1.0";\n}\n'
+        )
+        == []
+    )
+
+
 # ─── Integration tests ───────────────────────────────────────────────────────
 
 
@@ -481,6 +586,7 @@ def fake_repo(tmp_path):
     )
 
     _write_wire_repo(tmp_path)
+    _write_contract_repo(tmp_path)
     return tmp_path
 
 
@@ -526,6 +632,18 @@ async def test_parity_counts_uncovered_wire_fixtures(fake_repo):
         "cpp": ["new-shape.json"],
     }
     assert result.data["total_gaps"] == 4
+    assert result.confidence < 1.0
+
+
+@pytest.mark.asyncio
+async def test_parity_counts_contract_version_mismatches(fake_repo):
+    """A constant that differs from spec/VERSION is a gap, so `alfred parity` exits 1."""
+    _write_contract_repo(fake_repo, "1.0", python="0.9")
+    result = await alfred_parity(str(fake_repo))
+    assert result.data["name_gaps"] == 0
+    assert result.data["contract_version"]["mismatched"] == ["python"]
+    assert result.data["total_gaps"] == 1
+    assert "python 0.9" in result.reasoning
     assert result.confidence < 1.0
 
 
@@ -614,6 +732,13 @@ async def test_parity_on_real_repo():
         missing = CORE_EXPORTS - {e.normalized for e in entries}
         assert not missing, f"{language} parser lost core exports: {sorted(missing)}"
         assert all(e.name.isidentifier() for e in entries), language
+
+    # Every language declares the contract version in spec/VERSION.
+    contract = data["contract_version"]
+    assert contract["expected"] == (REPO_ROOT / "spec" / "VERSION").read_text().strip()
+    assert contract["missing"] == []
+    assert contract["mismatched"] == []
+    assert contract["gaps"] == 0
 
     # Name gaps stay within budget.
     for key, budget in NAME_GAP_BUDGET.items():
