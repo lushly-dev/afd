@@ -261,15 +261,7 @@ async fn test_batch_huge_timeout_does_not_overflow() {
 
 #[tokio::test]
 async fn test_batch_panicking_handler_keeps_other_results() {
-    let registry = CommandRegistry::new();
-    registry
-        .register(CommandDefinition::new(
-            "panic-run",
-            "Panics on request",
-            vec![],
-            PanickingHandler,
-        ))
-        .unwrap();
+    let registry = panic_registry();
     let request = BatchRequest::new(vec![
         BatchCommand::new("panic-run", serde_json::json!({"n": 1})),
         BatchCommand::new("panic-run", serde_json::json!({"panic": true})),
@@ -285,15 +277,90 @@ async fn test_batch_panicking_handler_keeps_other_results() {
         result.results[0].result.data,
         Some(serde_json::json!({"n": 1}))
     );
-    let error = result.results[1].result.error.as_ref().unwrap();
-    assert_eq!(error.code, "INTERNAL_ERROR");
-    assert!(!error.message.contains("handler bug"));
+    assert_execution_failure(&result.results[1].result);
     assert_eq!(
         result.results[2].result.data,
         Some(serde_json::json!({"n": 3}))
     );
     assert_eq!(result.summary.success_count, 2);
     assert_eq!(result.summary.failure_count, 1);
+}
+
+fn panic_registry() -> CommandRegistry {
+    let registry = CommandRegistry::new();
+    registry
+        .register(CommandDefinition::new(
+            "panic-run",
+            "Panics on request",
+            vec![],
+            PanickingHandler,
+        ))
+        .unwrap();
+    registry
+}
+
+/// Asserts `result` is the redacted crash failure, with no panic text.
+fn assert_execution_failure(result: &CommandResult<serde_json::Value>) {
+    assert!(!result.success);
+    let error = result.error.as_ref().unwrap();
+    assert_eq!(error.code, error_codes::COMMAND_EXECUTION_ERROR);
+    assert_eq!(error.message, "An internal error occurred");
+    assert_eq!(
+        error.suggestion.as_deref(),
+        Some("Contact support if this persists")
+    );
+    assert!(error.details.is_none());
+}
+
+#[tokio::test]
+async fn test_execute_turns_a_handler_panic_into_execution_failure() {
+    let registry = panic_registry();
+
+    let result = registry
+        .execute("panic-run", serde_json::json!({"panic": true}), None)
+        .await;
+    assert_execution_failure(&result);
+
+    // The registry is still usable after a handler panicked.
+    let result = registry
+        .execute("panic-run", serde_json::json!({"n": 1}), None)
+        .await;
+    assert_eq!(result.data, Some(serde_json::json!({"n": 1})));
+}
+
+#[cfg(feature = "native")]
+#[tokio::test]
+async fn test_execute_with_timeout_turns_a_handler_panic_into_execution_failure() {
+    let result = panic_registry()
+        .execute(
+            "panic-run",
+            serde_json::json!({"panic": true}),
+            Some(CommandContext::new().with_timeout(5_000)),
+        )
+        .await;
+    assert_execution_failure(&result);
+}
+
+#[tokio::test]
+async fn test_execute_turns_a_middleware_panic_into_execution_failure() {
+    // One layer panics while building its future, the other while it runs.
+    for panic_while_building in [true, false] {
+        let registry = panic_registry();
+        registry.add_middleware(Arc::new(move |_name, _input, _context, next| {
+            if panic_while_building {
+                panic!("middleware bug before the future");
+            }
+            Box::pin(async move {
+                let _ = next().await;
+                panic!("middleware bug in the future");
+            })
+        }));
+
+        let result = registry
+            .execute("panic-run", serde_json::json!({"n": 1}), None)
+            .await;
+        assert_execution_failure(&result);
+    }
 }
 
 #[test]

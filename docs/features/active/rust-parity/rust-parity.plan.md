@@ -16,6 +16,7 @@ Counts over time:
 |---|---|---|---|
 | 2026-03-21 (plan written) | 183 | 130 | 78 |
 | 2026-09-26 (`0777217`) | 186 | 225 | 10 (budget 10 in `alfred/tests/test_parity.py`) |
+| 2026-09-27 (`execution_failure` exported) | 191 | 231 | 9 (budget 9) |
 
 **Waves 1–5 are closed** (#181 and later). The wire-shape and batch-default drift reported by the [2026-09-23 review](../../../reviews/2026-09-23-quality-review.md) is also fixed. The remaining work is behavioral. The name metric cannot see it, so it is tracked in [`docs/language-parity.md`](../../../language-parity.md).
 
@@ -27,14 +28,14 @@ This plan tracks the Rust-side closure work only. TypeScript remains the source 
 |---|---|
 | Status | Active: name closure done; behavioral closure open |
 | Author | jasfalk |
-| Updated | 2026-09-26 |
+| Updated | 2026-09-27 |
 | Package | `packages/rust` |
 | Source Of Truth | `uv run --project alfred alfred parity --path .` for names; [`docs/language-parity.md`](../../../language-parity.md) for behavior |
 | Depends On | Existing Rust crate foundation in `docs/features/proposed/rust-support/` |
 
 ## Status at 2026-09-26
 
-**The 10 remaining names:**
+**The 9 remaining names:**
 
 | Name | Verdict |
 |---|---|
@@ -44,15 +45,10 @@ This plan tracks the Rust-side closure work only. TypeScript remains the source 
 | `execute_batch` | Exists as `CommandRegistry::execute_batch`. There is no free function over an executor callback. |
 | `commands_to_mcp_tools` | A missing convenience: `list_by_exposure(Mcp)` plus `command_to_mcp_tool` |
 | `execute_stream`, `stream_executor_options` | Genuine gap: Rust has no stream executor |
-| `execution_failure` | Genuine gap: a crash maps to `INTERNAL_ERROR`, not `COMMAND_EXECUTION_ERROR` |
 | `executor_options`, `command_registry_options` | There is no `devMode`. Rust never includes panic payloads, so these are N/A unless a dev mode is wanted. |
 
 **Behavioral gaps the name check misses** (details in [`docs/language-parity.md`](../../../language-parity.md)):
 
-- **Error handling:**
-  - Single `CommandRegistry::execute` does not catch panics.
-  - `error_codes` has no `COMMAND_EXECUTION_ERROR`.
-- **Result guards:** `is_success` requires `data`, and `is_failure` requires `error`, unlike TypeScript.
 - **Missing from the single-command engine:**
   - result metadata stamping (`executionTimeMs`, `commandVersion`, `traceId`);
   - active-context scoping;
