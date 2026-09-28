@@ -13,7 +13,7 @@ from afd.core.commands import CommandContext, CommandDefinition
 from afd.core.pipeline import PipelineRequest, is_pipeline_request
 from afd.core.result import CommandResult, error
 from afd.core.similarity import truncate_name
-from afd.server.lazy_tools import execute_detail, execute_discover
+from afd.server.lazy_tools import execute_detail, execute_discover, not_found_suggestion
 from afd.server.tools import derive_group_action, derive_group_name
 
 
@@ -113,10 +113,15 @@ def create_tool_router(deps: ToolRouterDeps):
                         f"Command '{command_name}' exists but is not exposed via this server",
                         suggestion="Enable MCP exposure for the command or use a different interface.",
                     )
+                callable_names = [
+                    item.name
+                    for item in deps.commands
+                    if is_command_accessible(item, active_context)
+                ]
                 return error(
                     "COMMAND_NOT_FOUND",
                     f"Command '{truncate_name(command_name)}' not found",
-                    suggestion="Use afd-discover or afd-help to list available commands.",
+                    suggestion=not_found_suggestion(command_name, callable_names),
                 )
 
             if not is_command_accessible(command, active_context):

@@ -41,6 +41,17 @@ import { GitHubConnector, PackageManagerConnector } from '@lushly-dev/afd-core/c
 Since 2.0 the root entry no longer re-exports them, so it bundles for the
 browser (for example with `esbuild --bundle --platform=browser`).
 
+### Contract version
+
+`AFD_CONTRACT_VERSION` is the version of the AFD contract this package implements: the
+wire shapes, pipeline variables, behavior vectors and conformance suite that the
+TypeScript, Python, Rust and C++ implementations share (`spec/VERSION`). It is
+independent of the package version. `afd-help` reports it as `contractVersion`.
+
+```typescript
+import { AFD_CONTRACT_VERSION } from '@lushly-dev/afd-core';
+```
+
 ### Running processes
 
 `exec(['git', 'status'], options)` from the `platform` subpath never uses a shell. It

@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.9.0] - Unreleased
 
-> **Draft: not released.** `pyproject.toml` and `afd.__version__` still read 0.8.0, and 0.8.0 on PyPI still writes snake_case results. 0.9.0 waits for the in-flight Python fixes, starting with [#304](https://github.com/lushly-dev/afd/pull/304) (single-command dispatch and exception redaction). Add their entries to this section as they merge.
+> **Draft: not released.** `pyproject.toml` and `afd.__version__` still read 0.8.0, and 0.8.0 on PyPI still writes snake_case results. [#304](https://github.com/lushly-dev/afd/pull/304) (single-command dispatch and exception redaction) is merged and listed here. Add the entries of any other Python fixes planned for 0.9.0 to this section as they merge.
 >
 > **Release checklist**
 >
@@ -29,6 +29,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Batches and pipelines** coerce every item to a `CommandResult` (`INVALID_COMMAND_RESULT` for a plain dict), reject built-in tools as steps, and cap size and parallelism (`max_batch_size=500`, `max_batch_parallelism=16`) (#251).
 - **Handoff:** the client sends the token as an `Authorization: Bearer` header instead of a query parameter. `ReconnectingHandoffConnection` passes the session to its reconnect command as `sessionId`, the wire name TypeScript uses, instead of `session_id`; the `ReconnectionOptions.session_id` attribute is unchanged, but a reconnect command that read `session_id` must read `sessionId` (#251, #253).
 - **Retry middleware:** `create_retry_middleware()` backs off exponentially with a cap and jitter, like TypeScript, instead of linearly: retry `n` waits `min(max_delay, retry_delay * 2 ** (n - 1))` ms, randomized to between half and all of that. Invalid options (a negative or non-integer `max_retries`, a negative `retry_delay` or `max_delay`, an infinite `max_delay`) raise `ValueError`, as in TypeScript (#253).
+- **Dispatch order:** the MCP server checks a call in the TypeScript order before any middleware runs: lookup, exposure, active context, then input validation. Logging, retry, rate-limit and telemetry middleware no longer see unknown commands or invalid input, and a rejected call no longer spends a rate-limit slot. Middleware receives the validated input (the schema's model instance), and a handler exception passes out through the middleware before it becomes `COMMAND_EXECUTION_ERROR`. An unknown command gets the "Did you mean" suggestion on `server.execute`, batch and pipeline steps, and `afd-call`, naming only commands the caller could call. `input=None` validates as `{}`, so a missing required field returns `VALIDATION_ERROR` instead of crashing the handler (#304).
 
 ### Added
 
@@ -37,6 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `AFD_META_TOOL_NAMES`, `AFD_BOOTSTRAP_COMMAND_NAMES`, `AFD_CONTEXT_COMMAND_NAMES`, `AFD_BUILTIN_TOOL_NAMES` and `is_afd_builtin_name`, exported from `afd` (`afd.core.builtin_names`), with the same names as the other languages (#292).
 - The similarity helpers in `afd.core.similarity` (#279).
 - CI: `python.yml` runs pytest on Python 3.10–3.12, bug-class ruff rules, `uv lock --check`, and a clean-venv install smoke test for each extra (#234).
+- `afd.CONTRACT_VERSION`, the AFD contract version from `spec/VERSION` (now `1.0-rc`). `afd-help` returns it as `contractVersion` (#313).
 
 ### Changed
 
@@ -55,6 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The handoff client reads WebSocket and SSE connections in the background, and `ReconnectingHandoffConnection` cleans up its tasks on `close()` (#251).
 - `exec_command()` and the testing `CliWrapper` kill and reap child processes when the caller is cancelled. The rate limiter evicts expired windows and tracks at most `max_keys` keys. Blind excepts now log, and a crashing `SimpleRegistry` handler is `COMMAND_EXECUTION_ERROR` (#251).
 - `afd validate --surface` validates a server's commands, not its tools, when the server does not list `afd-help`/`afd-schema` (for example a TypeScript server). Grouped tools are expanded from `_meta.actions`, lazy servers are enumerated with `afd-discover` and `afd-detail`, and AFD's built-in tools are skipped. The HTTP transport keeps `_meta` in `tools/list` (#292).
+- **Security:** the core registry (`create_command_registry`), the core pipeline (`execute_pipeline`) and `SimpleRegistry` no longer return exception text. A raising handler returns `COMMAND_EXECUTION_ERROR` with "An internal error occurred" and is logged, unless the new `dev_mode=True` is set. The shared helper is `afd.core.execution_failure` (#304).
 
 ## [0.8.0] - 2026-07-07
 

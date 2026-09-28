@@ -10,6 +10,7 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Added
 
+- **Contract version:** `afd::contract_version` in `afd/version.hpp` is the AFD contract version this library implements (`spec/VERSION`, now `1.0-rc`).
 - **Packaging:**
   - install rules and a relocatable CMake package: `find_package(afd 0.1 CONFIG)` provides `afd::afd`, with `SameMinorVersion` compatibility;
   - when afd downloads nlohmann/json, the install includes it;

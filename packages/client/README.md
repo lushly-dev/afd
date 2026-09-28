@@ -455,6 +455,10 @@ If the initial connection fails, the promise rejects and nothing keeps running: 
 WebSocket that reports a failed handshake as `error` followed by `close` (1006) does not start
 a background reconnect loop.
 
+`maxAttempts` and `backoffMs` come from `options`, else from the handoff's
+`metadata.reconnect`, else from core's `defaultReconnectPolicy` (3 attempts, 1000 ms base
+backoff), the same policy `createHandoff()` applies on the server.
+
 ## License
 
 MIT

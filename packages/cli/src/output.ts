@@ -131,13 +131,25 @@ export function printTools(tools: McpTool[], options: OutputOptions = {}): void 
 	for (const [category, categoryTools] of grouped) {
 		console.log(chalk.cyan(`  ${terminalText(category)}/`));
 		for (const tool of categoryTools) {
-			console.log(`    ${chalk.white(terminalText(tool.name))}`);
+			console.log(`    ${chalk.white(terminalText(tool.name))}${toolHints(tool)}`);
 			if (tool.description) {
 				console.log(`      ${chalk.dim(terminalText(tool.description))}`);
 			}
 		}
 		console.log();
 	}
+}
+
+/**
+ * Safety hints from a tool's `_meta`, such as ` (destructive, undoable)`. Empty when
+ * neither is set. Grouped tools carry these per action, so they get no hint.
+ */
+function toolHints(tool: McpTool): string {
+	const hints = [
+		tool._meta?.destructive === true && 'destructive',
+		tool._meta?.undoable === true && 'undoable',
+	].filter(Boolean);
+	return hints.length > 0 ? ` ${chalk.dim(`(${hints.join(', ')})`)}` : '';
 }
 
 /**

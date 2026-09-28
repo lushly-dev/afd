@@ -44,6 +44,8 @@ pub struct CommandInfo {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HelpOutput {
+    /// The AFD contract version this crate implements ([`crate::CONTRACT_VERSION`]).
+    pub contract_version: String,
     pub commands: Vec<CommandInfo>,
     pub total: usize,
     pub filtered: bool,
@@ -139,6 +141,7 @@ impl CommandHandler for AfdHelpHandler {
 
         let total = command_infos.len();
         let output = HelpOutput {
+            contract_version: crate::CONTRACT_VERSION.to_string(),
             commands: command_infos,
             total,
             filtered,
@@ -248,6 +251,21 @@ mod tests {
         let output: HelpOutput = serde_json::from_value(data).unwrap();
         assert_eq!(output.total, 3);
         assert!(!output.filtered);
+    }
+
+    #[tokio::test]
+    async fn test_afd_help_reports_contract_version() {
+        let registry = create_test_registry();
+        let handler = AfdHelpHandler::new(registry);
+        let result = handler
+            .execute(
+                serde_json::json!({"filter": "nothing-matches"}),
+                CommandContext::new(),
+            )
+            .await;
+        let data = result.data.unwrap();
+        assert_eq!(data["contractVersion"], crate::CONTRACT_VERSION);
+        assert_eq!(data["total"], 0);
     }
 
     #[tokio::test]

@@ -69,7 +69,7 @@ export function isHeadlessContext(ctx: CommandContext): boolean {
 
 ## Undo Metadata
 
-The `undoable` flag declares capability. Implementation is consumer-specific.
+The `undoable` flag declares capability. Implementation is consumer-specific. It is on core `CommandDefinition` and on `defineCommand`; `spec/command-metadata.md` lists where it surfaces.
 
 ### Command Definition
 
@@ -98,8 +98,8 @@ interface CommandResult<T> {
 | Consumer | Undo Implementation |
 |----------|---------------------|
 | FAST-AF | `${methodName}Undo()` convention on host |
-| CLI | Show "(undoable)" in help text |
-| MCP | Include in tool metadata |
+| CLI | `afd tools` shows `(undoable)` after the tool name |
+| MCP | `_meta.undoable` in `tools/list`; `afd-detail`, `afd-help` (full) and `afd-docs` report it |
 | Agent | Report "I can undo this if needed" |
 
 ### Undo Validation
