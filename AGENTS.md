@@ -101,3 +101,6 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 | [optimistic-mutations](.claude/skills/optimistic-mutations/) | Optimistic mutation patterns for interactive AFD clients |
 | [do-release](.claude/skills/do-release/) | Release workflow: version bump, changelog, quality gate, tag, publish |
 | [run-dev-checks](.claude/skills/run-dev-checks/) | Dev commands, quality gates, lefthook, CI alignment |
+| [do-init-afd](.claude/skills/do-init-afd/) | Session start: preflight, refresh base, adopt task, report state |
+| [do-prepare-pr](.claude/skills/do-prepare-pr/) | Ship: base sync, independent review, docs/changeset, gates, PR, authorized merge |
+| [do-end-session](.claude/skills/do-end-session/) | Session close: verify landing, file findings, capture knowledge, archive report |
