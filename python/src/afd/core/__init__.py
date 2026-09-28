@@ -14,6 +14,7 @@ from afd.core.result import (
     success,
     failure,
     error,
+    execution_failure,
     is_success,
     is_failure,
 )
@@ -155,6 +156,7 @@ __all__ = [
     "success",
     "failure",
     "error",
+    "execution_failure",
     "is_success",
     "is_failure",
     # Error types

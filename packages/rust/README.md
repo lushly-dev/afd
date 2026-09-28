@@ -176,8 +176,13 @@ assert_eq!(request.steps[1].alias, None);
   context, so, unlike TypeScript, matches are not filtered by `contexts`.
 - **Input validation.** The input is checked against the declared `parameters` (required fields,
   JSON types, `enum` values, and a parameter's full `schema` when it has one). Parameter defaults
-  are filled in. Invalid input returns `VALIDATION_ERROR` with a suggestion that lists the expected
-  parameters, and the problems in `details.errors`.
+  are filled in. Keys that no parameter declares are dropped, as Zod drops them in TypeScript, so
+  the handler and middleware never see them. The same applies inside a nested object whose schema
+  lists `properties`, unless the schema also has `additionalProperties`. Invalid input returns
+  `VALIDATION_ERROR` in the TypeScript engine's shape: the message `Input validation failed`, the
+  problems and field lists in `suggestion`, and `details` with `errors` (each with `path`,
+  `message`, `code` and, for `invalid_type`, `expected`), `expectedFields`, `unexpectedFields` and
+  `missingFields`.
 - **Exposure.** When the `CommandContext` names an `interface`, a command not exposed to it returns
   `COMMAND_NOT_EXPOSED`. Each `expose` flag has its own default, as in TypeScript: `palette` and
   `agent` are on, `mcp` and `cli` are off. Leave `interface` unset for trusted in-process calls.
@@ -185,6 +190,23 @@ assert_eq!(request.steps[1].alias, None);
   (`native` feature).
 - **Middleware.** `add_middleware` wraps every execution; the first middleware added is the
   outermost.
+
+An unknown name returns `COMMAND_NOT_FOUND`. The name in its message is cut to 128 UTF-16 code
+units, as in TypeScript. `find_similar_tools` and `calculate_similarity` count UTF-16 code units
+too, so they suggest the same names as TypeScript. For example, an emoji counts as two units.
+
+The validation result matches TypeScript's `validateInputEnhanced` except in these ways:
+
+- Issue `code`s and `expected` type names are Zod's (`invalid_type`, `invalid_value`, `too_small`,
+  `too_big`, `invalid_format`), and paths are joined with dots (`filter.tags.1`, or `(root)`), but
+  each `message` uses this crate's own wording.
+- `details.errors` holds at most 50 issues, and `suggestion` lists at most 5, because the input is
+  untrusted. TypeScript reports every issue.
+- A command without `parameters` gets its input unchanged, because the crate has no separate way to
+  declare an empty schema. Every TypeScript command has a schema.
+- A top-level `null` parameter counts as absent, so it takes its default or is reported missing.
+  TypeScript (Zod) and Python (Pydantic) reject it unless the schema allows `null`. A `null` input
+  counts as `{}`, as the TypeScript and Python MCP routes treat missing or `null` arguments.
 
 `execute_batch_with_context` runs every batch entry through the same path, with the caller's
 context and the request's `context` entries in `CommandContext::extra`. Commands can also declare
@@ -232,13 +254,20 @@ async fn main() {
     register_bootstrap_commands(&registry).unwrap();
 
     let invalid = registry.execute("todo-create", json!({"title": 42}), None).await;
-    assert_eq!(invalid.error.unwrap().code, "VALIDATION_ERROR");
+    let error = invalid.error.unwrap();
+    assert_eq!(error.code, "VALIDATION_ERROR");
+    assert_eq!(error.message, "Input validation failed");
+    assert_eq!(
+        error.suggestion.as_deref(),
+        Some("title: must be a string, got number. Expected fields: title, priority")
+    );
 
     let mcp = CommandContext::new().with_interface(CommandInterface::Mcp);
     let created = registry
-        .execute("todo-create", json!({"title": "Buy milk"}), Some(mcp.clone()))
+        .execute("todo-create", json!({"title": "Buy milk", "typo": 1}), Some(mcp.clone()))
         .await;
-    assert_eq!(created.data.unwrap()["priority"], "low");
+    // The default is filled in and the undeclared key is dropped.
+    assert_eq!(created.data.unwrap(), json!({"title": "Buy milk", "priority": "low"}));
 
     let help = registry.execute("afd-help", json!({}), Some(mcp)).await;
     assert_eq!(help.data.unwrap()["total"], 4); // todo-create and the three bootstrap commands

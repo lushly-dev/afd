@@ -1,7 +1,12 @@
 //! String similarity utilities for fuzzy matching.
+//!
+//! Lengths and edit distances count UTF-16 code units, as the TypeScript
+//! implementation (`packages/core/src/similarity.ts`) does, so both suggest
+//! the same names: a character outside the Basic Multilingual Plane, such as
+//! an emoji, counts as two.
 
-/// Longest requested name (in characters) that [`find_similar_tools`] will
-/// fuzzy-match. Longer names get no suggestions: Levenshtein costs
+/// Longest requested name (in UTF-16 code units) that [`find_similar_tools`]
+/// will fuzzy-match. Longer names get no suggestions: Levenshtein costs
 /// O(requested × candidate) per tool, and the requested name is untrusted.
 pub const MAX_SIMILARITY_INPUT_LENGTH: usize = 128;
 
@@ -10,16 +15,16 @@ const MIN_SUGGESTION_SIMILARITY: f64 = 0.4;
 
 /// Levenshtein distance computed with two rolling rows, so memory is
 /// O(min(a, b)) instead of a full O(a × b) matrix.
-fn levenshtein_distance(a: &[char], b: &[char]) -> usize {
+fn levenshtein_distance(a: &[u16], b: &[u16]) -> usize {
     // Keep the shorter string on the inner loop so the rows stay small.
     let (outer, inner) = if a.len() >= b.len() { (a, b) } else { (b, a) };
     let mut previous: Vec<usize> = (0..=inner.len()).collect();
     let mut current = vec![0usize; inner.len() + 1];
 
-    for (i, outer_char) in outer.iter().enumerate() {
+    for (i, outer_unit) in outer.iter().enumerate() {
         current[0] = i + 1;
-        for (j, inner_char) in inner.iter().enumerate() {
-            let cost = usize::from(outer_char != inner_char);
+        for (j, inner_unit) in inner.iter().enumerate() {
+            let cost = usize::from(outer_unit != inner_unit);
             current[j + 1] = (previous[j + 1] + 1)
                 .min(current[j] + 1)
                 .min(previous[j] + cost);
@@ -30,8 +35,8 @@ fn levenshtein_distance(a: &[char], b: &[char]) -> usize {
     previous[inner.len()]
 }
 
-/// Similarity of two already-lowercased strings, as chars.
-fn lowercase_similarity(a: &[char], b: &[char]) -> f64 {
+/// Similarity of two already-lowercased strings, as UTF-16 code units.
+fn lowercase_similarity(a: &[u16], b: &[u16]) -> f64 {
     if a == b {
         return 1.0;
     }
@@ -39,27 +44,30 @@ fn lowercase_similarity(a: &[char], b: &[char]) -> f64 {
     1.0 - (levenshtein_distance(a, b) as f64 / max_len as f64)
 }
 
+/// `text` lowercased, as UTF-16 code units.
+fn lowercase_units(text: &str) -> Vec<u16> {
+    text.to_lowercase().encode_utf16().collect()
+}
+
 /// Calculate similarity between two strings using Levenshtein distance.
 /// Returns a value between 0 and 1.
 pub fn calculate_similarity(a: &str, b: &str) -> f64 {
-    let a_chars: Vec<char> = a.to_lowercase().chars().collect();
-    let b_chars: Vec<char> = b.to_lowercase().chars().collect();
-    lowercase_similarity(&a_chars, &b_chars)
+    lowercase_similarity(&lowercase_units(a), &lowercase_units(b))
 }
 
 /// Find similar tool names for suggestions.
 ///
 /// Returns no suggestions when `requested_tool` is longer than
-/// [`MAX_SIMILARITY_INPUT_LENGTH`] characters.
+/// [`MAX_SIMILARITY_INPUT_LENGTH`] UTF-16 code units.
 pub fn find_similar_tools(
     requested_tool: &str,
     available_tools: &[String],
     max_suggestions: Option<usize>,
 ) -> Vec<String> {
     let max_suggestions = max_suggestions.unwrap_or(3);
-    // Count at most one character past the cap, so a huge name costs O(cap).
+    // Count at most one code unit past the cap, so a huge name costs O(cap).
     if requested_tool
-        .chars()
+        .encode_utf16()
         .take(MAX_SIMILARITY_INPUT_LENGTH + 1)
         .count()
         > MAX_SIMILARITY_INPUT_LENGTH
@@ -67,10 +75,10 @@ pub fn find_similar_tools(
         return Vec::new();
     }
 
-    let requested: Vec<char> = requested_tool.to_lowercase().chars().collect();
+    let requested = lowercase_units(requested_tool);
     let mut scored: Vec<(String, f64)> = Vec::new();
     for tool in available_tools {
-        let candidate: Vec<char> = tool.to_lowercase().chars().collect();
+        let candidate = lowercase_units(tool);
         // Length pre-filter. similarity = 1 - distance / max_len, and
         // distance >= |requested.len() - candidate.len()| because each insertion or
         // deletion changes the length by one and a substitution does not change it.
@@ -109,28 +117,28 @@ mod tests {
         if a_lower == b_lower {
             return 1.0;
         }
-        let a_chars: Vec<char> = a_lower.chars().collect();
-        let b_chars: Vec<char> = b_lower.chars().collect();
-        let mut matrix = vec![vec![0usize; b_chars.len() + 1]; a_chars.len() + 1];
+        let a_units: Vec<u16> = a_lower.encode_utf16().collect();
+        let b_units: Vec<u16> = b_lower.encode_utf16().collect();
+        let mut matrix = vec![vec![0usize; b_units.len() + 1]; a_units.len() + 1];
         for (i, row) in matrix.iter_mut().enumerate() {
             row[0] = i;
         }
         for (j, cell) in matrix[0].iter_mut().enumerate() {
             *cell = j;
         }
-        for i in 1..=a_chars.len() {
-            for j in 1..=b_chars.len() {
-                let cost = usize::from(a_chars[i - 1] != b_chars[j - 1]);
+        for i in 1..=a_units.len() {
+            for j in 1..=b_units.len() {
+                let cost = usize::from(a_units[i - 1] != b_units[j - 1]);
                 matrix[i][j] = (matrix[i - 1][j] + 1)
                     .min(matrix[i][j - 1] + 1)
                     .min(matrix[i - 1][j - 1] + cost);
             }
         }
-        let max_len = a_chars.len().max(b_chars.len());
+        let max_len = a_units.len().max(b_units.len());
         if max_len == 0 {
             1.0
         } else {
-            1.0 - (matrix[a_chars.len()][b_chars.len()] as f64 / max_len as f64)
+            1.0 - (matrix[a_units.len()][b_units.len()] as f64 / max_len as f64)
         }
     }
 
@@ -179,7 +187,8 @@ mod tests {
         let over_cap = "a".repeat(MAX_SIMILARITY_INPUT_LENGTH + 1);
         assert!(find_similar_tools(&over_cap, std::slice::from_ref(&over_cap), None).is_empty());
 
-        // The cap counts characters, not bytes: 128 two-byte characters still match.
+        // The cap counts UTF-16 code units, not bytes: 128 two-byte characters
+        // still match.
         let multibyte = "é".repeat(MAX_SIMILARITY_INPUT_LENGTH);
         assert_eq!(
             find_similar_tools(&multibyte, std::slice::from_ref(&multibyte), None),
@@ -191,6 +200,37 @@ mod tests {
         let tools: Vec<String> = (0..200).map(|i| format!("domain{i}-action")).collect();
         assert!(find_similar_tools(&huge, &tools, None).is_empty());
         assert!(start.elapsed() < std::time::Duration::from_millis(500));
+    }
+
+    /// Values from TypeScript's `similarity.ts`, which counts UTF-16 code
+    /// units: a character outside the Basic Multilingual Plane counts twice.
+    #[test]
+    fn test_lengths_count_utf16_code_units() {
+        assert_eq!(
+            calculate_similarity("a\u{1F600}", "a\u{1F601}"),
+            0.6666666666666667
+        );
+        assert_eq!(
+            calculate_similarity("\u{1F600}\u{1F600}", "\u{1F601}\u{1F601}"),
+            0.5
+        );
+        assert_eq!(
+            find_similar_tools(
+                "\u{1F600}\u{1F600}",
+                &["\u{1F601}\u{1F601}".to_string()],
+                None
+            ),
+            vec!["\u{1F601}\u{1F601}"]
+        );
+
+        // 64 emoji are 128 code units, at the cap; 65 are over it.
+        let at_cap = "\u{1F600}".repeat(64);
+        assert_eq!(
+            find_similar_tools(&at_cap, std::slice::from_ref(&at_cap), None),
+            vec![at_cap.clone()]
+        );
+        let over_cap = "\u{1F600}".repeat(65);
+        assert!(find_similar_tools(&over_cap, std::slice::from_ref(&over_cap), None).is_empty());
     }
 
     #[test]

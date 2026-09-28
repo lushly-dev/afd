@@ -55,7 +55,7 @@ None of the 10 names missing today are from this plan's list. Each one entered t
 
 ## Remaining Behavioral Work
 
-The name check cannot see these gaps. They are tracked in [`docs/language-parity.md`](../../../language-parity.md), not in this plan; close them there, or accept them there as Rust-specific.
+The name check cannot see these gaps. They are tracked in [`docs/language-parity.md`](../../../language-parity.md), not in this plan, and are Wave 2 of the [Language Parity Closure plan](../../active/parity-closure/parity-closure.plan.md).
 
 - **Error handling:**
   - Single `CommandRegistry::execute` does not catch panics.
