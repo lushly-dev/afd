@@ -92,6 +92,12 @@ export interface ZodCommandOptions<TInput extends ZodType, TOutput> {
 	confirmPrompt?: string;
 
 	/**
+	 * Whether this command can be undone.
+	 * Implementation is consumer-specific; AFD only carries the flag.
+	 */
+	undoable?: boolean;
+
+	/**
 	 * Which interfaces this command is exposed to.
 	 * Controls visibility in command palette, MCP, agent, and CLI surfaces.
 	 * Defaults to `defaultExpose` if not specified.
@@ -162,6 +168,9 @@ export interface ZodCommandDefinition<TInput extends ZodType = ZodType, TOutput 
 
 	/** Custom confirmation prompt message */
 	confirmPrompt?: string;
+
+	/** Whether this command can be undone */
+	undoable?: boolean;
 
 	/**
 	 * Which interfaces this command is exposed to.
@@ -265,6 +274,7 @@ export function defineCommand<TInput extends ZodType, TOutput>(
 		handoffProtocol: options.handoffProtocol,
 		destructive: options.destructive,
 		confirmPrompt: options.confirmPrompt,
+		undoable: options.undoable,
 		expose: options.expose,
 		examples: options.examples,
 		outputSchema: options.output,
@@ -284,6 +294,9 @@ export function defineCommand<TInput extends ZodType, TOutput>(
 				errors: options.errors,
 				handoff: options.handoff,
 				handoffProtocol: options.handoffProtocol,
+				destructive: options.destructive,
+				confirmPrompt: options.confirmPrompt,
+				undoable: options.undoable,
 				expose: options.expose,
 				// Examples are raw inputs (before defaults and transforms); core types them by the
 				// handler input, which differs only for schemas with defaults or transforms.

@@ -6,6 +6,7 @@
  */
 
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import { defaultReconnectPolicy } from '@lushly-dev/afd-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DirectClient, type DirectRegistry } from './direct.js';
 import {
@@ -495,6 +496,43 @@ describe('createReconnectingHandoff', () => {
 		expect(connection.state).toBe('failed');
 		expect(connection.isReconnecting).toBe(false);
 		vi.useRealTimers();
+	});
+
+	it.each([
+		['no reconnect policy', undefined, defaultReconnectPolicy.maxAttempts],
+		['metadata.reconnect.maxAttempts', 2, 2],
+	])('falls back to %s when options set no maxAttempts', async (_label, fromMetadata, expected) => {
+		vi.useFakeTimers();
+		let connectAttempts = 0;
+		let disconnect: (() => void) | undefined;
+		registerProtocolHandler('websocket', async (nextHandoff, connectionOptions) => {
+			connectAttempts++;
+			if (connectAttempts > 1) throw new Error('Connection failed');
+			connectionOptions.onConnect?.(nextHandoff);
+			disconnect = () => connectionOptions.onDisconnect?.(1006, 'lost');
+			return {
+				send: vi.fn(),
+				close: vi.fn(),
+				state: 'connected',
+				protocol: nextHandoff.protocol,
+				endpoint: nextHandoff.endpoint,
+			};
+		});
+		const handoff = createMockHandoff({
+			metadata:
+				fromMetadata === undefined
+					? undefined
+					: { reconnect: { allowed: true, maxAttempts: fromMetadata, backoffMs: 1 } },
+		});
+		const onReconnect = vi.fn();
+		const connection = await createReconnectingHandoff(client, handoff, { onReconnect });
+
+		disconnect?.();
+		await vi.runAllTimersAsync();
+
+		expect(onReconnect).toHaveBeenCalledTimes(expected);
+		expect(connectAttempts).toBe(1 + expected);
+		expect(connection.state).toBe('failed');
 	});
 
 	it('cancels reconnect backoff when closed', async () => {

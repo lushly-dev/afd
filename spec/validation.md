@@ -327,3 +327,27 @@ Coverage today:
   - Python: [#310](https://github.com/lushly-dev/afd/issues/310);
   - Rust: [#311](https://github.com/lushly-dev/afd/issues/311);
   - C++: [#312](https://github.com/lushly-dev/afd/issues/312).
+
+## Open questions
+
+The rules below follow TypeScript or an existing implementation, but they are not yet decided.
+Until they are, treat them as provisional.
+
+1. **Key order.**
+   - Current rule: field lists and sibling issues follow the schema's declaration order and the
+     input's key order.
+   - The cost: C++ (`afd::Json`) and Rust (`serde_json` by default) sort keys, so they would need
+     order-preserving JSON.
+   - The alternative: loaders compare those lists as sets.
+2. **A command with no parameters.**
+   - Current rule: `"properties": {}` removes every key.
+   - The conflict: Rust documents that a command with no parameters accepts any input unchanged,
+     yet it advertises `"properties": {}`.
+3. **Issue caps.** Not specified. TypeScript reports every issue, while Rust and C++ cap them.
+4. **Unknown `format` names.** Current rule: an implementation that supports `format` rejects a
+   name it does not know. JSON Schema would ignore it.
+5. **A defaulted property listed in `required`.** Current rule: it is optional, as in #284.
+   TypeScript never emits one.
+6. **D3 and TypeScript.** D3 says TypeScript differs for astral characters, but TypeScript only
+   does so with Zod before 4.5. The open choice is whether to reword D3 and keep the `exceptions`
+   marks, or to require Zod 4.5 and drop the marks.

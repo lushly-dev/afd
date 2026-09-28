@@ -5,11 +5,14 @@ on:
     branches: [main]
     paths:
       - 'python/**'
+      # tests/test_contract_version.py checks CONTRACT_VERSION against it.
+      - 'spec/VERSION'
       - '.github/workflows/python.yml'
   pull_request:
     branches: [main]
     paths:
       - 'python/**'
+      - 'spec/VERSION'
       - '.github/workflows/python.yml'
 
 permissions:

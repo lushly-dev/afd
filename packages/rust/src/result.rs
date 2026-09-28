@@ -369,10 +369,46 @@ pub fn error<T>(code: &str, message: &str, suggestion: Option<&str>) -> CommandR
     failure(error)
 }
 
+/// Create the `COMMAND_EXECUTION_ERROR` failure for a handler that crashed
+/// instead of returning a result, as TypeScript's `executionFailure` does for
+/// a thrown exception.
+///
+/// Outside `dev_mode` the result carries no crash detail: `message` is
+/// replaced by `"An internal error occurred"`, so internal details such as
+/// file paths never reach a remote caller. With `dev_mode` the result carries
+/// `message`. [`CommandRegistry`](crate::CommandRegistry) reports a handler
+/// panic this way, always without `dev_mode`.
+///
+/// # Example
+///
+/// ```rust
+/// use afd::{error_codes, execution_failure, CommandResult};
+///
+/// let result: CommandResult<()> = execution_failure("disk path /srv/db is locked", false);
+/// let error = result.error.unwrap();
+/// assert_eq!(error.code, error_codes::COMMAND_EXECUTION_ERROR);
+/// assert_eq!(error.message, "An internal error occurred");
+/// ```
+pub fn execution_failure<T>(message: &str, dev_mode: bool) -> CommandResult<T> {
+    let (message, suggestion) = if dev_mode {
+        (message, "Check the command implementation")
+    } else {
+        (
+            "An internal error occurred",
+            "Contact support if this persists",
+        )
+    };
+    failure(
+        CommandError::new(crate::errors::error_codes::COMMAND_EXECUTION_ERROR, message)
+            .with_suggestion(suggestion),
+    )
+}
+
 /// Type guard to check if a result is successful.
 ///
-/// Matches TypeScript's `isSuccess`: `success` is `true` and `data` is present
-/// (a JSON `null` counts as present).
+/// Matches TypeScript's `isSuccess`: it tests only `success`, so a result
+/// without `data` (such as `{"success": true}` from another implementation)
+/// is a success. Every result is exactly one of a success and a failure.
 ///
 /// # Example
 ///
@@ -383,10 +419,15 @@ pub fn error<T>(code: &str, message: &str, suggestion: Option<&str>) -> CommandR
 /// assert!(is_success(&result));
 /// ```
 pub fn is_success<T>(result: &CommandResult<T>) -> bool {
-    result.success && result.data.is_some()
+    result.success
 }
 
 /// Type guard to check if a result is a failure.
+///
+/// Matches TypeScript's `isFailure`: it tests only `success`, so
+/// `{"success": false}` without an `error` is a failure too. Results built
+/// with [`failure`] always carry an error; for results from another peer,
+/// read `error` as optional.
 ///
 /// # Example
 ///
@@ -398,7 +439,7 @@ pub fn is_success<T>(result: &CommandResult<T>) -> bool {
 /// assert!(is_failure(&result));
 /// ```
 pub fn is_failure<T>(result: &CommandResult<T>) -> bool {
-    !result.success && result.error.is_some()
+    !result.success
 }
 
 #[cfg(test)]
@@ -435,6 +476,42 @@ mod tests {
         let result: CommandResult<()> = failure(error);
         assert!(is_failure(&result));
         assert!(!is_success(&result));
+    }
+
+    #[test]
+    fn test_guards_test_only_the_success_flag() {
+        let no_data: CommandResult<serde_json::Value> =
+            serde_json::from_value(serde_json::json!({"success": true})).unwrap();
+        assert!(is_success(&no_data));
+        assert!(!is_failure(&no_data));
+
+        let no_error: CommandResult<serde_json::Value> =
+            serde_json::from_value(serde_json::json!({"success": false})).unwrap();
+        assert!(is_failure(&no_error));
+        assert!(!is_success(&no_error));
+    }
+
+    #[test]
+    fn test_execution_failure_redacts_outside_dev_mode() {
+        let result: CommandResult<()> = execution_failure("secret at /srv/db", false);
+        assert!(is_failure(&result));
+        let error = result.error.unwrap();
+        assert_eq!(error.code, "COMMAND_EXECUTION_ERROR");
+        assert_eq!(error.message, "An internal error occurred");
+        assert_eq!(
+            error.suggestion.as_deref(),
+            Some("Contact support if this persists")
+        );
+        assert_eq!(error.retryable, None);
+
+        let result: CommandResult<()> = execution_failure("secret at /srv/db", true);
+        let error = result.error.unwrap();
+        assert_eq!(error.code, "COMMAND_EXECUTION_ERROR");
+        assert_eq!(error.message, "secret at /srv/db");
+        assert_eq!(
+            error.suggestion.as_deref(),
+            Some("Check the command implementation")
+        );
     }
 
     #[test]

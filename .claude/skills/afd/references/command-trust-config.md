@@ -4,7 +4,7 @@ Trust metadata on AFD commands that triggers safety behaviors in frontends.
 
 ## Fields
 
-Added to `ZodCommandOptions` and `ZodCommandDefinition`:
+On core `CommandDefinition` and on `defineCommand` (`ZodCommandOptions`, `ZodCommandDefinition`); `toCommandDefinition()` keeps them. `spec/command-metadata.md` lists every metadata field and where it surfaces.
 
 ```typescript
 defineCommand({

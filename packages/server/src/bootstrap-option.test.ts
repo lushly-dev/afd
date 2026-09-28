@@ -5,6 +5,7 @@
 
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { AFD_CONTRACT_VERSION } from '@lushly-dev/afd-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineCommand } from './schema.js';
@@ -129,6 +130,7 @@ describe('bootstrap: true', () => {
 		const url = await host({ toolStrategy: 'individual', bootstrap: true });
 		const help = await call(url, 'afd-help', { format: 'full' });
 		expect(help.success).toBe(true);
+		expect(help.data.contractVersion).toBe(AFD_CONTRACT_VERSION);
 		const names = help.data.commands.map((c: { name: string }) => c.name);
 		expect(names).toEqual(['doc-edit', 'doc-print', 'afd-help', 'afd-docs', 'afd-schema']);
 		expect(help.data.commands[0].requires).toEqual(['doc-open']);

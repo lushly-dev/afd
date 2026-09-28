@@ -736,7 +736,7 @@ class TestExecutePipeline:
             input={"userId": 999, "action": "create"},
         )
 
-        result = await execute_pipeline(request, mock_executor)
+        await execute_pipeline(request, mock_executor)
 
         assert call_log[0] == ("process", {"userId": 999, "action": "create"})
 
