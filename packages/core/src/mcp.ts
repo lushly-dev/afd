@@ -116,6 +116,7 @@ export interface McpToolCommandMeta {
 	requires?: string[];
 	mutation?: boolean;
 	destructive?: boolean;
+	undoable?: boolean;
 	examples?: Array<{ title: string; input: unknown }>;
 	outputSchema?: Record<string, unknown>;
 	contexts?: string[];

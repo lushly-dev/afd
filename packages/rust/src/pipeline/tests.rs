@@ -1228,10 +1228,9 @@ async fn test_panicking_step_keeps_completed_results() {
     assert_eq!(result.steps[0].data, Some(json!({"id": 1})));
     for index in [1, 2] {
         assert_eq!(result.steps[index].status, StepStatus::Failure);
-        assert_eq!(
-            result.steps[index].error.as_ref().unwrap().code,
-            "INTERNAL_ERROR"
-        );
+        let error = result.steps[index].error.as_ref().unwrap();
+        assert_eq!(error.code, "COMMAND_EXECUTION_ERROR");
+        assert_eq!(error.message, "An internal error occurred");
     }
     assert_eq!(result.steps[3].status, StepStatus::Success);
     assert_eq!(result.data, Some(json!({"prev": 1})));

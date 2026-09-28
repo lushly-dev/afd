@@ -8,6 +8,8 @@ on:
       # The tests round-trip the golden wire fixtures and load the behavior vectors.
       - 'spec/wire/**'
       - 'spec/vectors/**'
+      # tests/test_contract_version.py checks CONTRACT_VERSION against it.
+      - 'spec/VERSION'
       - '.github/workflows/python.yml'
   pull_request:
     branches: [main]
@@ -15,6 +17,7 @@ on:
       - 'python/**'
       - 'spec/wire/**'
       - 'spec/vectors/**'
+      - 'spec/VERSION'
       - '.github/workflows/python.yml'
 
 permissions:

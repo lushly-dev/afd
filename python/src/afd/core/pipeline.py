@@ -19,6 +19,7 @@ Example:
 """
 
 import asyncio
+import logging
 import math
 import time
 from enum import Enum
@@ -57,8 +58,11 @@ from afd.core.result import (
     CommandResult,
     ResultMetadata,
     coerce_command_result,
+    execution_failure,
 )
 from afd.core.wire import WIRE_MODEL_CONFIG, WireModel, json_number, omitted_not_null
+
+logger = logging.getLogger("afd.core")
 
 T = TypeVar("T")
 
@@ -937,24 +941,22 @@ async def _call_step(
     executor: Callable[[str, Dict[str, Any]], Any],
     command: str,
     payload: Dict[str, Any],
+    dev_mode: bool,
 ) -> Any:
-    """Run one step. An exception from the executor becomes a failed result."""
+    """Run one step. An exception from the executor becomes a failed result
+    whose message is redacted unless ``dev_mode`` is set."""
     try:
         return await executor(command, payload)
     except Exception as exc:
-        return CommandResult(
-            success=False,
-            error=CommandError(
-                code="COMMAND_EXECUTION_ERROR",
-                message=str(exc),
-                suggestion="Check the command implementation and retry",
-            ),
-        )
+        logger.error("Pipeline step '%s' raised an unhandled exception", command, exc_info=exc)
+        return execution_failure(exc, dev_mode)
 
 
 async def execute_pipeline(
     request: PipelineRequest,
     executor: Callable[[str, Dict[str, Any]], Any],
+    *,
+    dev_mode: bool = False,
 ) -> PipelineResult[Any]:
     """Execute a pipeline of chained commands.
 
@@ -967,10 +969,16 @@ async def execute_pipeline(
     for ``parallel``) with UNSUPPORTED_OPTION and skip every other step, so no
     command runs.
 
+    An exception the executor raises fails its step with
+    COMMAND_EXECUTION_ERROR and the generic message "An internal error
+    occurred"; the exception is logged to the ``afd.core`` logger.
+
     Args:
         request: The pipeline request with steps and options.
         executor: Async function to execute individual commands.
             Signature: async def executor(command: str, input: dict) -> CommandResult
+        dev_mode: Put the exception text in a raising step's error message
+            instead of the generic one.
 
     Returns:
         The pipeline result with aggregated metadata.
@@ -1057,10 +1065,11 @@ async def execute_pipeline(
                 if remaining_s <= 0:
                     raise asyncio.TimeoutError
                 raw_result = await asyncio.wait_for(
-                    _call_step(executor, step.command, resolved_input), timeout=remaining_s
+                    _call_step(executor, step.command, resolved_input, dev_mode),
+                    timeout=remaining_s,
                 )
             else:
-                raw_result = await _call_step(executor, step.command, resolved_input)
+                raw_result = await _call_step(executor, step.command, resolved_input, dev_mode)
         except asyncio.TimeoutError:
             timeout_error = CommandError(
                 code="PIPELINE_TIMEOUT",

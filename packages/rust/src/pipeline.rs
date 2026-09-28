@@ -1778,7 +1778,7 @@ fn empty_metadata(total_steps: usize) -> PipelineMetadata {
 }
 
 /// Run a step's executor, turning a panic (while creating or polling the
-/// future) into an `INTERNAL_ERROR` failure.
+/// future) into a `COMMAND_EXECUTION_ERROR` failure.
 async fn run_step(
     execute: &CommandExecutor,
     command: String,
@@ -1787,7 +1787,7 @@ async fn run_step(
 ) -> CommandResult<serde_json::Value> {
     match std::panic::catch_unwind(AssertUnwindSafe(|| execute(command, input, context))) {
         Ok(execution) => crate::commands::run_guarded(execution).await,
-        Err(_) => crate::result::failure(crate::commands::handler_panic_error()),
+        Err(_) => crate::commands::handler_panic_failure(),
     }
 }
 

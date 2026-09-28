@@ -44,28 +44,35 @@ pip install afd[all]
 ```python
 from afd import CommandResult, success, error
 from afd.server import define_command
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 class Todo(BaseModel):
     id: str
     title: str
     done: bool = False
 
+class CreateTodoInput(BaseModel):
+    title: str = Field(..., min_length=1)
+
 @define_command(
     name="todo-create",
     description="Create a new todo item",
+    input_schema=CreateTodoInput,
 )
-async def create_todo(title: str) -> CommandResult[Todo]:
-    todo = Todo(id="todo-1", title=title)
+async def create_todo(input: CreateTodoInput) -> CommandResult[Todo]:
+    todo = Todo(id="todo-1", title=input.title)
     return success(
         data=todo,
         reasoning="Created new todo with default status",
     )
 ```
 
+A handler receives the whole command input as its first argument. With `input_schema`, that input is validated and passed as a model instance; without it, the handler gets the raw input dict.
+
 ### Create an MCP Server
 
 ```python
+from afd import ExposeOptions, success
 from afd.server import create_server
 
 server = create_server(
@@ -73,17 +80,23 @@ server = create_server(
     version="1.0.0",
 )
 
+# Todo and CreateTodoInput are defined in the example above.
 @server.command(
     name="todo-create",
     description="Create a todo",
+    input_schema=CreateTodoInput,
+    expose=ExposeOptions(mcp=True),
 )
-async def create_todo(input):
-    todo = Todo(id="todo-1", title=input["title"])
+async def create_todo(input: CreateTodoInput):
+    todo = Todo(id="todo-1", title=input.title)
     return success(data=todo)
 
-# Run the server (stdio for VS Code/Cursor)
+# Run the server (stdio for VS Code/Cursor).
+# server.run(transport="sse") serves SSE at http://127.0.0.1:8000/sse instead.
 server.run()
 ```
+
+MCP exposure is opt-in. A command without `expose=ExposeOptions(mcp=True)` is invisible over MCP: it is not listed as a tool, and `afd-call` returns `COMMAND_NOT_FOUND` for it.
 
 ### Test Your Commands
 
@@ -228,7 +241,9 @@ argument returns a `VALIDATION_ERROR` result with `details.errors`,
 `details.missingFields` and a `suggestion`. Every command result carries
 `metadata.executionTimeMs` and a per-call `metadata.traceId`, as in TypeScript. An
 exception from a handler or a middleware becomes a `COMMAND_EXECUTION_ERROR` whose
-message is "An internal error occurred" unless `create_server(dev_mode=True)`.
+message is "An internal error occurred" unless `create_server(dev_mode=True)`. The core
+registry (`create_command_registry`), `execute_pipeline` and `SimpleRegistry` redact the
+same way and take the same `dev_mode` keyword.
 
 ### Batches and Pipelines
 
@@ -286,10 +301,14 @@ class MyMonitoringSink:
 
 ### Middleware
 
-Add cross-cutting concerns to command execution:
+Add cross-cutting concerns to command execution. As in TypeScript, middleware only runs
+for a call that reaches a handler: the server rejects an unknown, unexposed or
+out-of-context command, or invalid input, first. The `input` a middleware receives is
+the validated input the handler gets (the schema's model instance).
 
 ```python
 from afd.server import (
+    create_server,
     default_middleware,
     compose_middleware,
     create_logging_middleware,
@@ -297,15 +316,16 @@ from afd.server import (
     create_retry_middleware,
 )
 
-# Zero-config: logging, timing, and auto trace ID
-middleware = default_middleware()
+# Zero-config: logging, timing, and auto trace ID (returns a list)
+server = create_server(name="todo-app", middleware=default_middleware())
 
-# Or compose custom middleware stacks
-middleware = compose_middleware([
+# Or compose a custom stack into one middleware; the first one runs outermost
+stack = compose_middleware(
     create_logging_middleware(),
-    create_timing_middleware(threshold_ms=500),
+    create_timing_middleware(slow_threshold=500),  # warn when a command takes over 500 ms
     create_retry_middleware(max_retries=3),
-])
+)
+server = create_server(name="todo-app", middleware=[stack])
 
 # Retries back off exponentially like TypeScript's createRetryMiddleware: retry n waits
 # min(max_delay, retry_delay * 2 ** (n - 1)) ms (defaults 100 and 5000), randomized to

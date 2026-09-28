@@ -120,6 +120,7 @@ from afd.core.commands import (
     serialize_command_examples,
     validate_command_name,
 )
+from afd.core.contract import CONTRACT_VERSION
 from afd.core.mcp_types import (
     MCP_PROTOCOL_VERSION,
     JSONRPC_VERSION,
@@ -297,6 +298,7 @@ __version__ = "0.8.0"
 __all__ = [
     # Version
     "__version__",
+    "CONTRACT_VERSION",
     # Result types
     "CommandResult",
     "ResultMetadata",

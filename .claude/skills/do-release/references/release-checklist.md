@@ -1,47 +1,49 @@
 # Release Checklist
 
-Expanded reference for the full release procedure.
+Expanded reference for the release procedure. The steps for each implementation are in [SKILL.md](../SKILL.md).
 
 ---
 
 ## Pre-Release Verification
 
-- [ ] On `main` or designated release branch
-- [ ] Working tree clean (`git status` shows nothing)
-- [ ] Up-to-date with remote (`git pull origin main`)
-- [ ] All CI checks passing on latest commit
-- [ ] No open blockers or release-blocking issues
-- [ ] Dependencies are current (no major version drift)
-- [ ] Pending changesets exist (`pnpm changeset status`)
+- [ ] On `main`, up to date with the remote, working tree clean
+- [ ] No open blockers or release-blocking issues for this implementation
+- [ ] CI green on the latest commit:
+  - TypeScript: `ci.yml` (`pnpm check` locally)
+  - Python: `python.yml` (`cd python && uv run pytest -q`)
+  - Rust: `rust.yml` (`cd packages/rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test`)
+  - C++: `cpp.yml` (`cd packages/cpp && cmake --preset dev && cmake --build --preset dev && ctest --preset dev`)
+  - All: `conformance.yml`
+- [ ] npm only: pending changesets exist (`pnpm changeset status`)
 
 ## Version Bump
 
-- [ ] Run `pnpm version-packages` to consume changesets
-- [ ] All `@lushly-dev/*` packages bumped to same version (fixed versioning)
-- [ ] Lock file updated (`pnpm install` if needed)
+- [ ] TypeScript: the Changesets release PR bumps all nine `@lushly-dev/*` packages to one version
+- [ ] Python: `python/pyproject.toml`, `__version__` in `python/src/afd/__init__.py`, and `uv lock` in `python/`, `alfred/` and `packages/examples/todo/backends/python/`
+- [ ] Rust: `packages/rust/Cargo.toml`, then `cargo publish --dry-run`
+- [ ] C++: `project(afd VERSION …)` in `packages/cpp/CMakeLists.txt`
 
 ## Changelog
 
-- [ ] CHANGELOG.md entries generated from changesets
-- [ ] Breaking changes prominently noted
-- [ ] Migration instructions included for breaking changes
+- [ ] The implementation's own changelog, never the root `CHANGELOG.md` (an index)
+- [ ] Dated section for the version, with an empty `Unreleased` section above it
+- [ ] Breaking changes listed first, each with migration instructions
 
-## Build & Test
+## Docs
 
-- [ ] Clean build succeeds: `pnpm build`
-- [ ] Full test suite passes: `pnpm test`
-- [ ] Quality gate passes: `pnpm check`
-- [ ] No new warnings introduced
+- [ ] `docs/language-parity.md`: Version row, Distribution row if it changed, Updated date
+- [ ] Contract row and the contract constant, once `spec/VERSION` exists
+- [ ] Install instructions match the new release (README, skills)
 
-## Publish
+## Publish (maintainer)
 
-- [ ] Push to main triggers CI Release workflow
-- [ ] Or manually: `pnpm publish:npm`
-- [ ] Published version is installable: `npm info @lushly-dev/afd-core`
+- [ ] TypeScript: merge the Changesets release PR; `release.yml` publishes and tags
+- [ ] Python: push `python-vX.Y.Z`; `publish-python.yml` publishes
+- [ ] Rust: push `rust-vX.Y.Z`; `publish-rust.yml` publishes
+- [ ] C++: push `cpp-vX.Y.Z` and create the GitHub Release
 
-## Git & GitHub
+## After Release
 
-- [ ] Version bump committed: `chore: release packages`
-- [ ] Pushed to remote: `git push origin main`
-- [ ] GitHub Release created (automatic via changesets action)
+- [ ] Installable: `npm view @lushly-dev/afd-core version`, `pip index versions afd`, crates.io, or the tag on GitHub
+- [ ] The tag exists and matches the version
 - [ ] Release notes accurate and formatted
