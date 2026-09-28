@@ -7,14 +7,14 @@ version is separate from each implementation's own package version.
 ## Scope
 
 - [`wire/`](./wire/README.md): the golden wire fixtures;
-- [`pipeline-variables.md`](./pipeline-variables.md) and the behavior vectors in
-  [`vectors/`](./vectors/README.md);
+- [`pipeline-variables.md`](./pipeline-variables.md), [`validation.md`](./validation.md) and the
+  behavior vectors in [`vectors/`](./vectors/README.md);
 - the todo conformance suite (`packages/examples/todo/spec`, run by `conformance.yml`).
 
 - [`error-codes.md`](./error-codes.md): the shared error-code catalog, checked by
   `vectors/error-codes.json`, and the rules for unknown and unexposed commands.
 
-The validation spec and a protocol conformance tier join the contract when they are written.
+A protocol conformance tier joins the contract when it is written.
 
 ## Version format
 
@@ -58,9 +58,15 @@ The first versioned contract. It covers:
   `PipelineResult` and the four `StreamChunk` kinds;
 - the pipeline variables in `pipeline-variables.md`, with 48 references and 27 conditions in
   `vectors/pipeline-variables.json`;
+- the batch and pipeline execution controls, with 21 batch and 22 pipeline cases in
+  `vectors/batch-controls.json`;
 - the 34 cases of the todo conformance suite;
+- command input validation in `validation.md`, with 32 cases and 126 tests in
+  `vectors/validation.json`. Its open questions are listed at the end of `validation.md`;
 - the 42 codes of the shared error-code catalog in `error-codes.md` and
   `vectors/error-codes.json`, and its rules for unknown and unexposed commands (D4).
 
-Every language round-trips the wire fixtures, passes the conformance suite and checks its error-code
-catalog against `vectors/error-codes.json`. Only C++ loads `vectors/pipeline-variables.json` so far.
+Every language round-trips the wire fixtures, loads `vectors/pipeline-variables.json`,
+`vectors/batch-controls.json` and `vectors/error-codes.json`, and passes the conformance suite.
+Only TypeScript loads `vectors/validation.json` so far. The contract stays at `1.0-rc` until every
+language loads the validation vectors (#310, #311, #312).

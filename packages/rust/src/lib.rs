@@ -67,12 +67,22 @@ mod wire;
 
 /// A monotonic `Instant` for every supported target.
 ///
-/// `std::time::Instant::now()` traps on `wasm32-unknown-unknown`, so the
-/// `wasm` feature switches to `web-time`, which reads `performance.now()`
-/// there and is `std::time::Instant` everywhere else.
+/// - With `native`, it is `tokio::time::Instant`. Batch and pipeline deadlines
+///   are computed with it and enforced with `tokio::time::timeout`, so both
+///   read the same clock. Outside a paused Tokio test clock,
+///   `tokio::time::Instant::now()` is `std::time::Instant::now()`, so this
+///   changes nothing in production. Under `tokio::time::pause()` (as in
+///   `tests/batch_controls_vectors.rs`), deadlines and durations follow the
+///   paused clock instead of disagreeing with it.
+/// - `std::time::Instant::now()` traps on `wasm32-unknown-unknown`, so the
+///   `wasm` feature switches to `web-time`, which reads `performance.now()`
+///   there and is `std::time::Instant` everywhere else.
+/// - Otherwise it is `std::time::Instant`.
 mod time {
-    #[cfg(not(feature = "wasm"))]
+    #[cfg(not(any(feature = "native", feature = "wasm")))]
     pub(crate) use std::time::Instant;
+    #[cfg(all(feature = "native", not(feature = "wasm")))]
+    pub(crate) use tokio::time::Instant;
     #[cfg(feature = "wasm")]
     pub(crate) use web_time::Instant;
 }

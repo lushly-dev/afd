@@ -22,7 +22,7 @@ C++ matches the AFD contract that TypeScript, Python and Rust share. The behavio
 the TypeScript server engine.
 
 - **Wire shapes** must round-trip every `spec/wire` fixture (`tests/wire_fixtures_test.cpp`).
-- **Pipeline references and conditions** must match `spec/vectors/pipeline-variables.json`, which is generated from TypeScript.
+- **Behavior vectors** in `spec/vectors`, generated from TypeScript, must pass: pipeline references and conditions (`tests/vectors_test.cpp`), and batch and pipeline controls on a `ManualClock` (`tests/batch_vectors_test.cpp`).
 - **Error codes, messages and suggestions** in results are copied verbatim from TypeScript.
 - **Names follow TypeScript,** in snake_case for functions and PascalCase for types (`alfred parity` compares them). There are two exceptions:
   - `requires` is `prerequisites`, because `requires` is a C++20 keyword.

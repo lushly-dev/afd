@@ -38,7 +38,7 @@ All eight were accepted as recommended on 2026-09-27.
 |---|---|---|---|
 | D1 | Should Rust get an MCP server? | **Yes,** behind a `server` Cargo feature that is off by default: stdio and Streamable HTTP, tool strategies, meta-tools, bootstrap and context tools. | The [Rust support proposal](../../proposed/rust-support/01-afd-rust.md) planned "full MCP server support". The todo backend already hand-rolls one, and its security checks too. The feature flag keeps `wasm` and core builds lean. |
 | D2 | Should C++ get an MCP target? | **Yes, stdio only:** an optional `afd::mcp_stdio` target promoted from the todo backend's `mcp_stdio.cpp`, with the meta-tools and bootstrap commands. HTTP stays out. | This is the proposal's "Maybe" (scope row "Stdio MCP loop"). It passes the scope principle: any C++ host that wants to be an MCP server needs the same loop. |
-| D3 | Which unit do length checks count? | **Schema `minLength`/`maxLength` count code points,** as JSON Schema defines. TypeScript documents that it differs for astral characters. The 128-character similarity and 1024-character reference caps follow TypeScript's UTF-16 units. C++ already counts similarity this way; Rust changes (#286, #288), and any other language that counts differently changes too (#283). | The JSON Schema that TypeScript advertises already promises code points. Python, Rust and C++ already count code points. Zod's UTF-16 count differs only for characters outside the BMP. |
+| D3 | Which unit do length checks count? | **Schema `minLength`/`maxLength` count code points,** as JSON Schema defines. Zod has counted code points since 4.5.0, and the server requires `zod ^4.5.4`. The 128-character similarity and 1024-character reference caps follow TypeScript's UTF-16 units. C++ already counts similarity this way; Rust changes (#286, #288), and any other language that counts differently changes too (#283). | The JSON Schema that TypeScript advertises already promises code points, and every language's validator already counts them. |
 | D4 | What code does an unknown or unexposed command return? | **Write down the current TypeScript split as the spec:** remote MCP returns `COMMAND_NOT_FOUND` for both, so private commands stay hidden; an in-process registry called with a surface returns `COMMAND_NOT_EXPOSED`; `DirectClient` returns `UNKNOWN_TOOL`, always with a `suggestion`. | The split protects private commands over the network, and each language copied a different part of it. Suggestions name `afd-discover` or `afd-context-*` only where those tools exist. |
 | D5 | Should Python's server defaults change to TypeScript's? | **Yes:** bootstrap opt-in and a `grouped` default strategy, released as Python 0.10 (see the versioning plan). | Agents should see the same tool list whichever language serves it. |
 | D6 | What about the gaps no plan declares? | **Rust and C++:** CLI, testing toolkit, MCP client and handoff client are **N/A**. A Rust or C++ server is exercised through the TypeScript CLI and scenario runner over MCP. **C++:** tracing middleware is N/A; `compose_middleware` is added. **Python:** an auth adapter is **planned**: the `AuthAdapter` protocol, auth middleware and `auth-*` commands, without React. **Everywhere:** platform utilities and connectors are **N/A** beyond what exists today, including Rust's type-only connectors. | This follows the role table above. |
@@ -55,8 +55,8 @@ Already under way, from before this plan or from the 2026-09-26 review:
 
 | Item | Language | Closes | State |
 |---|---|---|---|
-| Registry engine aligned with TypeScript: the validation message and shape, undeclared keys dropped, UTF-16 name handling | Rust | Part of the Wave 2 Rust validation item; D3 | #286 (open, breaking) |
-| Fuzzy matching and name truncation count UTF-16 units | Rust | D3 | #288 (open) |
+| Registry engine aligned with TypeScript: the validation message and shape, undeclared keys dropped, UTF-16 name handling | Rust | Part of the Wave 2 Rust validation item; D3 | Merged in #286 (breaking) |
+| Fuzzy matching and name truncation count UTF-16 units | Rust | D3 | Folded into #286; #288 closed |
 | Rust parity plan marked complete; `AGENTS.md` becomes the only agent guide | Docs | Tracking | #289 (open) |
 | Server dispatch order, validation of `None` input, exception redaction | Python | Priority 1 items 1–2 | #304 (open) |
 | `execute` catches panics; `COMMAND_EXECUTION_ERROR`; `is_success` and `is_failure` | Rust | Priority 1 items 2–4 | Task running |
@@ -70,10 +70,10 @@ TypeScript leads this wave. It is small and unblocks everything after it.
 
 | # | Item | Size | State |
 |---|---|---|---|
-| 1.1 | Load `spec/vectors/pipeline-variables.json` in the TypeScript, Python and Rust test suites; C++ already does. | S per language | Open |
+| 1.1 | Load `spec/vectors/pipeline-variables.json` in the TypeScript, Python and Rust test suites; C++ already does. | S per language | Done in #317: all four suites load it. Python and Rust now treat a literal `when` operand as absent, and Rust's `$eq` compares numbers by value |
 | 1.2 | **`spec/error-codes.md`:** every emitted code, whether it is retryable, and which layer emits it, plus the D4 rules. Add the missing codes to TypeScript `ErrorCodes` (about 25), Python `ErrorCodes`, Rust `error_codes` and C++ `error_codes`. | M | Done: [`spec/error-codes.md`](../../../../spec/error-codes.md); the 42 shared codes in all four catalogs, checked against `spec/vectors/error-codes.json`; D4 fixes in TypeScript, Python and C++. Python's MCP unknown-tool answer is [#325](https://github.com/lushly-dev/afd/issues/325) |
-| 1.3 | **`spec/validation.md` and `spec/vectors/validation.json`:** see the list below the table. Generate the vectors from TypeScript, marking the astral-character cases where TypeScript differs. | M | Open |
-| 1.4 | **`spec/vectors/batch-controls.json`,** from `packages/server/src/execution-controls.test.ts`. The C++ work plan already recommends this file. | S–M | Open |
+| 1.3 | **`spec/validation.md` and `spec/vectors/validation.json`:** see the list below the table. Generate the vectors from TypeScript, marking the astral-character cases where TypeScript differs. | M | Done for TypeScript: [`spec/validation.md`](../../../../spec/validation.md), 32 cases in [`spec/vectors/validation.json`](../../../../spec/vectors/validation.json); Python, Rust and C++ load them in Wave 2 (#310, #311, #312) |
+| 1.4 | **`spec/vectors/batch-controls.json`,** from `packages/server/src/execution-controls.test.ts`. The C++ work plan already recommends this file. | S–M | Done in #317: 21 batch and 22 pipeline cases from `generate-batch-controls.mjs`, loaded by all four suites. Python and Rust envelope validation and Rust's pipeline deadline now match TypeScript. TypeScript's `afd-batch` tool still differs from `executeBatch` ([#314](https://github.com/lushly-dev/afd/issues/314)) |
 | 1.5 | **Command metadata:** list the canonical fields in the spec. Fix the TypeScript split ([#275](https://github.com/lushly-dev/afd/issues/275)): core `CommandDefinition` and `defineCommand` both carry `destructive`, `confirmPrompt` and `undoable`, and `toCommandDefinition()` keeps them. | S (TS minor) | Done in #308: canonical fields in [`spec/command-metadata.md`](../../../../spec/command-metadata.md); `_meta`, afd-detail, afd-help, afd-docs and `afd tools` report `undoable` |
 | 1.6 | **One default reconnect policy.** The TypeScript client's fallback of 5 attempts becomes core's 3. | S | Done for TypeScript in #308. Python's handoff client also falls back to 5; see Wave 2 |
 | 1.7 | **Contract 1.0:** add the AFD contract version constant (see the [versioning plan](../versioning/versioning.plan.md#1-a-versioned-afd-contract)). Declare 1.0 once 1.1–1.4 pass in all four languages. | S | Open |
@@ -84,6 +84,21 @@ The validation spec (1.3) covers:
 - the D3 length units ([#283](https://github.com/lushly-dev/afd/issues/283));
 - the JSON Schema subset every language must support: `type`, `properties`, `required`, `enum`, `items`, `minItems`/`maxItems`, `minLength`/`maxLength`, the four numeric bounds, `additionalProperties` and local `$ref`;
 - the optional keywords, such as `pattern` and the combinators.
+
+**1.3 outcome.**
+- **What landed:**
+  - `spec/vectors/generate-validation.mjs` generates the vectors;
+  - `packages/server/src/validation-vectors.test.ts` checks TypeScript against every case.
+- **Also covered:** explicit `null` ([#282](https://github.com/lushly-dev/afd/issues/282)) and
+  schema defaults ([#284](https://github.com/lushly-dev/afd/issues/284)), recorded as TypeScript
+  behaves.
+- **D3 and TypeScript.** Zod counts code points from 4.5.0, and `@lushly-dev/afd-server` requires
+  4.5.4. So TypeScript differs from D3 only for a schema built with Zod 4.0 to 4.4, and the four
+  astral tests carry that exception.
+- **Loading the vectors is Wave 2 work.** Each issue lists that language's failing cases:
+  - Python: [#310](https://github.com/lushly-dev/afd/issues/310);
+  - Rust: [#311](https://github.com/lushly-dev/afd/issues/311);
+  - C++: [#312](https://github.com/lushly-dev/afd/issues/312).
 
 ### Wave 2: engine alignment
 

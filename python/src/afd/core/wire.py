@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, ValidationInfo
 from pydantic.alias_generators import to_camel
 from pydantic_core import to_jsonable_python
 
@@ -39,6 +39,38 @@ class WireModel(BaseModel):
     """
 
     model_config = WIRE_MODEL_CONFIG
+
+
+WIRE_ENVELOPE: dict[str, Any] = {"afd_wire_envelope": True}
+"""Validation context for a batch or pipeline request received over the wire.
+
+``model_validate(payload, context=WIRE_ENVELOPE)`` applies the envelope rules
+of TypeScript's ``isBatchRequest`` and ``isPipelineRequest``, where an optional
+field may be omitted but never ``null``. Python code that builds the models
+directly may still pass ``None``.
+"""
+
+
+def omitted_not_null(value: Any, info: ValidationInfo) -> Any:
+    """Body of a before-mode field validator: reject ``null`` in a wire envelope.
+
+    Pydantic runs before-mode field validators only for values that are given,
+    so an omitted field keeps its default.
+    """
+    if value is None and info.context and info.context.get("afd_wire_envelope"):
+        raise ValueError("Omit the field instead of sending null")
+    return value
+
+
+def json_number(value: Any, info: ValidationInfo) -> Any:
+    """Body of a before-mode field validator: accept only a JSON number.
+
+    Pydantic's lax mode would read ``true`` as 1 and ``"20"`` as 20, which
+    TypeScript rejects.
+    """
+    if isinstance(value, (bool, str)):
+        raise ValueError("Input should be a number")
+    return omitted_not_null(value, info)
 
 
 def to_wire(value: Any) -> Any:

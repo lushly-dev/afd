@@ -40,6 +40,8 @@ These changes affect code that used the crate as a git dependency before this re
 - **Breaking:** `CommandRegistry::execute` behaves like the TypeScript engine in three ways (#286). (1) `VALIDATION_ERROR` has the message `Input validation failed`. The issues and the unknown, missing and expected fields move to `suggestion`, formatted as TypeScript formats them. Each `details.errors` entry gains a Zod `code` (`invalid_type`, `invalid_value`, `too_small`, `too_big` or `invalid_format`), plus `expected` for `invalid_type`. Paths are joined with dots (`tags.1`, or `(root)` for the whole input), and empty `missingFields`/`unexpectedFields` are omitted. (2) Handlers and middleware no longer receive keys the parameters do not declare, nor keys missing from a nested schema's `properties` unless it has `additionalProperties`. A command that read undeclared keys must declare them. (3) An unknown command name is cut to 128 UTF-16 code units in the error message. `find_similar_tools` and `calculate_similarity` count UTF-16 code units, so names with emoji or other characters outside the Basic Multilingual Plane get the same suggestions as in TypeScript. `packages/rust/README.md` lists the differences that remain.
 - **Breaking:** a panic in `execute`, a batch or a pipeline returns `COMMAND_EXECUTION_ERROR` with "An internal error occurred" instead of `INTERNAL_ERROR`. The panic payload is never included (#306).
 - `is_success` and `is_failure` test only the `success` flag, as in TypeScript (#306).
+- **Breaking:** `BatchRequest` and `PipelineRequest` deserialize only envelopes that TypeScript accepts (`spec/vectors/batch-controls.json`). A command name must not be blank. An optional field may be omitted but not `null`, except a pipeline's `input`. A step `input` must be an object, `timeoutMs` a non-negative number, and `onProgress` unset. An invalid batch returns `INVALID_BATCH_REQUEST` with TypeScript's message, "Invalid batch request envelope" (#317).
+- With the `native` feature, deadlines and durations use `tokio::time::Instant`, the clock `tokio::time::timeout` enforces them with, so they follow a paused Tokio test clock (#317).
 
 ### Fixed
 
@@ -48,6 +50,8 @@ These changes affect code that used the crate as a git dependency before this re
 - Stream serialization is corrected, and JSON-RPC request IDs may be negative integers (#225).
 - Fuzzy matching of unknown command names is bounded, so an oversized name no longer blocks for seconds. Echoed names are truncated (#232).
 - The `wasm`, MCP and handoff types are fixed (#251).
+- Pipeline deadlines behave as in TypeScript: `timeoutMs: 0` fails step 0 with `PIPELINE_TIMEOUT` instead of skipping every step, and a step that ends past the deadline skips every later step with that error (#317).
+- A `when` condition treats a first operand that is not a reference (`"$$prev"`, `"text"`) as absent, and `$eq`/`$ne` compare numbers by value (`2` equals `2.0`), as in TypeScript. `tests/pipeline_vectors.rs` and `tests/batch_controls_vectors.rs` load the shared `spec/vectors` files (#317).
 - `CommandRegistry::execute` catches a panic in a middleware layer or the handler, including one raised while building the future and one under `timeout_ms`, instead of letting it unwind to the caller (#306).
 
 [0.1.0]: https://github.com/lushly-dev/afd/commits/main/packages/rust

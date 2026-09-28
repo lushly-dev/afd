@@ -959,9 +959,12 @@ impl CommandRegistry {
     /// Uses partial success semantics, as in TypeScript: every command runs
     /// unless `stopOnError` is set, and [`BatchResult::success`] is `true`
     /// whenever the batch itself ran. It is `false` only for an invalid
-    /// request. A handler that panics produces a `COMMAND_EXECUTION_ERROR`
-    /// result for its own command (see [`CommandRegistry::execute`]); the
-    /// other results are kept.
+    /// request: no commands, a blank command name, a negative or non-finite
+    /// `timeout`, or a zero `parallelism` or `maxFailures` return
+    /// `INVALID_BATCH_REQUEST` with TypeScript's message, `Invalid batch
+    /// request envelope`, before any command runs. A handler that panics
+    /// produces a `COMMAND_EXECUTION_ERROR` result for its own command (see
+    /// [`CommandRegistry::execute`]); the other results are kept.
     ///
     /// Every command runs through [`CommandRegistry::execute`] with a copy of
     /// `context` (so exposure checks, validation, the timeout and middleware
@@ -977,30 +980,26 @@ impl CommandRegistry {
     ) -> BatchResult<serde_json::Value> {
         let start_time = Instant::now();
         let started_at = chrono::Utc::now().to_rfc3339();
-        let invalid = |message: &str, suggestion: &str| {
-            create_failed_batch_result(
-                CommandError::new(error_codes::INVALID_BATCH_REQUEST, message)
-                    .with_suggestion(suggestion)
+        let options = request.options.unwrap_or_default();
+        if request.commands.is_empty()
+            || request
+                .commands
+                .iter()
+                .any(|command| crate::wire::is_blank(&command.command))
+            || options
+                .timeout
+                .is_some_and(|timeout| !timeout.is_finite() || timeout < 0.0)
+            || options.parallelism == Some(0)
+            || options.max_failures == Some(0)
+        {
+            // TypeScript's error. The suggestion also names maxFailures, a Rust extension.
+            return create_failed_batch_result(
+                CommandError::new(error_codes::INVALID_BATCH_REQUEST, "Invalid batch request envelope")
+                    .with_suggestion(
+                        "Provide at least one command with a nonempty command name and optional string ID, and valid boolean stopOnError, nonnegative timeout, and positive integer parallelism and maxFailures options",
+                    )
                     .with_retryable(false),
                 &started_at,
-            )
-        };
-
-        if request.commands.is_empty() {
-            return invalid(
-                "Batch request must contain at least one command",
-                "Provide an array of commands to execute",
-            );
-        }
-
-        let options = request.options.unwrap_or_default();
-        if options
-            .timeout
-            .is_some_and(|timeout| !timeout.is_finite() || timeout < 0.0)
-        {
-            return invalid(
-                "Batch timeout must be a non-negative number",
-                "Set timeout to a non-negative number of milliseconds or omit it",
             );
         }
         #[cfg(not(feature = "native"))]
@@ -1016,12 +1015,6 @@ impl CommandRegistry {
             );
         }
         let parallelism = options.parallelism.unwrap_or(1);
-        if parallelism == 0 || options.max_failures == Some(0) {
-            return invalid(
-                "Batch parallelism and maxFailures must be positive",
-                "Set parallelism and maxFailures to values greater than zero",
-            );
-        }
 
         let batch_trace_id = context
             .trace_id

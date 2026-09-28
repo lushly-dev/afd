@@ -199,7 +199,7 @@ Each item below is a header in `include/afd/` with an implementation in `src/`.
   - message `Input validation failed`;
   - `details {errors, expectedFields, unexpectedFields, missingFields}`, with undefined keys omitted;
   - a suggestion made of one error `path: msg` or several `- path: msg` lines, followed by `Unknown field(s): …`, `Missing required field(s): …` and `Expected fields: …`, all joined with `'. '`.
-- **String lengths:** count Unicode code points (JSON Schema semantics, as Rust and Pydantic do). See [finding 3](#research-findings-to-file-separately); Zod counts UTF-16 code units.
+- **String lengths:** count Unicode code points (JSON Schema semantics). Zod 4.5 and later, Rust and Pydantic all do; the server requires `zod ^4.5.4`. See [finding 3](#research-findings-to-file-separately).
 - **Issue messages:** they need not match Zod's text byte for byte. Conformance checks codes, paths and field lists.
 
 ### PR 2d: registry and `execute` (`registry.hpp`, `similarity.hpp`)
@@ -381,7 +381,7 @@ Put the pipeline-variable rules and the batch-control cases in language-neutral 
 - `spec/vectors/pipeline-variables.json`: `{request, stepData, expectResolved}` cases;
 - `spec/vectors/batch-controls.json`.
 
-A follow-up issue wires the same files into TypeScript, Python and Rust. This follows the quality review's recommendation to replace name parity with fixture comparison, and it cuts the four-language cost of every future `parity` issue.
+TypeScript, Python and Rust now load the same files. This follows the quality review's recommendation to replace name parity with fixture comparison, and it cuts the four-language cost of every future `parity` issue.
 
 ### As built (Phase 3)
 
@@ -393,7 +393,9 @@ A follow-up issue wires the same files into TypeScript, Python and Rust. This fo
 - **`CancellationSource` can chain to a parent token,** the counterpart of `AbortSignal.any`. Batch commands, pipeline steps and streams see both the caller's cancellation and the deadline.
 - **A stream is a `std::vector<StreamChunk>`,** not a generator. TypeScript's `executeStream` also runs the command to completion before yielding. `consume_stream` returns the final chunk, and `collect_stream_data` returns `Expected` instead of throwing.
 - **Pipeline executor exceptions follow `dev_mode` redaction** (research finding 8). TypeScript returns the raw message.
-- **Shared vectors are started.** `spec/vectors/pipeline-variables.json` holds 48 references and 27 conditions, generated from the TypeScript implementation by `spec/vectors/generate-pipeline-variables.mjs`. The C++ tests require identical results. Adopting the file in Python and Rust remains follow-on item 6.
+- **Shared vectors.** Both files are generated from the TypeScript implementation, and all four test suites require identical results (parity closure plan, items 1.1 and 1.4):
+  - `spec/vectors/pipeline-variables.json` holds 48 references and 27 conditions;
+  - `spec/vectors/batch-controls.json` holds 21 batch and 22 pipeline cases, run on `ManualClock` in C++.
 - **Fuzz targets** exist for `parse_bounded`, pipelines, schemas, similarity and the wire types.
   - They are built with `AFD_BUILD_FUZZERS`.
   - CI runs each for 60 s under libFuzzer, ASan and UBSan.
@@ -605,8 +607,7 @@ Each candidate below must pass the [scope principle](./proposal.md#scope-princip
 3. **The rest of the parity surface:** MCP types, bootstrap commands, `afd-discover`/`afd-detail`, and retry, rate-limit and telemetry middleware.
 4. **Schema to typed C++ structs code generation**, and a cross-language TypeSpec decision as its own proposal.
 5. **C++ implementations of companion issues as they are accepted,** limited to the parts the proposal keeps in AFD.
-6. **Adopting `spec/vectors/*`** in TypeScript, Python and Rust.
-7. **Emscripten JavaScript bindings (embind)**, if a web build needs to call commands from JavaScript directly.
+6. **Emscripten JavaScript bindings (embind)**, if a web build needs to call commands from JavaScript directly.
 
 **Not planned in AFD:**
 - Engine and framework adapters: Unreal (Blueprint exposure, `FString`/`FJsonObject` bridges, task-graph runners, Unreal Build Tool layouts), Unity, Godot, Qt and similar.
@@ -622,7 +623,7 @@ These belong in the requesting application, built on the public API.
 |---|---|---|---|
 | Wire fixtures | Types round-trip the canonical JSON | `packages/cpp/tests/wire_fixtures_test.cpp` | `cpp.yml`, all configurations |
 | Ported behavior cases | Dispatch, validation, batch, pipeline and stream semantics match TypeScript | `packages/cpp/tests/*.cpp` | `cpp.yml` |
-| Shared vectors | Language-neutral pipeline and batch rules | `spec/vectors/*.json` | `cpp.yml` (other languages later) |
+| Shared vectors | Language-neutral pipeline and batch rules | `spec/vectors/*.json` | `cpp.yml`, and `ci.yml`, `python.yml` and `rust.yml` for the other languages |
 | Conformance | The end-to-end product matches the other backends | `packages/examples/todo/spec/test-cases.json` | `conformance.yml` `todo-cpp` |
 | Sanitizers | Memory and undefined-behavior safety; races in the thread runner | ASan + UBSan, TSan jobs | `cpp.yml` |
 | Fuzzing | Hostile-input robustness (Theme 5) | `packages/cpp/fuzz/` | `cpp.yml` fuzz-smoke |
@@ -656,7 +657,7 @@ These belong in the requesting application, built on the public API.
 7. **Should the port wait for, or pre-build, any companion issue (#271–#276)?** *Recommended: no.* Judge each on its value across all languages. Push the parts that fail back to the requester (proposal, "Companion issues").
 8. **Release scheme:** an independent `cpp-vX.Y.Z` tag and version starting at 0.1.0? *Recommended: yes* (D11). The versioning plan (V3) set the prefix to `cpp-v`, matching `python-v` and `rust-v`.
 9. **Renovate for CMake pins,** or manual updates? *Recommended: manual for v0.1*, and revisit once there are more than two dependencies.
-10. **Which unit counts for `minLength`/`maxLength`?** Code points (JSON Schema, Rust, Pydantic) or UTF-16 code units (Zod)? *Recommended: code points, written into a spec.* This is a cross-language decision, not a C++ one.
+10. **Which unit counts for `minLength`/`maxLength`?** *Recommended: code points, written into a spec.* JSON Schema, Zod 4.5 and later, Rust and Pydantic already count code points, so this changes no implementation. The pipeline reference cap is a separate question ([#283](https://github.com/lushly-dev/afd/issues/283)). This is a cross-language decision, not a C++ one.
 11. **Should AFD host engine or framework adapters?** *Recommended: no.* Hosts build them on the public API, and a shared layer is revisited only if several unrelated hosts turn out to need the same code.
 
 ## Research findings to file separately
@@ -666,8 +667,9 @@ These drifts and stale items turned up while planning. They are outside #270's s
 1. **Rust's validation error differs from TypeScript's.**
    - Rust uses the message `"Input validation failed for '<cmd>': …"` (`packages/rust/src/validation.rs:405`); the TypeScript engine uses `Input validation failed`.
    - Rust passes undeclared keys through to handlers, while the TypeScript engine (Zod) strips them.
-2. **Name truncation units differ.** TypeScript truncates at 128 UTF-16 code units without splitting a surrogate pair (`core/src/similarity.ts:103-109`). Rust truncates at 128 Unicode scalars (`packages/rust/src/commands.rs:1147-1152`).
-3. **String-length units differ, and no spec covers it.** Zod counts UTF-16 code units; the Rust validator and Pydantic count code points.
+   - *Fixed in #286:* Rust returns the engine's message and shape and drops undeclared keys. The differences that remain are listed in `packages/rust/README.md`, "Command registry"; two of them are filed as [#282](https://github.com/lushly-dev/afd/issues/282) (an explicit `null` parameter counts as absent) and [#284](https://github.com/lushly-dev/afd/issues/284) (schema defaults are never applied).
+2. **Name truncation units differ.** TypeScript truncates at 128 UTF-16 code units without splitting a surrogate pair (`core/src/similarity.ts:103-109`). Rust truncates at 128 Unicode scalars (`packages/rust/src/commands.rs:1147-1152`). *Fixed in #286:* Rust truncation and fuzzy matching count UTF-16 code units.
+3. **Length units are not written into a spec.** String `minLength`/`maxLength` already agree: Zod has counted code points since 4.5.0, the server requires `zod ^4.5.4`, and the Rust validator and Pydantic count code points too. The 1024-character pipeline reference cap still differs: TypeScript and C++ count UTF-16 code units, Python and Rust count code points ([#283](https://github.com/lushly-dev/afd/issues/283)).
 4. **`docs/features/active/rust-parity/rust-parity.plan.md` is stale.**
    - It still says Active and cites the March 2026 counts, although the work shipped in #181. Current `missing_from_rust` is 10, within the budget in `alfred/tests/test_parity.py`.
    - It should move to `complete/`.

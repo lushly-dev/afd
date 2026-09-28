@@ -1,6 +1,7 @@
 """Tests for afd.core.batch module."""
 
 import pytest
+from pydantic import ValidationError
 
 from afd.core.batch import (
     BatchCommand,
@@ -22,6 +23,7 @@ from afd.core.batch import (
 from afd.core.errors import CommandError
 from afd.core.metadata import Warning
 from afd.core.result import CommandResult, error as result_error, success as result_success
+from afd.core.wire import WIRE_ENVELOPE
 
 
 def _make_success_result(confidence=None, warnings=None):
@@ -72,6 +74,47 @@ class TestBatchCommand:
         cmd = BatchCommand(command="todo-list")
         assert cmd.input is None
 
+    @pytest.mark.parametrize("name", ["", "  ", "\t\n"])
+    def test_blank_command_name_is_rejected(self, name):
+        with pytest.raises(ValidationError, match="nonempty command name"):
+            BatchCommand(command=name)
+
+    def test_numeric_id_is_rejected(self):
+        with pytest.raises(ValidationError):
+            BatchCommand.model_validate({"command": "todo-list", "id": 7})
+
+
+class TestBatchEnvelopeNulls:
+    """A wire envelope may omit an optional field but not send null, as in TypeScript."""
+
+    @pytest.mark.parametrize(
+        ("payload", "path"),
+        [
+            ({"commands": [{"command": "todo-list", "id": None}]}, ("commands", 0, "id")),
+            ({"commands": [{"command": "todo-list"}], "options": None}, ("options",)),
+            ({"commands": [{"command": "todo-list"}], "options": {"timeout": None}}, ("options", "timeout")),
+        ],
+    )
+    def test_null_is_rejected_in_a_wire_envelope(self, payload, path):
+        with pytest.raises(ValidationError) as caught:
+            BatchRequest.model_validate(payload, context=WIRE_ENVELOPE)
+        assert caught.value.errors()[0]["loc"] == path
+
+    def test_omitted_fields_are_accepted_in_a_wire_envelope(self):
+        request = BatchRequest.model_validate(
+            {"commands": [{"command": "todo-list"}]}, context=WIRE_ENVELOPE
+        )
+        assert request.options is None
+        assert request.commands[0].id is None
+
+    def test_python_callers_may_pass_none(self):
+        request = BatchRequest(
+            commands=[BatchCommand(id=None, command="todo-list")],
+            options=None,
+        )
+        assert request.options is None
+        assert request.commands[0].id is None
+
 
 class TestBatchOptions:
     """Tests for BatchOptions Pydantic model."""
@@ -87,6 +130,31 @@ class TestBatchOptions:
         assert opts.stop_on_error is True
         assert opts.timeout == 5000
         assert opts.parallelism == 4
+
+    @pytest.mark.parametrize(
+        "options",
+        [
+            {"stopOnError": "false"},
+            {"stopOnError": 1},
+            {"timeout": True},
+            {"timeout": "20"},
+            {"timeout": -1},
+            {"parallelism": True},
+            {"parallelism": "2"},
+            {"parallelism": 1.5},
+            {"parallelism": 0},
+        ],
+    )
+    def test_options_are_not_coerced(self, options):
+        # TypeScript's isBatchRequest rejects these; pydantic's lax mode would
+        # otherwise read "false" as False, True as 1 and "2" as 2.
+        with pytest.raises(ValidationError):
+            BatchOptions.model_validate(options)
+
+    def test_integral_float_numbers_are_accepted(self):
+        opts = BatchOptions.model_validate({"timeout": 20.0, "parallelism": 2.0})
+        assert opts.timeout == 20
+        assert opts.parallelism == 2
 
 
 class TestCreateBatchRequest:

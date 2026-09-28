@@ -12,8 +12,10 @@ import pytest
 from pydantic import BaseModel
 
 from afd import ExposeOptions, success
+from afd.core.batch import BatchResult
 from afd.core.pipeline import (
     PipelineRequest,
+    PipelineResult,
     PipelineStep,
     StepStatus,
     execute_pipeline,
@@ -525,6 +527,59 @@ class TestBatchCaps:
     def test_caps_must_be_positive(self):
         with pytest.raises(ValueError):
             create_server("bad", max_batch_size=0)
+
+
+class TestInvalidEnvelopesKeepTheResultShape:
+    """An invalid envelope returns a failed BatchResult, or a PipelineResult with one
+    synthetic step, before anything runs (spec/vectors/batch-controls.json)."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "args",
+        [
+            {},
+            {"commands": {}},
+            [{"command": "todo-create"}],
+            {"commands": [{"command": "todo-create"}], "options": "fast"},
+            {"commands": [{"command": "todo-create", "id": None}]},
+            {"commands": [{"command": "todo-create"}], "options": {"stopOnError": "false"}},
+        ],
+    )
+    async def test_batch(self, args):
+        writes: list = []
+
+        result = await _server(writes).call_tool("afd-batch", args)
+
+        assert isinstance(result, BatchResult)
+        assert result.success is False
+        assert result.results == []
+        assert result.error.code == "INVALID_BATCH_REQUEST"
+        assert result.error.message == "Invalid batch request envelope"
+        assert result.error.details["errors"]
+        assert writes == []
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "args",
+        [
+            {},
+            {"steps": {}},
+            [{"command": "todo-create"}],
+            {"steps": [{"command": "todo-create", "as": None}]},
+            {"steps": [{"command": " "}]},
+        ],
+    )
+    async def test_pipeline(self, args):
+        writes: list = []
+
+        result = await _server(writes).call_tool("afd-pipe", args)
+
+        assert isinstance(result, PipelineResult)
+        (step,) = result.steps
+        assert (step.index, step.command, step.status) == (-1, "", StepStatus.FAILURE)
+        assert step.error.code == "INVALID_PIPELINE_REQUEST"
+        assert step.error.message == "Invalid pipeline request envelope"
+        assert writes == []
 
 
 class TestServerMetadata:
