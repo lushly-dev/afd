@@ -72,7 +72,7 @@ TypeScript leads this wave. It is small and unblocks everything after it.
 |---|---|---|---|
 | 1.1 | Load `spec/vectors/pipeline-variables.json` in the TypeScript, Python and Rust test suites; C++ already does. | S per language | Open |
 | 1.2 | **`spec/error-codes.md`:** every emitted code, whether it is retryable, and which layer emits it, plus the D4 rules. Add the missing codes to TypeScript `ErrorCodes` (about 25), Python `ErrorCodes`, Rust `error_codes` and C++ `error_codes`. | M | Open |
-| 1.3 | **`spec/validation.md` and `spec/vectors/validation.json`:** see the list below the table. Generate the vectors from TypeScript, marking the astral-character cases where TypeScript differs. | M | Open |
+| 1.3 | **`spec/validation.md` and `spec/vectors/validation.json`:** see the list below the table. Generate the vectors from TypeScript, marking the astral-character cases where TypeScript differs. | M | Done for TypeScript: [`spec/validation.md`](../../../../spec/validation.md), 32 cases in [`spec/vectors/validation.json`](../../../../spec/vectors/validation.json); Python, Rust and C++ load them in Wave 2 (#310, #311, #312) |
 | 1.4 | **`spec/vectors/batch-controls.json`,** from `packages/server/src/execution-controls.test.ts`. The C++ work plan already recommends this file. | S–M | Open |
 | 1.5 | **Command metadata:** list the canonical fields in the spec. Fix the TypeScript split ([#275](https://github.com/lushly-dev/afd/issues/275)): core `CommandDefinition` and `defineCommand` both carry `destructive`, `confirmPrompt` and `undoable`, and `toCommandDefinition()` keeps them. | S (TS minor) | Done in #308: canonical fields in [`spec/command-metadata.md`](../../../../spec/command-metadata.md); `_meta`, afd-detail, afd-help, afd-docs and `afd tools` report `undoable` |
 | 1.6 | **One default reconnect policy.** The TypeScript client's fallback of 5 attempts becomes core's 3. | S | Done for TypeScript in #308. Python's handoff client also falls back to 5; see Wave 2 |
@@ -84,6 +84,21 @@ The validation spec (1.3) covers:
 - the D3 length units ([#283](https://github.com/lushly-dev/afd/issues/283));
 - the JSON Schema subset every language must support: `type`, `properties`, `required`, `enum`, `items`, `minItems`/`maxItems`, `minLength`/`maxLength`, the four numeric bounds, `additionalProperties` and local `$ref`;
 - the optional keywords, such as `pattern` and the combinators.
+
+**1.3 outcome.**
+- **What landed:**
+  - `spec/vectors/generate-validation.mjs` generates the vectors;
+  - `packages/server/src/validation-vectors.test.ts` checks TypeScript against every case.
+- **Also covered:** explicit `null` ([#282](https://github.com/lushly-dev/afd/issues/282)) and
+  schema defaults ([#284](https://github.com/lushly-dev/afd/issues/284)), recorded as TypeScript
+  behaves.
+- **D3 and TypeScript.** Zod counts code points from 4.5.0, and `@lushly-dev/afd-server` requires
+  4.5.4. So TypeScript differs from D3 only for a schema built with Zod 4.0 to 4.4, and the four
+  astral tests carry that exception.
+- **Loading the vectors is Wave 2 work.** Each issue lists that language's failing cases:
+  - Python: [#310](https://github.com/lushly-dev/afd/issues/310);
+  - Rust: [#311](https://github.com/lushly-dev/afd/issues/311);
+  - C++: [#312](https://github.com/lushly-dev/afd/issues/312).
 
 ### Wave 2: engine alignment
 

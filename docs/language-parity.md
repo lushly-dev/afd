@@ -9,7 +9,7 @@ What each AFD implementation provides, where they differ, and which differences 
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans, which now link here |
 | Plans | [Parity closure](./features/active/parity-closure/parity-closure.plan.md) closes the gaps listed here; [Versioning and release](./features/active/versioning/versioning.plan.md) covers each implementation's version and the contract version |
-| Related | [`spec/wire`](../spec/wire/README.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/command-metadata.md`](../spec/command-metadata.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/proposed/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
+| Related | [`spec/wire`](../spec/wire/README.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/command-metadata.md`](../spec/command-metadata.md), [`spec/validation.md`](../spec/validation.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/proposed/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
 
 ## What parity means
 
@@ -84,7 +84,7 @@ Limits of these checks:
 | `destructive`, `confirmPrompt`, `undoable` ([`spec/command-metadata.md`](../spec/command-metadata.md)) | Yes: on core `CommandDefinition` and `defineCommand`; `_meta` has `destructive` and `undoable`, afd-detail all three | No | No | Yes |
 | Kebab-case name rule | Warns in `defineCommand` | Partial: `validate_command_name` exists but nothing calls it | Yes, rejects at registration | Yes, rejects at registration |
 | Duplicate and reserved names | Throws for meta-tools, and for bootstrap and context names when enabled | Partial: meta-tools only; a command named like a bootstrap tool silently shadows it | Partial: bootstrap names only | Yes: meta-tools (C++ has no bootstrap or context tools) |
-| Input validated before the handler | Zod; unknown keys stripped | Yes: Pydantic, before middleware; `None` validates as `{}` | Partial: JSON Schema subset; undeclared keys dropped; schema defaults never applied ([#284](https://github.com/lushly-dev/afd/issues/284)); an explicit `null` parameter counts as absent ([#282](https://github.com/lushly-dev/afd/issues/282)) | Yes: JSON Schema subset; unsupported keywords fail registration |
+| Input validated before the handler ([`spec/validation.md`](../spec/validation.md)) | Yes: Zod; passes every vector | Partial: Pydantic, before middleware, and `None` validates as `{}`; a JSON Schema `input_schema` is not enforced, and error codes are Pydantic's (#310) | Partial: undeclared keys stripped; no type lists, root `additionalProperties` or `$ref`, and an explicit `null` counts as absent (#311) | Partial: the required subset, and unsupported keywords fail registration; field lists come out sorted (#312) |
 | Examples validated at definition | Yes | Yes | No: stored only | Yes |
 | Output schema advertised | Yes (`_meta.outputSchema`) | Yes | Partial: `returns` not surfaced by `afd-schema` | No: stored, never emitted |
 | Command to MCP tool with `_meta` | Yes | Partial: no `category`, `destructive` or `undoable` in `_meta` | Partial: `command_to_mcp_tool`, no plural helper | Deferred |
@@ -133,7 +133,7 @@ Limits of these checks:
 | Handoff client: WebSocket and SSE handlers, reconnect | Yes: reconnect falls back to the default policy | Partial: reconnect falls back to 5 attempts, not the default policy's 3 | No | No: not declared |
 | `TelemetryEvent`, `TelemetrySink` | Yes | Partial: the core event serializes snake_case, and the middleware defines a second copy | Partial: `durationMs` is an integer | Deferred |
 | Telemetry middleware | Yes | Yes | No | Deferred |
-| `calculateSimilarity`, `findSimilarTools` (128 cap, 0.4 threshold) | Yes | Yes (not exported from `afd`) | Yes | Yes |
+| `calculateSimilarity`, `findSimilarTools` (128 cap, 0.4 threshold) | Yes | Yes (not exported from `afd`) | Yes (counts chars, not UTF-16 units) | Yes |
 
 ### MCP server
 
@@ -153,7 +153,7 @@ Limits of these checks:
 | Capability | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
 | MCP client: call, batch, pipe, stream | Yes | Partial: `auto_reconnect` is never used; `stream` only works against the TS server | No | No: not declared |
-| In-process client (`DirectClient`) with `allow`, exposure, timeout, `pipe` | Yes | Partial: no exposure, `allow`, middleware or timeout | Partial: `execute` with an interface; no `pipe` or unknown-tool helper | Yes |
+| In-process client (`DirectClient`) with `allow`, exposure, timeout, `pipe` | Yes | Partial: no exposure, `allow`, middleware or timeout | Partial: `execute` with an interface; no `pipe` or unknown-tool helper | Yes (see [defects](#defects-found-in-this-review)) |
 | CLI | Yes | Partial: no `batch`, `stream` or `scenario` | N/A | N/A |
 | Auth adapter | Yes | No | No | N/A: built by the host |
 | Testing: JTBD scenarios, surface validation (13 rules), assertions | Yes | Yes | No | No |
@@ -174,7 +174,7 @@ These gaps are appropriate. They follow the framework-agnostic rule, a language'
 | Renames: `success_with`, `failure_with`, `ResultOptions` | Rust | They stand in for TypeScript's option spreads. |
 | Pythonic MCP names (`TextContent`, `ToolDefinition`, `mcp_request`) | Python | Same capability, different names. |
 | Typed condition guards (`isEqCondition` and nine more) | Missing in Python and C++ | They are TypeScript discriminated-union artifacts. Pydantic models (Python) and validated JSON (C++) do the same job. |
-| JSON Schema validation instead of Zod or Pydantic | Rust, C++ | Each language uses its own validator. The subsets still need a shared spec (see [Unintended gaps](#unintended-gaps)). |
+| JSON Schema validation instead of Zod or Pydantic | Rust, C++ | Each language uses its own validator. [`spec/validation.md`](../spec/validation.md) defines the subset every validator supports and the results it gives. |
 | No CLI | Rust, C++ | One CLI serves every language, provided the language ships an MCP server the CLI can reach. |
 | Platform utilities and connectors | Optional everywhere | These are ecosystem helpers, not the command contract. TypeScript removed them from the core barrel. |
 | Rust-only extensions: batch `maxFailures`, per-command `timeout_ms` | Rust | Additive. They should be documented or proposed for the other languages. |
@@ -219,19 +219,28 @@ Ordered by how much an agent or a security boundary is affected.
 
 ### Priority 2: shared executors and cross-language tests
 
-9. **Wire `spec/vectors` into TypeScript, Python and Rust.** Only C++ consumes it today.
+9. **Wire `spec/vectors` into every language.** C++ loads `pipeline-variables.json`, and TypeScript loads `validation.json`. The rest is parity closure item 1.1 and the Wave 2 validation items.
 10. **Add a stream executor to Python and Rust,** and a public batch executor to Python. Collapse Python's two pipeline engines into one.
 11. **Rust single-command engine:**
     - result metadata stamping;
     - active-context scoping;
     - `onCommand` and `onError` hooks;
     - the built-in middleware bundle.
-12. **Validation divergences.** None of these has a spec, so a shared `spec/vectors/validation.json` would pin them.
-    - **Rust (fixed in #286):** undeclared keys are dropped, and `VALIDATION_ERROR` uses the TypeScript message `"Input validation failed"` and shape. The differences left are listed in `packages/rust/README.md`, "Command registry": issue wording, issue caps, an explicit `null` parameter ([#282](https://github.com/lushly-dev/afd/issues/282)) and schema defaults ([#284](https://github.com/lushly-dev/afd/issues/284)).
-    - **Length units:** schema `minLength`/`maxLength` agree: Zod has counted code points since 4.5.0 (the server requires `zod ^4.5.4`), as Python, Rust and C++ do. Name truncation and fuzzy matching count UTF-16 units in every language (Rust since #286). The 1024-character pipeline reference cap still differs: TypeScript and C++ count UTF-16 units, Python and Rust count code points ([#283](https://github.com/lushly-dev/afd/issues/283)).
-    - **JSON Schema subsets differ.**
-      - Rust has no `minItems` or `maxItems`: arrays reuse `minLength` and `maxLength`. It also has no `additionalProperties: false` and no combinators.
-      - C++ rejects `pattern`, `format`, `const` and the combinators.
+12. **Validation divergences.** [`spec/validation.md`](../spec/validation.md) specifies validation, and `spec/vectors/validation.json` pins it with 32 cases and 126 tests. TypeScript passes every case. Each issue lists that language's failing cases.
+    - **Python ([#310](https://github.com/lushly-dev/afd/issues/310)).**
+      - A JSON Schema `input_schema` is advertised but never enforced.
+      - With Pydantic models, the error codes are Pydantic's, and lax mode accepts `"7"` for an integer.
+      - `unexpectedFields` is sorted.
+    - **Rust ([#311](https://github.com/lushly-dev/afd/issues/311)): 21 tests pass, and 24 more fail only on wording.**
+      - It has no type lists, root `additionalProperties`, `$ref`, `minItems`/`maxItems` or exclusive bounds.
+      - An explicit `null` counts as absent (#282), and nested defaults are not applied (#284).
+      - Unsupported keywords are dropped silently.
+    - **C++ ([#312](https://github.com/lushly-dev/afd/issues/312)): 50 of the 94 tests it can run pass.**
+      - `afd::Json` sorts keys, so field lists and sibling issues come out alphabetical.
+      - A few `expected` and missing-field rules differ.
+    - **String length.** Python, Rust and C++ count code points (decision D3). So does TypeScript, because Zod counts code points from 4.5 and `@lushly-dev/afd-server` requires 4.5.4.
+      - Name truncation, similarity and the pipeline reference cap count UTF-16 units.
+      - Python and Rust still count the reference cap in code points (#283).
 13. **Command metadata** ([`spec/command-metadata.md`](../spec/command-metadata.md) lists the fields).
     - Python's decorator lacks `version`, `errors`, `execution_time`, `destructive`, `confirm_prompt` and `undoable`.
     - Rust lacks `destructive`, `confirmPrompt` and `undoable`.
@@ -260,7 +269,7 @@ Ordered by how much an agent or a security boundary is affected.
 
 | Defect | Location | Notes |
 |---|---|---|
-| With `timeout_ms` set, C++ `DirectClient::call` replaces the caller's cancellation token with a deadline-only source, so caller cancellation is lost | `packages/cpp/src/direct_client.cpp` (`DirectClient::call`) | Fixed: the deadline source now chains the caller's token, as batch, pipeline and TypeScript (`AbortSignal.any`) do. Tests cover caller cancellation and a pipeline deadline. |
+| With `timeout_ms` set, C++ `DirectClient::call` replaces the caller's cancellation token with a deadline-only source, so caller cancellation is lost | `packages/cpp/src/direct_client.cpp:112-116` | Batch (`batch_execution.cpp:315`) and pipeline chain the parent token, and so does TypeScript (`AbortSignal.any`). No test covers it. |
 | Rust single `execute` lets a handler panic unwind to the caller | `packages/rust/src/commands.rs` (`CommandRegistry::execute`) | Fixed; Priority 1 item 2 |
 | Python core registry, core pipeline and `SimpleRegistry` return exception text | See Priority 1 item 2 | Fixed |
 | TypeScript core `executePipeline` returns a throwing executor's `error.message` unredacted | `packages/core/src/pipeline-executor.ts:289-297` | The server engine and core registry pass executors that never throw, so only a custom executor reaches it. Python's `execute_pipeline` redacts it. |
@@ -306,7 +315,7 @@ The budgets in `alfred/tests/test_parity.py` equal these counts. Lower a budget 
 ## Recommended next steps
 
 1. **Fix the Priority 1 items and the C++ `DirectClient` defect.** They are small, local changes.
-2. **Wire `spec/vectors/pipeline-variables.json` into the TypeScript, Python and Rust test suites.** Add vectors for validation (unknown keys, length units, messages) and for batch controls. The C++ work plan already recommends `batch-controls.json`.
+2. **Wire `spec/vectors/pipeline-variables.json` into the TypeScript, Python and Rust test suites,** and `spec/vectors/validation.json` into the Python, Rust and C++ ones. Add vectors for batch controls. The C++ work plan already recommends `batch-controls.json`.
 3. **Write the unknown and unexposed error codes into a spec,** and add the emitted codes to the `ErrorCodes` catalog.
 4. **Add an AFD-protocol conformance tier** that checks meta-tools, bootstrap, exposure, batch and pipeline over MCP. It should be optional per language, so Rust and C++ can join once they ship a server.
 5. **Python export cleanup:** resolve the `afd.direct` name collisions, then re-export the pipeline, similarity and registry contract. This removes 61 names from the budget.

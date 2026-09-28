@@ -7,12 +7,11 @@ version is separate from each implementation's own package version.
 ## Scope
 
 - [`wire/`](./wire/README.md): the golden wire fixtures;
-- [`pipeline-variables.md`](./pipeline-variables.md) and the behavior vectors in
-  [`vectors/`](./vectors/README.md);
+- [`pipeline-variables.md`](./pipeline-variables.md), [`validation.md`](./validation.md) and the
+  behavior vectors in [`vectors/`](./vectors/README.md);
 - the todo conformance suite (`packages/examples/todo/spec`, run by `conformance.yml`).
 
-The error-code and validation specs, and a protocol conformance tier, join the contract when they
-are written.
+The error-code spec and a protocol conformance tier join the contract when they are written.
 
 ## Version format
 
@@ -56,7 +55,9 @@ The first versioned contract. It covers:
   `PipelineResult` and the four `StreamChunk` kinds;
 - the pipeline variables in `pipeline-variables.md`, with 48 references and 27 conditions in
   `vectors/pipeline-variables.json`;
-- the 34 cases of the todo conformance suite.
+- the 34 cases of the todo conformance suite;
+- command input validation in `validation.md`, with 32 cases and 126 tests in
+  `vectors/validation.json`. Its open questions are listed at the end of `validation.md`.
 
 Every language round-trips the wire fixtures and passes the conformance suite. Only C++ loads
-`vectors/pipeline-variables.json` so far.
+`vectors/pipeline-variables.json` so far, and only TypeScript loads `vectors/validation.json`.
