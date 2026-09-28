@@ -97,7 +97,7 @@ Lefthook manages git hooks. Installed automatically via `pnpm install`.
 |------|----------|--------|
 | pre-commit | Biome lint (staged), portability, file-size, typecheck | `git commit` |
 | commit-msg | commitlint (conventional commits) | `git commit` |
-| pre-push | Full lint, test, typecheck, portability, file-size, orphan-files | `git push` |
+| pre-push | Full lint, test, typecheck, portability, file-size, orphan-files, versions | `git push` |
 | check | All pre-push + build | `npx lefthook run check` |
 
 **Check scripts** (`scripts/`):
@@ -107,6 +107,7 @@ Lefthook manages git hooks. Installed automatically via `pnpm install`.
 | `check-file-size.mjs` | Warn >300, error >500 lines. Escape: `// afd-override: max-lines=N` (cap 1000) |
 | `check-portability.mjs` | Machine-specific paths (drive letters, user homes). Escape: `// portability-ok: reason` |
 | `check-orphan-files.mjs` | Unreferenced `.ts` files across packages (warning only) |
+| `check-versions.mjs` | Package versions and the AFD contract version (`spec/VERSION`) against the language constants, `docs/language-parity.md` and the README table |
 
 Skip hooks: `git commit --no-verify` / `git push --no-verify`
 

@@ -1,8 +1,8 @@
 # afd-cpp
 
-The C++20 implementation of [AFD (Agent-First Development)](../../README.md). It is being built in phases; see the [proposal](../../docs/features/proposed/cpp-support/proposal.md) and the [work plan](../../docs/features/proposed/cpp-support/work-plan.md).
+The C++20 implementation of [AFD (Agent-First Development)](../../README.md). The [proposal](../../docs/features/proposed/cpp-support/proposal.md) records the design decisions, and the [work plan](../../docs/features/proposed/cpp-support/work-plan.md) records how each phase was built.
 
-> **Status: v0.1 release candidate.** The library is feature-complete for v0.1: the wire types, the validating `CommandRegistry`, middleware, `DirectClient`, and batch, pipeline and stream execution. The [C++ todo backend](../examples/todo/backends/cpp/README.md) passes the 34-case conformance suite, `alfred parity` tracks the API, and the package installs with a CMake config. Releases are tagged `afd-cpp-vX.Y.Z`.
+> **Status: v0.1 release candidate.** The library is feature-complete for v0.1: the wire types, the validating `CommandRegistry`, middleware, `DirectClient`, and batch, pipeline and stream execution. The [C++ todo backend](../examples/todo/backends/cpp/README.md) passes the 34-case conformance suite, `alfred parity` tracks the API, and the package installs with a CMake config. Releases will be tagged `cpp-vX.Y.Z`; the first tag, `cpp-v0.1.0`, is not cut yet.
 
 ## Design in brief
 
@@ -78,7 +78,7 @@ auto untrusted = afd::parse_bounded(text);                   // depth- and size-
 
 ## Using the package
 
-afd-cpp is not on a package registry. Take a tagged release (`afd-cpp-vX.Y.Z`) in one of three ways, and link `afd::afd`.
+afd-cpp is not on a package registry. Get it in one of three ways, and link `afd::afd`. Releases will be tagged `cpp-vX.Y.Z`, but no tag exists until the first release, `cpp-v0.1.0`. Until then, take `main`, or pin a commit SHA from it.
 
 **FetchContent:**
 
@@ -86,7 +86,7 @@ afd-cpp is not on a package registry. Take a tagged release (`afd-cpp-vX.Y.Z`) i
 include(FetchContent)
 FetchContent_Declare(afd
     GIT_REPOSITORY https://github.com/lushly-dev/afd.git
-    GIT_TAG afd-cpp-v0.1.0
+    GIT_TAG main  # or a commit SHA; cpp-v0.1.0 once it is released
     SOURCE_SUBDIR packages/cpp)
 FetchContent_MakeAvailable(afd)
 target_link_libraries(my_app PRIVATE afd::afd)
@@ -163,4 +163,4 @@ Library code must be exception-free and RTTI-free:
 - Write `(std::min)(…)`.
 - Never name anything `check`, `verify`, `require` or `interface`.
 
-CI (`.github/workflows/cpp.yml`) runs every preset on Linux, macOS and Windows, plus Emscripten.
+CI (`.github/workflows/cpp.yml`) runs the `release` preset on Linux (GCC), macOS and Windows (MSVC). The `asan`, `tsan`, `noexcept-nortti` and `emscripten` presets run on Linux only. CI also checks formatting, builds [`tests/consumer`](tests/consumer/CMakeLists.txt) on Linux and Windows, and fuzzes each target for 60 seconds on Linux.

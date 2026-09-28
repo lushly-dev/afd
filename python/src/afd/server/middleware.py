@@ -3,6 +3,13 @@
 Middleware functions wrap command execution to add cross-cutting concerns
 like logging, tracing, rate limiting, retry, and telemetry.
 
+The server runs middleware only for a call that will reach a handler: an
+unknown, unexposed or out-of-context command, or invalid input, is rejected
+before the chain starts. ``input`` is the validated input the handler
+receives, so for a command with an input schema it is that schema's model
+instance, not the raw arguments. An exception from the handler passes out
+through the chain before the server turns it into COMMAND_EXECUTION_ERROR.
+
 Example:
     >>> from afd.server import create_server, default_middleware
     >>> server = create_server("my-app", middleware=default_middleware())

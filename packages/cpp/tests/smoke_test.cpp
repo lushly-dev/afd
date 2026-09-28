@@ -1,10 +1,24 @@
 #include "afd/afd.hpp"
 
+#include <fstream>
+#include <iterator>
+#include <string>
+
 #include <doctest.h>
 
 TEST_CASE("header and library versions agree") {
     CHECK(afd::header_version == afd::library_version());
     CHECK(afd::header_version == AFD_VERSION_STRING);
+}
+
+TEST_CASE("contract_version matches spec/VERSION") {
+    std::ifstream in(AFD_SPEC_VERSION_FILE, std::ios::binary);
+    REQUIRE(in.good());
+    std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+    while (!text.empty() && (text.back() == '\n' || text.back() == '\r' || text.back() == ' ')) {
+        text.pop_back();
+    }
+    CHECK(afd::contract_version == text);
 }
 
 TEST_CASE("malformed JSON is reported as a value, never thrown") {

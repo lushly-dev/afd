@@ -13,7 +13,7 @@ This is the implementation plan for [proposal.md](./proposal.md) ([lushly-dev/af
 | [3. Batch, pipeline, streaming](#phase-3-batch-pipeline-and-streaming) | One executor; `spec/pipeline-variables.md` fully implemented | L | 2 |
 | [4. Todo backend and conformance](#phase-4-todo-backend-and-conformance) | C++ backend passes 34/34 in `conformance.yml` | M | 3 |
 | [5. Parity, skill, docs](#phase-5-parity-skill-and-docs) | `alfred parity` tracks C++; `afd-cpp` skill; docs list four languages | M | 4 (the alfred work can start after 1) |
-| [6. Packaging and release](#phase-6-packaging-and-release) | Installable CMake package; `afd-cpp-v0.1.0` | M | 5 |
+| [6. Packaging and release](#phase-6-packaging-and-release) | Installable CMake package; `cpp-v0.1.0` | M | 5 |
 
 Phases 1–4 form the critical path, about 3–4 weeks in total. Phase 5's alfred work and Phase 6's packaging can overlap with Phases 3–4.
 
@@ -139,7 +139,7 @@ Each item below is a header in `include/afd/` with an implementation in `src/`.
 
 ### Tests
 
-- **`tests/wire_fixtures.cpp`:**
+- **`tests/wire_fixtures_test.cpp`:**
   - Enumerate `spec/wire/*.json` through a compile definition `AFD_WIRE_DIR`.
   - Dispatch on the file name, **spelled as quoted string literals**, because alfred's `check_wire_fixtures` greps for them.
   - Fail on any unmapped fixture.
@@ -253,7 +253,7 @@ Each item below is a header in `include/afd/` with an implementation in `src/`.
 ### As built (Phase 2)
 
 These are the deviations from the plan above, each for a concrete reason:
-- **`TaskRunner` moves to Phase 3.** Only batch parallelism needs it, and nothing in Phase 2 would exercise it.
+- **`TaskRunner` moves to Phase 3.** Only batch parallelism needs it, and nothing in Phase 2 would exercise it. Its interface also changed; see [As built (Phase 3)](#as-built-phase-3).
 - **`CommandParameter` builders are deferred.** Inputs are declared as JSON Schema, and the builders are a parity follow-up.
 - **Renamed from TypeScript:**
   - `requires` becomes `CommandDefinition::prerequisites`, because `requires` is a C++20 keyword.
@@ -386,6 +386,9 @@ A follow-up issue wires the same files into TypeScript, Python and Rust. This fo
 ### As built (Phase 3)
 
 - **One executor, as planned.** `execute_batch`, `execute_pipeline` and `execute_stream` take a `CommandExecutor`. `CommandRegistry::execute_batch/execute_pipeline/execute_stream` and `DirectClient::pipe` all delegate to them.
+- **`TaskRunner::run_all`, not `submit`.** PR 2a planned `submit(std::function<void()>)`, a `ThreadPoolTaskRunner` and a separate completion primitive with `wait_until`. As built, `run_all(count, task)` runs `task(0)` through `task(count - 1)` and returns once all have finished, so no completion primitive is needed (`include/afd/runtime.hpp`).
+  - `InlineTaskRunner` runs the tasks in order on the calling thread. It is the default, and the only runner without threads, as under Emscripten.
+  - `ThreadTaskRunner`, not `ThreadPoolTaskRunner`, runs the first task on the calling thread and each other task on its own `std::thread`, then joins them. It is built only with `AFD_ENABLE_THREADS`.
 - **Cooperative deadlines with every runner** (proposal D4, corrected). `ThreadTaskRunner` gives real overlap, but nothing returns before running handlers do: abandoning a handler could leave it using state the caller has freed. A late finish gets the same BATCH_TIMEOUT or PIPELINE_TIMEOUT result as in TypeScript.
 - **`CancellationSource` can chain to a parent token,** the counterpart of `AbortSignal.any`. Batch commands, pipeline steps and streams see both the caller's cancellation and the deadline.
 - **A stream is a `std::vector<StreamChunk>`,** not a generator. TypeScript's `executeStream` also runs the command to completion before yielding. `consume_stream` returns the final chunk, and `collect_stream_data` returns `Expected` instead of throwing.
@@ -502,7 +505,7 @@ backends/cpp/
     - It skips `afd::detail`, and it ignores test-only code.
   - Add a C++ mode to `_strip_comments` and `_skip_string` that handles raw strings `R"x(…)x"` and character literals.
   - Add `cpp`, `missing_from_cpp` and `extra_in_cpp` to `ParityReport`, and give `_diff_exports` a fourth input.
-  - Add `WIRE_ROUND_TRIP_TESTS["cpp"] = packages/cpp/tests/wire_fixtures.cpp`, and update the entry-file, count and reasoning code paths (lines 639-703).
+  - Add `WIRE_ROUND_TRIP_TESTS["cpp"] = packages/cpp/tests/wire_fixtures_test.cpp`, and update the entry-file, count and reasoning code paths (lines 639-703).
 - **`alfred/tests/test_parity.py`:**
   - Give the `fake_repo` fixture a C++ entry header.
   - Update the three-language wire-coverage test.
@@ -522,12 +525,12 @@ backends/cpp/
   - Related Skills.
 - **Register the skill** in:
   - `botcore.toml` `[skills]`;
-  - the skill tables in `AGENTS.md` and `.claude/CLAUDE.md`;
+  - the skill table in `AGENTS.md`;
   - the Related Skills footers of `afd-typescript`, `afd-python`, `afd-rust` and `afd-developer`.
 - **Repository docs:**
   - `README.md`: the badges and the language lists at lines 6-8, 177, 189 and 289.
   - `CONTRIBUTING.md`: the `cpp` commit scope and the local commands.
-  - The CI tables in `AGENTS.md` and `.claude/CLAUDE.md`: a `cpp.yml` row, plus a key rule, "Changed `packages/cpp/`? Run `cmake --preset dev && cmake --build --preset dev && ctest --preset dev`".
+  - The CI table in `AGENTS.md`: a `cpp.yml` row, plus a key rule, "Changed `packages/cpp/`? Run `cmake --preset dev && cmake --build --preset dev && ctest --preset dev`".
   - `spec/wire/README.md`: the list of round-trip tests, and "all four languages in the same PR".
   - `docs/features/README.md`.
   - `.claude/skills/do-release`: a C++ section.
@@ -569,7 +572,7 @@ backends/cpp/
   - build the same project through `FetchContent`;
   - build a `packages/cpp/examples/quickstart.cpp` that matches the README, playing the role of Rust's README doctests.
 - [ ] Release process:
-  - Tag `afd-cpp-v0.1.0` and write GitHub release notes from `packages/cpp/CHANGELOG.md`.
+  - Tag `cpp-v0.1.0` and write GitHub release notes from `packages/cpp/CHANGELOG.md`.
   - Document the steps in the `do-release` skill. Changesets does not cover this package.
 - [x] Dependency updates: Dependabot has no CMake ecosystem. Keep every pin in `cmake/AfdDependencies.cmake`, with a documented update procedure. See the [open questions](#open-questions) for Renovate.
 - [x] Embeddability gate, generic and not tied to any host:
@@ -589,7 +592,7 @@ backends/cpp/
 - **Subproject defaults:** `AFD_INSTALL`, `AFD_BUILD_EXAMPLES` and `AFD_BUILD_TESTS` default to `PROJECT_IS_TOP_LEVEL`, so `FetchContent` and `add_subdirectory` users build only the library.
 - **Consumer tests:** `examples/quickstart.cpp` asserts its own output (a success, then the "Did you mean 'todo-create'?" suggestion from `DirectClient`). It runs in every preset's ctest, including noexcept-nortti and Emscripten. The `package` job in `cpp.yml` installs afd on Linux and Windows, then builds `tests/consumer` with `find_package` and with `FetchContent`, and runs it.
 - **Dependency updates:** every pin (URL and SHA-256) is in `cmake/AfdDependencies.cmake`, with the procedure in its header comment. Dependabot has no CMake ecosystem; Renovate remains an open question.
-- **Release:** the steps are in the `do-release` skill. The `afd-cpp-v0.1.0` tag and GitHub release are created after this PR merges, with maintainer sign-off.
+- **Release:** the steps are in the `do-release` skill. The `cpp-v0.1.0` tag and GitHub release are created after this PR merges, with maintainer sign-off.
 
 ---
 
@@ -617,7 +620,7 @@ These belong in the requesting application, built on the public API.
 
 | Layer | What it proves | Where | CI |
 |---|---|---|---|
-| Wire fixtures | Types round-trip the canonical JSON | `packages/cpp/tests/wire_fixtures.cpp` | `cpp.yml`, all configurations |
+| Wire fixtures | Types round-trip the canonical JSON | `packages/cpp/tests/wire_fixtures_test.cpp` | `cpp.yml`, all configurations |
 | Ported behavior cases | Dispatch, validation, batch, pipeline and stream semantics match TypeScript | `packages/cpp/tests/*.cpp` | `cpp.yml` |
 | Shared vectors | Language-neutral pipeline and batch rules | `spec/vectors/*.json` | `cpp.yml` (other languages later) |
 | Conformance | The end-to-end product matches the other backends | `packages/examples/todo/spec/test-cases.json` | `conformance.yml` `todo-cpp` |
@@ -651,7 +654,7 @@ These belong in the requesting application, built on the public API.
 5. **Where does the stdio MCP loop live:** only in the todo backend, or as an optional library target from day one? *Recommended: the backend only, promoted later* (D10).
 6. **Decouple TypeSpec from #270?** *Recommended: yes*; nothing exists yet, and the todo backend can use `commands.schema.json` directly (D6).
 7. **Should the port wait for, or pre-build, any companion issue (#271–#276)?** *Recommended: no.* Judge each on its value across all languages. Push the parts that fail back to the requester (proposal, "Companion issues").
-8. **Release scheme:** an independent `afd-cpp-vX.Y.Z` tag and version starting at 0.1.0? *Recommended: yes* (D11).
+8. **Release scheme:** an independent `cpp-vX.Y.Z` tag and version starting at 0.1.0? *Recommended: yes* (D11). The versioning plan (V3) set the prefix to `cpp-v`, matching `python-v` and `rust-v`.
 9. **Renovate for CMake pins,** or manual updates? *Recommended: manual for v0.1*, and revisit once there are more than two dependencies.
 10. **Which unit counts for `minLength`/`maxLength`?** Code points (JSON Schema, Rust, Pydantic) or UTF-16 code units (Zod)? *Recommended: code points, written into a spec.* This is a cross-language decision, not a C++ one.
 11. **Should AFD host engine or framework adapters?** *Recommended: no.* Hosts build them on the public API, and a shared layer is revisited only if several unrelated hosts turn out to need the same code.
@@ -668,7 +671,8 @@ These drifts and stale items turned up while planning. They are outside #270's s
 4. **`docs/features/active/rust-parity/rust-parity.plan.md` is stale.**
    - It still says Active and cites the March 2026 counts, although the work shipped in #181. Current `missing_from_rust` is 10, within the budget in `alfred/tests/test_parity.py`.
    - It should move to `complete/`.
-5. **`packages/examples/todo/spec/README.md` is stale:** it names only the TypeScript and Python backends.
-6. **`.claude/skills/afd-rust/SKILL.md` gives the wrong not-found message** (around line 156). The code produces `Todo with ID '123' not found`.
+   - *Fixed in #289:* now `docs/features/complete/rust-parity/plan.md`.
+5. **`packages/examples/todo/spec/README.md` is stale:** it names only the TypeScript and Python backends. *Fixed in #301 (the backend list and the schema check) and #289 (each backend's script and transport).*
+6. **`.claude/skills/afd-rust/SKILL.md` gives the wrong not-found message** (around line 156). The code produces `Todo with ID '123' not found`. *Fixed in #301.*
 7. **The `alfred parity` command exits 1 today.** It reports 224 name gaps, 117 of them `missing_from_typescript`. The effective gate is the budget in `test_parity.py`. C++-only helpers must stay in `afd::detail`, or they add to `missing_from_typescript`.
 8. **The TypeScript pipeline executor returns an executor exception's raw message** (`packages/core/src/pipeline-executor.ts:293-295`). It does not use the engine's `devMode` redaction. Check whether that is intended.

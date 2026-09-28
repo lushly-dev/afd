@@ -164,20 +164,13 @@ def define_command(
         @wraps(func)
         async def wrapper(raw_input: Any, context: Optional[Any] = None) -> CommandResult:
             """Wrapper that validates input and calls the handler."""
-            # Validate input using Pydantic schema if provided
-            if input_schema and raw_input is not None:
-                try:
-                    if isinstance(raw_input, dict):
-                        validated_input = input_schema.model_validate(raw_input)
-                    elif isinstance(raw_input, input_schema):
-                        validated_input = raw_input
-                    else:
-                        validated_input = input_schema.model_validate(raw_input)
-                except PydanticValidationError as exc:
-                    return _input_validation_failure(input_schema, raw_input, exc)
-            else:
-                validated_input = raw_input
-            
+            try:
+                validated_input = validate_command_input(input_schema, raw_input)
+            except PydanticValidationError as exc:
+                return _input_validation_failure(
+                    input_schema, {} if raw_input is None else raw_input, exc
+                )
+
             if accepts_context:
                 return await func(validated_input, context)
             return await func(validated_input)
@@ -188,6 +181,23 @@ def define_command(
         return wrapper
     
     return decorator
+
+
+def validate_command_input(input_schema: Optional[Type[BaseModel]], raw_input: Any) -> Any:
+    """The value a command's handler receives for ``raw_input``.
+
+    Without a schema, ``raw_input`` unchanged. With one, an instance of the
+    schema passes through as-is (it is already validated), and anything else
+    is validated. ``None`` is validated as ``{}``, as Zod parses an omitted
+    input as an empty object, so a schema with required fields fails with
+    VALIDATION_ERROR instead of the handler receiving ``None``.
+
+    Raises:
+        pydantic.ValidationError: If the input does not match the schema.
+    """
+    if input_schema is None or isinstance(raw_input, input_schema):
+        return raw_input
+    return input_schema.model_validate({} if raw_input is None else raw_input)
 
 
 def _accepts_context(func: Callable) -> bool:

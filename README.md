@@ -1,18 +1,26 @@
 # AFD — Agent-First Development
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-2563eb?style=flat-square)](LICENSE)
-[![Status: Beta](https://img.shields.io/badge/Status-Beta-16a34a?style=flat-square)](#)
-[![npm](https://img.shields.io/npm/v/@lushly-dev/afd-core?style=flat-square&label=npm)](https://www.npmjs.com/package/@lushly-dev/afd-core)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6.svg?logo=typescript&logoColor=white)](#)
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB.svg?logo=python&logoColor=white)](#)
-[![Rust](https://img.shields.io/badge/Rust-1.70+-DEA584.svg?logo=rust&logoColor=white)](#)
+[![Rust](https://img.shields.io/badge/Rust-1.82+-DEA584.svg?logo=rust&logoColor=white)](#)
 [![C++](https://img.shields.io/badge/C++-20-00599C.svg?logo=cplusplus&logoColor=white)](#)
 [![Node](https://img.shields.io/badge/Node-%E2%89%A522.12-339933.svg?logo=node.js&logoColor=white)](#)
 [![MCP](https://img.shields.io/badge/MCP-Compatible-8b5cf6?style=flat-square)](#)
 [![Companion: botcore](https://img.shields.io/badge/Companion-botcore-6d28d9?style=flat-square&logo=github)](https://github.com/lushly-dev/botcore)
 [![Sponsor](https://img.shields.io/badge/Sponsor-db2777?style=flat-square&logo=githubsponsors&logoColor=white)](https://github.com/sponsors/Falkicon)
 
-> 🟢 **Beta** · Stable and in active use across multiple projects. APIs are mostly stable; expect targeted iterative improvements. Feedback welcome!
+| Implementation | Package | Latest release | Status | Contract |
+|---|---|---|---|---|
+| TypeScript | [`@lushly-dev/afd-core`](https://www.npmjs.com/package/@lushly-dev/afd-core) and 8 more `@lushly-dev/*` packages | [![npm](https://img.shields.io/npm/v/@lushly-dev/afd-core?style=flat-square&label=npm)](https://www.npmjs.com/package/@lushly-dev/afd-core) | 🟢 Beta | [1.0-rc](./spec/CHANGELOG.md) |
+| Python | [`afd`](https://pypi.org/project/afd/) | [![PyPI](https://img.shields.io/pypi/v/afd?style=flat-square&label=PyPI)](https://pypi.org/project/afd/) | 🟢 Beta | [1.0-rc](./spec/CHANGELOG.md) |
+| Rust | [`afd`](./packages/rust) crate | Not on crates.io yet | 🟡 Preview | [1.0-rc](./spec/CHANGELOG.md) |
+| C++ | [`afd-cpp`](./packages/cpp) | [![tag](https://img.shields.io/github/v/tag/lushly-dev/afd?filter=cpp-v*&sort=semver&style=flat-square&label=tag)](https://github.com/lushly-dev/afd/tags) | 🟡 Preview | [1.0-rc](./spec/CHANGELOG.md) |
+
+<!-- Once the crate is published, replace "Not on crates.io yet" with
+[![crates.io](https://img.shields.io/crates/v/afd?style=flat-square&label=crates.io)](https://crates.io/crates/afd) -->
+
+> 🟢 **Beta:** stable and in active use across multiple projects. APIs are mostly stable; expect targeted iterative improvements. 🟡 **Preview:** tested, but not yet proven in production; the API may change in a minor release before 1.0. **Contract** is the version of the shared AFD contract in [`spec/`](./spec/CHANGELOG.md) that each implementation implements; each package keeps its own version. Feedback welcome!
 
 > **Reference pair:** AFD defines command-first architecture patterns; botcore provides the shared bot infrastructure and skills used to operate those patterns at scale. See https://github.com/lushly-dev/botcore.
 
@@ -175,19 +183,19 @@ By designing for agents first, your software automatically becomes API-first (ag
 
 ## What's in the Toolkit
 
-AFD ships as packages across **TypeScript, Python, Rust, and C++**, all sharing the same AFD capability set and agent-visible contract, even when the language-specific APIs differ:
+AFD ships as packages across **TypeScript, Python, Rust, and C++**. All four share the wire contract (`spec/wire`) and pass the same todo conformance suite. Their language-specific APIs differ, and so does their scope. TypeScript and Python include MCP servers and clients; Rust and C++ are in-process libraries. See [Language Parity](./docs/language-parity.md) for the capability matrix and known gaps.
 
 | Package | What it does |
 |---------|-------------|
-| **@afd/core** | Core types — `CommandResult`, `CommandError`, batching, streaming |
-| **@afd/server** | Zod-based MCP server factory with middleware (logging, timing, rate limiting, telemetry) |
-| **@afd/client** | MCP client with SSE/HTTP transports + `DirectClient` for ~0.03ms in-process execution |
-| **@afd/testing** | JTBD scenario runner, surface validation, coverage analysis, MCP agent integration |
-| **@afd/cli** | CLI for connecting, calling, validating, and exploring commands |
-| **@afd/auth** | Provider-agnostic auth adapter — middleware, commands, session sync, React hooks, adapters for Mock/Convex/BetterAuth |
-| **@afd/adapters** | Frontend adapters for rendering `CommandResult` → styled HTML with CSS variable theming |
-| **afd** *(Python)* | Functional AFD parity in idiomatic Python — `CommandResult`, MCP server/client, middleware, validation, telemetry, batch/streaming, testing, handoff |
-| **afd** *(Rust)* | `CommandResult` types, `CommandRegistry`, batch/stream support, WASM-compatible |
+| **@lushly-dev/afd-core** | Core types — `CommandResult`, `CommandError`, batching, streaming |
+| **@lushly-dev/afd-server** | Zod-based MCP server factory with middleware (logging, timing, rate limiting, telemetry) |
+| **@lushly-dev/afd-client** | MCP client with SSE/HTTP transports + `DirectClient` for ~0.03ms in-process execution |
+| **@lushly-dev/afd-testing** | JTBD scenario runner, surface validation, coverage analysis, MCP agent integration |
+| **@lushly-dev/afd-cli** | CLI for connecting, calling, validating, and exploring commands |
+| **@lushly-dev/afd-auth** | Provider-agnostic auth adapter — middleware, commands, session sync, React hooks, adapters for Mock/Convex/BetterAuth |
+| **@lushly-dev/afd-adapters** | Frontend adapters for rendering `CommandResult` → styled HTML with CSS variable theming |
+| **afd** *(Python)* | Idiomatic Python AFD: `CommandResult`, MCP server/client, middleware, validation, telemetry, batch, pipelines, stream types, testing, handoff |
+| **afd** *(Rust)* | `CommandResult` types, validating `CommandRegistry`, batch and pipeline execution, stream types, bootstrap commands; WASM-compatible; no MCP server yet |
 | **afd-cpp** *(C++20, pre-release)* | [`packages/cpp`](./packages/cpp): `CommandResult` types, validating `CommandRegistry`, middleware, `DirectClient`, batch/pipeline/stream execution; engine-free, builds without exceptions or RTTI and for WebAssembly |
 
 AFD stays framework-agnostic at the command layer. React or browser integrations belong in examples and ecosystem layers, not in the core parity target.
@@ -330,11 +338,11 @@ Commands run in isolation (no network, no database) to measure pure business log
 - [x] Command schema guide
 - [x] Trust framework documentation
 - [x] Implementation phases guide
-- [x] CLI tool (`@afd/cli`)
-- [x] MCP client library (`@afd/client`)
-- [x] MCP server library (`@afd/server`)
-- [x] Core types (`@afd/core`)
-- [x] Testing utilities (`@afd/testing`)
+- [x] CLI tool (`@lushly-dev/afd-cli`)
+- [x] MCP client library (`@lushly-dev/afd-client`)
+- [x] MCP server library (`@lushly-dev/afd-server`)
+- [x] Core types (`@lushly-dev/afd-core`)
+- [x] Testing utilities (`@lushly-dev/afd-testing`)
 - [x] Example implementations
 - [x] Performance testing framework
 - [ ] VS Code extension

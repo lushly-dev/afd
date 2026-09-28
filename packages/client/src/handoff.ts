@@ -43,7 +43,7 @@ import type {
 	HandoffProtocol,
 	HandoffResult,
 } from '@lushly-dev/afd-core';
-import { isHandoff, isHandoffProtocol } from '@lushly-dev/afd-core';
+import { defaultReconnectPolicy, isHandoff, isHandoffProtocol } from '@lushly-dev/afd-core';
 import { backoffDelay, CancellableDelay } from './backoff.js';
 import { builtinHandlers } from './handlers.js';
 
@@ -325,13 +325,13 @@ export interface ReconnectionOptions extends HandoffConnectionOptions {
 
 	/**
 	 * Maximum number of reconnection attempts.
-	 * @default 5
+	 * @default The handoff's `metadata.reconnect.maxAttempts`, else `defaultReconnectPolicy.maxAttempts` (3)
 	 */
 	maxAttempts?: number;
 
 	/**
 	 * Base backoff time in milliseconds.
-	 * @default 1000
+	 * @default The handoff's `metadata.reconnect.backoffMs`, else `defaultReconnectPolicy.backoffMs` (1000)
 	 */
 	backoffMs?: number;
 
@@ -425,8 +425,8 @@ export async function createReconnectingHandoff(
 		reconnectCommand,
 		reconnectArgs = {},
 		sessionId,
-		maxAttempts = options.maxAttempts ?? handoff.metadata?.reconnect?.maxAttempts ?? 5,
-		backoffMs = options.backoffMs ?? handoff.metadata?.reconnect?.backoffMs ?? 1000,
+		maxAttempts = handoff.metadata?.reconnect?.maxAttempts ?? defaultReconnectPolicy.maxAttempts,
+		backoffMs = handoff.metadata?.reconnect?.backoffMs ?? defaultReconnectPolicy.backoffMs,
 		maxBackoffMs = 30000,
 		onReconnect,
 		onReconnectFailed,
