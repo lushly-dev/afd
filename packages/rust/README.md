@@ -178,7 +178,10 @@ assert_eq!(request.steps[1].alias, None);
   suggestion ends with `Use afd-help to list all commands.` when `afd-help` is registered and
   callable (TypeScript points to `afd-discover`, which Rust does not have). Otherwise it ends with
   `Check the command name against the available commands.` The registry does not track an active
-  context, so, unlike TypeScript, matches are not filtered by `contexts`.
+  context, so, unlike TypeScript, matches are not filtered by `contexts`. As in TypeScript, the
+  name in the message is cut to 128 UTF-16 code units, and `find_similar_tools` and
+  `calculate_similarity` count UTF-16 code units, so they suggest the same names (an emoji counts
+  as two units).
 - **Input validation.** The input is checked against the declared `parameters` (required fields,
   JSON types, `enum` values, and a parameter's full `schema` when it has one). Parameter defaults
   are filled in. Keys that no parameter declares are dropped, as Zod drops them in TypeScript, so
@@ -200,10 +203,6 @@ assert_eq!(request.steps[1].alias, None);
   `devMode`. The panic payload is never included, and the registry has no dev mode that would show
   it. The panic is caught with `catch_unwind`, so a build with `panic = "abort"` still aborts.
 
-An unknown name returns `COMMAND_NOT_FOUND`. The name in its message is cut to 128 UTF-16 code
-units, as in TypeScript. `find_similar_tools` and `calculate_similarity` count UTF-16 code units
-too, so they suggest the same names as TypeScript. For example, an emoji counts as two units.
-
 The validation result matches TypeScript's `validateInputEnhanced` except in these ways:
 
 - Issue `code`s and `expected` type names are Zod's (`invalid_type`, `invalid_value`, `too_small`,
@@ -213,9 +212,13 @@ The validation result matches TypeScript's `validateInputEnhanced` except in the
   untrusted. TypeScript reports every issue.
 - A command without `parameters` gets its input unchanged, because the crate has no separate way to
   declare an empty schema. Every TypeScript command has a schema.
-- A top-level `null` parameter counts as absent, so it takes its default or is reported missing.
-  TypeScript (Zod) and Python (Pydantic) reject it unless the schema allows `null`. A `null` input
-  counts as `{}`, as the TypeScript and Python MCP routes treat missing or `null` arguments.
+- A top-level `null` parameter counts as absent, so it takes its default or is reported missing
+  ([#282](https://github.com/lushly-dev/afd/issues/282)). TypeScript (Zod) and Python (Pydantic)
+  reject it unless the schema allows `null`. A `null` input counts as `{}`, as the TypeScript and
+  Python MCP routes treat missing or `null` arguments.
+- Only `CommandParameter::default` is applied. A `default` inside a parameter's `schema`, or on a
+  nested property, is advertised but never filled in
+  ([#284](https://github.com/lushly-dev/afd/issues/284)). Zod and Pydantic fill in nested defaults.
 
 `execute_batch_with_context` runs every batch entry through the same path, with the caller's
 context and the request's `context` entries in `CommandContext::extra`. Commands can also declare
