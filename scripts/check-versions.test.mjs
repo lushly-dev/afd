@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -72,8 +72,8 @@ function fixture(overrides = {}) {
 	return root;
 }
 
-function run(root) {
-	return spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' });
+function run(root, ...args) {
+	return spawnSync(process.execPath, [script, ...args], { cwd: root, encoding: 'utf8' });
 }
 
 test('agreeing versions pass, ignoring private packages and other TOML sections', () => {
@@ -138,4 +138,75 @@ test('the @lushly-dev/* packages must share one version', () => {
 	const result = run(fixture({ 'packages/server/package.json': server }));
 	assert.equal(result.status, 1);
 	assert.match(result.stderr, /different versions: .*@lushly-dev\/afd-server@2\.0\.1/);
+});
+
+test('--write updates stale document cells from the manifests and constants', () => {
+	const root = fixture({
+		'packages/core/package.json': '{ "name": "@lushly-dev/afd-core", "version": "2.1.0" }',
+		'packages/server/package.json': '{ "name": "@lushly-dev/afd-server", "version": "2.1.0" }',
+		'packages/rust/Cargo.toml':
+			'[package]\nname = "afd"\nversion = "0.2.0"\nrust-version = "1.85"\n',
+		'README.md': readme('1.82', '0.9'),
+	});
+	const parityBefore = readFileSync(join(root, 'docs/language-parity.md'), 'utf8');
+	assert.equal(run(root).status, 1);
+
+	const result = run(root, '--write');
+	assert.equal(result.status, 0, result.stderr);
+	assert.match(
+		result.stdout,
+		/Updated the Version row of docs\/language-parity\.md: TypeScript 2\.0\.0 → 2\.1\.0/
+	);
+	assert.match(result.stdout, /Rust badge: 1\.82 → 1\.85/);
+
+	const parity = readFileSync(join(root, 'docs/language-parity.md'), 'utf8');
+	assert.equal(
+		parity,
+		parityBefore.replace(
+			VERSION_ROW,
+			'| Version | 2.1.0 | 0.8.0 | 0.2.0 | 0.1.0, release candidate |'
+		)
+	);
+	const readmeText = readFileSync(join(root, 'README.md'), 'utf8');
+	assert.equal(readmeText, readme('1.85', '1.0-rc'));
+
+	// The rewritten documents pass the check, and a second --write changes nothing.
+	assert.equal(run(root).status, 0);
+	const again = run(root, '--write');
+	assert.equal(again.status, 0);
+	assert.doesNotMatch(again.stdout, /Updated/);
+});
+
+test('--write still fails on problems a document edit cannot fix', () => {
+	const root = fixture({
+		'python/src/afd/__init__.py': "__version__ = '0.9.0'\n",
+		'docs/language-parity.md': parityDoc(
+			'| Version | 2.0.0 | 0.7.0 | 0.1.0 | none |',
+			CONTRACT_ROW
+		),
+	});
+	const result = run(root, '--write');
+	assert.equal(result.status, 1);
+	assert.match(result.stderr, /__version__ 0\.9\.0/);
+	// A cell with no version in it is reported, not guessed at.
+	assert.match(result.stderr, /shows C\+\+ \(nothing\), but it is 0\.1\.0/);
+	assert.match(result.stderr, /2 version problem/);
+	// The cells it could fix were still written.
+	assert.match(
+		readFileSync(join(root, 'docs/language-parity.md'), 'utf8'),
+		/\| Version \| 2\.0\.0 \| 0\.8\.0 \|/
+	);
+});
+
+test('--write keeps CRLF line endings', () => {
+	const doc = parityDoc('| Version | 1.9.0 | 0.8.0 | 0.1.0 | 0.1.0 |', CONTRACT_ROW).replaceAll(
+		'\n',
+		'\r\n'
+	);
+	const root = fixture({ 'docs/language-parity.md': doc });
+	assert.equal(run(root, '--write').status, 0);
+	assert.equal(
+		readFileSync(join(root, 'docs/language-parity.md'), 'utf8'),
+		doc.replace('| 1.9.0 |', '| 2.0.0 |')
+	);
 });

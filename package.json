@@ -28,7 +28,7 @@
 		"typecheck": "pnpm -r typecheck",
 		"check": "npx lefthook run check",
 		"changeset": "changeset",
-		"version-packages": "changeset version",
+		"version-packages": "changeset version && node scripts/check-versions.mjs --write",
 		"publish:npm": "pnpm build && changeset publish",
 		"prepare": "lefthook install"
 	},

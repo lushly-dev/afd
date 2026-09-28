@@ -120,7 +120,7 @@ Steps marked **(admin)** need a repository or npm owner. They change security se
 3. **Publish 2.0.0.**
    - Re-run the failed Release run for `b4a94e6` (2026-09-24, run `35950563235`).
    - That commit has no pending changesets and the same `release.yml`, so changesets publishes and tags exactly 2.0.0.
-   - The next push to `main` then opens the 2.0.1 release PR.
+   - The next push to `main` then opens the 2.1.0 release PR. So npm gets 2.0.0 (from the re-run of run `35950563235` on `b4a94e6`) and then 2.1.0: the pending changesets are minor and patch, and internal peer ranges use `workspace:^` with `onlyUpdatePeerDependentsWhenOutOfRange`, so Changesets no longer escalates them to 3.0.0.
 4. **Python 0.9.0.**
    1. Create `python/CHANGELOG.md` from the Python entries since `python-v0.8.0`.
    2. Bump `pyproject.toml` and `__version__`.

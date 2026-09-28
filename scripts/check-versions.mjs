@@ -12,13 +12,19 @@
  *   - the Contract column of the README's implementations table disagrees with them;
  *   - the README's Rust badge differs from rust-version in packages/rust/Cargo.toml.
  *
- * Run from the repository root:   node scripts/check-versions.mjs
+ * With --write, it rewrites the version cells of those documents (the Version and Contract rows,
+ * the Contract column and the Rust badge) from the manifests and constants instead of failing on
+ * them, and fails only on problems a document edit cannot fix. `pnpm version-packages` runs it
+ * after `changeset version`, so the release commit carries the updated docs.
+ *
+ * Run from the repository root:   node scripts/check-versions.mjs [--write]
  */
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = process.cwd();
+const WRITE = process.argv.includes('--write');
 const LANGUAGES = ['TypeScript', 'Python', 'Rust', 'C++'];
 const SEMVER = /\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?/;
 const CONTRACT = /\d+\.\d+(?:-[0-9A-Za-z.]+)?/;
@@ -162,50 +168,69 @@ for (const [language, { file, pattern }] of Object.entries(CONTRACT_SOURCES)) {
 
 // ─── Documents ───────────────────────────────────────────────────────────────
 
-/** Split a Markdown table row into trimmed cells. */
-function cells(line) {
-	return line
-		.trim()
-		.replace(/^\|/, '')
-		.replace(/\|$/, '')
-		.split('|')
-		.map((cell) => cell.trim());
+/** Split a Markdown table row into its raw cells, without the outer pipes. */
+function rawCells(line) {
+	return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|');
 }
 
-/** The rows of the first table whose header matches `isHeader`, as { header, rows }. */
-function table(text, isHeader) {
-	const lines = text.split('\n');
+/** Split a Markdown table row into trimmed cells. */
+function cells(line) {
+	return rawCells(line).map((cell) => cell.trim());
+}
+
+/**
+ * The first table whose header matches `isHeader`, as { header, rows }, where each row is
+ * { cells, line } and `line` is its index in `lines`.
+ */
+function table(lines, isHeader) {
 	const start = lines.findIndex((line) => line.trim().startsWith('|') && isHeader(cells(line)));
 	if (start < 0) return null;
 	const rows = [];
-	for (const line of lines.slice(start + 2)) {
-		if (!line.trim().startsWith('|')) break;
-		rows.push(cells(line));
+	for (let index = start + 2; index < lines.length; index++) {
+		if (!lines[index].trim().startsWith('|')) break;
+		rows.push({ cells: cells(lines[index]), line: index });
 	}
 	return { header: cells(lines[start]), rows };
 }
 
-function compare(where, language, cell, pattern, actual) {
-	const written = cell?.match(pattern)?.[0] ?? null;
-	if (actual !== null && written !== actual) {
-		problem(
-			`${where} shows ${language} ${written ?? '(nothing)'}, but it is ${actual}`,
-			`Update ${where}`
-		);
+const written = [];
+
+/**
+ * Check that the version in cell `column` of `lines[row.line]` equals `actual`. With --write,
+ * replace it in place instead, keeping the rest of the cell.
+ */
+function compare(where, language, lines, row, column, pattern, actual) {
+	const shown = row.cells[column]?.match(pattern)?.[0] ?? null;
+	if (actual === null || shown === actual) return;
+	if (WRITE && shown !== null) {
+		const raw = rawCells(lines[row.line]);
+		raw[column] = raw[column].replace(pattern, actual);
+		const [, lead, trail] = lines[row.line].match(/^(\s*).*?(\s*)$/);
+		lines[row.line] = `${lead}|${raw.join('|')}|${trail}`;
+		written.push(`${where}: ${language} ${shown} → ${actual}`);
+		return;
 	}
+	problem(
+		`${where} shows ${language} ${shown ?? '(nothing)'}, but it is ${actual}`,
+		`Update ${where}`
+	);
+}
+
+/** Save `lines` to `file` when --write changed them. */
+function save(file, text, lines) {
+	const updated = lines.join('\n');
+	if (WRITE && updated !== text) writeFileSync(join(root, file), updated);
 }
 
 const parity = required('docs/language-parity.md');
 if (parity !== null) {
-	const glance = table(parity, (header) =>
-		LANGUAGES.every((language) => header.includes(language))
-	);
-	const row = (name) => glance?.rows.find((cells) => cells[0] === name);
+	const lines = parity.split('\n');
+	const glance = table(lines, (header) => LANGUAGES.every((language) => header.includes(language)));
 	for (const [name, pattern, actual] of [
 		['Version', SEMVER, versions],
 		['Contract', CONTRACT, contracts],
 	]) {
-		const found = row(name);
+		const found = glance?.rows.find((row) => row.cells[0] === name);
 		if (!found) {
 			problem(
 				`docs/language-parity.md has no ${name} row`,
@@ -214,56 +239,72 @@ if (parity !== null) {
 			continue;
 		}
 		for (const language of LANGUAGES) {
-			const cell = found[glance.header.indexOf(language)];
 			compare(
 				`the ${name} row of docs/language-parity.md`,
 				language,
-				cell,
+				lines,
+				found,
+				glance.header.indexOf(language),
 				pattern,
 				actual[language]
 			);
 		}
 	}
+	save('docs/language-parity.md', parity, lines);
 }
 
 const readme = required('README.md');
 if (readme !== null) {
-	const implementations = table(readme, (header) => header[0] === 'Implementation');
+	const lines = readme.split('\n');
+	const implementations = table(lines, (header) => header[0] === 'Implementation');
 	const column = implementations?.header.indexOf('Contract') ?? -1;
 	if (column < 0) {
 		problem('README.md has no implementations table with a Contract column', 'Restore it');
 	} else {
 		for (const language of LANGUAGES) {
-			const found = implementations.rows.find((cells) => cells[0] === language);
+			const found = implementations.rows.find((row) => row.cells[0] === language);
 			if (!found) problem(`README.md's implementations table has no ${language} row`, 'Add it');
 			else
 				compare(
 					"README.md's Contract column",
 					language,
-					found[column],
+					lines,
+					found,
+					column,
 					CONTRACT,
 					contracts[language]
 				);
 		}
 	}
 
-	const badge = readme.match(/img\.shields\.io\/badge\/Rust-(\d+\.\d+(?:\.\d+)?)\+/)?.[1];
+	const BADGE = /(img\.shields\.io\/badge\/Rust-)(\d+\.\d+(?:\.\d+)?)\+/;
 	const msrv = cargo === null ? null : tomlValue(cargo, 'package', 'rust-version');
+	const index = lines.findIndex((line) => BADGE.test(line));
+	const badge = index < 0 ? null : lines[index].match(BADGE)[2];
 	if (badge && badge !== msrv) {
-		problem(
-			`README.md's Rust badge says ${badge}+, but packages/rust/Cargo.toml has rust-version ${msrv}`,
-			'Keep the badge equal to rust-version'
-		);
+		if (WRITE && msrv) {
+			lines[index] = lines[index].replace(BADGE, `$1${msrv}+`);
+			written.push(`README.md's Rust badge: ${badge} → ${msrv}`);
+		} else {
+			problem(
+				`README.md's Rust badge says ${badge}+, but packages/rust/Cargo.toml has rust-version ${msrv}`,
+				'Keep the badge equal to rust-version'
+			);
+		}
 	}
+	save('README.md', readme, lines);
 }
 
 // ─── Summary ─────────────────────────────────────────────────────────────────
+
+for (const change of written) console.log(`  ✎ Updated ${change}`);
 
 if (problems.length > 0) {
 	for (const { message, suggestion } of problems) {
 		console.error(`  ✘ ${message}`);
 		console.error(`    💡 ${suggestion}\n`);
 	}
+	if (WRITE) console.error('  --write updates only the documents; fix the sources above by hand');
 	console.error(`  ✘ ${problems.length} version problem(s)`);
 	process.exit(1);
 }
