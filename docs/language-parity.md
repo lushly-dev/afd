@@ -153,7 +153,7 @@ Limits of these checks:
 | Capability | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
 | MCP client: call, batch, pipe, stream | Yes | Partial: `auto_reconnect` is never used; `stream` only works against the TS server | No | No: not declared |
-| In-process client (`DirectClient`) with `allow`, exposure, timeout, `pipe` | Yes | Partial: no exposure, `allow`, middleware or timeout | Partial: `execute` with an interface; no `pipe` or unknown-tool helper | Yes (see [defects](#defects-found-in-this-review)) |
+| In-process client (`DirectClient`) with `allow`, exposure, timeout, `pipe` | Yes | Partial: no exposure, `allow`, middleware or timeout | Partial: `execute` with an interface; no `pipe` or unknown-tool helper | Yes |
 | CLI | Yes | Partial: no `batch`, `stream` or `scenario` | N/A | N/A |
 | Auth adapter | Yes | No | No | N/A: built by the host |
 | Testing: JTBD scenarios, surface validation (13 rules), assertions | Yes | Yes | No | No |
@@ -261,7 +261,7 @@ Ordered by how much an agent or a security boundary is affected.
 
 | Defect | Location | Notes |
 |---|---|---|
-| With `timeout_ms` set, C++ `DirectClient::call` replaces the caller's cancellation token with a deadline-only source, so caller cancellation is lost | `packages/cpp/src/direct_client.cpp:112-116` | Batch (`batch_execution.cpp:315`) and pipeline chain the parent token, and so does TypeScript (`AbortSignal.any`). No test covers it. |
+| With `timeout_ms` set, C++ `DirectClient::call` replaces the caller's cancellation token with a deadline-only source, so caller cancellation is lost | `packages/cpp/src/direct_client.cpp` (`DirectClient::call`) | Fixed: the deadline source now chains the caller's token, as batch, pipeline and TypeScript (`AbortSignal.any`) do. Tests cover caller cancellation and a pipeline deadline. |
 | Rust single `execute` lets a handler panic unwind to the caller | `packages/rust/src/commands.rs` (`CommandRegistry::execute`) | Fixed; Priority 1 item 2 |
 | Python core registry, core pipeline and `SimpleRegistry` return exception text | See Priority 1 item 2 | Fixed |
 | TypeScript core `executePipeline` returns a throwing executor's `error.message` unredacted | `packages/core/src/pipeline-executor.ts:289-297` | The server engine and core registry pass executors that never throw, so only a custom executor reaches it. Python's `execute_pipeline` redacts it. |

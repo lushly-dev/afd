@@ -8,6 +8,10 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 - Renamed to match TypeScript: `Handler` → `CommandHandler`, `Middleware` → `CommandMiddleware`, `RegistryOptions` → `CommandRegistryOptions`.
 
+### Fixed
+
+- `DirectClient::call` with `timeout_ms` no longer drops the caller's cancellation token. The call's deadline token now chains to it, as batch and pipeline execution do and as TypeScript does with `AbortSignal.any`. Cancelling the caller, or a `DirectClient::pipe` step passing the pipeline's deadline, now reaches the handler. Only the call's own deadline produces TIMEOUT.
+
 ### Added
 
 - **Contract version:** `afd::contract_version` in `afd/version.hpp` is the AFD contract version this library implements (`spec/VERSION`, now `1.0-rc`).

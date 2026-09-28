@@ -105,13 +105,16 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
     }
 
     // 4. Timeout: a deadline on the cancellation token, and a TIMEOUT result for a late finish.
+    // The deadline token keeps the caller's token as its parent, so cancelling the caller (or a
+    // pipeline's deadline) still reaches the handler, as with TypeScript's `AbortSignal.any`.
     const std::optional<double> timeout =
         context.timeout_ms && std::isfinite(*context.timeout_ms) && *context.timeout_ms > 0
             ? std::optional<double>((std::min)(std::ceil(*context.timeout_ms), max_timeout_ms))
             : std::nullopt;
     std::optional<CancellationSource> deadline;
     if (timeout) {
-        deadline.emplace(options_.clock->steady_ms() + *timeout, options_.clock);
+        deadline.emplace(context.cancellation, options_.clock->steady_ms() + *timeout,
+                         options_.clock);
         context.cancellation = deadline->token();
     }
 
@@ -140,7 +143,8 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
     result = chain.front()();
 #endif
 
-    if (deadline && deadline->token().is_cancelled()) {
+    // Only this call's own deadline is a TIMEOUT; a cancelled caller gets the handler's result.
+    if (deadline && deadline->token().deadline_passed()) {
         return failure(create_error(
             error_codes::TIMEOUT,
             "Command '" + truncate_name(name) + "' timed out after " +

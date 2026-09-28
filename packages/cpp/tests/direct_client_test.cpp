@@ -115,6 +115,60 @@ TEST_CASE("a call that finishes past its timeout returns TIMEOUT") {
     CHECK(client.call("todo-slow", afd::Json::object(), context).success);
 }
 
+TEST_CASE("a timeout keeps the caller's cancellation") {
+    Fixture fixture;
+    afd::CancellationSource caller;
+    bool observed = false;
+    REQUIRE_FALSE(fixture.registry
+                      ->register_command(afd::CommandDefinition{
+                          .name = "todo-watch",
+                          .description = "A command",
+                          .handler =
+                              [&](const afd::Json&, afd::CommandContext& context) {
+                                  caller.cancel(); // The caller cancels while the command runs.
+                                  observed = context.cancellation.is_cancelled();
+                                  return afd::failure(afd::create_error(
+                                      afd::error_codes::COMMAND_CANCELLED, "Cancelled",
+                                      {.suggestion = "Retry the command"}));
+                              },
+                      })
+                      .has_value());
+    const auto client = fixture.client();
+    afd::CommandContext context;
+    context.cancellation = caller.token();
+    context.timeout_ms = 1000;
+    const auto result = client.call("todo-watch", afd::Json::object(), context);
+    CHECK(observed);
+    // The deadline has not passed, so the call returns the handler's result, not TIMEOUT.
+    CHECK(result.error->code == "COMMAND_CANCELLED");
+}
+
+TEST_CASE("a pipe step with a timeout keeps the pipeline's deadline") {
+    Fixture fixture;
+    bool observed = false;
+    REQUIRE_FALSE(fixture.registry
+                      ->register_command(afd::CommandDefinition{
+                          .name = "todo-watch",
+                          .description = "A command",
+                          .handler =
+                              [&](const afd::Json&, afd::CommandContext& context) {
+                                  fixture.clock->advance(250);
+                                  observed = context.cancellation.is_cancelled();
+                                  return afd::success(afd::Json::array());
+                              },
+                      })
+                      .has_value());
+    const auto client = fixture.client();
+    afd::CommandContext context;
+    context.timeout_ms = 1000;
+    const auto result = client.pipe(afd::Json::parse(R"({"steps":[{"command":"todo-watch"}],
+        "options":{"timeoutMs":100}})"),
+                                    context);
+    // The step's own 1000ms timeout has not passed, but the pipeline's 100ms deadline has.
+    CHECK(observed);
+    CHECK(result.steps[0].error->code == "PIPELINE_TIMEOUT");
+}
+
 TEST_CASE("client middleware wraps the registry") {
     Fixture fixture;
     std::vector<std::string> order;
