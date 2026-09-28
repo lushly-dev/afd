@@ -24,6 +24,7 @@ Rust implementations SHOULD match the shared AFD capability set and agent-visibl
 - React or browser integrations SHOULD stay in examples or ecosystem layers.
 - Cross-language parity does NOT require a 1:1 port of TypeScript or Python helper names.
 - Shared parity features to evaluate include output schemas, validated examples, prerequisite metadata, context scoping, grouped/lazy discovery strategies, and the common meta-tool patterns exposed to agents.
+- Behavior vectors in `spec/vectors`, generated from TypeScript, must pass: pipeline references and conditions (`tests/pipeline_vectors.rs`), and batch and pipeline controls on Tokio's paused clock (`tests/batch_controls_vectors.rs`).
 
 ## Crate Imports
 
@@ -394,6 +395,7 @@ The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-
 
 - **Shared with TypeScript today:**
   - wire shapes (round-trip `spec/wire`);
+  - the behavior vectors in `spec/vectors`;
   - enforced exposure;
   - input validation in the engine's shape (`packages/server/src/execution.ts`, `validation.ts`): `VALIDATION_ERROR` has the message `Input validation failed` and the issues in `suggestion`, formatted as `formatEnhancedValidationError` does. `details` holds `errors` (`path` joined with dots or `(root)`, `message`, a Zod `code`, and `expected` for `invalid_type`), `expectedFields`, and `unexpectedFields`/`missingFields` when they are not empty;
   - undeclared keys dropped before middleware and the handler, including in nested objects whose schema lists `properties` and has no `additionalProperties`;

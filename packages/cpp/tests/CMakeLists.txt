@@ -3,6 +3,7 @@ afd_fetch_doctest()
 add_executable(
     afd_tests
     batch_test.cpp
+    batch_vectors_test.cpp
     command_test.cpp
     direct_client_test.cpp
     handoff_test.cpp

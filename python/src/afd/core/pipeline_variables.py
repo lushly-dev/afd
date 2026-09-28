@@ -221,6 +221,20 @@ def resolve_string(value: str, lookup: RootLookup) -> Any:
     reference = parse_reference(value)
     if reference is None:
         return value
+    return _follow_reference(reference, lookup)
+
+
+def resolve_operand(value: Any, lookup: RootLookup) -> Any:
+    """Resolve the reference operand of a ``when`` condition.
+
+    Unlike :func:`resolve_string`, a literal (anything that is not a
+    reference, ``$$``-escaped strings included) is :data:`ABSENT`.
+    """
+    reference = parse_reference(value) if isinstance(value, str) else None
+    return ABSENT if reference is None else _follow_reference(reference, lookup)
+
+
+def _follow_reference(reference: VariableReference, lookup: RootLookup) -> Any:
     root = lookup(reference)
     if root is ABSENT:
         return ABSENT

@@ -41,7 +41,8 @@ The contract has three layers:
 | Check | What it proves | TS | Python | Rust | C++ |
 |---|---|---|---|---|---|
 | `spec/wire` round-trip, 6 fixtures | Wire shapes | Yes (generator) | Yes | Yes | Yes |
-| `spec/vectors/pipeline-variables.json`, 48 references and 27 conditions | Pipeline reference and `when` behavior | Generator only | **No** | **No** | Yes |
+| `spec/vectors/pipeline-variables.json`, 48 references and 27 conditions | Pipeline reference and `when` behavior | Yes (generator) | Yes | Yes | Yes |
+| `spec/vectors/batch-controls.json`, 21 batch and 22 pipeline cases | `stopOnError`, `parallelism`, deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION` and envelope validation in the batch and pipeline executors | Yes (generator) | Yes, through `afd-batch` and `afd-pipe` | Yes | Yes |
 | Todo conformance, 34 cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes | Yes | Yes | Yes |
 | `alfred parity` name budget (`alfred/tests/test_parity.py`) | Exported names | Reference | 97 missing (budget 97) | 9 missing (budget 9) | 73 missing (budget 73) |
 | `alfred parity` contract version, `scripts/check-versions.mjs` | The contract constant equals `spec/VERSION` | Yes | Yes | Yes | Yes |
@@ -54,7 +55,7 @@ Limits of these checks:
   - the batch, pipeline or stream executors;
   - unknown-command handling.
 - **Name parity is not behavioral parity.** Rust is 9 names short of TypeScript but has no MCP server and no stream executor. Python is 97 names short, but 61 of those exist and are just not exported (see [Name parity](#name-parity-alfred-parity)).
-- **Only C++ consumes the behavior vectors.** A pipeline change in TypeScript, Python or Rust can drift unnoticed.
+- **The behavior vectors cover pipeline references, conditions and executor controls only.** Validation, error codes, streams and single-command dispatch have no vectors yet, so a change there can still drift unnoticed.
 
 ## Capability matrix
 
@@ -116,7 +117,7 @@ Limits of these checks:
 
 | Capability | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
-| Batch executor with the reference defaults (`stopOnError` false, parallelism 1, whole-batch deadline) | Yes | Partial: only the private `MCPServer._execute_batch`; adds limits of 500 commands and parallelism 16 | Yes: `CommandRegistry::execute_batch`, no free function | Yes |
+| Batch executor with the reference defaults (`stopOnError` false, parallelism 1, whole-batch deadline) | Yes | Partial: only the private `MCPServer._execute_batch`; adds limits of 500 commands and parallelism 16. After a `stopOnError` failure it cancels commands still running (`COMMAND_CANCELLED`), where TypeScript lets them finish | Yes: `CommandRegistry::execute_batch`, no free function | Yes |
 | Pipeline variables per `spec/pipeline-variables.md`: `$prev`, `$first`, `$steps`, `$input`, `$$`, the `__` guard, caps of 64 and 1024 | Yes | Yes (core) | Yes | Yes |
 | `when` conditions | Yes | Yes | Yes | Yes (as validated JSON) |
 | Pipeline aggregation (confidence, reasoning, warnings, sources, alternatives) | Yes | Yes | Yes | Yes (internal helpers) |
@@ -219,7 +220,12 @@ Ordered by how much an agent or a security boundary is affected.
 
 ### Priority 2: shared executors and cross-language tests
 
-9. **Wire `spec/vectors` into every language.** C++ loads `pipeline-variables.json`, and TypeScript loads `validation.json`. The rest is parity closure item 1.1 and the Wave 2 validation items.
+9. **Done for pipeline and batch vectors.** `pipeline-variables.json` and `batch-controls.json` pass in TypeScript, Python, Rust and C++ (parity closure plan items 1.1 and 1.4). `validation.json` loads in TypeScript only; Python, Rust and C++ are Wave 2 (#310, #311, #312). Wiring them in fixed these divergences:
+    - **Python and Rust** treated a literal `when` operand, such as `{"$exists": "$$prev"}`, as present. TypeScript and C++ treat it as absent. Rust's `$eq` also told `2` from `2.0`.
+    - **Python and Rust** ran envelopes that TypeScript rejects: blank command names, `null` in place of an omitted field, and (in Python) a string where a boolean or number belongs. Python's `afd-batch` and `afd-pipe` also answered some malformed envelopes with a plain failure; they now return the failed `BatchResult`, or the pipeline's synthetic step at index -1.
+    - **Rust** skipped every step for `timeoutMs: 0`, where TypeScript fails step 0. It also failed the step after one that overran the deadline, instead of skipping it.
+
+    Still open: TypeScript's own `afd-batch` tool answers a malformed envelope with a plain `"Invalid batch request format"` failure, not the failed `BatchResult` that `executeBatch` returns ([#314](https://github.com/lushly-dev/afd/issues/314)).
 10. **Add a stream executor to Python and Rust,** and a public batch executor to Python. Collapse Python's two pipeline engines into one.
 11. **Rust single-command engine:**
     - result metadata stamping;
@@ -315,7 +321,7 @@ The budgets in `alfred/tests/test_parity.py` equal these counts. Lower a budget 
 ## Recommended next steps
 
 1. **Fix the Priority 1 items and the C++ `DirectClient` defect.** They are small, local changes.
-2. **Wire `spec/vectors/pipeline-variables.json` into the TypeScript, Python and Rust test suites,** and `spec/vectors/validation.json` into the Python, Rust and C++ ones. Add vectors for batch controls. The C++ work plan already recommends `batch-controls.json`.
+2. **Load `spec/vectors/validation.json` in the Python, Rust and C++ test suites** (#310, #311, #312). All four suites already load `pipeline-variables.json` and `batch-controls.json`.
 3. **Write the unknown and unexposed error codes into a spec,** and add the emitted codes to the `ErrorCodes` catalog.
 4. **Add an AFD-protocol conformance tier** that checks meta-tools, bootstrap, exposure, batch and pipeline over MCP. It should be optional per language, so Rust and C++ can join once they ship a server.
 5. **Python export cleanup:** resolve the `afd.direct` name collisions, then re-export the pipeline, similarity and registry contract. This removes 61 names from the budget.

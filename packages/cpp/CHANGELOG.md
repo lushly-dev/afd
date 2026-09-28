@@ -44,6 +44,7 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
   - `consume_stream`, `collect_stream_data`, and the chunk factories.
 - **Runtime.** `TaskRunner` (`InlineTaskRunner`, `ThreadTaskRunner`), and `CancellationSource` chaining to a parent token.
 - **`spec/vectors/pipeline-variables.json`,** generated from TypeScript. The C++ resolver and conditions must match it.
+- **`spec/vectors/batch-controls.json`:** `tests/batch_vectors_test.cpp` runs its batch and pipeline cases on a `ManualClock`. afd-cpp matched TypeScript on every case without changes (#317).
 - **Fuzz targets** (`AFD_BUILD_FUZZERS`), and TSan and fuzz-smoke CI jobs.
 - `CommandRegistry`:
   - `register_command` rejects invalid, reserved and duplicate names, a missing handler, unsupported schemas, and examples that fail their schema.

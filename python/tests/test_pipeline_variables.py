@@ -280,6 +280,12 @@ class TestConditions:
     def test_unresolved_operands_are_false(self, condition):
         assert evaluate_condition(condition, CONTEXT) is False
 
+    @pytest.mark.parametrize("literal", ["text", "$$prev", "$prevx", "$9.99"])
+    def test_literal_operands_are_absent(self, literal):
+        assert evaluate_condition({"$exists": literal}, CONTEXT) is False
+        assert evaluate_condition({"$eq": [literal, literal]}, CONTEXT) is False
+        assert evaluate_condition({"$ne": [literal, "other"]}, CONTEXT) is False
+
     def test_not_of_unresolved_exists_is_true(self):
         assert evaluate_condition({"$not": {"$exists": "$prev.nope"}}, CONTEXT) is True
 

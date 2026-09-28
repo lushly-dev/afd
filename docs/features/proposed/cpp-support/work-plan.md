@@ -381,7 +381,7 @@ Put the pipeline-variable rules and the batch-control cases in language-neutral 
 - `spec/vectors/pipeline-variables.json`: `{request, stepData, expectResolved}` cases;
 - `spec/vectors/batch-controls.json`.
 
-A follow-up issue wires the same files into TypeScript, Python and Rust. This follows the quality review's recommendation to replace name parity with fixture comparison, and it cuts the four-language cost of every future `parity` issue.
+TypeScript, Python and Rust now load the same files. This follows the quality review's recommendation to replace name parity with fixture comparison, and it cuts the four-language cost of every future `parity` issue.
 
 ### As built (Phase 3)
 
@@ -393,7 +393,9 @@ A follow-up issue wires the same files into TypeScript, Python and Rust. This fo
 - **`CancellationSource` can chain to a parent token,** the counterpart of `AbortSignal.any`. Batch commands, pipeline steps and streams see both the caller's cancellation and the deadline.
 - **A stream is a `std::vector<StreamChunk>`,** not a generator. TypeScript's `executeStream` also runs the command to completion before yielding. `consume_stream` returns the final chunk, and `collect_stream_data` returns `Expected` instead of throwing.
 - **Pipeline executor exceptions follow `dev_mode` redaction** (research finding 8). TypeScript returns the raw message.
-- **Shared vectors are started.** `spec/vectors/pipeline-variables.json` holds 48 references and 27 conditions, generated from the TypeScript implementation by `spec/vectors/generate-pipeline-variables.mjs`. The C++ tests require identical results. Adopting the file in Python and Rust remains follow-on item 6.
+- **Shared vectors.** Both files are generated from the TypeScript implementation, and all four test suites require identical results (parity closure plan, items 1.1 and 1.4):
+  - `spec/vectors/pipeline-variables.json` holds 48 references and 27 conditions;
+  - `spec/vectors/batch-controls.json` holds 21 batch and 22 pipeline cases, run on `ManualClock` in C++.
 - **Fuzz targets** exist for `parse_bounded`, pipelines, schemas, similarity and the wire types.
   - They are built with `AFD_BUILD_FUZZERS`.
   - CI runs each for 60 s under libFuzzer, ASan and UBSan.
@@ -605,8 +607,7 @@ Each candidate below must pass the [scope principle](./proposal.md#scope-princip
 3. **The rest of the parity surface:** MCP types, bootstrap commands, `afd-discover`/`afd-detail`, and retry, rate-limit and telemetry middleware.
 4. **Schema to typed C++ structs code generation**, and a cross-language TypeSpec decision as its own proposal.
 5. **C++ implementations of companion issues as they are accepted,** limited to the parts the proposal keeps in AFD.
-6. **Adopting `spec/vectors/*`** in TypeScript, Python and Rust.
-7. **Emscripten JavaScript bindings (embind)**, if a web build needs to call commands from JavaScript directly.
+6. **Emscripten JavaScript bindings (embind)**, if a web build needs to call commands from JavaScript directly.
 
 **Not planned in AFD:**
 - Engine and framework adapters: Unreal (Blueprint exposure, `FString`/`FJsonObject` bridges, task-graph runners, Unreal Build Tool layouts), Unity, Godot, Qt and similar.
@@ -622,7 +623,7 @@ These belong in the requesting application, built on the public API.
 |---|---|---|---|
 | Wire fixtures | Types round-trip the canonical JSON | `packages/cpp/tests/wire_fixtures_test.cpp` | `cpp.yml`, all configurations |
 | Ported behavior cases | Dispatch, validation, batch, pipeline and stream semantics match TypeScript | `packages/cpp/tests/*.cpp` | `cpp.yml` |
-| Shared vectors | Language-neutral pipeline and batch rules | `spec/vectors/*.json` | `cpp.yml` (other languages later) |
+| Shared vectors | Language-neutral pipeline and batch rules | `spec/vectors/*.json` | `cpp.yml`, and `ci.yml`, `python.yml` and `rust.yml` for the other languages |
 | Conformance | The end-to-end product matches the other backends | `packages/examples/todo/spec/test-cases.json` | `conformance.yml` `todo-cpp` |
 | Sanitizers | Memory and undefined-behavior safety; races in the thread runner | ASan + UBSan, TSan jobs | `cpp.yml` |
 | Fuzzing | Hostile-input robustness (Theme 5) | `packages/cpp/fuzz/` | `cpp.yml` fuzz-smoke |

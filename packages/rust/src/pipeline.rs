@@ -36,9 +36,11 @@
 //! - Traversal reads only own keys of JSON objects and in-bounds array
 //!   indices; a segment or alias starting with `__` never resolves.
 //! - An unresolved reference is absent: it is omitted from objects and becomes
-//!   `null` in arrays. In `when` conditions `$exists` is `false` (also for
-//!   `null`), comparisons with absent operands are `false`, and `$eq`/`$ne`
-//!   compare JSON values structurally.
+//!   `null` in arrays. In `when` conditions the first operand must be a
+//!   reference (a literal such as `"$$prev"` or `"text"` is absent),
+//!   `$exists` is `false` (also for `null`), comparisons with absent operands
+//!   are `false`, and `$eq`/`$ne` compare JSON values structurally, with
+//!   numbers compared by value (`2` equals `2.0`).
 //! - [`execute_pipeline`] rejects step inputs and the request `input` nested
 //!   deeper than [`MAX_INPUT_DEPTH`] levels (the outermost object or array is
 //!   level 1) with `VALIDATION_ERROR` before any step runs.
@@ -47,6 +49,7 @@
 //!   `UNSUPPORTED_OPTION` and skip every other step, so no command runs.
 
 use regex::Regex;
+use serde::de::{self, Deserializer};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::future::Future;
@@ -72,6 +75,16 @@ pub const MAX_REFERENCE_LENGTH: usize = 1024;
 
 /// Request to execute a pipeline of chained commands.
 ///
+/// Deserialization validates the envelope as TypeScript's `isPipelineRequest`
+/// does, so a malformed request never reaches [`execute_pipeline`]: step
+/// commands must not be blank, a step `input` must be an object, `timeoutMs`
+/// must be a non-negative number, `options.onProgress` (a TypeScript callback)
+/// must not be set, conditions must be well formed, and optional fields may
+/// be omitted but not `null` (except `input`, which may be any JSON value).
+/// TypeScript returns a synthetic step with index `-1` for such a request;
+/// [`StepResult::index`] cannot represent it, so Rust rejects the request
+/// when it parses it.
+///
 /// # Example
 ///
 /// ```rust
@@ -94,14 +107,22 @@ pub const MAX_REFERENCE_LENGTH: usize = 1024;
 pub struct PipelineRequest {
     /// Unique identifier for the pipeline execution.
     /// Auto-generated if not provided.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::wire::non_null"
+    )]
     pub id: Option<String>,
 
     /// Ordered list of pipeline steps to execute.
     pub steps: Vec<PipelineStep>,
 
     /// Pipeline-level options.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_options"
+    )]
     pub options: Option<PipelineOptions>,
 
     /// Data that step inputs can reference as `$input`.
@@ -166,25 +187,43 @@ impl PipelineRequest {
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct PipelineStep {
-    /// Command name to execute.
+    /// Command name to execute. It must not be blank on the wire.
+    #[serde(deserialize_with = "crate::wire::nonblank")]
     pub command: String,
 
     /// Input for this step. String values may be variable references
-    /// (see the [module documentation](self)).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// (see the [module documentation](self)). It must be an object on the wire.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_step_input"
+    )]
     pub input: Option<serde_json::Value>,
 
     /// Optional alias for referencing this step's output as `$steps.<alias>`.
-    #[serde(rename = "as", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "as",
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::wire::non_null"
+    )]
     pub alias: Option<String>,
 
     /// Condition for running this step. If it evaluates to false, the step is skipped.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::wire::non_null"
+    )]
     pub when: Option<PipelineCondition>,
 
     /// Not implemented: `Some(true)` fails this step with `UNSUPPORTED_OPTION`
     /// before any step runs, as in TypeScript. `Some(false)` is accepted.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::wire::non_null"
+    )]
     pub stream: Option<bool>,
 }
 
@@ -235,20 +274,36 @@ pub struct PipelineOptions {
     ///
     /// - `false` (default): Pipeline stops on first failure
     /// - `true`: Continue executing, collect all errors
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub continue_on_failure: Option<bool>,
-
-    /// Timeout for the entire pipeline in milliseconds.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        serialize_with = "crate::wire::opt_number"
+        deserialize_with = "crate::wire::non_null"
+    )]
+    pub continue_on_failure: Option<bool>,
+
+    /// Timeout for the entire pipeline in milliseconds. It must be a
+    /// non-negative number on the wire.
+    ///
+    /// When the deadline has passed as a step is about to run, that step
+    /// fails with `PIPELINE_TIMEOUT` without running (so `0` fails step 0).
+    /// A step still running at the deadline fails the same way. Either way,
+    /// every later step is skipped with that error, even with
+    /// `continueOnFailure`.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "crate::wire::opt_number",
+        deserialize_with = "deserialize_timeout_ms"
     )]
     pub timeout_ms: Option<f64>,
 
     /// Reserved for dependency-aware parallel execution. `true` is currently
     /// rejected with `UNSUPPORTED_OPTION`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::wire::non_null"
+    )]
     pub parallel: Option<bool>,
 }
 
@@ -275,6 +330,45 @@ impl PipelineOptions {
         self.parallel = Some(parallel);
         self
     }
+}
+
+/// Deserialize request options that are an object without `onProgress`.
+///
+/// TypeScript accepts only a function there, which JSON cannot carry, so a
+/// request that sets it is malformed.
+fn deserialize_options<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<PipelineOptions>, D::Error> {
+    let options = serde_json::Map::deserialize(deserializer)?;
+    if options.contains_key("onProgress") {
+        return Err(de::Error::custom(
+            "onProgress is a callback and cannot be set in a serialized request",
+        ));
+    }
+    PipelineOptions::deserialize(serde_json::Value::Object(options))
+        .map(Some)
+        .map_err(de::Error::custom)
+}
+
+/// Deserialize a step input that is a JSON object.
+fn deserialize_step_input<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<serde_json::Value>, D::Error> {
+    serde_json::Map::deserialize(deserializer).map(|input| Some(serde_json::Value::Object(input)))
+}
+
+/// Deserialize a `timeoutMs` that is a non-negative number.
+fn deserialize_timeout_ms<'de, D: Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<f64>, D::Error> {
+    let timeout_ms = f64::deserialize(deserializer)?;
+    if !timeout_ms.is_finite() || timeout_ms < 0.0 {
+        return Err(de::Error::invalid_value(
+            de::Unexpected::Float(timeout_ms),
+            &"a non-negative number of milliseconds",
+        ));
+    }
+    Ok(Some(timeout_ms))
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1491,18 +1585,34 @@ pub fn get_nested_value(obj: &serde_json::Value, path: &str) -> Option<serde_jso
 // CONDITION EVALUATION
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// A condition operand: literals compare as strings; absent operands make
-/// every comparison false.
+/// A condition operand: the value of a reference, or `None` (absent) for a
+/// literal or an unresolved reference. Absent operands make every comparison
+/// false.
 fn condition_operand<'c>(
     reference: &str,
     context: &'c PipelineContext,
-) -> Option<std::borrow::Cow<'c, serde_json::Value>> {
+) -> Option<&'c serde_json::Value> {
     match resolve_string(reference, context) {
-        Resolution::Literal(literal) => Some(std::borrow::Cow::Owned(serde_json::Value::String(
-            literal.to_string(),
-        ))),
-        Resolution::Value(value) => Some(std::borrow::Cow::Borrowed(value)),
-        Resolution::Absent => None,
+        Resolution::Value(value) => Some(value),
+        Resolution::Literal(_) | Resolution::Absent => None,
+    }
+}
+
+/// Structural equality of JSON values, with numbers compared by value as
+/// JavaScript compares them (`2` equals `2.0`).
+fn json_equal(a: &serde_json::Value, b: &serde_json::Value) -> bool {
+    use serde_json::Value;
+    match (a, b) {
+        (Value::Number(a), Value::Number(b)) => a.as_f64() == b.as_f64(),
+        (Value::Array(a), Value::Array(b)) => {
+            a.len() == b.len() && a.iter().zip(b).all(|(a, b)| json_equal(a, b))
+        }
+        (Value::Object(a), Value::Object(b)) => {
+            a.len() == b.len()
+                && a.iter()
+                    .all(|(key, a)| b.get(key).is_some_and(|b| json_equal(a, b)))
+        }
+        _ => a == b,
     }
 }
 
@@ -1518,9 +1628,11 @@ fn compare_number(
 
 /// Evaluate a pipeline condition against the current context.
 ///
-/// An unresolved reference is absent: `$exists` is `false` (also for `null`)
-/// and every comparison, including `$ne`, is `false`. `$eq` and `$ne` compare
-/// JSON values structurally.
+/// The first operand of every comparison is a reference. A literal (such as
+/// `"$$prev"` or `"text"`) or an unresolved reference is absent: `$exists` is
+/// `false` (also for `null`) and every comparison, including `$ne`, is
+/// `false`. `$eq` and `$ne` compare JSON values structurally, with numbers
+/// compared by value.
 pub fn evaluate_condition(condition: &PipelineCondition, context: &PipelineContext) -> bool {
     match condition {
         PipelineCondition::Exists { exists } => {
@@ -1528,10 +1640,12 @@ pub fn evaluate_condition(condition: &PipelineCondition, context: &PipelineConte
         }
         PipelineCondition::Eq {
             eq: (reference, expected),
-        } => condition_operand(reference, context).is_some_and(|value| *value == *expected),
+        } => condition_operand(reference, context).is_some_and(|value| json_equal(value, expected)),
         PipelineCondition::Ne {
             ne: (reference, expected),
-        } => condition_operand(reference, context).is_some_and(|value| *value != *expected),
+        } => {
+            condition_operand(reference, context).is_some_and(|value| !json_equal(value, expected))
+        }
         PipelineCondition::Gt {
             gt: (reference, threshold),
         } => compare_number(reference, context, |n| n > *threshold),
@@ -1762,12 +1876,6 @@ pub async fn execute_pipeline(
         let mut step_result = StepResult::new(i, step.command.clone(), StepStatus::Skipped);
         step_result.alias = step.alias.clone();
 
-        let remaining = deadline.map(|deadline| deadline.saturating_duration_since(step_start));
-        if remaining.is_some_and(|remaining| remaining.is_zero()) {
-            skip_from(&mut pipeline_context, i, Some(timeout_error()));
-            break;
-        }
-
         if let Some(condition) = &step.when {
             if !evaluate_condition(condition, &pipeline_context) {
                 pipeline_context.push_step(step_result);
@@ -1775,26 +1883,33 @@ pub async fn execute_pipeline(
             }
         }
 
-        let resolved_input = step
-            .input
-            .as_ref()
-            .map(|input| resolve_variables(input, &pipeline_context))
-            .unwrap_or_else(|| serde_json::json!({}));
+        // As in TypeScript, a step that would start at or past the deadline
+        // fails with PIPELINE_TIMEOUT without running (`None` below).
+        let remaining = deadline.map(|deadline| deadline.saturating_duration_since(step_start));
+        let result = if remaining.is_some_and(|remaining| remaining.is_zero()) {
+            None
+        } else {
+            let resolved_input = step
+                .input
+                .as_ref()
+                .map(|input| resolve_variables(input, &pipeline_context))
+                .unwrap_or_else(|| serde_json::json!({}));
 
-        let mut step_context = base_context.clone();
-        step_context.insert(
-            "traceId".to_string(),
-            serde_json::json!(format!("{pipeline_id}-step-{i}")),
-        );
+            let mut step_context = base_context.clone();
+            step_context.insert(
+                "traceId".to_string(),
+                serde_json::json!(format!("{pipeline_id}-step-{i}")),
+            );
 
-        let execution = run_step(execute, step.command.clone(), resolved_input, step_context);
-        let result = match remaining {
-            None => Some(execution.await),
-            #[cfg(feature = "native")]
-            Some(remaining) => tokio::time::timeout(remaining, execution).await.ok(),
-            // Unreachable: preflight rejects deadlines without `native`.
-            #[cfg(not(feature = "native"))]
-            Some(_) => Some(execution.await),
+            let execution = run_step(execute, step.command.clone(), resolved_input, step_context);
+            match remaining {
+                None => Some(execution.await),
+                #[cfg(feature = "native")]
+                Some(remaining) => tokio::time::timeout(remaining, execution).await.ok(),
+                // Unreachable: preflight rejects deadlines without `native`.
+                #[cfg(not(feature = "native"))]
+                Some(_) => Some(execution.await),
+            }
         };
         step_result.execution_time_ms = elapsed_ms(step_start);
 
@@ -1821,6 +1936,13 @@ pub async fn execute_pipeline(
                 skip_from(&mut pipeline_context, i + 1, None);
                 break;
             }
+        }
+
+        // As in TypeScript, a step that ends past the deadline skips every
+        // later step with PIPELINE_TIMEOUT.
+        if deadline.is_some_and(|deadline| Instant::now() > deadline) {
+            skip_from(&mut pipeline_context, i + 1, Some(timeout_error()));
+            break;
         }
     }
 

@@ -23,6 +23,7 @@ TypeScript often serves as the reference implementation for the shared AFD surfa
 - React or browser integrations SHOULD stay in examples or ecosystem layers.
 - Cross-language implementations MAY use idiomatic APIs when they preserve the same command contract and behavior.
 - Shared parity features to keep aligned include output schemas, validated examples, prerequisite metadata, context scoping, grouped/lazy discovery strategies, and the `afd-call` / `afd-batch` / `afd-pipe` / `afd-discover` / `afd-detail` tool family.
+- The behavior vectors in `spec/vectors` are generated from the core executors and pipeline resolver. An intentional change to that behavior regenerates them (see `spec/vectors/README.md`) and is made in every language in the same pull request.
 
 ## Package Imports
 
