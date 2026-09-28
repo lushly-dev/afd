@@ -979,7 +979,7 @@ impl CommandRegistry {
         let started_at = chrono::Utc::now().to_rfc3339();
         let invalid = |message: &str, suggestion: &str| {
             create_failed_batch_result(
-                CommandError::new("INVALID_BATCH_REQUEST", message)
+                CommandError::new(error_codes::INVALID_BATCH_REQUEST, message)
                     .with_suggestion(suggestion)
                     .with_retryable(false),
                 &started_at,
@@ -1045,7 +1045,7 @@ impl CommandRegistry {
             .collect();
         let timeout_error = || {
             CommandError::new(
-                "BATCH_TIMEOUT",
+                error_codes::BATCH_TIMEOUT,
                 format!(
                     "Batch timeout exceeded ({}ms)",
                     options.timeout.unwrap_or(0.0)
@@ -1118,7 +1118,7 @@ impl CommandRegistry {
                     .result
                     .error
                     .as_ref()
-                    .is_some_and(|error| error.code == "BATCH_TIMEOUT");
+                    .is_some_and(|error| error.code == error_codes::BATCH_TIMEOUT);
                 stopped = timed_out
                     || stop_on_error
                     || max_failures.is_some_and(|maximum| failures >= maximum);
@@ -1136,7 +1136,7 @@ impl CommandRegistry {
                         timeout_error()
                     } else {
                         CommandError::new(
-                            "COMMAND_SKIPPED",
+                            error_codes::COMMAND_SKIPPED,
                             "Command skipped because batch execution stopped after a failure",
                         )
                         .with_suggestion("Disable stopOnError to execute every command")

@@ -63,6 +63,8 @@ class ExposeOptions:
 DEFAULT_EXPOSE = ExposeOptions()
 """Default exposure options. Frozen dataclass prevents accidental mutation."""
 
+_VALID_INTERFACES = frozenset({"palette", "mcp", "agent", "cli"})
+
 TInput = TypeVar("TInput")
 TOutput = TypeVar("TOutput")
 JsonSchema = Dict[str, Any]
@@ -303,42 +305,36 @@ class _CommandRegistryImpl:
                 ),
             )
 
-        # Check exposure if interface context is provided
-        if context and "interface" in context.extra:
-            interface = context.extra["interface"]
-            _VALID_INTERFACES = frozenset({"palette", "mcp", "agent", "cli"})
-            if not isinstance(interface, str) or not interface:
-                return CommandResult(
-                    success=False,
-                    error=CmdError(
-                        code="INVALID_INTERFACE",
-                        message=f"Unknown interface '{interface}'",
-                        suggestion=f"Valid interfaces: {', '.join(sorted(_VALID_INTERFACES))}",
-                    ),
-                )
-            if interface not in _VALID_INTERFACES:
-                return CommandResult(
-                    success=False,
-                    error=CmdError(
-                        code="INVALID_INTERFACE",
-                        message=f"Unknown interface '{interface}'",
-                        suggestion=f"Valid interfaces: {', '.join(sorted(_VALID_INTERFACES))}",
-                    ),
-                )
+        # Check exposure if interface context is provided. An empty interface is
+        # no interface, and an unknown one exposes nothing, as in TypeScript's
+        # isExposedTo (spec/error-codes.md, D4).
+        interface = context.extra.get("interface") if context else None
+        if interface is not None and interface != "":
+            known = isinstance(interface, str) and interface in _VALID_INTERFACES
             expose = command.expose if command.expose is not None else DEFAULT_EXPOSE
-            if not getattr(expose, interface, False):
+            if not known or not getattr(expose, interface, False):
                 return CommandResult(
                     success=False,
                     error=CmdError(
                         code="COMMAND_NOT_EXPOSED",
                         message=f"Command '{name}' is not exposed to {interface}",
-                        suggestion="Check command exposure settings or use a different interface",
+                        suggestion=(
+                            "Call it from an interface it is exposed to, or set "
+                            f"expose.{interface} to true in its definition"
+                            if known
+                            else "Use one of the interfaces "
+                            + ", ".join(sorted(_VALID_INTERFACES))
+                        ),
+                        retryable=False,
                     ),
                 )
 
         if context and "active_context" in context.extra:
             active_context = context.extra["active_context"]
             if active_context and command.contexts and active_context not in command.contexts:
+                # The core registry has no afd-context-* tools, so name the
+                # command's own contexts (spec/error-codes.md, D4).
+                contexts = ", ".join(f"'{c}'" for c in command.contexts)
                 return CommandResult(
                     success=False,
                     error=CmdError(
@@ -348,8 +344,8 @@ class _CommandRegistryImpl:
                             f"'{active_context}'"
                         ),
                         suggestion=(
-                            "Use afd-context-list to inspect available contexts or "
-                            "afd-context-enter to switch."
+                            f"Switch to a context this command belongs to ({contexts}), "
+                            "or call it with no active context."
                         ),
                     ),
                 )

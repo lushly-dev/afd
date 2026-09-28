@@ -11,8 +11,10 @@ version is separate from each implementation's own package version.
   [`vectors/`](./vectors/README.md);
 - the todo conformance suite (`packages/examples/todo/spec`, run by `conformance.yml`).
 
-The error-code and validation specs, and a protocol conformance tier, join the contract when they
-are written.
+- [`error-codes.md`](./error-codes.md): the shared error-code catalog, checked by
+  `vectors/error-codes.json`, and the rules for unknown and unexposed commands.
+
+The validation spec and a protocol conformance tier join the contract when they are written.
 
 ## Version format
 
@@ -56,7 +58,9 @@ The first versioned contract. It covers:
   `PipelineResult` and the four `StreamChunk` kinds;
 - the pipeline variables in `pipeline-variables.md`, with 48 references and 27 conditions in
   `vectors/pipeline-variables.json`;
-- the 34 cases of the todo conformance suite.
+- the 34 cases of the todo conformance suite;
+- the 42 codes of the shared error-code catalog in `error-codes.md` and
+  `vectors/error-codes.json`, and its rules for unknown and unexposed commands (D4).
 
-Every language round-trips the wire fixtures and passes the conformance suite. Only C++ loads
-`vectors/pipeline-variables.json` so far.
+Every language round-trips the wire fixtures, passes the conformance suite and checks its error-code
+catalog against `vectors/error-codes.json`. Only C++ loads `vectors/pipeline-variables.json` so far.

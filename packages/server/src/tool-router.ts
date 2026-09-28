@@ -165,23 +165,9 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			// Check if command exists in the exposed commands
 			const cmd = commands.find((c) => c.name === commandName);
 			if (!cmd) {
-				// Check if it exists but isn't exposed
-				const allCmd = allCommands?.find((c) => c.name === commandName);
-				if (allCmd) {
-					return resultContent(
-						{
-							success: false,
-							error: {
-								code: 'COMMAND_NOT_EXPOSED',
-								message: `Command '${commandName}' exists but is not exposed via this server`,
-								suggestion:
-									"This command is registered but not included in the server's commands array.",
-							},
-						},
-						true
-					);
-				}
-				// Not found at all — suggest a few close matches the caller can use
+				// An unexposed command gets the same answer as an unknown one, so a remote
+				// caller cannot learn that a private command exists (spec/error-codes.md, D4).
+				// Suggest a few close matches the caller can use.
 				const callable = filterByContext(commands, contextState?.getActive());
 				return resultContent(
 					{

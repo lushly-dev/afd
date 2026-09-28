@@ -297,7 +297,7 @@ class TestRegistryExposureCheck:
 
     @pytest.mark.asyncio
     async def test_invalid_interface_rejected(self):
-        """Unknown interface names are rejected before getattr."""
+        """An unknown interface exposes nothing, and is never looked up with getattr."""
         registry = create_command_registry()
 
         async def handler(input, context=None):
@@ -313,8 +313,9 @@ class TestRegistryExposureCheck:
         ctx = CommandContext(extra={"interface": "__class__"})
         result = await registry.execute("test-cmd", {}, ctx)
         assert result.success is False
-        assert result.error.code == "INVALID_INTERFACE"
-        assert "Valid interfaces" in result.error.suggestion
+        assert result.error.code == "COMMAND_NOT_EXPOSED"
+        assert result.error.retryable is False
+        assert "agent, cli, mcp, palette" in result.error.suggestion
 
     @pytest.mark.asyncio
     async def test_non_string_interface_rejected(self):
@@ -329,11 +330,11 @@ class TestRegistryExposureCheck:
         ctx = CommandContext(extra={"interface": []})
         result = await registry.execute("test-cmd", {}, ctx)
         assert result.success is False
-        assert result.error.code == "INVALID_INTERFACE"
+        assert result.error.code == "COMMAND_NOT_EXPOSED"
 
     @pytest.mark.asyncio
-    async def test_empty_interface_rejected(self):
-        """Empty interface strings should be rejected as invalid."""
+    async def test_empty_interface_is_no_interface(self):
+        """An empty interface is no interface, as in TypeScript: exposure is not checked."""
         registry = create_command_registry()
 
         async def handler(input, context=None):
@@ -343,8 +344,7 @@ class TestRegistryExposureCheck:
 
         ctx = CommandContext(extra={"interface": ""})
         result = await registry.execute("test-cmd", {}, ctx)
-        assert result.success is False
-        assert result.error.code == "INVALID_INTERFACE"
+        assert result.success is True
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

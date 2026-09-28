@@ -288,7 +288,10 @@ class MCPServer:
             return None
         return command
 
-    def _is_exposed_to(self, command: CommandDefinition, interface: str) -> bool:
+    def _is_exposed_to(self, command: CommandDefinition, interface: Any) -> bool:
+        # An unknown interface exposes nothing, and is never looked up as an attribute.
+        if interface not in ("palette", "mcp", "agent", "cli"):
+            return False
         expose = command.expose if command.expose is not None else DEFAULT_EXPOSE
         return bool(getattr(expose, interface, False))
 
@@ -327,6 +330,12 @@ class MCPServer:
         active_context = self._context_state.get_active()
 
         command = self._find_command(name)
+        # A remote caller (the MCP router) gets the unknown-command answer for a
+        # command hidden from it, so it cannot learn that the command exists
+        # (spec/error-codes.md, D4). In-process callers get COMMAND_NOT_EXPOSED.
+        remote = bool(context.extra.get("remote")) if context.extra else False
+        if command is not None and remote and not self._is_exposed_to(command, interface):
+            command = None
         if command is None:
             # Only names the caller could call: a few close matches, never the
             # whole list, and never a command hidden from this interface.
@@ -342,19 +351,17 @@ class MCPServer:
                 suggestion=not_found_suggestion(name, callable_names),
             )
 
-        if interface:
-            if interface not in {"palette", "mcp", "agent", "cli"}:
-                return error(
-                    "INVALID_INTERFACE",
-                    f"Unknown interface '{interface}'",
-                    suggestion="Valid interfaces: agent, cli, mcp, palette",
-                )
-            if not self._is_exposed_to(command, interface):
-                return error(
-                    "COMMAND_NOT_EXPOSED",
-                    f"Command '{command.name}' is not exposed to {interface}",
-                    suggestion="Check command exposure settings or use a different interface.",
-                )
+        # An unknown interface exposes nothing, as in TypeScript's isExposedTo.
+        if interface is not None and interface != "" and not self._is_exposed_to(command, interface):
+            return error(
+                "COMMAND_NOT_EXPOSED",
+                f"Command '{command.name}' is not exposed to {interface}",
+                suggestion=(
+                    "Call it from an interface it is exposed to, or set "
+                    f"expose.{interface} to true in its definition"
+                ),
+                retryable=False,
+            )
 
         if not _in_context(command, active_context):
             return error(
@@ -517,6 +524,7 @@ class MCPServer:
                 if (
                     active_context
                     and registered is not None
+                    and server._is_exposed_to(registered, "mcp")
                     and visible is None
                     and registered.contexts
                     and active_context not in registered.contexts

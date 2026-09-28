@@ -258,7 +258,6 @@ cross-language matrix is [`docs/language-parity.md`](../../../docs/language-pari
 **Internal, and cheap to expose:** the pipeline aggregation helpers, `get_nested_value`, `is_batch_command` and `is_pipeline_step`.
 
 **Divergences a caller can see:**
-- Error suggestions name `afd-discover` and `afd-context-*`, which C++ does not provide.
 - `output_schema` and `prerequisites` are stored but never emitted.
 - The JSON Schema subset rejects `pattern`, `format`, `const` and the combinators.
 

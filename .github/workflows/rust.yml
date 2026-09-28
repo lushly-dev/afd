@@ -9,6 +9,8 @@ on:
       - 'spec/wire/**'
       # tests/contract_version.rs checks CONTRACT_VERSION against it.
       - 'spec/VERSION'
+      # tests/error_codes.rs checks error_codes against it.
+      - 'spec/vectors/error-codes.json'
       - '.github/workflows/rust.yml'
   pull_request:
     branches: [main]
@@ -16,6 +18,7 @@ on:
       - 'packages/rust/**'
       - 'spec/wire/**'
       - 'spec/VERSION'
+      - 'spec/vectors/error-codes.json'
       - '.github/workflows/rust.yml'
   # publish-rust.yml runs these same checks before `cargo publish`.
   workflow_call:

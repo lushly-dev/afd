@@ -55,7 +55,7 @@ use std::pin::Pin;
 use std::sync::{Arc, OnceLock};
 
 use crate::commands::{deadline_after, elapsed_ms};
-use crate::errors::CommandError;
+use crate::errors::{error_codes, CommandError};
 use crate::metadata::{Alternative, Source, Warning, WarningSeverity};
 use crate::result::CommandResult;
 use crate::time::Instant;
@@ -1574,7 +1574,7 @@ fn preflight(
         return Some((
             0,
             pipeline_error(
-                "UNSUPPORTED_OPTION",
+                error_codes::UNSUPPORTED_OPTION,
                 "Parallel pipeline execution is not supported".to_string(),
                 "Remove parallel or set it to false to execute steps sequentially",
                 false,
@@ -1589,7 +1589,7 @@ fn preflight(
         return Some((
             index,
             pipeline_error(
-                "UNSUPPORTED_OPTION",
+                error_codes::UNSUPPORTED_OPTION,
                 format!(
                     "Streaming pipeline steps are not supported (step {index} sets stream: true)"
                 ),
@@ -1603,7 +1603,7 @@ fn preflight(
             return Some((
                 0,
                 pipeline_error(
-                    "VALIDATION_ERROR",
+                    error_codes::VALIDATION_ERROR,
                     "timeoutMs must be a non-negative number".to_string(),
                     "Set timeoutMs to a non-negative number of milliseconds or omit it",
                     false,
@@ -1614,7 +1614,7 @@ fn preflight(
             return Some((
                 0,
                 pipeline_error(
-                    "UNSUPPORTED_OPTION",
+                    error_codes::UNSUPPORTED_OPTION,
                     "Pipeline deadlines require the native feature".to_string(),
                     "Enable the native feature or omit timeoutMs",
                     false,
@@ -1629,7 +1629,7 @@ fn preflight(
         (
             index,
             pipeline_error(
-                "VALIDATION_ERROR",
+                error_codes::VALIDATION_ERROR,
                 format!("{field} is nested deeper than {MAX_INPUT_DEPTH} levels"),
                 "Flatten the input; nesting is limited to 64 levels",
                 false,
@@ -1736,7 +1736,7 @@ pub async fn execute_pipeline(
         .and_then(|timeout_ms| deadline_after(start_time, timeout_ms));
     let timeout_error = || {
         pipeline_error(
-            "PIPELINE_TIMEOUT",
+            error_codes::PIPELINE_TIMEOUT,
             format!(
                 "Pipeline timeout exceeded ({}ms)",
                 options.timeout_ms.unwrap_or(0.0)

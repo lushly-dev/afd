@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 import {
@@ -259,6 +260,14 @@ describe('wrapError', () => {
 describe('ErrorCodes', () => {
 	it('includes COMMAND_EXECUTION_ERROR', () => {
 		expect(ErrorCodes.COMMAND_EXECUTION_ERROR).toBe('COMMAND_EXECUTION_ERROR');
+	});
+
+	it('is the shared catalog in spec/vectors/error-codes.json, each value its name', () => {
+		const vector = JSON.parse(
+			readFileSync(new URL('../../../spec/vectors/error-codes.json', import.meta.url), 'utf8')
+		) as { codes: string[] };
+		expect(Object.keys(ErrorCodes)).toEqual(vector.codes);
+		for (const [name, value] of Object.entries(ErrorCodes)) expect(value).toBe(name);
 	});
 });
 

@@ -108,18 +108,23 @@ TEST_CASE(
     REQUIRE(typo.error.has_value());
     CHECK(typo.error->code == "COMMAND_NOT_FOUND");
     CHECK(typo.error->message == "Command 'todo-crate' not found");
-    CHECK(
-        typo.error->suggestion ==
-        "Did you mean 'todo-create'? Other close matches: 'todo-update'. Use afd-discover to list "
-        "all commands.");
+    CHECK(typo.error->suggestion ==
+          "Did you mean 'todo-create'? Other close matches: 'todo-update'. Check the command name "
+          "against the available commands.");
     CHECK_FALSE(typo.metadata.has_value());
 
     const auto nothing_close = registry.execute("zzzz-zzzz");
-    CHECK(nothing_close.error->suggestion == "Use afd-discover to list all commands.");
+    CHECK(nothing_close.error->suggestion ==
+          "Check the command name against the available commands.");
 
     const auto huge = registry.execute(std::string(10000, 'x'));
     CHECK(huge.error->message == "Command '" + std::string(128, 'x') + "…' not found");
-    CHECK(huge.error->suggestion == "Use afd-discover to list all commands.");
+    CHECK(huge.error->suggestion == "Check the command name against the available commands.");
+
+    // Suggestions name only tools the host provides (spec/error-codes.md, D4): C++ has no
+    // afd-discover, so a registered afd-help is named instead.
+    add(registry, echo_command("afd-help"));
+    CHECK(registry.execute("zzzz-zzzz").error->suggestion == "Use afd-help to list all commands.");
 }
 
 TEST_CASE("exposure: a surface only reaches commands exposed to it") {
@@ -138,7 +143,7 @@ TEST_CASE("exposure: a surface only reaches commands exposed to it") {
 
     // A hidden command is never offered as a suggestion.
     const auto typo = registry.execute("admin-rese", afd::Json::object(), agent);
-    CHECK(typo.error->suggestion == "Use afd-discover to list all commands.");
+    CHECK(typo.error->suggestion == "Check the command name against the available commands.");
 
     // Without a surface, exposure is not checked (a trusted, in-process caller).
     CHECK(registry.execute("admin-reset", {{"title", "x"}}).success);
@@ -161,7 +166,8 @@ TEST_CASE("contexts: a command outside the active context is unavailable") {
     CHECK(blocked.error->code == "COMMAND_NOT_IN_CONTEXT");
     CHECK(blocked.error->message == "Command 'plan-order' is not available in context 'combat'");
     CHECK(blocked.error->suggestion ==
-          "Use afd-context-list to see available contexts, or afd-context-enter to switch.");
+          "Switch to a context this command belongs to ('planning'), or call it with no active "
+          "context.");
 
     afd::CommandContext planning;
     planning.active_context = "planning";

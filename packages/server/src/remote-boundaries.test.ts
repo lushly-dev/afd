@@ -124,8 +124,11 @@ describe('remote exposure', () => {
 			const discovered = await call(url, 'afd-discover');
 			expect(JSON.stringify(discovered)).not.toContain('secret');
 			for (const name of ['secret-reset', 'implicit-reset']) {
-				expect((await call(url, name)).success).toBe(false);
-				expect((await call(url, 'afd-call', { command: name })).success).toBe(false);
+				// D4 (spec/error-codes.md): a private command gets the unknown-command answer.
+				expect((await call(url, name)).error.code).toBe('COMMAND_NOT_FOUND');
+				expect((await call(url, 'afd-call', { command: name })).error.code).toBe(
+					'COMMAND_NOT_FOUND'
+				);
 				expect(
 					(await call(url, 'afd-batch', { commands: [{ command: name }] })).results[0].result
 						.success

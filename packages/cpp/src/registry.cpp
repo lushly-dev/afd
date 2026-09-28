@@ -36,13 +36,18 @@ bool is_accessible_in_context(const CommandDefinition& command,
            command.contexts.end();
 }
 
-// TypeScript's notFoundSuggestion. The unknown name is untrusted and never echoed.
+// TypeScript's notFoundSuggestion. The unknown name is untrusted and never echoed. It names a
+// tool only where the host provides it (spec/error-codes.md, D4): C++ has no afd-discover, so it
+// points to afd-help when the caller can call one, as Rust does.
 std::string not_found_suggestion(std::string_view name,
                                  const std::vector<std::string>& candidates) {
-    const std::string discover = "Use afd-discover to list all commands.";
+    const bool has_help =
+        std::find(candidates.begin(), candidates.end(), "afd-help") != candidates.end();
+    const std::string list = has_help ? "Use afd-help to list all commands."
+                                      : "Check the command name against the available commands.";
     const auto matches = find_similar_tools(name, candidates, max_not_found_matches);
     if (matches.empty()) {
-        return discover;
+        return list;
     }
     std::string also_close;
     if (matches.size() > 1) {
@@ -52,7 +57,18 @@ std::string not_found_suggestion(std::string_view name,
         }
         also_close += ".";
     }
-    return "Did you mean '" + matches.front() + "'?" + also_close + " " + discover;
+    return "Did you mean '" + matches.front() + "'?" + also_close + " " + list;
+}
+
+// COMMAND_NOT_IN_CONTEXT's suggestion. C++ has no afd-context-* tools, so it names the contexts
+// the command belongs to; the host decides how the caller switches.
+std::string contexts_suggestion(const CommandDefinition& command) {
+    std::string contexts;
+    for (const auto& context : command.contexts) {
+        contexts += (contexts.empty() ? "'" : ", '") + context + "'";
+    }
+    return "Switch to a context this command belongs to (" + contexts +
+           "), or call it with no active context.";
 }
 
 std::string issue_summary(const ValidationFailure& failure) {
@@ -292,8 +308,7 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
                                     "Command '" + definition.name +
                                         "' is not available in context '" +
                                         *context.active_context + "'",
-                                    {.suggestion = "Use afd-context-list to see available "
-                                                   "contexts, or afd-context-enter to switch."}));
+                                    {.suggestion = contexts_suggestion(definition)}));
     }
 
     // 4. Validation.

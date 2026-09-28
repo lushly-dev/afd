@@ -7,12 +7,15 @@ on:
       - 'python/**'
       # tests/test_contract_version.py checks CONTRACT_VERSION against it.
       - 'spec/VERSION'
+      # tests/test_error_codes.py checks ErrorCodes against it.
+      - 'spec/vectors/error-codes.json'
       - '.github/workflows/python.yml'
   pull_request:
     branches: [main]
     paths:
       - 'python/**'
       - 'spec/VERSION'
+      - 'spec/vectors/error-codes.json'
       - '.github/workflows/python.yml'
 
 permissions:
