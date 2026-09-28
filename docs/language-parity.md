@@ -85,7 +85,7 @@ Limits of these checks:
 | `destructive`, `confirmPrompt`, `undoable` ([`spec/command-metadata.md`](../spec/command-metadata.md)) | Yes: on core `CommandDefinition` and `defineCommand`; `_meta` has `destructive` and `undoable`, afd-detail all three | No | No | Yes |
 | Kebab-case name rule | Warns in `defineCommand` | Partial: `validate_command_name` exists but nothing calls it | Yes, rejects at registration | Yes, rejects at registration |
 | Duplicate and reserved names | Throws for meta-tools, and for bootstrap and context names when enabled | Partial: meta-tools only; a command named like a bootstrap tool silently shadows it | Partial: bootstrap names only | Yes: meta-tools (C++ has no bootstrap or context tools) |
-| Input validated before the handler | Zod; unknown keys stripped | Yes: Pydantic, before middleware; `None` validates as `{}` | Partial: JSON Schema subset; undeclared keys pass through | Yes: JSON Schema subset; unsupported keywords fail registration |
+| Input validated before the handler | Zod; unknown keys stripped | Yes: Pydantic, before middleware; `None` validates as `{}` | Partial: JSON Schema subset; undeclared keys dropped; schema defaults never applied ([#284](https://github.com/lushly-dev/afd/issues/284)); an explicit `null` parameter counts as absent ([#282](https://github.com/lushly-dev/afd/issues/282)) | Yes: JSON Schema subset; unsupported keywords fail registration |
 | Examples validated at definition | Yes | Yes | No: stored only | Yes |
 | Output schema advertised | Yes (`_meta.outputSchema`) | Yes | Partial: `returns` not surfaced by `afd-schema` | No: stored, never emitted |
 | Command to MCP tool with `_meta` | Yes | Partial: no `category`, `destructive` or `undoable` in `_meta` | Partial: `command_to_mcp_tool`, no plural helper | Deferred |
@@ -134,7 +134,7 @@ Limits of these checks:
 | Handoff client: WebSocket and SSE handlers, reconnect | Yes: reconnect falls back to the default policy | Partial: reconnect falls back to 5 attempts, not the default policy's 3 | No | No: not declared |
 | `TelemetryEvent`, `TelemetrySink` | Yes | Partial: the core event serializes snake_case, and the middleware defines a second copy | Partial: `durationMs` is an integer | Deferred |
 | Telemetry middleware | Yes | Yes | No | Deferred |
-| `calculateSimilarity`, `findSimilarTools` (128 cap, 0.4 threshold) | Yes | Yes (not exported from `afd`) | Yes (counts chars, not UTF-16 units) | Yes |
+| `calculateSimilarity`, `findSimilarTools` (128 cap, 0.4 threshold) | Yes | Yes (not exported from `afd`) | Yes | Yes |
 
 ### MCP server
 
@@ -154,7 +154,7 @@ Limits of these checks:
 | Capability | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
 | MCP client: call, batch, pipe, stream | Yes | Partial: `auto_reconnect` is never used; `stream` only works against the TS server | No | No: not declared |
-| In-process client (`DirectClient`) with `allow`, exposure, timeout, `pipe` | Yes | Partial: no exposure, `allow`, middleware or timeout | Partial: `execute` with an interface; no `pipe` or unknown-tool helper | Yes (see [defects](#defects-found-in-this-review)) |
+| In-process client (`DirectClient`) with `allow`, exposure, timeout, `pipe` | Yes | Partial: no exposure, `allow`, middleware or timeout | Partial: `execute` with an interface; no `pipe` or unknown-tool helper | Yes |
 | CLI | Yes | Partial: no `batch`, `stream` or `scenario` | N/A | N/A |
 | Auth adapter | Yes | No | No | N/A: built by the host |
 | Testing: JTBD scenarios, surface validation (13 rules), assertions | Yes | Yes | No | No |
@@ -233,9 +233,8 @@ Ordered by how much an agent or a security boundary is affected.
     - `onCommand` and `onError` hooks;
     - the built-in middleware bundle.
 12. **Validation divergences.** None of these has a spec, so a shared `spec/vectors/validation.json` would pin them.
-    - **Rust** passes undeclared keys through; TypeScript strips them.
-    - **Message text:** Rust uses `"Input validation failed for '<cmd>': …"`; TypeScript uses `"Input validation failed"`.
-    - **String length:** TypeScript counts UTF-16 units; Python, Rust and C++ count code points. Rust also counts chars for name truncation and the reference cap.
+    - **Rust (fixed in #286):** undeclared keys are dropped, and `VALIDATION_ERROR` uses the TypeScript message `"Input validation failed"` and shape. The differences left are listed in `packages/rust/README.md`, "Command registry": issue wording, issue caps, an explicit `null` parameter ([#282](https://github.com/lushly-dev/afd/issues/282)) and schema defaults ([#284](https://github.com/lushly-dev/afd/issues/284)).
+    - **Length units:** schema `minLength`/`maxLength` agree: Zod has counted code points since 4.5.0 (the server requires `zod ^4.5.4`), as Python, Rust and C++ do. Name truncation and fuzzy matching count UTF-16 units in every language (Rust since #286). The 1024-character pipeline reference cap still differs: TypeScript and C++ count UTF-16 units, Python and Rust count code points ([#283](https://github.com/lushly-dev/afd/issues/283)).
     - **JSON Schema subsets differ.**
       - Rust has no `minItems` or `maxItems`: arrays reuse `minLength` and `maxLength`. It also has no `additionalProperties: false` and no combinators.
       - C++ rejects `pattern`, `format`, `const` and the combinators.
@@ -267,7 +266,7 @@ Ordered by how much an agent or a security boundary is affected.
 
 | Defect | Location | Notes |
 |---|---|---|
-| With `timeout_ms` set, C++ `DirectClient::call` replaces the caller's cancellation token with a deadline-only source, so caller cancellation is lost | `packages/cpp/src/direct_client.cpp:112-116` | Batch (`batch_execution.cpp:315`) and pipeline chain the parent token, and so does TypeScript (`AbortSignal.any`). No test covers it. |
+| With `timeout_ms` set, C++ `DirectClient::call` replaces the caller's cancellation token with a deadline-only source, so caller cancellation is lost | `packages/cpp/src/direct_client.cpp` (`DirectClient::call`) | Fixed: the deadline source now chains the caller's token, as batch, pipeline and TypeScript (`AbortSignal.any`) do. Tests cover caller cancellation and a pipeline deadline. |
 | Rust single `execute` lets a handler panic unwind to the caller | `packages/rust/src/commands.rs` (`CommandRegistry::execute`) | Fixed; Priority 1 item 2 |
 | Python core registry, core pipeline and `SimpleRegistry` return exception text | See Priority 1 item 2 | Fixed |
 | TypeScript core `executePipeline` returns a throwing executor's `error.message` unredacted | `packages/core/src/pipeline-executor.ts:289-297` | The server engine and core registry pass executors that never throw, so only a custom executor reaches it. Python's `execute_pipeline` redacts it. |

@@ -313,7 +313,8 @@ registry.add_middleware(logging);
 // - rejects an unknown name (COMMAND_NOT_FOUND) with up to three close matches, as in TypeScript,
 //   drawn only from commands exposed to the context's interface, and a pointer to afd-help
 //   when the caller can call it (TypeScript points to afd-discover, which Rust does not have),
-// - validates input against `parameters` and fills defaults (VALIDATION_ERROR),
+// - validates input against `parameters`, fills defaults and drops undeclared keys, as Zod does
+//   in TypeScript (VALIDATION_ERROR, "Input validation failed"; see Current Parity Note),
 // - checks `expose` when the context names an interface (COMMAND_NOT_EXPOSED),
 // - applies `timeout_ms` (TIMEOUT; needs the `native` feature).
 // A panic in middleware or the handler becomes COMMAND_EXECUTION_ERROR with the redacted
@@ -395,7 +396,9 @@ The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-
 - **Shared with TypeScript today:**
   - wire shapes (round-trip `spec/wire`);
   - the behavior vectors in `spec/vectors`;
-  - enforced exposure and input validation;
+  - enforced exposure;
+  - input validation in the engine's shape (`packages/server/src/execution.ts`, `validation.ts`): `VALIDATION_ERROR` has the message `Input validation failed` and the issues in `suggestion`, formatted as `formatEnhancedValidationError` does. `details` holds `errors` (`path` joined with dots or `(root)`, `message`, a Zod `code`, and `expected` for `invalid_type`), `expectedFields`, and `unexpectedFields`/`missingFields` when they are not empty;
+  - undeclared keys dropped before middleware and the handler, including in nested objects whose schema lists `properties` and has no `additionalProperties`;
   - the middleware chain;
   - `requires` and `contexts` metadata;
   - bootstrap commands (`register_bootstrap_commands`);
@@ -403,7 +406,7 @@ The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-
   - crash handling: a handler panic in `execute`, a batch or a pipeline becomes the redacted `COMMAND_EXECUTION_ERROR` (`execution_failure`);
   - `is_success` and `is_failure` test only `success`;
   - stream chunk types;
-  - similarity helpers;
+  - similarity helpers and name truncation, which count UTF-16 code units (`packages/core/src/similarity.ts`): echoed unknown names are cut to 128 units, and `find_similar_tools` and `calculate_similarity` measure lengths and edit distance in units;
   - handoff and telemetry types.
 - **Not in the crate yet:**
   - an MCP server, tool strategies and meta-tools;
@@ -413,8 +416,12 @@ The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-
   - result metadata stamping and `onCommand` hooks;
   - a registry dev mode: panic details are always redacted;
   - `destructive`, `confirmPrompt` and `undoable`.
-- **Known divergences from TypeScript:**
-  - undeclared input keys reach handlers;
+- **Known divergences from TypeScript** (the validation ones are listed in `packages/rust/README.md`, "Command registry"):
+  - each issue `message` uses the crate's own wording;
+  - `details.errors` holds at most 50 issues and `suggestion` at most 5;
+  - a command without `parameters` gets its input unchanged;
+  - a top-level `null` parameter counts as absent ([#282](https://github.com/lushly-dev/afd/issues/282));
+  - a `default` inside a parameter's `schema` is advertised but not applied ([#284](https://github.com/lushly-dev/afd/issues/284));
   - examples are not validated.
 - **Parity decisions** SHOULD compare agent-visible behavior first, then record Rust-specific gaps in the matrix instead of assuming every TypeScript or Python feature already exists in the crate.
 
