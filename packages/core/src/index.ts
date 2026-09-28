@@ -66,6 +66,8 @@ export {
 	isMcpExposed,
 	validateCommandName,
 } from './commands.js';
+// The AFD contract version this package implements (spec/VERSION)
+export { AFD_CONTRACT_VERSION } from './contract.js';
 // Error types
 export type { CommandError, ErrorCode } from './errors.js';
 export {

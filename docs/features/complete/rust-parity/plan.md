@@ -18,6 +18,7 @@ Counts over time:
 | 2026-03-21 (`98af776`, #181) | 183 | 211 | 0 |
 | 2026-09-26 (`0777217`) | 186 | 225 | 10 (budget 10 in `alfred/tests/test_parity.py`) |
 | 2026-09-27 (`1568dd3`) | 191 | 230 | 10 |
+| 2026-09-27 (`execution_failure` exported) | 191 | 231 | 9 (budget 9) |
 
 **Waves 1–5 are closed** (#181 and later). The wire-shape and batch-default drift reported by the [2026-09-23 review](../../../reviews/2026-09-23-quality-review.md) is also fixed. The remaining work is behavioral. The name metric cannot see it, so it is tracked in [`docs/language-parity.md`](../../../language-parity.md).
 
@@ -29,7 +30,7 @@ This plan tracked the Rust-side closure work only. TypeScript remains the source
 |---|---|
 | Status | Complete: export names. Behavioral gaps are tracked in [`docs/language-parity.md`](../../../language-parity.md) |
 | Author | jasfalk |
-| Updated | 2026-09-26 |
+| Updated | 2026-09-27 |
 | Shipped In | 98af776, "Complete Rust export parity (#181)" |
 | Package | `packages/rust` |
 | Source Of Truth | `uv run --project alfred alfred parity --path .` for names; [`docs/language-parity.md`](../../../language-parity.md) for behavior |
@@ -39,7 +40,7 @@ This plan tracked the Rust-side closure work only. TypeScript remains the source
 
 All five waves shipped in #181 on March 21, 2026. It added `connectors.rs`, `mcp.rs`, `similarity.rs`, and `telemetry.rs`, and extended `batch.rs`, `commands.rs`, `errors.rs`, `handoff.rs`, `pipeline.rs`, `result.rs`, `streaming.rs`, and the `lib.rs` re-exports. At that commit, `missing_from_rust` was 0.
 
-None of the 10 names missing today are from this plan's list. Each one entered the TypeScript barrel after #181:
+None of the 9 names missing today are from this plan's list. Each one entered the TypeScript barrel after #181; #306 exported a tenth, `execution_failure`:
 
 | Name | Added to the TypeScript barrel in | Verdict |
 |---|---|---|
@@ -49,19 +50,14 @@ None of the 10 names missing today are from this plan's list. Each one entered t
 | `execute_batch` | #250 | Exists as `CommandRegistry::execute_batch`. There is no free function over an executor callback. |
 | `commands_to_mcp_tools` | #225 | A missing convenience: `list_by_exposure(Mcp)` plus `command_to_mcp_tool` |
 | `execute_stream`, `stream_executor_options` | #250, #251 | Genuine gap: Rust has no stream executor |
-| `execution_failure` | #250 | Genuine gap: a crash maps to `INTERNAL_ERROR`, not `COMMAND_EXECUTION_ERROR` |
 | `executor_options`, `command_registry_options` | #250 | There is no `devMode`. Rust never includes panic payloads, so these are N/A unless a dev mode is wanted. |
 
-`NAME_GAP_BUDGET` in `alfred/tests/test_parity.py` holds `missing_from_rust` at 10 or fewer, and the Alfred workflow runs that test on pushes to main and pull requests that touch `packages/**`. When a gap closes, lower the budget.
+`NAME_GAP_BUDGET` in `alfred/tests/test_parity.py` holds `missing_from_rust` at 9 or fewer, and the Alfred workflow runs that test on pushes to main and pull requests that touch `packages/**`. When a gap closes, lower the budget.
 
 ## Remaining Behavioral Work
 
 The name check cannot see these gaps. They are tracked in [`docs/language-parity.md`](../../../language-parity.md), not in this plan, and are Wave 2 of the [Language Parity Closure plan](../../active/parity-closure/parity-closure.plan.md).
 
-- **Error handling:**
-  - Single `CommandRegistry::execute` does not catch panics.
-  - `error_codes` has no `COMMAND_EXECUTION_ERROR`.
-- **Result guards:** `is_success` requires `data`, and `is_failure` requires `error`, unlike TypeScript.
 - **Missing from the single-command engine:**
   - result metadata stamping (`executionTimeMs`, `commandVersion`, `traceId`);
   - active-context scoping;

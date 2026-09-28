@@ -91,7 +91,11 @@ assert_eq!(result.confidence, Some(0.92));
 
 ### Helper Functions
 - `success()`, `success_with()`, `failure()`, `failure_with()` - Create results
-- `is_success()`, `is_failure()` - Type guards
+- `is_success()`, `is_failure()` - Type guards. As in TypeScript they test only `success`, so
+  `{"success": true}` without `data` is a success and `{"success": false}` without `error` is a
+  failure.
+- `execution_failure()` - The `COMMAND_EXECUTION_ERROR` result for a crashed handler, redacted
+  unless `dev_mode` is set (TypeScript's `executionFailure`)
 - Error factories: `validation_error()`, `not_found_error()`, etc.
 
 Public structs are `#[non_exhaustive]`: build them with their constructors and `with_*` methods
@@ -130,8 +134,9 @@ let json = serde_json::to_value(&request).unwrap();
 assert_eq!(json["options"], serde_json::json!({"timeout": 5000, "parallelism": 2}));
 ```
 
-A handler that panics yields an `INTERNAL_ERROR` result for its own command; the other results
-of the batch are kept. The same applies to pipeline steps.
+A handler that panics yields a `COMMAND_EXECUTION_ERROR` result for its own command (see
+[Command registry](#command-registry)); the other results of the batch are kept. The same applies
+to pipeline steps, including a panic in the `CommandExecutor` callback itself.
 
 ## Pipelines
 
@@ -190,6 +195,10 @@ assert_eq!(request.steps[1].alias, None);
   (`native` feature).
 - **Middleware.** `add_middleware` wraps every execution; the first middleware added is the
   outermost.
+- **Crashes.** A panic in a middleware layer or the handler returns `COMMAND_EXECUTION_ERROR` with
+  the message `An internal error occurred`, as TypeScript does for a thrown exception outside
+  `devMode`. The panic payload is never included, and the registry has no dev mode that would show
+  it. The panic is caught with `catch_unwind`, so a build with `panic = "abort"` still aborts.
 
 An unknown name returns `COMMAND_NOT_FOUND`. The name in its message is cut to 128 UTF-16 code
 units, as in TypeScript. `find_similar_tools` and `calculate_similarity` count UTF-16 code units

@@ -2,6 +2,10 @@
 name = "afd"
 version = "0.1.0"
 edition = "2021"
+# The minimum supported Rust version: 1.81 lacks `Option::is_none_or`. With dependencies resolved
+# for it (Cargo's `incompatible-rust-versions = "fallback"`), `cargo +1.82.0 check` passes for
+# every feature set. Clippy's `incompatible_msrv` lint flags std APIs newer than this.
+rust-version = "1.82"
 description = "Agent-First Development - Core types and utilities for Rust"
 license = "MIT"
 repository = "https://github.com/lushly-dev/afd"

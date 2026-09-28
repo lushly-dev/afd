@@ -21,7 +21,7 @@ use crate::batch::{
 };
 use crate::errors::{error_codes, CommandError};
 use crate::handoff::HandoffCommandLike;
-use crate::result::{failure, CommandResult, ResultMetadata};
+use crate::result::{execution_failure, failure, CommandResult, ResultMetadata};
 use crate::time::Instant;
 use crate::validation::validate_input;
 
@@ -856,7 +856,11 @@ impl CommandRegistry {
     ///    `details.errors`.
     /// 5. The middleware chain and then the handler run with the validated
     ///    input. With `context.timeout_ms`, a run that outlasts it returns
-    ///    `TIMEOUT` (this needs a Tokio runtime with time enabled).
+    ///    `TIMEOUT` (this needs a Tokio runtime with time enabled). A panic in
+    ///    a middleware layer or the handler returns `COMMAND_EXECUTION_ERROR`
+    ///    with the generic message of [`execution_failure`], as TypeScript
+    ///    does for a thrown exception outside `devMode`; the panic payload is
+    ///    never included.
     ///
     /// The handler is not called when any check fails.
     pub async fn execute(
@@ -923,16 +927,19 @@ impl CommandRegistry {
         let timeout_ms = context.timeout_ms;
         let middleware = read_lock(&self.middleware).clone();
         let chain = middleware_chain(&command, &middleware, input, context);
+        // `chain()` runs inside the guarded future, so a middleware layer that
+        // panics while building its future is caught too.
+        let run = run_guarded(async move { chain().await });
 
         match timeout_ms {
             #[cfg(feature = "native")]
             Some(timeout_ms) => {
-                match tokio::time::timeout(Duration::from_millis(timeout_ms), chain()).await {
+                match tokio::time::timeout(Duration::from_millis(timeout_ms), run).await {
                     Ok(result) => result,
                     Err(_) => failure(CommandError::timeout(&command.name, timeout_ms)),
                 }
             }
-            _ => chain().await,
+            _ => run.await,
         }
     }
 
@@ -952,8 +959,9 @@ impl CommandRegistry {
     /// Uses partial success semantics, as in TypeScript: every command runs
     /// unless `stopOnError` is set, and [`BatchResult::success`] is `true`
     /// whenever the batch itself ran. It is `false` only for an invalid
-    /// request. A handler that panics produces an `INTERNAL_ERROR` result for
-    /// its own command; the other results are kept.
+    /// request. A handler that panics produces a `COMMAND_EXECUTION_ERROR`
+    /// result for its own command (see [`CommandRegistry::execute`]); the
+    /// other results are kept.
     ///
     /// Every command runs through [`CommandRegistry::execute`] with a copy of
     /// `context` (so exposure checks, validation, the timeout and middleware
@@ -1072,7 +1080,7 @@ impl CommandRegistry {
                 active.push(Box::pin(async move {
                     let command_start = Instant::now();
                     let name = command_name.clone();
-                    let execution = run_guarded(self.execute(&name, cmd.input, Some(context)));
+                    let execution = self.execute(&name, cmd.input, Some(context));
                     let result = match deadline {
                         None => Some(execution.await),
                         Some(deadline) => {
@@ -1265,19 +1273,15 @@ pub(crate) fn deadline_after(start: Instant, timeout_ms: f64) -> Option<Instant>
         .and_then(|timeout| start.checked_add(timeout))
 }
 
-/// The error reported in place of a result when a command handler panics.
-///
-/// The panic payload is not included: it may contain internal details.
-pub(crate) fn handler_panic_error() -> CommandError {
-    CommandError::new(error_codes::INTERNAL_ERROR, "The command handler panicked")
-        .with_suggestion(
-            "This is a bug in the command implementation. Report it, or retry with different input",
-        )
-        .with_retryable(false)
+/// The result reported in place of one when a command handler panics: the
+/// redacted `COMMAND_EXECUTION_ERROR`. The panic payload is not included, as
+/// it may contain internal details.
+pub(crate) fn handler_panic_failure() -> CommandResult<serde_json::Value> {
+    execution_failure("The command handler panicked", false)
 }
 
-/// Run a command future, turning a panic into an `INTERNAL_ERROR` failure so
-/// one handler cannot abort a whole batch or pipeline.
+/// Run a command future, turning a panic into a `COMMAND_EXECUTION_ERROR`
+/// failure so one handler cannot abort its caller, a batch or a pipeline.
 pub(crate) async fn run_guarded<F>(future: F) -> CommandResult<serde_json::Value>
 where
     F: Future<Output = CommandResult<serde_json::Value>>,
@@ -1285,7 +1289,7 @@ where
     AssertUnwindSafe(future)
         .catch_unwind()
         .await
-        .unwrap_or_else(|_| failure(handler_panic_error()))
+        .unwrap_or_else(|_| handler_panic_failure())
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
