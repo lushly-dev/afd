@@ -4,12 +4,12 @@ What each AFD implementation provides, where they differ, and which differences 
 
 | Field | Value |
 |---|---|
-| Updated | 2026-09-26 |
+| Updated | 2026-09-27 |
 | Reviewed at | `0777217` (`main`) |
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/active/rust-parity/rust-parity.plan.md) parity plans, which now link here |
 | Plans | [Parity closure](./features/active/parity-closure/parity-closure.plan.md) closes the gaps listed here; [Versioning and release](./features/active/versioning/versioning.plan.md) covers each implementation's version and the contract version |
-| Related | [`spec/wire`](../spec/wire/README.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/proposed/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
+| Related | [`spec/wire`](../spec/wire/README.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/command-metadata.md`](../spec/command-metadata.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/proposed/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
 
 ## What parity means
 
@@ -81,13 +81,13 @@ Limits of these checks:
 | Capability | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
 | Core metadata: name, description, category, tags, version, mutation, requires, contexts, expose, handoff, examples, executionTime | Yes | Partial: the decorator has no `version`, `errors` or `execution_time`; `MCPServer.command` drops `handoff` | Yes | Yes (`requires` is `prerequisites`) |
-| `destructive`, `confirmPrompt`, `undoable` | Partial: the first two only on Zod `defineCommand`, `undoable` only on core (#275) | No | No | Yes |
+| `destructive`, `confirmPrompt`, `undoable` ([`spec/command-metadata.md`](../spec/command-metadata.md)) | Yes: on core `CommandDefinition` and `defineCommand`; `_meta` has `destructive` and `undoable`, afd-detail all three | No | No | Yes |
 | Kebab-case name rule | Warns in `defineCommand` | Partial: `validate_command_name` exists but nothing calls it | Yes, rejects at registration | Yes, rejects at registration |
 | Duplicate and reserved names | Throws for meta-tools, and for bootstrap and context names when enabled | Partial: meta-tools only; a command named like a bootstrap tool silently shadows it | Partial: bootstrap names only | Yes: meta-tools (C++ has no bootstrap or context tools) |
 | Input validated before the handler | Zod; unknown keys stripped | Yes: Pydantic, before middleware; `None` validates as `{}` | Partial: JSON Schema subset; undeclared keys pass through | Yes: JSON Schema subset; unsupported keywords fail registration |
 | Examples validated at definition | Yes | Yes | No: stored only | Yes |
 | Output schema advertised | Yes (`_meta.outputSchema`) | Yes | Partial: `returns` not surfaced by `afd-schema` | No: stored, never emitted |
-| Command to MCP tool with `_meta` | Yes | Partial: no `category` or `destructive` in `_meta` | Partial: `command_to_mcp_tool`, no plural helper | Deferred |
+| Command to MCP tool with `_meta` | Yes | Partial: no `category`, `destructive` or `undoable` in `_meta` | Partial: `command_to_mcp_tool`, no plural helper | Deferred |
 
 ### Single-command execution
 
@@ -130,7 +130,7 @@ Limits of these checks:
 | Capability | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
 | `HandoffResult`, `createHandoff`, default reconnect policy (3 attempts, 1000 ms) | Yes | Partial: `create_handoff` applies no default policy | Partial: `is_handoff_protocol` and `is_handoff_command` mean different things; `handoff:<p>` tags are ignored | Yes |
-| Handoff client: WebSocket and SSE handlers, reconnect | Yes | Yes | No | No: not declared |
+| Handoff client: WebSocket and SSE handlers, reconnect | Yes: reconnect falls back to the default policy | Partial: reconnect falls back to 5 attempts, not the default policy's 3 | No | No: not declared |
 | `TelemetryEvent`, `TelemetrySink` | Yes | Partial: the core event serializes snake_case, and the middleware defines a second copy | Partial: `durationMs` is an integer | Deferred |
 | Telemetry middleware | Yes | Yes | No | Deferred |
 | `calculateSimilarity`, `findSimilarTools` (128 cap, 0.4 threshold) | Yes | Yes (not exported from `afd`) | Yes (counts chars, not UTF-16 units) | Yes |
@@ -233,14 +233,12 @@ Ordered by how much an agent or a security boundary is affected.
     - **JSON Schema subsets differ.**
       - Rust has no `minItems` or `maxItems`: arrays reuse `minLength` and `maxLength`. It also has no `additionalProperties: false` and no combinators.
       - C++ rejects `pattern`, `format`, `const` and the combinators.
-13. **Command metadata.**
+13. **Command metadata** ([`spec/command-metadata.md`](../spec/command-metadata.md) lists the fields).
     - Python's decorator lacks `version`, `errors`, `execution_time`, `destructive`, `confirm_prompt` and `undoable`.
     - Rust lacks `destructive`, `confirmPrompt` and `undoable`.
-    - TypeScript itself splits these fields between core and Zod definitions (#275).
 14. **Handoff.**
-    - Python applies no default reconnect policy.
+    - Python's `create_handoff` applies no default reconnect policy, and its handoff client falls back to 5 attempts where the default policy has 3.
     - Rust's guard helpers differ in meaning.
-    - TypeScript's client falls back to 5 attempts where core defaults to 3.
 15. **Python MCP client:** `_attempt_reconnect` is never called, so `auto_reconnect=True` does nothing.
 16. **C++ metadata cannot reach the wire.**
     - There is no command-to-MCP-tool conversion and no `to_json` for `CommandDefinition`.

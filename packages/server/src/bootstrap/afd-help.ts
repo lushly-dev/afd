@@ -21,6 +21,8 @@ interface CommandInfo {
 	category?: string;
 	tags?: string[];
 	mutation?: boolean;
+	destructive?: boolean;
+	undoable?: boolean;
 	requires?: string[];
 	examples?: CommandExample[];
 }
@@ -87,6 +89,8 @@ export function createAfdHelpCommand(
 					info.category = cmd.category;
 					info.tags = cmd.tags;
 					info.mutation = cmd.mutation;
+					info.destructive = cmd.destructive;
+					info.undoable = cmd.undoable;
 					info.examples = cmd.examples;
 				}
 
