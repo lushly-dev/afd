@@ -3,7 +3,7 @@ name: do-prepare-pr
 description: >
   Ready-to-ship orchestrator for AFD: syncs the base, runs an independent review,
   updates changesets, CHANGELOG and docs, commits, runs every quality gate the diff
-  needs (TypeScript, Python, Rust, conformance, alfred), then creates or updates the
+  needs (TypeScript, Python, Rust, C++, conformance, alfred), then creates or updates the
   PR and drives it to merge when authorized. Inspect mode reports readiness without
   mutating anything; quick mode skips review and docs already done. Second stage of
   the session loop. Use when inspecting readiness or ready to ship. Triggers:
@@ -72,17 +72,19 @@ landed (do not open a duplicate PR).
      suite are the shared contract; the alfred MCP server's parity command reports
      export-surface gaps.
    - **Public API:** a removed or renamed export is a breaking change and needs a
-     `major` changeset and a CHANGELOG entry.
+     `major` changeset or a breaking entry in that implementation's changelog.
    Record passes, findings, fixes and dispositions for the PR body.
 
 3. **Docs.**
    - **Changeset** (`pnpm changeset`) when a published `@lushly-dev/*` package
      changes user-facing behavior. All packages share one version, so pick the
      bump by impact: `major` breaking, `minor` new capability, `patch` fix. No
-     changeset for Python-, Rust-, alfred-, example- or tooling-only changes.
-   - **`CHANGELOG.md`**: add an `[Unreleased]` entry for user-facing changes in
-     any language, including Python and Rust. Correct an existing entry rather than
-     stacking a contradictory one.
+     changeset for Python-, Rust-, C++-, alfred-, example- or tooling-only changes.
+   - **Changelogs**: the root `CHANGELOG.md` is an index; never add entries to
+     it. Add user-facing Python, Rust and C++ changes to the unreleased section of
+     `python/CHANGELOG.md`, `packages/rust/CHANGELOG.md` or
+     `packages/cpp/CHANGELOG.md`; npm packages get theirs from the changeset.
+     Correct an existing entry rather than stacking a contradictory one.
    - **Feature plans**: if a `docs/features/` plan tracks the work, update it in
      the same PR. When it ships, move the folder to `complete/` and update the
      tables in `docs/features/README.md`.
@@ -106,14 +108,15 @@ landed (do not open a duplicate PR).
    | Workflow | Runs when the diff touches | Local commands |
    |---|---|---|
    | `ci.yml` | anything | `pnpm check` |
-   | `python.yml` | `python/**` | `cd python && uv lock --check && uv sync --frozen --all-extras`, then `uv run ruff check --select F821,F841,B904 src` and `uv run pytest -q` |
-   | `rust.yml` | `packages/rust/**`, `spec/wire/**` | in `packages/rust`: `cargo fmt --check`; `cargo clippy --all-targets -- -D warnings` and `cargo test`, each also with `--no-default-features`; `cargo check --target wasm32-unknown-unknown --no-default-features --features wasm` |
-   | `conformance.yml` | `packages/examples/todo/**`, `packages/server/**`, `packages/core/**`, `packages/rust/**`, `python/**`, `pnpm-lock.yaml` | see below |
+   | `python.yml` | `python/**`, `spec/VERSION` | `cd python && uv lock --check && uv sync --frozen --all-extras`, then `uv run ruff check --select F821,F841,B904 src` and `uv run pytest -q` |
+   | `rust.yml` | `packages/rust/**`, `spec/wire/**`, `spec/VERSION` | in `packages/rust`: `cargo fmt --check`; `cargo clippy --all-targets -- -D warnings` and `cargo test`, each also with `--no-default-features`; `cargo check --target wasm32-unknown-unknown --no-default-features --features wasm` |
+   | `cpp.yml` | `packages/cpp/**`, `spec/wire/**`, `spec/vectors/**`, `spec/pipeline-variables.md`, `spec/VERSION`, `packages/examples/todo/spec/**`, `packages/examples/todo/backends/cpp/**` | in `packages/cpp`: `cmake --preset dev && cmake --build --preset dev && ctest --preset dev`; CI also runs clang-format (pinned: `uvx --from clang-format==<version in cpp.yml>`), sanitizer, MSVC, Emscripten and fuzz jobs |
+   | `conformance.yml` | `packages/examples/todo/**`, `packages/server/**`, `packages/core/**`, `packages/rust/**`, `packages/cpp/**`, `python/**`, `pnpm-lock.yaml` | see below |
    | `alfred.yml` | `alfred/**`, `python/**`, `spec/**`, `packages/**` | `cd alfred && uv sync --all-extras --dev --frozen`, then `uv run ruff check .` and `uv run pytest tests/` |
 
    Conformance runs as separate commands. Do not brace-expand the script names:
    pnpm runs only the first script and passes the rest as ignored arguments, so
-   the Python and Rust backends would silently not run.
+   the Python, Rust and C++ backends would silently not run.
 
    ```bash
    pnpm build
@@ -122,6 +125,8 @@ landed (do not open a duplicate PR).
    pnpm --dir packages/examples/todo test:conformance:py
    (cd packages/examples/todo/backends/rust && cargo fmt --check && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked)
    pnpm --dir packages/examples/todo test:conformance:rs
+   (cd packages/examples/todo/backends/cpp && cmake --preset release && cmake --build --preset release && ctest --preset release)
+   pnpm --dir packages/examples/todo test:conformance:cpp
    git status --porcelain   # unchanged from before the run: the stores never write tracked files
    ```
 

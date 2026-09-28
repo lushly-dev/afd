@@ -59,6 +59,7 @@ Check the other toolchains only when the task touches them:
 |---|---|
 | `python/`, the todo Python backend | `uv` (`cd python && uv --version`) |
 | `packages/rust/`, the todo Rust backend | `cargo`; `packages/rust/rust-toolchain.toml` pins the toolchain |
+| `packages/cpp/`, the todo C++ backend | CMake 3.25+ and a C++20 compiler (`cmake --version`) |
 | `alfred/` | `uv` |
 
 ### Detached checkouts
@@ -156,11 +157,11 @@ name). An existing issue is already triaged and often names adjacent cases the n
 report misses. Adopt it, and if the new work is narrower, say which parts you are
 closing and which stay open.
 
-**Cross-language scope.** TypeScript is the behavioral reference; Python and Rust
-are ports held to it by `spec/` and the todo conformance suite, and a C++ port is
-planned (#270). When the task
+**Cross-language scope.** TypeScript is the behavioral reference; Python, Rust and
+C++ are ports held to it by `spec/` and the todo conformance suite, and
+`docs/language-parity.md` records where they differ. When the task
 changes agent-visible behavior in one language, note whether the other ports need
-the same change or a tracked follow-up (see `docs/features/active/*-parity`).
+the same change or a tracked follow-up (see `docs/language-parity.md` and `docs/features/active/parity-closure/`).
 
 ## 4. Orient and report
 

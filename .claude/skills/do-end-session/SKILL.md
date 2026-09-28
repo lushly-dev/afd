@@ -51,7 +51,7 @@ it through the PR's `.merged` and the content check before moving on.
 
 Then the part no script can do: **sweep this session's conversation** for problems
 raised but never fixed, filed, or carried by a PR. That includes deferred review
-findings, flaky tests, parity gaps between TypeScript and the Python or Rust
+findings, flaky tests, parity gaps between TypeScript and the Python, Rust or C++
 ports, surprising behavior, and "we should probably…" asides. List them before
 touching anything.
 
