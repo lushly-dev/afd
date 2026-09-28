@@ -56,7 +56,10 @@ The first versioned contract. It covers:
   `PipelineResult` and the four `StreamChunk` kinds;
 - the pipeline variables in `pipeline-variables.md`, with 48 references and 27 conditions in
   `vectors/pipeline-variables.json`;
+- the batch and pipeline execution controls, with 21 batch and 22 pipeline cases in
+  `vectors/batch-controls.json`;
 - the 34 cases of the todo conformance suite.
 
-Every language round-trips the wire fixtures and passes the conformance suite. Only C++ loads
-`vectors/pipeline-variables.json` so far.
+Every language round-trips the wire fixtures, loads both vector files and passes the conformance
+suite. The contract stays at `1.0-rc` until the error-code and validation specs are written
+(parity closure plan items 1.2 and 1.3).
