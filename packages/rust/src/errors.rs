@@ -265,6 +265,9 @@ pub mod error_codes {
     pub const COMMAND_NOT_FOUND: &str = "COMMAND_NOT_FOUND";
     pub const INVALID_COMMAND_ARGS: &str = "INVALID_COMMAND_ARGS";
     pub const COMMAND_CANCELLED: &str = "COMMAND_CANCELLED";
+    /// A command handler crashed (panicked) instead of returning a result.
+    /// See [`execution_failure`](crate::execution_failure).
+    pub const COMMAND_EXECUTION_ERROR: &str = "COMMAND_EXECUTION_ERROR";
     /// The command exists but is not exposed to the calling interface.
     pub const COMMAND_NOT_EXPOSED: &str = "COMMAND_NOT_EXPOSED";
     /// The request uses an option this build does not support.

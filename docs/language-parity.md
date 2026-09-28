@@ -29,6 +29,7 @@ The contract has three layers:
 |---|---|---|---|---|
 | Package | 9 `@lushly-dev/*` packages | `afd` | `afd` crate | `afd-cpp` (`afd::afd`) |
 | Version | 2.0.0 | 0.8.0 | 0.1.0 | 0.1.0, release candidate |
+| Contract | 1.0-rc (`AFD_CONTRACT_VERSION`) | 1.0-rc (`afd.CONTRACT_VERSION`) | 1.0-rc (`afd::CONTRACT_VERSION`) | 1.0-rc (`afd::contract_version`) |
 | Distribution | npm | PyPI | Git or path dependency; not on crates.io | CMake `FetchContent`, `find_package`, `add_subdirectory`; the `afd-cpp-v0.1.0` tag is not cut yet |
 | Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, FastMCP server, client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch and pipeline executors, bootstrap commands. No server or client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors. No server or client |
 | Todo backend | stdio (SDK) | stdio (FastMCP) | Streamable HTTP (hand-rolled, axum) | stdio (hand-rolled) |
@@ -42,7 +43,8 @@ The contract has three layers:
 | `spec/wire` round-trip, 6 fixtures | Wire shapes | Yes (generator) | Yes | Yes | Yes |
 | `spec/vectors/pipeline-variables.json`, 48 references and 27 conditions | Pipeline reference and `when` behavior | Generator only | **No** | **No** | Yes |
 | Todo conformance, 34 cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes | Yes | Yes | Yes |
-| `alfred parity` name budget (`alfred/tests/test_parity.py`) | Exported names | Reference | 97 missing (budget 97) | 10 missing (budget 10) | 73 missing (budget 73) |
+| `alfred parity` name budget (`alfred/tests/test_parity.py`) | Exported names | Reference | 97 missing (budget 97) | 9 missing (budget 9) | 73 missing (budget 73) |
+| `alfred parity` contract version, `scripts/check-versions.mjs` | The contract constant equals `spec/VERSION` | Yes | Yes | Yes | Yes |
 
 Limits of these checks:
 
@@ -51,7 +53,7 @@ Limits of these checks:
   - exposure;
   - the batch, pipeline or stream executors;
   - unknown-command handling.
-- **Name parity is not behavioral parity.** Rust is 10 names short of TypeScript but has no MCP server and no stream executor. Python is 97 names short, but 60 of those exist and are just not exported (see [Name parity](#name-parity-alfred-parity)).
+- **Name parity is not behavioral parity.** Rust is 9 names short of TypeScript but has no MCP server and no stream executor. Python is 97 names short, but 61 of those exist and are just not exported (see [Name parity](#name-parity-alfred-parity)).
 - **Only C++ consumes the behavior vectors.** A pipeline change in TypeScript, Python or Rust can drift unnoticed.
 
 ## Capability matrix
@@ -70,9 +72,9 @@ Limits of these checks:
 |---|---|---|---|---|
 | `CommandResult`, `CommandError`, metadata shapes (camelCase, unset omitted) | Yes | Yes | Yes | Yes |
 | `Warning`, `Source`, `PlanStep`, `Alternative` | Yes | Yes | Yes | Yes |
-| `ErrorCodes` catalog (22 codes) | Yes | Yes | Partial: no `COMMAND_EXECUTION_ERROR` | Yes, plus 15 executor codes |
+| `ErrorCodes` catalog (22 codes) | Yes | Yes | Yes | Yes, plus 15 executor codes |
 | `success` / `failure` / `error` constructors | Yes | Partial: `failure()` accepts only `warnings` and `metadata` | Partial: `FailureOptions` has no `alternatives` or `undo*` | Yes |
-| `isSuccess` / `isFailure` test only `success` | Yes | Partial: `is_success` also requires `data` | Partial: `is_success` requires `data`, `is_failure` requires `error` | Yes |
+| `isSuccess` / `isFailure` test only `success` | Yes | Partial: `is_success` also requires `data` | Yes | Yes |
 
 ### Command definition
 
@@ -82,7 +84,7 @@ Limits of these checks:
 | `destructive`, `confirmPrompt`, `undoable` ([`spec/command-metadata.md`](../spec/command-metadata.md)) | Yes: on core `CommandDefinition` and `defineCommand`; `_meta` has `destructive` and `undoable`, afd-detail all three | No | No | Yes |
 | Kebab-case name rule | Warns in `defineCommand` | Partial: `validate_command_name` exists but nothing calls it | Yes, rejects at registration | Yes, rejects at registration |
 | Duplicate and reserved names | Throws for meta-tools, and for bootstrap and context names when enabled | Partial: meta-tools only; a command named like a bootstrap tool silently shadows it | Partial: bootstrap names only | Yes: meta-tools (C++ has no bootstrap or context tools) |
-| Input validated before the handler | Zod; unknown keys stripped | Partial: Pydantic, skipped when `input` is `None` | Partial: JSON Schema subset; undeclared keys pass through | Yes: JSON Schema subset; unsupported keywords fail registration |
+| Input validated before the handler | Zod; unknown keys stripped | Yes: Pydantic, before middleware; `None` validates as `{}` | Partial: JSON Schema subset; undeclared keys pass through | Yes: JSON Schema subset; unsupported keywords fail registration |
 | Examples validated at definition | Yes | Yes | No: stored only | Yes |
 | Output schema advertised | Yes (`_meta.outputSchema`) | Yes | Partial: `returns` not surfaced by `afd-schema` | No: stored, never emitted |
 | Command to MCP tool with `_meta` | Yes | Partial: no `category`, `destructive` or `undoable` in `_meta` | Partial: `command_to_mcp_tool`, no plural helper | Deferred |
@@ -91,13 +93,13 @@ Limits of these checks:
 
 | Capability | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
-| Dispatch order: lookup, context, validation, middleware, handler, stamp, `onCommand` | Reference | No: middleware wraps lookup and validation, so it sees unknown commands and raw input | Partial: no stamping or hooks | Yes |
-| "Did you mean" on an unknown command | Yes | Partial: none on the server's direct path | Yes (points to `afd-help`) | Yes |
+| Dispatch order: lookup, context, validation, middleware, handler, stamp, `onCommand` | Reference | Partial: matches through the stamp; no `onCommand` hook | Partial: no stamping or hooks | Yes |
+| "Did you mean" on an unknown command | Yes | Yes | Yes (points to `afd-help`) | Yes |
 | Exposure enforced | Yes: the remote engine holds only MCP-exposed commands | Yes | Yes | Yes, when `context.surface` is set |
 | Active-context scoping | Yes: a stack per session, depth 16 | Partial: one process-global, unbounded stack | No: `contexts` is metadata only | Partial: `active_context` is supplied by the caller |
 | Result metadata stamped (`executionTimeMs`, `commandVersion`, `traceId`) | Yes | Partial: no `commandVersion` | No | Yes |
 | `onCommand` / `onError` hooks | Yes | No | No | Yes |
-| A thrown error becomes a redacted `COMMAND_EXECUTION_ERROR` | Yes (`devMode` shows detail) | Partial: the server redacts; the core registry, core pipeline and `SimpleRegistry` return `str(exc)` | Partial: single `execute` does not catch panics; batch and pipeline return `INTERNAL_ERROR` | Yes, when built with exceptions |
+| A thrown error becomes a redacted `COMMAND_EXECUTION_ERROR` | Yes (`devMode` shows detail) | Yes (`dev_mode` shows detail in the server, `create_command_registry`, `execute_pipeline` and `SimpleRegistry`) | Yes: a panic in `execute`, a batch or a pipeline (`execution_failure`); there is no dev mode to show detail | Yes, when built with exceptions |
 | Cancellation | `AbortSignal` | No signal; `timeout` declared but not enforced | Per-command timeout drops the future; no signal | Cooperative `CancellationToken` and deadline |
 
 ### Middleware
@@ -202,12 +204,12 @@ Ordered by how much an agent or a security boundary is affected.
 
 ### Priority 1: agent-visible behavior and safety
 
-1. **Python dispatch order.** Middleware wraps lookup and validation (`python/src/afd/server/factory.py`, `_execute_command`), so logging, retry and rate-limit middleware see unknown commands and unvalidated input. `input=None` skips Pydantic, and the handler then crashes.
+1. **Python dispatch order.** Fixed. The server runs lookup (with "did you mean"), exposure, active context and input validation before the middleware chain (`python/src/afd/server/factory.py`, `_prepare_command`). Middleware now sees only calls that reach a handler, with validated input. `input=None` validates as `{}`, so a missing required field returns `VALIDATION_ERROR` instead of crashing the handler.
 2. **Exception text reaches callers.**
-   - **Python:** the core registry (`core/commands.py:361`), the core pipeline (`core/pipeline.py:922`) and `SimpleRegistry` (`direct.py:356-364`) return `str(exc)`.
-   - **Rust:** single `CommandRegistry::execute` does not catch panics (`packages/rust/src/commands.rs:860-935`). Only batch and pipeline use `run_guarded`.
-3. **Crash error code.** Rust returns `INTERNAL_ERROR` where the reference returns `COMMAND_EXECUTION_ERROR`, and its `error_codes` omits that code.
-4. **`is_success` in Python and Rust** returns false for `success(None)`. Rust's `is_failure` also returns false for `{success: false}` with no error. The Rust doc comment claims this matches TypeScript; it does not.
+   - **Python:** fixed. The core registry, the core pipeline and `SimpleRegistry` return `COMMAND_EXECUTION_ERROR` with "An internal error occurred" and log the exception. Each takes a `dev_mode` flag, as the server does.
+   - **Rust (fixed):** single `CommandRegistry::execute` did not catch panics; only batch and pipeline did. It now catches a panic in middleware or the handler, and returns the redacted error.
+3. **Crash error code (fixed).** Rust returned `INTERNAL_ERROR` where the reference returns `COMMAND_EXECUTION_ERROR`, and its `error_codes` omitted that code. `execute`, batch and pipeline now return `COMMAND_EXECUTION_ERROR` through the exported `execution_failure`, and `error_codes` has the code.
+4. **`is_success` in Python** returns false for `success(None)`. Rust had the same gap, and its `is_failure` returned false for `{success: false}` with no error; both Rust guards now test only `success` (fixed).
 5. **The Python `DirectClient` has no boundary.** It has no exposure check, `allow` predicate, middleware or timeout. This is the in-process gap that Theme 4 of the 2026-09-23 review flagged; TypeScript and C++ have closed it.
 6. **Python context state** is one process-global, unbounded stack, shared by every client. TypeScript keeps one per session, capped at 16.
 7. **Python `SseDecoder` has no event-size cap.** TypeScript caps events at 1 MiB.
@@ -260,18 +262,19 @@ Ordered by how much an agent or a security boundary is affected.
 | Defect | Location | Notes |
 |---|---|---|
 | With `timeout_ms` set, C++ `DirectClient::call` replaces the caller's cancellation token with a deadline-only source, so caller cancellation is lost | `packages/cpp/src/direct_client.cpp:112-116` | Batch (`batch_execution.cpp:315`) and pipeline chain the parent token, and so does TypeScript (`AbortSignal.any`). No test covers it. |
-| Rust single `execute` lets a handler panic unwind to the caller | `packages/rust/src/commands.rs:860-935` | Priority 1 item 2 |
-| Python core registry, core pipeline and `SimpleRegistry` return exception text | See Priority 1 item 2 | |
+| Rust single `execute` lets a handler panic unwind to the caller | `packages/rust/src/commands.rs` (`CommandRegistry::execute`) | Fixed; Priority 1 item 2 |
+| Python core registry, core pipeline and `SimpleRegistry` return exception text | See Priority 1 item 2 | Fixed |
+| TypeScript core `executePipeline` returns a throwing executor's `error.message` unredacted | `packages/core/src/pipeline-executor.ts:289-297` | The server engine and core registry pass executors that never throw, so only a custom executor reaches it. Python's `execute_pipeline` redacts it. |
 | Python `auto_reconnect` is dead code | `python/src/afd/client.py:437` | Priority 2 item 15 |
 
 ## Name parity (`alfred parity`)
 
-Measured at `0777217`: TypeScript 186 exports, Python 179, Rust 225, C++ 158.
+Measured at `0777217`: TypeScript 186 exports, Python 179, Rust 225, C++ 158. The Rust row was re-measured after `execution_failure` was exported.
 
 | Language | Missing | What the missing names are |
 |---|---|---|
-| Python | 97 | **60 exist but are not exported from `afd`:** the pipeline contract in `afd.core.pipeline` and `pipeline_variables` (38), similarity (4), `CommandHandler`, `CommandRegistry`, `create_command_registry`, `CommandMiddleware`, `WarningSeverity`, and 13 MCP names with Pythonic spellings. Re-exporting is blocked by collisions: `afd.PipelineStep`, `PipelineResult`, `CommandDefinition` and `CommandContext` are the `afd.direct` dataclasses, not the core types. **17 are real gaps:** the batch and stream executors and their options, `execution_failure`, registry `dev_mode`, the exposure helpers, the timeout controller, progress-with-steps, `DEFAULT_RECONNECT_POLICY`, and the MCP error-code constants and notification and list types. **20 are TypeScript typing artifacts:** the condition guards, `ErrorCode`, `McpId` and similar. |
-| Rust | 10 | **Export artifacts:** `is_mcp_exposed` (`is_exposed_to(Mcp)`), `max_similarity_input_length` (at `afd::similarity`), `truncate_name` (private), `execute_batch` (a registry method). **A convenience:** `commands_to_mcp_tools`. **Real gaps:** `execute_stream` and `stream_executor_options`; `execution_failure` (see the error-code item). **No dev mode:** `executor_options` and `command_registry_options`. |
+| Python | 97 | **61 exist but are not exported from `afd`:** the pipeline contract in `afd.core.pipeline` and `pipeline_variables` (38), similarity (4), `execution_failure`, `CommandHandler`, `CommandRegistry`, `create_command_registry`, `CommandMiddleware`, `WarningSeverity`, and 13 MCP names with Pythonic spellings. Re-exporting is blocked by collisions: `afd.PipelineStep`, `PipelineResult`, `CommandDefinition` and `CommandContext` are the `afd.direct` dataclasses, not the core types. **16 are real gaps:** the batch and stream executors and their options, the registry and executor options types (`create_command_registry` and `execute_pipeline` take a `dev_mode` keyword instead), the exposure helpers, the timeout controller, progress-with-steps, `DEFAULT_RECONNECT_POLICY`, and the MCP error-code constants and notification and list types. **20 are TypeScript typing artifacts:** the condition guards, `ErrorCode`, `McpId` and similar. |
+| Rust | 9 | **Export artifacts:** `is_mcp_exposed` (`is_exposed_to(Mcp)`), `max_similarity_input_length` (at `afd::similarity`), `truncate_name` (private), `execute_batch` (a registry method). **A convenience:** `commands_to_mcp_tools`. **Real gaps:** `execute_stream` and `stream_executor_options`. **No dev mode:** `executor_options` and `command_registry_options`. |
 | C++ | 73 | **Deferred (33):** 26 MCP types and helpers, 4 telemetry, `CommandParameter`, and the 2 streamable-command names. **By design (25):** 21 typed condition types and guards, the timeout controller (2), `json_schema` and `create_command_registry`. **Cheap to close (15):** `is_mcp_exposed`, `command_to_mcp_tool`, `commands_to_mcp_tools`, `is_pipeline_condition` over JSON, `is_batch_command`, `is_pipeline_step`, `get_nested_value`, `stream_executor_options` (an alias of `StreamOptions`), `create_progress_chunk_with_steps`, and the 6 aggregation helpers. |
 
 The budgets in `alfred/tests/test_parity.py` equal these counts. Lower a budget in the same pull request that closes a gap.
@@ -307,11 +310,12 @@ The budgets in `alfred/tests/test_parity.py` equal these counts. Lower a budget 
 2. **Wire `spec/vectors/pipeline-variables.json` into the TypeScript, Python and Rust test suites.** Add vectors for validation (unknown keys, length units, messages) and for batch controls. The C++ work plan already recommends `batch-controls.json`.
 3. **Write the unknown and unexposed error codes into a spec,** and add the emitted codes to the `ErrorCodes` catalog.
 4. **Add an AFD-protocol conformance tier** that checks meta-tools, bootstrap, exposure, batch and pipeline over MCP. It should be optional per language, so Rust and C++ can join once they ship a server.
-5. **Python export cleanup:** resolve the `afd.direct` name collisions, then re-export the pipeline, similarity and registry contract. This removes 60 names from the budget.
+5. **Python export cleanup:** resolve the `afd.direct` name collisions, then re-export the pipeline, similarity and registry contract. This removes 61 names from the budget.
 6. **Decide the undeclared gaps** listed under [Declared deferred](#declared-deferred), and record each decision here.
 
 ## Keeping this current
 
 - Update the relevant row when a change adds, removes or changes a capability in any language. A change that closes a gap should also lower the `alfred` budget.
+- Update the Version and Contract rows with each release and each contract change (see [`spec/CHANGELOG.md`](../spec/CHANGELOG.md)). `node scripts/check-versions.mjs`, which `pnpm check` runs, fails when they disagree with the manifests or the contract constants.
 - Re-measure with `uv run --project alfred alfred parity --path .`. It exits 1 while any gap remains; `alfred/tests/test_parity.py` holds the budgets.
 - When TypeScript gains a shared capability, add a row with **No** or **Deferred** for the other languages, rather than leaving it out.

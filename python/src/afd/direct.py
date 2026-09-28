@@ -21,6 +21,7 @@ Pipeline Example:
 from __future__ import annotations
 
 import inspect
+import logging
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -36,7 +37,13 @@ from typing import (
     runtime_checkable,
 )
 
-from afd.core.result import CommandResult, coerce_command_result, failure, success
+from afd.core.result import (
+    CommandResult,
+    coerce_command_result,
+    execution_failure,
+    failure,
+    success,
+)
 from afd.core.errors import CommandError, not_found_error, validation_error
 from afd.core.similarity import find_similar_tools, truncate_name
 from afd.core.pipeline import (
@@ -50,6 +57,8 @@ from afd.core.pipeline import (
     resolve_variables,
 )
 from afd.core.pipeline_variables import MAX_INPUT_DEPTH, exceeds_depth
+
+logger = logging.getLogger("afd.direct")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -279,7 +288,12 @@ class RegisteredCommand:
 
 class SimpleRegistry:
     """Simple in-memory command registry.
-    
+
+    A handler that raises returns COMMAND_EXECUTION_ERROR with the message
+    "An internal error occurred", and the exception is logged to the
+    ``afd.direct`` logger. Pass ``dev_mode=True`` to return the exception
+    text instead.
+
     Example:
         >>> registry = SimpleRegistry()
         >>> 
@@ -291,8 +305,9 @@ class SimpleRegistry:
         >>> result = await client.call('hello', {'name': 'Agent'})
     """
     
-    def __init__(self):
+    def __init__(self, *, dev_mode: bool = False):
         self._commands: Dict[str, RegisteredCommand] = {}
+        self._dev_mode = dev_mode
     
     def command(
         self,
@@ -352,15 +367,10 @@ class SimpleRegistry:
             pass  # no introspectable signature: let the call decide
         try:
             return await cmd.handler(**kwargs)
-        except Exception as e:
+        except Exception as exc:
             # The handler itself failed: not the caller's input.
-            return failure(
-                CommandError(
-                    code="COMMAND_EXECUTION_ERROR",
-                    message=f"Command '{name}' failed: {e}",
-                    suggestion="Check the command implementation and retry",
-                )
-            )
+            logger.error("Command '%s' raised an unhandled exception", name, exc_info=exc)
+            return execution_failure(exc, self._dev_mode)
     
     def has_command(self, name: str) -> bool:
         """Check if command exists."""
@@ -841,9 +851,13 @@ def _validate_steps(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def create_registry() -> SimpleRegistry:
+def create_registry(*, dev_mode: bool = False) -> SimpleRegistry:
     """Create a new SimpleRegistry instance.
-    
+
+    Args:
+        dev_mode: Return a raising handler's exception text instead of
+            "An internal error occurred" (see :class:`SimpleRegistry`).
+
     Example:
         >>> registry = create_registry()
         >>> 
@@ -851,7 +865,7 @@ def create_registry() -> SimpleRegistry:
         ... async def ping():
         ...     return success({'status': 'ok'})
     """
-    return SimpleRegistry()
+    return SimpleRegistry(dev_mode=dev_mode)
 
 
 def create_direct_client(
