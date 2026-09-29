@@ -283,13 +283,17 @@ const response = await client.responses.create({
 
 ## Quick Reference: Model Selection
 
+Application API choices below are a 2026-09-29 snapshot, separate from the
+[development-agent routing policy](../../../docs/operations/model-routing.md).
+The listed prices are standard API token rates; they do not predict cost per
+accepted task. Verify current prices, API availability, prompt compatibility,
+and quality on representative evals before changing a production model.
+
 | Model | Input $/M | Output $/M | Best For |
 |---|---|---|---|
-| Claude Haiku 4.5 | $0.80 | $4.00 | Classification, routing, guardrail checks |
-| Claude Sonnet 4.5 | $3.00 | $15.00 | General tasks, code, analysis |
-| Claude Opus 4.5 | $15.00 | $75.00 | Complex reasoning, deep analysis |
-| GPT-4o | $2.50 | $10.00 | General tasks, vision, multilingual |
-| GPT-4o mini | $0.15 | $0.60 | Simple tasks, high volume, cost-sensitive |
+| [Claude Sonnet 5.5](https://www.anthropic.com/claude-sonnet-5-5) | $2.00 | $10.00 | Well-scoped everyday work, coding, documents |
+| [Claude Opus 5.5](https://www.anthropic.com/claude-sonnet-5-5) | $4.00 | $20.00 | Complex work requiring careful judgment |
+| [GPT-6.1 Sol](https://openai.com/index/introducing-gpt-6-1-sol/) | $2.00 | $10.00 | Coding and multistep professional work |
 
 ## Quick Reference: Embedding Models
 

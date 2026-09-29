@@ -60,7 +60,10 @@ landed (do not open a duplicate PR).
    (`git diff origin/main...HEAD` plus uncommitted work), then dispatch a fresh,
    independent reviewer that did not write the code: a subagent in Claude Code, or
    the equivalent in Codex. Give it the diff, the task's acceptance criteria and
-   the `review-code` methodology. Reviewers report and never edit; the session
+   the `review-code` methodology. Choose and pin the reviewer's available model
+   and effort using [development model routing](../../../docs/operations/model-routing.md)
+   and the review's actual risk; do not treat the routing table as a fixed reviewer
+   assignment. Reviewers report and never edit; the session
    fixes. An unavailable independent reviewer blocks Full mode: stop and report
    that review is incomplete rather than shipping on self-review alone. Converge
    with one broad pass and at most one focused verification pass. A third pass may
