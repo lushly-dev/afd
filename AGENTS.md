@@ -6,6 +6,10 @@ This file provides guidance to AI coding agents working with code in this reposi
 > This file is a routing table. See [afd skill](.claude/skills/afd/) for core AFD patterns.
 > **First time?** See [SETUP.md](SETUP.md) for installation, tooling, and environment setup.
 
+For development-agent model and effort choices, see
+[model routing](docs/operations/model-routing.md). Keep that routing separate
+from application LLM selection in `integrate-llms`.
+
 ## Commands
 
 | Command | Purpose |
