@@ -19,6 +19,7 @@ Example:
 """
 
 import asyncio
+import logging
 import math
 import time
 from enum import Enum
@@ -30,6 +31,8 @@ from pydantic import (
     Field,
     PrivateAttr,
     SerializerFunctionWrapHandler,
+    StrictBool,
+    ValidationInfo,
     field_serializer,
     field_validator,
 )
@@ -47,6 +50,7 @@ from afd.core.pipeline_variables import (
     json_equals,
     json_view,
     resolve_input,
+    resolve_operand,
     resolve_string,
 )
 from afd.core.result import (
@@ -54,8 +58,11 @@ from afd.core.result import (
     CommandResult,
     ResultMetadata,
     coerce_command_result,
+    execution_failure,
 )
-from afd.core.wire import WIRE_MODEL_CONFIG, WireModel
+from afd.core.wire import WIRE_MODEL_CONFIG, WireModel, json_number, omitted_not_null
+
+logger = logging.getLogger("afd.core")
 
 T = TypeVar("T")
 
@@ -69,7 +76,7 @@ class PipelineStep(WireModel):
     """A single step in a pipeline.
 
     Attributes:
-        command: Command name to execute.
+        command: Command name to execute. A blank name is rejected.
         input: Input for this step. Can reference outputs from previous steps
             using variables: $prev, $prev.field, $first, $steps[n], $steps.alias, $input
         as_: Optional alias for referencing this step's output (use as_ to avoid
@@ -93,14 +100,26 @@ class PipelineStep(WireModel):
     input: Optional[Dict[str, Any]] = None
     as_: Optional[str] = Field(default=None, alias="as")
     when: Optional["PipelineCondition"] = None
-    stream: Optional[bool] = None
+    stream: Optional[StrictBool] = None
+
+    @field_validator("command")
+    @classmethod
+    def _command_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("command must be a nonempty command name")
+        return value
+
+    @field_validator("input", "as_", "stream", mode="before")
+    @classmethod
+    def _not_null(cls, value: Any, info: ValidationInfo) -> Any:
+        return omitted_not_null(value, info)
 
     @field_validator("when", mode="before")
     @classmethod
-    def _check_when(cls, value: Any) -> Any:
+    def _check_when(cls, value: Any, info: ValidationInfo) -> Any:
         """Reject a malformed ``when`` with the exact problem, before any step runs."""
         if value is None:
-            return value
+            return omitted_not_null(value, info)
         problem = condition_error(value)
         if problem:
             raise ValueError(f"invalid when condition: {problem}")
@@ -117,13 +136,20 @@ class PipelineOptions(WireModel):
         timeout_ms: Timeout for entire pipeline in milliseconds.
         parallel: Reserved for dependency-aware parallel execution. True is
             rejected with UNSUPPORTED_OPTION.
+
+    The booleans accept only booleans, as in TypeScript.
     """
 
-    continue_on_failure: bool = False
+    continue_on_failure: StrictBool = False
     timeout_ms: Optional[int] = Field(default=None, ge=0)
-    parallel: bool = False
+    parallel: StrictBool = False
 
     model_config = ConfigDict(**WIRE_MODEL_CONFIG, extra="forbid")
+
+    @field_validator("timeout_ms", mode="before")
+    @classmethod
+    def _timeout_is_a_number(cls, value: Any, info: ValidationInfo) -> Any:
+        return json_number(value, info)
 
 
 class PipelineRequest(WireModel):
@@ -153,6 +179,11 @@ class PipelineRequest(WireModel):
     steps: List[PipelineStep]
     options: Optional[PipelineOptions] = None
     input: Optional[Dict[str, Any]] = None
+
+    @field_validator("id", "options", mode="before")
+    @classmethod
+    def _not_null(cls, value: Any, info: ValidationInfo) -> Any:
+        return omitted_not_null(value, info)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -597,8 +628,10 @@ def condition_error(condition: Any, depth: int = 1) -> Optional[str]:
 def evaluate_condition(condition: PipelineCondition, context: PipelineContext) -> bool:
     """Evaluate a pipeline condition against the current context.
 
-    An unresolved reference is absent: ``$exists`` is False and every
-    comparison with an absent operand is False. Malformed conditions are False.
+    The first operand of every comparison is a reference. A string that is not
+    a reference (``"$$prev"``, ``"text"``) or a reference that cannot be
+    resolved is absent: ``$exists`` is False and every comparison with an
+    absent operand is False. Malformed conditions are False.
     """
     parts = _condition_parts(condition)
     if parts is None:
@@ -609,15 +642,13 @@ def evaluate_condition(condition: PipelineCondition, context: PipelineContext) -
         return _lookup_root(reference, context)
 
     if operator == "$exists":
-        if not isinstance(operand, str):
-            return False
-        value = resolve_string(operand, lookup)
+        value = resolve_operand(operand, lookup)
         return value is not ABSENT and value is not None
 
     if operator in ("$eq", "$ne") or operator in _COMPARISONS:
         if not _is_ref_pair(operand):
             return False
-        value = resolve_string(operand[0], lookup)
+        value = resolve_operand(operand[0], lookup)
         if value is ABSENT:
             return False
         expected = operand[1]
@@ -910,24 +941,22 @@ async def _call_step(
     executor: Callable[[str, Dict[str, Any]], Any],
     command: str,
     payload: Dict[str, Any],
+    dev_mode: bool,
 ) -> Any:
-    """Run one step. An exception from the executor becomes a failed result."""
+    """Run one step. An exception from the executor becomes a failed result
+    whose message is redacted unless ``dev_mode`` is set."""
     try:
         return await executor(command, payload)
     except Exception as exc:
-        return CommandResult(
-            success=False,
-            error=CommandError(
-                code="COMMAND_EXECUTION_ERROR",
-                message=str(exc),
-                suggestion="Check the command implementation and retry",
-            ),
-        )
+        logger.error("Pipeline step '%s' raised an unhandled exception", command, exc_info=exc)
+        return execution_failure(exc, dev_mode)
 
 
 async def execute_pipeline(
     request: PipelineRequest,
     executor: Callable[[str, Dict[str, Any]], Any],
+    *,
+    dev_mode: bool = False,
 ) -> PipelineResult[Any]:
     """Execute a pipeline of chained commands.
 
@@ -940,10 +969,16 @@ async def execute_pipeline(
     for ``parallel``) with UNSUPPORTED_OPTION and skip every other step, so no
     command runs.
 
+    An exception the executor raises fails its step with
+    COMMAND_EXECUTION_ERROR and the generic message "An internal error
+    occurred"; the exception is logged to the ``afd.core`` logger.
+
     Args:
         request: The pipeline request with steps and options.
         executor: Async function to execute individual commands.
             Signature: async def executor(command: str, input: dict) -> CommandResult
+        dev_mode: Put the exception text in a raising step's error message
+            instead of the generic one.
 
     Returns:
         The pipeline result with aggregated metadata.
@@ -1030,10 +1065,11 @@ async def execute_pipeline(
                 if remaining_s <= 0:
                     raise asyncio.TimeoutError
                 raw_result = await asyncio.wait_for(
-                    _call_step(executor, step.command, resolved_input), timeout=remaining_s
+                    _call_step(executor, step.command, resolved_input, dev_mode),
+                    timeout=remaining_s,
                 )
             else:
-                raw_result = await _call_step(executor, step.command, resolved_input)
+                raw_result = await _call_step(executor, step.command, resolved_input, dev_mode)
         except asyncio.TimeoutError:
             timeout_error = CommandError(
                 code="PIPELINE_TIMEOUT",

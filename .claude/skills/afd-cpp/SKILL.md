@@ -22,7 +22,7 @@ C++ matches the AFD contract that TypeScript, Python and Rust share. The behavio
 the TypeScript server engine.
 
 - **Wire shapes** must round-trip every `spec/wire` fixture (`tests/wire_fixtures_test.cpp`).
-- **Pipeline references and conditions** must match `spec/vectors/pipeline-variables.json`, which is generated from TypeScript.
+- **Behavior vectors** in `spec/vectors`, generated from TypeScript, must pass: pipeline references and conditions (`tests/vectors_test.cpp`), and batch and pipeline controls on a `ManualClock` (`tests/batch_vectors_test.cpp`).
 - **Error codes, messages and suggestions** in results are copied verbatim from TypeScript.
 - **Names follow TypeScript,** in snake_case for functions and PascalCase for types (`alfred parity` compares them). There are two exceptions:
   - `requires` is `prerequisites`, because `requires` is a C++20 keyword.
@@ -32,7 +32,7 @@ the TypeScript server engine.
 ## Build and Include
 
 ```cmake
-# From this repository, or FetchContent / find_package once released.
+# From this repository, or FetchContent (GIT_TAG cpp-vX.Y.Z) / find_package once released.
 add_subdirectory(path/to/afd/packages/cpp afd)
 target_link_libraries(my_app PRIVATE afd::afd)
 ```
@@ -258,7 +258,6 @@ cross-language matrix is [`docs/language-parity.md`](../../../docs/language-pari
 **Internal, and cheap to expose:** the pipeline aggregation helpers, `get_nested_value`, `is_batch_command` and `is_pipeline_step`.
 
 **Divergences a caller can see:**
-- Error suggestions name `afd-discover` and `afd-context-*`, which C++ does not provide.
 - `output_schema` and `prerequisites` are stored but never emitted.
 - The JSON Schema subset rejects `pattern`, `format`, `const` and the combinators.
 

@@ -43,7 +43,7 @@ struct ErrorOptions {
     std::optional<Json> details;
 };
 
-/// The standard error codes (TypeScript `ErrorCodes`), plus the codes AFD's executors use.
+/// The shared error-code catalog in spec/error-codes.md (TypeScript `ErrorCodes`).
 namespace error_codes {
 // Validation
 inline constexpr char VALIDATION_ERROR[] = "VALIDATION_ERROR";
@@ -79,6 +79,12 @@ inline constexpr char COMMAND_NOT_IN_CONTEXT[] = "COMMAND_NOT_IN_CONTEXT";
 inline constexpr char COMMAND_NOT_EXPOSED[] = "COMMAND_NOT_EXPOSED";
 inline constexpr char COMMAND_NOT_ALLOWED[] = "COMMAND_NOT_ALLOWED";
 inline constexpr char UNKNOWN_TOOL[] = "UNKNOWN_TOOL";
+inline constexpr char AMBIGUOUS_ACTION[] = "AMBIGUOUS_ACTION";
+inline constexpr char INVALID_GROUPED_CALL[] = "INVALID_GROUPED_CALL";
+// Contexts
+inline constexpr char SESSION_REQUIRED[] = "SESSION_REQUIRED";
+inline constexpr char CONTEXT_NOT_FOUND[] = "CONTEXT_NOT_FOUND";
+inline constexpr char CONTEXT_DEPTH_EXCEEDED[] = "CONTEXT_DEPTH_EXCEEDED";
 // Batch and pipeline
 inline constexpr char INVALID_BATCH_REQUEST[] = "INVALID_BATCH_REQUEST";
 inline constexpr char INVALID_PIPELINE_REQUEST[] = "INVALID_PIPELINE_REQUEST";

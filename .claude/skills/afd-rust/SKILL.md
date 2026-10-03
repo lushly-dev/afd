@@ -24,6 +24,7 @@ Rust implementations SHOULD match the shared AFD capability set and agent-visibl
 - React or browser integrations SHOULD stay in examples or ecosystem layers.
 - Cross-language parity does NOT require a 1:1 port of TypeScript or Python helper names.
 - Shared parity features to evaluate include output schemas, validated examples, prerequisite metadata, context scoping, grouped/lazy discovery strategies, and the common meta-tool patterns exposed to agents.
+- Behavior vectors in `spec/vectors`, generated from TypeScript, must pass: pipeline references and conditions (`tests/pipeline_vectors.rs`), and batch and pipeline controls on Tokio's paused clock (`tests/batch_controls_vectors.rs`).
 
 ## Crate Imports
 
@@ -32,7 +33,7 @@ Rust implementations SHOULD match the shared AFD capability set and agent-visibl
 use afd::{
     success, failure, success_with,
     CommandResult, ResultOptions,
-    is_success, is_failure,
+    is_success, is_failure, execution_failure,
 };
 
 // Error types
@@ -312,9 +313,12 @@ registry.add_middleware(logging);
 // - rejects an unknown name (COMMAND_NOT_FOUND) with up to three close matches, as in TypeScript,
 //   drawn only from commands exposed to the context's interface, and a pointer to afd-help
 //   when the caller can call it (TypeScript points to afd-discover, which Rust does not have),
-// - validates input against `parameters` and fills defaults (VALIDATION_ERROR),
+// - validates input against `parameters`, fills defaults and drops undeclared keys, as Zod does
+//   in TypeScript (VALIDATION_ERROR, "Input validation failed"; see Current Parity Note),
 // - checks `expose` when the context names an interface (COMMAND_NOT_EXPOSED),
 // - applies `timeout_ms` (TIMEOUT; needs the `native` feature).
+// A panic in middleware or the handler becomes COMMAND_EXECUTION_ERROR with the redacted
+// message "An internal error occurred", as TypeScript does outside devMode.
 let context = CommandContext::new()
     .with_interface(CommandInterface::Mcp)
     .with_timeout(5_000);
@@ -342,7 +346,7 @@ let request = BatchRequest::new(vec![
 .with_options(BatchOptions::new().with_parallelism(4).with_timeout(5_000.0));
 
 // Execute batch. `result.success` is true whenever the batch ran, even if some
-// commands failed; a panicking handler becomes an INTERNAL_ERROR for that command.
+// commands failed; a panicking handler becomes a COMMAND_EXECUTION_ERROR for that command.
 // Every entry runs through `execute` (validation, exposure, middleware).
 let result = registry.execute_batch(request).await;
 
@@ -387,17 +391,22 @@ let chunk: StreamChunk = progress.into();
 
 ## Current Parity Note
 
-The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-parity.md). `alfred parity` reports 10 names missing from Rust, and most of those are export artifacts. The real gaps are behavioral.
+The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-parity.md). `alfred parity` reports 9 names missing from Rust, and most of those are export artifacts. The real gaps are behavioral.
 
 - **Shared with TypeScript today:**
   - wire shapes (round-trip `spec/wire`);
-  - enforced exposure and input validation;
+  - the behavior vectors in `spec/vectors`;
+  - enforced exposure;
+  - input validation in the engine's shape (`packages/server/src/execution.ts`, `validation.ts`): `VALIDATION_ERROR` has the message `Input validation failed` and the issues in `suggestion`, formatted as `formatEnhancedValidationError` does. `details` holds `errors` (`path` joined with dots or `(root)`, `message`, a Zod `code`, and `expected` for `invalid_type`), `expectedFields`, and `unexpectedFields`/`missingFields` when they are not empty;
+  - undeclared keys dropped before middleware and the handler, including in nested objects whose schema lists `properties` and has no `additionalProperties`;
   - the middleware chain;
   - `requires` and `contexts` metadata;
   - bootstrap commands (`register_bootstrap_commands`);
   - batch execution (`CommandRegistry::execute_batch`) and pipelines per `spec/pipeline-variables.md`;
+  - crash handling: a handler panic in `execute`, a batch or a pipeline becomes the redacted `COMMAND_EXECUTION_ERROR` (`execution_failure`);
+  - `is_success` and `is_failure` test only `success`;
   - stream chunk types;
-  - similarity helpers;
+  - similarity helpers and name truncation, which count UTF-16 code units (`packages/core/src/similarity.ts`): echoed unknown names are cut to 128 units, and `find_similar_tools` and `calculate_similarity` measure lengths and edit distance in units;
   - handoff and telemetry types.
 - **Not in the crate yet:**
   - an MCP server, tool strategies and meta-tools;
@@ -405,11 +414,14 @@ The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-
   - built-in middleware (trace ID, logging, timing, retry, rate limit, telemetry);
   - active-context scoping (`contexts` is metadata; use `CommandDefinition::is_accessible_in_context`);
   - result metadata stamping and `onCommand` hooks;
+  - a registry dev mode: panic details are always redacted;
   - `destructive`, `confirmPrompt` and `undoable`.
-- **Known divergences from TypeScript:**
-  - single `execute` does not catch handler panics, and batch and pipeline report them as `INTERNAL_ERROR` rather than `COMMAND_EXECUTION_ERROR`;
-  - `is_success` requires `data`;
-  - undeclared input keys reach handlers;
+- **Known divergences from TypeScript** (the validation ones are listed in `packages/rust/README.md`, "Command registry"):
+  - each issue `message` uses the crate's own wording;
+  - `details.errors` holds at most 50 issues and `suggestion` at most 5;
+  - a command without `parameters` gets its input unchanged;
+  - a top-level `null` parameter counts as absent ([#282](https://github.com/lushly-dev/afd/issues/282));
+  - a `default` inside a parameter's `schema` is advertised but not applied ([#284](https://github.com/lushly-dev/afd/issues/284));
   - examples are not validated.
 - **Parity decisions** SHOULD compare agent-visible behavior first, then record Rust-specific gaps in the matrix instead of assuming every TypeScript or Python feature already exists in the crate.
 
@@ -499,6 +511,10 @@ fn process_result<T>(result: &CommandResult<T>) {
     }
 }
 ```
+
+As in TypeScript, the guards test only `success`: every result is exactly one of the two, and a
+result from another peer can be a success without `data` or a failure without `error`. Read both
+as `Option`.
 
 ## Error Handling Patterns
 

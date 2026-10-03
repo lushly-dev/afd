@@ -1,15 +1,22 @@
 # Changelog
 
-All notable changes to afd-cpp are documented here. The package is versioned independently of the npm packages (proposal D11) and is released with tags of the form `afd-cpp-vX.Y.Z`.
+All notable changes to afd-cpp are documented here. The package is versioned independently of the npm packages (proposal D11) and is released with tags of the form `cpp-vX.Y.Z`.
 
 ## Unreleased
 
 ### Changed
 
 - Renamed to match TypeScript: `Handler` → `CommandHandler`, `Middleware` → `CommandMiddleware`, `RegistryOptions` → `CommandRegistryOptions`.
+- Error suggestions name only tools the host provides (`spec/error-codes.md`, D4). An unknown command's suggestion ends with "Use afd-help to list all commands." when the caller can call `afd-help`, otherwise "Check the command name against the available commands.", instead of naming `afd-discover`. `COMMAND_NOT_IN_CONTEXT` names the contexts the command belongs to instead of the `afd-context-*` tools.
+
+### Fixed
+
+- `DirectClient::call` with `timeout_ms` no longer drops the caller's cancellation token. The call's deadline token now chains to it, as batch and pipeline execution do and as TypeScript does with `AbortSignal.any`. Cancelling the caller, or a `DirectClient::pipe` step passing the pipeline's deadline, now reaches the handler. Only the call's own deadline produces TIMEOUT.
 
 ### Added
 
+- **Error codes:** `error_codes` adds `AMBIGUOUS_ACTION`, `INVALID_GROUPED_CALL`, `SESSION_REQUIRED`, `CONTEXT_NOT_FOUND` and `CONTEXT_DEPTH_EXCEEDED`, completing the 42-code shared catalog of `spec/error-codes.md`. `vectors_test.cpp` checks it against `spec/vectors/error-codes.json`.
+- **Contract version:** `afd::contract_version` in `afd/version.hpp` is the AFD contract version this library implements (`spec/VERSION`, now `1.0-rc`).
 - **Packaging:**
   - install rules and a relocatable CMake package: `find_package(afd 0.1 CONFIG)` provides `afd::afd`, with `SameMinorVersion` compatibility;
   - when afd downloads nlohmann/json, the install includes it;
@@ -39,6 +46,7 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
   - `consume_stream`, `collect_stream_data`, and the chunk factories.
 - **Runtime.** `TaskRunner` (`InlineTaskRunner`, `ThreadTaskRunner`), and `CancellationSource` chaining to a parent token.
 - **`spec/vectors/pipeline-variables.json`,** generated from TypeScript. The C++ resolver and conditions must match it.
+- **`spec/vectors/batch-controls.json`:** `tests/batch_vectors_test.cpp` runs its batch and pipeline cases on a `ManualClock`. afd-cpp matched TypeScript on every case without changes (#317).
 - **Fuzz targets** (`AFD_BUILD_FUZZERS`), and TSan and fuzz-smoke CI jobs.
 - `CommandRegistry`:
   - `register_command` rejects invalid, reserved and duplicate names, a missing handler, unsupported schemas, and examples that fail their schema.

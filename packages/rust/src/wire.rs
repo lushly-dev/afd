@@ -101,6 +101,38 @@ where
     deserializer.deserialize_option(PresentVisitor(PhantomData))
 }
 
+/// Deserialize an optional field that may be omitted but not `null`, as
+/// TypeScript's envelope validation requires. Use with `#[serde(default)]`,
+/// which keeps a missing field `None`.
+pub(crate) fn non_null<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    T::deserialize(deserializer).map(Some)
+}
+
+/// Whether `text` is empty after JavaScript's `String.prototype.trim()`.
+///
+/// JavaScript's whitespace differs from [`char::is_whitespace`] in two code
+/// points: it includes U+FEFF and excludes U+0085.
+pub(crate) fn is_blank(text: &str) -> bool {
+    text.chars()
+        .all(|c| c == '\u{feff}' || (c.is_whitespace() && c != '\u{85}'))
+}
+
+/// Deserialize a command name that is not blank (see [`is_blank`]).
+pub(crate) fn nonblank<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    let text = String::deserialize(deserializer)?;
+    if is_blank(&text) {
+        return Err(de::Error::invalid_value(
+            de::Unexpected::Str(&text),
+            &"a nonblank command name",
+        ));
+    }
+    Ok(text)
+}
+
 #[cfg(test)]
 mod tests {
     use serde::{Deserialize, Serialize};
@@ -166,5 +198,33 @@ mod tests {
         assert_eq!(string.data, None);
         let present: Holder<String> = serde_json::from_str(r#"{"data":"x"}"#).unwrap();
         assert_eq!(present.data, Some("x".to_string()));
+    }
+
+    #[derive(Deserialize, Debug, PartialEq)]
+    struct Envelope {
+        #[serde(default, deserialize_with = "super::non_null")]
+        id: Option<String>,
+        #[serde(deserialize_with = "super::nonblank")]
+        command: String,
+    }
+
+    #[test]
+    fn non_null_accepts_a_missing_field_and_rejects_null() {
+        let missing: Envelope = serde_json::from_str(r#"{"command":"a-b"}"#).unwrap();
+        assert_eq!(missing.id, None);
+        let present: Envelope = serde_json::from_str(r#"{"id":"x","command":"a-b"}"#).unwrap();
+        assert_eq!(present.id.as_deref(), Some("x"));
+        assert!(serde_json::from_str::<Envelope>(r#"{"id":null,"command":"a-b"}"#).is_err());
+    }
+
+    #[test]
+    fn blank_follows_javascript_trim() {
+        for blank in ["", " ", "\t\n", "\u{a0}\u{2028}", "\u{feff}", "\u{3000}"] {
+            assert!(super::is_blank(blank), "{blank:?} is blank");
+        }
+        for text in ["a", " a ", "\u{85}"] {
+            assert!(!super::is_blank(text), "{text:?} is not blank");
+        }
+        assert!(serde_json::from_str::<Envelope>(r#"{"command":"  "}"#).is_err());
     }
 }

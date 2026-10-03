@@ -227,24 +227,55 @@ async fn test_batch_honors_deadline_and_max_failures() {
 }
 
 #[tokio::test]
-async fn test_batch_rejects_invalid_options() {
-    let (registry, _) = work_registry();
-    for options in [
-        BatchOptions::new().with_parallelism(0),
-        BatchOptions::new().with_timeout(-5.0),
-        BatchOptions::new().with_timeout(f64::NAN),
+async fn test_batch_rejects_invalid_envelopes_before_running() {
+    let (registry, peak) = work_registry();
+    let command = || BatchCommand::new("work-run", serde_json::json!({}));
+    let with_options = |options| BatchRequest::new(vec![command()]).with_options(options);
+    for request in [
+        BatchRequest::new(vec![]),
+        BatchRequest::new(vec![
+            command(),
+            BatchCommand::new(" \t", serde_json::json!({})),
+        ]),
+        with_options(BatchOptions::new().with_parallelism(0)),
+        with_options(BatchOptions::new().with_max_failures(0)),
+        with_options(BatchOptions::new().with_timeout(-5.0)),
+        with_options(BatchOptions::new().with_timeout(f64::NAN)),
     ] {
-        let result = registry
-            .execute_batch(
-                BatchRequest::new(vec![BatchCommand::new("work-run", serde_json::json!({}))])
-                    .with_options(options),
-            )
-            .await;
+        let result = registry.execute_batch(request).await;
         assert!(!result.success);
-        assert_eq!(result.error.as_ref().unwrap().code, "INVALID_BATCH_REQUEST");
+        assert!(result.results.is_empty());
+        let error = result.error.as_ref().unwrap();
+        assert_eq!(error.code, "INVALID_BATCH_REQUEST");
+        assert_eq!(error.message, "Invalid batch request envelope");
     }
-    let empty = registry.execute_batch(BatchRequest::new(vec![])).await;
-    assert!(!empty.success);
+    assert_eq!(peak.load(Ordering::SeqCst), 0);
+}
+
+/// Deadlines and durations read Tokio's clock (see `mod time` in `lib.rs`),
+/// so they agree with `tokio::time::timeout` when a test pauses it.
+#[cfg(feature = "native")]
+#[tokio::test(start_paused = true)]
+async fn test_batch_times_follow_a_paused_tokio_clock() {
+    let (registry, _) = work_registry();
+    let result = registry
+        .execute_batch(
+            BatchRequest::new(vec![
+                BatchCommand::new("work-run", serde_json::json!({})),
+                BatchCommand::new("work-run", serde_json::json!({})),
+            ])
+            .with_options(BatchOptions::new().with_timeout(15.0)),
+        )
+        .await;
+
+    // work-run takes 10 ms, so the second command has 5 ms left.
+    assert!(result.results[0].result.success);
+    assert_eq!(result.results[0].duration_ms, 10.0);
+    let error = result.results[1].result.error.as_ref().unwrap();
+    assert_eq!(error.code, "BATCH_TIMEOUT");
+    assert_eq!(error.message, "Batch timeout exceeded (15ms)");
+    assert_eq!(result.results[1].duration_ms, 5.0);
+    assert_eq!(result.timing.total_ms, 15.0);
 }
 
 #[tokio::test]
@@ -261,15 +292,7 @@ async fn test_batch_huge_timeout_does_not_overflow() {
 
 #[tokio::test]
 async fn test_batch_panicking_handler_keeps_other_results() {
-    let registry = CommandRegistry::new();
-    registry
-        .register(CommandDefinition::new(
-            "panic-run",
-            "Panics on request",
-            vec![],
-            PanickingHandler,
-        ))
-        .unwrap();
+    let registry = panic_registry();
     let request = BatchRequest::new(vec![
         BatchCommand::new("panic-run", serde_json::json!({"n": 1})),
         BatchCommand::new("panic-run", serde_json::json!({"panic": true})),
@@ -285,15 +308,90 @@ async fn test_batch_panicking_handler_keeps_other_results() {
         result.results[0].result.data,
         Some(serde_json::json!({"n": 1}))
     );
-    let error = result.results[1].result.error.as_ref().unwrap();
-    assert_eq!(error.code, "INTERNAL_ERROR");
-    assert!(!error.message.contains("handler bug"));
+    assert_execution_failure(&result.results[1].result);
     assert_eq!(
         result.results[2].result.data,
         Some(serde_json::json!({"n": 3}))
     );
     assert_eq!(result.summary.success_count, 2);
     assert_eq!(result.summary.failure_count, 1);
+}
+
+fn panic_registry() -> CommandRegistry {
+    let registry = CommandRegistry::new();
+    registry
+        .register(CommandDefinition::new(
+            "panic-run",
+            "Panics on request",
+            vec![],
+            PanickingHandler,
+        ))
+        .unwrap();
+    registry
+}
+
+/// Asserts `result` is the redacted crash failure, with no panic text.
+fn assert_execution_failure(result: &CommandResult<serde_json::Value>) {
+    assert!(!result.success);
+    let error = result.error.as_ref().unwrap();
+    assert_eq!(error.code, error_codes::COMMAND_EXECUTION_ERROR);
+    assert_eq!(error.message, "An internal error occurred");
+    assert_eq!(
+        error.suggestion.as_deref(),
+        Some("Contact support if this persists")
+    );
+    assert!(error.details.is_none());
+}
+
+#[tokio::test]
+async fn test_execute_turns_a_handler_panic_into_execution_failure() {
+    let registry = panic_registry();
+
+    let result = registry
+        .execute("panic-run", serde_json::json!({"panic": true}), None)
+        .await;
+    assert_execution_failure(&result);
+
+    // The registry is still usable after a handler panicked.
+    let result = registry
+        .execute("panic-run", serde_json::json!({"n": 1}), None)
+        .await;
+    assert_eq!(result.data, Some(serde_json::json!({"n": 1})));
+}
+
+#[cfg(feature = "native")]
+#[tokio::test]
+async fn test_execute_with_timeout_turns_a_handler_panic_into_execution_failure() {
+    let result = panic_registry()
+        .execute(
+            "panic-run",
+            serde_json::json!({"panic": true}),
+            Some(CommandContext::new().with_timeout(5_000)),
+        )
+        .await;
+    assert_execution_failure(&result);
+}
+
+#[tokio::test]
+async fn test_execute_turns_a_middleware_panic_into_execution_failure() {
+    // One layer panics while building its future, the other while it runs.
+    for panic_while_building in [true, false] {
+        let registry = panic_registry();
+        registry.add_middleware(Arc::new(move |_name, _input, _context, next| {
+            if panic_while_building {
+                panic!("middleware bug before the future");
+            }
+            Box::pin(async move {
+                let _ = next().await;
+                panic!("middleware bug in the future");
+            })
+        }));
+
+        let result = registry
+            .execute("panic-run", serde_json::json!({"n": 1}), None)
+            .await;
+        assert_execution_failure(&result);
+    }
 }
 
 #[test]
@@ -557,14 +655,15 @@ async fn test_execute_validates_input_before_the_handler() {
         assert!(error
             .suggestion
             .as_deref()
-            .is_some_and(|suggestion| suggestion.contains("title (string, required)")));
+            .is_some_and(|suggestion| suggestion.ends_with("Expected fields: title, priority")));
     }
     assert!(missing
         .error
         .as_ref()
         .unwrap()
-        .message
-        .contains("title is required"));
+        .suggestion
+        .as_deref()
+        .is_some_and(|suggestion| suggestion.starts_with("title: is required")));
     assert_eq!(calls.load(Ordering::SeqCst), 0, "the handler must not run");
 }
 
@@ -950,4 +1049,136 @@ async fn test_command_not_found_truncates_long_names() {
     let message = result.error.unwrap().message;
     assert!(message.len() < 200, "{} bytes echoed", message.len());
     assert!(message.contains('…'));
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// PARITY WITH THE TYPESCRIPT ENGINE
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Expected values come from running the same input through
+// `packages/server/src/execution.ts` and `packages/core/src/similarity.ts`.
+
+#[tokio::test]
+async fn test_validation_failure_matches_typescript() {
+    let (registry, _) = validating_registry();
+
+    let result = registry
+        .execute(
+            "todo-create",
+            serde_json::json!({"title": 7, "priority": "urgent", "typo": true}),
+            None,
+        )
+        .await;
+
+    let error = result.error.unwrap();
+    assert_eq!(error.message, "Input validation failed");
+    assert_eq!(
+        error.suggestion.as_deref(),
+        Some(
+            "- title: must be a string, got number\n\
+             - priority: must be one of \"low\", \"medium\", \"high\". \
+             Unknown field(s): typo. Expected fields: title, priority"
+        )
+    );
+    assert_eq!(
+        serde_json::to_value(error.details.unwrap()).unwrap(),
+        serde_json::json!({
+            "errors": [
+                {
+                    "path": "title",
+                    "message": "must be a string, got number",
+                    "code": "invalid_type",
+                    "expected": "string",
+                },
+                {
+                    "path": "priority",
+                    "message": "must be one of \"low\", \"medium\", \"high\"",
+                    "code": "invalid_value",
+                },
+            ],
+            "expectedFields": ["title", "priority"],
+            "unexpectedFields": ["typo"],
+        })
+    );
+}
+
+#[tokio::test]
+async fn test_missing_field_failure_matches_typescript() {
+    let (registry, _) = validating_registry();
+
+    let result = registry
+        .execute("todo-create", serde_json::json!({}), None)
+        .await;
+
+    let error = result.error.unwrap();
+    assert_eq!(error.message, "Input validation failed");
+    assert_eq!(
+        error.suggestion.as_deref(),
+        Some(
+            "title: is required. Missing required field(s): title. \
+             Expected fields: title, priority"
+        )
+    );
+    assert_eq!(
+        serde_json::to_value(error.details.unwrap()).unwrap(),
+        serde_json::json!({
+            "errors": [{
+                "path": "title",
+                "message": "is required",
+                "code": "invalid_type",
+                "expected": "string",
+            }],
+            "expectedFields": ["title", "priority"],
+            "missingFields": ["title"],
+        })
+    );
+}
+
+#[tokio::test]
+async fn test_handler_and_middleware_never_see_undeclared_keys() {
+    let (registry, _) = validating_registry();
+    let seen: Log = Arc::default();
+    let log = Arc::clone(&seen);
+    registry.add_middleware(Arc::new(move |_name, input, _context, next| {
+        log.lock().unwrap().push(input.to_string());
+        next()
+    }));
+
+    let result = registry
+        .execute(
+            "todo-create",
+            serde_json::json!({"title": "Buy milk", "typo": true, "__proto__": {}}),
+            None,
+        )
+        .await;
+
+    let expected = serde_json::json!({"title": "Buy milk", "priority": "medium"});
+    assert_eq!(result.data.unwrap()["input"], expected);
+    assert_eq!(*seen.lock().unwrap(), vec![expected.to_string()]);
+}
+
+#[test]
+fn test_truncate_name_counts_utf16_code_units() {
+    let emoji = "\u{1F600}";
+    // A surrogate pair that would straddle the cut is dropped whole.
+    assert_eq!(
+        truncate_name(&format!("{}{emoji}tail", "a".repeat(127))),
+        format!("{}…", "a".repeat(127))
+    );
+    assert_eq!(
+        truncate_name(&format!("{}{emoji}", "a".repeat(128))),
+        format!("{}…", "a".repeat(128))
+    );
+    // 64 emoji are 128 code units: not cut. 65 are cut after 64.
+    assert_eq!(truncate_name(&emoji.repeat(64)), emoji.repeat(64));
+    assert_eq!(
+        truncate_name(&emoji.repeat(65)),
+        format!("{}…", emoji.repeat(64))
+    );
+    // A BMP character is one code unit however many bytes it takes.
+    assert_eq!(
+        truncate_name(&"é".repeat(200)),
+        format!("{}…", "é".repeat(128))
+    );
+    assert_eq!(truncate_name("todo-create"), "todo-create");
 }

@@ -1035,7 +1035,6 @@ class TestReporter:
         assert len(data) == 1
 
     def test_failed_scenario_shows_errors(self):
-        now = datetime.now(timezone.utc)
         output = StringIO()
         reporter = TerminalReporter(format='human', colors=False, output=output)
         result = self._make_result(

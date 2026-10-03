@@ -89,18 +89,14 @@ interface PerCommandOptions extends ConnectFlags {
 	verbose?: boolean;
 }
 
-/** `_meta` as servers may emit it; `destructive` is not part of the core type. */
-type ToolMeta = NonNullable<McpTool['_meta']> & { destructive?: unknown };
-
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** Why `--execute` must not call a tool, or undefined when calling it is safe. */
 export function getExecutionSkipReason(tool: McpTool): string | undefined {
-	const meta = tool._meta as ToolMeta | undefined;
-	if (meta?.mutation === true) return 'mutation: true';
-	if (meta?.destructive === true) return 'destructive: true';
+	if (tool._meta?.mutation === true) return 'mutation: true';
+	if (tool._meta?.destructive === true) return 'destructive: true';
 	return undefined;
 }
 

@@ -3,6 +3,7 @@ afd_fetch_doctest()
 add_executable(
     afd_tests
     batch_test.cpp
+    batch_vectors_test.cpp
     command_test.cpp
     direct_client_test.cpp
     handoff_test.cpp
@@ -32,6 +33,9 @@ target_compile_definitions(afd_tests PRIVATE AFD_WIRE_DIR="${afd_wire_dir}")
 # Language-neutral behavior vectors, generated from the TypeScript implementation.
 cmake_path(SET afd_vectors_dir NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/vectors")
 target_compile_definitions(afd_tests PRIVATE AFD_VECTORS_DIR="${afd_vectors_dir}")
+# The AFD contract version that afd::contract_version must match.
+cmake_path(SET afd_spec_version_file NORMALIZE "${PROJECT_SOURCE_DIR}/../../spec/VERSION")
+target_compile_definitions(afd_tests PRIVATE AFD_SPEC_VERSION_FILE="${afd_spec_version_file}")
 # The todo example's shared contract, whose input schemas the validator must accept.
 cmake_path(SET afd_todo_spec_dir NORMALIZE "${PROJECT_SOURCE_DIR}/../examples/todo/spec")
 target_compile_definitions(afd_tests PRIVATE AFD_TODO_SPEC_DIR="${afd_todo_spec_dir}")

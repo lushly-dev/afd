@@ -19,11 +19,11 @@ Example:
 from datetime import datetime, timezone
 from typing import Any, Generic, List, Optional, TypeVar
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, StrictBool, ValidationInfo, field_validator
 
 from afd.core.errors import CommandError
 from afd.core.result import CommandResult, ResultMetadata
-from afd.core.wire import WIRE_MODEL_CONFIG, WireModel
+from afd.core.wire import WIRE_MODEL_CONFIG, WireModel, json_number, omitted_not_null
 
 T = TypeVar("T")
 
@@ -38,7 +38,7 @@ class BatchCommand(WireModel):
 
     Attributes:
         id: Optional client-provided ID for correlating results.
-        command: The command name to execute.
+        command: The command name to execute. A blank name is rejected.
         input: Input parameters for the command.
 
     Example:
@@ -51,12 +51,25 @@ class BatchCommand(WireModel):
     command: str
     input: Any = None
 
+    @field_validator("id", mode="before")
+    @classmethod
+    def _id_not_null(cls, value: Any, info: ValidationInfo) -> Any:
+        return omitted_not_null(value, info)
+
+    @field_validator("command")
+    @classmethod
+    def _command_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("command must be a nonempty command name")
+        return value
+
 
 class BatchOptions(WireModel):
     """Options for batch execution.
 
     Attributes:
-        stop_on_error: Whether to stop execution on first error.
+        stop_on_error: Whether to stop execution on first error. Only a
+            boolean is accepted, as in TypeScript.
         timeout: Timeout in milliseconds for the entire batch.
         parallelism: Maximum number of commands to execute in parallel.
 
@@ -64,11 +77,16 @@ class BatchOptions(WireModel):
         >>> opts = BatchOptions(stop_on_error=True, parallelism=4)
     """
 
-    stop_on_error: bool = False
+    stop_on_error: StrictBool = False
     timeout: Optional[int] = Field(default=None, ge=0)
     parallelism: int = Field(default=1, ge=1)
 
     model_config = ConfigDict(**WIRE_MODEL_CONFIG, extra="forbid")
+
+    @field_validator("timeout", "parallelism", mode="before")
+    @classmethod
+    def _numbers(cls, value: Any, info: ValidationInfo) -> Any:
+        return json_number(value, info)
 
 
 class BatchRequest(WireModel):
@@ -89,6 +107,11 @@ class BatchRequest(WireModel):
 
     commands: List[BatchCommand]
     options: Optional[BatchOptions] = None
+
+    @field_validator("options", mode="before")
+    @classmethod
+    def _options_not_null(cls, value: Any, info: ValidationInfo) -> Any:
+        return omitted_not_null(value, info)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

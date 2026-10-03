@@ -287,6 +287,27 @@ describe('Output formatting', () => {
 			logSpy.mockRestore();
 		});
 
+		it('marks destructive and undoable tools from their _meta', () => {
+			const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+			printTools([
+				{
+					name: 'todo-delete',
+					inputSchema: { type: 'object' },
+					_meta: { destructive: true, undoable: true },
+				},
+				{ name: 'todo-rename', inputSchema: { type: 'object' }, _meta: { undoable: true } },
+				{ name: 'todo-list', inputSchema: { type: 'object' }, _meta: { undoable: false } },
+			]);
+
+			const lines = logSpy.mock.calls.map((call) => stripVTControlCharacters(call.join(' ')));
+			expect(lines).toContain('    todo-delete (destructive, undoable)');
+			expect(lines).toContain('    todo-rename (undoable)');
+			expect(lines).toContain('    todo-list');
+
+			logSpy.mockRestore();
+		});
+
 		it('handles empty tools list', () => {
 			const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 

@@ -1,6 +1,6 @@
-"""alfred_parity — Cross-language API surface and wire-shape sync.
+"""alfred_parity — Cross-language API surface, wire-shape and contract-version sync.
 
-Two checks:
+Three checks:
 
 - **Name parity.** Parses the public exports of the TypeScript, Python, Rust and
   C++ entry points, normalizes naming conventions, and reports names missing from
@@ -9,6 +9,9 @@ Two checks:
   that the TypeScript, Python, Rust and C++ round-trip test suites exist and
   reference it. The suites themselves assert that each language parses and
   re-serializes the fixture unchanged (see ``spec/wire/README.md``).
+- **Contract version.** Reads ``spec/VERSION`` and the contract version constant
+  each language declares, and reports a constant that is missing or differs
+  (see ``spec/CHANGELOG.md``).
 """
 
 from __future__ import annotations
@@ -82,6 +85,11 @@ def _dedupe(entries: list[ExportEntry]) -> list[ExportEntry]:
     return unique
 
 
+# The contract version constant of each language. The contract-version check compares their
+# values with spec/VERSION, so name parity skips them: TypeScript's `AFD_CONTRACT_VERSION` carries
+# the `afd` namespace in its name and would otherwise not match `CONTRACT_VERSION`.
+_CONTRACT_VERSION_NAMES = {"AFD_CONTRACT_VERSION", "CONTRACT_VERSION", "contract_version"}
+
 # Names to exclude from parity checks (language-specific internals)
 _SKIP_NAMES = {
     "__version__",
@@ -89,6 +97,7 @@ _SKIP_NAMES = {
     "version",
     "is_native",
     "is_wasm",
+    *_CONTRACT_VERSION_NAMES,
 }
 
 # Names that are platform/connector-specific (only in TS, not expected elsewhere)
@@ -789,6 +798,99 @@ def check_wire_fixtures(root: Path) -> dict:
     return report
 
 
+# ─── Contract version ────────────────────────────────────────────────────────
+
+CONTRACT_VERSION_FILE = Path("spec") / "VERSION"
+
+# Where each language declares the AFD contract version it implements, and how to read it.
+CONTRACT_VERSION_SOURCES = {
+    "typescript": Path("packages") / "core" / "src" / "contract.ts",
+    "python": Path("python") / "src" / "afd" / "core" / "contract.py",
+    "rust": Path("packages") / "rust" / "src" / "lib.rs",
+    "cpp": Path("packages") / "cpp" / "cmake" / "version.hpp.in",
+}
+_CONTRACT_VERSION_PATTERNS = {
+    "typescript": re.compile(
+        r"\bexport\s+const\s+AFD_CONTRACT_VERSION\b[^=]*=\s*(['\"])([^'\"\n]*)\1"
+    ),
+    "rust": re.compile(r"\bpub\s+const\s+CONTRACT_VERSION\s*:[^=]*=\s*(\")([^\"\n]*)\""),
+    "cpp": re.compile(r"\bconstexpr\b[^;=]*\bcontract_version\s*=\s*(\")([^\"\n]*)\""),
+}
+
+
+def _python_contract_version(content: str) -> str | None:
+    """The string assigned to a module-level ``CONTRACT_VERSION``, if any."""
+    try:
+        tree = ast.parse(content)
+    except SyntaxError:
+        return None
+    for stmt in tree.body:
+        if isinstance(stmt, ast.Assign):
+            targets, value = stmt.targets, stmt.value
+        elif isinstance(stmt, ast.AnnAssign) and stmt.value is not None:
+            targets, value = [stmt.target], stmt.value
+        else:
+            continue
+        if any(isinstance(t, ast.Name) and t.id == "CONTRACT_VERSION" for t in targets) and (
+            isinstance(value, ast.Constant) and isinstance(value.value, str)
+        ):
+            return value.value
+    return None
+
+
+def read_contract_version(language: str, content: str) -> str | None:
+    """The contract version ``content`` (a source file of ``language``) declares, if any.
+
+    Comments are ignored, so a commented-out declaration does not count.
+    """
+    if language == "python":
+        return _python_contract_version(content)
+    code = _strip_comments(content, rust=language == "rust")
+    m = _CONTRACT_VERSION_PATTERNS[language].search(code)
+    return m.group(2) if m else None
+
+
+def check_contract_version(root: Path) -> dict:
+    """Check that every language declares the contract version in ``spec/VERSION``.
+
+    A missing or empty ``spec/VERSION``, a language whose constant is not found, and a
+    language whose constant differs each count as one gap.
+    """
+    report: dict = {
+        "spec_file": CONTRACT_VERSION_FILE.as_posix(),
+        "expected": None,
+        "sources": {lang: path.as_posix() for lang, path in CONTRACT_VERSION_SOURCES.items()},
+        "versions": {},
+        "missing": [],
+        "mismatched": [],
+        "gaps": 0,
+    }
+    spec_file = root / CONTRACT_VERSION_FILE
+    expected = spec_file.read_text(encoding="utf-8").strip() if spec_file.is_file() else ""
+    if expected:
+        report["expected"] = expected
+    else:
+        report["missing_spec_version"] = True
+
+    for lang, relative in CONTRACT_VERSION_SOURCES.items():
+        source = root / relative
+        version = (
+            read_contract_version(lang, source.read_text(encoding="utf-8"))
+            if source.is_file()
+            else None
+        )
+        report["versions"][lang] = version
+        if version is None:
+            report["missing"].append(lang)
+        elif expected and version != expected:
+            report["mismatched"].append(lang)
+
+    report["gaps"] = (
+        (0 if expected else 1) + len(report["missing"]) + len(report["mismatched"])
+    )
+    return report
+
+
 # ─── Diffing ─────────────────────────────────────────────────────────────────
 
 
@@ -829,19 +931,20 @@ def _diff_exports(
 
 
 async def alfred_parity(path: str | None = None) -> CommandResult[dict]:
-    """Check cross-language API surface and wire-shape parity (TS, Python, Rust, C++).
+    """Check cross-language API surface, wire-shape and contract-version parity.
 
-    Parses public exports from each language's entry point, normalizes
-    naming conventions (camelCase → snake_case), and reports gaps. Also checks
-    that every golden fixture in ``spec/wire`` is round-tripped by the
-    TypeScript, Python, Rust and C++ test suites.
+    Parses public exports from each language's entry point (TS, Python, Rust,
+    C++), normalizes naming conventions (camelCase → snake_case), and reports
+    gaps. Also checks that every golden fixture in ``spec/wire`` is
+    round-tripped by the TypeScript, Python, Rust and C++ test suites, and that
+    each language's contract version constant equals ``spec/VERSION``.
 
     Args:
         path: Root of the AFD repo. Defaults to current working directory.
 
     Returns:
         CommandResult with gap report per language. ``total_gaps`` is
-        ``name_gaps`` plus ``wire_fixtures.gaps``.
+        ``name_gaps`` plus ``wire_fixtures.gaps`` plus ``contract_version.gaps``.
     """
     root = Path(path) if path else Path(".")
 
@@ -866,6 +969,7 @@ async def alfred_parity(path: str | None = None) -> CommandResult[dict]:
 
     report = _diff_exports(ts_exports, py_exports, rs_exports, cpp_exports)
     wire = check_wire_fixtures(root)
+    contract = check_contract_version(root)
 
     name_gaps = (
         len(report.missing_from_python)
@@ -873,9 +977,23 @@ async def alfred_parity(path: str | None = None) -> CommandResult[dict]:
         + len(report.missing_from_cpp)
         + len(report.missing_from_typescript)
     )
-    total_gaps = name_gaps + wire["gaps"]
-    total_checks = max(len(ts_exports) + len(wire["fixtures"]) * len(WIRE_ROUND_TRIP_TESTS), 1)
+    total_gaps = name_gaps + wire["gaps"] + contract["gaps"]
+    total_checks = max(
+        len(ts_exports)
+        + len(wire["fixtures"]) * len(WIRE_ROUND_TRIP_TESTS)
+        + len(CONTRACT_VERSION_SOURCES),
+        1,
+    )
     confidence = max(0.0, 1.0 - (total_gaps / total_checks))
+    contract_problems = [
+        f"{lang} {contract['versions'][lang] or 'missing'}"
+        for lang in contract["missing"] + contract["mismatched"]
+    ]
+    if not contract["expected"]:
+        contract_problems.insert(0, f"{contract['spec_file']} missing")
+    contract_summary = f"Contract version {contract['expected'] or '(none)'}: " + (
+        ", ".join(contract_problems) or "all four languages match"
+    )
 
     return success(
         data={
@@ -895,12 +1013,14 @@ async def alfred_parity(path: str | None = None) -> CommandResult[dict]:
             "extra_in_typescript": report.extra_in_typescript,
             "name_gaps": name_gaps,
             "wire_fixtures": wire,
+            "contract_version": contract,
             "total_gaps": total_gaps,
         },
         confidence=confidence,
         reasoning=(
             f"Parsed {len(ts_exports)} TS, {len(py_exports)} Python, {len(rs_exports)} Rust, "
             f"{len(cpp_exports)} C++ exports: {name_gaps} name gaps. Checked {len(wire['fixtures'])} wire fixtures "
-            f"against {len(WIRE_ROUND_TRIP_TESTS)} round-trip suites: {wire['gaps']} gaps."
+            f"against {len(WIRE_ROUND_TRIP_TESTS)} round-trip suites: {wire['gaps']} gaps. "
+            f"{contract_summary}."
         ),
     )

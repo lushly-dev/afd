@@ -87,12 +87,13 @@ class TestValidateInputEnhanced:
         assert result.errors == []
 
     def test_detects_unexpected_fields(self):
+        # Pydantic ignores extra fields by default, so valid input with an
+        # extra field still succeeds.
         result = validate_input_enhanced(
             SampleInput, {"name": "Alice", "age": 30, "extra": "field"}
         )
-        # Pydantic ignores extra fields by default, so this may still succeed
-        # but if it fails for other reasons, unexpected_fields is populated
-        # For strict detection, check with invalid data that also has extras
+        assert result.success is True
+        # With invalid input, the extras are reported as unexpected.
         result2 = validate_input_enhanced(
             SampleInput, {"extra_field": "val"}
         )

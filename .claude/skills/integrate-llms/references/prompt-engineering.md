@@ -2,6 +2,10 @@
 
 Best practices for writing effective prompts across Claude, OpenAI, and other LLM providers.
 
+Some API snippets below retain older model IDs to illustrate prompt structure.
+Check current model IDs, parameters, and API documentation before using them in
+an application. The reasoning section uses the 2026-09-29 model snapshot.
+
 ## System Prompts
 
 System prompts set the behavioral contract for the entire conversation. They take priority over user messages.
@@ -94,80 +98,33 @@ Output:
 - Keep examples concise -- long examples waste tokens
 - Use consistent formatting across all examples
 
-## Chain-of-Thought (CoT)
+## Reasoning: Thinking and Effort
 
-Encourage step-by-step reasoning for complex tasks.
+Current frontier models, including Claude Sonnet 5.5, Opus 5.5, and GPT-6.1 Sol, reason internally. Describe the task, evidence, acceptance criteria, and desired answer. Control reasoning depth with the model's supported API setting instead of adding "Let's think step by step", scratchpad tags, or a request to reveal private reasoning. Ask for a concise explanation of the conclusion when the user needs one; do not ask for hidden reasoning to be reproduced.
 
-### Explicit CoT
-
-```
-Analyze whether this code change could cause a regression.
-
-Think through this step by step:
-1. What does the original code do?
-2. What does the changed code do differently?
-3. What callers or tests depend on the original behavior?
-4. Could any of those break?
-
-Then give your final verdict.
-```
-
-### Zero-Shot CoT
-
-Simply append "Let's think step by step" or "Think through this carefully" to the prompt. Effective but less controllable than explicit CoT.
-
-### When CoT Helps
-
-- Math and logic problems
-- Multi-step reasoning
-- Code review and debugging
-- Risk assessment
-- Comparing trade-offs
-
-### When CoT Hurts
-
-- Simple lookups or classification
-- Tasks where speed matters more than accuracy
-- Very short expected outputs (CoT adds token cost)
-
-## Extended Thinking (Claude)
-
-Claude supports a dedicated extended thinking mode that gives the model internal reasoning space before responding.
+### Claude: Adaptive Thinking and Effort
 
 ```python
 response = client.messages.create(
-    model="claude-sonnet-4-5-20250514",
+    model="claude-sonnet-5-5",
     max_tokens=16000,
-    thinking={
-        "type": "enabled",
-        "budget_tokens": 10000  # Max tokens for internal reasoning
-    },
-    messages=[{"role": "user", "content": "Complex analysis task..."}]
+    thinking={"type": "adaptive", "display": "summarized"},
+    output_config={"effort": "medium"},
+    messages=[{"role": "user", "content": "Could this code change cause a regression? ..."}],
 )
 
-# Access thinking and response separately
 for block in response.content:
     if block.type == "thinking":
-        print("Reasoning:", block.thinking)
+        print("Reasoning summary:", block.thinking)
     elif block.type == "text":
         print("Response:", block.text)
 ```
 
-### When to Use Extended Thinking
+Start Sonnet 5.5 at medium effort for well-specified tasks; try high for harder contained tasks with an objective checker. Choose Opus 5.5 medium when open-ended judgment is needed. Higher effort must earn its cost through representative evals; it is not an automatic ladder. Claude Code and Claude apps default Sonnet 5.5 to medium, while the Claude Platform defaults to high. If migrating an application that runs Sonnet with thinking off, consult [Anthropic's Sonnet 5.5 guidance](https://www.anthropic.com/claude-sonnet-5-5) for its `between_tools` setting. Model controls and defaults vary by API version; verify the current provider documentation before deployment.
 
-- Complex analysis requiring deep reasoning
-- Math, logic, and coding problems
-- Tasks where you want to inspect the reasoning process
-- When accuracy matters more than latency
+### OpenAI
 
-### Budget Guidelines
-
-| Task Complexity | Budget Tokens |
-|---|---|
-| Simple reasoning | 2,000-5,000 |
-| Moderate analysis | 5,000-10,000 |
-| Complex multi-step | 10,000-20,000 |
-| Deep research/analysis | 20,000+ |
+For GPT-6.1 Sol, use the Responses API's supported `reasoning.effort` setting and compare medium against higher effort on accepted-task quality, tokens, and latency. Keep final answers concise even when internal reasoning effort is high. See the [GPT-6.1 Sol launch](https://openai.com/index/introducing-gpt-6-1-sol/) for the current model snapshot.
 
 ## Prompt Scaffolding (Defensive Prompting)
 

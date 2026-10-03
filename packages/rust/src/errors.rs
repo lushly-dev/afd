@@ -229,7 +229,9 @@ impl CommandError {
 
 /// Standard error codes for common scenarios.
 ///
-/// Use these for consistency across AFD applications.
+/// Use these for consistency across AFD applications. This is the shared
+/// catalog in `spec/error-codes.md`: TypeScript, Python and C++ define the same
+/// codes.
 pub mod error_codes {
     // Validation Errors (4xx range)
     pub const VALIDATION_ERROR: &str = "VALIDATION_ERROR";
@@ -265,10 +267,55 @@ pub mod error_codes {
     pub const COMMAND_NOT_FOUND: &str = "COMMAND_NOT_FOUND";
     pub const INVALID_COMMAND_ARGS: &str = "INVALID_COMMAND_ARGS";
     pub const COMMAND_CANCELLED: &str = "COMMAND_CANCELLED";
+    /// A command handler crashed (panicked) instead of returning a result.
+    /// See [`execution_failure`](crate::execution_failure).
+    pub const COMMAND_EXECUTION_ERROR: &str = "COMMAND_EXECUTION_ERROR";
     /// The command exists but is not exposed to the calling interface.
     pub const COMMAND_NOT_EXPOSED: &str = "COMMAND_NOT_EXPOSED";
+    /// The command exists but is not available in the active context.
+    pub const COMMAND_NOT_IN_CONTEXT: &str = "COMMAND_NOT_IN_CONTEXT";
+    /// A client's allow-list does not include the command.
+    pub const COMMAND_NOT_ALLOWED: &str = "COMMAND_NOT_ALLOWED";
+    /// An in-process client was asked for a command it cannot call.
+    pub const UNKNOWN_TOOL: &str = "UNKNOWN_TOOL";
+    /// A grouped tool's action matches more than one command.
+    pub const AMBIGUOUS_ACTION: &str = "AMBIGUOUS_ACTION";
+    /// A grouped tool was called without a valid `action`.
+    pub const INVALID_GROUPED_CALL: &str = "INVALID_GROUPED_CALL";
+
+    // Contexts
+    /// Entering or exiting a context needs a session.
+    pub const SESSION_REQUIRED: &str = "SESSION_REQUIRED";
+    /// The requested context is not configured.
+    pub const CONTEXT_NOT_FOUND: &str = "CONTEXT_NOT_FOUND";
+    /// The context stack is full.
+    pub const CONTEXT_DEPTH_EXCEEDED: &str = "CONTEXT_DEPTH_EXCEEDED";
+
+    // Batch and pipeline
+    /// The batch envelope is malformed or empty.
+    pub const INVALID_BATCH_REQUEST: &str = "INVALID_BATCH_REQUEST";
+    /// The batch deadline passed before the command finished.
+    pub const BATCH_TIMEOUT: &str = "BATCH_TIMEOUT";
+    /// A batch stopped after a failure before running the command.
+    pub const COMMAND_SKIPPED: &str = "COMMAND_SKIPPED";
+    /// The pipeline envelope is malformed.
+    pub const INVALID_PIPELINE_REQUEST: &str = "INVALID_PIPELINE_REQUEST";
+    /// The pipeline deadline passed.
+    pub const PIPELINE_TIMEOUT: &str = "PIPELINE_TIMEOUT";
     /// The request uses an option this build does not support.
     pub const UNSUPPORTED_OPTION: &str = "UNSUPPORTED_OPTION";
+
+    // Streaming
+    /// The caller aborted the stream.
+    pub const STREAM_ABORTED: &str = "STREAM_ABORTED";
+    /// The stream deadline passed.
+    pub const STREAM_TIMEOUT: &str = "STREAM_TIMEOUT";
+    /// The stream executor failed outside the command.
+    pub const STREAM_ERROR: &str = "STREAM_ERROR";
+    /// A stream ended without a complete or error chunk.
+    pub const STREAM_ENDED_UNEXPECTEDLY: &str = "STREAM_ENDED_UNEXPECTEDLY";
+    /// A streamed command failed without an error of its own.
+    pub const COMMAND_FAILED: &str = "COMMAND_FAILED";
 }
 
 /// Standard error code alias for parity with other AFD implementations.

@@ -3,7 +3,8 @@
 import pytest
 from pydantic import BaseModel
 
-from afd import success
+from afd import CONTRACT_VERSION, success
+from afd.core.wire import to_wire
 from afd.core.commands import (
     CommandExample,
     CommandDefinition,
@@ -116,6 +117,17 @@ class TestAfdHelp:
         assert result.data.total == 3
         assert result.data.filtered is False
         assert len(result.data.commands) == 3
+
+    @pytest.mark.asyncio
+    async def test_reports_contract_version(self):
+        """afd-help reports the AFD contract version as contractVersion."""
+        cmd = create_afd_help_command(create_sample_commands)
+
+        result = await cmd.handler({"filter": "nothing-matches"}, None)
+
+        assert result.data.total == 0
+        assert result.data.contract_version == CONTRACT_VERSION
+        assert to_wire(result)["data"]["contractVersion"] == CONTRACT_VERSION
 
     @pytest.mark.asyncio
     async def test_filter_by_tag(self):

@@ -13,9 +13,18 @@ This directory contains the shared API contract for the Todo example. All four b
 
 ## Conformance Test Cases
 
-`pnpm test:conformance:ts`, `test:conformance:py`, `test:conformance:rs` and `test:conformance:cpp`
-(from `packages/examples/todo`) start a backend with an in-memory store (over stdio, or over HTTP
-for Rust) and run every case in `test-cases.json`. Before each
+Each backend has a script (run from `packages/examples/todo`) that starts it with an in-memory
+store and runs every case in `test-cases.json`:
+
+| Backend | Script | Transport |
+|---------|--------|-----------|
+| TypeScript | `pnpm test:conformance:ts` | MCP over stdio |
+| Python | `pnpm test:conformance:py` | MCP over stdio |
+| Rust | `pnpm test:conformance:rs` | MCP streamable HTTP, on a free local port |
+| C++ | `pnpm test:conformance:cpp` | MCP over stdio |
+
+The Rust script needs a Rust toolchain (`backends/rust/rust-toolchain.toml` pins it). The C++
+script needs CMake 3.25+ and a C++20 compiler; it builds `todo-server-cpp` first. Before each
 case the runner calls `todo-clear` with `{ "all": true }`, then runs the `setup` steps (a step's
 `capture` stores its `data`, which later inputs reference as `"$name.field"`), then the command.
 

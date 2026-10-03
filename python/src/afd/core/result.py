@@ -234,6 +234,31 @@ def error(
     )
 
 
+def execution_failure(exc: BaseException, dev_mode: bool = False) -> CommandResult[Any]:
+    """The COMMAND_EXECUTION_ERROR result for an exception a command raised.
+
+    Outside ``dev_mode`` the message is the generic "An internal error
+    occurred": exception text can hold paths, queries or secrets, so it never
+    reaches the caller. Log the exception where it is caught. Port of
+    TypeScript's ``executionFailure``.
+
+    Args:
+        exc: The exception the handler (or a middleware) raised.
+        dev_mode: Return the exception text as the message instead.
+    """
+    if dev_mode:
+        return error(
+            "COMMAND_EXECUTION_ERROR",
+            str(exc),
+            suggestion="Check the command implementation",
+        )
+    return error(
+        "COMMAND_EXECUTION_ERROR",
+        "An internal error occurred",
+        suggestion="Contact support if this persists",
+    )
+
+
 INVALID_COMMAND_RESULT = "INVALID_COMMAND_RESULT"
 """Error code for a handler that returned something other than a CommandResult."""
 

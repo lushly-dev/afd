@@ -4,6 +4,12 @@ Strategies for reducing LLM API costs without sacrificing quality.
 
 ## Cost Levers Overview
 
+Savings ranges below are illustrative, not promises. Measure total cost per
+accepted task on your own workload, including retries and tool calls. The model
+IDs and price constants in older examples below illustrate mechanics; check
+current provider model IDs and rates before using them in production. For
+development-agent routing, see [AFD's policy](../../../../docs/operations/model-routing.md).
+
 ```
                          Impact
 Strategy               (typical savings)   Implementation Effort
@@ -79,7 +85,8 @@ OpenAI automatically caches matching prompt prefixes. No explicit cache control 
 # - Same prompt prefix (system + early messages)
 # - Same model
 # - Prefix is >1024 tokens
-# Cached content costs 50% of base input rate
+# Cached-input discounts vary by model; use current provider rates.
+# GPT-6.1 Sol at the 2026-09-29 snapshot: $0.10 cached vs $2 input per M tokens.
 ```
 
 ### Best Practices for Caching
@@ -88,11 +95,17 @@ OpenAI automatically caches matching prompt prefixes. No explicit cache control 
 2. **Put variable content last** -- User query, dynamic context
 3. **Minimize changes to cached portions** -- Any change invalidates the cache
 4. **Monitor cache hit rates** -- Track `cache_read_input_tokens` vs `cache_creation_input_tokens`
-5. **Use 1-hour TTL** -- Claude's ephemeral cache lasts up to 1 hour (GA, no beta header)
+5. **Choose retention by workload** -- Claude defaults to 5 minutes; opt into 1 hour
+   with `ttl: "1h"` when reuse warrants its higher write cost. Verify the chosen
+   model's [cache controls](https://platform.claude.com/docs/en/build-with-claude/prompt-caching).
 
 ## Model Routing
 
 Route simple queries to cheap models, complex queries to expensive ones.
+Start with a deterministic rule when the decision is known; use a bounded
+classifier only when an eval shows it improves accepted-task cost. Do not infer
+task difficulty from length alone. The cascade below is an illustrative legacy
+API example, not a current model recommendation.
 
 ### Cascade Pattern
 
@@ -319,7 +332,8 @@ batch = client.messages.batches.create(
 ### Track Per-Request Costs
 
 ```python
-# Model pricing (per million tokens, approximate 2025)
+# Legacy illustrative prices (per million tokens, approximate 2025).
+# Replace with current provider rates and fail on unknown models in production.
 PRICING = {
     "claude-haiku-4-5-20250514": {"input": 0.80, "output": 4.00},
     "claude-sonnet-4-5-20250514": {"input": 3.00, "output": 15.00},
@@ -330,7 +344,9 @@ PRICING = {
 
 def estimate_cost(model: str, input_tokens: int, output_tokens: int) -> float:
     """Estimate cost in USD for a single request."""
-    pricing = PRICING.get(model, {"input": 5.0, "output": 15.0})
+    if model not in PRICING:
+        raise ValueError(f"No verified price for model: {model}")
+    pricing = PRICING[model]
     return (
         input_tokens * pricing["input"] / 1_000_000 +
         output_tokens * pricing["output"] / 1_000_000

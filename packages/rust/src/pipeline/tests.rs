@@ -90,6 +90,43 @@ fn test_pipeline_request_round_trip_with_input_and_conditions() {
 }
 
 #[test]
+fn test_malformed_envelopes_do_not_deserialize() {
+    let step = json!({"command": "work-run"});
+    for request in [
+        json!({"steps": [{"command": " "}]}),
+        json!({"steps": [{"command": "\u{feff}\n"}]}),
+        json!({"steps": [{"command": "work-run", "input": []}]}),
+        json!({"steps": [{"command": "work-run", "input": null}]}),
+        json!({"steps": [{"command": "work-run", "input": "text"}]}),
+        json!({"steps": [{"command": "work-run", "as": null}]}),
+        json!({"steps": [{"command": "work-run", "when": null}]}),
+        json!({"steps": [{"command": "work-run", "stream": null}]}),
+        json!({"id": null, "steps": [step]}),
+        json!({"steps": [step], "options": null}),
+        json!({"steps": [step], "options": {"timeoutMs": -5}}),
+        json!({"steps": [step], "options": {"timeoutMs": null}}),
+        json!({"steps": [step], "options": {"continueOnFailure": null}}),
+        json!({"steps": [step], "options": {"parallel": null}}),
+        json!({"steps": [step], "options": {"onProgress": 1}}),
+        json!({"steps": [step], "options": {"onProgress": null}}),
+    ] {
+        assert!(
+            serde_json::from_value::<PipelineRequest>(request.clone()).is_err(),
+            "{request} should not deserialize"
+        );
+    }
+
+    let accepted: PipelineRequest = serde_json::from_value(json!({
+        "input": null,
+        "steps": [{"command": "work-run", "input": {}, "stream": false}],
+        "options": {"timeoutMs": 0, "parallel": false}
+    }))
+    .unwrap();
+    assert_eq!(accepted.input, Some(serde_json::Value::Null));
+    assert_eq!(accepted.options.unwrap().timeout_ms, Some(0.0));
+}
+
+#[test]
 fn test_pipeline_condition_rejects_multiple_operators() {
     let result: Result<PipelineCondition, _> =
         serde_json::from_value(json!({"$exists": "$prev", "$eq": ["$prev", 1]}));
@@ -173,6 +210,49 @@ fn test_spec_exists_is_false_for_null() {
     assert!(!exists("$prev.missing"));
     assert!(exists("$prev.zero"));
     assert!(exists("$prev.empty"));
+}
+
+#[test]
+fn test_spec_condition_literal_operands_are_absent() {
+    let context = context_with_prev(json!({"id": "t9"}));
+    for literal in ["text", "$$prev", "$prevx", "$9.99"] {
+        let exists = PipelineCondition::Exists {
+            exists: literal.to_string(),
+        };
+        let eq = PipelineCondition::Eq {
+            eq: (literal.to_string(), json!(literal)),
+        };
+        let ne = PipelineCondition::Ne {
+            ne: (literal.to_string(), json!("other")),
+        };
+        assert!(!evaluate_condition(&exists, &context), "{literal}");
+        assert!(!evaluate_condition(&eq, &context), "{literal}");
+        assert!(!evaluate_condition(&ne, &context), "{literal}");
+    }
+}
+
+#[test]
+fn test_spec_eq_compares_numbers_by_value() {
+    let context = context_with_prev(json!({"n": 2, "f": 2.5, "list": [1, {"x": 3}]}));
+    let eq = |reference: &str, expected: serde_json::Value| {
+        evaluate_condition(
+            &PipelineCondition::Eq {
+                eq: (reference.to_string(), expected),
+            },
+            &context,
+        )
+    };
+    assert!(eq("$prev.n", json!(2.0)));
+    assert!(eq("$prev.f", json!(2.5)));
+    assert!(eq("$prev.list", json!([1.0, {"x": 3.0}])));
+    assert!(!eq("$prev.n", json!(2.5)));
+    assert!(!eq("$prev.n", json!("2")));
+    assert!(!evaluate_condition(
+        &PipelineCondition::Ne {
+            ne: ("$prev.n".to_string(), json!(2.0)),
+        },
+        &context
+    ));
 }
 
 #[test]
@@ -1011,6 +1091,72 @@ async fn test_huge_timeout_does_not_overflow() {
     assert_eq!(result.steps[0].status, expected);
 }
 
+#[cfg(feature = "native")]
+#[tokio::test]
+async fn test_zero_timeout_fails_the_first_step_that_would_run() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let result = execute_pipeline(
+        &PipelineRequest::new(vec![
+            PipelineStep::new("step-a").with_when(PipelineCondition::Exists {
+                exists: "$prev".to_string(),
+            }),
+            PipelineStep::new("step-b"),
+            PipelineStep::new("step-c"),
+        ])
+        .with_options(PipelineOptions::new().with_timeout_ms(0.0)),
+        &counting_executor(Arc::clone(&calls)),
+        None,
+    )
+    .await;
+
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    // As in TypeScript, the `when` condition is checked first: step-a is
+    // skipped without an error, and step-b fails at the deadline.
+    assert_eq!(result.steps[0].status, StepStatus::Skipped);
+    assert!(result.steps[0].error.is_none());
+    assert_eq!(result.steps[1].status, StepStatus::Failure);
+    let error = result.steps[1].error.as_ref().unwrap();
+    assert_eq!(error.code, "PIPELINE_TIMEOUT");
+    assert_eq!(error.message, "Pipeline timeout exceeded (0ms)");
+    assert_eq!(result.steps[2].status, StepStatus::Skipped);
+    assert_eq!(result.steps[2].error.as_ref(), Some(error));
+    assert_eq!(result.metadata.completed_steps, 0);
+}
+
+#[cfg(feature = "native")]
+#[tokio::test]
+async fn test_step_that_ends_past_the_deadline_skips_later_steps() {
+    let executor: CommandExecutor = Arc::new(|_name, input, _ctx| {
+        Box::pin(async move {
+            // Blocks without yielding, so the deadline cannot interrupt it.
+            std::thread::sleep(std::time::Duration::from_millis(30));
+            success(input)
+        })
+    });
+    let result = execute_pipeline(
+        &PipelineRequest::new(vec![
+            PipelineStep::new("step-a"),
+            PipelineStep::new("step-b"),
+            PipelineStep::new("step-c"),
+        ])
+        .with_options(
+            PipelineOptions::new()
+                .with_timeout_ms(10.0)
+                .with_continue_on_failure(true),
+        ),
+        &executor,
+        None,
+    )
+    .await;
+
+    // As in TypeScript, the later steps are skipped, not failed.
+    assert_eq!(result.steps[0].status, StepStatus::Success);
+    for step in &result.steps[1..] {
+        assert_eq!(step.status, StepStatus::Skipped);
+        assert_eq!(step.error.as_ref().unwrap().code, "PIPELINE_TIMEOUT");
+    }
+}
+
 #[tokio::test]
 async fn test_pipeline_timeout_interrupts_current_step() {
     let calls = Arc::new(AtomicUsize::new(0));
@@ -1082,10 +1228,9 @@ async fn test_panicking_step_keeps_completed_results() {
     assert_eq!(result.steps[0].data, Some(json!({"id": 1})));
     for index in [1, 2] {
         assert_eq!(result.steps[index].status, StepStatus::Failure);
-        assert_eq!(
-            result.steps[index].error.as_ref().unwrap().code,
-            "INTERNAL_ERROR"
-        );
+        let error = result.steps[index].error.as_ref().unwrap();
+        assert_eq!(error.code, "COMMAND_EXECUTION_ERROR");
+        assert_eq!(error.message, "An internal error occurred");
     }
     assert_eq!(result.steps[3].status, StepStatus::Success);
     assert_eq!(result.data, Some(json!({"prev": 1})));

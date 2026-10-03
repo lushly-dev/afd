@@ -46,9 +46,15 @@ from afd.core.pipeline import (
     create_pipeline_failure,
     execute_pipeline,
 )
-from afd.core.result import CommandResult, ResultMetadata, coerce_command_result, error
+from afd.core.result import (
+    CommandResult,
+    ResultMetadata,
+    coerce_command_result,
+    error,
+    execution_failure,
+)
 from afd.core.similarity import truncate_name
-from afd.core.wire import to_wire
+from afd.core.wire import WIRE_ENVELOPE, to_wire
 from afd.server.bootstrap import ContextState, create_context_state, get_bootstrap_commands
 from afd.server.decorators import (
     CommandMetadata,
@@ -56,12 +62,15 @@ from afd.server.decorators import (
     define_command,
     get_command_metadata,
     has_command_metadata,
+    validate_command_input,
 )
 from afd.core.builtin_names import AFD_META_TOOL_NAMES
+from afd.server.lazy_tools import not_found_suggestion
 from afd.server.middleware import CommandMiddleware
 from afd.server.tool_router import ToolRouterDeps, create_tool_router, new_trace_id
 from afd.server.tools import get_tools_list
 from afd.server.types import ContextConfig, GroupByFn, ToolStrategy
+from afd.server.validation import _input_validation_failure
 
 TInput = TypeVar("TInput", bound=BaseModel)
 TOutput = TypeVar("TOutput")
@@ -279,7 +288,10 @@ class MCPServer:
             return None
         return command
 
-    def _is_exposed_to(self, command: CommandDefinition, interface: str) -> bool:
+    def _is_exposed_to(self, command: CommandDefinition, interface: Any) -> bool:
+        # An unknown interface exposes nothing, and is never looked up as an attribute.
+        if interface not in ("palette", "mcp", "agent", "cli"):
+            return False
         expose = command.expose if command.expose is not None else DEFAULT_EXPOSE
         return bool(getattr(expose, interface, False))
 
@@ -301,42 +313,94 @@ class MCPServer:
             if self._is_exposed_to(command, interface)
         ]
 
-    async def _invoke_command(
+    def _prepare_command(
         self,
-        command: CommandDefinition,
+        name: str,
         input: Any,
-        context: CommandContext | None = None,
-    ) -> CommandResult:
-        context = context or CommandContext()
+        context: CommandContext,
+    ) -> tuple[CommandDefinition, Any] | CommandResult:
+        """Check a call before any middleware runs.
 
+        Lookup (with a "did you mean" suggestion), exposure, active context and
+        input validation, in the order of ``packages/server/src/execution.ts``.
+        Returns the command and the validated input that the middleware chain
+        and the handler receive, or the failure that rejects the call.
+        """
         interface = context.extra.get("interface") if context.extra else None
-        if interface:
-            if interface not in {"palette", "mcp", "agent", "cli"}:
-                return error(
-                    "INVALID_INTERFACE",
-                    f"Unknown interface '{interface}'",
-                    suggestion="Valid interfaces: agent, cli, mcp, palette",
-                )
-            if not self._is_exposed_to(command, interface):
-                return error(
-                    "COMMAND_NOT_EXPOSED",
-                    f"Command '{command.name}' is not exposed to {interface}",
-                    suggestion="Check command exposure settings or use a different interface.",
-                )
-
         active_context = self._context_state.get_active()
-        if active_context and command.contexts and active_context not in command.contexts:
+
+        command = self._find_command(name)
+        # A remote caller (the MCP router) gets the unknown-command answer for a
+        # command hidden from it, so it cannot learn that the command exists
+        # (spec/error-codes.md, D4). In-process callers get COMMAND_NOT_EXPOSED.
+        remote = bool(context.extra.get("remote")) if context.extra else False
+        if command is not None and remote and not self._is_exposed_to(command, interface):
+            command = None
+        if command is None:
+            # Only names the caller could call: a few close matches, never the
+            # whole list, and never a command hidden from this interface.
+            callable_names = [
+                candidate.name
+                for candidate in self._get_command_index().values()
+                if _in_context(candidate, active_context)
+                and (not interface or self._is_exposed_to(candidate, interface))
+            ]
+            return error(
+                "COMMAND_NOT_FOUND",
+                f"Command '{truncate_name(name)}' not found",
+                suggestion=not_found_suggestion(name, callable_names),
+            )
+
+        # An unknown interface exposes nothing, as in TypeScript's isExposedTo.
+        if interface is not None and interface != "" and not self._is_exposed_to(command, interface):
+            return error(
+                "COMMAND_NOT_EXPOSED",
+                f"Command '{command.name}' is not exposed to {interface}",
+                suggestion=(
+                    "Call it from an interface it is exposed to, or set "
+                    f"expose.{interface} to true in its definition"
+                ),
+                retryable=False,
+            )
+
+        if not _in_context(command, active_context):
             return error(
                 "COMMAND_NOT_IN_CONTEXT",
                 f"Command '{command.name}' is not available in context '{active_context}'",
                 suggestion="Use afd-context-list to inspect contexts, or afd-context-enter to switch.",
             )
 
-        start = time.perf_counter()
+        metadata = get_command_metadata(command.handler)
+        input_schema = metadata.input_schema if metadata is not None else None
         try:
-            result = await command.handler(input, context)
+            data = validate_command_input(input_schema, input)
+        except PydanticValidationError as exc:
+            return _input_validation_failure(input_schema, {} if input is None else input, exc)
         except Exception as exc:
-            return self._internal_error(command.name, exc)
+            # A validator that raises something other than ValueError or
+            # AssertionError: the input is still what failed, as in TypeScript.
+            logger.error("Input validation for '%s' raised", command.name, exc_info=exc)
+            return error(
+                "VALIDATION_ERROR",
+                "Input validation failed",
+                suggestion=(
+                    f"Input validation threw: {exc}"
+                    if self.config.dev_mode
+                    else f"Check the input against the input schema of '{command.name}' "
+                    "(afd-detail returns it) and retry"
+                ),
+            )
+        return command, data
+
+    async def _run_handler(
+        self,
+        command: CommandDefinition,
+        data: Any,
+        context: CommandContext,
+    ) -> Any:
+        """Call the handler with validated input and stamp its result's metadata."""
+        start = time.perf_counter()
+        result = await command.handler(data, context)
         if isinstance(result, CommandResult):
             # Server metadata, as in TypeScript: executionTimeMs, commandVersion, traceId.
             result = _with_execution_metadata(
@@ -357,17 +421,7 @@ class MCPServer:
             command_name,
             exc_info=exc,
         )
-        if self.config.dev_mode:
-            return error(
-                "COMMAND_EXECUTION_ERROR",
-                str(exc),
-                suggestion="Check the command implementation",
-            )
-        return error(
-            "COMMAND_EXECUTION_ERROR",
-            "An internal error occurred",
-            suggestion="Contact support if this persists",
-        )
+        return execution_failure(exc, self.config.dev_mode)
 
     def _as_command_result(self, command_name: str, result: Any) -> CommandResult:
         """Coerce a batch item or pipeline step result (see coerce_command_result)."""
@@ -380,48 +434,37 @@ class MCPServer:
         )
         return coerce_command_result(result, command_name)
 
-    async def _execute_command_direct(
-        self,
-        name: str,
-        input: Any,
-        context: CommandContext | None = None,
-    ) -> CommandResult:
-        command = self._find_command(name, include_bootstrap=True, context_filtered=True)
-        if command is None:
-            if self._find_command(name, include_bootstrap=True, context_filtered=False) is not None:
-                active_context = self._context_state.get_active() or "unknown"
-                return error(
-                    "COMMAND_NOT_IN_CONTEXT",
-                    f"Command '{name}' is not available in context '{active_context}'",
-                    suggestion="Use afd-context-list to inspect contexts, or afd-context-enter to switch.",
-                )
-            return error(
-                "COMMAND_NOT_FOUND",
-                f"Command '{truncate_name(name)}' not found",
-                suggestion="Use afd-help or afd-discover to inspect available commands.",
-            )
-        return await self._invoke_command(command, input, context)
-
     async def _execute_command(
         self,
         name: str,
         input: Any,
         context: CommandContext | None = None,
     ) -> Any:
-        """Run a command (never a built-in tool) through the middleware chain.
+        """Run a command (never a built-in tool) in the reference order.
 
-        An exception from a handler or a middleware becomes a sanitized
-        COMMAND_EXECUTION_ERROR result (see ``_internal_error``), as in the
-        TypeScript server, so it never reaches the transport with its text.
+        As in ``packages/server/src/execution.ts``: lookup, exposure, active
+        context and input validation run first (``_prepare_command``), so
+        middleware only sees calls that reach a handler, and sees their
+        validated input. The middleware chain then wraps the handler, whose
+        result is stamped with execution metadata.
+
+        An exception from a handler or a middleware passes back out through
+        the middleware and becomes a sanitized COMMAND_EXECUTION_ERROR result
+        (see ``_internal_error``), so it never reaches the transport with its
+        text.
         """
         context = context or CommandContext()
+        prepared = self._prepare_command(name, input, context)
+        if isinstance(prepared, CommandResult):
+            return prepared
+        command, data = prepared
 
-        async def run_handler() -> CommandResult:
-            return await self._execute_command_direct(name, input, context)
+        async def run_handler() -> Any:
+            return await self._run_handler(command, data, context)
 
         next_fn: Callable[[], Any] = run_handler
         for middleware in reversed(self._middleware):
-            next_fn = (lambda mw, nxt: (lambda: mw(name, input, context, nxt)))(middleware, next_fn)
+            next_fn = (lambda mw, nxt: (lambda: mw(name, data, context, nxt)))(middleware, next_fn)
 
         try:
             result = await next_fn()
@@ -481,6 +524,7 @@ class MCPServer:
                 if (
                     active_context
                     and registered is not None
+                    and server._is_exposed_to(registered, "mcp")
                     and visible is None
                     and registered.contexts
                     and active_context not in registered.contexts
@@ -555,10 +599,15 @@ class MCPServer:
 
     async def _execute_batch(
         self,
-        request: BatchRequest | dict[str, Any],
+        request: Any,
         context: CommandContext | None = None,
     ) -> BatchResult:
         """Run a batch with partial-success semantics.
+
+        Any request that is not a valid envelope (see ``WIRE_ENVELOPE``), is
+        empty or exceeds the server's limits returns a failed BatchResult with
+        ``INVALID_BATCH_REQUEST`` before any command runs, as TypeScript's
+        ``executeBatch()`` does.
 
         Nothing keeps running after the result is returned: when the batch
         stops (``stopOnError`` failure or the ``timeout`` deadline) or is
@@ -570,15 +619,16 @@ class MCPServer:
         started_at = datetime.now(timezone.utc).isoformat()
         context = context or CommandContext()
         if not isinstance(request, BatchRequest):
-            payload = dict(request)
-            options = dict(payload.get("options") or {})
-            if "timeoutMs" in options:
+            payload = request
+            options = request.get("options") if isinstance(request, dict) else None
+            if isinstance(options, dict) and "timeoutMs" in options:
                 if "timeout" in options:
                     return _invalid_batch("Specify only one of timeout or timeoutMs")
+                options = dict(options)
                 options["timeout"] = options.pop("timeoutMs")
-            payload["options"] = options
+                payload = {**request, "options": options}
             try:
-                request = BatchRequest.model_validate(payload)
+                request = BatchRequest.model_validate(payload, context=WIRE_ENVELOPE)
             except PydanticValidationError as exc:
                 return _invalid_batch(_describe_validation_error(exc))
 
@@ -726,15 +776,21 @@ class MCPServer:
 
     async def _execute_pipeline(
         self,
-        request: PipelineRequest | dict[str, Any],
+        request: Any,
         context: CommandContext | None = None,
     ) -> PipelineResult[Any]:
+        """Run a pipeline of commands.
+
+        An invalid envelope (see ``WIRE_ENVELOPE``) returns a PipelineResult
+        whose one synthetic step (index -1, command "") carries
+        ``INVALID_PIPELINE_REQUEST``, before any step runs, as in TypeScript.
+        """
         if not isinstance(request, PipelineRequest):
             # Options accept camelCase (continueOnFailure, timeoutMs) and snake_case.
             # Conditions are validated here too, so a malformed `when` rejects
             # the whole pipeline before any step runs.
             try:
-                request = PipelineRequest.model_validate(request)
+                request = PipelineRequest.model_validate(request, context=WIRE_ENVELOPE)
             except PydanticValidationError as exc:
                 return create_pipeline_failure(
                     CommandError(
@@ -784,7 +840,7 @@ class MCPServer:
                 result = self._internal_error(command_name, exc)
             return self._as_command_result(command_name, result)
 
-        return await execute_pipeline(request, executor)
+        return await execute_pipeline(request, executor, dev_mode=self.config.dev_mode)
 
     # ── Tool routing ───────────────────────────────────────────────────────
 
@@ -1015,7 +1071,7 @@ def _invalid_batch(problem: Any, *, suggestion: str | None = None) -> BatchResul
     return create_failed_batch_result(
         CommandError(
             code="INVALID_BATCH_REQUEST",
-            message="Invalid batch request",
+            message="Invalid batch request envelope",
             suggestion=suggestion
             or (
                 "Provide { commands: [{ command, input }], options: { stopOnError, "

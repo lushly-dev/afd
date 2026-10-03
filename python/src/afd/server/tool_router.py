@@ -8,20 +8,20 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
-from afd.core.batch import BatchRequest, is_batch_request
 from afd.core.commands import CommandContext, CommandDefinition
-from afd.core.pipeline import PipelineRequest, is_pipeline_request
 from afd.core.result import CommandResult, error
 from afd.core.similarity import truncate_name
-from afd.server.lazy_tools import execute_detail, execute_discover
+from afd.server.lazy_tools import execute_detail, execute_discover, not_found_suggestion
 from afd.server.tools import derive_group_action, derive_group_name
 
 
 @dataclass
 class ToolRouterDeps:
     execute_command: Callable[[str, Any, CommandContext | None], Awaitable[CommandResult[Any]]]
-    execute_batch: Callable[[BatchRequest | dict[str, Any], CommandContext | None], Awaitable[Any]]
-    execute_pipeline: Callable[[PipelineRequest | dict[str, Any], CommandContext | None], Awaitable[Any]]
+    # The batch and pipeline executors validate the whole envelope themselves
+    # and return a failed BatchResult or PipelineResult for an invalid one.
+    execute_batch: Callable[[Any, CommandContext | None], Awaitable[Any]]
+    execute_pipeline: Callable[[Any, CommandContext | None], Awaitable[Any]]
     commands: list[CommandDefinition]
     tool_strategy: str
     group_by_fn: Callable[[CommandDefinition], str | None] | None = None
@@ -66,7 +66,6 @@ def create_tool_router(deps: ToolRouterDeps):
         command.name for command in deps.commands
     }
     commands_by_name = _index_by_name(deps.commands)
-    all_commands_by_name = _index_by_name(all_commands)
     get_group = deps.group_by_fn or derive_group_name
     commands_by_group: dict[str, list[CommandDefinition]] = {}
     all_commands_by_group: dict[str, list[CommandDefinition]] = {}
@@ -79,7 +78,7 @@ def create_tool_router(deps: ToolRouterDeps):
     def mcp_context(prefix: str, active_context: str | None) -> CommandContext:
         return CommandContext(
             trace_id=new_trace_id(prefix),
-            extra={"interface": "mcp", "active_context": active_context},
+            extra={"interface": "mcp", "remote": True, "active_context": active_context},
         )
 
     def not_in_context(name: str, active_context: str | None) -> CommandResult[Any]:
@@ -104,19 +103,18 @@ def create_tool_router(deps: ToolRouterDeps):
 
             command = commands_by_name.get(command_name)
             if command is None:
-                registered = all_commands_by_name.get(command_name)
-                if registered is not None:
-                    if not is_command_accessible(registered, active_context):
-                        return not_in_context(command_name, active_context)
-                    return error(
-                        "COMMAND_NOT_EXPOSED",
-                        f"Command '{command_name}' exists but is not exposed via this server",
-                        suggestion="Enable MCP exposure for the command or use a different interface.",
-                    )
+                # An unexposed command gets the same answer as an unknown one, so a
+                # remote caller cannot learn that a private command exists
+                # (spec/error-codes.md, D4).
+                callable_names = [
+                    item.name
+                    for item in deps.commands
+                    if is_command_accessible(item, active_context)
+                ]
                 return error(
                     "COMMAND_NOT_FOUND",
                     f"Command '{truncate_name(command_name)}' not found",
-                    suggestion="Use afd-discover or afd-help to list available commands.",
+                    suggestion=not_found_suggestion(command_name, callable_names),
                 )
 
             if not is_command_accessible(command, active_context):
@@ -145,21 +143,9 @@ def create_tool_router(deps: ToolRouterDeps):
             return execute_detail(visible_all_commands, exposed_command_names, args or {})
 
         if tool_name == "afd-batch":
-            if not is_batch_request(args):
-                return error(
-                    "INVALID_BATCH_REQUEST",
-                    "Invalid batch request format",
-                    suggestion="Provide { commands: [...] } with command objects.",
-                )
             return await deps.execute_batch(args, mcp_context("batch", active_context))
 
         if tool_name == "afd-pipe":
-            if not is_pipeline_request(args):
-                return error(
-                    "INVALID_PIPELINE_REQUEST",
-                    "Invalid pipeline request format",
-                    suggestion="Provide { steps: [...] } with pipeline step objects.",
-                )
             return await deps.execute_pipeline(args, mcp_context("pipeline", active_context))
 
         if deps.tool_strategy == "grouped":

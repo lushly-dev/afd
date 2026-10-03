@@ -8,7 +8,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::errors::CommandError;
+use crate::errors::{error_codes, CommandError};
 use crate::result::{CommandResult, ResultMetadata};
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -31,8 +31,12 @@ use crate::result::{CommandResult, ResultMetadata};
 #[non_exhaustive]
 pub struct BatchCommand<T = serde_json::Value> {
     /// Optional client-provided ID for correlating results.
-    /// When absent, results use `cmd-<index>`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// When absent, results use `cmd-<index>`. It may be omitted but not `null`.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::wire::non_null"
+    )]
     pub id: Option<String>,
 
     /// Command name to execute.
@@ -86,25 +90,36 @@ impl<T> BatchCommand<T> {
 ///
 /// Every field is optional on the wire. By default a batch runs every command
 /// sequentially (`stopOnError: false`, `parallelism: 1`) with no deadline.
+/// As in TypeScript, `stopOnError`, `timeout` and `parallelism` may be omitted
+/// but not `null`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "camelCase")]
 #[non_exhaustive]
 pub struct BatchOptions {
     /// Stop at the first failure and skip the remaining commands.
     /// Defaults to `false`: every command runs and all results are collected.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::wire::non_null"
+    )]
     pub stop_on_error: Option<bool>,
 
     /// Timeout for the entire batch in milliseconds.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        serialize_with = "crate::wire::opt_number"
+        serialize_with = "crate::wire::opt_number",
+        deserialize_with = "crate::wire::non_null"
     )]
     pub timeout: Option<f64>,
 
     /// Maximum number of commands to execute concurrently. Defaults to 1.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::wire::non_null"
+    )]
     pub parallelism: Option<usize>,
 
     /// Stop the batch once this many commands have failed
@@ -160,8 +175,12 @@ pub struct BatchRequest<T = serde_json::Value> {
     /// Commands to execute.
     pub commands: Vec<BatchCommand<T>>,
 
-    /// Execution options.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Execution options. They may be omitted but not `null`.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "crate::wire::non_null"
+    )]
     pub options: Option<BatchOptions>,
 
     /// Additional context for the batch (Rust extension; ignored by other hosts).
@@ -400,7 +419,7 @@ fn is_skipped<T>(result: &BatchCommandResult<T>) -> bool {
         .error
         .as_ref()
         .map(|error| error.code.as_str())
-        == Some("COMMAND_SKIPPED")
+        == Some(error_codes::COMMAND_SKIPPED)
 }
 
 fn plural(count: usize) -> &'static str {
@@ -607,6 +626,23 @@ mod tests {
         );
         let decoded: BatchRequest = serde_json::from_value(json).unwrap();
         assert_eq!(decoded, request);
+    }
+
+    #[test]
+    fn test_batch_request_rejects_null_fields() {
+        let command = serde_json::json!({"command": "work-run"});
+        for request in [
+            serde_json::json!({"commands": [{"command": "work-run", "id": null}]}),
+            serde_json::json!({"commands": [command], "options": null}),
+            serde_json::json!({"commands": [command], "options": {"stopOnError": null}}),
+            serde_json::json!({"commands": [command], "options": {"timeout": null}}),
+            serde_json::json!({"commands": [command], "options": {"parallelism": null}}),
+        ] {
+            assert!(
+                serde_json::from_value::<BatchRequest>(request.clone()).is_err(),
+                "{request} should not deserialize"
+            );
+        }
     }
 
     #[test]
