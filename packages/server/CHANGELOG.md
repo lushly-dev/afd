@@ -1,5 +1,39 @@
 # @lushly-dev/afd-server
 
+## 2.1.0
+
+### Minor Changes
+
+- [#313](https://github.com/lushly-dev/afd/pull/313) [`7277d79`](https://github.com/lushly-dev/afd/commit/7277d79b9c5c999fb0411b1f58909a3e4d721eb3) Thanks [@Falkicon](https://github.com/Falkicon)! - `@lushly-dev/afd-core` exports `AFD_CONTRACT_VERSION`, the version of the AFD contract the package implements. The contract is the wire shapes, pipeline variables, behavior vectors and conformance suite that the TypeScript, Python, Rust and C++ implementations share. Its `MAJOR.MINOR` version lives in `spec/VERSION` and is independent of the package version. It reads `1.0-rc` until every language loads every vector file.
+
+  The `afd-help` bootstrap command returns it as `contractVersion`, so an agent can tell which contract a server implements.
+
+- [#308](https://github.com/lushly-dev/afd/pull/308) [`b38a9b8`](https://github.com/lushly-dev/afd/commit/b38a9b880058fa5f310005c96593e8ecab107e95) Thanks [@Falkicon](https://github.com/Falkicon)! - Commands carry `destructive`, `confirmPrompt` and `undoable` in both definitions, and every surface reports them consistently ([#275](https://github.com/lushly-dev/afd/issues/275)). The canonical field list is in `spec/command-metadata.md`.
+
+  - `@lushly-dev/afd-core`: `CommandDefinition` gains `destructive` and `confirmPrompt`, which only the Zod definitions had. `McpToolCommandMeta` gains `undoable`.
+  - `@lushly-dev/afd-server`: `defineCommand` accepts `undoable`, and `toCommandDefinition()` now keeps `destructive`, `confirmPrompt` and `undoable` instead of dropping the first two. `undoable` is reported in the tool `_meta` (and in each grouped `_meta.actions` entry) when set, like `destructive`. It is also reported by `afd-detail`, `afd-help` with `format: 'full'` and `DirectRegistry.listCommands()`. `afd-help` full also reports `destructive`. `afd-docs` documents all three.
+  - `@lushly-dev/afd-cli`: `afd tools` marks tools whose `_meta` sets `destructive` or `undoable`, for example `todo-delete (destructive, undoable)`.
+  - `@lushly-dev/afd-client`: `createReconnectingHandoff` falls back to core's `defaultReconnectPolicy` (3 attempts, 1000 ms) when neither the options nor the handoff's `metadata.reconnect` set `maxAttempts` or `backoffMs`. It used to fall back to 5 attempts.
+
+### Patch Changes
+
+- [#326](https://github.com/lushly-dev/afd/pull/326) [`7e56bd0`](https://github.com/lushly-dev/afd/commit/7e56bd09a8ee50ec4e1a72f5a8d337eddb4d9b98) Thanks [@Falkicon](https://github.com/Falkicon)! - `ErrorCodes` in `@lushly-dev/afd-core` now holds the 42-code shared catalog of `spec/error-codes.md`. It adds 20 codes that the engines already emitted without a constant: `COMMAND_NOT_EXPOSED`, `COMMAND_NOT_IN_CONTEXT`, `COMMAND_NOT_ALLOWED`, `UNKNOWN_TOOL`, `AMBIGUOUS_ACTION`, `INVALID_GROUPED_CALL`, `SESSION_REQUIRED`, `CONTEXT_NOT_FOUND`, `CONTEXT_DEPTH_EXCEEDED`, `INVALID_BATCH_REQUEST`, `BATCH_TIMEOUT`, `COMMAND_SKIPPED`, `INVALID_PIPELINE_REQUEST`, `PIPELINE_TIMEOUT`, `UNSUPPORTED_OPTION`, `STREAM_ABORTED`, `STREAM_TIMEOUT`, `STREAM_ERROR`, `STREAM_ENDED_UNEXPECTEDLY` and `COMMAND_FAILED`. Python, Rust and C++ define the same catalog. The spec also lists each code's meaning, whether it is retryable and which layer emits it, plus the transport-specific codes of the HTTP layer and the client.
+
+  `@lushly-dev/afd-server`: the tool router no longer has an `afd-call` branch that answered `COMMAND_NOT_EXPOSED`. `createMcpServer` never reached it, and a remote caller always gets `COMMAND_NOT_FOUND` for a command it cannot see, as `spec/error-codes.md` requires.
+
+- [#292](https://github.com/lushly-dev/afd/pull/292) [`e136261`](https://github.com/lushly-dev/afd/commit/e1362612f12648a0ec6ab0793075f694a0b3e422) Thanks [@Falkicon](https://github.com/Falkicon)! - `afd validate --surface` now validates the server's commands whatever its `toolStrategy`. Against the default `grouped` strategy it used to validate the grouped tools themselves, so a two-command `todo` server failed with a `naming-convention` error for the tool `todo` and reported schema-complexity and missing-category findings for `todo`, `afd-batch`, `afd-pipe`, `afd-call` and `afd-detail`. Now:
+
+  - grouped tools are expanded into one command per `_meta.actions` entry, with that command's name, description, input schema and metadata;
+  - lazy servers, which list no command tools, are enumerated with `afd-discover` and `afd-detail`; so are grouped tools that do not list their actions;
+  - the tools AFD provides itself (`afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`, `afd-help`, `afd-docs`, `afd-schema`, `afd-context-*`) are skipped in every strategy.
+
+  The output says which grouped tools were expanded and which built-in tools were skipped. If discovery fails, the listed tools are validated as before and a warning says why.
+
+  `@lushly-dev/afd-core` exports the built-in names as `AFD_META_TOOL_NAMES`, `AFD_BOOTSTRAP_COMMAND_NAMES`, `AFD_CONTEXT_COMMAND_NAMES`, `AFD_BUILTIN_TOOL_NAMES` and `isAfdBuiltinName()`, which the server now uses for its reserved names. `McpTool['_meta']` now types a grouped tool's `actions`.
+
+- Updated dependencies [[`7277d79`](https://github.com/lushly-dev/afd/commit/7277d79b9c5c999fb0411b1f58909a3e4d721eb3), [`b38a9b8`](https://github.com/lushly-dev/afd/commit/b38a9b880058fa5f310005c96593e8ecab107e95), [`7e56bd0`](https://github.com/lushly-dev/afd/commit/7e56bd09a8ee50ec4e1a72f5a8d337eddb4d9b98), [`e136261`](https://github.com/lushly-dev/afd/commit/e1362612f12648a0ec6ab0793075f694a0b3e422)]:
+  - @lushly-dev/afd-core@2.1.0
+
 ## 2.0.0
 
 ### Major Changes

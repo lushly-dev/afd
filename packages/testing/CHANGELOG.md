@@ -1,5 +1,12 @@
 # @lushly-dev/afd-testing
 
+## 2.1.0
+
+### Patch Changes
+
+- Updated dependencies [[`7277d79`](https://github.com/lushly-dev/afd/commit/7277d79b9c5c999fb0411b1f58909a3e4d721eb3), [`b38a9b8`](https://github.com/lushly-dev/afd/commit/b38a9b880058fa5f310005c96593e8ecab107e95), [`7e56bd0`](https://github.com/lushly-dev/afd/commit/7e56bd09a8ee50ec4e1a72f5a8d337eddb4d9b98), [`e136261`](https://github.com/lushly-dev/afd/commit/e1362612f12648a0ec6ab0793075f694a0b3e422)]:
+  - @lushly-dev/afd-core@2.1.0
+
 ## 2.0.0
 
 ### Minor Changes
