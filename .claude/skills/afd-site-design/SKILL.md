@@ -159,7 +159,7 @@ Snippets for each piece are in [references/patterns.md](references/patterns.md).
 ## The live runtime
 
 - Commands live in `site/js/runtime.js` (`todo-*`, `section-go`, `install-copy`,
-  `view-set`, `get-started`, `log-clear`). They run on real afd-core, return real
+  `view-set`, `get-started`). They run on real afd-core, return real
   `CommandResult`s, and enforce `expose` per surface.
 - Call them with `call(name, input, { surface })`, where `surface` is `ui`, `cli`,
   `palette` or `agent`.

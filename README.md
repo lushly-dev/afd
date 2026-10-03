@@ -234,16 +234,32 @@ Features like [command trust config](./docs/features/complete/command-trust-conf
 
 Five minutes from an empty folder to a command that a terminal, a test and an agent can all call. You need Node.js 22.12 or later.
 
-> **Note:** these steps use the 2.0 packages. If `npm view @lushly-dev/afd-cli version` still prints 1.x, build the CLI from source first ([Working on AFD itself](#working-on-afd-itself)); the 1.x CLI can hang after `afd connect`.
+> **Note:** these steps use the 2.0 packages. Until npm serves 2.x, use the source-install option below. It links both the server and CLI, so `npx afd` runs the built CLI rather than the older published version, which can hang after `afd connect`.
 
 ### 1. Create a project
 
 ```bash
 mkdir todo-afd && cd todo-afd
 npm init -y && npm pkg set type=module
-npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod
 npm install -D tsx
 ```
+
+When `npm view @lushly-dev/afd-cli version` and `npm view @lushly-dev/afd-server version` both print 2.x, install the published packages:
+
+```bash
+npm install @lushly-dev/afd-server@^2 @lushly-dev/afd-cli@^2 zod
+```
+
+Otherwise, with pnpm installed, build a source checkout inside the project and install its local packages:
+
+```bash
+git clone https://github.com/lushly-dev/afd.git .afd-source
+pnpm --dir .afd-source install --frozen-lockfile
+pnpm --dir .afd-source build
+npm install ./.afd-source/packages/server ./.afd-source/packages/cli zod
+```
+
+Both routes make `npx afd --version` print 2.x. Keep the source checkout in place when using local packages; npm links to their built files. The rest of this walkthrough uses the same commands with either route.
 
 ### 2. Define commands and serve them
 

@@ -51,6 +51,7 @@ function invalid(field, message, expected) {
 }
 
 const todos = [];
+let nextTodoId = 1;
 const listeners = new Set();
 const hooks = {};
 
@@ -93,7 +94,7 @@ registry.register({
 			]);
 		}
 		const todo = {
-			id: `todo-${Math.random().toString(16).slice(2, 6)}`,
+			id: `todo-${nextTodoId++}`,
 			title,
 			priority,
 			completed: false,

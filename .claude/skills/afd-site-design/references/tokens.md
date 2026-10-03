@@ -54,7 +54,9 @@ Set a section's numeral fill with `--numeral-fill: var(--numeral-on-*)` on the s
 | `--t-lead` | 19 → 23px |
 | `--t-title` | 26 → 40px |
 | `--t-statement` | 34 → 96px |
-| `--t-display` | 46 → 150px |
+| `--t-display` | 40 → 150px (fixed breakpoint sizes) |
+| `--t-honesty` | 30 → 118px (fixed breakpoint sizes) |
+| `--t-command` | 26 → 64px (fixed breakpoint sizes) |
 | `--weight-thin` … `--weight-strong` | 300, 400, 500, 600 |
 | `--leading-tight` / `--leading-body` | 0.95 / 1.55 |
 | `--tracking-display` / `--tracking-thin` / `--tracking-label` | -0.025em / -0.04em / 0.06em |
@@ -64,15 +66,17 @@ Set a section's numeral fill with `--numeral-fill: var(--numeral-on-*)` on the s
 | Token | Value |
 |-------|-------|
 | `--space-1` … `--space-9` | 4, 8, 12, 16, 24, 32, 48, 64, 96px |
-| `--section-pad` | 96 → 184px |
-| `--heading-gap` | 48 → 96px |
+| `--section-pad` | 64 → 112px (supporting sections) |
+| `--statement-pad` | 96 → 144px (major story beats) |
+| `--heading-gap` | 24 → 64px |
 | `--wrap-max` | 1280px |
 | `--rule-thin` / `--rule` / `--rule-heavy` | 1 / 2 / 3px |
 | `--radius` | 4px (controls only) |
 | `--shadow-offset` | 8px 8px 0 |
 | `--ease-out` | cubic-bezier(0.16, 1, 0.3, 1) |
 | `--motion-fast` / `--motion-base` / `--motion-enter` | 0.3s / 0.6s / 1.1s |
-| `--layer-art` … `--layer-dialog` | 0, 1, 2, 100, 12000, 13000 |
+| `--motion-rest-opacity` | 0.65 (words waiting for scroll emphasis) |
+| `--layer-art` … `--layer-dialog` | 0, 1, 2, 100, 13000 |
 
 ## Legacy aliases
 
