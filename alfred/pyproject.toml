@@ -30,7 +30,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "lushly-botcore>=0.2.0",
+    "lushly-botcore>=0.5.0",
     "afd>=0.2.0",
     "click>=8.0",
     "rich>=15.0.0",
