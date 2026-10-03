@@ -21,7 +21,7 @@ pre-commit:
   commands:
     lint:
       glob: "*.{ts,tsx,js,mjs,cjs,json}"
-      exclude: "{.claude/**,alfred/**}"
+      exclude: "{.claude/**,alfred/**,site/**}"
       run: npx biome check --write {staged_files}
       stage_fixed: true
 

@@ -1,0 +1,100 @@
+# AFD — Agent-First Development
+
+> AFD is a methodology plus TypeScript, Python, Rust and C++ libraries for building software where AI agents are first-class users. Commands are the product: define each capability as a typed command, validate it through the CLI, and only then build UI as a thin surface over it. Humans, scripts and agents (over MCP or in-process) all call the same commands and get the same CommandResult.
+
+Version: v1.0.0
+License: MIT
+Repository: https://github.com/lushly-dev/afd
+
+## Core ideas
+
+- The honesty check: "If it can't be done via CLI, the architecture is wrong." No UI-only code paths.
+- Workflow per feature: Define (typed schema, named errors) → Validate (call it from the terminal, cover edge cases) → Surface (UI wraps a command that already passes).
+- CommandResult: every command returns `success` plus `data` or `error`, and can add trust signals: `confidence` (0–1), `reasoning`, `warnings`, `suggestions`, `sources`, `plan`, `alternatives`.
+- Errors carry `code`, `message`, `suggestion` and `retryable`, so an agent can recover instead of stalling.
+- Command naming is `domain-action` kebab-case: `todo-create`, `user-get`, `order-list`.
+- Testing targets the job, not the UI: YAML JTBD scenarios call commands step by step, and surface validation audits the command set for collisions, schema drift and prompt injection.
+- One contract across languages: a 34-case conformance suite runs in CI against TypeScript, Python, Rust and C++ backends.
+- AFD is UX design for non-human users. Each classic interface pattern has an agent equivalent that AFD ships as command metadata (see "Agent UX" below).
+
+## Install
+
+- TypeScript: `npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod`
+- Python: `pip install afd`
+- Rust: `cargo add afd --git https://github.com/lushly-dev/afd`
+- C++: CMake `FetchContent` from `https://github.com/lushly-dev/afd.git` with `SOURCE_SUBDIR packages/cpp`, then link `afd::afd`. Use `GIT_TAG main` or a commit SHA until `afd-cpp-v0.1.0` is tagged.
+
+## Minimal command (TypeScript)
+
+```ts
+import { defineCommand, success } from '@lushly-dev/afd-server';
+import { z } from 'zod';
+
+export const createTodo = defineCommand({
+  name: 'todo-create',
+  description: 'Create a new todo item',
+  expose: { mcp: true },
+  input: z.object({ title: z.string().min(1) }),
+  async handler(input) {
+    const todo = store.create(input);
+    return success(todo, { reasoning: `Created "${todo.title}"`, confidence: 1 });
+  },
+});
+```
+
+Serve it with `createMcpServer({ name, version, commands: [createTodo], transport: 'http', port: 3100 }).start()`, then validate it:
+
+```bash
+npx afd connect http://localhost:3100/sse
+npx afd call todo-create '{"title":"Buy groceries"}'
+```
+
+Full walkthrough: [5-minute quickstart](https://github.com/lushly-dev/afd#quickstart)
+
+## Agent UX (human UX pattern → AFD mechanism)
+
+- Progressive disclosure → tool strategies: `toolStrategy: 'grouped'` (default, one tool per category), `'individual'`, or `'lazy'` (five meta-tools: afd-discover, afd-detail, afd-call, afd-batch, afd-pipe). [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-taxonomy.md)
+- Confirmation dialogs → `destructive: true` with `confirmPrompt`. [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-trust-config.md)
+- Permissions → per-surface `expose: { palette, agent, mcp, cli }`; `mcp` and `cli` are opt-in. [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-exposure-undo.md)
+- Undo → `undoable: true`.
+- Helpful errors → every error has `code`, `message`, `suggestion`, optional `retryable`. [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-schema.md)
+- Wayfinding → `requires: ['auth-sign-in']` declares prerequisites, exposed as `_meta.requires`.
+- Affordances → `examples` (validated at define time) and `output` schemas.
+- Usability testing → `afd validate --surface` lints the command set for collisions, overlap, injection and schema complexity. [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/surface-validation.md)
+- Help menu → `bootstrap: true` adds `afd-help`, `afd-docs`, `afd-schema`. [Guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/mcp-integration.md)
+
+## For coding agents
+
+The repo ships agent skills (SKILL.md format, read by Claude Code, Codex and others): afd, afd-developer, afd-typescript, afd-python, afd-rust, afd-cpp, afd-auth, afd-directclient, afd-contracts. Add one to a project with:
+
+```bash
+npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd
+```
+
+Recommended loop: edit a command handler, `afd call` it, read `error.suggestion`, fix, then `afd scenario run scenarios/ --server <url>`.
+
+## Packages
+
+- [@lushly-dev/afd-core](https://www.npmjs.com/package/@lushly-dev/afd-core): CommandResult, CommandError, batching, streaming, pipelines
+- [@lushly-dev/afd-server](https://www.npmjs.com/package/@lushly-dev/afd-server): Zod commands, MCP server factory, middleware
+- [@lushly-dev/afd-client](https://www.npmjs.com/package/@lushly-dev/afd-client): MCP client and DirectClient (~0.03 ms in-process calls)
+- [@lushly-dev/afd-cli](https://www.npmjs.com/package/@lushly-dev/afd-cli): connect, call, validate and explore commands
+- [@lushly-dev/afd-testing](https://www.npmjs.com/package/@lushly-dev/afd-testing): JTBD scenario runner, surface validation, mock servers
+- [@lushly-dev/afd-auth](https://www.npmjs.com/package/@lushly-dev/afd-auth): provider-agnostic auth adapter, middleware, session sync
+- [@lushly-dev/afd-view-state](https://www.npmjs.com/package/@lushly-dev/afd-view-state): UI view state managed through commands
+- [@lushly-dev/afd-adapters](https://www.npmjs.com/package/@lushly-dev/afd-adapters): render CommandResult as themed HTML
+- [afd on PyPI](https://pypi.org/project/afd/): Python implementation (Pydantic, FastMCP)
+- [afd for Rust](https://github.com/lushly-dev/afd/tree/main/packages/rust): CommandResult types, CommandRegistry, WASM-compatible
+- [afd-cpp](https://github.com/lushly-dev/afd/tree/main/packages/cpp): C++20 CommandRegistry, DirectClient, batch, pipeline and stream execution; builds without exceptions or RTTI and for WebAssembly
+
+## Docs
+
+- [README](https://github.com/lushly-dev/afd/blob/main/README.md): overview and getting started
+- [Whitepaper](https://github.com/lushly-dev/afd/blob/main/docs/whitepaper/AFD-Whitepaper.md): the full argument for agent-first development
+- [Command schema guide](https://github.com/lushly-dev/afd/blob/main/.claude/skills/afd/references/command-schema.md): designing commands for good agent UX
+- [Shipped features](https://github.com/lushly-dev/afd/tree/main/docs/features/complete): pipelines, handoff, exposure and undo, trust config, prerequisites, middleware defaults, lazy discovery
+- [Changelog](https://github.com/lushly-dev/afd/blob/main/CHANGELOG.md)
+
+## Optional
+
+- [Botcore](https://github.com/lushly-dev/botcore): shared agent tooling (commands, 50+ skills, quality gates) built on AFD

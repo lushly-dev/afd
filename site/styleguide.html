@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>AFD - Site style guide</title>
+		<meta name="description" content="Design tokens, type ramp, colour roles and components for the AFD site (Command Manifesto 2).">
+		<meta name="robots" content="noindex">
+		<link rel="icon" href="svg/favicon.svg" type="image/svg+xml">
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link
+			href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+			rel="stylesheet"
+		>
+		<link rel="stylesheet" href="css/tokens-m2.css">
+		<link rel="stylesheet" href="css/manifesto-2.css">
+		<style>
+			/* Style-guide-only layout. Everything shown below uses the real tokens and classes. */
+			.sg { padding-block: var(--space-8) var(--section-pad); }
+			.sg-head { padding-block: var(--space-8); border-bottom: var(--rule) solid var(--color-rule); }
+			.sg-head h1 { font: var(--weight-regular) var(--t-statement) / var(--leading-tight) var(--font-display); letter-spacing: var(--tracking-display); }
+			.sg-head h1 span { font-family: var(--font-sans); font-weight: var(--weight-thin); letter-spacing: var(--tracking-thin); }
+			.sg-head p { max-width: 62ch; margin-top: var(--space-5); font-size: var(--t-lead); font-weight: var(--weight-thin); line-height: 1.45; }
+			.sg-section { padding-block: var(--space-9) 0; }
+			.sg-section > h2 { font: var(--weight-regular) var(--t-title) / 1 var(--font-display); letter-spacing: -0.02em; margin-bottom: var(--space-3); }
+			.sg-section > p { max-width: 70ch; color: var(--color-text-muted); font-size: var(--t-body); margin-bottom: var(--space-6); }
+			.sg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--space-4); }
+			.sg-swatch { border: var(--rule-thin) solid var(--color-line); background: var(--color-surface); }
+			.sg-swatch i { display: block; height: 72px; }
+			.sg-swatch b, .sg-swatch code { display: block; padding: var(--space-2) var(--space-3) 0; font: var(--weight-medium) var(--t-label) / 1.5 var(--font-mono); }
+			.sg-swatch code { padding-bottom: var(--space-3); color: var(--color-text-muted); }
+			.sg-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-4); }
+			.sg-field { position: relative; overflow: clip; isolation: isolate; min-height: 220px; padding: var(--space-5); display: flex; flex-direction: column; justify-content: space-between; }
+			.sg-field .big-numeral { font-size: 180px; }
+			.sg-field h3 { position: relative; z-index: 1; font: var(--weight-regular) var(--t-title) / 1 var(--font-display); }
+			.sg-field p { position: relative; z-index: 1; font-size: var(--t-small); max-width: 32ch; }
+			.sg-field code { position: relative; z-index: 1; font: var(--t-label) var(--font-mono); }
+			.sg-ramp > div { display: grid; grid-template-columns: 170px minmax(0, 1fr); align-items: baseline; gap: var(--space-5); padding-block: var(--space-4); border-top: var(--rule-thin) solid var(--color-line); }
+			.sg-ramp code { font: var(--t-label) / 1.5 var(--font-mono); color: var(--color-text-muted); }
+			.sg-ramp .sample { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+			.sg-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); }
+			.sg-panel { position: relative; padding: var(--space-6); border: var(--rule-thin) solid var(--color-line); background: var(--color-surface); }
+			.sg-space > div { display: flex; align-items: center; gap: var(--space-4); padding-block: var(--space-1); font: var(--t-label) var(--font-mono); }
+			.sg-space i { display: block; height: 12px; background: var(--accent-human); }
+			.sg-list { display: grid; gap: var(--space-2); font: var(--t-code) / 1.6 var(--font-mono); }
+			.sg-dodont { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-5); }
+			.sg-dodont div { padding: var(--space-5); border-top: var(--rule-heavy) solid; }
+			.sg-dodont .do { border-color: var(--accent-agent-text); }
+			.sg-dodont .dont { border-color: var(--accent-human-text); }
+			.sg-dodont h3 { font: var(--weight-strong) var(--t-body) var(--font-sans); margin-bottom: var(--space-3); }
+			.sg-dodont li { font-size: var(--t-small); margin-left: 1.1em; margin-bottom: var(--space-2); }
+			@media (max-width: 700px) { .sg-ramp > div, .sg-dodont { grid-template-columns: 1fr; } }
+		</style>
+	</head>
+	<body>
+		<main class="wrap sg">
+			<header class="sg-head">
+				<span class="section-index"><span class="fig-chip">Guide</span>Command Manifesto 2</span>
+				<h1>Site style guide.<br><span>Decisions, not decoration.</span></h1>
+				<p>
+					Every value on the AFD site comes from <code>css/tokens-m2.css</code>. This page reads those tokens live,
+					so it can't drift. The reasoning behind them lives in the agent skill at
+					<code>.claude/skills/afd-site-design/</code>.
+				</p>
+			</header>
+
+			<section class="sg-section" aria-labelledby="sg-fields">
+				<h2 id="sg-fields">Section fields</h2>
+				<p>
+					Each colour field has one job. Bright red appears once, for the loudest statement. Cream rests sit
+					between colour fields so the page never runs two loud fields, or two light ones, back to back.
+				</p>
+				<div class="sg-fields">
+					<div class="sg-field" style="background: var(--field-signal); --numeral-fill: var(--numeral-on-signal)">
+						<span class="big-numeral" aria-hidden="true">01</span>
+						<h3>Signal</h3>
+						<p>The hero only. The single loudest statement on the page.</p>
+						<code>--field-signal</code>
+					</div>
+					<div class="sg-field" style="background: var(--field-rule); --numeral-fill: var(--numeral-on-rule)">
+						<span class="big-numeral" aria-hidden="true">05</span>
+						<h3>Rule</h3>
+						<p>The honesty check. A step lighter than signal; never on screen with the hero.</p>
+						<code>--field-rule</code>
+					</div>
+					<div class="sg-field" style="background: var(--field-agent); --numeral-fill: var(--numeral-on-agent)">
+						<span class="big-numeral" aria-hidden="true">03</span>
+						<h3>Agent</h3>
+						<p>Agent UX: the differentiator. Mint always means agent.</p>
+						<code>--field-agent</code>
+					</div>
+					<div class="sg-field" style="background: var(--field-deep); color: var(--color-on-dark); --numeral-fill: var(--numeral-on-deep)">
+						<span class="big-numeral" aria-hidden="true">02</span>
+						<h3>Deep</h3>
+						<p>The agent at work: the handoff and building with an agent.</p>
+						<code>--field-deep</code>
+					</div>
+					<div class="sg-field" style="background: var(--field-ink); color: var(--color-on-dark); --numeral-fill: var(--numeral-on-ink)">
+						<span class="big-numeral" aria-hidden="true">08</span>
+						<h3>Ink</h3>
+						<p>Live demos, proof and the finale.</p>
+						<code>--field-ink</code>
+					</div>
+					<div class="sg-field" style="background: var(--field-rest); border: var(--rule-thin) solid var(--color-line)">
+						<h3>Rest</h3>
+						<p>Cream breathing room. No numeral: rests stay quiet.</p>
+						<code>--field-rest</code>
+					</div>
+				</div>
+			</section>
+
+			<section class="sg-section" aria-labelledby="sg-type">
+				<h2 id="sg-type">Type ramp</h2>
+				<p>
+					Eight shared steps, plus sizes for the honesty statement and closing command. Archivo Black carries statements, Space Grotesk
+					carries reading and the thin half of each statement, IBM Plex Mono carries labels and code.
+				</p>
+				<div class="sg-ramp" data-ramp>
+					<div data-token="--t-display"><code></code><span class="sample" style="font: var(--weight-regular) var(--t-display) / var(--leading-tight) var(--font-display); letter-spacing: var(--tracking-display)">Commands</span></div>
+					<div data-token="--t-honesty"><code></code><span class="sample" style="font: var(--weight-regular) var(--t-honesty) / var(--leading-tight) var(--font-display)">Via CLI</span></div>
+					<div data-token="--t-command"><code></code><span class="sample" style="font: var(--weight-strong) var(--t-command) / var(--leading-snug) var(--font-mono)">afd call</span></div>
+					<div data-token="--t-statement"><code></code><span class="sample" style="font: var(--weight-regular) var(--t-statement) / var(--leading-tight) var(--font-display); letter-spacing: var(--tracking-display)">Access isn't enough.</span></div>
+					<div data-token="--t-title"><code></code><span class="sample" style="font: var(--weight-regular) var(--t-title) / 1 var(--font-display)">A pause before the point of no return.</span></div>
+					<div data-token="--t-lead"><code></code><span class="sample" style="font-size: var(--t-lead); font-weight: var(--weight-thin)">An agent deserves the same care in its command contract.</span></div>
+					<div data-token="--t-body"><code></code><span class="sample" style="font-size: var(--t-body)">Named capabilities, typed inputs and explicit prerequisites.</span></div>
+					<div data-token="--t-small"><code></code><span class="sample" style="font-size: var(--t-small)">This caller asks before execution.</span></div>
+					<div data-token="--t-code"><code></code><span class="sample" style="font: var(--t-code) var(--font-mono)">npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod</span></div>
+					<div data-token="--t-label"><code></code><span class="sample section-index" style="font-size: var(--t-label)">Design for the agent</span></div>
+				</div>
+			</section>
+
+			<section class="sg-section" aria-labelledby="sg-statement">
+				<h2 id="sg-statement">The statement</h2>
+				<p>
+					Section headlines pair a heavy line with a thin one at the same size: the claim, then its turn. The
+					thin line sits in a direct child <code>&lt;span&gt;</code> of the <code>h2</code>.
+				</p>
+				<div class="sg-panel editorial-heading" style="display: block; margin: 0">
+					<h2>Access isn't enough.<br><span>Agents need good UX.</span></h2>
+				</div>
+			</section>
+
+			<section class="sg-section" aria-labelledby="sg-anatomy">
+				<h2 id="sg-anatomy">Section anatomy</h2>
+				<p>
+					A figure label opens every numbered section. Colour fields carry a giant tone-on-tone numeral, bottom
+					right (bottom left when a panel fills the right). Crop marks frame posters and live stages. Stamps
+					confirm a result.
+				</p>
+				<div class="sg-row">
+					<span class="section-index"><span class="fig-chip">Fig. 03</span>Design for the agent</span>
+					<div class="sg-panel" style="width: 220px; height: 120px">
+						<span class="crop crop--tl" aria-hidden="true"></span>
+						<span class="crop crop--tr" aria-hidden="true"></span>
+						<span class="crop crop--bl" aria-hidden="true"></span>
+						<span class="crop crop--br" aria-hidden="true"></span>
+					</div>
+					<div class="slab__quote" style="font-size: var(--t-title); margin: 0; max-width: none">Via <mark>CLI</mark></div>
+				</div>
+			</section>
+
+			<section class="sg-section" aria-labelledby="sg-components">
+				<h2 id="sg-components">Controls</h2>
+				<p>Buttons are the only rounded elements (<code>--radius</code>). Fields, panels and code blocks are square.</p>
+				<div class="sg-row">
+					<a class="button button--ink" href="#sg-components">See it in action <i class="icon icon--down" aria-hidden="true"></i></a>
+					<a class="button button--red" href="#sg-components">Open the quickstart <i class="icon icon--out" aria-hidden="true"></i></a>
+					<a class="button button--mint" href="#sg-components">Request deletion <i class="icon icon--right" aria-hidden="true"></i></a>
+					<a class="button button--outline" href="#sg-components">Apply suggestion</a>
+					<a class="text-link" href="#sg-components">Read the thinking <i class="icon icon--out" aria-hidden="true"></i></a>
+				</div>
+				<div class="translate" style="margin-top: var(--space-6); max-width: 620px; background: var(--field-ink); padding: var(--space-5)" aria-hidden="true">
+					<div class="ux-art"><div class="ua-dialog"><strong>Delete all tasks?</strong><span>This can’t be undone.</span><div class="ua-actions"><i>Cancel</i><i class="ua-danger">Delete</i></div></div></div>
+					<span class="translate__arrow">→</span>
+					<span class="translate__agent">"People get" art: the human pattern, drawn, beside what the agent gets.</span>
+				</div>
+			</section>
+
+			<section class="sg-section" aria-labelledby="sg-palette">
+				<h2 id="sg-palette">Palette primitives</h2>
+				<p>
+					The raw palette (<code>--afd-*</code>). Section and component CSS reaches for semantic tokens first; primitives
+					are for component-internal detail with no role of its own.
+				</p>
+				<div class="sg-grid" data-palette></div>
+			</section>
+
+			<section class="sg-section" aria-labelledby="sg-space">
+				<h2 id="sg-space">Space</h2>
+				<p>A nine-step scale, plus <code>--section-pad</code> for supporting sections, <code>--statement-pad</code> for major story beats and <code>--heading-gap</code> below each headline.</p>
+				<div class="sg-space" data-space></div>
+			</section>
+
+			<section class="sg-section" aria-labelledby="sg-motion">
+				<h2 id="sg-motion">Motion</h2>
+				<p>Motion marks a moment; it never runs continuously behind reading.</p>
+				<div class="sg-dodont">
+					<div class="do">
+						<h3>Do</h3>
+						<ul>
+							<li>Light a statement word by word as it scrolls in (<code>data-lit</code>), on at most three statements per page.</li>
+							<li>Stamp a <code>&lt;mark&gt;</code> once its statement is fully lit.</li>
+							<li>Animate one-time entrances (the hero slash) with <code>--motion-enter</code> and <code>--ease-out</code>.</li>
+							<li>Give every animation a static state under <code>prefers-reduced-motion</code>.</li>
+						</ul>
+					</div>
+					<div class="dont">
+						<h3>Don't</h3>
+						<ul>
+							<li>Loop motion behind text people are reading.</li>
+							<li>Hide content with opacity alone; use <code>hidden</code> or <code>inert</code>.</li>
+							<li>Animate layout properties; stick to transform and opacity.</li>
+							<li>Add a second bright-red field, a second light-up per section, or drafting grids.</li>
+						</ul>
+					</div>
+				</div>
+			</section>
+		</main>
+		<script>
+			// Read the live token values so this page always matches tokens-m2.css.
+			const root = getComputedStyle(document.documentElement);
+			const tokenNames = [];
+			for (const sheet of document.styleSheets) {
+				let rules;
+				try { rules = sheet.cssRules; } catch { continue; }
+				for (const rule of rules) {
+					if (rule.selectorText !== ':root') continue;
+					for (const name of rule.style) if (name.startsWith('--')) tokenNames.push(name);
+				}
+			}
+			const palette = document.querySelector('[data-palette]');
+			for (const name of tokenNames.filter((n) => n.startsWith('--afd-'))) {
+				const value = root.getPropertyValue(name).trim();
+				palette.insertAdjacentHTML('beforeend', `<div class="sg-swatch"><i style="background: var(${name})"></i><b>${name}</b><code>${value}</code></div>`);
+			}
+			const space = document.querySelector('[data-space]');
+			for (const name of tokenNames.filter((n) => /^--space-\d$/.test(n))) {
+				space.insertAdjacentHTML('beforeend', `<div><i style="width: var(${name})"></i>${name} · ${root.getPropertyValue(name).trim()}</div>`);
+			}
+			for (const row of document.querySelectorAll('[data-ramp] [data-token]')) {
+				const sample = row.querySelector('.sample');
+				row.querySelector('code').textContent = `${row.dataset.token} · ${Math.round(parseFloat(getComputedStyle(sample).fontSize))}px`;
+			}
+		</script>
+	</body>
+</html>
