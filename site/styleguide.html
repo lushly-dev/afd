@@ -113,11 +113,13 @@
 			<section class="sg-section" aria-labelledby="sg-type">
 				<h2 id="sg-type">Type ramp</h2>
 				<p>
-					Eight steps; every font-size on the page is one of them. Archivo Black carries statements, Space Grotesk
+					Eight shared steps, plus sizes for the honesty statement and closing command. Archivo Black carries statements, Space Grotesk
 					carries reading and the thin half of each statement, IBM Plex Mono carries labels and code.
 				</p>
 				<div class="sg-ramp" data-ramp>
 					<div data-token="--t-display"><code></code><span class="sample" style="font: var(--weight-regular) var(--t-display) / var(--leading-tight) var(--font-display); letter-spacing: var(--tracking-display)">Commands</span></div>
+					<div data-token="--t-honesty"><code></code><span class="sample" style="font: var(--weight-regular) var(--t-honesty) / var(--leading-tight) var(--font-display)">Via CLI</span></div>
+					<div data-token="--t-command"><code></code><span class="sample" style="font: var(--weight-strong) var(--t-command) / var(--leading-snug) var(--font-mono)">afd call</span></div>
 					<div data-token="--t-statement"><code></code><span class="sample" style="font: var(--weight-regular) var(--t-statement) / var(--leading-tight) var(--font-display); letter-spacing: var(--tracking-display)">Access isn't enough.</span></div>
 					<div data-token="--t-title"><code></code><span class="sample" style="font: var(--weight-regular) var(--t-title) / 1 var(--font-display)">A pause before the point of no return.</span></div>
 					<div data-token="--t-lead"><code></code><span class="sample" style="font-size: var(--t-lead); font-weight: var(--weight-thin)">An agent deserves the same care in its command contract.</span></div>
@@ -186,7 +188,7 @@
 
 			<section class="sg-section" aria-labelledby="sg-space">
 				<h2 id="sg-space">Space</h2>
-				<p>A nine-step scale, plus <code>--section-pad</code> for every section's top and bottom and <code>--heading-gap</code> below each headline.</p>
+				<p>A nine-step scale, plus <code>--section-pad</code> for supporting sections, <code>--statement-pad</code> for major story beats and <code>--heading-gap</code> below each headline.</p>
 				<div class="sg-space" data-space></div>
 			</section>
 

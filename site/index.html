@@ -15,7 +15,10 @@
 		<meta property="og:type" content="website">
 		<meta property="og:url" content="https://afd.dev/">
 		<meta property="og:title" content="AFD — Commands Are the Product">
-		<meta property="og:description" content="Commands are the product. Agent-First Development gives people and agents the same software, through whatever interface comes next.">
+		<meta
+			property="og:description"
+			content="Commands are the product. Agent-First Development gives people and agents the same software, through whatever interface comes next."
+		>
 		<meta property="og:image" content="https://afd.dev/og.png">
 		<meta property="og:image:width" content="1200">
 		<meta property="og:image:height" content="630">
@@ -144,10 +147,10 @@
 						</div>
 					</div>
 					<div class="surface-stage" data-stage data-mode="list">
-							<span class="crop crop--tl" aria-hidden="true"></span>
-							<span class="crop crop--tr" aria-hidden="true"></span>
-							<span class="crop crop--bl" aria-hidden="true"></span>
-							<span class="crop crop--br" aria-hidden="true"></span>
+						<span class="crop crop--tl" aria-hidden="true"></span>
+						<span class="crop crop--tr" aria-hidden="true"></span>
+						<span class="crop crop--bl" aria-hidden="true"></span>
+						<span class="crop crop--br" aria-hidden="true"></span>
 						<div id="task-panel" role="tabpanel" aria-labelledby="surface-list">
 							<form class="task-form" data-create-form novalidate>
 								<label class="sr-only" for="task-title">Task title</label>
@@ -347,7 +350,9 @@
 				<span class="big-numeral" aria-hidden="true">03</span>
 				<div class="wrap">
 					<div class="editorial-heading">
-						<span class="section-index"><span class="fig-chip">Fig. 03</span>Design for the agent</span>
+						<span class="section-index"
+							><span class="fig-chip">Fig. 03</span>Design for the agent</span
+						>
 						<h2>Access isn't enough.<br><span>Agents need good UX.</span></h2>
 					</div>
 					<div class="agent-design-layout">
@@ -419,15 +424,40 @@
 										<option value="todo-clear">todo-clear</option>
 									</select>
 								</div>
-								<div class="translate" aria-hidden="true">
-									<div class="ux-art"><div class="ua-menu"><span>New task</span><span>Board view</span><span>Export</span><span class="ua-more">More ▸</span></div></div>
-									<span class="translate__arrow">→</span>
-									<span class="translate__agent">A person discovers what an app can do by looking at its menus. An agent reads the contract.</span>
+								<div class="translate">
+									<div class="ux-art" aria-hidden="true">
+										<div class="ua-menu">
+											<span>New task</span><span>Board view</span><span>Export</span
+											><span class="ua-more">More ▸</span>
+										</div>
+									</div>
+									<span class="translate__arrow" aria-hidden="true">→</span>
+									<span class="translate__agent"
+										>A person discovers what an app can do by looking at its menus. An agent reads
+										the contract.</span
+									>
 								</div>
-								<pre
-									tabindex="0"
-									aria-label="Selected command metadata"
-								><code data-contract-metadata></code></pre>
+								<dl class="contract-summary">
+									<div>
+										<dt>Purpose</dt>
+										<dd data-contract-purpose></dd>
+									</div>
+									<div>
+										<dt>Inputs</dt>
+										<dd data-contract-inputs></dd>
+									</div>
+									<div>
+										<dt>Effects</dt>
+										<dd data-contract-effects></dd>
+									</div>
+								</dl>
+								<details class="raw-details">
+									<summary>Full command contract</summary>
+									<pre
+										tabindex="0"
+										aria-label="Selected command metadata"
+									><code data-contract-metadata></code></pre>
+								</details>
 								<p>
 									Know what a command takes, what it does and whether it changes state before
 									calling it.
@@ -443,15 +473,41 @@
 								<div class="contract-caption">
 									<span>LATEST LIVE RESULT</span><code data-contract-result-name>todo-list</code>
 								</div>
-								<div class="translate" aria-hidden="true">
-									<div class="ux-art"><div class="ua-toast"><span>Task added · high priority</span><i>View</i></div></div>
-									<span class="translate__arrow">→</span>
-									<span class="translate__agent">A person gets feedback on screen. An agent gets reasoning and a next step in the result.</span>
+								<div class="translate">
+									<div class="ux-art" aria-hidden="true">
+										<div class="ua-toast"><span>Task added · high priority</span><i>View</i></div>
+									</div>
+									<span class="translate__arrow" aria-hidden="true">→</span>
+									<span class="translate__agent"
+										>A person gets feedback on screen. An agent gets reasoning and a next step in
+										the result.</span
+									>
 								</div>
-								<pre
-									tabindex="0"
-									aria-label="Latest command result"
-								><code data-contract-result></code></pre>
+								<dl class="contract-summary">
+									<div>
+										<dt>Outcome</dt>
+										<dd data-contract-outcome></dd>
+									</div>
+									<div>
+										<dt>Reasoning</dt>
+										<dd data-contract-reasoning></dd>
+									</div>
+									<div>
+										<dt>Confidence</dt>
+										<dd data-contract-confidence></dd>
+									</div>
+									<div data-contract-recovery-row hidden>
+										<dt>Next step</dt>
+										<dd data-contract-recovery></dd>
+									</div>
+								</dl>
+								<details class="raw-details">
+									<summary>Full command result</summary>
+									<pre
+										tabindex="0"
+										aria-label="Latest command result"
+									><code data-contract-result></code></pre>
+								</details>
 								<p>
 									Reasoning explains the outcome. Confidence is a signal, not permission to act.
 								</p>
@@ -464,10 +520,18 @@
 								hidden
 							>
 								<div class="contract-caption"><code>todo-clear</code><span>DESTRUCTIVE</span></div>
-								<div class="translate" aria-hidden="true">
-									<div class="ux-art"><div class="ua-dialog"><strong>Delete all tasks?</strong><span>This can’t be undone.</span><div class="ua-actions"><i>Cancel</i><i class="ua-danger">Delete</i></div></div></div>
-									<span class="translate__arrow">→</span>
-									<span class="translate__agent">A person gets a confirmation dialog. An agent’s caller gets the same pause.</span>
+								<div class="translate">
+									<div class="ux-art" aria-hidden="true">
+										<div class="ua-dialog">
+											<strong>Delete all tasks?</strong><span>This can’t be undone.</span>
+											<div class="ua-actions"><i>Cancel</i><i class="ua-danger">Delete</i></div>
+										</div>
+									</div>
+									<span class="translate__arrow" aria-hidden="true">→</span>
+									<span class="translate__agent"
+										>A person gets a confirmation dialog. An agent’s caller gets the same
+										pause.</span
+									>
 								</div>
 								<div class="control-decision">
 									<span class="decision-mark" aria-hidden="true">!</span>
@@ -493,7 +557,9 @@
 				<div class="wrap recovery-layout">
 					<div class="story-copy">
 						<span class="section-index"><span class="fig-chip">Fig. 04</span>The recovery</span>
-						<h2>A dead end.<br><span>Or a way <em>forward.</em></span></h2>
+						<h2>
+							A dead end.<br><span>Or a way <em>forward.</em></span>
+						</h2>
 						<p>
 							“Something went wrong” isn't an answer. A useful error tells the next operator what to
 							do.
@@ -548,8 +614,12 @@
 				<span class="big-numeral" aria-hidden="true">06</span>
 				<div class="wrap">
 					<div class="editorial-heading">
-						<span class="section-index"><span class="fig-chip">Fig. 06</span>Build with an agent</span>
-						<h2 class="lit" data-lit>Before it draws a screen,<br><span>give it something to prove.</span></h2>
+						<span class="section-index"
+							><span class="fig-chip">Fig. 06</span>Build with an agent</span
+						>
+						<h2 class="lit" data-lit>
+							Before it draws a screen,<br><span>give it something to prove.</span>
+						</h2>
 					</div>
 					<div class="build-story-layout">
 						<div class="build-brief">
@@ -670,31 +740,14 @@
 				<div class="wrap">
 					<div class="start-heading">
 						<span class="section-index"><span class="fig-chip">Fig. 07</span>Start small</span>
-						<h2>Capability first.<br><span>Everything else follows.</span></h2>
-					</div>
-					<div class="build-steps">
-						<div>
-							<span class="step-number">01</span>
-							<h3>Define.</h3>
-							<p>A named command. Typed input.<br>A structured result.</p>
-						</div>
-						<div>
-							<span class="step-number">02</span>
-							<h3>Validate.</h3>
-							<p>Prove it works from the terminal.<br>Before there's a screen.</p>
-						</div>
-						<div>
-							<span class="step-number">03</span>
-							<h3>Surface.</h3>
-							<p>Build for the person.<br>Connect the agent.</p>
-						</div>
+						<h2>Start with one command.<br><span>Keep your stack.</span></h2>
 					</div>
 					<div class="install">
 						<p class="install-premise">
 							Packages, not a platform. Add AFD to your stack, one capability at a time.
 						</p>
 						<div class="install-top">
-							<h3>Start with one command.</h3>
+							<h3>Install the library.</h3>
 							<div class="install-tabs" role="tablist" aria-label="Installation language">
 								<button
 									type="button"
@@ -813,13 +866,29 @@ FetchContent_MakeAvailable(afd)</code></pre>
 					<span class="section-index"><span class="fig-chip">Fig. 08</span>Your turn</span>
 					<form class="finale__line" data-finale>
 						<span class="finale__prompt" aria-hidden="true">$</span>
-						<label class="finale__cmd" for="finale-run">afd call get-started</label>
-						<button class="button button--red finale__run" id="finale-run" type="submit">Run <i class="icon icon--right" aria-hidden="true"></i></button>
+						<label class="finale__cmd" for="finale-run">afd call <span>get-started</span></label>
+						<button class="button button--red finale__run" id="finale-run" type="submit">
+							Run <i class="icon icon--right" aria-hidden="true"></i>
+						</button>
 					</form>
-					<pre class="finale__out" data-finale-out aria-live="polite" tabindex="0"><span class="tok-label">Install</span>      npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod
-<span class="tok-label">Quickstart</span>   <a href="https://github.com/lushly-dev/afd#quickstart">https://github.com/lushly-dev/afd#quickstart</a>
-<span class="tok-label">For agents</span>   npx degit lushly-dev/afd/.claude/skills/afd .claude/skills/afd
-<span class="tok-label">Source</span>       <a href="https://github.com/lushly-dev/afd">https://github.com/lushly-dev/afd</a></pre>
+					<div class="finale__out" data-finale-out>
+						<p class="finale__status" data-finale-status role="status">Ready when you are.</p>
+						<div class="finale__resources" data-finale-resources hidden>
+							<a data-finale-quickstart
+								>Open the quickstart <i class="icon icon--out" aria-hidden="true"></i></a
+							>
+							<a data-finale-source
+								>Explore the source <i class="icon icon--out" aria-hidden="true"></i></a
+							>
+						</div>
+						<details class="raw-details" data-finale-details hidden>
+							<summary>Full command result</summary>
+							<pre
+								tabindex="0"
+								aria-label="Get started command result"
+							><code data-finale-result></code></pre>
+						</details>
+					</div>
 				</div>
 			</section>
 		</main>
@@ -839,7 +908,8 @@ FetchContent_MakeAvailable(afd)</code></pre>
 			</p>
 			<nav aria-label="Footer">
 				<a href="https://github.com/lushly-dev/afd">Source</a
-				><a href="https://github.com/lushly-dev/afd/blob/main/LICENSE">MIT License</a><a href="styleguide.html">Style guide</a>
+				><a href="https://github.com/lushly-dev/afd/blob/main/LICENSE">MIT License</a
+				><a href="styleguide.html">Style guide</a>
 			</nav>
 			<span class="footer-edition">COMMAND MANIFESTO / 2026</span>
 		</footer>

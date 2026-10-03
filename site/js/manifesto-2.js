@@ -1,5 +1,5 @@
 import { initAgentView } from './agent-view.js';
-import { escape, jsonHtml } from './cli-format.js';
+import { jsonHtml } from './cli-format.js';
 import { call, getTodos, listCommands, onCommand, provide } from './runtime.js';
 import { initTabs, reducedMotion } from './util.js';
 
@@ -85,6 +85,16 @@ onCommand((entry) => {
 	document.querySelector('[data-cli-output]').innerHTML = jsonHtml(entry.result);
 	document.querySelector('[data-contract-result]').innerHTML = jsonHtml(entry.result);
 	document.querySelector('[data-contract-result-name]').textContent = entry.name;
+	document.querySelector('[data-contract-outcome]').textContent = entry.result.success
+		? 'Success'
+		: entry.result.error.message;
+	document.querySelector('[data-contract-reasoning]').textContent =
+		entry.result.reasoning ?? 'Not supplied by this command.';
+	document.querySelector('[data-contract-confidence]').textContent =
+		entry.result.confidence == null ? 'Not supplied' : String(entry.result.confidence);
+	const recovery = entry.result.error?.suggestion ?? entry.result.suggestions?.join(' ');
+	document.querySelector('[data-contract-recovery-row]').hidden = !recovery;
+	document.querySelector('[data-contract-recovery]').textContent = recovery ?? '';
 	document.querySelector('[data-command-source]').textContent =
 		surfaceNames[entry.surface] ?? entry.surface;
 	document.querySelector('[data-command-name]').textContent = entry.name;
@@ -327,6 +337,17 @@ const contractCommand = document.querySelector('[data-contract-command]');
 function renderContract() {
 	const command = listCommands().find((candidate) => candidate.name === contractCommand.value);
 	const { name, description, parameters, mutation, destructive } = command;
+	document.querySelector('[data-contract-purpose]').textContent = description;
+	document.querySelector('[data-contract-inputs]').textContent = parameters.length
+		? parameters
+				.map((parameter) => `${parameter.name} (${parameter.required ? 'required' : 'optional'})`)
+				.join(', ')
+		: 'None';
+	document.querySelector('[data-contract-effects]').textContent = destructive
+		? 'Destructive / changes shared state'
+		: mutation
+			? 'Changes shared state'
+			: 'Read only';
 	document.querySelector('[data-contract-metadata]').innerHTML = jsonHtml({
 		name,
 		description,
@@ -410,11 +431,24 @@ const sectionAliases = {
 	toolkit: 'start',
 	botcore: 'workflow',
 };
+function focusSection(target) {
+	const heading = target.querySelector('h1, h2, h3') ?? target;
+	if (!heading.hasAttribute('tabindex')) {
+		heading.tabIndex = -1;
+		heading.addEventListener('blur', () => heading.removeAttribute('tabindex'), { once: true });
+	}
+	heading.focus({ preventScroll: true });
+}
 provide('scrollTo', (section) => {
 	const target = document.getElementById(sectionAliases[section] ?? section);
 	if (!target) return;
+	if (location.hash !== `#${target.id}`) history.pushState(null, '', `#${target.id}`);
+	focusSection(target);
 	target.scrollIntoView({ behavior: reducedMotion.matches ? 'auto' : 'smooth' });
-	history.replaceState(null, '', `#${target.id}`);
+});
+window.addEventListener('hashchange', () => {
+	const target = document.getElementById(location.hash.slice(1) || 'top');
+	if (target && document.body.dataset.view !== 'agent') focusSection(target);
 });
 document.addEventListener('click', async (event) => {
 	const link = event.target.closest('a[href^="#"]');
@@ -500,28 +534,48 @@ function initLit(el) {
 	}).observe(el);
 }
 
-if (!reducedMotion.matches) {
-	for (const el of document.querySelectorAll('[data-lit]')) initLit(el);
+function initStatements() {
+	if (reducedMotion.matches) return;
+	for (const el of document.querySelectorAll('[data-lit]:not(.is-armed)')) initLit(el);
 }
+initStatements();
+reducedMotion.addEventListener('change', initStatements);
 
 // Finale: run the real get-started command and show its CommandResult.
 const finaleForm = document.querySelector('[data-finale]');
 const finaleOut = document.querySelector('[data-finale-out]');
+let finaleBusy = false;
 finaleForm?.addEventListener('submit', async (event) => {
 	event.preventDefault();
-	const result = await call('get-started', {}, { surface: 'cli' });
-	const linkify = (html) => html.replace(/(https:\/\/[^\s"<]+)/g, '<a href="$1">$1</a>');
-	const lines = [
-		result.success ? '<span class="tok-ok">✓ Success</span>' : '<span class="tok-err">✗ Failed</span>',
-		'',
-		'<span class="tok-label">Data:</span>',
-		linkify(jsonHtml(result.data ?? result.error)),
-		'',
-		`<span class="tok-label">Reasoning:</span> ${escape(result.reasoning ?? '')}`,
-	];
-	finaleOut.innerHTML = '';
-	for (const line of lines) {
-		finaleOut.insertAdjacentHTML('beforeend', `${line}\n`);
-		if (!reducedMotion.matches) await new Promise((resolve) => setTimeout(resolve, 90));
+	if (finaleBusy) return;
+	finaleBusy = true;
+	const run = finaleForm.querySelector('button');
+	const status = finaleOut.querySelector('[data-finale-status]');
+	const resources = finaleOut.querySelector('[data-finale-resources]');
+	const details = finaleOut.querySelector('[data-finale-details]');
+	run.disabled = true;
+	finaleForm.setAttribute('aria-busy', 'true');
+	status.textContent = 'Running get-started...';
+	resources.hidden = true;
+	details.hidden = true;
+	details.open = false;
+	try {
+		const result = await call('get-started', {}, { surface: 'cli' });
+		finaleOut.querySelector('[data-finale-result]').innerHTML = jsonHtml(result);
+		details.hidden = false;
+		if (result.success) {
+			status.textContent = result.suggestions?.[0] ?? result.reasoning ?? 'Ready to get started.';
+			finaleOut.querySelector('[data-finale-quickstart]').href = result.data.quickstart;
+			finaleOut.querySelector('[data-finale-source]').href = result.data.source;
+			resources.hidden = false;
+		} else {
+			status.textContent = result.error.suggestion ?? result.error.message;
+		}
+	} catch {
+		status.textContent = 'The command could not finish. Run it again.';
+	} finally {
+		finaleBusy = false;
+		run.disabled = false;
+		finaleForm.removeAttribute('aria-busy');
 	}
 });

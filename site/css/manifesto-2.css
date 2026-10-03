@@ -20,6 +20,9 @@
 body {
 	margin: 0;
 }
+html {
+	scroll-padding-top: calc(var(--nav-h) + var(--space-4));
+}
 button,
 input,
 select,
@@ -2179,7 +2182,6 @@ textarea[aria-invalid="true"] {
 	}
 }
 
-
 /* ============================================================
    Command Manifesto 2 — Field Manual details on the manifesto:
    figure labels, crop marks and faint drafting grids, a red
@@ -2319,9 +2321,9 @@ textarea[aria-invalid="true"] {
 .slab__quote {
 	margin: 28px 0 0;
 	font-family: var(--display);
-	font-size: clamp(40px, 6.6vw, 118px);
+	font-size: var(--t-honesty);
 	line-height: 0.93;
-	letter-spacing: -0.02em;
+	letter-spacing: 0;
 	text-transform: uppercase;
 	max-width: 17ch;
 	text-wrap: balance;
@@ -2356,8 +2358,8 @@ textarea[aria-invalid="true"] {
 
 @keyframes m2-slam {
 	0% {
-		opacity: 0;
-		transform: scale(1.5) rotate(-5deg);
+		opacity: 1;
+		transform: scale(1.35) rotate(-3deg);
 	}
 	55% {
 		opacity: 1;
@@ -2378,8 +2380,56 @@ textarea[aria-invalid="true"] {
 /* ── Agent UX tabs: the human pattern, drawn, beside the agent's ── */
 
 .contract-panel {
-	grid-template-rows: auto auto minmax(0, 1fr) auto;
-	height: 520px;
+	grid-template-rows: none;
+	height: auto;
+	min-height: 500px;
+}
+
+.contract-summary {
+	display: grid;
+	gap: var(--space-3);
+	margin: 0;
+}
+
+.contract-summary > div {
+	display: grid;
+	grid-template-columns: var(--space-9) minmax(0, 1fr);
+	gap: var(--space-3);
+}
+
+.contract-summary dt {
+	color: var(--color-on-dark-muted);
+	font: var(--t-code) / 1.5 var(--mono);
+}
+
+.contract-summary dd {
+	margin: 0;
+	font-size: var(--t-small);
+	line-height: 1.5;
+	overflow-wrap: anywhere;
+}
+
+.raw-details {
+	min-width: 0;
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+	font: var(--t-code) / 1.6 var(--mono);
+}
+
+.raw-details summary {
+	padding-block: var(--space-3);
+	color: var(--accent-agent);
+	cursor: pointer;
+}
+
+.raw-details pre {
+	max-height: 260px;
+	padding: var(--space-3);
+	background: var(--color-code-bg);
+	color: var(--color-code-text);
+	overflow: auto;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	font: var(--t-label) / 1.7 var(--mono);
 }
 
 .translate {
@@ -2507,12 +2557,16 @@ textarea[aria-invalid="true"] {
 	align-items: center;
 	gap: 8px 22px;
 	margin: 28px 0 32px;
-	font: 600 clamp(28px, 4.6vw, 72px) / 1 var(--mono);
-	letter-spacing: -0.03em;
+	font: 600 var(--t-command) / 1.2 var(--mono);
+	letter-spacing: 0;
 }
 
 .finale__prompt {
 	color: var(--mint);
+}
+
+.finale__cmd span {
+	white-space: nowrap;
 }
 
 .finale__cmd::after {
@@ -2544,8 +2598,29 @@ textarea[aria-invalid="true"] {
 	box-shadow: 8px 8px 0 var(--red);
 	background: var(--afd-ink);
 	font: var(--t-code) / 1.75 var(--mono);
-	white-space: pre-wrap;
 	overflow-wrap: anywhere;
+}
+
+.finale__status {
+	color: var(--color-on-dark);
+	font: var(--t-body) / var(--leading-body) var(--font-sans);
+}
+
+.finale__resources {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-4) var(--space-6);
+	margin-top: var(--space-5);
+}
+
+.finale__resources a {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--space-2);
+}
+
+.finale__out .raw-details {
+	margin-top: var(--space-5);
 }
 
 .finale__out a {
@@ -2591,6 +2666,25 @@ textarea[aria-invalid="true"] {
 
 	.contract-panel {
 		height: auto;
+		min-height: 0;
+	}
+}
+
+@media (max-width: 620px) {
+	.ux-art {
+		height: 96px;
+	}
+	.contract-summary > div {
+		grid-template-columns: calc(var(--space-8) + var(--space-4)) minmax(0, 1fr);
+	}
+	.finale__line {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: var(--space-4);
+	}
+	.finale__run {
+		grid-column: 2;
+		justify-self: start;
 	}
 }
 
@@ -2675,7 +2769,7 @@ textarea[aria-invalid="true"] {
 .opening > .wrap {
 	position: relative;
 	z-index: 1;
-	min-height: max(560px, min(920px, calc(100svh - var(--nav-h) - 72px)));
+	min-height: min(920px, calc(100svh - var(--nav-h) - 72px));
 }
 
 .opening-art {
@@ -2868,6 +2962,16 @@ main h2 > span:not(.lit-word),
 	padding-block: var(--section-pad);
 }
 
+.experience {
+	padding-top: var(--space-6);
+}
+
+.handoff,
+.agent-design,
+.build-story {
+	padding-block: var(--statement-pad);
+}
+
 .handoff,
 .recovery {
 	padding-inline: 0;
@@ -2878,7 +2982,7 @@ main h2 > span:not(.lit-word),
 }
 
 .slab {
-	padding-block: calc(var(--section-pad) * 1.2);
+	padding-block: var(--statement-pad);
 }
 
 .editorial-heading,
@@ -2969,8 +3073,12 @@ main h2 > span:not(.lit-word),
 
 .lit.is-armed .lit-word,
 .lit.is-armed mark {
-	opacity: 0.2;
-	transition: opacity 0.35s ease;
+	opacity: var(--motion-rest-opacity);
+	transition: opacity var(--motion-fast) ease;
+}
+
+.lit.is-armed mark {
+	opacity: 1;
 }
 
 .lit.is-armed .lit-word.is-lit {
@@ -2979,7 +3087,7 @@ main h2 > span:not(.lit-word),
 
 .lit.is-armed.is-complete mark {
 	opacity: 1;
-	animation: m2-slam 0.6s var(--ease-out);
+	animation: m2-slam var(--motion-base) var(--ease-out);
 }
 
 /* The slab's earlier colour-based version is replaced by the shared one. */

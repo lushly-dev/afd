@@ -76,11 +76,15 @@ ink (proof) → rest → ink (finale).
 
 ## Type
 
-Every `font-size` is one of eight ramp tokens. **Never write a px font size.**
+Font sizes use the shared ramp or a role-specific token. **Never write a px font
+size in component CSS.** Hero, honesty and closing-command sizes use fixed
+breakpoints; check the longest word at the narrow edge of each breakpoint.
 
 | Token | Use |
 |-------|-----|
 | `--t-display` | The hero headline only |
+| `--t-honesty` | The honesty statement |
+| `--t-command` | The closing command |
 | `--t-statement` | Section headlines (the statement pattern) |
 | `--t-title` | Sub-headlines, step titles, the demo intro |
 | `--t-lead` | Opening paragraph of a section, `--weight-thin` |
@@ -104,7 +108,9 @@ change `--t-display`, check it.
 
 ## Space
 
-- Every section: `padding-block: var(--section-pad)`. The honesty slab uses 1.2×.
+- Supporting sections use `padding-block: var(--section-pad)`; handoff, agent UX,
+  build and the honesty check use `--statement-pad` for more space. The demo starts
+  at `--space-6` so its headline peeks below the hero.
 - Below every section headline: `var(--heading-gap)`.
 - Inside components: the `--space-1`…`--space-9` scale.
 
@@ -134,13 +140,21 @@ Snippets for each piece are in [references/patterns.md](references/patterns.md).
 
 ## Motion
 
-- **Light-up** (`class="lit" data-lit`): words fade in as the statement scrolls in. At
+- **Light-up** (`class="lit" data-lit`): words gain emphasis as the statement scrolls in;
+  `--motion-rest-opacity` is 0.65 so the whole statement stays readable while the
+  word-by-word emphasis remains visible. At
   most **three per page**, far apart. Currently "Your app isn't its buttons", the
   honesty check and "Before it draws a screen".
-- **Stamp**: a `<mark>` inside a lit statement slams in when the statement completes.
+- **Stamp**: a `<mark>` inside a lit statement slams in at 1.35× scale when the
+  statement completes. It stays readable throughout the animation.
 - **Entrance**: the hero slash slides in once (`--motion-enter`, `--ease-out`).
 - Every animation has a static state under `prefers-reduced-motion`. Animate only
   transform and opacity. Hide content with `hidden`/`inert`, never opacity alone.
+  Statements also initialize when reduced motion is turned off after page load.
+- Contract panels show live metadata and outcome summaries first. Full JSON is
+  available in native disclosures with bounded, scrollable code regions.
+- Section jumps add history entries and focus the destination heading. The finale
+  renders one complete real result per run and blocks concurrent submissions.
 
 ## The live runtime
 
