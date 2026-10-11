@@ -144,8 +144,47 @@ forwards real `Set-Cookie` values; it does not implement browser cookie policy.
 The test disposes subscriptions, closes sockets and discards all synthetic data.
 Both the real vanilla store and the legacy function accessor are supported.
 
-This is local provider evidence. OAuth callbacks, provider token refresh, browser
-SameSite/Secure enforcement, real multi-tab lifecycle and Convex deployment behavior
+The separate browser suite installs only development tooling and runs without
+provider credentials:
+
+```sh
+pnpm -F @lushly-dev/afd-auth exec playwright install chromium
+pnpm -F @lushly-dev/afd-auth test:browser
+```
+
+`browser/lifecycle.test.ts` starts the actual Better Auth memory provider and
+bundles a small application using `BetterAuthAdapter`, `createAuthHooks` and
+`SessionSync`. Chromium uses its own cookie jar and two real tabs in one fresh
+context. The application explicitly broadcasts auth changes and refetches provider
+state on received AFD messages. The suite checks:
+
+- Registration, invalid credentials, sign-in, React session/user rendering and
+  restoration after reload; a separate browser context stays signed out.
+- Actual HttpOnly cookie protection from `document.cookie`, SameSite=Lax and path
+  attributes, cookie removal on sign-out and expiry, and independent replay of
+  revoked or expired synthetic cookies against the provider.
+- Cross-tab sign-in, sign-out and session renewal with BroadcastChannel, then with
+  BroadcastChannel unavailable to exercise real localStorage `storage` events.
+- Refresh-lock ownership across tabs: a non-owner cannot acquire or release an
+  existing lock, and the next owner can acquire after release.
+- Real wall-clock provider session renewal and expiry. The expiry case first
+  observes Chromium remove the cookie while asserting that no provider request
+  occurs, then refetches and verifies the signed-out hooks and expired-cookie
+  rejection. It uses no fake timers, injected sessions, cookie shim or mocked
+  provider endpoints.
+
+Each run uses ephemeral loopback ports and synthetic accounts. Teardown closes
+browser contexts, provider connections and servers and clears provider memory,
+including after failed assertions. Session cookies and tokens are never written to
+an evidence file. Startup, test and CI deadlines bound the run. The path-filtered
+`Auth browser integration` workflow runs the same suite on Node 24 with a pinned
+Playwright version and its matching Chromium. It is separate from `pnpm check`,
+so the TypeScript gate does not require a downloaded browser binary.
+
+This is local Chromium/provider evidence using HTTP with `Secure=false`. It does
+not establish HTTPS Secure-cookie or cross-site SameSite enforcement, OAuth
+callbacks, refresh of upstream OAuth tokens, simultaneous refresh-lock atomicity,
+other browsers or Convex deployment behavior. Those deployment-specific checks
 remain tracked in [#362](https://github.com/lushly-dev/afd/issues/362).
 
 For an optional provider/browser validation run, provision a disposable staging

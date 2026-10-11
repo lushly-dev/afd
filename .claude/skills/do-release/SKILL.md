@@ -41,7 +41,7 @@ AFD ships four implementations. Each follows semver on its own API, has its own 
 
 The versioning plan adds a `MAJOR.MINOR` version for the shared AFD contract (`spec/wire`, `spec/pipeline-variables.md`, `spec/vectors` and the conformance suite), stored in `spec/VERSION`. Each implementation exports the version it implements: `AFD_CONTRACT_VERSION` (`@lushly-dev/afd-core`), `afd.CONTRACT_VERSION`, `afd::CONTRACT_VERSION` (Rust) and `afd::contract_version` (C++). It reads `1.0-rc` until all four languages load every vector file.
 
-**`spec/VERSION` does not exist yet.** Until it does, skip the contract steps below. Once it exists, every release also:
+`spec/VERSION` exists and currently reads `1.0-rc`. Every release also:
 
 - checks that the implementation's constant matches `spec/VERSION` (`alfred parity` reports a mismatch);
 - names the contract version it implements in its changelog section;
@@ -55,7 +55,7 @@ Every release, whatever the implementation:
 - [ ] Its changelog has a dated section for the version, with breaking changes first and migration notes for each.
 - [ ] The version is changed everywhere the track lists below.
 - [ ] `docs/language-parity.md`: the implementation's column in the **Version** row shows the new version (`node scripts/check-versions.mjs --write` sets it from the manifest), the **Distribution** row is still true (for example after the first crates.io release or the first C++ tag), and the **Updated** date is today.
-- [ ] Contract version checked, once `spec/VERSION` exists.
+- [ ] Contract version checked against `spec/VERSION`.
 - [ ] After the maintainer tags or merges: the package is installable and the tag exists.
 
 ## TypeScript (npm, Changesets)
@@ -83,7 +83,11 @@ Configuration is in `.changeset/config.json`: `"fixed": [["@lushly-dev/*"]]` kee
 7. **Optional:** create a GitHub Release from the tag, with the changelog section as notes. Publishing a GitHub Release whose tag starts with `python-v` also runs `publish-python.yml`: the version check runs again, and the upload skips files already on PyPI. Releases with any other tag do not run it.
 8. **Verify:** `pip index versions afd`, or <https://pypi.org/project/afd/>.
 
-**0.9.0** is drafted in `python/CHANGELOG.md`, with its own checklist. It waits for the in-flight Python fixes (#304 and others).
+The **0.9.0** candidate is prepared after stabilization #367, with a dated changelog,
+three updated lockfiles, the supported-interpreter test matrix and isolated wheel
+checks. PyPI still has 0.8.0 as of 2026-10-11. Keep #347 open until the newly
+published base wheel passes its consumer reproduction. See
+`docs/operations/stabilization-release.md` for the current release sequence.
 
 ## Rust (crates.io)
 
@@ -123,23 +127,39 @@ afd-cpp is on no registry. A release is a tag and a GitHub Release, and consumer
 
 ## Unblocking npm
 
-As of 2026-09-27, npm has 1.0.0 while `main` has 2.0.0, versioned by the release pull request #252 (commit `b4a94e6`). Two failures block it:
+As of 2026-10-11, npm has 1.0.0 while `main` has 2.0.0, versioned by release
+pull request #252 (commit `b4a94e6`). The accepted sequence retains 2.0.0 before
+2.1.0. Publication recovery is tracked in #369:
 
-1. The 2.0.0 publish failed with `E404 Not Found - PUT …/@lushly-dev%2fafd-adapters`, next to npm's notice that tokens which bypass 2FA are being restricted: npm no longer accepts the `NPM_TOKEN` credential.
-2. Since then, every Release run fails to open the version pull request: "GitHub Actions is not permitted to create or approve pull requests."
+1. The 2.0.0 publish failed with `E404 Not Found - PUT …/@lushly-dev%2fafd-adapters`,
+   alongside an invalid/expired credential notice. The historical failure does
+   not prove the current stored credential is valid or invalid; only a successful
+   authorized publish establishes recovery.
+2. Version-PR creation now works: Release run `38173831514` refreshed #338 after
+   stabilization #367. This is separate from npm authentication. Inspect actual
+   runs on every bot-generated head; an empty check rollup or an `action_required`
+   workflow is not a green gate.
 
 These steps change security settings, so the maintainer does them, in this order:
 
 1. **npm authentication.** Either:
    - **Trusted publishing (preferred).** On npmjs.com, for each of the nine packages, add a trusted publisher: GitHub Actions, organization `lushly-dev`, repository `afd`, workflow `release.yml`. `release.yml` already requests `id-token: write` and provenance, and runs Node 24, whose npm meets trusted publishing's minimum (npm 11.5.1). `changeset publish` publishes through `pnpm publish`; if that does not pick up the OIDC credential, use the token instead. Once trusted publishing works, a follow-up pull request removes `NODE_AUTH_TOKEN` from `release.yml`, and the `NPM_TOKEN` secret can be deleted.
    - **A new token.** Create a granular access token that can publish the `@lushly-dev` packages, and store it as the `NPM_TOKEN` repository secret.
-2. **Let Actions open pull requests.** In the repository's Settings → Actions → General → Workflow permissions, allow GitHub Actions to create and approve pull requests. Alternatively, give `changesets/action` a GitHub App token.
+2. **Version PR checks.** Verify #338 is refreshed against current main and every
+   applicable workflow passes on its exact head. Approve pending workflow runs
+   when appropriate. No repository permission change is needed merely because
+   an older run failed to create the version PR.
 3. **Publish 2.0.0.** Re-run the failed Release run [35950563235](https://github.com/lushly-dev/afd/actions/runs/35950563235) for `b4a94e6` (Re-run all jobs, or `gh run rerun 35950563235`).
    - `b4a94e6` has no pending changesets, so Changesets publishes and tags exactly 2.0.0.
    - A re-run uses `release.yml` as it was at `b4a94e6`, which passes `NPM_TOKEN` as `NODE_AUTH_TOKEN` and requests `id-token: write`, so either credential from step 1 applies.
    - Do not wait for a new push instead: `main` has a pending changeset, so a Release run there opens the 2.1.0 version pull request, and 2.0.0 would never reach npm.
+   - This historical candidate lacks October stabilization fixes. Inspect that
+     candidate and its receipts before authorizing a rerun.
    - GitHub allows a re-run for 30 days after the original run, which started on 2026-09-24.
-4. **Next:** the following push to `main` opens the 2.1.0 release pull request. Check `npm view @lushly-dev/afd-core version` and the `@lushly-dev/*@2.0.0` tags.
+4. **Next:** review the refreshed 2.1.0 #338 diff, packaged dependency ranges and
+   exact-head CI before an authorized merge. Verify all nine packages at each
+   published version, their tags and fresh consumer installations; one core
+   registry lookup is insufficient.
 
 ## Reference
 

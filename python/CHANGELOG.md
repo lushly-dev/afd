@@ -4,27 +4,11 @@ All notable changes to the Python `afd` package are documented here. The package
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Before 1.0, a minor release may break the API.
 
-## [0.9.0] - Unreleased
+## [Unreleased]
 
-> **Draft: not released.** `pyproject.toml` and `afd.__version__` still read 0.8.0, and 0.8.0 on PyPI still writes snake_case results. [#304](https://github.com/lushly-dev/afd/pull/304) (single-command dispatch and exception redaction) is merged and listed here. The stabilization entries below describe unmerged source changes, not the behavior of the published artifact. #347 remains publication-blocked pending merge, supported-version and wheel gates, version reconciliation, and explicit release authorization.
->
-> **Release checklist**
->
-> 1. The Python fixes planned for 0.9.0, including #304, are merged and listed here.
-> 2. Set the version to `0.9.0` in `python/pyproject.toml` and `__version__` in `python/src/afd/__init__.py`.
-> 3. Run `uv lock` in `python/`, `alfred/` and `packages/examples/todo/backends/python/`. All three lockfiles record the `afd` version, and `python.yml` runs `uv lock --check`.
-> 4. Replace "Unreleased" above with the release date, delete this note, add an empty `## [Unreleased]` section above it, and point the `[0.9.0]` link at `python-v0.9.0`.
-> 5. Update the Python column of the version row in `docs/language-parity.md`.
-> 6. Merge, then the maintainer tags `python-v0.9.0`. The `do-release` skill has the steps.
+## [0.9.0] - 2026-10-11
 
-### Stabilization candidate (unmerged)
-
-- Bind MCP contexts to trusted SDK transport sessions, cap stacks at 16, preserve independent discovery/execution, and return `SESSION_REQUIRED` for context mutation on stateless HTTP (#353).
-- Enforce positive finite DirectClient deadlines in milliseconds; reject booleans as numbers and require JSON-shaped object/array inputs. Cancellation requests do not guarantee mutation rollback (#354).
-- Recognize `success(None)` by its success discriminant and cap decoded SSE frames at 1 MiB by default (#354).
-- Reconnect MCP clients after HTTP/SSE connection loss or idle SSE EOF, refresh discovery, cancel obsolete attempts and never replay uncertain in-flight calls (#354).
-- Add real subprocess/socket protocol tests for individual/grouped/lazy strategies over SSE and Streamable HTTP. See [`spec/protocol-conformance.md`](../spec/protocol-conformance.md) for the shared acceptance index and coverage limits (#361).
-- Consume the shared 34-case / 130-test validation fixture; use 24 batch, 25 pipeline, 51 reference and 27 condition cases. Unsupported schema syntax rejects registration, and issue comparisons preserve duplicates while allowing sibling ordering differences.
+Implements AFD contract `1.0-rc`.
 
 ### Breaking changes
 
@@ -52,6 +36,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Retry middleware:** `create_retry_middleware()` backs off exponentially with a cap and jitter, like TypeScript, instead of linearly: retry `n` waits `min(max_delay, retry_delay * 2 ** (n - 1))` ms, randomized to between half and all of that. Invalid options (a negative or non-integer `max_retries`, a negative `retry_delay` or `max_delay`, an infinite `max_delay`) raise `ValueError`, as in TypeScript (#253).
 - **Dispatch order:** the MCP server checks a call in the TypeScript order before any middleware runs: lookup, exposure, active context, then input validation. Logging, retry, rate-limit and telemetry middleware no longer see unknown commands or invalid input, and a rejected call no longer spends a rate-limit slot. Middleware receives the validated input (the schema's model instance), and a handler exception passes out through the middleware before it becomes `COMMAND_EXECUTION_ERROR`. An unknown command gets the "Did you mean" suggestion on `server.execute`, batch and pipeline steps, and `afd-call`, naming only commands the caller could call. `input=None` validates as `{}`, so a missing required field returns `VALIDATION_ERROR` instead of crashing the handler (#304).
 - **Unknown and unexposed commands** follow `spec/error-codes.md` (D4). `INVALID_INTERFACE` is gone: in the core registry and the server, an interface other than `palette`, `mcp`, `agent` or `cli` exposes nothing and returns `COMMAND_NOT_EXPOSED` (`retryable: false`), and an empty interface is treated as no interface, as in TypeScript.
+
+### Migration
+
+- Read serialized result and built-in payload fields as camelCase; Python model attributes remain snake_case, and parsing still accepts snake_case. Omitted optional fields are absent from wire output.
+- Declare `expose=ExposeOptions(mcp=True)` for commands intended for MCP, update reconnect handlers to read `sessionId`, and send handoff tokens in the `Authorization: Bearer` header.
+- Make inputs conform to their advertised JSON Schema before dispatch. Remove unknown batch/pipeline option fields, omit unused optional envelope fields instead of sending `null`, and remove unsupported parallel/stream options. Catch `ValueError` for invalid retry options and review exponential backoff timing.
+- Use pipeline `$input` only for request input, replace attribute/private-name references with explicit JSON keys, and check `success` when a successful result can contain `None`.
+- Expect redacted handler errors by default; use `dev_mode=True` only when development diagnostics are needed. Handle `SESSION_REQUIRED` for context mutation on stateless HTTP, and supply positive finite DirectClient deadlines in milliseconds.
+- Treat unknown or hidden MCP tools as `COMMAND_NOT_FOUND`; update callers that handled `INVALID_INTERFACE` to handle `COMMAND_NOT_EXPOSED`. Discover commands through `afd-discover`/`afd-detail` in every strategy. Allow already running parallel batch commands to complete after `stopOnError`, and use fractional batch/pipeline timeout values only within the finite nonnegative range.
+- Install `afd[client]`, `afd[server]` or `afd[cli]` for optional integrations; base `afd` supports local DirectClient use without HTTP/MCP dependencies. The planned 0.10.0 server-defaults milestone is separate from this release.
+
+### Stabilization
+
+- Bind MCP contexts to trusted SDK transport sessions, cap stacks at 16, preserve independent discovery/execution, and return `SESSION_REQUIRED` for context mutation on stateless HTTP (#353).
+- Enforce positive finite DirectClient deadlines in milliseconds; reject booleans as numbers and require JSON-shaped object/array inputs. Cancellation requests do not guarantee mutation rollback (#354).
+- Recognize `success(None)` by its success discriminant and cap decoded SSE frames at 1 MiB by default (#354).
+- Reconnect MCP clients after HTTP/SSE connection loss or idle SSE EOF, refresh discovery, cancel obsolete attempts and never replay uncertain in-flight calls (#354).
+- Add real subprocess/socket protocol tests for individual/grouped/lazy strategies over SSE and Streamable HTTP. See [`spec/protocol-conformance.md`](../spec/protocol-conformance.md) for the shared acceptance index and coverage limits (#361).
+- Consume the shared 34-case / 130-test validation fixture; use 24 batch, 25 pipeline, 51 reference and 27 condition cases. Unsupported schema syntax rejects registration, and issue comparisons preserve duplicates while allowing sibling ordering differences.
 
 ### Added
 
@@ -139,7 +142,8 @@ These were released together with the repository-wide releases of the same perio
 
 - Published to PyPI: `pip install afd>=0.1.1`
 
-[0.9.0]: https://github.com/lushly-dev/afd/compare/python-v0.8.0...main
+[Unreleased]: https://github.com/lushly-dev/afd/compare/python-v0.9.0...main
+[0.9.0]: https://github.com/lushly-dev/afd/compare/python-v0.8.0...python-v0.9.0
 [0.8.0]: https://github.com/lushly-dev/afd/compare/python-v0.7.0...python-v0.8.0
 [0.7.0]: https://github.com/lushly-dev/afd/compare/python-v0.6.0...python-v0.7.0
 [0.6.0]: https://github.com/lushly-dev/afd/compare/python-v0.3.0...python-v0.6.0
