@@ -131,10 +131,11 @@ As of 2026-10-11, npm has 1.0.0 while `main` has 2.0.0, versioned by release
 pull request #252 (commit `b4a94e6`). The accepted sequence retains 2.0.0 before
 2.1.0. Publication recovery is tracked in #369:
 
-1. The 2.0.0 publish failed with `E404 Not Found - PUT …/@lushly-dev%2fafd-adapters`,
-   alongside an invalid/expired credential notice. The historical failure does
-   not prove the current stored credential is valid or invalid; only a successful
-   authorized publish establishes recovery.
+1. The 2.0.0 publish failed with `E404 Not Found - PUT …/@lushly-dev%2fafd-adapters`.
+   The action reported no `NPM_TOKEN` and selected OIDC trusted publishing; all
+   nine uploads were rejected. This establishes registry/authorization rejection,
+   not a proved credential/configuration root cause. Only a successful authorized
+   publish establishes recovery.
 2. Version-PR creation now works: Release run `38173831514` refreshed #338 after
    stabilization #367. This is separate from npm authentication. Inspect actual
    runs on every bot-generated head; an empty check rollup or an `action_required`

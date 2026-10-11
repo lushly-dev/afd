@@ -88,9 +88,33 @@ on stabilization base `f19257e`. An independent read-only reviewer found consist
 nine-package versions, changelogs and changeset consumption. Its initially waiting
 CI, Conformance and Alfred runs were approved; all six resulting checks passed.
 Any subsequent head/base change requires fresh check inspection. Packed-artifact
-and fresh-consumer evidence, actual publishing authentication, published-version
-installation and tags remain separate requirements; no registry repair is claimed
-from a successful version-PR refresh.
+and fresh-consumer evidence found one new blocker: view-state's declarations
+imported the optional local-db peer even when persistence was unused. Runtime
+and browser bundles passed; strict TypeScript compilation failed with TS2307.
+The #373 repair makes the declarations self-contained while preserving the full
+structural DataAdapter contract, including bidirectional assignment and read
+access to batching, health and removal. An isolated regression builds/packs the
+actual packages and strictly compiles root and `/commands` without local-db, then
+checks compatibility with the peer present. It runs through the existing tooling
+gate. Focused validation passed 67 view-state tests and 10 repository-contract
+tests. A separate read-only review covered this new correction; its path-normalization
+finding was corrected. Native Windows execution remains unverified; the test uses
+the existing repository gate's pnpm launcher pattern.
+
+All other executed nine-package consumers passed, including actual
+loopback MCP/client/CLI calls, offline CLI selection, provider integration,
+declarations with optional peers enabled, minimal auth/testing imports with peers
+absent, browser bundling and DOM rendering. The fresh installed consumer audit
+reported zero advisories without workspace overrides. These checks used Node 24;
+Node 22 artifact consumers were not rerun separately.
+
+A separate executor built and packed historical `b4a94e6` 2.0.0, checked all nine
+export/type/bin targets and rewritten dependencies, and passed fresh imports,
+DirectClient, server execution, CLI version/help and minimal auth/testing imports.
+Its fresh dependency resolution also audited clean; this does not establish that
+the historical lockfile is clean or that October behavior fixes are present.
+Actual publishing authentication, published-version installation and tags remain
+separate requirements; no registry repair is claimed from a version-PR refresh.
 
 Detailed local receipts and final GitHub state are retained in the session's
 `afd-publication-verification-2026-10-11` evidence directory. They distinguish

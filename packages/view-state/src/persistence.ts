@@ -1,4 +1,4 @@
-import type { DataAdapter } from '@lushly-dev/local-db';
+import type { ViewStateRegistryOptions } from './types.js';
 
 /**
  * Whether an adapter error means the record does not exist yet: an HTTP 404
@@ -33,7 +33,7 @@ export class DebouncedPersistence {
 	private queued: Promise<void> | null = null;
 
 	constructor(
-		private readonly adapter: DataAdapter,
+		private readonly adapter: NonNullable<ViewStateRegistryOptions['adapter']>,
 		private readonly table: string,
 		private readonly category: string,
 		private readonly debounceMs: number

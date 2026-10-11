@@ -123,7 +123,11 @@ const registry = new ViewStateRegistry({
 await registry.hydrate();
 ```
 
-Without an adapter, the registry works entirely in-memory.
+Without an adapter, the registry works entirely in-memory, and neither entrypoint
+requires `@lushly-dev/local-db` to be installed, including for TypeScript consumers.
+Install it separately when using its adapters. The adapter option describes the
+same structural contract as `DataAdapter`, so existing adapters and code that
+reads `ViewStateRegistryOptions['adapter']` remain compatible.
 
 ## API
 
