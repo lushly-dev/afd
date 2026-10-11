@@ -4,14 +4,14 @@ What each AFD implementation provides, where they differ, and which differences 
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-10 |
-| Reviewed at | Stabilization working tree based on `ddb1663`; changes unmerged and unpublished |
+| Updated | 2026-10-11 |
+| Reviewed at | Stabilization merged at `f19257e` (#367); Python 0.9.0 release candidate prepared, unpublished |
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans, which now link here |
 | Plans | [Parity closure](./features/active/parity-closure/parity-closure.plan.md) closes the gaps listed here; [Versioning and release](./features/active/versioning/versioning.plan.md) covers each implementation's version and the contract version |
 | Related | [`spec/wire`](../spec/wire/README.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/command-metadata.md`](../spec/command-metadata.md), [`spec/validation.md`](../spec/validation.md), [`spec/error-codes.md`](../spec/error-codes.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/proposed/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
 
-The implementation rows below include the **unmerged 2026-10-10 stabilization candidate**, not released-package guarantees. Python 0.8.0 remains the published broken artifact; #347 remains publication-blocked until the release gates are satisfied. Local receipts do not establish remote CI, deployment, or release readiness. The historical export measurement below remains dated separately.
+The implementation rows below include the stabilization merged in #367, not released-package guarantees. Python 0.8.0 remains the published broken artifact; the 0.9.0 candidate is validated locally but #347 remains open until published-wheel verification passes. Local receipts do not establish remote CI, deployment, or publication. The historical export measurement below remains dated separately.
 
 ## What parity means
 
@@ -32,7 +32,7 @@ Versions below describe repository manifests. The release-readiness record separ
 | | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
 | Package | 9 `@lushly-dev/*` packages | `afd` | `afd` crate | `afd-cpp` (`afd::afd`) |
-| Version | 2.0.0 | 0.8.0 | 0.1.0 | 0.1.0, release candidate |
+| Version | 2.0.0 | 0.9.0 | 0.1.0 | 0.1.0, release candidate |
 | Contract | 1.0-rc (`AFD_CONTRACT_VERSION`) | 1.0-rc (`afd.CONTRACT_VERSION`) | 1.0-rc (`afd::CONTRACT_VERSION`) | 1.0-rc (`afd::contract_version`) |
 | Distribution | npm | PyPI | Git or path dependency; not on crates.io | CMake `FetchContent`, `find_package`, `add_subdirectory`; the `cpp-v0.1.0` tag is not cut yet |
 | Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, FastMCP server, client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch and pipeline executors, bootstrap commands. No server or client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors. No server or client |

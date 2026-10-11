@@ -1,4 +1,3 @@
-import type { DataAdapter } from '@lushly-dev/local-db';
 import { DebouncedPersistence } from './persistence.js';
 import type {
 	PersistedViewState,
@@ -56,7 +55,7 @@ function cloneRecord<T>(value: T, seen: WeakMap<object, unknown>): T {
 export class ViewStateRegistry {
 	private handlers = new Map<string, ViewStateHandler>();
 	private persistence: DebouncedPersistence | null = null;
-	private readonly adapter: DataAdapter | undefined;
+	private readonly adapter: ViewStateRegistryOptions['adapter'];
 	private readonly table: string;
 	private readonly category: string;
 

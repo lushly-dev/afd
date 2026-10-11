@@ -199,15 +199,21 @@ adapter.dispose(); // cleanup
 Forwards OAuth `scopes` and `redirectTo` (as `callbackURL`); reports the
 social sign-in URL as a `redirect` outcome.
 
-The stabilization candidate accepts the vanilla client's `useSession` nanostore
+The implementation merged in #367 accepts the vanilla client's `useSession` nanostore
 object and legacy function accessors, preserving the accessor's receiver. It
 normalizes nullable provider `user.image` to the adapter's optional image field.
 A local integration test uses an actual Better Auth 1.7.2 server, memory database,
 vanilla client and loopback sockets for credentials, cookies, session read-back,
-expiry mapping, sign-out/revocation and subscription notifications. This does not
-prove OAuth callbacks, remote refresh, browser cookie policy, real multi-tab
-lifecycle, or Convex deployment. See `packages/auth/README.md` for staging requirements.
-The source correction remains unmerged and unpublished.
+expiry mapping, sign-out/revocation and subscription notifications. The opt-in
+`pnpm -F @lushly-dev/afd-auth test:browser` harness adds actual Chromium tabs,
+React hooks, HttpOnly/SameSite cookie metadata, sign-in/out synchronization through
+BroadcastChannel and the localStorage fallback, refresh-lock ownership, provider
+session renewal/expiry and independent revoked/expired-cookie replay. It uses
+loopback HTTP and a disposable memory provider. These checks do not prove HTTPS
+Secure-cookie or cross-site SameSite enforcement, OAuth callbacks/upstream token
+refresh, simultaneous lock atomicity, other browser engines or Convex deployment.
+See `packages/auth/README.md` for setup and remaining staging requirements.
+Registry publication is separate from merged source behavior.
 
 
 ## React Hooks

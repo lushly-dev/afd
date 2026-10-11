@@ -1,5 +1,14 @@
 # Versioning and Release Plan
 
+**Execution update, 2026-10-11:** stabilization #367 is merged. The Python 0.9.0
+candidate is prepared, and Changesets selects npm 2.1.0 in #338 after historical
+2.0.0 recovery. Version-PR creation now works; registry publication remains
+separate. The tables below preserve the accepted plan's September snapshot,
+including its initial 2.0.1 estimate. Use
+[release readiness](../../../operations/stabilization-release.md) for current
+candidate metadata, validation and publication steps. Remaining delivery is
+tracked in #347 and #369.
+
 ## Overview
 
 AFD ships four implementations, each at a different version: TypeScript 2.0.0, Python 0.8.0, Rust 0.1.0 and C++ 0.1.0. This proposal:
