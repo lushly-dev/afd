@@ -1,5 +1,11 @@
 # @lushly-dev/local-db
 
+## 2.1.0
+
+### Patch Changes
+
+- [#367](https://github.com/lushly-dev/afd/pull/367) [`f19257e`](https://github.com/lushly-dev/afd/commit/f19257e404f69061149c5ed51a30a622a4450568) Thanks [@Falkicon](https://github.com/Falkicon)! - Return a failing exit status for unsuccessful streams and validate record IDs consistently in the memory adapter.
+
 ## 2.0.0
 
 ### Minor Changes
