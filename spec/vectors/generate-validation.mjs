@@ -13,13 +13,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-/** Tests whose result depends on the length unit when the input has characters outside the BMP. */
-const ZOD_BEFORE_4_5 =
-	'Zod before 4.5 counts UTF-16 code units, so a command schema built with it gives the other result. @lushly-dev/afd-server requires Zod 4.5 or later.';
-
-const test = (description, input, extra = {}) => ({ description, input, ...extra });
-const astral = (description, input) =>
-	test(description, input, { exceptions: { typescript: ZOD_BEFORE_4_5 } });
+const test = (description, input) => ({ description, input });
 
 /** Renames `definitions` to `$defs`, which means the same thing in a local reference. */
 function toDefs(schema) {
@@ -218,11 +212,11 @@ export function validationCases(z) {
 			zod: z.object({ code: z.string().min(2).max(3) }),
 			tests: [
 				test('ASCII', { code: 'ab' }),
-				astral('U+1F600 is one code point (two UTF-16 units), so it is too short', {
+				test('U+1F600 is one code point (two UTF-16 units), so it is too short', {
 					code: '😀',
 				}),
-				astral('Two emoji are two code points (four UTF-16 units)', { code: '😀😀' }),
-				astral('Three emoji are three code points (six UTF-16 units), which fits', {
+				test('Two emoji are two code points (four UTF-16 units)', { code: '😀😀' }),
+				test('Three emoji are three code points (six UTF-16 units), which fits', {
 					code: '😀😀😀',
 				}),
 				test('Four emoji are four code points, which is too long', { code: '😀😀😀😀' }),
@@ -245,7 +239,7 @@ export function validationCases(z) {
 				}),
 				test('Two CJK characters are two code points (six UTF-8 bytes)', { two: '日本' }),
 				test('Three CJK characters are too long', { two: '日本語' }),
-				astral(
+				test(
 					'A ZWJ family emoji is five code points (eight UTF-16 units, one grapheme), which fits',
 					{ five: '👨‍👩‍👧' }
 				),
@@ -462,6 +456,28 @@ export function validationCases(z) {
 				test('Defaults fill objects inside arrays', { items: [{}, { qty: 2 }] }),
 				test('A present value is validated even when it equals the default', { threshold: 1 }),
 			],
+		},
+
+		{
+			id: 'required-with-default',
+			section: 'null-and-defaults',
+			description:
+				'A default makes a property optional even when a hand-written required list includes it.',
+			zod: z.object({ count: z.number().default(3), title: z.string() }),
+			rewrite: (schema) => ({ ...schema, required: ['count', 'title'] }),
+			tests: [
+				test('A missing defaulted property gets the default', { title: 'a' }),
+				test('A defaulted property is absent from missingFields', {}),
+				test('Explicit null is never replaced by the default', { title: 'a', count: null }),
+			],
+		},
+		{
+			id: 'issue-count-uncapped',
+			section: 'issues',
+			description:
+				'Every issue is reported, including more than 100 issues and every suggestion line.',
+			zod: z.object({ values: z.array(z.string()) }),
+			tests: [test('101 invalid array items produce 101 issues', { values: Array(101).fill(0) })],
 		},
 
 		// ── Optional keywords ────────────────────────────────────────────────────────────────

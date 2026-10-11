@@ -9,6 +9,7 @@
  * repository file-size convention.
  */
 
+import { executionFailure } from './command-execution.js';
 import type { CommandError } from './errors.js';
 import type {
 	PipelineContext,
@@ -213,10 +214,32 @@ export async function executePipeline(
 
 	const stepResults: StepResult[] = pipelineContext.steps;
 	const options = request.options ?? {};
+	const callerSignal = context.signal instanceof AbortSignal ? context.signal : undefined;
+	const cancelledError: CommandError = {
+		code: 'COMMAND_CANCELLED',
+		message: 'Command cancelled before starting',
+		suggestion: 'Start the command again if the result is still needed',
+		retryable: false,
+	};
 
 	for (let i = 0; i < request.steps.length; i++) {
 		const step = request.steps[i];
 		if (!step) continue;
+		if (callerSignal?.aborted) {
+			for (let j = i; j < request.steps.length; j++) {
+				const remainingStep = request.steps[j];
+				if (!remainingStep) continue;
+				stepResults.push({
+					index: j,
+					alias: remainingStep.as,
+					command: remainingStep.command,
+					status: 'skipped',
+					error: cancelledError,
+					executionTimeMs: 0,
+				});
+			}
+			break;
+		}
 		const stepStartTime = performance.now();
 
 		// Evaluate the when condition and resolve references inside the per-step error handling
@@ -246,7 +269,6 @@ export async function executePipeline(
 				? undefined
 				: options.timeoutMs - (performance.now() - startTime);
 		const controller = new AbortController();
-		const callerSignal = context.signal instanceof AbortSignal ? context.signal : undefined;
 		const signal = callerSignal
 			? AbortSignal.any([callerSignal, controller.signal])
 			: controller.signal;
@@ -287,14 +309,7 @@ export async function executePipeline(
 							]);
 			}
 		} catch (error) {
-			result = {
-				success: false,
-				error: {
-					code: 'COMMAND_EXECUTION_ERROR',
-					message: error instanceof Error ? error.message : String(error),
-					suggestion: 'Check the command implementation and retry',
-				},
-			};
+			result = executionFailure(error);
 		} finally {
 			if (timer !== undefined) clearTimeout(timer);
 		}
@@ -340,7 +355,11 @@ export async function executePipeline(
 						alias: remainingStep.as,
 						command: remainingStep.command,
 						status: 'skipped',
-						...(result.error?.code === 'PIPELINE_TIMEOUT' ? { error: result.error } : {}),
+						...(result.error?.code === 'PIPELINE_TIMEOUT'
+							? { error: result.error }
+							: callerSignal?.aborted
+								? { error: cancelledError }
+								: {}),
 						executionTimeMs: 0,
 					});
 				}

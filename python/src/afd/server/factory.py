@@ -53,9 +53,10 @@ from afd.core.result import (
     error,
     execution_failure,
 )
+from afd.core.schema_validation import SchemaValidationError
 from afd.core.similarity import truncate_name
 from afd.core.wire import WIRE_ENVELOPE, to_wire
-from afd.server.bootstrap import ContextState, create_context_state, get_bootstrap_commands
+from afd.server.bootstrap import ContextState, get_bootstrap_commands
 from afd.server.decorators import (
     CommandMetadata,
     command_to_definition,
@@ -67,6 +68,7 @@ from afd.server.decorators import (
 from afd.core.builtin_names import AFD_META_TOOL_NAMES
 from afd.server.lazy_tools import not_found_suggestion
 from afd.server.middleware import CommandMiddleware
+from afd.server.session_context import SessionContextState
 from afd.server.tool_router import ToolRouterDeps, create_tool_router, new_trace_id
 from afd.server.tools import get_tools_list
 from afd.server.types import ContextConfig, GroupByFn, ToolStrategy
@@ -131,7 +133,7 @@ class MCPServer:
         self._metadata: dict[str, CommandMetadata] = {}
         self._mcp_server = None
         self._middleware: list[CommandMiddleware] = list(config.middleware)
-        self._context_state: ContextState = create_context_state()
+        self._context_state = SessionContextState()
         self._bootstrap_commands: list[CommandDefinition] | None = None
         # Per-call caches, rebuilt after register() or a context change.
         self._command_index: dict[str, CommandDefinition] | None = None
@@ -161,7 +163,7 @@ class MCPServer:
         name: str,
         description: str,
         category: str | None = None,
-        input_schema: type[BaseModel] | None = None,
+        input_schema: type[BaseModel] | dict[str, Any] | None = None,
         output_schema: type[BaseModel] | None = None,
         tags: list[str] | None = None,
         mutation: bool = False,
@@ -371,10 +373,10 @@ class MCPServer:
             )
 
         metadata = get_command_metadata(command.handler)
-        input_schema = metadata.input_schema if metadata is not None else None
+        input_schema = metadata.input_schema if metadata is not None else command.input_schema
         try:
             data = validate_command_input(input_schema, input)
-        except PydanticValidationError as exc:
+        except (PydanticValidationError, SchemaValidationError) as exc:
             return _input_validation_failure(input_schema, {} if input is None else input, exc)
         except Exception as exc:
             # A validator that raises something other than ValueError or
@@ -400,7 +402,8 @@ class MCPServer:
     ) -> Any:
         """Call the handler with validated input and stamp its result's metadata."""
         start = time.perf_counter()
-        result = await command.handler(data, context)
+        handler = getattr(command.handler, "__afd_validated_handler__", command.handler)
+        result = await handler(data, context)
         if isinstance(result, CommandResult):
             # Server metadata, as in TypeScript: executionTimeMs, commandVersion, traceId.
             result = _with_execution_metadata(
@@ -494,8 +497,7 @@ class MCPServer:
             and result.success
         ):
             self._router = None
-            if self._mcp_server is not None:
-                self._sync_mcp_tool_definitions()
+            # The shared FastMCP registry stays complete; tools/list filters per session.
 
     def _install_fastmcp_context_error_translation(self) -> None:
         """Translate stale direct tool calls into actionable context errors when possible."""
@@ -539,6 +541,10 @@ class MCPServer:
                             ),
                         )
                     )
+
+                # FastMCP otherwise returns an unstructured ToolError. Route
+                # through AFD so unknown and private names share the D4 result.
+                return _tool_call_result(await server.route_tool_call(name, arguments))
 
             return await original_call_tool(
                 name,
@@ -609,9 +615,8 @@ class MCPServer:
         ``INVALID_BATCH_REQUEST`` before any command runs, as TypeScript's
         ``executeBatch()`` does.
 
-        Nothing keeps running after the result is returned: when the batch
-        stops (``stopOnError`` failure or the ``timeout`` deadline) or is
-        itself cancelled, commands still in flight are cancelled and awaited.
+        A stopOnError failure prevents new starts; commands already in flight
+        finish normally. A timeout or cancellation cancels and awaits them.
         Every item is coerced to a CommandResult, so aggregation never raises
         after commands have run.
         """
@@ -660,14 +665,7 @@ class MCPServer:
             suggestion="Increase timeout or reduce the number of commands",
             retryable=True,
         )
-        cancelled_error = CommandError(
-            code="COMMAND_CANCELLED",
-            message="Command cancelled because the batch stopped after a failure",
-            suggestion=(
-                "It may have partially run: check its effects, then retry it on its own "
-                "or disable stopOnError"
-            ),
-        )
+
 
         def record(index: int, result: CommandResult, started: float) -> None:
             item = commands[index]
@@ -701,7 +699,7 @@ class MCPServer:
                         self._run_batch_item(commands[index], item_context)
                     )
                     in_flight[task] = (index, time.perf_counter())
-                if not in_flight or stopped or timed_out:
+                if not in_flight or timed_out:
                     break
                 wait_s = None if deadline is None else max(0.0, deadline - time.perf_counter())
                 done, _ = await asyncio.wait(
@@ -727,7 +725,7 @@ class MCPServer:
                     if not task.cancelled() and task.exception() is None:
                         record(index, task.result(), started)  # finished first
                     else:
-                        failed = timeout_error if timed_out else cancelled_error
+                        failed = timeout_error
                         record(index, CommandResult(success=False, error=failed), started)
         finally:
             # Reached with tasks in flight only when the batch itself is
@@ -874,12 +872,12 @@ class MCPServer:
     async def route_tool_call(self, tool_name: str, args: Any = None) -> Any:
         """Route a tool call through the shared tool router."""
 
-        return await self._get_router()(tool_name, args or {})
+        return await self._get_router()(tool_name, {} if args is None else args)
 
     async def call_tool(self, tool_name: str, args: Any = None) -> Any:
         """Compatibility wrapper for invoking an MCP-visible tool directly."""
 
-        return await self.route_tool_call(tool_name, args or {})
+        return await self.route_tool_call(tool_name, {} if args is None else args)
 
     def get_tool_definitions(self) -> list[dict[str, Any]]:
         """Return the MCP-visible tool definitions for the current strategy."""
@@ -907,7 +905,14 @@ class MCPServer:
             return
 
         tool_manager._tools.clear()
-        for tool_definition in self.get_tool_definitions():
+        # Session context must never mutate the globally shared tool registry.
+        definitions = get_tools_list(
+            self.list_exposed_commands(interface="mcp", include_bootstrap=True),
+            self.config.tool_strategy,
+            group_by_fn=self.config.group_by,
+            active_context=None,
+        )
+        for tool_definition in definitions:
             tool = self._create_fastmcp_tool(tool_definition)
             tool_manager._tools[tool.name] = tool
 
@@ -970,14 +975,31 @@ class MCPServer:
         except ImportError as exc:  # pragma: no cover - optional dependency
             raise ImportError("FastMCP not installed. Install with: pip install afd[server]") from exc
 
-        self._mcp_server = FastMCP(self.config.name)
+        server = self
+
+        class SessionFastMCP(FastMCP):
+            async def list_tools(self):
+                from mcp.types import Tool as MCPTool
+
+                with server._context_state.bind(
+                    self.get_context(), stateless=self.settings.stateless_http
+                ):
+                    return [MCPTool(**definition) for definition in server.get_tool_definitions()]
+
+            async def call_tool(self, name, arguments):
+                with server._context_state.bind(
+                    self.get_context(), stateless=self.settings.stateless_http
+                ):
+                    return await super().call_tool(name, arguments)
+
+        self._mcp_server = SessionFastMCP(self.config.name)
         self._sync_mcp_tool_definitions()
         self._install_fastmcp_context_error_translation()
         return self._mcp_server
 
     def run(self, transport: str = "stdio") -> None:
         mcp = self._create_mcp_server()
-        if transport not in {"stdio", "sse"}:
+        if transport not in {"stdio", "sse", "streamable-http"}:
             raise ValueError(f"Unknown transport: {transport}")
         mcp.run(transport=transport)
 

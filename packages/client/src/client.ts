@@ -82,6 +82,8 @@ type ResolvedConfig = Omit<Required<McpClientConfig>, 'url' | 'endpoint' | 'regi
 export interface RequestOptions {
 	/** Request timeout in milliseconds. Default: the client's `timeout`. */
 	timeout?: number;
+	/** Cancel this request and signal in-process execution to stop. */
+	signal?: AbortSignal;
 }
 
 const SUPPORTED_TRANSPORTS: ReadonlySet<string> = new Set<McpTransportType>([
@@ -322,9 +324,13 @@ export class McpClient extends McpClientEventEmitter {
 	 * @param name - Command/tool name
 	 * @param args - Command arguments
 	 */
-	async call<T = unknown>(name: string, args?: Record<string, unknown>): Promise<CommandResult<T>> {
+	async call<T = unknown>(
+		name: string,
+		args?: Record<string, unknown>,
+		options?: RequestOptions
+	): Promise<CommandResult<T>> {
 		try {
-			const result = await this.callTool(name, args);
+			const result = await this.callTool(name, args, options);
 			const parsed = parseTextContent(result);
 
 			if (isCommandResult(parsed)) {
@@ -693,7 +699,10 @@ export class McpClient extends McpClientEventEmitter {
 		this.pendingRequests.set(request.id, { controller, timeout, method });
 
 		try {
-			const response = await transport.send(request, controller.signal);
+			const signal = options?.signal
+				? AbortSignal.any([options.signal, controller.signal])
+				: controller.signal;
+			const response = await transport.send(request, signal);
 			this.debug(`Response [${request.id}]:`, response);
 
 			if (response.error) throw new JsonRpcResponseError(response.error);

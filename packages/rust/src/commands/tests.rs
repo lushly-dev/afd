@@ -29,7 +29,16 @@ fn work_registry() -> (CommandRegistry, Arc<AtomicUsize>) {
         .register(CommandDefinition::new(
             "work-run",
             "Runs controlled work",
-            vec![],
+            vec![
+                CommandParameter {
+                    required: false,
+                    ..CommandParameter::required_boolean("fail", "Fail")
+                },
+                CommandParameter {
+                    required: false,
+                    ..CommandParameter::required_number("index", "Index")
+                },
+            ],
             ControlledHandler {
                 active: Arc::new(AtomicUsize::new(0)),
                 peak: Arc::clone(&peak),
@@ -323,7 +332,16 @@ fn panic_registry() -> CommandRegistry {
         .register(CommandDefinition::new(
             "panic-run",
             "Panics on request",
-            vec![],
+            vec![
+                CommandParameter {
+                    required: false,
+                    ..CommandParameter::required_boolean("panic", "Panic")
+                },
+                CommandParameter {
+                    required: false,
+                    ..CommandParameter::required_number("n", "Number")
+                },
+            ],
             PanickingHandler,
         ))
         .unwrap();
@@ -806,7 +824,10 @@ async fn test_execute_honors_context_timeout() {
         .register(CommandDefinition::new(
             "work-sleep",
             "Sleeps",
-            vec![],
+            vec![CommandParameter {
+                required: false,
+                ..CommandParameter::required_number("sleepMs", "Sleep milliseconds")
+            }],
             SleepHandler {
                 calls: Arc::clone(&calls),
             },

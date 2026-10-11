@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <latch>
 #include <memory>
 #include <string>
 #include <thread>
@@ -316,5 +317,157 @@ TEST_CASE("the registry serves a threaded batch (run under TSan in CI)") {
     for (int i = 0; i < 16; ++i) {
         CHECK(batch.results[static_cast<std::size_t>(i)].result.data == afd::Json{{"index", i}});
     }
+}
+#endif
+
+#if AFD_ENABLE_THREADS && (defined(__cpp_exceptions) || defined(_CPPUNWIND))
+TEST_CASE("ThreadTaskRunner joins every task before rethrowing caller or worker exceptions") {
+    for (const std::size_t failing : {std::size_t{0}, std::size_t{1}}) {
+        CAPTURE(failing);
+        std::latch started(3);
+        std::atomic<int> completed{0};
+        bool caught = false;
+        try {
+            afd::ThreadTaskRunner{}.run_all(3, [&](std::size_t index) {
+                started.arrive_and_wait();
+                if (index == failing) {
+                    throw std::runtime_error("task failed");
+                }
+                ++completed;
+            });
+        } catch (const std::runtime_error& error) {
+            caught = true;
+            CHECK(std::string(error.what()) == "task failed");
+            CHECK(completed == 2);
+        }
+        CHECK(caught);
+    }
+}
+TEST_CASE("ThreadTaskRunner captures nonstandard worker exceptions") {
+    std::atomic<int> completed{0};
+    bool caught = false;
+    try {
+        afd::ThreadTaskRunner{}.run_all(2, [&](std::size_t index) {
+            if (index == 1) {
+                throw 42;
+            }
+            ++completed;
+        });
+    } catch (int value) {
+        caught = true;
+        CHECK(value == 42);
+        CHECK(completed == 1);
+    }
+    CHECK(caught);
+}
+#endif
+
+TEST_CASE("caller cancellation stops queued batch commands and preserves completed outcomes") {
+    for (const bool already_cancelled : {false, true}) {
+        CAPTURE(already_cancelled);
+        afd::CancellationSource source;
+        if (already_cancelled) {
+            source.cancel();
+        }
+        afd::CommandContext context;
+        context.cancellation = source.token();
+        int calls = 0;
+        const auto batch = afd::execute_batch(
+            batch_of(3),
+            [&](std::string_view, const afd::Json& input, afd::CommandContext& seen) {
+                ++calls;
+                source.cancel();
+                CHECK(seen.cancellation.is_cancelled());
+                return afd::success(input);
+            },
+            context);
+        CHECK(calls == (already_cancelled ? 0 : 1));
+        for (std::size_t i = 0; i < 3; ++i) {
+            if (i == 0 && !already_cancelled) {
+                CHECK(batch.results[i].result.success);
+            } else {
+                REQUIRE(batch.results[i].result.error.has_value());
+                CHECK(batch.results[i].result.error->code == "COMMAND_CANCELLED");
+                CHECK(batch.results[i].result.error->message ==
+                      "Command cancelled before starting");
+                CHECK(batch.results[i].result.error->retryable == false);
+            }
+        }
+    }
+}
+
+#if AFD_ENABLE_THREADS
+TEST_CASE("caller cancellation preserves concurrent inflight batch outcomes") {
+    afd::CancellationSource source;
+    afd::CommandContext context;
+    context.cancellation = source.token();
+    std::latch both_started(2);
+    std::atomic<int> calls{0};
+    const auto batch = afd::execute_batch(
+        batch_of(3, {.parallelism = 2}),
+        [&](std::string_view, const afd::Json& input, afd::CommandContext& seen) {
+            ++calls;
+            both_started.arrive_and_wait();
+            if (index_of(input) == 0) {
+                source.cancel();
+            } else {
+                while (!seen.cancellation.is_cancelled()) {
+                    std::this_thread::yield();
+                }
+            }
+            return afd::success(input);
+        },
+        context, {.runner = std::make_shared<afd::ThreadTaskRunner>()});
+    CHECK(calls == 2);
+    CHECK(batch.results[0].result.success);
+    CHECK(batch.results[1].result.success);
+    REQUIRE(batch.results[2].result.error.has_value());
+    CHECK(batch.results[2].result.error->code == "COMMAND_CANCELLED");
+}
+#endif
+
+#if AFD_ENABLE_THREADS
+TEST_CASE("expired batch deadline takes precedence for queued work while cancellation drains") {
+    class DrainRunner final : public afd::TaskRunner {
+    public:
+        std::atomic<bool> finished_worker{false};
+        void run_all(std::size_t count, const std::function<void(std::size_t)>& task) override {
+            afd::ThreadTaskRunner{}.run_all(count, [&](std::size_t index) {
+                task(index);
+                finished_worker = true;
+            });
+        }
+    };
+    auto runner = std::make_shared<DrainRunner>();
+    auto clock = std::make_shared<afd::ManualClock>();
+    afd::CancellationSource source;
+    afd::CommandContext context;
+    context.cancellation = source.token();
+    std::latch both_started(2);
+    std::atomic<int> calls{0};
+    const auto batch =
+        afd::execute_batch(batch_of(3, {.timeout = 10, .parallelism = 2}),
+                           [&](std::string_view, const afd::Json& input, afd::CommandContext&) {
+                               ++calls;
+                               both_started.arrive_and_wait();
+                               if (index_of(input) == 0) {
+                                   source.cancel();
+                               } else {
+                                   // A has returned successfully, and its worker observed
+                                   // cancellation and exited.
+                                   while (!runner->finished_worker) {
+                                       std::this_thread::yield();
+                                   }
+                                   clock->advance(20);
+                               }
+                               return afd::success(input);
+                           },
+                           context, {.clock = clock, .runner = runner});
+    CHECK(calls == 2);
+    CHECK(batch.results[0].result.success);
+    REQUIRE(batch.results[1].result.error.has_value());
+    CHECK(batch.results[1].result.error->code == "BATCH_TIMEOUT");
+    REQUIRE(batch.results[2].result.error.has_value());
+    CHECK(batch.results[2].result.error->code == "BATCH_TIMEOUT");
 }
 #endif

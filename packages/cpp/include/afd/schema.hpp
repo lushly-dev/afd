@@ -25,7 +25,7 @@ namespace afd {
 
 /// One validation problem. `path` joins keys and array indices with dots ("todos.1.title");
 /// "(root)" is the input itself. `code` uses Zod 4's issue codes: invalid_type, too_small,
-/// too_big, invalid_value, unrecognized_keys.
+/// too_big, invalid_value, invalid_union, unrecognized_keys.
 struct ValidationIssue {
     std::string path;
     std::string message;

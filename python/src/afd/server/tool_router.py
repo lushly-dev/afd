@@ -92,7 +92,7 @@ def create_tool_router(deps: ToolRouterDeps):
         active_context = deps.context_state.get_active() if deps.context_state else None
 
         if tool_name == "afd-call":
-            payload = args or {}
+            payload = {} if args is None else args
             command_name = payload.get("command") if isinstance(payload, dict) else None
             if not command_name or not isinstance(command_name, str):
                 return error(
@@ -132,7 +132,7 @@ def create_tool_router(deps: ToolRouterDeps):
                 for command in deps.commands
                 if is_command_accessible(command, active_context)
             ]
-            return execute_discover(visible_commands, args or {})
+            return execute_discover(visible_commands, {} if args is None else args)
 
         if tool_name == "afd-detail":
             visible_all_commands = [
@@ -140,7 +140,7 @@ def create_tool_router(deps: ToolRouterDeps):
                 for command in all_commands
                 if is_command_accessible(command, active_context)
             ]
-            return execute_detail(visible_all_commands, exposed_command_names, args or {})
+            return execute_detail(visible_all_commands, exposed_command_names, {} if args is None else args)
 
         if tool_name == "afd-batch":
             return await deps.execute_batch(args, mcp_context("batch", active_context))
@@ -149,7 +149,7 @@ def create_tool_router(deps: ToolRouterDeps):
             return await deps.execute_pipeline(args, mcp_context("pipeline", active_context))
 
         if deps.tool_strategy == "grouped":
-            payload = args or {}
+            payload = {} if args is None else args
             action = payload.get("action") if isinstance(payload, dict) else None
             all_group_commands = all_commands_by_group.get(tool_name, [])
             group_commands = [
@@ -231,7 +231,7 @@ def create_tool_router(deps: ToolRouterDeps):
 
         return await deps.execute_command(
             tool_name,
-            args or {},
+            {} if args is None else args,
             mcp_context("trace", active_context),
         )
 

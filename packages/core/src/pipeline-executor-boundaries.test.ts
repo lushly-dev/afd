@@ -135,7 +135,33 @@ describe('pipeline execution boundaries', () => {
 		expect(result.steps[0]?.status).toBe('failure');
 		expect(result.steps[0]?.error).toMatchObject({
 			code: 'COMMAND_EXECUTION_ERROR',
-			message: 'handler exploded',
+			message: 'An internal error occurred',
+			suggestion: 'Contact support if this persists',
 		});
 	});
+});
+
+describe('pipeline exception redaction', () => {
+	it.each(['error', 'string'])(
+		'redacts private paths and secrets from thrown %s values',
+		async (kind) => {
+			const secret = 'test-secret-do-not-expose';
+			const privatePath = '/srv/private/app/credentials.json';
+			const message = `Failed to read ${privatePath}: token=${secret}`;
+			const result = await executePipeline({ steps: [{ command: 'item-read' }] }, async () => {
+				throw kind === 'error' ? new Error(message) : message;
+			});
+			expect(result.steps[0]).toMatchObject({
+				status: 'failure',
+				error: {
+					code: 'COMMAND_EXECUTION_ERROR',
+					message: 'An internal error occurred',
+					suggestion: 'Contact support if this persists',
+				},
+			});
+			expect(JSON.stringify(result)).not.toContain(secret);
+			expect(JSON.stringify(result)).not.toContain(privatePath);
+			expect(result.steps[0]?.error).not.toHaveProperty('details');
+		}
+	);
 });

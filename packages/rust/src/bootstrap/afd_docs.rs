@@ -89,13 +89,36 @@ impl AfdDocsHandler {
         ));
         lines.push(String::new());
 
-        if !cmd.parameters.is_empty() {
+        let authoritative = self.registry.get_tool(&cmd.name);
+        let legacy =
+            serde_json::to_value(crate::command_to_mcp_tool(cmd)).expect("tool serializes");
+        let whole_schema = authoritative
+            .as_ref()
+            .filter(|tool| tool["inputSchema"] != legacy["inputSchema"]);
+        if let Some(tool) = whole_schema {
+            lines.push("**Input JSON Schema:**".to_string());
+            lines.push(format!(
+                "```json\n{}\n```",
+                serde_json::to_string_pretty(&tool["inputSchema"]).expect("schema serializes")
+            ));
+            lines.push(String::new());
+        } else if !cmd.parameters.is_empty() {
             lines.push("**Parameters:**".to_string());
             lines.push(String::new());
             lines.push("| Name | Type | Required | Description |".to_string());
             lines.push("|------|------|----------|-------------|".to_string());
             for param in &cmd.parameters {
-                let required = if param.required { "Yes" } else { "No" };
+                let required = if param.required
+                    && param.default.is_none()
+                    && param
+                        .schema
+                        .as_ref()
+                        .is_none_or(|schema| schema.default.is_none())
+                {
+                    "Yes"
+                } else {
+                    "No"
+                };
                 let type_str = format!("{:?}", param.param_type).to_lowercase();
                 lines.push(format!(
                     "| {} | {} | {} | {} |",

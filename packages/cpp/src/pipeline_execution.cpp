@@ -2,7 +2,9 @@
 // request-validation.ts and pipeline-executor.ts; normative rules in spec/pipeline-variables.md).
 #include "afd/pipeline.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <limits>
 #include <utility>
 
 #include "detail/exceptions.hpp"
@@ -12,7 +14,6 @@
 namespace afd {
 namespace {
 
-constexpr double max_safe_integer = 9007199254740991.0;
 constexpr std::size_t max_condition_depth = 128;
 
 double round2(double ms) {
@@ -26,7 +27,7 @@ enum class SourceKind { prev, first, input, index, alias };
 struct Segment {
     std::string key;
     bool has_index = false;
-    /// Absent when the digits exceed JavaScript's safe-integer range (never resolves).
+    /// Absent outside JavaScript's safe-integer range or the platform index range.
     std::optional<std::size_t> index;
 };
 
@@ -41,14 +42,19 @@ bool is_ascii_digit(char c) {
     return c >= '0' && c <= '9';
 }
 
-// Digits as a JavaScript Number would read them; nullopt above 2^53 - 1.
+// Indices must fit both JavaScript's safe-integer range and the host's size_t.
 std::optional<std::size_t> parse_index(std::string_view digits) {
-    double value = 0;
+    constexpr std::uint64_t max_js_index = 9007199254740991ULL;
+    constexpr auto max_index =
+        (std::min)(max_js_index,
+                   static_cast<std::uint64_t>((std::numeric_limits<std::size_t>::max)()));
+    std::uint64_t value = 0;
     for (char c : digits) {
-        value = value * 10 + (c - '0');
-        if (value > max_safe_integer) {
+        const auto digit = static_cast<std::uint64_t>(c - '0');
+        if (value > (max_index - digit) / 10) {
             return std::nullopt;
         }
+        value = value * 10 + digit;
     }
     return static_cast<std::size_t>(value);
 }
@@ -764,6 +770,15 @@ PipelineResult execute_pipeline(const Json& raw_request, const CommandExecutor& 
     for (std::size_t i = 0; i < request.steps.size(); ++i) {
         const PipelineStep& step = request.steps[i];
         const double step_start = clock->steady_ms();
+
+        if (context.cancellation.is_cancelled()) {
+            skip_rest(
+                steps, i,
+                create_error(error_codes::COMMAND_CANCELLED, "Command cancelled before starting",
+                             {.suggestion = "Start the command again if the result is still needed",
+                              .retryable = false}));
+            break;
+        }
 
         if (step.when && !evaluate_condition(*step.when, pipeline)) {
             steps.push_back(step_result(i, step, StepStatus::skipped));

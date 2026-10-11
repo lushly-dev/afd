@@ -88,6 +88,23 @@ async function settle(
 // BATCH
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/** Canonical malformed batch result, shared by executor and transport preflight. */
+export function failedBatchRequest(
+	timing: Parameters<typeof createFailedBatchResult>[1] = {},
+	details?: CommandError['details'],
+	suggestion = 'Provide at least one command with a nonempty command name and optional string ID, and valid boolean stopOnError, nonnegative timeout, and positive integer parallelism options'
+): BatchResult {
+	return createFailedBatchResult(
+		{
+			code: 'INVALID_BATCH_REQUEST',
+			message: 'Invalid batch request envelope',
+			suggestion,
+			...(details && { details }),
+		},
+		timing
+	);
+}
+
 /**
  * Execute a batch of commands with partial success semantics.
  *
@@ -98,7 +115,9 @@ async function settle(
  *   becomes `BATCH_TIMEOUT` when the deadline passes, and commands not yet
  *   started are reported as `BATCH_TIMEOUT` without running.
  * - With `stopOnError`, commands not yet started after a failure are reported
- *   as `COMMAND_SKIPPED`.
+ *   as `COMMAND_SKIPPED`. Already-started handlers preserve their actual results.
+ * - Caller cancellation stops scheduling queued commands (`COMMAND_CANCELLED`)
+ *   while started handlers receive the signal and finish cooperatively.
  * - Each command runs through `execute` with the caller's `context` (so
  *   `interface` reaches the host's exposure check), a per-command `traceId`,
  *   and a `signal` that aborts on the deadline or with the caller's signal.
@@ -127,15 +146,7 @@ export async function executeBatch(
 	const devMode = options.devMode === true;
 
 	if (!isBatchRequest(request) || request.commands.length === 0) {
-		return createFailedBatchResult(
-			{
-				code: 'INVALID_BATCH_REQUEST',
-				message: 'Invalid batch request envelope',
-				suggestion:
-					'Provide at least one command with a nonempty command name and optional string ID, and valid boolean stopOnError, nonnegative timeout, and positive integer parallelism options',
-			},
-			{ startedAt }
-		);
+		return failedBatchRequest({ startedAt });
 	}
 
 	const { commands } = request;
@@ -149,6 +160,12 @@ export async function executeBatch(
 		message: `Batch timeout exceeded (${batchOptions.timeout}ms)`,
 		suggestion: 'Increase timeout or reduce the number of batch commands',
 		retryable: true,
+	};
+	const cancelledError: CommandError = {
+		code: 'COMMAND_CANCELLED',
+		message: 'Command cancelled before starting',
+		suggestion: 'Start the command again if the result is still needed',
+		retryable: false,
 	};
 	const skippedError: CommandError = {
 		code: 'COMMAND_SKIPPED',
@@ -196,7 +213,7 @@ export async function executeBatch(
 	};
 
 	const worker = async (): Promise<void> => {
-		while (!stopped && !timedOut) {
+		while (!stopped && !timedOut && !callerSignal?.aborted) {
 			const index = nextIndex++;
 			const command = commands[index];
 			if (command === undefined) return;
@@ -222,7 +239,10 @@ export async function executeBatch(
 				id: command.id ?? `cmd-${index}`,
 				index,
 				command: command.command,
-				result: { success: false, error: timedOut ? timeoutError : skippedError },
+				result: {
+					success: false,
+					error: timedOut ? timeoutError : callerSignal?.aborted ? cancelledError : skippedError,
+				},
 				durationMs: 0,
 			}
 	);

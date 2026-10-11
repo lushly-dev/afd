@@ -37,7 +37,7 @@ afd::CommandResult typo = agent.call("todo-crate");  // UNKNOWN_TOOL with "Did y
 ```
 
 - **Dispatch order.** `execute` follows the TypeScript engine: lookup, exposure, context, validation, middleware, handler, metadata, `on_command`. Errors carry the TypeScript codes and text.
-- **Input schemas.** These are JSON Schema; `afd/schema.hpp` lists the supported subset. An unsupported keyword fails registration, so a schema is never silently under-enforced.
+- **Input schemas.** These are JSON Schema; `afd/schema.hpp` lists the supported subset. An unsupported keyword fails registration, so a schema is never silently under-enforced. The shared validation vectors cover every supported case and verify explicit registration rejection for optional keywords outside the subset. Error field lists and sibling issues compare as duplicate-preserving multisets, following `spec/validation.md`; `afd::Json` retains structural equality independent of object key order.
 - **Handlers are synchronous.** A timeout is a deadline on `context.cancellation` for the handler to poll, plus a TIMEOUT result for a late finish. Nothing is interrupted.
 - **Names that differ from TypeScript:** `requires` is `prerequisites` (a C++20 keyword), and the context's `interface` is `surface` (a `<windows.h>` macro).
 
@@ -56,8 +56,8 @@ std::vector<afd::StreamChunk> chunks = registry->execute_stream("todo-list");
 ```
 
 - **Semantics** follow `packages/core/src/command-execution.ts` and `pipeline-executor.ts`. Pipeline references follow [`spec/pipeline-variables.md`](../../spec/pipeline-variables.md), and results match the TypeScript-generated vectors in `spec/vectors`.
-- **Concurrency.** Pass `CommandRegistryOptions{.runner = std::make_shared<afd::ThreadTaskRunner>()}` for real batch parallelism; handlers must then be thread-safe. The default `InlineTaskRunner` runs commands one at a time.
-- **Deadlines are cooperative.** A handler sees the deadline on `context.cancellation`, and a late finish is reported as BATCH_TIMEOUT or PIPELINE_TIMEOUT. Nothing is interrupted.
+- **Concurrency.** Pass `CommandRegistryOptions{.runner = std::make_shared<afd::ThreadTaskRunner>()}` for real batch parallelism; handlers must then be thread-safe. The default `InlineTaskRunner` runs commands one at a time. `ThreadTaskRunner` joins all started workers on every exit path. With exceptions enabled, task exceptions are rethrown on the caller after all tasks finish; thread-start exceptions propagate after joining the workers already started.
+- **Deadlines are cooperative.** A handler sees the deadline on `context.cancellation`, and a late finish is reported as BATCH_TIMEOUT or PIPELINE_TIMEOUT. Nothing is interrupted. Observed caller cancellation prevents queued batch commands and pipeline steps from starting; their errors are COMMAND_CANCELLED, and pipeline steps are skipped. Inflight handlers keep their actual outcomes and can poll the inherited cancellation token.
 
 ## Wire types
 
@@ -164,3 +164,10 @@ Library code must be exception-free and RTTI-free:
 - Never name anything `check`, `verify`, `require` or `interface`.
 
 CI (`.github/workflows/cpp.yml`) runs the `release` preset on Linux (GCC), macOS and Windows (MSVC). The `asan`, `tsan`, `noexcept-nortti` and `emscripten` presets run on Linux only. CI also checks formatting, builds [`tests/consumer`](tests/consumer/CMakeLists.txt) on Linux and Windows, and fuzzes each target for 60 seconds on Linux.
+
+## Dispatch benchmark
+
+Build the optional dependency-free benchmark with `cmake --preset release -DAFD_BUILD_BENCHMARKS=ON`,
+then `cmake --build --preset release`. Run `build/release/benchmarks/afd_registry_dispatch_benchmark`
+to compare successful dispatch with 1 and 1,000 registered commands. It reports the median of five
+samples; timing is manual evidence and does not impose a platform-dependent unit-test threshold.

@@ -20,7 +20,9 @@ Pipeline Example:
 
 from __future__ import annotations
 
+import asyncio
 import inspect
+import math
 import logging
 import time
 import uuid
@@ -70,7 +72,7 @@ T = TypeVar("T")
 
 @dataclass
 class CommandContext:
-    """Context for command execution."""
+    """Context for command execution; ``timeout`` is in milliseconds."""
     
     trace_id: str
     source: Optional[str] = None
@@ -118,7 +120,12 @@ class DirectClientOptions:
 
 @dataclass
 class DirectCallContext:
-    """Context for individual command calls."""
+    """Context for individual command calls.
+
+    ``timeout`` is a positive, finite deadline in milliseconds, as in the
+    TypeScript DirectClient. Cancellation is cooperative: a handler that
+    suppresses cancellation may still finish after the call times out.
+    """
     
     trace_id: Optional[str] = None
     timeout: Optional[float] = None
@@ -404,6 +411,12 @@ class SimpleRegistry:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _consume_execution(task: asyncio.Task) -> None:
+    """Retrieve late failures after cancellation without delaying the deadline."""
+    if not task.cancelled():
+        task.exception()
+
+
 def _generate_trace_id() -> str:
     """Generate a unique trace ID."""
     return f"trace-{uuid.uuid4().hex[:12]}"
@@ -499,7 +512,37 @@ class DirectClient:
         )
         
         # Execute the command
-        result = await self.registry.execute(name, args, cmd_context)
+        timeout = cmd_context.timeout
+        if (
+            isinstance(timeout, (int, float))
+            and not isinstance(timeout, bool)
+            and (isinstance(timeout, int) or math.isfinite(timeout))
+            and timeout > 0
+        ):
+            execution = asyncio.create_task(self.registry.execute(name, args, cmd_context))
+            try:
+                done, _ = await asyncio.wait({execution}, timeout=min(timeout, 2_147_483_647) / 1000)
+                if execution in done:
+                    result = execution.result()
+                else:
+                    execution.cancel()
+                    execution.add_done_callback(_consume_execution)
+                    result = failure(CommandError(
+                        code="TIMEOUT",
+                        message=f"Command '{truncate_name(name)}' timed out after {timeout}ms",
+                        suggestion=(
+                            "Retry with a larger timeout. The command was signalled to abort "
+                            "but may have completed, so check its effect before retrying a mutation."
+                        ),
+                        retryable=True,
+                        details={"command": name, "timeoutMs": timeout},
+                    ))
+            except BaseException:
+                execution.cancel()
+                execution.add_done_callback(_consume_execution)
+                raise
+        else:
+            result = await self.registry.execute(name, args, cmd_context)
         
         if self.options.debug:
             duration = (time.perf_counter() - start_time) * 1000
@@ -544,10 +587,14 @@ class DirectClient:
                 # Type checking (basic)
                 if param.type == "string" and not isinstance(value, str):
                     issues.append(f"'{param.name}' must be a string")
-                elif param.type == "number" and not isinstance(value, (int, float)):
+                elif param.type == "number" and (isinstance(value, bool) or not isinstance(value, (int, float))):
                     issues.append(f"'{param.name}' must be a number")
                 elif param.type == "boolean" and not isinstance(value, bool):
                     issues.append(f"'{param.name}' must be a boolean")
+                elif param.type == "object" and not isinstance(value, dict):
+                    issues.append(f"'{param.name}' must be an object")
+                elif param.type == "array" and not isinstance(value, list):
+                    issues.append(f"'{param.name}' must be an array")
                 
                 # Enum validation
                 if param.enum and value not in param.enum:

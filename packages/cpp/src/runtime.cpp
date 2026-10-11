@@ -1,7 +1,10 @@
 #include "afd/runtime.hpp"
 
 #include <chrono>
+#include <exception>
 #include <vector>
+
+#include "detail/exceptions.hpp"
 
 #if AFD_ENABLE_THREADS
 #include <thread>
@@ -89,15 +92,37 @@ void ThreadTaskRunner::run_all(std::size_t count, const std::function<void(std::
     if (count == 0) {
         return;
     }
-    std::vector<std::thread> threads;
-    threads.reserve(count - 1);
-    for (std::size_t i = 1; i < count; ++i) {
-        threads.emplace_back([&task, i] { task(i); });
+#if AFD_HAS_EXCEPTIONS
+    std::exception_ptr first_error;
+    std::mutex error_mutex;
+    const auto run_task = [&](std::size_t index) {
+        try {
+            task(index);
+        } catch (...) {
+            const std::lock_guard lock(error_mutex);
+            if (!first_error) {
+                first_error = std::current_exception();
+            }
+        }
+    };
+#else
+    const auto& run_task = task;
+#endif
+    {
+        // Destruction joins started workers even if a later thread fails to start.
+        // Keep the task and exception state alive until every worker has finished.
+        std::vector<std::jthread> threads;
+        threads.reserve(count - 1);
+        for (std::size_t i = 1; i < count; ++i) {
+            threads.emplace_back([&run_task, i] { run_task(i); });
+        }
+        run_task(0);
     }
-    task(0);
-    for (auto& thread : threads) {
-        thread.join();
+#if AFD_HAS_EXCEPTIONS
+    if (first_error) {
+        std::rethrow_exception(first_error);
     }
+#endif
 }
 #endif
 

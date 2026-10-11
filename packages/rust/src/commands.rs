@@ -73,7 +73,7 @@ pub enum JsonSchemaType {
 }
 
 /// JSON Schema subset for command parameter validation.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct JsonSchema {
     /// The type of the value.
@@ -89,7 +89,11 @@ pub struct JsonSchema {
     pub required: Option<Vec<String>>,
 
     /// Default value.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::schema_legacy::deserialize_present_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub default: Option<serde_json::Value>,
 
     /// Allowed values (enum).
@@ -156,7 +160,11 @@ pub struct CommandParameter {
     pub required: bool,
 
     /// Default value if not provided.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        deserialize_with = "crate::schema_legacy::deserialize_present_value",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub default: Option<serde_json::Value>,
 
     /// For enum types, the allowed values.
@@ -751,6 +759,7 @@ pub struct CommandRegistry {
 struct RegisteredCommands {
     by_name: HashMap<String, Arc<CommandDefinition>>,
     ordered: Vec<Arc<CommandDefinition>>,
+    schemas: HashMap<String, serde_json::Value>,
 }
 
 /// Read a lock, ignoring poisoning: no registry invariant spans a panic.
@@ -775,6 +784,14 @@ impl CommandRegistry {
     /// command with the same name already exists.
     pub fn register(&self, command: CommandDefinition) -> Result<(), String> {
         validate_command_name(&command.name)?;
+        for parameter in &command.parameters {
+            if let Some(schema) = &parameter.schema {
+                crate::validation::validate_schema_definition(
+                    schema,
+                    &format!("#/properties/{}", parameter.name),
+                )?;
+            }
+        }
 
         let mut commands = write_lock(&self.commands);
         if commands.by_name.contains_key(&command.name) {
@@ -786,6 +803,39 @@ impl CommandRegistry {
             .insert(command.name.clone(), Arc::clone(&command));
         commands.ordered.push(command);
         Ok(())
+    }
+
+    /// Register a whole input JSON Schema without converting it to legacy parameters.
+    /// Unsupported keywords fail registration. Use [`Self::get_tool`] to export this schema.
+    pub fn register_with_schema(
+        &self,
+        command: CommandDefinition,
+        schema: serde_json::Value,
+    ) -> Result<(), String> {
+        crate::schema_validation::compile(&schema)?;
+        validate_command_name(&command.name)?;
+        let mut commands = write_lock(&self.commands);
+        if commands.by_name.contains_key(&command.name) {
+            return Err(format!("Command '{}' is already registered", command.name));
+        }
+        commands.schemas.insert(command.name.clone(), schema);
+        let command = Arc::new(command);
+        commands
+            .by_name
+            .insert(command.name.clone(), Arc::clone(&command));
+        commands.ordered.push(command);
+        Ok(())
+    }
+
+    /// Export the authoritative MCP tool, including any whole schema registered with it.
+    pub fn get_tool(&self, name: &str) -> Option<serde_json::Value> {
+        let commands = read_lock(&self.commands);
+        let command = commands.by_name.get(name)?;
+        let mut tool = serde_json::to_value(command_to_mcp_tool(command)).expect("tool serializes");
+        if let Some(schema) = commands.schemas.get(name) {
+            tool["inputSchema"] = schema.clone();
+        }
+        Some(tool)
     }
 
     /// Add a middleware to the chain that wraps every command execution.
@@ -919,7 +969,12 @@ impl CommandRegistry {
             );
         }
 
-        let input = match validate_input(&command.parameters, input) {
+        let schema = read_lock(&self.commands).schemas.get(name).cloned();
+        let validation = match schema {
+            Some(schema) => crate::schema_validation::execute(&schema, input),
+            None => validate_input(&command.parameters, input),
+        };
+        let input = match validation {
             Ok(input) => input,
             Err(error) => return failure(*error),
         };
@@ -1307,12 +1362,14 @@ pub struct McpInputSchema {
     pub required: Vec<String>,
 }
 
+/// Convert a legacy definition to a tool. For whole-schema registrations, use
+/// [`CommandRegistry::get_tool`] instead: the definition alone does not carry the override.
 pub fn command_to_mcp_tool(command: &CommandDefinition) -> McpTool {
     let mut properties = HashMap::new();
     let mut required = Vec::new();
 
     for param in &command.parameters {
-        let schema = param.schema.clone().unwrap_or_else(|| JsonSchema {
+        let mut schema = param.schema.clone().unwrap_or_else(|| JsonSchema {
             schema_type: Some(param.param_type.clone()),
             description: Some(param.description.clone()),
             default: param.default.clone(),
@@ -1320,9 +1377,13 @@ pub fn command_to_mcp_tool(command: &CommandDefinition) -> McpTool {
             ..Default::default()
         });
 
+        if param.default.is_some() {
+            schema.default = param.default.clone();
+        }
+        let has_default = schema.default.is_some();
         properties.insert(param.name.clone(), schema);
 
-        if param.required {
+        if param.required && !has_default {
             required.push(param.name.clone());
         }
     }

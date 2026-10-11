@@ -136,12 +136,10 @@ fn registry_for(vector: &Value, record: &SharedRecord) -> CommandRegistry {
             record: Arc::clone(record),
         };
         registry
-            .register(CommandDefinition::new(
-                command,
-                "Vector handler",
-                vec![],
-                handler,
-            ))
+            .register_with_schema(
+                CommandDefinition::new(command, "Vector handler", vec![], handler),
+                json!({"type":"object","additionalProperties":true}),
+            )
             .unwrap_or_else(|error| panic!("cannot register {command}: {error}"));
     }
     registry

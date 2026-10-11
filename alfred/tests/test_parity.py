@@ -7,11 +7,15 @@ import pytest
 
 from alfred.commands.parity import (
     CONTRACT_VERSION_SOURCES,
+    VECTOR_TEST_GLOBS,
     WIRE_ROUND_TRIP_TESTS,
     _camel_to_snake,
+    _diff_exports,
+    _entry,
     _normalize,
     alfred_parity,
     check_contract_version,
+    check_vectors,
     check_wire_fixtures,
     parse_cpp_exports,
     parse_python_exports,
@@ -41,6 +45,21 @@ def test_normalize_already_snake():
 def test_normalize_camel():
     assert _normalize("createError") == "create_error"
     assert _normalize("CommandResult") == "command_result"
+
+
+def test_typescript_internal_helper_exclusions_are_exact_names():
+    entries = [
+        _entry("CommandToolMeta", "type"),
+        _entry("commandToolMeta", "function"),
+        _entry("failedBatchRequest", "function"),
+        _entry("unrelatedInternalHelper", "function"),
+    ]
+
+    report = _diff_exports(entries, [], [], [_entry("cppMarker", "function")])
+
+    assert report.missing_from_python == ["unrelated_internal_helper"]
+    assert report.missing_from_rust == ["unrelated_internal_helper"]
+    assert report.missing_from_cpp == ["unrelated_internal_helper"]
 
 
 def _names(entries):
@@ -437,6 +456,153 @@ def test_wire_missing_suite_invalid_fixture_and_missing_dir(tmp_path):
     assert missing["gaps"] == 1
 
 
+# ─── Behavior vector coverage ───────────────────────────────────────────────
+
+_VECTOR_TEST_FILES = {
+    "typescript": Path("packages/core/src/vectors-vectors.test.ts"),
+    "python": Path("python/tests/test_behavior_vectors.py"),
+    "rust": Path("packages/rust/tests/vectors.rs"),
+    "cpp": Path("packages/cpp/tests/vectors_test.cpp"),
+}
+_VECTOR_NON_TEST_LOADERS = {
+    "typescript": (
+        Path("packages/core/src/vector-loader.ts"),
+        "readFileSync(new URL('new-vector.json', import.meta.url));",
+    ),
+    "python": (
+        Path("python/src/afd/vector_loader.py"),
+        "(Path(__file__).parent / 'new-vector.json').read_text()",
+    ),
+    "rust": (
+        Path("packages/rust/src/vector_loader.rs"),
+        'let path = PathBuf::from(".").join("new-vector.json"); '
+        "let _ = std::fs::read_to_string(path);",
+    ),
+    "cpp": (
+        Path("packages/cpp/src/vector_loader.cpp"),
+        'auto vectors = load_vectors("new-vector.json");',
+    ),
+}
+
+
+def _write_vector_repo(root: Path, fixtures=("pipeline.json", "catalog.json")) -> None:
+    vector_dir = root / "spec" / "vectors"
+    vector_dir.mkdir(parents=True)
+    for fixture in fixtures:
+        (vector_dir / fixture).write_text('{"cases": []}', encoding="utf-8")
+
+    for language, relative in _VECTOR_TEST_FILES.items():
+        suite = root / relative
+        suite.parent.mkdir(parents=True, exist_ok=True)
+        if language == "typescript":
+            source = "import { readFileSync } from 'node:fs';\n" + "".join(
+                f"JSON.parse(readFileSync(new URL('../../../spec/vectors/{fixture}', import.meta.url), 'utf8'));\n"
+                for fixture in fixtures
+            )
+        elif language == "python":
+            source = "import json\nfrom pathlib import Path\n" + "".join(
+                f"VECTORS_{index} = json.loads((Path(__file__).parent / '{fixture}').read_text())\n"
+                for index, fixture in enumerate(fixtures)
+            )
+        elif language == "rust":
+            source = "use std::path::PathBuf;\n" + "".join(
+                f"let path = PathBuf::from(\".\").join(\"{fixture}\");\n"
+                "let text = std::fs::read_to_string(path).unwrap();\n"
+                "let vectors: serde_json::Value = serde_json::from_str(&text).unwrap();\n"
+                for fixture in fixtures
+            )
+        else:
+            source = "".join(
+                f'auto vectors_{index} = load_vectors("{fixture}");\n'
+                for index, fixture in enumerate(fixtures)
+            )
+        suite.write_text(source, encoding="utf-8")
+
+
+def test_vectors_fully_covered(tmp_path):
+    _write_vector_repo(tmp_path)
+
+    report = check_vectors(tmp_path)
+
+    assert report["fixtures"] == ["catalog.json", "pipeline.json"]
+    assert report["missing_suites"] == []
+    assert report["gaps"] == 0
+    assert report["uncovered"] == {language: [] for language in VECTOR_TEST_GLOBS}
+
+
+def test_new_vector_is_uncovered_until_every_language_loads_it(tmp_path):
+    _write_vector_repo(tmp_path)
+    (tmp_path / "spec" / "vectors" / "new-vector.json").write_text("{}", encoding="utf-8")
+
+    report = check_vectors(tmp_path)
+
+    assert report["uncovered"] == {
+        "typescript": ["new-vector.json"],
+        "python": ["new-vector.json"],
+        "rust": ["new-vector.json"],
+        "cpp": ["new-vector.json"],
+    }
+    assert report["gaps"] == 4
+
+
+def test_dropped_vector_loader_is_a_language_gap(tmp_path):
+    _write_vector_repo(tmp_path)
+    (tmp_path / _VECTOR_TEST_FILES["rust"]).write_text(
+        'let path = PathBuf::from(".").join("pipeline.json");\n'
+        'let text = std::fs::read_to_string(path).unwrap();\n'
+        'let vectors: serde_json::Value = serde_json::from_str(&text).unwrap();\n',
+        encoding="utf-8",
+    )
+
+    report = check_vectors(tmp_path)
+
+    assert report["uncovered"]["rust"] == ["catalog.json"]
+    assert report["gaps"] == 1
+
+
+@pytest.mark.parametrize(
+    ("language", "comment"),
+    [
+        ("typescript", "// readFileSync(new URL('new-vector.json', import.meta.url));\n"),
+        ("python", '"""json.loads((Path(__file__).parent / \'new-vector.json\').read_text())"""\n'),
+        ("rust", '// load_vectors("new-vector.json");\n'),
+        ("cpp", '// auto vectors = load_vectors("new-vector.json");\n'),
+    ],
+)
+def test_vector_coverage_ignores_comments_and_non_test_sources(tmp_path, language, comment):
+    _write_vector_repo(tmp_path)
+    (tmp_path / "spec" / "vectors" / "new-vector.json").write_text("{}", encoding="utf-8")
+    suite = tmp_path / _VECTOR_TEST_FILES[language]
+    suite.write_text(suite.read_text(encoding="utf-8") + comment, encoding="utf-8")
+    non_test_relative, loader = _VECTOR_NON_TEST_LOADERS[language]
+    non_test = tmp_path / non_test_relative
+    non_test.parent.mkdir(parents=True, exist_ok=True)
+    non_test.write_text(loader, encoding="utf-8")
+
+    report = check_vectors(tmp_path)
+
+    assert report["uncovered"][language] == ["new-vector.json"]
+
+
+def test_vector_missing_suite_invalid_fixture_and_missing_dir(tmp_path):
+    _write_vector_repo(tmp_path)
+    (tmp_path / _VECTOR_TEST_FILES["python"]).unlink()
+    (tmp_path / "spec" / "vectors" / "broken.json").write_text("{not json", encoding="utf-8")
+
+    report = check_vectors(tmp_path)
+
+    assert report["missing_suites"] == ["python"]
+    assert report["invalid_fixtures"] == ["broken.json"]
+    assert report["uncovered"]["python"] == ["broken.json", "catalog.json", "pipeline.json"]
+    assert report["gaps"] == 1 + 3 + 3
+
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    missing = check_vectors(empty)
+    assert missing["missing_vector_dir"] is True
+    assert missing["gaps"] == 1
+
+
 # ─── Contract version ────────────────────────────────────────────────────────
 
 _CONTRACT_DECLARATIONS = {
@@ -544,7 +710,7 @@ def test_contract_version_constants_are_not_name_parity_exports():
 
 @pytest.fixture
 def fake_repo(tmp_path):
-    """Create a minimal fake repo structure with export files and wire fixtures."""
+    """Create a minimal fake repo structure with exports, fixtures and vectors."""
     ts_dir = tmp_path / "packages" / "core" / "src"
     ts_dir.mkdir(parents=True)
     (ts_dir / "index.ts").write_text(
@@ -586,6 +752,7 @@ def fake_repo(tmp_path):
     )
 
     _write_wire_repo(tmp_path)
+    _write_vector_repo(tmp_path)
     _write_contract_repo(tmp_path)
     return tmp_path
 
@@ -598,6 +765,7 @@ async def test_parity_all_match(fake_repo):
     assert result.data["total_gaps"] == 0
     assert result.data["name_gaps"] == 0
     assert result.data["wire_fixtures"]["gaps"] == 0
+    assert result.data["vectors"]["gaps"] == 0
     assert result.confidence == 1.0
 
 
@@ -630,6 +798,24 @@ async def test_parity_counts_uncovered_wire_fixtures(fake_repo):
         "python": ["new-shape.json"],
         "rust": ["new-shape.json"],
         "cpp": ["new-shape.json"],
+    }
+    assert result.data["total_gaps"] == 4
+    assert result.confidence < 1.0
+
+
+@pytest.mark.asyncio
+async def test_parity_counts_uncovered_vectors(fake_repo):
+    """A new vector with no language loaders is four parity gaps."""
+    (fake_repo / "spec" / "vectors" / "new-vector.json").write_text("{}", encoding="utf-8")
+
+    result = await alfred_parity(str(fake_repo))
+
+    assert result.data["name_gaps"] == 0
+    assert result.data["vectors"]["uncovered"] == {
+        "typescript": ["new-vector.json"],
+        "python": ["new-vector.json"],
+        "rust": ["new-vector.json"],
+        "cpp": ["new-vector.json"],
     }
     assert result.data["total_gaps"] == 4
     assert result.confidence < 1.0
@@ -707,6 +893,15 @@ async def test_parity_on_real_repo():
     assert wire["invalid_fixtures"] == []
     assert wire["uncovered"] == {"typescript": [], "python": [], "rust": [], "cpp": []}
     assert wire["gaps"] == 0
+
+    # Every behavior vector is loaded by a designated test suite in all four languages.
+    vectors = data["vectors"]
+    vectors_on_disk = sorted(p.name for p in (REPO_ROOT / "spec" / "vectors").glob("*.json"))
+    assert vectors["fixtures"] == vectors_on_disk
+    assert vectors["missing_suites"] == []
+    assert vectors["invalid_fixtures"] == []
+    assert vectors["uncovered"] == {"typescript": [], "python": [], "rust": [], "cpp": []}
+    assert vectors["gaps"] == 0
 
     # The parsers find the core surface in every language.
     for language, entries in (

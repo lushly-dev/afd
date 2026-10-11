@@ -7,6 +7,7 @@
  */
 
 import type { BatchRequest, BatchResult } from './batch.js';
+import { type CommandToolMeta, commandToolMeta } from './command-metadata.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMMAND NAME VALIDATION
@@ -596,7 +597,10 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 /**
  * Convert a CommandDefinition to MCP tool format.
  */
-export function commandToMcpTool(command: CommandDefinition): {
+export function commandToMcpTool<TInput, TOutput>(
+	command: CommandDefinition<TInput, TOutput>
+): {
+	_meta?: CommandToolMeta;
 	name: string;
 	description: string;
 	inputSchema: {
@@ -621,9 +625,11 @@ export function commandToMcpTool(command: CommandDefinition): {
 		}
 	}
 
+	const meta = commandToolMeta(command, command.returns);
 	return {
 		name: command.name,
 		description: command.description,
+		...(meta && { _meta: meta }),
 		inputSchema: {
 			type: 'object',
 			properties,

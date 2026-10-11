@@ -1,6 +1,6 @@
-"""alfred_parity — Cross-language API surface, wire-shape and contract-version sync.
+"""alfred_parity — Cross-language API surface, fixtures and contract-version sync.
 
-Three checks:
+Four checks:
 
 - **Name parity.** Parses the public exports of the TypeScript, Python, Rust and
   C++ entry points, normalizes naming conventions, and reports names missing from
@@ -9,6 +9,8 @@ Three checks:
   that the TypeScript, Python, Rust and C++ round-trip test suites exist and
   reference it. The suites themselves assert that each language parses and
   re-serializes the fixture unchanged (see ``spec/wire/README.md``).
+- **Behavior vectors.** For every vector in ``spec/vectors/*.json``, verifies
+  that a test loader in each language's vector suite reads it.
 - **Contract version.** Reads ``spec/VERSION`` and the contract version constant
   each language declares, and reports a constant that is missing or differs
   (see ``spec/CHANGELOG.md``).
@@ -100,12 +102,17 @@ _SKIP_NAMES = {
     *_CONTRACT_VERSION_NAMES,
 }
 
-# Names that are platform/connector-specific (only in TS, not expected elsewhere)
-_TS_ONLY_PREFIXES = {
+# Normalized TypeScript names that are platform/connector APIs or language-specific internals.
+_TS_ONLY_NAMES = {
     "is_windows", "is_mac", "is_linux", "exec", "find_up",
     "get_temp_dir", "normalize_path", "exec_error_code",
     "create_exec_result", "is_exec_error",
     "git_hub_connector", "package_manager_connector",
+    # Shared transport-formatting helpers are exported for packages/server's TS call paths.
+    # Other languages implement the behavior in their own dispatch layers and cover the
+    # observable results with the shared vectors; these names are not cross-language APIs.
+    "command_tool_meta",
+    "failed_batch_request",
 }
 
 
@@ -798,6 +805,180 @@ def check_wire_fixtures(root: Path) -> dict:
     return report
 
 
+# ─── Behavior vector coverage ───────────────────────────────────────────────
+
+VECTOR_DIR = Path("spec") / "vectors"
+
+# Only test files that exercise the shared vectors count. This avoids treating
+# documentation, production code, or unrelated tests as vector-loader evidence.
+VECTOR_TEST_GLOBS = {
+    "typescript": (
+        "packages/core/src/*-vectors.test.ts",
+        "packages/core/src/errors.test.ts",
+        "packages/server/src/*-vectors.test.ts",
+    ),
+    "python": (
+        "python/tests/test_*_vectors.py",
+        "python/tests/test_error_codes.py",
+    ),
+    "rust": (
+        "packages/rust/tests/*vectors.rs",
+        "packages/rust/tests/error_codes.rs",
+    ),
+    "cpp": ("packages/cpp/tests/*vectors_test.cpp",),
+}
+
+
+def _test_sources(root: Path, language: str) -> list[Path]:
+    """The language's test files designated to exercise shared behavior vectors."""
+    paths = {
+        path
+        for pattern in VECTOR_TEST_GLOBS[language]
+        for path in root.glob(pattern)
+        if path.is_file()
+    }
+    return sorted(paths)
+
+
+def _literal_matches_vector(value: str, fixture: str) -> bool:
+    normalized = value.replace("\\", "/")
+    return normalized == fixture or normalized.endswith(f"/{fixture}")
+
+
+def _python_loads_vector(source: str, fixture: str) -> bool:
+    """Find a vector path that is read by Python test code, ignoring comments/docstrings."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return False
+
+    def contains_vector(node: ast.AST) -> bool:
+        return any(
+            isinstance(child, ast.Constant)
+            and isinstance(child.value, str)
+            and _literal_matches_vector(child.value, fixture)
+            for child in ast.walk(node)
+        )
+
+    def names(node: ast.AST) -> set[str]:
+        return {child.id for child in ast.walk(node) if isinstance(child, ast.Name)}
+
+    # A few suites bind the path once (for example CATALOG = Path(...) / "...json")
+    # and read it from a test below. Track only names assigned a path containing the
+    # fixture, then require a read call on that path.
+    path_names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and contains_vector(node.value):
+            path_names.update(
+                target.id
+                for target in node.targets
+                if isinstance(target, ast.Name)
+            )
+        elif (
+            isinstance(node, ast.AnnAssign)
+            and node.value is not None
+            and contains_vector(node.value)
+            and isinstance(node.target, ast.Name)
+        ):
+            path_names.add(node.target.id)
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        function = node.func
+        if (
+            isinstance(function, ast.Attribute)
+            and function.attr == "read_text"
+            and (contains_vector(function.value) or names(function.value) & path_names)
+        ):
+            return True
+        if (
+            isinstance(function, ast.Name)
+            and function.id == "open"
+            and node.args
+            and (contains_vector(node.args[0]) or names(node.args[0]) & path_names)
+        ):
+            return True
+    return False
+
+
+def _loads_vector(language: str, source: str, fixture: str) -> bool:
+    """Whether a designated test suite actually invokes its language's vector loader."""
+    if language == "python":
+        return _python_loads_vector(source, fixture)
+
+    code = _strip_comments(source, rust=language == "rust")
+    literal = rf"(['\"`])(?:[^'\"`]*[/\\])?{re.escape(fixture)}\1"
+    if language == "typescript":
+        return re.search(rf"\breadFileSync\s*\(\s*new\s+URL\s*\(\s*{literal}", code) is not None
+    if language == "rust":
+        path_load = re.search(rf"\.join\s*\(\s*{literal}", code) is not None
+        helper_load = re.search(rf"\bload_vectors\s*\(\s*{literal}", code) is not None
+        return (
+            (path_load or helper_load)
+            and "read_to_string" in code
+            and "serde_json::from_str" in code
+        )
+    if language == "cpp":
+        return re.search(
+            rf"\b(?:load_vectors|[A-Za-z_]\w*::load)\s*\(\s*{literal}", code
+        ) is not None
+    raise ValueError(f"Unknown vector-test language: {language}")
+
+
+def check_vectors(root: Path) -> dict:
+    """Check that every behavior vector is loaded by a test suite in all four languages.
+
+    Only designated vector test paths are scanned, and a filename must appear in
+    the language's loader expression. Each missing language/vector pair, invalid
+    JSON file, missing vector directory, or empty vector directory is one gap.
+    """
+    vector_dir = root / VECTOR_DIR
+    test_files = {lang: _test_sources(root, lang) for lang in VECTOR_TEST_GLOBS}
+    report: dict = {
+        "vector_dir": VECTOR_DIR.as_posix(),
+        "fixtures": [],
+        "suites": {
+            lang: [path.relative_to(root).as_posix() for path in paths]
+            for lang, paths in test_files.items()
+        },
+        "missing_suites": [lang for lang, paths in test_files.items() if not paths],
+        "invalid_fixtures": [],
+        "uncovered": {lang: [] for lang in VECTOR_TEST_GLOBS},
+        "gaps": 0,
+    }
+    if not vector_dir.is_dir():
+        report["missing_vector_dir"] = True
+        report["gaps"] = 1
+        return report
+
+    fixtures = sorted(path.name for path in vector_dir.glob("*.json"))
+    report["fixtures"] = fixtures
+    for fixture in fixtures:
+        try:
+            json.loads((vector_dir / fixture).read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            report["invalid_fixtures"].append(fixture)
+
+    sources = {
+        language: [path.read_text(encoding="utf-8") for path in paths]
+        for language, paths in test_files.items()
+    }
+    for language, test_sources in sources.items():
+        report["uncovered"][language] = [
+            fixture
+            for fixture in fixtures
+            if not any(_loads_vector(language, source, fixture) for source in test_sources)
+        ]
+
+    report["gaps"] = (
+        (0 if fixtures else 1)
+        + len(report["invalid_fixtures"])
+        + sum(len(names) for names in report["uncovered"].values())
+    )
+    return report
+
+
 # ─── Contract version ────────────────────────────────────────────────────────
 
 CONTRACT_VERSION_FILE = Path("spec") / "VERSION"
@@ -910,7 +1091,7 @@ def _diff_exports(
     cpp_names = {e.normalized for e in cpp}
 
     # Filter out TS-only platform utilities
-    ts_core = {n for n in ts_names if n not in _TS_ONLY_PREFIXES}
+    ts_core = {n for n in ts_names if n not in _TS_ONLY_NAMES}
 
     # Missing from each language (relative to TS as source of truth)
     report.missing_from_python = sorted(ts_core - py_names)
@@ -931,20 +1112,23 @@ def _diff_exports(
 
 
 async def alfred_parity(path: str | None = None) -> CommandResult[dict]:
-    """Check cross-language API surface, wire-shape and contract-version parity.
+    """Check cross-language API surface, fixtures, vectors and contract-version parity.
 
     Parses public exports from each language's entry point (TS, Python, Rust,
     C++), normalizes naming conventions (camelCase → snake_case), and reports
     gaps. Also checks that every golden fixture in ``spec/wire`` is
     round-tripped by the TypeScript, Python, Rust and C++ test suites, and that
-    each language's contract version constant equals ``spec/VERSION``.
+    every behavior vector in ``spec/vectors`` is loaded by a test in all four
+    languages, and that each language's contract version constant equals
+    ``spec/VERSION``.
 
     Args:
         path: Root of the AFD repo. Defaults to current working directory.
 
     Returns:
         CommandResult with gap report per language. ``total_gaps`` is
-        ``name_gaps`` plus ``wire_fixtures.gaps`` plus ``contract_version.gaps``.
+        ``name_gaps`` plus ``wire_fixtures.gaps``, ``vectors.gaps`` and
+        ``contract_version.gaps``.
     """
     root = Path(path) if path else Path(".")
 
@@ -969,6 +1153,7 @@ async def alfred_parity(path: str | None = None) -> CommandResult[dict]:
 
     report = _diff_exports(ts_exports, py_exports, rs_exports, cpp_exports)
     wire = check_wire_fixtures(root)
+    vectors = check_vectors(root)
     contract = check_contract_version(root)
 
     name_gaps = (
@@ -977,10 +1162,11 @@ async def alfred_parity(path: str | None = None) -> CommandResult[dict]:
         + len(report.missing_from_cpp)
         + len(report.missing_from_typescript)
     )
-    total_gaps = name_gaps + wire["gaps"] + contract["gaps"]
+    total_gaps = name_gaps + wire["gaps"] + vectors["gaps"] + contract["gaps"]
     total_checks = max(
         len(ts_exports)
         + len(wire["fixtures"]) * len(WIRE_ROUND_TRIP_TESTS)
+        + len(vectors["fixtures"]) * len(VECTOR_TEST_GLOBS)
         + len(CONTRACT_VERSION_SOURCES),
         1,
     )
@@ -1013,6 +1199,7 @@ async def alfred_parity(path: str | None = None) -> CommandResult[dict]:
             "extra_in_typescript": report.extra_in_typescript,
             "name_gaps": name_gaps,
             "wire_fixtures": wire,
+            "vectors": vectors,
             "contract_version": contract,
             "total_gaps": total_gaps,
         },
@@ -1021,6 +1208,8 @@ async def alfred_parity(path: str | None = None) -> CommandResult[dict]:
             f"Parsed {len(ts_exports)} TS, {len(py_exports)} Python, {len(rs_exports)} Rust, "
             f"{len(cpp_exports)} C++ exports: {name_gaps} name gaps. Checked {len(wire['fixtures'])} wire fixtures "
             f"against {len(WIRE_ROUND_TRIP_TESTS)} round-trip suites: {wire['gaps']} gaps. "
+            f"Checked {len(vectors['fixtures'])} behavior vectors across {len(VECTOR_TEST_GLOBS)} languages: "
+            f"{vectors['gaps']} gaps. "
             f"{contract_summary}."
         ),
     )

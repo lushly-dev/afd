@@ -5,7 +5,7 @@
  * is exactly what the router validates.
  */
 
-import type { CommandError, CommandExample, CommandResult, JsonSchema } from '@lushly-dev/afd-core';
+import type { CommandError, CommandResult, CommandToolMeta } from '@lushly-dev/afd-core';
 import { AFD_META_TOOL_NAMES, failure } from '@lushly-dev/afd-core';
 import { z } from 'zod';
 import { zodToJsonSchema } from './schema.js';
@@ -182,17 +182,7 @@ function withoutNulls(args: unknown): unknown {
 /** A tool's `inputSchema`: a JSON Schema object. */
 export type ToolInputSchema = { type: 'object'; [key: string]: unknown };
 
-/** Per-command `_meta` fields; each is present only when the command sets it. */
-export type CommandToolMeta = {
-	category?: string;
-	requires?: string[];
-	mutation?: boolean;
-	destructive?: boolean;
-	undoable?: boolean;
-	examples?: CommandExample[];
-	outputSchema?: JsonSchema;
-	contexts?: string[];
-};
+export type { CommandToolMeta } from '@lushly-dev/afd-core';
 
 /** One action of a grouped tool, as listed in its `_meta.actions`. */
 export type GroupedToolAction = CommandToolMeta & {

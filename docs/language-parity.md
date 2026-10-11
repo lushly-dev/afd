@@ -4,12 +4,14 @@ What each AFD implementation provides, where they differ, and which differences 
 
 | Field | Value |
 |---|---|
-| Updated | 2026-09-28 |
-| Reviewed at | `0777217` (`main`) |
+| Updated | 2026-10-10 |
+| Reviewed at | Stabilization working tree based on `ddb1663`; changes unmerged and unpublished |
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans, which now link here |
 | Plans | [Parity closure](./features/active/parity-closure/parity-closure.plan.md) closes the gaps listed here; [Versioning and release](./features/active/versioning/versioning.plan.md) covers each implementation's version and the contract version |
 | Related | [`spec/wire`](../spec/wire/README.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/command-metadata.md`](../spec/command-metadata.md), [`spec/validation.md`](../spec/validation.md), [`spec/error-codes.md`](../spec/error-codes.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/proposed/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
+
+The implementation rows below include the **unmerged 2026-10-10 stabilization candidate**, not released-package guarantees. Python 0.8.0 remains the published broken artifact; #347 remains publication-blocked until the release gates are satisfied. Local receipts do not establish remote CI, deployment, or release readiness. The historical export measurement below remains dated separately.
 
 ## What parity means
 
@@ -24,6 +26,8 @@ The contract has three layers:
 **TypeScript is the behavioral reference:** `packages/server/src/execution.ts` for single commands, and `packages/core/src/command-execution.ts` and `pipeline-executor.ts` for batch, stream and pipeline.
 
 ## Implementations at a glance
+
+Versions below describe repository manifests. The release-readiness record separately reports published npm core 1.0.0 and Python 0.8.0; the candidate does not imply publication.
 
 | | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
@@ -41,11 +45,13 @@ The contract has three layers:
 | Check | What it proves | TS | Python | Rust | C++ |
 |---|---|---|---|---|---|
 | `spec/wire` round-trip, 6 fixtures | Wire shapes | Yes (generator) | Yes | Yes | Yes |
-| `spec/vectors/pipeline-variables.json`, 48 references and 27 conditions | Pipeline reference and `when` behavior | Yes (generator) | Yes | Yes | Yes |
-| `spec/vectors/batch-controls.json`, 21 batch and 22 pipeline cases | `stopOnError`, `parallelism`, deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION` and envelope validation in the batch and pipeline executors | Yes (generator) | Yes, through `afd-batch` and `afd-pipe` | Yes | Yes |
+| `spec/vectors/pipeline-variables.json`, 51 references and 27 conditions | Pipeline reference and `when` behavior | Yes (generator) | Yes | Yes | Yes |
+| `spec/vectors/batch-controls.json`, 24 batch and 25 pipeline cases | `stopOnError`, `parallelism`, deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION` and envelope validation in the batch and pipeline executors | Yes (generator) | Yes, through `afd-batch` and `afd-pipe` | Yes | Yes |
 | `spec/vectors/error-codes.json`, 42 codes | The shared `ErrorCodes` catalog of `spec/error-codes.md` | Yes | Yes | Yes | Yes |
+| `spec/vectors/validation.json`, 34 cases / 130 tests | Required schema subset; unsupported optional keywords must reject registration | Yes | Yes: 130 execute | Yes: 102 execute, 28 optional rejections | Yes: 98 execute, 32 optional rejections |
+| [Bounded AFD protocol tier](../spec/protocol-conformance.md) | Discovery, exposure, errors and executor routing over actual sockets | Legacy HTTP subset | SSE and Streamable HTTP | No library transport tier | No library transport tier |
 | Todo conformance, 34 cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes | Yes | Yes | Yes |
-| `alfred parity` name budget (`alfred/tests/test_parity.py`) | Exported names | Reference | 97 missing (budget 97) | 9 missing (budget 9) | 73 missing (budget 73) |
+| `alfred parity` name budget (`alfred/tests/test_parity.py`) | Historical name measurement; current configured upper budgets | Reference | Budget 97 | Budget 9 | Budget 73 |
 | `alfred parity` contract version, `scripts/check-versions.mjs` | The contract constant equals `spec/VERSION` | Yes | Yes | Yes | Yes |
 
 Limits of these checks:
@@ -56,7 +62,7 @@ Limits of these checks:
   - the batch, pipeline or stream executors;
   - unknown-command handling.
 - **Name parity is not behavioral parity.** Rust is 9 names short of TypeScript but has no MCP server and no stream executor. Python is 97 names short, but 61 of those exist and are just not exported (see [Name parity](#name-parity-alfred-parity)).
-- **The behavior vectors cover pipeline references, conditions, executor controls, validation (loaded by TypeScript only so far) and the error-code catalog.** Streams and single-command dispatch have no vectors yet, so a change there can still drift unnoticed.
+- **The behavior vectors cover pipeline references, conditions, executor controls, validation (loaded by all four implementations) and the error-code catalog.** Streams and single-command dispatch have no vectors yet, so a change there can still drift unnoticed.
 
 ## Capability matrix
 
@@ -76,7 +82,7 @@ Limits of these checks:
 | `Warning`, `Source`, `PlanStep`, `Alternative` | Yes | Yes | Yes | Yes |
 | `ErrorCodes` catalog: the 42 shared codes of [`spec/error-codes.md`](../spec/error-codes.md), checked against `spec/vectors/error-codes.json` | Yes | Yes | Yes | Yes |
 | `success` / `failure` / `error` constructors | Yes | Partial: `failure()` accepts only `warnings` and `metadata` | Partial: `FailureOptions` has no `alternatives` or `undo*` | Yes |
-| `isSuccess` / `isFailure` test only `success` | Yes | Partial: `is_success` also requires `data` | Yes | Yes |
+| `isSuccess` / `isFailure` test only `success` | Yes | Yes, including `success(None)` | Yes | Yes |
 
 ### Command definition
 
@@ -86,7 +92,7 @@ Limits of these checks:
 | `destructive`, `confirmPrompt`, `undoable` ([`spec/command-metadata.md`](../spec/command-metadata.md)) | Yes: on core `CommandDefinition` and `defineCommand`; `_meta` has `destructive` and `undoable`, afd-detail all three | No | No | Yes |
 | Kebab-case name rule | Warns in `defineCommand` | Partial: `validate_command_name` exists but nothing calls it | Yes, rejects at registration | Yes, rejects at registration |
 | Duplicate and reserved names | Throws for meta-tools, and for bootstrap and context names when enabled | Partial: meta-tools only; a command named like a bootstrap tool silently shadows it | Partial: bootstrap names only | Yes: meta-tools (C++ has no bootstrap or context tools) |
-| Input validated before the handler ([`spec/validation.md`](../spec/validation.md)) | Yes: Zod; passes every vector | Partial: Pydantic, before middleware, and `None` validates as `{}`; a JSON Schema `input_schema` is not enforced, and error codes are Pydantic's (#310) | Partial: undeclared keys stripped; no type lists, root `additionalProperties` or `$ref`, and an explicit `null` counts as absent (#311) | Partial: the required subset, and unsupported keywords fail registration; field lists come out sorted (#312) |
+| Input validated before the handler ([`spec/validation.md`](../spec/validation.md)) | Yes: Zod | Yes: advertised JSON Schema enforced before middleware, then Pydantic conversion where applicable | Yes: legacy parameters or additive `register_with_schema`; use `get_tool` for authoritative discovery | Yes: required subset; unsupported optional keywords reject registration |
 | Examples validated at definition | Yes | Yes | No: stored only | Yes |
 | Output schema advertised | Yes (`_meta.outputSchema`) | Yes | Partial: `returns` not surfaced by `afd-schema` | No: stored, never emitted |
 | Command to MCP tool with `_meta` | Yes | Partial: no `category`, `destructive` or `undoable` in `_meta` | Partial: `command_to_mcp_tool`, no plural helper | Deferred |
@@ -98,11 +104,11 @@ Limits of these checks:
 | Dispatch order: lookup, context, validation, middleware, handler, stamp, `onCommand` | Reference | Partial: matches through the stamp; no `onCommand` hook | Partial: no stamping or hooks | Yes |
 | "Did you mean" on an unknown command | Yes | Yes | Yes (points to `afd-help`) | Yes |
 | Exposure enforced | Yes: the remote engine holds only MCP-exposed commands | Yes | Yes | Yes, when `context.surface` is set |
-| Active-context scoping | Yes: a stack per session, depth 16 | Partial: one process-global, unbounded stack | No: `contexts` is metadata only | Partial: `active_context` is supplied by the caller |
+| Active-context scoping | Yes: a stack per session, depth 16 | Yes: trusted transport-session stacks, depth 16; stateless HTTP mutation returns `SESSION_REQUIRED` | No: `contexts` is metadata only | Partial: `active_context` is supplied by the caller |
 | Result metadata stamped (`executionTimeMs`, `commandVersion`, `traceId`) | Yes | Partial: no `commandVersion` | No | Yes |
 | `onCommand` / `onError` hooks | Yes | No | No | Yes |
 | A thrown error becomes a redacted `COMMAND_EXECUTION_ERROR` | Yes (`devMode` shows detail) | Yes (`dev_mode` shows detail in the server, `create_command_registry`, `execute_pipeline` and `SimpleRegistry`) | Yes: a panic in `execute`, a batch or a pipeline (`execution_failure`); there is no dev mode to show detail | Yes, when built with exceptions |
-| Cancellation | `AbortSignal` | No signal; `timeout` declared but not enforced | Per-command timeout drops the future; no signal | Cooperative `CancellationToken` and deadline |
+| Cancellation | `AbortSignal` | Partial: DirectClient enforces positive finite millisecond deadlines; server per-command timeout remains deferred | Per-command timeout drops the future; no signal | Cooperative `CancellationToken` and deadline |
 
 ### Middleware
 
@@ -118,7 +124,7 @@ Limits of these checks:
 
 | Capability | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
-| Batch executor with the reference defaults (`stopOnError` false, parallelism 1, whole-batch deadline) | Yes | Partial: only the private `MCPServer._execute_batch`; adds limits of 500 commands and parallelism 16. After a `stopOnError` failure it cancels commands still running (`COMMAND_CANCELLED`), where TypeScript lets them finish | Yes: `CommandRegistry::execute_batch`, no free function | Yes |
+| Batch executor with the reference defaults (`stopOnError` false, parallelism 1, whole-batch deadline) | Yes | Partial: private `MCPServer._execute_batch`, with limits of 500 commands and parallelism 16; observed failure stops new starts and drains running work normally | Yes: `CommandRegistry::execute_batch`, no free function | Yes |
 | Pipeline variables per `spec/pipeline-variables.md`: `$prev`, `$first`, `$steps`, `$input`, `$$`, the `__` guard, caps of 64 and 1024 | Yes | Yes (core) | Yes | Yes |
 | `when` conditions | Yes | Yes | Yes | Yes (as validated JSON) |
 | Pipeline aggregation (confidence, reasoning, warnings, sources, alternatives) | Yes | Yes | Yes | Yes (internal helpers) |
@@ -142,11 +148,11 @@ Limits of these checks:
 | Capability | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
 | MCP server in the library | Yes | Yes (FastMCP) | No: the todo backend hand-rolls one | Deferred: the todo backend hand-rolls stdio |
-| MCP Streamable HTTP | **No**: custom `/sse` and `/message` routes, protocol `2024-11-05` | Yes, through `run_async` | Todo backend only | N/A: no HTTP by design |
-| Tool strategies: individual, grouped, lazy | Yes (default grouped) | Partial: default individual; grouped has no `afd-detail` or per-action schemas | No | Deferred |
+| MCP Streamable HTTP | **No**: custom `/sse` and `/message` routes, protocol `2024-11-05` | Yes, through `run` and `run_async` | Todo backend only | N/A: no HTTP by design |
+| Tool strategies: individual, grouped, lazy | Yes (default grouped) | Partial: default individual; all strategies serve discovery/detail, but grouped per-action schema/default alignment remains planned | No | Deferred |
 | Meta-tools: `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail` | Yes | Yes | No | Deferred |
 | Bootstrap: `afd-help`, `afd-docs`, `afd-schema` | Yes, opt-in | Partial: always registered and MCP-exposed | Yes (`register_bootstrap_commands`) | Deferred |
-| Context tools: `afd-context-list`, `-enter`, `-exit` | Yes | Partial: backed by the global stack | No | No |
+| Context tools: `afd-context-list`, `-enter`, `-exit` | Yes | Yes: backed by trusted transport sessions, with a deliberate local/default scope | No | No |
 | HTTP hardening: Host/Origin checks, body cap | Yes | Not configured; left to FastMCP defaults (not verified) | Todo backend only | N/A |
 | MCP JSON-RPC types and helpers | Yes | Partial: Pythonic names; no notification type or error-code constants | Yes | Deferred |
 
@@ -154,8 +160,8 @@ Limits of these checks:
 
 | Capability | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
-| MCP client: call, batch, pipe, stream | Yes | Partial: `auto_reconnect` is never used; `stream` only works against the TS server | No | No: not declared |
-| In-process client (`DirectClient`) with `allow`, exposure, timeout, `pipe` | Yes | Partial: no exposure, `allow`, middleware or timeout | Partial: `execute` with an interface; no `pipe` or unknown-tool helper | Yes (see [defects](#defects-found-in-this-review)) |
+| MCP client: call, batch, pipe, stream | Yes | Partial: reconnect refreshes discovery after HTTP/SSE loss without replaying calls; `stream` only works against the TS server | No | No: not declared |
+| In-process client (`DirectClient`) with `allow`, exposure, timeout, `pipe` | Yes | Partial: millisecond timeout and shallow JSON types enforced; exposure, `allow` and middleware remain gaps | Partial: `execute` with an interface; no `pipe` or unknown-tool helper | Yes (see [defects](#defects-found-in-this-review)) |
 | CLI | Yes | Partial: no `batch`, `stream` or `scenario` | N/A | N/A |
 | Auth adapter | Yes | No | No | N/A: built by the host |
 | Testing: JTBD scenarios, surface validation (13 rules), assertions | Yes | Yes | No | No |
@@ -183,7 +189,7 @@ These gaps are appropriate. They follow the framework-agnostic rule, a language'
 
 ## Declared deferred
 
-These gaps are planned. They are listed so the name budgets stay honest.
+These gaps are planned. They are listed so the name budgets stay honest. D1/D2/D6 in the [closure plan](./features/active/parity-closure/parity-closure.plan.md) explicitly cover the native server targets, remaining native middleware/stream work and Python auth. The historical "undeclared" inventory below is retained for context; those decisions are now accepted plans.
 
 - **C++** (the [proposal scope table](./features/proposed/cpp-support/proposal.md#scope) and work plan PR 5a):
   - MCP JSON-RPC types and helpers, and perhaps an optional `afd::mcp_stdio` target;
@@ -194,11 +200,11 @@ These gaps are planned. They are listed so the name budgets stay honest.
   - streamable-command metadata.
 - **Rust** (the `afd-rust` skill's parity note): an MCP server, active-context scoping at execution time, and the server-side tool strategies.
 
-**No plan mentions these gaps.** A decision is needed on each:
+**Accepted role decisions (D6).** Native MCP clients, CLIs, testing toolkits and handoff clients are N/A; Python auth is planned. Remaining implementation gaps include:
 
-- **C++:** an MCP client, a CLI, a testing toolkit, a handoff client, and `composeMiddleware` or tracing middleware.
-- **Rust:** a stream executor, built-in middleware, an MCP client and a testing toolkit.
-- **Python:** an auth adapter.
+- **C++:** planned `compose_middleware` and deferred native stdio target/middleware; tracing middleware is N/A.
+- **Rust:** planned stream executor, built-in middleware and optional server feature.
+- **Python:** planned auth adapter.
 
 ## Unintended gaps
 
@@ -211,50 +217,41 @@ Ordered by how much an agent or a security boundary is affected.
    - **Python:** fixed. The core registry, the core pipeline and `SimpleRegistry` return `COMMAND_EXECUTION_ERROR` with "An internal error occurred" and log the exception. Each takes a `dev_mode` flag, as the server does.
    - **Rust (fixed):** single `CommandRegistry::execute` did not catch panics; only batch and pipeline did. It now catches a panic in middleware or the handler, and returns the redacted error.
 3. **Crash error code (fixed).** Rust returned `INTERNAL_ERROR` where the reference returns `COMMAND_EXECUTION_ERROR`, and its `error_codes` omitted that code. `execute`, batch and pipeline now return `COMMAND_EXECUTION_ERROR` through the exported `execution_failure`, and `error_codes` has the code.
-4. **`is_success` in Python** returns false for `success(None)`. Rust had the same gap, and its `is_failure` returned false for `{success: false}` with no error; both Rust guards now test only `success` (fixed).
-5. **The Python `DirectClient` has no boundary.** It has no exposure check, `allow` predicate, middleware or timeout. This is the in-process gap that Theme 4 of the 2026-09-23 review flagged; TypeScript and C++ have closed it.
-6. **Python context state** is one process-global, unbounded stack, shared by every client. TypeScript keeps one per session, capped at 16.
-7. **Python `SseDecoder` has no event-size cap.** TypeScript caps events at 1 MiB.
+4. **Success discriminants (fixed in the candidate).** Python `is_success(success(None))` is true; Rust guards also test only `success`.
+5. **Python `DirectClient` boundary remains partial.** Positive finite millisecond deadlines and shallow JSON-shaped input checks are implemented. Exposure, an `allow` predicate and middleware remain gaps. Cancellation is cooperative: a blocking or cancellation-resistant handler may still mutate after a deadline.
+6. **Python context state (fixed in the candidate).** Actual FastMCP SDK transport sessions own independent stacks capped at 16. Caller-supplied session strings never establish identity; stateless HTTP context mutation returns `SESSION_REQUIRED`. Local calls use a deliberate default scope.
+7. **Python `SseDecoder` frame cap (fixed in the candidate).** Decoded UTF-8 frames default to 1 MiB, counting metadata, comments and separators. Upstream reader line allocation remains outside this decoder.
 8. **Python defaults differ from TypeScript.**
    - The bootstrap tools are always registered and MCP-exposed; in TypeScript they are opt-in.
    - The default tool strategy is `individual`; in TypeScript it is `grouped`.
 
 ### Priority 2: shared executors and cross-language tests
 
-9. **Done for pipeline and batch vectors.** `pipeline-variables.json` and `batch-controls.json` pass in TypeScript, Python, Rust and C++ (parity closure plan items 1.1 and 1.4). `validation.json` loads in TypeScript only; Python, Rust and C++ are Wave 2 (#310, #311, #312). Wiring them in fixed these divergences:
+9. **Done for pipeline and batch vectors.** `pipeline-variables.json` and `batch-controls.json` pass in TypeScript, Python, Rust and C++ (parity closure plan items 1.1 and 1.4). `validation.json` now loads in all four candidate suites (#310, #311, #312), including explicit registration rejection for unsupported optional keywords. Wiring them in fixed these divergences:
     - **Python and Rust** treated a literal `when` operand, such as `{"$exists": "$$prev"}`, as present. TypeScript and C++ treat it as absent. Rust's `$eq` also told `2` from `2.0`.
     - **Python and Rust** ran envelopes that TypeScript rejects: blank command names, `null` in place of an omitted field, and (in Python) a string where a boolean or number belongs. Python's `afd-batch` and `afd-pipe` also answered some malformed envelopes with a plain failure; they now return the failed `BatchResult`, or the pipeline's synthetic step at index -1.
     - **Rust** skipped every step for `timeoutMs: 0`, where TypeScript fails step 0. It also failed the step after one that overran the deadline, instead of skipping it.
 
-    Still open: TypeScript's own `afd-batch` tool answers a malformed envelope with a plain `"Invalid batch request format"` failure, not the failed `BatchResult` that `executeBatch` returns ([#314](https://github.com/lushly-dev/afd/issues/314)).
+    Fixed in the candidate: TypeScript MCP `afd-batch` and POST `/batch` return the canonical failed `BatchResult` for malformed AFD envelopes (#314). Non-object MCP arguments are rejected earlier as JSON-RPC `-32602`.
 10. **Add a stream executor to Python and Rust,** and a public batch executor to Python. Collapse Python's two pipeline engines into one.
 11. **Rust single-command engine:**
     - result metadata stamping;
     - active-context scoping;
     - `onCommand` and `onError` hooks;
     - the built-in middleware bundle.
-12. **Validation divergences.** [`spec/validation.md`](../spec/validation.md) specifies validation, and `spec/vectors/validation.json` pins it with 32 cases and 126 tests. TypeScript passes every case. Each issue lists that language's failing cases.
-    - **Python ([#310](https://github.com/lushly-dev/afd/issues/310)).**
-      - A JSON Schema `input_schema` is advertised but never enforced.
-      - With Pydantic models, the error codes are Pydantic's, and lax mode accepts `"7"` for an integer.
-      - `unexpectedFields` is sorted.
-    - **Rust ([#311](https://github.com/lushly-dev/afd/issues/311)): 21 tests pass, and 24 more fail only on wording.**
-      - It has no type lists, root `additionalProperties`, `$ref`, `minItems`/`maxItems` or exclusive bounds.
-      - An explicit `null` counts as absent (#282), and nested defaults are not applied (#284).
-      - Unsupported keywords are dropped silently.
-    - **C++ ([#312](https://github.com/lushly-dev/afd/issues/312)): 50 of the 94 tests it can run pass.**
-      - `afd::Json` sorts keys, so field lists and sibling issues come out alphabetical.
-      - A few `expected` and missing-field rules differ.
-    - **String length.** Python, Rust and C++ count code points (decision D3). So does TypeScript, because Zod counts code points from 4.5 and `@lushly-dev/afd-server` requires 4.5.4.
-      - Name truncation, similarity and the pipeline reference cap count UTF-16 units.
-      - Python and Rust still count the reference cap in code points (#283).
+12. **Validation alignment in the candidate.** [`spec/validation.md`](../spec/validation.md) and 34 cases / 130 tests cover the required subset in all four languages. Python executes all 130; Rust executes 102 and rejects 28 tests across unsupported optional cases; C++ executes 98 and rejects 32. These rejection checks are conformance to the subset contract, not skipped tests.
+    - Python validates advertised raw/Pydantic schemas before handlers and rejects coercible numeric strings and booleans as numbers. Pydantic conversion still supports valid UUID/date strings.
+    - Rust's additive `register_with_schema(command, Value)` supports the full required subset without changing legacy public schema fields. `get_tool`, `afd-schema` and `afd-docs` use the authoritative schema; standalone `command_to_mcp_tool` only converts legacy definitions.
+    - Explicit null stays present and is never defaulted. Inserted defaults are cloned as-is, without validation or nested default expansion. Empty legacy Rust parameter lists strip object input to `{}` and reject nonobjects.
+    - Diagnostic issues are uncapped. Sibling field/issue order may differ; comparisons preserve multiplicity and absent/present distinctions. Array items remain in index order before bounds; object unknown-key issues follow property issues. Suggestions use actual issue order.
+    - Schema lengths count code points on supported Zod 4.5.4+. Reference caps count 1,024 UTF-16 units in every implementation. Unsupported optional keywords/formats/regex syntax fail registration with a location.
 13. **Command metadata** ([`spec/command-metadata.md`](../spec/command-metadata.md) lists the fields).
     - Python's decorator lacks `version`, `errors`, `execution_time`, `destructive`, `confirm_prompt` and `undoable`.
     - Rust lacks `destructive`, `confirmPrompt` and `undoable`.
 14. **Handoff.**
     - Python's `create_handoff` applies no default reconnect policy, and its handoff client falls back to 5 attempts where the default policy has 3.
     - Rust's guard helpers differ in meaning.
-15. **Python MCP client:** `_attempt_reconnect` is never called, so `auto_reconnect=True` does nothing.
+15. **Python MCP client (fixed in the candidate).** HTTP/SSE loss and idle SSE EOF trigger one bounded reconnect loop with refreshed discovery; manual lifecycle operations cancel obsolete attempts. In-flight mutations are never replayed. Socket tests exercise actual httpx/MCP SDK sessions locally.
 16. **C++ metadata cannot reach the wire.**
     - There is no command-to-MCP-tool conversion and no `to_json` for `CommandDefinition`.
     - The todo backend's `tools/list` sends no `_meta` or `outputSchema`.
@@ -267,7 +264,7 @@ Ordered by how much an agent or a security boundary is affected.
     - **TypeScript and Python:** the router's unreachable `COMMAND_NOT_EXPOSED` branch in `afd-call` is gone.
     - **Python:** `afd-batch` and `afd-pipe` no longer reveal a private command with `COMMAND_NOT_EXPOSED`, and the context check no longer reveals it through tools/call. `INVALID_INTERFACE` is gone: an unknown interface exposes nothing, and an empty one is no interface. `DirectClient`'s `UNKNOWN_TOOL` has a `suggestion` and `retryable: false`. The core registry's `COMMAND_NOT_IN_CONTEXT` names the command's contexts instead of the `afd-context-*` tools it lacks.
     - **C++:** see item 16.
-    - **Open:** a Python MCP server answers an unlisted tool name with FastMCP's plain "Unknown tool" text, and its suggestions name `afd-discover` and `afd-detail` in tool strategies that do not serve them ([#325](https://github.com/lushly-dev/afd/issues/325)).
+    - **Fixed in the candidate:** Python intercepts unknown/private FastMCP tools with structured `COMMAND_NOT_FOUND`; all strategies serve `afd-discover` and `afd-detail` (#325).
 19. **The `ErrorCodes` catalog (fixed).** TypeScript's catalog omitted 20 codes the engines emit, so each language added its own. [`spec/error-codes.md`](../spec/error-codes.md) now lists every emitted code with its meaning, retryability and emitting layer, and separates the 42-code shared catalog from transport-specific and package codes. All four languages define the shared catalog, and each test suite checks it against `spec/vectors/error-codes.json`.
 20. **The TypeScript `MockServer` runs on the core registry.** It has no Zod validation, did-you-mean, middleware or context scoping, so scenario tests run different semantics from production.
 
@@ -275,11 +272,11 @@ Ordered by how much an agent or a security boundary is affected.
 
 | Defect | Location | Notes |
 |---|---|---|
-| With `timeout_ms` set, C++ `DirectClient::call` replaces the caller's cancellation token with a deadline-only source, so caller cancellation is lost | `packages/cpp/src/direct_client.cpp:112-116` | Batch (`batch_execution.cpp:315`) and pipeline chain the parent token, and so does TypeScript (`AbortSignal.any`). No test covers it. |
+| C++ `DirectClient::call` previously lost caller cancellation when `timeout_ms` was set | `packages/cpp/src/direct_client.cpp` | Fixed in #315: the deadline source chains the caller token; the current source preserves parent cancellation. |
 | Rust single `execute` lets a handler panic unwind to the caller | `packages/rust/src/commands.rs` (`CommandRegistry::execute`) | Fixed; Priority 1 item 2 |
 | Python core registry, core pipeline and `SimpleRegistry` return exception text | See Priority 1 item 2 | Fixed |
-| TypeScript core `executePipeline` returns a throwing executor's `error.message` unredacted | `packages/core/src/pipeline-executor.ts:289-297` | The server engine and core registry pass executors that never throw, so only a custom executor reaches it. Python's `execute_pipeline` redacts it. |
-| Python `auto_reconnect` is dead code | `python/src/afd/client.py:437` | Priority 2 item 15 |
+| TypeScript core `executePipeline` exposed custom executor exceptions | `packages/core/src/pipeline-executor.ts` | Fixed in candidate [#366](https://github.com/lushly-dev/afd/issues/366): shared redacted execution failure, with secret/path regressions. |
+| Python `auto_reconnect` was dead code | `python/src/afd/client.py` | Fixed in candidate; Priority 2 item 15 |
 
 ## Name parity (`alfred parity`)
 
@@ -310,20 +307,14 @@ The budgets in `alfred/tests/test_parity.py` equal these counts. Lower a budget 
 - `site/index.html` listed three languages, showed `cargo add afd` for a crate that is not on crates.io, and used the old `@afd/*` package names, as did the root `README.md`.
 - The todo `spec/README.md` said "TypeScript, Python, etc.". It and the todo `README.md` said only the TypeScript and Python suites check `commands.schema.json`; the C++ suite does too.
 
-**Still open:**
-
-- **Python `README.md` and the `afd-python` skill:**
-  - No `@server.command` example sets `expose=ExposeOptions(mcp=True)`. MCP exposure is opt-in, so a copied server lists no user commands.
-  - `README.md:58`: a handler with no `input_schema` receives the whole input dict as `title`.
-  - `README.md:300-302`: `compose_middleware` takes varargs, and the timing option is `slow_threshold`, not `threshold_ms`.
-  - `SKILL.md:528`: `server.run(port=…)` raises `TypeError`.
+The Python README and skill examples listed here previously were corrected in #305: MCP exposure is explicit, handlers use declared input models, middleware examples use the supported API, and server startup uses the supported signature.
 
 ## Recommended next steps
 
-1. **Fix the Priority 1 items and the C++ `DirectClient` defect.** They are small, local changes.
-2. **Load `spec/vectors/validation.json` in the Python, Rust and C++ test suites** (#310, #311, #312). All four suites already load `pipeline-variables.json` and `batch-controls.json`.
+1. **Validate and deliver the candidate boundary fixes.** C++ `DirectClient` parent cancellation was fixed in #315; custom TypeScript pipeline exception redaction is fixed in this candidate (#366). Publication remains separate.
+2. **Complete review and release gates for the validation candidate** (#310, #311, #312). All four suites now load validation, reference and executor-control vectors; fresh review fixes need final validation before merge.
 3. **Write the unknown and unexposed error codes into a spec,** and add the emitted codes to the `ErrorCodes` catalog. Done: [`spec/error-codes.md`](../spec/error-codes.md).
-4. **Add an AFD-protocol conformance tier** that checks meta-tools, bootstrap, exposure, batch and pipeline over MCP. It should be optional per language, so Rust and C++ can join once they ship a server.
+4. **Extend the [bounded AFD protocol tier](../spec/protocol-conformance.md).** TypeScript and Python have local socket coverage with different scopes. Rust/C++ library transports and a shared executable case fixture remain follow-up work.
 5. **Python export cleanup:** resolve the `afd.direct` name collisions, then re-export the pipeline, similarity and registry contract. This removes 61 names from the budget.
 6. **Decide the undeclared gaps** listed under [Declared deferred](#declared-deferred), and record each decision here.
 

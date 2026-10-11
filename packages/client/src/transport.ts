@@ -75,7 +75,11 @@ export interface Transport {
 	 * Start a new session with the last `initialize` request after the server rejected the
 	 * current one (404). Resolves `false`, sending nothing, when there is no session to renew.
 	 */
-	renewSession?(signal?: AbortSignal): Promise<boolean>;
+	renewSession?(signal?: AbortSignal, rejectedRevision?: number): Promise<boolean>;
+
+	/** Ownership/renewal snapshots used to reject stale stream responses after reset. */
+	readonly sessionGeneration?: number;
+	readonly sessionRevision?: number;
 }
 
 /**
@@ -236,10 +240,23 @@ export class SseTransport implements Transport {
 		return this.session.sessionId;
 	}
 
-	async renewSession(signal?: AbortSignal): Promise<boolean> {
+	get sessionGeneration(): number {
+		return this.session.sessionGeneration;
+	}
+
+	get sessionRevision(): number {
+		return this.session.sessionRevision;
+	}
+
+	async renewSession(signal?: AbortSignal, rejectedRevision?: number): Promise<boolean> {
 		const { controller, signal: requestSignal } = this.createRequestController(signal);
 		try {
-			return await this.session.renew(this.messageEndpoint, this.headers, requestSignal);
+			return await this.session.renew(
+				this.messageEndpoint,
+				this.headers,
+				requestSignal,
+				rejectedRevision
+			);
 		} finally {
 			this.activeControllers.delete(controller);
 		}
@@ -368,10 +385,23 @@ export class HttpTransport implements Transport {
 		return this.session.sessionId;
 	}
 
-	async renewSession(signal?: AbortSignal): Promise<boolean> {
+	get sessionGeneration(): number {
+		return this.session.sessionGeneration;
+	}
+
+	get sessionRevision(): number {
+		return this.session.sessionRevision;
+	}
+
+	async renewSession(signal?: AbortSignal, rejectedRevision?: number): Promise<boolean> {
 		const { controller, signal: requestSignal } = this.createRequestController(signal);
 		try {
-			return await this.session.renew(this.messageUrl, this.headers, requestSignal);
+			return await this.session.renew(
+				this.messageUrl,
+				this.headers,
+				requestSignal,
+				rejectedRevision
+			);
 		} finally {
 			this.activeControllers.delete(controller);
 		}

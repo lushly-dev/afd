@@ -132,3 +132,31 @@ lock timestamp more than one second in the future counts as stale.
 `localStorage` does not provide compare-and-swap, so acquisition remains
 non-atomic under a simultaneous cross-tab race; applications that require
 stronger serialization should use a provider-level refresh mechanism.
+
+## Integration evidence
+
+`pnpm -F @lushly-dev/afd-auth exec vitest run src/adapters/better-auth.integration.test.ts`
+starts the installed Better Auth provider on an ephemeral loopback port with its memory
+adapter. The actual vanilla client and `BetterAuthAdapter` exercise registration,
+cookie issuance, credential rejection, sign-in, session expiry mapping, independent
+session read-back, sign-out and revocation of the old cookie. A small Node cookie jar
+forwards real `Set-Cookie` values; it does not implement browser cookie policy.
+The test disposes subscriptions, closes sockets and discards all synthetic data.
+Both the real vanilla store and the legacy function accessor are supported.
+
+This is local provider evidence. OAuth callbacks, provider token refresh, browser
+SameSite/Secure enforcement, real multi-tab lifecycle and Convex deployment behavior
+remain tracked in [#362](https://github.com/lushly-dev/afd/issues/362).
+
+For an optional provider/browser validation run, provision a disposable staging
+application with its HTTPS origin and callback URL registered with the provider,
+a dedicated test account, test OAuth client configuration (or a dedicated Convex
+deployment) and a short session lifetime. Use two tabs in one fresh browser profile:
+complete OAuth through the actual callback, verify the adapter user/session in both
+tabs, trigger provider refresh across expiry, then sign out and verify both tabs
+and an independent session endpoint reject the previous session. Record deployment
+revision, provider/client version, cookie attributes, timing and each observed
+outcome without recording tokens. Revoke test sessions, delete the test account
+and disposable deployment, and close the profile. Missing configuration means
+**not run**; the local test cannot satisfy those checks. Production credentials
+are unnecessary for the default gate.

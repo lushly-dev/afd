@@ -2,7 +2,7 @@
 
 Every item is coerced to a CommandResult, built-in tools cannot run inside a
 batch or pipeline, malformed ``when`` conditions are rejected before any step
-runs, and a batch that stops cancels (and waits for) its in-flight commands.
+runs, and a batch failure drains its in-flight commands while a deadline cancels them.
 """
 
 import asyncio
@@ -380,31 +380,78 @@ class TestStreamingStepsAreRejected:
         assert calls == ["item-get"]
 
 
-class TestBatchStopsCancelSiblings:
+class TestBatchStopsDrainSiblings:
     @pytest.mark.asyncio
-    async def test_stop_on_error_cancels_in_flight_siblings(self):
-        writes: list = []
-        server = _server(writes)
+    async def test_stop_on_error_finishes_in_flight_and_skips_queued(self):
+        server = create_server("drain")
+        sibling_started = asyncio.Event()
+        failure_returned = asyncio.Event()
+        release_sibling = asyncio.Event()
+        calls = []
 
-        result = await server.call_tool(
-            "afd-batch",
-            {
-                "commands": [
-                    {"command": "todo-slow", "input": {"seconds": 0, "fail": True}},
-                    {"command": "todo-slow", "input": {"seconds": 0.3}},
-                    {"command": "todo-create", "input": {}},
-                ],
-                "options": {"parallelism": 2, "stopOnError": True},
-            },
-        )
-        await asyncio.sleep(0.4)  # a leaked sibling would write now
+        @server.command(name="work-fail", description="Fail after sibling starts", expose=MCP)
+        async def fail(input):
+            await sibling_started.wait()
+            calls.append("failed")
+            failure_returned.set()
+            return error("WRITE_FAILED", "The write failed")
 
-        failed, cancelled, skipped = result.results
+        @server.command(name="work-finish", description="Finish in flight", expose=MCP)
+        async def finish(input):
+            sibling_started.set()
+            await release_sibling.wait()
+            calls.append("finished")
+            return success({"finished": True})
+
+        @server.command(name="work-queued", description="Must remain queued", expose=MCP)
+        async def queued(input):
+            calls.append("queued")
+            return success({})
+
+        task = asyncio.create_task(server.call_tool("afd-batch", {
+            "commands": [{"command": "work-fail"}, {"command": "work-finish"}, {"command": "work-queued"}],
+            "options": {"parallelism": 2, "stopOnError": True},
+        }))
+        await asyncio.wait_for(failure_returned.wait(), 1)
+        # Let asyncio.wait observe the completed failure while the sibling stays
+        # blocked. No queued command may start when the slot becomes available.
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert calls == ["failed"]
+        assert not task.done()
+        release_sibling.set()
+        result = await asyncio.wait_for(task, 1)
+        failed, finished, skipped = result.results
         assert failed.result.error.code == "WRITE_FAILED"
-        assert cancelled.result.error.code == "COMMAND_CANCELLED"
-        assert cancelled.result.error.suggestion
+        assert finished.result.data == {"finished": True}
         assert skipped.result.error.code == "COMMAND_SKIPPED"
-        assert writes == [("slow", 0)]
+        assert calls == ["failed", "finished"]
+
+    @pytest.mark.asyncio
+    async def test_deadline_still_cancels_while_draining_after_failure(self):
+        server = create_server("drain-deadline")
+        sibling_started = asyncio.Event()
+        sibling_cancelled = asyncio.Event()
+
+        @server.command(name="work-fail", description="Fail after sibling starts", expose=MCP)
+        async def fail(input):
+            await sibling_started.wait()
+            return error("WRITE_FAILED", "The write failed")
+
+        @server.command(name="work-block", description="Wait until cancelled", expose=MCP)
+        async def block(input):
+            sibling_started.set()
+            try:
+                await asyncio.Event().wait()
+            finally:
+                sibling_cancelled.set()
+
+        result = await asyncio.wait_for(server.call_tool("afd-batch", {
+            "commands": [{"command": "work-fail"}, {"command": "work-block"}, {"command": "work-block"}],
+            "options": {"parallelism": 2, "stopOnError": True, "timeoutMs": 20.5},
+        }), 1)
+        assert [item.result.error.code for item in result.results] == ["WRITE_FAILED", "BATCH_TIMEOUT", "BATCH_TIMEOUT"]
+        assert sibling_cancelled.is_set()
 
     @pytest.mark.asyncio
     async def test_deadline_cancels_in_flight_commands(self):

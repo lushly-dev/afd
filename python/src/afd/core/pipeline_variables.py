@@ -109,7 +109,7 @@ def parse_reference(value: str) -> Optional[VariableReference]:
         The reference, or None when the string is a literal (it does not match
         a reference form, starts with ``$$`` or is too long).
     """
-    if len(value) > MAX_REFERENCE_LENGTH:
+    if sum(2 if ord(char) > 0xFFFF else 1 for char in value) > MAX_REFERENCE_LENGTH:
         return None
     match = _REFERENCE_RE.fullmatch(value)
     if match is None:

@@ -63,6 +63,17 @@ const commands = [
 		},
 	}),
 	defineCommand({
+		name: 'health-slow',
+		description: 'Finish after a short delay',
+		category: 'health',
+		input: z.object({}),
+		expose: { mcp: true },
+		async handler() {
+			await new Promise((resolve) => setTimeout(resolve, 250));
+			return success({ finished: true });
+		},
+	}),
+	defineCommand({
 		name: 'evil-echo',
 		description: hostile('Echo text back'),
 		category: 'evil',
@@ -179,6 +190,16 @@ function expectTerminalSafe(run: CliRun, ...labels: string[]): void {
 	for (const label of labels) expect(output).toContain(label);
 }
 
+/** Assert JSON mode emits a parseable terminal error chunk. */
+function expectJsonStreamFailure(run: CliRun, code: string): void {
+	const chunks = run.stdout
+		.trim()
+		.split('\n')
+		.map((line) => JSON.parse(line) as { type: string; error?: { code: string } });
+	expect(chunks.at(-1)).toMatchObject({ type: 'error', error: { code } });
+	expect(run.stderr).toBe('');
+}
+
 /** The CLI's config file inside the isolated config directory. */
 function configFile(): string {
 	const found = readdirSync(configHome, { recursive: true, encoding: 'utf8' }).find((file) =>
@@ -217,6 +238,12 @@ beforeAll(async () => {
 	server = createServer((req, res) => {
 		if (requiredAuth !== null && req.headers.authorization !== requiredAuth) {
 			res.writeHead(401).end();
+			return;
+		}
+		if (req.method === 'POST' && req.url === '/stream/health-truncated') {
+			req.resume();
+			res.writeHead(200, { 'Content-Type': 'text/event-stream' });
+			res.end();
 			return;
 		}
 		void handler(req, res);
@@ -361,6 +388,33 @@ describe('afd CLI against a real server', { timeout: 60_000 }, () => {
 			expectExit(stream, 0);
 			expect(stream.stdout).toContain('Confidence:');
 		});
+	});
+
+	describe('stream failures', () => {
+		beforeEach(async () => {
+			expectExit(await runCli(['connect', `${baseUrl}/message`, '--transport', 'http']), 0);
+		});
+
+		it.each(['json', 'text'] as const)(
+			'exits nonzero for error, timeout, and truncated streams with %s output',
+			async (format) => {
+				const formatArgs = ['--format', format];
+				const failed = await runCli(['stream', 'evil-fail', ...formatArgs]);
+				expectExit(failed, 1);
+				if (format === 'json') expectJsonStreamFailure(failed, 'EVIL');
+				else expect(failed.stdout).toContain('Stream error');
+
+				const timedOut = await runCli(['stream', 'health-slow', '--timeout', '25', ...formatArgs]);
+				expectExit(timedOut, 1);
+				if (format === 'json') expectJsonStreamFailure(timedOut, 'STREAM_TIMEOUT');
+				else expect(timedOut.stdout).toContain('STREAM_TIMEOUT');
+
+				const truncated = await runCli(['stream', 'health-truncated', ...formatArgs]);
+				expectExit(truncated, 1);
+				if (format === 'json') expectJsonStreamFailure(truncated, 'STREAM_TRUNCATED');
+				else expect(truncated.stdout).toContain('STREAM_TRUNCATED');
+			}
+		);
 	});
 	describe('terminal escape injection', () => {
 		beforeEach(async () => {

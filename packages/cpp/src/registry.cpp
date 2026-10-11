@@ -265,15 +265,20 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
         if (const auto it = commands_.find(name); it != commands_.end()) {
             command = it->second;
         }
-        for (const auto& entry : order_) {
-            const auto& definition = entry->definition;
-            const bool exposed =
-                !context.surface || is_exposed_to(definition.expose, *context.surface);
-            if (exposed) {
-                exposed_names.push_back(definition.name);
-            }
-            if (exposed && is_accessible_in_context(definition, context.active_context)) {
-                candidates.push_back(definition.name);
+        const bool hidden = command && context.surface &&
+                            !is_exposed_to(command->definition.expose, *context.surface);
+        if (!command || hidden) {
+            for (const auto& entry : order_) {
+                const auto& definition = entry->definition;
+                const bool exposed =
+                    !context.surface || is_exposed_to(definition.expose, *context.surface);
+                if (hidden && exposed) {
+                    exposed_names.push_back(definition.name);
+                }
+                if (!command && exposed &&
+                    is_accessible_in_context(definition, context.active_context)) {
+                    candidates.push_back(definition.name);
+                }
             }
         }
     }

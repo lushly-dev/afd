@@ -2,7 +2,13 @@
  * @fileoverview Public option, context and registry types for DirectClient and DirectTransport.
  */
 
-import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
+import type {
+	CommandContext,
+	CommandMiddleware,
+	CommandResult,
+	JsonSchema,
+	McpTool,
+} from '@lushly-dev/afd-core';
 import type { CommandDefinition } from './direct-validation.js';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -106,7 +112,14 @@ export interface DirectRegistry {
 	/**
 	 * List commands with metadata.
 	 */
-	listCommands(): Array<{ name: string; description: string }>;
+	listCommands(): Array<
+		NonNullable<McpTool['_meta']> & {
+			name: string;
+			description: string;
+			/** JSON Schema advertised by validating registries; optional for legacy registries. */
+			inputSchema?: JsonSchema;
+		}
+	>;
 
 	/**
 	 * Check if a command exists.

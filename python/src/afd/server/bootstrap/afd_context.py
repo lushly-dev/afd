@@ -23,25 +23,45 @@ class ContextConfig:
     priority: Optional[int] = None
 
 
+DEFAULT_CONTEXT_MAX_DEPTH = 16
+
+
 class ContextState:
     """Mutable stack-based state for the currently active context."""
 
-    def __init__(self) -> None:
+    session_available = True
+
+    def __init__(self, max_depth: int = DEFAULT_CONTEXT_MAX_DEPTH) -> None:
+        if isinstance(max_depth, bool) or not isinstance(max_depth, int) or max_depth < 1:
+            raise ValueError("Context max_depth must be a positive integer")
+        self.max_depth = max_depth
         self.stack: List[str] = []
 
     def get_active(self) -> Optional[str]:
         return self.stack[-1] if self.stack else None
 
     def enter(self, name: str) -> None:
+        if self.get_active() == name:
+            return
+        if len(self.stack) >= self.max_depth:
+            raise ValueError(f"Context stack is limited to {self.max_depth} levels")
         self.stack.append(name)
 
     def exit(self) -> Optional[str]:
         return self.stack.pop() if self.stack else None
 
 
-def create_context_state() -> ContextState:
+def create_context_state(max_depth: int = DEFAULT_CONTEXT_MAX_DEPTH) -> ContextState:
     """Create a fresh mutable context state container."""
-    return ContextState()
+    return ContextState(max_depth)
+
+
+def _session_required() -> CommandResult[Any]:
+    return error(
+        "SESSION_REQUIRED",
+        "Context changes require a persistent MCP session",
+        suggestion="Connect with a stateful MCP transport before entering or exiting a context.",
+    )
 
 
 class AfdContextListInput(BaseModel):
@@ -154,6 +174,8 @@ def create_afd_context_enter_command(
         context: Optional[CommandContext] = None,
     ) -> CommandResult[AfdContextEnterOutput]:
         _ = context
+        if not context_state.session_available:
+            return _session_required()
         try:
             parsed = (
                 input
@@ -173,6 +195,12 @@ def create_afd_context_enter_command(
             )
 
         previous = context_state.get_active()
+        if previous != parsed.context and len(context_state.stack) >= context_state.max_depth:
+            return error(
+                "CONTEXT_DEPTH_EXCEEDED",
+                f"Context stack is limited to {context_state.max_depth} levels",
+                suggestion="Call afd-context-exit before entering another context.",
+            )
         context_state.enter(parsed.context)
         return success(
             AfdContextEnterOutput(entered=parsed.context, previous=previous),
@@ -204,6 +232,8 @@ def create_afd_context_exit_command(
         context: Optional[CommandContext] = None,
     ) -> CommandResult[AfdContextExitOutput]:
         _ = input, context
+        if not context_state.session_available:
+            return _session_required()
         exited = context_state.exit()
         current = context_state.get_active()
         return success(

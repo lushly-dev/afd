@@ -11,6 +11,14 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Fixed
 
+- Missing required boolean-true and untyped properties reject with `invalid_type` / `nonoptional`, including reference targets; presence, explicit null and defaults keep their schema behavior. An expired batch deadline takes precedence over cancellation when assigning unstarted results after inflight work drains.
+
+- Schema string and array length bounds compare without narrowing huge JSON numbers into `size_t`; nonfinite bounds fail compilation. Pipeline reference indices must fit both JavaScript's safe-integer range and the host's index range, including wasm32.
+- `ThreadTaskRunner` joins started workers during thread-start failure and captures task exceptions for rethrow on the caller after all tasks finish. No-exception builds retain their supported behavior.
+- Successful registry dispatch only looks up its command; suggestion candidate lists are built on lookup and exposure failures.
+- Shared validation vectors now cover all supported cases and explicit rejection of unsupported optional keywords. Missing required values use their full schema's enum and union errors, integer type errors distinguish numbers from other inputs, nullable type lists report the non-null type, and validation reports every issue without a fixed cap. Field lists and sibling issues follow the contract's duplicate-preserving multiset comparison.
+- Caller cancellation stops queued batch commands and pipeline steps with COMMAND_CANCELLED while preserving outcomes of handlers already running.
+
 - `DirectClient::call` with `timeout_ms` no longer drops the caller's cancellation token. The call's deadline token now chains to it, as batch and pipeline execution do and as TypeScript does with `AbortSignal.any`. Cancelling the caller, or a `DirectClient::pipe` step passing the pipeline's deadline, now reaches the handler. Only the call's own deadline produces TIMEOUT.
 
 ### Added

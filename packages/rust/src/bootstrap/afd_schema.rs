@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Weak};
 
 use crate::commands::{
-    command_to_mcp_tool, CommandContext, CommandDefinition, CommandHandler, CommandParameter,
-    CommandRegistry, JsonSchemaType, McpTool,
+    CommandContext, CommandDefinition, CommandHandler, CommandParameter, CommandRegistry,
+    JsonSchemaType, McpTool,
 };
 use crate::result::{failure, success_with, CommandResult, ResultOptions};
 
@@ -83,7 +83,17 @@ impl AfdSchemaHandler {
                 JsonSchemaType::Object => "Record<string, unknown>".to_string(),
                 JsonSchemaType::Null => "null".to_string(),
             };
-            let optional = if param.required { "" } else { "?" };
+            let optional = if param.required
+                && param.default.is_none()
+                && param
+                    .schema
+                    .as_ref()
+                    .is_none_or(|schema| schema.default.is_none())
+            {
+                ""
+            } else {
+                "?"
+            };
             lines.push(format!("  {}{}: {};", param.name, optional, ts_type));
         }
 
@@ -142,29 +152,40 @@ impl CommandHandler for AfdSchemaHandler {
             );
         }
 
-        let schemas: Vec<SchemaInfo> = commands
+        let schemas: Vec<serde_json::Value> = commands
             .iter()
             .map(|cmd| {
-                let (mcp_tool, typescript) = match input.format {
-                    SchemaFormat::Json => (Some(command_to_mcp_tool(cmd)), None),
-                    SchemaFormat::Typescript => (None, Some(self.generate_typescript_type(cmd))),
-                };
-
-                SchemaInfo {
-                    name: cmd.name.clone(),
-                    description: cmd.description.clone(),
-                    mcp_tool,
-                    typescript,
+                let mut schema =
+                    serde_json::json!({"name": cmd.name, "description": cmd.description});
+                match input.format {
+                    SchemaFormat::Json => {
+                        schema["mcpTool"] =
+                            self.registry.get_tool(&cmd.name).expect("registered tool")
+                    }
+                    SchemaFormat::Typescript => {
+                        let tool = self.registry.get_tool(&cmd.name).expect("registered tool");
+                        // Whole schemas can express types the legacy parameter model cannot.
+                        // Keep their source visible alongside a conservative TS alias.
+                        let legacy = serde_json::to_value(crate::command_to_mcp_tool(cmd))
+                            .expect("tool serializes");
+                        schema["typescript"] =
+                            serde_json::json!(if tool["inputSchema"] == legacy["inputSchema"] {
+                                self.generate_typescript_type(cmd)
+                            } else {
+                                format!(
+                                    "// Input JSON Schema: {}\ntype {}Input = unknown;",
+                                    tool["inputSchema"],
+                                    to_pascal_case(&cmd.name)
+                                )
+                            });
+                    }
                 }
+                schema
             })
             .collect();
-
         let total = schemas.len();
-        let output = SchemaOutput {
-            schemas,
-            total,
-            format: input.format.clone(),
-        };
+        let output =
+            serde_json::json!({"schemas": schemas, "total": total, "format": input.format});
 
         let reasoning = if let Some(cmd_name) = input.command {
             format!("Exported schema for \"{}\"", cmd_name)

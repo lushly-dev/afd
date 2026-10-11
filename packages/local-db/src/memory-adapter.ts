@@ -36,7 +36,9 @@ function compareSortValues(a: unknown, b: unknown): number {
 }
 
 function recordId(record: Row): string {
-	return String(record.id ?? record.name ?? record.key ?? crypto.randomUUID());
+	const id = String(record.id ?? record.name ?? record.key ?? crypto.randomUUID());
+	assertValidName('record id', id);
+	return id;
 }
 
 function asRow(value: unknown): Row {
@@ -146,7 +148,7 @@ export class MemoryAdapter implements DataAdapter {
 
 		for (const [index, operation] of operations.entries()) {
 			const result = this.runOperation(operation, undo);
-			const readMiss = operation.method === 'GET' && result.status === 404;
+			const readMiss = operation?.method === 'GET' && result.status === 404;
 			if (result.status >= 400 && !readMiss) {
 				this.rollback(undo);
 				return {
@@ -241,6 +243,13 @@ export class MemoryAdapter implements DataAdapter {
 
 	private runOperation(operation: BatchOperation, undo: UndoEntry[]): BatchOperationResult {
 		try {
+			if (typeof operation !== 'object' || operation === null) {
+				throw new DataAdapterError(
+					400,
+					'Batch operation must be an object',
+					'INVALID_BATCH_OPERATION'
+				);
+			}
 			const { table, id } = parseBatchPath(operation.path);
 			switch (operation.method) {
 				case 'GET': {

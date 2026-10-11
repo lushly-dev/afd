@@ -244,3 +244,39 @@ TEST_CASE("DirectClient::pipe numbers step trace IDs by calls made") {
     CHECK(traces == std::vector<std::string>{"t-step-0", "t-step-1"});
     CHECK(result.metadata.completed_steps == 2);
 }
+
+TEST_CASE("caller cancellation skips queued pipeline steps and preserves completed outcomes") {
+    for (const bool already_cancelled : {false, true}) {
+        CAPTURE(already_cancelled);
+        afd::CancellationSource source;
+        if (already_cancelled) {
+            source.cancel();
+        }
+        afd::CommandContext context;
+        context.cancellation = source.token();
+        int calls = 0;
+        const auto pipeline = afd::execute_pipeline(
+            afd::Json::parse(R"({"options":{"continueOnFailure":true},"steps":[
+                {"command":"work-first"},{"command":"work-next"},{"command":"work-last"}]})"),
+            [&](std::string_view, const afd::Json& input, afd::CommandContext& seen) {
+                ++calls;
+                source.cancel();
+                CHECK(seen.cancellation.is_cancelled());
+                return afd::success(input);
+            },
+            context);
+        CHECK(calls == (already_cancelled ? 0 : 1));
+        REQUIRE(pipeline.steps.size() == 3);
+        for (std::size_t i = 0; i < 3; ++i) {
+            if (i == 0 && !already_cancelled) {
+                CHECK(pipeline.steps[i].status == afd::StepStatus::success);
+            } else {
+                CHECK(pipeline.steps[i].status == afd::StepStatus::skipped);
+                REQUIRE(pipeline.steps[i].error.has_value());
+                CHECK(pipeline.steps[i].error->code == "COMMAND_CANCELLED");
+                CHECK(pipeline.steps[i].error->message == "Command cancelled before starting");
+                CHECK(pipeline.steps[i].error->retryable == false);
+            }
+        }
+    }
+}

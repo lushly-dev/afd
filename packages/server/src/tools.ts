@@ -2,11 +2,10 @@
  * @fileoverview MCP tool list generation — individual, grouped, and lazy strategies.
  */
 
-import { isMcpExposed } from '@lushly-dev/afd-core';
+import { commandToolMeta, isMcpExposed } from '@lushly-dev/afd-core';
 import { commandAction, commandGroup, filterByContext, type GroupByFn } from './command-routing.js';
 import {
 	batchTool,
-	type CommandToolMeta,
 	callTool,
 	detailTool,
 	discoverTool,
@@ -28,25 +27,6 @@ export const GROUPED_PARAMS_SCHEMA_BUDGET = 8_192;
 // ═══════════════════════════════════════════════════════════════════════════════
 // PER-COMMAND METADATA
 // ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * The `_meta` fields of a command (category, requires, mutation, destructive,
- * undoable, examples, outputSchema, contexts). Empty fields are omitted; returns
- * undefined when none is set.
- */
-function commandMeta(cmd: ZodCommandDefinition): CommandToolMeta | undefined {
-	const meta: CommandToolMeta = {
-		...(cmd.category != null && { category: cmd.category }),
-		...(cmd.requires?.length && { requires: cmd.requires }),
-		...(cmd.mutation != null && { mutation: cmd.mutation }),
-		...(cmd.destructive != null && { destructive: cmd.destructive }),
-		...(cmd.undoable != null && { undoable: cmd.undoable }),
-		...(cmd.examples?.length && { examples: cmd.examples }),
-		...(cmd.outputJsonSchema && { outputSchema: cmd.outputJsonSchema }),
-		...(cmd.contexts?.length && { contexts: cmd.contexts }),
-	};
-	return Object.keys(meta).length > 0 ? meta : undefined;
-}
 
 function commandInputSchema(cmd: ZodCommandDefinition): ToolInputSchema {
 	const { type: _type, ...restSchema } = cmd.jsonSchema;
@@ -76,7 +56,7 @@ function groupedTool(groupName: string, groupCmds: ZodCommandDefinition[]): McpT
 			command: cmd.name,
 			description: cmd.description,
 			inputSchema: commandInputSchema(cmd),
-			...commandMeta(cmd),
+			...commandToolMeta(cmd, cmd.outputJsonSchema),
 		})
 	);
 
@@ -145,7 +125,7 @@ export function getToolsList(
 		return [
 			...builtInTools,
 			...filtered.map((cmd) => {
-				const meta = commandMeta(cmd);
+				const meta = commandToolMeta(cmd, cmd.outputJsonSchema);
 				return {
 					name: cmd.name,
 					description: cmd.description,

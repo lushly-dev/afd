@@ -153,7 +153,7 @@ engines emitted without a constant.
 | --- | --- | --- | --- |
 | `COMMAND_NOT_FOUND` | No such command, or (remotely) one the caller may not see; see [D4](#unknown-and-unexposed-commands-d4). Also the `error` of an `afd-detail` entry with `found: false` | No | Core executors, server engine, router |
 | `INVALID_COMMAND_ARGS` | The arguments do not fit the command, outside schema validation | No | Application |
-| `COMMAND_CANCELLED` | The caller cancelled the command | No | Application; Python's batch executor |
+| `COMMAND_CANCELLED` | The caller cancelled the command, or cancelled batch/pipeline work before it started ([execution controls](./execution-controls.md#caller-cancellation)) | No | Application; core executors (batch, pipeline) |
 | `COMMAND_EXECUTION_ERROR` | The handler threw (or panicked). Outside dev mode the message is "An internal error occurred" and carries no exception text | No | Core executors, server engine, DirectClient, batch, pipeline |
 
 ### Routing and access

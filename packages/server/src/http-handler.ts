@@ -9,7 +9,12 @@ import type {
 	CommandResult,
 	StreamChunk,
 } from '@lushly-dev/afd-core';
-import { createErrorChunk, isBatchRequest, truncateName } from '@lushly-dev/afd-core';
+import {
+	createErrorChunk,
+	failedBatchRequest,
+	isBatchRequest,
+	truncateName,
+} from '@lushly-dev/afd-core';
 import type { ContextState } from './bootstrap/afd-context.js';
 import { bindContextState } from './context-scope.js';
 import {
@@ -395,8 +400,10 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		}
 		if (url.pathname === '/batch' && req.method === 'POST') {
 			const request = await readJsonBody(req, maxBodyBytes);
-			if (!isBatchRequest(request))
-				throw new HttpRequestError(400, 'Provide { commands: [...] } with command objects');
+			if (!isBatchRequest(request)) {
+				json(res, 400, failedBatchRequest());
+				return;
+			}
 			const context = await commandContext(req, res, sessionState(req));
 			json(res, 200, await executeBatch(request, { ...context, traceId: `batch-${randomUUID()}` }));
 			return;

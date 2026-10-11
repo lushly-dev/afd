@@ -7,14 +7,16 @@ version is separate from each implementation's own package version.
 ## Scope
 
 - [`wire/`](./wire/README.md): the golden wire fixtures;
-- [`pipeline-variables.md`](./pipeline-variables.md), [`validation.md`](./validation.md) and the
+- [`pipeline-variables.md`](./pipeline-variables.md), [`validation.md`](./validation.md),
+  [`execution-controls.md`](./execution-controls.md) and the
   behavior vectors in [`vectors/`](./vectors/README.md);
 - the todo conformance suite (`packages/examples/todo/spec`, run by `conformance.yml`).
 
 - [`error-codes.md`](./error-codes.md): the shared error-code catalog, checked by
   `vectors/error-codes.json`, and the rules for unknown and unexposed commands.
 
-A protocol conformance tier joins the contract when it is written.
+The bounded TypeScript/Python protocol acceptance inventory is recorded in
+[`protocol-conformance.md`](./protocol-conformance.md); it does not claim full MCP certification.
 
 ## Version format
 
@@ -52,17 +54,23 @@ In the same pull request:
 
 ## 1.0-rc
 
+Stabilization resolves validation ordering and issue caps (#332), pins the UTF-16 pipeline reference
+boundary (#283), accepts fractional timeouts (#329), lets in-flight work finish after `stopOnError`
+(#330), and stops scheduling queued work after caller cancellation (#363). The existing
+`COMMAND_CANCELLED` code describes unstarted cancelled work; no wire shape or public JSON type changes.
+The contract remains a release candidate while all languages are being aligned.
+
 The first versioned contract. It covers:
 
 - the six fixtures in `wire/`: minimal, full and failed `CommandResult`, `BatchResult`,
   `PipelineResult` and the four `StreamChunk` kinds;
-- the pipeline variables in `pipeline-variables.md`, with 48 references and 27 conditions in
+- the pipeline variables in `pipeline-variables.md`, with 51 references and 27 conditions in
   `vectors/pipeline-variables.json`;
-- the batch and pipeline execution controls, with 21 batch and 22 pipeline cases in
+- the batch and pipeline execution controls, with 24 batch and 25 pipeline cases in
   `vectors/batch-controls.json`;
 - the 34 cases of the todo conformance suite;
-- command input validation in `validation.md`, with 32 cases and 126 tests in
-  `vectors/validation.json`. Its open questions are listed at the end of `validation.md`;
+- command input validation in `validation.md`, with 34 cases and 130 tests in
+  `vectors/validation.json`. Its former open questions are settled in `validation.md`;
 - the 42 codes of the shared error-code catalog in `error-codes.md` and
   `vectors/error-codes.json`, and its rules for unknown and unexposed commands (D4).
 

@@ -1,0 +1,3 @@
+add_executable(afd_registry_dispatch_benchmark registry_dispatch.cpp)
+target_link_libraries(afd_registry_dispatch_benchmark PRIVATE afd::afd)
+afd_configure_target(afd_registry_dispatch_benchmark)

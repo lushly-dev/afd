@@ -129,7 +129,9 @@ public:
 
 #if AFD_ENABLE_THREADS
 /// Runs each task on its own `std::thread` (the first on the calling thread) and joins them.
-/// Handlers then run concurrently, so they must be thread-safe.
+/// Handlers then run concurrently, so they must be thread-safe. Started workers are always joined.
+/// With exceptions enabled, task exceptions are rethrown on the caller after joining all tasks;
+/// thread-start failures propagate after joining every worker that already started.
 class ThreadTaskRunner final : public TaskRunner {
 public:
     void run_all(std::size_t count, const std::function<void(std::size_t)>& task) override;

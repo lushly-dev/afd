@@ -199,6 +199,17 @@ adapter.dispose(); // cleanup
 Forwards OAuth `scopes` and `redirectTo` (as `callbackURL`); reports the
 social sign-in URL as a `redirect` outcome.
 
+The stabilization candidate accepts the vanilla client's `useSession` nanostore
+object and legacy function accessors, preserving the accessor's receiver. It
+normalizes nullable provider `user.image` to the adapter's optional image field.
+A local integration test uses an actual Better Auth 1.7.2 server, memory database,
+vanilla client and loopback sockets for credentials, cookies, session read-back,
+expiry mapping, sign-out/revocation and subscription notifications. This does not
+prove OAuth callbacks, remote refresh, browser cookie policy, real multi-tab
+lifecycle, or Convex deployment. See `packages/auth/README.md` for staging requirements.
+The source correction remains unmerged and unpublished.
+
+
 ## React Hooks
 
 Sub-path import — no React dependency on the main entrypoint:

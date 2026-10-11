@@ -52,7 +52,7 @@ describe('defineCommand output schema', () => {
 		expect(def.returns?.properties?.title).toBeDefined();
 	});
 
-	it('uses placeholder when no output schema', () => {
+	it('omits returns when no output schema', () => {
 		const cmd = defineCommand({
 			expose: { mcp: true },
 			name: 'todo-delete',
@@ -63,7 +63,7 @@ describe('defineCommand output schema', () => {
 		expect(cmd.outputSchema).toBeUndefined();
 		expect(cmd.outputJsonSchema).toBeUndefined();
 		const def = cmd.toCommandDefinition();
-		expect(def.returns).toEqual({ type: 'object', description: 'Command result' });
+		expect(def.returns).toBeUndefined();
 	});
 
 	it('includes outputSchema in MCP _meta', () => {

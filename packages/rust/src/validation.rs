@@ -22,15 +22,6 @@ use std::collections::HashMap;
 use crate::commands::{CommandParameter, JsonSchema, JsonSchemaType};
 use crate::errors::{error_codes, CommandError};
 
-/// At most this many issues are collected for one input.
-const MAX_ISSUES: usize = 50;
-
-/// At most this many issues are listed in the suggestion.
-const MAX_ISSUES_IN_SUGGESTION: usize = 5;
-
-/// At most this many enum values are listed in one issue.
-const MAX_ENUM_VALUES_IN_MESSAGE: usize = 10;
-
 /// The path of an issue with the input as a whole, as in TypeScript.
 const ROOT_PATH: &str = "(root)";
 
@@ -59,7 +50,6 @@ struct Issue {
 #[derive(Default)]
 struct Issues {
     items: Vec<Issue>,
-    truncated: bool,
 }
 
 impl Issues {
@@ -78,29 +68,40 @@ impl Issues {
         expected: Option<&'static str>,
         message: String,
     ) {
-        if self.items.len() < MAX_ISSUES {
-            self.items.push(Issue {
-                path: path.to_string(),
-                message,
-                code,
-                expected,
-            });
-        } else {
-            self.truncated = true;
-        }
+        self.items.push(Issue {
+            path: path.to_string(),
+            message,
+            code,
+            expected,
+        });
     }
+}
 
-    fn is_full(&self) -> bool {
-        self.items.len() >= MAX_ISSUES
+/// Reject legacy schema features that cannot be enforced.
+pub(crate) fn validate_schema_definition(schema: &JsonSchema, path: &str) -> Result<(), String> {
+    if schema.format.is_some() {
+        return Err(format!("Unsupported keyword 'format' at {path}/format"));
     }
+    if let Some(pattern) = &schema.pattern {
+        Regex::new(pattern).map_err(|_| format!("Unsupported pattern at {path}/pattern"))?;
+    }
+    for (name, property) in schema.properties.iter().flatten() {
+        validate_schema_definition(property, &format!("{path}/properties/{name}"))?;
+    }
+    if let Some(items) = &schema.items {
+        validate_schema_definition(items, &format!("{path}/items"))?;
+    }
+    if let Some(additional) = &schema.additional_properties {
+        validate_schema_definition(additional, &format!("{path}/additionalProperties"))?;
+    }
+    Ok(())
 }
 
 /// Validate `input` against `parameters` and apply parameter defaults.
 ///
-/// - A command without parameters accepts any input unchanged.
+/// - A command without parameters strips every key from an object.
 /// - Otherwise the input must be a JSON object; `null` counts as `{}`.
-/// - An absent or `null` parameter takes its `default` when it has one. A
-///   required parameter without a default must be present and not `null`.
+/// - An absent parameter takes its default; explicit `null` is validated as a value.
 /// - Present values must match the parameter's schema: type, `enum`, numeric
 ///   and length bounds, `pattern`, array `items`, and object `properties`,
 ///   `required` and `additionalProperties`.
@@ -113,10 +114,6 @@ pub(crate) fn validate_input(
     parameters: &[CommandParameter],
     input: Value,
 ) -> Result<Value, Box<CommandError>> {
-    if parameters.is_empty() {
-        return Ok(input);
-    }
-
     let mut object = match input {
         Value::Null => Map::new(),
         Value::Object(object) => object,
@@ -137,11 +134,14 @@ pub(crate) fn validate_input(
     let mut issues = Issues::default();
     let mut missing = Vec::new();
     for parameter in parameters {
-        let present = object
-            .get(&parameter.name)
-            .is_some_and(|value| !value.is_null());
+        let present = object.contains_key(&parameter.name);
         if !present {
-            if let Some(default) = &parameter.default {
+            if let Some(default) = parameter.default.as_ref().or_else(|| {
+                parameter
+                    .schema
+                    .as_ref()
+                    .and_then(|schema| schema.default.as_ref())
+            }) {
                 object.insert(parameter.name.clone(), default.clone());
             } else if parameter.required {
                 missing.push(parameter.name.clone());
@@ -154,7 +154,7 @@ pub(crate) fn validate_input(
             continue;
         }
 
-        let value = &object[&parameter.name];
+        let value = object.get_mut(&parameter.name).expect("present parameter");
         match &parameter.schema {
             Some(schema) => check_schema(value, schema, &parameter.name, &mut issues),
             None => {
@@ -170,13 +170,6 @@ pub(crate) fn validate_input(
 
     if issues.items.is_empty() {
         object.retain(|key, _| parameters.iter().any(|parameter| &parameter.name == key));
-        for parameter in parameters {
-            if let (Some(schema), Some(value)) =
-                (&parameter.schema, object.get_mut(&parameter.name))
-            {
-                strip_undeclared(value, schema);
-            }
-        }
         return Ok(Value::Object(object));
     }
 
@@ -197,10 +190,16 @@ pub(crate) fn validate_input(
 ///
 /// Recursion follows the schema, which the command author wrote, so its depth
 /// is bounded by the schema and not by the (untrusted) input.
-fn check_schema(value: &Value, schema: &JsonSchema, path: &str, issues: &mut Issues) {
-    if issues.is_full() {
-        issues.truncated = true;
-        return;
+fn check_schema(value: &mut Value, schema: &JsonSchema, path: &str, issues: &mut Issues) {
+    if let Some(allowed) = &schema.enum_values {
+        if !allowed.contains(value) {
+            issues.push(
+                path,
+                issue_codes::INVALID_VALUE,
+                format!("must be one of {}", format_values(allowed)),
+            );
+            return;
+        }
     }
 
     if let Some(expected) = &schema.schema_type {
@@ -213,17 +212,6 @@ fn check_schema(value: &Value, schema: &JsonSchema, path: &str, issues: &mut Iss
                     with_article(schema_type_name(expected)),
                     value_type_name(value)
                 ),
-            );
-            return;
-        }
-    }
-
-    if let Some(allowed) = &schema.enum_values {
-        if !allowed.contains(value) {
-            issues.push(
-                path,
-                issue_codes::INVALID_VALUE,
-                format!("must be one of {}", format_values(allowed)),
             );
             return;
         }
@@ -283,6 +271,11 @@ fn check_schema(value: &Value, schema: &JsonSchema, path: &str, issues: &mut Iss
             }
         }
         Value::Array(items) => {
+            if let Some(item_schema) = &schema.items {
+                for (index, item) in items.iter_mut().enumerate() {
+                    check_schema(item, item_schema, &format!("{path}.{index}"), issues);
+                }
+            }
             if let Some(min_length) = schema.min_length {
                 if items.len() < min_length {
                     issues.push(
@@ -301,45 +294,54 @@ fn check_schema(value: &Value, schema: &JsonSchema, path: &str, issues: &mut Iss
                     );
                 }
             }
-            if let Some(item_schema) = &schema.items {
-                for (index, item) in items.iter().enumerate() {
-                    if issues.is_full() {
-                        issues.truncated = true;
-                        break;
-                    }
-                    check_schema(item, item_schema, &format!("{path}.{index}"), issues);
-                }
-            }
         }
         Value::Object(object) => {
-            for key in schema.required.iter().flatten() {
-                if !object.contains_key(key) {
-                    let property_type = schema
-                        .properties
+            if let Some(properties) = &schema.properties {
+                let mut ordered: Vec<_> = properties.iter().collect();
+                ordered.sort_by_key(|(key, _)| *key);
+                for (key, property_schema) in ordered {
+                    if let Some(property) = object.get_mut(key) {
+                        check_schema(property, property_schema, &format!("{path}.{key}"), issues);
+                    } else if let Some(default) = &property_schema.default {
+                        object.insert(key.clone(), default.clone());
+                    } else if schema
+                        .required
                         .as_ref()
-                        .and_then(|properties| properties.get(key))
-                        .and_then(|property| property.schema_type.as_ref());
-                    let path = format!("{path}.{key}");
-                    let message = "is required".to_string();
-                    match property_type {
-                        Some(expected) => issues.push_invalid_type(
-                            &path,
-                            expected_type_name(expected, None),
-                            message,
-                        ),
-                        None => issues.push(&path, issue_codes::INVALID_TYPE, message),
+                        .is_some_and(|required| required.contains(key))
+                    {
+                        let property_path = format!("{path}.{key}");
+                        if let Some(expected) = &property_schema.schema_type {
+                            issues.push_invalid_type(
+                                &property_path,
+                                expected_type_name(expected, None),
+                                "is required".to_string(),
+                            );
+                        } else {
+                            issues.push(
+                                &property_path,
+                                issue_codes::INVALID_TYPE,
+                                "is required".to_string(),
+                            );
+                        }
                     }
                 }
             }
-            if let Some(properties) = &schema.properties {
-                for (key, property_schema) in properties {
-                    if let Some(property) = object.get(key) {
-                        check_schema(property, property_schema, &format!("{path}.{key}"), issues);
-                    }
+            for key in schema.required.iter().flatten() {
+                if !object.contains_key(key)
+                    && !schema
+                        .properties
+                        .as_ref()
+                        .is_some_and(|properties| properties.contains_key(key))
+                {
+                    issues.push(
+                        &format!("{path}.{key}"),
+                        issue_codes::INVALID_TYPE,
+                        "is required".to_string(),
+                    );
                 }
             }
             if let Some(additional) = &schema.additional_properties {
-                for (key, property) in object {
+                for (key, property) in object.iter_mut() {
                     let declared = schema
                         .properties
                         .as_ref()
@@ -348,46 +350,11 @@ fn check_schema(value: &Value, schema: &JsonSchema, path: &str, issues: &mut Iss
                         check_schema(property, additional, &format!("{path}.{key}"), issues);
                     }
                 }
+            } else if let Some(properties) = &schema.properties {
+                object.retain(|key, _| properties.contains_key(key));
             }
         }
         Value::Null | Value::Bool(_) => {}
-    }
-}
-
-/// Drop the object keys that `schema` does not declare, as Zod's default
-/// object parsing does. An object schema without `properties` declares no
-/// shape and keeps every key; one with `additionalProperties` keeps the extra
-/// keys, which [`check_schema`] has checked against it.
-///
-/// Called on valid input only. Recursion follows the schema, as in
-/// [`check_schema`].
-fn strip_undeclared(value: &mut Value, schema: &JsonSchema) {
-    match value {
-        Value::Object(object) => {
-            if let Some(properties) = &schema.properties {
-                if schema.additional_properties.is_none() {
-                    object.retain(|key, _| properties.contains_key(key));
-                }
-            }
-            for (key, property) in object.iter_mut() {
-                let property_schema = schema
-                    .properties
-                    .as_ref()
-                    .and_then(|properties| properties.get(key))
-                    .or(schema.additional_properties.as_deref());
-                if let Some(property_schema) = property_schema {
-                    strip_undeclared(property, property_schema);
-                }
-            }
-        }
-        Value::Array(items) => {
-            if let Some(item_schema) = &schema.items {
-                for item in items {
-                    strip_undeclared(item, item_schema);
-                }
-            }
-        }
-        _ => {}
     }
 }
 
@@ -462,17 +429,7 @@ fn with_article(type_name: &str) -> String {
 }
 
 fn format_values(values: &[Value]) -> String {
-    let mut listed: Vec<String> = values
-        .iter()
-        .take(MAX_ENUM_VALUES_IN_MESSAGE)
-        .map(Value::to_string)
-        .collect();
-    if values.len() > MAX_ENUM_VALUES_IN_MESSAGE {
-        listed.push(format!(
-            "and {} more",
-            values.len() - MAX_ENUM_VALUES_IN_MESSAGE
-        ));
-    }
+    let listed: Vec<String> = values.iter().map(Value::to_string).collect();
     listed.join(", ")
 }
 
@@ -490,7 +447,9 @@ fn validation_failure(
     // As in TypeScript, an empty field list is left out.
     let mut details = HashMap::new();
     details.insert("errors".to_string(), serde_json::json!(issues.items));
-    details.insert("expectedFields".to_string(), serde_json::json!(expected));
+    if !expected.is_empty() {
+        details.insert("expectedFields".to_string(), serde_json::json!(expected));
+    }
     if !unexpected.is_empty() {
         details.insert(
             "unexpectedFields".to_string(),
@@ -504,7 +463,6 @@ fn validation_failure(
     Box::new(
         CommandError::new(error_codes::VALIDATION_ERROR, "Input validation failed")
             .with_suggestion(suggestion(issues, &expected, unexpected, missing))
-            .with_retryable(false)
             .with_details(details),
     )
 }
@@ -532,8 +490,7 @@ fn suggestion(
 
 /// `path: message` for a single issue, and a `- path: message` line for each
 /// of several, as TypeScript's `formatValidationErrors`. A `(root)` issue is
-/// its message alone. Unlike TypeScript, at most [`MAX_ISSUES_IN_SUGGESTION`]
-/// issues are listed.
+/// its message alone. Every issue is listed.
 fn format_issues(issues: &Issues) -> String {
     let describe = |issue: &Issue| {
         if issue.path == ROOT_PATH {
@@ -545,15 +502,11 @@ fn format_issues(issues: &Issues) -> String {
     if let [issue] = issues.items.as_slice() {
         return describe(issue);
     }
-    let mut lines: Vec<String> = issues
+    let lines: Vec<String> = issues
         .items
         .iter()
-        .take(MAX_ISSUES_IN_SUGGESTION)
         .map(|issue| format!("- {}", describe(issue)))
         .collect();
-    if issues.items.len() > MAX_ISSUES_IN_SUGGESTION || issues.truncated {
-        lines.push("- and more".to_string());
-    }
     lines.join("\n")
 }
 
@@ -599,16 +552,10 @@ mod tests {
     }
 
     #[test]
-    fn commands_without_parameters_accept_anything() {
-        assert_eq!(
-            validate_input(&[], json!("anything")).unwrap(),
-            json!("anything")
-        );
-        assert_eq!(validate_input(&[], Value::Null).unwrap(), Value::Null);
-        assert_eq!(
-            validate_input(&[], json!({"extra": 1})).unwrap(),
-            json!({"extra": 1})
-        );
+    fn commands_without_parameters_apply_their_advertised_empty_object_schema() {
+        assert!(validate_input(&[], json!("anything")).is_err());
+        assert_eq!(validate_input(&[], Value::Null).unwrap(), json!({}));
+        assert_eq!(validate_input(&[], json!({"extra": 1})).unwrap(), json!({}));
     }
 
     #[test]
@@ -622,7 +569,7 @@ mod tests {
         let error = validate_input(&parameters(), json!({})).unwrap_err();
         assert_eq!(error.code, "VALIDATION_ERROR");
         assert_eq!(error.message, "Input validation failed");
-        assert_eq!(error.retryable, Some(false));
+        assert_eq!(error.retryable, None);
         assert_eq!(
             error.suggestion.as_deref(),
             Some(
@@ -640,13 +587,13 @@ mod tests {
     }
 
     #[test]
-    fn null_for_a_required_field_is_missing() {
+    fn null_for_a_required_field_is_a_type_error() {
         let error = validate_input(&parameters(), json!({"title": null})).unwrap_err();
         assert_eq!(
             issues_of(&error),
             vec![json!({
                 "path": "title",
-                "message": "is required",
+                "message": "must be a string, got null",
                 "code": "invalid_type",
                 "expected": "string",
             })]
@@ -920,7 +867,7 @@ mod tests {
     }
 
     #[test]
-    fn issue_collection_is_bounded() {
+    fn issue_collection_reports_every_issue() {
         let parameters = vec![CommandParameter {
             param_type: JsonSchemaType::Array,
             schema: Some(JsonSchema {
@@ -935,16 +882,7 @@ mod tests {
         }];
         let input = json!({"ids": vec![0; 10_000]});
         let error = validate_input(&parameters, input).unwrap_err();
-        assert_eq!(issues_of(&error).len(), MAX_ISSUES);
-        let suggestion = error.suggestion.as_deref().unwrap();
-        assert_eq!(
-            suggestion.lines().count(),
-            MAX_ISSUES_IN_SUGGESTION + 1,
-            "{suggestion}"
-        );
-        assert!(
-            suggestion.ends_with("- and more. Expected fields: ids"),
-            "{suggestion}"
-        );
+        assert_eq!(issues_of(&error).len(), 10_000);
+        assert_eq!(error.suggestion.as_deref().unwrap().lines().count(), 10_000);
     }
 }

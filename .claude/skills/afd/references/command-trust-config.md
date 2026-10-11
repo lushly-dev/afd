@@ -1,113 +1,38 @@
-# Command Trust Config
+# Command trust metadata
 
-Trust metadata on AFD commands that triggers safety behaviors in frontends.
+`destructive`, `confirmPrompt`, and `undoable` describe a command for consumers. AFD transports the metadata; the application owns confirmation and undo behavior. See `spec/command-metadata.md` for exact fields, defaults, and surfaces.
 
-## Fields
-
-On core `CommandDefinition` and on `defineCommand` (`ZodCommandOptions`, `ZodCommandDefinition`); `toCommandDefinition()` keeps them. `spec/command-metadata.md` lists every metadata field and where it surfaces.
+## Define the command
 
 ```typescript
 defineCommand({
   name: 'todo-delete',
-  destructive: true,                              // Triggers confirmation UI
-  confirmPrompt: 'This todo will be permanently deleted.',  // Custom message
-  tags: ['destructive'],
+  destructive: true,
+  confirmPrompt: 'This todo will be permanently deleted.',
   mutation: true,
-  // ...
+  // description, input schema, and handler omitted here
 });
 ```
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| `destructive` | `boolean` | Signals frontends to prompt for confirmation |
-| `confirmPrompt` | `string` | Custom confirmation message (fallback: generic) |
+A frontend should obtain metadata and request any required confirmation **before** executing the command. A warning returned after execution cannot prevent an operation that already happened.
 
-## Metadata Flow
+## Read metadata from supported APIs
 
-```
-Command Definition (destructive, confirmPrompt)
-         ↓
-Registry.getCommandMetadata(name)
-         ↓
-StreamingCallbacks.onToolEnd(name, result, latencyMs, metadata)
-         ↓
-SSE tool_end event { name, result, latencyMs, metadata }
-         ↓
-Frontend: if (metadata?.destructive) → show confirmation
-```
-
-## Registry API
+The core `CommandRegistry` exposes `get(name)` and `list()`, which return command definitions:
 
 ```typescript
-// Get metadata for a single command
-registry.getCommandMetadata('todo-delete')
-// → { name, description, destructive: true, confirmPrompt: '...', tags: [...] }
-
-// List all commands with metadata
-registry.listCommandsWithMetadata()
+const command = registry.get('todo-delete');
+const destructive = command?.destructive ?? false;
+const prompt = command?.confirmPrompt ?? 'Confirm this action.';
+const commands = registry.list();
 ```
 
-## SSE Event Format
+For remote clients, `tools/list` exposes planning fields such as `destructive`, `undoable`, and `mutation` through `_meta`. `confirmPrompt` is display text available through `afd-detail` when that tool is enabled. Grouped tools put per-command planning metadata in `_meta.actions`.
 
-```typescript
-// tool_end event includes metadata when present
-interface ToolEndEvent {
-  name: string;
-  result: unknown;
-  latencyMs: number;
-  metadata?: {
-    destructive?: boolean;
-    confirmPrompt?: string;
-    tags?: string[];
-    mutation?: boolean;
-  };
-}
-```
+AFD does not define a `tool_end` event carrying all command metadata or a post-execution frontend confirmation protocol. An application can define its own event protocol, but it must not present that protocol as an AFD API.
 
-## Frontend Pattern
+## Exposure and recovery
 
-```typescript
-if (eventData.metadata?.destructive) {
-  const confirmed = await confirm(
-    'Confirm Agent Action',
-    eventData.metadata.confirmPrompt || `Are you sure?`,
-  );
-  if (confirmed) {
-    executeLocalAction(localStore, name, args, result);
-  } else {
-    // Action already executed on backend — sync to reconcile
-    await localStore.forceSync();
-  }
-} else {
-  executeLocalAction(localStore, name, args, result);
-}
-```
+Use `expose` on the definition and `CommandContext.interface` to select the intended interface. A first-party `createDirectRegistry` applies the same execution validation, middleware and interface exposure as the server. Application identity and permissions still belong to application middleware.
 
-**Cancel semantics**: The backend executes before the frontend confirms. Cancelling prevents local apply but the server-side change already happened. Use Convex real-time sync or `forceSync()` to reconcile.
-
-## Warning-Based Fallback
-
-For runtime/contextual confirmation (not static command-level):
-
-```typescript
-return success(data, {
-  warnings: [{
-    code: 'REQUIRES_CONFIRMATION',
-    message: 'This action cannot be undone',
-    severity: 'caution',  // Frontend interprets as "show confirmation"
-  }],
-});
-```
-
-Use both approaches: `destructive: true` for static config, `severity: 'caution'` for runtime signals.
-
-## Commands Using Trust Config
-
-| Command | confirmPrompt |
-|---------|---------------|
-| `todo-delete` | "This todo will be permanently deleted." |
-| `todo-clear` | "All completed todos will be permanently deleted." |
-| `todo-delete-batch` | "These todos will be permanently deleted." |
-| `list-delete` | "This list and all its todos will be permanently deleted." |
-| `note-delete` | "This note will be permanently deleted." |
-| `notefolder-delete` | "This folder and all its notes will be permanently deleted." |
+`undoable` is a capability declaration. A successful result may supply `undoCommand` and `undoArgs`; consumers must verify and execute that recovery command explicitly. Warnings can explain consequences or recovery steps, but they do not grant authorization or reverse an operation automatically.

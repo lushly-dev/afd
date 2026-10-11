@@ -186,7 +186,7 @@ def get_tools_list(
 ) -> list[dict[str, Any]]:
 	"""Return the MCP-visible tool list for the selected strategy."""
 
-	builtins = [BatchToolSchema, PipeToolSchema, CallToolSchema]
+	builtins = [DiscoverToolSchema, DetailToolSchema, BatchToolSchema, PipeToolSchema, CallToolSchema]
 	filtered_commands = filter_commands_by_context(commands, active_context)
 	bootstrap_commands = [
 		command for command in filtered_commands if command.category == "bootstrap"
@@ -197,8 +197,6 @@ def get_tools_list(
 
 	if tool_strategy == "lazy":
 		return [
-			DiscoverToolSchema,
-			DetailToolSchema,
 			*builtins,
 			*(command_to_mcp_tool(command) for command in bootstrap_commands),
 		]

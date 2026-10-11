@@ -141,6 +141,37 @@ export function createUserCommands(db: DataAdapter) {
 }
 ```
 
+## Integration evidence
+
+`pnpm -F @lushly-dev/local-db exec vitest run src/http.integration.test.ts`
+uses platform fetch against an ephemeral loopback HTTP server backed by the actual
+`MemoryAdapter`. It checks JSON round trips, CRUD, filtering/sorting/pagination,
+encoded paths, upserts, real HTTP error mapping, ordered batch commit and rollback
+with independent storage read-back. Teardown closes sockets and clears memory.
+This proves the REST transport contract; it does not prove durable hosted storage.
+
+An optional hosted harness is available separately:
+
+```sh
+AFD_TEST_HTTP_BASE_URL=https://disposable-test-service.example/api/v1 \
+AFD_TEST_HTTP_TABLE=integration_records \
+pnpm -F @lushly-dev/local-db exec vitest run src/hosted.integration.test.ts
+```
+
+Provision that disposable service and writable test table first. Set
+`AFD_TEST_HTTP_TOKEN` only if it requires a dedicated test bearer token. The harness
+writes unique invocation IDs, reads through a separate client, verifies failed-batch
+rollback, then deletes exactly those IDs and checks deletion. Cleanup failures fail
+the run; use the test service's record/audit view to remove leftovers before deleting
+the disposable service. An absent endpoint reports a skipped test, never a pass.
+Record the service/backend version, deployment revision and actual outcomes.
+
+The harness verifies persistence across requests/clients. Restart durability,
+concurrent writers, database isolation, browser storage, service-specific authentication
+and provider outages require deployment-specific checks and remain assurance work
+in [#362](https://github.com/lushly-dev/afd/issues/362). The default gate needs no
+hosted account or production credentials.
+
 ## License
 
 MIT

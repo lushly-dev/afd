@@ -59,13 +59,15 @@ When invoked through a non-exposed interface:
 }
 ```
 
-### Headless Detection
+### Interface-aware consumers
+
+Read `CommandContext.interface` directly when your application needs to distinguish an interactive caller from a CLI or MCP caller:
 
 ```typescript
-export function isHeadlessContext(ctx: CommandContext): boolean {
-  return ctx.interface === 'cli' || ctx.interface === 'mcp';
-}
+const headless = context.interface === 'cli' || context.interface === 'mcp';
 ```
+
+This is an application predicate, not an exported AFD helper. Interface exposure does not replace application authentication or authorization.
 
 ## Undo Metadata
 
@@ -104,13 +106,7 @@ interface CommandResult<T> {
 
 ### Undo Validation
 
-Optional registry validation at registration:
-
-```typescript
-registry.register(command, {
-  validateUndo: true  // Warns if undoable but no undo handler resolvable
-});
-```
+`registry.register(command)` accepts a command definition. It does not resolve or validate undo handlers. A consumer that advertises undo must test that the returned `undoCommand` exists, that `undoArgs` pass its input schema, and that the undo restores the intended state. `undoable: true` alone does not guarantee an executable undo.
 
 ## File Locations
 

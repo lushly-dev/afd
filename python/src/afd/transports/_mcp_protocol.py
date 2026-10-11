@@ -90,6 +90,7 @@ class _HttpBasedTransport:
                 timeout=self._timeout,
             )
         except httpx.HTTPError as exc:
+            self._state = TransportState.ERROR
             raise TransportError(str(exc), cause=exc) from exc
 
         if not response.is_success:

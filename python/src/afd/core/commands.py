@@ -272,6 +272,10 @@ class _CommandRegistryImpl:
     def register(self, command: CommandDefinition) -> None:
         if command.name in self._commands:
             raise ValueError(f"Command '{command.name}' is already registered")
+        if command.input_schema is not None:
+            from afd.core.schema_validation import check_schema
+
+            check_schema(command.input_schema)
         self._commands[command.name] = command
 
     def get(self, name: str) -> Optional[CommandDefinition]:
@@ -349,6 +353,23 @@ class _CommandRegistryImpl:
                         ),
                     ),
                 )
+
+        # Decorated handlers already own advertised-schema validation and
+        # native model conversion. Raw definitions need the same boundary here.
+        if command.input_schema is not None and not hasattr(command.handler, "__afd_command__"):
+            from afd.core.schema_validation import SchemaValidationError, schema_validation_failure, validate_schema
+
+            try:
+                input = validate_schema(command.input_schema, {} if input is None else input)
+            except SchemaValidationError as exc:
+                return schema_validation_failure(exc)
+            except Exception as exc:
+                logger.error("Input validation for '%s' raised", name, exc_info=exc)
+                return CommandResult(success=False, error=CmdError(
+                    code="VALIDATION_ERROR",
+                    message="Input validation failed",
+                    suggestion="Check the input against the command's registered schema and retry",
+                ))
 
         try:
             result = await command.handler(input, context)

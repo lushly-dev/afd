@@ -8,6 +8,7 @@ project(
     LANGUAGES CXX)
 
 option(AFD_BUILD_TESTS "Build the afd-cpp tests" ${PROJECT_IS_TOP_LEVEL})
+option(AFD_BUILD_BENCHMARKS "Build the manual performance benchmarks" OFF)
 option(AFD_BUILD_EXAMPLES "Build packages/cpp/examples" ${PROJECT_IS_TOP_LEVEL})
 option(AFD_INSTALL "Generate install rules and the afd CMake package" ${PROJECT_IS_TOP_LEVEL})
 option(AFD_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
@@ -84,6 +85,10 @@ endif()
 
 if(AFD_BUILD_EXAMPLES)
     add_subdirectory(examples)
+endif()
+
+if(AFD_BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
 endif()
 
 # Install: the library, its headers (including the generated version.hpp), and a CMake package

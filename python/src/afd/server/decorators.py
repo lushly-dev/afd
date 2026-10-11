@@ -48,6 +48,7 @@ from afd.core.commands import (
     ExposeOptions,
 )
 from afd.core.result import CommandResult
+from afd.core.schema_validation import SchemaValidationError, check_schema, validate_schema
 from afd.server.validation import _input_validation_failure
 
 TInput = TypeVar("TInput", bound=BaseModel)
@@ -72,7 +73,7 @@ class CommandMetadata:
     name: str
     description: str
     category: Optional[str] = None
-    input_schema: Optional[Type[BaseModel]] = None
+    input_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]] = None
     output_schema: Optional[Type[BaseModel]] = None
     tags: List[str] = field(default_factory=list)
     mutation: bool = False
@@ -88,7 +89,7 @@ def define_command(
     name: str,
     description: str,
     category: Optional[str] = None,
-    input_schema: Optional[Type[BaseModel]] = None,
+    input_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]] = None,
     output_schema: Optional[Type[BaseModel]] = None,
     tags: Optional[List[str]] = None,
     mutation: bool = False,
@@ -133,6 +134,9 @@ def define_command(
         ...     pass
     """
     
+    if input_schema is not None:
+        check_schema(_advertised_schema(input_schema))
+
     def decorator(func: Callable) -> Callable:
         # Build tags list, adding handoff tags if needed
         effective_tags = list(tags or [])
@@ -166,15 +170,19 @@ def define_command(
             """Wrapper that validates input and calls the handler."""
             try:
                 validated_input = validate_command_input(input_schema, raw_input)
-            except PydanticValidationError as exc:
+            except (PydanticValidationError, SchemaValidationError) as exc:
                 return _input_validation_failure(
                     input_schema, {} if raw_input is None else raw_input, exc
                 )
 
+            return await validated_handler(validated_input, context)
+
+        async def validated_handler(validated_input: Any, context: Optional[Any] = None) -> CommandResult:
             if accepts_context:
                 return await func(validated_input, context)
             return await func(validated_input)
-        
+
+        wrapper.__afd_validated_handler__ = validated_handler
         # Copy metadata to wrapper
         wrapper.__afd_command__ = func.__afd_command__
         
@@ -183,7 +191,7 @@ def define_command(
     return decorator
 
 
-def validate_command_input(input_schema: Optional[Type[BaseModel]], raw_input: Any) -> Any:
+def validate_command_input(input_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]], raw_input: Any) -> Any:
     """The value a command's handler receives for ``raw_input``.
 
     Without a schema, ``raw_input`` unchanged. With one, an instance of the
@@ -195,9 +203,33 @@ def validate_command_input(input_schema: Optional[Type[BaseModel]], raw_input: A
     Raises:
         pydantic.ValidationError: If the input does not match the schema.
     """
-    if input_schema is None or isinstance(raw_input, input_schema):
+    if input_schema is None:
         return raw_input
-    return input_schema.model_validate({} if raw_input is None else raw_input)
+    if not isinstance(input_schema, dict) and isinstance(raw_input, input_schema):
+        return raw_input
+    data = validate_schema(_advertised_schema(input_schema), {} if raw_input is None else raw_input)
+    if isinstance(input_schema, dict):
+        return data
+    # Schema defaults are already trusted. Leave absent fields absent for the
+    # native parser so Pydantic uses its defaults without treating them as user
+    # input (and validating an intentionally unvalidated default a second time).
+    return input_schema.model_validate(_present_input(data, {} if raw_input is None else raw_input))
+
+
+def _present_input(parsed: Any, raw: Any) -> Any:
+    if isinstance(parsed, dict) and isinstance(raw, dict):
+        return {key: _present_input(value, raw[key]) for key, value in parsed.items() if key in raw}
+    if isinstance(parsed, list) and isinstance(raw, list):
+        return [_present_input(value, original) for value, original in zip(parsed, raw, strict=True)]
+    return parsed
+
+
+def _advertised_schema(input_schema: Union[Type[BaseModel], Dict[str, Any]]) -> Dict[str, Any]:
+    if isinstance(input_schema, dict):
+        return input_schema
+    if not isinstance(input_schema, type) or not issubclass(input_schema, BaseModel):
+        raise TypeError("input_schema must be a JSON Schema object or a Pydantic model class")
+    return input_schema.model_json_schema()
 
 
 def _accepts_context(func: Callable) -> bool:
@@ -235,7 +267,7 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
     # Generate parameters from input schema
     parameters = []
     if metadata.input_schema:
-        schema = metadata.input_schema.model_json_schema()
+        schema = _advertised_schema(metadata.input_schema)
         properties = schema.get("properties", {})
         required = set(schema.get("required", []))
         
@@ -263,7 +295,7 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
         handler=func,
         category=metadata.category,
         parameters=parameters,
-        input_schema=metadata.input_schema.model_json_schema() if metadata.input_schema else None,
+        input_schema=_advertised_schema(metadata.input_schema) if metadata.input_schema is not None else None,
         returns=returns_schema,
         tags=metadata.tags,
         mutation=metadata.mutation,
@@ -287,12 +319,12 @@ def _json_schema_type(pydantic_type: str) -> str:
         "object": "object",
         "null": "null",
     }
-    return type_map.get(pydantic_type, "string")
+    return type_map.get(pydantic_type, "string") if isinstance(pydantic_type, str) else "string"
 
 
 def _normalize_examples(
     examples: List[ExampleInput],
-    input_schema: Optional[Type[BaseModel]],
+    input_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]],
 ) -> List[CommandExample]:
     """Normalize examples and validate their inputs eagerly."""
     normalized: List[CommandExample] = []
@@ -331,7 +363,7 @@ def _normalize_examples(
 
 def _normalize_example_input(
     input_value: Any,
-    input_schema: Optional[Type[BaseModel]],
+    input_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]],
 ) -> Dict[str, Any]:
     """Validate example input against the declared schema when present."""
     if isinstance(input_value, BaseModel):
@@ -348,5 +380,5 @@ def _normalize_example_input(
     if input_schema is None:
         return dict(raw_input)
 
-    validated = input_schema.model_validate(raw_input)
-    return validated.model_dump(mode="json")
+    validated = validate_command_input(input_schema, raw_input)
+    return validated if isinstance(validated, dict) else validated.model_dump(mode="json")

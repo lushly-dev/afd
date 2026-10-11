@@ -32,7 +32,7 @@
 //!   `$prev.a b`, `$steps[0][1]`) is a literal and passes through unchanged.
 //!   A string starting with `$$` is a literal with one `$` removed (`"$$prev"`
 //!   becomes `"$prev"`), at any length. Would-be references longer than
-//!   [`MAX_REFERENCE_LENGTH`] characters are literals.
+//!   [`MAX_REFERENCE_LENGTH`] UTF-16 code units are literals.
 //! - Traversal reads only own keys of JSON objects and in-bounds array
 //!   indices; a segment or alias starting with `__` never resolves.
 //! - An unresolved reference is absent: it is omitted from objects and becomes
@@ -1386,7 +1386,8 @@ fn is_reserved(segment: &str) -> bool {
 }
 
 fn exceeds_reference_length(value: &str) -> bool {
-    value.len() > MAX_REFERENCE_LENGTH && value.chars().count() > MAX_REFERENCE_LENGTH
+    value.len() > MAX_REFERENCE_LENGTH
+        && value.encode_utf16().take(MAX_REFERENCE_LENGTH + 1).count() > MAX_REFERENCE_LENGTH
 }
 
 fn resolve_string<'s, 'c>(value: &'s str, context: &'c PipelineContext) -> Resolution<'s, 'c> {

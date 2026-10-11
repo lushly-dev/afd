@@ -2,6 +2,7 @@
  * HTTP transport conformance: JSON-RPC envelopes, notifications, SSE limits, GET streaming
  * of mutations, and the `createContext` request hook.
  */
+import { readFileSync } from 'node:fs';
 import {
 	createServer,
 	request as httpRequest,
@@ -9,8 +10,13 @@ import {
 	type ServerResponse,
 } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { CommandContext } from '@lushly-dev/afd-core';
-import { success } from '@lushly-dev/afd-core';
+import type {
+	BatchRequest,
+	BatchResult,
+	CommandContext,
+	CommandResult,
+} from '@lushly-dev/afd-core';
+import { executeBatch, success } from '@lushly-dev/afd-core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createExecutionEngine } from './execution.js';
@@ -543,4 +549,118 @@ describe('client disconnects', () => {
 		request.destroy();
 		expect(String(await abortReason)).toContain('Client disconnected');
 	});
+});
+
+// Bounded live HTTP checks for AFD discovery, exposure and batch result contracts.
+// These complement the transport tests above; they do not claim general MCP conformance.
+describe('AFD contracts over HTTP', () => {
+	it('keeps malformed batch vectors in the core failure shape on MCP and POST /batch', async () => {
+		const vectors: {
+			batch: Array<{ name: string; request: BatchRequest; expected: { success: boolean } }>;
+		} = JSON.parse(
+			readFileSync(new URL('../../../spec/vectors/batch-controls.json', import.meta.url), 'utf8')
+		);
+		const write = vi.fn(async () => success({ written: true }));
+		const command = defineCommand({
+			name: 'work-run',
+			description: 'Run work',
+			expose: { mcp: true },
+			input: z.object({}).passthrough(),
+			handler: write,
+		});
+		const { url } = await host({ commands: [command] });
+		for (const vector of vectors.batch.filter((entry) => !entry.expected.success)) {
+			const core = await executeBatch(vector.request, write);
+			const response = await post(url, '/message', {
+				jsonrpc: '2.0',
+				id: vector.name,
+				method: 'tools/call',
+				params: { name: 'afd-batch', arguments: vector.request },
+			});
+			expect(response.status).toBe(200);
+			const envelope = (await response.json()) as {
+				result?: { isError: boolean };
+				error?: { code: number };
+			};
+			// MCP arguments must be an object; an array never reaches the AFD router.
+			if (Array.isArray(vector.request)) expect(envelope.error?.code).toBe(-32602);
+			else expect(envelope.result?.isError).toBe(true);
+			const remote = Array.isArray(vector.request)
+				? undefined
+				: (toolText(envelope) as BatchResult);
+			const restResponse = await post(url, '/batch', vector.request);
+			expect([200, 400]).toContain(restResponse.status);
+			const rest = (await restResponse.json()) as BatchResult;
+			for (const actual of remote ? [remote, rest] : [rest]) {
+				expect(actual).toMatchObject({
+					success: false,
+					results: core.results,
+					summary: core.summary,
+					confidence: core.confidence,
+					reasoning: core.reasoning,
+					error: {
+						code: core.error?.code,
+						message: core.error?.message,
+						suggestion: expect.any(String),
+					},
+					timing: {
+						totalMs: 0,
+						averageMs: 0,
+						startedAt: expect.any(String),
+						completedAt: expect.any(String),
+					},
+				});
+			}
+		}
+		expect(write).not.toHaveBeenCalled();
+	});
+
+	it.each(['individual', 'grouped', 'lazy'] as const)(
+		'discovers and calls only exposed commands with %s tools',
+		async (toolStrategy) => {
+			const privateHandler = vi.fn(async () => success('private'));
+			const privateCommand = defineCommand({
+				name: 'item-private',
+				description: 'Private item command',
+				input: z.object({}),
+				handler: privateHandler,
+			});
+			const { url } = await host({ commands: [readItem, writeItem, privateCommand], toolStrategy });
+			const rpc = async (method: string, params?: Record<string, unknown>) => {
+				const response = await post(url, '/message', {
+					jsonrpc: '2.0',
+					id: 'contract',
+					method,
+					params,
+				});
+				expect(response.status).toBe(200);
+				const body = await response.json();
+				expect(body).toMatchObject({ jsonrpc: '2.0', id: 'contract' });
+				return body;
+			};
+			const listed = (await rpc('tools/list')) as { result: { tools: Array<{ name: string }> } };
+			expect(listed.result.tools.map((tool: { name: string }) => tool.name)).not.toContain(
+				'item-private'
+			);
+			const call = async (name: string, args: unknown) =>
+				toolText(await rpc('tools/call', { name, arguments: args })) as CommandResult;
+			const discovered = await call('afd-discover', {});
+			expect(JSON.stringify(discovered)).toContain('item-get');
+			expect(JSON.stringify(discovered)).not.toContain('item-private');
+			const detailed = await call('afd-detail', { command: 'item-get' });
+			expect(detailed.success).toBe(true);
+			expect(JSON.stringify(detailed)).toContain('inputSchema');
+			expect(await call('afd-call', { command: 'item-get', input: { id: 'http' } })).toMatchObject({
+				success: true,
+				data: { id: 'http' },
+			});
+			for (const command of ['item-private', 'item-missing']) {
+				expect(await call('afd-call', { command, input: {} })).toMatchObject({
+					success: false,
+					error: { code: 'COMMAND_NOT_FOUND', suggestion: expect.any(String) },
+				});
+			}
+			expect(privateHandler).not.toHaveBeenCalled();
+		}
+	);
 });

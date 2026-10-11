@@ -2,6 +2,7 @@
 // Any difference between C++ and TypeScript on these inputs fails here.
 #include "afd/afd.hpp"
 
+#include <algorithm>
 #include <fstream>
 #include <iterator>
 #include <string>
@@ -114,4 +115,104 @@ TEST_CASE("error_codes is the shared catalog in spec/vectors/error-codes.json") 
     };
     const afd::Json vectors = load_vectors("error-codes.json");
     CHECK(catalog == vectors.at("codes").get<std::vector<std::string>>());
+}
+
+namespace {
+
+std::vector<std::string> validation_multiset(const afd::Json& values, bool issues = false) {
+    std::vector<std::string> entries;
+    for (const auto& value : values) {
+        afd::Json projected = value;
+        if (issues) {
+            projected.erase("message"); // wording is advisory; path/code/expected are normative
+        }
+        entries.push_back(projected.dump());
+    }
+    std::sort(entries.begin(), entries.end()); // retains duplicates
+    return entries;
+}
+
+std::string validation_suggestion(const afd::Json& details) {
+    std::string suggestion;
+    const auto& issues = details.at("errors");
+    for (const auto& issue : issues) {
+        const auto path = issue.at("path").get<std::string>();
+        const auto message = issue.at("message").get<std::string>();
+        suggestion += (suggestion.empty() ? "" : "\n") +
+                      std::string(issues.size() > 1 ? "- " : "") +
+                      (path == "(root)" ? "" : path + ": ") + message;
+    }
+    for (const auto& [field, label] : std::vector<std::pair<std::string, std::string>>{
+             {"unexpectedFields", "Unknown field(s)"},
+             {"missingFields", "Missing required field(s)"},
+             {"expectedFields", "Expected fields"}}) {
+        if (!details.contains(field)) {
+            continue;
+        }
+        suggestion += (suggestion.empty() ? "" : ". ") + label + ": ";
+        bool first = true;
+        for (const auto& item : details.at(field)) {
+            suggestion += (first ? "" : ", ") + item.get<std::string>();
+            first = false;
+        }
+    }
+    return suggestion;
+}
+
+} // namespace
+
+TEST_CASE("command validation matches every supported shared validation vector") {
+    const afd::Json vectors = load_vectors("validation.json");
+    std::size_t executed = 0;
+    std::size_t rejected_optional = 0;
+    for (const auto& entry : vectors.at("cases")) {
+        CAPTURE(entry.at("id").get<std::string>());
+        afd::CommandRegistry registry;
+        const auto registration =
+            registry.register_command({.name = "test-validate",
+                                       .description = "Shared validation vector",
+                                       .input_schema = entry.at("schema"),
+                                       .handler = [](const afd::Json& input, afd::CommandContext&) {
+                                           return afd::success(input);
+                                       }});
+        if (entry.contains("optionalKeywords") && !entry.at("optionalKeywords").empty()) {
+            REQUIRE(registration.has_value());
+            CHECK(registration->find("unsupported JSON Schema keyword") != std::string::npos);
+            CHECK(registration->find("#/") != std::string::npos);
+            ++rejected_optional;
+            continue;
+        }
+        REQUIRE_MESSAGE(!registration, registration.value_or(""));
+        std::size_t index = 0;
+        for (const auto& test : entry.at("tests")) {
+            CAPTURE(index);
+            ++index;
+            ++executed;
+            const auto result = registry.execute("test-validate", test.at("input"));
+            REQUIRE(result.success == test.at("valid").get<bool>());
+            if (result.success) {
+                CHECK(result.data == test.at("data"));
+                continue;
+            }
+            REQUIRE(result.error.has_value());
+            const afd::Json actual = *result.error;
+            const auto& expected = test.at("error");
+            CHECK(actual.at("code") == expected.at("code"));
+            CHECK(actual.at("message") == expected.at("message"));
+            const auto& details = actual.at("details");
+            const auto& wanted = expected.at("details");
+            CHECK(validation_multiset(details.at("errors"), true) ==
+                  validation_multiset(wanted.at("errors"), true));
+            for (const char* field : {"expectedFields", "unexpectedFields", "missingFields"}) {
+                REQUIRE(details.contains(field) == wanted.contains(field));
+                if (wanted.contains(field)) {
+                    CHECK(validation_multiset(details.at(field)) ==
+                          validation_multiset(wanted.at(field)));
+                }
+            }
+            CHECK(actual.at("suggestion") == validation_suggestion(details));
+        }
+    }
+    CHECK(executed >= 94);
+    CHECK(rejected_optional == 8);
 }

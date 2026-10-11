@@ -8,12 +8,29 @@
 |---|---|
 | Status | Active: accepted 2026-09-27, with every recommendation (D1–D8) |
 | Author | jasfalk |
-| Updated | 2026-09-28 |
+| Updated | 2026-10-10 |
 | Tracks | [`docs/language-parity.md`](../../../language-parity.md) |
 | Supersedes | The name-only [Python parity plan](../python-parity/python-parity.plan.md) (see [Tracking](#tracking)). The Rust parity plan is marked complete in #289. |
 | Related | [Versioning and release plan](../versioning/versioning.plan.md), [C++ proposal](../../proposed/cpp-support/proposal.md), [Rust support](../../proposed/rust-support/00-overview.md) |
 
 **Goal.** Every matrix row is **Yes**, **N/A** with a reason, or **Deferred** with a plan. All four languages consume every `spec/vectors` file in CI, and all four pass a protocol-level conformance tier.
+
+## Stabilization candidate, 2026-10-10
+
+Source changes based on `ddb1663` remain **unmerged and unpublished**. This checkpoint records implementation progress; the exit criteria and contract 1.0 declaration remain open.
+
+| Item | Candidate evidence | Remaining limit |
+|---|---|---|
+| Validation #310/#311/#312 and decisions #332 | All four suites load 34 cases / 130 tests. Python executes 130; Rust 102 plus 28 optional registration rejections; C++ 98 plus 32 optional registration rejections | Final review fixes and combined gates remain required; optional rejection is subset conformance, not optional-keyword implementation |
+| Executor controls #329/#330/#363 | 24 batch / 25 pipeline cases; fractional timeouts; Python failure drains inflight work; TS/C++ queued caller cancellation preserves started outcomes | Runtime cancellation/deadline mechanisms remain language-specific |
+| Reference bound #283 | 51 references / 27 conditions, including 1,024/1,025 UTF-16-unit boundaries | Schema lengths separately count code points |
+| Python sessions/client #353/#354 | Trusted transport-session contexts, depth 16, millisecond DirectClient deadlines, bounded decoded SSE frames and real reconnect socket tests | Server per-command timeout, DirectClient exposure/allow/middleware and executor unification remain open |
+| Discovery/errors and TS metadata #325/#333/#314 | Python strategy-independent discovery/detail and structured unknown/private errors; TS canonical `_meta` and failed-batch shape | Python defaults and grouped per-action schema alignment remain planned |
+| Protocol tier #361 | [Common acceptance index](../../../../spec/protocol-conformance.md): actual TS legacy HTTP sockets and Python SDK SSE/Streamable HTTP subprocesses | No shared executable protocol fixture, full MCP certification, native library transport tier or TS Streamable HTTP proof |
+| Integration assurance #362/#364 | Real Better Auth credentials/session lifecycle and local-db HTTP shim tests; vanilla nanostore compatibility corrected | Hosted local-db test skipped; OAuth, Convex, browser cookie/multi-tab behavior and durability unproven |
+| Release #347 | Published Python 0.8.0 is broken; candidate fixes do not replace it | Publication remains blocked; production dependency audit has 0 advisories, but 2 development advisories remain unresolved |
+
+Local lane receipts are recorded in the stabilization review and release documents. They do not establish remote CI or a shipping gate. Historical wave states below describe landed work unless explicitly marked candidate.
 
 ## Principles
 
@@ -57,11 +74,11 @@ Already under way, from before this plan or from the 2026-09-26 review:
 |---|---|---|---|
 | Registry engine aligned with TypeScript: the validation message and shape, undeclared keys dropped, UTF-16 name handling | Rust | Part of the Wave 2 Rust validation item; D3 | Merged in #286 (breaking) |
 | Fuzzy matching and name truncation count UTF-16 units | Rust | D3 | Folded into #286; #288 closed |
-| Rust parity plan marked complete; `AGENTS.md` becomes the only agent guide | Docs | Tracking | #289 (open) |
-| Server dispatch order, validation of `None` input, exception redaction | Python | Priority 1 items 1–2 | #304 (open) |
-| `execute` catches panics; `COMMAND_EXECUTION_ERROR`; `is_success` and `is_failure` | Rust | Priority 1 items 2–4 | Task running |
-| `DirectClient` keeps the caller's cancellation when `timeout_ms` is set | C++ | The defect in the matrix | Task running |
-| `expose` and the other broken snippets in the README and skill | Python docs | Documentation drift | Task running |
+| Rust parity plan marked complete; `AGENTS.md` becomes the only agent guide | Docs | Tracking | Merged in #289 |
+| Server dispatch order, validation of `None` input, exception redaction | Python | Priority 1 items 1–2 | Merged in #304 |
+| `execute` catches panics; `COMMAND_EXECUTION_ERROR`; `is_success` and `is_failure` | Rust | Priority 1 items 2–4 | Merged in #306 |
+| `DirectClient` keeps the caller's cancellation when `timeout_ms` is set | C++ | The defect in the matrix | Merged in #315 |
+| `expose` and the other broken snippets in the README and skill | Python docs | Documentation drift | Merged in #305 |
 | Site, root README, Rust and C++ docs and skills, the todo spec README | Docs | Documentation drift | Merged in #301 |
 
 ### Wave 1: shared contract
@@ -72,8 +89,8 @@ TypeScript leads this wave. It is small and unblocks everything after it.
 |---|---|---|---|
 | 1.1 | Load `spec/vectors/pipeline-variables.json` in the TypeScript, Python and Rust test suites; C++ already does. | S per language | Done in #317: all four suites load it. Python and Rust now treat a literal `when` operand as absent, and Rust's `$eq` compares numbers by value |
 | 1.2 | **`spec/error-codes.md`:** every emitted code, whether it is retryable, and which layer emits it, plus the D4 rules. Add the missing codes to TypeScript `ErrorCodes` (about 25), Python `ErrorCodes`, Rust `error_codes` and C++ `error_codes`. | M | Done: [`spec/error-codes.md`](../../../../spec/error-codes.md); the 42 shared codes in all four catalogs, checked against `spec/vectors/error-codes.json`; D4 fixes in TypeScript, Python and C++. Python's MCP unknown-tool answer is [#325](https://github.com/lushly-dev/afd/issues/325) |
-| 1.3 | **`spec/validation.md` and `spec/vectors/validation.json`:** see the list below the table. Generate the vectors from TypeScript, marking the astral-character cases where TypeScript differs. | M | Done for TypeScript: [`spec/validation.md`](../../../../spec/validation.md), 32 cases in [`spec/vectors/validation.json`](../../../../spec/vectors/validation.json); Python, Rust and C++ load them in Wave 2 (#310, #311, #312) |
-| 1.4 | **`spec/vectors/batch-controls.json`,** from `packages/server/src/execution-controls.test.ts`. The C++ work plan already recommends this file. | S–M | Done in #317: 21 batch and 22 pipeline cases from `generate-batch-controls.mjs`, loaded by all four suites. Python and Rust envelope validation and Rust's pipeline deadline now match TypeScript. TypeScript's `afd-batch` tool still differs from `executeBatch` ([#314](https://github.com/lushly-dev/afd/issues/314)) |
+| 1.3 | **`spec/validation.md` and `spec/vectors/validation.json`:** see the list below the table. Generate the vectors from supported TypeScript; schema lengths count code points without pre-4.5 exemptions. | M | Candidate complete across all four suites: [`spec/validation.md`](../../../../spec/validation.md), 34 cases / 130 tests in [`spec/vectors/validation.json`](../../../../spec/vectors/validation.json), with unsupported optional registration rejections (#310, #311, #312) |
+| 1.4 | **`spec/vectors/batch-controls.json`,** from `packages/server/src/execution-controls.test.ts`. The C++ work plan already recommends this file. | S–M | Done in #317: 24 batch and 25 pipeline cases from `generate-batch-controls.mjs`, loaded by all four suites. Python and Rust envelope validation and Rust's pipeline deadline now match TypeScript. Candidate #314 aligns malformed AFD envelopes on MCP and POST `/batch` with core failed-batch results |
 | 1.5 | **Command metadata:** list the canonical fields in the spec. Fix the TypeScript split ([#275](https://github.com/lushly-dev/afd/issues/275)): core `CommandDefinition` and `defineCommand` both carry `destructive`, `confirmPrompt` and `undoable`, and `toCommandDefinition()` keeps them. | S (TS minor) | Done in #308: canonical fields in [`spec/command-metadata.md`](../../../../spec/command-metadata.md); `_meta`, afd-detail, afd-help, afd-docs and `afd tools` report `undoable` |
 | 1.6 | **One default reconnect policy.** The TypeScript client's fallback of 5 attempts becomes core's 3. | S | Done for TypeScript in #308. Python's handoff client also falls back to 5; see Wave 2 |
 | 1.7 | **Contract 1.0:** add the AFD contract version constant (see the [versioning plan](../versioning/versioning.plan.md#1-a-versioned-afd-contract)). Declare 1.0 once 1.1–1.4 pass in all four languages. | S | Open |
@@ -92,13 +109,8 @@ The validation spec (1.3) covers:
 - **Also covered:** explicit `null` ([#282](https://github.com/lushly-dev/afd/issues/282)) and
   schema defaults ([#284](https://github.com/lushly-dev/afd/issues/284)), recorded as TypeScript
   behaves.
-- **D3 and TypeScript.** Zod counts code points from 4.5.0, and `@lushly-dev/afd-server` requires
-  4.5.4. So TypeScript differs from D3 only for a schema built with Zod 4.0 to 4.4, and the four
-  astral tests carry that exception.
-- **Loading the vectors is Wave 2 work.** Each issue lists that language's failing cases:
-  - Python: [#310](https://github.com/lushly-dev/afd/issues/310);
-  - Rust: [#311](https://github.com/lushly-dev/afd/issues/311);
-  - C++: [#312](https://github.com/lushly-dev/afd/issues/312).
+- **D3 and TypeScript.** The supported server requires Zod 4.5.4+, so all supported schema lengths count code points. Pre-4.5 vector exception marks have been removed.
+- **Candidate consumers.** All four suites load the validation fixture. Comparison permits sibling order differences but preserves duplicate issues and omitted/present distinctions, verifies suggestions from actual details, and retains array/parent traversal order. Unsupported optional keywords reject registration.
 
 ### Wave 2: engine alignment
 
@@ -107,9 +119,9 @@ Each language works against the Wave 1 vectors, and the four can proceed in para
 **Python (L overall):**
 - One executor. Route the core registry, `SimpleRegistry`/`DirectClient`, `MockServer` and `DirectClient.pipe` through a single engine. Export `execute_batch` and `execute_stream`. (L)
 - A `DirectClient` boundary: exposure, the `allow` predicate, middleware and timeout. (M)
-- One context stack per session, capped at 16. (M)
-- A 1 MiB event-size cap in `SseDecoder`. (S)
-- `is_success` checks only `success`, and `failure()` accepts every result option. (S)
+- One context stack per session, capped at 16. (M) Implemented in candidate #353; actual transport sessions establish identity, stateless HTTP mutation rejects.
+- A 1 MiB decoded-frame cap in `SseDecoder`. (S) Implemented in candidate #354.
+- `is_success` checks only `success` (implemented in candidate #354); `failure()` accepting every result option remains open. (S)
 - Decorator metadata: `version`, `errors`, `execution_time`, `destructive`, `confirm_prompt` and `undoable`; `handoff` through `MCPServer.command`. Call `validate_command_name`, and reserve the bootstrap names. (M)
 - `create_handoff` applies the default reconnect policy, and the handoff client falls back to it instead of 5 attempts. There is one `TelemetryEvent`, and it serializes in camelCase. (S)
 - Export cleanup: resolve the `afd.direct` name collisions, then re-export the 60 implemented names and lower the budget. (M)
@@ -123,9 +135,9 @@ Each language works against the Wave 1 vectors, and the four can proceed in para
   - `list_by_tags`.
 - **Built-in middleware** (M): trace ID, logging, timing and `default_middleware`; then retry, rate limit and telemetry.
 - **Stream executor:** `execute_stream` with `StreamExecutorOptions`. (M)
-- **Validation** (M). #286 already strips undeclared keys and matches the TypeScript message. What remains:
+- **Validation** (M). Candidate #311 adds authoritative `register_with_schema` / `get_tool`, preserving existing public schema fields; the following are implemented with explicit rejection of unsupported optional keywords:
   - add `minItems`/`maxItems` and `additionalProperties: false`;
-  - cache compiled `pattern` regexes;
+  - reject unsupported whole-schema `pattern` at registration; legacy regex compilation failures also reject registration;
   - count schema lengths per D3;
   - apply schema defaults ([#284](https://github.com/lushly-dev/afd/issues/284));
   - treat an explicit `null` parameter as TypeScript does ([#282](https://github.com/lushly-dev/afd/issues/282)).
@@ -159,18 +171,13 @@ Each language works against the Wave 1 vectors, and the four can proceed in para
 | **D7: MCP Streamable HTTP** on the server (`/mcp`) and in the client, with the current protocol version | TypeScript | L |
 | **D5 defaults:** bootstrap opt-in; `grouped` by default, with `afd-detail` and per-action schemas | Python | M |
 | **HTTP hardening:** Host/Origin checks and a body cap on the FastMCP HTTP transports | Python | M |
-| **MCP client:** make `auto_reconnect` work | Python | S |
+| **MCP client:** make `auto_reconnect` work (implemented in candidate #354 with real socket tests) | Python | S |
 | **CLI:** add `batch` and `stream` | Python | S |
 | **D1: the `server` feature:** stdio and Streamable HTTP, tool strategies, meta-tools, bootstrap, context tools, Host/Origin checks and a body cap. Move the todo backend onto it. | Rust | L |
 | **D2: `afd::mcp_stdio`:** `initialize`, `tools/list` with `_meta`, `tools/call`, the meta-tools and bootstrap. Move the todo backend onto it. | C++ | M |
 | **Protocol conformance tier:** see below the table. It is opt-in per backend. TypeScript and Python join first; Rust and C++ join as D1 and D2 land. | All | M |
 
-The protocol conformance tier adds cases next to `packages/examples/todo/spec/test-cases.json` for:
-- meta-tools and bootstrap tools;
-- a private command staying hidden;
-- an unknown command getting a suggestion;
-- `afd-batch` and `afd-pipe`;
-- context entry.
+The [protocol acceptance index](../../../../spec/protocol-conformance.md) maps common discovery, exposure, unknown-command and malformed-batch criteria to actual TypeScript and Python socket tests. Python additionally exercises batch/pipeline execution and session contexts over SSE and Streamable HTTP. These suites express cases independently; they do not load a shared protocol fixture. Bootstrap depth, native library transports, additional TypeScript executor/session paths and full MCP interoperability remain follow-up scope.
 
 ### Wave 4: remaining decisions
 

@@ -12,7 +12,9 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
 
 ## Contract
 
-- Every language loads every file in its test suite and requires identical results. Where a
+- Every language loads every file in its test suite and requires matching results under each file's
+  comparison rules. Validation sibling issues and field lists compare without order, preserving
+  duplicates and omitted lists; suggestions follow actual details. Where a
   language does not load a file yet, the entry is tracked in the
   [parity closure plan](../../docs/features/active/parity-closure/parity-closure.plan.md):
 
@@ -36,6 +38,10 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
   literal there is absent, so `{"$exists": "$$prev"}` is `false`.
 
 ### `batch-controls.json`
+
+The normative rules for fractional timeouts, `stopOnError` and caller cancellation are in
+[`execution-controls.md`](../execution-controls.md). Concurrent cancellation/failure tests use
+barriers in each executor suite; these timer vectors cover deterministic request and deadline behavior.
 
 Each case in `batch` runs `request` through the language's batch executor, and each case in
 `pipeline` runs it through the pipeline executor. The executor calls the case's `handlers`, which

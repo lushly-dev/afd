@@ -4,6 +4,7 @@
  * reports it (spec/command-metadata.md).
  */
 
+import { commandToMcpTool } from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { createAfdDocsCommand } from './bootstrap/afd-docs.js';
@@ -141,5 +142,57 @@ describe('surfaces', () => {
 			destructive: true,
 			undoable: true,
 		});
+	});
+});
+
+describe('core and server metadata consistency', () => {
+	it('shares every planning field across core conversion, individual tools and grouped actions', () => {
+		const command = defineCommand({
+			name: 'item-update',
+			description: 'Update an item',
+			category: 'item',
+			input: z.object({ id: z.string() }),
+			output: z.object({ id: z.string() }),
+			requires: ['item-get'],
+			mutation: false,
+			destructive: false,
+			undoable: false,
+			confirmPrompt: 'Update?',
+			contexts: ['editing'],
+			examples: [{ title: 'Update', input: { id: 'one' } }],
+			expose: { mcp: true },
+			handler: async (input) => ({ success: true as const, data: input }),
+		});
+		const meta = commandToMcpTool(command.toCommandDefinition())._meta;
+		expect(meta).toEqual({
+			category: 'item',
+			requires: ['item-get'],
+			mutation: false,
+			destructive: false,
+			undoable: false,
+			contexts: ['editing'],
+			examples: command.examples,
+			outputSchema: command.outputJsonSchema,
+		});
+		expect(
+			getToolsList([command], 'individual').find((tool) => tool.name === command.name)?._meta
+		).toEqual(meta);
+		expect(
+			getToolsList([command], 'grouped').find((tool) => tool.name === 'item')?._meta?.actions?.[0]
+		).toMatchObject(meta ?? {});
+		expect(meta).not.toHaveProperty('confirmPrompt');
+	});
+
+	it('omits unset metadata and empty arrays in core conversion', () => {
+		const command = defineCommand({
+			name: 'item-empty',
+			description: 'No metadata',
+			input: z.object({}),
+			requires: [],
+			contexts: [],
+			examples: [],
+			handler: async () => ({ success: true as const }),
+		});
+		expect(commandToMcpTool(command.toCommandDefinition())).not.toHaveProperty('_meta');
 	});
 });
