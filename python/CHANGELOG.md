@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.9.0] - Unreleased
 
-> **Draft: not released.** `pyproject.toml` and `afd.__version__` still read 0.8.0, and 0.8.0 on PyPI still writes snake_case results. [#304](https://github.com/lushly-dev/afd/pull/304) (single-command dispatch and exception redaction) is merged and listed here. Add the entries of any other Python fixes planned for 0.9.0 to this section as they merge.
+> **Draft: not released.** `pyproject.toml` and `afd.__version__` still read 0.8.0, and 0.8.0 on PyPI still writes snake_case results. [#304](https://github.com/lushly-dev/afd/pull/304) (single-command dispatch and exception redaction) is merged and listed here. The stabilization entries below describe unmerged source changes, not the behavior of the published artifact. #347 remains publication-blocked pending merge, supported-version and wheel gates, version reconciliation, and explicit release authorization.
 >
 > **Release checklist**
 >
@@ -17,7 +17,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 > 5. Update the Python column of the version row in `docs/language-parity.md`.
 > 6. Merge, then the maintainer tags `python-v0.9.0`. The `do-release` skill has the steps.
 
+### Stabilization candidate (unmerged)
+
+- Bind MCP contexts to trusted SDK transport sessions, cap stacks at 16, preserve independent discovery/execution, and return `SESSION_REQUIRED` for context mutation on stateless HTTP (#353).
+- Enforce positive finite DirectClient deadlines in milliseconds; reject booleans as numbers and require JSON-shaped object/array inputs. Cancellation requests do not guarantee mutation rollback (#354).
+- Recognize `success(None)` by its success discriminant and cap decoded SSE frames at 1 MiB by default (#354).
+- Reconnect MCP clients after HTTP/SSE connection loss or idle SSE EOF, refresh discovery, cancel obsolete attempts and never replay uncertain in-flight calls (#354).
+- Add real subprocess/socket protocol tests for individual/grouped/lazy strategies over SSE and Streamable HTTP. See [`spec/protocol-conformance.md`](../spec/protocol-conformance.md) for the shared acceptance index and coverage limits (#361).
+- Consume the shared 34-case / 130-test validation fixture; use 24 batch, 25 pipeline, 51 reference and 27 condition cases. Unsupported schema syntax rejects registration, and issue comparisons preserve duplicates while allowing sibling ordering differences.
+
 ### Breaking changes
+
+- **MCP discovery and errors:** `afd-discover` and `afd-detail` are available in every tool strategy. Unknown and unexposed tool calls return the structured `COMMAND_NOT_FOUND` result with callable suggestions over FastMCP (#325).
+
+- **Input validation follows the advertised JSON Schema:** raw dict schemas are accepted by command decorators and enforced before middleware, including unknown-key stripping, defaults, nullability, strict JSON primitive types and shared issue codes. Pydantic commands validate the same advertised schema before converting valid UUID and date strings. Unsupported keywords, format names and incompatible regex syntax fail registration with a schema location (#310).
+- **Parallel batch failures** stop new starts and let commands already running finish normally; batch deadlines and caller cancellation still cancel outstanding commands (#330).
+- **Batch and pipeline timeouts** accept finite nonnegative fractional numbers, and pipeline references use the specified 1,024 UTF-16-unit bound (#329, #283).
 
 - **Wire format:** results use the cross-language format checked by `spec/wire/*.json`: camelCase keys, unset fields omitted rather than `null`, and MCP `isError: true` on failures. Parsing still accepts snake_case. Error `details` keys are camelCase (`expectedFields`, `missingFields`, …). The built-in command payloads (`afd-schema`, `afd-help`, `afd-docs`, `afd-context-list`, `afd-detail`) use the wire format too (#250, #251).
 - **Pipeline variables** follow `spec/pipeline-variables.md`, as in every language. `$input` is the request's own `input` field and never the host or caller context; `$`-prefixed literals such as `$9.99` pass through; `$$` escapes; paths follow only own JSON keys and in-bounds indices; unresolved references are omitted; `$eq`/`$ne` compare structurally; nesting deeper than 64 is rejected with `VALIDATION_ERROR`. DirectClient `$alias` references become `$steps.alias` (#250).

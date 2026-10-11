@@ -17,7 +17,7 @@ Example:
 """
 
 from datetime import datetime, timezone
-from typing import Any, Generic, List, Optional, TypeVar
+from typing import Any, Union, Generic, List, Optional, TypeVar
 
 from pydantic import ConfigDict, Field, StrictBool, ValidationInfo, field_validator
 
@@ -78,7 +78,7 @@ class BatchOptions(WireModel):
     """
 
     stop_on_error: StrictBool = False
-    timeout: Optional[int] = Field(default=None, ge=0)
+    timeout: Optional[Union[int, float]] = Field(default=None, ge=0, allow_inf_nan=False)
     parallelism: int = Field(default=1, ge=1)
 
     model_config = ConfigDict(**WIRE_MODEL_CONFIG, extra="forbid")

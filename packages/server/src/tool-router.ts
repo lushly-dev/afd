@@ -13,7 +13,13 @@ import type {
 	PipelineRequest,
 	PipelineResult,
 } from '@lushly-dev/afd-core';
-import { failure, isBatchRequest, isPipelineRequest, truncateName } from '@lushly-dev/afd-core';
+import {
+	failedBatchRequest,
+	failure,
+	isBatchRequest,
+	isPipelineRequest,
+	truncateName,
+} from '@lushly-dev/afd-core';
 import type { ContextState } from './bootstrap/afd-context.js';
 import {
 	commandAction,
@@ -236,15 +242,11 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			if (!check.success || !isBatchRequest(args)) {
 				const usage = 'Provide { commands: [...] } with command objects';
 				return resultContent(
-					{
-						success: false,
-						error: {
-							code: 'INVALID_BATCH_REQUEST',
-							message: 'Invalid batch request format',
-							suggestion: check.success ? usage : `${check.suggestion}. ${usage}`,
-							...(!check.success && { details: { errors: check.errors } }),
-						},
-					},
+					failedBatchRequest(
+						{},
+						check.success ? undefined : { errors: check.errors },
+						check.success ? usage : `${check.suggestion}. ${usage}`
+					),
 					true
 				);
 			}

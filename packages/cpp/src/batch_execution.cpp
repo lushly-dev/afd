@@ -300,14 +300,24 @@ BatchResult execute_batch(const BatchRequest& request, const CommandExecutor& ex
                      "Command skipped because batch execution stopped after a failure",
                      {.suggestion = "Disable stopOnError to execute every command"});
 
+    const CommandError cancelled_error =
+        create_error(error_codes::COMMAND_CANCELLED, "Command cancelled before starting",
+                     {.suggestion = "Start the command again if the result is still needed",
+                      .retryable = false});
+
     const auto& commands = request.commands;
     std::vector<std::optional<BatchCommandResult>> results(commands.size());
     std::atomic<bool> stopped{false};
     std::atomic<bool> timed_out{false};
+    std::atomic<bool> cancelled{false};
     std::atomic<std::size_t> next_index{0};
     std::mutex results_mutex;
 
     const auto run_command = [&](const BatchCommand& command, std::size_t index) -> CommandResult {
+        if (context.cancellation.is_cancelled()) {
+            cancelled = true;
+            return failure(cancelled_error);
+        }
         if (deadline && clock->steady_ms() >= *deadline) {
             timed_out = true;
             return failure(timeout_error);
@@ -329,7 +339,11 @@ BatchResult execute_batch(const BatchRequest& request, const CommandExecutor& ex
     };
 
     const auto worker = [&](std::size_t) {
-        while (!stopped && !timed_out) {
+        while (!stopped && !timed_out && !cancelled) {
+            if (context.cancellation.is_cancelled()) {
+                cancelled = true;
+                return;
+            }
             const std::size_t index = next_index++;
             if (index >= commands.size()) {
                 return;
@@ -367,7 +381,10 @@ BatchResult execute_batch(const BatchRequest& request, const CommandExecutor& ex
         }
         completed.push_back({commands[index].id.value_or("cmd-" + std::to_string(index)),
                              static_cast<std::int64_t>(index), commands[index].command,
-                             failure(timed_out ? timeout_error : skipped_error), 0});
+                             failure(timed_out   ? timeout_error
+                                     : cancelled ? cancelled_error
+                                                 : skipped_error),
+                             0});
     }
 
     const double total_ms = clock->steady_ms() - start;

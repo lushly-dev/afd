@@ -1,13 +1,15 @@
 """Tests for the middleware module."""
 
 import asyncio
-from contextlib import contextmanager
 import json
+from contextlib import contextmanager
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from afd import success, error
+import afd.server.middleware as middleware_module
+from afd import error, success
 from afd.core.commands import CommandContext
 from afd.core.result import CommandError, CommandResult
 from afd.server import create_server
@@ -26,7 +28,6 @@ from afd.server.middleware import (
     create_tracing_middleware,
     default_middleware,
 )
-
 
 # =============================================================================
 # Helpers
@@ -230,16 +231,23 @@ class TestTimingMiddleware:
         assert recorded[0]["command"] == "test-cmd"
 
     @pytest.mark.asyncio
-    async def test_custom_threshold(self):
+    async def test_custom_threshold(self, monkeypatch):
         warnings = []
         mw = create_timing_middleware(
             slow_threshold=100,  # 100ms threshold
             on_slow=lambda name, ms: warnings.append((name, ms)),
         )
         ctx = make_context()
+        elapsed = iter((10.0, 10.05))
+        monkeypatch.setattr(
+            middleware_module,
+            "time",
+            SimpleNamespace(monotonic=lambda: next(elapsed)),
+        )
 
-        # 50ms sleep should NOT trigger 100ms threshold
-        await mw("test-cmd", {}, ctx, slow_handler)
+        result = await mw("test-cmd", {}, ctx, success_handler)
+
+        assert result.success is True
         assert len(warnings) == 0
 
 

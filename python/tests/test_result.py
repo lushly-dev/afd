@@ -183,9 +183,9 @@ class TestIsSuccess:
         result = error("ERROR", "Failed")
         assert is_success(result) is False
 
-    def test_returns_false_when_data_is_none(self):
+    def test_returns_true_when_data_is_none(self):
         result: CommandResult[None] = CommandResult(success=True, data=None)
-        assert is_success(result) is False
+        assert is_success(result) is True
 
 
 class TestIsFailure:

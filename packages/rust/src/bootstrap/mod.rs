@@ -85,6 +85,13 @@ pub(crate) enum RegistryRef {
 }
 
 impl RegistryRef {
+    pub(crate) fn get_tool(&self, name: &str) -> Option<serde_json::Value> {
+        match self {
+            Self::Strong(registry) => registry.get_tool(name),
+            Self::Weak(registry) => registry.upgrade()?.get_tool(name),
+        }
+    }
+
     /// The commands the calling context may see: all of them, or only those
     /// exposed to `context.interface` when it is set.
     pub(crate) fn describable_commands(

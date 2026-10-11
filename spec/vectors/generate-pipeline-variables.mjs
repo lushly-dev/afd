@@ -6,6 +6,10 @@
 import { writeFileSync } from 'node:fs';
 import { evaluateCondition, resolveVariable } from '../../packages/core/dist/pipeline-variables.js';
 
+// The prefix "$prev." has six UTF-16 units. These keys make references of exactly 1024/1025.
+const astralBoundaryKey = '😀'.repeat(509);
+const astralOverLimitKey = `${astralBoundaryKey}a`;
+
 // Step 0 succeeded (alias "user"), step 1 failed (alias "broken"), step 2 succeeded.
 const context = {
 	input: { q: 'milk', n: 2, nested: { deep: [1, { v: 'x' }] } },
@@ -25,7 +29,17 @@ const context = {
 			},
 		},
 		{ index: 1, alias: 'broken', status: 'failure' },
-		{ index: 2, status: 'success', data: { id: 't9', done: false, count: 3 } },
+		{
+			index: 2,
+			status: 'success',
+			data: {
+				id: 't9',
+				done: false,
+				count: 3,
+				[astralBoundaryKey]: 'at-limit',
+				[astralOverLimitKey]: 'over-limit',
+			},
+		},
 	],
 	previous: 2,
 };
@@ -87,6 +101,9 @@ const references = [
 	'',
 	`$prev.${'a'.repeat(1018)}`,
 	`$prev.${'a'.repeat(1019)}`,
+	`$prev.${astralBoundaryKey}`,
+	`$prev.${astralOverLimitKey}`,
+	`$$prev.${astralOverLimitKey}`,
 ];
 
 const conditions = [

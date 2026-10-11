@@ -87,6 +87,22 @@ if (isSuccess(result)) {
 }
 ```
 
+Pass per-request deadlines and cancellation to `call()`, `callTool()`, or `request()`:
+
+```typescript
+const result = await client.call('item-get', { id: '123' }, {
+  timeout: 5_000,
+  signal: controller.signal,
+});
+```
+
+With the direct transport, deadlines and cancellation settle the request even when a handler
+ignores its abort signal. Disconnecting also aborts active execution. A handler that has already
+started may still complete its side effects; check a mutation's effect before retrying.
+Direct discovery preserves the registry's input schema and planning metadata.
+HTTP and SSE session renewal requires a successful JSON-RPC initialize result and a replacement
+session ID before replaying a rejected request. Concurrent requests share renewal work.
+
 ### Event Handling
 
 ```typescript

@@ -29,9 +29,18 @@ class SseEvent:
 
 
 class SseDecoder:
-    """Turn event-stream lines (without their line endings) into events."""
+    """Turn event-stream lines into events, bounding each frame's UTF-8 bytes.
 
-    def __init__(self) -> None:
+    ``max_event_bytes`` includes fields, comments and line separators between
+    blank lines. Oversized frames raise ``ValueError`` and clear buffered data.
+    The default limit is 1 MiB; pass a larger limit for known large payloads.
+    """
+
+    def __init__(self, *, max_event_bytes: int = 1024 * 1024) -> None:
+        if isinstance(max_event_bytes, bool) or not isinstance(max_event_bytes, int) or max_event_bytes <= 0:
+            raise ValueError("max_event_bytes must be a positive integer")
+        self._max_event_bytes = max_event_bytes
+        self._event_bytes = 0
         self._data: list[str] = []
         self._event = ""
         self._last_id: str | None = None
@@ -41,6 +50,7 @@ class SseDecoder:
         """Feed one line; return the event a blank line completes, else None."""
         line = line.rstrip("\r\n")
         if not line:
+            self._event_bytes = 0
             if not self._data:
                 # No data: nothing to dispatch (the event name is discarded).
                 self._event = ""
@@ -55,6 +65,13 @@ class SseDecoder:
             self._event = ""
             self._retry = None
             return event
+        self._event_bytes += len(line.encode("utf-8")) + 1
+        if self._event_bytes > self._max_event_bytes:
+            self._data = []
+            self._event = ""
+            self._retry = None
+            self._event_bytes = 0
+            raise ValueError(f"SSE event exceeds {self._max_event_bytes} bytes")
         if line.startswith(":"):
             return None
         name, colon, value = line.partition(":")

@@ -366,7 +366,7 @@ class TestInputValidationErrors:
         assert result.error.code == "VALIDATION_ERROR"
         assert result.error.message == "Input validation failed"
         assert result.error.details["errors"][0]["path"] == "count"
-        assert result.error.details["errors"][0]["code"] == "int_parsing"
+        assert result.error.details["errors"][0]["code"] == "invalid_type"
         assert "count" in result.error.suggestion
         assert "s3cr3t" not in _dump(result)
 

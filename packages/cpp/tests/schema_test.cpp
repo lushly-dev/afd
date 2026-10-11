@@ -1,7 +1,9 @@
-#include "afd/schema.hpp"
+#include "afd/afd.hpp"
 
+#include <cmath>
 #include <fstream>
 #include <iterator>
+#include <limits>
 #include <string>
 
 #include <doctest.h>
@@ -203,4 +205,127 @@ TEST_CASE("format_validation_errors matches TypeScript") {
     CHECK(afd::format_validation_errors({{"a", "Bad", "custom", std::nullopt},
                                          {"(root)", "Worse", "custom", std::nullopt}}) ==
           "- a: Bad\n- Worse");
+}
+
+TEST_CASE("schema length and item bounds never narrow outside size_t") {
+    const std::vector<afd::Json> bounds = {
+        1e100, std::uint64_t{4294967296}, (std::numeric_limits<std::uint64_t>::max)(),
+        std::ldexp(1.0, std::numeric_limits<std::size_t>::digits)};
+    for (const auto& bound : bounds) {
+        CAPTURE(bound.dump());
+        const auto string_min = compile({{"type", "string"}, {"minLength", bound}});
+        const auto array_min = compile({{"type", "array"}, {"minItems", bound}});
+        const auto string_max = compile({{"type", "string"}, {"maxLength", bound}});
+        const auto array_max = compile({{"type", "array"}, {"maxItems", bound}});
+        const auto short_string = string_min.validate("x");
+        const auto short_array = array_min.validate(afd::Json::array());
+        REQUIRE_FALSE(short_string.has_value());
+        REQUIRE_FALSE(short_array.has_value());
+        CHECK(short_string.error().errors[0].code == "too_small");
+        CHECK(short_array.error().errors[0].code == "too_small");
+        CHECK(string_max.validate("x").has_value());
+        CHECK(array_max.validate(afd::Json::array()).has_value());
+    }
+    for (const double bad : {(std::numeric_limits<double>::infinity)(),
+                             (std::numeric_limits<double>::quiet_NaN)(), -1.0, 1.5}) {
+        CHECK_FALSE(
+            afd::CompiledSchema::compile({{"type", "string"}, {"minLength", bad}}).has_value());
+    }
+    const auto exact = compile({{"type", "string"}, {"minLength", 2.0}, {"maxLength", 2.0}});
+    CHECK_FALSE(exact.validate("x").has_value());
+    CHECK(exact.validate("xx").has_value());
+    CHECK_FALSE(exact.validate("xxx").has_value());
+}
+
+TEST_CASE("validation reports every issue without a fixed cap") {
+    const auto schema = compile({{"type", "array"}, {"items", {{"type", "string"}}}});
+    afd::Json input = afd::Json::array();
+    for (int index = 0; index < 120; ++index) {
+        input.push_back(index);
+    }
+    const auto result = schema.validate(input);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().errors.size() == 120);
+}
+
+TEST_CASE("array item issues precede bounds and unknown object keys follow property issues") {
+    const auto schema = compile(
+        {{"type", "object"},
+         {"properties",
+          {{"items", {{"type", "array"}, {"minItems", 3}, {"items", {{"type", "string"}}}}}}},
+         {"additionalProperties", false}});
+    const auto result = schema.validate({{"items", {1, 2}}, {"extra", true}});
+    REQUIRE_FALSE(result.has_value());
+    const auto& errors = result.error().errors;
+    REQUIRE(errors.size() == 4);
+    CHECK(errors[0].path == "items.0");
+    CHECK(errors[1].path == "items.1");
+    CHECK(errors[2].path == "items");
+    CHECK(errors[2].code == "too_small");
+    CHECK(errors[3].path == "(root)");
+    CHECK(errors[3].code == "unrecognized_keys");
+}
+
+TEST_CASE("required boolean and untyped properties reject omission through schema and registry") {
+    const std::vector<afd::Json> declarations = {true, afd::Json::object(),
+                                                 afd::Json{{"description", "untyped"}},
+                                                 afd::Json{{"$ref", "#/$defs/Anything"}}};
+    for (const auto& declaration : declarations) {
+        CAPTURE(declaration.dump());
+        const afd::Json raw = {{"type", "object"},
+                               {"properties", {{"x", declaration}}},
+                               {"required", {"x"}},
+                               {"$defs", {{"Anything", true}}}};
+        const auto schema = compile(raw);
+        const auto missing = schema.validate(afd::Json::object());
+        if (missing.has_value()) {
+            CHECK_FALSE(missing.has_value());
+            continue;
+        }
+        REQUIRE(missing.error().errors.size() == 1);
+        const auto& issue = missing.error().errors.front();
+        CHECK(issue.path == "x");
+        CHECK(issue.code == "invalid_type");
+        CHECK(issue.expected == "nonoptional");
+        CHECK(issue.message == "Invalid input: expected nonoptional, received undefined");
+        CHECK(missing.error().missing_fields == std::vector<std::string>{"x"});
+        CHECK(schema.validate({{"x", nullptr}}).has_value());
+        CHECK(schema.validate({{"x", 1}}).has_value());
+        bool called = false;
+        afd::CommandRegistry registry;
+        REQUIRE_FALSE(registry
+                          .register_command({.name = "test-required",
+                                             .description = "Missing required property",
+                                             .input_schema = raw,
+                                             .handler =
+                                                 [&](const afd::Json& input, afd::CommandContext&) {
+                                                     called = true;
+                                                     return afd::success(input);
+                                                 }})
+                          .has_value());
+        const auto result = registry.execute("test-required", afd::Json::object());
+        REQUIRE_FALSE(result.success);
+        REQUIRE(result.error.has_value());
+        CHECK(result.error->code == "VALIDATION_ERROR");
+        CHECK_FALSE(called);
+        CHECK(registry.execute("test-required", {{"x", nullptr}}).success);
+        CHECK(called);
+    }
+    // Names required without a declaration still enforce presence.
+    const auto undeclared = compile({{"type", "object"}, {"required", {"x"}}});
+    const auto missing = undeclared.validate(afd::Json::object());
+    REQUIRE_FALSE(missing.has_value());
+    CHECK(missing.error().errors.front().expected == "nonoptional");
+    CHECK(undeclared.validate({{"x", nullptr}}).has_value());
+    // A schema that permits no values remains rejected for both omitted and present values.
+    const auto never =
+        compile({{"type", "object"}, {"properties", {{"x", false}}}, {"required", {"x"}}});
+    CHECK_FALSE(never.validate(afd::Json::object()).has_value());
+    CHECK_FALSE(never.validate({{"x", nullptr}}).has_value());
+    // Defaults still fulfill required presence before validation, even on untyped schemas.
+    const auto defaulted = compile(
+        {{"type", "object"}, {"properties", {{"x", {{"default", 7}}}}}, {"required", {"x"}}});
+    const auto filled = defaulted.validate(afd::Json::object());
+    REQUIRE(filled.has_value());
+    CHECK(*filled == afd::Json{{"x", 7}});
 }

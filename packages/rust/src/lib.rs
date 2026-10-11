@@ -59,6 +59,8 @@ pub mod mcp;
 pub mod metadata;
 pub mod pipeline;
 pub mod result;
+mod schema_legacy;
+mod schema_validation;
 pub mod similarity;
 pub mod streaming;
 pub mod telemetry;

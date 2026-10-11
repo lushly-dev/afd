@@ -4,6 +4,8 @@
 
 ### Major Changes
 
+- [#225](https://github.com/lushly-dev/afd/pull/225): remotely callable commands must declare `expose: { mcp: true }`. MCP exposure is enforced across discovery and execution, including batch, pipeline and streaming routes. **Migration:** add the opt-in to commands intended for remote callers; configure the server's allowed HTTP hosts/origins for your deployment. Malformed request envelopes are validated before handlers run, and request/stream lifecycle cleanup is enforced.
+
 - [#254](https://github.com/lushly-dev/afd/pull/254) [`f943a5c`](https://github.com/lushly-dev/afd/commit/f943a5c55edfe16cc5b5e66ef1ec4948cd8cbdcc) Thanks [@Falkicon](https://github.com/Falkicon)! - Remove the APIs deprecated for this major version:
 
   - `@lushly-dev/afd-core` no longer re-exports `GitHubConnector`, `PackageManagerConnector` and their types (`GitHubConnectorOptions`, `Issue`, `IssueCreateOptions`, `IssueFilters`, `PrCreateOptions`, `PullRequest`, `PackageManager`, `PackageManagerConnectorOptions`) from its root entry. Import them from `@lushly-dev/afd-core/connectors`. The root entry now bundles for the browser.

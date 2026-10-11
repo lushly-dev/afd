@@ -42,17 +42,19 @@ interface BetterAuthClient {
 		email: (params: { email: string; password: string }) => Promise<BetterAuthMethodResponse>;
 	};
 	signOut: () => Promise<BetterAuthMethodResponse>;
-	useSession: () => {
-		subscribe: (
-			callback: (value: { data: BetterAuthSessionData | null; isPending: boolean }) => void
-		) => () => void;
-		get: () => { data: BetterAuthSessionData | null; isPending: boolean };
-	};
+	useSession: BetterAuthSessionStore | (() => BetterAuthSessionStore);
+}
+
+interface BetterAuthSessionStore {
+	subscribe: (
+		callback: (value: { data: BetterAuthSessionData | null; isPending: boolean }) => void
+	) => () => void;
+	get: () => { data: BetterAuthSessionData | null; isPending: boolean };
 }
 
 interface BetterAuthSessionData {
 	session: { id: string; expiresAt: string | Date };
-	user: { id: string; email: string; name?: string; image?: string };
+	user: { id: string; email: string; name?: string; image?: string | null };
 }
 
 export interface BetterAuthAdapterOptions {
@@ -139,8 +141,9 @@ export class BetterAuthAdapter implements AuthAdapter {
 	}
 
 	private setupSubscription(): void {
-		// biome-ignore lint/correctness/useHookAtTopLevel: useSession is a better-auth store accessor, not a React hook
-		const store = this.client.useSession();
+		const storeAccessor = this.client.useSession;
+		const store =
+			typeof storeAccessor === 'function' ? storeAccessor.call(this.client) : storeAccessor;
 
 		// Read before subscribing so stores that invoke the callback immediately do
 		// not replace an equivalent initial snapshot with a new object.
@@ -211,7 +214,7 @@ export class BetterAuthAdapter implements AuthAdapter {
 				id: value.data.user.id,
 				email: value.data.user.email,
 				name: value.data.user.name,
-				image: value.data.user.image,
+				image: value.data.user.image ?? undefined,
 			},
 		};
 	}

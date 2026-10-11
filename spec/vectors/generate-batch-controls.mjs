@@ -182,6 +182,11 @@ const batchCases = [
 		},
 	},
 	{
+		name: 'a fractional batch timeout is accepted',
+		handlers: { 'work-run': {} },
+		request: { commands: commands(['work-run']), options: { timeout: 20.5 } },
+	},
+	{
 		name: 'timeout 0 times out every command without running any',
 		handlers: { 'work-run': {} },
 		request: { commands: commands(['work-run', 'work-run']), options: { timeout: 0 } },
@@ -199,6 +204,8 @@ const invalidBatches = [
 		'fractional parallelism',
 		{ commands: [{ command: 'work-run' }], options: { parallelism: 1.5 } },
 	],
+	['a string timeout', { commands: [{ command: 'work-run' }], options: { timeout: '20.5' } }],
+	['a boolean timeout', { commands: [{ command: 'work-run' }], options: { timeout: true } }],
 	['a negative timeout', { commands: [{ command: 'work-run' }], options: { timeout: -1 } }],
 	[
 		'a string stopOnError',
@@ -257,6 +264,11 @@ const pipelineCases = [
 		request: { steps: [{ command: 'work-hang' }], options: { timeoutMs: 20 } },
 	},
 	{
+		name: 'a fractional pipeline timeout is accepted',
+		handlers: { 'work-run': {} },
+		request: { steps: [{ command: 'work-run' }], options: { timeoutMs: 20.5 } },
+	},
+	{
 		name: 'timeoutMs 0 times out the first step without running it',
 		handlers: { 'work-run': {} },
 		request: {
@@ -312,6 +324,8 @@ const invalidPipelines = [
 		'a malformed condition on a later step',
 		{ steps: [{ command: 'work-run' }, { command: 'work-run', when: { $eq: null } }] },
 	],
+	['a string timeoutMs', { steps: [{ command: 'work-run' }], options: { timeoutMs: '20.5' } }],
+	['a boolean timeoutMs', { steps: [{ command: 'work-run' }], options: { timeoutMs: true } }],
 	['a negative timeoutMs', { steps: [{ command: 'work-run' }], options: { timeoutMs: -5 } }],
 	['a non-function onProgress', { steps: [{ command: 'work-run' }], options: { onProgress: 1 } }],
 	['steps given as an object', { steps: {} }],

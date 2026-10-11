@@ -43,7 +43,14 @@ export {
 } from './builtin-tools.js';
 // Batch and stream executors (shared by the registry and hosts such as the MCP server)
 export type { ExecutorOptions, StreamExecutorOptions } from './command-execution.js';
-export { executeBatch, executeStream, executionFailure } from './command-execution.js';
+export {
+	executeBatch,
+	executeStream,
+	executionFailure,
+	failedBatchRequest,
+} from './command-execution.js';
+export type { CommandToolMeta } from './command-metadata.js';
+export { commandToolMeta } from './command-metadata.js';
 // Command types
 export type {
 	CommandContext,

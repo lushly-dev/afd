@@ -70,8 +70,8 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 | Layer | When | What |
 |-------|------|------|
 | **Pre-commit** (lefthook) | `git commit` | Biome lint+fix, portability, file-size, typecheck |
-| **Pre-push** (lefthook) | `git push` | Full lint, test, typecheck, portability, file-size, orphan-files |
-| **Quality gate** (`pnpm check`) | On-demand / release script | lint → build → typecheck → test:coverage + portability, file-size, orphan-files |
+| **Pre-push** (lefthook) | `git push` | Full lint, test, typecheck, portability, file-size, orphan-files, versions, tooling-tests |
+| **Quality gate** (`pnpm check`) | On-demand / release script | lint → build → typecheck → test:coverage + portability, file-size, orphan-files, versions, tooling-tests |
 | **CI** (`ci.yml`) | Push to main / PR | Same as quality gate — safety net for skipped hooks |
 | **Python** (`python.yml`) | Push to main / PR touching `python/**`, `spec/wire`, `spec/vectors` or `spec/VERSION` | `uv lock --check`; ruff (F821, F841, B904); pytest on 3.10, 3.11, 3.12; wheel install smoke test per extra (base, client, server, cli) |
 | **Rust** (`rust.yml`) | Push to main / PR touching `packages/rust/**`, `spec/wire`, `spec/vectors` or `spec/VERSION` | `cargo fmt --check`; clippy `-D warnings` and `cargo test`, each with default and no default features |

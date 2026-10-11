@@ -316,14 +316,14 @@ def is_success(result: CommandResult[T]) -> bool:
         result: The CommandResult to check.
         
     Returns:
-        True if success=True and data is present.
+        True if the success discriminant is True (including null data).
     
     Example:
         >>> result = success({"id": "123"})
         >>> is_success(result)
         True
     """
-    return result.success is True and result.data is not None
+    return result.success is True
 
 
 def is_failure(result: CommandResult[T]) -> bool:

@@ -141,7 +141,7 @@ class PipelineOptions(WireModel):
     """
 
     continue_on_failure: StrictBool = False
-    timeout_ms: Optional[int] = Field(default=None, ge=0)
+    timeout_ms: Optional[Union[int, float]] = Field(default=None, ge=0, allow_inf_nan=False)
     parallel: StrictBool = False
 
     model_config = ConfigDict(**WIRE_MODEL_CONFIG, extra="forbid")

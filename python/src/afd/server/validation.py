@@ -30,6 +30,7 @@ from pydantic import ValidationError as PydanticValidationError
 
 from afd.core.errors import CommandError
 from afd.core.result import CommandResult, failure
+from afd.core.schema_validation import SchemaValidationError, schema_error_details
 
 T = TypeVar("T")
 
@@ -425,7 +426,7 @@ def _extract_schema_info(
         accepted = set(wire_names) | set(wire_names.values())
 
         # Unexpected: keys in input but not in model
-        unexpected_fields = sorted(str(key) for key in input_keys - accepted)
+        unexpected_fields = [str(key) for key in input_data if key not in accepted]
 
         # Missing: required fields not in input
         for name, field_info in model_class.model_fields.items():
@@ -440,9 +441,9 @@ def _extract_schema_info(
 
 
 def _input_validation_failure(
-    model_class: type[BaseModel],
+    model_class: type[BaseModel] | dict[str, Any],
     input_data: object,
-    exc: PydanticValidationError,
+    exc: PydanticValidationError | SchemaValidationError,
 ) -> CommandResult[Any]:
     """Build a VALIDATION_ERROR result from a pydantic error raised while parsing input.
 
@@ -451,8 +452,17 @@ def _input_validation_failure(
     ``unexpectedFields``, ``missingFields``), not the exception text or input
     values.
     """
-    errors = _convert_pydantic_errors(exc)
-    schema_info = _extract_schema_info(model_class, input_data)
+    if isinstance(exc, SchemaValidationError):
+        errors = [ValidationError(**issue) for issue in exc.issues]
+        details = schema_error_details(exc)
+        schema_info = {
+            "expected_fields": details.get("expectedFields", []),
+            "unexpected_fields": details.get("unexpectedFields", []),
+            "missing_fields": details.get("missingFields", []),
+        }
+    else:
+        errors = _convert_pydantic_errors(exc)
+        schema_info = _extract_schema_info(model_class, input_data)
     details: dict[str, Any] = {"errors": [_error_to_dict(e) for e in errors]}
     for key, wire_key in (
         ("expected_fields", "expectedFields"),
@@ -466,7 +476,6 @@ def _input_validation_failure(
             code="VALIDATION_ERROR",
             message="Input validation failed",
             suggestion=format_enhanced_validation_error(errors, schema_info),
-            retryable=False,
             details=details,
         )
     )

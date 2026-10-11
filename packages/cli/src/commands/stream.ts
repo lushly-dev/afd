@@ -81,11 +81,15 @@ export function registerStreamCommand(program: Command): void {
 				})) {
 					if (format === 'json') {
 						console.log(JSON.stringify(chunk));
+						if (isErrorChunk(chunk)) {
+							process.exitCode = 1;
+							break;
+						}
 						continue;
 					}
 
 					// Text format
-					handleTextChunk(chunk, {
+					const failed = handleTextChunk(chunk, {
 						showProgress,
 						setLastProgressLine: (line) => {
 							lastProgressLine = line;
@@ -97,29 +101,45 @@ export function registerStreamCommand(program: Command): void {
 							}
 						},
 					});
-				}
-
-				// Cleanup
-				process.off('SIGINT', cleanup);
-				process.off('SIGTERM', cleanup);
-
-				if (cancelled) {
-					console.log();
-					console.log(chalk.yellow('⚠ Stream cancelled by user'));
-					process.exit(130); // Standard Ctrl+C exit code
+					if (failed) {
+						process.exitCode = 1;
+						break;
+					}
 				}
 			} catch (error) {
+				if (!cancelled) {
+					if (format === 'json') {
+						console.log(
+							JSON.stringify({
+								type: 'error',
+								error: {
+									code: 'STREAM_FAILED',
+									message: error instanceof Error ? error.message : String(error),
+									suggestion: 'Check the connection and retry the stream',
+								},
+								chunksBeforeError: 0,
+								recoverable: true,
+							})
+						);
+					} else {
+						printError('Stream failed', error instanceof Error ? error : undefined);
+					}
+					process.exitCode = 1;
+				}
+			} finally {
 				process.off('SIGINT', cleanup);
 				process.off('SIGTERM', cleanup);
 
 				if (cancelled) {
-					console.log();
-					console.log(chalk.yellow('⚠ Stream cancelled by user'));
-					process.exit(130);
+					if (lastProgressLine) {
+						process.stdout.write(`\r${' '.repeat(lastProgressLine.length)}\r`);
+					}
+					if (format === 'text') {
+						console.log();
+						console.log(chalk.yellow('⚠ Stream cancelled by user'));
+					}
+					process.exitCode = 130; // Standard Ctrl+C exit code
 				}
-
-				printError('Stream failed', error instanceof Error ? error : undefined);
-				process.exit(1);
 			}
 		});
 }
@@ -135,11 +155,11 @@ function handleTextChunk<T>(
 		setLastProgressLine: (line: string) => void;
 		clearProgress: () => void;
 	}
-): void {
+): boolean {
 	const { showProgress, clearProgress, setLastProgressLine } = options;
 
 	if (isProgressChunk(chunk)) {
-		if (!showProgress) return;
+		if (!showProgress) return false;
 
 		// Clear previous progress line
 		clearProgress();
@@ -214,6 +234,7 @@ function handleTextChunk<T>(
 			}
 		}
 
-		process.exit(1);
+		return true;
 	}
+	return false;
 }

@@ -103,6 +103,8 @@ Each entry of `details.errors` has these fields:
 - For a `type` list of one type plus `"null"`, `expected` is that one type, for example `string`
   for `["string", "null"]`.
 - For `not: {}`, `expected` is `never`.
+- For an absent required property with no type constraint (including `{}`, `true`, or no
+  entry in `properties`), `expected` is `nonoptional`, matching Zod `z.unknown().nonoptional()`.
 - `received` names the value's JSON type: `undefined` for an absent property, then `null`,
   `boolean`, `number`, `string`, `array` or `object`.
 
@@ -112,19 +114,24 @@ An absent required property is reported the way its schema reports a value of th
 - `invalid_union` for a `type` list with more than one non-null type;
 - `invalid_type` otherwise.
 
-Validation reports every issue it finds, in this order:
-1. **Object:** the issues of each property, in the order `properties` declares them, not input
-   or alphabetical order. An absent required property is reported in its declared place. The
-   object's own `unrecognized_keys` issue comes last.
-2. **Array:** item issues in index order, then the array's own `minItems` or `maxItems` issue.
+Validation reports every issue it finds; neither `details.errors` nor the suggestion has an issue
+cap. The following traversal rules apply:
+
+1. **Object:** property issues come before the object's own `unrecognized_keys` issue. Sibling
+   property issues may follow declaration order or sorted key order; source order is not required.
+   An absent required property is validated by its own schema like a present property.
+2. **Array:** item issues follow index order, then the array's own `minItems` or `maxItems` issue.
 3. **One value:**
    - A type mismatch stops further checks on that value.
    - An `enum` or `const` mismatch gives a single `invalid_value` issue.
    - When several other keywords fail on the same value, such as `minLength` and `pattern`, their
      order is not specified. The vectors avoid that case.
 
-TypeScript does not cap the number of issues. Rust and C++ cap it, at 50 and 100. Whether to cap
-is not yet specified, and no vector test has more than 4 issues.
+TypeScript keeps its existing schema declaration order. Other implementations may keep their
+native JSON object representation. For a given schema and input, issue order must be deterministic.
+Conformance compares issues without sibling order, preserving duplicate issues; see
+[Conformance](#conformance). Input byte/depth limits may reject an input explicitly, but must not
+silently truncate its validation report.
 
 ### Field lists
 
@@ -132,16 +139,14 @@ The field lists describe the top level only. They are computed only when validat
 
 | Field | Contents |
 | --- | --- |
-| `expectedFields` | The names in the root schema's `properties`, in declaration order. Present even when the input is not an object. |
-| `unexpectedFields` | The top-level input keys that are not in `properties`, in input order. Every such key is listed, even when `additionalProperties` allows it. |
-| `missingFields` | The required top-level properties that are absent, in declaration order. A property that is present with `null` is not missing. |
+| `expectedFields` | The names in the root schema's `properties`. Present even when the input is not an object. |
+| `unexpectedFields` | The top-level input keys that are not in `properties`. Every such key is listed, even when `additionalProperties` allows it. |
+| `missingFields` | The required top-level properties without defaults that are absent. A property that is present with `null` is not missing. |
 
-JavaScript lists integer-like object keys, such as `"1"`, before other keys. The vectors use no
-such keys.
-
-The orders above come from the schema and the input as written. An implementation whose JSON
-objects sort their keys has to preserve source order instead. Examples are C++'s `afd::Json`, and
-Rust's `serde_json` without `preserve_order`.
+Field-list order is implementation-defined and deterministic. TypeScript retains schema declaration
+order for `expectedFields` and `missingFields`, and input order for `unexpectedFields`; integer-like
+JavaScript keys come first. Sorted JSON maps are also conforming. The vectors compare field-list
+membership without order, preserving duplicates and whether each list is present.
 
 ### Suggestion
 
@@ -169,11 +174,9 @@ sets these units.
   - A combining mark or a zero-width joiner is a code point of its own. So `e` followed by U+0301 is
     two code points, and a ZWJ family emoji is five.
   - UTF-8 bytes are not counted. `日本` is two code points.
-- **TypeScript's exception.** Zod counts code points from version 4.5.0, and
-  `@lushly-dev/afd-server` requires `zod` `^4.5.4`.
-  - A command schema built with Zod 4.0 to 4.4 counts UTF-16 code units instead. The result then
-    differs for characters outside the Basic Multilingual Plane.
-  - The vector tests whose result that changes carry `exceptions.typescript`.
+- **TypeScript requires Zod 4.5 or later.** `@lushly-dev/afd-server` requires `zod` `^4.5.4`,
+  whose string checks count code points. Zod 4.0 to 4.4 is outside the supported contract; there is
+  no TypeScript length-unit exception in the vectors.
 - **Out of scope:** lone surrogates, which are not Unicode scalar values and cannot be represented
   in UTF-8 strings.
 - **Arrays:** `minItems` and `maxItems` count elements.
@@ -225,7 +228,7 @@ An implementation may support these keywords. If it does, it follows TypeScript'
 | Keyword | Semantics |
 | --- | --- |
 | `pattern` | An ECMAScript regular expression, not anchored: it can match any part of the string. |
-| `format` | The named format. TypeScript emits `email`, `uuid`, `date-time` and others, each together with a `pattern` that enforces it. An implementation that supports `format` rejects a format name it does not know. |
+| `format` | The named format. TypeScript emits `email`, `uuid`, `date-time` and others, each together with a `pattern` that enforces it. An implementation that supports `format` rejects a format name it does not know at registration, naming the format and its location. |
 | `const` | JSON equality. A mismatch is `invalid_value`, whatever the value's type. |
 | `anyOf` | The first branch that matches produces the value, with that branch's unknown keys removed and defaults applied. If no branch matches, one `invalid_union` issue is reported at the value's path. TypeScript emits `anyOf` for a union of objects and for a nullable object. |
 | `oneOf` | Exactly one branch must match. No match, or more than one, gives `invalid_union`. See the discriminator rule below. |
@@ -308,46 +311,43 @@ An implementation checks each case like this:
    compare by value, so `1` equals `1.0`. Key order is ignored.
 4. **For an invalid test:**
    1. `code` and `message` equal the vector's.
-   2. `details.errors` has the same entries in the same order, compared by `path`, `code` and
-      `expected`.
-   3. The three field lists are equal, including their order and whether they are present.
+   2. `details.errors` has the same entries, compared as a multiset by `path`, `code` and
+      `expected` (including whether `expected` is present). Preserve duplicate issues; do not
+      compare sets. Sibling issue order may differ. Check array index order and parent-after-child
+      issue rules separately where those structures appear.
+   3. The three field lists have the same members, compared without order and preserving
+      duplicates and whether each list is present.
    4. The suggestion equals the [layout](#suggestion) built from the implementation's own
       `details`.
-   5. Issue messages should also match. When they do, the suggestion equals the vector's
-      exactly.
+   5. Issue messages should also match. The suggestion may differ from the vector when sibling
+      issues or field lists have a different order; it must still follow the layout built from the
+      implementation's own details. TypeScript's reference vectors retain its original ordering.
 
-`exceptions` names a language whose result may differ on that test, and why. The only
-exceptions are TypeScript's [length unit](#length-units) with Zod before 4.5.
+There are no language exceptions for the supported contract.
 
-Coverage today:
+Coverage in the stabilization candidate:
 - TypeScript: `packages/server/src/validation-vectors.test.ts` loads the vectors and runs every
   case.
-- Python, Rust and C++: loading the vectors is Wave 2 work of the parity closure plan. Each
-  language's failing cases are listed in its issue:
-  - Python: [#310](https://github.com/lushly-dev/afd/issues/310);
-  - Rust: [#311](https://github.com/lushly-dev/afd/issues/311);
-  - C++: [#312](https://github.com/lushly-dev/afd/issues/312).
+- Python: `python/tests/test_validation_vectors.py` executes every case.
+- Rust: `packages/rust/tests/validation_vectors.rs` executes supported cases and verifies
+  registration rejection for unsupported optional keywords.
+- C++: `packages/cpp/tests/vectors_test.cpp` executes every case.
+- Alfred checks that all four implementations retain designated vector loaders.
 
-## Open questions
+This records source coverage, not publication of those implementations.
 
-The rules below follow TypeScript or an existing implementation, but they are not yet decided.
-Until they are, treat them as provisional.
+## Settled decisions
 
-1. **Key order.**
-   - Current rule: field lists and sibling issues follow the schema's declaration order and the
-     input's key order.
-   - The cost: C++ (`afd::Json`) and Rust (`serde_json` by default) sort keys, so they would need
-     order-preserving JSON.
-   - The alternative: loaders compare those lists as sets.
-2. **A command with no parameters.**
-   - Current rule: `"properties": {}` removes every key.
-   - The conflict: Rust documents that a command with no parameters accepts any input unchanged,
-     yet it advertises `"properties": {}`.
-3. **Issue caps.** Not specified. TypeScript reports every issue, while Rust and C++ cap them.
-4. **Unknown `format` names.** Current rule: an implementation that supports `format` rejects a
-   name it does not know. JSON Schema would ignore it.
-5. **A defaulted property listed in `required`.** Current rule: it is optional, as in #284.
-   TypeScript never emits one.
-6. **D3 and TypeScript.** D3 says TypeScript differs for astral characters, but TypeScript only
-   does so with Zod before 4.5. The open choice is whether to reword D3 and keep the `exceptions`
-   marks, or to require Zod 4.5 and drop the marks.
+[#332](https://github.com/lushly-dev/afd/issues/332) settles the former open questions:
+
+1. Sibling issue and field-list source order is not a cross-language requirement. TypeScript keeps
+   its current order; sorted JSON implementations keep their representation. Comparison preserves
+   duplicate issues and list presence, and suggestions use actual details.
+2. A command advertising `"properties": {}` removes undeclared keys. An empty parameter list does
+   not bypass that advertised schema. An object schema with neither `properties` nor
+   `additionalProperties` keeps its keys.
+3. All issues are reported, including in suggestions, without a silent issue cap.
+4. A supported `format` with an unknown name is rejected at registration.
+5. A property with a default is optional even when listed in `required`.
+6. Supported TypeScript uses Zod 4.5 or later and counts code points; old Zod exception marks are
+   removed.

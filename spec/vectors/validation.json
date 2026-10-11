@@ -864,9 +864,6 @@
 					"input": {
 						"code": "😀"
 					},
-					"exceptions": {
-						"typescript": "Zod before 4.5 counts UTF-16 code units, so a command schema built with it gives the other result. @lushly-dev/afd-server requires Zod 4.5 or later."
-					},
 					"valid": false,
 					"error": {
 						"code": "VALIDATION_ERROR",
@@ -889,9 +886,6 @@
 					"input": {
 						"code": "😀😀"
 					},
-					"exceptions": {
-						"typescript": "Zod before 4.5 counts UTF-16 code units, so a command schema built with it gives the other result. @lushly-dev/afd-server requires Zod 4.5 or later."
-					},
 					"valid": true,
 					"data": {
 						"code": "😀😀"
@@ -901,9 +895,6 @@
 					"description": "Three emoji are three code points (six UTF-16 units), which fits",
 					"input": {
 						"code": "😀😀😀"
-					},
-					"exceptions": {
-						"typescript": "Zod before 4.5 counts UTF-16 code units, so a command schema built with it gives the other result. @lushly-dev/afd-server requires Zod 4.5 or later."
 					},
 					"valid": true,
 					"data": {
@@ -1034,9 +1025,6 @@
 					"description": "A ZWJ family emoji is five code points (eight UTF-16 units, one grapheme), which fits",
 					"input": {
 						"five": "👨‍👩‍👧"
-					},
-					"exceptions": {
-						"typescript": "Zod before 4.5 counts UTF-16 code units, so a command schema built with it gives the other result. @lushly-dev/afd-server requires Zod 4.5 or later."
 					},
 					"valid": true,
 					"data": {
@@ -2775,6 +2763,730 @@
 								}
 							],
 							"expectedFields": ["priority", "tags", "filter", "items", "threshold"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "required-with-default",
+			"section": "null-and-defaults",
+			"description": "A default makes a property optional even when a hand-written required list includes it.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"count": {
+						"default": 3,
+						"type": "number"
+					},
+					"title": {
+						"type": "string"
+					}
+				},
+				"required": ["count", "title"]
+			},
+			"tests": [
+				{
+					"description": "A missing defaulted property gets the default",
+					"input": {
+						"title": "a"
+					},
+					"valid": true,
+					"data": {
+						"count": 3,
+						"title": "a"
+					}
+				},
+				{
+					"description": "A defaulted property is absent from missingFields",
+					"input": {},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "title: Invalid input: expected string, received undefined. Missing required field(s): title. Expected fields: count, title",
+						"details": {
+							"errors": [
+								{
+									"path": "title",
+									"message": "Invalid input: expected string, received undefined",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["count", "title"],
+							"missingFields": ["title"]
+						}
+					}
+				},
+				{
+					"description": "Explicit null is never replaced by the default",
+					"input": {
+						"title": "a",
+						"count": null
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "count: Invalid input: expected number, received null. Expected fields: count, title",
+						"details": {
+							"errors": [
+								{
+									"path": "count",
+									"message": "Invalid input: expected number, received null",
+									"code": "invalid_type",
+									"expected": "number"
+								}
+							],
+							"expectedFields": ["count", "title"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"id": "issue-count-uncapped",
+			"section": "issues",
+			"description": "Every issue is reported, including more than 100 issues and every suggestion line.",
+			"schema": {
+				"type": "object",
+				"properties": {
+					"values": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					}
+				},
+				"required": ["values"]
+			},
+			"tests": [
+				{
+					"description": "101 invalid array items produce 101 issues",
+					"input": {
+						"values": [
+							0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+							0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+							0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+							0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+						]
+					},
+					"valid": false,
+					"error": {
+						"code": "VALIDATION_ERROR",
+						"message": "Input validation failed",
+						"suggestion": "- values.0: Invalid input: expected string, received number\n- values.1: Invalid input: expected string, received number\n- values.2: Invalid input: expected string, received number\n- values.3: Invalid input: expected string, received number\n- values.4: Invalid input: expected string, received number\n- values.5: Invalid input: expected string, received number\n- values.6: Invalid input: expected string, received number\n- values.7: Invalid input: expected string, received number\n- values.8: Invalid input: expected string, received number\n- values.9: Invalid input: expected string, received number\n- values.10: Invalid input: expected string, received number\n- values.11: Invalid input: expected string, received number\n- values.12: Invalid input: expected string, received number\n- values.13: Invalid input: expected string, received number\n- values.14: Invalid input: expected string, received number\n- values.15: Invalid input: expected string, received number\n- values.16: Invalid input: expected string, received number\n- values.17: Invalid input: expected string, received number\n- values.18: Invalid input: expected string, received number\n- values.19: Invalid input: expected string, received number\n- values.20: Invalid input: expected string, received number\n- values.21: Invalid input: expected string, received number\n- values.22: Invalid input: expected string, received number\n- values.23: Invalid input: expected string, received number\n- values.24: Invalid input: expected string, received number\n- values.25: Invalid input: expected string, received number\n- values.26: Invalid input: expected string, received number\n- values.27: Invalid input: expected string, received number\n- values.28: Invalid input: expected string, received number\n- values.29: Invalid input: expected string, received number\n- values.30: Invalid input: expected string, received number\n- values.31: Invalid input: expected string, received number\n- values.32: Invalid input: expected string, received number\n- values.33: Invalid input: expected string, received number\n- values.34: Invalid input: expected string, received number\n- values.35: Invalid input: expected string, received number\n- values.36: Invalid input: expected string, received number\n- values.37: Invalid input: expected string, received number\n- values.38: Invalid input: expected string, received number\n- values.39: Invalid input: expected string, received number\n- values.40: Invalid input: expected string, received number\n- values.41: Invalid input: expected string, received number\n- values.42: Invalid input: expected string, received number\n- values.43: Invalid input: expected string, received number\n- values.44: Invalid input: expected string, received number\n- values.45: Invalid input: expected string, received number\n- values.46: Invalid input: expected string, received number\n- values.47: Invalid input: expected string, received number\n- values.48: Invalid input: expected string, received number\n- values.49: Invalid input: expected string, received number\n- values.50: Invalid input: expected string, received number\n- values.51: Invalid input: expected string, received number\n- values.52: Invalid input: expected string, received number\n- values.53: Invalid input: expected string, received number\n- values.54: Invalid input: expected string, received number\n- values.55: Invalid input: expected string, received number\n- values.56: Invalid input: expected string, received number\n- values.57: Invalid input: expected string, received number\n- values.58: Invalid input: expected string, received number\n- values.59: Invalid input: expected string, received number\n- values.60: Invalid input: expected string, received number\n- values.61: Invalid input: expected string, received number\n- values.62: Invalid input: expected string, received number\n- values.63: Invalid input: expected string, received number\n- values.64: Invalid input: expected string, received number\n- values.65: Invalid input: expected string, received number\n- values.66: Invalid input: expected string, received number\n- values.67: Invalid input: expected string, received number\n- values.68: Invalid input: expected string, received number\n- values.69: Invalid input: expected string, received number\n- values.70: Invalid input: expected string, received number\n- values.71: Invalid input: expected string, received number\n- values.72: Invalid input: expected string, received number\n- values.73: Invalid input: expected string, received number\n- values.74: Invalid input: expected string, received number\n- values.75: Invalid input: expected string, received number\n- values.76: Invalid input: expected string, received number\n- values.77: Invalid input: expected string, received number\n- values.78: Invalid input: expected string, received number\n- values.79: Invalid input: expected string, received number\n- values.80: Invalid input: expected string, received number\n- values.81: Invalid input: expected string, received number\n- values.82: Invalid input: expected string, received number\n- values.83: Invalid input: expected string, received number\n- values.84: Invalid input: expected string, received number\n- values.85: Invalid input: expected string, received number\n- values.86: Invalid input: expected string, received number\n- values.87: Invalid input: expected string, received number\n- values.88: Invalid input: expected string, received number\n- values.89: Invalid input: expected string, received number\n- values.90: Invalid input: expected string, received number\n- values.91: Invalid input: expected string, received number\n- values.92: Invalid input: expected string, received number\n- values.93: Invalid input: expected string, received number\n- values.94: Invalid input: expected string, received number\n- values.95: Invalid input: expected string, received number\n- values.96: Invalid input: expected string, received number\n- values.97: Invalid input: expected string, received number\n- values.98: Invalid input: expected string, received number\n- values.99: Invalid input: expected string, received number\n- values.100: Invalid input: expected string, received number. Expected fields: values",
+						"details": {
+							"errors": [
+								{
+									"path": "values.0",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.1",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.2",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.3",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.4",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.5",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.6",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.7",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.8",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.9",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.10",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.11",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.12",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.13",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.14",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.15",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.16",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.17",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.18",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.19",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.20",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.21",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.22",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.23",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.24",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.25",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.26",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.27",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.28",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.29",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.30",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.31",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.32",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.33",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.34",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.35",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.36",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.37",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.38",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.39",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.40",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.41",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.42",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.43",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.44",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.45",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.46",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.47",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.48",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.49",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.50",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.51",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.52",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.53",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.54",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.55",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.56",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.57",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.58",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.59",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.60",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.61",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.62",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.63",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.64",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.65",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.66",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.67",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.68",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.69",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.70",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.71",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.72",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.73",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.74",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.75",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.76",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.77",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.78",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.79",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.80",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.81",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.82",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.83",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.84",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.85",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.86",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.87",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.88",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.89",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.90",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.91",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.92",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.93",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.94",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.95",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.96",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.97",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.98",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.99",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								},
+								{
+									"path": "values.100",
+									"message": "Invalid input: expected string, received number",
+									"code": "invalid_type",
+									"expected": "string"
+								}
+							],
+							"expectedFields": ["values"]
 						}
 					}
 				}

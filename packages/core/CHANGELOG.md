@@ -2,6 +2,8 @@
 
 ## 2.0.0
 
+- [#225](https://github.com/lushly-dev/afd/pull/225): honor batch concurrency, stop and deadline controls; preserve pipeline step positions; reject unsupported parallel pipeline execution; validate full batch/pipeline envelopes before handlers run. These fixes prevent malformed later entries from causing unreported partial writes.
+
 ### Major Changes
 
 - [#255](https://github.com/lushly-dev/afd/pull/255) [`77a829c`](https://github.com/lushly-dev/afd/commit/77a829c531edf4ba352bd570da8ea12bed0cb92b) Thanks [@Falkicon](https://github.com/Falkicon)! - All `@lushly-dev/*` packages now require Node.js 22.12 or later (`engines.node` was `>=22.0.0`). The client's `eventsource` 5 dependency declares Node.js 22.12, and every package ships at the same version, so the whole family uses the same minimum.

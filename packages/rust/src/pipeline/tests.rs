@@ -1235,3 +1235,24 @@ async fn test_panicking_step_keeps_completed_results() {
     assert_eq!(result.steps[3].status, StepStatus::Success);
     assert_eq!(result.data, Some(json!({"prev": 1})));
 }
+
+#[test]
+fn test_reference_limit_counts_utf16_units_at_the_boundary() {
+    for (suffix, resolved) in [("a", true), ("ab", false)] {
+        let key = format!("{}{suffix}", "😀".repeat(508));
+        let reference = format!("$input.{key}");
+        assert_eq!(
+            reference.encode_utf16().count(),
+            if resolved { 1024 } else { 1025 }
+        );
+        let context = PipelineContext::new(Some(json!({key: "value"})));
+        assert_eq!(
+            resolve_variable(&reference, &context),
+            Some(if resolved {
+                json!("value")
+            } else {
+                json!(reference)
+            })
+        );
+    }
+}

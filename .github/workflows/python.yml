@@ -1,6 +1,7 @@
 name: Python
 
 on:
+  workflow_call:
   push:
     branches: [main]
     paths:
@@ -11,6 +12,8 @@ on:
       # tests/test_contract_version.py checks CONTRACT_VERSION against it.
       - 'spec/VERSION'
       - '.github/workflows/python.yml'
+      - '.github/workflows/publish-python.yml'
+      - 'scripts/python-wheel-smoke.py'
   pull_request:
     branches: [main]
     paths:
@@ -19,6 +22,8 @@ on:
       - 'spec/vectors/**'
       - 'spec/VERSION'
       - '.github/workflows/python.yml'
+      - '.github/workflows/publish-python.yml'
+      - 'scripts/python-wheel-smoke.py'
 
 permissions:
   contents: read
@@ -84,10 +89,9 @@ jobs:
             else
               uv pip install --python "$py" "${wheel}[${extra}]"
             fi
-            "$py" -c "import afd, afd.core"
-            case "$extra" in
-              client) "$py" -c "from afd import McpClient" ;;
-              cli) "$venv/bin/afd" --help ;;
-            esac
+            "$py" -I ../scripts/python-wheel-smoke.py "$extra"
+            if [ "$extra" = cli ]; then
+              "$venv/bin/afd" --help
+            fi
             echo "::endgroup::"
           done

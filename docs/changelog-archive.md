@@ -9,7 +9,7 @@ The version numbers below are those of the repository-wide releases (the `v0.x` 
 
 ## npm 2.0.0 and repository changes (September 2026)
 
-These entries were under `Unreleased` when the split happened. Their TypeScript changes are in version 2.0.0 of the npm packages. The per-package changelogs list the 2.0.0 changes that came with a changeset (#232 onward); the entries from #225 (the #194–#224 fixes and migrations) had none, so they are recorded only here. The Python-only and Rust-only entries moved to [python/CHANGELOG.md](../python/CHANGELOG.md) and [packages/rust/CHANGELOG.md](../packages/rust/CHANGELOG.md).
+These entries were under `Unreleased` when the split happened. Their TypeScript changes are in version 2.0.0 of the npm packages. The per-package changelogs list the 2.0.0 changes that came with a changeset (#232 onward); the entries from #225 (the #194–#224 fixes and migrations) had none, so they were originally recorded only here. The server/core migration entries have since been restored to their 2.0.0 package changelogs (#335). The Python-only and Rust-only entries moved to [python/CHANGELOG.md](../python/CHANGELOG.md) and [packages/rust/CHANGELOG.md](../packages/rust/CHANGELOG.md).
 
 ### Fixed
 

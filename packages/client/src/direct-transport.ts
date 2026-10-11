@@ -18,6 +18,7 @@ import {
 	truncateName,
 } from '@lushly-dev/afd-core';
 import type { DirectRegistry } from './direct-types.js';
+import { raceWithAbort } from './request-abort.js';
 import type { Transport } from './transport.js';
 import { unknownToolFailure } from './unknown-tool.js';
 
@@ -61,13 +62,15 @@ export class DirectTransport implements Transport {
 	private errorHandler: ((error: Error) => void) | null = null;
 	private closeHandler: (() => void) | null = null;
 	private requestIdCounter = 0;
+	private activeControllers = new Set<AbortController>();
 
 	constructor(private readonly registry: DirectRegistry) {}
 
 	/**
 	 * Connect (no-op for direct transport, always succeeds immediately).
 	 */
-	async connect(): Promise<void> {
+	async connect(signal?: AbortSignal): Promise<void> {
+		signal?.throwIfAborted();
 		this.connected = true;
 	}
 
@@ -76,6 +79,10 @@ export class DirectTransport implements Transport {
 	 */
 	disconnect(): void {
 		this.connected = false;
+		for (const controller of this.activeControllers) {
+			controller.abort(new Error('Transport disconnected'));
+		}
+		this.activeControllers.clear();
 		if (this.closeHandler) {
 			this.closeHandler();
 		}
@@ -84,11 +91,17 @@ export class DirectTransport implements Transport {
 	/**
 	 * Send a request by executing the command directly.
 	 */
-	async send(request: McpRequest): Promise<McpResponse> {
+	async send(request: McpRequest, callerSignal?: AbortSignal): Promise<McpResponse> {
+		const controller = new AbortController();
+		const signal = callerSignal
+			? AbortSignal.any([callerSignal, controller.signal])
+			: controller.signal;
+		this.activeControllers.add(controller);
 		const requestId = request.id ?? ++this.requestIdCounter;
 		try {
-			return await this.dispatch(requestId, request);
+			return await raceWithAbort(signal, () => this.dispatch(requestId, request, signal));
 		} catch (error) {
+			if (signal.aborted) throw signal.reason;
 			// Only registry listing and lookup reach here; command execution failures are results.
 			this.errorHandler?.(error instanceof Error ? error : new Error(String(error)));
 			return {
@@ -96,10 +109,16 @@ export class DirectTransport implements Transport {
 				id: requestId,
 				error: { code: -32603, message: 'The direct registry failed to handle the request' },
 			};
+		} finally {
+			this.activeControllers.delete(controller);
 		}
 	}
 
-	private async dispatch(requestId: string | number, request: McpRequest): Promise<McpResponse> {
+	private async dispatch(
+		requestId: string | number,
+		request: McpRequest,
+		signal: AbortSignal
+	): Promise<McpResponse> {
 		if (request.method === 'initialize') {
 			return this.handleInitialize(requestId);
 		}
@@ -117,7 +136,7 @@ export class DirectTransport implements Transport {
 					},
 				};
 			}
-			return this.handleToolCall(requestId, request.params);
+			return this.handleToolCall(requestId, request.params, signal);
 		}
 
 		return {
@@ -176,22 +195,25 @@ export class DirectTransport implements Transport {
 	}
 
 	private handleToolsList(requestId: string | number): McpResponse {
-		const tools: McpTool[] = this.registry.listCommands().map((cmd) => ({
-			name: cmd.name,
-			description: cmd.description,
-			inputSchema: {
-				type: 'object' as const,
-				properties: {},
-			},
-		}));
+		const tools: McpTool[] = this.registry.listCommands().map((cmd) => {
+			const { name, description, inputSchema, ...metadata } = cmd;
+			return {
+				name,
+				description,
+				// Validating registries advertise object input schemas; legacy registries may omit one.
+				inputSchema: (inputSchema ?? { type: 'object', properties: {} }) as McpTool['inputSchema'],
+				...(Object.keys(metadata).length > 0 ? { _meta: metadata } : {}),
+			};
+		});
 		return { jsonrpc: '2.0', id: requestId, result: { tools } };
 	}
 
 	private async handleToolCall(
 		requestId: string | number,
-		params: ToolCallParams
+		params: ToolCallParams,
+		signal: AbortSignal
 	): Promise<McpResponse> {
-		const { payload, isError } = await this.runTool(params.name, params.arguments ?? {});
+		const { payload, isError } = await this.runTool(params.name, params.arguments ?? {}, signal);
 		const response: McpResponse = {
 			jsonrpc: '2.0',
 			id: requestId,
@@ -200,36 +222,46 @@ export class DirectTransport implements Transport {
 				isError,
 			},
 		};
-		this.messageHandler?.(response);
+		if (!signal.aborted) this.messageHandler?.(response);
 		return response;
 	}
 
 	/** Run a tool the way the AFD server's tool router does: its content and error flag. */
 	private async runTool(
 		name: string,
-		args: Record<string, unknown>
+		args: Record<string, unknown>,
+		signal: AbortSignal
 	): Promise<{ payload: unknown; isError: boolean }> {
 		const execute: CommandExecutor = async (command, input, context) => {
 			try {
-				return await this.registry.execute(command, input, context);
+				const executionSignal =
+					context.signal instanceof AbortSignal
+						? AbortSignal.any([signal, context.signal])
+						: signal;
+				executionSignal.throwIfAborted();
+				return await this.registry.execute(command, input, { ...context, signal: executionSignal });
 			} catch (error) {
-				this.errorHandler?.(error instanceof Error ? error : new Error(String(error)));
+				if (!signal.aborted) {
+					this.errorHandler?.(error instanceof Error ? error : new Error(String(error)));
+				}
 				return executionFailure(error);
 			}
 		};
 
 		if (this.registry.hasCommand(name)) {
-			const result = await execute(name, args, {});
+			const result = await execute(name, args, { signal });
 			return { payload: result, isError: !result.success };
 		}
 		if (name === 'afd-batch') {
 			// SAFETY: executeBatch validates the whole envelope with isBatchRequest() before running.
-			const batch = await executeBatch(args as unknown as BatchRequest, execute);
+			const batch = await executeBatch(args as unknown as BatchRequest, execute, { signal });
 			return { payload: batch, isError: !batch.success };
 		}
 		if (name === 'afd-pipe') {
 			// SAFETY: executePipeline validates the whole envelope before running any step.
-			const pipeline = await executePipeline(args as unknown as PipelineRequest, execute);
+			const pipeline = await executePipeline(args as unknown as PipelineRequest, execute, {
+				signal,
+			});
 			return {
 				payload: pipeline,
 				isError: pipeline.steps.some((step) => step.status === 'failure'),

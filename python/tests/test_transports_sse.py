@@ -150,16 +150,18 @@ class TestSseCallbacks:
     @pytest.mark.asyncio
     async def test_connect_failure_triggers_on_error(self, monkeypatch):
         errors: list[str] = []
+        closes: list[bool] = []
 
         def on_error(exc):
             errors.append(str(exc))
 
-        t = SseTransport("http://localhost:3100/sse", on_error=on_error)
+        t = SseTransport("http://localhost:3100/sse", on_error=on_error, on_close=lambda: closes.append(True))
         _mock_sse_session(monkeypatch, init_error=RuntimeError("boom"))
 
         with pytest.raises(TransportError, match="boom"):
             await t.connect()
         assert errors == ["boom"]
+        assert closes == []
 
 
 class _FakeModel:
@@ -188,7 +190,7 @@ def _mock_sse_session(
     """Patch the upstream MCP SSE/session modules with lightweight fakes."""
 
     class FakeClientSession:
-        def __init__(self, *streams):
+        def __init__(self, *streams, **kwargs):
             self._streams = streams
 
         async def __aenter__(self):

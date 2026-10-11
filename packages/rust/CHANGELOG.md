@@ -8,7 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 The first release on crates.io. Until now the crate was only available as a git dependency.
 
+### Fixed
+
+- Reject references outside named schema definitions, preventing references into uninspected annotation/default data, and enforce both `const` and `enum` when combined.
+
+- Explicit `null` remains a value instead of taking a default or being reported missing (#282).
+- Apply schema and nested defaults as-is; export defaulted parameters as optional and preserve parameter default precedence (#284).
+- Empty legacy parameter lists enforce their advertised empty object schema, and validation reports every issue (#332). Applications needing open payloads should use whole-schema registration.
+- Pipeline references use the shared 1,024 UTF-16-unit limit, including astral characters (#283).
+
 ### Added
+
+- `CommandRegistry::register_with_schema` and `get_tool` preserve whole input schemas without changing existing public field types. Validation supports the required shared subset and `const`; unsupported keywords fail registration. Bootstrap schema/docs discovery uses the same authoritative schema (#311).
+- Shared validation vectors exercise supported cases through actual registry dispatch and verify optional unsupported cases fail registration. Boundary tests cover defaults, null, authoritative discovery, uncapped issues, oversized numeric bounds, and UTF-16 limits.
 
 - The wire types, which serialize exactly like `@lushly-dev/afd-core` (camelCase keys, unset fields omitted, unknown metadata keys kept in `extra`). `tests/wire_fixtures.rs` round-trips every `spec/wire` fixture:
   - `CommandResult<T>`, `ResultMetadata`, `CommandError` and `ErrorCode`;

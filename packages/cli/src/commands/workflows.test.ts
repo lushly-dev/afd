@@ -299,6 +299,9 @@ describe('CLI command workflows', () => {
 	});
 
 	it('renders recoverable stream errors and JSON chunks', async () => {
+		const previousExitCode = process.exitCode;
+		const sigintListeners = process.listeners('SIGINT');
+		const sigtermListeners = process.listeners('SIGTERM');
 		const stream = vi
 			.fn()
 			.mockImplementationOnce(async function* () {
@@ -315,11 +318,17 @@ describe('CLI command workflows', () => {
 			});
 		mocks.ensureConnected.mockResolvedValue(client({ stream }));
 
-		await run('stream', 'export.run', '{}', '--no-progress');
-		await run('stream', 'export.run', '{}', '--format', 'json');
+		try {
+			await run('stream', 'export.run', '{}', '--no-progress');
+			await run('stream', 'export.run', '{}', '--format', 'json');
 
-		expect(process.exit).toHaveBeenCalledWith(1);
-		expect(console.log).toHaveBeenCalledWith(expect.stringContaining('"type":"data"'));
+			expect(process.exitCode).toBe(1);
+			expect(console.log).toHaveBeenCalledWith(expect.stringContaining('"type":"data"'));
+			expect(process.listeners('SIGINT')).toEqual(sigintListeners);
+			expect(process.listeners('SIGTERM')).toEqual(sigtermListeners);
+		} finally {
+			process.exitCode = previousExitCode ?? 0;
+		}
 	});
 
 	it('connects, reports status, and disconnects through command workflows', async () => {

@@ -169,3 +169,18 @@ TEST_CASE("$exists is false for null") {
     context.steps[2].data = afd::Json{{"value", nullptr}};
     CHECK_FALSE(afd::evaluate_condition({{"$exists", "$prev.value"}}, context));
 }
+
+TEST_CASE("public resolver leaves indices outside the platform range unresolved") {
+    afd::PipelineContext context;
+    context.pipeline_input = afd::Json{{"items", {"sentinel"}}};
+    context.steps.push_back(step(0, afd::StepStatus::success, "sentinel"));
+    REQUIRE(afd::resolve_variable("$input.items[0]", context) == afd::Json("sentinel"));
+    REQUIRE(afd::resolve_variable("$steps[0]", context) == afd::Json("sentinel"));
+    for (const std::string index :
+         {"4294967295", "4294967296", "4294967297", "9007199254740991", "9007199254740992"}) {
+        CAPTURE(index);
+        CHECK_FALSE(afd::resolve_variable("$input.items[" + index + "]", context).has_value());
+        CHECK_FALSE(afd::resolve_variable("$input.items." + index, context).has_value());
+        CHECK_FALSE(afd::resolve_variable("$steps[" + index + "]", context).has_value());
+    }
+}

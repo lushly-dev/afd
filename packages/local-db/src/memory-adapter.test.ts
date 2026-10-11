@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createMemoryAdapter, MemoryAdapter } from './memory-adapter.js';
-import type { DataAdapter } from './types.js';
+import type { BatchOperation, DataAdapter } from './types.js';
 
 describe('MemoryAdapter', () => {
 	let adapter: MemoryAdapter;
@@ -159,6 +159,30 @@ describe('MemoryAdapter', () => {
 			const row = await adapter.create<{ id: string; name: string }>('t', { name: 'mykey' });
 			expect(row.id).toBe('mykey');
 		});
+
+		it('uses key as id fallback', async () => {
+			const row = await adapter.create<{ id: string; key: string }>('t', { key: 'mykey' });
+			expect(row.id).toBe('mykey');
+		});
+
+		it.each([
+			['id', ''],
+			['id', '.'],
+			['id', '..'],
+			['name', ''],
+			['name', '.'],
+			['name', '..'],
+			['key', ''],
+			['key', '.'],
+			['key', '..'],
+		] as const)('rejects an invalid %s-derived record ID %j', async (field, value) => {
+			await expect(adapter.create('items', { [field]: value })).rejects.toMatchObject({
+				name: 'DataAdapterError',
+				status: 400,
+				code: 'INVALID_NAME',
+			});
+			expect(adapter.count('items')).toBe(0);
+		});
 	});
 
 	describe('update', () => {
@@ -278,7 +302,6 @@ describe('MemoryAdapter', () => {
 				{ method: 'POST', path: '/items', body: { id: 'one' } },
 				operation,
 			]);
-
 			expect(result.results[0]).toEqual({
 				status: 424,
 				error: 'Not applied: operation 1 failed, so the batch was rolled back',
@@ -287,6 +310,51 @@ describe('MemoryAdapter', () => {
 			expect(result.results[1]?.error).toContain(error);
 			expect(result.summary).toEqual({ total: 2, success: 0, failed: 2 });
 			expect(await adapter.get('items', 'one')).toBeNull();
+		});
+
+		it.each([null, undefined])('rolls back when a batch contains %j', async (invalid) => {
+			await adapter.create('items', { id: 'existing', value: 'preserved' });
+			const result = await adapter.batch([
+				{ method: 'POST', path: '/items', body: { id: 'new' } },
+				invalid as unknown as BatchOperation,
+			]);
+
+			expect(result.results).toEqual([
+				{
+					status: 424,
+					error: 'Not applied: operation 1 failed, so the batch was rolled back',
+				},
+				{ status: 400, error: 'Batch operation must be an object' },
+			]);
+			expect(await adapter.get('items', 'new')).toBeNull();
+			expect(await adapter.get('items', 'existing')).toEqual({
+				id: 'existing',
+				value: 'preserved',
+			});
+		});
+
+		it.each([
+			['id', ''],
+			['id', '.'],
+			['id', '..'],
+			['name', ''],
+			['name', '.'],
+			['name', '..'],
+			['key', ''],
+			['key', '.'],
+			['key', '..'],
+		] as const)('rolls back when POST derives an invalid %s record ID %j', async (field, value) => {
+			const result = await adapter.batch([
+				{ method: 'POST', path: '/items', body: { id: 'new' } },
+				{ method: 'POST', path: '/items', body: { [field]: value } },
+			]);
+
+			expect(result.results[0]?.status).toBe(424);
+			expect(result.results[1]).toMatchObject({
+				status: 400,
+				error: expect.stringContaining('Invalid record id'),
+			});
+			expect(await adapter.get('items', 'new')).toBeNull();
 		});
 
 		it('reports a non-JSON body as a 500 and rolls back', async () => {
@@ -365,6 +433,22 @@ describe('MemoryAdapter', () => {
 			});
 			const result = await db.list('users');
 			expect(result.total).toBe(2);
+		});
+
+		it.each([
+			['id', ''],
+			['id', '.'],
+			['id', '..'],
+			['name', ''],
+			['name', '.'],
+			['name', '..'],
+			['key', ''],
+			['key', '.'],
+			['key', '..'],
+		] as const)('rejects an invalid %s-derived record ID %j', (field, value) => {
+			expect(() => new MemoryAdapter({ items: [{ [field]: value }] })).toThrow(
+				expect.objectContaining({ status: 400, code: 'INVALID_NAME' })
+			);
 		});
 	});
 });

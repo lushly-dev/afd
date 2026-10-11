@@ -16,6 +16,7 @@ import {
 } from '@lushly-dev/afd-core';
 import { toCommandError } from './client-errors.js';
 import type { DirectRegistry } from './direct-types.js';
+import { raceWithAbort } from './request-abort.js';
 import { readSseEvents, SseEventTooLargeError } from './sse-parser.js';
 
 /**
@@ -113,7 +114,10 @@ export interface StreamSession {
 	/** Sent as `Mcp-Session-Id` when set. */
 	readonly sessionId?: string;
 	/** Start a new session after the server rejected this one; `false` when it cannot. */
-	renewSession?(signal?: AbortSignal): Promise<boolean>;
+	renewSession?(signal?: AbortSignal, rejectedRevision?: number): Promise<boolean>;
+	/** Snapshots that bind a retry to the connection and renewal attempt that sent it. */
+	readonly sessionGeneration?: number;
+	readonly sessionRevision?: number;
 }
 
 /** Options for {@link streamOverHttp}. */
@@ -151,11 +155,23 @@ function postStream(request: HttpStreamRequest, sessionId: string | undefined): 
  */
 async function openStream(request: HttpStreamRequest): Promise<Response> {
 	const sessionId = request.session?.sessionId;
+	const generation = request.session?.sessionGeneration;
+	const revision = request.session?.sessionRevision;
+	const isCurrent = () => request.session?.sessionGeneration === generation;
 	const response = await postStream(request, sessionId);
-	if (response.status !== 404 || !sessionId) return response;
-	if (!(await request.session?.renewSession?.(request.signal))) return response;
+	if (response.status !== 404 || !sessionId || !isCurrent()) return response;
+	// Another request may already have replaced the rejected session while this 404 was delayed.
+	if (
+		request.session?.sessionId === sessionId &&
+		!(await request.session?.renewSession?.(request.signal, revision))
+	)
+		return response;
+	const renewedId = request.session?.sessionId;
+	if (!renewedId || !isCurrent()) return response;
 	await response.body?.cancel();
-	return postStream(request, request.session?.sessionId);
+	request.signal.throwIfAborted();
+	if (!isCurrent() || request.session?.sessionId !== renewedId) return response;
+	return postStream(request, renewedId);
 }
 
 /**
@@ -251,8 +267,20 @@ export async function* streamDirect<T>(
 	for await (const chunk of executeStream<T>(
 		name,
 		args ?? {},
-		(command, input, context) => registry.execute(command, input, context),
-		{ signal }
+		async (command, input, context) => {
+			const executionSignal = context.signal as AbortSignal;
+			try {
+				return await raceWithAbort(executionSignal, () =>
+					registry.execute(command, input, context)
+				);
+			} catch (error) {
+				// Let core emit its terminal abort chunk, including when execution ignores cancellation.
+				if (executionSignal.aborted) return { success: false };
+				throw error;
+			}
+		},
+		{ signal },
+		{ timeout: timeoutMs }
 	)) {
 		if (isErrorChunk(chunk) && chunk.error.code === 'STREAM_ABORTED' && signal.aborted) {
 			yield abortChunk(abort, timeoutMs, chunks);

@@ -207,22 +207,36 @@ assert_eq!(request.steps[1].alias, None);
   `devMode`. The panic payload is never included, and the registry has no dev mode that would show
   it. The panic is caught with `catch_unwind`, so a build with `panic = "abort"` still aborts.
 
-The validation result matches TypeScript's `validateInputEnhanced` except in these ways:
+For the complete required subset of [`spec/validation.md`](../../spec/validation.md), use
+`registry.register_with_schema(command, schema)` with a `serde_json::Value` schema. It supports
+nullable type lists, root and nested boolean/schema `additionalProperties`, local recursive
+`$ref` (`#`, `#/definitions/<name>`, `#/$defs/<name>` only), `definitions`/`$defs`, item and code-point length bounds, numeric and exclusive bounds,
+`enum`, `const`, and defaults. Unsupported optional keywords (`pattern`, `format`, `anyOf`,
+`oneOf`, `allOf`, `not`, `multipleOf`) and unknown keywords fail registration, with their location.
+The legacy typed schema remains available; it accepts harmless annotations during deserialization,
+rejects unknown constraints, rejects `format` at registration, and accepts only patterns the Rust
+regex engine can compile.
 
-- Issue `code`s and `expected` type names are Zod's (`invalid_type`, `invalid_value`, `too_small`,
-  `too_big`, `invalid_format`), and paths are joined with dots (`filter.tags.1`, or `(root)`), but
-  each `message` uses this crate's own wording.
-- `details.errors` holds at most 50 issues, and `suggestion` lists at most 5, because the input is
-  untrusted. TypeScript reports every issue.
-- A command without `parameters` gets its input unchanged, because the crate has no separate way to
-  declare an empty schema. Every TypeScript command has a schema.
-- A top-level `null` parameter counts as absent, so it takes its default or is reported missing
-  ([#282](https://github.com/lushly-dev/afd/issues/282)). TypeScript (Zod) and Python (Pydantic)
-  reject it unless the schema allows `null`. A `null` input counts as `{}`, as the TypeScript and
-  Python MCP routes treat missing or `null` arguments.
-- Only `CommandParameter::default` is applied. A `default` inside a parameter's `schema`, or on a
-  nested property, is advertised but never filled in
-  ([#284](https://github.com/lushly-dev/afd/issues/284)). Zod and Pydantic fill in nested defaults.
+Use `registry.get_tool(name)` to export the authoritative whole schema. The `afd-schema` and
+`afd-docs` bootstrap commands use that same schema. `command_to_mcp_tool` converts only a legacy
+`CommandDefinition`; a definition obtained with `registry.get(name)` does not contain a separately
+registered whole schema. Likewise, `SchemaInfo`/`McpTool` remain legacy typed representations;
+consume whole-schema bootstrap output as JSON when its types exceed that representation.
+TypeScript export of a whole schema includes its JSON source and a conservative `unknown` alias.
+
+Explicit property `null` is validated and never replaced by a default. Missing properties receive
+defaults at every present enclosing object; inserted defaults are used as-is, without validation,
+stripping, or nested default expansion. Defaulted parameters are omitted from exported `required`.
+A command with no legacy parameters now follows its advertised empty `properties`: it strips
+object keys and rejects non-object input. Top-level `null` arguments normalize to `{}`. Applications
+needing open payloads can register `{"type":"object","additionalProperties":true}`.
+
+Validation reports every issue and suggestion line. Field lists and sibling issues may differ in
+order from TypeScript; array item issues precede their bound issue and unknown-key issues follow
+property issues. Legacy issue wording differs from TypeScript. Whole-schema recursion has an
+explicit 128-level validation guard, reported as a validation error. The vector loader checks every
+required-subset case through registry execution and verifies unsupported optional cases fail
+registration; it preserves duplicate issues when comparing across languages.
 
 `execute_batch_with_context` runs every batch entry through the same path, with the caller's
 context and the request's `context` entries in `CommandContext::extra`. Commands can also declare

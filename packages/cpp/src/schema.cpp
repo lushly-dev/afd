@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <limits>
 #include <set>
 #include <string_view>
 
@@ -39,8 +40,6 @@ constexpr std::array<std::string_view, 7> type_names{"string", "number", "intege
 // Bounds schema nesting at compile time and $ref chains at any time.
 constexpr int max_schema_depth = 64;
 constexpr int max_ref_chain = 32;
-// Bounds the size of a failure report for hostile input.
-constexpr std::size_t max_issues = 100;
 
 template <std::size_t N>
 bool contains(const std::array<std::string_view, N>& names, std::string_view name) {
@@ -128,9 +127,27 @@ bool is_non_negative_integer(const Json& value) {
     }
     if (value.is_number_float()) {
         const double number = value.get<double>();
-        return number >= 0 && std::trunc(number) == number;
+        return std::isfinite(number) && number >= 0 && std::trunc(number) == number;
     }
     return false;
+}
+
+// Compare a size with a checked nonnegative integral bound without narrowing the bound.
+// In particular, valid huge minima must fail and huge maxima must pass on wasm32 too.
+int compare_size(std::size_t size, const Json& bound) {
+    if (bound.is_number_float()) {
+        const double number = bound.get<double>();
+        // 2^digits is the first value outside size_t, exactly representable as a double.
+        if (number >= std::ldexp(1.0, std::numeric_limits<std::size_t>::digits)) {
+            return -1;
+        }
+        const auto limit = static_cast<std::size_t>(number);
+        return size < limit ? -1 : size > limit ? 1 : 0;
+    }
+    const auto limit = bound.is_number_unsigned()
+                           ? bound.get<std::uint64_t>()
+                           : static_cast<std::uint64_t>(bound.get<std::int64_t>());
+    return size < limit ? -1 : size > limit ? 1 : 0;
 }
 
 // --- compile ------------------------------------------------------------------------------
@@ -348,40 +365,35 @@ const Json* default_of(const Json& root, const Json& property) {
     return nullptr;
 }
 
-std::string expected_type_of(const Json& root, const Json& schema) {
-    const Json* resolved = follow_refs(root, schema);
-    if (resolved == nullptr || !resolved->is_object()) {
-        return "unknown";
-    }
-    const auto type = resolved->find("type");
-    if (type != resolved->end() && type->is_string()) {
-        return type->get<std::string>() == "integer" ? "int" : type->get<std::string>();
-    }
-    return "unknown";
-}
-
 class Validator {
 public:
     Validator(const Json& root, std::vector<ValidationIssue>& issues)
         : root_(root), issues_(issues) {}
 
-    Json run(const Json& raw_schema, const Json& value, const std::string& path) {
+    Json run(const Json& raw_schema, const Json& value, const std::string& path,
+             bool absent = false) {
         const Json* schema = follow_refs(root_, raw_schema);
         if (schema == nullptr || schema->is_boolean()) {
             if (schema != nullptr && !schema->get<bool>()) {
                 add(path, "Invalid input", "invalid_value");
+            } else if (absent) {
+                add_missing_required(path);
             }
             return value;
         }
 
         if (const auto options = schema->find("enum"); options != schema->end()) {
-            if (std::none_of(options->begin(), options->end(),
-                             [&](const Json& option) { return option == value; })) {
+            if (absent || std::none_of(options->begin(), options->end(),
+                                       [&](const Json& option) { return option == value; })) {
                 std::string listed;
                 for (const Json& option : *options) {
                     listed += (listed.empty() ? "" : "|") + wire::serialize(option);
                 }
-                add(path, "Invalid option: expected one of " + listed, "invalid_value");
+                add(path,
+                    (options->size() == 1 ? "Invalid input: expected "
+                                          : "Invalid option: expected one of ") +
+                        listed,
+                    "invalid_value");
                 return value;
             }
         }
@@ -389,11 +401,15 @@ public:
         if (const auto type = schema->find("type"); type != schema->end()) {
             bool ok = false;
             std::string expected;
+            std::size_t non_null_types = 0;
             const auto consider = [&](const Json& t) {
                 const auto& name = t.get_ref<const std::string&>();
-                ok = ok || matches_type(value, name);
-                expected +=
-                    (expected.empty() ? "" : "|") + (name == "integer" ? std::string("int") : name);
+                ok = ok || (!absent && matches_type(value, name));
+                if (name != "null") {
+                    ++non_null_types;
+                    expected = name == "integer" ? (!absent && value.is_number() ? "int" : "number")
+                                                 : name;
+                }
             };
             if (type->is_array()) {
                 for (const Json& t : *type) {
@@ -403,13 +419,22 @@ public:
                 consider(*type);
             }
             if (!ok) {
-                const std::string received = expected == "int" && value.is_number()
-                                                 ? std::string("number")
-                                                 : received_name(value);
-                add(path, "Invalid input: expected " + expected + ", received " + received,
-                    "invalid_type", expected);
+                if (non_null_types > 1) {
+                    add(path, "Invalid input", "invalid_union");
+                } else {
+                    if (expected.empty()) {
+                        expected = "null";
+                    }
+                    const std::string received = absent ? "undefined" : received_name(value);
+                    add(path, "Invalid input: expected " + expected + ", received " + received,
+                        "invalid_type", expected);
+                }
                 return value;
             }
+        }
+        if (absent) {
+            add_missing_required(path);
+            return value;
         }
 
         if (value.is_string()) {
@@ -432,22 +457,25 @@ public:
 private:
     void add(const std::string& path, std::string message, std::string code,
              std::optional<std::string> expected = std::nullopt) {
-        if (issues_.size() < max_issues) {
-            issues_.push_back({path.empty() ? std::string("(root)") : path, std::move(message),
-                               std::move(code), std::move(expected)});
-        }
+        issues_.push_back({path.empty() ? std::string("(root)") : path, std::move(message),
+                           std::move(code), std::move(expected)});
+    }
+
+    void add_missing_required(const std::string& path) {
+        add(path, "Invalid input: expected nonoptional, received undefined", "invalid_type",
+            "nonoptional");
     }
 
     void check_string(const Json& schema, const std::string& text, const std::string& path) {
         const std::size_t length = code_points(text);
         if (const auto min = schema.find("minLength");
-            min != schema.end() && length < min->get<std::size_t>()) {
+            min != schema.end() && compare_size(length, *min) < 0) {
             add(path,
                 "Too small: expected string to have >=" + wire::serialize(*min) + " characters",
                 "too_small");
         }
         if (const auto max = schema.find("maxLength");
-            max != schema.end() && length > max->get<std::size_t>()) {
+            max != schema.end() && compare_size(length, *max) > 0) {
             add(path, "Too big: expected string to have <=" + wire::serialize(*max) + " characters",
                 "too_big");
         }
@@ -476,24 +504,24 @@ private:
     }
 
     Json check_array(const Json& schema, const Json& value, const std::string& path) {
+        const auto items = schema.find("items");
+        Json parsed = items == schema.end() ? value : Json::array();
+        if (items != schema.end()) {
+            for (std::size_t i = 0; i < value.size(); ++i) {
+                parsed.push_back(run(*items, value[i], join_path(path, std::to_string(i))));
+            }
+        }
         if (const auto min = schema.find("minItems");
-            min != schema.end() && value.size() < min->get<std::size_t>()) {
+            min != schema.end() && compare_size(value.size(), *min) < 0) {
             add(path, "Too small: expected array to have >=" + wire::serialize(*min) + " items",
                 "too_small");
         }
         if (const auto max = schema.find("maxItems");
-            max != schema.end() && value.size() > max->get<std::size_t>()) {
+            max != schema.end() && compare_size(value.size(), *max) > 0) {
             add(path, "Too big: expected array to have <=" + wire::serialize(*max) + " items",
                 "too_big");
         }
-        const auto items = schema.find("items");
-        if (items == schema.end()) {
-            return value;
-        }
-        Json parsed = Json::array();
-        for (std::size_t i = 0; i < value.size(); ++i) {
-            parsed.push_back(run(*items, value[i], join_path(path, std::to_string(i))));
-        }
+
         return parsed;
     }
 
@@ -523,16 +551,12 @@ private:
                 if (value.contains(name) || parsed.contains(name)) {
                     continue;
                 }
-                std::string expected = "unknown";
-                if (has_properties) {
-                    if (const auto declared = properties->find(name);
-                        declared != properties->end()) {
-                        expected = expected_type_of(root_, *declared);
-                    }
+                const auto declared = has_properties ? properties->find(name) : schema.end();
+                if (has_properties && declared != properties->end()) {
+                    run(*declared, nullptr, join_path(path, name), true);
+                } else {
+                    add_missing_required(join_path(path, name));
                 }
-                add(join_path(path, name),
-                    "Invalid input: expected " + expected + ", received undefined", "invalid_type",
-                    expected);
             }
         }
 

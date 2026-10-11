@@ -37,6 +37,7 @@ from pydantic import ValidationError
 from afd.core.result import CommandResult, error as result_error, success
 from afd.transports.base import (
     ToolExecutionError,
+    ToolNotFoundError,
     ToolInfo,
     TransportError,
     TransportState,
@@ -149,10 +150,15 @@ class McpClient:
         """
         self._config = config or McpClientConfig()
         self._transport = transport
+        self._owns_transport = transport is None
         self._tools: List[ToolInfo] = []
         self._connected_at: Optional[datetime] = None
         self._reconnect_attempts = 0
         self._event_handlers: Dict[str, List[Callable[..., None]]] = {}
+        self._generation = 0
+        self._active = False
+        self._reconnect_task: Optional[asyncio.Task] = None
+        self._state = TransportState.DISCONNECTED
 
     # ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -166,44 +172,55 @@ class McpClient:
             TransportError: On connection failure.
             ValueError: If no URL is configured.
         """
-        if self._transport and self._transport.state == TransportState.CONNECTED:
+        if self.is_connected():
             raise RuntimeError("Already connected")
-
+        await self._stop_reconnect()
+        self._generation += 1
+        generation = self._generation
+        self._active = False
+        if self._transport is not None:
+            await self._transport.disconnect()
+        self._active = True
+        self._reconnect_attempts = 0
         if self._transport is None:
             self._transport = _create_transport(self._config)
-
-        self._emit("state_change", TransportState.CONNECTING)
-
+        self._bind_transport_events()
+        self._set_state(TransportState.CONNECTING)
         try:
             await self._transport.connect()
+            tools = await self._transport.list_tools()
+            if generation != self._generation or not self._active:
+                return
+            self._tools = tools
             self._connected_at = datetime.now(timezone.utc)
-            self._reconnect_attempts = 0
-
-            # Fetch initial tools
-            self._tools = await self._transport.list_tools()
-
-            self._emit("state_change", TransportState.CONNECTED)
+            self._set_state(TransportState.CONNECTED)
             self._emit("connected")
-
-        except Exception as exc:
-            self._emit("state_change", TransportState.ERROR)
-            self._emit("error", exc)
+        except BaseException as exc:
+            if generation == self._generation:
+                self._active = False
+                await self._transport.disconnect()
+                self._clear_connection()
+                self._set_state(TransportState.ERROR)
+                if isinstance(exc, Exception):
+                    self._emit("error", exc)
             raise
 
     async def disconnect(self) -> None:
-        """Disconnect from the MCP server."""
+        """Disconnect and cancel any pending reconnect delay or handshake."""
+        self._active = False
+        self._generation += 1
+        await self._stop_reconnect()
         if self._transport:
             await self._transport.disconnect()
-
-        self._tools = []
-        self._connected_at = None
-        self._emit("state_change", TransportState.DISCONNECTED)
+        self._clear_connection()
+        self._set_state(TransportState.DISCONNECTED)
         self._emit("disconnected", "Manual disconnect")
 
     def is_connected(self) -> bool:
-        """Check if the client is connected."""
+        """Check if the client and transport are connected."""
         return (
-            self._transport is not None
+            self._state == TransportState.CONNECTED
+            and self._transport is not None
             and self._transport.state == TransportState.CONNECTED
         )
 
@@ -212,7 +229,7 @@ class McpClient:
     async def list_tools(self) -> List[ToolInfo]:
         """Refresh and return the list of available tools."""
         self._require_connected()
-        self._tools = await self._transport.list_tools()
+        self._tools = await self._request("list_tools")
         return self._tools
 
     def get_tools(self) -> List[ToolInfo]:
@@ -244,7 +261,7 @@ class McpClient:
         self._require_connected()
 
         try:
-            data = await self._transport.call_tool(name, args or {})
+            data = await self._request("call_tool", name, args or {})
 
             # A CommandResult-shaped dict keeps every field it carries
             if isinstance(data, dict) and isinstance(data.get("success"), bool):
@@ -286,7 +303,7 @@ class McpClient:
             Raw tool result.
         """
         self._require_connected()
-        return await self._transport.call_tool(name, args or {})
+        return await self._request("call_tool", name, args or {})
 
     # ── Batch / Pipeline ──────────────────────────────────────────────────
 
@@ -311,7 +328,7 @@ class McpClient:
             if "command" not in payload and "name" in payload:
                 payload["command"] = payload.pop("name")
             normalized_commands.append(payload)
-        return await self._transport.call_tool("afd-batch", {
+        return await self._request("call_tool", "afd-batch", {
             "commands": normalized_commands,
             "options": options or {},
         })
@@ -331,7 +348,7 @@ class McpClient:
             Pipeline result from the server.
         """
         self._require_connected()
-        return await self._transport.call_tool("afd-pipe", {
+        return await self._request("call_tool", "afd-pipe", {
             "steps": list(steps),
             "options": options or {},
         })
@@ -434,51 +451,106 @@ class McpClient:
 
     # ── Reconnection ──────────────────────────────────────────────────────
 
-    async def _attempt_reconnect(self) -> bool:
-        """Attempt to reconnect with exponential backoff.
+    def _set_state(self, state: TransportState) -> None:
+        self._state = state
+        self._emit("state_change", state)
 
-        Returns:
-            True if reconnection succeeded, False if max attempts exceeded.
-        """
-        if not self._config.auto_reconnect:
-            return False
+    def _clear_connection(self) -> None:
+        self._tools = []
+        self._connected_at = None
 
-        max_attempts = self._config.max_reconnect_attempts
+    def _bind_transport_events(self) -> None:
+        # Built-in SSE transports report an idle server close as well as calls
+        # failing. HTTP failures are detected by _request(). Injected transports
+        # keep their existing callbacks/API.
+        if hasattr(self._transport, "set_callbacks"):
+            transport = self._transport
+            transport.set_callbacks(
+                on_close=lambda: self._connection_lost(transport),
+                on_error=lambda exc: self._connection_lost(transport, exc),
+            )
 
-        while self._reconnect_attempts < max_attempts:
-            self._reconnect_attempts += 1
-            delay = self._config.reconnect_delay * (2 ** (self._reconnect_attempts - 1))
+    def _connection_lost(self, transport: Any, exc: Optional[Exception] = None) -> None:
+        if not self._active or transport is not self._transport or self._state != TransportState.CONNECTED:
+            return
+        self._clear_connection()
+        self._set_state(TransportState.DISCONNECTED)
+        self._emit("disconnected", str(exc) if exc else "Connection closed")
+        if exc is not None:
+            self._emit("error", exc)
+        if self._config.auto_reconnect:
+            self._set_state(TransportState.RECONNECTING)
+            self._reconnect_task = asyncio.create_task(self._attempt_reconnect())
 
-            self._emit("reconnecting", self._reconnect_attempts, max_attempts)
-            self._emit("state_change", TransportState.RECONNECTING)
+    async def _request(self, method: str, *args: Any) -> Any:
+        """Report lost connections without replaying a possibly executed mutation."""
+        transport = self._transport
+        try:
+            return await getattr(transport, method)(*args)
+        except TransportError as exc:
+            if not isinstance(exc, (ToolExecutionError, ToolNotFoundError)) and transport.state != TransportState.CONNECTED:
+                self._connection_lost(transport, exc)
+            raise
 
-            await asyncio.sleep(delay)
-
+    async def _stop_reconnect(self) -> None:
+        task = self._reconnect_task
+        self._reconnect_task = None
+        if task is not None and task is not asyncio.current_task():
+            task.cancel()
             try:
-                if self._transport:
-                    await self._transport.disconnect()
-                self._transport = _create_transport(self._config)
-                await self._transport.connect()
-                self._connected_at = datetime.now(timezone.utc)
-                self._tools = await self._transport.list_tools()
-                self._emit("state_change", TransportState.CONNECTED)
-                self._emit("connected")
-                return True
-            except Exception as exc:
-                self._emit("error", exc)
+                await task
+            except asyncio.CancelledError:
+                pass
 
-        self._emit("state_change", TransportState.ERROR)
-        return False
+    async def _attempt_reconnect(self) -> bool:
+        """Restore discovery after loss; never replay an in-flight command."""
+        generation = self._generation
+        last_error: Optional[Exception] = None
+        if not self._config.auto_reconnect or not self._active:
+            return False
+        try:
+            for attempt in range(1, self._config.max_reconnect_attempts + 1):
+                if not self._active or generation != self._generation:
+                    return False
+                self._reconnect_attempts = attempt
+                self._emit("reconnecting", attempt, self._config.max_reconnect_attempts)
+                self._set_state(TransportState.RECONNECTING)
+                await asyncio.sleep(self._config.reconnect_delay * (2 ** (attempt - 1)))
+                if not self._active or generation != self._generation:
+                    return False
+                try:
+                    await self._transport.disconnect()
+                    # Reuse injected transports, which may not have a URL config.
+                    if self._owns_transport:
+                        self._transport = _create_transport(self._config)
+                    self._bind_transport_events()
+                    await self._transport.connect()
+                    tools = await self._transport.list_tools()
+                    if not self._active or generation != self._generation:
+                        await self._transport.disconnect()
+                        return False
+                    self._tools = tools
+                    self._connected_at = datetime.now(timezone.utc)
+                    self._reconnect_attempts = 0
+                    self._set_state(TransportState.CONNECTED)
+                    self._emit("connected")
+                    return True
+                except Exception as exc:
+                    last_error = exc
+                    await self._transport.disconnect()
+            self._clear_connection()
+            self._set_state(TransportState.ERROR)
+            self._emit("error", last_error or TransportError("Max reconnection attempts reached"))
+            return False
+        finally:
+            if self._reconnect_task is asyncio.current_task():
+                self._reconnect_task = None
 
     # ── Status ────────────────────────────────────────────────────────────
 
     def get_status(self) -> ClientStatus:
         """Get a snapshot of the client's current status."""
-        state = (
-            self._transport.state
-            if self._transport
-            else TransportState.DISCONNECTED
-        )
+        state = self._state
         return ClientStatus(
             state=state,
             url=self._config.resolved_url if state != TransportState.DISCONNECTED else None,

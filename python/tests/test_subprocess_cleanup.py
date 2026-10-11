@@ -98,15 +98,26 @@ class TestCliWrapper:
         )
 
     @pytest.mark.asyncio
-    async def test_timeout_kills_the_child(self, tmp_path):
+    async def test_timeout_kills_the_child(self, monkeypatch):
         wrapper = CliWrapper()
         wrapper.configure(cli_path=sys.executable)
-        pid_file = tmp_path / "pid"
+        create_subprocess_exec = asyncio.create_subprocess_exec
+        launched = []
+
+        async def capture_process(*args, **kwargs):
+            process = await create_subprocess_exec(*args, **kwargs)
+            launched.append(process)
+            return process
+
+        monkeypatch.setattr(asyncio, "create_subprocess_exec", capture_process)
 
         with pytest.raises(TimeoutError):
-            await wrapper._spawn(["-c", SLEEPER, str(pid_file)], 300)
+            await wrapper._spawn(["-c", "import time; time.sleep(30)"], 300)
 
-        assert not _alive(int(pid_file.read_text()))
+        assert len(launched) == 1
+        process = launched[0]
+        assert process.returncode is not None, "the child process was not reaped"
+        assert not _alive(process.pid), "the child process was orphaned"
 
 
 class TestBatchDeadline:

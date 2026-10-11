@@ -303,7 +303,7 @@ export function defineCommand<TInput extends ZodType, TOutput>(
 				examples: options.examples as CommandExample<z.infer<TInput>>[] | undefined,
 				contexts: options.contexts,
 				parameters: jsonSchemaToParameters(jsonSchema),
-				returns: outputJsonSchema ?? { type: 'object', description: 'Command result' },
+				returns: outputJsonSchema,
 				handler: options.handler as (
 					input: unknown,
 					context?: CommandContext
