@@ -2,32 +2,32 @@
 
 Updated: 2026-10-11. Stabilization PR #367 landed at `f19257e`. Tracks [#347](https://github.com/lushly-dev/afd/issues/347),
 [#359](https://github.com/lushly-dev/afd/issues/359) and
-[#360](https://github.com/lushly-dev/afd/issues/360), with remaining publication
-and advisory work in [#369](https://github.com/lushly-dev/afd/issues/369) and
-[#371](https://github.com/lushly-dev/afd/issues/371).
+[#360](https://github.com/lushly-dev/afd/issues/360). Publication recovery in
+[#369](https://github.com/lushly-dev/afd/issues/369) is complete; remaining
+advisory work is tracked in [#371](https://github.com/lushly-dev/afd/issues/371).
 
 ## Published packages and repository source
 
-Registry checks on this date returned npm `@lushly-dev/afd-core` **1.0.0** and
-PyPI `afd` **0.8.0**. The repository npm fixed group is **2.0.0**, with pending
-changesets selecting **2.1.0**. These are independent language releases; the
+Registry checks on this date returned all nine npm packages at **2.1.0** and
+PyPI `afd` at **0.9.0**. Both match their repository manifests. The accepted npm
+sequence published historical 2.0.0 before current 2.1.0. These are independent language releases; the
 private root package version is not a distribution version.
 
-The Python release candidate identifies itself as **0.9.0**, including all three
-dependent lockfiles. It contains lazy optional imports and subsequent API/wire
-changes absent from published 0.8.0. The dated changelog explains camelCase
-migration and preserves the following 0.10.0 server-defaults milestone.
-Passing the local 0.9.0 wheel does not repair PyPI's 0.8.0 artifact. PyPI versions
-cannot be overwritten; #347 remains open until the new published base wheel passes.
+Python **0.9.0** was published from the exact #372 merge commit
+`4e16a0699eeb00c5d6576d29be575b86ca8fa485`, tagged `python-v0.9.0`.
+It contains lazy optional imports and subsequent API/wire changes absent from
+0.8.0. The dated changelog explains camelCase migration and preserves the
+following 0.10.0 server-defaults milestone. [#347](https://github.com/lushly-dev/afd/issues/347)
+is closed after verification of the downloaded published wheel.
 
-For consumers affected by #347, the published-version workaround remains:
+Consumers affected by #347 can upgrade to the repaired base package:
 
 ```sh
-python -m pip install 'afd[client]==0.8.0'
+python -m pip install --upgrade 'afd==0.9.0'
 ```
 
-This installs the optional HTTP dependencies required by that published
-artifact. It does not provide the repository's newer wire/API behavior.
+The base install does not require the optional HTTP or MCP dependencies. Use
+the client, server or CLI extra when that functionality is needed.
 
 ## Dependency disposition
 
@@ -115,38 +115,56 @@ calls `python.yml` before building/uploading the release artifact. Actions remai
 pinned. The PyPI environment and OIDC publish permission remain in the publish
 job. The local smoke matrix is not a receipt for the complete remote workflow.
 
-## npm release sequence
+## npm publication outcome
 
-The latest inspected Release run,
-[38173831514](https://github.com/lushly-dev/afd/actions/runs/38173831514), succeeded
-by updating [release PR #338](https://github.com/lushly-dev/afd/pull/338).
-This establishes that Actions can currently manage the version PR. It does not
-establish working npm publish credentials; npm remains at 1.0.0.
+Recovery completed through the existing workflow, in the accepted order:
 
-The accepted versioning decision retains 2.0.0 before 2.1.0. A maintainer can
-inspect the old failed candidate and its original gate with:
+| Version | Published source | Successful Release run |
+|---|---|---|
+| 2.0.0 | `b4a94e6974e534c57758eb00b8823bb0f370406d` | [35950563235, attempt 3](https://github.com/lushly-dev/afd/actions/runs/35950563235/attempts/3) |
+| 2.1.0 | `0148d2290ccf06769fd33c2b6484d3a8e4940669` | [38198328413](https://github.com/lushly-dev/afd/actions/runs/38198328413) |
 
-```sh
-gh run view 35950563235
-gh run view 35950563235 --log-failed
-npm view @lushly-dev/afd-core version
-```
+Signed-in settings inspection found no trusted publisher connections on the
+nine packages. After scoped approval, all nine connections were saved and
+verified: GitHub owner `lushly-dev`, repository `afd`, workflow `release.yml`,
+no environment name, **Allow npm publish** enabled and dist-tag management
+disabled. Existing credentials and publishing-access settings were preserved.
+Both successful uploads selected OIDC; this establishes recovery after setup.
 
-Only after the maintainer verifies publishing authentication and explicitly
-authorizes publication, re-running `35950563235` publishes the historical
-`b4a94e6974e534c57758eb00b8823bb0f370406d` 2.0.0 candidate. That candidate does
-**not** include October stabilization fixes. Its rerun window expires 30 days
-after 2026-09-24; if unavailable, prepare a separately reviewed recovery path.
-Do not silently change the accepted release order or publish the working tree.
+The historical 2.0.0 candidate was independently rebuilt and inspected before
+its rerun. It does **not** include October stabilization fixes. The refreshed
+[release PR #338](https://github.com/lushly-dev/afd/pull/338), head
+`5abbc026a29df000e7abc3ea491c946f3b42ba02` on base
+`4e16a0699eeb00c5d6576d29be575b86ca8fa485`, passed all seven applicable checks
+and independent packed-artifact validation before merging. Its merge tree
+matches the reviewed candidate exactly.
 
-After stabilization lands, inspect the refreshed #338 release diff, version
-selection, exact-head CI and packaged dependency ranges. Merging that version
-PR is a publication trigger, so it needs the maintainer's release authorization.
-Confirm all nine fixed-group packages, their tags and installability afterward.
+Post-publication checks covered all nine packages at **both** versions. Every
+downloaded tarball passed registry integrity verification and matched its
+reviewed pack file-for-file. All 18 annotated Git tags resolve to the intended
+source commits above. Two fresh consumers installed the exact versions through
+ordinary npm resolution; package imports, DirectClient, server execution, CLI
+version/help and production audits passed. Both production audits reported zero
+advisories without workspace overrides.
+
+The installed 2.1.0 consumer additionally passed real loopback MCP and CLI
+connect/list/call operations, offline executable selection, result validation,
+DOM adapter/CSS checks, MemoryAdapter ID validation and view-state persistence.
+Strict view-state root and `/commands` declarations passed with local-db absent;
+with it installed, the complete DataAdapter contract passed bidirectional
+assignment. These published-consumer checks used Node 24.21.0; they do not claim
+a repeated Node 22 or hosted-provider matrix.
+
+Initial registry responses lagged successful uploads. Fresh official JSON
+metadata and actual tarball downloads established availability, followed by
+ordinary installs with a fresh npm cache. No successful publication was retried
+because of stale metadata. A separate unpinned install selected 2.1.0 for all
+nine packages, and `npx --offline afd --version` returned 2.1.0. #369 was closed
+after registry consumer verification.
 
 ## Python release sequence
 
-The 0.9.0 candidate updates `python/pyproject.toml`,
+The 0.9.0 release updates `python/pyproject.toml`,
 `python/src/afd/__init__.py`, the dated `python/CHANGELOG.md`, and the three
 lockfiles that record AFD's version. To regenerate this metadata, run:
 
@@ -157,19 +175,23 @@ uv lock --project packages/examples/todo/backends/python
 node scripts/check-versions.mjs --write
 ```
 
-Review camelCase migration notes and the version plan's following 0.10.0 server
-defaults milestone. Require the complete Python matrix, isolated-wheel matrix
-and conformance checks on the release candidate. Once that PR is merged and
-publication is authorized, the maintainer tags the exact merge commit
-`python-v0.9.0`; the publish workflow revalidates the tag, matrix and wheel.
-This follow-up prepares the version bump; no Python tag or upload is included.
+The complete Python matrix, isolated-wheel matrix and conformance checks passed
+on the release candidate. After #372 merged, `python-v0.9.0` tagged that exact
+merge commit. [Publish Python run 38175942746](https://github.com/lushly-dev/afd/actions/runs/38175942746)
+succeeded on the #372 merge commit above, including the supported-interpreter
+tests, isolated wheel checks, build and PyPI upload.
 
 Local 0.9.0 validation passed 2,537 tests on each of Python 3.10, 3.11 and 3.12,
 all 12 isolated wheel installations (base/client/server/CLI), and the base import
 consumer reproduction on each interpreter. The wheel's runtime payload differs
 from the previously tested stabilization wheel only in its version string.
 
-After publication, verify the new registry version with `pip index versions afd`
-and install base plus each extra in fresh environments. Run the same isolated
-smoke script against the downloaded published wheel, then close #347 only after
-the base consumer reproduction passes for that published release.
+Post-publication verification downloaded the actual [PyPI 0.9.0 wheel](https://pypi.org/project/afd/0.9.0/)
+and checked its SHA-256:
+`fe7ba61cc856488cafa9750f389118383010893e7910e3b0d81c25e6cd965ed6`.
+All 12 fresh installations passed: Python 3.10, 3.11 and 3.12, each with base,
+client, server and CLI. Checks included the original base-import reproduction,
+DirectClient execution, absent optional dependencies in base, transport imports,
+actual server tool registration/execution and installed CLI help. A separate
+unpinned, uncached install selected 0.9.0 and passed the base smoke. #347 was
+closed only after these registry consumer checks passed.
