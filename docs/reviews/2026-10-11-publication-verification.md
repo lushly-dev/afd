@@ -1,5 +1,12 @@
 # Publication and verification follow-up
 
+This is the historical preparation receipt for #372. Subsequent publication
+and downloaded-consumer verification completed Python 0.9.0 and all nine npm
+packages at 2.0.0 followed by 2.1.0; #347 and #369 are closed. See the
+[publication outcome](../operations/stabilization-release.md) for exact release
+commits and workflow receipts. Preparation-time registry statements below are
+preserved as evidence of the state this review assessed.
+
 Date: 2026-10-11. Base: `f19257e404f69061149c5ed51a30a622a4450568`,
 the squash merge of stabilization PR #367. Its 21 PR checks and subsequent main
 workflows passed. This follow-up prepares Python 0.9.0 and adds browser evidence;

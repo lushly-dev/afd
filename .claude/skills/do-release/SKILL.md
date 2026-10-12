@@ -63,9 +63,9 @@ Every release, whatever the implementation:
 1. **During development:** each pull request that changes a published `@lushly-dev/*` package adds a changeset with `pnpm changeset` (patch, minor or major) and commits the file in `.changeset/`.
 2. **Version PR:** on every push to `main`, `release.yml` runs `pnpm check`. If changesets are pending, `changesets/action` opens a "chore: release packages" pull request that runs `pnpm version-packages`: `changeset version` bumps all nine packages to one version and writes their changelogs, then `node scripts/check-versions.mjs --write` updates the TypeScript column of the Version row in `docs/language-parity.md`. The release commit therefore carries the docs change, and the `versions` pre-push hook, which runs when `changesets/action` pushes `changeset-release/main`, passes.
 3. **Publish:** merging that pull request runs `release.yml` again. With no changesets pending, it runs `pnpm publish:npm` (`changeset publish`), which publishes with provenance and creates the `@lushly-dev/<package>@X.Y.Z` tags and GitHub Releases.
-4. **Verify:** `npm view @lushly-dev/afd-core version`.
+4. **Verify:** all nine fixed-group registry versions, exact Git tag targets and fresh installed consumers; one core lookup is insufficient.
 
-Configuration is in `.changeset/config.json`: `"fixed": [["@lushly-dev/*"]]` keeps one version, `"access": "public"`, and `@changesets/changelog-github` links pull requests. Internal peer dependencies use `workspace:^` (published as `^X.Y.Z`), and `onlyUpdatePeerDependentsWhenOutOfRange` (under `___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH`) stops Changesets from giving a peer dependent a major bump while the new version stays in range. Without both, any minor bump became a major one, and the fixed group spread it to all nine packages. Check `pnpm changeset status --verbose` before merging a changeset whose bump level matters. Both automated steps need the npm credential and the Actions permission described in [Unblocking npm](#unblocking-npm).
+Configuration is in `.changeset/config.json`: `"fixed": [["@lushly-dev/*"]]` keeps one version, `"access": "public"`, and `@changesets/changelog-github` links pull requests. Internal peer dependencies use `workspace:^` (published as `^X.Y.Z`), and `onlyUpdatePeerDependentsWhenOutOfRange` (under `___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH`) stops Changesets from giving a peer dependent a major bump while the new version stays in range. Without both, any minor bump became a major one, and the fixed group spread it to all nine packages. Check `pnpm changeset status --verbose` before merging a changeset whose bump level matters. Version-PR creation needs Actions permission to create pull requests; upload separately needs the npm authorization described in [Unblocking npm](#unblocking-npm).
 
 ## Python (PyPI)
 
@@ -83,11 +83,13 @@ Configuration is in `.changeset/config.json`: `"fixed": [["@lushly-dev/*"]]` kee
 7. **Optional:** create a GitHub Release from the tag, with the changelog section as notes. Publishing a GitHub Release whose tag starts with `python-v` also runs `publish-python.yml`: the version check runs again, and the upload skips files already on PyPI. Releases with any other tag do not run it.
 8. **Verify:** `pip index versions afd`, or <https://pypi.org/project/afd/>.
 
-The **0.9.0** candidate is prepared after stabilization #367, with a dated changelog,
-three updated lockfiles, the supported-interpreter test matrix and isolated wheel
-checks. PyPI still has 0.8.0 as of 2026-10-11. Keep #347 open until the newly
-published base wheel passes its consumer reproduction. See
-`docs/operations/stabilization-release.md` for the current release sequence.
+Python **0.9.0** was published on 2026-10-11 from #372's merge commit
+`4e16a0699eeb00c5d6576d29be575b86ca8fa485`, tagged `python-v0.9.0`.
+[Publish Python run 38175942746](https://github.com/lushly-dev/afd/actions/runs/38175942746)
+passed, and all 12 fresh published-wheel installs passed across Python 3.10–3.12
+and base/client/server/CLI, including the original base-import reproduction.
+#347 is closed. See `docs/operations/stabilization-release.md` for the wheel
+digest, registry consumer checks and current npm release sequence.
 
 ## Rust (crates.io)
 
@@ -127,40 +129,46 @@ afd-cpp is on no registry. A release is a tag and a GitHub Release, and consumer
 
 ## Unblocking npm
 
-As of 2026-10-11, npm has 1.0.0 while `main` has 2.0.0, versioned by release
-pull request #252 (commit `b4a94e6`). The accepted sequence retains 2.0.0 before
-2.1.0. Publication recovery is tracked in #369:
+The 2026-10-11 recovery is complete. All nine fixed-group packages are published
+at **2.1.0**, following the accepted historical **2.0.0** release:
 
-1. The 2.0.0 publish failed with `E404 Not Found - PUT …/@lushly-dev%2fafd-adapters`.
-   The action reported no `NPM_TOKEN` and selected OIDC trusted publishing; all
-   nine uploads were rejected. This establishes registry/authorization rejection,
-   not a proved credential/configuration root cause. Only a successful authorized
-   publish establishes recovery.
-2. Version-PR creation now works: Release run `38173831514` refreshed #338 after
-   stabilization #367. This is separate from npm authentication. Inspect actual
-   runs on every bot-generated head; an empty check rollup or an `action_required`
-   workflow is not a green gate.
+- 2.0.0: historical `b4a94e6974e534c57758eb00b8823bb0f370406d`, published by
+  [35950563235, attempt 3](https://github.com/lushly-dev/afd/actions/runs/35950563235/attempts/3).
+- 2.1.0: #338 merge `0148d2290ccf06769fd33c2b6484d3a8e4940669`, published by
+  [38198328413](https://github.com/lushly-dev/afd/actions/runs/38198328413).
 
-These steps change security settings, so the maintainer does them, in this order:
+The original 2.0.0 attempt selected OIDC but all nine uploads were rejected with
+E404. Signed-in inspection found no trusted publisher connections. After scoped
+approval, all nine were configured for GitHub owner `lushly-dev`, repository
+`afd`, workflow `release.yml`, no environment name, with **Allow npm publish**
+enabled and dist-tag management disabled. Both subsequent uploads used OIDC and
+succeeded. Existing credentials and publishing-access settings were preserved.
 
-1. **npm authentication.** Either:
-   - **Trusted publishing (preferred).** On npmjs.com, for each of the nine packages, add a trusted publisher: GitHub Actions, organization `lushly-dev`, repository `afd`, workflow `release.yml`. `release.yml` already requests `id-token: write` and provenance, and runs Node 24, whose npm meets trusted publishing's minimum (npm 11.5.1). `changeset publish` publishes through `pnpm publish`; if that does not pick up the OIDC credential, use the token instead. Once trusted publishing works, a follow-up pull request removes `NODE_AUTH_TOKEN` from `release.yml`, and the `NPM_TOKEN` secret can be deleted.
-   - **A new token.** Create a granular access token that can publish the `@lushly-dev` packages, and store it as the `NPM_TOKEN` repository secret.
-2. **Version PR checks.** Verify #338 is refreshed against current main and every
-   applicable workflow passes on its exact head. Approve pending workflow runs
-   when appropriate. No repository permission change is needed merely because
-   an older run failed to create the version PR.
-3. **Publish 2.0.0.** Re-run the failed Release run [35950563235](https://github.com/lushly-dev/afd/actions/runs/35950563235) for `b4a94e6` (Re-run all jobs, or `gh run rerun 35950563235`).
-   - `b4a94e6` has no pending changesets, so Changesets publishes and tags exactly 2.0.0.
-   - A re-run uses `release.yml` as it was at `b4a94e6`, which passes `NPM_TOKEN` as `NODE_AUTH_TOKEN` and requests `id-token: write`, so either credential from step 1 applies.
-   - Do not wait for a new push instead: `main` has a pending changeset, so a Release run there opens the 2.1.0 version pull request, and 2.0.0 would never reach npm.
-   - This historical candidate lacks October stabilization fixes. Inspect that
-     candidate and its receipts before authorizing a rerun.
-   - GitHub allows a re-run for 30 days after the original run, which started on 2026-09-24.
-4. **Next:** review the refreshed 2.1.0 #338 diff, packaged dependency ranges and
-   exact-head CI before an authorized merge. Verify all nine packages at each
-   published version, their tags and fresh consumer installations; one core
-   registry lookup is insufficient.
+All 18 published tarballs passed integrity checks and matched their reviewed
+payloads file-for-file; all 18 annotated Git tags resolve to the intended source.
+Fresh ordinary npm installations passed at each version, with zero production
+advisories. Installed 2.1.0 passed real MCP/CLI operations and strict view-state
+root/commands declarations with the optional local-db peer absent and present.
+#369 is closed. See `docs/operations/stabilization-release.md` for scope and
+Python publication receipts. Do not rerun the historical release as routine work.
+
+For a future publishing failure:
+
+1. Distinguish version-PR creation from upload. A successful Changesets refresh
+   does not establish npm authentication or package availability.
+2. Inspect the exact failed run, source candidate, npm executable/version and
+   actual error before changing access or retrying. `pnpm publish` delegates to
+   npm. [Trusted publishing](https://docs.npmjs.com/trusted-publishers/) requires
+   npm 11.5.1 or later, Node 22.14.0 or later, a supported hosted runner and
+   `id-token: write`. Check the configured repository, workflow, environment and
+   direct-publish action against the executing job. Preserve existing credentials
+   and access settings during diagnosis; credential cleanup is separate work.
+3. Recheck all applicable workflows on the exact release PR head and inspect
+   actual packed dependencies and optional-peer consumers before a release merge.
+4. After upload, verify every fixed-group version, exact tag target and fresh
+   installed consumer. Initial metadata can lag uploads: inspect response freshness
+   and downloaded registry artifacts, then prove ordinary installation. Do not
+   retry a successful publication because a cached response is stale.
 
 ## Reference
 

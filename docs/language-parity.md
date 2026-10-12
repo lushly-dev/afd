@@ -5,13 +5,13 @@ What each AFD implementation provides, where they differ, and which differences 
 | Field | Value |
 |---|---|
 | Updated | 2026-10-11 |
-| Reviewed at | Stabilization merged at `f19257e` (#367); Python 0.9.0 release candidate prepared, unpublished |
+| Reviewed at | Stabilization `f19257e` (#367); Python 0.9.0 published from `4e16a06` (#372); npm 2.1.0 published from `0148d22` (#338); registry consumers verified |
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans, which now link here |
 | Plans | [Parity closure](./features/active/parity-closure/parity-closure.plan.md) closes the gaps listed here; [Versioning and release](./features/active/versioning/versioning.plan.md) covers each implementation's version and the contract version |
 | Related | [`spec/wire`](../spec/wire/README.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/command-metadata.md`](../spec/command-metadata.md), [`spec/validation.md`](../spec/validation.md), [`spec/error-codes.md`](../spec/error-codes.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/proposed/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
 
-The implementation rows below include the stabilization merged in #367, not released-package guarantees. Python 0.8.0 remains the published broken artifact; the 0.9.0 candidate is validated locally but #347 remains open until published-wheel verification passes. Local receipts do not establish remote CI, deployment, or publication. The historical export measurement below remains dated separately.
+The implementation rows below include the stabilization merged in #367. Python 0.9.0 is published: all 12 fresh published-wheel installs passed across Python 3.10–3.12 and base/client/server/CLI, including the original base-import reproduction; [#347](https://github.com/lushly-dev/afd/issues/347) is closed. All nine npm packages are published at 2.1.0 after verified historical 2.0.0 recovery; [#369](https://github.com/lushly-dev/afd/issues/369) is closed. See the [publication record](./operations/stabilization-release.md) for exact commits, registry consumers and workflow receipts. The historical export measurement below remains dated separately.
 
 ## What parity means
 
@@ -27,7 +27,7 @@ The contract has three layers:
 
 ## Implementations at a glance
 
-Versions below describe repository manifests. The release-readiness record separately reports published npm core 1.0.0 and Python 0.8.0; the candidate does not imply publication.
+Versions below describe repository manifests. Registry checks independently confirm all nine npm packages at 2.1.0 and Python at 0.9.0; repository versions alone do not imply publication.
 
 | | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|

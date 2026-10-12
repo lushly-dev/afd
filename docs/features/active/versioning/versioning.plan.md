@@ -1,13 +1,14 @@
 # Versioning and Release Plan
 
-**Execution update, 2026-10-11:** stabilization #367 is merged. The Python 0.9.0
-candidate is prepared, and Changesets selects npm 2.1.0 in #338 after historical
-2.0.0 recovery. Version-PR creation now works; registry publication remains
-separate. The tables below preserve the accepted plan's September snapshot,
+**Execution update, 2026-10-11:** Python 0.9.0 is published and its downloaded
+wheel passed all 12 supported-interpreter/extra checks. All nine npm packages
+are published at 2.1.0 through #338, after verified historical 2.0.0 recovery;
+downloaded artifacts, tags and fresh consumers passed. #347 and #369 are closed.
+The tables below preserve the accepted plan's September snapshot,
 including its initial 2.0.1 estimate. Use
 [release readiness](../../../operations/stabilization-release.md) for current
-candidate metadata, validation and publication steps. Remaining delivery is
-tracked in #347 and #369.
+release commits, workflow receipts and consumer verification. Rust and C++
+release work remains separate.
 
 ## Overview
 
