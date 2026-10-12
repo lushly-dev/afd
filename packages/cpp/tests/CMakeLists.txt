@@ -53,6 +53,13 @@ endif()
 
 add_test(NAME afd_tests COMMAND afd_tests)
 
+add_test(
+    NAME afd_cmake_compiler_policy
+    COMMAND
+        ${CMAKE_COMMAND} -DAFD_SOURCE_DIR=${PROJECT_SOURCE_DIR}
+        -DAFD_TEST_BINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}/compiler-policy
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/run_compiler_policy_tests.cmake)
+
 if(AFD_MACRO_HYGIENE_CHECK)
     # Compiles every public header with the collisions defined; building it is the check.
     add_library(afd_macro_hygiene_check OBJECT macro_hygiene_check.cpp)

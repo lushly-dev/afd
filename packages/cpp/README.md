@@ -74,11 +74,11 @@ auto untrusted = afd::parse_bounded(text);                   // depth- and size-
 
 - **Reading.** `T::from_json` returns `afd::Expected<T>`, never throws, and reports the path of the first problem. `null` members read as absent, except `data` and `result`, where `null` is a value.
 - **Writing.** Converting to `afd::Json` omits unset fields. Integral numbers are written as integers, as JavaScript does.
-- **Designated initializers.** Option structs are meant for partial designated initializers, such as `{.suggestion = "…"}`. Clang and GCC warn about the omitted fields under `-Wextra`. afd-cpp turns that warning off for its own targets. In your own code you may want `-Wno-missing-field-initializers`, which covers both compilers.
+- **Designated initializers.** Option structs are meant for partial designated initializers, such as `{.suggestion = "…"}`. Clang, clang-cl and GCC warn about the omitted fields under their higher warning levels. afd-cpp turns the applicable warnings off for its own targets. In your own code you may want `-Wno-missing-field-initializers` and, with Clang 21 or newer, `-Wno-missing-designated-field-initializers`.
 
 ## Using the package
 
-afd-cpp is not on a package registry. Get it in one of three ways, and link `afd::afd`. Releases will be tagged `cpp-vX.Y.Z`, but no tag exists until the first release, `cpp-v0.1.0`. Until then, take `main`, or pin a commit SHA from it.
+afd-cpp is not on a package registry. Get it in one of three ways, and link `afd::afd`. This source is the `0.1.0` release candidate; `cpp-v0.1.0` does not exist until a maintainer publishes the release. During review, use `main` for evaluation or pin the exact release-candidate commit. After publication, use the immutable tag.
 
 **FetchContent:**
 
@@ -86,7 +86,7 @@ afd-cpp is not on a package registry. Get it in one of three ways, and link `afd
 include(FetchContent)
 FetchContent_Declare(afd
     GIT_REPOSITORY https://github.com/lushly-dev/afd.git
-    GIT_TAG main  # or a commit SHA; cpp-v0.1.0 once it is released
+    GIT_TAG main  # evaluation only; use cpp-v0.1.0 after the maintainer publishes it
     SOURCE_SUBDIR packages/cpp)
 FetchContent_MakeAvailable(afd)
 target_link_libraries(my_app PRIVATE afd::afd)
@@ -113,7 +113,7 @@ As a subproject, afd builds only the library: tests, examples and install rules 
 
 ## Building
 
-This needs CMake 3.25 or later and a C++20 compiler: GCC 12+, Clang 16+, Apple Clang 15+ or MSVC 2022. Emscripten is optional.
+This needs CMake 3.25 or later and a C++20 compiler: GCC 12+, Clang 16+, Apple Clang 15+ or MSVC 2022 (19.30+). clang-cl is also supported. CMake rejects older cl.exe versions before the build; the check does not reject clang-cl using an older Visual Studio SDK. Emscripten is optional.
 
 ```bash
 cd packages/cpp
@@ -126,12 +126,17 @@ ctest --preset dev
 |---|---|
 | `dev` | Debug build with tests |
 | `release` | Release build with tests (Linux, macOS and Windows CI) |
-| `asan` | AddressSanitizer and UndefinedBehaviorSanitizer (GCC or Clang) |
+| `asan` | AddressSanitizer and UndefinedBehaviorSanitizer (Linux CI with Clang) |
 | `tsan` | ThreadSanitizer with `AFD_ENABLE_THREADS` (Clang) |
 | `noexcept-nortti` | `-fno-exceptions -fno-rtti`, unity build, macro-hygiene check (GCC or Clang) |
 | `emscripten` | WebAssembly; configure with `emcmake cmake --preset emscripten`. Tests run under Node. |
 
 Build trees go to `packages/cpp/build/<preset>/`, which git ignores. Set `CMAKE_GENERATOR=Ninja` for faster local builds.
+
+The `asan` preset is release-gated on Linux. Apple Clang 17 can hang in its sanitizer runtime while
+finding the dynamic shadow region, before afd-cpp enters `main`; disabling leak detection does not
+resolve it ([#331](https://github.com/lushly-dev/afd/issues/331)). Use the Linux sanitizer CI job for
+release evidence until that toolchain problem is resolved.
 
 ## Options
 
@@ -163,7 +168,7 @@ Library code must be exception-free and RTTI-free:
 - Write `(std::min)(…)`.
 - Never name anything `check`, `verify`, `require` or `interface`.
 
-CI (`.github/workflows/cpp.yml`) runs the `release` preset on Linux (GCC), macOS and Windows (MSVC). The `asan`, `tsan`, `noexcept-nortti` and `emscripten` presets run on Linux only. CI also checks formatting, builds [`tests/consumer`](tests/consumer/CMakeLists.txt) on Linux and Windows, and fuzzes each target for 60 seconds on Linux.
+CI (`.github/workflows/cpp.yml`) runs the `release` preset on Linux (GCC), macOS and Windows (MSVC and checksum-verified LLVM 22.1.8 clang-cl). The clang-cl configure step asserts that CMake selected that exact Clang version with the MSVC frontend; the regression gate also rejects Clang older than 21. The `asan`, `tsan`, `noexcept-nortti` and `emscripten` presets run on Linux only. CI also checks formatting, builds [`tests/consumer`](tests/consumer/CMakeLists.txt) on Linux and Windows, and fuzzes each target for 60 seconds on Linux.
 
 ## Dispatch benchmark
 

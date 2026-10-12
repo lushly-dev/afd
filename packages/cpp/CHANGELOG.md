@@ -4,6 +4,8 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ## Unreleased
 
+## [0.1.0] - 2026-10-12
+
 ### Changed
 
 - Renamed to match TypeScript: `Handler` → `CommandHandler`, `Middleware` → `CommandMiddleware`, `RegistryOptions` → `CommandRegistryOptions`.
@@ -11,6 +13,13 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Fixed
 
+- CMake now rejects cl.exe older than MSVC 19.30 with a clear Visual Studio 2022 requirement while
+  allowing clang-cl to use the Microsoft frontend with older Visual Studio headers. Configure tests
+  cover the compiler floor and the warning sets selected for MSVC, clang-cl and Clang.
+- Clang 21 and newer receive the designated-initializer warning suppression under both the GNU and
+  Microsoft frontends, so `AFD_WARNINGS_AS_ERRORS=ON` works with clang-cl. Windows CI now builds and
+  tests with both MSVC and a checksum-verified official LLVM 22.1.8 clang-cl installation, and CMake
+  rejects the regression job unless it detects that exact Clang version with the MSVC frontend.
 - Missing required boolean-true and untyped properties reject with `invalid_type` / `nonoptional`, including reference targets; presence, explicit null and defaults keep their schema behavior. An expired batch deadline takes precedence over cancellation when assigning unstarted results after inflight work drains.
 
 - Schema string and array length bounds compare without narrowing huge JSON numbers into `size_t`; nonfinite bounds fail compilation. Pipeline reference indices must fit both JavaScript's safe-integer range and the host's index range, including wasm32.

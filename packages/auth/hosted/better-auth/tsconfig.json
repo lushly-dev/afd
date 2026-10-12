@@ -1,0 +1,12 @@
+{
+	"extends": "../../tsconfig.typecheck.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"rootDir": "../..",
+		"allowJs": true,
+		"checkJs": false,
+		"allowImportingTsExtensions": true
+	},
+	"include": ["./**/*.ts", "./**/*.mjs"],
+	"exclude": ["node_modules", "dist"]
+}

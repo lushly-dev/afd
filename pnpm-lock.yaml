@@ -98,6 +98,9 @@ importers:
       better-auth:
         specifier: ^1.6.22
         version: 1.7.2(mongodb@7.1.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(vitest@4.1.11)
+      convex:
+        specifier: 1.32.0
+        version: 1.32.0(react@19.3.0)
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
@@ -122,6 +125,24 @@ importers:
       zod:
         specifier: ^4.5.4
         version: 4.5.4
+
+  packages/auth/hosted/convex:
+    dependencies:
+      '@auth/core':
+        specifier: ^0.41.3
+        version: 0.41.3
+      '@convex-dev/auth':
+        specifier: 0.0.95
+        version: 0.0.95(@auth/core@0.41.3)(convex@1.32.0(react@19.3.0))(react@19.3.0)
+      convex:
+        specifier: 1.32.0
+        version: 1.32.0(react@19.3.0)
+      react:
+        specifier: 19.3.0
+        version: 19.3.0
+      react-dom:
+        specifier: 19.3.0
+        version: 19.3.0(react@19.3.0)
 
   packages/cli:
     dependencies:

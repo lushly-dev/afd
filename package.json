@@ -30,7 +30,8 @@
 		"changeset": "changeset",
 		"version-packages": "changeset version && node scripts/check-versions.mjs --write",
 		"publish:npm": "pnpm build && changeset publish",
-		"prepare": "lefthook install"
+		"prepare": "lefthook install",
+		"test:hosted:local": "pnpm build && node scripts/run-hosted-local.mjs"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.14",

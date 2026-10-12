@@ -187,15 +187,17 @@ callbacks, refresh of upstream OAuth tokens, simultaneous refresh-lock atomicity
 other browsers or Convex deployment behavior. Those deployment-specific checks
 remain tracked in [#362](https://github.com/lushly-dev/afd/issues/362).
 
-For an optional provider/browser validation run, provision a disposable staging
-application with its HTTPS origin and callback URL registered with the provider,
-a dedicated test account, test OAuth client configuration (or a dedicated Convex
-deployment) and a short session lifetime. Use two tabs in one fresh browser profile:
-complete OAuth through the actual callback, verify the adapter user/session in both
-tabs, trigger provider refresh across expiry, then sign out and verify both tabs
-and an independent session endpoint reject the previous session. Record deployment
-revision, provider/client version, cookie attributes, timing and each observed
-outcome without recording tokens. Revoke test sessions, delete the test account
-and disposable deployment, and close the profile. Missing configuration means
-**not run**; the local test cannot satisfy those checks. Production credentials
-are unnecessary for the default gate.
+The additional [Better Auth HTTPS/OAuth fixture](hosted/better-auth/README.md)
+uses a local test OAuth provider and SQLite-backed Better Auth. It exercises the
+callback, Secure cookies and restart persistence without a hosted account. The
+[Convex fixture](hosted/convex/README.md) bundles actual React/provider SDKs and
+deployable backend functions; its local checks do not execute a Convex deployment.
+
+After installing Chromium, run `pnpm test:hosted:local` from the repository root
+on Node 24. It also runs the durable REST/view-state lifecycle. Separate opt-in
+commands `test:hosted:better-auth` and `test:hosted:convex` require the fixture's
+explicit disposable-service configuration and fail preflight when it is missing.
+See the [hosted verification handoff](../../docs/operations/hosted-verification.md)
+for local evidence, provisioning order, receipt requirements and cleanup. External
+OAuth grants, deployment restart and actual Convex authentication remain pending
+under #362; a local fixture pass does not close them.

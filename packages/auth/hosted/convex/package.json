@@ -1,0 +1,12 @@
+{
+	"name": "@lushly-dev/afd-auth-convex-hosted-fixture",
+	"private": true,
+	"type": "module",
+	"dependencies": {
+		"@auth/core": "0.41.3",
+		"@convex-dev/auth": "0.0.95",
+		"convex": "1.32.0",
+		"react": "19.3.0",
+		"react-dom": "19.3.0"
+	}
+}
