@@ -37,9 +37,12 @@ jobs:
         run: pnpm check
 
       - name: Upload coverage
-        if: matrix.node-version == '24.x'
+        # Keep main baselines and failure diagnostics; successful PRs need no archive.
+        if: >-
+          ${{ !cancelled() && matrix.node-version == '24.x' &&
+          ((github.event_name == 'push' && github.ref == 'refs/heads/main') || failure()) }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report
           path: packages/*/coverage/
-          retention-days: 14
+          retention-days: 7

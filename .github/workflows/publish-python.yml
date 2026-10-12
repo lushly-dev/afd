@@ -97,6 +97,8 @@ jobs:
         with:
           name: dist
           path: python/dist/
+          # Allow same-run publishing and failed-job retries within one week.
+          retention-days: 7
 
   publish:
     name: Publish to PyPI
