@@ -103,6 +103,17 @@ digest, registry consumer checks and current npm release sequence.
 
 ### First release: 0.1.0
 
+`afd` 0.1.0 was published on 2026-10-12 from
+`a3115622ce8252a45ffff9d752e3cc161a481035`, tagged `rust-v0.1.0`. Downloaded
+archive and fresh default/no-default consumers passed, docs.rs serves the API
+docs, and the exact GitHub trusted publisher is configured.
+[Tag workflow 38359125471](https://github.com/lushly-dev/afd/actions/runs/38359125471)
+passed and skipped the existing upload; a future new version still needs an
+actual OIDC exchange/upload receipt. See
+[the native release receipt](../../../docs/operations/native-first-releases.md).
+Do not repeat this successful first upload. The following records its bootstrap
+procedure for reference.
+
 crates.io offers trusted publishing only for a crate that already exists, so the maintainer publishes 0.1.0 by hand, once. The name `afd` was free on crates.io on 2026-09-27.
 
 1. **In the release pull request**, also:

@@ -1,5 +1,11 @@
 # Part 1: AFD Rust Implementation
 
+> **Historical proposal:** The released `afd` 0.1.0 crate is an in-process core
+> library. General-purpose MCP transports and proc macros sketched here are not
+> shipped API. Use the [current README](../../../../packages/rust/README.md) and
+> [release receipt](../../../operations/native-first-releases.md).
+
+
 > **Goal**: Add Rust as a third language implementation to AFD, enabling native binary and WASM distribution targets.
 
 ## Overview

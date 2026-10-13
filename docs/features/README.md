@@ -54,7 +54,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Platform Utils](./proposed/platform-utils/) | Cross-platform subprocess and connectors |
 | [Plugin Discovery](./proposed/plugin-discovery/) | Auto-discovery of AFD plugins |
 | [Rust Distribution](./proposed/rust-distribution/) | Rust-based distribution layer |
-| [Rust Support](./proposed/rust-support/) | Rust language support for AFD |
+| [Rust Support](./proposed/rust-support/) | Core crate published as 0.1.0; broader MCP transport and distribution proposal remains open |
 | [Skill Knowledge Layer](./proposed/skill-knowledge-layer/) | Skills as structured knowledge for agents |
 | [Zero Chat Tools](./proposed/zero-chat-tools/) | Canvas-aware AFD commands for Zero chat agent |
 

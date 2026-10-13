@@ -1,5 +1,15 @@
 # AFD Rust Support - Plan Overview
 
+> **Current status (2026-10-12):** The in-process core library is published as
+> [`afd` 0.1.0](https://crates.io/crates/afd/0.1.0), tagged `rust-v0.1.0`.
+> [Release evidence](../../../operations/native-first-releases.md) covers registry
+> consumers and the GitHub trusted-publisher configuration. This historical
+> proposal also includes general-purpose MCP transports and a distribution
+> framework, which are outside the released crate. Those broader goals remain
+> proposed; the diagrams and implementation sketches below are not current API
+> documentation. See the [crate README](../../../../packages/rust/README.md).
+
+
 > **Goal**: Add Rust as a third language implementation to AFD, enabling native binary and WASM distribution targets alongside the existing TypeScript and Python implementations.
 
 ## The Vision
@@ -70,9 +80,10 @@ afd/
 
 - [x] All AFD types match TypeScript/Python exactly (JSON serialization)
 - [x] Pass shared conformance test suite
-- [x] MCP server works with Claude Desktop and Cursor
+- [ ] General-purpose MCP transports work with Claude Desktop and Cursor (outside the released core library)
 - [x] Build for Windows, Mac, Linux, and WASM
-- [ ] Automated releases via cargo-dist (publish to crates.io)
+- [x] crates.io 0.1.0 published; GitHub trusted publisher configured (the tag check skips the existing version; a future release must verify an actual OIDC upload)
+- [ ] cargo-dist distribution framework (outside the released core library)
 
 ## Timeline
 

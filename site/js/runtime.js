@@ -27,7 +27,7 @@ export const SECTIONS = [
 const INSTALL = {
 	typescript: 'npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod',
 	python: 'pip install afd',
-	rust: 'cargo add afd --git https://github.com/lushly-dev/afd',
+	rust: 'cargo add afd',
 	// CMake consumers pin the published release tag.
 	cpp: [
 		'include(FetchContent)',

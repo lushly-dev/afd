@@ -14,11 +14,9 @@
 |---|---|---|---|---|
 | TypeScript | [`@lushly-dev/afd-core`](https://www.npmjs.com/package/@lushly-dev/afd-core) and 8 more `@lushly-dev/*` packages | [![npm](https://img.shields.io/npm/v/@lushly-dev/afd-core?style=flat-square&label=npm)](https://www.npmjs.com/package/@lushly-dev/afd-core) | 🟢 Beta | [1.0-rc](./spec/CHANGELOG.md) |
 | Python | [`afd`](https://pypi.org/project/afd/) | [![PyPI](https://img.shields.io/pypi/v/afd?style=flat-square&label=PyPI)](https://pypi.org/project/afd/) | 🟢 Beta | [1.0-rc](./spec/CHANGELOG.md) |
-| Rust | [`afd`](./packages/rust) crate | Not on crates.io yet | 🟡 Preview | [1.0-rc](./spec/CHANGELOG.md) |
+| Rust | [`afd`](./packages/rust) crate | [![crates.io](https://img.shields.io/crates/v/afd?style=flat-square&label=crates.io)](https://crates.io/crates/afd) | 🟡 Preview | [1.0-rc](./spec/CHANGELOG.md) |
 | C++ | [`afd-cpp`](./packages/cpp) | [![tag](https://img.shields.io/github/v/tag/lushly-dev/afd?filter=cpp-v*&sort=semver&style=flat-square&label=tag)](https://github.com/lushly-dev/afd/tags) | 🟡 Preview | [1.0-rc](./spec/CHANGELOG.md) |
 
-<!-- Once the crate is published, replace "Not on crates.io yet" with
-[![crates.io](https://img.shields.io/crates/v/afd?style=flat-square&label=crates.io)](https://crates.io/crates/afd) -->
 
 > 🟢 **Beta:** stable and in active use across multiple projects. APIs are mostly stable; expect targeted iterative improvements. 🟡 **Preview:** tested, but not yet proven in production; the API may change in a minor release before 1.0. **Contract** is the version of the shared AFD contract in [`spec/`](./spec/CHANGELOG.md) that each implementation implements; each package keeps its own version. Feedback welcome!
 
