@@ -10,6 +10,8 @@ including its initial 2.0.1 estimate. Use
 release commits, workflow receipts and consumer verification. Rust and C++
 release work remains separate.
 
+**C++ update, 2026-10-12:** [cpp-v0.1.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.1.0) is published from `a311562` (#377), after all post-merge gates passed. Fresh tagged FetchContent and installed find_package consumers passed. Rust publication remains pending locally configured crates.io access.
+
 ## Overview
 
 AFD ships four implementations, each at a different version: TypeScript 2.0.0, Python 0.8.0, Rust 0.1.0 and C++ 0.1.0. This proposal:
@@ -120,6 +122,10 @@ All of the following was verified on 2026-09-26.
 
 ### 4. Unblock releases first
 
+This is the original September sequence. npm and Python outcomes are recorded in
+[release readiness](../../../operations/stabilization-release.md); C++ completion
+and remaining Rust work are in the [native handoff](../../../operations/native-first-releases.md).
+
 Steps marked **(admin)** need a repository or npm owner. They change security settings, so an agent should not do them.
 
 1. **(admin) npm authentication.**
@@ -136,7 +142,7 @@ Steps marked **(admin)** need a repository or npm owner. They change security se
    2. Bump `pyproject.toml` and `__version__`.
    3. Tag `python-v0.9.0`.
    4. Fix `publish-python.yml` so the version check also runs for GitHub Release events.
-5. **C++ 0.1.0.** The stale-docs fixes are merged (#301). Rename the planned tag to `cpp-v` (V3) in the C++ README, the `afd-cpp` skill and the `do-release` skill, then tag `cpp-v0.1.0`.
+5. **C++ 0.1.0 — complete 2026-10-12.** Published `cpp-v0.1.0` from `a311562` (#377). Post-merge CI, fresh tagged consumers, the tag badge and pinned installation snippets are verified; the feature record is in `complete/cpp-support/`.
 6. **Rust (V4).** Publish 0.1.0 to crates.io to claim the name, and add a `rust-v*` publish workflow using crates.io trusted publishing.
 7. **Update the `do-release` skill** to cover all four implementations, the tag schemes and the contract version.
 

@@ -573,7 +573,7 @@ backends/cpp/
   - install, then build a tiny project with `find_package(afd 0.1 CONFIG REQUIRED)`;
   - build the same project through `FetchContent`;
   - build a `packages/cpp/examples/quickstart.cpp` that matches the README, playing the role of Rust's README doctests.
-- [ ] Release process:
+- [x] Release process:
   - Tag `cpp-v0.1.0` and write GitHub release notes from `packages/cpp/CHANGELOG.md`.
   - Document the steps in the `do-release` skill. Changesets does not cover this package.
 - [x] Dependency updates: Dependabot has no CMake ecosystem. Keep every pin in `cmake/AfdDependencies.cmake`, with a documented update procedure. See the [open questions](#open-questions) for Renovate.
@@ -594,7 +594,7 @@ backends/cpp/
 - **Subproject defaults:** `AFD_INSTALL`, `AFD_BUILD_EXAMPLES` and `AFD_BUILD_TESTS` default to `PROJECT_IS_TOP_LEVEL`, so `FetchContent` and `add_subdirectory` users build only the library.
 - **Consumer tests:** `examples/quickstart.cpp` asserts its own output (a success, then the "Did you mean 'todo-create'?" suggestion from `DirectClient`). It runs in every preset's ctest, including noexcept-nortti and Emscripten. The `package` job in `cpp.yml` installs afd on Linux and Windows, then builds `tests/consumer` with `find_package` and with `FetchContent`, and runs it.
 - **Dependency updates:** every pin (URL and SHA-256) is in `cmake/AfdDependencies.cmake`, with the procedure in its header comment. Dependabot has no CMake ecosystem; Renovate remains an open question.
-- **Release:** the steps are in the `do-release` skill. The `cpp-v0.1.0` tag and GitHub release are created after this PR merges, with maintainer sign-off.
+- **Release:** the steps are in the `do-release` skill. The annotated `cpp-v0.1.0` tag and [GitHub Release](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.1.0) were published from `a311562` with explicit maintainer authorization. Post-merge CI passed; fresh remote-tag FetchContent and installed find_package consumers each passed the quickstart and exact version/contract checks (2/2).
 
 ---
 

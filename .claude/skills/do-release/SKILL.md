@@ -124,14 +124,20 @@ crates.io offers trusted publishing only for a crate that already exists, so the
 
 afd-cpp is on no registry. A release is a tag and a GitHub Release, and consumers use `FetchContent` with `GIT_TAG cpp-vX.Y.Z`, `find_package(afd X.Y CONFIG)` after installing, or `add_subdirectory`.
 
+The first release, `cpp-v0.1.0`, was published on 2026-10-12 from
+`a3115622ce8252a45ffff9d752e3cc161a481035` with explicit maintainer authorization.
+All post-merge gates and fresh tagged FetchContent/install/find_package consumers
+passed. See `docs/operations/native-first-releases.md` for the receipt and limits.
+
 1. Set `project(afd VERSION X.Y.Z)` in `packages/cpp/CMakeLists.txt`. It generates `afd/version.hpp`, and the CMake package uses `SameMinorVersion` compatibility.
 2. In `packages/cpp/CHANGELOG.md`, move `Unreleased` under the new version with the date, and add an empty `Unreleased` above it.
-3. Run `node scripts/check-versions.mjs --write` to update the C++ column of the Version row in `docs/language-parity.md`. Keep release-candidate/tag-absent wording and usable source installation until the first tag exists.
+3. Run `node scripts/check-versions.mjs --write` to update the C++ column of the Version row in `docs/language-parity.md`. Keep installation pinned to the previous published tag until the new tag exists; distinguish candidate versions from published versions.
 4. Merge after `cpp.yml` and `conformance.yml` pass on `main`.
 5. **Maintainer:** tag the merge commit `cpp-vX.Y.Z`, push the tag, and create a GitHub Release from the changelog section.
 6. Verify fresh tagged FetchContent and installed find_package consumers. Then pin
-   package/skill/site snippets to the tag, update distribution/status wording and
-   move the completed C++ proposal. See `docs/operations/native-first-releases.md`.
+   package/skill/site snippets to the tag and update distribution/status wording.
+   The first-release proposal is already in `docs/features/complete/cpp-support/`.
+   See `docs/operations/native-first-releases.md`.
 
 ## Unblocking npm
 

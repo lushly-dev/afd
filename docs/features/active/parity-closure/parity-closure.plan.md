@@ -11,7 +11,7 @@
 | Updated | 2026-10-10 |
 | Tracks | [`docs/language-parity.md`](../../../language-parity.md) |
 | Supersedes | The name-only [Python parity plan](../python-parity/python-parity.plan.md) (see [Tracking](#tracking)). The Rust parity plan is marked complete in #289. |
-| Related | [Versioning and release plan](../versioning/versioning.plan.md), [C++ proposal](../../proposed/cpp-support/proposal.md), [Rust support](../../proposed/rust-support/00-overview.md) |
+| Related | [Versioning and release plan](../versioning/versioning.plan.md), [C++ proposal](../../complete/cpp-support/proposal.md), [Rust support](../../proposed/rust-support/00-overview.md) |
 
 **Goal.** Every matrix row is **Yes**, **N/A** with a reason, or **Deferred** with a plan. All four languages consume every `spec/vectors` file in CI, and all four pass a protocol-level conformance tier.
 

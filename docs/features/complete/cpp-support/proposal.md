@@ -9,13 +9,13 @@
 
 | Field | Value |
 |---|---|
-| Status | Implemented: v0.1 release candidate. Implementation phases 1–6 are merged (#290, #293–#298) and CI is green; the `cpp-v0.1.0` tag is not cut yet ([lushly-dev/afd#270](https://github.com/lushly-dev/afd/issues/270)). Cross-language gaps: [language parity](../../../language-parity.md). |
+| Status | Complete: [cpp-v0.1.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.1.0), released from `a311562` after the post-merge compiler/sanitizer/conformance gates passed. Fresh remote-tag FetchContent and installed find_package consumers passed. Cross-language gaps remain in [language parity](../../../language-parity.md). |
 | Package | `packages/cpp` (working name `afd-cpp`, namespace `afd`, CMake target `afd::afd`) |
 | Behavioral reference | TypeScript: `packages/server/src/execution.ts` (single command), `packages/core/src/command-execution.ts` (batch, stream), `packages/core/src/pipeline-executor.ts` (pipeline) |
 | Contracts | `spec/wire/*.json`, `spec/pipeline-variables.md`, `packages/examples/todo/spec/{commands.schema.json,test-cases.json}` |
-| Precedent | [Rust Support](../rust-support/00-overview.md), [Rust Parity Closure](../../complete/rust-parity/plan.md) |
+| Precedent | [Rust Support](../../proposed/rust-support/00-overview.md), [Rust Parity Closure](../rust-parity/plan.md) |
 | Work plan | [work-plan.md](./work-plan.md) |
-| Updated | 2026-09-26 |
+| Updated | 2026-10-12 |
 
 ## Why C++
 

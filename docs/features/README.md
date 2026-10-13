@@ -27,6 +27,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [AFD Bot (Alfred)](./complete/afd-bot/) | Deterministic repo quality agent with lint, parity, and quality commands |
 | [AFD PyPI Publishing](./complete/afd-pypi-publishing/) | Python package publishing to PyPI |
 | [Auth Adapter](./complete/auth-adapter/) | Provider-agnostic authentication adapter for AFD servers |
+| [C++ Support](./complete/cpp-support/) | Engine-free C++20 AFD core, published as `cpp-v0.1.0`; shared conformance and fresh tagged CMake consumers verified (#270, #327). |
 | [Command Prerequisites](./complete/command-prerequisites/) | Declarative `requires` field for planning-order dependencies |
 | [Contextual Tool Loading](./complete/contextual-tool-loading/) | Dynamic context scoping for large command sets |
 | [Command Trust Config](./complete/command-trust-config/) | Per-command trust levels and exposure control |
@@ -46,7 +47,6 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 
 | Feature | Description |
 |---------|-------------|
-| [C++ Support](./proposed/cpp-support/) | Engine-free C++20 implementation of AFD core, conformance-tested against `spec/wire` (#270). **Implemented:** v0.1 release candidate; it moves to `complete/` when `cpp-v0.1.0` is tagged. |
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |
