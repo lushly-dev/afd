@@ -1,0 +1,32 @@
+{
+	"schema": 1,
+	"purpose": "afd-362-disposable-hosted-fixtures",
+	"dedicatedOwnershipVerified": false,
+	"runId": "afd362-20261013-example",
+	"repo": "https://github.com/lushly-dev/afd",
+	"ownerId": "tea-00000000000000000000",
+	"blueprintId": "exs-00000000000000000000",
+	"reviewedSource": "0000000000000000000000000000000000000000",
+	"roles": {
+		"h1": {
+			"role": "h1",
+			"name": "afd-362-h1-better-auth",
+			"dedicated": false,
+			"serviceId": "srv-00000000000000000000",
+			"diskId": "dsk-00000000000000000000",
+			"serviceCreatedAt": "2026-10-13T00:00:00.000Z",
+			"diskCreatedAt": "2026-10-13T00:00:00.000Z",
+			"recordCleanupVerified": false
+		},
+		"h3": {
+			"role": "h3",
+			"name": "afd-362-h3-rest",
+			"dedicated": false,
+			"serviceId": "srv-00000000000000000000",
+			"diskId": "dsk-00000000000000000000",
+			"serviceCreatedAt": "2026-10-13T00:00:00.000Z",
+			"diskCreatedAt": "2026-10-13T00:00:00.000Z",
+			"recordCleanupVerified": false
+		}
+	}
+}

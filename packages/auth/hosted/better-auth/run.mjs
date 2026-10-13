@@ -17,7 +17,8 @@ try {
 	if (process.argv.length !== 3 || !['--local', '--hosted'].includes(process.argv[2]))
 		throw new Error('Usage: node hosted/better-auth/run.mjs --local|--hosted');
 	const config = process.argv[2] === '--hosted' ? hostedConfig(process.env) : undefined;
-	const deadlineMs = deadline(process.env.AFD_BA_DEADLINE_MS);
+	const deadlineMs = config?.deadlineMs ?? deadline(process.env.AFD_BA_DEADLINE_MS);
+	const runSignal = AbortSignal.any([abort.signal, AbortSignal.timeout(deadlineMs)]);
 	const revision =
 		config?.revision ?? execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 	const cache = resolve('node_modules/.cache');
@@ -44,7 +45,15 @@ try {
 		playwright: await packageVersion(new URL('./package.json', import.meta.resolve('playwright'))),
 		react: await packageVersion(new URL('./package.json', import.meta.resolve('react'))),
 	};
-	await runHarness({ directory, config, revision, deadlineMs, versions, signal: abort.signal });
+	await runHarness({
+		directory,
+		config,
+		revision,
+		deadlineMs,
+		versions,
+		signal: runSignal,
+		interrupted: () => abort.signal.aborted,
+	});
 } catch (error) {
 	// All thrown startup errors are authored contract errors; never emit environment values.
 	process.stderr.write(

@@ -42,6 +42,8 @@ restart, or delete a hosted service. Its required nonsecret configuration is:
 - `AFD_TEST_HTTP_STORE_ID`: stable nonsecret backing-store identity when `/health` does not return
   `storeId`
 - `AFD_TEST_HTTP_DEADLINE_MS`: optional per-request deadline, default 5000 ms
+- `AFD_TEST_HTTP_UNAVAILABLE_HTTP_STATUS`: optional provider-edge outage mode; the only accepted
+  value is `503`, and it is evaluated only by the `unavailable` phase
 
 If the service uses authentication, set both `AFD_TEST_HTTP_TOKEN` and
 `AFD_TEST_HTTP_SECONDARY_TOKEN` to two scoped synthetic principals. Supplying only one fails
@@ -75,7 +77,27 @@ receipt, stable store identity, and successful cleanup receipt from the same run
 
 To exercise the documented unavailable surface, intentionally stop the disposable application,
 set a nonsecret `AFD_TEST_HTTP_UNAVAILABLE_ACK` identifying that controlled outage, and run
-`AFD_TEST_HTTP_PHASE=unavailable`. This phase passes only on a deadline-bounded native fetch
-rejection; an HTTP application response or malformed base URL is not accepted as unavailability.
-Restart the service and complete `read` to prove recovery. Run `cleanup` after any partial failure.
-Cleanup targets the fixed IDs derived from the run marker and never clears a table.
+`AFD_TEST_HTTP_PHASE=unavailable`. Without an expected status, this phase passes only on a
+deadline-bounded native fetch rejection and reports `native-fetch-rejection`. For a Render
+suspend where the provider edge remains reachable and returns 503, also set
+`AFD_TEST_HTTP_UNAVAILABLE_HTTP_STATUS=503`; this mode requires an actual `HttpAdapter` response
+with exactly that status and reports `provider-edge-http-status` with expected and observed
+statuses. A healthy response, another HTTP status, a native rejection in provider-edge mode, an
+HTTP response in native-rejection mode, or a malformed base URL fails. The acknowledgement alone
+cannot pass either mode. Native mode also rejects response-decoding failures, redirects, and
+requests that reach the deadline or are otherwise aborted; none proves that the service was
+unreachable.
+
+The acknowledgement must refer to independently captured Render suspend/control evidence for the
+same service. Preserve the service identifier, control-operation result, and observation time
+outside the harness receipt. The phase runner does not call or verify the Render control API.
+After resuming the service, complete `read` to prove recovery and `cleanup` after success or any
+partial failure. Cleanup targets the fixed IDs derived from the run marker and never clears a
+table.
+
+Bind the hosted evidence set explicitly: record the source commit, Render deploy identifier and
+deployed commit, service identifier, persistent-disk identifier and mount path, database path,
+table name, run ID, application revision, and stable store identity. The harness verifies the
+application revision and store identity carried through its write/read receipts; the external
+deployment and Render resource records establish the remaining bindings. Do not infer those
+bindings from a passing phase receipt.

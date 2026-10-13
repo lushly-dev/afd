@@ -18,7 +18,11 @@ function runProcess(script, environment, timeoutMs = 15_000, onStdout) {
 	const startedAt = Date.now();
 	const processGroup = process.platform !== 'win32';
 	const child = spawn(process.execPath, [script], {
-		env: { ...process.env, ...environment },
+		env: {
+			...process.env,
+			AFD_TEST_HTTP_UNAVAILABLE_HTTP_STATUS: '',
+			...environment,
+		},
 		stdio: ['ignore', 'pipe', 'pipe'],
 		detached: processGroup,
 	});
@@ -148,6 +152,30 @@ function phaseEnvironment(baseURL, runId, tokenA, tokenB, extra = {}) {
 	};
 }
 
+async function startStatusServer(
+	status,
+	body = JSON.stringify({ status: 'unavailable' }),
+	headers = { 'content-type': 'application/json' }
+) {
+	let requests = 0;
+	const server = createServer((_request, response) => {
+		requests += 1;
+		response.writeHead(status, headers);
+		response.end(body);
+	});
+	await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+	const address = server.address();
+	assert.ok(address && typeof address !== 'string');
+	return {
+		baseURL: `http://127.0.0.1:${address.port}/api/v1`,
+		requests: () => requests,
+		async close() {
+			server.closeAllConnections();
+			await new Promise((resolve) => server.close(resolve));
+		},
+	};
+}
+
 test('local lifecycle proves restart, recovery, and exact cleanup', {
 	timeout: 20_000,
 }, async () => {
@@ -159,6 +187,10 @@ test('local lifecycle proves restart, recovery, and exact cleanup', {
 		receipt.phases.map((phase) => phase.phase),
 		['write', 'unavailable', 'read', 'cleanup']
 	);
+	assert.deepEqual(receipt.phases[1].unavailabilityEvidence, {
+		mode: 'native-fetch-rejection',
+		controlAcknowledged: true,
+	});
 });
 
 test('malformed URL cannot count as controlled unavailability', async () => {
@@ -173,6 +205,189 @@ test('malformed URL cannot count as controlled unavailability', async () => {
 	const receipt = lastReceipt(result.stderr);
 	assert.equal(receipt.code, 'CONFIG');
 	assert.match(receipt.message, /valid absolute URL/);
+});
+
+test('provider-edge mode records an exact HttpAdapter HTTP 503 receipt', async () => {
+	const server = await startStatusServer(503);
+	try {
+		const result = await runProcess(phaseScript, {
+			AFD_TEST_HTTP_PHASE: 'unavailable',
+			AFD_TEST_HTTP_BASE_URL: server.baseURL,
+			AFD_TEST_HTTP_TABLE: 'integration_records',
+			AFD_TEST_HTTP_RUN_ID: 'provider-edge-503',
+			AFD_TEST_HTTP_UNAVAILABLE_ACK: 'render-suspend-503',
+			AFD_TEST_HTTP_UNAVAILABLE_HTTP_STATUS: '503',
+		});
+		assert.equal(result.code, 0, result.stderr);
+		assert.equal(server.requests(), 1);
+		const receipt = lastReceipt(result.stdout);
+		assert.deepEqual(receipt.unavailabilityEvidence, {
+			mode: 'provider-edge-http-status',
+			expectedStatus: 503,
+			observedStatus: 503,
+			controlAcknowledged: true,
+		});
+		assert.deepEqual(receipt.checks, ['provider-edge-http-503']);
+	} finally {
+		await server.close();
+	}
+});
+
+test('provider-edge mode rejects the wrong HttpAdapter HTTP status', async () => {
+	const server = await startStatusServer(502);
+	try {
+		const result = await runProcess(phaseScript, {
+			AFD_TEST_HTTP_PHASE: 'unavailable',
+			AFD_TEST_HTTP_BASE_URL: server.baseURL,
+			AFD_TEST_HTTP_TABLE: 'integration_records',
+			AFD_TEST_HTTP_RUN_ID: 'provider-edge-502',
+			AFD_TEST_HTTP_UNAVAILABLE_ACK: 'render-suspend-502',
+			AFD_TEST_HTTP_UNAVAILABLE_HTTP_STATUS: '503',
+		});
+		assert.equal(result.code, 1);
+		const receipt = lastReceipt(result.stderr);
+		assert.equal(receipt.code, 'ASSERTION');
+		assert.match(receipt.message, /expected HTTP 503 but received HTTP 502/);
+	} finally {
+		await server.close();
+	}
+});
+
+test('provider-edge mode rejects a native fetch failure', async () => {
+	const result = await runProcess(phaseScript, {
+		AFD_TEST_HTTP_PHASE: 'unavailable',
+		AFD_TEST_HTTP_BASE_URL: 'http://127.0.0.1:1/api/v1',
+		AFD_TEST_HTTP_TABLE: 'integration_records',
+		AFD_TEST_HTTP_RUN_ID: 'provider-native-mismatch',
+		AFD_TEST_HTTP_UNAVAILABLE_ACK: 'render-suspend-native',
+		AFD_TEST_HTTP_UNAVAILABLE_HTTP_STATUS: '503',
+		AFD_TEST_HTTP_DEADLINE_MS: '100',
+	});
+	assert.equal(result.code, 1);
+	const receipt = lastReceipt(result.stderr);
+	assert.equal(receipt.code, 'ASSERTION');
+	assert.match(receipt.message, /expected HTTP 503.*native fetch rejection/);
+});
+
+test('native-rejection mode rejects an HttpAdapter HTTP response', async () => {
+	const server = await startStatusServer(503);
+	try {
+		const result = await runProcess(phaseScript, {
+			AFD_TEST_HTTP_PHASE: 'unavailable',
+			AFD_TEST_HTTP_BASE_URL: server.baseURL,
+			AFD_TEST_HTTP_TABLE: 'integration_records',
+			AFD_TEST_HTTP_RUN_ID: 'native-http-mismatch',
+			AFD_TEST_HTTP_UNAVAILABLE_ACK: 'controlled-http-503',
+		});
+		assert.equal(result.code, 1);
+		const receipt = lastReceipt(result.stderr);
+		assert.equal(receipt.code, 'ASSERTION');
+		assert.match(receipt.message, /HTTP application error/);
+	} finally {
+		await server.close();
+	}
+});
+
+test('native-rejection mode rejects HTTP 200 with malformed JSON', async () => {
+	const server = await startStatusServer(200, '{not-json');
+	try {
+		const result = await runProcess(phaseScript, {
+			AFD_TEST_HTTP_PHASE: 'unavailable',
+			AFD_TEST_HTTP_BASE_URL: server.baseURL,
+			AFD_TEST_HTTP_TABLE: 'integration_records',
+			AFD_TEST_HTTP_RUN_ID: 'native-malformed-json',
+			AFD_TEST_HTTP_UNAVAILABLE_ACK: 'controlled-malformed-json',
+		});
+		assert.equal(result.code, 1);
+		const receipt = lastReceipt(result.stderr);
+		assert.equal(receipt.code, 'ASSERTION');
+		assert.match(receipt.message, /received HTTP 200 before response processing failed/);
+		assert.equal(result.stdout.includes('native-fetch-rejection'), false);
+	} finally {
+		await server.close();
+	}
+});
+
+test('native-rejection mode rejects a redirect before following it', async () => {
+	const server = await startStatusServer(302, '', {
+		location: 'http://127.0.0.1:1/api/v1/health',
+	});
+	try {
+		const result = await runProcess(phaseScript, {
+			AFD_TEST_HTTP_PHASE: 'unavailable',
+			AFD_TEST_HTTP_BASE_URL: server.baseURL,
+			AFD_TEST_HTTP_TABLE: 'integration_records',
+			AFD_TEST_HTTP_RUN_ID: 'native-redirect-failure',
+			AFD_TEST_HTTP_UNAVAILABLE_ACK: 'controlled-redirect-failure',
+		});
+		assert.equal(result.code, 1);
+		const receipt = lastReceipt(result.stderr);
+		assert.equal(receipt.code, 'ASSERTION');
+		assert.match(receipt.message, /HTTP application error/);
+		assert.equal(result.stdout.includes('native-fetch-rejection'), false);
+	} finally {
+		await server.close();
+	}
+});
+
+test('native-rejection mode rejects deadline aborts', async () => {
+	const server = createServer(() => {});
+	await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+	const address = server.address();
+	assert.ok(address && typeof address !== 'string');
+	try {
+		const result = await runProcess(phaseScript, {
+			AFD_TEST_HTTP_PHASE: 'unavailable',
+			AFD_TEST_HTTP_BASE_URL: `http://127.0.0.1:${address.port}/api/v1`,
+			AFD_TEST_HTTP_TABLE: 'integration_records',
+			AFD_TEST_HTTP_RUN_ID: 'native-deadline-abort',
+			AFD_TEST_HTTP_UNAVAILABLE_ACK: 'controlled-deadline-abort',
+			AFD_TEST_HTTP_DEADLINE_MS: '100',
+		});
+		assert.equal(result.code, 1);
+		const receipt = lastReceipt(result.stderr);
+		assert.equal(receipt.code, 'ASSERTION');
+		assert.match(receipt.message, /aborted or reached its deadline/);
+		assert.equal(result.stdout.includes('native-fetch-rejection'), false);
+	} finally {
+		server.closeAllConnections();
+		await new Promise((resolve) => server.close(resolve));
+	}
+});
+
+test('provider-edge acknowledgement alone cannot pass a healthy response', async () => {
+	const server = await startStatusServer(200);
+	try {
+		const result = await runProcess(phaseScript, {
+			AFD_TEST_HTTP_PHASE: 'unavailable',
+			AFD_TEST_HTTP_BASE_URL: server.baseURL,
+			AFD_TEST_HTTP_TABLE: 'integration_records',
+			AFD_TEST_HTTP_RUN_ID: 'provider-ack-only',
+			AFD_TEST_HTTP_UNAVAILABLE_ACK: 'render-suspend-ack-only',
+			AFD_TEST_HTTP_UNAVAILABLE_HTTP_STATUS: '503',
+		});
+		assert.equal(result.code, 1);
+		const receipt = lastReceipt(result.stderr);
+		assert.equal(receipt.code, 'ASSERTION');
+		assert.match(receipt.message, /unexpectedly succeeded/);
+	} finally {
+		await server.close();
+	}
+});
+
+test('provider-edge status configuration fails closed', async () => {
+	const result = await runProcess(phaseScript, {
+		AFD_TEST_HTTP_PHASE: 'unavailable',
+		AFD_TEST_HTTP_BASE_URL: 'http://127.0.0.1:1/api/v1',
+		AFD_TEST_HTTP_TABLE: 'integration_records',
+		AFD_TEST_HTTP_RUN_ID: 'provider-bad-config',
+		AFD_TEST_HTTP_UNAVAILABLE_ACK: 'render-suspend-config',
+		AFD_TEST_HTTP_UNAVAILABLE_HTTP_STATUS: '502',
+	});
+	assert.equal(result.code, 1);
+	const receipt = lastReceipt(result.stderr);
+	assert.equal(receipt.code, 'CONFIG');
+	assert.match(receipt.message, /must be exactly 503/);
 });
 
 test('external cleartext endpoints are rejected before bearer tokens can be sent', async () => {

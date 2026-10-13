@@ -227,7 +227,10 @@ evidence. The published npm baseline is 2.1.0; use the current release record an
 [package-update process](../do-release/references/next-round.md) before the next
 version change. See [the next hosted round](../../../docs/operations/hosted-verification-round.md)
 for proposed resources and the local preparation gate before provisioning.
-
+The [Render operator recipe](../../../docs/operations/hosted-render.md) covers
+the two disposable services, exact source/resource ledger and local control
+helper. Its injected-response tests run in `pnpm test:hosted:local`; provider
+deployment, restart and deletion readbacks still require an authorized hosted run.
 
 ## React Hooks
 

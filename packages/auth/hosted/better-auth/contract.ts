@@ -10,14 +10,101 @@ export interface RunConfig {
 	controlKey: string;
 	restartCommand: string[];
 	deadlineMs: number;
+	operationTimeoutMs: number;
+	restartTimeoutMs: number;
+	sessionExpiresIn: number;
+	sessionUpdateAge: number;
 }
 
-export function deadline(value: string | undefined): number {
-	const ms = Number(value ?? 180_000);
+interface SessionEvidence {
+	id?: string;
+	userId?: string;
+	expiresAt?: number;
+}
+
+export const RESTART_CLOCK_SKEW_MARGIN_MS = 1_000;
+
+function finiteTimestamp(value: number | undefined): value is number {
+	return Number.isFinite(value);
+}
+
+export function renewalEvidenceIsConsistent(input: {
+	originalAdapter: SessionEvidence;
+	originalProvider: SessionEvidence;
+	renewedAdapter: SessionEvidence;
+	renewedProvider: SessionEvidence;
+}): boolean {
+	const { originalAdapter, originalProvider, renewedAdapter, renewedProvider } = input;
+	if (!originalAdapter.id || !originalAdapter.userId) return false;
+	if (
+		![originalProvider, renewedAdapter, renewedProvider].every(
+			(item) => item.id === originalAdapter.id && item.userId === originalAdapter.userId
+		)
+	)
+		return false;
+	if (
+		!finiteTimestamp(originalAdapter.expiresAt) ||
+		!finiteTimestamp(originalProvider.expiresAt) ||
+		!finiteTimestamp(renewedAdapter.expiresAt) ||
+		!finiteTimestamp(renewedProvider.expiresAt)
+	)
+		return false;
+	return (
+		renewedAdapter.expiresAt > Math.max(originalAdapter.expiresAt, originalProvider.expiresAt) &&
+		renewedProvider.expiresAt >= renewedAdapter.expiresAt
+	);
+}
+
+export function requiredRestartLifetimeMs(restartTimeoutMs: number, operationTimeoutMs: number) {
+	return restartTimeoutMs + operationTimeoutMs + RESTART_CLOCK_SKEW_MARGIN_MS;
+}
+
+export function hasRestartLifetimeMargin(
+	expiresAt: number | undefined,
+	now: number,
+	restartTimeoutMs: number,
+	operationTimeoutMs: number
+): boolean {
+	return (
+		finiteTimestamp(expiresAt) &&
+		expiresAt - now > requiredRestartLifetimeMs(restartTimeoutMs, operationTimeoutMs)
+	);
+}
+
+function boundedInteger(
+	name: string,
+	value: string | undefined,
+	fallback: number,
+	minimum: number,
+	maximum: number
+): number {
+	const parsed = Number(value ?? fallback);
+	if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
+		throw new Error(`${name} must be an integer between ${minimum} and ${maximum}`);
+	}
+	return parsed;
+}
+
+export function deadline(value: string | undefined, fallback = 180_000): number {
+	const ms = Number(value ?? fallback);
 	if (!Number.isInteger(ms) || ms < 10_000 || ms > 900_000) {
 		throw new Error('AFD_BA_DEADLINE_MS must be an integer between 10000 and 900000');
 	}
 	return ms;
+}
+
+export function hostedListenConfig(env: NodeJS.ProcessEnv): { host: string; port: number } {
+	const host = env.AFD_BA_HOST?.trim() || '127.0.0.1';
+	if (!['127.0.0.1', '0.0.0.0'].includes(host)) {
+		throw new Error('AFD_BA_HOST must be 127.0.0.1 or 0.0.0.0');
+	}
+	const portValue = env.AFD_BA_PORT ?? env.PORT ?? '3000';
+	if (!/^\d+$/.test(portValue)) throw new Error('AFD_BA_PORT or PORT must be a decimal port');
+	const port = Number(portValue);
+	if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+		throw new Error('AFD_BA_PORT or PORT must be between 1 and 65535');
+	}
+	return { host, port };
 }
 
 export function hostedConfig(env: NodeJS.ProcessEnv): RunConfig {
@@ -68,6 +155,47 @@ export function hostedConfig(env: NodeJS.ProcessEnv): RunConfig {
 	}
 	if ((env.AFD_BA_CONTROL_KEY?.length ?? 0) < 32)
 		throw new Error('Control key must contain at least 32 characters');
+	const sessionExpiresIn = boundedInteger(
+		'AFD_BA_SESSION_EXPIRES_IN',
+		env.AFD_BA_SESSION_EXPIRES_IN,
+		180,
+		120,
+		300
+	);
+	const sessionUpdateAge = boundedInteger(
+		'AFD_BA_SESSION_UPDATE_AGE',
+		env.AFD_BA_SESSION_UPDATE_AGE,
+		5,
+		1,
+		30
+	);
+	if (sessionUpdateAge >= sessionExpiresIn)
+		throw new Error('AFD_BA_SESSION_UPDATE_AGE must be less than AFD_BA_SESSION_EXPIRES_IN');
+	const operationTimeoutMs = boundedInteger(
+		'AFD_BA_OPERATION_TIMEOUT_MS',
+		env.AFD_BA_OPERATION_TIMEOUT_MS,
+		15_000,
+		5_000,
+		60_000
+	);
+	const restartTimeoutMs = boundedInteger(
+		'AFD_BA_RESTART_TIMEOUT_MS',
+		env.AFD_BA_RESTART_TIMEOUT_MS,
+		90_000,
+		30_000,
+		120_000
+	);
+	if (sessionExpiresIn * 1000 <= requiredRestartLifetimeMs(restartTimeoutMs, operationTimeoutMs)) {
+		throw new Error(
+			'AFD_BA_SESSION_EXPIRES_IN must exceed restart, post-restart operation and clock-skew budgets'
+		);
+	}
+	const deadlineMs = deadline(env.AFD_BA_DEADLINE_MS, 600_000);
+	if (deadlineMs <= sessionExpiresIn * 1000 + restartTimeoutMs + operationTimeoutMs) {
+		throw new Error(
+			'AFD_BA_DEADLINE_MS must exceed session expiry plus restart and operation budgets'
+		);
+	}
 	return {
 		mode: 'hosted',
 		appURL: app.origin,
@@ -78,7 +206,11 @@ export function hostedConfig(env: NodeJS.ProcessEnv): RunConfig {
 		revision: env.AFD_BA_REVISION ?? '',
 		controlKey: env.AFD_BA_CONTROL_KEY ?? '',
 		restartCommand,
-		deadlineMs: deadline(env.AFD_BA_DEADLINE_MS),
+		deadlineMs,
+		operationTimeoutMs,
+		restartTimeoutMs,
+		sessionExpiresIn,
+		sessionUpdateAge,
 	};
 }
 

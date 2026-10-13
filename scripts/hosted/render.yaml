@@ -1,0 +1,91 @@
+# Disposable AFD #362 fixtures. Import this custom Blueprint path only after
+# reviewing the exact source commit and the paid-resource quote.
+services:
+  - type: web
+    name: afd-362-h1-better-auth
+    runtime: node
+    repo: https://github.com/lushly-dev/afd
+    plan: 0.5c-512mb
+    numInstances: 1
+    autoDeployTrigger: 'off'
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    startCommand: cd packages/auth && node hosted/better-auth/serve.mjs
+    healthCheckPath: /harness/info
+    envVars:
+      - key: NODE_VERSION
+        value: '24'
+      - key: AFD_BA_HOST
+        value: 0.0.0.0
+      - key: AFD_BA_DATABASE_PATH
+        value: /var/data/auth.sqlite
+      - key: AFD_BA_DISPOSABLE
+        value: '1'
+      - key: AFD_BA_PROVIDER_ID
+        value: google
+      - key: AFD_BA_DISCOVERY_URL
+        value: https://accounts.google.com/.well-known/openid-configuration
+      - key: AFD_BA_ISSUER
+        value: https://accounts.google.com
+      - key: AFD_BA_SESSION_EXPIRES_IN
+        value: '180'
+      - key: AFD_BA_SESSION_UPDATE_AGE
+        value: '5'
+      - key: AFD_BA_RESTART_TIMEOUT_MS
+        value: '90000'
+      - key: AFD_BA_OPERATION_TIMEOUT_MS
+        value: '15000'
+      - key: AFD_BA_DEADLINE_MS
+        value: '900000'
+      - key: AFD_BA_APP_URL
+        sync: false
+      - key: AFD_BA_CALLBACK_URL
+        sync: false
+      - key: AFD_BA_RETURN_URL
+        sync: false
+      - key: AFD_BA_REVISION
+        sync: false
+      - key: AFD_BA_RESTART_COMMAND
+        value: '["unused-by-server"]'
+      - key: AFD_BA_SECRET
+        sync: false
+      - key: AFD_BA_CONTROL_KEY
+        sync: false
+      - key: AFD_BA_CLIENT_ID
+        sync: false
+      - key: AFD_BA_CLIENT_SECRET
+        sync: false
+      - key: AFD_BA_EXPECTED_EMAIL
+        sync: false
+    disk:
+      name: afd-362-h1-auth
+      mountPath: /var/data
+      sizeGB: 1
+
+  - type: web
+    name: afd-362-h3-rest
+    runtime: node
+    repo: https://github.com/lushly-dev/afd
+    plan: 0.5c-512mb
+    numInstances: 1
+    autoDeployTrigger: 'off'
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    startCommand: node packages/local-db/hosted/durable-rest-server.mjs
+    envVars:
+      - key: NODE_VERSION
+        value: '24'
+      - key: AFD_FIXTURE_HOST
+        value: 0.0.0.0
+      - key: AFD_FIXTURE_PORT
+        value: '10000'
+      - key: AFD_FIXTURE_DB_PATH
+        value: /var/data/rest.sqlite
+      - key: AFD_FIXTURE_API_BASE
+        value: /api/v1
+      - key: AFD_FIXTURE_TOKEN_A
+        sync: false
+      - key: AFD_FIXTURE_TOKEN_B
+        sync: false
+    disk:
+      name: afd-362-h3-rest
+      mountPath: /var/data
+      sizeGB: 1

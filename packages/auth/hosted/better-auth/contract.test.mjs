@@ -8,8 +8,18 @@ import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { deadline, hostedConfig, receiptJSON } from './contract.ts';
+import {
+	deadline,
+	hasRestartLifetimeMargin,
+	hostedConfig,
+	hostedListenConfig,
+	RESTART_CLOCK_SKEW_MARGIN_MS,
+	receiptJSON,
+	renewalEvidenceIsConsistent,
+	requiredRestartLifetimeMs,
+} from './contract.ts';
 import { secureProviderFetch, validateDiscovery } from './provider-fetch.ts';
+import { remainingBudgetMs, restartWithinBudget, withinTimeout } from './restart.ts';
 
 const valid = {
 	AFD_BA_DISPOSABLE: '1',
@@ -23,7 +33,28 @@ const valid = {
 	AFD_BA_RESTART_COMMAND: '["test-restart", "disposable"]',
 };
 test('hosted preflight requires every input and exact secure callback topology', () => {
-	assert.equal(hostedConfig(valid).mode, 'hosted');
+	assert.deepEqual(
+		{
+			...hostedConfig(valid),
+			restartCommand: undefined,
+		},
+		{
+			mode: 'hosted',
+			appURL: 'https://disposable.example.test',
+			providerId: 'oidc',
+			callbackURL: 'https://disposable.example.test/api/auth/callback/oidc',
+			returnURL: 'https://disposable.example.test/',
+			expectedEmail: 'synthetic@example.test',
+			revision: 'abcdef0123456789',
+			controlKey: 'control-test-only-0123456789abcdef',
+			restartCommand: undefined,
+			deadlineMs: 600_000,
+			operationTimeoutMs: 15_000,
+			restartTimeoutMs: 90_000,
+			sessionExpiresIn: 180,
+			sessionUpdateAge: 5,
+		}
+	);
 	for (const name of Object.keys(valid)) {
 		const env = { ...valid };
 		delete env[name];
@@ -41,6 +72,127 @@ test('hosted preflight requires every input and exact secure callback topology',
 		assert.throws(() => hostedConfig({ ...valid, ...override }));
 	for (const value of ['0', '9999', '900001', 'Infinity', '10000.1'])
 		assert.throws(() => deadline(value));
+});
+test('hosted timing is bounded and the whole-run deadline covers expiry and restart', () => {
+	for (const override of [
+		{ AFD_BA_SESSION_EXPIRES_IN: '119' },
+		{ AFD_BA_SESSION_EXPIRES_IN: '301' },
+		{ AFD_BA_SESSION_UPDATE_AGE: '0' },
+		{ AFD_BA_SESSION_UPDATE_AGE: '31' },
+		{ AFD_BA_OPERATION_TIMEOUT_MS: '4999' },
+		{ AFD_BA_OPERATION_TIMEOUT_MS: '60001' },
+		{ AFD_BA_RESTART_TIMEOUT_MS: '29999' },
+		{ AFD_BA_RESTART_TIMEOUT_MS: '120001' },
+		{ AFD_BA_DEADLINE_MS: '285000' },
+		{
+			AFD_BA_SESSION_EXPIRES_IN: '120',
+			AFD_BA_RESTART_TIMEOUT_MS: '120000',
+			AFD_BA_DEADLINE_MS: '900000',
+		},
+		{
+			AFD_BA_SESSION_EXPIRES_IN: '120',
+			AFD_BA_RESTART_TIMEOUT_MS: '60000',
+			AFD_BA_OPERATION_TIMEOUT_MS: '60000',
+			AFD_BA_DEADLINE_MS: '900000',
+		},
+	]) {
+		assert.throws(() => hostedConfig({ ...valid, ...override }));
+	}
+	const maximum = hostedConfig({
+		...valid,
+		AFD_BA_SESSION_EXPIRES_IN: '300',
+		AFD_BA_SESSION_UPDATE_AGE: '30',
+		AFD_BA_OPERATION_TIMEOUT_MS: '60000',
+		AFD_BA_RESTART_TIMEOUT_MS: '120000',
+		AFD_BA_DEADLINE_MS: '900000',
+	});
+	assert.equal(maximum.sessionExpiresIn, 300);
+	assert.equal(maximum.deadlineMs, 900_000);
+	const boundary = hostedConfig({
+		...valid,
+		AFD_BA_SESSION_EXPIRES_IN: '120',
+		AFD_BA_RESTART_TIMEOUT_MS: '90000',
+		AFD_BA_OPERATION_TIMEOUT_MS: '28999',
+	});
+	assert.equal(
+		requiredRestartLifetimeMs(boundary.restartTimeoutMs, boundary.operationTimeoutMs),
+		119_999
+	);
+});
+test('renewal evidence requires adapter expiry advancement and provider agreement', () => {
+	const originalAdapter = { id: 'session', userId: 'user', expiresAt: 1_000 };
+	const originalProvider = { id: 'session', userId: 'user', expiresAt: 1_100 };
+	const renewedAdapter = { id: 'session', userId: 'user', expiresAt: 2_000 };
+	const renewedProvider = { id: 'session', userId: 'user', expiresAt: 2_100 };
+	const evidence = (adapter, provider = renewedProvider) =>
+		renewalEvidenceIsConsistent({
+			originalAdapter,
+			originalProvider,
+			renewedAdapter: adapter,
+			renewedProvider: provider,
+		});
+	assert.equal(evidence(renewedAdapter), true);
+	assert.equal(evidence({ ...renewedAdapter, expiresAt: originalAdapter.expiresAt }), false);
+	assert.equal(evidence({ id: 'session', userId: 'user' }), false);
+	assert.equal(evidence(renewedAdapter, { ...renewedProvider, expiresAt: 1_999 }), false);
+	assert.equal(evidence({ ...renewedAdapter, id: 'different-session' }), false);
+});
+test('restart lifetime reserves one post-restart operation budget', () => {
+	assert.equal(RESTART_CLOCK_SKEW_MARGIN_MS, 1_000);
+	assert.equal(requiredRestartLifetimeMs(90_000, 15_000), 106_000);
+	assert.equal(hasRestartLifetimeMargin(107_000, 1_000, 90_000, 15_000), false);
+	assert.equal(hasRestartLifetimeMargin(107_001, 1_000, 90_000, 15_000), true);
+	assert.equal(hasRestartLifetimeMargin(undefined, 1_000, 90_000, 15_000), false);
+});
+test('hosted listener defaults to loopback and honors validated platform port precedence', () => {
+	assert.deepEqual(hostedListenConfig({}), { host: '127.0.0.1', port: 3000 });
+	assert.deepEqual(hostedListenConfig({ AFD_BA_HOST: '0.0.0.0', PORT: '10000' }), {
+		host: '0.0.0.0',
+		port: 10000,
+	});
+	assert.equal(hostedListenConfig({ AFD_BA_PORT: '4000', PORT: '10000' }).port, 4000);
+	for (const env of [
+		{ AFD_BA_HOST: 'example.test' },
+		{ PORT: '0' },
+		{ PORT: '65536' },
+		{ PORT: '3.5' },
+		{ PORT: '' },
+	]) {
+		assert.throws(() => hostedListenConfig(env));
+	}
+});
+test('restart command and observation spend one shared timeout budget', async () => {
+	let clock = 0;
+	let observationBudget = 0;
+	await restartWithinBudget({
+		timeoutMs: 90_000,
+		now: () => clock,
+		restart: async (budget) => {
+			assert.equal(budget, 90_000);
+			clock = 35_000;
+		},
+		observeRestart: async (budget) => {
+			observationBudget = budget;
+		},
+	});
+	assert.equal(observationBudget, 55_000);
+	assert.equal(
+		remainingBudgetMs(10_000, 55_000, () => 60_000),
+		5_000
+	);
+	assert.throws(() => remainingBudgetMs(10_000, 55_000, () => 65_000));
+	assert.equal(await withinTimeout(Promise.resolve('observed'), 100), 'observed');
+	await assert.rejects(withinTimeout(new Promise(() => {}), 1));
+	await assert.rejects(
+		restartWithinBudget({
+			timeoutMs: 90_000,
+			now: () => clock,
+			restart: async () => {
+				clock += 90_001;
+			},
+			observeRestart: async () => assert.fail('observation must not start'),
+		})
+	);
 });
 test('receipts whitelist output and strip OAuth query/fragment/credentials', () => {
 	const secret = 'SECRET-SENTINEL-DO-NOT-PERSIST';
@@ -116,6 +268,7 @@ test('real Chromium deadline failure removes child server, database, generated k
 	assert.equal(result.code, 1);
 	const receipt = JSON.parse(result.output);
 	assert.equal(receipt.result, 'failed');
+	assert.equal(receipt.interrupted, false);
 	assert.equal(receipt.cleanup, 'passed');
 	assert.equal(receipt.resourceCleanup, 'passed');
 	assert.ok(receipt.assertions.length > 2); // It ran real provider/browser work before the deadline.

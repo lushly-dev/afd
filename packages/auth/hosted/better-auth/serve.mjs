@@ -3,7 +3,7 @@ import { fork } from 'node:child_process';
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { buildFixture } from './build.mjs';
-import { deadline, hostedConfig } from './contract.ts';
+import { hostedConfig, hostedListenConfig } from './contract.ts';
 
 let child;
 let directory;
@@ -21,6 +21,7 @@ try {
 	]) {
 		if (!process.env[`AFD_BA_${name}`]) throw new Error(`Missing AFD_BA_${name}`);
 	}
+	const listen = hostedListenConfig(process.env);
 	const discovery = new URL(process.env.AFD_BA_DISCOVERY_URL);
 	if (discovery.protocol !== 'https:' || discovery.username || discovery.password)
 		throw new Error('Discovery must use HTTPS');
@@ -32,7 +33,8 @@ try {
 	await buildFixture(directory);
 	const fixture = {
 		origin: config.appURL,
-		port: Number(process.env.AFD_BA_PORT ?? 3000),
+		host: listen.host,
+		port: listen.port,
 		databasePath: resolve(process.env.AFD_BA_DATABASE_PATH),
 		secret: process.env.AFD_BA_SECRET,
 		controlKey: config.controlKey,
@@ -44,14 +46,14 @@ try {
 		clientSecret: process.env.AFD_BA_CLIENT_SECRET,
 		discoveryURL: discovery.href,
 		issuer: process.env.AFD_BA_ISSUER,
-		expiresIn: 45,
-		updateAge: 5,
+		expiresIn: config.sessionExpiresIn,
+		updateAge: config.sessionUpdateAge,
 	};
 	child = fork(resolve(directory, 'server.mjs'), [], {
 		env: { ...process.env, AFD_BA_INTERNAL_CONFIG: JSON.stringify(fixture) },
 		stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
 	});
-	timer = setTimeout(() => child.kill('SIGKILL'), deadline(process.env.AFD_BA_DEADLINE_MS));
+	timer = setTimeout(() => child.kill('SIGKILL'), config.operationTimeoutMs);
 	child.once('message', (message) => {
 		if (message.ready) {
 			clearTimeout(timer);

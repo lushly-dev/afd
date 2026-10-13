@@ -1,7 +1,8 @@
 # Hosted verification round for #362
 
 Prepared 2026-10-13 against reviewed main
-`db56f17bcf08dbef4b568c8c9e3cc1b47a86ab64`. Status: **proposed; nothing provisioned**.
+`db56f17bcf08dbef4b568c8c9e3cc1b47a86ab64`. Status: **local preparation implemented;
+nothing provisioned**. The preparation PR records final review and gate receipts.
 The baseline harnesses merged in #377. H1/H2/H3 external runs remain **NOT RUN**.
 Use [the existing handoff](hosted-verification.md) for fixture contracts and
 [the package update process](../../.claude/skills/do-release/references/next-round.md)
@@ -75,54 +76,54 @@ additional identity service or billing change, obtain a new scoped decision firs
 
 ## Local preparation before provisioning
 
-These are proposed changes, **not currently implemented configuration options**.
-Keep them within #362 and development infrastructure; do not change AuthAdapter,
-HttpAdapter or ViewStateRegistry public guarantees merely to pass a fixture.
+The preparation changes below are development infrastructure. They preserve the
+public AuthAdapter, HttpAdapter and ViewStateRegistry contracts. Provision only
+the final preparation commit after independent review and all applicable gates.
 
-1. **H1 deployment binding and restart timing.** Add validated hosted bind/port
-   configuration (`0.0.0.0`, platform `PORT` fallback) while local mode remains
-   loopback. Current `provider.ts` binds `127.0.0.1`; the README assumes an extra
-   same-host proxy that managed ingress alone does not provide.
-   Replace the fixed hosted 45-second session/30-second command/20-second poll
-   combination with bounded hosted settings. Target a 180-second session,
-   5-second update age, one shared 90-second restart deadline and a 15-minute run
-   bound. Update the current `run.ts` identity assertion (`expiresIn <= 60`) and
-   introduce separate bounded whole-run, per-operation and shared restart settings;
-   today `AFD_BA_DEADLINE_MS` is reused across waits and is not an independent
-   restart budget. Renew and independently capture the same session immediately before
-   restart; require sufficient remaining lifetime plus a margin. Do not give the
-   command and poll separate full budgets or remove the final expiry assertion.
-   Keep the fast local timings unchanged and add focused contract regressions.
-2. **H3 managed-edge outage.** Preserve the existing native-fetch rejection mode.
-   Add explicit expected-HTTP-status mode for Render suspension, e.g. proposed
-   `AFD_TEST_HTTP_UNAVAILABLE_HTTP_STATUS=503`. Require exactly 503 in that mode,
-   a distinct `provider-edge-http-503-unavailable` result and matching independent
-   suspend evidence. Wrong HTTP status, malformed URL, a 200 or an acknowledgement
-   string alone must fail. Never report an HTTP 503 as a native network rejection.
-3. **H2 identity and deployment preflight.** Confirm a dedicated GitHub identity
-   has a verified primary email containing the chosen run ID and allowed suffix;
-   add a runner preflight check and regression that requires three distinct
-   Password-primary/Password-secondary/OAuth identities. Current `lib.mjs` only
-   compares the two Password emails, so this is a local source prerequisite.
-   The current fixture enforces that email scope on the backend and runner. If a
-   reusable fixed OAuth test identity is needed, first add an exact server-side
-   OAuth allowlist separate from the run marker, retaining strict Password and
-   record scoping; do not broadly disable the identity guard. Resolve this before
-   paid resources. Reserve the loopback return port and check the deployment's
-   canonical `.cloud`/`.site` URL pair. Use dashboard provisioning with the pinned
-   SDK CLI for fixture deployment: installed Convex 1.32 lacks the newer
-   `deployment create` administration command. No SDK upgrade is implicit.
-4. **Reproducible deploy/control assets.** Add validated Render definitions or an
-   equally reproducible wrapper for each service, Node 24 and pinned dependency
-   install, volume mounts, one replica, health/readiness and auto-deploy off.
-   Add a bounded control helper that reads service/deploy/disk identity, restarts,
-   suspends/resumes and records redacted evidence. Operator admin credentials stay
-   local, never in fixture environment, JSON argv, browser or receipts.
-5. **Run and review the local gate.** `pnpm check`, `pnpm test:hosted:local`, the
-   separate auth browser suite, focused new configuration/outage regressions and
-   applicable CI must pass on the final candidate. Review deployment definitions
-   without creating resources. Record exact head and require independent review.
-   Provision that reviewed preparation commit, not this planning baseline.
+1. **H1 deployment binding and restart timing.** `AFD_BA_HOST` accepts loopback
+   (default) or `0.0.0.0`; port precedence is `AFD_BA_PORT`, platform `PORT`, then
+   3000. Hosted sessions default to 180 seconds with a 5-second update age.
+   `AFD_BA_OPERATION_TIMEOUT_MS` defaults to 15 seconds;
+   `AFD_BA_RESTART_TIMEOUT_MS` gives the control command and new-instance polling
+   one shared 90-second budget. `AFD_BA_DEADLINE_MS` is a separate whole-run bound
+   (10 minutes by default, 15 minutes in the Render recipe). Before restart the
+   runner renews and independently reads the same session, requiring sufficient
+   remaining lifetime for restart, one shared post-restart observation window
+   and a one-second clock-skew margin. Impossible timing combinations fail
+   preflight. The final idle-expiry assertion remains.
+   Local mode retains fast 12-second sessions and loopback binding. See the
+   [H1 configuration contract](../../packages/auth/hosted/better-auth/README.md).
+2. **H3 managed-edge outage.** Native-fetch rejection remains the default.
+   `AFD_TEST_HTTP_UNAVAILABLE_HTTP_STATUS=503` explicitly selects the Render edge
+   outage mode, requiring exactly HTTP 503 and a distinct provider-edge receipt.
+   Wrong statuses, healthy responses, malformed URLs and acknowledgement alone
+   fail. Independent provider suspension evidence is still required; the runner
+   does not attest control-plane state. Real HttpAdapter tests cover both modes.
+3. **H2 identity and deployment preflight.** The runner requires three distinct
+   Password-primary/Password-secondary/OAuth identities, canonical matching
+   `.convex.cloud`/`.convex.site` origins and a fixed nonzero loopback port. It
+   binds that port before Chromium starts. The dedicated GitHub identity must
+   have a verified primary email containing the chosen run ID and allowed suffix;
+   verify this prerequisite before creating paid resources. The backend and
+   runner retain the run-ID/suffix guard. A reusable fixed OAuth identity needs
+   a separate reviewed exact allowlist change; do not bypass the guard. The
+   [H2 recipe](../../packages/auth/hosted/convex/README.md) uses Dashboard creation
+   and the pinned CLI 1.32 deployment flow; no SDK upgrade is implicit.
+4. **Reproducible deploy/control assets.** The
+   [Render recipe](hosted-render.md) and `scripts/hosted/render.yaml` define two
+   separate Node 24 services, frozen dependency install, one replica each,
+   persistent disks, readiness and disabled auto-deploy. The local ownership
+   ledger binds exact service/disk IDs, roles and the reviewed source. A bounded
+   helper reads provider identity and implements restart, suspend/resume and
+   cleanup with redacted receipts. Administrative credentials stay local, never
+   in fixture environment, JSON argv, browser or receipts. Its injected-response
+   tests are part of `pnpm test:hosted:local`; they make no provider requests.
+5. **Final gate and review.** Run `pnpm check`, `pnpm test:hosted:local`, the
+   separate auth browser suite and applicable CI on the final candidate. Require
+   independent source review, including deployment definitions and control
+   failure paths. These checks do not create hosted resources or establish live
+   provider behavior. Record the final source SHA in the resource ledger and
+   retain actual provider deploy/source readbacks during execution.
 
 The REST server already has a standalone entrypoint; no replacement server is
 needed. Its HTTP health endpoint requires bearer auth, so use the platform's TCP

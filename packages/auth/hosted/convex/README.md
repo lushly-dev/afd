@@ -35,23 +35,38 @@ request, with the same fail-closed behavior.
 
 ## Disposable deployment
 
-Deploy the `convex/` directory in this folder to a dedicated development deployment. Run the
-Convex CLI from this directory so that it finds this schema rather than another application's
-backend. The installed CLIs support these setup commands:
+Use a fresh Cloud development deployment in a dedicated disposable Convex project. The fixture
+pins Convex CLI `1.32.0`; this CLI does not provide the newer `convex deployment create` command.
+Create the disposable project and its development deployment in the Convex Dashboard, then use
+the pinned CLI to link and deploy this fixture. Do not select a production deployment.
+
+1. In the Convex Dashboard, create a project named for this run under the intended team, then
+   create a **Development** deployment in the cloud for that project. Do not reuse a project with
+   a development deployment that must be preserved.
+2. Open that deployment's settings and set a short expiration, recommended 24 hours. Record its
+   deployment name and the dashboard-provided `.convex.cloud` and `.convex.site` URLs. The two
+   URLs must have the same deployment name.
+3. From this fixture directory, configure the pinned CLI for that existing project and deploy
+   the checked-in backend:
 
 ```sh
-../../node_modules/.bin/convex dev --once --typecheck enable
+../../node_modules/.bin/convex dev --once --configure existing --team <team_slug> --project <project_slug> --dev-deployment cloud --typecheck enable
 ../../node_modules/.bin/auth --web-server-url http://127.0.0.1:<fixture-port>
 ```
 
-The private `package.json` in this folder establishes the CLI project root. The relative binary
-paths use the SDKs installed by `packages/auth`; both `--help` commands are exercised by the local
-implementation gate. Run the commands from this folder exactly as shown.
+The first command selects the project's cloud development deployment, writes ignored
+`.env.local` configuration, typechecks, and deploys this fixture. Confirm the deployment name it
+prints matches the name recorded from the Dashboard before continuing. If it names a different
+deployment, stop and correct the project selection before setting variables or running the
+browser test. The second command configures Convex Auth with the same fixed loopback origin used
+for the OAuth return URL. The private `package.json` in this folder establishes the CLI project
+root. The relative binary paths use the versions installed by `packages/auth`; the local gate
+checks the pinned CLI help and SDK compatibility.
 
-Use the Convex dashboard or its environment-variable command to configure secrets; do not put
-them in this repository. The auth CLI may offer to create starter files, so review its proposed
-changes and retain this fixture's checked-in backend. Push the fixture again after setting the
-auth keys and environment variables.
+Use the Convex Dashboard to set secrets and fixture scope variables on this deployment; do not
+put them in this repository. The auth CLI may offer to create starter files, so review its
+proposed changes and retain this fixture's checked-in backend. Deploy the fixture again after
+setting the auth keys and environment variables.
 
 The deployment requires these nonsecret scope controls:
 
@@ -86,7 +101,7 @@ secrets into the browser.
 | --- | --- | --- |
 | `AFD_AUTH_HOSTED_ADAPTER=convex` | yes | Explicit opt-in |
 | `AFD_AUTH_HOSTED_CONVEX_URL` | yes | HTTPS deployment URL |
-| `AFD_AUTH_HOSTED_CONVEX_SITE_URL` | yes | HTTPS site URL used for auth routes |
+| `AFD_AUTH_HOSTED_CONVEX_SITE_URL` | yes | HTTPS site URL for the same canonical Convex deployment |
 | `AFD_AUTH_HOSTED_REVISION` | yes | Must equal authenticated backend preflight revision |
 | `AFD_AUTH_HOSTED_RUN_ID` | yes | 8-64 character alphanumeric/hyphen invocation ID |
 | `AFD_AUTH_HOSTED_EMAIL_SUFFIX` | yes | Synthetic account suffix configured on the backend |
@@ -120,8 +135,8 @@ The callback URL is distinct from the final application return URL. Add these ru
 | --- | --- |
 | `AFD_AUTH_HOSTED_PROVIDER_ID=github` | Enables the OAuth case |
 | `AFD_AUTH_HOSTED_PROVIDER_CALLBACK_URL` | Exact registered Convex site callback |
-| `AFD_AUTH_HOSTED_RETURN_URL` | Loopback app destination allowed by server config |
-| `AFD_AUTH_HOSTED_OAUTH_EMAIL` | Dedicated test identity in the run email scope |
+| `AFD_AUTH_HOSTED_RETURN_URL` | Fixed HTTP loopback origin with an explicit nonzero port, such as `http://127.0.0.1:4173` |
+| `AFD_AUTH_HOSTED_OAUTH_EMAIL` | Distinct dedicated test identity in the run email scope |
 | `AFD_AUTH_HOSTED_OAUTH_HEADFUL=true` | Opens Chromium for test-identity login |
 | `AFD_AUTH_HOSTED_OAUTH_STORAGE_STATE` | Protected Playwright state for that identity |
 | `AFD_AUTH_HOSTED_OAUTH_DEADLINE_MS` | Callback bound, default 180 seconds |
@@ -130,6 +145,20 @@ The headful flow supports provider login, consent, MFA, or denial UI. The runner
 automate unknown provider forms. A storage-state file is a secret because it contains the test
 identity's provider session; keep it outside the repository and delete it after the run. Neither
 path exposes provider client secrets or administrative credentials to the app.
+
+Before opting into OAuth, provision a dedicated GitHub test identity whose verified primary email
+contains the exact `AFD_AUTH_HOSTED_RUN_ID`, ends with `AFD_AUTH_HOSTED_EMAIL_SUFFIX`, and differs
+from both Password identity emails. The runner checks all three constraints before starting the
+fixture server. Do not use a production or maintainer GitHub identity, remove the run-ID/suffix
+guard, or broaden the backend allowlist to make a stable email fit. If a dedicated verified,
+run-scoped identity is unavailable, keep OAuth out of this run; reusable identity support needs a
+separate reviewed harness change.
+
+The runner binds the configured loopback port and holds it before Chromium starts, so the browser
+cannot contact Convex until the port preflight succeeds. If another process wins the bind race, the
+run fails with `loopback-port-in-use` before any browser or provider request. Port `0`, an omitted
+port, and a path/query/fragment on the return URL are rejected because the OAuth callback must
+return to the exact origin the server binds.
 
 ## Assertions and receipt limits
 
@@ -152,5 +181,15 @@ not a revocable bearer token.
 The runner verifies scoped account deletion, but it cannot delete the deployment or revoke the
 upstream OAuth grant while it is still executing. Those cleanup items remain `not-run`, so its
 machine receipt remains partial even when every H2 browser assertion passes. After reviewing the
-receipt, remove the OAuth grant/client or test grant as appropriate, delete the disposable Convex
-deployment, verify both are gone, and record that external cleanup separately.
+receipt and recording the in-run cleanup readbacks:
+
+1. In GitHub Developer Settings, delete the dedicated OAuth App used for this run (or revoke its
+   grant and verify the grant is absent).
+2. In the Convex Dashboard, open the recorded development deployment's settings, permanently
+   delete that deployment, and confirm the deletion. Expiration is only a failsafe. If the project
+   was created solely for this run and is empty afterward, delete that project too.
+3. Refresh the Dashboard and confirm the deployment is absent. Record the deployment name, the
+   deletion time, and the absence readback separately from the runner receipt.
+4. Remove any local `.env.local`, generated Convex files, provider storage state, and disposable
+   execution worktree after preserving the redacted receipt. Confirm the worktree has no tracked
+   changes before removing it.

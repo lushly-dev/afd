@@ -2,9 +2,16 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { type Browser, type BrowserContext, chromium, type Page, request } from 'playwright';
-import { type Receipt, type RunConfig, receiptJSON } from './contract.js';
+import {
+	hasRestartLifetimeMargin,
+	type Receipt,
+	type RunConfig,
+	receiptJSON,
+	renewalEvidenceIsConsistent,
+} from './contract.js';
 import type {} from './fixture.js';
 import { startLocal } from './local.js';
+import { remainingBudgetMs, restartWithinBudget, withinTimeout } from './restart.js';
 
 async function poll(check: () => Promise<boolean>, timeout: number, signal: AbortSignal) {
 	const end = Date.now() + timeout;
@@ -22,13 +29,13 @@ export async function runHarness(input: {
 	deadlineMs: number;
 	versions: Record<string, string>;
 	signal: AbortSignal;
+	interrupted?: () => boolean;
 }) {
 	let local: Awaited<ReturnType<typeof startLocal>> | undefined;
 	let browser: Browser | undefined;
 	let context: BrowserContext | undefined;
 	let config = input.config;
 	let phase = 'startup';
-	let timer: ReturnType<typeof setTimeout> | undefined;
 	const receipt: Receipt = {
 		schema: 1,
 		mode: config?.mode ?? 'local',
@@ -79,16 +86,16 @@ export async function runHarness(input: {
 		input.signal.throwIfAborted();
 		receipt.origin = config.appURL;
 		receipt.revision = config.revision;
-		browser = await chromium.launch({ headless: config.mode === 'local', timeout: 15_000 });
+		browser = await chromium.launch({
+			headless: config.mode === 'local',
+			timeout: config.operationTimeoutMs,
+		});
 		input.signal.throwIfAborted();
 		receipt.browser = browser.version();
 		receipt.checks.startup = 'passed';
-		// Deadline closes Chromium to interrupt navigation and pending UI operations.
-		timer = setTimeout(() => {
-			void browser?.close();
-		}, config.deadlineMs);
 		context = await browser.newContext({ ignoreHTTPSErrors: config.mode === 'local' });
-		context.setDefaultTimeout(Math.min(15_000, config.deadlineMs));
+		context.setDefaultTimeout(config.operationTimeoutMs);
+		context.setDefaultNavigationTimeout(config.operationTimeoutMs);
 		const first = await context.newPage();
 		const second = await context.newPage();
 		const cfg = config;
@@ -99,18 +106,27 @@ export async function runHarness(input: {
 			if (url.origin === cfg.appURL && url.pathname === new URL(cfg.callbackURL).pathname)
 				callbackCount++;
 		});
-		const status = async (page: Page, value: string) =>
-			waitFor(
-				async () => (await page.locator('#session').getAttribute('data-status')) === value,
-				15_000
-			);
+		const status = async (page: Page, value: string, timeoutMs = cfg.operationTimeoutMs) => {
+			const startedAt = Date.now();
+			return waitFor(async () => {
+				try {
+					return (
+						(await page.locator('#session').getAttribute('data-status', {
+							timeout: remainingBudgetMs(startedAt, timeoutMs),
+						})) === value
+					);
+				} catch {
+					return false;
+				}
+			}, timeoutMs);
+		};
 		const api = await request.newContext({
 			ignoreHTTPSErrors: cfg.mode === 'local',
-			timeout: 5000,
+			timeout: cfg.operationTimeoutMs,
 		});
 		try {
-			const info = async () => {
-				const response = await api.get(`${cfg.appURL}/harness/info`);
+			const info = async (timeout = cfg.operationTimeoutMs) => {
+				const response = await api.get(`${cfg.appURL}/harness/info`, { timeout });
 				check(response.ok());
 				return (await response.json()) as {
 					instanceId: string;
@@ -122,6 +138,13 @@ export async function runHarness(input: {
 					providerVersion: string;
 				};
 			};
+			const sessionRead = async (timeout = cfg.operationTimeoutMs) => {
+				const response = await browserContext.request.get(`${cfg.appURL}/harness/session`, {
+					timeout,
+				});
+				check(response.ok());
+				return response.json();
+			};
 			const initial = await info();
 			phase = 'fixture-identity';
 			check(/^\d+\.\d+\.\d+(?:[-+][a-z0-9.-]+)?$/i.test(initial.providerVersion));
@@ -129,8 +152,8 @@ export async function runHarness(input: {
 			check(initial.revision === cfg.revision && initial.providerId === cfg.providerId);
 			check(
 				initial.providerKind === receipt.provider &&
-					initial.expiresIn >= 3 &&
-					initial.expiresIn <= 60 &&
+					initial.expiresIn === cfg.sessionExpiresIn &&
+					initial.updateAge === cfg.sessionUpdateAge &&
 					initial.updateAge < initial.expiresIn
 			);
 			await Promise.all([first.goto(cfg.appURL), second.goto(cfg.appURL)]);
@@ -159,7 +182,7 @@ export async function runHarness(input: {
 			// Better Auth may return its own error page; the app root then reads the provider again.
 			await first.goto(cfg.returnURL);
 			await status(first, 'unauthenticated');
-			check((await (await context.request.get(`${cfg.appURL}/harness/session`)).json()) === null);
+			check((await sessionRead()) === null);
 			pass('real OAuth callback denial leaves provider and hooks signed out');
 			phase = 'oauth-recovery';
 			const successCallbacks = await oauth('allow');
@@ -170,7 +193,7 @@ export async function runHarness(input: {
 			await status(second, 'authenticated');
 			const signedIn = await first.evaluate(() => window.afdHosted.snapshot());
 			check(signedIn.email === cfg.expectedEmail && signedIn.id && signedIn.userId);
-			const readback = await (await context.request.get(`${cfg.appURL}/harness/session`)).json();
+			const readback = await sessionRead();
 			check(
 				readback.id === signedIn.id &&
 					readback.userId === signedIn.userId &&
@@ -185,10 +208,7 @@ export async function runHarness(input: {
 					})
 				).status() === 403
 			);
-			check(
-				(await (await context.request.get(`${cfg.appURL}/harness/session`)).json()).id ===
-					signedIn.id
-			);
+			check((await sessionRead()).id === signedIn.id);
 			pass('cleanup rejects incorrect control key without deleting the authenticated user');
 			phase = 'secure-cookie';
 			const cookie = (await context.cookies()).find((item) => item.name.endsWith('session_token'));
@@ -206,68 +226,91 @@ export async function runHarness(input: {
 			await status(second, 'authenticated');
 			check((await second.evaluate(() => window.afdHosted.snapshot())).id === signedIn.id);
 			pass('Secure HttpOnly SameSite=Lax root cookie, isolated context and reload');
-			phase = 'persistent-restart';
-			if (local) await local.restart();
-			else {
-				const [command, ...args] = cfg.restartCommand;
-				if (!command) throw new Error('Missing restart command');
-				await promisify(execFile)(command, args, {
-					timeout: Math.min(30_000, cfg.deadlineMs),
-					maxBuffer: 1024,
-					signal: input.signal,
-				});
-			}
-			await waitFor(async () => {
-				try {
-					return (await info()).instanceId !== initial.instanceId;
-				} catch {
-					return false;
-				}
-			}, 20_000);
-			await second.reload();
-			await status(second, 'authenticated');
-			const restored = await second.evaluate(() => window.afdHosted.snapshot());
-			const persisted = await (await context.request.get(`${cfg.appURL}/harness/session`)).json();
-			check(
-				restored.id === signedIn.id &&
-					restored.userId === signedIn.userId &&
-					persisted.id === signedIn.id &&
-					persisted.userId === signedIn.userId
-			);
-			pass(
-				'new server process and persistent SQLite restore SAME session and user with stable secret'
-			);
 			phase = 'renewal';
 			await waitFor(
 				async () => {
 					await first.evaluate(() => window.afdHosted.refresh());
-					return (
-						((await first.evaluate(() => window.afdHosted.snapshot())).expiresAt ?? 0) >
-						Math.max(signedIn.expiresAt ?? Number.POSITIVE_INFINITY, readback.expiresAt)
-					);
+					const renewed = await first.evaluate(() => window.afdHosted.snapshot());
+					const renewalReadback = await sessionRead();
+					return renewalEvidenceIsConsistent({
+						originalAdapter: signedIn,
+						originalProvider: readback,
+						renewedAdapter: renewed,
+						renewedProvider: renewalReadback,
+					});
 				},
-				(initial.updateAge + 5) * 1000
+				initial.updateAge * 1000 + Math.min(cfg.operationTimeoutMs, 5_000)
 			);
-			const renewed = await first.evaluate(() => window.afdHosted.snapshot());
-			const renewalReadback = await (
-				await api.get(`${cfg.appURL}/harness/session`, {
-					headers: {
-						cookie: (
-							await context.cookies()
-						)
-							.map(({ name, value }) => `${name}=${value}`)
-							.join('; '),
-					},
-				})
-			).json();
+			const preRestartSnapshot = await first.evaluate(() => window.afdHosted.snapshot());
+			const preRestart = (await sessionRead()) as {
+				id: string;
+				userId: string;
+				expiresAt: number;
+			};
 			check(
-				renewalReadback.id === signedIn.id &&
-					renewalReadback.userId === signedIn.userId &&
-					renewalReadback.expiresAt > readback.expiresAt &&
-					renewalReadback.expiresAt >= (renewed.expiresAt ?? Number.POSITIVE_INFINITY)
+				renewalEvidenceIsConsistent({
+					originalAdapter: signedIn,
+					originalProvider: readback,
+					renewedAdapter: preRestartSnapshot,
+					renewedProvider: preRestart,
+				}) &&
+					hasRestartLifetimeMargin(
+						preRestart.expiresAt,
+						Date.now(),
+						cfg.restartTimeoutMs,
+						cfg.operationTimeoutMs
+					)
+			);
+			pass('actual application session is renewed and read back with restart lifetime margin');
+			phase = 'persistent-restart';
+			await restartWithinBudget({
+				timeoutMs: cfg.restartTimeoutMs,
+				restart: async (timeoutMs) => {
+					if (local) await local.restart(timeoutMs);
+					else {
+						const [command, ...args] = cfg.restartCommand;
+						if (!command) throw new Error('Missing restart command');
+						await promisify(execFile)(command, args, {
+							timeout: timeoutMs,
+							maxBuffer: 1024,
+							signal: input.signal,
+						});
+					}
+				},
+				observeRestart: (timeoutMs) => {
+					const observationStartedAt = Date.now();
+					return waitFor(async () => {
+						try {
+							const remainingMs = timeoutMs - (Date.now() - observationStartedAt);
+							if (remainingMs <= 0) return false;
+							return (
+								(await info(Math.min(cfg.operationTimeoutMs, Math.max(1, remainingMs))))
+									.instanceId !== initial.instanceId
+							);
+						} catch {
+							return false;
+						}
+					}, timeoutMs);
+				},
+			});
+			const postRestartStartedAt = Date.now();
+			const postRestartTimeout = () =>
+				remainingBudgetMs(postRestartStartedAt, cfg.operationTimeoutMs);
+			await second.reload({ timeout: postRestartTimeout() });
+			await status(second, 'authenticated', postRestartTimeout());
+			const restored = await withinTimeout(
+				second.evaluate(() => window.afdHosted.snapshot()),
+				postRestartTimeout()
+			);
+			const persisted = await sessionRead(postRestartTimeout());
+			check(
+				restored.id === preRestart.id &&
+					restored.userId === preRestart.userId &&
+					persisted.id === preRestart.id &&
+					persisted.userId === preRestart.userId
 			);
 			pass(
-				'actual application-session expiry advances and independent provider read confirms renewal'
+				'new server process and persistent SQLite restore SAME session and user with stable secret'
 			);
 			const oldCookies = (await context.cookies())
 				.map(({ name, value }) => `${name}=${value}`)
@@ -312,16 +355,15 @@ export async function runHarness(input: {
 		}
 	} catch {
 		receipt.failurePhase = phase;
-		receipt.interrupted = input.signal.aborted;
+		receipt.interrupted = input.interrupted?.() ?? input.signal.aborted;
 		receipt.checks[phase] = 'failed';
 	} finally {
-		if (timer) clearTimeout(timer);
 		input.signal.removeEventListener('abort', stopBrowser);
 		try {
 			if (config) {
 				const cleanup = await request.newContext({
 					ignoreHTTPSErrors: config.mode === 'local',
-					timeout: config.mode === 'local' ? 1000 : 5000,
+					timeout: config.mode === 'local' ? 1000 : config.operationTimeoutMs,
 				});
 				try {
 					const response = await cleanup.post(`${config.appURL}/harness/cleanup`, {

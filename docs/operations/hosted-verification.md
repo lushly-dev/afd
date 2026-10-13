@@ -25,9 +25,15 @@ pnpm test:hosted:local
 
 The command builds the workspace, checks runner contracts, exercises the real
 Better Auth HTTPS/OAuth fixture, compiles/bundles the real Convex SDK fixture,
+checks Render control contracts with injected responses and no provider requests,
 and runs the SQLite REST/view-state restart lifecycle. The separate
 `hosted-fixtures.yml` workflow runs it without external credentials. `pnpm check`
 remains the TypeScript quality gate and does not download a browser.
+
+The [Render deployment/control recipe](hosted-render.md) supplies the
+two-service Blueprint, local ownership ledger and bounded provider operations.
+Its mock-based control tests validate request handling; actual service/deploy/disk
+readbacks remain required during the hosted round.
 
 | Fixture | Local evidence | Still requires hosted execution |
 |---|---|---|

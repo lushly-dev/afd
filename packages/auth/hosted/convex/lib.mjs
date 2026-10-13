@@ -49,6 +49,30 @@ function positiveInteger(value, fallback, name) {
 	return number;
 }
 
+function canonicalConvexDeploymentName(url, suffix, name) {
+	if (url.port !== '' || url.pathname !== '/') {
+		throw new ConfigurationError([`${name} must be a canonical Convex origin`]);
+	}
+	const hostnameSuffix = `.convex.${suffix}`;
+	if (!url.hostname.endsWith(hostnameSuffix)) {
+		throw new ConfigurationError([`${name} must use a Convex .${suffix} hostname`]);
+	}
+	const deploymentName = url.hostname.slice(0, -hostnameSuffix.length);
+	if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(deploymentName)) {
+		throw new ConfigurationError([`${name} must use a canonical Convex deployment hostname`]);
+	}
+	return deploymentName;
+}
+
+function requireFixedLoopbackPort(url) {
+	const port = Number(url.port);
+	if (!url.port || !Number.isSafeInteger(port) || port < 1 || port > 65_535) {
+		throw new ConfigurationError([
+			'AFD_AUTH_HOSTED_RETURN_URL must include a fixed nonzero loopback port',
+		]);
+	}
+}
+
 export function loadConfig(env = process.env, { explicit = false } = {}) {
 	if (env.AFD_AUTH_HOSTED_ADAPTER === undefined) {
 		if (explicit) throw new ConfigurationError(['AFD_AUTH_HOSTED_ADAPTER']);
@@ -81,6 +105,17 @@ export function loadConfig(env = process.env, { explicit = false } = {}) {
 
 	const deploymentUrl = httpsUrl(env.AFD_AUTH_HOSTED_CONVEX_URL, 'deployment URL');
 	const siteUrl = httpsUrl(env.AFD_AUTH_HOSTED_CONVEX_SITE_URL, 'site URL');
+	const cloudDeploymentName = canonicalConvexDeploymentName(
+		deploymentUrl,
+		'cloud',
+		'deployment URL'
+	);
+	const siteDeploymentName = canonicalConvexDeploymentName(siteUrl, 'site', 'site URL');
+	if (cloudDeploymentName !== siteDeploymentName) {
+		throw new ConfigurationError([
+			'deployment URL and site URL must identify the same Convex deployment',
+		]);
+	}
 	const providerId = env.AFD_AUTH_HOSTED_PROVIDER_ID;
 	let oauth = null;
 	if (providerId !== undefined) {
@@ -109,11 +144,13 @@ export function loadConfig(env = process.env, { explicit = false } = {}) {
 			]);
 		}
 		const returnUrl = parseUrl(env.AFD_AUTH_HOSTED_RETURN_URL, 'OAuth return URL');
+		requireFixedLoopbackPort(returnUrl);
 		if (
 			returnUrl.protocol !== 'http:' ||
 			!['127.0.0.1', 'localhost'].includes(returnUrl.hostname) ||
 			returnUrl.username ||
 			returnUrl.password ||
+			returnUrl.pathname !== '/' ||
 			returnUrl.search ||
 			returnUrl.hash
 		) {
@@ -122,6 +159,11 @@ export function loadConfig(env = process.env, { explicit = false } = {}) {
 		const email = env.AFD_AUTH_HOSTED_OAUTH_EMAIL.toLowerCase();
 		if (!email.endsWith(suffix) || !email.includes(runId.toLowerCase())) {
 			throw new ConfigurationError(['OAuth identity email is outside the run scope']);
+		}
+		if (email === primaryEmail || email === secondaryEmail) {
+			throw new ConfigurationError([
+				'OAuth identity must differ from both synthetic Password identities',
+			]);
 		}
 		oauth = {
 			providerId,
@@ -223,6 +265,8 @@ export function createReceipt({
 export function safeFailureKind(error) {
 	if (error?.code === 'DEADLINE') return 'deadline';
 	if (error?.code === 'INTERRUPTED') return 'interrupted';
+	if (error?.code === 'FIXTURE_LOOPBACK_PORT_IN_USE') return 'loopback-port-in-use';
+	if (error?.code === 'FIXTURE_LOOPBACK_PORT_BIND_FAILED') return 'loopback-port-bind-failed';
 	if (error instanceof ConfigurationError) return 'configuration';
 	if (error?.name === 'AssertionError') return 'assertion';
 	return 'hosted-runner';
