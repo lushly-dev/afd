@@ -14,7 +14,7 @@ description: >
 # AFD C++ Implementation
 
 Patterns for implementing AFD commands in C++ with `afd-cpp` (`packages/cpp`). The design is in
-[proposal.md](../../../docs/features/proposed/cpp-support/proposal.md).
+[proposal.md](../../../docs/features/complete/cpp-support/proposal.md).
 
 ## Parity Rule
 
@@ -32,10 +32,18 @@ the TypeScript server engine.
 ## Build and Include
 
 ```cmake
-# From this repository, or FetchContent (GIT_TAG cpp-vX.Y.Z) / find_package once released.
-add_subdirectory(path/to/afd/packages/cpp afd)
+include(FetchContent)
+FetchContent_Declare(afd
+    GIT_REPOSITORY https://github.com/lushly-dev/afd.git
+    GIT_TAG cpp-v0.1.0
+    SOURCE_SUBDIR packages/cpp)
+FetchContent_MakeAvailable(afd)
 target_link_libraries(my_app PRIVATE afd::afd)
 ```
+
+The published 0.1.0 release implements contract `1.0-rc`. An installed package
+also provides `find_package(afd 0.1 CONFIG REQUIRED)`; a source checkout can use
+`add_subdirectory(path/to/afd/packages/cpp afd)`.
 
 ```cpp
 #include <afd/afd.hpp>   // the whole public API

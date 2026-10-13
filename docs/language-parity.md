@@ -5,11 +5,11 @@ What each AFD implementation provides, where they differ, and which differences 
 | Field | Value |
 |---|---|
 | Updated | 2026-10-12 |
-| Reviewed at | Stabilization `f19257e` (#367); Python 0.9.0 published from `4e16a06` (#372); npm 2.1.0 published from `0148d22` (#338); registry consumers verified |
+| Reviewed at | Stabilization `f19257e` (#367); Python 0.9.0 published from `4e16a06` (#372); npm 2.1.0 published from `0148d22` (#338); C++ 0.1.0 tagged from `a311562` (#377); fresh consumers verified |
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans, which now link here |
 | Plans | [Parity closure](./features/active/parity-closure/parity-closure.plan.md) closes the gaps listed here; [Versioning and release](./features/active/versioning/versioning.plan.md) covers each implementation's version and the contract version |
-| Related | [`spec/wire`](../spec/wire/README.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/command-metadata.md`](../spec/command-metadata.md), [`spec/validation.md`](../spec/validation.md), [`spec/error-codes.md`](../spec/error-codes.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/proposed/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
+| Related | [`spec/wire`](../spec/wire/README.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/command-metadata.md`](../spec/command-metadata.md), [`spec/validation.md`](../spec/validation.md), [`spec/error-codes.md`](../spec/error-codes.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/complete/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
 
 The implementation rows below include the stabilization merged in #367. Python 0.9.0 is published: all 12 fresh published-wheel installs passed across Python 3.10–3.12 and base/client/server/CLI, including the original base-import reproduction; [#347](https://github.com/lushly-dev/afd/issues/347) is closed. All nine npm packages are published at 2.1.0 after verified historical 2.0.0 recovery; [#369](https://github.com/lushly-dev/afd/issues/369) is closed. See the [publication record](./operations/stabilization-release.md) for exact commits, registry consumers and workflow receipts. The historical export measurement below remains dated separately.
 
@@ -32,9 +32,9 @@ Versions below describe repository manifests. Registry checks independently conf
 | | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
 | Package | 9 `@lushly-dev/*` packages | `afd` | `afd` crate | `afd-cpp` (`afd::afd`) |
-| Version | 2.1.0 | 0.9.0 | 0.1.0, release candidate | 0.1.0, release candidate |
+| Version | 2.1.0 | 0.9.0 | 0.1.0, release candidate | 0.1.0 |
 | Contract | 1.0-rc (`AFD_CONTRACT_VERSION`) | 1.0-rc (`afd.CONTRACT_VERSION`) | 1.0-rc (`afd::CONTRACT_VERSION`) | 1.0-rc (`afd::contract_version`) |
-| Distribution | npm | PyPI | Git or path dependency; not on crates.io | CMake `FetchContent`, `find_package`, `add_subdirectory`; the `cpp-v0.1.0` tag is not cut yet |
+| Distribution | npm | PyPI | Git or path dependency; not on crates.io | CMake `FetchContent`, `find_package`, `add_subdirectory`; published [cpp-v0.1.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.1.0) |
 | Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, FastMCP server, client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch and pipeline executors, bootstrap commands. No server or client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors. No server or client |
 | Todo backend | stdio (SDK) | stdio (FastMCP) | Streamable HTTP (hand-rolled, axum) | stdio (hand-rolled) |
 | CI | `ci.yml` (`pnpm check`) | `python.yml` | `rust.yml` | `cpp.yml` |
@@ -175,7 +175,7 @@ These gaps are appropriate. They follow the framework-agnostic rule, a language'
 | Difference | Where | Why it is fine |
 |---|---|---|
 | UI packages (`view-state`, `adapters`, `local-db`) and auth React hooks | TypeScript only | The `afd` skill keeps React and browser integration in ecosystem layers, outside the core parity target. |
-| No HTTP transport, engine adapters, auth or approval in the library | C++ | The C++ [scope principle](./features/proposed/cpp-support/proposal.md#scope-principle-host-agnostic): hosts build these on middleware, `CommandContext::extra`, `TaskRunner` and `Clock`. |
+| No HTTP transport, engine adapters, auth or approval in the library | C++ | The C++ [scope principle](./features/complete/cpp-support/proposal.md#scope-principle-host-agnostic): hosts build these on middleware, `CommandContext::extra`, `TaskRunner` and `Clock`. |
 | Synchronous handlers and cooperative deadlines | C++ | Decision D4. A late finish still produces the reference `TIMEOUT` result and error codes; nothing is interrupted. |
 | `CancellationSource` instead of a timeout controller | C++ | It is the C++ idiom for `AbortSignal` plus a deadline. |
 | Renames: `requires` to `prerequisites`, `interface` to `surface` | C++ | `requires` is a C++20 keyword, and `<windows.h>` defines `interface`. |
@@ -191,7 +191,7 @@ These gaps are appropriate. They follow the framework-agnostic rule, a language'
 
 These gaps are planned. They are listed so the name budgets stay honest. D1/D2/D6 in the [closure plan](./features/active/parity-closure/parity-closure.plan.md) explicitly cover the native server targets, remaining native middleware/stream work and Python auth. The historical "undeclared" inventory below is retained for context; those decisions are now accepted plans.
 
-- **C++** (the [proposal scope table](./features/proposed/cpp-support/proposal.md#scope) and work plan PR 5a):
+- **C++** (the [proposal scope table](./features/complete/cpp-support/proposal.md#scope) and work plan PR 5a):
   - MCP JSON-RPC types and helpers, and perhaps an optional `afd::mcp_stdio` target;
   - the meta-tools and bootstrap commands;
   - retry, rate-limit and telemetry middleware, and the telemetry types;
@@ -295,7 +295,7 @@ The budgets in `alfred/tests/test_parity.py` equal these counts. Lower a budget 
 **Updated:**
 
 - The [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans still showed their 2026-03-21 counts.
-- The [C++ proposal](./features/proposed/cpp-support/proposal.md) still read "Phase 0 complete", with no success criterion checked.
+- The [C++ proposal](./features/complete/cpp-support/proposal.md) still read "Phase 0 complete", with no success criterion checked.
 - The [feature index](./features/README.md) listed C++ only as proposed.
 - The root `README.md` said every language shares "the same AFD capability set", and listed Rust stream support.
 - The `afd` skill's parity rule named three languages.
@@ -303,7 +303,7 @@ The budgets in `alfred/tests/test_parity.py` equal these counts. Lower a budget 
 - The `afd-rust` skill showed the not-found message as `"Todo '123' not found"`, and its description said "building Rust MCP servers".
 - The `afd-cpp` skill said to guard catch blocks with `__cpp_exceptions`. Library code uses `AFD_HAS_EXCEPTIONS`, which also checks MSVC's `_CPPUNWIND`.
 - The C++ `README.md` said the library was "being built in phases", fetched a release tag that was not cut yet, and said CI ran every preset on Linux, macOS and Windows.
-- The [C++ work plan](./features/proposed/cpp-support/work-plan.md) named the wire test `tests/wire_fixtures.cpp`, and did not record that `TaskRunner` shipped as `run_all` with `ThreadTaskRunner`.
+- The [C++ work plan](./features/complete/cpp-support/work-plan.md) named the wire test `tests/wire_fixtures.cpp`, and did not record that `TaskRunner` shipped as `run_all` with `ThreadTaskRunner`.
 - `site/index.html` listed three languages, showed `cargo add afd` for a crate that is not on crates.io, and used the old `@afd/*` package names, as did the root `README.md`.
 - The todo `spec/README.md` said "TypeScript, Python, etc.". It and the todo `README.md` said only the TypeScript and Python suites check `commands.schema.json`; the C++ suite does too.
 

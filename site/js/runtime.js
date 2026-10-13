@@ -28,12 +28,13 @@ const INSTALL = {
 	typescript: 'npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod',
 	python: 'pip install afd',
 	rust: 'cargo add afd --git https://github.com/lushly-dev/afd',
-	// CMake, not a registry: afd-cpp is fetched from the repo until cpp-v0.1.0 is tagged.
+	// CMake consumers pin the published release tag.
 	cpp: [
 		'include(FetchContent)',
 		'FetchContent_Declare(afd GIT_REPOSITORY https://github.com/lushly-dev/afd.git',
-		'    GIT_TAG main SOURCE_SUBDIR packages/cpp)',
+		'    GIT_TAG cpp-v0.1.0 SOURCE_SUBDIR packages/cpp)',
 		'FetchContent_MakeAvailable(afd)',
+		'target_link_libraries(my_app PRIVATE afd::afd)',
 	].join('\n'),
 };
 
