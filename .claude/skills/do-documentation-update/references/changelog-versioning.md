@@ -1,5 +1,11 @@
 # Changelog and Versioning Reference
 
+> **AFD override:** The fixed npm group shares one version but keeps per-package
+> Changesets changelogs. Python, Rust and C++ have independent versions and
+> changelogs. Root CHANGELOG.md is an index only. The generic root-changelog
+> monorepo example below is not AFD's policy; follow the `do-release` skill.
+
+
 Detailed guide for changelog formatting, semantic versioning, git tag management, and version lifecycle. Companion to the do-documentation-update skill.
 
 ## Semantic Versioning (SemVer 2.0.0)

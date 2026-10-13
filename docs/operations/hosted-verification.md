@@ -3,6 +3,14 @@
 Tracks [#362](https://github.com/lushly-dev/afd/issues/362). These fixtures prepare
 the application contracts before any hosted resources are provisioned. They are
 development infrastructure, excluded from published package payloads.
+The auth fixtures import reviewed workspace source; REST/view-state runners use
+workspace builds. Recorded package versions are manifest metadata and do not
+prove registry installation. Verify published artifacts in separate fresh consumers.
+
+The next execution is planned in [the hosted verification round](hosted-verification-round.md),
+including proposed services, local preparation, cost controls and closure gates.
+The repeatable package/dependency update process lives in
+[the release skill](../../.claude/skills/do-release/references/next-round.md).
 
 ## Credential-free local gate
 
@@ -17,9 +25,15 @@ pnpm test:hosted:local
 
 The command builds the workspace, checks runner contracts, exercises the real
 Better Auth HTTPS/OAuth fixture, compiles/bundles the real Convex SDK fixture,
+checks Render control contracts with injected responses and no provider requests,
 and runs the SQLite REST/view-state restart lifecycle. The separate
 `hosted-fixtures.yml` workflow runs it without external credentials. `pnpm check`
 remains the TypeScript quality gate and does not download a browser.
+
+The [Render deployment/control recipe](hosted-render.md) supplies the
+two-service Blueprint, local ownership ledger and bounded provider operations.
+Its mock-based control tests validate request handling; actual service/deploy/disk
+readbacks remain required during the hosted round.
 
 | Fixture | Local evidence | Still requires hosted execution |
 |---|---|---|

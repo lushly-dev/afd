@@ -36,6 +36,10 @@ server processes, browser profiles and generated bundles are removed on success
 and failure. Contract tests include an intentionally short deadline while the
 real provider/browser run is underway and verify scratch cleanup after failure. SIGINT/SIGTERM also abort pending work and unwind cleanup; a real SIGTERM subprocess regression verifies this path. SIGKILL cannot execute cleanup.
 
+These fixtures execute the reviewed workspace source commit. Receipt package
+versions describe manifests; they do not establish installation from npm.
+Published SDK delivery needs a separate packed/downloaded fresh consumer.
+
 ## External deployment and runner
 
 No service, OAuth client, account, grant or paid resource is provisioned by this
@@ -59,7 +63,11 @@ Both `serve.mjs` and `run.mjs --hosted` require:
 | `AFD_BA_REVISION` | Deployed source commit, 7–64 hex characters; compared with fixture read-back |
 | `AFD_BA_CONTROL_KEY` | Random secret, at least 32 characters, for exact synthetic-user cleanup |
 | `AFD_BA_RESTART_COMMAND` | JSON argv array invoking deployment-specific restart, without a shell |
-| `AFD_BA_DEADLINE_MS` | Optional browser-run deadline, 10000–900000; default 180000 |
+| `AFD_BA_SESSION_EXPIRES_IN` | Optional hosted session lifetime in seconds, 120–300; default 180 |
+| `AFD_BA_SESSION_UPDATE_AGE` | Optional hosted renewal age in seconds, 1–30 and less than expiry; default 5 |
+| `AFD_BA_OPERATION_TIMEOUT_MS` | Optional ordinary browser/API/startup operation timeout, 5000–60000; default 15000 |
+| `AFD_BA_RESTART_TIMEOUT_MS` | Optional single restart-command-plus-observation budget, 30000–120000; default 90000 |
+| `AFD_BA_DEADLINE_MS` | Optional whole-run deadline, 10000–900000; hosted default 600000 |
 
 The fixture additionally requires deployment-side secrets/configuration:
 
@@ -70,7 +78,8 @@ The fixture additionally requires deployment-side secrets/configuration:
 | `AFD_BA_CLIENT_ID`, `AFD_BA_CLIENT_SECRET` | Dedicated OIDC client configuration |
 | `AFD_BA_DISCOVERY_URL` | HTTPS OIDC discovery URL; issuer/JWKS required by Better Auth |
 | `AFD_BA_ISSUER` | Exact expected HTTPS issuer from the dedicated provider registration |
-| `AFD_BA_PORT` | Optional local ingress port; default 3000 |
+| `AFD_BA_HOST` | Listen address: `127.0.0.1` by default, or explicit `0.0.0.0` for managed public ingress |
+| `AFD_BA_PORT` | Optional explicit port; otherwise platform `PORT`, then 3000 |
 
 Store secrets in local/deployment secret stores. Do not paste them into issues,
 receipts, shell transcripts or chat. Register the callback on the dedicated
@@ -78,17 +87,28 @@ provider client. The runner also checks `redirect_uri` from the **actual Better
 Auth authorization response** against that exact registered callback. The final
 application return URL is supplied through AFD `redirectTo`.
 
-Run the fixture from the auth package directory behind a TLS ingress that proxies
-to `127.0.0.1:AFD_BA_PORT` on the same host. Forward `/`, `/fixture.js`,
-`/api/auth/*` and `/harness/*` unchanged, including cookies and request bodies.
-Do not cache auth or harness routes. The fixture sets Secure cookies even when
-its private ingress socket is HTTP. The auth database is migrated using installed
-Better Auth migration APIs at startup. The session lifetime is 45 seconds with a
-5-second update age. Configure the restart command to **finish only after a real
-application process restart has completed**, preserving the volume and secret.
-The runner requires a different server instance ID and independently verifies
-that the pre-restart session and user still exist; a newly signed-in session
-cannot satisfy it.
+Run the fixture from the auth package directory behind managed TLS ingress. Set
+`AFD_BA_HOST=0.0.0.0` when the platform proxy connects to the container network;
+omit `AFD_BA_PORT` to use its injected `PORT`. A same-host proxy may retain the
+default loopback bind. Forward `/`, `/fixture.js`, `/api/auth/*` and `/harness/*`
+unchanged, including cookies and request bodies. Do not cache auth or harness
+routes. The fixture sets Secure cookies even when its private ingress socket is
+HTTP. The auth database is migrated using installed Better Auth migration APIs
+at startup.
+
+The hosted session lifetime defaults to 180 seconds with a 5-second update age.
+The lifetime must exceed the restart plus ordinary-operation budgets. Before
+restart, the runner requires the AFD adapter expiry to advance beyond both
+original expiries and requires the independent provider read-back to cover that
+adapter expiry for the exact session/user. Its remaining lifetime must exceed the
+restart budget, one post-restart operation budget, and an explicit one-second
+clock-skew reserve. The configured restart command must finish only after a real
+application process restart has completed, preserving the volume and secret.
+Command execution and observation of a new instance ID share one 90-second
+default budget; they do not each receive a fresh timeout. Reload, authenticated
+hook status, adapter snapshot and independent session read-back then share the
+reserved operation budget. The renewed pre-restart session and user must still
+exist; a newly signed-in session cannot satisfy this check.
 
 ```sh
 # Supply the documented environment through your secret/configuration store.
@@ -103,6 +123,10 @@ and later sign in once more after revocation for the expiry test. It does not
 assume provider login selectors, capture network traces, or save screenshots.
 TLS verification stays enabled for hosted mode. The browser deadline includes
 operator interaction; increase it within the documented bound if necessary.
+The hosted whole-run deadline must exceed the configured session lifetime plus
+the restart and per-operation budgets. Local mode retains its 12-second session,
+1-second renewal age, 3-second restart budget, 5-second operation budget and
+180-second default whole-run deadline for fast evidence.
 Missing configuration is an explicit nonzero preflight failure, never a skipped
 provider pass. Startup, navigation/API calls, restart and tests have deadlines. The isolated server process installs a real-fetch network policy before provider initialization: every external server-side request requires HTTPS without URL credentials, redirects are rejected, and each discovery response is checked for the exact configured issuer and HTTPS authorization/token/userinfo/JWKS endpoints. It delegates to native network fetch and does not fabricate provider responses. Only the explicit local test-provider origin permits loopback HTTP.
 

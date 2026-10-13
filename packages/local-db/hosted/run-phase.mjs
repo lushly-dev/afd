@@ -307,15 +307,67 @@ async function readPhase(config, ids) {
 }
 
 async function unavailablePhase(config) {
-	const client = adapterFor(config);
+	const observation = {
+		requestStarted: false,
+		responseReceived: false,
+		responseStatus: undefined,
+		fetchRejected: false,
+		aborted: false,
+	};
+	const client = adapterFor(config, config.token, observation);
 	try {
 		await client.health();
 	} catch (error) {
+		const observedStatus =
+			error && typeof error === 'object' && Number.isInteger(error.status)
+				? error.status
+				: undefined;
+		if (config.unavailableHttpStatus !== undefined) {
+			if (observation.responseReceived) {
+				check(
+					observedStatus === config.unavailableHttpStatus,
+					`Controlled outage expected HTTP ${config.unavailableHttpStatus} but received HTTP ${observation.responseStatus}`
+				);
+				return {
+					unavailabilityEvidence: {
+						mode: 'provider-edge-http-status',
+						expectedStatus: config.unavailableHttpStatus,
+						observedStatus,
+						controlAcknowledged: true,
+					},
+					checks: [`provider-edge-http-${observedStatus}`],
+				};
+			}
+			if (observation.fetchRejected && observation.aborted) {
+				throw new HarnessError(
+					'ASSERTION',
+					`Controlled outage expected HTTP ${config.unavailableHttpStatus} but the request was aborted or reached its deadline`
+				);
+			}
+			throw new HarnessError(
+				'ASSERTION',
+				observation.fetchRejected
+					? `Controlled outage expected HTTP ${config.unavailableHttpStatus} but the request ended in a native fetch rejection`
+					: `Controlled outage expected HTTP ${config.unavailableHttpStatus} but no HTTP response was observed`
+			);
+		}
+		check(observedStatus === undefined, 'Unavailable request returned an HTTP application error');
 		check(
-			!(error && typeof error === 'object' && 'status' in error),
-			'Unavailable request returned an HTTP application error'
+			!observation.responseReceived,
+			`Unavailable request received HTTP ${observation.responseStatus} before response processing failed`
 		);
-		return { checks: ['deadline-bounded-native-fetch-rejection'] };
+		check(observation.fetchRejected, 'Unavailable request failed without a native fetch rejection');
+		check(
+			!observation.aborted,
+			'Unavailable request was aborted or reached its deadline, not rejected as unreachable'
+		);
+		return {
+			unavailabilityEvidence: {
+				mode: 'native-fetch-rejection',
+				controlAcknowledged: true,
+			},
+			checks: ['deadline-bounded-native-fetch-rejection'],
+		};
 	}
 	throw new HarnessError('ASSERTION', 'Controlled unavailable request unexpectedly succeeded');
 }

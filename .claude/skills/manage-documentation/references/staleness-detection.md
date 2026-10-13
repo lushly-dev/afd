@@ -22,13 +22,13 @@ git log $(git describe --tags --abbrev=0)..HEAD --oneline --no-merges
 
 ### Version and Count Alignment
 
-- [ ] Version in `package.json` matches badge in README.md
+- [ ] Each distribution manifest matches its own README/parity version; exclude private root package.json
 - [ ] Skill count in AGENTS.md matches actual `.claude/skills/` directories
 - [ ] Component count matches actual `src/components/` directories
 - [ ] Prompt count matches actual `.github/prompts/` files
-- [ ] `[Unreleased]` in CHANGELOG captures all merged work since last version
+- [ ] Per-track changelogs/Changesets capture user-visible changes; root CHANGELOG.md remains an index
 - [ ] ROADMAP shipped items link to CHANGELOG versions
-- [ ] CLAUDE.md content matches AGENTS.md (auto-generated header present)
+- [ ] AGENTS.md remains the only project instruction file; no CLAUDE.md generation/sync
 
 ### Content Freshness
 
@@ -36,7 +36,7 @@ git log $(git describe --tags --abbrev=0)..HEAD --oneline --no-merges
 |---------|-----------|-----|
 | Old file paths | `grep -r "src/old/"` | Update paths |
 | Deprecated APIs | Search for removed functions | Update examples |
-| Wrong version | Check `package.json` vs docs | Sync versions |
+| Wrong version | Check all four distribution manifests vs docs, not private root package.json | Sync affected track versions |
 | Missing features | Compare AGENTS.md to code | Add documentation |
 | Phantom changelog entries | Cross-ref with git log | Remove entries without commits |
 
@@ -60,6 +60,9 @@ git log $(git describe --tags --abbrev=0)..HEAD --oneline --no-merges
 - [ ] **Skills** -- lists available skills and triggers
 
 ## CHANGELOG.md Review Checklist
+
+Review each implementation changelog independently; root CHANGELOG.md is an
+index. Use that track's tag scheme and release skill, not a repository-wide vX tag.
 
 **Use git log to verify accuracy:**
 

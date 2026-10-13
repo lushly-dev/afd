@@ -221,8 +221,16 @@ success does not establish live provider behavior. External opt-in runs require
 explicit disposable-service configuration and assertion/cleanup receipts; missing
 configuration fails preflight. Keep #362 open pending hosted execution. See
 `docs/operations/hosted-verification.md` and the fixture READMEs for setup.
-Registry publication is separate from merged source behavior.
-
+Registry publication is separate from merged source behavior. The hosted fixtures
+import reviewed workspace source; a receipt version is not registry installation
+evidence. The published npm baseline is 2.1.0; use the current release record and
+[package-update process](../do-release/references/next-round.md) before the next
+version change. See [the next hosted round](../../../docs/operations/hosted-verification-round.md)
+for proposed resources and the local preparation gate before provisioning.
+The [Render operator recipe](../../../docs/operations/hosted-render.md) covers
+the two disposable services, exact source/resource ledger and local control
+helper. Its injected-response tests run in `pnpm test:hosted:local`; provider
+deployment, restart and deletion readbacks still require an authorized hosted run.
 
 ## React Hooks
 

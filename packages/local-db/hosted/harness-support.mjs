@@ -79,6 +79,13 @@ export function configuration() {
 			'AFD_TEST_HTTP_UNAVAILABLE_ACK must identify the controlled outage'
 		);
 	}
+	const unavailableHttpStatus = process.env.AFD_TEST_HTTP_UNAVAILABLE_HTTP_STATUS?.trim();
+	if (phase === 'unavailable' && unavailableHttpStatus && unavailableHttpStatus !== '503') {
+		throw new HarnessError(
+			'CONFIG',
+			'AFD_TEST_HTTP_UNAVAILABLE_HTTP_STATUS must be exactly 503 when set'
+		);
+	}
 	return {
 		phase,
 		baseURL,
@@ -92,6 +99,7 @@ export function configuration() {
 		appRevision,
 		restartAck,
 		unavailableAck,
+		unavailableHttpStatus: unavailableHttpStatus ? Number(unavailableHttpStatus) : undefined,
 	};
 }
 
@@ -141,18 +149,37 @@ export function idsFor(runId) {
 	};
 }
 
-function fetchFor(config, token) {
-	return (input, init = {}) => {
+function fetchFor(config, token, observation) {
+	return async (input, init = {}) => {
 		const headers = new Headers(init.headers);
 		if (token) headers.set('authorization', `Bearer ${token}`);
 		const deadline = AbortSignal.timeout(config.deadlineMs);
 		const signal = init.signal ? AbortSignal.any([init.signal, deadline]) : deadline;
-		return fetch(input, { ...init, headers, signal });
+		if (observation) observation.requestStarted = true;
+		try {
+			const response = await fetch(input, {
+				...init,
+				headers,
+				signal,
+				...(config.phase === 'unavailable' ? { redirect: 'manual' } : {}),
+			});
+			if (observation) {
+				observation.responseReceived = true;
+				observation.responseStatus = response.status;
+			}
+			return response;
+		} catch (error) {
+			if (observation) {
+				observation.fetchRejected = true;
+				observation.aborted = signal.aborted;
+			}
+			throw error;
+		}
 	};
 }
 
-export function adapterFor(config, token = config.token) {
-	return new HttpAdapter(config.baseURL, { fetch: fetchFor(config, token) });
+export function adapterFor(config, token = config.token, observation) {
+	return new HttpAdapter(config.baseURL, { fetch: fetchFor(config, token, observation) });
 }
 
 export function check(condition, message) {

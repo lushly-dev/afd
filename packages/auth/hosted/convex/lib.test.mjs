@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createServer as createNetServer } from 'node:net';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -9,8 +10,10 @@ import {
 	createReceipt,
 	executeCleanup,
 	loadConfig,
+	safeFailureKind,
 	withDeadline,
 } from './lib.mjs';
+import { startFixtureServer } from './server.mjs';
 
 const fixtureDir = dirname(fileURLToPath(import.meta.url));
 
@@ -68,6 +71,75 @@ test('rejects unscoped identities and non-TLS deployments', () => {
 	assert.throws(() =>
 		loadConfig({ ...complete, AFD_AUTH_HOSTED_CONVEX_URL: 'http://example.test' })
 	);
+});
+
+test('Convex cloud and site URLs must be canonical origins for the same deployment', () => {
+	for (const overrides of [
+		{ AFD_AUTH_HOSTED_CONVEX_URL: 'https://example.other' },
+		{ AFD_AUTH_HOSTED_CONVEX_URL: 'https://nested.example.convex.cloud' },
+		{ AFD_AUTH_HOSTED_CONVEX_URL: 'https://example.convex.cloud/functions' },
+		{ AFD_AUTH_HOSTED_CONVEX_URL: 'https://example.convex.cloud:8443' },
+		{ AFD_AUTH_HOSTED_CONVEX_SITE_URL: 'https://other.convex.site' },
+	]) {
+		assert.throws(() => loadConfig({ ...complete, ...overrides }), ConfigurationError);
+	}
+});
+
+const completeOAuth = {
+	...complete,
+	AFD_AUTH_HOSTED_PROVIDER_ID: 'github',
+	AFD_AUTH_HOSTED_PROVIDER_CALLBACK_URL: 'https://example.convex.site/api/auth/callback/github',
+	AFD_AUTH_HOSTED_RETURN_URL: 'http://127.0.0.1:4173',
+	AFD_AUTH_HOSTED_OAUTH_EMAIL: 'run-12345678-oauth@example.test',
+	AFD_AUTH_HOSTED_OAUTH_HEADFUL: 'true',
+};
+
+test('OAuth requires a distinct run-scoped identity and fixed loopback port', () => {
+	const config = loadConfig(completeOAuth);
+	assert.equal(config.oauth.email, 'run-12345678-oauth@example.test');
+	assert.equal(config.oauth.returnUrl.port, '4173');
+	for (const overrides of [
+		{ AFD_AUTH_HOSTED_OAUTH_EMAIL: 'run-12345678-a@example.test' },
+		{ AFD_AUTH_HOSTED_OAUTH_EMAIL: 'RUN-12345678-A@example.test' },
+		{ AFD_AUTH_HOSTED_OAUTH_EMAIL: 'run-12345678-b@example.test' },
+		{ AFD_AUTH_HOSTED_OAUTH_EMAIL: 'run-12345678-oauth@other.test' },
+		{ AFD_AUTH_HOSTED_OAUTH_EMAIL: 'oauth@example.test' },
+		{ AFD_AUTH_HOSTED_RETURN_URL: 'http://127.0.0.1' },
+		{ AFD_AUTH_HOSTED_RETURN_URL: 'http://127.0.0.1:0' },
+		{ AFD_AUTH_HOSTED_RETURN_URL: 'http://127.0.0.1:70000' },
+	]) {
+		assert.throws(() => loadConfig({ ...completeOAuth, ...overrides }), ConfigurationError);
+	}
+});
+
+test('occupied OAuth loopback port fails clearly during server startup preflight', async () => {
+	const occupied = createNetServer();
+	await new Promise((resolve, reject) => {
+		occupied.once('error', reject);
+		occupied.listen(0, '127.0.0.1', resolve);
+	});
+	const address = occupied.address();
+	assert.ok(address && typeof address !== 'string');
+	try {
+		await assert.rejects(
+			() =>
+				startFixtureServer({
+					directory: fixtureDir,
+					deploymentUrl: new URL('https://example.convex.cloud'),
+					origin: `http://127.0.0.1:${address.port}`,
+				}),
+			(error) => {
+				assert.equal(error.code, 'FIXTURE_LOOPBACK_PORT_IN_USE');
+				assert.match(error.message, /return port is already in use/);
+				assert.equal(safeFailureKind(error), 'loopback-port-in-use');
+				return true;
+			}
+		);
+	} finally {
+		await new Promise((resolve, reject) =>
+			occupied.close((error) => (error ? reject(error) : resolve()))
+		);
+	}
 });
 
 test('malformed configuration URLs fail closed without exposing their input', () => {

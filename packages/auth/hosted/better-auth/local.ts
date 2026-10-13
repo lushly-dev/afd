@@ -21,7 +21,12 @@ export async function stopChild(child: ChildProcess) {
 		clearTimeout(timer);
 	}
 }
-export async function startChild(directory: string, fixture: FixtureConfig, signal: AbortSignal) {
+export async function startChild(
+	directory: string,
+	fixture: FixtureConfig,
+	signal: AbortSignal,
+	timeoutMs: number
+) {
 	const child = fork(resolve(directory, 'server.mjs'), [], {
 		env: { ...process.env, AFD_BA_INTERNAL_CONFIG: JSON.stringify(fixture) },
 		stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
@@ -31,7 +36,7 @@ export async function startChild(directory: string, fixture: FixtureConfig, sign
 			const aborted = () => reject(new Error('Provider startup interrupted'));
 			signal.addEventListener('abort', aborted, { once: true });
 			if (signal.aborted) aborted();
-			const timer = setTimeout(() => reject(new Error('Provider startup deadline')), 15_000);
+			const timer = setTimeout(() => reject(new Error('Provider startup deadline')), timeoutMs);
 			const cleanup = () => {
 				clearTimeout(timer);
 				signal.removeEventListener('abort', aborted);
@@ -112,10 +117,15 @@ export async function startLocal(
 			controlKey: randomBytes(32).toString('hex'),
 			restartCommand: [],
 			deadlineMs,
+			operationTimeoutMs: 5_000,
+			restartTimeoutMs: 3_000,
+			sessionExpiresIn: 12,
+			sessionUpdateAge: 1,
 		};
 		oauth.registerCallback(config.callbackURL);
 		const fixture: FixtureConfig = {
 			origin,
+			host: '127.0.0.1',
 			port,
 			databasePath: resolve(scratch, 'auth.sqlite'),
 			secret: randomBytes(32).toString('hex'),
@@ -129,16 +139,21 @@ export async function startLocal(
 			localOAuthOrigin: oauth.origin,
 			certificatePath,
 			privateKeyPath,
-			expiresIn: 12,
-			updateAge: 1,
+			expiresIn: config.sessionExpiresIn,
+			updateAge: config.sessionUpdateAge,
 		};
-		child = await startChild(directory, fixture, signal);
+		child = await startChild(directory, fixture, signal, config.operationTimeoutMs);
 		signal.throwIfAborted();
 		return {
 			config,
-			async restart() {
+			async restart(timeoutMs = config.operationTimeoutMs) {
 				if (child) await stopChild(child);
-				child = await startChild(directory, fixture, signal);
+				child = await startChild(
+					directory,
+					fixture,
+					signal,
+					Math.min(timeoutMs, config.operationTimeoutMs)
+				);
 			},
 			async close() {
 				try {

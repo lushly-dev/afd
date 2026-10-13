@@ -11,6 +11,7 @@ import { genericOAuth } from 'better-auth/plugins/generic-oauth';
 
 export interface FixtureConfig {
 	origin: string;
+	host: string;
 	port: number;
 	databasePath: string;
 	secret: string;
@@ -184,7 +185,7 @@ export async function startFixture(config: FixtureConfig) {
 				: httpServer(handler);
 		await new Promise<void>((resolve, reject) => {
 			server.once('error', reject);
-			server.listen(config.port, '127.0.0.1', resolve);
+			server.listen(config.port, config.host, resolve);
 		});
 		return {
 			instanceId,

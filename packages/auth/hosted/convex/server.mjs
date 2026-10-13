@@ -4,8 +4,20 @@ import { join } from 'node:path';
 
 export async function startFixtureServer({ directory, deploymentUrl, origin }) {
 	const requested = origin ? new URL(origin) : new URL('http://127.0.0.1:0');
-	if (requested.protocol !== 'http:' || !['127.0.0.1', 'localhost'].includes(requested.hostname)) {
+	if (
+		requested.protocol !== 'http:' ||
+		!['127.0.0.1', 'localhost'].includes(requested.hostname) ||
+		requested.username ||
+		requested.password ||
+		requested.pathname !== '/' ||
+		requested.search ||
+		requested.hash
+	) {
 		throw new Error('Fixture server origin must be HTTP loopback');
+	}
+	const port = Number(requested.port || 80);
+	if (origin && (!requested.port || !Number.isSafeInteger(port) || port < 1 || port > 65_535)) {
+		throw new Error('OAuth fixture server requires a fixed nonzero loopback port');
 	}
 	const server = createServer(async (request, response) => {
 		try {
@@ -29,8 +41,21 @@ export async function startFixtureServer({ directory, deploymentUrl, origin }) {
 		}
 	});
 	await new Promise((resolve, reject) => {
-		server.once('error', reject);
-		server.listen(Number(requested.port || 80), requested.hostname, resolve);
+		server.once('listening', resolve);
+		server.once('error', (error) => {
+			const startupError = new Error(
+				error.code === 'EADDRINUSE'
+					? 'Configured loopback OAuth return port is already in use'
+					: 'Configured loopback OAuth return port could not be bound'
+			);
+			startupError.name = 'FixtureServerStartupError';
+			startupError.code =
+				error.code === 'EADDRINUSE'
+					? 'FIXTURE_LOOPBACK_PORT_IN_USE'
+					: 'FIXTURE_LOOPBACK_PORT_BIND_FAILED';
+			reject(startupError);
+		});
+		server.listen(port, requested.hostname);
 	});
 	const address = server.address();
 	if (!address || typeof address === 'string') throw new Error('Fixture server did not bind TCP');

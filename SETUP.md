@@ -6,8 +6,8 @@ First-time setup guide for the AFD monorepo. Run these steps once to get a worki
 
 | Tool | Version | Check |
 |------|---------|-------|
-| Node.js | 20+ | `node -v` |
-| pnpm | 9+ | `pnpm -v` |
+| Node.js | 22.12+ (24 for hosted fixtures) | `node -v` |
+| pnpm | 10.30.1 (pinned in `package.json`) | `pnpm -v` |
 | Python | 3.10+ (for Python package and Alfred) | `python --version` |
 | Git | Any recent | `git --version` |
 

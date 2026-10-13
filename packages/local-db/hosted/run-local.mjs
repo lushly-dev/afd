@@ -231,6 +231,7 @@ async function main() {
 		AFD_TEST_HTTP_EXPECT_FIXTURE_AUTH: '1',
 		AFD_TEST_HTTP_DEADLINE_MS: '3000',
 		AFD_TEST_HTTP_APP_REVISION: 'local-node24-fixture',
+		AFD_TEST_HTTP_UNAVAILABLE_HTTP_STATUS: '',
 	};
 	let server;
 	let cleanupComplete = false;
@@ -333,7 +334,12 @@ async function main() {
 		status: 'passed',
 		mode: 'local-durable-restart',
 		runId,
-		phases: receipts.map(({ phase, status, checks }) => ({ phase, status, checks })),
+		phases: receipts.map(({ phase, status, checks, unavailabilityEvidence }) => ({
+			phase,
+			status,
+			checks,
+			...(unavailabilityEvidence ? { unavailabilityEvidence } : {}),
+		})),
 		cleanup: 'exact IDs verified absent; temporary database removed',
 	};
 }

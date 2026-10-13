@@ -18,7 +18,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 |---------|-------------|
 | [Python Parity Closure](./active/python-parity/) | Close the export-surface gap between TypeScript and Python. 97 names are missing; 60 of them are implemented but not exported. |
 | [Language Parity Closure](./active/parity-closure/parity-closure.plan.md) | Close the unintended cross-language gaps in [Language Parity](../language-parity.md): spec first, in waves 0–4, with every undeclared gap decided |
-| [Versioning and Release](./active/versioning/versioning.plan.md) | Independent semver for each implementation plus a versioned AFD contract; show each language's version; unblock the stalled npm 2.0.0 release |
+| [Versioning and Release](./active/versioning/versioning.plan.md) | Maintain independent semver for each implementation and the shared AFD contract; keep release paths and current versions accurate |
 
 ## Complete Features
 

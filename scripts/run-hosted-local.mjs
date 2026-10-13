@@ -10,6 +10,11 @@ if (Number(process.versions.node.split('.')[0]) < 24) {
 
 const steps = [
 	[
+		'Render deployment control contracts (no provider requests)',
+		'.',
+		['--test', 'scripts/hosted/render-control.test.mjs'],
+	],
+	[
 		'Better Auth fixture typecheck',
 		'packages/auth',
 		['node_modules/typescript/bin/tsc', '-p', 'hosted/better-auth/tsconfig.json'],

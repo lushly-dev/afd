@@ -55,13 +55,29 @@ git diff --stat
 # Files changed since last tag (for changelog)
 git log --oneline $(git describe --tags --abbrev=0 2>/dev/null || echo HEAD~20)..HEAD --no-merges
 
-# Current version
-cat package.json | grep '"version"'   # TypeScript
-cat pyproject.toml | grep 'version'   # Python
-cat Cargo.toml | grep 'version'       # Rust
+# Distribution versions (the root package.json is private and is not a release version)
+rg '"version"' packages/{adapters,auth,cli,client,core,local-db,server,testing,view-state}/package.json # all nine fixed-group TypeScript packages
+cat python/pyproject.toml | grep '^version'         # Python; also check python/src/afd/__init__.py
+cat packages/rust/Cargo.toml | grep '^version'      # Rust
+rg 'project\(afd VERSION' packages/cpp/CMakeLists.txt # C++
 ```
 
 ### Step 2: Update CHANGELOG.md
+
+#### AFD release records
+
+Each implementation has its own release version and changelog. The root `CHANGELOG.md` is an index only; do not put package release notes there.
+
+| Track | Version source | Release changelog |
+|-------|----------------|-------------------|
+| TypeScript | The nine manifests under `packages/{adapters,auth,cli,client,core,local-db,server,testing,view-state}/package.json`; Changesets keeps them in one fixed group | `packages/*/CHANGELOG.md`, written by Changesets |
+| Python | `python/pyproject.toml` and `python/src/afd/__init__.py` | `python/CHANGELOG.md` |
+| Rust | `packages/rust/Cargo.toml` | `packages/rust/CHANGELOG.md` |
+| C++ | `project(afd VERSION ...)` in `packages/cpp/CMakeLists.txt` | `packages/cpp/CHANGELOG.md` |
+
+The private root `package.json` version is not the TypeScript distribution version. Do not use it for README badges, package releases, or changelog headings. Follow `do-release` for the track-specific version, tag and publication steps.
+
+For dependency upgrades, use the `manage-dependencies` skill: review release notes across the upgrade, classify production/dev/optional dependencies, update the relevant manifests and lockfiles, and run the affected security and compatibility checks. Keep unrelated major upgrades separate. A dependency-only change does not automatically require a product version bump; use the affected package's release path when its published files or runtime behavior change.
 
 **Every user-visible change gets a changelog entry.** This is the most commonly skipped step — do not skip it.
 
@@ -163,7 +179,7 @@ Check if structural changes require AGENTS.md updates:
 | New package added | Update package structure |
 | Convention changed | Update conventions section |
 
-Run `docs_check_agents` — it detects structural changes (new commands, new packages) in staged files and flags whether AGENTS.md needs updating. If AGENTS.md was updated, sync CLAUDE.md afterward (see Step 9).
+Run `docs_check_agents` — it detects structural changes (new commands, new packages) in staged files and flags whether AGENTS.md needs updating. AGENTS.md is the canonical agent-routing file; do not create, edit, or regenerate a CLAUDE.md from it.
 
 **Count verification**: List actual directories/files and compare to counts claimed in AGENTS.md:
 
@@ -265,25 +281,13 @@ For docs that reference external URLs, spot-check a few critical ones:
 
 Full external link validation is expensive — only do it during audits, not every update pass.
 
-### Step 9: Sync CLAUDE.md
-
-If AGENTS.md was modified, regenerate CLAUDE.md:
-
-```bash
-# If a sync script exists
-node scripts/sync-claude-md.mjs
-# Or copy AGENTS.md content if no script
-```
-
-**Never edit CLAUDE.md directly.** It is auto-generated from AGENTS.md.
-
-### Step 10: Report
+### Step 9: Report
 
 Summarize what was updated:
 
 ```
 Documentation update complete:
-- CHANGELOG.md: Added 2 entries under [Unreleased] (Added, Fixed)
+- Track changelogs/Changesets: Captured the affected package changes; root CHANGELOG.md stayed an index
 - AGENTS.md: Updated skill count (14 → 15), added new skill row
 - README.md: No changes needed
 - Spec: Moved auth-adapter to complete
@@ -316,7 +320,7 @@ Documentation update complete:
 
 ## When to Escalate
 
-- CHANGELOG.md doesn't exist yet — create it with proper header and `[Unreleased]` section
+- An implementation changelog is missing — create it in that track with a proper header and `[Unreleased]` section; keep root CHANGELOG.md as an index
 - Version in code doesn't match latest changelog version — flag the mismatch, don't silently fix
 - Breaking changes detected but no major version bump planned — confirm with user
 - Multiple packages changed in a monorepo — clarify whether one or multiple changelog entries are needed

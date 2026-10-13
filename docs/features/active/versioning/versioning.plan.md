@@ -1,5 +1,7 @@
 # Versioning and Release Plan
 
+**Current delivery, 2026-10-13:** all four distribution tracks have published releases: the nine npm packages are at 2.1.0, Python `afd` is at 0.9.0, Rust `afd` is at 0.1.0 on crates.io, and C++ `afd-cpp` is released as `cpp-v0.1.0`. Fresh consumers were verified for each track. Rust trusted publishing is configured; the 0.1.0 bootstrap is complete, and a future version must show its OIDC upload. See the [npm/Python receipt](../../../operations/stabilization-release.md) and [Rust/C++ receipt](../../../operations/native-first-releases.md). The dated notes and September snapshot below preserve their state at the time; use those receipts for current release outcomes.
+
 **Execution update, 2026-10-11:** Python 0.9.0 is published and its downloaded
 wheel passed all 12 supported-interpreter/extra checks. All nine npm packages
 are published at 2.1.0 through #338, after verified historical 2.0.0 recovery;
@@ -14,20 +16,20 @@ release work remains separate.
 
 ## Overview
 
-AFD ships four implementations, each at a different version: TypeScript 2.0.0, Python 0.8.0, Rust 0.1.0 and C++ 0.1.0. This proposal:
-- keeps those versions **independent**;
+At proposal acceptance on 2026-09-27, the four implementations were TypeScript 2.0.0, Python 0.8.0, Rust 0.1.0 and C++ 0.1.0. This proposal:
+- keeps implementation versions **independent**;
 - adds a versioned **AFD contract** that says which implementations are compatible;
 - shows each package's own version wherever versions appear;
-- first unblocks the releases, which are stuck: TypeScript 2.0.0 never reached npm.
+- records the original distribution blockers and release sequence in the dated snapshot below.
 
 | Field | Value |
 |---|---|
-| Status | Active: accepted 2026-09-27, with every recommendation (V1–V6) |
+| Status | Active: accepted 2026-09-27, with every recommendation (V1–V6); first releases are published and the independent version policy remains ongoing |
 | Author | jasfalk |
-| Updated | 2026-09-27 |
+| Updated | 2026-10-13 |
 | Related | [Language parity](../../../language-parity.md), [Parity closure plan](../parity-closure/parity-closure.plan.md), the `do-release` skill, `.github/workflows/release.yml`, `.github/workflows/publish-python.yml` |
 
-## Current state
+## Accepted plan snapshot (verified 2026-09-26)
 
 All of the following was verified on 2026-09-26.
 
@@ -120,11 +122,13 @@ All of the following was verified on 2026-09-26.
 
   It fails when a version written into `docs/language-parity.md` or `site/index.html` disagrees with them.
 
-### 4. Unblock releases first
+### 4. Original September release sequence
 
-This is the original September sequence. npm and Python outcomes are recorded in
-[release readiness](../../../operations/stabilization-release.md); C++ completion
-and remaining Rust work are in the [native handoff](../../../operations/native-first-releases.md).
+This records the original September sequence; the first release outcomes are now
+complete. npm and Python outcomes are recorded in
+[release readiness](../../../operations/stabilization-release.md); Rust and C++
+receipts are in the [native handoff](../../../operations/native-first-releases.md).
+Future versions follow the `do-release` skill.
 
 Steps marked **(admin)** need a repository or npm owner. They change security settings, so an agent should not do them.
 
@@ -143,8 +147,8 @@ Steps marked **(admin)** need a repository or npm owner. They change security se
    3. Tag `python-v0.9.0`.
    4. Fix `publish-python.yml` so the version check also runs for GitHub Release events.
 5. **C++ 0.1.0 — complete 2026-10-12.** Published `cpp-v0.1.0` from `a311562` (#377). Post-merge CI, fresh tagged consumers, the tag badge and pinned installation snippets are verified; the feature record is in `complete/cpp-support/`.
-6. **Rust (V4).** Publish 0.1.0 to crates.io to claim the name, and add a `rust-v*` publish workflow using crates.io trusted publishing.
-7. **Update the `do-release` skill** to cover all four implementations, the tag schemes and the contract version.
+6. **Rust 0.1.0 — complete 2026-10-12.** The crate is published on crates.io; `rust-v0.1.0` passed its tag checks, the trusted publisher is configured, and future versions use the OIDC workflow. A new version still needs an actual OIDC upload receipt.
+7. **`do-release` skill — complete.** The skill covers all four implementations, their tag schemes and the contract version.
 
 ## Decisions
 

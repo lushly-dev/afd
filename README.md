@@ -194,7 +194,7 @@ AFD ships as packages across **TypeScript, Python, Rust, and C++**. All four sha
 | **@lushly-dev/afd-adapters** | Frontend adapters for rendering `CommandResult` → styled HTML with CSS variable theming |
 | **afd** *(Python)* | Idiomatic Python AFD: `CommandResult`, MCP server/client, middleware, validation, telemetry, batch, pipelines, stream types, testing, handoff |
 | **afd** *(Rust)* | `CommandResult` types, validating `CommandRegistry`, batch and pipeline execution, stream types, bootstrap commands; WASM-compatible; no MCP server yet |
-| **afd-cpp** *(C++20, pre-release)* | [`packages/cpp`](./packages/cpp): `CommandResult` types, validating `CommandRegistry`, middleware, `DirectClient`, batch/pipeline/stream execution; engine-free, builds without exceptions or RTTI and for WebAssembly |
+| **afd-cpp** *(C++20, published preview)* | [`packages/cpp`](./packages/cpp): `CommandResult` types, validating `CommandRegistry`, middleware, `DirectClient`, batch/pipeline/stream execution; engine-free, builds without exceptions or RTTI and for WebAssembly |
 
 AFD stays framework-agnostic at the command layer. React or browser integrations belong in examples and ecosystem layers, not in the core parity target.
 
@@ -232,7 +232,7 @@ Features like [command trust config](./docs/features/complete/command-trust-conf
 
 Five minutes from an empty folder to a command that a terminal, a test and an agent can all call. You need Node.js 22.12 or later.
 
-> **Note:** these steps use the 2.0 packages. Until npm serves 2.x, use the source-install option below. It links both the server and CLI, so `npx afd` runs the built CLI rather than the older published version, which can hang after `afd connect`.
+The TypeScript packages are published on npm at 2.x. Install the published server and CLI for this quickstart.
 
 ### 1. Create a project
 
@@ -240,15 +240,10 @@ Five minutes from an empty folder to a command that a terminal, a test and an ag
 mkdir todo-afd && cd todo-afd
 npm init -y && npm pkg set type=module
 npm install -D tsx
-```
-
-When `npm view @lushly-dev/afd-cli version` and `npm view @lushly-dev/afd-server version` both print 2.x, install the published packages:
-
-```bash
 npm install @lushly-dev/afd-server@^2 @lushly-dev/afd-cli@^2 zod
 ```
 
-Otherwise, with pnpm installed, build a source checkout inside the project and install its local packages:
+To try unreleased source, with pnpm installed, build a source checkout inside the project and install its local packages:
 
 ```bash
 git clone https://github.com/lushly-dev/afd.git .afd-source
@@ -257,7 +252,7 @@ pnpm --dir .afd-source build
 npm install ./.afd-source/packages/server ./.afd-source/packages/cli zod
 ```
 
-Both routes make `npx afd --version` print 2.x. Keep the source checkout in place when using local packages; npm links to their built files. The rest of this walkthrough uses the same commands with either route.
+The source-install route links to the workspace's built files, so keep the checkout in place while using it. Use it for development against unreleased changes; new projects can install the published npm packages directly. Both routes make `npx afd --version` print 2.x. The rest of this walkthrough uses the same commands with either route.
 
 ### 2. Define commands and serve them
 

@@ -22,6 +22,10 @@ user-invocable: true
 
 AFD ships four implementations. Each follows semver on its own API, has its own version, changelog, tag scheme and release path, and is released on its own schedule. Before 1.0, a minor release may break the API.
 
+For subsequent package and dependency changes, follow
+[Updating packages in the next round](references/next-round.md). It records
+current baselines, per-track versioning, OIDC paths and artifact/consumer gates.
+
 ## Release tracks
 
 | Implementation | Version lives in | Changelog | Tag | Published by |

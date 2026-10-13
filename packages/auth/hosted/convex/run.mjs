@@ -56,6 +56,7 @@ async function main() {
 	let cleanup = [];
 	try {
 		await buildFixture(buildDir);
+		// Bind the fixed OAuth return origin before Chromium can contact Convex.
 		server = await startFixtureServer({
 			directory: buildDir,
 			deploymentUrl: config.deploymentUrl,
