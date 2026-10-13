@@ -212,7 +212,15 @@ session renewal/expiry and independent revoked/expired-cookie replay. It uses
 loopback HTTP and a disposable memory provider. These checks do not prove HTTPS
 Secure-cookie or cross-site SameSite enforcement, OAuth callbacks/upstream token
 refresh, simultaneous lock atomicity, other browser engines or Convex deployment.
-See `packages/auth/README.md` for setup and remaining staging requirements.
+The additional `packages/auth/hosted/better-auth/` fixture runs actual HTTPS,
+local OAuth callbacks and SQLite-backed provider restart. Run the repository-root
+`pnpm test:hosted:local` on Node 24 with Chromium for this lifecycle, Convex SDK
+fixture checks and durable REST/view-state restart checks. The Convex fixture in
+`packages/auth/hosted/convex/` uses real SDKs and deployable functions; local build
+success does not establish live provider behavior. External opt-in runs require
+explicit disposable-service configuration and assertion/cleanup receipts; missing
+configuration fails preflight. Keep #362 open pending hosted execution. See
+`docs/operations/hosted-verification.md` and the fixture READMEs for setup.
 Registry publication is separate from merged source behavior.
 
 

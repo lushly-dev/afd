@@ -166,11 +166,19 @@ the run; use the test service's record/audit view to remove leftovers before del
 the disposable service. An absent endpoint reports a skipped test, never a pass.
 Record the service/backend version, deployment revision and actual outcomes.
 
-The harness verifies persistence across requests/clients. Restart durability,
-concurrent writers, database isolation, browser storage, service-specific authentication
-and provider outages require deployment-specific checks and remain assurance work
-in [#362](https://github.com/lushly-dev/afd/issues/362). The default gate needs no
-hosted account or production credentials.
+That baseline verifies persistence across requests/clients. The additional
+[durable REST harness](hosted/README.md) supplies a SQLite fixture and separate
+write/read/cleanup processes using the actual HttpAdapter and ViewStateRegistry.
+`pnpm test:hosted:local` (repository root, Node 24 and Chromium) includes its
+restart, unavailable/recovery, two-principal isolation and exact-ID cleanup checks.
+
+For external execution, `pnpm -F @lushly-dev/local-db test:hosted` accepts explicit
+phases and run-scoped configuration documented in that README. A hosted durability
+claim requires the matching write/read/cleanup receipts and external restart
+evidence over the same backing store. Missing required configuration fails
+preflight. Concurrent writers, browser storage and production authentication
+remain outside this fixture's promises. See [#362](https://github.com/lushly-dev/afd/issues/362)
+and the [verification handoff](../../docs/operations/hosted-verification.md).
 
 ## License
 

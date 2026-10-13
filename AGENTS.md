@@ -21,6 +21,7 @@ from application LLM selection in `integrate-llms`.
 | `pnpm lint:fix` | Auto-fix lint issues |
 | `pnpm typecheck` | TypeScript type checking |
 | `pnpm check` | TypeScript quality gate (lint + build + typecheck + test:coverage) — mirrors `ci.yml` exactly |
+| `pnpm test:hosted:local` | Credential-free HTTPS/OAuth, Convex fixture and durable REST/view-state checks (Node 24, OpenSSL and Chromium) |
 | `pnpm changeset` | Create a changeset describing your change and its semver impact |
 | `pnpm version-packages` | Consume changesets, bump versions, update CHANGELOGs |
 | `pnpm publish:npm` | Build and publish all @lushly-dev/* packages to npm |
@@ -78,6 +79,7 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 | **C++** (`cpp.yml`) | Push to main / PR touching `packages/cpp/**`, `spec/wire`, `spec/vectors`, the todo spec or the C++ todo backend | clang-format (pinned); GCC; Clang with ASan+UBSan and with TSan; no-exceptions/no-RTTI unity build with the macro-hygiene check; macOS; MSVC; Emscripten with tests under Node; 60 s libFuzzer run per fuzz target |
 | **Conformance** (`conformance.yml`) | Push to main / PR touching the todo example, `packages/server`, `packages/core`, `packages/rust`, `packages/cpp`, `python/` or the lockfile | Todo example: Python backend pytest, Rust backend fmt/clippy/test, C++ backend build/test, then the 34-case conformance suite against the TypeScript, Python, Rust and C++ backends |
 | **Alfred** (`alfred.yml`) | Push to main / PR touching `alfred/**`, `python/**`, `spec/**` or `packages/**` | ruff, pytest (including the `alfred parity` name-gap budgets), wheel smoke test |
+| **Local hosted-test fixtures** (`hosted-fixtures.yml`) | Path-filtered auth/persistence/runtime/tooling changes; manual dispatch | Node 24, Chromium, `pnpm test:hosted:local`; no external services or credentials; not hosted-provider evidence |
 | **Release** (GitHub Actions) | Push to main | `pnpm check` → Changesets opens a version PR or publishes to npm |
 
 **Key rules:**

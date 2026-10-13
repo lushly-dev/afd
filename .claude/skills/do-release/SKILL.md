@@ -106,9 +106,10 @@ digest, registry consumer checks and current npm release sequence.
 crates.io offers trusted publishing only for a crate that already exists, so the maintainer publishes 0.1.0 by hand, once. The name `afd` was free on crates.io on 2026-09-27.
 
 1. **In the release pull request**, also:
-   - change the Installation section of `packages/rust/README.md` to `cargo add afd`. The README is packaged into the crate and shown on crates.io.
-   - drop the "not on crates.io yet" comment in the `afd-rust` skill;
-   - change the Rust Distribution row in `docs/language-parity.md` to crates.io.
+   - include exact-version registry instructions in `packages/rust/README.md`,
+     explicitly conditional on publication. The README is packaged into the crate.
+   - keep usable git/path instructions and truthful unpublished status in the
+     README, `afd-rust` skill and language parity until registry verification.
 2. **Maintainer**, on the merge commit, with a crates.io API token that can publish new crates:
    ```bash
    cargo login
@@ -116,6 +117,8 @@ crates.io offers trusted publishing only for a crate that already exists, so the
    ```
 3. **Maintainer**, on crates.io under the crate's Settings → Trusted Publishing, adds a GitHub publisher: owner `lushly-dev`, repository `afd`, workflow `publish-rust.yml`, environment `crates-io`. Then revoke the API token.
 4. **Maintainer** pushes `rust-v0.1.0` for the same commit. `publish-rust.yml` runs its checks and skips the upload, because 0.1.0 is already on crates.io. Later versions publish through the workflow.
+5. Download the published crate and verify fresh consumers. Then change the default
+   installation to `cargo add afd` and the Distribution row to crates.io.
 
 ## C++ (CMake)
 
@@ -123,9 +126,12 @@ afd-cpp is on no registry. A release is a tag and a GitHub Release, and consumer
 
 1. Set `project(afd VERSION X.Y.Z)` in `packages/cpp/CMakeLists.txt`. It generates `afd/version.hpp`, and the CMake package uses `SameMinorVersion` compatibility.
 2. In `packages/cpp/CHANGELOG.md`, move `Unreleased` under the new version with the date, and add an empty `Unreleased` above it.
-3. Run `node scripts/check-versions.mjs --write` to update the C++ column of the Version row in `docs/language-parity.md`. For the first release, `cpp-v0.1.0`, also remove "not cut yet" from the C++ README (status note, Using the package and the `FetchContent` example), the Distribution row in `docs/language-parity.md` and `docs/features/README.md`, and move the C++ proposal to `docs/features/complete/`.
+3. Run `node scripts/check-versions.mjs --write` to update the C++ column of the Version row in `docs/language-parity.md`. Keep release-candidate/tag-absent wording and usable source installation until the first tag exists.
 4. Merge after `cpp.yml` and `conformance.yml` pass on `main`.
 5. **Maintainer:** tag the merge commit `cpp-vX.Y.Z`, push the tag, and create a GitHub Release from the changelog section.
+6. Verify fresh tagged FetchContent and installed find_package consumers. Then pin
+   package/skill/site snippets to the tag, update distribution/status wording and
+   move the completed C++ proposal. See `docs/operations/native-first-releases.md`.
 
 ## Unblocking npm
 

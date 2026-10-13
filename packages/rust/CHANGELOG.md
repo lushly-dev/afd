@@ -1,12 +1,15 @@
 # Changelog
 
-All notable changes to the `afd` Rust crate are documented here. The crate is versioned independently of the npm packages and the other implementations, is published to [crates.io](https://crates.io/crates/afd), and is released with tags of the form `rust-vX.Y.Z`.
+All notable changes to the `afd` Rust crate are documented here. The crate is versioned independently of the npm packages and other implementations. Rust releases are distributed through [crates.io](https://crates.io/crates/afd) and use tags of the form `rust-vX.Y.Z`.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this crate adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Before 1.0, a minor release may break the API.
 
-## [0.1.0] - Unreleased
+## [Unreleased]
 
-The first release on crates.io. Until now the crate was only available as a git dependency.
+## [0.1.0] - 2026-10-12
+
+First release. It implements AFD contract **1.0-rc**. crates.io installation becomes available
+after the maintainer publishes and verifies `afd` 0.1.0; Git and path dependencies remain usable.
 
 ### Fixed
 
@@ -66,4 +69,4 @@ These changes affect code that used the crate as a git dependency before this re
 - A `when` condition treats a first operand that is not a reference (`"$$prev"`, `"text"`) as absent, and `$eq`/`$ne` compare numbers by value (`2` equals `2.0`), as in TypeScript. `tests/pipeline_vectors.rs` and `tests/batch_controls_vectors.rs` load the shared `spec/vectors` files (#317).
 - `CommandRegistry::execute` catches a panic in a middleware layer or the handler, including one raised while building the future and one under `timeout_ms`, instead of letting it unwind to the caller (#306).
 
-[0.1.0]: https://github.com/lushly-dev/afd/commits/main/packages/rust
+Release comparison and tag links will be added after `rust-v0.1.0` is published.

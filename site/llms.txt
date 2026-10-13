@@ -22,7 +22,7 @@ Repository: https://github.com/lushly-dev/afd
 - TypeScript: `npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod`
 - Python: `pip install afd`
 - Rust: `cargo add afd --git https://github.com/lushly-dev/afd`
-- C++: CMake `FetchContent` from `https://github.com/lushly-dev/afd.git` with `SOURCE_SUBDIR packages/cpp`, then link `afd::afd`. Use `GIT_TAG main` or a commit SHA until `afd-cpp-v0.1.0` is tagged.
+- C++: CMake `FetchContent` from `https://github.com/lushly-dev/afd.git` with `SOURCE_SUBDIR packages/cpp`, then link `afd::afd`. Use `GIT_TAG main` or a commit SHA until `cpp-v0.1.0` is tagged.
 
 ## Minimal command (TypeScript)
 

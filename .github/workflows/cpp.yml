@@ -35,6 +35,9 @@ permissions:
 env:
   CLANG_FORMAT_VERSION: '22.1.8'
   EMSDK_VERSION: '6.0.10'
+  LLVM_WINDOWS_VERSION: '22.1.8'
+  # Digest from the official llvm/llvm-project llvmorg-22.1.8 release asset metadata.
+  LLVM_WINDOWS_SHA256: '16e5709785fef73c854646241c4a92c5cd574318d1b33c63330dd7721903e55c'
 
 jobs:
   format:
@@ -88,6 +91,10 @@ jobs:
             os: windows-latest
             preset: release
             cxx: ''
+          - name: windows-clang-cl
+            os: windows-latest
+            preset: release
+            cxx: ''
 
     defaults:
       run:
@@ -98,13 +105,38 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install pinned LLVM for clang-cl
+        if: matrix.name == 'windows-clang-cl'
+        shell: pwsh
+        run: |
+          $installer = Join-Path $env:RUNNER_TEMP "LLVM-$env:LLVM_WINDOWS_VERSION-win64.exe"
+          $installDir = Join-Path $env:RUNNER_TEMP "llvm-$env:LLVM_WINDOWS_VERSION"
+          $uri = "https://github.com/llvm/llvm-project/releases/download/llvmorg-$env:LLVM_WINDOWS_VERSION/LLVM-$env:LLVM_WINDOWS_VERSION-win64.exe"
+          Invoke-WebRequest -Uri $uri -OutFile $installer
+          $actualHash = (Get-FileHash -Algorithm SHA256 $installer).Hash.ToLowerInvariant()
+          if ($actualHash -ne $env:LLVM_WINDOWS_SHA256) {
+            throw "LLVM installer SHA-256 mismatch: expected $env:LLVM_WINDOWS_SHA256, found $actualHash"
+          }
+          $process = Start-Process -FilePath $installer -ArgumentList '/S', "/D=$installDir" -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "LLVM installer failed with exit code $($process.ExitCode)"
+          }
+          & (Join-Path $installDir 'bin/clang-cl.exe') --version
+
       - name: Configure
         shell: bash
         env:
           CXX: ${{ matrix.cxx }}
         run: |
           if [ -z "$CXX" ]; then unset CXX; fi
-          cmake --preset "${{ matrix.preset }}"
+          if [ "${{ matrix.name }}" = "windows-clang-cl" ]; then
+            llvm_install_dir="$(cygpath -m "$RUNNER_TEMP")/llvm-${LLVM_WINDOWS_VERSION}/"
+            cmake --preset "${{ matrix.preset }}" -T ClangCL \
+              "-DCMAKE_VS_GLOBALS=LLVMInstallDir=${llvm_install_dir};LLVMToolsVersion=${LLVM_WINDOWS_VERSION}" \
+              "-DAFD_VERIFY_CLANG_CL_VERSION=${LLVM_WINDOWS_VERSION}"
+          else
+            cmake --preset "${{ matrix.preset }}"
+          fi
 
       - name: Build
         run: cmake --build --preset ${{ matrix.preset }}

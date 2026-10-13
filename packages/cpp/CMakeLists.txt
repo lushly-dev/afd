@@ -14,6 +14,11 @@ option(AFD_INSTALL "Generate install rules and the afd CMake package" ${PROJECT_
 option(AFD_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
 option(AFD_BUILD_FUZZERS "Build the fuzz targets (libFuzzer with Clang, corpus replay elsewhere)" OFF)
 option(AFD_USE_SYSTEM_JSON "Require nlohmann_json from find_package instead of downloading it" OFF)
+set(AFD_VERIFY_CLANG_CL_VERSION
+    ""
+    CACHE STRING
+          "Require this exact Clang 21+ version with the MSVC frontend for regression CI")
+mark_as_advanced(AFD_VERIFY_CLANG_CL_VERSION)
 if(EMSCRIPTEN)
     set(afd_threads_default OFF)
 else()
@@ -28,8 +33,17 @@ option(AFD_MACRO_HYGIENE_CHECK
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-include(AfdDependencies)
 include(AfdTargetOptions)
+afd_require_supported_compiler("${CMAKE_CXX_COMPILER_ID}" "${CMAKE_CXX_COMPILER_VERSION}")
+if(AFD_VERIFY_CLANG_CL_VERSION)
+    afd_require_clang_cl_regression_toolchain(
+        "${CMAKE_CXX_COMPILER_ID}" "${CMAKE_CXX_COMPILER_VERSION}"
+        "${CMAKE_CXX_COMPILER_FRONTEND_VARIANT}" "${AFD_VERIFY_CLANG_CL_VERSION}")
+    message(
+        STATUS
+            "Verified clang-cl regression toolchain: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}, ${CMAKE_CXX_COMPILER_FRONTEND_VARIANT} frontend")
+endif()
+include(AfdDependencies)
 
 configure_file(cmake/version.hpp.in ${CMAKE_CURRENT_BINARY_DIR}/include/afd/version.hpp @ONLY)
 
