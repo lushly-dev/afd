@@ -6,7 +6,7 @@ Format standards for each documentation type. Each document has a distinct audie
 
 ## AGENTS.md Format
 
-The canonical agent instruction file. All AI coding tools (Copilot, Claude, Cursor) consume this. CLAUDE.md is auto-generated from it.
+The canonical agent instruction file. All AI coding tools (Copilot, Claude, Cursor) consume this. AFD does not create or regenerate CLAUDE.md.
 
 ### Required Sections (in order)
 
@@ -37,15 +37,10 @@ Bullet list of hard constraints. Each rule should be one line with emphasis on t
 - **Lit is Storybook-only** -- never import in src/
 ```
 
-### CLAUDE.md Sync
+### Canonical routing
 
-AGENTS.md is the source of truth. Sync via script:
-
-```bash
-node scripts/sync-claude-md.mjs
-```
-
-**Never edit CLAUDE.md directly.** Always edit AGENTS.md and re-sync.
+Update AGENTS.md directly. Never run an instruction-file sync or generate
+CLAUDE.md. Link detailed patterns to skills instead.
 
 ---
 
@@ -89,15 +84,16 @@ Use brief descriptions (2-3 sentences per area) and link to skills for depth. Th
 
 ### Badge Maintenance
 
-Update version badges when cutting a release. Use shields.io static badges:
-
-```markdown
-![Version: 0.8.0](https://img.shields.io/badge/version-0.8.0-blue)
-```
+Update each implementation's badge after its release is verified. AFD uses
+independent npm/PyPI/crates.io/tag versions; see the current README and
+`docs/language-parity.md`. The private root package version is not a product badge.
 
 ---
 
 ## CHANGELOG.md Format
+
+Apply this format to the affected implementation changelog; npm uses Changesets.
+Root CHANGELOG.md remains an index, not a fifth release history.
 
 Based on [Keep a Changelog 1.1.0](https://keepachangelog.com/). Entries are human-curated summaries -- never dump git logs.
 

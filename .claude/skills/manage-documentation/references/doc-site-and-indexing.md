@@ -117,7 +117,7 @@ Auto-generate skill indexes and sidebars from frontmatter.
 
 ### Purpose
 
-- Keep CLAUDE.md/AGENTS.md skill table in sync with actual skills
+- Keep AGENTS.md skill table in sync with actual skills
 - Generate Docsify `_sidebar.md` automatically
 - Ensure no orphan skills
 
@@ -169,8 +169,8 @@ def generate_index(skills_dir: Path) -> dict[str, list[dict]]:
     return dict(skills_by_category)
 
 
-def render_claude_table(skills: dict[str, list[dict]]) -> str:
-    """Render skill table for CLAUDE.md."""
+def render_agents_table(skills: dict[str, list[dict]]) -> str:
+    """Render skill table for AGENTS.md."""
     lines = ["| Skill | Category | When to Use |", "|-------|----------|-------------|"]
 
     category_order = ["core", "development", "review", "quality", "uncategorized"]
@@ -221,7 +221,7 @@ if __name__ == "__main__":
     skills = generate_index(skills_dir)
 
     if args.format == "table":
-        output = render_claude_table(skills)
+        output = render_agents_table(skills)
     elif args.format == "sidebar":
         output = render_docsify_sidebar(skills)
     else:
@@ -238,7 +238,7 @@ if __name__ == "__main__":
 ### Usage
 
 ```bash
-# Generate CLAUDE.md skill table
+# Generate a candidate AGENTS.md skill table for review
 python scripts/generate-skill-index.py --format table
 
 # Generate Docsify sidebar
@@ -263,10 +263,8 @@ python scripts/generate-skill-index.py --format json
 
 ### CI Validation
 
-```yaml
-# .github/workflows/docs.yml
-- name: Validate skill index
-  run: |
-    python scripts/generate-skill-index.py --format table > /tmp/expected.md
-    grep -A 100 "## Skill Index" .claude/CLAUDE.md | diff - /tmp/expected.md
-```
+AFD uses `pnpm check` for its repository quality gate, including version checks.
+For a documentation pass, also inspect the changed skills' frontmatter and relative
+links and compare the curated AGENTS.md routing table with the intended entries.
+The generator above is an optional implementation example, not an installed AFD
+command. Do not generate an alternate instruction file or a CLAUDE.md comparison.

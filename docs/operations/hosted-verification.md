@@ -3,6 +3,14 @@
 Tracks [#362](https://github.com/lushly-dev/afd/issues/362). These fixtures prepare
 the application contracts before any hosted resources are provisioned. They are
 development infrastructure, excluded from published package payloads.
+The auth fixtures import reviewed workspace source; REST/view-state runners use
+workspace builds. Recorded package versions are manifest metadata and do not
+prove registry installation. Verify published artifacts in separate fresh consumers.
+
+The next execution is planned in [the hosted verification round](hosted-verification-round.md),
+including proposed services, local preparation, cost controls and closure gates.
+The repeatable package/dependency update process lives in
+[the release skill](../../.claude/skills/do-release/references/next-round.md).
 
 ## Credential-free local gate
 

@@ -4,6 +4,10 @@ This opt-in fixture validates `useConvexAuthAdapter` against a disposable, real 
 deployment and Chromium. It is not part of the credential-free default suite, and a local bundle
 or typecheck is not hosted-provider evidence.
 
+These fixtures execute the reviewed workspace source commit. Receipt package
+versions describe manifests; they do not establish installation from npm.
+Published SDK delivery needs a separate packed/downloaded fresh consumer.
+
 ## Local checks
 
 From `packages/auth`, run:

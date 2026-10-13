@@ -36,6 +36,10 @@ server processes, browser profiles and generated bundles are removed on success
 and failure. Contract tests include an intentionally short deadline while the
 real provider/browser run is underway and verify scratch cleanup after failure. SIGINT/SIGTERM also abort pending work and unwind cleanup; a real SIGTERM subprocess regression verifies this path. SIGKILL cannot execute cleanup.
 
+These fixtures execute the reviewed workspace source commit. Receipt package
+versions describe manifests; they do not establish installation from npm.
+Published SDK delivery needs a separate packed/downloaded fresh consumer.
+
 ## External deployment and runner
 
 No service, OAuth client, account, grant or paid resource is provisioned by this

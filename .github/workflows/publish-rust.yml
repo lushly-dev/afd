@@ -8,9 +8,9 @@
 # OIDC token for a short-lived crates.io token and revokes it when the job ends.
 # No long-lived token is stored.
 #
-# crates.io offers trusted publishing only for a crate that already exists, so
-# the first release is published by hand (see the do-release skill). Then add a
-# trusted publisher in the crate's settings on crates.io:
+# afd 0.1.0 is published and the GitHub trusted publisher is configured.
+# Subsequent versions use that existing publisher; no bootstrap token is needed.
+# Publisher identity:
 #   - Repository owner: lushly-dev
 #   - Repository name: afd
 #   - Workflow filename: publish-rust.yml
