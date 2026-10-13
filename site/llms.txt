@@ -21,7 +21,7 @@ Repository: https://github.com/lushly-dev/afd
 
 - TypeScript: `npm install @lushly-dev/afd-server @lushly-dev/afd-cli zod`
 - Python: `pip install afd`
-- Rust: `cargo add afd --git https://github.com/lushly-dev/afd`
+- Rust: `cargo add afd`
 - C++: CMake `FetchContent` from `https://github.com/lushly-dev/afd.git` with `SOURCE_SUBDIR packages/cpp`, then link `afd::afd`. Use the published `GIT_TAG cpp-v0.1.0`.
 
 ## Minimal command (TypeScript)

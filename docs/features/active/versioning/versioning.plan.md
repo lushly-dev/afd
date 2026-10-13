@@ -10,7 +10,7 @@ including its initial 2.0.1 estimate. Use
 release commits, workflow receipts and consumer verification. Rust and C++
 release work remains separate.
 
-**C++ update, 2026-10-12:** [cpp-v0.1.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.1.0) is published from `a311562` (#377), after all post-merge gates passed. Fresh tagged FetchContent and installed find_package consumers passed. Rust publication remains pending locally configured crates.io access.
+**Native release update, 2026-10-12:** [cpp-v0.1.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.1.0) is published from `a311562` (#377), after all post-merge gates passed. Fresh tagged FetchContent and installed find_package consumers passed. Rust `afd` 0.1.0 is also published on crates.io from that commit, with verified downloaded default/no-default consumers and docs.rs. Its `rust-v0.1.0` workflow passed and skipped the existing upload; the exact GitHub trusted publisher is configured. The bootstrap token is revoked; a future new version must demonstrate the OIDC upload. See the [native release receipt](../../../operations/native-first-releases.md).
 
 ## Overview
 

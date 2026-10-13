@@ -8,8 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.1.0] - 2026-10-12
 
-First release. It implements AFD contract **1.0-rc**. crates.io installation becomes available
-after the maintainer publishes and verifies `afd` 0.1.0; Git and path dependencies remain usable.
+First release. It implements AFD contract **1.0-rc**. Published on
+[crates.io](https://crates.io/crates/afd/0.1.0), with
+[API documentation](https://docs.rs/afd/0.1.0/afd/). Git and path dependencies remain usable.
 
 ### Fixed
 
@@ -69,4 +70,5 @@ These changes affect code that used the crate as a git dependency before this re
 - A `when` condition treats a first operand that is not a reference (`"$$prev"`, `"text"`) as absent, and `$eq`/`$ne` compare numbers by value (`2` equals `2.0`), as in TypeScript. `tests/pipeline_vectors.rs` and `tests/batch_controls_vectors.rs` load the shared `spec/vectors` files (#317).
 - `CommandRegistry::execute` catches a panic in a middleware layer or the handler, including one raised while building the future and one under `timeout_ms`, instead of letting it unwind to the caller (#306).
 
-Release comparison and tag links will be added after `rust-v0.1.0` is published.
+[Unreleased]: https://github.com/lushly-dev/afd/compare/rust-v0.1.0...HEAD
+[0.1.0]: https://github.com/lushly-dev/afd/releases/tag/rust-v0.1.0

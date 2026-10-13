@@ -691,9 +691,8 @@ async fn test_command_not_found() {
 
 ## Cargo.toml Configuration
 
-Until the maintainer confirms the first crates.io publication, use a Git or local path dependency.
-After `afd` 0.1.0 has been published and verified, the registry install command is
-`cargo add afd@=0.1.0`.
+`afd` 0.1.0 is published and verified on crates.io. Install with `cargo add afd`,
+or pin the first release with `cargo add afd@=0.1.0`.
 
 ```toml
 [package]
@@ -702,9 +701,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-afd = { git = "https://github.com/lushly-dev/afd" }
+afd = "=0.1.0"
 # For a local checkout instead: afd = { path = "../afd/packages/rust" }
-# After verified crates.io publication instead: afd = "=0.1.0"
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

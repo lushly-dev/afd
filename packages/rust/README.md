@@ -14,44 +14,25 @@ itself follows Rust conventions and does not mirror every TypeScript or Python f
 
 ## Installation
 
-The first crates.io release is being prepared and is not available yet. Until the maintainer
-confirms that `afd` 0.1.0 has been published and verified, use a Git or local path dependency.
-
-From Git, Cargo finds the `afd` package in `packages/rust` on its own:
+Install the published [afd crate](https://crates.io/crates/afd):
 
 ```bash
-cargo add afd --git https://github.com/lushly-dev/afd
+cargo add afd
 ```
 
-Or edit `Cargo.toml` directly:
-
-```toml
-[dependencies]
-afd = { git = "https://github.com/lushly-dev/afd" }
-```
-
-For a local checkout, use its package directory:
-
-```toml
-[dependencies]
-afd = { path = "../afd/packages/rust" }
-```
-
-Add `rev = "<commit sha>"` to the Git dependency to pin a specific commit.
-
-### After the first crates.io publication
-
-Once the maintainer confirms that `afd` 0.1.0 is available on crates.io, add that exact release:
-
-```bash
-cargo add afd@=0.1.0
-```
-
-Or pin it in `Cargo.toml`:
+To pin the first release in `Cargo.toml`:
 
 ```toml
 [dependencies]
 afd = "=0.1.0"
+```
+
+For source development, Cargo finds the package in `packages/rust`:
+
+```toml
+[dependencies]
+afd = { git = "https://github.com/lushly-dev/afd", tag = "rust-v0.1.0" }
+# Or use a local checkout: afd = { path = "../afd/packages/rust" }
 ```
 
 For WebAssembly, see [Features](#features).

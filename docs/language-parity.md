@@ -4,8 +4,8 @@ What each AFD implementation provides, where they differ, and which differences 
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-12 |
-| Reviewed at | Stabilization `f19257e` (#367); Python 0.9.0 published from `4e16a06` (#372); npm 2.1.0 published from `0148d22` (#338); C++ 0.1.0 tagged from `a311562` (#377); fresh consumers verified |
+| Updated | 2026-10-13 |
+| Reviewed at | Stabilization `f19257e` (#367); Python 0.9.0 published from `4e16a06` (#372); npm 2.1.0 published from `0148d22` (#338); C++ and Rust 0.1.0 published from `a311562` (#377); fresh consumers verified |
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans, which now link here |
 | Plans | [Parity closure](./features/active/parity-closure/parity-closure.plan.md) closes the gaps listed here; [Versioning and release](./features/active/versioning/versioning.plan.md) covers each implementation's version and the contract version |
@@ -27,14 +27,14 @@ The contract has three layers:
 
 ## Implementations at a glance
 
-Versions below describe repository manifests. Registry checks independently confirm all nine npm packages at 2.1.0 and Python at 0.9.0; repository versions alone do not imply publication.
+Versions below describe repository manifests. Registry checks independently confirm all nine npm packages at 2.1.0 Python at 0.9.0 and Rust at 0.1.0; repository versions alone do not imply publication.
 
 | | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
 | Package | 9 `@lushly-dev/*` packages | `afd` | `afd` crate | `afd-cpp` (`afd::afd`) |
-| Version | 2.1.0 | 0.9.0 | 0.1.0, release candidate | 0.1.0 |
+| Version | 2.1.0 | 0.9.0 | 0.1.0 (published) | 0.1.0 |
 | Contract | 1.0-rc (`AFD_CONTRACT_VERSION`) | 1.0-rc (`afd.CONTRACT_VERSION`) | 1.0-rc (`afd::CONTRACT_VERSION`) | 1.0-rc (`afd::contract_version`) |
-| Distribution | npm | PyPI | Git or path dependency; not on crates.io | CMake `FetchContent`, `find_package`, `add_subdirectory`; published [cpp-v0.1.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.1.0) |
+| Distribution | npm | PyPI | [crates.io](https://crates.io/crates/afd); published 0.1.0 | CMake `FetchContent`, `find_package`, `add_subdirectory`; published [cpp-v0.1.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.1.0) |
 | Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, FastMCP server, client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch and pipeline executors, bootstrap commands. No server or client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors. No server or client |
 | Todo backend | stdio (SDK) | stdio (FastMCP) | Streamable HTTP (hand-rolled, axum) | stdio (hand-rolled) |
 | CI | `ci.yml` (`pnpm check`) | `python.yml` | `rust.yml` | `cpp.yml` |
