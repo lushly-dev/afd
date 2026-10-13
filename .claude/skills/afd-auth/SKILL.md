@@ -219,7 +219,12 @@ fixture checks and durable REST/view-state restart checks. The Convex fixture in
 `packages/auth/hosted/convex/` uses real SDKs and deployable functions; local build
 success does not establish live provider behavior. External opt-in runs require
 explicit disposable-service configuration and assertion/cleanup receipts; missing
-configuration fails preflight. Keep #362 open pending hosted execution. See
+configuration fails preflight. The Convex fixture can use an explicitly
+allowlisted existing GitHub account with exact account ID and verified primary
+email; this does not relax Password-user or protected-record run scoping. Use a
+dedicated OAuth App with profile/email scopes only. Cleanup removes Convex test
+data and the dedicated grant, never the existing GitHub account.
+Keep #362 open pending hosted execution. See
 `docs/operations/hosted-verification.md` and the fixture READMEs for setup.
 Registry publication is separate from merged source behavior. The hosted fixtures
 import reviewed workspace source; a receipt version is not registry installation

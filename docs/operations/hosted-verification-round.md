@@ -35,7 +35,7 @@ setup while preserving separate processes, volumes, secrets and cleanup.
 | Render H3 | One paid `0.5c-512mb` Node 24 instance, managed HTTPS, separate 1 GB disk at `/var/data`, SQLite `rest.sqlite`, auto-deploy off | Durable REST service with explicit restart/suspend/resume controls |
 | Google | One disposable Cloud project, External/Testing OAuth Web client, one dedicated synthetic Google identity, `openid email profile` only | H1 OIDC discovery/JWKS, real consent denial and success |
 | Convex | One fresh non-production cloud development deployment on Free, if capacity allows | H2 actual auth functions, Password provider, protected records and user queries |
-| GitHub | One dedicated OAuth App and a separate verified synthetic GitHub identity | H2 exact supported OAuth callback; never use the maintainer's usual identity |
+| GitHub | One dedicated OAuth App and either a run-scoped test identity or an explicitly allowlisted existing account | H2 exact supported OAuth callback, with only profile/email scopes |
 | Operator Mac | Node 24, pinned pnpm, matching Chromium, provider control CLI/API | Headed browser interactions and orchestration; no hosted browser service needed |
 
 Render supports [persistent disks](https://render.com/docs/disks) only on paid
@@ -102,11 +102,13 @@ the final preparation commit after independent review and all applicable gates.
 3. **H2 identity and deployment preflight.** The runner requires three distinct
    Password-primary/Password-secondary/OAuth identities, canonical matching
    `.convex.cloud`/`.convex.site` origins and a fixed nonzero loopback port. It
-   binds that port before Chromium starts. The dedicated GitHub identity must
-   have a verified primary email containing the chosen run ID and allowed suffix;
-   verify this prerequisite before creating paid resources. The backend and
-   runner retain the run-ID/suffix guard. A reusable fixed OAuth identity needs
-   a separate reviewed exact allowlist change; do not bypass the guard. The
+   binds that port before Chromium starts. The default GitHub identity mode
+   requires a verified run-scoped email. Optional `verified-github-account` mode
+   admits one configured stable GitHub account ID and exact verified primary
+   email, checked server-side against GitHub provider evidence. It retains
+   strict run-scoped Password users and run-scoped protected records. Confirm
+   the selected identity and reviewed mode before creating paid resources;
+   an arbitrary email/suffix exception is never sufficient. The
    [H2 recipe](../../packages/auth/hosted/convex/README.md) uses Dashboard creation
    and the pinned CLI 1.32 deployment flow; no SDK upgrade is implicit.
 4. **Reproducible deploy/control assets.** The
@@ -136,7 +138,7 @@ and runtime dependencies; do not prune Better Auth/esbuild/React needed by serve
 1. **Freeze the candidate and resource ledger.** Record source SHA, runtime/SDK/
    browser versions, approved spend/window and synthetic principal labels. Plan
    exact service/project/client/deployment/store IDs, owners and removal steps.
-   No secrets or identity values go into public receipts.
+   No secrets or private identity values go into public receipts.
 2. **Configure and preflight services.** After approval, create the disposable
    resources, pin source, set local/deployment secrets and register exact provider
    callbacks. Read back provider deploy commit/configuration separately from the
@@ -174,7 +176,9 @@ and runtime dependencies; do not prune Better Auth/esbuild/React needed by serve
    verify absence, then revoke dedicated provider grants/clients and remove
    services/disks/Convex deployment. Remove local secret files/provider browser
    state and any dedicated identity created for this round, subject to provider
-   account deletion rules. Use the provider control plane to delete and read back exact service/disk IDs,
+   account deletion rules. An existing allowlisted GitHub account is retained;
+   cleanup removes its test grant and Convex test user/data, never the GitHub
+   account, repositories or organization memberships. Use the provider control plane to delete and read back exact service/disk IDs,
    not merely stop a process or observe an HTTP error. Render references:
    [delete service](https://api-docs.render.com/reference/delete-service),
    [delete disk](https://api-docs.render.com/reference/delete-disk),
@@ -195,6 +199,15 @@ Google Web application client, External/Testing audience and only the synthetic
 Google test user. The fixture already requests `prompt=consent` for denial/recovery.
 See [Google OIDC](https://developers.google.com/identity/openid-connect/openid-connect)
 and [web-server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server).
+
+For H2, a second GitHub account is optional. Existing-account mode requires the
+exact immutable GitHub account ID plus its exact verified primary email, separate
+from both Password users. Use a dedicated OAuth App requesting only `read:user`
+and `user:email`; do not request repository or organization scopes. The account
+and email must be confirmed before paid provisioning. See the
+[H2 identity contract](../../packages/auth/hosted/convex/README.md) for matching
+runner/deployment configuration. Provider authorization remains an explicit
+operator step; local identity checks do not prove a completed OAuth callback.
 
 For H2, GitHub is the runner's exact implemented OAuth provider. Read the callback
 from the same Convex deployment as the client endpoint; the final loopback return

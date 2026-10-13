@@ -60,6 +60,21 @@ function verifyConvexDependencyPreflight() {
 const outputDir = await mkdtemp(join(tmpdir(), 'afd-convex-check-'));
 try {
 	await run(process.execPath, ['--test', join(fixtureDir, 'lib.test.mjs')]);
+	await run(process.execPath, [
+		'--experimental-strip-types',
+		'--test',
+		join(fixtureDir, 'convex', 'identity.test.mjs'),
+	]);
+	await run(process.execPath, [
+		'--experimental-strip-types',
+		'--test',
+		join(fixtureDir, 'convex', 'principal.test.mjs'),
+	]);
+	await run(process.execPath, [
+		'--experimental-strip-types',
+		'--test',
+		join(fixtureDir, 'convex', 'oauth-user.test.mjs'),
+	]);
 	verifyConvexDependencyPreflight();
 	await run(join(authDir, 'node_modules', '.bin', 'convex'), ['--help'], fixtureDir, 'ignore');
 	await run(join(authDir, 'node_modules', '.bin', 'auth'), ['--help'], fixtureDir, 'ignore');
