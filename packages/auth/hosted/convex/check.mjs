@@ -103,12 +103,17 @@ try {
 	await verifyConvexDependencyPreflight(cliPreflightDir);
 	await run(join(authDir, 'node_modules', '.bin', 'convex'), ['--help'], cliPreflightDir, 'ignore');
 	await run(join(authDir, 'node_modules', '.bin', 'auth'), ['--help'], cliPreflightDir, 'ignore');
-	await run(join(authDir, 'node_modules', '.bin', 'tsc'), [
-		'-p',
-		join(fixtureDir, 'tsconfig.json'),
-		'--pretty',
-		'false',
-	]);
+	const fixtureTypeScript = join(fixtureDir, 'node_modules', 'typescript', 'bin', 'tsc');
+	await run(
+		process.execPath,
+		[fixtureTypeScript, '-p', join(fixtureDir, 'convex', 'tsconfig.json'), '--pretty', 'false'],
+		fixtureDir
+	);
+	await run(
+		process.execPath,
+		[fixtureTypeScript, '-p', join(fixtureDir, 'tsconfig.json'), '--pretty', 'false'],
+		fixtureDir
+	);
 	await buildFixture(outputDir);
 	const server = await startFixtureServer({
 		directory: outputDir,
