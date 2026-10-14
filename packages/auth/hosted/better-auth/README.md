@@ -134,7 +134,9 @@ If Google rejects the Playwright browser, use ordinary Chrome for the entire
 provider flow. Open the fixture root in that browser and use its OAuth button;
 do not copy an authorization URL between browser contexts. The page exposes
 Refresh session and Sign out buttons, plus DOM-readable status, non-bearer
-session/user IDs, expiry and an expected-identity match bit. An Incognito or
+session/user IDs, adapter expiry, provider read-back expiry, provider
+session/user match bits and an expected-identity match bit. Read-back evidence
+refreshes when the adapter expiry changes. An Incognito or
 Guest window should show `unauthenticated` independently. Inspect cookie
 Secure, HttpOnly, SameSite=Lax and root path in Chrome DevTools.
 

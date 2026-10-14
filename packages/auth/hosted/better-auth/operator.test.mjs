@@ -57,8 +57,28 @@ test('operator UI and one-use replay probe use a real local OAuth session', {
 		const evidence = JSON.parse(await first.locator('#evidence').textContent());
 		assert.equal(evidence.status, 'authenticated');
 		assert.ok(evidence.sessionId && evidence.userId && evidence.expiresAt > Date.now());
+		assert.equal(evidence.providerSessionMatches, true);
+		assert.equal(evidence.providerUserMatches, true);
+		assert.ok(evidence.providerExpiresAt >= evidence.expiresAt);
 		assert.equal(evidence.expectedIdentityMatch, true);
+		await new Promise((resolveWait) => setTimeout(resolveWait, 1_500));
 		await first.locator('#refresh').click();
+		await first.waitForFunction((initialExpiry) => {
+			const raw = document.getElementById('evidence')?.textContent;
+			if (!raw) return false;
+			const renewed = JSON.parse(raw);
+			return (
+				renewed.expiresAt > initialExpiry &&
+				renewed.providerExpiresAt >= renewed.expiresAt &&
+				renewed.providerSessionMatches === true &&
+				renewed.providerUserMatches === true &&
+				renewed.expectedIdentityMatch === true
+			);
+		}, evidence.expiresAt);
+		assert.ok(
+			JSON.parse(await first.locator('#evidence').textContent()).providerExpiresAt >
+				evidence.providerExpiresAt
+		);
 		await second.locator('#session[data-status="authenticated"]').waitFor({ state: 'attached' });
 		assert.equal(
 			JSON.parse(await second.locator('#evidence').textContent()).sessionId,

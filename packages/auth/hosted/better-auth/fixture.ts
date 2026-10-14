@@ -22,35 +22,77 @@ const info = (await (await fetch('/harness/info')).json()) as { providerId: stri
 function View() {
 	const session = useSession();
 	const user = useUser();
-	const [expectedIdentityMatch, setExpectedIdentityMatch] = useState<boolean | null>(null);
+	const [providerReadback, setProviderReadback] = useState<{
+		sessionId: string;
+		userId: string;
+		adapterExpiresAt: number | null;
+		providerSessionMatches: boolean;
+		providerUserMatches: boolean;
+		providerExpiresAt: number | null;
+		expectedIdentityMatch: boolean;
+	} | null>(null);
 	const sessionId = session.status === 'authenticated' ? session.session.id : undefined;
+	const userId = session.status === 'authenticated' ? session.user.id : undefined;
+	const expiresAt =
+		session.status === 'authenticated' ? (session.session.expiresAt?.getTime() ?? null) : null;
 	useEffect(() => {
 		let active = true;
-		if (sessionId) {
+		if (sessionId && userId) {
 			void fetch('/harness/session')
-				.then((response) => response.json())
-				.then((readback: { id?: string; expectedIdentityMatch?: boolean } | null) => {
-					if (active)
-						setExpectedIdentityMatch(
-							readback?.id === sessionId && readback.expectedIdentityMatch === true
-						);
+				.then((response) => {
+					if (!response.ok) throw new Error('Provider readback failed');
+					return response.json();
 				})
+				.then(
+					(
+						readback: {
+							id?: string;
+							userId?: string;
+							expiresAt?: number;
+							expectedIdentityMatch?: boolean;
+						} | null
+					) => {
+						if (active)
+							setProviderReadback({
+								sessionId,
+								userId,
+								adapterExpiresAt: expiresAt,
+								providerSessionMatches: readback?.id === sessionId,
+								providerUserMatches: readback?.userId === userId,
+								providerExpiresAt:
+									typeof readback?.expiresAt === 'number' && Number.isFinite(readback.expiresAt)
+										? readback.expiresAt
+										: null,
+								expectedIdentityMatch: readback?.expectedIdentityMatch === true,
+							});
+					}
+				)
 				.catch(() => {
-					if (active) setExpectedIdentityMatch(false);
+					if (active) setProviderReadback(null);
 				});
-		} else setExpectedIdentityMatch(null);
+		} else setProviderReadback(null);
 		return () => {
 			active = false;
 		};
-	}, [sessionId]);
+	}, [sessionId, userId, expiresAt]);
+	const currentReadback =
+		providerReadback &&
+		providerReadback.sessionId === sessionId &&
+		providerReadback.userId === userId &&
+		providerReadback.adapterExpiresAt === expiresAt
+			? providerReadback
+			: null;
 	const evidence =
 		session.status === 'authenticated'
 			? {
 					status: session.status,
 					sessionId: session.session.id,
 					userId: session.user.id,
-					expiresAt: session.session.expiresAt?.getTime() ?? null,
-					expectedIdentityMatch,
+					expiresAt,
+					providerSessionMatches: currentReadback?.providerSessionMatches ?? null,
+					providerUserMatches: currentReadback?.providerUserMatches ?? null,
+					providerExpiresAt: currentReadback?.providerExpiresAt ?? null,
+					expectedIdentityMatch: currentReadback?.expectedIdentityMatch ?? null,
 				}
 			: { status: session.status };
 	return createElement(
