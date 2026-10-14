@@ -161,6 +161,12 @@ and runtime dependencies; do not prune Better Auth/esbuild/React needed by serve
    old session and user survived. Then prove renewal, sign-out/revoked-cookie
    rejection and idle expiry. Use `AFD_BA_*`; never send operator control
    credentials to this application.
+   If Google rejects Playwright, keep the entire OAuth callback in ordinary
+   Chrome. Use the fixture's visible Refresh/Sign out controls and DOM session
+   evidence; use its one-use capture/verify controls for revoked and idle-expired
+   cookie rejection. Inspect cookie flags in Chrome DevTools and check an isolated
+   Guest/Incognito window separately. Record these manual observations apart from
+   the incomplete automated receipt.
 5. **H2 last.** Configure Convex Password + GitHub, deploy checked-in auth schema/
    routes/functions, verify the authenticated revision/capabilities, and run real
    hooks/query state, credentials/bad-password, profile notifications, reload/

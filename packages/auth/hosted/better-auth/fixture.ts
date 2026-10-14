@@ -1,6 +1,6 @@
 /** Actual vanilla Better Auth store -> AFD adapter -> React hooks + explicit SessionSync. */
 import { createAuthClient } from 'better-auth/client';
-import { createElement } from 'react';
+import { createElement, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BetterAuthAdapter } from '../../src/adapters/better-auth.js';
 import { createAuthHooks } from '../../src/react.js';
@@ -22,10 +22,42 @@ const info = (await (await fetch('/harness/info')).json()) as { providerId: stri
 function View() {
 	const session = useSession();
 	const user = useUser();
+	const [expectedIdentityMatch, setExpectedIdentityMatch] = useState<boolean | null>(null);
+	const sessionId = session.status === 'authenticated' ? session.session.id : undefined;
+	useEffect(() => {
+		let active = true;
+		if (sessionId) {
+			void fetch('/harness/session')
+				.then((response) => response.json())
+				.then((readback: { id?: string; expectedIdentityMatch?: boolean } | null) => {
+					if (active)
+						setExpectedIdentityMatch(
+							readback?.id === sessionId && readback.expectedIdentityMatch === true
+						);
+				})
+				.catch(() => {
+					if (active) setExpectedIdentityMatch(false);
+				});
+		} else setExpectedIdentityMatch(null);
+		return () => {
+			active = false;
+		};
+	}, [sessionId]);
+	const evidence =
+		session.status === 'authenticated'
+			? {
+					status: session.status,
+					sessionId: session.session.id,
+					userId: session.user.id,
+					expiresAt: session.session.expiresAt?.getTime() ?? null,
+					expectedIdentityMatch,
+				}
+			: { status: session.status };
 	return createElement(
-		'output',
-		{ id: 'session', 'data-status': session.status },
-		user?.email ?? ''
+		'div',
+		null,
+		createElement('output', { id: 'session', 'data-status': session.status }, user?.email ?? ''),
+		createElement('pre', { id: 'evidence' }, JSON.stringify(evidence))
 	);
 }
 const element = document.getElementById('root');
@@ -78,6 +110,49 @@ document.getElementById('oauth')?.addEventListener('click', () => {
 	void window.afdHosted.oauth().then((result) => {
 		if (result.url) location.assign(result.url);
 	});
+});
+document.getElementById('refresh')?.addEventListener('click', () => {
+	void window.afdHosted.refresh();
+});
+document.getElementById('sign-out')?.addEventListener('click', () => {
+	void window.afdHosted.signOut();
+});
+let probeHandle: string | undefined;
+const probeStatus = document.getElementById('probe-status');
+function showProbe(message: string) {
+	if (probeStatus) probeStatus.textContent = message;
+}
+document.getElementById('probe-capture')?.addEventListener('click', () => {
+	if (probeHandle) return;
+	void fetch('/harness/probe/capture', { method: 'POST' })
+		.then(async (response) => {
+			if (!response.ok) throw new Error('Capture unavailable');
+			const result = (await response.json()) as { handle: string };
+			probeHandle = result.handle;
+			showProbe('Captured one session for one replay.');
+		})
+		.catch(() => showProbe('Capture unavailable.'));
+});
+document.getElementById('probe-verify')?.addEventListener('click', () => {
+	const handle = probeHandle;
+	if (!handle) {
+		showProbe('Capture a session first.');
+		return;
+	}
+	probeHandle = undefined;
+	void fetch('/harness/probe/verify', {
+		method: 'POST',
+		headers: { 'content-type': 'application/json' },
+		body: JSON.stringify({ handle }),
+	})
+		.then(async (response) => {
+			if (!response.ok) throw new Error('Replay unavailable');
+			const result = (await response.json()) as { rejected: boolean; sameSession: boolean };
+			showProbe(
+				`Replay rejected: ${result.rejected}; same session accepted: ${result.sameSession}.`
+			);
+		})
+		.catch(() => showProbe('Replay unavailable or capture expired.'));
 });
 window.addEventListener(
 	'pagehide',

@@ -29,6 +29,11 @@ const steps = [
 		'packages/auth',
 		['hosted/better-auth/run.mjs', '--local'],
 	],
+	[
+		'Better Auth regular-browser operator controls',
+		'packages/auth',
+		['--test', 'hosted/better-auth/operator.test.mjs'],
+	],
 	['Convex fixture build and runner contracts', 'packages/auth', ['hosted/convex/check.mjs']],
 	[
 		'Durable REST runner contracts and lifecycle',

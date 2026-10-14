@@ -12,6 +12,7 @@ From `packages/auth` with Node 24 selected:
 pnpm exec playwright install chromium
 node hosted/better-auth/run.mjs --local
 node --test hosted/better-auth/contract.test.mjs
+node --test hosted/better-auth/operator.test.mjs
 pnpm exec tsc -p hosted/better-auth/tsconfig.json
 ```
 
@@ -128,6 +129,26 @@ the expiry test. It does not assume provider login selectors, capture network
 traces, or save screenshots.
 TLS verification stays enabled for hosted mode. The browser deadline includes
 operator interaction; increase it within the documented bound if necessary.
+
+If Google rejects the Playwright browser, use ordinary Chrome for the entire
+provider flow. Open the fixture root in that browser and use its OAuth button;
+do not copy an authorization URL between browser contexts. The page exposes
+Refresh session and Sign out buttons, plus DOM-readable status, non-bearer
+session/user IDs, expiry and an expected-identity match bit. An Incognito or
+Guest window should show `unauthenticated` independently. Inspect cookie
+Secure, HttpOnly, SameSite=Lax and root path in Chrome DevTools.
+
+For revocation, click Capture current session for replay while signed in, then
+Sign out and Verify captured session. For idle expiry, sign in again, capture,
+wait beyond the displayed expiry without refreshing, then verify and refresh.
+The status reports whether Better Auth rejected the replay and whether it still
+accepted the exact captured session. Captures retain only the fixture session
+cookie in short-lived server memory, expire 15 seconds after the session (at
+most 315 seconds after capture), and are consumed once. The opaque handle stays
+in page JavaScript and is never printed in the DOM or receipt. A fixture process
+restart clears captures, so complete each replay before restarting. These
+manual observations should be recorded separately from the automated receipt;
+an interrupted Playwright run remains incomplete.
 The hosted whole-run deadline must exceed the configured session lifetime plus
 the restart and per-operation budgets. Local mode retains its 12-second session,
 1-second renewal age, 3-second restart budget, 5-second operation budget and

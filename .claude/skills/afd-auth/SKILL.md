@@ -236,6 +236,12 @@ dedicated OAuth App with profile/email scopes only. Cleanup removes Convex test
 data and the dedicated grant, never the existing GitHub account.
 Keep #362 open pending hosted execution. See
 `docs/operations/hosted-verification.md` and the fixture READMEs for setup.
+For the regular-Chrome H1 operator path after a provider rejects Playwright,
+keep OAuth and callback in one Chrome context. The disposable fixture exposes
+visible refresh, sign-out and one-use session replay controls plus DOM-readable
+own-session evidence. Inspect stored-cookie flags in Chrome and record manual
+observations separately from the automated runner receipt; an interrupted run
+does not become a pass. See `packages/auth/hosted/better-auth/README.md`.
 Registry publication is separate from merged source behavior. The hosted fixtures
 import reviewed workspace source; a receipt version is not registry installation
 evidence. The published npm baseline is 2.1.0; use the current release record and
