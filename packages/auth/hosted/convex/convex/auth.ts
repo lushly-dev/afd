@@ -1,7 +1,7 @@
 import type { GitHubProfile } from '@auth/core/providers/github';
 import { Password } from '@convex-dev/auth/providers/Password';
 import { convexAuth } from '@convex-dev/auth/server';
-import { createGitHubOAuthProvider } from './github-provider.mjs';
+import { createGitHubOAuthProvider } from './github_provider.mjs';
 import {
 	classifyAuthPrincipal,
 	loadAuthIdentityConfig,
@@ -9,7 +9,7 @@ import {
 	trustedGitHubUserInfo,
 	validatePasswordAuthProfile,
 } from './identity.js';
-import { createOrUpdateFixtureUser } from './oauth-user.mjs';
+import { createOrUpdateFixtureUser } from './oauth_user.mjs';
 
 type AuthCallbacks = NonNullable<Parameters<typeof convexAuth>[0]['callbacks']>;
 type CreateOrUpdateUser = NonNullable<AuthCallbacks['createOrUpdateUser']>;

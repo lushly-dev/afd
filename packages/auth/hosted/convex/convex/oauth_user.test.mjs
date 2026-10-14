@@ -2,9 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { userOAuthImpl } from '../../../node_modules/@convex-dev/auth/dist/server/implementation/mutations/userOAuth.js';
 import { materializeProvider } from '../../../node_modules/@convex-dev/auth/dist/server/provider_utils.js';
-import { createGitHubOAuthProvider } from './github-provider.mjs';
+import { createGitHubOAuthProvider } from './github_provider.mjs';
 import { trustedGitHubAuthProfile, trustedGitHubUserInfo } from './identity.ts';
-import { createOrUpdateFixtureUser } from './oauth-user.mjs';
+import { createOrUpdateFixtureUser } from './oauth_user.mjs';
 
 const stableEnvironment = {
 	AFD_AUTH_TEST_RUN_ID: 'run-12345678',

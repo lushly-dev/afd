@@ -17,7 +17,9 @@ node hosted/convex/check.mjs
 ```
 
 This uses the installed Convex 1.32.0 and Convex Auth 0.0.95 SDKs to typecheck the deployable
-schema/functions and bundle the real React fixture. It also checks configuration failure,
+schema/functions and bundle the real React fixture. It checks backend module paths using the
+pinned CLI's entrypoint filters and the hosted deployment's path-name constraint. It also checks
+configuration failure,
 receipt redaction, cleanup orchestration, deadlines, and fresh unauthenticated browser startup
 with an intentionally unreachable deployment endpoint. It prints `hosted provider NOT RUN`;
 the disconnected startup check is not Convex service evidence.
