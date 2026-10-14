@@ -43,8 +43,12 @@ Published SDK delivery needs a separate packed/downloaded fresh consumer.
 ## External deployment and runner
 
 No service, OAuth client, account, grant or paid resource is provisioned by this
-code. Choose a dedicated disposable application/store and synthetic provider
-identity. The fixture supports **same-origin HTTPS**, backed by a persistent
+code. Choose a dedicated disposable application/store and OAuth client. Prefer a
+dedicated synthetic provider identity. For the explicitly approved Google
+existing-account exception, use the signed-in account as the sole External/Testing
+OAuth test user, set its exact email in `AFD_BA_EXPECTED_EMAIL`, and request only
+`openid`, `email` and `profile`. Keep the OAuth app and fixture store dedicated.
+The fixture supports **same-origin HTTPS**, backed by a persistent
 SQLite volume, and one external OIDC provider through Better Auth's supported
 `genericOAuth` plugin with discovery/JWKS ID-token verification required. This
 bounded topology intentionally excludes split-origin/CORS/third-party-cookie
@@ -59,9 +63,9 @@ Both `serve.mjs` and `run.mjs --hosted` require:
 | `AFD_BA_PROVIDER_ID` | Lowercase kebab identifier configured by the fixture |
 | `AFD_BA_CALLBACK_URL` | Registered exact Better Auth `/api/auth/callback/<provider-id>` URL |
 | `AFD_BA_RETURN_URL` | HTTPS application root destination; distinct from provider callback |
-| `AFD_BA_EXPECTED_EMAIL` | Synthetic provider identity expected after callback |
+| `AFD_BA_EXPECTED_EMAIL` | Exact provider identity email expected after callback; synthetic by default, or an explicitly approved existing Google account |
 | `AFD_BA_REVISION` | Deployed source commit, 7–64 hex characters; compared with fixture read-back |
-| `AFD_BA_CONTROL_KEY` | Random secret, at least 32 characters, for exact synthetic-user cleanup |
+| `AFD_BA_CONTROL_KEY` | Random secret, at least 32 characters, for exact fixture-user cleanup |
 | `AFD_BA_RESTART_COMMAND` | JSON argv array invoking deployment-specific restart, without a shell |
 | `AFD_BA_SESSION_EXPIRES_IN` | Optional hosted session lifetime in seconds, 120–300; default 180 |
 | `AFD_BA_SESSION_UPDATE_AGE` | Optional hosted renewal age in seconds, 1–30 and less than expiry; default 5 |
@@ -118,9 +122,10 @@ node hosted/better-auth/run.mjs --hosted
 ```
 
 The hosted runner opens headed Chromium and prints bounded operator instructions:
-first deny/cancel provider consent, then complete a successful synthetic sign-in,
-and later sign in once more after revocation for the expiry test. It does not
-assume provider login selectors, capture network traces, or save screenshots.
+first deny/cancel provider consent, then complete a successful sign-in with the
+configured provider identity, and later sign in once more after revocation for
+the expiry test. It does not assume provider login selectors, capture network
+traces, or save screenshots.
 TLS verification stays enabled for hosted mode. The browser deadline includes
 operator interaction; increase it within the documented bound if necessary.
 The hosted whole-run deadline must exceed the configured session lifetime plus
@@ -141,11 +146,11 @@ child process; do not invoke `server.mjs` with copied secret JSON in transcripts
 The runner prints a JSON allowlist: source revision, local/runtime/client/server
 versions, browser version, origin, explicit provider kind, named assertion
 results and remaining `not-run` checks, failure phase and cleanup status. It
-omits synthetic identity values, session/user IDs, OAuth codes/state, cookie
+omits configured identity values, session/user IDs, OAuth codes/state, cookie
 values, passwords, secret keys, raw errors and raw network logs.
 
 `cleanup` describes authenticated deletion and read-back for the configured
-synthetic Better Auth user and its session/account rows, plus closing the runner.
+Better Auth user and its session/account rows, plus closing the runner.
 Local `resourceCleanup=passed` includes the entire disposable SQLite volume,
 test OAuth provider and certificate cleanup. External `resourceCleanup=not-run`
 is deliberate: provider grants/accounts/client registrations and deployment/
@@ -153,10 +158,13 @@ volume disposal require the deployment operator. A successful hosted application
 run reports **`result=partial`**, exits zero for completed executable assertions,
 and does not close H1/#362. A failed assertion or application cleanup exits
 nonzero. Preserve and review the receipt, then revoke only the dedicated test
-grants, remove any dedicated provider account/client created for the test,
-remove the deployment and volume, and record their independent cleanup receipts
-before claiming H1 complete. In-flight OAuth verification records in the external
-dedicated store are removed when that test volume is disposed.
+grants, remove the dedicated provider client and any synthetic account created
+for the test, remove the deployment and volume, and record their independent
+cleanup receipts before claiming H1 complete. When an explicitly approved
+existing Google account is used, revoke the dedicated app grant and remove the
+fixture's exact app-user, session and account rows, but retain the upstream Google
+account. In-flight OAuth verification records in the external dedicated store are
+removed when that test volume is disposed.
 
 Local evidence cannot establish real hosted OIDC/provider compatibility,
 production TLS trust, arbitrary cross-site cookie policy, upstream OAuth token

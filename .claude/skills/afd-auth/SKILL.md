@@ -222,8 +222,15 @@ use letters, digits, underscores and periods; hyphenated helper names fail hoste
 deployment. The fixture check validates module discovery and path names before
 bundling. External opt-in runs require
 explicit disposable-service configuration and assertion/cleanup receipts; missing
-configuration fails preflight. The Convex fixture can use an explicitly
-allowlisted existing GitHub account with exact account ID and verified primary
+configuration fails preflight. For hosted Better Auth with Google, prefer a
+dedicated synthetic identity. An explicitly approved existing signed-in Google
+account may instead be used when its exact email is configured in
+`AFD_BA_EXPECTED_EMAIL`, it is the sole External/Testing OAuth test user, and the
+dedicated app requests only `openid`, `email` and `profile`. Keep the fixture app
+and store dedicated; cleanup revokes the app grant and removes the fixture's exact
+app-user/session/account rows while retaining the upstream Google account. The
+Convex fixture can use an explicitly allowlisted existing GitHub account with
+exact account ID and verified primary
 email; this does not relax Password-user or protected-record run scoping. Use a
 dedicated OAuth App with profile/email scopes only. Cleanup removes Convex test
 data and the dedicated grant, never the existing GitHub account.

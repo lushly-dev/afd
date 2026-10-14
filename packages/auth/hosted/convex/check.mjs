@@ -80,6 +80,7 @@ async function verifyConvexDependencyPreflight(preflightDir) {
 const outputDir = await mkdtemp(join(tmpdir(), 'afd-convex-check-'));
 try {
 	await run(process.execPath, ['--test', join(fixtureDir, 'lib.test.mjs')]);
+	await run(process.execPath, ['--test', join(fixtureDir, 'server.test.mjs')]);
 	await run(process.execPath, ['--test', join(fixtureDir, 'cli-preflight.test.mjs')]);
 	await run(process.execPath, ['--test', join(fixtureDir, 'module-paths.test.mjs')]);
 	const convexEntryPoints = await checkConvexModulePaths(join(fixtureDir, 'convex'));

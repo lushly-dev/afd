@@ -33,7 +33,7 @@ setup while preserving separate processes, volumes, secrets and cleanup.
 |---|---|---|
 | Render H1 | One paid `0.5c-512mb` Node 24 instance, managed HTTPS, 1 GB disk at `/var/data`, SQLite `auth.sqlite`, auto-deploy off | Same-origin Better Auth fixture and real process restart |
 | Render H3 | One paid `0.5c-512mb` Node 24 instance, managed HTTPS, separate 1 GB disk at `/var/data`, SQLite `rest.sqlite`, auto-deploy off | Durable REST service with explicit restart/suspend/resume controls |
-| Google | One disposable Cloud project, External/Testing OAuth Web client, one dedicated synthetic Google identity, `openid email profile` only | H1 OIDC discovery/JWKS, real consent denial and success |
+| Google | One disposable Cloud project and External/Testing OAuth Web client; a dedicated synthetic identity by default, or this run's explicitly approved existing signed-in account as the sole test user; `openid email profile` only | H1 OIDC discovery/JWKS, real consent denial and success |
 | Convex | One fresh non-production cloud development deployment on Free, if capacity allows | H2 actual auth functions, Password provider, protected records and user queries |
 | GitHub | One dedicated OAuth App and either a run-scoped test identity or an explicitly allowlisted existing account | H2 exact supported OAuth callback, with only profile/email scopes |
 | Operator Mac | Node 24, pinned pnpm, matching Chromium, provider control CLI/API | Headed browser interactions and orchestration; no hosted browser service needed |
@@ -136,9 +136,10 @@ and runtime dependencies; do not prune Better Auth/esbuild/React needed by serve
 ## Execution order
 
 1. **Freeze the candidate and resource ledger.** Record source SHA, runtime/SDK/
-   browser versions, approved spend/window and synthetic principal labels. Plan
-   exact service/project/client/deployment/store IDs, owners and removal steps.
-   No secrets or private identity values go into public receipts.
+   browser versions, approved spend/window, run-scoped principal labels and any
+   explicitly approved existing-account exception. Plan exact service/project/
+   client/deployment/store IDs, owners and removal steps. No secrets or private
+   identity values go into public receipts.
 2. **Configure and preflight services.** After approval, create the disposable
    resources, pin source, set local/deployment secrets and register exact provider
    callbacks. Read back provider deploy commit/configuration separately from the
@@ -153,12 +154,13 @@ and runtime dependencies; do not prune Better Auth/esbuild/React needed by serve
    independent deletion reads. The fixture server's environment is `AFD_FIXTURE_*`;
    runner configuration is `AFD_TEST_HTTP_*`, with table `integration_records`,
    both scoped tokens and `AFD_TEST_HTTP_EXPECT_FIXTURE_AUTH=1`.
-4. **H1 next.** Run headed Chromium with the Google test identity: deny consent,
-   recover through a real callback, verify Secure/HttpOnly/SameSite/path, independent
-   session mapping, two tabs, isolated context and reload. Restart the actual H1
-   process with its volume/secret unchanged; prove the exact old session and user
-   survived. Then prove renewal, sign-out/revoked-cookie rejection and idle expiry.
-   Use `AFD_BA_*`; never send operator control credentials to this application.
+4. **H1 next.** Run headed Chromium with the configured Google test identity:
+   deny consent, recover through a real callback, verify Secure/HttpOnly/SameSite/
+   path, independent session mapping, two tabs, isolated context and reload.
+   Restart the actual H1 process with its volume/secret unchanged; prove the exact
+   old session and user survived. Then prove renewal, sign-out/revoked-cookie
+   rejection and idle expiry. Use `AFD_BA_*`; never send operator control
+   credentials to this application.
 5. **H2 last.** Configure Convex Password + GitHub, deploy checked-in auth schema/
    routes/functions, verify the authenticated revision/capabilities, and run real
    hooks/query state, credentials/bad-password, profile notifications, reload/
@@ -172,14 +174,18 @@ and runtime dependencies; do not prune Better Auth/esbuild/React needed by serve
    Reuse #362 for harness/provider preparation; file reproduced SDK defects as
    linked fixes. A source repair creates a new candidate with fresh review/gates.
    Do not blindly rerun writes or uncertain OAuth cleanup.
-7. **External cleanup and review.** Delete this run's records/accounts/sessions,
-   verify absence, then revoke dedicated provider grants/clients and remove
-   services/disks/Convex deployment. Remove local secret files/provider browser
-   state and any dedicated identity created for this round, subject to provider
-   account deletion rules. An existing allowlisted GitHub account is retained;
-   cleanup removes its test grant and Convex test user/data, never the GitHub
-   account, repositories or organization memberships. Use the provider control plane to delete and read back exact service/disk IDs,
-   not merely stop a process or observe an HTTP error. Render references:
+7. **External cleanup and review.** Delete this run's application records,
+   accounts and sessions, verify absence, then revoke dedicated provider grants/
+   clients and remove services/disks/Convex deployment. Remove local secret files/
+   provider browser state and any dedicated identity created for this round,
+   subject to provider account deletion rules. An existing allowlisted GitHub
+   account is retained; cleanup removes its test grant and Convex test user/data,
+   never the GitHub account, repositories or organization memberships. An
+   explicitly approved
+   existing Google account is also retained; remove its dedicated app grant and
+   the fixture's exact app-user/session/account rows, never the upstream Google
+   account. Use the provider control plane to delete and read back exact service/
+   disk IDs, not merely stop a process or observe an HTTP error. Render references:
    [delete service](https://api-docs.render.com/reference/delete-service),
    [delete disk](https://api-docs.render.com/reference/delete-disk),
    [service readback](https://api-docs.render.com/reference/retrieve-service).
@@ -195,8 +201,15 @@ and runtime dependencies; do not prune Better Auth/esbuild/React needed by serve
 
 H1 discovery is `https://accounts.google.com/.well-known/openid-configuration`,
 with issuer `https://accounts.google.com`; confirm live metadata at setup. Use a
-Google Web application client, External/Testing audience and only the synthetic
-Google test user. The fixture already requests `prompt=consent` for denial/recovery.
+dedicated Google Cloud project and Web application client with an External/Testing
+audience, requesting only `openid`, `email` and `profile`. A dedicated synthetic
+Google identity remains the recommended default. For this run, the explicitly
+approved existing signed-in Google account may instead be the sole account in the
+OAuth test-user allowlist; set `AFD_BA_EXPECTED_EMAIL` to that account's exact
+email. Keep the fixture application and store dedicated. After the run, revoke
+the dedicated app grant, remove the fixture's exact app-user/session/account rows
+and dispose of the fixture app/store while retaining the upstream Google account.
+The fixture already requests `prompt=consent` for denial/recovery.
 See [Google OIDC](https://developers.google.com/identity/openid-connect/openid-connect)
 and [web-server OAuth](https://developers.google.com/identity/protocols/oauth2/web-server).
 
