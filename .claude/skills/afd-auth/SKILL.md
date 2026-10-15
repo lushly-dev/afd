@@ -234,8 +234,12 @@ exact account ID and verified primary
 email; this does not relax Password-user or protected-record run scoping. Use a
 dedicated OAuth App with profile/email scopes only. Cleanup removes Convex test
 data and the dedicated grant, never the existing GitHub account.
-Keep #362 open pending hosted execution. See
-`docs/operations/hosted-verification.md` and the fixture READMEs for setup.
+The 2026-10-14 #362 round passed hosted H1/H2/H3 application assertions and
+external cleanup. Its scoped receipt retains failed attempts and defers missing
+historical browser/Node patch metadata to #386; it does not claim complete version
+provenance. Capture actual runtime/browser versions before future teardown. See
+`docs/operations/hosted-verification-round.md` for the execution record and
+`docs/operations/hosted-verification.md` plus fixture READMEs for setup.
 For the regular-Chrome H1 operator path after a provider rejects Playwright,
 keep OAuth and callback in one Chrome context. The disposable fixture exposes
 visible refresh, sign-out and one-use session replay controls plus DOM-readable
@@ -245,9 +249,10 @@ does not become a pass. See `packages/auth/hosted/better-auth/README.md`.
 Registry publication is separate from merged source behavior. The hosted fixtures
 import reviewed workspace source; a receipt version is not registry installation
 evidence. The published npm baseline is 2.1.0; use the current release record and
-[package-update process](../do-release/references/next-round.md) before the next
-version change. See [the next hosted round](../../../docs/operations/hosted-verification-round.md)
-for proposed resources and the local preparation gate before provisioning.
+[release skill](../do-release/SKILL.md), including its next-round package update
+process, before the next version change. See [the hosted round record](../../../docs/operations/hosted-verification-round.md)
+for executed scope and the provisioning recipe. Future rounds require new scoped
+authorization and the local preparation gate before provisioning.
 The [Render operator recipe](../../../docs/operations/hosted-render.md) covers
 the two disposable services, exact source/resource ledger and local control
 helper. Its injected-response tests run in `pnpm test:hosted:local`; provider

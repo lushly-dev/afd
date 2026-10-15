@@ -1,20 +1,35 @@
 # Hosted verification round for #362
 
 Prepared 2026-10-13 against reviewed main
-`db56f17bcf08dbef4b568c8c9e3cc1b47a86ab64`. Status: **local preparation implemented;
-nothing provisioned**. The preparation PR records final review and gate receipts.
-The baseline harnesses merged in #377. H1/H2/H3 external runs remain **NOT RUN**.
+`db56f17bcf08dbef4b568c8c9e3cc1b47a86ab64`; executed 2026-10-14. Status:
+**hosted application assertions and external cleanup passed**. H1 used reviewed
+source `f3ace467367eaceac6556ef68e9a690d435668e4`, with per-observation provenance;
+H2/H3 retain source `718d7830ab813b0975429a74b3f1c9d473c30b98` and verified
+unchanged runtime content. Independent receipt review approved the functional
+and cleanup claims. Missing exact H2 Chromium, H3 Node and earlier H1 Node patches
+are explicitly deferred to [#386](https://github.com/lushly-dev/afd/issues/386);
+this round does not claim complete per-lane version evidence. Failed automated
+Google and control attempts remain failed receipts.
+
+Both Render services/disks and their Blueprint are absent. The Convex development
+deployment/project and dedicated GitHub OAuth app are deleted. Google's client
+and grant are removed; its disposable project is shut down, pending provider
+deletion on 2026-11-13. The empty Convex test team remains. The Render
+operator key was revoked (HTTP 401 verified), and eight local credential files
+were removed. Final Render billing readback was $0.02 current/projected charges;
+invoicing may lag usage. No paid test resources remain. The remaining sections
+preserve the provisioning recipe and gates for future authorized rounds.
 Use [the existing handoff](hosted-verification.md) for fixture contracts and
 [the package update process](../../.claude/skills/do-release/references/next-round.md)
 for subsequent SDK/dependency changes.
 
-## What remains
+## Executed scope
 
-| Lane | Established locally | Hosted evidence still needed |
+| Lane | Established locally | Hosted execution result |
 |---|---|---|
-| H1 Better Auth | Real provider, Chromium, test OAuth callback, cookies, renewal/revocation/expiry and SQLite restart | Public trusted HTTPS, a selected external OIDC callback with denial/recovery, same session after infrastructure restart, external cleanup |
-| H2 Convex Auth | Real SDK compilation and disconnected browser startup; deployable backend and runner | Deployed Password and GitHub OAuth flows, real hooks/user query, continuity, protected reads and two-principal isolation, external cleanup |
-| H3 REST/view-state | Real HttpAdapter/ViewStateRegistry over SQLite, atomic batches, separate processes and local restart | Hosted routes/tenancy, persistent volume across infrastructure restart, controlled edge outage/recovery, durable hydration and cleanup |
+| H1 Better Auth | Real provider, Chromium, test OAuth callback, cookies, renewal/revocation/expiry and SQLite restart | Regular Chrome with Google passed provider agreement, cancellation/recovery, tabs/reload, renewal, same-session infrastructure restart, sign-out/replay rejection, idle expiry and cleanup |
+| H2 Convex Auth | Real SDK compilation and disconnected browser startup; deployable backend and runner | All 11 deployed Password/GitHub assertions passed; nine provider tables empty; deployment/project/OAuth app removed |
+| H3 REST/view-state | Real HttpAdapter/ViewStateRegistry over SQLite, atomic batches, separate processes and local restart | Hosted routes/tenancy, durable infrastructure restart, controlled outage/recovery, hydration and exact cleanup passed; service/disk removed |
 
 Auth fixtures execute reviewed workspace source; REST/view-state use workspace
 builds. Their manifest-version fields do not prove an npm installation. Runtime
