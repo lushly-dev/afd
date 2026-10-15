@@ -26,19 +26,27 @@ declare global {
 
 type EmptyArgs = Record<string, never>;
 type RunArgs = { runId: string };
+type ExpectedIdentity =
+	| { principalKind: 'password'; email: string }
+	| { principalKind: 'github-run-scoped'; email: string }
+	| { principalKind: 'github-verified-primary'; email: string; githubAccountId: string };
 type RecordArgs = RunArgs & { recordId: string };
 type CleanupResult = { records: number; sessions: number; accounts: number; verified: boolean };
 type PreflightResult = {
 	enabled: boolean;
 	principalId: string;
+	principalKind: 'password' | 'github-run-scoped' | 'github-verified-primary';
+	identityMode: 'run-scoped' | 'verified-github-account';
 	revision: string;
 	capabilities: string[];
 };
 
 const meQuery = makeFunctionReference<'query', EmptyArgs, User | null>('users:me');
-const preflightQuery = makeFunctionReference<'query', RunArgs, PreflightResult>(
-	'fixtures:preflight'
-);
+const preflightQuery = makeFunctionReference<
+	'query',
+	RunArgs & { expectedIdentity: ExpectedIdentity },
+	PreflightResult
+>('fixtures:preflight');
 const createMutation = makeFunctionReference<'mutation', RunArgs & { value: string }, string>(
 	'fixtures:create'
 );
@@ -83,7 +91,7 @@ interface BrowserHarness {
 	startOAuth(provider: string, redirectTo: string): Promise<void>;
 	oauthOutcome(): string | null;
 	checkScopesRejected(provider: string): Promise<string>;
-	preflight(runId: string): Promise<PreflightResult>;
+	preflight(runId: string, expectedIdentity: ExpectedIdentity): Promise<PreflightResult>;
 	createRecord(runId: string, value: string): Promise<string>;
 	protectedRead(
 		runId: string,
@@ -178,7 +186,8 @@ function Harness() {
 					return error instanceof Error && 'code' in error ? String(error.code) : 'unknown';
 				}
 			},
-			preflight: (runId) => client.query(preflightQuery, { runId }),
+			preflight: (runId, expectedIdentity) =>
+				client.query(preflightQuery, { runId, expectedIdentity }),
 			createRecord: (runId, value) => createRecord({ runId, value }),
 			protectedRead: (runId, recordId) => client.query(protectedQuery, { runId, recordId }),
 			async updateProfile(runId, name) {

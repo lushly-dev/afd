@@ -66,7 +66,8 @@ export async function startLocal(
 	directory: string,
 	revision: string,
 	deadlineMs: number,
-	signal: AbortSignal
+	signal: AbortSignal,
+	expectedEmail = 'oauth@example.test'
 ) {
 	signal.throwIfAborted();
 	const scratch = await mkdtemp(resolve(tmpdir(), 'afd-better-auth-'));
@@ -112,7 +113,7 @@ export async function startLocal(
 			providerId: 'afd-local-oauth',
 			callbackURL: `${origin}/api/auth/callback/afd-local-oauth`,
 			returnURL: `${origin}/`,
-			expectedEmail: 'oauth@example.test',
+			expectedEmail,
 			revision,
 			controlKey: randomBytes(32).toString('hex'),
 			restartCommand: [],
