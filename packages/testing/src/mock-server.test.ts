@@ -17,13 +17,50 @@ function request(id: number, method: string, params?: Record<string, unknown>): 
 
 describe('MockMcpServer', () => {
 	it('initializes with protocol and server capability metadata', async () => {
-		const response = await new MockMcpServer().handleRequest(request(1, 'initialize'));
+		const server = new MockMcpServer();
+		const response = await server.handleRequest(request(1, 'initialize'));
 
 		expect(response.result).toMatchObject({
-			protocolVersion: '2024-11-05',
+			protocolVersion: '2025-11-25',
 			capabilities: { tools: { listChanged: false } },
 			serverInfo: { name: 'MockMcpServer', version: '0.1.0' },
 		});
+		const older = await server.handleRequest(
+			request(2, 'initialize', { protocolVersion: '2024-11-05' })
+		);
+		expect(older.result).toMatchObject({ protocolVersion: '2024-11-05' });
+	});
+
+	it('serves MCP 2026-07-28 requests with discover, resultType and serverInfo', async () => {
+		const server = createMockServer([createMockCommand('item-get', () => ({ id: '1' }))]);
+		const meta = {
+			'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+			'io.modelcontextprotocol/clientCapabilities': {},
+		};
+		const discover = await server.handleRequest(request(1, 'server/discover', { _meta: meta }));
+		expect(discover.result).toMatchObject({
+			resultType: 'complete',
+			supportedVersions: ['2026-07-28'],
+			_meta: { 'io.modelcontextprotocol/serverInfo': { name: 'MockMcpServer' } },
+		});
+		const list = await server.handleRequest(request(2, 'tools/list', { _meta: meta }));
+		expect(list.result).toMatchObject({ resultType: 'complete', ttlMs: 0, cacheScope: 'private' });
+		const call = await server.handleRequest(
+			request(3, 'tools/call', { name: 'item-get', arguments: {}, _meta: meta })
+		);
+		expect(call.result).toMatchObject({ resultType: 'complete', isError: false });
+		const unsupported = await server.handleRequest(
+			request(4, 'tools/list', {
+				_meta: { ...meta, 'io.modelcontextprotocol/protocolVersion': '2099-01-01' },
+			})
+		);
+		expect(unsupported.error).toMatchObject({
+			code: -32022,
+			data: { supported: ['2026-07-28'], requested: '2099-01-01' },
+		});
+		// Legacy requests are unchanged.
+		const legacy = await server.handleRequest(request(5, 'tools/list'));
+		expect(legacy.result).not.toHaveProperty('resultType');
 	});
 
 	it('lists constructor and dynamically registered tools', async () => {

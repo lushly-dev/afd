@@ -16,6 +16,7 @@ import {
 	createCliClient,
 	getClient,
 	headersOrExit,
+	inferTransport,
 	setClient,
 	tryConnect,
 } from '../connection.js';
@@ -33,7 +34,7 @@ import { headerOption, transportOption } from './options.js';
 export { getClient, setClient } from '../connection.js';
 
 interface ConnectOptions extends ConnectFlags {
-	transport: CliTransport;
+	transport?: CliTransport;
 	timeout: string;
 	reconnect: boolean;
 }
@@ -45,8 +46,12 @@ export function registerConnectCommand(program: Command): void {
 	program
 		.command('connect')
 		.description('Connect to an MCP server and save the connection for later commands')
-		.argument('<url>', 'Server URL (e.g., http://localhost:3100/sse)')
-		.addOption(transportOption('Transport type', 'sse'))
+		.argument('<url>', 'Server URL (e.g., http://localhost:3100/mcp)')
+		.addOption(
+			transportOption(
+				'Transport type (default: sse for a /sse URL, http for a /message URL, streamable-http otherwise)'
+			)
+		)
 		.option('--timeout <ms>', 'Connection timeout in milliseconds', '30000')
 		.option(
 			'--no-reconnect',
@@ -55,6 +60,7 @@ export function registerConnectCommand(program: Command): void {
 		.addOption(headerOption())
 		.action(async (url: string, options: ConnectOptions) => {
 			const headers = headersOrExit(options.header);
+			const transport = options.transport ?? inferTransport(url);
 			const timeout = Number.parseInt(options.timeout, 10);
 			const spinner = ora('Connecting...').start();
 
@@ -67,7 +73,7 @@ export function registerConnectCommand(program: Command): void {
 				// is saved for `afd shell`, the only long-lived client.
 				const client = createCliClient({
 					url,
-					transport: options.transport,
+					transport,
 					timeout,
 					autoReconnect: false,
 					headers,
@@ -90,7 +96,7 @@ export function registerConnectCommand(program: Command): void {
 				// process, except the headers: credentials are never written to disk.
 				saveConnection({
 					url,
-					transport: options.transport,
+					transport,
 					timeout,
 					autoReconnect: options.reconnect !== false,
 				});

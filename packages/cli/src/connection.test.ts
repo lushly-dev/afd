@@ -155,6 +155,19 @@ describe('tryConnect', () => {
 		expect(attempt.client === null && attempt.error?.message).toBe('refused');
 	});
 
+	it('infers the transport of a one-off URL', async () => {
+		for (const [url, transport] of [
+			['http://h/mcp', 'streamable-http'],
+			['http://h/sse', 'sse'],
+			['http://h/message', 'http'],
+		] as const) {
+			mocks.createClient.mockClear();
+			mocks.createClient.mockReturnValue(makeClient());
+			await tryConnect({ url });
+			expect(mocks.createClient).toHaveBeenCalledWith(expect.objectContaining({ url, transport }));
+		}
+	});
+
 	it('passes request headers to the client only when there are some', async () => {
 		mocks.createClient.mockReturnValue(makeClient());
 
@@ -260,8 +273,10 @@ describe('client settings', () => {
 		expect(inferTransport('http://h:1/sse')).toBe('sse');
 		expect(inferTransport('http://h:1/api/sse/?token=x')).toBe('sse');
 		expect(inferTransport('http://h:1/message')).toBe('http');
-		expect(inferTransport('http://h:1/ssе-lookalike')).toBe('http');
-		expect(inferTransport('not a url')).toBe('http');
+		expect(inferTransport('http://h:1/ssе-lookalike')).toBe('streamable-http');
+		expect(inferTransport('http://h:1/mcp')).toBe('streamable-http');
+		expect(inferTransport('http://h:1/messages/')).toBe('http');
+		expect(inferTransport('not a url')).toBe('streamable-http');
 	});
 
 	it('creates clients with exactly the given settings', () => {

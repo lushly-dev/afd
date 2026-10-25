@@ -44,6 +44,7 @@ import type { DirectRegistry } from './direct-types.js';
 import {
 	deriveStreamUrl,
 	type StreamAbortState,
+	streamBaseUrl,
 	streamDirect,
 	streamErrorChunk,
 	streamOverHttp,
@@ -61,6 +62,7 @@ import {
 	parseTextContent,
 } from './result-parsing.js';
 import { DEFAULT_MAX_SSE_EVENT_SIZE } from './sse-parser.js';
+import { StreamableHttpTransport } from './streamable-http-transport.js';
 import { createTransport, type Transport } from './transport.js';
 import type {
 	ClientStatus,
@@ -87,6 +89,7 @@ export interface RequestOptions {
 }
 
 const SUPPORTED_TRANSPORTS: ReadonlySet<string> = new Set<McpTransportType>([
+	'streamable-http',
 	'sse',
 	'http',
 	'direct',
@@ -105,13 +108,15 @@ export const SERVER_DEADLINE_MARGIN_MS = 5000;
  * MCP Client for AFD servers (`createMcpServer()` from `@lushly-dev/afd-server`) and in-process
  * registries.
  *
- * It speaks the AFD server's HTTP transport (`/sse` + `POST /message`, `POST /stream/<command>`).
- * It does not implement the MCP Streamable HTTP transport or read the legacy SSE `endpoint`
- * event, so it cannot talk to servers built on the official MCP SDK.
+ * The default `streamable-http` transport speaks MCP Streamable HTTP through the official MCP
+ * SDK: MCP 2026-07-28 when the server offers it, else the 2025 `initialize` handshake. It talks
+ * to an AFD server's `/mcp` endpoint and to any official MCP SDK server. The deprecated `sse` and
+ * `http` transports speak only the AFD server's `/sse` + `POST /message` lane. `stream()` uses
+ * the AFD server's `POST /stream/<command>` in every case.
  *
  * @example
  * ```typescript
- * const client = new McpClient({ url: 'http://localhost:3100/sse' });
+ * const client = new McpClient({ url: 'http://localhost:3100/mcp' });
  *
  * await client.connect();
  *
@@ -145,10 +150,12 @@ export class McpClient extends McpClientEventEmitter {
 
 	constructor(config: McpClientConfig) {
 		super();
-		const transport: string = config.transport ?? 'sse';
+		const url = config.url ?? config.endpoint;
+		const transport: string =
+			config.transport ?? (url && /\/sse\/?$/.test(url) ? 'sse' : 'streamable-http');
 		if (!SUPPORTED_TRANSPORTS.has(transport)) {
 			throw new Error(
-				`Unsupported transport '${transport}'. McpClient supports 'sse', 'http' and 'direct' (with a registry).`
+				`Unsupported transport '${transport}'. McpClient supports 'streamable-http', 'sse', 'http' and 'direct' (with a registry).`
 			);
 		}
 		if (transport === 'direct' && !config.registry) {
@@ -171,6 +178,7 @@ export class McpClient extends McpClientEventEmitter {
 			transport: transport as McpTransportType,
 			clientName: config.clientName ?? '@lushly-dev/afd-client',
 			clientVersion: config.clientVersion ?? '0.1.0',
+			protocolMode: config.protocolMode ?? 'auto',
 			timeout: config.timeout ?? 30000,
 			autoReconnect: config.autoReconnect ?? true,
 			maxReconnectAttempts: config.maxReconnectAttempts ?? 5,
@@ -599,7 +607,7 @@ export class McpClient extends McpClientEventEmitter {
 				return;
 			}
 			yield* streamOverHttp<T>({
-				url: deriveStreamUrl(this.config.url, name),
+				url: deriveStreamUrl(streamBaseUrl(this.config.url, this.config.transport), name),
 				args,
 				headers: this.config.headers,
 				session: this.transport ?? undefined,
@@ -751,7 +759,15 @@ export class McpClient extends McpClientEventEmitter {
 
 	private createConnectionTransport(): Transport {
 		if (this.registry) return new DirectTransport(this.registry);
-		// SAFETY: the constructor only admits 'sse', 'http' and 'direct', and 'direct' has a registry.
+		if (this.config.transport === 'streamable-http') {
+			return new StreamableHttpTransport(this.config.url, {
+				headers: this.config.headers,
+				clientName: this.config.clientName,
+				clientVersion: this.config.clientVersion,
+				mode: this.config.protocolMode,
+			});
+		}
+		// SAFETY: the constructor only admits these four, and 'direct' has a registry.
 		const type = this.config.transport as 'sse' | 'http';
 		return createTransport(type, this.config.url, this.config.headers);
 	}

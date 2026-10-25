@@ -22,21 +22,27 @@ This package provides clients for AFD command servers. It supports:
 
 ### Supported servers
 
-`McpClient` talks to **AFD servers**: `createMcpServer()` from `@lushly-dev/afd-server`
-(and the AFD Python server), through their HTTP transport:
+The default `streamable-http` transport is built on the official MCP TypeScript SDK client
+(`@modelcontextprotocol/client`). It talks to an AFD server's `/mcp` endpoint, to the Python and
+Rust AFD servers, and to any server built on an official MCP SDK. It negotiates the protocol
+revision with `protocolMode`:
+
+| `protocolMode` | Behavior |
+|----------------|----------|
+| `'auto'` (default) | Probe `server/discover`; use MCP 2026-07-28 (stateless, per-request `_meta`) when offered, else the 2025 `initialize` handshake |
+| `'legacy'` | Always use the 2025 `initialize` handshake |
+| `'modern'` | Require MCP 2026-07-28; `connect()` fails otherwise |
+
+`connect()` resolves with the negotiated `protocolVersion`, the server's capabilities and
+identity. The transport is chosen from the URL unless `transport` is set: `sse` for a URL ending
+in `/sse`, `streamable-http` otherwise.
 
 | Route | Used for |
 |-------|----------|
-| `GET <base>/sse` | Event stream of the `sse` transport |
-| `POST <base>/message` | JSON-RPC requests (`initialize`, `tools/list`, `tools/call`) |
+| `POST <base>/mcp` | MCP requests of the `streamable-http` transport |
+| `POST <base>/stream/<command>` | `stream()` (a `/mcp` URL streams from the sibling `/stream` path) |
+| `GET <base>/sse`, `POST <base>/message` | The deprecated `sse` and `http` transports (AFD servers' 2024-11-05 lane) |
 | `GET <base>/health` | Reachability check on connect (`http` transport) |
-| `POST <base>/stream/<command>` | `stream()` |
-
-`McpClient` is **not a general MCP client**. It does not implement the MCP Streamable HTTP
-transport (the `Accept: application/json, text/event-stream` negotiation and its session
-handling), and it ignores the `endpoint` event of the legacy MCP SSE transport. Servers built
-on the official MCP SDK answer it with HTTP 406 or 400. To talk to those servers, use the
-official `@modelcontextprotocol/sdk` client.
 
 ## Usage
 
@@ -47,8 +53,7 @@ import { createClient } from '@lushly-dev/afd-client';
 
 // Create client
 const client = createClient({
-  url: 'http://localhost:3100/sse',
-  transport: 'sse', // or 'http'
+  url: 'http://localhost:3100/mcp', // streamable-http, MCP 2026-07-28 when offered
 });
 
 // Connect
@@ -68,7 +73,7 @@ await client.disconnect();
 import { createClient, type CommandResult } from '@lushly-dev/afd-client';
 import { isSuccess, isFailure } from '@lushly-dev/afd-core';
 
-const client = createClient({ url: 'http://localhost:3100/sse' });
+const client = createClient({ url: 'http://localhost:3100/mcp' });
 await client.connect();
 
 // Call a command - returns CommandResult
@@ -107,7 +112,7 @@ session ID before replaying a rejected request. Concurrent requests share renewa
 
 ```typescript
 const client = createClient({
-  url: 'http://localhost:3100/sse',
+  url: 'http://localhost:3100/mcp',
   autoReconnect: true,
   maxReconnectAttempts: 5,
 });
@@ -230,8 +235,10 @@ always a `complete` or `error` chunk. The client makes the error chunk itself wh
 | `STREAM_CANCELLED` | `options.signal` aborted, or `disconnect()` was called |
 | `STREAM_EVENT_TOO_LARGE` | One event exceeded `maxStreamEventSize` (default 1 MiB) |
 
-A stream runs in the client's MCP session: it sends the `Mcp-Session-Id` from `initialize`, so
-it sees the active context entered with `afd-context-enter`, like `call()`. If the server has
+On the deprecated `sse` and `http` transports a stream runs in the client's MCP session: it
+sends the `Mcp-Session-Id` from `initialize`, so it sees the active context entered with
+`afd-context-enter`, like `call()`. The `streamable-http` transport has no session, so its
+streams run with no active context. If the server has
 expired the session (HTTP 404), the client starts a new session and retries the stream once.
 
 ## Configuration
@@ -261,9 +268,26 @@ callers, by the constructor with an error that names the supported ones.
 
 ## Transports
 
-### SSE Transport (Default)
+### Streamable HTTP Transport (Default)
 
-Best for real-time applications. Maintains a persistent connection for server-pushed events.
+MCP Streamable HTTP through the official MCP SDK client. Each request is its own POST, so it
+works behind load balancers and in serverless environments.
+
+```typescript
+const client = createClient({
+  url: 'http://localhost:3100/mcp',
+  transport: 'streamable-http', // the default for this URL
+  protocolMode: 'auto',
+});
+```
+
+On MCP 2026-07-28 there is no session: select a context per request with
+`_meta["dev.afd/context"]` (see `@lushly-dev/afd-server`), not `afd-context-enter`.
+
+### SSE Transport (Deprecated)
+
+The AFD server's 2024-11-05 lane: a persistent `/sse` stream plus `POST /message`. It is kept for
+servers that predate `/mcp` and is removed in 3.0.
 
 ```typescript
 const client = createClient({
@@ -272,9 +296,9 @@ const client = createClient({
 });
 ```
 
-### HTTP Transport
+### HTTP Transport (Deprecated)
 
-Simple request/response. Good for serverless environments or when SSE isn't supported.
+Request/response against the AFD server's `POST /message`. Removed in 3.0.
 
 ```typescript
 const client = createClient({

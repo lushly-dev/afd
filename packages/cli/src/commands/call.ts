@@ -31,7 +31,7 @@ export function registerCallCommand(program: Command): void {
 		.option('--connect <url>', 'Use an MCP server URL for this call without changing saved config')
 		.addOption(
 			transportOption(
-				'Transport type for --connect (default: http)',
+				'Transport type for --connect (default: inferred from the URL: sse for /sse, http for /message, streamable-http otherwise)',
 				undefined,
 				'--transport <type>'
 			)

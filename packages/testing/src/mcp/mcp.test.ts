@@ -46,6 +46,51 @@ describe('MCP Server', () => {
 		expect(server.version).toBe('1.0.0');
 	});
 
+	it('serves MCP 2026-07-28 discover and stamps modern results', async () => {
+		const _meta = {
+			'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+			'io.modelcontextprotocol/clientCapabilities': {},
+		};
+		const discover = await server.handleRequest({
+			jsonrpc: '2.0',
+			id: 1,
+			method: 'server/discover',
+			params: { _meta },
+		});
+		expect(discover?.result).toMatchObject({
+			resultType: 'complete',
+			supportedVersions: ['2026-07-28'],
+		});
+		const list = await server.handleRequest({
+			jsonrpc: '2.0',
+			id: 2,
+			method: 'tools/list',
+			params: { _meta },
+		});
+		expect(list?.result).toMatchObject({ resultType: 'complete', ttlMs: 0 });
+		const ping = await server.handleRequest({
+			jsonrpc: '2.0',
+			id: 3,
+			method: 'ping',
+			params: { _meta },
+		});
+		expect(ping?.error?.code).toBe(-32601);
+		const bad = await server.handleRequest({
+			jsonrpc: '2.0',
+			id: 4,
+			method: 'tools/list',
+			params: { _meta: { ..._meta, 'io.modelcontextprotocol/protocolVersion': '1999-01-01' } },
+		});
+		expect(bad?.error?.code).toBe(-32022);
+		const old = await server.handleRequest({
+			jsonrpc: '2.0',
+			id: 5,
+			method: 'initialize',
+			params: { protocolVersion: '2025-03-26' },
+		});
+		expect(old?.result).toMatchObject({ protocolVersion: '2025-03-26' });
+	});
+
 	it('should handle initialize request', async () => {
 		const request = {
 			jsonrpc: '2.0',
@@ -59,7 +104,7 @@ describe('MCP Server', () => {
 		expect(response.id).toBe(1);
 		expect(response.error).toBeUndefined();
 		expect(response.result).toMatchObject({
-			protocolVersion: '2024-11-05',
+			protocolVersion: '2025-11-25',
 			serverInfo: {
 				name: 'test-server',
 				version: '1.0.0',

@@ -53,7 +53,9 @@ export function registerShellCommand(program: Command): void {
 		.description('Start an interactive shell')
 		.option('-u, --url <url>', 'Server URL to connect to (default: the saved connection)')
 		.addOption(
-			transportOption('Transport (default: the saved one, or sse for a /sse URL, else http)')
+			transportOption(
+				'Transport (default: the saved one, else sse for a /sse URL, http for a /message URL, streamable-http otherwise)'
+			)
 		)
 		.option('--timeout <ms>', 'Request timeout in milliseconds (default: the saved timeout)')
 		.option('--no-reconnect', 'Do not reconnect automatically when the connection drops')

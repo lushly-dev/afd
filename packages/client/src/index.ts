@@ -4,13 +4,14 @@
  * This package provides clients for AFD command servers:
  *
  * - **McpClient**: Client for AFD MCP servers (`createMcpServer()`), with connection management
- * - **Transports**: SSE and HTTP for AFD servers, direct for an in-process registry
+ * - **Transports**: MCP Streamable HTTP (default; MCP 2026-07-28 and 2025), the deprecated SSE
+ *   and HTTP transports of AFD's `/sse` lane, and direct for an in-process registry
  * - **DirectClient**: Zero-overhead in-process command execution
  * - **Type-safe**: Full TypeScript support with CommandResult integration
  * - **Handoff Support**: Protocol handlers for streaming connections
  *
- * McpClient does not implement the MCP Streamable HTTP transport, so it cannot talk to servers
- * built on the official MCP SDK.
+ * The `streamable-http` transport talks to an AFD server's `/mcp` endpoint and to any server
+ * built on an official MCP SDK.
  *
  * @packageDocumentation
  */
@@ -84,6 +85,11 @@ export {
 	registerProtocolHandler,
 	unregisterProtocolHandler,
 } from './handoff.js';
+export {
+	MODERN_PROTOCOL_VERSION,
+	StreamableHttpTransport,
+	type StreamableHttpTransportOptions,
+} from './streamable-http-transport.js';
 export { createTransport, HttpTransport, SseTransport, type Transport } from './transport.js';
 export type {
 	ClientStatus,
@@ -92,5 +98,6 @@ export type {
 	McpClientEvents,
 	McpTransportType,
 	PendingRequest,
+	ProtocolMode,
 	TransportType,
 } from './types.js';
