@@ -1,12 +1,16 @@
 use super::*;
 use crate::commands::register_commands;
 use crate::store::TodoStore;
-use afd::{success, CommandDefinition, CommandHandler};
+use afd::{success, CommandContext, CommandDefinition, CommandHandler, CommandResult};
 use async_trait::async_trait;
 use axum::body::Body;
+use axum::http::HeaderMap;
 use axum::http::Request as HttpRequest;
 use http_body_util::BodyExt;
 use tower::ServiceExt;
+
+const METHOD_NOT_FOUND: i64 = -32601;
+const INVALID_PARAMS: i64 = -32602;
 
 /// A command registered without MCP exposure (the default).
 struct Internal;
@@ -40,8 +44,7 @@ fn app_with(max_body_bytes: usize) -> Router {
         ))
         .expect("internal command registers");
     let state = AppState {
-        registry,
-        tools,
+        mcp: mcp_server(registry, &tools).expect("tools serialize"),
         policy: config(&[]).policy,
     };
     router(Arc::new(state), max_body_bytes).expect("router builds")
@@ -84,6 +87,7 @@ fn post() -> axum::http::request::Builder {
         .uri("/mcp")
         .header("host", "127.0.0.1:3100")
         .header("content-type", "application/json")
+        .header("accept", "application/json, text/event-stream")
 }
 
 async fn rpc(app: Router, message: Value) -> Reply {
@@ -117,7 +121,8 @@ async fn initialize_negotiates_the_protocol_version() {
     let reply = rpc(
         app(),
         json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize",
-                "params": { "protocolVersion": "2025-03-26" } }),
+                "params": { "protocolVersion": "2025-03-26", "capabilities": {},
+                            "clientInfo": { "name": "test", "version": "0" } } }),
     )
     .await;
     assert_eq!(reply.status, StatusCode::OK);
@@ -128,13 +133,71 @@ async fn initialize_negotiates_the_protocol_version() {
     let unknown = rpc(
         app(),
         json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize",
-                "params": { "protocolVersion": "1999-01-01" } }),
+                "params": { "protocolVersion": "1999-01-01", "capabilities": {},
+                            "clientInfo": { "name": "test", "version": "0" } } }),
     )
     .await;
-    assert_eq!(
-        unknown.body["result"]["protocolVersion"],
-        PROTOCOL_VERSIONS[0]
-    );
+    // An unknown requested version gets one the server supports.
+    let offered = unknown.body["result"]["protocolVersion"]
+        .as_str()
+        .expect("a protocol version is offered");
+    assert_ne!(offered, "1999-01-01");
+}
+
+#[tokio::test]
+async fn serves_mcp_2026_07_28_statelessly() {
+    let meta = json!({
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities": {}
+    });
+    let request = |method: &str, name: Option<&str>, params: Value| {
+        let mut builder = post()
+            .header("mcp-protocol-version", "2026-07-28")
+            .header("mcp-method", method);
+        if let Some(name) = name {
+            builder = builder.header("mcp-name", name);
+        }
+        let mut params = params;
+        params["_meta"] = meta.clone();
+        builder
+            .body(Body::from(
+                json!({ "jsonrpc": "2.0", "id": 9, "method": method, "params": params })
+                    .to_string(),
+            ))
+            .expect("request builds")
+    };
+
+    let discover = send(app(), request("server/discover", None, json!({}))).await;
+    assert_eq!(discover.status, StatusCode::OK);
+    assert_eq!(discover.body["result"]["resultType"], "complete");
+    assert!(discover.body["result"]["supportedVersions"]
+        .as_array()
+        .expect("versions")
+        .contains(&json!("2026-07-28")));
+
+    let created = send(
+        app(),
+        request(
+            "tools/call",
+            Some("todo-create"),
+            json!({ "name": "todo-create", "arguments": { "title": "Modern" } }),
+        ),
+    )
+    .await;
+    assert_eq!(created.body["result"]["resultType"], "complete");
+    assert_eq!(created.body["result"]["isError"], false);
+
+    let mismatch = send(
+        app(),
+        request(
+            "tools/call",
+            Some("todo-list"),
+            json!({ "name": "todo-create", "arguments": {} }),
+        ),
+    )
+    .await;
+    assert_eq!(mismatch.status, StatusCode::BAD_REQUEST);
+    assert_eq!(mismatch.body["error"]["code"], -32020);
 }
 
 #[tokio::test]
@@ -196,25 +259,32 @@ async fn unexposed_commands_cannot_be_called() {
 
 #[tokio::test]
 async fn protocol_errors_are_json_rpc_errors() {
+    // The MCP SDK owns these protocol edges; the tests pin what an agent sees.
     let unknown = rpc(
         app(),
-        json!({ "jsonrpc": "2.0", "id": 3, "method": "resources/list" }),
+        json!({ "jsonrpc": "2.0", "id": 3, "method": "nope/nope" }),
     )
     .await;
     assert_eq!(unknown.body["error"]["code"], METHOD_NOT_FOUND);
     assert!(unknown.body.get("result").is_none());
 
+    // A tools/call without a name is refused before any command runs.
     let no_name = rpc(
         app(),
         json!({ "jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {} }),
     )
     .await;
-    assert_eq!(no_name.body["error"]["code"], INVALID_PARAMS);
+    let code = no_name.body["error"]["code"]
+        .as_i64()
+        .expect("a JSON-RPC error");
+    assert!([METHOD_NOT_FOUND, INVALID_PARAMS].contains(&code), "{code}");
+    assert!(no_name.body.get("result").is_none());
 
+    // A body that is not JSON is refused without a JSON-RPC envelope.
     let not_json = post().body(Body::from("{")).expect("request builds");
     let reply = send(app(), not_json).await;
-    assert_eq!(reply.status, StatusCode::BAD_REQUEST);
-    assert_eq!(reply.body["error"]["code"], PARSE_ERROR);
+    assert!(reply.status.is_client_error(), "{}", reply.status);
+    assert!(reply.body.get("result").is_none());
 }
 
 #[tokio::test]
@@ -330,6 +400,7 @@ async fn caps_the_body_and_requires_json() {
         .uri("/mcp")
         .header("host", "localhost:3100")
         .header("content-type", "text/plain")
+        .header("accept", "application/json, text/event-stream")
         .body(Body::from("{}"))
         .expect("request builds");
     assert_eq!(

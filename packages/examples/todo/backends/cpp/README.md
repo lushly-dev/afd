@@ -10,7 +10,7 @@ conformance suite, like the TypeScript, Python and Rust backends.
   - The 11 commands reproduce the TypeScript backend's data, error codes, messages, suggestions, reasoning and warnings.
   - The store is in memory only.
 - **Transport:**
-  - `src/mcp_stdio.cpp` implements newline-delimited JSON-RPC 2.0: `initialize`, `notifications/initialized`, `ping`, `tools/list` and `tools/call`.
+  - `src/mcp_stdio.cpp` implements newline-delimited JSON-RPC 2.0 in both MCP eras: MCP 2026-07-28 requests (per-request `_meta`, `server/discover`, `resultType`, `-32022` for unsupported versions) and 2025 clients (`initialize`, `notifications/initialized`, `ping`), plus `tools/list` and `tools/call`.
   - Unknown tools and invalid arguments come back as `CommandResult`s with `isError: true`, never as JSON-RPC errors.
   - Lines are capped at 1 MiB.
   - The transport lives here, not in the library (proposal D10).

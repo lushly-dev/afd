@@ -152,6 +152,9 @@ jobs:
       - name: Conformance (Rust backend)
         run: pnpm --dir packages/examples/todo test:conformance:rs
 
+      - name: Conformance (Rust backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:rs --mode modern
+
       - name: Check the working tree is unchanged
         run: |
           changes=$(git status --porcelain)
@@ -197,6 +200,9 @@ jobs:
 
       - name: Conformance (C++ backend)
         run: pnpm --dir packages/examples/todo test:conformance:cpp
+
+      - name: Conformance (C++ backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:cpp --mode modern
 
       - name: Check the working tree is unchanged
         run: |

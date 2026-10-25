@@ -321,6 +321,16 @@ async fn main() {
   [`web-time`](https://crates.io/crates/web-time), because `std::time::Instant::now()` traps on that
   target. Build with `--no-default-features --features wasm`; CI runs
   `cargo check --target wasm32-unknown-unknown --no-default-features --features wasm`.
+- `server` - An MCP server for a `CommandRegistry` (`afd::server::McpServer`), built on the official
+  MCP Rust SDK ([`rmcp`](https://crates.io/crates/rmcp)). One Streamable HTTP endpoint
+  (`streamable_http_service`, a `tower` service to mount at `/mcp`) or one stdio connection
+  (`serve_stdio`) serves MCP 2026-07-28 statelessly (per-request `_meta`, `server/discover`, the
+  `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers) and 2025 clients that open with
+  `initialize`. Only MCP-exposed commands are listed or callable; unknown and unexposed tools return a
+  `COMMAND_NOT_FOUND` result. `HttpOptions` sets the accepted `Host` names and browser `Origin`s (any
+  other `Origin` is refused) and the body cap. It covers the individual tool strategy; grouped and
+  lazy strategies, meta-tools and contexts are planned. **The `server` feature needs Rust 1.88**
+  (`rmcp`'s minimum); the rest of the crate keeps the 1.82 minimum.
 
 Builds without `native` reject deadline options with `UNSUPPORTED_OPTION` before invoking any
 command. Execution without a deadline remains available. Parallel pipelines and pipeline steps with

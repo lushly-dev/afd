@@ -1,10 +1,10 @@
 //! MCP over HTTP.
 //!
-//! `POST /mcp` (and `POST /message`, which the web frontends use) accepts one
-//! JSON-RPC 2.0 message and answers with `application/json`: enough of the MCP
-//! Streamable HTTP transport for `initialize`, `ping`, `tools/list` and
-//! `tools/call`. There is no SSE stream (`GET` answers 405, which MCP clients
-//! accept) and no session state. `GET /health` is a liveness check.
+//! `POST /mcp` (and `POST /message`, which the web frontends use) is the MCP
+//! Streamable HTTP endpoint of the `afd` crate's `server` feature: it serves
+//! MCP 2026-07-28 statelessly (per-request `_meta`, `server/discover`, the
+//! routing headers) and 2025 clients that send `initialize`. `GET` answers
+//! 405. `GET /health` is a liveness check.
 //!
 //! Every request passes [`guard`] first: the `Host` header must name this
 //! server (DNS rebinding) and a browser `Origin` must be on the allowlist
@@ -13,32 +13,23 @@
 //! otherwise.
 
 use crate::commands::Tool;
-use afd::{failure, CommandContext, CommandError, CommandRegistry, CommandResult};
+use afd::server::{HttpOptions, McpServer};
+use afd::CommandRegistry;
 use axum::{
-    body::Bytes,
     extract::{DefaultBodyLimit, Request, State},
     http::{
         header::{ACCEPT, CONTENT_TYPE, HOST, ORIGIN},
-        HeaderMap, HeaderName, HeaderValue, Method, StatusCode,
+        HeaderName, HeaderValue, Method, StatusCode,
     },
     middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{get, post},
+    routing::get,
     Json, Router,
 };
 use serde_json::{json, Value};
 use std::sync::Arc;
 use std::time::Duration;
 use tower_http::cors::{AllowOrigin, CorsLayer};
-
-const PARSE_ERROR: i64 = -32700;
-const INVALID_REQUEST: i64 = -32600;
-const METHOD_NOT_FOUND: i64 = -32601;
-const INVALID_PARAMS: i64 = -32602;
-const INTERNAL_ERROR: i64 = -32603;
-
-/// MCP protocol versions this server can speak, newest first.
-const PROTOCOL_VERSIONS: [&str; 3] = ["2025-06-18", "2025-03-26", "2024-11-05"];
 
 /// Ports of the dev frontends in the todo README: `pnpm dev:web` (3000) and
 /// the Vite dev servers (5173, and 5174 when both run).
@@ -214,18 +205,25 @@ impl ServerConfig {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 pub struct AppState {
-    pub registry: CommandRegistry,
-    /// Tool descriptions (with input schemas) of the registered commands.
-    pub tools: Vec<Tool>,
+    /// The MCP server over the registry, listing the tools with their schemas.
+    pub mcp: McpServer,
     pub policy: HttpPolicy,
 }
 
-impl AppState {
-    fn exposed(&self, name: &str) -> bool {
-        self.registry
-            .get(name)
-            .is_some_and(|command| command.expose.mcp)
-    }
+/// The MCP server for the todo registry, listing `tools` (which carry the
+/// commands' full input schemas).
+pub fn mcp_server(registry: CommandRegistry, tools: &[Tool]) -> Result<McpServer, String> {
+    let tools = tools
+        .iter()
+        .map(serde_json::to_value)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("Could not describe the tools: {error}"))?;
+    Ok(McpServer::new(
+        Arc::new(registry),
+        "todo-app-rust",
+        env!("CARGO_PKG_VERSION"),
+    )
+    .with_tools(tools))
 }
 
 /// Build the HTTP application.
@@ -245,15 +243,24 @@ pub fn router(state: Arc<AppState>, max_body_bytes: usize) -> Result<Router, Str
             CONTENT_TYPE,
             ACCEPT,
             HeaderName::from_static("mcp-protocol-version"),
+            HeaderName::from_static("mcp-method"),
+            HeaderName::from_static("mcp-name"),
             HeaderName::from_static("mcp-session-id"),
         ])
         .max_age(Duration::from_secs(600));
 
+    // The guard below already enforces the policy; the SDK applies it again.
+    let mcp = state.mcp.streamable_http_service(HttpOptions {
+        allowed_hosts: state.policy.allowed_hosts.clone(),
+        allowed_origins: state.policy.allowed_origins.clone(),
+        max_body_bytes,
+    });
+
     // The last layer runs first: guard, then CORS (preflights), then the body limit.
     Ok(Router::new()
         .route("/health", get(health))
-        .route("/mcp", post(rpc))
-        .route("/message", post(rpc))
+        .route_service("/mcp", mcp.clone())
+        .route_service("/message", mcp)
         .layer(DefaultBodyLimit::max(max_body_bytes))
         .layer(cors)
         .layer(middleware::from_fn_with_state(Arc::clone(&state), guard))
@@ -332,143 +339,6 @@ async fn health() -> Json<Value> {
         "status": "ok",
         "name": "todo-app-rust",
         "version": env!("CARGO_PKG_VERSION"),
-    }))
-}
-
-fn rpc_result(id: Value, result: Value) -> Value {
-    json!({ "jsonrpc": "2.0", "id": id, "result": result })
-}
-
-fn rpc_error(id: Value, code: i64, message: &str) -> Value {
-    json!({ "jsonrpc": "2.0", "id": id, "error": { "code": code, "message": message } })
-}
-
-async fn rpc(State(state): State<Arc<AppState>>, headers: HeaderMap, body: Bytes) -> Response {
-    let is_json = headers
-        .get(CONTENT_TYPE)
-        .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.split(';').next())
-        .is_some_and(|value| value.trim().eq_ignore_ascii_case("application/json"));
-    if !is_json {
-        let body = rpc_error(
-            Value::Null,
-            INVALID_REQUEST,
-            "Content-Type must be application/json",
-        );
-        return (StatusCode::UNSUPPORTED_MEDIA_TYPE, Json(body)).into_response();
-    }
-
-    let message: Value = match serde_json::from_slice(&body) {
-        Ok(message) => message,
-        Err(_) => {
-            let body = rpc_error(Value::Null, PARSE_ERROR, "Request body must be valid JSON");
-            return (StatusCode::BAD_REQUEST, Json(body)).into_response();
-        }
-    };
-
-    match handle_message(&state, message).await {
-        Some(response) => Json(response).into_response(),
-        // Notifications get no JSON-RPC response.
-        None => StatusCode::ACCEPTED.into_response(),
-    }
-}
-
-/// Answer one JSON-RPC message, or `None` for a notification.
-pub async fn handle_message(state: &AppState, message: Value) -> Option<Value> {
-    let Value::Object(message) = message else {
-        return Some(rpc_error(
-            Value::Null,
-            INVALID_REQUEST,
-            "Send one JSON-RPC 2.0 request object (batches are not supported)",
-        ));
-    };
-    let id = message.get("id").cloned();
-    let method = message.get("method").and_then(Value::as_str);
-    let Some(method) = method.filter(|_| message.get("jsonrpc") == Some(&json!("2.0"))) else {
-        return Some(rpc_error(
-            id.unwrap_or(Value::Null),
-            INVALID_REQUEST,
-            "Expected a JSON-RPC 2.0 request with a string method",
-        ));
-    };
-    // A notification (no id) never gets a response. The MCP notifications
-    // (initialized, cancelled) need no work here, and a request method sent
-    // without an id is not run: nobody could see its result.
-    let id = id?;
-    let params = message.get("params").cloned().unwrap_or_else(|| json!({}));
-
-    Some(match method {
-        "initialize" => rpc_result(id, initialize(&params)),
-        "ping" => rpc_result(id, json!({})),
-        "tools/list" => {
-            let tools: Vec<&Tool> = state
-                .tools
-                .iter()
-                .filter(|t| state.exposed(&t.name))
-                .collect();
-            rpc_result(id, json!({ "tools": tools }))
-        }
-        "tools/call" => match call_tool(state, &params).await {
-            Ok(result) => rpc_result(id, result),
-            Err((code, message)) => rpc_error(id, code, &message),
-        },
-        other => {
-            let shown: String = other.chars().take(64).collect();
-            rpc_error(id, METHOD_NOT_FOUND, &format!("Method not found: {shown}"))
-        }
-    })
-}
-
-fn initialize(params: &Value) -> Value {
-    let requested = params.get("protocolVersion").and_then(Value::as_str);
-    let version = requested
-        .filter(|version| PROTOCOL_VERSIONS.contains(version))
-        .unwrap_or(PROTOCOL_VERSIONS[0]);
-    json!({
-        "protocolVersion": version,
-        "capabilities": { "tools": { "listChanged": false } },
-        "serverInfo": { "name": "todo-app-rust", "version": env!("CARGO_PKG_VERSION") },
-    })
-}
-
-async fn call_tool(state: &AppState, params: &Value) -> Result<Value, (i64, String)> {
-    let name = params.get("name").and_then(Value::as_str).ok_or((
-        INVALID_PARAMS,
-        "tools/call requires params.name".to_string(),
-    ))?;
-    let arguments = match params.get("arguments") {
-        None | Some(Value::Null) => json!({}),
-        Some(arguments @ Value::Object(_)) => arguments.clone(),
-        Some(_) => {
-            return Err((
-                INVALID_PARAMS,
-                "tools/call params.arguments must be an object".to_string(),
-            ))
-        }
-    };
-
-    let result: CommandResult<Value> = if state.exposed(name) {
-        let context = CommandContext::new().with_trace_id(format!("mcp-{}", uuid::Uuid::new_v4()));
-        state.registry.execute(name, arguments, Some(context)).await
-    } else {
-        // Unknown and unexposed commands look the same from outside.
-        let shown: String = name.chars().take(64).collect();
-        failure(
-            CommandError::new("COMMAND_NOT_FOUND", format!("Unknown tool: {shown}"))
-                .with_suggestion("Call tools/list to see the available tools")
-                .with_retryable(false),
-        )
-    };
-
-    let text = serde_json::to_string(&result).map_err(|error| {
-        (
-            INTERNAL_ERROR,
-            format!("Could not serialize the result: {error}"),
-        )
-    })?;
-    Ok(json!({
-        "content": [{ "type": "text", "text": text }],
-        "isError": !result.success,
     }))
 }
 

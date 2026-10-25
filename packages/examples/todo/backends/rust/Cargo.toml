@@ -2,12 +2,12 @@
 name = "todo-backend-rust"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.82"
+rust-version = "1.88"
 publish = false
 description = "Rust backend for the AFD todo example: CLI, shell and MCP over HTTP"
 
 [dependencies]
-afd = { path = "../../../../rust" }
+afd = { path = "../../../../rust", features = ["server"] }
 async-trait = "0.1"
 axum = "0.7"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }

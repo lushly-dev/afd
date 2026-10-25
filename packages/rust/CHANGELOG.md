@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **`server` feature:** `afd::server::McpServer` serves a `CommandRegistry` over MCP Streamable HTTP (`streamable_http_service`, a `tower` service) and stdio (`serve_stdio`), built on the official MCP Rust SDK (`rmcp` 3.7). It serves MCP 2026-07-28 statelessly and 2025 `initialize` clients from one endpoint, lists only MCP-exposed commands (`with_tools` supplies full tool definitions), returns `COMMAND_NOT_FOUND` for unknown and unexposed tools, carries `ttlMs` cache hints on `tools/list` (`with_tools_list_ttl_ms`) and refuses unlisted browser origins. The feature is off by default and needs Rust 1.88; the crate's minimum stays 1.82 without it.
+
 ## [0.1.0] - 2026-10-12
 
 First release. It implements AFD contract **1.0-rc**. Published on

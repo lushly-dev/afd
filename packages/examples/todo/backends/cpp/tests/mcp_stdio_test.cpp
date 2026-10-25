@@ -24,10 +24,59 @@ TEST_CASE("initialize echoes a supported protocol version, else the newest") {
     CHECK(known["result"]["protocolVersion"] == "2025-03-26");
     CHECK(known["result"]["capabilities"] == afd::Json{{"tools", {{"listChanged", false}}}});
     CHECK(known["result"]["serverInfo"]["name"] == "afd-todo-cpp");
-    const auto newer = reply(
+    const auto newest = reply(
         fixture,
         R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}})");
-    CHECK(newer["result"]["protocolVersion"] == "2025-06-18");
+    CHECK(newest["result"]["protocolVersion"] == "2025-11-25");
+    const auto unknown = reply(
+        fixture,
+        R"({"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"1999-01-01"}})");
+    CHECK(unknown["result"]["protocolVersion"] == "2025-11-25");
+    // Legacy results carry no resultType.
+    CHECK_FALSE(
+        reply(fixture, R"({"jsonrpc":"2.0","id":3,"method":"tools/list"})")["result"].contains(
+            "resultType"));
+}
+
+TEST_CASE("MCP 2026-07-28 requests are served statelessly from their _meta") {
+    Fixture fixture;
+    const auto discover = reply(
+        fixture,
+        R"({"jsonrpc":"2.0","id":"d","method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}})");
+    CHECK(discover["result"]["resultType"] == "complete");
+    CHECK(discover["result"]["supportedVersions"] == afd::Json::array({"2026-07-28"}));
+    CHECK(discover["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"] ==
+          "afd-todo-cpp");
+
+    const auto tools = reply(
+        fixture,
+        R"({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}})");
+    CHECK(tools["result"]["resultType"] == "complete");
+    CHECK(tools["result"]["ttlMs"] == 300000);
+    CHECK(tools["result"]["cacheScope"] == "public");
+    CHECK(tools["result"]["tools"].size() == 11);
+
+    const auto created = reply(
+        fixture,
+        R"({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"todo-create","arguments":{"title":"Modern"},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}})");
+    CHECK(created["result"]["resultType"] == "complete");
+    CHECK(created["result"]["isError"] == false);
+
+    const auto unsupported = reply(
+        fixture,
+        R"({"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2099-01-01","io.modelcontextprotocol/clientCapabilities":{}}}})");
+    CHECK(unsupported["error"]["code"] == -32022);
+    CHECK(unsupported["error"]["data"]["supported"] == afd::Json::array({"2026-07-28"}));
+
+    const auto no_capabilities = reply(
+        fixture,
+        R"({"jsonrpc":"2.0","id":4,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}})");
+    CHECK(no_capabilities["error"]["code"] == -32602);
+
+    const auto ping = reply(
+        fixture,
+        R"({"jsonrpc":"2.0","id":5,"method":"ping","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}})");
+    CHECK(ping["error"]["code"] == -32601);
 }
 
 TEST_CASE("notifications get no reply; ping and tools/list do") {
