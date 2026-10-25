@@ -193,6 +193,13 @@ Sizes follow the parity plan: **S** under a day, **M** a few days, **L** a week 
 
 ### Phase 1: TypeScript server (L)
 
+**Status (2026-10-25): implemented on `claude/mcp-v2-phase1-ts-server`.** The TypeScript backend passes 34/34 in `legacy`, `auto` (now negotiating `2026-07-28`) and `modern`, and `conformance.yml` runs the `modern` mode. Deviations from the bullets below:
+
+- Tool order stays registration order. It is already deterministic, which is what the spec asks for, and sorting would reorder the legacy lane too.
+- `tools/list` defaults to `ttlMs: 0` when `contexts` are configured. The SDK v2 client caches `tools/list` without its `_meta`, so a longer TTL served a context-scoped list from the unscoped entry.
+- The optional `context` argument on `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail` (D2) moves to Phase 5; `_meta["dev.afd/context"]` covers every tool call in the meantime.
+- Errors the SDK answers on the wire (bad headers, unsupported versions) are not forwarded to `onError`.
+
 - Mount pattern proven in Phase 0: AFD's `validateHttpRequest` in front, `toNodeHandler(createMcpHandler(factory))` on `/mcp`, the low-level `Server` over AFD's cached tool list, `createContext(req)` carried to the handler through `AsyncLocalStorage`, `cacheHints` for `tools/list` and `server/discover`.
 
 - `POST /mcp` via `createMcpHandler` (dual-era by default) with `server/discover` (`supportedVersions: ['2026-07-28']`: the TypeScript SDK lists only per-request revisions there, and 2025 clients reach the same endpoint through `initialize`; `instructions` carrying AFD's bootstrap primer: how to use `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`), `serverInfo` in result `_meta`, `resultType`, `ttlMs`/`cacheScope` on `tools/list` (long TTL and `public` for a static command set; `private` when the list varies by auth or context), tools sorted by name.
