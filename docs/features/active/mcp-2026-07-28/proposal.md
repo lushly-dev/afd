@@ -193,7 +193,7 @@ Sizes follow the parity plan: **S** under a day, **M** a few days, **L** a week 
 
 ### Phase 1: TypeScript server (L)
 
-**Status (2026-10-25): implemented on `claude/mcp-v2-phase1-ts-server`.** The TypeScript backend passes 34/34 in `legacy`, `auto` (now negotiating `2026-07-28`) and `modern`, and `conformance.yml` runs the `modern` mode. Deviations from the bullets below:
+**Status (2026-10-25): merged in #391.** The TypeScript backend passes 34/34 in `legacy`, `auto` (now negotiating `2026-07-28`) and `modern`, and `conformance.yml` runs the `modern` mode. Deviations from the bullets below:
 
 - Tool order stays registration order. It is already deterministic, which is what the spec asks for, and sorting would reorder the legacy lane too.
 - `tools/list` defaults to `ttlMs: 0` when `contexts` are configured. The SDK v2 client caches `tools/list` without its `_meta`, so a longer TTL served a context-scoped list from the unscoped entry.
@@ -210,6 +210,12 @@ Sizes follow the parity plan: **S** under a day, **M** a few days, **L** a week 
 - Exit: official v2 client, SDK 1.x client (legacy), and today's AFD client all pass the todo suite against the TypeScript backend over HTTP and stdio; the protocol tier asserts `server/discover`, missing-`_meta` → `-32602`/400, header mismatch → `-32020`/400, unsupported version → `-32022`.
 
 ### Phase 2: TypeScript client, CLI and testing (L)
+
+**Status (2026-10-25): implemented on `claude/mcp-v2-phase2-ts-client`.** `McpClient` passes call, batch, pipe and stream against AFD's `/mcp` in `auto`, `modern` and `legacy` modes, and connects to official SDK servers of both eras. Deviations from the bullets below:
+
+- `input_required` is not surfaced yet. AFD servers emit none until D10 is decided, so the transport declares no elicitation capability and the SDK never receives an `input_required` result from them.
+- `refreshTools` is not TTL-aware on its own; the SDK client inside the transport already honours `ttlMs` for `tools/list`.
+- The CLI infers the transport from every URL (`sse`, `http` for `/message`, `streamable-http` otherwise), not only for non-`/sse` URLs, because `call --connect` and `scenario run` previously hard-defaulted to `http` and `sse`.
 
 - `streamable-http` transport on `@modelcontextprotocol/client` (D3); default for non-`/sse` URLs; `initialize` fallback preserved for legacy servers; `resultType` handling; `UnsupportedProtocolVersion` retry; `ttlMs`-aware `refreshTools`.
 - `input_required` surfaced to callers: as a `CommandResult` failure with a new `INPUT_REQUIRED` code carrying `inputRequests` when no handler is registered, and as an elicitation handler hook when one is (used by the CLI for confirmations).

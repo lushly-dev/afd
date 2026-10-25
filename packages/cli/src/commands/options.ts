@@ -6,7 +6,7 @@ import { InvalidArgumentError, Option } from 'commander';
 import type { CliTransport } from '../config.js';
 import { HEADERS_ENV, parseHeader } from '../credentials.js';
 
-export const TRANSPORTS: readonly CliTransport[] = ['sse', 'http'];
+export const TRANSPORTS: readonly CliTransport[] = ['streamable-http', 'sse', 'http'];
 
 /**
  * Commander helper: collect repeatable option values into an array.

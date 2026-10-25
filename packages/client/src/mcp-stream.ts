@@ -33,6 +33,18 @@ export function deriveStreamUrl(serverUrl: string, commandName: string): string 
 	return url.toString();
 }
 
+/**
+ * The base URL `/stream/<command>` is derived from. An AFD server serves `/mcp` and `/stream`
+ * side by side, so a `streamable-http` URL ending in `/mcp` streams from the sibling path; other
+ * transports keep the `/sse`, `/message` rule of {@link deriveStreamUrl}.
+ */
+export function streamBaseUrl(serverUrl: string, transport: string): string {
+	if (transport !== 'streamable-http') return serverUrl;
+	const url = new URL(serverUrl);
+	url.pathname = url.pathname.replace(/\/+$/, '').replace(/\/mcp$/, '');
+	return url.toString();
+}
+
 /** A client-made terminal error chunk. */
 export function streamErrorChunk(
 	error: CommandError,

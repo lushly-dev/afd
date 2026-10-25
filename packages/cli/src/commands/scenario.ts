@@ -18,7 +18,13 @@ import chalk from 'chalk';
 import type { Command } from 'commander';
 import ora, { type Ora } from 'ora';
 import type { CliTransport } from '../config.js';
-import { type ConnectFlags, createCliClient, headersOrExit, setClient } from '../connection.js';
+import {
+	type ConnectFlags,
+	createCliClient,
+	headersOrExit,
+	inferTransport,
+	setClient,
+} from '../connection.js';
 import { printError, printInfo, printSuccess, printWarning } from '../output.js';
 import { sanitizeDeep, terminalText } from '../terminal.js';
 import { CLI_VERSION } from '../version.js';
@@ -27,7 +33,7 @@ import { findScenarioFiles, SAMPLE_SCENARIO } from './scenario-files.js';
 
 interface RunOptions extends ConnectFlags {
 	server?: string;
-	transport: CliTransport;
+	transport?: CliTransport;
 	verbose?: boolean;
 	json?: boolean;
 	color: boolean;
@@ -46,7 +52,11 @@ export function registerScenarioCommand(program: Command): void {
 		.command('run <path>')
 		.description('Run scenario file(s)')
 		.option('-s, --server <url>', 'MCP server URL to test against')
-		.addOption(transportOption('Transport type', 'sse'))
+		.addOption(
+			transportOption(
+				'Transport type (default: sse for a /sse URL, http for a /message URL, streamable-http otherwise)'
+			)
+		)
 		.option('-v, --verbose', 'Show detailed output including all assertions')
 		.option('--json', 'Output results as JSON')
 		.option('--no-color', 'Disable colored output')
@@ -208,7 +218,7 @@ async function runScenarios(path: string, options: RunOptions): Promise<void> {
 		try {
 			client = createCliClient({
 				url: options.server,
-				transport: options.transport,
+				transport: options.transport ?? inferTransport(options.server),
 				timeout: Number.parseInt(options.timeout, 10),
 				autoReconnect: false,
 				headers: headersOrExit(options.header),

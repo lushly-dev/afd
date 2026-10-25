@@ -7,6 +7,14 @@
 
 import type { CommandResult } from '@lushly-dev/afd-core';
 import type { AgentEnhancedResult } from './hints.js';
+import {
+	discoverResult,
+	MODERN_PROTOCOL_VERSION,
+	modernResult,
+	negotiateLegacyVersion,
+	requestedModernVersion,
+	unsupportedVersionError,
+} from './protocol.js';
 import { generateTools, type McpTool } from './tool-schemas.js';
 import { createToolRegistry, executeTool, type ToolExecutionContext } from './tools.js';
 
@@ -199,10 +207,10 @@ export function createMcpTestingServer(options: McpTestingServerOptions = {}): M
 	/**
 	 * Handle initialize request.
 	 */
-	function handleInitialize(): unknown {
+	function handleInitialize(params: unknown): unknown {
 		log('initialize');
 		return {
-			protocolVersion: '2024-11-05',
+			protocolVersion: negotiateLegacyVersion(params),
 			serverInfo: {
 				name,
 				version,
@@ -228,13 +236,26 @@ export function createMcpTestingServer(options: McpTestingServerOptions = {}): M
 
 		try {
 			let result: unknown;
+			// A modern (2026-07-28) request names its protocol version in `_meta`.
+			const modern = requestedModernVersion(params);
+			if (modern !== undefined && modern !== MODERN_PROTOCOL_VERSION) {
+				throw unsupportedVersionError(modern);
+			}
 
 			switch (method) {
 				case 'initialize':
-					result = handleInitialize();
+					result = handleInitialize(params);
+					break;
+
+				case 'server/discover':
+					result = discoverResult({ name, version }, { tools: { listChanged: false } });
 					break;
 
 				case 'ping':
+					// Removed in MCP 2026-07-28; still answered for legacy clients.
+					if (modern !== undefined) {
+						throw createJsonRpcError(JSON_RPC_ERRORS.METHOD_NOT_FOUND, `Unknown method: ${method}`);
+					}
 					result = handlePing();
 					break;
 
@@ -252,6 +273,9 @@ export function createMcpTestingServer(options: McpTestingServerOptions = {}): M
 					throw createJsonRpcError(JSON_RPC_ERRORS.METHOD_NOT_FOUND, `Unknown method: ${method}`);
 			}
 
+			if (modern !== undefined && method !== 'server/discover') {
+				result = modernResult(method, result, { name, version });
+			}
 			return isNotification ? undefined : { jsonrpc: '2.0', id, result };
 		} catch (error) {
 			if (isNotification) {

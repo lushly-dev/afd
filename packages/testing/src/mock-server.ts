@@ -23,6 +23,14 @@ import {
 	McpErrorCodes,
 	textContent,
 } from '@lushly-dev/afd-core';
+import {
+	discoverResult,
+	MODERN_PROTOCOL_VERSION,
+	modernResult,
+	negotiateLegacyVersion,
+	requestedModernVersion,
+	unsupportedVersionError,
+} from './mcp/protocol.js';
 
 /** Name of the built-in batch tool, as on the real server. */
 const BATCH_TOOL = 'afd-batch';
@@ -86,9 +94,23 @@ export class MockMcpServer {
 		let response: McpResponse;
 
 		try {
+			const modern = requestedModernVersion(request.params);
+			if (modern !== undefined && modern !== MODERN_PROTOCOL_VERSION) {
+				const error = unsupportedVersionError(modern);
+				response = createMcpErrorResponse(request.id, error.code, error.message, error.data);
+				this.requestLog.push({ request, response });
+				return response;
+			}
 			switch (request.method) {
 				case 'initialize':
 					response = this.handleInitialize(request);
+					break;
+
+				case 'server/discover':
+					response = createMcpResponse(
+						request.id,
+						discoverResult(this.serverInfo, { tools: { listChanged: false } })
+					);
 					break;
 
 				case 'tools/list':
@@ -105,6 +127,12 @@ export class MockMcpServer {
 						McpErrorCodes.METHOD_NOT_FOUND,
 						`Method not found: ${request.method}`
 					);
+			}
+			if (modern !== undefined && request.method !== 'server/discover' && !response.error) {
+				response = {
+					...response,
+					result: modernResult(request.method, response.result, this.serverInfo),
+				};
 			}
 		} catch (error) {
 			response = createMcpErrorResponse(
@@ -148,7 +176,7 @@ export class MockMcpServer {
 
 	private handleInitialize(request: McpRequest): McpResponse {
 		return createMcpResponse(request.id, {
-			protocolVersion: '2024-11-05',
+			protocolVersion: negotiateLegacyVersion(request.params),
 			capabilities: {
 				tools: { listChanged: false },
 			},

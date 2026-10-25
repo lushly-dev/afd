@@ -47,13 +47,20 @@ export function createCliClient(settings: ClientSettings): McpClient {
 	return createClient(headers && Object.keys(headers).length > 0 ? { ...rest, headers } : rest);
 }
 
-/** Default transport for a URL: SSE for a `/sse` endpoint, HTTP otherwise. */
+/**
+ * Default transport for a URL: the deprecated `sse` and `http` transports for an AFD server's
+ * `/sse` and `/message` endpoints, MCP Streamable HTTP for anything else (such as `/mcp`).
+ */
 export function inferTransport(url: string): CliTransport {
+	let pathname: string;
 	try {
-		return /\/sse\/?$/.test(new URL(url).pathname) ? 'sse' : 'http';
+		pathname = new URL(url).pathname;
 	} catch {
-		return 'http';
+		return 'streamable-http';
 	}
+	if (/\/sse\/?$/.test(pathname)) return 'sse';
+	if (/\/messages?\/?$/.test(pathname)) return 'http';
+	return 'streamable-http';
 }
 
 export interface ConnectionOptions {
@@ -97,7 +104,9 @@ export async function tryConnect(options: ConnectionOptions = {}): Promise<Conne
 
 	const client = createCliClient({
 		url,
-		transport: options.transport ?? (options.url ? 'http' : (config.transport ?? 'http')),
+		transport:
+			options.transport ??
+			(options.url ? inferTransport(url) : (config.transport ?? inferTransport(url))),
 		timeout: options.timeout ?? config.timeout ?? 30000,
 		autoReconnect: false,
 		headers: options.headers,

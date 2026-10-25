@@ -6,7 +6,7 @@ import { chmodSync, statSync } from 'node:fs';
 import Conf from 'conf';
 
 /** Transports the CLI can use. */
-export type CliTransport = 'sse' | 'http';
+export type CliTransport = 'streamable-http' | 'sse' | 'http';
 
 /**
  * Stored configuration.

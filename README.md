@@ -320,7 +320,7 @@ npx tsx server.ts
 In a second terminal, connect once, then call commands the way an agent would. Try the failure first:
 
 ```bash
-npx afd connect http://localhost:3100/sse
+npx afd connect http://localhost:3100/mcp
 npx afd call todo-create '{"title":""}'
 ```
 
@@ -388,7 +388,7 @@ steps:
 ```
 
 ```bash
-npx afd scenario run scenarios/ --server http://localhost:3100/sse
+npx afd scenario run scenarios/ --server http://localhost:3100/mcp
 ```
 
 ```
@@ -443,7 +443,7 @@ It validates your commands, not AFD's built-in tools, and expands grouped tools 
 The server speaks MCP, so any MCP client can use it. In Claude Code:
 
 ```bash
-claude mcp add --transport sse todo http://localhost:3100/sse
+claude mcp add --transport http todo http://localhost:3100/mcp
 ```
 
 For an agent that runs inside your own app, skip the network: `createDirectRegistry` and DirectClient run the same commands in-process (see [afd-directclient](./.claude/skills/afd-directclient/SKILL.md)).

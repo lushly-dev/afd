@@ -7,6 +7,7 @@ import { isMcpResponse } from '@lushly-dev/afd-core';
 import { EventSource } from 'eventsource';
 import { HttpStatusError } from './client-errors.js';
 import { McpSession } from './mcp-session.js';
+import { StreamableHttpTransport } from './streamable-http-transport.js';
 
 /**
  * Consecutive network failures (no HTTP response at all) after which `HttpTransport` reports the
@@ -453,11 +454,17 @@ export class HttpTransport implements Transport {
  * Create a transport based on type.
  */
 export function createTransport(
-	type: 'sse' | 'http' | 'websocket',
+	type: 'streamable-http' | 'sse' | 'http' | 'websocket',
 	url: string,
 	headers?: Record<string, string>
 ): Transport {
 	switch (type) {
+		case 'streamable-http':
+			return new StreamableHttpTransport(url, {
+				headers,
+				clientName: '@lushly-dev/afd-client',
+				clientVersion: '0.1.0',
+			});
 		case 'sse':
 			return new SseTransport(url, headers);
 		case 'http':
