@@ -255,6 +255,8 @@ Sizes follow the parity plan: **S** under a day, **M** a few days, **L** a week 
 
 ### Phase 5: tool surface modernization (M, all languages, spec first)
 
+**Status (2026-10-25): implemented on `claude/mcp-v2-phase5-tool-surface`.** `spec/command-metadata.md` gains "MCP tool fields" (annotations, structured results) with a per-language status table. TypeScript emits annotations, the CommandResult `outputSchema` (new `advertiseOutputSchema` option) and `structuredContent`; the v2 client validates them in tests and the todo conformance passes in all modes. Python and Rust emit annotations for `mutation: true` (their `mutation` has no unset state); core TypeScript and Rust gain the `-32020`–`-32022` codes and deprecate `-32002`. C++ (todo backend) emits annotations from `mutation` and `destructive`. Deferred: `structuredContent`/`outputSchema` in Python, Rust and C++, the optional `title` field (needs a new command field in four languages), the `context` argument on meta-tools, and `x-mcp-header` on `afd-call` (MCP clients must then mirror it, so it needs its own compatibility check).
+
 - `annotations`: `mutation: false` → `readOnlyHint: true`; `destructive` → `destructiveHint`; `idempotentHint` from a new optional `idempotent` field or `undoable` (decide in `spec/command-metadata.md`); never guess `openWorldHint`.
 - Top-level `outputSchema` and `structuredContent` per D6; `title` from a new optional `title` field.
 - `x-mcp-header: "Afd-Command"` on `afd-call.command` so gateways can route and rate-limit by command (`Mcp-Param-Afd-Command`); optional, documented.

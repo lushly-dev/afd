@@ -93,9 +93,16 @@ Json initialize_result(const Json& params, const McpServerInfo& info) {
 Json tools_list(const afd::CommandRegistry& registry) {
     Json tools = Json::array();
     for (const auto& command : registry.list_by_exposure(afd::Interface::mcp)) {
-        tools.push_back({{"name", command->definition.name},
-                         {"description", command->definition.description},
-                         {"inputSchema", command->definition.input_schema}});
+        Json tool{{"name", command->definition.name},
+                  {"description", command->definition.description},
+                  {"inputSchema", command->definition.input_schema}};
+        // MCP annotations (spec/command-metadata.md): `mutation` has no unset state here, so only
+        // a mutation claims anything.
+        if (command->definition.mutation) {
+            tool["annotations"] = {{"readOnlyHint", false},
+                                   {"destructiveHint", command->definition.destructive}};
+        }
+        tools.push_back(std::move(tool));
     }
     return {{"tools", std::move(tools)}};
 }

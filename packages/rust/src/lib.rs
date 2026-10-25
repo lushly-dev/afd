@@ -124,11 +124,11 @@ pub use metadata::{
 // ═══════════════════════════════════════════════════════════════════════════════
 
 pub use commands::{
-    command_to_mcp_tool, create_command_registry, default_expose, is_exposed_to,
-    validate_command_name, BoxFuture, CommandContext, CommandDefinition, CommandExample,
-    CommandHandler, CommandInterface, CommandMiddleware, CommandParameter, CommandRegistry,
-    ExecutionTime, ExposeOptions, JsonSchema, JsonSchemaType, McpInputSchema, McpTool,
-    MiddlewareNext,
+    command_result_output_schema, command_to_mcp_tool, command_tool_annotations,
+    create_command_registry, default_expose, is_exposed_to, validate_command_name, BoxFuture,
+    CommandContext, CommandDefinition, CommandExample, CommandHandler, CommandInterface,
+    CommandMiddleware, CommandParameter, CommandRegistry, ExecutionTime, ExposeOptions, JsonSchema,
+    JsonSchemaType, McpInputSchema, McpTool, MiddlewareNext,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

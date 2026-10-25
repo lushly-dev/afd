@@ -2,7 +2,12 @@
  * @fileoverview MCP tool list generation — individual, grouped, and lazy strategies.
  */
 
-import { commandToolMeta, isMcpExposed } from '@lushly-dev/afd-core';
+import {
+	commandResultOutputSchema,
+	commandToolAnnotations,
+	commandToolMeta,
+	isMcpExposed,
+} from '@lushly-dev/afd-core';
 import { commandAction, commandGroup, filterByContext, type GroupByFn } from './command-routing.js';
 import {
 	batchTool,
@@ -105,7 +110,8 @@ export function getToolsList(
 	commands: ZodCommandDefinition[],
 	toolStrategy: 'individual' | 'grouped' | 'lazy',
 	groupByFn?: GroupByFn,
-	activeContext?: string | null
+	activeContext?: string | null,
+	options: { outputSchema?: boolean } = {}
 ): McpToolDefinition[] {
 	const builtInTools = [batchTool, pipeTool, callTool];
 
@@ -126,10 +132,20 @@ export function getToolsList(
 			...builtInTools,
 			...filtered.map((cmd) => {
 				const meta = commandToolMeta(cmd, cmd.outputJsonSchema);
+				const annotations = commandToolAnnotations(cmd);
+				const outputSchema =
+					options.outputSchema !== false && cmd.outputJsonSchema
+						? (commandResultOutputSchema(cmd.outputJsonSchema) as unknown as Record<
+								string,
+								unknown
+							>)
+						: undefined;
 				return {
 					name: cmd.name,
 					description: cmd.description,
 					inputSchema: commandInputSchema(cmd),
+					...(annotations && { annotations }),
+					...(outputSchema && { outputSchema }),
 					...(meta && { _meta: meta }),
 				};
 			}),

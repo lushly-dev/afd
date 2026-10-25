@@ -30,3 +30,44 @@ export function commandToolMeta(
 	};
 	return Object.keys(meta).length > 0 ? meta : undefined;
 }
+
+/** MCP tool annotations (`ToolAnnotations`) derived from command metadata. */
+export interface CommandToolAnnotations {
+	readOnlyHint?: boolean;
+	destructiveHint?: boolean;
+}
+
+/**
+ * MCP tool annotations for a command (`spec/command-metadata.md`, "Annotations"). MCP's defaults
+ * assume a tool that is not read-only may be destructive, so only fields the command sets are
+ * reported: `mutation: false` gives `readOnlyHint: true`; `mutation: true` gives
+ * `readOnlyHint: false` and `destructiveHint` (false when `destructive` is unset); an unset
+ * `mutation` gives no annotations.
+ */
+export function commandToolAnnotations(
+	command: Pick<CommandDefinition, 'mutation' | 'destructive'>
+): CommandToolAnnotations | undefined {
+	if (command.mutation === false) return { readOnlyHint: true };
+	if (command.mutation === true) {
+		return { readOnlyHint: false, destructiveHint: command.destructive === true };
+	}
+	return undefined;
+}
+
+/**
+ * The top-level MCP `outputSchema` of a command tool: the `CommandResult` envelope, with `data`
+ * typed by the command's output schema (`spec/command-metadata.md`, "Structured results").
+ */
+export function commandResultOutputSchema(dataSchema: JsonSchema): JsonSchema {
+	const { $schema: _dialect, ...data } = dataSchema as JsonSchema & { $schema?: unknown };
+	return {
+		type: 'object',
+		properties: {
+			success: { type: 'boolean' },
+			data,
+			error: { type: 'object' },
+			metadata: { type: 'object' },
+		},
+		required: ['success'],
+	};
+}

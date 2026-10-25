@@ -828,12 +828,19 @@ impl CommandRegistry {
     }
 
     /// Export the authoritative MCP tool, including any whole schema registered with it.
+    ///
+    /// A command with `mutation: true` also carries MCP `annotations`
+    /// (`readOnlyHint: false`, `destructiveHint: false`; `spec/command-metadata.md`). `mutation`
+    /// has no unset state here, so a non-mutating command claims nothing.
     pub fn get_tool(&self, name: &str) -> Option<serde_json::Value> {
         let commands = read_lock(&self.commands);
         let command = commands.by_name.get(name)?;
         let mut tool = serde_json::to_value(command_to_mcp_tool(command)).expect("tool serializes");
         if let Some(schema) = commands.schemas.get(name) {
             tool["inputSchema"] = schema.clone();
+        }
+        if let Some(annotations) = command_tool_annotations(command) {
+            tool["annotations"] = annotations;
         }
         Some(tool)
     }
@@ -1360,6 +1367,36 @@ pub struct McpInputSchema {
     pub schema_type: String,
     pub properties: HashMap<String, JsonSchema>,
     pub required: Vec<String>,
+}
+
+/// MCP tool annotations for a command (`spec/command-metadata.md`, "Annotations").
+///
+/// Only what the command declares is reported. `mutation` has no unset state here, so a
+/// mutation gives `readOnlyHint: false` and `destructiveHint: false`, and anything else gives
+/// `None`.
+pub fn command_tool_annotations(command: &CommandDefinition) -> Option<serde_json::Value> {
+    command
+        .mutation
+        .then(|| serde_json::json!({ "readOnlyHint": false, "destructiveHint": false }))
+}
+
+/// The MCP `outputSchema` of a command tool: the CommandResult envelope, with `data` typed by
+/// `data_schema` (`spec/command-metadata.md`, "Structured results").
+pub fn command_result_output_schema(data_schema: &serde_json::Value) -> serde_json::Value {
+    let mut data = data_schema.clone();
+    if let Some(object) = data.as_object_mut() {
+        object.remove("$schema");
+    }
+    serde_json::json!({
+        "type": "object",
+        "properties": {
+            "success": { "type": "boolean" },
+            "data": data,
+            "error": { "type": "object" },
+            "metadata": { "type": "object" },
+        },
+        "required": ["success"],
+    })
 }
 
 /// Convert a legacy definition to a tool. For whole-schema registrations, use
