@@ -519,7 +519,7 @@ Batch and pipeline rules:
 ```python
 from afd import McpClient, McpClientConfig
 
-client = McpClient(McpClientConfig(endpoint="http://127.0.0.1:3100/sse"))
+client = McpClient(McpClientConfig(endpoint="http://127.0.0.1:3100/mcp"))
 await client.connect()
 
 todo = await client.call("todo-create", {"title": "Ship parity docs"})
@@ -550,20 +550,15 @@ When contexts are configured, agents can use `afd-context-list`, `afd-context-en
 
 ### Serving over HTTP
 
-`server.run()` serves stdio. For a network endpoint, pick an HTTP transport:
+`server.run()` serves stdio. For a network endpoint, serve MCP Streamable HTTP:
 
 ```python
-import asyncio
-
 if __name__ == "__main__":
-    # SSE: clients connect to http://127.0.0.1:8000/sse
-    server.run(transport="sse")
-
-    # Or Streamable HTTP at http://127.0.0.1:8000/mcp (run_async only)
-    # asyncio.run(server.run_async("streamable-http"))
+    # Clients connect to http://127.0.0.1:8000/mcp
+    server.run(transport="streamable-http", host="127.0.0.1", port=8000, stateless_http=True)
 ```
 
-`run()` accepts `"stdio"` or `"sse"`; `run_async()` also accepts `"streamable-http"`. Neither takes a host or port, so the server listens on FastMCP's default, `127.0.0.1:8000` (setting `FASTMCP_PORT` does not change it). Connect afd's client to the SSE endpoint with `create_client("http://127.0.0.1:8000/sse")`. For `/mcp`, use a Streamable HTTP client such as the `mcp` package's `streamablehttp_client`: afd's `transport="http"` client sends plain JSON-RPC POSTs, which the endpoint rejects with `406 Not Acceptable`.
+`run()` and `run_async()` accept `"stdio"`, `"sse"` (deprecated) and `"streamable-http"`, and pass transport options (`host`, `port`, `stateless_http`, `json_response`, `transport_security`, ...) to the MCP SDK (`mcp` 2.x). `server.streamable_http_app(**options)` returns the ASGI app for mounting. Every transport serves MCP 2026-07-28 (stateless, per-request `_meta`) and 2025 clients that send `initialize`. Connect afd's client with `create_client("http://127.0.0.1:8000/mcp")`: a URL that does not end in `/sse` or `/message` uses `StreamableHttpTransport` (`protocol_mode="auto"`). With `contexts`, a 2026-07-28 request selects its context with `_meta["dev.afd/context"]`.
 
 ## Complete Command Example
 

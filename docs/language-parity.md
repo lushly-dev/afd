@@ -4,7 +4,7 @@ What each AFD implementation provides, where they differ, and which differences 
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-13 |
+| Updated | 2026-10-25 (MCP 2026-07-28 rows); 2026-10-13 otherwise |
 | Reviewed at | Stabilization `f19257e` (#367); Python 0.9.0 published from `4e16a06` (#372); npm 2.1.0 published from `0148d22` (#338); C++ and Rust 0.1.0 published from `a311562` (#377); fresh consumers verified |
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans, which now link here |
@@ -35,8 +35,8 @@ Versions below describe repository manifests. Registry checks independently conf
 | Version | 2.1.0 | 0.9.0 | 0.1.0 (published) | 0.1.0 |
 | Contract | 1.0-rc (`AFD_CONTRACT_VERSION`) | 1.0-rc (`afd.CONTRACT_VERSION`) | 1.0-rc (`afd::CONTRACT_VERSION`) | 1.0-rc (`afd::contract_version`) |
 | Distribution | npm | PyPI | [crates.io](https://crates.io/crates/afd); published 0.1.0 | CMake `FetchContent`, `find_package`, `add_subdirectory`; published [cpp-v0.1.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.1.0) |
-| Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, FastMCP server, client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch and pipeline executors, bootstrap commands. No server or client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors. No server or client |
-| Todo backend | stdio (SDK) | stdio (FastMCP) | Streamable HTTP (hand-rolled, axum) | stdio (hand-rolled) |
+| Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, FastMCP server, client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch and pipeline executors, bootstrap commands, optional MCP server (`server` feature). No client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors. No server or client |
+| Todo backend | stdio (SDK v2), both MCP eras | stdio (`mcp` 2.x), both eras | Streamable HTTP (`server` feature on axum), both eras | stdio (hand-rolled), both eras |
 | CI | `ci.yml` (`pnpm check`) | `python.yml` | `rust.yml` | `cpp.yml` |
 | Skill | `afd-typescript` | `afd-python` | `afd-rust` | `afd-cpp` |
 
@@ -49,9 +49,9 @@ Versions below describe repository manifests. Registry checks independently conf
 | `spec/vectors/batch-controls.json`, 24 batch and 25 pipeline cases | `stopOnError`, `parallelism`, deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION` and envelope validation in the batch and pipeline executors | Yes (generator) | Yes, through `afd-batch` and `afd-pipe` | Yes | Yes |
 | `spec/vectors/error-codes.json`, 42 codes | The shared `ErrorCodes` catalog of `spec/error-codes.md` | Yes | Yes | Yes | Yes |
 | `spec/vectors/validation.json`, 34 cases / 130 tests | Required schema subset; unsupported optional keywords must reject registration | Yes | Yes: 130 execute | Yes: 102 execute, 28 optional rejections | Yes: 98 execute, 32 optional rejections |
-| [Bounded AFD protocol tier](../spec/protocol-conformance.md) | Discovery, exposure, errors and executor routing over actual sockets | Legacy HTTP subset | SSE and Streamable HTTP | No library transport tier | No library transport tier |
+| [AFD protocol conformance tier](../spec/protocol-conformance.md) | Both MCP eras over real transports: discovery, `_meta`, headers, exposure, contexts, cache hints, tool fields | `/mcp` and stdio, both eras | Streamable HTTP and stdio, both eras | `server` feature over Streamable HTTP | Todo backend stdio |
 | Todo conformance, 34 cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes | Yes | Yes | Yes |
-| `alfred parity` name budget (`alfred/tests/test_parity.py`) | Historical name measurement; current configured upper budgets | Reference | Budget 97 | Budget 9 | Budget 73 |
+| `alfred parity` name budget (`alfred/tests/test_parity.py`) | Historical name measurement; current configured upper budgets | Reference | Budget 97 | Budget 9 | Budget 75 |
 | `alfred parity` contract version, `scripts/check-versions.mjs` | The contract constant equals `spec/VERSION` | Yes | Yes | Yes | Yes |
 
 Limits of these checks:
@@ -147,20 +147,23 @@ Limits of these checks:
 
 | Capability | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
-| MCP server in the library | Yes | Yes (FastMCP) | No: the todo backend hand-rolls one | Deferred: the todo backend hand-rolls stdio |
-| MCP Streamable HTTP | **No**: custom `/sse` and `/message` routes, protocol `2024-11-05` | Yes, through `run` and `run_async` | Todo backend only | N/A: no HTTP by design |
+| MCP server in the library | Yes (SDK v2) | Yes (`mcp` 2.x `MCPServer`) | Yes: `server` feature (`rmcp`), off by default, needs Rust 1.88 | Deferred: the todo backend hand-rolls stdio (#341) |
+| MCP 2026-07-28 (stateless, per-request `_meta`, `server/discover`) and 2025 `initialize` on one endpoint or connection | Yes: `/mcp` and stdio | Yes: stdio and Streamable HTTP | Yes: Streamable HTTP and stdio | Todo backend stdio only |
+| MCP Streamable HTTP | Yes: `/mcp`; the 2024-11-05 `/sse` + `/message` lane is deprecated | Yes, through `run`, `run_async` and `streamable_http_app` | Yes (`streamable_http_service`) | N/A: no HTTP by design |
+| Contexts as request input (`_meta["dev.afd/context"]`) on the modern era | Yes | Yes | N/A: no contexts yet | N/A |
+| MCP tool fields: annotations, `structuredContent`, CommandResult `outputSchema` ([`spec/command-metadata.md`](../spec/command-metadata.md#mcp-tool-fields-mcp-2026-07-28-tool-surface)) | Yes | Partial: annotations | Partial: annotations | Partial: annotations (todo backend) |
 | Tool strategies: individual, grouped, lazy | Yes (default grouped) | Partial: default individual; all strategies serve discovery/detail, but grouped per-action schema/default alignment remains planned | No | Deferred |
 | Meta-tools: `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail` | Yes | Yes | No | Deferred |
 | Bootstrap: `afd-help`, `afd-docs`, `afd-schema` | Yes, opt-in | Partial: always registered and MCP-exposed | Yes (`register_bootstrap_commands`) | Deferred |
 | Context tools: `afd-context-list`, `-enter`, `-exit` | Yes | Yes: backed by trusted transport sessions, with a deliberate local/default scope | No | No |
-| HTTP hardening: Host/Origin checks, body cap | Yes | Not configured; left to FastMCP defaults (not verified) | Todo backend only | N/A |
+| HTTP hardening: Host/Origin checks, body cap | Yes | SDK `transport_security` defaults (foreign `Origin` refused); body cap through `max_request_body_size` | Yes: `HttpOptions` (unlisted origins refused) | N/A |
 | MCP JSON-RPC types and helpers | Yes | Partial: Pythonic names; no notification type or error-code constants | Yes | Deferred |
 
 ### Clients and tooling
 
 | Capability | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
-| MCP client: call, batch, pipe, stream | Yes | Partial: reconnect refreshes discovery after HTTP/SSE loss without replaying calls; `stream` only works against the TS server | No | No: not declared |
+| MCP client: call, batch, pipe, stream | Yes: `streamable-http` (SDK v2, `protocolMode`) by default; `sse`/`http` deprecated | Partial: `StreamableHttpTransport` (`mcp.Client`, `protocol_mode`) by default; reconnect refreshes discovery without replaying calls; `stream` only works against the TS server | No | No: not declared |
 | In-process client (`DirectClient`) with `allow`, exposure, timeout, `pipe` | Yes | Partial: millisecond timeout and shallow JSON types enforced; exposure, `allow` and middleware remain gaps | Partial: `execute` with an interface; no `pipe` or unknown-tool helper | Yes (see [defects](#defects-found-in-this-review)) |
 | CLI | Yes | Partial: no `batch`, `stream` or `scenario` | N/A | N/A |
 | Auth adapter | Yes | No | No | N/A: built by the host |
@@ -259,7 +262,7 @@ Ordered by how much an agent or a security boundary is affected.
 
 ### Priority 3: reference decisions that affect every language
 
-17. **The TypeScript server does not speak MCP Streamable HTTP.** It advertises protocol `2024-11-05` over custom routes. The conformance runner reaches the Rust backend over Streamable HTTP, but the TypeScript client cannot.
+17. **The TypeScript server does not speak MCP Streamable HTTP (fixed).** The [MCP 2026-07-28 upgrade](./features/active/mcp-2026-07-28/proposal.md) added `/mcp` and dual-era stdio on the official SDK (#391) and a `streamable-http` client transport (#392). All four todo backends pass the conformance suite in `legacy`, `auto` and `modern` mode.
 18. **Unknown and unexposed commands (decided: D4).** [`spec/error-codes.md`](../spec/error-codes.md#unknown-and-unexposed-commands-d4) writes the TypeScript split down as the rule: remote MCP gives `COMMAND_NOT_FOUND` for both, an in-process registry called with an interface gives `COMMAND_NOT_EXPOSED`, and `DirectClient` gives `UNKNOWN_TOOL` with a `suggestion`. Suggestions name only tools the host provides. Fixed to match:
     - **TypeScript and Python:** the router's unreachable `COMMAND_NOT_EXPOSED` branch in `afd-call` is gone.
     - **Python:** `afd-batch` and `afd-pipe` no longer reveal a private command with `COMMAND_NOT_EXPOSED`, and the context check no longer reveals it through tools/call. `INVALID_INTERFACE` is gone: an unknown interface exposes nothing, and an empty one is no interface. `DirectClient`'s `UNKNOWN_TOOL` has a `suggestion` and `retryable: false`. The core registry's `COMMAND_NOT_IN_CONTEXT` names the command's contexts instead of the `afd-context-*` tools it lacks.
@@ -314,7 +317,7 @@ The Python README and skill examples listed here previously were corrected in #3
 1. **Validate and deliver the candidate boundary fixes.** C++ `DirectClient` parent cancellation was fixed in #315; custom TypeScript pipeline exception redaction is fixed in this candidate (#366). Publication remains separate.
 2. **Complete review and release gates for the validation candidate** (#310, #311, #312). All four suites now load validation, reference and executor-control vectors; fresh review fixes need final validation before merge.
 3. **Write the unknown and unexposed error codes into a spec,** and add the emitted codes to the `ErrorCodes` catalog. Done: [`spec/error-codes.md`](../spec/error-codes.md).
-4. **Extend the [bounded AFD protocol tier](../spec/protocol-conformance.md).** TypeScript and Python have local socket coverage with different scopes. Rust/C++ library transports and a shared executable case fixture remain follow-up work.
+4. **Extend the [AFD protocol conformance tier](../spec/protocol-conformance.md).** All four backends run the todo suite in both MCP eras. Rust's grouped and lazy strategies, meta-tools and contexts (D1), the C++ `afd::mcp_stdio` target (#341) and a shared executable protocol fixture remain follow-up work.
 5. **Python export cleanup:** resolve the `afd.direct` name collisions, then re-export the pipeline, similarity and registry contract. This removes 61 names from the budget.
 6. **Decide the undeclared gaps** listed under [Declared deferred](#declared-deferred), and record each decision here.
 
