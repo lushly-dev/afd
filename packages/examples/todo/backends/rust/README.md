@@ -7,10 +7,10 @@ and passes the shared conformance suite (`pnpm test:conformance:rs`).
 ## What it is
 
 - **MCP over HTTP**: `POST /mcp` (and `POST /message`, which the web frontends use)
-  takes one JSON-RPC 2.0 message and answers with `application/json`. It supports
-  `initialize`, `ping`, `tools/list` and `tools/call`: the subset of the MCP
-  Streamable HTTP transport that tool clients need. There is no SSE stream
-  (`GET /mcp` answers 405, which MCP clients accept), no stdio transport and no
+  is the Streamable HTTP endpoint of the `afd` crate's `server` feature (the MCP
+  Rust SDK). It serves MCP 2026-07-28 statelessly (per-request `_meta`,
+  `server/discover`) and 2025 clients that send `initialize`, with `tools/list`
+  and `tools/call`. `GET /mcp` answers 405; there is no stdio transport and no
   session state.
 - **CLI and shell**: run one command, or an interactive shell.
 - **In-memory storage**: data lasts until the process exits and is not shared with
@@ -111,7 +111,9 @@ curl http://127.0.0.1:3100/health
 
 curl -X POST http://127.0.0.1:3100/mcp \
   -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"todo-create","arguments":{"title":"Test todo"}}}'
+  -H "Accept: application/json, text/event-stream" \
+  -H "MCP-Protocol-Version: 2026-07-28" -H "Mcp-Method: tools/call" -H "Mcp-Name: todo-create" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"todo-create","arguments":{"title":"Test todo"},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}'
 ```
 
 ## Layout
@@ -119,7 +121,7 @@ curl -X POST http://127.0.0.1:3100/mcp \
 ```
 src/
 ├── main.rs          # CLI: server, shell, list-commands, single commands
-├── server.rs        # HTTP server: MCP JSON-RPC, Host/Origin checks, CORS, body limit
+├── server.rs        # HTTP server: the afd MCP endpoint, Host/Origin checks, CORS, body limit
 ├── server/tests.rs  # HTTP tests
 ├── validation.rs    # JSON Schema subset validator
 ├── store.rs         # In-memory store

@@ -243,6 +243,12 @@ Sizes follow the parity plan: **S** under a day, **M** a few days, **L** a week 
 
 ### Phase 4: Rust and C++ (M–L, folds into parity D1 and D2)
 
+**Status (2026-10-25): implemented on `claude/mcp-v2-phase4-rust-cpp`.** The Rust and C++ todo backends pass 34/34 in `legacy`, `auto` (negotiating `2026-07-28`) and `modern`, and `conformance.yml` runs the `modern` mode for both. Deviations:
+
+- **Rust MSRV (open question 8):** the `server` feature documents its own minimum, Rust 1.88 (`rmcp`'s), and is off by default, so the crate keeps 1.82 for everything else; `rust.yml` adds clippy and tests with `--features server`. Raising the whole crate to 1.88 remains a one-line change if preferred.
+- The Rust `server` feature covers the individual tool strategy, exposure and `COMMAND_NOT_FOUND`; grouped and lazy strategies, meta-tools, bootstrap and contexts stay in parity D1. `rmcp` answers malformed bodies, unknown methods and a nameless `tools/call` itself; the backend tests pin those outcomes.
+- **C++:** the todo backend's `mcp_stdio.cpp` is dual-era (`server/discover`, per-request `_meta` with `-32022`/`-32602`, `resultType`, `ping` legacy-only). Promoting it to the `afd::mcp_stdio` library target stays with #341 (parity D2), together with `command_to_mcp_tool` and its `_meta`.
+
 - Rust `server` feature (D5): `server/discover`, `_meta`, headers, `resultType`, cache hints, legacy `initialize`; the todo backend moves onto it; the `-32002` constant and `initialize` types are kept for the legacy lane and marked deprecated.
 - C++ `afd::mcp_stdio` (#341): dual-era stdio is small since stdio has no header layer: `server/discover`, per-request `_meta` check, `resultType`, `initialize` for legacy clients, `notifications/cancelled` → `CancellationToken`. The version table test in `mcp_stdio_test.cpp` changes accordingly.
 - Exit: both backends pass the conformance suite in both eras; `docs/language-parity.md` "MCP server" rows updated.

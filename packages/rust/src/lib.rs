@@ -61,6 +61,9 @@ pub mod pipeline;
 pub mod result;
 mod schema_legacy;
 mod schema_validation;
+#[cfg(feature = "server")]
+#[cfg_attr(docsrs, doc(cfg(feature = "server")))]
+pub mod server;
 pub mod similarity;
 pub mod streaming;
 pub mod telemetry;

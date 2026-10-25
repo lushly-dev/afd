@@ -1,5 +1,6 @@
 // A minimal MCP server over stdio: newline-delimited JSON-RPC 2.0, enough for MCP clients and the
-// todo conformance runner (initialize, notifications/initialized, ping, tools/list, tools/call).
+// todo conformance runner. Dual-era: MCP 2026-07-28 requests (per-request _meta, server/discover)
+// and 2025 clients (initialize, notifications/initialized, ping), plus tools/list and tools/call.
 //
 // Lives in the example backend, not the library: afd-cpp stays transport-free (proposal D10).
 #pragma once
