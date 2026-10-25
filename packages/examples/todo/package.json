@@ -16,7 +16,7 @@
 		"dev:react": "cd frontends/react && pnpm dev"
 	},
 	"devDependencies": {
-		"@modelcontextprotocol/sdk": "^1.32.1",
+		"@modelcontextprotocol/client": "^2.4.0",
 		"ts-node": "^10.9.2",
 		"tsx": "^4.23.15",
 		"typescript": "^5.3.3"
