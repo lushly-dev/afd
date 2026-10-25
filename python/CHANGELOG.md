@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+Serves and speaks MCP 2026-07-28 (stateless, per-request `_meta`) next to the 2025 protocol.
+
+### Breaking changes
+
+- **`mcp>=2.3,<3`:** the `server` and `client` extras move to the MCP Python SDK 2.x. Its `mcp.server.fastmcp` module is gone, so code that reached into the server's SDK object (`server._create_mcp_server()`, `FastMCPTransport.mcp`) now gets an `mcp.server.mcpserver.MCPServer`. SDK result models use snake_case attributes (`is_error`, `input_schema`).
+- **Transport options pass through `run()`:** `MCPServer.run()` and `run_async()` accept the SDK's transport options (`host`, `port`, `stateless_http`, `json_response`, `transport_security`, ...). Setting `mcp.settings` on the SDK object no longer works because the SDK removed it.
+- **Contexts on MCP 2026-07-28 are request input:** a 2026-07-28 request selects its context with `_meta["dev.afd/context"]` on `tools/list` and `tools/call`; an unknown name is a `-32602` error. There is no session, so `afd-context-enter` and `afd-context-exit` validate but store nothing and return `persisted: false`. 2025 clients on a stateful transport keep one stack per connection; 2025 clients over stateless HTTP still get `SESSION_REQUIRED`.
+- **Client transport default:** `McpClientConfig.transport` defaults to `None` and is inferred from the URL: `sse` for `/sse`, `http` for `/message`, and the new `streamable-http` otherwise. It was always `sse`. `afd connect` follows the same rule.
+- **`MCP_PROTOCOL_VERSION`** is `2025-11-25`, the newest `initialize`-era revision, instead of `2024-11-05`; `initialize` in the testing server echoes a supported requested version.
+
+### Added
+
+- **`StreamableHttpTransport`** (`afd.transports`, `create_transport("streamable-http", url)`): MCP Streamable HTTP on the SDK's `mcp.Client`. It probes `server/discover`, uses 2026-07-28 when offered and falls back to `initialize`; `McpClientConfig.protocol_mode` (`"auto"`, `"legacy"`, `"modern"`) controls it. `McpClient.stream()` on a `/mcp` URL uses the sibling `/stream` path.
+- **`server/discover`** carries `instructions` (new `create_server(instructions=...)`; a description of the meta-tools by default), and `tools/list` carries `ttlMs` and `cacheScope` (new `tools_list_ttl_ms`; 300000 by default, 0 when `contexts` are configured because clients cache `tools/list` without its `_meta`).
+- **`MCPServer.streamable_http_app(**options)`** returns the ASGI app for mounting.
+- **`MODERN_PROTOCOL_VERSION`** and **`LEGACY_PROTOCOL_VERSIONS`** constants.
+- **The testing MCP server is dual-era:** `server/discover`, `resultType`, `serverInfo`, cache fields and `-32022` for requests carrying 2026-07-28 `_meta`.
+
+### Fixed
+
+- **`SseTransport` on mcp 2.x:** server info and capabilities use the wire names, a dropped event stream is detected again, network errors from the SDK's `httpx2` client count as connection loss, and a tool call that never gets a response is bounded by the transport timeout.
+
+### Deprecated
+
+- **`SseTransport` and `HttpTransport`** (an AFD server's 2024-11-05 `/sse` and `/message` lane) are deprecated in favour of `StreamableHttpTransport`.
+
 ## [0.9.0] - 2026-10-11
 
 Implements AFD contract `1.0-rc`.

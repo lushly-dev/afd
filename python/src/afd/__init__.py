@@ -122,7 +122,9 @@ from afd.core.commands import (
 )
 from afd.core.contract import CONTRACT_VERSION
 from afd.core.mcp_types import (
+    LEGACY_PROTOCOL_VERSIONS,
     MCP_PROTOCOL_VERSION,
+    MODERN_PROTOCOL_VERSION,
     JSONRPC_VERSION,
     TextContent,
     ImageContent,
@@ -370,7 +372,9 @@ __all__ = [
     "serialize_command_examples",
     "validate_command_name",
     # MCP protocol types
+    "LEGACY_PROTOCOL_VERSIONS",
     "MCP_PROTOCOL_VERSION",
+    "MODERN_PROTOCOL_VERSION",
     "JSONRPC_VERSION",
     "TextContent",
     "ImageContent",

@@ -59,9 +59,15 @@ class McpClientConfig:
     """Configuration for McpClient.
 
     Attributes:
-        url: Server URL (e.g., ``http://localhost:3100/sse``).
+        url: Server URL (e.g., ``http://localhost:3100/mcp``).
         endpoint: Alias for ``url`` (preferred in browser SDKs).
-        transport: Transport type — ``"sse"`` or ``"http"``.
+        transport: ``"streamable-http"`` (MCP Streamable HTTP; 2026-07-28 when the
+            server offers it), or the deprecated ``"sse"`` and ``"http"``
+            transports of an AFD server's 2024-11-05 lane. Default: inferred from
+            the URL (``sse`` for ``/sse``, ``http`` for ``/message`` or
+            ``/messages``, ``streamable-http`` otherwise).
+        protocol_mode: Negotiation of the ``streamable-http`` transport:
+            ``"auto"`` (default), ``"legacy"`` or ``"modern"``.
         auto_reconnect: Automatically reconnect on disconnect.
         max_reconnect_attempts: Maximum reconnection attempts.
         reconnect_delay: Base delay in seconds between attempts (exponential backoff).
@@ -74,7 +80,8 @@ class McpClientConfig:
 
     url: str = ""
     endpoint: Optional[str] = None
-    transport: Literal["sse", "http"] = "sse"
+    transport: Optional[Literal["streamable-http", "sse", "http"]] = None
+    protocol_mode: Literal["auto", "legacy", "modern"] = "auto"
     auto_reconnect: bool = True
     max_reconnect_attempts: int = 5
     reconnect_delay: float = 1.0
@@ -88,6 +95,24 @@ class McpClientConfig:
     def resolved_url(self) -> str:
         """Return ``url`` or ``endpoint``, preferring ``url``."""
         return self.url or self.endpoint or ""
+
+    @property
+    def resolved_transport(self) -> str:
+        """``transport``, or the one the URL implies."""
+        return self.transport or infer_transport(self.resolved_url)
+
+
+def infer_transport(url: str) -> str:
+    """The transport a URL implies: ``sse`` for ``/sse``, ``http`` for ``/message``
+    or ``/messages``, ``streamable-http`` otherwise (such as an AFD ``/mcp`` URL)."""
+    from urllib.parse import urlsplit
+
+    path = urlsplit(url).path.rstrip("/")
+    if path.endswith("/sse"):
+        return "sse"
+    if path.endswith("/message") or path.endswith("/messages"):
+        return "http"
+    return "streamable-http"
 
 
 @dataclass
@@ -381,7 +406,16 @@ class McpClient:
         from afd.core.sse import SseDecoder
         from afd.transports._mcp_protocol import derive_stream_url
 
-        stream_url = derive_stream_url(self._config.resolved_url, name)
+        base_url = self._config.resolved_url
+        if self._config.resolved_transport == "streamable-http":
+            # An AFD server serves /mcp and /stream side by side.
+            from urllib.parse import urlsplit, urlunsplit
+
+            parts = urlsplit(base_url)
+            path = parts.path.rstrip("/")
+            if path.endswith("/mcp"):
+                base_url = urlunsplit(parts._replace(path=path[: -len("/mcp")]))
+        stream_url = derive_stream_url(base_url, name)
 
         async with httpx.AsyncClient() as http_client:
             async with http_client.stream(
@@ -636,7 +670,19 @@ def _create_transport(config: McpClientConfig) -> Any:
     if not url:
         raise ValueError("McpClientConfig.url (or endpoint) is required")
 
-    if config.transport == "http":
+    transport = config.resolved_transport
+    if transport == "streamable-http":
+        from afd.transports.streamable_http import StreamableHttpTransport
+
+        return StreamableHttpTransport(
+            url,
+            headers=config.headers or None,
+            timeout=config.timeout,
+            client_name=config.client_name,
+            client_version=config.client_version,
+            mode=config.protocol_mode,
+        )
+    if transport == "http":
         from afd.transports.http import HttpTransport
 
         return HttpTransport(
@@ -661,7 +707,7 @@ def _create_transport(config: McpClientConfig) -> Any:
 def create_client(
     url: str,
     *,
-    transport: Literal["sse", "http"] = "sse",
+    transport: Optional[Literal["streamable-http", "sse", "http"]] = None,
     auto_reconnect: bool = True,
     headers: Optional[Dict[str, str]] = None,
     timeout: float = 30.0,
@@ -671,7 +717,7 @@ def create_client(
 
     Args:
         url: Server URL.
-        transport: Transport type.
+        transport: Transport type; inferred from the URL when omitted.
         auto_reconnect: Enable auto-reconnect.
         headers: Custom HTTP headers.
         timeout: Request timeout in seconds.
@@ -681,7 +727,7 @@ def create_client(
         Configured McpClient instance.
 
     Example:
-        >>> client = create_client("http://localhost:3100/sse")
+        >>> client = create_client("http://localhost:3100/mcp")
         >>> await client.connect()
         >>> result = await client.call("ping")
     """

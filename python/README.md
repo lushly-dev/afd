@@ -92,9 +92,14 @@ async def create_todo(input: CreateTodoInput):
     return success(data=todo)
 
 # Run the server (stdio for VS Code/Cursor).
-# server.run(transport="sse") serves SSE at http://127.0.0.1:8000/sse instead.
 server.run()
+# Or serve MCP Streamable HTTP at http://127.0.0.1:8000/mcp:
+# server.run(transport="streamable-http", port=8000, stateless_http=True)
 ```
+
+Both transports serve MCP 2026-07-28 (stateless, per-request `_meta`) and 2025 clients that open with `initialize`, from one stdio connection or one `/mcp` endpoint. `server.run()` and `server.run_async()` pass transport options (`host`, `port`, `stateless_http`, `json_response`, `transport_security`, ...) to the MCP SDK, and `server.streamable_http_app(**options)` returns the ASGI app for mounting. `server/discover` returns the `instructions` given to `create_server` (a description of the meta-tools by default), and `tools/list` carries a `ttlMs` freshness hint (`tools_list_ttl_ms`; 5 minutes by default, 0 when `contexts` are set).
+
+With `contexts`, an MCP 2026-07-28 request selects its context with `_meta["dev.afd/context"]` on `tools/list` and `tools/call`; there is no session to remember `afd-context-enter`, which then validates the name and returns `persisted: false`. 2025 clients on a stateful transport keep one context stack per connection, as before.
 
 MCP exposure is opt-in. A command without `expose=ExposeOptions(mcp=True)` is invisible over MCP: it is not listed as a tool, and `afd-call` returns `COMMAND_NOT_FOUND` for it.
 
@@ -345,13 +350,13 @@ limit = create_rate_limit_middleware(
 
 ## MCP Client (Network)
 
-Connect to remote MCP servers over SSE or HTTP:
+Connect to remote MCP servers. A URL that does not end in `/sse` or `/message` uses MCP Streamable HTTP through the official MCP SDK client: MCP 2026-07-28 when the server offers it, else the 2025 `initialize` handshake (`McpClientConfig.protocol_mode`: `"auto"`, `"legacy"` or `"modern"`). The `sse` and `http` transports of an AFD server's 2024-11-05 lane are deprecated.
 
 ```python
 from afd import McpClient, McpClientConfig, create_client
 
 # Quick setup
-client = create_client("http://localhost:3100/sse")
+client = create_client("http://localhost:3100/mcp")
 await client.connect()
 
 # Call a command (returns CommandResult)
@@ -384,9 +389,9 @@ await client.disconnect()
 Use transports directly for lower-level control:
 
 ```python
-from afd.transports import SseTransport, HttpTransport, create_transport
+from afd.transports import StreamableHttpTransport, create_transport
 
-transport = create_transport("sse", "http://localhost:3100/sse")
+transport = create_transport("streamable-http", "http://localhost:3100/mcp")
 await transport.connect()
 result = await transport.call_tool("ping", {})
 await transport.disconnect()
@@ -449,7 +454,7 @@ if result.success and is_handoff(result.data):
 ## CLI
 
 ```bash
-afd connect http://localhost:3100/sse   # SSE endpoint (an .../message URL uses HTTP)
+afd connect http://localhost:3100/mcp   # MCP Streamable HTTP (/sse and /message URLs use the deprecated transports)
 afd tools
 afd call todo-create '{"title": "Hello"}'
 ```
