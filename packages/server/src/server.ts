@@ -161,7 +161,8 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 			remoteCommands,
 			toolStrategy,
 			groupByFn,
-			resolveContextState(context, contextState)?.getActive()
+			resolveContextState(context, contextState)?.getActive(),
+			{ outputSchema: options.advertiseOutputSchema }
 		);
 
 	const modernDeps: ModernMcpDeps = {

@@ -461,6 +461,9 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
         "description": command.description,
         "inputSchema": input_schema,
     }
+    annotations = command_tool_annotations(command)
+    if annotations:
+        tool["annotations"] = annotations
 
     meta: Dict[str, Any] = {"mutation": command.mutation}
     if command.requires:
@@ -476,6 +479,34 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
         tool["_meta"] = meta
 
     return tool
+
+
+def command_tool_annotations(command: CommandDefinition) -> Optional[Dict[str, bool]]:
+    """MCP tool annotations for a command (``spec/command-metadata.md``, "Annotations").
+
+    Only what the command declares is reported. ``mutation`` has no unset state in
+    Python, so a mutation gives ``readOnlyHint: False`` and ``destructiveHint: False``
+    (there is no ``destructive`` field yet), and anything else gives ``None``.
+    """
+    if command.mutation:
+        return {"readOnlyHint": False, "destructiveHint": False}
+    return None
+
+
+def command_result_output_schema(data_schema: Dict[str, Any]) -> Dict[str, Any]:
+    """The MCP ``outputSchema`` of a command tool: the CommandResult envelope, with
+    ``data`` typed by ``data_schema`` (``spec/command-metadata.md``, "Structured results")."""
+    data = {key: value for key, value in data_schema.items() if key != "$schema"}
+    return {
+        "type": "object",
+        "properties": {
+            "success": {"type": "boolean"},
+            "data": data,
+            "error": {"type": "object"},
+            "metadata": {"type": "object"},
+        },
+        "required": ["success"],
+    }
 
 
 def serialize_command_examples(examples: List[CommandExample]) -> List[Dict[str, Any]]:

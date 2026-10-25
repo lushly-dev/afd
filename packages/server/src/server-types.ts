@@ -137,6 +137,16 @@ export interface McpServerOptions {
 	toolsListTtlMs?: number;
 
 	/**
+	 * Advertise a top-level MCP `outputSchema` (the CommandResult envelope with `data` typed by the
+	 * command's `output` schema) on individual command tools. MCP clients then validate each
+	 * result's `structuredContent` against it, so a handler whose data does not match its declared
+	 * output schema fails on the client. `_meta.outputSchema` is reported either way.
+	 *
+	 * @default true
+	 */
+	advertiseOutputSchema?: boolean;
+
+	/**
 	 * Transport protocol to use.
 	 *
 	 * - `"stdio"`: Standard input/output for IDE/agent integration (Cursor, Claude Code, Antigravity)

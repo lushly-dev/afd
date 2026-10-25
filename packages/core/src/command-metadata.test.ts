@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { commandResultOutputSchema, commandToolAnnotations } from './command-metadata.js';
 import { type CommandDefinition, commandToMcpTool, type JsonSchema } from './commands.js';
 import type { McpTool } from './mcp.js';
 import { success } from './result.js';
@@ -38,5 +39,40 @@ describe('MCP command metadata compatibility', () => {
 		const schema = tool._meta?.outputSchema;
 		expect(schema?.$defs).toEqual({ Result: { type: 'string' } });
 		expect(readSchema(schema ?? {}).definitions).toEqual({ Result: { type: 'string' } });
+	});
+});
+
+describe('commandToolAnnotations', () => {
+	it('reports only what the command sets', () => {
+		expect(commandToolAnnotations({})).toBeUndefined();
+		expect(commandToolAnnotations({ destructive: true })).toBeUndefined();
+		expect(commandToolAnnotations({ mutation: false })).toEqual({ readOnlyHint: true });
+		expect(commandToolAnnotations({ mutation: true })).toEqual({
+			readOnlyHint: false,
+			destructiveHint: false,
+		});
+		expect(commandToolAnnotations({ mutation: true, destructive: true })).toEqual({
+			readOnlyHint: false,
+			destructiveHint: true,
+		});
+	});
+});
+
+describe('commandResultOutputSchema', () => {
+	it('wraps the data schema in the CommandResult envelope', () => {
+		const data = {
+			$schema: 'https://json-schema.org/draft/2020-12/schema',
+			type: 'object',
+		} as const;
+		expect(commandResultOutputSchema(data as never)).toEqual({
+			type: 'object',
+			properties: {
+				success: { type: 'boolean' },
+				data: { type: 'object' },
+				error: { type: 'object' },
+				metadata: { type: 'object' },
+			},
+			required: ['success'],
+		});
 	});
 });

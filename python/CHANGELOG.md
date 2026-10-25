@@ -22,6 +22,7 @@ Serves and speaks MCP 2026-07-28 (stateless, per-request `_meta`) next to the 20
 - **`server/discover`** carries `instructions` (new `create_server(instructions=...)`; a description of the meta-tools by default), and `tools/list` carries `ttlMs` and `cacheScope` (new `tools_list_ttl_ms`; 300000 by default, 0 when `contexts` are configured because clients cache `tools/list` without its `_meta`).
 - **`MCPServer.streamable_http_app(**options)`** returns the ASGI app for mounting.
 - **`MODERN_PROTOCOL_VERSION`** and **`LEGACY_PROTOCOL_VERSIONS`** constants.
+- **MCP tool annotations:** a command with `mutation=True` lists `annotations` (`readOnlyHint: false`, `destructiveHint: false`), as `spec/command-metadata.md` specifies.
 - **The testing MCP server is dual-era:** `server/discover`, `resultType`, `serverInfo`, cache fields and `-32022` for requests carrying 2026-07-28 `_meta`.
 
 ### Fixed

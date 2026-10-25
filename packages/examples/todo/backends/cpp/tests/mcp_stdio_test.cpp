@@ -89,6 +89,15 @@ TEST_CASE("notifications get no reply; ping and tools/list do") {
         reply(fixture, R"({"jsonrpc":"2.0","id":2,"method":"tools/list"})")["result"]["tools"];
     CHECK(tools.size() == 11);
     CHECK(tools[0].contains("inputSchema"));
+    for (const auto& tool : tools) {
+        if (tool["name"] == "todo-list") {
+            CHECK_FALSE(tool.contains("annotations"));
+        }
+        if (tool["name"] == "todo-create") {
+            CHECK(tool["annotations"] ==
+                  afd::Json{{"readOnlyHint", false}, {"destructiveHint", false}});
+        }
+    }
 }
 
 TEST_CASE("tools/call returns the CommandResult as text, with isError = !success") {

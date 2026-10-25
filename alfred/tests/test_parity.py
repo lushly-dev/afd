@@ -856,7 +856,9 @@ NAME_GAP_BUDGET = {
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps
     # conditions as validated JSON); telemetry; timeout controllers and streamable commands;
     # the pipeline aggregation helpers; CommandParameter and createCommandRegistry.
-    "missing_from_cpp": 73,
+    # 73 → 75: commandToolAnnotations and commandResultOutputSchema (MCP tool fields), in
+    # the deferred MCP helpers group; the C++ todo backend derives them inline.
+    "missing_from_cpp": 75,
 }
 
 # Exports every language must have; if one disappears the parser is broken.

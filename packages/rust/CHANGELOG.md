@@ -9,6 +9,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - **`server` feature:** `afd::server::McpServer` serves a `CommandRegistry` over MCP Streamable HTTP (`streamable_http_service`, a `tower` service) and stdio (`serve_stdio`), built on the official MCP Rust SDK (`rmcp` 3.7). It serves MCP 2026-07-28 statelessly and 2025 `initialize` clients from one endpoint, lists only MCP-exposed commands (`with_tools` supplies full tool definitions), returns `COMMAND_NOT_FOUND` for unknown and unexposed tools, carries `ttlMs` cache hints on `tools/list` (`with_tools_list_ttl_ms`) and refuses unlisted browser origins. The feature is off by default and needs Rust 1.88; the crate's minimum stays 1.82 without it.
+- **MCP tool annotations:** `CommandRegistry::get_tool` adds `annotations` (`readOnlyHint: false`, `destructiveHint: false`) for a command with `mutation: true` (`spec/command-metadata.md`).
+- **MCP 2026-07-28 error codes:** `McpErrorCodes::HEADER_MISMATCH` (-32020), `MISSING_REQUIRED_CLIENT_CAPABILITY` (-32021) and `UNSUPPORTED_PROTOCOL_VERSION` (-32022).
+
+### Deprecated
+
+- `McpErrorCodes::SERVER_NOT_INITIALIZED` (-32002): MCP 2026-07-28 servers must not emit it.
 
 ## [0.1.0] - 2026-10-12
 
