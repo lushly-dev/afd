@@ -59,7 +59,9 @@ from afd.core.commands import (
 )
 from afd.core.contract import CONTRACT_VERSION
 from afd.core.mcp_types import (
+    LEGACY_PROTOCOL_VERSIONS,
     MCP_PROTOCOL_VERSION,
+    MODERN_PROTOCOL_VERSION,
     JSONRPC_VERSION,
     TextContent,
     ImageContent,
@@ -199,7 +201,9 @@ __all__ = [
     # Contract version
     "CONTRACT_VERSION",
     # MCP protocol types
+    "LEGACY_PROTOCOL_VERSIONS",
     "MCP_PROTOCOL_VERSION",
+    "MODERN_PROTOCOL_VERSION",
     "JSONRPC_VERSION",
     "TextContent",
     "ImageContent",

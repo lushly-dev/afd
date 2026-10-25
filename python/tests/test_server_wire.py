@@ -10,7 +10,7 @@ import json
 from typing import Any, Dict
 
 import pytest
-from mcp.shared.memory import create_connected_server_and_client_session
+from mcp import Client
 from pydantic import BaseModel, ConfigDict, Field
 
 from afd import ExposeOptions, ResultMetadata, Source, error, success
@@ -62,10 +62,10 @@ def _server():
 async def _call(server, name: str, arguments: Dict[str, Any]):
     """Call a tool over a real MCP session; return (isError, parsed JSON body)."""
     mcp = server._create_mcp_server()
-    async with create_connected_server_and_client_session(mcp._mcp_server) as session:
+    async with Client(mcp) as session:
         result = await session.call_tool(name, arguments)
     assert len(result.content) == 1
-    return result.isError, json.loads(result.content[0].text)
+    return result.is_error, json.loads(result.content[0].text)
 
 
 def _keys(value: Any, skip: tuple = ("data", "details", "undoArgs", "input")) -> set:

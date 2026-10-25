@@ -87,6 +87,9 @@ jobs:
       - name: Conformance (Python backend)
         run: pnpm --dir packages/examples/todo test:conformance:py
 
+      - name: Conformance (Python backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:py --mode modern
+
       # The stores must never write tracked files (data/todos.json is gitignored).
       - name: Check the working tree is unchanged
         run: |

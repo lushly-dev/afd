@@ -27,7 +27,13 @@ from afd.cli.output import (
 )
 from afd.cli.surface_commands import collect_surface_commands
 from afd.core.builtin_names import is_afd_builtin_name
-from afd.transports import HttpTransport, MockTransport, SseTransport, Transport
+from afd.transports import (
+    HttpTransport,
+    MockTransport,
+    SseTransport,
+    StreamableHttpTransport,
+    Transport,
+)
 
 # State file for persistent connection info
 STATE_FILE = Path.home() / ".afd" / "state.json"
@@ -67,8 +73,9 @@ def _get_transport(server: str | None = None) -> Transport:
     Args:
         server: Server URL, or a special value:
             - "mock" or a "mock:" prefix for MockTransport
-            - an http(s) URL ending in /message or /messages for HttpTransport
-            - any other http(s) URL (an SSE endpoint such as /sse) for SseTransport
+            - an http(s) URL ending in /sse for SseTransport (deprecated)
+            - an http(s) URL ending in /message or /messages for HttpTransport (deprecated)
+            - any other http(s) URL (such as /mcp) for StreamableHttpTransport
 
     Returns:
         Configured transport instance
@@ -96,12 +103,13 @@ def _get_transport(server: str | None = None) -> Transport:
         normalized_path = parsed.path.rstrip("/")
         if normalized_path.endswith("/message") or normalized_path.endswith("/messages"):
             return HttpTransport(server)
-        return SseTransport(server)
+        if normalized_path.endswith("/sse"):
+            return SseTransport(server)
+        return StreamableHttpTransport(server)
 
     raise click.ClickException(
         f"'{server}' is not a server URL. Connect to a running server by URL, for example "
-        "'afd connect http://localhost:3100/sse' (SSE) or "
-        "'afd connect http://localhost:3100/message' (HTTP), or use 'afd connect mock' "
+        "'afd connect http://localhost:3100/mcp' (MCP Streamable HTTP), or use 'afd connect mock' "
         "for testing. Named and stdio servers are not supported by the CLI."
     )
 
@@ -138,13 +146,14 @@ def connect(ctx: click.Context, server: str, timeout: float) -> None:
 
     SERVER is the server's URL, or a special value:
     \b
-    - http(s)://host/sse       SSE endpoint of an MCP server
-    - http(s)://host/message   HTTP message endpoint
+    - http(s)://host/mcp       MCP Streamable HTTP endpoint (2026-07-28 or 2025)
+    - http(s)://host/sse       Deprecated SSE endpoint of an AFD server
+    - http(s)://host/message   Deprecated HTTP message endpoint
     - mock                     Use mock transport for testing
     
     \b
     Examples:
-        afd connect http://localhost:3100/sse
+        afd connect http://localhost:3100/mcp
         afd connect mock
     """
     quiet = ctx.obj.get("quiet", False)

@@ -25,16 +25,35 @@ class ContextConfig:
 
 DEFAULT_CONTEXT_MAX_DEPTH = 16
 
+AFD_CONTEXT_META_KEY = "dev.afd/context"
+"""`_meta` key that selects the active context of one MCP 2026-07-28 request."""
+
+_STATELESS_CONTEXT_HINT = (
+    "Context changes do not persist between stateless MCP requests. Send "
+    f'_meta["{AFD_CONTEXT_META_KEY}"] with the context name on each tools/list and '
+    "tools/call request instead."
+)
+
 
 class ContextState:
-    """Mutable stack-based state for the currently active context."""
+    """Mutable stack-based state for the currently active context.
+
+    ``persistent`` is ``False`` for the per-request state of a stateless MCP
+    2026-07-28 request: the active context comes from the request's
+    ``_meta["dev.afd/context"]``, and ``afd-context-enter``/``afd-context-exit``
+    validate but never change it.
+    """
 
     session_available = True
+    persistent = True
 
-    def __init__(self, max_depth: int = DEFAULT_CONTEXT_MAX_DEPTH) -> None:
+    def __init__(
+        self, max_depth: int = DEFAULT_CONTEXT_MAX_DEPTH, *, persistent: bool = True
+    ) -> None:
         if isinstance(max_depth, bool) or not isinstance(max_depth, int) or max_depth < 1:
             raise ValueError("Context max_depth must be a positive integer")
         self.max_depth = max_depth
+        self.persistent = persistent
         self.stack: List[str] = []
 
     def get_active(self) -> Optional[str]:
@@ -51,16 +70,21 @@ class ContextState:
         return self.stack.pop() if self.stack else None
 
 
-def create_context_state(max_depth: int = DEFAULT_CONTEXT_MAX_DEPTH) -> ContextState:
+def create_context_state(
+    max_depth: int = DEFAULT_CONTEXT_MAX_DEPTH, *, persistent: bool = True
+) -> ContextState:
     """Create a fresh mutable context state container."""
-    return ContextState(max_depth)
+    return ContextState(max_depth, persistent=persistent)
 
 
 def _session_required() -> CommandResult[Any]:
     return error(
         "SESSION_REQUIRED",
         "Context changes require a persistent MCP session",
-        suggestion="Connect with a stateful MCP transport before entering or exiting a context.",
+        suggestion=(
+            "Connect with a stateful MCP transport before entering or exiting a context, "
+            f'or send _meta["{AFD_CONTEXT_META_KEY}"] on each MCP 2026-07-28 request.'
+        ),
     )
 
 
@@ -97,6 +121,8 @@ class AfdContextEnterOutput(WireModel):
 
     entered: str
     previous: Optional[str] = None
+    persisted: Optional[bool] = None
+    """``False`` on a stateless request: nothing was stored."""
 
 
 class AfdContextExitInput(BaseModel):
@@ -110,6 +136,8 @@ class AfdContextExitOutput(WireModel):
 
     exited: Optional[str] = None
     current: Optional[str] = None
+    persisted: Optional[bool] = None
+    """``False`` on a stateless request: nothing was changed."""
 
 
 BOOTSTRAP_EXPOSE = ExposeOptions(mcp=True, cli=True)
@@ -195,6 +223,12 @@ def create_afd_context_enter_command(
             )
 
         previous = context_state.get_active()
+        if not context_state.persistent:
+            return success(
+                AfdContextEnterOutput(entered=parsed.context, previous=previous, persisted=False),
+                reasoning=_STATELESS_CONTEXT_HINT,
+                confidence=1.0,
+            )
         if previous != parsed.context and len(context_state.stack) >= context_state.max_depth:
             return error(
                 "CONTEXT_DEPTH_EXCEEDED",
@@ -234,6 +268,14 @@ def create_afd_context_exit_command(
         _ = input, context
         if not context_state.session_available:
             return _session_required()
+        if not context_state.persistent:
+            return success(
+                AfdContextExitOutput(
+                    exited=None, current=context_state.get_active(), persisted=False
+                ),
+                reasoning=_STATELESS_CONTEXT_HINT,
+                confidence=1.0,
+            )
         exited = context_state.exit()
         current = context_state.get_active()
         return success(

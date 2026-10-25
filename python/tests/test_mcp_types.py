@@ -46,7 +46,7 @@ class TestConstants:
     """Tests for protocol constants."""
 
     def test_mcp_protocol_version(self):
-        assert MCP_PROTOCOL_VERSION == "2024-11-05"
+        assert MCP_PROTOCOL_VERSION == "2025-11-25"
 
     def test_jsonrpc_version(self):
         assert JSONRPC_VERSION == "2.0"

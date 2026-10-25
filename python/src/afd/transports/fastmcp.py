@@ -87,7 +87,7 @@ class FastMCPTransport:
             
             # Import FastMCP lazily
             try:
-                from mcp.server.fastmcp import FastMCP
+                from mcp.server.mcpserver import MCPServer as FastMCP
             except ImportError as err:
                 raise ImportError(
                     "FastMCP not installed. Install with: pip install afd[server]"

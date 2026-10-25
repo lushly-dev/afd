@@ -439,7 +439,7 @@ class TestServerIntegration:
 
         result = await mcp.call_tool("doc-edit", {})
 
-        assert result.isError is True
+        assert result.is_error is True
         body = json.loads(result.content[0].text)
         assert body["success"] is False
         assert body["error"]["code"] == "COMMAND_NOT_IN_CONTEXT"

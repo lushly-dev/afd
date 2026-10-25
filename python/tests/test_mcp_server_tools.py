@@ -200,7 +200,41 @@ class TestHandleRequestInitialize:
         assert response["id"] == 1
         assert "error" not in response
         result = response["result"]
-        assert result["protocolVersion"] == "2024-11-05"
+        assert result["protocolVersion"] == "2025-11-25"
+
+    @pytest.mark.asyncio
+    async def test_echoes_a_supported_requested_version(self):
+        server = McpTestingServer()
+        response = await server.handle_request(
+            _jsonrpc_request("initialize", {"protocolVersion": "2024-11-05"})
+        )
+        assert response["result"]["protocolVersion"] == "2024-11-05"
+
+    @pytest.mark.asyncio
+    async def test_serves_mcp_2026_07_28_requests(self):
+        server = McpTestingServer(name="modern", version="2.0.0")
+        meta = {
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            "io.modelcontextprotocol/clientCapabilities": {},
+        }
+        discover = await server.handle_request(_jsonrpc_request("server/discover", {"_meta": meta}))
+        assert discover["result"]["supportedVersions"] == ["2026-07-28"]
+        assert discover["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"] == "modern"
+        listed = await server.handle_request(_jsonrpc_request("tools/list", {"_meta": meta}))
+        assert listed["result"]["resultType"] == "complete"
+        assert listed["result"]["ttlMs"] == 0
+        ping = await server.handle_request(_jsonrpc_request("ping", {"_meta": meta}))
+        assert ping["error"]["code"] == -32601
+        unsupported = await server.handle_request(
+            _jsonrpc_request(
+                "tools/list",
+                {"_meta": {**meta, "io.modelcontextprotocol/protocolVersion": "2099-01-01"}},
+            )
+        )
+        assert unsupported["error"]["code"] == -32022
+        assert unsupported["error"]["data"]["supported"] == ["2026-07-28"]
+        legacy = await server.handle_request(_jsonrpc_request("tools/list"))
+        assert "resultType" not in legacy["result"]
 
     @pytest.mark.asyncio
     async def test_returns_server_info(self):

@@ -226,6 +226,14 @@ Sizes follow the parity plan: **S** under a day, **M** a few days, **L** a week 
 
 ### Phase 3: Python (L)
 
+**Status (2026-10-25): implemented on `claude/mcp-v2-phase3-python`.** The Python todo backend passes 34/34 in `legacy`, `auto` (negotiating `2026-07-28`) and `modern`, and `conformance.yml` runs the `modern` mode. Deviations and findings:
+
+- Request context reaches `list_tools`/`call_tool` through the SDK's public `middleware` hook, not the private handlers.
+- **`ctx.session` is a new object per request in mcp 2.x.** 2025-era context stacks are keyed by the session's connection (`session._connection`, no public accessor); the live session-isolation tests guard it.
+- The SDK's `ClientSession` no longer has `_receive_loop`; `SseTransport` notices a dropped stream by wrapping its read stream, and enforces its own call deadline because the SDK's timeout waits behind a POST that never completes.
+- `mcp.Client` in pinned-version mode skips `server/discover`, so `protocol_mode="modern"` negotiates like `auto` and then insists on 2026-07-28.
+- Confirmations (`Resolve(Elicit(...))`) wait for D10.
+
 - `mcp>=2,<3`; `MCPServer`; options moved to `run()`; D2 applied to `SessionContextState` (modern lane stateless, legacy sessions kept until removal); `transport_security` Host/Origin (parity Wave 3); body cap mapped from `max_request_body_size`.
 - `confirmPrompt` confirmations per D10, once decided.
 - D2 lands in the same change as `mcp>=2`: removing the session binding without it leaks one client's context to the next (see findings).

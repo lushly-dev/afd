@@ -6,7 +6,9 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import (
@@ -57,6 +59,7 @@ from afd.core.schema_validation import SchemaValidationError
 from afd.core.similarity import truncate_name
 from afd.core.wire import WIRE_ENVELOPE, to_wire
 from afd.server.bootstrap import ContextState, get_bootstrap_commands
+from afd.server.bootstrap.afd_context import AFD_CONTEXT_META_KEY
 from afd.server.decorators import (
     CommandMetadata,
     command_to_definition,
@@ -68,7 +71,7 @@ from afd.server.decorators import (
 from afd.core.builtin_names import AFD_META_TOOL_NAMES
 from afd.server.lazy_tools import not_found_suggestion
 from afd.server.middleware import CommandMiddleware
-from afd.server.session_context import SessionContextState
+from afd.server.session_context import SessionContextState, UnknownContextError
 from afd.server.tool_router import ToolRouterDeps, create_tool_router, new_trace_id
 from afd.server.tools import get_tools_list
 from afd.server.types import ContextConfig, GroupByFn, ToolStrategy
@@ -119,6 +122,47 @@ class ServerConfig:
     dev_mode: bool = False
     max_batch_size: int = DEFAULT_MAX_BATCH_SIZE
     max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM
+    instructions: str | None = None
+    tools_list_ttl_ms: int | None = None
+
+
+DEFAULT_TOOLS_LIST_TTL_MS = 300_000
+"""Default ``ttlMs`` of MCP 2026-07-28 ``tools/list`` and ``server/discover`` results."""
+
+# The SDK request context (``ServerRequestContext``) of the MCP request being handled,
+# captured by middleware so tools/list and tools/call can bind its context state.
+_CURRENT_REQUEST: ContextVar[Any] = ContextVar("afd_mcp_request", default=None)
+
+
+def default_instructions(
+    name: str, tool_strategy: str, contexts: list[ContextConfig]
+) -> str:
+    """The ``server/discover`` instructions: how an agent should use this server's tools."""
+    lines = [
+        f"{name} is an AFD server. Every tool returns a CommandResult as JSON text: "
+        "{ success, data, error: { code, message, suggestion } }; follow error.suggestion "
+        "to recover."
+    ]
+    if tool_strategy == "lazy":
+        lines.append(
+            "Call afd-discover to find commands, afd-detail for a command schema, and "
+            "afd-call to run one."
+        )
+    elif tool_strategy == "grouped":
+        lines.append(
+            "Each tool groups related commands: pass { action, params }. afd-detail returns "
+            "a command schema; afd-call runs any command by name."
+        )
+    else:
+        lines.append("Each command is its own tool; afd-call also runs any command by name.")
+    lines.append("Use afd-batch for several independent commands and afd-pipe to chain them.")
+    if contexts:
+        lines.append(
+            "Commands are scoped by context (afd-context-list lists them). Send "
+            f'_meta["{AFD_CONTEXT_META_KEY}"] with a context name on tools/list and '
+            "tools/call to work in that context."
+        )
+    return " ".join(lines)
 
 
 class MCPServer:
@@ -132,6 +176,7 @@ class MCPServer:
         self._commands: dict[str, Callable] = {}
         self._metadata: dict[str, CommandMetadata] = {}
         self._mcp_server = None
+        self._stateless_http = False
         self._middleware: list[CommandMiddleware] = list(config.middleware)
         self._context_state = SessionContextState()
         self._bootstrap_commands: list[CommandDefinition] | None = None
@@ -924,7 +969,7 @@ class MCPServer:
         command, whose own validation returns a structured VALIDATION_ERROR
         result (as the TypeScript server does) instead of a raw FastMCP error.
         """
-        from mcp.server.fastmcp.utilities.func_metadata import ArgModelBase
+        from mcp.server.mcpserver.utilities.func_metadata import ArgModelBase
 
         class PassthroughArgs(ArgModelBase):
             model_config = ConfigDict(arbitrary_types_allowed=True, extra="allow")
@@ -938,8 +983,8 @@ class MCPServer:
         )
 
     def _create_fastmcp_tool(self, tool_definition: dict[str, Any]):
-        from mcp.server.fastmcp.tools import Tool
-        from mcp.server.fastmcp.utilities.func_metadata import FuncMetadata
+        from mcp.server.mcpserver.tools import Tool
+        from mcp.server.mcpserver.utilities.func_metadata import FuncMetadata
 
         input_schema = tool_definition.get("inputSchema", {"type": "object", "properties": {}})
         input_model = self._build_input_model(
@@ -968,51 +1013,119 @@ class MCPServer:
         )
 
     def _create_mcp_server(self):
-        """Create the underlying FastMCP server."""
+        """Create the underlying MCP SDK server (``mcp.server.mcpserver.MCPServer``)."""
 
         try:
-            from mcp.server.fastmcp import FastMCP
+            from mcp.server import CacheHint
+            from mcp.server.mcpserver import MCPServer as SdkMCPServer
         except ImportError as exc:  # pragma: no cover - optional dependency
-            raise ImportError("FastMCP not installed. Install with: pip install afd[server]") from exc
+            raise ImportError("mcp not installed. Install with: pip install afd[server]") from exc
 
         server = self
+        context_names = {item.name for item in self.config.contexts}
+        ttl_ms = self.config.tools_list_ttl_ms
+        if ttl_ms is None:
+            # With contexts, tools/list varies by _meta["dev.afd/context"], which SDK
+            # clients leave out of their cache key, so the default is "always stale".
+            ttl_ms = 0 if self.config.contexts else DEFAULT_TOOLS_LIST_TTL_MS
+        if isinstance(ttl_ms, bool) or not isinstance(ttl_ms, int) or ttl_ms < 0:
+            raise ValueError("tools_list_ttl_ms must be a non-negative integer")
+        hint = CacheHint(ttl_ms=ttl_ms, scope="public")
 
-        class SessionFastMCP(FastMCP):
+        async def capture_request(ctx: Any, call_next: Any) -> Any:
+            token = _CURRENT_REQUEST.set(ctx)
+            try:
+                return await call_next(ctx)
+            finally:
+                _CURRENT_REQUEST.reset(token)
+
+        @contextmanager
+        def bound_request() -> Iterator[None]:
+            try:
+                with server._context_state.bind(
+                    _CURRENT_REQUEST.get(),
+                    stateless=server._stateless_http,
+                    contexts=context_names,
+                ):
+                    yield
+            except UnknownContextError as exc:
+                from mcp import MCPError
+                from mcp.types import INVALID_PARAMS
+
+                raise MCPError(
+                    INVALID_PARAMS,
+                    str(exc),
+                    {"suggestion": f"Use one of: {', '.join(sorted(context_names))}"},
+                ) from exc
+
+        class SessionMCPServer(SdkMCPServer):
             async def list_tools(self):
                 from mcp.types import Tool as MCPTool
 
-                with server._context_state.bind(
-                    self.get_context(), stateless=self.settings.stateless_http
-                ):
+                with bound_request():
                     return [MCPTool(**definition) for definition in server.get_tool_definitions()]
 
-            async def call_tool(self, name, arguments):
-                with server._context_state.bind(
-                    self.get_context(), stateless=self.settings.stateless_http
-                ):
-                    return await super().call_tool(name, arguments)
+            async def call_tool(self, name, arguments, context=None):
+                with bound_request():
+                    return await super().call_tool(name, arguments, context)
 
-        self._mcp_server = SessionFastMCP(self.config.name)
+        self._mcp_server = SessionMCPServer(
+            self.config.name,
+            description=self.config.description,
+            instructions=self.config.instructions
+            or default_instructions(
+                self.config.name, self.config.tool_strategy, self.config.contexts
+            ),
+            version=self.config.version,
+            cache_hints={"tools/list": hint, "server/discover": hint},
+            middleware=[capture_request],
+        )
         self._sync_mcp_tool_definitions()
         self._install_fastmcp_context_error_translation()
         return self._mcp_server
 
-    def run(self, transport: str = "stdio") -> None:
+    def streamable_http_app(self, **options: Any) -> Any:
+        """The Streamable HTTP ASGI app, for mounting in a host application.
+
+        ``options`` are those of the SDK's ``MCPServer.streamable_http_app``, such as
+        ``stateless_http``, ``json_response``, ``transport_security`` and
+        ``max_request_body_size``. One app serves MCP 2026-07-28 statelessly and 2025
+        clients that send ``initialize``.
+        """
         mcp = self._create_mcp_server()
+        self._stateless_http = bool(options.get("stateless_http", False))
+        return mcp.streamable_http_app(**options)
+
+    def run(self, transport: str = "stdio", **options: Any) -> None:
+        """Run the server.
+
+        Args:
+            transport: "stdio", "sse" or "streamable-http".
+            options: Transport options passed to the SDK, such as ``host``, ``port``,
+                ``stateless_http`` or ``transport_security`` for "streamable-http".
+        """
         if transport not in {"stdio", "sse", "streamable-http"}:
             raise ValueError(f"Unknown transport: {transport}")
-        mcp.run(transport=transport)
-
-    async def run_async(self, transport: str = "stdio") -> None:
         mcp = self._create_mcp_server()
-        if transport == "stdio":
-            await mcp.run_stdio_async()
-        elif transport == "sse":
-            await mcp.run_sse_async()
-        elif transport == "streamable-http":
-            await mcp.run_streamable_http_async()
-        else:
+        self._stateless_http = transport == "streamable-http" and bool(
+            options.get("stateless_http", False)
+        )
+        mcp.run(transport=transport, **options)
+
+    async def run_async(self, transport: str = "stdio", **options: Any) -> None:
+        """Run the server in the current event loop; see :meth:`run` for ``options``."""
+        if transport not in {"stdio", "sse", "streamable-http"}:
             raise ValueError(f"Unknown transport: {transport}")
+        mcp = self._create_mcp_server()
+        self._stateless_http = transport == "streamable-http" and bool(
+            options.get("stateless_http", False)
+        )
+        if transport == "stdio":
+            await mcp.run_stdio_async(**options)
+        elif transport == "sse":
+            await mcp.run_sse_async(**options)
+        else:
+            await mcp.run_streamable_http_async(**options)
 
 
 def _in_context(command: CommandDefinition, active_context: str | None) -> bool:
@@ -1117,6 +1230,8 @@ def create_server(
     dev_mode: bool = False,
     max_batch_size: int = DEFAULT_MAX_BATCH_SIZE,
     max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM,
+    instructions: str | None = None,
+    tools_list_ttl_ms: int | None = None,
 ) -> MCPServer:
     """Create a new AFD MCP server.
 
@@ -1132,6 +1247,12 @@ def create_server(
         max_batch_parallelism: Highest ``options.parallelism`` an ``afd-batch``
             request may ask for (default 16). A higher value returns
             ``INVALID_BATCH_REQUEST``.
+        instructions: Agent guidance returned by MCP ``server/discover``. Defaults to
+            a description of the tool strategy, the meta-tools and the contexts.
+        tools_list_ttl_ms: ``ttlMs`` freshness hint of MCP 2026-07-28 ``tools/list``
+            and ``server/discover`` results (default 300000, or 0 when ``contexts``
+            are configured, because clients cache ``tools/list`` without its
+            ``_meta``).
     """
 
     normalized_contexts = [
@@ -1159,5 +1280,7 @@ def create_server(
         dev_mode=dev_mode,
         max_batch_size=max_batch_size,
         max_batch_parallelism=max_batch_parallelism,
+        instructions=instructions,
+        tools_list_ttl_ms=tools_list_ttl_ms,
     )
     return MCPServer(config)

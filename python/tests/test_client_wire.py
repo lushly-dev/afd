@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 
 import httpx
 import pytest
-from mcp.shared.memory import create_connected_server_and_client_session
+from mcp import Client
 
 from afd import CommandResult
 from afd.client import McpClient, McpClientConfig
@@ -281,7 +281,7 @@ class TestPythonClientAgainstPythonServer:
     @pytest.mark.asyncio
     async def test_round_trip_keeps_every_field(self):
         mcp = _python_server()._create_mcp_server()
-        async with create_connected_server_and_client_session(mcp._mcp_server) as session:
+        async with Client(mcp) as session:
             client = McpClient(transport=_SessionTransport(session))
             await client.connect()
 

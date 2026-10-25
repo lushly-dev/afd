@@ -39,13 +39,26 @@ class TestMcpClientConfig:
     def test_defaults(self):
         config = McpClientConfig()
         assert config.url == ""
-        assert config.transport == "sse"
+        assert config.transport is None
+        assert config.protocol_mode == "auto"
         assert config.auto_reconnect is True
         assert config.max_reconnect_attempts == 5
         assert config.reconnect_delay == 1.0
         assert config.headers == {}
         assert config.timeout == 30.0
         assert config.debug is False
+
+    def test_transport_is_inferred_from_the_url(self):
+        from afd.client import infer_transport
+
+        assert infer_transport("http://h:1/mcp") == "streamable-http"
+        assert infer_transport("http://h:1") == "streamable-http"
+        assert infer_transport("http://h:1/sse") == "sse"
+        assert infer_transport("http://h:1/api/sse/") == "sse"
+        assert infer_transport("http://h:1/message") == "http"
+        assert infer_transport("http://h:1/messages/") == "http"
+        assert McpClientConfig(url="http://h/mcp").resolved_transport == "streamable-http"
+        assert McpClientConfig(url="http://h/mcp", transport="sse").resolved_transport == "sse"
 
     def test_custom_config(self):
         config = McpClientConfig(
@@ -337,7 +350,7 @@ class TestCreateClient:
         client = create_client("http://localhost:3100/sse")
         assert isinstance(client, McpClient)
         assert client._config.url == "http://localhost:3100/sse"
-        assert client._config.transport == "sse"
+        assert client._config.resolved_transport == "sse"
 
     def test_custom_params(self):
         client = create_client(

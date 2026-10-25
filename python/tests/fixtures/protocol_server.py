@@ -63,13 +63,12 @@ async def probe_read(value):
 
 
 async def main():
-    mcp = server._create_mcp_server()
-    mcp.settings.port = int(sys.argv[1])
-    mcp.settings.stateless_http = len(sys.argv) > 4 and sys.argv[4] == "stateless"
+    port = int(sys.argv[1])
     if sys.argv[3] == "sse":
-        await mcp.run_sse_async()
+        await server.run_async("sse", port=port)
     else:
-        await mcp.run_streamable_http_async()
+        stateless = len(sys.argv) > 4 and sys.argv[4] == "stateless"
+        await server.run_async("streamable-http", port=port, stateless_http=stateless)
 
 
 if __name__ == "__main__":
