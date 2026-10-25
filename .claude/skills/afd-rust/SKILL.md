@@ -4,8 +4,8 @@ description: >
   Rust implementation patterns for AFD commands using the afd crate,
   CommandResult types, and async handlers. Covers command definition,
   schema design with JSON Schema, error handling, registry patterns,
-  and testing. The crate is an in-process library with MCP wire types but
-  no MCP server. Use when: implementing commands in Rust, embedding AFD in
+  and testing. The crate is an in-process library with MCP wire types and an
+  optional MCP server (`server` feature, on `rmcp`). Use when: implementing commands in Rust, embedding AFD in
   a Rust or WebAssembly application, working with CommandResult types, or
   debugging Rust AFD code.
   Triggers: rust afd, rs command, CommandResult rust, CommandHandler,
@@ -408,8 +408,9 @@ The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-
   - stream chunk types;
   - similarity helpers and name truncation, which count UTF-16 code units (`packages/core/src/similarity.ts`): echoed unknown names are cut to 128 units, and `find_similar_tools` and `calculate_similarity` measure lengths and edit distance in units;
   - handoff and telemetry types.
+- **MCP server (`server` feature):** see [MCP Server](#mcp-server-server-feature).
 - **Not in the crate yet:**
-  - an MCP server, tool strategies and meta-tools;
+  - grouped and lazy tool strategies, meta-tools and contexts in the MCP server;
   - a stream executor;
   - built-in middleware (trace ID, logging, timing, retry, rate limit, telemetry);
   - active-context scoping (`contexts` is metadata; use `CommandDefinition::is_accessible_in_context`);
@@ -426,6 +427,28 @@ The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-
   - Shared validation fixture: 34 cases / 130 tests, with 102 executed inputs and 28 explicit optional-keyword registration rejections. This is source validation evidence, not a published crate or hosted MCP result.
 - **Remaining divergences:** legacy issue wording differs; examples are stored without validation. Whole-schema TypeScript export includes raw schema JSON and a conservative `unknown` alias.
 - **Parity decisions** SHOULD compare agent-visible behavior first, then record Rust-specific gaps in the matrix instead of assuming every TypeScript or Python feature already exists in the crate.
+
+## MCP Server (`server` feature)
+
+Off by default; needs Rust 1.88 (the rest of the crate keeps 1.82). Built on the official MCP Rust SDK (`rmcp`), it serves MCP 2026-07-28 statelessly and 2025 `initialize` clients from one endpoint or connection.
+
+```rust
+use std::sync::Arc;
+use afd::server::{HttpOptions, McpServer};
+
+let server = McpServer::new(Arc::new(registry), "my-app", env!("CARGO_PKG_VERSION"));
+
+// stdio
+server.clone().serve_stdio().await?;
+
+// Streamable HTTP: a tower service, for example with axum
+let app = axum::Router::new().route_service("/mcp", server.streamable_http_service(HttpOptions::default()));
+```
+
+- Lists only commands with `expose.mcp`, through `CommandRegistry::get_tool` (or `with_tools` for full tool definitions); unknown and unexposed tools return a `COMMAND_NOT_FOUND` `CommandResult` as the tool result.
+- `with_instructions` sets the `server/discover` guidance; `with_tools_list_ttl_ms` the `tools/list` freshness hint.
+- `HttpOptions` sets accepted `Host` names, browser `Origin`s (any other `Origin` is refused) and the body cap.
+- Individual tool strategy only; grouped and lazy strategies, meta-tools, bootstrap and contexts are parity D1 follow-ups.
 
 ## Metadata Types
 

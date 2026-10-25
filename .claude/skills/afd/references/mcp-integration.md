@@ -72,9 +72,10 @@ The server exposes these endpoints:
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
+| `/mcp` | POST | MCP Streamable HTTP: MCP 2026-07-28 statelessly, and 2025 clients that send `initialize` |
 | `/health` | GET | Health check |
-| `/sse` | GET | Server-Sent Events connection |
-| `/message` | POST | MCP JSON-RPC requests |
+| `/sse` | GET | Deprecated: the 2024-11-05 HTTP+SSE transport (removed in 3.0) |
+| `/message` | POST | Deprecated: JSON-RPC endpoint of the `/sse` transport |
 | `/rpc` | POST | Simple JSON-RPC for browser clients |
 | `/batch` | POST | Batch command execution |
 | `/stream/:command` | POST | SSE chunks from one command, input in the JSON body |
@@ -84,13 +85,15 @@ The server exposes these endpoints:
 
 ## Client Setup
 
-### HTTP Transport (Recommended)
+### Streamable HTTP (Default)
 
 ```typescript
-import { McpClient, HttpTransport } from '@lushly-dev/afd-client';
+import { McpClient } from '@lushly-dev/afd-client';
 
-const client = new McpClient();
-await client.connect(new HttpTransport('http://localhost:3100/sse'));
+// A URL that does not end in /sse uses the streamable-http transport (official MCP SDK client):
+// MCP 2026-07-28 when the server offers it, else the 2025 initialize handshake.
+const client = new McpClient({ url: 'http://localhost:3100/mcp', protocolMode: 'auto' });
+await client.connect();
 
 // List available tools
 const tools = await client.listTools();
@@ -103,13 +106,14 @@ const result = await client.call('todo-create', {
 });
 ```
 
-### SSE Transport
+### SSE Transport (Deprecated)
 
 ```typescript
-import { McpClient, SseTransport } from '@lushly-dev/afd-client';
+import { McpClient } from '@lushly-dev/afd-client';
 
-const client = new McpClient();
-await client.connect(new SseTransport('http://localhost:3100/sse'));
+// The AFD server's 2024-11-05 /sse + /message lane; removed in 3.0.
+const client = new McpClient({ url: 'http://localhost:3100/sse', transport: 'sse' });
+await client.connect();
 ```
 
 ### Connection Management
@@ -343,18 +347,16 @@ curl http://localhost:3100/health
 
 ```typescript
 import { FASTElement, customElement, observable } from '@microsoft/fast-element';
-import { McpClient, HttpTransport } from '@lushly-dev/afd-client';
+import { McpClient } from '@lushly-dev/afd-client';
 
 @customElement({ name: 'app-root' })
 export class AppRoot extends FASTElement {
-  private client = new McpClient();
+  private client = new McpClient({ url: 'http://localhost:3100/mcp' });
   @observable connected = false;
   
   async connectedCallback() {
     super.connectedCallback();
-    await this.client.connect(
-      new HttpTransport('http://localhost:3100/sse')
-    );
+    await this.client.connect();
     this.connected = true;
   }
   
@@ -509,7 +511,7 @@ const server = createMcpServer({
 | `afd-context-enter` | Enter a context (pushes to stack, filters visible tools) |
 | `afd-context-exit` | Exit current context (pops stack, restores previous) |
 
-Context state is per client: stdio keeps one stack, and each HTTP session (the `Mcp-Session-Id` header returned by `initialize`) keeps its own. HTTP requests without a session see no active context and get `SESSION_REQUIRED` from enter/exit. Stacks hold at most 16 contexts; re-entering the active context is a no-op.
+On MCP 2026-07-28 (`/mcp`, and stdio connections opened with `server/discover`) there is no session: the active context is request input. Send `_meta["dev.afd/context"]` with the context name on `tools/list` and `tools/call`; `afd-context-enter` and `afd-context-exit` validate the name but store nothing and return `persisted: false`. 2025 clients keep per-connection state: a stdio connection opened with `initialize` keeps one stack, each `Mcp-Session-Id` session on the deprecated `/message` lane keeps its own, and a 2025 request without a session gets `SESSION_REQUIRED` from enter/exit. Stacks hold at most 16 contexts; re-entering the active context is a no-op.
 
 ### Command Context Scoping
 

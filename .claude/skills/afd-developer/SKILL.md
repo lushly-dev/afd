@@ -159,7 +159,7 @@ interface CommandError {
 
 ```bash
 # Connect to MCP server
-afd connect http://localhost:3100/sse
+afd connect http://localhost:3100/mcp
 
 # List available commands
 afd tools
