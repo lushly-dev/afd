@@ -80,6 +80,10 @@ jobs:
       - name: Conformance (TypeScript backend)
         run: pnpm --dir packages/examples/todo test:conformance:ts
 
+      # MCP 2026-07-28 (stateless, per-request _meta); the step above covers the 2025 handshake.
+      - name: Conformance (TypeScript backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:ts --mode modern
+
       - name: Conformance (Python backend)
         run: pnpm --dir packages/examples/todo test:conformance:py
 

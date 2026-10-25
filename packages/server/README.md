@@ -14,7 +14,7 @@ pnpm add @lushly-dev/afd-server
 
 - **Zod-based Command Definition** - Define commands with Zod schemas for type-safe validation
 - **Auto JSON Schema Generation** - Automatic conversion to JSON Schema for MCP tool definitions
-- **Multiple Transport Support** - stdio for IDE/agent integration, HTTP/SSE for browser clients
+- **Multiple Transport Support** - stdio and Streamable HTTP (`/mcp`), each serving MCP 2026-07-28 and 2025 clients
 - **Auto Transport Detection** - Automatically selects the right transport based on environment
 - **Built-in Validation** - Automatic input validation before handler execution
 - **Middleware System** - Logging, tracing, rate limiting, and custom middleware
@@ -133,6 +133,8 @@ await server.start();
 // Server reads JSON-RPC from stdin, writes to stdout
 ```
 
+stdio serves both MCP protocol eras on one connection: a client that opens with `server/discover` and per-request `_meta` gets MCP 2026-07-28, and a client that opens with `initialize` gets the 2025 protocol for the rest of the connection.
+
 In your IDE's MCP configuration (adjust the path to match your project):
 ```json
 {
@@ -160,8 +162,10 @@ const server = createMcpServer({
 
 await server.start();
 console.error(`Server running at ${server.getUrl()}`);
-// Exposes /sse, /message, /health endpoints
+// MCP clients connect to http://localhost:3100/mcp
 ```
+
+Point MCP clients at `/mcp`, for example `claude mcp add --transport http my-server http://localhost:3100/mcp`. See [MCP endpoint](#mcp-endpoint-mcp).
 
 ## Defining Commands
 
@@ -587,6 +591,8 @@ Create an MCP server from commands.
 | `maxSseConnections` | number | No | Concurrent `/sse` connections before HTTP 503 (default: 100) |
 | `maxSessions` | number | No | Live HTTP sessions when `contexts` are set; the least recently used is evicted (default: 1000) |
 | `sessionIdleTimeoutMs` | number | No | Idle time before an HTTP session expires (default: 1800000, 30 minutes) |
+| `instructions` | string | No | Agent guidance returned by MCP `server/discover` (default: a description of the tool strategy, meta-tools and contexts) |
+| `toolsListTtlMs` | number | No | `ttlMs` freshness hint on MCP 2026-07-28 `tools/list` and `server/discover` results (default: 300000, or 0 when `contexts` are set) |
 | `middleware` | array | No | Middleware functions |
 | `onCommand` | function | No | Command execution callback |
 | `onError` | function | No | Error callback |
@@ -618,13 +624,26 @@ The server exposes these endpoints:
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/sse` | GET | SSE connection for MCP clients |
-| `/message` | POST | JSON-RPC message endpoint |
+| `/mcp` | POST | MCP Streamable HTTP endpoint: MCP 2026-07-28 statelessly, and 2025 clients that send `initialize` |
+| `/sse` | GET | Deprecated: the 2024-11-05 HTTP+SSE transport, for `@lushly-dev/afd-client` 2.x |
+| `/message` | POST | Deprecated: JSON-RPC message endpoint of the `/sse` transport |
 | `/rpc` | POST | Simple JSON-RPC for browser clients |
 | `/health` | GET | Health check |
 | `/batch` | POST | Batch command execution |
 | `/stream/:name` | POST | SSE chunks with command input in the JSON body |
 | `/stream/:name?input=...` | GET | Legacy streaming with JSON input in the query; refused (HTTP 405) for `mutation: true` commands; input over `maxBodyBytes` is refused (HTTP 413) |
+
+### MCP endpoint (`/mcp`)
+
+`/mcp` is the MCP endpoint for MCP clients and agents. It is served by the official MCP TypeScript SDK (`@modelcontextprotocol/server`), behind the same Host, Origin, CORS and `maxBodyBytes` checks as every other route.
+
+- **MCP 2026-07-28 requests** carry their protocol version and client capabilities in `_meta` and the `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers. Each request is served on its own, with no session: any instance behind a load balancer can answer it. `server/discover` returns the supported versions, capabilities, `instructions` and server identity. `tools/list` and `server/discover` results carry `ttlMs` (see `toolsListTtlMs`) and `cacheScope: "public"`.
+- **2025 clients** that open with `initialize` are served on the same path, statelessly: no `Mcp-Session-Id` is issued, and `GET` and `DELETE` answer 405.
+- **Protocol errors** follow the specification: header/body mismatch or a missing header is 400 with `-32020`, an unsupported protocol version is 400 with `-32022` and the supported list, a request missing required `_meta` is 400 with `-32602`, and an unknown method is 404 with `-32601`. These are answered on the wire and not reported to `onError`.
+- **Tool results** are unchanged: the `CommandResult` JSON in `content[0].text`, with `isError` set on failure. Unknown and private commands are `COMMAND_NOT_FOUND` tool results.
+- `createContext(req)` runs for every `tools/call`, and a handler error is reported to `onError` and answered as a redacted JSON-RPC internal error (details only in `devMode`).
+
+The `/sse` and `/message` routes below are the deprecated 2024-11-05 transport. They stay unchanged for `@lushly-dev/afd-client` 2.x and are removed in 3.0.
 
 ### JSON-RPC Behavior (`/message` and `/rpc`)
 
@@ -651,7 +670,7 @@ Batch (`/batch`, `afd-batch`) and stream execution use the core `executeBatch()`
 
 ### Sessions (`Mcp-Session-Id`)
 
-When `contexts` are configured, `initialize` on `/message` returns an `Mcp-Session-Id` response header. Repeat it on later `/message`, `/rpc`, `/batch` and `/stream` requests to use that session's context stack. Requests without the header are stateless. An unknown or expired session ID is answered with HTTP 404; start a new session with `initialize`. `@lushly-dev/afd-client` does this automatically. Without `contexts`, no session is issued and the header is ignored.
+Sessions exist only on the deprecated `/message` lane; `/mcp` never issues one. When `contexts` are configured, `initialize` on `/message` returns an `Mcp-Session-Id` response header. Repeat it on later `/message`, `/rpc`, `/batch` and `/stream` requests to use that session's context stack. Requests without the header are stateless. An unknown or expired session ID is answered with HTTP 404; start a new session with `initialize`. `@lushly-dev/afd-client` does this automatically. Without `contexts`, no session is issued and the header is ignored.
 
 ### SSE Connections
 
@@ -845,8 +864,10 @@ Commands without `contexts` are always visible. Context commands themselves are 
 
 Context state is per client:
 
-- **stdio** serves one client, so it keeps one stack.
-- **HTTP** keeps one stack per session. `initialize` returns an `Mcp-Session-Id` header, and requests that repeat it share that session's stack; one client entering a context never changes another client's `tools/list` or execution. Requests without the header see no active context, and `afd-context-enter`/`afd-context-exit` return `SESSION_REQUIRED` for them. Sessions expire after `sessionIdleTimeoutMs` of inactivity, and at most `maxSessions` are kept.
+- **stdio** opened with `initialize` serves one client, so it keeps one stack.
+- **MCP 2026-07-28** (`/mcp`, and stdio connections opened with `server/discover`) is stateless: the active context is request input. Send `_meta["dev.afd/context"]` with a context name on `tools/list` and `tools/call` to work in that context; an unknown name is a `-32602` error. `afd-context-enter` and `afd-context-exit` validate the name but store nothing, and return `persisted: false` with a reasoning that says to use `_meta`. Because MCP clients cache `tools/list` without its `_meta`, `toolsListTtlMs` defaults to 0 when contexts are configured. Contexts are not a security boundary: use `createContext` and middleware to restrict commands by caller.
+- **2025 clients on `/mcp`** have no session, so they see no active context and `afd-context-enter` returns `SESSION_REQUIRED`, as on `/message` without a session.
+- **HTTP `/message`** keeps one stack per session. `initialize` returns an `Mcp-Session-Id` header, and requests that repeat it share that session's stack; one client entering a context never changes another client's `tools/list` or execution. Requests without the header see no active context, and `afd-context-enter`/`afd-context-exit` return `SESSION_REQUIRED` for them. Sessions expire after `sessionIdleTimeoutMs` of inactivity, and at most `maxSessions` are kept.
 - A stack holds at most 16 contexts (`CONTEXT_DEPTH_EXCEEDED` beyond that), and re-entering the active context is a no-op.
 - In-process `server.execute()` ignores contexts.
 

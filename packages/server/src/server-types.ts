@@ -121,6 +121,22 @@ export interface McpServerOptions {
 	sessionIdleTimeoutMs?: number;
 
 	/**
+	 * Guidance for agents returned by MCP `server/discover` on the `/mcp` endpoint and on
+	 * stdio. Defaults to a description of the tool strategy, the meta-tools and, when
+	 * `contexts` are configured, how to select one.
+	 */
+	instructions?: string;
+
+	/**
+	 * Freshness hint, in milliseconds, for `tools/list` and `server/discover` results on the
+	 * MCP 2026-07-28 lane (`ttlMs`, with `cacheScope: "public"`). Default: 300000 (5 minutes),
+	 * or 0 when `contexts` are configured, because MCP clients cache `tools/list` without its
+	 * `_meta` and a context-scoped list would be served from the unscoped entry. Set 0 when the
+	 * command set changes at runtime.
+	 */
+	toolsListTtlMs?: number;
+
+	/**
 	 * Transport protocol to use.
 	 *
 	 * - `"stdio"`: Standard input/output for IDE/agent integration (Cursor, Claude Code, Antigravity)
