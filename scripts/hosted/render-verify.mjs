@@ -14,6 +14,7 @@ const ROLES = {
 };
 const ID = {
 	service: /^srv-[0-9a-z]{20}$/,
+	instance: /^srv-[0-9a-z]{20}-[0-9a-z]{5}$/,
 	disk: /^dsk-[0-9a-z]{20}$/,
 	blueprint: /^exs-[0-9a-z]{20}$/,
 	deploy: /^dep-[0-9a-z]{20}$/,
@@ -207,6 +208,28 @@ export function verifyDiskRows(rows, item, present) {
 			(!present || rows[0]?.disk?.id === item.diskId),
 		'ambiguous-service-disks'
 	);
+}
+
+export function verifyInstances(rows, item, { requireReady = false } = {}) {
+	insist(Array.isArray(rows), 'invalid-instance-list');
+	for (const instance of rows) {
+		insist(
+			ID.instance.test(instance?.id ?? '') && instance.id.startsWith(`${item.serviceId}-`),
+			'instance-identity-mismatch'
+		);
+		insist(
+			typeof instance.createdAt === 'string' &&
+				/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/.test(instance.createdAt) &&
+				!Number.isNaN(Date.parse(instance.createdAt)) &&
+				typeof instance.status === 'string' &&
+				/^[A-Z][A-Z_]{0,31}$/.test(instance.status) &&
+				typeof instance.ready === 'boolean',
+			'invalid-instance-shape'
+		);
+	}
+	const ready = rows.filter((instance) => instance.status === 'RUNNING' && instance.ready === true);
+	if (requireReady) insist(rows.length === 1 && ready.length === 1, 'instance-not-ready');
+	return rows.length === 1 && ready.length === 1 ? ready[0] : null;
 }
 
 export function verifyDeploys(rows, ledger) {

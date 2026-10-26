@@ -24,17 +24,30 @@ async function register(page, identity, timeout) {
 	await waitForStatus(page, 'authenticated', timeout);
 }
 
-async function verifyPreflight(page, config) {
+async function verifyPreflight(page, config, expectedPrincipal, expectedEmail) {
+	const expectedIdentity = {
+		principalKind: expectedPrincipal,
+		email: expectedEmail,
+		...(expectedPrincipal === 'github-verified-primary'
+			? { githubAccountId: config.oauth.githubAccountId }
+			: {}),
+	};
 	const result = await boundedEvaluate(
 		page,
 		config.deadlineMs,
 		'preflight',
-		(runId) => window.afdConvex.preflight(runId),
-		config.runId
+		({ runId, expectedIdentity: identity }) => window.afdConvex.preflight(runId, identity),
+		{ runId: config.runId, expectedIdentity }
 	);
 	assert.equal(result.enabled, true);
 	assert.equal(result.revision, config.revision);
-	assert.deepEqual([...result.capabilities].sort(), [...EXPECTED_CAPABILITIES].sort());
+	assert.equal(result.identityMode, config.oauth?.identityMode ?? 'run-scoped');
+	assert.equal(result.principalKind, expectedPrincipal);
+	const expectedCapabilities = [...EXPECTED_CAPABILITIES];
+	if (config.oauth?.identityMode === 'verified-github-account') {
+		expectedCapabilities.push('github-verified-primary-identity-v1');
+	}
+	assert.deepEqual([...result.capabilities].sort(), expectedCapabilities.sort());
 }
 
 export async function cleanupIdentity(page, config, identity) {
@@ -115,7 +128,8 @@ export async function runCredentials(browser, server, config, assertions, cleanu
 
 	cleanupState.primaryCreated = true;
 	await register(primary.page, config.primary, config.deadlineMs);
-	await verifyPreflight(primary.page, config);
+	await verifyPreflight(primary.page, config, 'password', config.primary.email);
+	assertions.push({ name: 'password-primary-preflight', status: 'passed' });
 	let primarySnapshot = await boundedEvaluate(
 		primary.page,
 		config.deadlineMs,
@@ -241,7 +255,8 @@ export async function runCredentials(browser, server, config, assertions, cleanu
 
 	cleanupState.secondaryCreated = true;
 	await register(secondary.page, config.secondary, config.deadlineMs);
-	await verifyPreflight(secondary.page, config);
+	await verifyPreflight(secondary.page, config, 'password', config.secondary.email);
+	assertions.push({ name: 'password-secondary-preflight', status: 'passed' });
 	const crossPrincipal = await boundedEvaluate(
 		secondary.page,
 		config.deadlineMs,
@@ -308,7 +323,7 @@ export async function runOAuth(browser, server, config, assertions, cleanupState
 	).catch(() => undefined);
 	await page.waitForURL((url) => url.origin !== server.origin, { timeout: config.deadlineMs });
 	if (config.oauth.headful) {
-		console.log('Complete the OAuth login using the dedicated synthetic test identity.');
+		console.log('Complete OAuth login using the configured GitHub test identity.');
 	}
 	await page.waitForURL((url) => url.origin === config.oauth.returnUrl.origin, {
 		timeout: config.oauthDeadlineMs,
@@ -317,7 +332,21 @@ export async function runOAuth(browser, server, config, assertions, cleanupState
 		timeout: config.deadlineMs,
 	});
 	await waitForStatus(page, 'authenticated', config.deadlineMs);
-	await verifyPreflight(page, config);
+	await verifyPreflight(
+		page,
+		config,
+		config.oauth.identityMode === 'verified-github-account'
+			? 'github-verified-primary'
+			: 'github-run-scoped',
+		config.oauth.email
+	);
+	assertions.push({
+		name:
+			config.oauth.identityMode === 'verified-github-account'
+				? 'oauth-verified-primary-preflight'
+				: 'oauth-run-scoped-preflight',
+		status: 'passed',
+	});
 	const snapshot = await boundedEvaluate(page, config.deadlineMs, 'oauth-snapshot', () =>
 		window.afdConvex.snapshot()
 	);

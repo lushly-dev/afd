@@ -1,6 +1,6 @@
-import { getAuthUserId } from '@convex-dev/auth/server';
 import { queryGeneric } from 'convex/server';
 import { v } from 'convex/values';
+import { currentUserProfile } from './principal.mjs';
 
 export const me = queryGeneric({
 	args: {},
@@ -14,15 +14,6 @@ export const me = queryGeneric({
 		})
 	),
 	async handler(ctx) {
-		const userId = await getAuthUserId(ctx);
-		if (userId === null) return null;
-		const user = await ctx.db.get('users', userId);
-		if (!user || typeof user.email !== 'string') return null;
-		return {
-			id: user._id,
-			email: user.email,
-			...(typeof user.name === 'string' ? { name: user.name } : {}),
-			...(typeof user.image === 'string' ? { image: user.image } : {}),
-		};
+		return await currentUserProfile(ctx);
 	},
 });

@@ -1,4 +1,3 @@
-import { getAuthUserId } from '@convex-dev/auth/server';
 import {
 	type GenericMutationCtx,
 	type GenericQueryCtx,
@@ -7,54 +6,94 @@ import {
 } from 'convex/server';
 import type { GenericId } from 'convex/values';
 import { v } from 'convex/values';
+import {
+	hasForeignRunRecords,
+	loadAuthIdentityConfig,
+	preflightIdentityMatches,
+} from './identity.js';
+import { resolveCurrentPrincipal } from './principal.mjs';
 import type { DataModel } from './schema.js';
 
 type Reader = GenericQueryCtx<DataModel> | GenericMutationCtx<DataModel>;
 
 function configuredScope(runId: string) {
-	const configuredRunId = process.env.AFD_AUTH_TEST_RUN_ID;
-	const emailSuffix = process.env.AFD_AUTH_TEST_EMAIL_SUFFIX?.toLowerCase();
-	if (!configuredRunId || !emailSuffix || runId !== configuredRunId) {
+	const identity = loadAuthIdentityConfig(process.env);
+	if (runId !== identity.runId) {
 		throw new Error('Hosted auth fixture scope is not configured for this run');
 	}
-	return emailSuffix;
+	return identity;
+}
+
+async function currentPrincipal(ctx: Reader, runId: string) {
+	const identity = configuredScope(runId);
+	return await resolveCurrentPrincipal(ctx, identity);
 }
 
 async function requirePrincipal(ctx: Reader, runId: string) {
-	const emailSuffix = configuredScope(runId);
-	const userId = await getAuthUserId(ctx);
-	if (userId === null) throw new Error('UNAUTHENTICATED');
-	const user = await ctx.db.get('users', userId);
-	const email = typeof user?.email === 'string' ? user.email.toLowerCase() : '';
-	if (!email.endsWith(emailSuffix) || !email.includes(runId.toLowerCase())) {
-		throw new Error('FORBIDDEN');
-	}
-	return { userId, user };
+	const principal = await currentPrincipal(ctx, runId);
+	if (principal.kind === 'unauthenticated') throw new Error('UNAUTHENTICATED');
+	if (principal.kind === 'forbidden') throw new Error('FORBIDDEN');
+	return principal;
 }
 
+const expectedIdentityValidator = v.union(
+	v.object({ principalKind: v.literal('password'), email: v.string() }),
+	v.object({ principalKind: v.literal('github-run-scoped'), email: v.string() }),
+	v.object({
+		principalKind: v.literal('github-verified-primary'),
+		email: v.string(),
+		githubAccountId: v.string(),
+	})
+);
+
 export const preflight = queryGeneric({
-	args: { runId: v.string() },
+	args: { runId: v.string(), expectedIdentity: expectedIdentityValidator },
 	returns: v.object({
 		enabled: v.boolean(),
 		principalId: v.string(),
+		principalKind: v.union(
+			v.literal('password'),
+			v.literal('github-run-scoped'),
+			v.literal('github-verified-primary')
+		),
+		identityMode: v.union(v.literal('run-scoped'), v.literal('verified-github-account')),
 		revision: v.string(),
 		capabilities: v.array(v.string()),
 	}),
-	async handler(ctx: GenericQueryCtx<DataModel>, { runId }) {
-		const { userId } = await requirePrincipal(ctx, runId);
+	async handler(ctx: GenericQueryCtx<DataModel>, { runId, expectedIdentity }) {
+		const { userId, principalKind, identity, user, accounts } = await requirePrincipal(ctx, runId);
+		if (
+			!preflightIdentityMatches(
+				{
+					expected: expectedIdentity,
+					actualEmail: user?.email,
+					actualPrincipalKind: principalKind,
+					accounts,
+				},
+				identity
+			)
+		) {
+			throw new Error('Hosted auth preflight identity does not match the configured account');
+		}
 		const revision = process.env.AFD_AUTH_TEST_REVISION;
 		if (!revision) throw new Error('Hosted auth fixture revision is not configured');
+		const capabilities = [
+			'afd-adapter',
+			'cleanup-readback-v1',
+			'cleanup-v1',
+			'principal-isolation',
+			'protected-read',
+		];
+		if (identity.oauthMode === 'verified-github-account') {
+			capabilities.push('github-verified-primary-identity-v1');
+		}
 		return {
 			enabled: true,
 			principalId: userId,
+			principalKind,
+			identityMode: identity.oauthMode,
 			revision,
-			capabilities: [
-				'afd-adapter',
-				'cleanup-readback-v1',
-				'cleanup-v1',
-				'principal-isolation',
-				'protected-read',
-			],
+			capabilities,
 		};
 	},
 });
@@ -78,14 +117,14 @@ export const protectedRead = queryGeneric({
 		})
 	),
 	async handler(ctx, { runId, recordId }) {
-		const emailSuffix = configuredScope(runId);
-		const userId = await getAuthUserId(ctx);
-		if (userId === null) return { ok: false as const, reason: 'UNAUTHENTICATED' as const };
-		const user = await ctx.db.get('users', userId);
-		const email = typeof user?.email === 'string' ? user.email.toLowerCase() : '';
-		if (!email.endsWith(emailSuffix) || !email.includes(runId.toLowerCase())) {
+		const principal = await currentPrincipal(ctx, runId);
+		if (principal.kind === 'unauthenticated') {
+			return { ok: false as const, reason: 'UNAUTHENTICATED' as const };
+		}
+		if (principal.kind === 'forbidden') {
 			return { ok: false as const, reason: 'FORBIDDEN' as const };
 		}
+		const { userId } = principal;
 		const record = await ctx.db.get('harnessRecords', recordId);
 		if (!record || record.runId !== runId || record.ownerId !== userId) {
 			return { ok: false as const, reason: 'FORBIDDEN' as const };
@@ -145,8 +184,11 @@ export const cleanup = mutationGeneric({
 		}
 		const records = await ctx.db
 			.query('harnessRecords')
-			.withIndex('owner_run', (query) => query.eq('ownerId', userId).eq('runId', runId))
+			.filter((query) => query.eq(query.field('ownerId'), userId))
 			.collect();
+		if (hasForeignRunRecords(records, runId)) {
+			throw new Error('Cleanup refuses records outside the authenticated run scope');
+		}
 		for (const record of records) await ctx.db.delete('harnessRecords', record._id);
 
 		const sessions = await ctx.db
@@ -169,7 +211,7 @@ export const cleanup = mutationGeneric({
 		await ctx.db.delete('users', userId);
 		const remainingRecords = await ctx.db
 			.query('harnessRecords')
-			.withIndex('owner_run', (query) => query.eq('ownerId', userId).eq('runId', runId))
+			.filter((query) => query.eq(query.field('ownerId'), userId))
 			.collect();
 		const remainingSessions = await ctx.db
 			.query('authSessions')
