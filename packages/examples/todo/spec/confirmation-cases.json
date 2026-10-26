@@ -1,0 +1,62 @@
+{
+	"description": "Confirmation enforcement (spec/command-metadata.md, \"Confirmations\") against a backend started with CONFIRMATIONS=enforce, where todo-clear declares confirmPrompt. Each case names the client it needs: \"acknowledge\" declares no elicitation capability, so the backend must accept an acknowledgement; \"accept\" and \"decline\" declare form elicitation and answer every confirmation that way. The runner resets the store before each case; \"then\" checks the state afterwards.",
+	"tests": [
+		{
+			"name": "Unconfirmed clear is refused",
+			"description": "Without a confirmation the command does not run and nothing is deleted",
+			"client": "acknowledge",
+			"setup": [{ "command": "todo-create", "input": { "title": "Keep me" } }],
+			"command": "todo-clear",
+			"input": { "all": true },
+			"expect": {
+				"success": false,
+				"error.code": "CONFIRMATION_REQUIRED",
+				"error.suggestion": { "exists": true }
+			},
+			"then": { "command": "todo-list", "input": {}, "expect": { "data.total": 1 } }
+		},
+		{
+			"name": "Acknowledged clear runs",
+			"description": "confirm: true is stripped before validation and the command runs",
+			"client": "acknowledge",
+			"setup": [{ "command": "todo-create", "input": { "title": "Delete me" } }],
+			"command": "todo-clear",
+			"input": { "all": true, "confirm": true },
+			"expect": { "success": true, "data.cleared": 1 },
+			"then": { "command": "todo-list", "input": {}, "expect": { "data.total": 0 } }
+		},
+		{
+			"name": "Commands without confirmPrompt are not gated",
+			"description": "todo-create runs without a confirmation",
+			"client": "acknowledge",
+			"setup": [],
+			"command": "todo-create",
+			"input": { "title": "Free" },
+			"expect": { "success": true, "data.title": "Free" }
+		},
+		{
+			"name": "Accepted elicitation runs the command",
+			"description": "The backend asks through elicitation and the user accepts",
+			"client": "accept",
+			"setup": [{ "command": "todo-create", "input": { "title": "Delete me" } }],
+			"command": "todo-clear",
+			"input": { "all": true },
+			"expect": { "success": true, "data.cleared": 1 },
+			"then": { "command": "todo-list", "input": {}, "expect": { "data.total": 0 } }
+		},
+		{
+			"name": "Declined elicitation refuses the command",
+			"description": "The user declines; nothing is deleted and the agent is told not to retry",
+			"client": "decline",
+			"setup": [{ "command": "todo-create", "input": { "title": "Keep me" } }],
+			"command": "todo-clear",
+			"input": { "all": true },
+			"expect": {
+				"success": false,
+				"error.code": "CONFIRMATION_DECLINED",
+				"error.retryable": false
+			},
+			"then": { "command": "todo-list", "input": {}, "expect": { "data.total": 1 } }
+		}
+	]
+}

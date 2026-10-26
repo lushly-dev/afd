@@ -9,6 +9,9 @@ import fs from 'node:fs/promises';
  * Each `expect` entry maps a dotted path in the CommandResult (array indexes and
  * `.length` included, e.g. `data.todos.0.title`) to either an exact JSON value
  * or `{ "exists": boolean }`, which checks presence without fixing the value.
+ *
+ * A case may also name the `client` it needs (the confirmation suite runs each kind against its
+ * own connection) and a `then` step whose result is checked after the command.
  */
 
 interface TestCase {
@@ -18,6 +21,15 @@ interface TestCase {
 	command: string;
 	input: unknown;
 	expect: Record<string, unknown>;
+	client?: string;
+	then?: { command: string; input: unknown; expect: Record<string, unknown> };
+}
+
+type ToolResult = { success: boolean; data?: unknown; error?: { message: string } };
+
+export interface RunnerOptions {
+	/** Reset the store before each case (default: `todo-clear` with `all: true`). */
+	reset?: (callTool: (name: string, args: unknown) => Promise<ToolResult>) => Promise<ToolResult>;
 }
 
 interface TestResult {
@@ -32,15 +44,16 @@ export class ConformanceRunner {
 	private captured: Record<string, unknown> = {};
 
 	constructor(
-		private callTool: (
-			name: string,
-			args: unknown
-		) => Promise<{ success: boolean; data?: unknown; error?: { message: string } }>
+		private callTool: (name: string, args: unknown) => Promise<ToolResult>,
+		private options: RunnerOptions = {}
 	) {}
 
-	async run(specPath: string): Promise<TestResult[]> {
+	/** Run the cases of `specPath`, only those for `client` when it is given. */
+	async run(specPath: string, filter: { client?: string } = {}): Promise<TestResult[]> {
 		const spec = JSON.parse(await fs.readFile(specPath, 'utf-8'));
-		const tests: TestCase[] = Array.isArray(spec.tests) ? spec.tests : [];
+		const all: TestCase[] = Array.isArray(spec.tests) ? spec.tests : [];
+		const tests =
+			filter.client === undefined ? all : all.filter((test) => test.client === filter.client);
 		if (tests.length === 0) {
 			throw new Error(`No conformance tests found in ${specPath}`);
 		}
@@ -49,7 +62,9 @@ export class ConformanceRunner {
 		for (const test of tests) {
 			try {
 				// 1. Reset state (Clear all)
-				const reset = await this.callTool('todo-clear', { all: true });
+				const reset = this.options.reset
+					? await this.options.reset(this.callTool)
+					: await this.callTool('todo-clear', { all: true });
 				if (!reset.success) {
 					throw new Error(reset.error?.message ?? 'Failed to reset Todo state');
 				}
@@ -71,8 +86,19 @@ export class ConformanceRunner {
 				const input = this.resolveVariables(test.input);
 				const actual = await this.callTool(test.command, input);
 
-				// 4. Validate expectations
+				// 4. Validate expectations, then the follow-up state
 				const errors = this.validate(actual, test.expect);
+				if (test.then) {
+					const after = await this.callTool(
+						test.then.command,
+						this.resolveVariables(test.then.input)
+					);
+					errors.push(
+						...this.validate(after, test.then.expect).map(
+							(error) => `then ${test.then?.command}: ${error}`
+						)
+					);
+				}
 
 				results.push({
 					name: test.name,

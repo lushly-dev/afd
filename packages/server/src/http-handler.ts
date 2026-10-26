@@ -11,11 +11,13 @@ import type {
 } from '@lushly-dev/afd-core';
 import {
 	createErrorChunk,
+	createFailedBatchResult,
 	failedBatchRequest,
 	isBatchRequest,
 	truncateName,
 } from '@lushly-dev/afd-core';
 import type { ContextState } from './bootstrap/afd-context.js';
+import { type ConfirmationGate, createHttpConfirmationCheck } from './confirmations.js';
 import { bindContextState } from './context-scope.js';
 import {
 	HttpRequestError,
@@ -78,6 +80,8 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	sseHeartbeatMs?: number;
 	/** The MCP 2026-07-28 endpoint served at `POST /mcp`. */
 	modern?: ModernHttpLane;
+	/** Confirmation enforcement for `/rpc`, `/batch` and `/stream` (acknowledged by `Afd-Confirm`). */
+	confirmations?: ConfirmationGate;
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -109,7 +113,9 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		createContext,
 		onError,
 		modern,
+		confirmations,
 	} = deps;
+	const unconfirmed = createHttpConfirmationCheck(confirmations);
 	const maxBodyBytes = deps.maxBodyBytes ?? 1024 * 1024;
 	if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes <= 0)
 		throw new Error('maxBodyBytes must be a positive integer');
@@ -250,12 +256,15 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 	async function handleRpc(req: IncomingMessage, res: ServerResponse): Promise<void> {
 		const message = parseJsonRpcMessage(await readJsonBody(req, maxBodyBytes));
 		const state = sessionState(req);
-		const body = await answer(message, async () =>
-			executeCommand(message.method, message.params ?? {}, {
+		const body = await answer(message, async () => {
+			const input = message.params ?? {};
+			const refused = await unconfirmed(req, [{ command: message.method, input }]);
+			if (refused) return { success: false, error: refused };
+			return executeCommand(message.method, input, {
 				...(await commandContext(req, res, state)),
 				traceId: `rpc-${randomUUID()}`,
-			})
-		);
+			});
+		});
 		// A notification still runs (JSON-RPC semantics), but its outcome is not sent back.
 		if (message.notification) {
 			res.writeHead(202);
@@ -302,6 +311,12 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			} catch {
 				throw new HttpRequestError(400, 'Stream input must be valid JSON');
 			}
+		}
+		const refused = await unconfirmed(req, [{ command: commandName, input }]);
+		if (refused) {
+			res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
+			res.end(`event: chunk\ndata: ${JSON.stringify(createErrorChunk(refused, 0, false))}\n\n`);
+			return;
 		}
 		const state = sessionState(req);
 		const controller = new AbortController();
@@ -353,7 +368,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
 			res.setHeader(
 				'Access-Control-Allow-Headers',
-				'Content-Type, Accept, Authorization, Mcp-Session-Id, MCP-Protocol-Version, Mcp-Method, Mcp-Name'
+				'Content-Type, Accept, Authorization, Mcp-Session-Id, MCP-Protocol-Version, Mcp-Method, Mcp-Name, Afd-Confirm'
 			);
 			res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
 		}
@@ -407,6 +422,14 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			const request = await readJsonBody(req, maxBodyBytes);
 			if (!isBatchRequest(request)) {
 				json(res, 400, failedBatchRequest());
+				return;
+			}
+			const refused = await unconfirmed(
+				req,
+				request.commands.map((item) => ({ command: item.command, input: item.input ?? {} }))
+			);
+			if (refused) {
+				json(res, 200, createFailedBatchResult(refused, {}));
 				return;
 			}
 			const context = await commandContext(req, res, sessionState(req));

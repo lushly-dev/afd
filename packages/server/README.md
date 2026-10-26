@@ -313,6 +313,37 @@ const formatDoc = defineCommand({
 
 Commands without `contexts` are universal (always visible). See "Context Management" below for server-level context configuration.
 
+### Command that asks for confirmation
+
+A command with `confirmPrompt` can be gated on the server's MCP and HTTP surfaces with the
+`confirmations` option ([`spec/command-metadata.md`](../../spec/command-metadata.md#confirmations)):
+
+```typescript
+const clearTodos = defineCommand({
+  name: 'todo-clear',
+  description: 'Delete every todo',
+  mutation: true,
+  destructive: true,
+  confirmPrompt: 'Delete every todo? This cannot be undone.',
+  input: z.object({}),
+  async handler() { ... },
+});
+
+createMcpServer({ name: 'todo', version: '1.0.0', commands: [clearTodos], confirmations: 'enforce' });
+```
+
+- **An MCP client that supports elicitation** is asked `confirmPrompt` through an
+  `input_required` result, and the command runs only if the user accepts. A decline gives
+  `CONFIRMATION_DECLINED`.
+- **Any other caller** gets `CONFIRMATION_REQUIRED` until it repeats the call with
+  `confirm: true` (on `afd-batch` and `afd-pipe`, `confirm: ['todo-clear']`; on the HTTP
+  routes, the `Afd-Confirm: todo-clear` header). That acknowledgement comes from the agent, not
+  the user. `confirmations: 'require-human'` refuses it and accepts only an elicitation.
+- **Several instances** behind one URL need the same `confirmationKey` (32 bytes or more), which
+  signs the confirmation's `requestState`.
+
+`server.execute()` and DirectClient calls are never gated.
+
 
 ## Server Configuration
 

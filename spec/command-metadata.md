@@ -99,6 +99,11 @@ Where the acknowledgement goes:
   confirmed. A batch or pipeline with any confirm-gated command asks once, before any step runs,
   and its elicitation message lists every gated command.
 - **Grouped tools.** An optional `confirm` boolean next to `action` and `params`.
+- **HTTP routes** (`/rpc`, `/batch`, `/stream`). The header `Afd-Confirm` with the confirmed
+  command names, comma-separated.
+
+A command whose own input schema declares a `confirm` property keeps it: the server leaves the
+input intact and reads `confirm: true` in it as the acknowledgement.
 
 `requestState` is opaque to clients and is never trusted unverified. A stale, altered or mismatched
 `requestState` is treated as no confirmation.
@@ -158,7 +163,7 @@ follows `destructive`, `false` when it is unset.
 | | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
 | Annotations | Yes | `mutation: true` only, with `destructive` | `mutation: true` only, with `destructive`, from `CommandRegistry::get_tool` | `mutation: true` only, with `destructive` (todo backend) |
-| Confirmations | Planned | Planned | Planned | Planned |
+| Confirmations | Yes (`confirmations`, `confirmationKey`; client `onElicitation`, CLI prompt) | Planned | Planned | Planned |
 | `structuredContent` | Yes | Planned | Planned | Planned |
 | Top-level `outputSchema` | Yes (`advertiseOutputSchema`) | Planned | Planned | Planned |
 

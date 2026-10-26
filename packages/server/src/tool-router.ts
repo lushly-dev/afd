@@ -14,6 +14,7 @@ import type {
 	PipelineResult,
 } from '@lushly-dev/afd-core';
 import {
+	createFailedBatchResult,
 	failedBatchRequest,
 	failure,
 	isBatchRequest,
@@ -30,6 +31,13 @@ import {
 	notFoundSuggestion,
 	notInContextError,
 } from './command-routing.js';
+import {
+	type Acknowledgement,
+	type ConfirmationGate,
+	type ConfirmationOutcome,
+	declaresConfirmInput,
+	InputRequiredSignal,
+} from './confirmations.js';
 import { resolveContextState } from './context-scope.js';
 import { executeDetail, executeDiscover } from './lazy-tools.js';
 import {
@@ -72,6 +80,8 @@ export interface ToolRouterDeps {
 	exposedCommandNames?: Set<string>;
 	/** Context state used when the call context carries none (stdio and tests). */
 	contextState?: ContextState;
+	/** Confirmation enforcement (`confirmations` server option); none means off. */
+	confirmations?: ConfirmationGate;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -108,6 +118,24 @@ function resultContent(data: unknown, isError: boolean): ToolCallResult {
 		...(data !== null && typeof data === 'object' && { structuredContent: data }),
 		isError,
 	};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** The named-commands acknowledgement of `afd-batch` and `afd-pipe` (`confirm: [names]`). */
+function namedAcknowledgement(value: unknown): Acknowledgement {
+	return Array.isArray(value)
+		? new Set(value.filter((item): item is string => typeof item === 'string'))
+		: undefined;
+}
+
+/** The arguments without a top-level `confirm`, which the executors do not know. */
+function withoutConfirm<T>(args: T): T {
+	if (!isRecord(args) || !('confirm' in args)) return args;
+	const { confirm: _confirm, ...rest } = args;
+	return rest as T;
 }
 
 /**
@@ -155,6 +183,25 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		callContext: CommandContext = {}
 	): Promise<ToolCallResult> {
 		const contextState = resolveContextState(callContext, deps.contextState);
+		const gate = deps.confirmations;
+		/**
+		 * Check confirmations; `undefined` means the call may run. An elicitation is thrown as an
+		 * {@link InputRequiredSignal}, which only a lane that bound an eliciting channel catches.
+		 */
+		const confirm = async (
+			steps: Array<{ command: string; input: unknown }>,
+			acknowledged: Acknowledgement,
+			howToAcknowledge: string,
+			toResult: (outcome: Extract<ConfirmationOutcome, { kind: 'error' }>) => ToolCallResult = (
+				outcome
+			) => resultContent({ success: false, error: outcome.error }, true)
+		): Promise<ToolCallResult | undefined> => {
+			if (!gate || gate.mode === 'off') return undefined;
+			const outcome = await gate.check(steps, acknowledged, callContext, howToAcknowledge);
+			if (outcome.kind === 'proceed') return undefined;
+			if (outcome.kind === 'input-required') throw new InputRequiredSignal(outcome.result);
+			return toResult(outcome);
+		};
 		const traced = (prefix: string): CommandContext => ({
 			...callContext,
 			traceId: `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -169,7 +216,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				'Provide { command: "command-name", input: {...} }'
 			);
 			if (!parsed.success) return resultContent(parsed.result, true);
-			const { command: commandName, input } = parsed.data;
+			const { command: commandName, input, confirm: confirmArg } = parsed.data;
 
 			// Check if command exists in the exposed commands
 			const cmd = commands.find((c) => c.name === commandName);
@@ -197,6 +244,13 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			// Context check: validate the command is accessible in current context
 			const denied = contextDenial(cmd, commandName, contextState);
 			if (denied) return denied;
+
+			const unconfirmed = await confirm(
+				[{ command: commandName, input: input ?? {} }],
+				confirmArg === true ? 'all' : undefined,
+				'repeat the afd-call with confirm: true'
+			);
+			if (unconfirmed) return unconfirmed;
 
 			// Execute through the execution engine (full middleware chain)
 			const result = await executeCommand(commandName, input ?? {}, traced('afd-call'));
@@ -253,7 +307,15 @@ export function createToolRouter(deps: ToolRouterDeps) {
 					true
 				);
 			}
-			const result = await executeBatch(args, traced('batch'));
+			const batchArgs = args as unknown as Record<string, unknown>;
+			const unconfirmed = await confirm(
+				args.commands.map((item) => ({ command: item.command, input: item.input ?? {} })),
+				namedAcknowledgement(batchArgs.confirm),
+				'repeat the afd-batch with confirm: [the command names]',
+				(outcome) => resultContent(createFailedBatchResult(outcome.error, {}), true)
+			);
+			if (unconfirmed) return unconfirmed;
+			const result = await executeBatch(withoutConfirm(args), traced('batch'));
 			return resultContent(result, !result.success);
 		}
 
@@ -286,14 +348,39 @@ export function createToolRouter(deps: ToolRouterDeps) {
 					true
 				);
 			}
-			const result = await executePipeline(args, traced('pipeline'));
+			const pipeArgs = args as unknown as Record<string, unknown>;
+			const unconfirmed = await confirm(
+				args.steps.map((step) => ({ command: step.command, input: step.input ?? {} })),
+				namedAcknowledgement(pipeArgs.confirm),
+				'repeat the afd-pipe with confirm: [the command names]',
+				(outcome) =>
+					resultContent(
+						{
+							...emptyPipelineResult,
+							steps: [
+								{
+									index: -1,
+									command: '',
+									status: 'failure',
+									executionTimeMs: 0,
+									error: outcome.error,
+								},
+							],
+						},
+						true
+					)
+			);
+			if (unconfirmed) return unconfirmed;
+			const result = await executePipeline(withoutConfirm(args), traced('pipeline'));
 			const hasFailed = result.steps.some((s) => s.status === 'failure');
 			return resultContent(result, hasFailed);
 		}
 
 		// Handle grouped tool calls (when toolStrategy === "grouped")
 		if (toolStrategy === 'grouped') {
-			const typedArgs = args as { action?: string; params?: unknown } | undefined;
+			const typedArgs = args as
+				| { action?: string; params?: unknown; confirm?: unknown }
+				| undefined;
 			const action = typedArgs?.action;
 			const commandParams = typedArgs?.params ?? {};
 
@@ -325,6 +412,13 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				const denied = contextDenial(candidates[0], actualCommandName, contextState);
 				if (denied) return denied;
 
+				const unconfirmed = await confirm(
+					[{ command: actualCommandName, input: commandParams }],
+					typedArgs?.confirm === true ? 'all' : undefined,
+					`repeat the ${toolName} call with confirm: true`
+				);
+				if (unconfirmed) return unconfirmed;
+
 				const result = await executeCommand(actualCommandName, commandParams, traced('trace'));
 				return resultContent(result, !result.success);
 			}
@@ -353,14 +447,26 @@ export function createToolRouter(deps: ToolRouterDeps) {
 
 		// Handle user-defined commands (individual mode or direct command calls)
 		// Context check: validate the command is accessible in current context
-		const denied = contextDenial(
-			commands.find((c) => c.name === toolName),
-			toolName,
-			contextState
-		);
+		const command = commands.find((c) => c.name === toolName);
+		const denied = contextDenial(command, toolName, contextState);
 		if (denied) return denied;
 
-		const result = await executeCommand(toolName, args ?? {}, traced('trace'));
+		// A confirm-gated tool advertises an optional `confirm` argument, removed here before the
+		// command validates its input, unless the command's own schema declares `confirm`.
+		let input: unknown = args ?? {};
+		let acknowledged: Acknowledgement;
+		if (gate && gate.mode !== 'off' && command?.confirmPrompt && isRecord(input)) {
+			acknowledged = input.confirm === true ? 'all' : undefined;
+			if (!declaresConfirmInput(command)) input = withoutConfirm(input);
+		}
+		const unconfirmed = await confirm(
+			[{ command: toolName, input }],
+			acknowledged,
+			'repeat the call with confirm: true'
+		);
+		if (unconfirmed) return unconfirmed;
+
+		const result = await executeCommand(toolName, input, traced('trace'));
 		return resultContent(result, !result.success);
 	};
 }

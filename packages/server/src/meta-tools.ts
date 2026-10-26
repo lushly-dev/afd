@@ -32,9 +32,24 @@ const nonBlankString = z
 const commandInput = (description: string) =>
 	z.unknown().optional().meta({ type: 'object', description });
 
+/** Acknowledgement fields (`spec/command-metadata.md`, "Confirmations"). */
+const confirmFlag = z
+	.boolean()
+	.optional()
+	.describe(
+		'Set to true to confirm a command that asks for confirmation, once the user intends it (only on servers that enforce confirmations)'
+	);
+const confirmNames = z
+	.array(z.string())
+	.optional()
+	.describe(
+		'Names of the commands that ask for confirmation and are confirmed, once the user intends them (only on servers that enforce confirmations)'
+	);
+
 export const callArgsSchema = z.object({
 	command: z.string().min(1).describe('Command name to invoke'),
 	input: commandInput("Command input (validated against the command's own schema at runtime)"),
+	confirm: confirmFlag,
 });
 
 export const batchArgsSchema = z.object({
@@ -60,6 +75,7 @@ export const batchArgsSchema = z.object({
 		})
 		.optional()
 		.describe('Batch execution options'),
+	confirm: confirmNames,
 });
 
 export const pipeArgsSchema = z.object({
@@ -98,6 +114,7 @@ export const pipeArgsSchema = z.object({
 		})
 		.optional()
 		.describe('Pipeline execution options'),
+	confirm: confirmNames,
 });
 
 export const discoverArgsSchema = z.object({

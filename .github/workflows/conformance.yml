@@ -84,6 +84,14 @@ jobs:
       - name: Conformance (TypeScript backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:ts --mode modern
 
+      # spec/confirmation-cases.json with CONFIRMATIONS=enforce: elicitation through the SDK shim
+      # (2025 stdio) and through input_required (2026-07-28), and the acknowledgement path.
+      - name: Confirmations (TypeScript backend)
+        run: pnpm --dir packages/examples/todo test:conformance:ts --suite confirmations
+
+      - name: Confirmations (TypeScript backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:ts --suite confirmations --mode modern
+
       - name: Conformance (Python backend)
         run: pnpm --dir packages/examples/todo test:conformance:py
 
