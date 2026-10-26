@@ -3,8 +3,11 @@
 // median and fastest nanoseconds per operation over five batches, and the batch size.
 #include "afd/afd.hpp"
 
+#include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -207,5 +210,10 @@ int main(int argc, char** argv) {
              ok;
     }
 
+    if (afd_bench::cases_run == 0) {
+        std::fprintf(stderr, "No case matches \"%.*s\"\n", static_cast<int>(filter.size()),
+                     filter.data());
+        return 1;
+    }
     return ok ? 0 : 1;
 }

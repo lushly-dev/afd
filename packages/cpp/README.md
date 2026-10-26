@@ -206,7 +206,8 @@ the same target and run `node build/emscripten/benchmarks/afd_benchmarks.cjs`.
 
 CI's `C++ (benchmarks)` job runs it on the `release` preset (Linux, GCC) and uploads the output as the
 `cpp-benchmarks` artifact; the `C++ (emscripten)` job runs it under Node and uploads
-`cpp-benchmarks-wasm`. Shared runners are noisy, so compare runs rather than single numbers.
+`cpp-benchmarks-wasm`. Every other C++ CI build compiles it without running it. Shared runners are
+noisy, so compare runs rather than single numbers.
 
 ### Baseline
 
@@ -239,6 +240,7 @@ about 40), so treat these as upper bounds. Median nanoseconds per operation:
 | `serialize_result/100KB` | 992,546 | 2,415,343 |
 
 A call costs about 1 µs in process (about 2 µs with all of `default_middleware()`), and dispatch on 1,000 commands costs the same as on one.
-Batch and pipeline scale linearly in N. `parse_bounded` does not: 100 KB costs several hundred times
-1 KB, most likely because the depth-limit callback puts nlohmann on its callback parser
-([#397](https://github.com/lushly-dev/afd/issues/397)).
+Batch and pipeline scale linearly in N. Natively, `parse_bounded` looked superlinear: 100 KB cost
+about 370 times 1 KB, and a separate comparison measured it 12 times slower than plain
+`nlohmann::json::parse` at 295 KB. Under WebAssembly the ratio was about 120 times, close to linear.
+The cause is not yet confirmed ([#397](https://github.com/lushly-dev/afd/issues/397)).

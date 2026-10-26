@@ -12,6 +12,9 @@
 
 namespace afd_bench {
 
+/// How many cases `run_case` has run, so a filter that matches nothing can be reported.
+inline int cases_run = 0;
+
 struct Measurement {
     double median_ns = 0;
     double min_ns = 0;
@@ -23,6 +26,7 @@ template <class Op>
 bool measure(Op&& op, Measurement& out) {
     using Clock = std::chrono::steady_clock;
     constexpr auto min_batch_time = std::chrono::milliseconds(50);
+    constexpr long long max_batch = 1LL << 40;
     const auto run = [&](long long batch, double& ns) {
         const auto start = Clock::now();
         for (long long index = 0; index < batch; ++index) {
@@ -42,6 +46,10 @@ bool measure(Op&& op, Measurement& out) {
         }
         if (elapsed >= std::chrono::duration<double, std::nano>(min_batch_time).count()) {
             break;
+        }
+        if (batch >= max_batch) {
+            // An operation this fast was probably optimized away.
+            return false;
         }
         batch *= 2;
     }
@@ -65,6 +73,7 @@ bool run_case(std::string_view filter, std::string_view name, Op&& op) {
     if (!filter.empty() && name.find(filter) == std::string_view::npos) {
         return true;
     }
+    ++cases_run;
     Measurement result;
     if (!measure(op, result)) {
         std::fprintf(stderr, "%.*s: unexpected failure\n", static_cast<int>(name.size()),

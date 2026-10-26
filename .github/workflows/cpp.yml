@@ -131,11 +131,11 @@ jobs:
           if [ -z "$CXX" ]; then unset CXX; fi
           if [ "${{ matrix.name }}" = "windows-clang-cl" ]; then
             llvm_install_dir="$(cygpath -m "$RUNNER_TEMP")/llvm-${LLVM_WINDOWS_VERSION}/"
-            cmake --preset "${{ matrix.preset }}" -T ClangCL \
+            cmake --preset "${{ matrix.preset }}" -DAFD_BUILD_BENCHMARKS=ON -T ClangCL \
               "-DCMAKE_VS_GLOBALS=LLVMInstallDir=${llvm_install_dir};LLVMToolsVersion=${LLVM_WINDOWS_VERSION}" \
               "-DAFD_VERIFY_CLANG_CL_VERSION=${LLVM_WINDOWS_VERSION}"
           else
-            cmake --preset "${{ matrix.preset }}"
+            cmake --preset "${{ matrix.preset }}" -DAFD_BUILD_BENCHMARKS=ON
           fi
 
       - name: Build
@@ -207,6 +207,8 @@ jobs:
           cmake --build --preset release --target afd_benchmarks
 
       - name: Run benchmarks
+        # Explicit bash gets -o pipefail, so a failing case is not hidden by tee.
+        shell: bash
         run: |
           out="$RUNNER_TEMP/afd-benchmarks.txt"
           {
@@ -293,6 +295,8 @@ jobs:
       # (#340). No thresholds; the numbers are uploaded for comparison across runs.
       - name: Run benchmarks under Node
         working-directory: packages/cpp
+        # Explicit bash gets -o pipefail, so a failing case is not hidden by tee.
+        shell: bash
         run: |
           source "${GITHUB_WORKSPACE}/emsdk/emsdk_env.sh"
           emcmake cmake --preset emscripten -DAFD_BUILD_BENCHMARKS=ON
