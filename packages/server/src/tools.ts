@@ -9,6 +9,7 @@ import {
 	isMcpExposed,
 } from '@lushly-dev/afd-core';
 import { commandAction, commandGroup, filterByContext, type GroupByFn } from './command-routing.js';
+import { type ConfirmationMode, declaresConfirmInput } from './confirmations.js';
 import {
 	batchTool,
 	callTool,
@@ -38,6 +39,32 @@ function commandInputSchema(cmd: ZodCommandDefinition): ToolInputSchema {
 	return { type: 'object', ...restSchema };
 }
 
+/** The `confirm` argument a server that enforces confirmations accepts. */
+const CONFIRM_PROPERTY = {
+	type: 'boolean',
+	description:
+		'Set to true to confirm this command, once the user intends it. The server asks for confirmation when it is missing.',
+};
+
+/**
+ * Whether a tool for `cmd` advertises the `confirm` acknowledgement: only under `enforce`, for a
+ * command with `confirmPrompt` whose own schema has no `confirm` (`spec/command-metadata.md`).
+ */
+function acceptsConfirm(cmd: ZodCommandDefinition, mode: ConfirmationMode | undefined): boolean {
+	return mode === 'enforce' && !!cmd.confirmPrompt && !declaresConfirmInput(cmd);
+}
+
+/** The individual tool `inputSchema`, with `confirm` when the command accepts it. */
+function individualInputSchema(
+	cmd: ZodCommandDefinition,
+	mode: ConfirmationMode | undefined
+): ToolInputSchema {
+	const schema = commandInputSchema(cmd);
+	if (!acceptsConfirm(cmd, mode)) return schema;
+	const properties = (schema.properties as Record<string, unknown> | undefined) ?? {};
+	return { ...schema, properties: { ...properties, confirm: CONFIRM_PROPERTY } };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // GROUPED STRATEGY
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -53,7 +80,11 @@ function commandInputSchema(cmd: ZodCommandDefinition): ToolInputSchema {
  * rather than `oneOf` because actions often share a params shape (a `oneOf` would then
  * reject valid calls).
  */
-function groupedTool(groupName: string, groupCmds: ZodCommandDefinition[]): McpToolDefinition {
+function groupedTool(
+	groupName: string,
+	groupCmds: ZodCommandDefinition[],
+	mode: ConfirmationMode | undefined
+): McpToolDefinition {
 	const actions = [...new Set(groupCmds.map(commandAction))];
 	const actionEntries = groupCmds.map(
 		(cmd): GroupedToolAction => ({
@@ -92,6 +123,9 @@ function groupedTool(groupName: string, groupCmds: ZodCommandDefinition[]): McpT
 						: "Parameters for the action: see _meta.actions[].inputSchema, or call afd-detail with the action's command name",
 					...(inlineBranches && { anyOf: branches }),
 				},
+				...(groupCmds.some((cmd) => acceptsConfirm(cmd, mode)) && {
+					confirm: CONFIRM_PROPERTY,
+				}),
 			},
 			required: ['action'],
 		},
@@ -111,7 +145,7 @@ export function getToolsList(
 	toolStrategy: 'individual' | 'grouped' | 'lazy',
 	groupByFn?: GroupByFn,
 	activeContext?: string | null,
-	options: { outputSchema?: boolean } = {}
+	options: { outputSchema?: boolean; confirmations?: ConfirmationMode } = {}
 ): McpToolDefinition[] {
 	const builtInTools = [batchTool, pipeTool, callTool];
 
@@ -143,7 +177,7 @@ export function getToolsList(
 				return {
 					name: cmd.name,
 					description: cmd.description,
-					inputSchema: commandInputSchema(cmd),
+					inputSchema: individualInputSchema(cmd, options.confirmations),
 					...(annotations && { annotations }),
 					...(outputSchema && { outputSchema }),
 					...(meta && { _meta: meta }),
@@ -163,7 +197,7 @@ export function getToolsList(
 	}
 
 	const groupedTools = Array.from(groups, ([groupName, groupCmds]) =>
-		groupedTool(groupName, groupCmds)
+		groupedTool(groupName, groupCmds, options.confirmations)
 	);
 
 	return [...builtInTools, detailTool, ...groupedTools];

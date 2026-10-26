@@ -36,6 +36,23 @@ export type McpTransportType = 'streamable-http' | 'sse' | 'http' | 'direct';
  */
 export type ProtocolMode = 'auto' | 'legacy' | 'modern';
 
+/** A form elicitation a server asks the user to answer (MCP `elicitation/create`). */
+export interface ElicitationRequest {
+	/** The question to show. */
+	message: string;
+	/** JSON Schema of the form: a flat object of primitive properties. */
+	requestedSchema: Record<string, unknown>;
+}
+
+/** The user's answer: `accept` with the form content, `decline` (an explicit no) or `cancel`. */
+export interface ElicitationResponse {
+	action: 'accept' | 'decline' | 'cancel';
+	content?: Record<string, string | number | boolean | string[]>;
+}
+
+/** Answers a server's elicitation, such as a confirmation of a destructive command. */
+export type ElicitationHandler = (request: ElicitationRequest) => Promise<ElicitationResponse>;
+
 /**
  * Client configuration options.
  */
@@ -66,6 +83,15 @@ export interface McpClientConfig {
 	 * @default 'auto'
 	 */
 	protocolMode?: ProtocolMode;
+
+	/**
+	 * Answers servers' form elicitations, such as an AFD server's confirmation of a command with
+	 * `confirmPrompt` (`streamable-http` transport only). With a handler the client declares form
+	 * elicitation and the SDK retries the call with the answer. Without one, a server's
+	 * `input_required` result becomes an `INPUT_REQUIRED` failure whose `data.inputRequests` holds
+	 * what it asked.
+	 */
+	onElicitation?: ElicitationHandler;
 
 	/**
 	 * Registry for `transport: 'direct'`, such as `createDirectRegistry(commands)` from

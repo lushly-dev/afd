@@ -9,6 +9,7 @@ This directory contains the shared API contract for the Todo example. All four b
   not list exactly the commands their backend defines; the C++ backend also validates every
   input against it. The Rust backend has no such check.
 - `test-cases.json`: Conformance test cases used to verify backend implementations.
+- `confirmation-cases.json`: Confirmation enforcement cases (`--suite confirmations`).
 - `README.md`: This file.
 
 ## Conformance Test Cases
@@ -32,6 +33,22 @@ Each `expect` entry maps a dotted path in the `CommandResult` to a value. Paths 
 and read `.length` (`data.todos.0.title`, `data.todos.length`). The value is either the exact
 JSON value expected, or `{ "exists": true }` / `{ "exists": false }` to check that a field is
 present (not `null` or missing) without fixing its value.
+
+## Confirmation Cases
+
+`--suite confirmations` runs `confirmation-cases.json` against a backend started with
+`CONFIRMATIONS=enforce`, where `todo-clear` declares `confirmPrompt`
+([`spec/command-metadata.md`](../../../../spec/command-metadata.md#confirmations)). The runner
+starts one backend per client kind named by a case's `client`: `acknowledge` declares no
+elicitation capability, so the backend must accept `confirm: true`; `accept` and `decline`
+declare form elicitation and answer every confirmation that way. The reset before each case
+acknowledges its `todo-clear`. A case's `then` step is checked after the command, so a refused
+command is shown to have changed nothing.
+
+| Backend | Script | Enforces confirmations |
+|---------|--------|------------------------|
+| TypeScript | `pnpm test:conformance:ts --suite confirmations` | Yes |
+| Python, Rust, C++ | Not yet | Planned (confirmations proposal, phase 3) |
 
 ## Data Types
 

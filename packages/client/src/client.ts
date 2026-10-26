@@ -75,10 +75,11 @@ import type {
 /**
  * Resolved config type where url is always a string (resolved from url or endpoint).
  */
-type ResolvedConfig = Omit<Required<McpClientConfig>, 'url' | 'endpoint' | 'registry'> & {
-	url: string;
-	endpoint?: string;
-};
+type ResolvedConfig = Omit<
+	Required<McpClientConfig>,
+	'url' | 'endpoint' | 'registry' | 'onElicitation'
+> &
+	Pick<McpClientConfig, 'endpoint' | 'onElicitation'> & { url: string };
 
 /** Options for a single `request()` or `callTool()`. */
 export interface RequestOptions {
@@ -179,6 +180,7 @@ export class McpClient extends McpClientEventEmitter {
 			clientName: config.clientName ?? '@lushly-dev/afd-client',
 			clientVersion: config.clientVersion ?? '0.1.0',
 			protocolMode: config.protocolMode ?? 'auto',
+			onElicitation: config.onElicitation,
 			timeout: config.timeout ?? 30000,
 			autoReconnect: config.autoReconnect ?? true,
 			maxReconnectAttempts: config.maxReconnectAttempts ?? 5,
@@ -765,6 +767,7 @@ export class McpClient extends McpClientEventEmitter {
 				clientName: this.config.clientName,
 				clientVersion: this.config.clientVersion,
 				mode: this.config.protocolMode,
+				onElicitation: this.config.onElicitation,
 			});
 		}
 		// SAFETY: the constructor only admits these four, and 'direct' has a registry.

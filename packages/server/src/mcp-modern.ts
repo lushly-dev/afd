@@ -18,15 +18,21 @@
  */
 
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { CommandContext } from '@lushly-dev/afd-core';
 import { toNodeHandler } from '@modelcontextprotocol/node';
 import {
+	CLIENT_CAPABILITIES_META_KEY,
 	createMcpHandler,
+	createRequestStateCodec,
+	inputRequired,
+	inputResponse,
 	type McpRequestContext,
 	ProtocolError,
 	ProtocolErrorCode,
 	Server,
+	type ServerContext,
 	type Transport,
 } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
@@ -35,6 +41,14 @@ import {
 	type ContextState,
 	createContextState,
 } from './bootstrap/afd-context.js';
+import {
+	AFD_CONFIRM_META_KEY,
+	bindConfirmationChannel,
+	CONFIRM_INPUT_KEY,
+	CONFIRM_REQUESTED_SCHEMA,
+	type ConfirmationChannel,
+	InputRequiredSignal,
+} from './confirmations.js';
 import { bindContextState } from './context-scope.js';
 import { requestContextValues } from './request-context.js';
 import type { ContextConfig, CreateRequestContext } from './server-types.js';
@@ -61,6 +75,8 @@ export interface ModernMcpDeps {
 	contexts?: ContextConfig[];
 	/** Freshness hint for `tools/list` and `server/discover` (default: 5 minutes, 0 with contexts). */
 	toolsListTtlMs?: number;
+	/** HMAC key for confirmation `requestState` (default: a random key per process). */
+	confirmationKey?: string | Uint8Array;
 	devMode: boolean;
 	/** Receives unexpected errors from tool handlers and `createContext`. */
 	onError?: (error: Error) => void;
@@ -87,6 +103,16 @@ function reporter(onError: ModernMcpDeps['onError']) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Whether declared client capabilities allow a form elicitation: `elicitation: {}` means form
+ * only; otherwise `form` must be listed.
+ */
+function allowsFormElicitation(capabilities: unknown): boolean {
+	const elicitation = isRecord(capabilities) ? capabilities.elicitation : undefined;
+	if (!isRecord(elicitation)) return false;
+	return Object.keys(elicitation).length === 0 || 'form' in elicitation;
 }
 
 /**
@@ -162,6 +188,62 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 		return state === undefined ? context : bindContextState(context, state);
 	}
 
+	// Confirmation requestState: HMAC-signed, bound to the method and the caller's client id, and
+	// verified in the handler so a stale or altered state is "no confirmation", not an error.
+	const confirmationCodec = createRequestStateCodec<{ b: string }>({
+		key: deps.confirmationKey ?? randomBytes(32),
+		bind: (ctx) => `${ctx.mcpReq.method}\0${ctx.http?.authInfo?.clientId ?? ''}`,
+	});
+
+	/**
+	 * What one `tools/call` can carry for confirmations. A modern request elicits when it declares
+	 * form elicitation; a legacy stdio connection when its client declared it at `initialize` (the
+	 * SDK shim then sends a real elicitation); a legacy HTTP request never (no back channel).
+	 */
+	function confirmationChannelFor(
+		era: McpRequestContext['era'],
+		server: Server,
+		ctx: ServerContext
+	): ConfirmationChannel {
+		const canElicit =
+			era === 'legacy'
+				? !options.requestValues && allowsFormElicitation(server.getClientCapabilities())
+				: allowsFormElicitation(
+						(ctx.mcpReq.envelope as Record<string, unknown> | undefined)?.[
+							CLIENT_CAPABILITIES_META_KEY
+						]
+					);
+		const meta = ctx.mcpReq._meta as Record<string, unknown> | undefined;
+		return {
+			canElicit,
+			acknowledged: meta?.[AFD_CONFIRM_META_KEY] === true,
+			async response(binding) {
+				const view = inputResponse(ctx.mcpReq.inputResponses, CONFIRM_INPUT_KEY);
+				if (view.kind !== 'elicit') return 'missing';
+				const state = ctx.mcpReq.requestState();
+				if (typeof state !== 'string') return 'missing';
+				try {
+					const payload = await confirmationCodec.verify(state, ctx);
+					if (payload?.b !== binding) return 'missing';
+				} catch {
+					return 'missing';
+				}
+				return view.action === 'accept' && view.content?.confirm === true ? 'accept' : 'decline';
+			},
+			async request(message, binding) {
+				return inputRequired({
+					inputRequests: {
+						[CONFIRM_INPUT_KEY]: inputRequired.elicit({
+							message,
+							requestedSchema: CONFIRM_REQUESTED_SCHEMA as never,
+						}),
+					},
+					requestState: await confirmationCodec.mint({ b: binding }, ctx),
+				});
+			},
+		};
+	}
+
 	function internalError(error: unknown): ProtocolError {
 		report(error);
 		return new ProtocolError(
@@ -198,10 +280,14 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			} catch (error) {
 				throw internalError(error);
 			}
-			const context = scoped({ ...values, signal: ctx.mcpReq.signal, interface: 'mcp' }, state);
+			const context = bindConfirmationChannel(
+				scoped({ ...values, signal: ctx.mcpReq.signal, interface: 'mcp' }, state),
+				confirmationChannelFor(era, server, ctx)
+			);
 			try {
 				return { ...(await deps.routeToolCall(name, args ?? {}, context)) } as never;
 			} catch (error) {
+				if (error instanceof InputRequiredSignal) return error.result as never;
 				throw internalError(error);
 			}
 		});

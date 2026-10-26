@@ -19,6 +19,7 @@ import {
 } from '@modelcontextprotocol/client';
 import { raceWithAbort } from './request-abort.js';
 import type { Transport } from './transport.js';
+import type { ElicitationHandler } from './types.js';
 
 /** How the transport negotiates the protocol revision. */
 export type StreamableHttpMode = 'auto' | 'legacy' | 'modern';
@@ -38,6 +39,31 @@ export interface StreamableHttpTransportOptions {
 	clientVersion: string;
 	/** Default `auto`: probe `server/discover`, fall back to `initialize`. */
 	mode?: StreamableHttpMode;
+	/** Answers form elicitations; without it the client declares no elicitation capability. */
+	onElicitation?: ElicitationHandler;
+}
+
+/**
+ * The tool result for an `input_required` answer the client cannot fulfil: an `INPUT_REQUIRED`
+ * failure carrying what the server asked.
+ */
+function inputRequiredResult(result: { inputRequests?: unknown }) {
+	const failure = {
+		success: false,
+		error: {
+			code: 'INPUT_REQUIRED',
+			message: 'The server needs input from the user before it can run this call',
+			suggestion:
+				'Create the client with onElicitation to answer the server, or use a client that supports elicitation',
+			retryable: false,
+		},
+		data: { inputRequests: result.inputRequests ?? {} },
+	};
+	return {
+		content: [{ type: 'text', text: JSON.stringify(failure) }],
+		structuredContent: failure,
+		isError: true,
+	};
 }
 
 export class StreamableHttpTransport implements Transport {
@@ -56,13 +82,25 @@ export class StreamableHttpTransport implements Transport {
 		signal?.throwIfAborted();
 		this.disconnect();
 		const mode = this.options.mode ?? 'auto';
+		const onElicitation = this.options.onElicitation;
 		const client = new Client(
 			{ name: this.options.clientName, version: this.options.clientVersion },
 			{
-				capabilities: {},
+				capabilities: onElicitation ? { elicitation: { form: {} } } : {},
 				versionNegotiation: { mode: mode === 'modern' ? { pin: MODERN_PROTOCOL_VERSION } : mode },
+				// Without a handler, an input_required answer is returned to `send` as is.
+				...(!onElicitation && { inputRequired: { autoFulfill: false } }),
 			}
 		);
+		if (onElicitation) {
+			client.setRequestHandler('elicitation/create', async (request) => {
+				const params = request.params as { message?: string; requestedSchema?: unknown };
+				return (await onElicitation({
+					message: params.message ?? '',
+					requestedSchema: (params.requestedSchema ?? {}) as Record<string, unknown>,
+				})) as never;
+			});
+		}
 		const transport = new SdkHttpTransport(new URL(this.url), {
 			...(this.options.headers && { requestInit: { headers: this.options.headers } }),
 		});
@@ -123,9 +161,14 @@ export class StreamableHttpTransport implements Transport {
 				case 'tools/list':
 					result = await client.listTools(request.params as never, options);
 					break;
-				case 'tools/call':
-					result = await client.callTool(request.params as never, options);
+				case 'tools/call': {
+					const called = (await client.callTool(request.params as never, {
+						...options,
+						...(!this.options.onElicitation && { allowInputRequired: true }),
+					})) as { resultType?: string; inputRequests?: unknown };
+					result = called.resultType === 'input_required' ? inputRequiredResult(called) : called;
 					break;
+				}
 				default:
 					return {
 						jsonrpc: '2.0',

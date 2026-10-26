@@ -376,6 +376,18 @@ const server = createMcpServer({
 });
 ```
 
+### With Confirmations
+
+`confirmations: 'enforce'` gates every command with `confirmPrompt` on the MCP and HTTP
+surfaces: an elicitation when the client supports it, otherwise `CONFIRMATION_REQUIRED` until
+the call is repeated with `confirm: true`. `'require-human'` accepts the elicitation only. Give
+every instance the same `confirmationKey` when several serve one URL. In-process calls are never
+gated. See `spec/command-metadata.md`, "Confirmations".
+
+```typescript
+createMcpServer({ name: 'my-app', version: '1.0.0', commands, confirmations: 'enforce' });
+```
+
 ### With Middleware
 
 ```typescript

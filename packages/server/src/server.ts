@@ -18,6 +18,7 @@ import {
 import { getBootstrapCommands } from './bootstrap/registry.js';
 import { assertValidCommandNames } from './command-names.js';
 import { filterByContext } from './command-routing.js';
+import { createConfirmationGate } from './confirmations.js';
 import { resolveContextState } from './context-scope.js';
 import { createExecutionEngine } from './execution.js';
 import { createHttpHandler } from './http-handler.js';
@@ -144,6 +145,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		contextDefaults: { ...contextDefaults, actor: options.actor ?? { kind: 'agent' } },
 	});
 	const exposedCommandNames = new Set(remoteCommands.map((c) => c.name));
+	const confirmations = createConfirmationGate(options.confirmations ?? 'off', remoteCommands);
 	const mutationNames = new Set(
 		remoteCommands.filter((command) => command.mutation === true).map((command) => command.name)
 	);
@@ -159,6 +161,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		allCommands: remoteCommands,
 		exposedCommandNames,
 		contextState,
+		confirmations,
 	});
 
 	const boundGetToolsList = (context: CommandContext = {}) =>
@@ -167,7 +170,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 			toolStrategy,
 			groupByFn,
 			resolveContextState(context, contextState)?.getActive(),
-			{ outputSchema: options.advertiseOutputSchema }
+			{ outputSchema: options.advertiseOutputSchema, confirmations: confirmations.mode }
 		);
 
 	const modernDeps: ModernMcpDeps = {
@@ -179,6 +182,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		routeToolCall,
 		contexts,
 		toolsListTtlMs: options.toolsListTtlMs,
+		confirmationKey: options.confirmationKey,
 		devMode,
 		onError,
 	};
@@ -205,6 +209,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		executeBatch: remoteEngine.executeBatch,
 		executeStream: remoteEngine.executeStream,
 		isMutation: (commandName) => mutationNames.has(commandName),
+		confirmations,
 		sessions,
 		createContext: options.createContext,
 		onError,

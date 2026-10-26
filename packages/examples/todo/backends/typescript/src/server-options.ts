@@ -47,6 +47,13 @@ export function resolveAllowedOrigins(env: Env): string[] {
 	return [...new Set([...devFrontendOrigins(), ...extra])];
 }
 
+/** The `confirmations` server option from `CONFIRMATIONS` (default `off`). */
+export function resolveConfirmations(env: Env): 'off' | 'enforce' | 'require-human' {
+	const value = env.CONFIRMATIONS ?? 'off';
+	if (value === 'off' || value === 'enforce' || value === 'require-human') return value;
+	throw new Error(`CONFIRMATIONS must be off, enforce or require-human, not "${value}"`);
+}
+
 /**
  * Options for `createMcpServer` (add `transport`) or `createMcpHandler`.
  *
@@ -71,6 +78,7 @@ export function createTodoServerOptions(env: Env): McpHandlerOptions {
 		// not widen which origins are accepted: that is allowedOrigins.
 		cors: true,
 		allowedOrigins: resolveAllowedOrigins(env),
+		confirmations: resolveConfirmations(env),
 
 		// Add logging middleware - verbose in dev mode
 		middleware:

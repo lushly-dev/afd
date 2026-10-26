@@ -94,6 +94,9 @@ export { createTransport, HttpTransport, SseTransport, type Transport } from './
 export type {
 	ClientStatus,
 	ConnectionState,
+	ElicitationHandler,
+	ElicitationRequest,
+	ElicitationResponse,
 	McpClientConfig,
 	McpClientEvents,
 	McpTransportType,

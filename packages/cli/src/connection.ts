@@ -2,9 +2,10 @@
  * @fileoverview Shared CLI connection resolution
  */
 
-import { createClient, type McpClient } from '@lushly-dev/afd-client';
+import { createClient, type ElicitationHandler, type McpClient } from '@lushly-dev/afd-client';
 import { type CliTransport, getConfig } from './config.js';
 import { HEADERS_ENV, redactUrl, resolveHeaders } from './credentials.js';
+import { interactiveElicitation } from './elicitation.js';
 import { printError, printInfo } from './output.js';
 
 let activeClient: McpClient | null = null;
@@ -39,12 +40,18 @@ export interface ClientSettings {
 	timeout: number;
 	autoReconnect: boolean;
 	headers?: Record<string, string>;
+	/** Answers server elicitations (confirmations). */
+	onElicitation?: ElicitationHandler;
 }
 
 /** Create a client; request headers are passed only when there are any. */
 export function createCliClient(settings: ClientSettings): McpClient {
-	const { headers, ...rest } = settings;
-	return createClient(headers && Object.keys(headers).length > 0 ? { ...rest, headers } : rest);
+	const { headers, onElicitation, ...rest } = settings;
+	return createClient({
+		...rest,
+		...(headers && Object.keys(headers).length > 0 && { headers }),
+		...(onElicitation && { onElicitation }),
+	});
 }
 
 /**
@@ -110,6 +117,9 @@ export async function tryConnect(options: ConnectionOptions = {}): Promise<Conne
 		timeout: options.timeout ?? config.timeout ?? 30000,
 		autoReconnect: false,
 		headers: options.headers,
+		// At a terminal, confirmations are asked; otherwise the server's error explains how to
+		// acknowledge, which keeps scripts from hanging on a prompt.
+		onElicitation: interactiveElicitation(),
 	});
 
 	try {
