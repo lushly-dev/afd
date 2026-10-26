@@ -1205,3 +1205,128 @@ def test_is_data_uri_fetch_literal_only() -> None:
 def test_severity_enum_values_stable() -> None:
     assert Severity.ERROR.value == "error"
     assert Severity.WARNING.value == "warning"
+
+
+def _crypto_cmd(imports: str, body: str) -> str:
+    return (
+        f"{imports}\n"
+        "export const c = defineCommand({\n"
+        "  name: 'todo-create',\n"
+        "  async handler(input, context) {\n"
+        f"    {body}\n"
+        "    return success({});\n"
+        "  },\n"
+        "});\n"
+    )
+
+
+@pytest.mark.parametrize("module", ["node:crypto", "crypto"])
+@pytest.mark.parametrize(
+    ("imports", "body", "name"),
+    [
+        ("import { randomUUID } from '%s';", "const id = randomUUID();", "randomUUID()"),
+        ("import { randomBytes } from '%s';", "const b = randomBytes(8);", "randomBytes()"),
+        ("import { randomInt } from '%s';", "const n = randomInt(10);", "randomInt()"),
+        ("import { randomUUID as uuid } from '%s';", "const id = uuid();", "randomUUID()"),
+        (
+            "import { createHash, type X, randomInt\n  as roll } from \"%s\";",
+            "const n = roll(5);",
+            "randomInt()",
+        ),
+        ("import * as c from '%s';", "const id = c.randomUUID();", "c.randomUUID()"),
+        ("import nc from '%s';", "const b = nc . randomBytes(4);", "nc.randomBytes()"),
+    ],
+)
+def test_ambient_random_from_crypto_import_flagged(
+    tmp_dir: Path, module: str, imports: str, body: str, name: str
+) -> None:
+    _write(tmp_dir, _CMD, _crypto_cmd(imports % module, body))
+    issues = _ambient(AFDLinter().lint(tmp_dir))
+    assert [(rule, msg) for _, rule, msg in issues] == [
+        ("afd-no-ambient-random", f"Ambient {name} in command handler")
+    ]
+
+
+def test_crypto_random_import_outside_handler_not_flagged(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        _CMD,
+        "import { randomUUID } from 'node:crypto';\n"
+        "const boot = randomUUID();\n"
+        "export const c = defineCommand({\n"
+        "  name: 'todo-create',\n"
+        "  handler: run,\n"
+        "});\n"
+        "function run() { return success({ id: randomUUID() }); }\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == []
+
+
+@pytest.mark.parametrize(
+    ("imports", "body"),
+    [
+        # Same name, but not imported from crypto.
+        ("function randomUUID() { return 'x'; }", "const id = randomUUID();"),
+        ("import { randomUUID } from './ids';", "const id = randomUUID();"),
+        ("import { randomUUID } from 'uuid';", "const id = randomUUID();"),
+        # Imported from crypto, but a different export or a member call.
+        ("import { createHash } from 'node:crypto';", "const h = createHash('sha1');"),
+        ("import { randomUUID } from 'node:crypto';", "const id = ids.randomUUID();"),
+        ("import { randomUUID as uuid } from 'node:crypto';", "const id = randomUUID();"),
+        ("import * as c from 'node:crypto';", "const h = c.createHash('sha1');"),
+        ("import * as c from './ids';", "const id = c.randomUUID();"),
+        # Commented-out or quoted import.
+        ("// import { randomUUID } from 'node:crypto';", "const id = randomUUID();"),
+        ("const s = \"import { randomUUID } from 'node:crypto'\";", "const id = randomUUID();"),
+        # Type-only imports bring no runtime value.
+        ("import type { randomUUID } from 'node:crypto';", "const id = randomUUID();"),
+        ("import { type randomUUID } from 'node:crypto';", "const id = randomUUID();"),
+    ],
+)
+def test_crypto_random_lookalikes_not_flagged(tmp_dir: Path, imports: str, body: str) -> None:
+    _write(tmp_dir, _CMD, _crypto_cmd(imports, body))
+    assert _ambient(AFDLinter().lint(tmp_dir)) == []
+
+
+def test_crypto_namespace_named_crypto_flagged_once(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        _CMD,
+        _crypto_cmd("import * as crypto from 'node:crypto';", "const id = crypto.randomUUID();"),
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == [
+        (5, "afd-no-ambient-random", "Ambient crypto.randomUUID() in command handler"),
+    ]
+
+
+def test_crypto_name_imported_from_both_specifiers_reported_once(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        _CMD,
+        _crypto_cmd(
+            "import { randomUUID } from 'crypto';\nimport { randomUUID } from 'node:crypto';",
+            "const id = randomUUID();",
+        ),
+    )
+    assert len(_ambient(AFDLinter().lint(tmp_dir))) == 1
+
+
+def test_crypto_default_and_named_import_together(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        _CMD,
+        _crypto_cmd("import nc, { randomInt } from 'node:crypto';", "const n = randomInt(3) + nc.randomInt(3);"),
+    )
+    assert [m for _, _, m in _ambient(AFDLinter().lint(tmp_dir))] == [
+        "Ambient nc.randomInt() in command handler",
+        "Ambient randomInt() in command handler",
+    ]
+
+
+def test_crypto_import_scan_is_linear_on_long_whitespace(tmp_dir: Path) -> None:
+    import time
+
+    _write(tmp_dir, _CMD, _crypto_cmd("import a" + " " * 20000 + "\n", "const x = 1;"))
+    start = time.perf_counter()
+    AFDLinter().lint(tmp_dir)
+    assert time.perf_counter() - start < 2

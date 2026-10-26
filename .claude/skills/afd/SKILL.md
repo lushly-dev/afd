@@ -134,6 +134,7 @@ return error('NOT_FOUND', `Item ${id} not found`, {
 | Error response | `error(code, message, { suggestion })` |
 | Test via CLI | `afd call <command> '<json>'` |
 | List commands | `afd tools` |
+| Replay a journal (CI regression check) | `afd replay session.jsonl --module ./dist/registry.js` |
 | Rich command metadata | Add `output` / `output_schema`, `requires`, `contexts`, and `examples` |
 | Large command surfaces | Use `individual`, `grouped`, or `lazy` tool strategies |
 | Lazy agent workflow | `afd-discover -> afd-detail -> afd-call` |
