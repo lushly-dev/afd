@@ -10,16 +10,19 @@ Handler scope is heuristic, per language:
   ``@<x>.command(...)`` taking a description (``@server.command``,
   ``@registry.command``) or with ``@define_command(...)``, and the ``handler=``
   of a ``CommandDefinition(...)`` call when it is a lambda or a function
-  defined in the same file. A call counts only when its root name was
-  imported (``import time``, ``from datetime import datetime``), so a
-  parameter named ``random`` is not mistaken for the module.
+  defined in the same file (``handler=self.create`` resolves to a method named
+  ``create``). A call counts only when its root name was imported
+  (``import time``, ``from datetime import datetime``) and is not one of the
+  handler's own parameters, so a parameter named ``random`` is not mistaken
+  for the module. Nested functions inside a handler are checked too.
 - **Rust**: the bodies of ``impl CommandHandler for ...`` blocks, free ``fn``
   items (outside any ``impl``) whose parameters name ``CommandContext``, and
   closures with a ``CommandContext``-typed parameter. Methods of other
-  ``impl`` blocks that take a context (a registry's own batch code) are not
-  handlers and are skipped.
-- **C++**: lambdas and functions whose parameters name ``CommandContext``
-  (the ``CommandHandler`` signature).
+  ``impl`` blocks are skipped, so a registry's own batch code is not flagged;
+  the cost is a false negative for a handler written as a method of a plain
+  ``impl`` and registered through a wrapper, and for untyped closures.
+- **C++**: lambdas, functions and ``operator()`` whose parameters name
+  ``CommandContext`` (the ``CommandHandler`` signature).
 
 In Rust and C++, a parameter list that also names a ``Next`` type is
 middleware and is skipped. The Rust and C++ scans are lexical: strings,
@@ -52,7 +55,9 @@ _PY_TIME_CALLS = frozenset({
     "datetime.date.today",
 })
 _PY_RANDOM_CALLS = frozenset({"uuid.uuid1", "uuid.uuid4", "os.urandom"})
-_PY_RANDOM_MODULES = ("random.", "secrets.")
+_PY_RANDOM_MODULES = ("random.",)
+# `secrets` generators only; `secrets.compare_digest` is deterministic.
+_PY_SECRETS_RE = re.compile(r"secrets\.(?:token_\w+|randbelow|randbits|choice|SystemRandom)$")
 
 
 def python_ambient_calls(content: str) -> list[Finding]:
@@ -69,11 +74,13 @@ def python_ambient_calls(content: str) -> list[Finding]:
     found: dict[tuple[int, int], Finding] = {}
     for handler in _python_handlers(tree):
         body = handler.body if isinstance(handler.body, list) else [handler.body]
+        params = {a.arg for a in ast.walk(handler.args) if isinstance(a, ast.arg)}
+        local = {k: v for k, v in aliases.items() if k not in params}
         for stmt in body:
             for node in ast.walk(stmt):
                 if not isinstance(node, ast.Call):
                     continue
-                kind = _python_call_kind(node, aliases)
+                kind = _python_call_kind(node, local)
                 if kind:
                     name = f"{ast.unparse(node.func)}()"
                     found[(node.lineno, node.col_offset)] = (node.lineno, kind, name)
@@ -115,7 +122,7 @@ def _python_call_kind(node: ast.Call, aliases: dict[str, str]) -> str | None:
         return None
     if qualified in _PY_TIME_CALLS:
         return _TIME
-    if qualified in _PY_RANDOM_CALLS:
+    if qualified in _PY_RANDOM_CALLS or _PY_SECRETS_RE.match(qualified):
         return _RANDOM
     if qualified.startswith(_PY_RANDOM_MODULES):
         # `random.Random(seed)` is a seeded generator, which is deterministic.
@@ -161,6 +168,8 @@ def _python_handlers(tree: ast.Module) -> Iterator[ast.FunctionDef | ast.AsyncFu
                 yield keyword.value
             elif isinstance(keyword.value, ast.Name):
                 referenced.add(keyword.value.id)
+            elif isinstance(keyword.value, ast.Attribute):
+                referenced.add(keyword.value.attr)  # self.create, handlers.create
     for function in functions:
         if function.name in referenced:
             yield function
@@ -522,14 +531,18 @@ def _expression_end(masked: str, start: int) -> int:
 def _cpp_handler_spans(masked: str) -> list[tuple[int, int]]:
     spans: list[tuple[int, int]] = []
     seen: set[int] = set()
+    examined_until = -1  # end of the last parameter list looked at
     for match in _CONTEXT_RE.finditer(masked):
+        if match.start() < examined_until:
+            continue
         open_idx = _enclosing_paren(masked, match.start())
         if open_idx is None or open_idx in seen:
             continue
         seen.add(open_idx)
+        close = _match_close(masked, open_idx)
+        examined_until = close
         if not _cpp_callable_paren(masked, open_idx):
             continue
-        close = _match_close(masked, open_idx)
         if not _is_handler_params(masked[open_idx:close]):
             continue
         body = _body_after(masked, close + 1, ";,)}]=")
@@ -538,10 +551,15 @@ def _cpp_handler_spans(masked: str) -> list[tuple[int, int]]:
     return spans
 
 
+# How far back to look for a parameter list's ``(``. Bounds the scan on
+# generated or minified sources with many ``CommandContext`` mentions.
+_MAX_PARAMS_LOOKBACK = 2000
+
+
 def _enclosing_paren(masked: str, k: int) -> int | None:
     """Index of the unclosed ``(`` around ``k``, stopping at a brace or ``;``."""
     depth = 0
-    for j in range(k - 1, -1, -1):
+    for j in range(k - 1, max(k - 1 - _MAX_PARAMS_LOOKBACK, -1), -1):
         ch = masked[j]
         if ch in ")]":
             depth += 1
@@ -563,6 +581,8 @@ def _cpp_callable_paren(masked: str, open_idx: int) -> bool:
         return False
     if masked[j] in "]>":
         return True  # a lambda, or a template lambda / function template
+    if masked[j] == ")" and re.search(r"\boperator\s*\(\s*\)$", masked[max(j - 40, 0) : j + 1]):
+        return True  # a functor's call operator
     if not (masked[j].isalnum() or masked[j] == "_"):
         return False
     start = j

@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from afd.lushx_ext.ambient import mask_c_like
+from afd.lushx_ext.ambient import cpp_ambient_calls, mask_c_like
 from afd.lushx_ext.linters import (
     AFDLinter,
     Severity,
@@ -846,6 +846,33 @@ def test_ambient_python_negatives_not_flagged(tmp_dir: Path) -> None:
     assert _ambient(AFDLinter().lint(tmp_dir)) == []
 
 
+def test_ambient_python_review_cases(tmp_dir: Path) -> None:
+    """Shadowing parameters, deterministic secrets, method and nested handlers."""
+    _write(
+        tmp_dir,
+        _PY_CMD,
+        "import secrets\n"
+        "import time\n"
+        "@registry.command('a-get', description='d')\n"
+        "def shadowed(i, time):\n"
+        "    return secrets.compare_digest(i.a, i.b) and time.time()\n"
+        "@server.command(name='a-list', description='d')\n"
+        "async def nested(i):\n"
+        "    def stamp():\n"
+        "        return time.time()\n"
+        "    return stamp()\n"
+        "class Commands:\n"
+        "    def create(self, i, context):\n"
+        "        return secrets.token_hex(8)\n"
+        "    def defs(self):\n"
+        "        return [CommandDefinition(name='a-create', description='d', handler=self.create)]\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == [
+        (9, "afd-no-ambient-time", "Ambient time.time() in command handler"),
+        (13, "afd-no-ambient-random", "Ambient secrets.token_hex() in command handler"),
+    ]
+
+
 def test_ambient_python_seeded_random_class_not_flagged(tmp_dir: Path) -> None:
     _write(
         tmp_dir,
@@ -995,6 +1022,31 @@ def test_ambient_cpp_function_and_designated_initializer_flagged(tmp_dir: Path) 
         (2, "afd-no-ambient-time", "Ambient std::time() in command handler"),
         (6, "afd-no-ambient-random", "Ambient std::rand() in command handler"),
     ]
+
+
+def test_ambient_cpp_functor_flagged(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        _CPP_CMD,
+        "struct Create {\n"
+        "    afd::CommandResult operator()(const afd::Json& in, afd::CommandContext& ctx) const {\n"
+        "        return afd::success(rand());\n"
+        "    }\n"
+        "};\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == [
+        (3, "afd-no-ambient-random", "Ambient std::rand() in command handler"),
+    ]
+
+
+def test_ambient_cpp_many_context_mentions_stay_linear() -> None:
+    import time as clock
+
+    source = "void f(" + "CommandContext&, " * 20000 + "int x) { std::rand(); }\n"
+    source += "int a = ((((((" + "CommandContext " * 20000 + ";\n"
+    started = clock.perf_counter()
+    assert cpp_ambient_calls(source) == [(1, "random", "std::rand()")]
+    assert clock.perf_counter() - started < 5
 
 
 def test_ambient_cpp_negatives_not_flagged(tmp_dir: Path) -> None:
