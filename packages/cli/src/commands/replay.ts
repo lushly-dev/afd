@@ -135,8 +135,10 @@ type ServerModule = typeof import('@lushly-dev/afd-server');
 
 /**
  * The `@lushly-dev/afd-server` the module at `modulePath` would import, falling back to the
- * CLI's own copy. Replay must use the same copy as the registry: its journal middleware only
- * recognizes a replay marked by that copy, and otherwise records the replayed calls.
+ * CLI's own copy. Since #441 every copy shares the replay marker (a registered symbol), so any
+ * copy's `replayJournal()` works; using the registry's copy is a fallback for a project still on
+ * an afd-server whose marker was private to its copy, whose journal middleware would otherwise
+ * record the replayed calls.
  */
 export async function importServerFor(modulePath: string): Promise<ServerModule> {
 	let dir = dirname(resolve(modulePath));

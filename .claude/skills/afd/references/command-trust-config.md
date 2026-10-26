@@ -53,6 +53,7 @@ createMcpServer({
 A gated call fails with `APPROVAL_REQUIRED` before the handler runs; `error.details` has `approvalToken`, `expiresAt` and `summary`. After the human approves, retry the same command, input and actor with `context.approval` set to the token. Tokens are HMAC-signed, expire (5 minutes by default) and work once by default.
 
 - Only trusted surface code sets `context.approval`, never tool arguments. When the agent being gated receives the result, use `includeToken: false` and deliver the token to the human through `onApprovalRequired`.
+- `afd call <command> <input> --module <path>` runs the approval flow in-process: it shows the summary and expiry, prompts on a terminal, and retries with the issued token on yes; `--approve` approves without the prompt for scripts. Over MCP the CLI cannot deliver the token (no trusted channel yet), so it prints `APPROVAL_REQUIRED` unchanged.
 - The policy is reported as `_meta.approval` (`required`, `not-required` or `conditional`). `afd validate` warns about `mutation` or `destructive` commands without one; declare `'not-required'` to record that none is needed.
 - A policy function fails closed: anything but `'not-required'` holds the call. Write it so that a call with no actor is held.
 - Pass the middleware the same `commands` as the server: an unlisted command is never held. Single-use tracking is per middleware instance unless you share a `nonceStore`.
