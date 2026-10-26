@@ -348,6 +348,30 @@ limit = create_rate_limit_middleware(
 )
 ```
 
+### Command Journal
+
+Record each call to a JSON Lines journal and replay it later to reproduce a session or
+turn it into a regression test (`spec/journal.md`). Put the journal middleware last, so its
+tape holds the clock and random values the handler read. An entry keeps the actor, the
+interface and the trace ID from the context, and no other context value.
+
+```python
+from pathlib import Path
+
+from afd import FileJournalSink, parse_journal
+from afd.server import create_journal_middleware, create_server, replay_journal
+
+sink = FileJournalSink("session.jsonl")
+server = create_server(name="todo-app", middleware=[create_journal_middleware(sink)])
+
+# Later, against a fresh server with the same commands:
+entries = parse_journal(Path("session.jsonl").read_text(encoding="utf-8"))
+report = await replay_journal(fresh_server, entries)
+for entry in report.entries:
+    if entry.status != "same":
+        print(entry.seq, entry.command, entry.status, entry.differences or entry.error)
+```
+
 ## MCP Client (Network)
 
 Connect to remote MCP servers. A URL that does not end in `/sse` or `/message` uses MCP Streamable HTTP through the official MCP SDK client: MCP 2026-07-28 when the server offers it, else the 2025 `initialize` handshake (`McpClientConfig.protocol_mode`: `"auto"`, `"legacy"` or `"modern"`). The `sse` and `http` transports of an AFD server's 2024-11-05 lane are deprecated.

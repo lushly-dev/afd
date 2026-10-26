@@ -4,8 +4,10 @@ A journal is an ordered, append-only record of executed commands. It is used to 
 agent session, to turn a recorded session into a regression test, and to audit who ran what, in
 what order and with what result. The golden fixture is [`wire/journal.jsonl`](./wire/journal.jsonl).
 
-TypeScript (#273) and C++ (#427) implement it. Python and Rust do not yet; their parity is
-tracked in follow-up issues.
+TypeScript (#273), Python (#425), Rust (#426) and C++ (#427) implement it. Rust records with
+a registry-level recorder (`CommandRegistry::set_journal`) instead of a middleware: Rust
+middleware cannot change the context the handler sees, so the recorder sits after validation
+and outside every middleware, and its tape holds what the middleware read as well.
 
 ## File format
 
@@ -55,8 +57,8 @@ between languages.
 
 Inputs and results are recorded as they are. A command that takes or returns a secret (a password
 argument, an issued token) must be filtered out or redacted by the recorder. The TypeScript
-middleware skips commands named `auth-*` by default and has `filter` and `redact` options for the
-rest. When a secret is derived from `context.random`, the redaction must drop the tape too: its
+and Python middleware skip commands named `auth-*` by default and have `filter` and `redact`
+options for the rest. When a secret is derived from `context.random`, the redaction must drop the tape too: its
 random values would rebuild the secret.
 
 ### Tape: clock and random

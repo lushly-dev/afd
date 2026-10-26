@@ -220,6 +220,15 @@ assert_eq!(request.steps[1].alias, None);
   the message `An internal error occurred`, as TypeScript does for a thrown exception outside
   `devMode`. The panic payload is never included, and the registry has no dev mode that would show
   it. The panic is caught with `catch_unwind`, so a build with `panic = "abort"` still aborts.
+- **Journal and replay.** `registry.set_journal(JournalRecorder::new(sink))` appends a
+  `JournalEntry` for each accepted call (`spec/journal.md`): the validated input, the actor, trace ID
+  and interface, a context hash (never other context values), the result and the tape of clock and
+  random values read. It runs after validation and around the middleware chain, records successes
+  only unless `with_record_failures(true)`, and skips `auth-*` commands unless `with_filter` allows
+  them. Sinks: `MemoryJournalSink` and `FileJournalSink` (JSON Lines). `parse_journal` and
+  `serialize_journal` read and write the format TypeScript writes, and
+  `replay_journal(&registry, &entries, options)` re-runs entries with their tapes restored and
+  reports each as `same`, `different` (with paths) or `error`.
 
 For the complete required subset of [`spec/validation.md`](../../spec/validation.md), use
 `registry.register_with_schema(command, schema)` with a `serde_json::Value` schema. It supports
@@ -328,6 +337,9 @@ async fn main() {
   [`web-time`](https://crates.io/crates/web-time), because `std::time::Instant::now()` traps on that
   target. Build with `--no-default-features --features wasm`; CI runs
   `cargo check --target wasm32-unknown-unknown --no-default-features --features wasm`.
+- `journal-file` (default) - `FileJournalSink`, a command journal in a JSON Lines file, through
+  blocking `std::fs`. The rest of the journal (entries, `MemoryJournalSink`, recording, replay) is in
+  every build, WebAssembly included.
 - `server` - An MCP server for a `CommandRegistry` (`afd::server::McpServer`), built on the official
   MCP Rust SDK ([`rmcp`](https://crates.io/crates/rmcp)). One Streamable HTTP endpoint
   (`streamable_http_service`, a `tower` service to mount at `/mcp`) or one stdio connection

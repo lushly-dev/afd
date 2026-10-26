@@ -239,6 +239,9 @@ def register_commands(server: MCPServer, store: MemoryStore) -> None:
         input_schema=ClearTodosInput,
         tags=["todo", "clear", "write", "batch", "destructive"],
         mutation=True,
+        destructive=True,
+        # Enforced when the server runs with CONFIRMATIONS=enforce (spec/confirmation-cases.json).
+        confirm_prompt="Delete these todos? This cannot be undone.",
         expose=MCP,
     )
     async def clear_todos(input: ClearTodosInput) -> CommandResult[Dict[str, int]]:

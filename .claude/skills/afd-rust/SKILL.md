@@ -335,6 +335,25 @@ let result = registry.execute(
 `CommandDefinition::execute` calls the handler directly and skips all of these checks; call
 commands through the registry.
 
+### Journal and replay
+
+```rust
+use afd::{parse_journal, replay_journal, JournalRecorder, MemoryJournalSink, ReplayJournalOptions};
+
+// Record each accepted call (after validation, around the middleware chain). Not a middleware:
+// Rust middleware cannot swap the clock and random source the handler sees.
+let journal = Arc::new(MemoryJournalSink::new()); // or FileJournalSink (`journal-file` feature)
+registry.set_journal(JournalRecorder::new(journal.clone()).with_record_failures(true));
+
+// Replay against a fresh registry with the same middleware; tapes restore clock and random.
+let report = replay_journal(&fresh, &journal.entries(), ReplayJournalOptions::default()).await;
+assert!(!report.diverged);
+```
+
+Entries keep only the actor, interface and trace ID from the context (plus a hash of the other key
+names). `parse_journal`/`serialize_journal` read and write `spec/journal.md` JSON Lines; compare with
+TypeScript output as JSON values, since object key order differs.
+
 ## Batch Execution
 
 ```rust
@@ -452,6 +471,7 @@ let app = axum::Router::new().route_service("/mcp", server.streamable_http_servi
 - `with_instructions` sets the `server/discover` guidance; `with_tools_list_ttl_ms` the `tools/list` freshness hint.
 - Every tool call runs with actor `agent` (reported as `metadata.actorKind`); `with_actor`, `with_clock` and `with_random` override the actor, clock and random source on its context.
 - `HttpOptions` sets accepted `Host` names, browser `Origin`s (any other `Origin` is refused) and the body cap.
+- `with_confirmations(ConfirmationMode::Enforce)` gates commands with `confirm_prompt`: an elicitation when the client supports it, otherwise `CONFIRMATION_REQUIRED` until the call carries `confirm: true`. `RequireHuman` accepts the elicitation only; `with_confirmations_key` shares the `requestState` key across instances.
 - Individual tool strategy only; grouped and lazy strategies, meta-tools, bootstrap and contexts are parity D1 follow-ups.
 
 ## Metadata Types
@@ -746,6 +766,8 @@ tokio-test = "0.4"
   application provides the runtime. Without it, deadlines return `UNSUPPORTED_OPTION`.
 - `wasm`: `wasm32-unknown-unknown` (browsers), using `web-time` for durations. Build with
   `--no-default-features --features wasm`.
+- `journal-file` (default): `FileJournalSink` (blocking `std::fs`). Everything else in the journal
+  works without it.
 
 ```rust
 // Check compilation mode

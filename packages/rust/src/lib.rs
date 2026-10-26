@@ -41,6 +41,8 @@
 //!   provides the runtime)
 //! - `wasm`: browser WebAssembly (`wasm32-unknown-unknown`), measuring
 //!   durations with `web-time`
+//! - `journal-file` (default): [`FileJournalSink`], a command journal in a
+//!   JSON Lines file (`std::fs`)
 
 /// Compiles and runs the README examples as doctests.
 #[doc = include_str!("../README.md")]
@@ -57,6 +59,7 @@ pub mod commands;
 pub mod connectors;
 pub mod errors;
 pub mod handoff;
+pub mod journal;
 pub mod mcp;
 pub mod metadata;
 pub mod pipeline;
@@ -234,6 +237,20 @@ pub use handoff::{
     is_handoff_command, is_handoff_expired, is_handoff_protocol, is_reconnect_policy,
     CreateHandoffOptions, HandoffCommandLike, HandoffCredentials, HandoffMetadata, HandoffProtocol,
     HandoffResult, ReconnectPolicy,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RE-EXPORTS: Command journal
+// ═══════════════════════════════════════════════════════════════════════════════
+
+#[cfg(feature = "journal-file")]
+#[cfg_attr(docsrs, doc(cfg(feature = "journal-file")))]
+pub use journal::FileJournalSink;
+pub use journal::{
+    create_context_digest, is_journal_entry, journal_actor, parse_journal, replay_journal,
+    serialize_journal, serialize_journal_entry, JournalContextDigest, JournalEntry, JournalRange,
+    JournalRecord, JournalRecorder, JournalSink, JournalTape, MemoryJournalSink, ReplayDifference,
+    ReplayDifferenceKind, ReplayEntryReport, ReplayJournalOptions, ReplayReport, ReplayStatus,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
