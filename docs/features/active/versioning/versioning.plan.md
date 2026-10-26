@@ -133,9 +133,8 @@ Future versions follow the `do-release` skill.
 Steps marked **(admin)** need a repository or npm owner. They change security settings, so an agent should not do them.
 
 1. **(admin) npm authentication.**
-   - Move to npm trusted publishing (OIDC). `release.yml` already requests `id-token: write` and provenance.
-   - Configure each of the 9 packages on npmjs.com to trust `lushly-dev/afd` → `release.yml`, then remove `NODE_AUTH_TOKEN`.
-   - Fallback: a new granular token with publish rights to `@lushly-dev`.
+   - Done: npm trusted publishing (OIDC) is configured. `release.yml` requests `id-token: write` and provenance, and each of the 9 packages trusts `lushly-dev/afd` → `release.yml`. The 2.0.0 and 2.1.0 uploads used it.
+   - Done: `NODE_AUTH_TOKEN` is removed from `release.yml`. There is no token fallback.
 2. **(admin) GitHub.** Under Settings → Actions → General → Workflow permissions, allow GitHub Actions to create and approve pull requests. Alternatively, give `changesets/action` a GitHub App token.
 3. **Publish 2.0.0.**
    - Re-run the failed Release run for `b4a94e6` (2026-09-24, run `35950563235`).
