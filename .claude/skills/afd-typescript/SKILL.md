@@ -376,6 +376,18 @@ const server = createMcpServer({
 });
 ```
 
+### With Confirmations
+
+`confirmations: 'enforce'` gates every command with `confirmPrompt` on the MCP and HTTP
+surfaces: an elicitation when the client supports it, otherwise `CONFIRMATION_REQUIRED` until
+the call is repeated with `confirm: true`. `'require-human'` accepts the elicitation only. Give
+every instance the same `confirmationKey` when several serve one URL. In-process calls are never
+gated. See `spec/command-metadata.md`, "Confirmations".
+
+```typescript
+createMcpServer({ name: 'my-app', version: '1.0.0', commands, confirmations: 'enforce' });
+```
+
 ### With Middleware
 
 ```typescript
@@ -411,6 +423,17 @@ const server2 = createMcpServer({
 ### Approval Gate
 
 Declare `approval: 'required'` (or `'not-required'`, or a function of input and context) on `defineCommand`, and install `createApprovalMiddleware({ secret, commands })` after any auth middleware. A gated call returns `APPROVAL_REQUIRED` with `details.approvalToken` before the handler runs; retry with `context.approval` set to it once a human approved. See the afd skill's `references/command-trust-config.md`.
+
+### Recording and Replaying Sessions
+
+`createJournalMiddleware(sink)` (last in the list) records accepted calls with a tape of the
+`context.clock` / `context.random` values the handler read; `replayJournal(server, entries)`
+re-runs them against a fresh server and reports `same`, `different` (with a diff) or `error` per
+entry. Handlers must read time and randomness from the context for replay to match. Sinks:
+`MemoryJournalSink` (core) and `FileJournalSink` (`@lushly-dev/afd-core/journal-file`, JSON Lines).
+Journals never store context values beyond actor, interface and trace ID. `auth-*` commands are
+skipped by default; use `redact` for other secret inputs or results (and drop `tape` when the
+secret comes from `context.random`). Replay against a server with the same middleware. Format: `spec/journal.md`.
 
 ## Command Registry Pattern
 

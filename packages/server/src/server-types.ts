@@ -166,6 +166,31 @@ export interface McpServerOptions {
 	advertiseOutputSchema?: boolean;
 
 	/**
+	 * Enforce `confirmPrompt` on the MCP and HTTP surfaces (`spec/command-metadata.md`,
+	 * "Confirmations"). A call that reaches a command with `confirmPrompt` then runs only with a
+	 * confirmation:
+	 *
+	 * - `"off"`: no enforcement (the default).
+	 * - `"enforce"`: an accepted MCP elicitation, when the client can show one, or an
+	 *   acknowledgement (`confirm: true`, or `_meta["dev.afd/confirm"]`). An agent can send an
+	 *   acknowledgement on its own, so it is a deliberate second call, not the user's consent.
+	 * - `"require-human"`: an accepted elicitation only.
+	 *
+	 * Otherwise the call fails with `CONFIRMATION_REQUIRED` or `CONFIRMATION_DECLINED` before the
+	 * handler runs. In-process calls (`server.execute`, DirectClient) are never gated.
+	 *
+	 * @default 'off'
+	 */
+	confirmations?: 'off' | 'enforce' | 'require-human';
+
+	/**
+	 * HMAC key (at least 32 bytes) that signs the `requestState` of confirmation elicitations. Every
+	 * instance that may receive a retry needs the same key. Without it, each process uses a random
+	 * key, which works only when one process serves every request.
+	 */
+	confirmationKey?: string | Uint8Array;
+
+	/**
 	 * Transport protocol to use.
 	 *
 	 * - `"stdio"`: Standard input/output for IDE/agent integration (Cursor, Claude Code, Antigravity)

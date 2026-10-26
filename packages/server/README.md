@@ -314,6 +314,37 @@ const formatDoc = defineCommand({
 
 Commands without `contexts` are universal (always visible). See "Context Management" below for server-level context configuration.
 
+### Command that asks for confirmation
+
+A command with `confirmPrompt` can be gated on the server's MCP and HTTP surfaces with the
+`confirmations` option ([`spec/command-metadata.md`](../../spec/command-metadata.md#confirmations)):
+
+```typescript
+const clearTodos = defineCommand({
+  name: 'todo-clear',
+  description: 'Delete every todo',
+  mutation: true,
+  destructive: true,
+  confirmPrompt: 'Delete every todo? This cannot be undone.',
+  input: z.object({}),
+  async handler() { ... },
+});
+
+createMcpServer({ name: 'todo', version: '1.0.0', commands: [clearTodos], confirmations: 'enforce' });
+```
+
+- **An MCP client that supports elicitation** is asked `confirmPrompt` through an
+  `input_required` result, and the command runs only if the user accepts. A decline gives
+  `CONFIRMATION_DECLINED`.
+- **Any other caller** gets `CONFIRMATION_REQUIRED` until it repeats the call with
+  `confirm: true` (on `afd-batch` and `afd-pipe`, `confirm: ['todo-clear']`; on the HTTP
+  routes, the `Afd-Confirm: todo-clear` header). That acknowledgement comes from the agent, not
+  the user. `confirmations: 'require-human'` refuses it and accepts only an elicitation.
+- **Several instances** behind one URL need the same `confirmationKey` (32 bytes or more), which
+  signs the confirmation's `requestState`.
+
+`server.execute()` and DirectClient calls are never gated.
+
 
 ## Server Configuration
 
@@ -524,6 +555,34 @@ To resume, retry the same command with the same input and `context.approval` set
 - `afd validate` warns (`MISSING_APPROVAL_POLICY`) about `mutation` or `destructive` commands that declare no policy. Declare `approval: 'not-required'` to say a command was considered and needs none.
 
 `spec/command-metadata.md` ("Approvals") is the cross-language contract. The CLI, MCP and DirectClient approval flows are follow-ups (#417, #418, #419).
+
+### Command Journal and Replay
+
+`createJournalMiddleware(sink)` records each accepted call (validation and lookup rejections never reach middleware) as a `JournalEntry`: command, validated input, actor, trace ID, a context digest, the result and the duration. Context values outside the allowlist (actor, interface, trace ID) are never stored, so auth sessions and tokens stay out of the journal. Each entry also holds a tape of the values the handler read from `context.clock` and `context.random`. Failures are recorded only with `recordFailures: true`. Commands named `auth-*` are skipped by default; `filter` and `redact` keep other secret inputs or results out (drop `tape` as well when a secret comes from `context.random`). Put it last in the middleware list.
+
+`replayJournal(registry, entries)` re-runs the entries in order against a fresh server or registry, feeds each call its recorded clock and random values, and reports every entry as `same`, `different` (with a structural diff) or `error`. Replay against a server with the same middleware: the journal middleware in it lines the tape up with the handler and records nothing during replay. It reports divergence; it does not make other nondeterminism go away. The format is specified in [`spec/journal.md`](../../spec/journal.md).
+
+```typescript
+import { readFileSync } from 'node:fs';
+import { parseJournal } from '@lushly-dev/afd-core';
+import { FileJournalSink } from '@lushly-dev/afd-core/journal-file';
+import { createJournalMiddleware, createMcpServer, replayJournal } from '@lushly-dev/afd-server';
+
+// Record
+const server = createMcpServer({
+  name: 'todo',
+  version: '1.0.0',
+  commands,
+  middleware: [createJournalMiddleware(new FileJournalSink('./session.jsonl'))],
+});
+
+// Later: replay against a fresh build
+const entries = parseJournal(readFileSync('./session.jsonl', 'utf8'));
+const report = await replayJournal(createMcpServer({ name: 'todo', version: '2.0.0', commands }), entries);
+for (const entry of report.entries.filter((e) => e.status !== 'same')) {
+  console.log(entry.seq, entry.command, entry.status, entry.differences ?? entry.error);
+}
+```
 
 ### Custom Middleware
 

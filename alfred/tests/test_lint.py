@@ -203,3 +203,46 @@ async def test_lint_flags_ambient_time_and_random_in_handlers(tmp_dir):
     assert gated.data["passed"] is False
     assert gated.data["error_count"] == 1
     assert gated.data["suppressed"]["by_rule"] == {"afd-no-ambient-random": 1}
+
+
+@pytest.mark.asyncio
+async def test_lint_flags_ambient_calls_in_python_rust_and_cpp_handlers(tmp_dir):
+    (tmp_dir / "todo.py").write_text(
+        "import time\n"
+        "STARTED = time.time()\n"
+        "@server.command(name='todo-create', description='Create')\n"
+        "async def create(input, context):\n"
+        "    return success({'at': time.time()})\n",
+        encoding="utf-8",
+    )
+    (tmp_dir / "todo.rs").write_text(
+        "fn helper() { Uuid::new_v4(); }\n"
+        "impl CommandHandler for Create {\n"
+        "    async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {\n"
+        "        success(json!({ \"id\": Uuid::new_v4().to_string() }))\n"
+        "    }\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    (tmp_dir / "todo.cpp").write_text(
+        "auto t0 = std::chrono::steady_clock::now();\n"
+        "auto h = [](const afd::Json& input, afd::CommandContext& context) {\n"
+        "    return afd::success(std::chrono::system_clock::now().time_since_epoch().count());\n"
+        "};\n",
+        encoding="utf-8",
+    )
+    result = await alfred_lint(str(tmp_dir))
+    assert result.data["passed"] is True
+    assert sorted((i["file"].rsplit("/", 1)[-1], i["line"], i["rule"]) for i in result.data["issues"]) == [
+        ("todo.cpp", 3, "afd-no-ambient-time"),
+        ("todo.py", 5, "afd-no-ambient-time"),
+        ("todo.rs", 4, "afd-no-ambient-random"),
+    ]
+    suggestions = {i["file"].rsplit("/", 1)[-1]: i["suggestion"] for i in result.data["issues"]}
+    assert "context.clock.now()" in suggestions["todo.py"]
+    assert "context.random().next()" in suggestions["todo.rs"]
+    assert "context.clock->wall_ms()" in suggestions["todo.cpp"]
+
+    gated = await alfred_lint(str(tmp_dir), rule_severity_overrides={"afd-no-ambient-random": "error"})
+    assert gated.data["passed"] is False
+    assert gated.data["error_count"] == 1

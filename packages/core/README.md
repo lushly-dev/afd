@@ -27,6 +27,7 @@ This package provides the foundational types used across all AFD packages:
 | `@lushly-dev/afd-core/commands` | Command types, `defaultExpose`, `validateCommandName`, `createCommandRegistry`, MCP tool conversion | Node.js and browsers |
 | `@lushly-dev/afd-core/result` | `CommandResult`, `success`, `failure`, `error`, `isSuccess`, `isFailure` | Node.js and browsers |
 | `@lushly-dev/afd-core/connectors` | `GitHubConnector`, `PackageManagerConnector` and their types | Node.js only |
+| `@lushly-dev/afd-core/journal-file` | `FileJournalSink`, a JSON Lines command journal on disk | Node.js only |
 | `@lushly-dev/afd-core/platform` | `exec`, `findUp`, `isWindows` and other process helpers | Node.js only |
 
 ### Connectors live in their own subpath
@@ -40,6 +41,19 @@ import { GitHubConnector, PackageManagerConnector } from '@lushly-dev/afd-core/c
 
 Since 2.0 the root entry no longer re-exports them, so it bundles for the
 browser (for example with `esbuild --bundle --platform=browser`).
+
+### Command journal
+
+`JournalEntry`, the `JournalSink` interface, `MemoryJournalSink`, `createContextDigest` and the
+JSON Lines helpers (`serializeJournal`, `parseJournal`) are in the root entry. The file sink needs
+`node:fs`, so it has its own subpath:
+
+```typescript
+import { FileJournalSink } from '@lushly-dev/afd-core/journal-file';
+```
+
+The server package records entries (`createJournalMiddleware`) and replays them
+(`replayJournal`). The format is in [`spec/journal.md`](../../spec/journal.md).
 
 ### Contract version
 
