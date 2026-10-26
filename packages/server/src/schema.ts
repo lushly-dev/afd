@@ -6,6 +6,7 @@
  */
 
 import type {
+	ApprovalPolicy,
 	CommandContext,
 	CommandDefinition,
 	CommandExample,
@@ -98,6 +99,13 @@ export interface ZodCommandOptions<TInput extends ZodType, TOutput> {
 	undoable?: boolean;
 
 	/**
+	 * Whether a call needs a human's approval before the handler runs: `'required'`,
+	 * `'not-required'` (the default), or a function of the validated input and context.
+	 * Enforced by `createApprovalMiddleware`; reported as `_meta.approval`.
+	 */
+	approval?: ApprovalPolicy<z.infer<TInput>>;
+
+	/**
 	 * Which interfaces this command is exposed to.
 	 * Controls visibility in command palette, MCP, agent, and CLI surfaces.
 	 * Defaults to `defaultExpose` if not specified.
@@ -171,6 +179,9 @@ export interface ZodCommandDefinition<TInput extends ZodType = ZodType, TOutput 
 
 	/** Whether this command can be undone */
 	undoable?: boolean;
+
+	/** Pre-execution approval policy (enforced by `createApprovalMiddleware`) */
+	approval?: ApprovalPolicy<z.infer<TInput>>;
 
 	/**
 	 * Which interfaces this command is exposed to.
@@ -275,6 +286,7 @@ export function defineCommand<TInput extends ZodType, TOutput>(
 		destructive: options.destructive,
 		confirmPrompt: options.confirmPrompt,
 		undoable: options.undoable,
+		approval: options.approval,
 		expose: options.expose,
 		examples: options.examples,
 		outputSchema: options.output,
@@ -297,6 +309,7 @@ export function defineCommand<TInput extends ZodType, TOutput>(
 				destructive: options.destructive,
 				confirmPrompt: options.confirmPrompt,
 				undoable: options.undoable,
+				approval: options.approval,
 				expose: options.expose,
 				// Examples are raw inputs (before defaults and transforms); core types them by the
 				// handler input, which differs only for schemas with defaults or transforms.

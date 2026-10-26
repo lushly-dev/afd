@@ -72,6 +72,12 @@ enforce `confirmPrompt` (`command-metadata.md`, "Confirmations"). Enforcement is
 default, so no existing result changes. Python and Rust gain the `destructive`, `confirm_prompt`
 and `undoable` command fields.
 
+Commands gain the `approval` field (`required`, `not-required` or a function; `not-required` by
+default), reported as `_meta.approval`, and the shared catalog gains `APPROVAL_REQUIRED` (45
+codes), returned by the approval middleware before the handler runs (`command-metadata.md`,
+"Approvals"; #272). The middleware is opt-in, so no existing result changes. TypeScript implements
+it; the other languages define the code.
+
 The command journal (#273, TypeScript only for now): a JSON Lines record of executed commands,
 with a context digest that keeps no secrets and a tape of clock and random values for replay
 (`journal.md`, fixture `wire/journal.jsonl`). It is additive; no existing shape changes.
@@ -87,7 +93,7 @@ The first versioned contract. It covers:
 - the 34 cases of the todo conformance suite;
 - command input validation in `validation.md`, with 34 cases and 130 tests in
   `vectors/validation.json`. Its former open questions are settled in `validation.md`;
-- the 44 codes of the shared error-code catalog in `error-codes.md` and
+- the 45 codes of the shared error-code catalog in `error-codes.md` and
   `vectors/error-codes.json`, and its rules for unknown and unexposed commands (D4).
 
 Every language round-trips the wire fixtures, loads `vectors/pipeline-variables.json`,

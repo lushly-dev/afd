@@ -38,7 +38,7 @@ which the core helpers (`rateLimitError()`, `timeoutError()` and so on) use.
 | Core executors | `@lushly-dev/afd-core` | The core registry, `executeBatch`, `executePipeline`, `executeStream`, `consumeStream`, the error helpers and request validation |
 | Server engine | `packages/server` `execution.ts`, `direct-registry.ts` | Single-command dispatch: lookup, exposure, context and input validation; `createDirectRegistry` |
 | Router | `packages/server` `tool-router.ts`, `bootstrap/` | The meta-tools (`afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`), grouped tools and the context tools |
-| Middleware | `packages/server` `middleware.ts` | The built-in rate-limit and telemetry middleware |
+| Middleware | `packages/server` `middleware.ts`, `approval.ts` | The built-in rate-limit, telemetry and approval middleware |
 | HTTP layer | `packages/server` `http-handler.ts` | The legacy HTTP routes, `/sse` and `/stream` |
 | Client | `packages/client` `McpClient` | Results the client builds for a failed request or stream |
 | DirectClient | `packages/client` `DirectClient` | In-process calls with no transport |
@@ -96,8 +96,8 @@ can call that tool.
 
 ## The shared catalog
 
-44 codes. The first 22 are the original TypeScript `ErrorCodes`; the next 20 are the codes the
-engines emitted without a constant; the last 2 are the confirmation codes.
+45 codes. The first 22 are the original TypeScript `ErrorCodes`; the next 20 are the codes the
+engines emitted without a constant; then the 2 confirmation codes and the approval code.
 
 ### Validation
 
@@ -205,6 +205,15 @@ Emitted only by a server that enforces `confirmPrompt`; see
 | --- | --- | --- | --- |
 | `CONFIRMATION_REQUIRED` | The command declares `confirmPrompt` and the call carried no confirmation the server accepts. The suggestion says how to confirm: repeat the call with `confirm: true`, or use a client that supports elicitation | No | Server engine, router, HTTP layer |
 | `CONFIRMATION_DECLINED` | The user declined or cancelled the confirmation. Do not retry without asking the user | No | Server engine, router |
+
+### Approvals
+
+Emitted only by the approval middleware; see [Approvals](./command-metadata.md#approvals). No
+handler ran.
+
+| Code | Meaning | Retryable | Layers |
+| --- | --- | --- | --- |
+| `APPROVAL_REQUIRED` | The command's approval policy requires a human's approval and the call carried no valid approval token. `details` holds `approvalToken` (unless the server delivers it elsewhere), `expiresAt`, `summary` and, for a rejected token, `reason`. Retry the same call with the token once a human approved | No | Middleware |
 
 ## Transport-specific codes
 

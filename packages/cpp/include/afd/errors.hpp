@@ -101,6 +101,8 @@ inline constexpr char COMMAND_FAILED[] = "COMMAND_FAILED";
 // Confirmations
 inline constexpr char CONFIRMATION_REQUIRED[] = "CONFIRMATION_REQUIRED";
 inline constexpr char CONFIRMATION_DECLINED[] = "CONFIRMATION_DECLINED";
+// Approvals
+inline constexpr char APPROVAL_REQUIRED[] = "APPROVAL_REQUIRED";
 } // namespace error_codes
 
 /// `{code, message}` plus any of `options`.

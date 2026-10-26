@@ -140,6 +140,8 @@ export interface McpToolCommandMeta {
 	mutation?: boolean;
 	destructive?: boolean;
 	undoable?: boolean;
+	/** The approval policy (`'conditional'` for a function policy); unset when none is declared. */
+	approval?: 'not-required' | 'required' | 'conditional';
 	examples?: Array<{ title: string; input: unknown }>;
 	outputSchema?: Record<string, unknown>;
 	contexts?: string[];

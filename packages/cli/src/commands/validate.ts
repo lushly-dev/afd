@@ -62,7 +62,8 @@ export function registerValidateCommand(program: Command): void {
 			'after',
 			`
 By default, validate only inspects tools/list: names, descriptions, input
-schemas and _meta.examples. No tool is executed.
+schemas and _meta.examples. No tool is executed. A mutation or destructive
+tool whose _meta has no approval policy gets a MISSING_APPROVAL_POLICY warning.
 
 With --execute, each tool is also called and its CommandResult validated.
 Tools whose _meta marks them mutation: true or destructive: true are never
@@ -157,7 +158,37 @@ export function validateToolListing(tool: McpTool): ValidationResult {
 		});
 	}
 
+	warnings.push(...approvalPolicyWarnings(tool));
+
 	return { valid: errors.length === 0, errors, warnings };
+}
+
+/**
+ * A warning for each command in the listing that is `mutation: true` or `destructive: true`
+ * but declares no `_meta.approval` policy. For a grouped tool, each `_meta.actions` entry is a
+ * command of its own.
+ */
+export function approvalPolicyWarnings(tool: McpTool): ValidationWarning[] {
+	type PolicyFields = { mutation?: unknown; destructive?: unknown; approval?: unknown };
+	const entries: Array<{ path: string; meta: PolicyFields | undefined }> = [
+		{ path: '_meta', meta: tool._meta },
+	];
+	const actions: unknown = tool._meta?.actions;
+	if (Array.isArray(actions)) {
+		actions.forEach((action: unknown, index) => {
+			if (isRecord(action)) entries.push({ path: `_meta.actions[${index}]`, meta: action });
+		});
+	}
+	return entries
+		.filter(
+			({ meta }) =>
+				(meta?.mutation === true || meta?.destructive === true) && meta.approval === undefined
+		)
+		.map(({ path, meta }) => ({
+			path: `${path}.approval`,
+			message: `${meta?.destructive === true ? 'Destructive' : 'Mutating'} command declares no approval policy; set approval: 'required' or 'not-required' (or a function) on its definition`,
+			code: 'MISSING_APPROVAL_POLICY',
+		}));
 }
 
 interface ToolValidation {

@@ -16,6 +16,9 @@
 // Actor and context defaults
 export type { Actor, ActorKind, ContextDefaults } from './actor.js';
 export { ACTOR_KINDS, isActor, isActorKind, withContextDefaults } from './actor.js';
+// Pre-execution approval policy
+export type { ApprovalDecision, ApprovalPolicy } from './approval.js';
+export { approvalMode } from './approval.js';
 // Batch types
 export type {
 	BatchCommand,

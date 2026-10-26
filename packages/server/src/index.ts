@@ -50,6 +50,8 @@
 // Re-export handoff types from core for convenience
 // Server factory
 export type {
+	ApprovalDecision,
+	ApprovalPolicy,
 	CommandMiddleware,
 	CreateHandoffOptions,
 	ExposeOptions,
@@ -79,6 +81,16 @@ export {
 	isTelemetryEvent,
 	success,
 } from '@lushly-dev/afd-core';
+// Pre-execution approval gate
+export {
+	type ApprovalCommand,
+	type ApprovalMiddlewareOptions,
+	type ApprovalNonceStore,
+	type ApprovalRejection,
+	type ApprovalRequest,
+	type ApprovalSecret,
+	createApprovalMiddleware,
+} from './approval.js';
 // Bootstrap tools
 export {
 	type ContextState,

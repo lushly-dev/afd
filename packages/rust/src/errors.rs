@@ -320,6 +320,9 @@ pub mod error_codes {
     pub const CONFIRMATION_REQUIRED: &str = "CONFIRMATION_REQUIRED";
     /// The user declined or cancelled the confirmation.
     pub const CONFIRMATION_DECLINED: &str = "CONFIRMATION_DECLINED";
+    /// The command's approval policy requires a human's approval and the call carried no
+    /// valid approval token.
+    pub const APPROVAL_REQUIRED: &str = "APPROVAL_REQUIRED";
 }
 
 /// Standard error code alias for parity with other AFD implementations.

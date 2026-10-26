@@ -3,6 +3,7 @@
  */
 
 import type {
+	ApprovalPolicy,
 	CommandContext,
 	CommandExample,
 	CommandParameter,
@@ -25,6 +26,7 @@ export interface DescribedCommand {
 	destructive?: boolean;
 	confirmPrompt?: string;
 	undoable?: boolean;
+	approval?: ApprovalPolicy<never>;
 	requires?: string[];
 	examples?: CommandExample[];
 	expose?: ExposeOptions;

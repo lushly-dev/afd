@@ -39,6 +39,8 @@
 // Type-only exports are erased from the emitted JavaScript, so they add nothing
 // to the runtime module graph.
 export type {
+	ApprovalDecision,
+	ApprovalPolicy,
 	CommandContext,
 	CommandError,
 	CommandExample,
