@@ -156,8 +156,10 @@ class _FixedClock:
 def fixed_clock(at: ClockInstant = 0) -> ManualClock:
     """A clock stopped at ``at``. It moves only through ``set()`` and ``advance()``.
 
-    ``at`` is epoch milliseconds, an ISO 8601 string or a ``datetime`` (a
-    naive ``datetime`` is taken as UTC). Strings and datetimes resolve to
+    ``at`` is epoch milliseconds, an ISO 8601 string or a ``datetime``. A
+    string or ``datetime`` without an offset is taken as UTC, so a test reads
+    the same on every machine (JavaScript's ``Date.parse`` would use local
+    time for such a string). Strings and datetimes resolve to
     whole milliseconds, like a JavaScript ``Date``.
 
     Raises:

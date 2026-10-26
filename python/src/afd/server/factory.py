@@ -32,7 +32,7 @@ from afd.core.batch import (
     create_failed_batch_result,
 )
 from afd.core.actor import Actor, ContextDefaults, actor_kind_of, with_context_defaults
-from afd.core.clock import Clock, RandomSource
+from afd.core.clock import Clock, RandomSource, system_clock
 from afd.core.commands import (
     DEFAULT_EXPOSE,
     CommandContext,
@@ -453,7 +453,7 @@ class MCPServer:
         context: CommandContext,
     ) -> Any:
         """Call the handler with validated input and stamp its result's metadata."""
-        clock = context.clock
+        clock = getattr(context, "clock", None) or system_clock
         start = clock.now()
         handler = getattr(command.handler, "__afd_validated_handler__", command.handler)
         result = await handler(data, context)
@@ -465,7 +465,7 @@ class MCPServer:
                 execution_time_ms=max(0, clock.now() - start),
                 command_version=command.version,
                 trace_id=context.trace_id,
-                actor_kind=actor_kind_of(context.actor),
+                actor_kind=actor_kind_of(getattr(context, "actor", None)),
             )
         return result
 

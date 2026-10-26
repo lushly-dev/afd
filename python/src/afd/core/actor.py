@@ -101,9 +101,10 @@ def with_context_defaults(
     """A copy of ``context`` with ``clock``, ``random`` and (when given) ``actor``
     filled in where it has none. Values already on the context always win.
 
-    Works on any dataclass context with those fields: ``afd.core.CommandContext``
-    (the default when ``context`` is None) and ``afd.direct.CommandContext``.
-    The actor is copied too: middleware may refine ``context.actor`` in place,
+    Works on ``afd.core.CommandContext`` (the default when ``context`` is None),
+    ``afd.direct.CommandContext`` and any dataclass with those fields. Another
+    object is shallow-copied and given the attributes; one that cannot take
+    them is returned unchanged. The actor is copied too: middleware may refine ``context.actor`` in place,
     and a shared default object would carry one caller's identity into the next
     call.
     """
@@ -113,9 +114,20 @@ def with_context_defaults(
         context = CommandContext()  # type: ignore[assignment]
     defaults = defaults or ContextDefaults()
     actor = getattr(context, "actor", None) or defaults.actor
-    return dataclasses.replace(  # type: ignore[type-var]
-        context,
-        clock=getattr(context, "clock", None) or defaults.clock or system_clock,
-        random=getattr(context, "random", None) or defaults.random or system_random,
-        actor=copy.copy(actor) if actor is not None else None,
-    )
+    values = {
+        "clock": getattr(context, "clock", None) or defaults.clock or system_clock,
+        "random": getattr(context, "random", None) or defaults.random or system_random,
+        "actor": copy.copy(actor) if actor is not None else None,
+    }
+    if dataclasses.is_dataclass(context) and values.keys() <= {
+        field.name for field in dataclasses.fields(context)
+    }:
+        return dataclasses.replace(context, **values)  # type: ignore[type-var]
+    # A caller's own context type (TypeScript accepts any object here).
+    filled = copy.copy(context)
+    try:
+        for name, value in values.items():
+            setattr(filled, name, value)
+    except (AttributeError, TypeError):
+        return context
+    return filled

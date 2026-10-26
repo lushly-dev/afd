@@ -1,6 +1,7 @@
 """Actor, clock and random on CommandContext (#400; TypeScript #271, #274)."""
 
 import json
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
@@ -387,3 +388,64 @@ class TestTestingHelpers:
             self._scenario()
         )
         assert result.outcome == "pass"
+
+
+class TestCallerContextTypes:
+    """Contexts that are not the stock dataclass keep working (review of #400)."""
+
+    @pytest.mark.asyncio
+    async def test_core_registry_accepts_other_context_objects(self):
+        from types import SimpleNamespace
+
+        seen: list[Any] = []
+
+        async def handler(input, context):
+            seen.append(context)
+            return success({})
+
+        registry = create_command_registry()
+        registry.register(CommandDefinition(name="probe-run", description="d", handler=handler))
+        original = SimpleNamespace(trace_id="t", extra={})
+        result = await registry.execute("probe-run", {}, original)
+        assert result.success
+        assert seen[0] is not original and seen[0].clock is system_clock
+        assert not hasattr(original, "clock")
+
+        @dataclass
+        class Minimal:
+            trace_id: str = "t"
+            extra: dict = None  # type: ignore[assignment]
+
+        result = await registry.execute("probe-run", {}, Minimal(extra={}))
+        assert result.success
+
+    @pytest.mark.asyncio
+    async def test_server_execute_accepts_other_context_objects(self):
+        from types import SimpleNamespace
+
+        server, seen = _server_with_probe()
+        result = await server.execute("probe-run", {}, SimpleNamespace(trace_id="t", extra={}))
+        assert result.success and seen[0].clock is system_clock
+
+    def test_executor_config_keeps_its_positional_order(self):
+        async def handler(command, input):
+            return success({})
+
+        def on_step(step, result):
+            pass
+
+        config = InProcessExecutorConfig(handler, True, False, on_step)
+        assert config.on_step_complete is on_step and config.context is None
+
+    @pytest.mark.asyncio
+    async def test_kwargs_scenario_handlers_keep_two_arguments(self):
+        calls: list[tuple] = []
+
+        async def handler(*args, **kwargs):
+            calls.append((args, kwargs))
+            return success({})
+
+        await InProcessExecutor(InProcessExecutorConfig(handler=handler)).execute(
+            TestTestingHelpers._scenario()
+        )
+        assert all(kwargs == {} for _, kwargs in calls)

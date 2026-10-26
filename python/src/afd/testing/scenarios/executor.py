@@ -45,7 +45,7 @@ CommandHandler = Callable[
 ]
 """Async function: (command, input) -> CommandResult dict.
 
-A handler that accepts a ``context`` keyword (or ``**kwargs``) also receives
+A handler that declares a ``context`` parameter also receives
 a :class:`~afd.core.CommandContext` for each step: its ``actor`` is
 ``Actor(kind="test")`` unless the executor config's ``context`` sets one.
 """
@@ -64,11 +64,6 @@ class InProcessExecutorConfig:
     dry_run: bool = False
     """Dry run mode - validate scenario structure without executing commands."""
 
-    context: CommandContext | None = None
-    """Context for every scenario step, e.g. with ``clock=fixed_clock("2026-01-01")``
-    and ``random=seeded_random("abc")``. Its ``actor`` defaults to
-    ``Actor(kind="test")``. Passed only to handlers that accept ``context``."""
-
     on_step_complete: Callable[[Step, StepResult], None] | None = None
     """Step completion callback."""
 
@@ -77,6 +72,11 @@ class InProcessExecutorConfig:
 
     on_scenario_complete: Callable[[ScenarioResult], None] | None = None
     """Scenario complete callback."""
+
+    context: CommandContext | None = None
+    """Context for every scenario step, e.g. with ``clock=fixed_clock("2026-01-01")``
+    and ``random=seeded_random("abc")``. Its ``actor`` defaults to
+    ``Actor(kind="test")``. Passed only to handlers that declare a ``context`` parameter."""
 
 
 @dataclass
@@ -139,18 +139,16 @@ _TEST_ACTOR = Actor(kind='test')
 
 
 def _accepts_context(handler: Callable[..., Any]) -> bool:
-    """Whether ``handler`` takes a ``context`` keyword (older handlers take two arguments)."""
+    """Whether ``handler`` declares a ``context`` parameter (older handlers take two arguments)."""
     try:
         parameters = inspect.signature(handler).parameters.values()
     except (TypeError, ValueError):
         return False
+    # Only a named ``context``: ``**kwargs`` (and mocks) keep the two-argument call.
     return any(
-        parameter.kind is inspect.Parameter.VAR_KEYWORD
-        or (
-            parameter.name == 'context'
-            and parameter.kind
-            in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
-        )
+        parameter.name == 'context'
+        and parameter.kind
+        in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
         for parameter in parameters
     )
 

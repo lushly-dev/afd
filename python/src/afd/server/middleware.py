@@ -306,10 +306,10 @@ def create_timing_middleware(
         next_fn: NextFn,
     ) -> CommandResult[Any]:
         # The context clock, so a test can drive a slow command with fixed_clock().
-        clock = context.clock or system_clock
+        clock = getattr(context, "clock", None) or system_clock
         start = clock.now()
         result = await next_fn()
-        duration_ms = clock.now() - start
+        duration_ms = max(0, clock.now() - start)
 
         if duration_ms > slow_threshold:
             default_on_slow(command_name, duration_ms)
@@ -552,9 +552,11 @@ def create_rate_limit_middleware(
 
 def _iso_from_ms(ms: float) -> str:
     """An epoch-milliseconds instant as an ISO 8601 UTC timestamp."""
-    from datetime import datetime, timezone
+    from datetime import datetime, timedelta, timezone
 
-    return datetime.fromtimestamp(ms / 1000, timezone.utc).isoformat()
+    # Epoch plus a delta, not fromtimestamp(), which rejects negative instants on Windows.
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    return (epoch + timedelta(milliseconds=ms)).isoformat()
 
 
 def create_telemetry_middleware(
@@ -583,7 +585,7 @@ def create_telemetry_middleware(
         if not _filter(command_name):
             return await next_fn()
 
-        clock = context.clock or system_clock
+        clock = getattr(context, "clock", None) or system_clock
         start_time = clock.now()
         started_at = _iso_from_ms(start_time)
 
@@ -598,7 +600,7 @@ def create_telemetry_middleware(
         finally:
             end_time = clock.now()
             completed_at = _iso_from_ms(end_time)
-            duration_ms = end_time - start_time
+            duration_ms = max(0, end_time - start_time)
 
             error_dict = None
             if thrown_error:
@@ -629,7 +631,7 @@ def create_telemetry_middleware(
                 success=False if thrown_error else (result.success if result else False),
                 error=error_dict,
                 trace_id=context.trace_id,
-                actor_kind=actor_kind_of(context.actor),
+                actor_kind=actor_kind_of(getattr(context, "actor", None)),
                 input=input if include_input else None,
                 confidence=(
                     result.confidence
