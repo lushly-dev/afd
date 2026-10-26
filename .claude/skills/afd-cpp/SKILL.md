@@ -51,7 +51,7 @@ also provides `find_package(afd 0.1 CONFIG REQUIRED)`; a source checkout can use
 
 Presets live in `packages/cpp/CMakePresets.json`:
 - `dev` and `release`;
-- `asan` and `tsan`;
+- `asan` and `tsan` (`asan` is unsupported on macOS: it hangs at startup before any test runs, even with `ASAN_OPTIONS=detect_leaks=0`; rely on CI's Linux `linux-clang-sanitize` job, #331);
 - `noexcept-nortti`;
 - `emscripten`, configured with `emcmake cmake --preset emscripten`.
 
@@ -245,6 +245,7 @@ TEST_CASE("todo-create validates and stamps metadata") {
 
 - **Library tests:** `packages/cpp/tests`, run with `ctest --preset dev`.
 - **Conformance:** `pnpm --dir packages/examples/todo test:conformance:cpp`.
+- **Benchmarks:** `cmake --preset release -DAFD_BUILD_BENCHMARKS=ON`, build `afd_benchmarks`, run `build/release/benchmarks/afd_benchmarks [filter]`. Manual evidence with no thresholds; CI uploads a run as the `cpp-benchmarks` artifact. Baseline in `packages/cpp/README.md`.
 - **Formatting:** clang-format 22.1.8, pinned, run with `uvx --from clang-format==22.1.8 clang-format -i <files>`.
 
 ## Current Parity Note
