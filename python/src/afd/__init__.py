@@ -54,6 +54,7 @@ from afd.core.result import (
 )
 from afd.core.errors import (
     CommandError,
+    ErrorCode,
     ErrorCodes,
     create_error,
     validation_error,
@@ -70,6 +71,7 @@ from afd.core.metadata import (
     PlanStepStatus,
     Alternative,
     Warning,
+    WarningSeverity,
     create_source,
     create_step,
     update_step_status,
@@ -111,8 +113,17 @@ from afd.core.batch import (
     is_batch_result,
     is_batch_command,
 )
+# CommandDefinition, CommandContext and CommandParameter at the root are the
+# afd.direct dataclasses (see below). The core registry's own types of those
+# names stay at afd.core: build definitions for create_command_registry() with
+# afd.core.CommandDefinition, and handlers receive afd.core.CommandContext.
 from afd.core.commands import (
     CommandExample,
+    CommandHandler,
+    CommandMiddleware,
+    CommandRegistry,
+    NextFn,
+    create_command_registry,
     ExposeOptions,
     DEFAULT_EXPOSE,
     JsonSchema,
@@ -173,6 +184,7 @@ from afd.core.streaming import (
     StreamCallbacks,
     StreamableCommand,
     create_progress_chunk,
+    create_progress_chunk_with_steps,
     create_data_chunk,
     create_complete_chunk,
     create_error_chunk,
@@ -185,6 +197,8 @@ from afd.core.streaming import (
     parse_stream_chunk,
     consume_stream,
     collect_stream_data,
+    TimeoutController,
+    create_timeout_controller,
 )
 from afd.direct import (
     DirectClient,
@@ -313,6 +327,7 @@ __all__ = [
     "is_failure",
     # Error types
     "CommandError",
+    "ErrorCode",
     "ErrorCodes",
     "create_error",
     "validation_error",
@@ -328,6 +343,7 @@ __all__ = [
     "PlanStepStatus",
     "Alternative",
     "Warning",
+    "WarningSeverity",
     "create_source",
     "create_step",
     "update_step_status",
@@ -365,6 +381,12 @@ __all__ = [
     "is_batch_request",
     "is_batch_result",
     "is_batch_command",
+    # Core command registry and middleware
+    "CommandHandler",
+    "CommandRegistry",
+    "create_command_registry",
+    "CommandMiddleware",
+    "NextFn",
     # Expose options
     "ExposeOptions",
     "DEFAULT_EXPOSE",
@@ -422,6 +444,7 @@ __all__ = [
     "StreamCallbacks",
     "StreamableCommand",
     "create_progress_chunk",
+    "create_progress_chunk_with_steps",
     "create_data_chunk",
     "create_complete_chunk",
     "create_error_chunk",
@@ -438,6 +461,8 @@ __all__ = [
     "to_wire_json",
     "consume_stream",
     "collect_stream_data",
+    "TimeoutController",
+    "create_timeout_controller",
     # Direct execution
     "DirectClient",
     "DirectRegistry",

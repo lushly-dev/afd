@@ -24,6 +24,11 @@ Serves and speaks MCP 2026-07-28 (stateless, per-request `_meta`) next to the 20
 - **`MODERN_PROTOCOL_VERSION`** and **`LEGACY_PROTOCOL_VERSIONS`** constants.
 - **MCP tool annotations:** a command with `mutation=True` lists `annotations` (`readOnlyHint: false`, `destructiveHint: false`), as `spec/command-metadata.md` specifies.
 - **The testing MCP server is dual-era:** `server/discover`, `resultType`, `serverInfo`, cache fields and `-32022` for requests carrying 2026-07-28 `_meta`.
+- **Core names at the root ([#348](https://github.com/lushly-dev/afd/issues/348)):** `afd` exports `CommandHandler`, `CommandRegistry`, `create_command_registry`, `WarningSeverity`, `CommandMiddleware` and `NextFn`. The middleware types now live in `afd.core.commands`; `afd.server` and `afd.server.middleware` re-export the same objects. The root `CommandDefinition`, `CommandContext` and `CommandParameter` are still the `afd.direct` dataclasses; build definitions for `create_command_registry()` with `afd.core.CommandDefinition`.
+- **`ErrorCode`:** a `str` alias for `CommandError.code`. It is open: custom string codes remain valid next to `ErrorCodes`.
+- **`TimeoutController` and `create_timeout_controller(timeout_ms=None)`:** a deadline that starts at creation, with `remaining_ms`, `is_expired` and `await controller.run(awaitable)`, which bounds the await by the time left (not the full budget) and raises `TimeoutError`. Caller cancellation propagates as `CancelledError`. With no timeout it never expires.
+- **`create_progress_chunk_with_steps(progress, current_step, total_steps, ...)`:** a convenience over `create_progress_chunk`, as in TypeScript.
+- **Command name warnings:** `define_command` (so `MCPServer.command` and `register`) and the core registry, for a definition whose handler is not decorated, emit a `UserWarning` for a name that breaks the `domain-action` kebab-case rule, as TypeScript's `defineCommand` does. The command still registers.
 
 ### Fixed
 

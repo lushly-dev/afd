@@ -36,17 +36,17 @@ This plan tracks Python name parity only. Behavioral gaps are tracked in the cro
 
 | Wave | Done | Still open |
 |---|---|---|
-| 1: Core ergonomics | `CommandExample`, `JsonSchema`, `command_to_mcp_tool` and `validate_command_name` are exported from `afd`. `CommandHandler`, `CommandRegistry`, `create_command_registry` and `WarningSeverity` are implemented but exported only from `afd.core`. | `CommandMiddleware` in core (it lives in `afd.server.middleware`), `create_progress_chunk_with_steps`, `create_timeout_controller`. `validate_command_name` is never called during registration. The core registry has no `dev_mode`, so it returns exception text. |
+| 1: Core ergonomics | Done in [#348](https://github.com/lushly-dev/afd/issues/348). `afd` exports `CommandExample`, `JsonSchema`, `command_to_mcp_tool`, `validate_command_name`, `CommandHandler`, `CommandRegistry`, `create_command_registry`, `WarningSeverity`, the `ErrorCode` string alias, `CommandMiddleware` and `NextFn` (defined in `afd.core.commands`; `afd.server` re-exports the same objects), `create_progress_chunk_with_steps`, `TimeoutController` and `create_timeout_controller`. `define_command` and the core registry warn about a name that breaks the `domain-action` rule, as TypeScript's `defineCommand` does. The core registry takes `dev_mode`. | None. The root `CommandDefinition`, `CommandContext` and `CommandParameter` stay the `afd.direct` dataclasses; the core types of those names are at `afd.core`. |
 | 2: Handoff and MCP names | 13 MCP names have Pythonic equivalents in `afd.core.mcp_types`: `TextContent`, `ToolDefinition`, `mcp_request` and others. | `default_reconnect_policy`, which `create_handoff` also fails to apply. `McpNotification`, `McpErrorCodes`, `McpErrorCode` and `McpToolsListResult`. `CreateHandoffOptions`, `McpId`, the capability types and the `is_mcp_*` guards need no Python counterpart. |
 | 3: Pipeline contract | Every type, the 10 condition models, `create_pipeline`, `evaluate_condition`, `get_nested_value`, `resolve_variable(s)`, the five `aggregate_*` helpers, `build_confidence_breakdown`, the `is_pipeline_*` guards and `execute_pipeline` are implemented in `afd.core.pipeline`. | Export them. First resolve the collisions: `afd.PipelineStep`, `PipelineResult`, `CommandDefinition` and `CommandContext` currently resolve to the `afd.direct` dataclasses. `DirectClient.pipe` is a second pipeline engine. The `is_*_condition` guards need no counterpart. |
 | 4: Similarity and cleanup | `calculate_similarity`, `find_similar_tools`, `truncate_name` and `MAX_SIMILARITY_INPUT_LENGTH` are implemented in `afd.core.similarity`. | Export them, and do the final `__init__.py` cleanup. |
 | New since this plan | — | Shared executors TypeScript added after March: `execute_batch`, `execute_stream`, `execution_failure`, `ExecutorOptions`, `StreamExecutorOptions`, `CommandRegistryOptions`, plus `is_exposed_to`, `is_mcp_exposed` and `commands_to_mcp_tools`. Python has batch only as the private `MCPServer._execute_batch`, and no stream executor. |
 
-Of the 97 missing names:
+Of the 88 missing names:
 
-- **60** exist and only need exporting.
-- **17** are genuine gaps.
-- **20** are TypeScript typing artifacts.
+- **56** exist and only need exporting.
+- **13** are genuine gaps.
+- **19** are TypeScript typing artifacts.
 
 See [Name parity](../../../language-parity.md#name-parity-alfred-parity) for the full breakdown.
 

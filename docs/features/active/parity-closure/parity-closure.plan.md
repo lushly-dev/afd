@@ -122,9 +122,9 @@ Each language works against the Wave 1 vectors, and the four can proceed in para
 - One context stack per session, capped at 16. (M) Implemented in candidate #353; actual transport sessions establish identity, stateless HTTP mutation rejects.
 - A 1 MiB decoded-frame cap in `SseDecoder`. (S) Implemented in candidate #354.
 - `is_success` checks only `success` (implemented in candidate #354); `failure()` accepting every result option remains open. (S)
-- Decorator metadata: `version`, `errors`, `execution_time`, `destructive`, `confirm_prompt` and `undoable`; `handoff` through `MCPServer.command`. Call `validate_command_name`, and reserve the bootstrap names. (M)
+- Decorator metadata: `version`, `errors`, `execution_time`, `destructive`, `confirm_prompt` and `undoable`; `handoff` through `MCPServer.command`. Call `validate_command_name` (done in #348: it warns, as in TypeScript), and reserve the bootstrap names. (M)
 - `create_handoff` applies the default reconnect policy, and the handoff client falls back to it instead of 5 attempts. There is one `TelemetryEvent`, and it serializes in camelCase. (S)
-- Export cleanup: resolve the `afd.direct` name collisions, then re-export the 60 implemented names and lower the budget. (M)
+- Export cleanup: resolve the `afd.direct` name collisions, then re-export the 56 implemented names and lower the budget. (M) #348 exported the non-colliding core registry, middleware and metadata names.
 
 **Rust (L overall):**
 - **Engine** (M):

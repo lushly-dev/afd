@@ -232,6 +232,8 @@ class MCPServer:
                 requires=requires,
                 contexts=contexts,
                 expose=expose,
+                # Point a name warning at the user's @server.command line.
+                _stacklevel=3,
             )(func)
             self.register(decorated)
             return decorated

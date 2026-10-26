@@ -90,7 +90,7 @@ Limits of these checks:
 |---|---|---|---|---|
 | Core metadata: name, description, category, tags, version, mutation, requires, contexts, expose, handoff, examples, executionTime | Yes | Partial: the decorator has no `version`, `errors` or `execution_time`; `MCPServer.command` drops `handoff` | Yes | Yes (`requires` is `prerequisites`) |
 | `destructive`, `confirmPrompt`, `undoable` ([`spec/command-metadata.md`](../spec/command-metadata.md)) | Yes: on core `CommandDefinition` and `defineCommand`; `_meta` has `destructive` and `undoable`, afd-detail all three | No | No | Yes |
-| Kebab-case name rule | Warns in `defineCommand` | Partial: `validate_command_name` exists but nothing calls it | Yes, rejects at registration | Yes, rejects at registration |
+| Kebab-case name rule | Warns in `defineCommand` | Yes: warns in `define_command` and in the core registry for a raw definition | Yes, rejects at registration | Yes, rejects at registration |
 | Duplicate and reserved names | Throws for meta-tools, and for bootstrap and context names when enabled | Partial: meta-tools only; a command named like a bootstrap tool silently shadows it | Partial: bootstrap names only | Yes: meta-tools (C++ has no bootstrap or context tools) |
 | Input validated before the handler ([`spec/validation.md`](../spec/validation.md)) | Yes: Zod | Yes: advertised JSON Schema enforced before middleware, then Pydantic conversion where applicable | Yes: legacy parameters or additive `register_with_schema`; use `get_tool` for authoritative discovery | Yes: required subset; unsupported optional keywords reject registration |
 | Examples validated at definition | Yes | Yes | No: stored only | Yes |
@@ -131,7 +131,7 @@ Limits of these checks:
 | One pipeline engine | Yes | No: core `execute_pipeline` and `DirectClient.pipe` differ in options and result shape | Yes | Yes |
 | Stream chunk types, `consumeStream`, `collectStreamData` | Yes | Yes | Yes (`consume_stream` takes a synchronous iterator) | Yes |
 | Stream executor | Yes (runs to completion, then chunks) | No | No | Yes (returns a vector) |
-| Timeout controller, progress-with-steps helpers | Yes | No | Partial: `TimeoutController` tracks elapsed time only | N/A: `CancellationSource` covers the timeout controller |
+| Timeout controller, progress-with-steps helpers | Yes | Yes, with a Pythonic shape: `TimeoutController` is a deadline, not an `AbortController`; `run()` bounds an await by the time left, with `remaining_ms` and `is_expired` | Partial: `TimeoutController` tracks elapsed time only | N/A: `CancellationSource` covers the timeout controller |
 
 ### Handoff, telemetry and similarity
 
@@ -283,11 +283,11 @@ Ordered by how much an agent or a security boundary is affected.
 
 ## Name parity (`alfred parity`)
 
-Measured at `0777217`: TypeScript 186 exports, Python 179, Rust 225, C++ 158. The Rust row was re-measured after `execution_failure` was exported.
+Measured at `0777217`: TypeScript 186 exports, Python 179, Rust 225, C++ 158. The Rust row was re-measured after `execution_failure` was exported, and the Python row after #348 (Python then had 198 exports).
 
 | Language | Missing | What the missing names are |
 |---|---|---|
-| Python | 97 | **61 exist but are not exported from `afd`:** the pipeline contract in `afd.core.pipeline` and `pipeline_variables` (38), similarity (4), `execution_failure`, `CommandHandler`, `CommandRegistry`, `create_command_registry`, `CommandMiddleware`, `WarningSeverity`, and 13 MCP names with Pythonic spellings. Re-exporting is blocked by collisions: `afd.PipelineStep`, `PipelineResult`, `CommandDefinition` and `CommandContext` are the `afd.direct` dataclasses, not the core types. **16 are real gaps:** the batch and stream executors and their options, the registry and executor options types (`create_command_registry` and `execute_pipeline` take a `dev_mode` keyword instead), the exposure helpers, the timeout controller, progress-with-steps, `DEFAULT_RECONNECT_POLICY`, and the MCP error-code constants and notification and list types. **20 are TypeScript typing artifacts:** the condition guards, `ErrorCode`, `McpId` and similar. |
+| Python | 88 | **56 exist but are not exported from `afd`:** the pipeline contract in `afd.core.pipeline` and `pipeline_variables` (38), similarity (4), `execution_failure`, and 13 MCP names with Pythonic spellings. Re-exporting the pipeline names is blocked by collisions: `afd.PipelineStep`, `PipelineResult`, `CommandDefinition` and `CommandContext` are the `afd.direct` dataclasses, not the core types. **13 are real gaps:** the batch and stream executors and their options, the registry and executor options types (`create_command_registry` and `execute_pipeline` take a `dev_mode` keyword instead), the exposure helpers, `DEFAULT_RECONNECT_POLICY`, and the MCP error-code constants and notification and list types. **19 are TypeScript typing artifacts:** the condition guards, `McpId` and similar. [#348](https://github.com/lushly-dev/afd/issues/348) exported the core registry, middleware, `WarningSeverity` and `ErrorCode` names and added the timeout controller and progress-with-steps. |
 | Rust | 9 | **Export artifacts:** `is_mcp_exposed` (`is_exposed_to(Mcp)`), `max_similarity_input_length` (at `afd::similarity`), `truncate_name` (private), `execute_batch` (a registry method). **A convenience:** `commands_to_mcp_tools`. **Real gaps:** `execute_stream` and `stream_executor_options`. **No dev mode:** `executor_options` and `command_registry_options`. |
 | C++ | 73 | **Deferred (33):** 26 MCP types and helpers, 4 telemetry, `CommandParameter`, and the 2 streamable-command names. **By design (25):** 21 typed condition types and guards, the timeout controller (2), `json_schema` and `create_command_registry`. **Cheap to close (15):** `is_mcp_exposed`, `command_to_mcp_tool`, `commands_to_mcp_tools`, `is_pipeline_condition` over JSON, `is_batch_command`, `is_pipeline_step`, `get_nested_value`, `stream_executor_options` (an alias of `StreamOptions`), `create_progress_chunk_with_steps`, and the 6 aggregation helpers. |
 

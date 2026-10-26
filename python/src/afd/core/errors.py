@@ -64,6 +64,17 @@ def _omit_unset_cause(data: Any) -> Any:
     return data
 
 
+ErrorCode = str
+"""An error code: any string.
+
+This is a typing alias, not a closed enum. Use the shared codes in
+:class:`ErrorCodes` where one fits, and define your own string codes (for
+example ``"QUOTA_PLAN_LIMIT"``) for application-specific failures; both are
+valid ``CommandError.code`` values. TypeScript narrows its ``ErrorCode`` to the
+catalog's values but still accepts any string as ``CommandError.code``.
+"""
+
+
 class ErrorCodes:
     """Standard error codes for common scenarios.
     

@@ -850,7 +850,10 @@ NAME_GAP_BUDGET = {
     # timeout). Neither language has an executor options type, like ExecutorOptions.
     # 98 → 97: 2.0 removed TypeScript's deprecated resolveReference alias.
     # Rust 10 → 9: afd exports execution_failure.
-    "missing_from_python": 97,
+    # 97 → 88 (#348): afd exports CommandHandler, CommandRegistry,
+    # create_command_registry, CommandMiddleware, WarningSeverity, ErrorCode,
+    # TimeoutController, create_timeout_controller and create_progress_chunk_with_steps.
+    "missing_from_python": 88,
     "missing_from_rust": 9,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps

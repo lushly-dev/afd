@@ -46,6 +46,7 @@ from afd.core.commands import (
     CommandExample,
     CommandParameter,
     ExposeOptions,
+    warn_invalid_command_name,
 )
 from afd.core.result import CommandResult
 from afd.core.schema_validation import SchemaValidationError, check_schema, validate_schema
@@ -99,6 +100,7 @@ def define_command(
     handoff: bool = False,
     handoff_protocol: Optional[str] = None,
     expose: Optional[ExposeOptions] = None,
+    _stacklevel: int = 2,
 ) -> Callable:
     """Decorator to define a command with metadata.
 
@@ -106,7 +108,7 @@ def define_command(
     with an MCP server. The decorator attaches metadata for schema generation.
 
     Args:
-        name: Command name (use kebab-case, e.g., "item-create").
+        name: Command name in `domain-action` kebab-case (e.g., "item-create"). Any other name still registers, with a UserWarning.
         description: Human-readable description of what the command does.
         input_schema: Pydantic model class for validating input.
         output_schema: Pydantic model class for the output (optional).
@@ -134,6 +136,8 @@ def define_command(
         ...     pass
     """
     
+    # Advisory, as in TypeScript's defineCommand: the command still registers.
+    warn_invalid_command_name(name, stacklevel=_stacklevel)
     if input_schema is not None:
         check_schema(_advertised_schema(input_schema))
 
