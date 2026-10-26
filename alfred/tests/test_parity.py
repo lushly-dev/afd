@@ -863,15 +863,18 @@ NAME_GAP_BUDGET = {
     # C++ 85 → 76 (#402): Actor, ActorKind, actor_kinds, is_actor, is_actor_kind,
     # ContextDefaults, with_context_defaults, fixed_clock and SystemRandom. ClockInstant stays
     # missing: C++ clocks take epoch milliseconds only.
-    "missing_from_python": 88,
-    "missing_from_rust": 9,
+    # Python 88 → 91, Rust 9 → 12, C++ 76 → 79: TypeScript's approval policy (#272):
+    # ApprovalDecision, ApprovalPolicy and approvalMode. Parity tracked in #420 (Python),
+    # #421 (Rust) and #422 (C++).
+    "missing_from_python": 91,
+    "missing_from_rust": 12,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps
     # conditions as validated JSON); telemetry; timeout controllers and streamable commands;
     # the pipeline aggregation helpers; CommandParameter and createCommandRegistry.
     # 73 → 75: commandToolAnnotations and commandResultOutputSchema (MCP tool fields), in
     # the deferred MCP helpers group; the C++ todo backend derives them inline.
-    "missing_from_cpp": 76,
+    "missing_from_cpp": 79,
 }
 
 # Exports every language must have; if one disappears the parser is broken.

@@ -64,6 +64,7 @@ fn error_codes_match_the_shared_catalog() {
         error_codes::COMMAND_FAILED,
         error_codes::CONFIRMATION_REQUIRED,
         error_codes::CONFIRMATION_DECLINED,
+        error_codes::APPROVAL_REQUIRED,
     ];
     assert_eq!(catalog.as_slice(), expected.as_slice());
 }

@@ -156,6 +156,9 @@ class ErrorCodes:
     CONFIRMATION_REQUIRED = "CONFIRMATION_REQUIRED"
     CONFIRMATION_DECLINED = "CONFIRMATION_DECLINED"
 
+    # Approvals (spec/command-metadata.md, "Approvals")
+    APPROVAL_REQUIRED = "APPROVAL_REQUIRED"
+
 
 def create_error(
     code: str,

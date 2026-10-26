@@ -161,6 +161,9 @@ export const ErrorCodes = {
 	// Confirmations (spec/command-metadata.md, "Confirmations")
 	CONFIRMATION_REQUIRED: 'CONFIRMATION_REQUIRED',
 	CONFIRMATION_DECLINED: 'CONFIRMATION_DECLINED',
+
+	// Approvals (spec/command-metadata.md, "Approvals")
+	APPROVAL_REQUIRED: 'APPROVAL_REQUIRED',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

@@ -69,6 +69,52 @@ describe('tool listing validation (no execution)', () => {
 	});
 });
 
+describe('approval policy check', () => {
+	it('warns about mutating and destructive commands with no approval policy', () => {
+		const mutating = validateToolListing(tool({ _meta: { mutation: true } }));
+		expect(mutating.valid).toBe(true);
+		expect(mutating.warnings).toEqual([
+			expect.objectContaining({ code: 'MISSING_APPROVAL_POLICY', path: '_meta.approval' }),
+		]);
+		expect(mutating.warnings[0]?.message).toMatch(/^Mutating command/);
+
+		const destructive = validateToolListing(tool({ _meta: { destructive: true } }));
+		expect(destructive.warnings[0]?.message).toMatch(/^Destructive command/);
+	});
+
+	it('accepts any declared policy, and read-only commands without one', () => {
+		for (const approval of ['required', 'not-required', 'conditional'] as const) {
+			const declared = tool({ _meta: { mutation: true, destructive: true, approval } });
+			expect(codes(validateToolListing(declared)).warnings).toEqual([]);
+		}
+		expect(codes(validateToolListing(tool({ _meta: { mutation: false } }))).warnings).toEqual([]);
+		expect(codes(validateToolListing(tool())).warnings).toEqual([]);
+	});
+
+	it('checks each action of a grouped tool', () => {
+		const action = {
+			action: 'delete',
+			command: 'todo-delete',
+			description: 'Delete a todo',
+			inputSchema: { type: 'object' as const },
+		};
+		const grouped = tool({
+			name: 'todo',
+			_meta: {
+				actions: [
+					{ ...action, mutation: true, approval: 'required' },
+					{ ...action, action: 'purge', command: 'todo-purge', destructive: true },
+					{ ...action, action: 'list', command: 'todo-list', mutation: false },
+				],
+			},
+		});
+		const { warnings } = validateToolListing(grouped);
+		expect(warnings.map((w) => [w.code, w.path])).toEqual([
+			['MISSING_APPROVAL_POLICY', '_meta.actions[1].approval'],
+		]);
+	});
+});
+
 describe('--execute safety', () => {
 	it('skips tools marked mutation or destructive', () => {
 		expect(getExecutionSkipReason(tool({ _meta: { mutation: true } }))).toBe('mutation: true');

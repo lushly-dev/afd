@@ -7,6 +7,7 @@
  */
 
 import { type Actor, withContextDefaults } from './actor.js';
+import type { ApprovalPolicy } from './approval.js';
 import type { BatchRequest, BatchResult } from './batch.js';
 import type { Clock, RandomSource } from './clock.js';
 import { type CommandToolMeta, commandToolMeta } from './command-metadata.js';
@@ -290,6 +291,13 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	undoable?: boolean;
 
 	/**
+	 * Whether a call needs a human's approval before the handler runs: `'required'`,
+	 * `'not-required'` (the default), or a function of the validated input and context.
+	 * Enforced by `createApprovalMiddleware`; reported as `_meta.approval`.
+	 */
+	approval?: ApprovalPolicy<TInput>;
+
+	/**
 	 * Which interfaces this command is exposed to.
 	 * Defaults to `defaultExpose` if not specified.
 	 */
@@ -338,6 +346,13 @@ export interface CommandContext {
 	 * package: `test`) unless the caller sets it.
 	 */
 	actor?: Actor;
+
+	/**
+	 * Approval evidence for a command whose approval policy requires it: the
+	 * `approvalToken` from an `APPROVAL_REQUIRED` result, set by the surface once a human
+	 * approved. Only trusted surface code sets it, never tool arguments.
+	 */
+	approval?: string;
 
 	/**
 	 * Source of the current time. Read time from here instead of `Date.now()` so tests and

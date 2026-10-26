@@ -408,6 +408,10 @@ const server2 = createMcpServer({
 });
 ```
 
+### Approval Gate
+
+Declare `approval: 'required'` (or `'not-required'`, or a function of input and context) on `defineCommand`, and install `createApprovalMiddleware({ secret, commands })` after any auth middleware. A gated call returns `APPROVAL_REQUIRED` with `details.approvalToken` before the handler runs; retry with `context.approval` set to it once a human approved. See the afd skill's `references/command-trust-config.md`.
+
 ## Command Registry Pattern
 
 ```typescript

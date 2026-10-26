@@ -1,4 +1,5 @@
 /** Shared MCP metadata reporting rules for command definitions and server tools. */
+import { type ApprovalDecision, type ApprovalPolicy, approvalMode } from './approval.js';
 import type { CommandDefinition, JsonSchema } from './commands.js';
 
 type MetadataFields = Pick<
@@ -8,6 +9,8 @@ type MetadataFields = Pick<
 
 /** Per-command planning metadata; display-only confirmPrompt is intentionally absent. */
 export type CommandToolMeta = MetadataFields & {
+	/** The approval policy; a function policy is reported as `'conditional'`. */
+	approval?: ApprovalDecision | 'conditional';
 	// A mapped object retains schema field types and is structurally compatible with
 	// MCP's existing Record<string, unknown> metadata contract.
 	outputSchema?: { [Key in keyof JsonSchema]: JsonSchema[Key] };
@@ -15,15 +18,17 @@ export type CommandToolMeta = MetadataFields & {
 
 /** Omit unset fields and empty arrays, while preserving explicitly set false booleans. */
 export function commandToolMeta(
-	command: MetadataFields,
+	command: MetadataFields & { approval?: ApprovalPolicy<never> },
 	outputSchema?: JsonSchema
 ): CommandToolMeta | undefined {
+	const approval = approvalMode(command.approval);
 	const meta: CommandToolMeta = {
 		...(command.category != null && { category: command.category }),
 		...(command.requires?.length && { requires: command.requires }),
 		...(command.mutation != null && { mutation: command.mutation }),
 		...(command.destructive != null && { destructive: command.destructive }),
 		...(command.undoable != null && { undoable: command.undoable }),
+		...(approval && { approval }),
 		...(command.examples?.length && { examples: command.examples }),
 		...(outputSchema && { outputSchema: { ...outputSchema } }),
 		...(command.contexts?.length && { contexts: command.contexts }),

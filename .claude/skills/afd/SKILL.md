@@ -47,7 +47,7 @@ Expert guidance for building software with the Agent-First Development methodolo
 | Telemetry middleware, sinks, monitoring | [references/telemetry.md](references/telemetry.md) |
 | defaultMiddleware, auto trace ID, logging/timing defaults | [references/telemetry.md](references/telemetry.md) |
 | External adapters, CLI/API bridging | [references/external-adapters.md](references/external-adapters.md) |
-| Destructive commands, confirmation UI | [references/command-trust-config.md](references/command-trust-config.md) |
+| Destructive commands, confirmation UI, approval gates (`approval`, `createApprovalMiddleware`) | [references/command-trust-config.md](references/command-trust-config.md) |
 | Interface exposure, undo metadata | [references/command-exposure-undo.md](references/command-exposure-undo.md) |
 | Cross-platform exec, connectors | [references/platform-utils.md](references/platform-utils.md) |
 | Command prerequisites, `requires` field | [references/command-schema.md](references/command-schema.md) |

@@ -20,6 +20,7 @@ Serves and speaks MCP 2026-07-28 (stateless, per-request `_meta`) next to the 20
 
 - **Trust fields:** `define_command`, `@server.command` and `CommandDefinition` take `destructive`, `confirm_prompt` and `undoable` (`spec/command-metadata.md`). `destructive` and `undoable` appear in tool `_meta`, `afd-help` (full) and `afd-docs` when set; `afd-detail` and `afd-docs` also report `confirmPrompt`. A mutation's `destructiveHint` annotation now follows `destructive`.
 - **Confirmation error codes:** `ErrorCodes.CONFIRMATION_REQUIRED` and `ErrorCodes.CONFIRMATION_DECLINED`, for servers that enforce `confirmPrompt`. Nothing emits them yet.
+- **Approval error code:** `ErrorCodes.APPROVAL_REQUIRED`, returned by an approval middleware before the handler runs (`spec/command-metadata.md`, "Approvals"). TypeScript emits it; Python's middleware is #420.
 
 - **`StreamableHttpTransport`** (`afd.transports`, `create_transport("streamable-http", url)`): MCP Streamable HTTP on the SDK's `mcp.Client`. It probes `server/discover`, uses 2026-07-28 when offered and falls back to `initialize`; `McpClientConfig.protocol_mode` (`"auto"`, `"legacy"`, `"modern"`) controls it. `McpClient.stream()` on a `/mcp` URL uses the sibling `/stream` path.
 - **`server/discover`** carries `instructions` (new `create_server(instructions=...)`; a description of the meta-tools by default), and `tools/list` carries `ttlMs` and `cacheScope` (new `tools_list_ttl_ms`; 300000 by default, 0 when `contexts` are configured because clients cache `tools/list` without its `_meta`).

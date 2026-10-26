@@ -4,7 +4,7 @@
  * Generate markdown documentation for commands.
  */
 
-import { success } from '@lushly-dev/afd-core';
+import { approvalMode, success } from '@lushly-dev/afd-core';
 import { z } from 'zod';
 import { defineCommand, jsonSchemaToParameters, type ZodCommandDefinition } from '../schema.js';
 import {
@@ -106,6 +106,11 @@ export function createAfdDocsCommand(
 					}
 					if (cmd.undoable !== undefined) {
 						lines.push(`**Undoable:** ${cmd.undoable ? 'Yes' : 'No'}`);
+						lines.push('');
+					}
+					const approval = approvalMode(cmd.approval);
+					if (approval) {
+						lines.push(`**Approval:** ${approval}`);
 						lines.push('');
 					}
 

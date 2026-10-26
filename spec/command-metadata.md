@@ -27,6 +27,7 @@ an unset field stays distinguishable from an explicit `false`.
 | `destructive` | boolean | `false` | `_meta`, afd-detail, afd-help (full), afd-docs, `DirectRegistry.listCommands()`, `afd tools`. `afd validate --execute` never calls it |
 | `confirmPrompt` | string | None; a frontend MAY show a generic prompt | afd-detail, afd-docs |
 | `undoable` | boolean | `false` | `_meta`, afd-detail, afd-help (full), afd-docs, `DirectRegistry.listCommands()`, `afd tools` |
+| `approval` | `required`, `not-required`, or a function of the validated input and context returning one of them | `not-required` | `_meta`, afd-detail, afd-docs, as `required`, `not-required` or `conditional` (a function). `afd validate` warns when a `mutation` or `destructive` command declares none. Enforced only by the approval middleware; see [Approvals](#approvals) |
 | `executionTime` | `instant`, `fast`, `slow` or `long-running` | None | afd-detail |
 | `handoff` | boolean | `false` | afd-detail; adds the `handoff` tag |
 | `handoffProtocol` | `websocket`, `webrtc`, `sse`, `http-stream` or another string | None | afd-detail; adds the `handoff:<protocol>` tag |
@@ -37,7 +38,8 @@ an unset field stays distinguishable from an explicit `false`.
 `destructive`, `confirmPrompt` and `undoable` are declarations for frontends and agents. AFD does
 not act on `destructive` or `undoable`: an undo mechanism belongs to the consumer. A server MAY
 enforce `confirmPrompt` on its MCP surfaces, as [Confirmations](#confirmations) describes; it does
-not by default.
+not by default. `approval` is the pre-execution gate: where the approval middleware is installed, a
+call it requires is held before the handler runs, as [Approvals](#approvals) describes.
 
 ## Reporting rules
 
@@ -55,11 +57,11 @@ not by default.
 
 | Surface | Fields |
 | --- | --- |
-| tools/list `_meta` | `category`, `requires`, `mutation`, `destructive`, `undoable`, `examples`, `outputSchema`, `contexts` |
-| afd-detail | `name`, `description`, `category`, `tags`, `mutation`, `executionTime`, `errors`, `inputSchema`, `outputSchema`, `destructive`, `confirmPrompt`, `undoable`, `handoff`, `handoffProtocol`, `version`, `callable` |
+| tools/list `_meta` | `category`, `requires`, `mutation`, `destructive`, `undoable`, `approval`, `examples`, `outputSchema`, `contexts` |
+| afd-detail | `name`, `description`, `category`, `tags`, `mutation`, `executionTime`, `errors`, `inputSchema`, `outputSchema`, `destructive`, `confirmPrompt`, `undoable`, `approval`, `handoff`, `handoffProtocol`, `version`, `callable` |
 | afd-discover | `name`, `description`, `category`, and `mutation` with `includeMutation` |
 | afd-help | `name`, `description`, `requires`; the `full` format adds `category`, `tags`, `mutation`, `destructive`, `undoable`, `examples` |
-| afd-docs | `category`, `name`, `description`, `tags`, `mutation`, `destructive`, `confirmPrompt`, `undoable`, parameters |
+| afd-docs | `category`, `name`, `description`, `tags`, `mutation`, `destructive`, `confirmPrompt`, `undoable`, `approval`, parameters |
 | afd-schema | `name`, `description`, `inputSchema` |
 
 ## Confirmations
@@ -102,6 +104,70 @@ Where the acknowledgement goes:
 
 `requestState` is opaque to clients and is never trusted unverified. A stale, altered or mismatched
 `requestState` is treated as no confirmation.
+
+## Approvals
+
+Confirmations ask whether an action is intended; approvals hold an action until a human signs off.
+A command's `approval` policy decides, per call, whether it needs approval. The approval
+middleware enforces it on every surface the middleware runs on (MCP, the HTTP routes and
+in-process registries alike). Without the middleware, `approval` is a declaration only.
+
+When a call needs approval and its context carries no valid approval token, the handler does not
+run and the call fails with:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "APPROVAL_REQUIRED",
+    "message": "todo-delete needs approval before it runs",
+    "suggestion": "Ask the user to approve \"Delete todo 42 (permanent)\"; once they approve, the application retries the same call with the same input and details.approvalToken as its approval evidence (tool arguments cannot carry it). The token expires at 2026-10-26T12:05:00.000Z and works once.",
+    "retryable": false,
+    "details": {
+      "approvalToken": "afdap1.eyJj….3q2-…",
+      "expiresAt": "2026-10-26T12:05:00.000Z",
+      "summary": "Delete todo 42 (permanent)"
+    }
+  }
+}
+```
+
+The surface obtains the human's decision and retries the same call with the token as the
+context's approval evidence (TypeScript `context.approval`). A server may leave
+`details.approvalToken` out and deliver the token to the approver another way. When the call
+carried a token that was not accepted, `details.reason` says why: `malformed`,
+`invalid-signature`, `expired`, `command-mismatch`, `input-mismatch`, `actor-mismatch` or
+`already-used`, and the result carries a fresh token.
+
+Rules:
+
+1. **Evidence comes from trusted code.** The approval evidence is a context value that only the
+   surface sets, after a human approved. It is never read from tool arguments: whoever holds a
+   valid token can run the call.
+2. **A token is signed and bound.** It is an HMAC-SHA256 over a payload naming the command, a keyed
+   digest of the canonical JSON of the validated input, a keyed digest of the actor's `kind`, `id`
+   and `onBehalfOf` (not `label`), an issue time, an expiry and a random nonce. The key is
+   supplied by the application; there is no default. Every comparison is constant-time.
+3. **Canonical JSON** sorts object keys at every depth and otherwise follows `JSON.stringify`
+   (`toJSON` honoured, `undefined` members dropped, `undefined` array items as `null`). It accepts
+   only plain objects, arrays, strings, finite numbers, booleans, `null` and values with `toJSON`;
+   any other value (a bigint, a non-finite number, a map, set, regular expression, typed array or
+   class instance) fails the call rather than risk two inputs sharing a digest. Binding the
+   validated input means defaults and key order do not change the digest.
+4. **Short-lived and single-use by default.** A token expires (five minutes by default, at most
+   24 hours) and runs the command once; a second use is `already-used`. A server may allow reuse
+   until expiry instead. Single-use tracking is per middleware instance unless the instances share
+   a store. Expiry uses the server's clock, never a clock the caller can supply.
+5. **Policies fail closed.** A policy function that returns anything other than `not-required`
+   holds the call; one that throws fails the call before the handler.
+
+The result is an ordinary failed `CommandResult`, so it needs no wire fixture of its own.
+
+| | TypeScript | Python | Rust | C++ |
+| --- | --- | --- | --- | --- |
+| `approval` field and `_meta.approval` | Yes | Planned (#420) | Planned (#421) | Planned (#422) |
+| Approval middleware | Yes (`createApprovalMiddleware`) | Planned (#420) | Planned (#421) | Planned (#422) |
+| CLI approval flow, MCP relay, DirectClient `onApprovalNeeded` | Planned (#417, #418, #419) | Planned | Planned | Planned |
 
 ## MCP tool fields (MCP 2026-07-28 tool surface)
 

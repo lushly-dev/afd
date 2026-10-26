@@ -3,7 +3,7 @@
  */
 
 import type { CommandResult, JsonSchema } from '@lushly-dev/afd-core';
-import { success, truncateName } from '@lushly-dev/afd-core';
+import { approvalMode, success, truncateName } from '@lushly-dev/afd-core';
 import { defaultCommandGroup, notFoundSuggestion } from './command-routing.js';
 import type { DetailInput, DiscoverInput } from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
@@ -43,6 +43,7 @@ interface DetailResult {
 	destructive?: boolean;
 	confirmPrompt?: string;
 	undoable?: boolean;
+	approval?: 'not-required' | 'required' | 'conditional';
 	handoff?: boolean;
 	handoffProtocol?: string;
 	version?: string;
@@ -209,6 +210,7 @@ export function executeDetail(
 			destructive: cmd.destructive,
 			confirmPrompt: cmd.confirmPrompt,
 			undoable: cmd.undoable,
+			approval: approvalMode(cmd.approval),
 			handoff: cmd.handoff,
 			handoffProtocol: cmd.handoffProtocol,
 			version: cmd.version,

@@ -47,7 +47,7 @@ Versions below describe repository manifests. Registry checks independently conf
 | `spec/wire` round-trip, 6 fixtures | Wire shapes | Yes (generator) | Yes | Yes | Yes |
 | `spec/vectors/pipeline-variables.json`, 51 references and 27 conditions | Pipeline reference and `when` behavior | Yes (generator) | Yes | Yes | Yes |
 | `spec/vectors/batch-controls.json`, 24 batch and 25 pipeline cases | `stopOnError`, `parallelism`, deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION` and envelope validation in the batch and pipeline executors | Yes (generator) | Yes, through `afd-batch` and `afd-pipe` | Yes | Yes |
-| `spec/vectors/error-codes.json`, 44 codes | The shared `ErrorCodes` catalog of `spec/error-codes.md` | Yes | Yes | Yes | Yes |
+| `spec/vectors/error-codes.json`, 45 codes | The shared `ErrorCodes` catalog of `spec/error-codes.md` | Yes | Yes | Yes | Yes |
 | `spec/vectors/validation.json`, 34 cases / 130 tests | Required schema subset; unsupported optional keywords must reject registration | Yes | Yes: 130 execute | Yes: 102 execute, 28 optional rejections | Yes: 98 execute, 32 optional rejections |
 | [AFD protocol conformance tier](../spec/protocol-conformance.md) | Both MCP eras over real transports: discovery, `_meta`, headers, exposure, contexts, cache hints, tool fields | `/mcp` and stdio, both eras | Streamable HTTP and stdio, both eras | `server` feature over Streamable HTTP | Todo backend stdio |
 | Todo conformance, 34 cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes | Yes | Yes | Yes |
@@ -90,6 +90,7 @@ Limits of these checks:
 |---|---|---|---|---|
 | Core metadata: name, description, category, tags, version, mutation, requires, contexts, expose, handoff, examples, executionTime | Yes | Partial: the decorator has no `version`, `errors` or `execution_time`; `MCPServer.command` drops `handoff` | Yes | Yes (`requires` is `prerequisites`) |
 | `destructive`, `confirmPrompt`, `undoable` ([`spec/command-metadata.md`](../spec/command-metadata.md)) | Yes: on core `CommandDefinition` and `defineCommand`; `_meta` has `destructive` and `undoable`, afd-detail all three | Yes: on `CommandDefinition`, `define_command` and `@server.command`; same surfaces as TypeScript | Yes: on `CommandDefinition` (`with_destructive`, `with_confirm_prompt`, `with_undoable`); afd-help (full) and afd-docs, no `_meta` | Yes |
+| `approval` policy, `_meta.approval` ([`spec/command-metadata.md`](../spec/command-metadata.md#approvals), #272) | Yes: on core `CommandDefinition` and `defineCommand`; `_meta`, afd-detail and afd-docs | No (#420) | No (#421) | No (#422) |
 | Kebab-case name rule | Warns in `defineCommand` | Yes: warns in `define_command` and in the core registry for a raw definition | Yes, rejects at registration | Yes, rejects at registration |
 | Duplicate and reserved names | Throws for meta-tools, and for bootstrap and context names when enabled | Partial: meta-tools only; a command named like a bootstrap tool silently shadows it | Partial: bootstrap names only | Yes: meta-tools (C++ has no bootstrap or context tools) |
 | Input validated before the handler ([`spec/validation.md`](../spec/validation.md)) | Yes: Zod | Yes: advertised JSON Schema enforced before middleware, then Pydantic conversion where applicable | Yes: legacy parameters or additive `register_with_schema`; use `get_tool` for authoritative discovery | Yes: required subset; unsupported optional keywords reject registration |
@@ -121,6 +122,7 @@ Limits of these checks:
 | Retry, rate limit, telemetry | Yes | Yes | No | Deferred |
 | Tracing (OpenTelemetry-shaped), `composeMiddleware` | Yes | Yes | No | No: not declared |
 | Auth middleware | Yes (`packages/auth`) | No | No | N/A: built by the host |
+| Approval middleware (`APPROVAL_REQUIRED`, signed tokens) | Yes (`createApprovalMiddleware`) | No (#420) | No (#421) | No (#422; see the intended differences) |
 
 ### Batch, pipeline and stream
 

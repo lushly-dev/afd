@@ -17,7 +17,8 @@ pnpm add @lushly-dev/afd-server
 - **Multiple Transport Support** - stdio and Streamable HTTP (`/mcp`), each serving MCP 2026-07-28 and 2025 clients
 - **Auto Transport Detection** - Automatically selects the right transport based on environment
 - **Built-in Validation** - Automatic input validation before handler execution
-- **Middleware System** - Logging, tracing, rate limiting, and custom middleware
+- **Middleware System** - Logging, tracing, rate limiting, approvals, and custom middleware
+- **Pre-execution Approvals** - Hold commands for human sign-off with signed, short-lived approval tokens
 - **Command Prerequisites** - Declare `requires` dependencies so agents can plan execution order
 - **Agent Discovery** - Grouped, individual or lazy tool strategies, `afd-detail`, and optional `afd-help`/`afd-docs`/`afd-schema` bootstrap tools
 - **Full TypeScript Support** - Complete type inference from Zod schemas
@@ -458,6 +459,72 @@ const retry = createRetryMiddleware({
 });
 ```
 
+### Approvals
+
+`destructive` and `confirmPrompt` describe a command; `approval` holds it. A command whose `approval` policy requires it does not run until a human has approved that exact call. `createApprovalMiddleware` returns `APPROVAL_REQUIRED` before the handler runs, with a token the surface passes back once the human said yes:
+
+```typescript
+import { createApprovalMiddleware, createMcpServer, defineCommand, success } from '@lushly-dev/afd-server';
+
+const todoDelete = defineCommand({
+  name: 'todo-delete',
+  description: 'Delete a todo permanently',
+  mutation: true,
+  destructive: true,
+  // Or a function: (input, context) => context.actor?.kind === 'human' ? 'not-required' : 'required'
+  approval: 'required',
+  input: z.object({ id: z.string() }),
+  async handler(input) {
+    return success({ deleted: input.id });
+  },
+});
+
+const commands = [todoDelete];
+const server = createMcpServer({
+  name: 'todo',
+  version: '1.0.0',
+  commands,
+  middleware: [
+    createApprovalMiddleware({
+      secret: process.env.AFD_APPROVAL_SECRET!, // required, at least 32 bytes, no default
+      commands,
+      summarize: (command, input) => `Delete todo ${(input as { id: string }).id} (permanent)`,
+    }),
+  ],
+});
+```
+
+A held call returns:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "APPROVAL_REQUIRED",
+    "message": "todo-delete needs approval before it runs",
+    "suggestion": "Ask the user to approve \"Delete todo 42 (permanent)\"; once they approve, the application retries the same call with the same input and details.approvalToken as its approval evidence (tool arguments cannot carry it). …",
+    "retryable": false,
+    "details": { "approvalToken": "afdap1.…", "expiresAt": "2026-10-26T12:05:00.000Z", "summary": "Delete todo 42 (permanent)" }
+  }
+}
+```
+
+To resume, retry the same command with the same input and `context.approval` set to the token, for example `registry.execute('todo-delete', { id: '42' }, { approval: token })`.
+
+- **The token is the approval.** It is an HMAC-SHA256 over the command name, a keyed digest of the validated input (canonical JSON: sorted keys, so key order and defaults do not matter), a keyed digest of the actor's `kind`, `id` and `onBehalfOf`, an expiry and a random nonce. Tampered, expired, other-command, other-input and other-actor tokens are rejected, using constant-time comparisons; the new result's `details.reason` says why (which also tells a token's holder that its signature is valid).
+- **Only trusted code sets `context.approval`**, after a human approved: a surface such as `createContext(req)` or the application, never tool arguments. Whoever holds a token can use it, and the `APPROVAL_REQUIRED` result goes to the caller. Over MCP the agent cannot set the context, so it cannot use the token itself; where the gated caller could, set `includeToken: false` and deliver the token to the human through `onApprovalRequired` instead.
+- **Plain JSON input only.** A validated input holding a `Map`, `Set`, `RegExp`, typed array, class instance, `bigint` or non-finite number cannot be bound without ambiguity, so such a call fails before the handler instead of being held.
+- **Single-use by default.** A token runs the command once (`reason: 'already-used'` after). `replay: 'within-ttl'` lets it run the same call as often as it is presented until it expires, so one approval also covers repeats such as duplicate batch items. Spent tokens are remembered in memory by this middleware instance: share one `nonceStore` (`consume(nonce, expiresAt)` returning `true` only for an unused nonce, atomically) between every instance that uses the secret, across processes or between a server and a `createDirectRegistry`.
+- **Short-lived.** `ttlMs` defaults to 5 minutes, at most 24 hours. Time comes from the `clock` option, else the system clock; never from `context.clock`, which a caller can set.
+- **Key rotation:** pass `secret: [newKey, oldKey]`; the first signs, any verifies.
+- **Fails closed.** A policy function that returns anything but `'not-required'` holds the call; one that throws fails it before the handler. Write policies so that a missing actor is held (`kind === 'human' ? 'not-required' : 'required'`).
+- **Gates only the listed commands.** Pass the same `commands` as the server or registry: a command missing from the list is never held.
+- **Actor binding is as strong as the actor.** The MCP default actor is `{ kind: 'agent' }` with no `id`, so tokens are bound to a specific agent or user only when `createContext` or auth middleware sets one. Install the middleware after any middleware that sets or refines `context.actor`.
+- **Batches and pipelines** pass one `context.approval` to every step. Retrying a pipeline reruns its ungated steps, and a gated step whose input comes from an earlier step may never match its token, so approve such steps as separate calls.
+- `afd validate` warns (`MISSING_APPROVAL_POLICY`) about `mutation` or `destructive` commands that declare no policy. Declare `approval: 'not-required'` to say a command was considered and needs none.
+
+`spec/command-metadata.md` ("Approvals") is the cross-language contract. The CLI, MCP and DirectClient approval flows are follow-ups (#417, #418, #419).
+
 ### Custom Middleware
 
 ```typescript
@@ -565,6 +632,7 @@ Create a command definition with Zod schema.
 | `errors` | string[] | No | Possible error codes |
 | `expose` | ExposeOptions | No | Surfaces the command is exposed to; `{ mcp: true }` is required for MCP tools |
 | `examples` | `{ title, input }[]` | No | Example inputs, validated against `input` at define time |
+| `approval` | `'required'` \| `'not-required'` \| `(input, context) => …` | No | Whether a call needs human approval before the handler runs (default `'not-required'`); enforced by [`createApprovalMiddleware`](#approvals) |
 
 ### createMcpServer(options)
 
