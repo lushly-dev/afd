@@ -169,7 +169,9 @@ E404. Signed-in inspection found no trusted publisher connections. After scoped
 approval, all nine were configured for GitHub owner `lushly-dev`, repository
 `afd`, workflow `release.yml`, no environment name, with **Allow npm publish**
 enabled and dist-tag management disabled. Both subsequent uploads used OIDC and
-succeeded. Existing credentials and publishing-access settings were preserved.
+succeeded. Trusted publishing is the only npm upload path: `release.yml` no
+longer passes `NODE_AUTH_TOKEN`, and there is no token fallback. Keep
+`id-token: write`, `registry-url` and `NPM_CONFIG_PROVENANCE` in the workflow.
 
 All 18 published tarballs passed integrity checks and matched their reviewed
 payloads file-for-file; all 18 annotated Git tags resolve to the intended source.
@@ -188,8 +190,8 @@ For a future publishing failure:
    npm. [Trusted publishing](https://docs.npmjs.com/trusted-publishers/) requires
    npm 11.5.1 or later, Node 22.14.0 or later, a supported hosted runner and
    `id-token: write`. Check the configured repository, workflow, environment and
-   direct-publish action against the executing job. Preserve existing credentials
-   and access settings during diagnosis; credential cleanup is separate work.
+   direct-publish action against the executing job. Do not reintroduce an npm
+   token to work around a failure; fix the trusted-publisher configuration.
 3. Recheck all applicable workflows on the exact release PR head and inspect
    actual packed dependencies and optional-peer consumers before a release merge.
 4. After upload, verify every fixed-group version, exact tag target and fresh
