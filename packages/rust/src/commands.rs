@@ -399,7 +399,7 @@ pub fn is_exposed_to(command: &CommandDefinition, interface: CommandInterface) -
 /// Context provided to command handlers.
 ///
 /// Build it with [`CommandContext::new`] and the `with_*` methods.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 #[non_exhaustive]
 pub struct CommandContext {
     /// Unique ID for this command invocation.
@@ -453,6 +453,23 @@ pub struct CommandContext {
 
     /// What a journal recorder and replay pass to nested calls.
     pub(crate) journal_state: JournalContextState,
+}
+
+impl fmt::Debug for CommandContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CommandContext")
+            .field("trace_id", &self.trace_id)
+            .field("timeout_ms", &self.timeout_ms)
+            .field("interface", &self.interface)
+            .field("actor", &self.actor)
+            // An approval token is a credential: never print it.
+            .field("approval", &self.approval.as_ref().map(|_| "[redacted]"))
+            .field("clock", &self.clock.as_ref().map(|_| ".."))
+            .field("random", &self.random.as_ref().map(|_| ".."))
+            .field("extra", &self.extra)
+            .field("journal_state", &self.journal_state)
+            .finish()
+    }
 }
 
 impl CommandContext {
@@ -963,7 +980,10 @@ impl CommandRegistry {
             tool["annotations"] = annotations;
         }
         if let Some(approval) = approval_mode(command.approval.as_ref()) {
-            tool["_meta"] = serde_json::json!({ "approval": approval });
+            if !tool["_meta"].is_object() {
+                tool["_meta"] = serde_json::json!({});
+            }
+            tool["_meta"]["approval"] = serde_json::json!(approval);
         }
         Some(tool)
     }

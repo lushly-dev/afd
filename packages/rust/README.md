@@ -346,7 +346,8 @@ async fn main() {
   `CommandContext::with_approval(token)` (`spec/command-metadata.md`, "Approvals"). Tokens verify
   across TypeScript and Rust. Policies themselves (`CommandDefinition::with_approval`,
   `_meta.approval`) need no feature. With `wasm`, the token nonce comes from
-  `crypto.getRandomValues`.
+  `crypto.getRandomValues`; `wasm` with `approval` needs Rust 1.85 (getrandom 0.4; on older
+  toolchains getrandom 0.3 also needs `RUSTFLAGS='--cfg getrandom_backend="wasm_js"'`).
 - `server` - An MCP server for a `CommandRegistry` (`afd::server::McpServer`), built on the official
   MCP Rust SDK ([`rmcp`](https://crates.io/crates/rmcp)). One Streamable HTTP endpoint
   (`streamable_http_service`, a `tower` service to mount at `/mcp`) or one stdio connection

@@ -79,7 +79,10 @@ fn number_json(number: &serde_json::Number) -> Result<String, String> {
         .as_i64()
         .map(i128::from)
         .or_else(|| number.as_u64().map(i128::from))
-        .expect("a JSON number is a float or a 64-bit integer");
+        .ok_or_else(|| {
+            // Only with serde_json's `arbitrary_precision`: a number beyond 64 bits.
+            "Cannot bind an approval to a number beyond 64 bits".to_owned()
+        })?;
     if integer.unsigned_abs() <= u128::from(MAX_SAFE_INTEGER) {
         return Ok(integer.to_string());
     }
@@ -91,44 +94,11 @@ fn number_json(number: &serde_json::Number) -> Result<String, String> {
     }
 }
 
-/// ECMAScript `Number::toString` of a finite float: the shortest digits that round-trip, in
-/// fixed notation for decimal exponents from -7 to 20 and scientific notation otherwise.
+/// ECMAScript `Number::toString` of a finite float (as `JSON.stringify` writes it): the shortest
+/// digits that round-trip, ties to even, in fixed notation for decimal exponents from -7 to 20
+/// and scientific notation otherwise.
 pub(crate) fn js_number(value: f64) -> String {
-    if value == 0.0 {
-        return "0".to_owned();
-    }
-    // `{:e}` writes the shortest round-trip digits, as `d.ddde<exponent>`.
-    let scientific = format!("{:e}", value.abs());
-    let (mantissa, exponent) = scientific
-        .split_once('e')
-        .expect("LowerExp writes an exponent");
-    let digits: String = mantissa.chars().filter(char::is_ascii_digit).collect();
-    let exponent: i32 = exponent
-        .parse()
-        .expect("LowerExp writes an integer exponent");
-    let k = digits.len() as i32;
-    // The decimal point sits after `n` digits.
-    let n = exponent + 1;
-    let body = if k <= n && n <= 21 {
-        format!("{digits}{}", "0".repeat((n - k) as usize))
-    } else if 0 < n && n <= 21 {
-        format!("{}.{}", &digits[..n as usize], &digits[n as usize..])
-    } else if -6 < n && n <= 0 {
-        format!("0.{}{digits}", "0".repeat((-n) as usize))
-    } else {
-        let sign = if n - 1 < 0 { '-' } else { '+' };
-        let rest = if k > 1 {
-            format!(".{}", &digits[1..])
-        } else {
-            String::new()
-        };
-        format!("{}{rest}e{sign}{}", &digits[..1], (n - 1).abs())
-    };
-    if value < 0.0 {
-        format!("-{body}")
-    } else {
-        body
-    }
+    ryu_js::Buffer::new().format(value).to_owned()
 }
 
 /// The actor fields a token is bound to. `label` is display text, so it is left out.

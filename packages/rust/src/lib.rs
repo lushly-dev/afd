@@ -45,7 +45,8 @@
 //!   JSON Lines file (`std::fs`)
 //! - `approval` (default): the approval middleware ([`create_approval_middleware`]), with
 //!   HMAC-SHA256 tokens and an OS-random nonce (`getrandom`; with `wasm`, through the browser's
-//!   `crypto.getRandomValues`). Approval policies and their reporting need no feature.
+//!   `crypto.getRandomValues`, on Rust 1.85 or later). Approval policies and their reporting need no
+//!   feature.
 
 /// Compiles and runs the README examples as doctests.
 #[doc = include_str!("../README.md")]

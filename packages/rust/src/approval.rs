@@ -134,6 +134,7 @@ impl fmt::Debug for ApprovalPolicy {
 
 /// How a policy is reported in `_meta.approval`, `afd-help` and `afd-docs`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 #[serde(rename_all = "kebab-case")]
 pub enum ApprovalMode {
     /// [`ApprovalPolicy::NotRequired`].
@@ -173,6 +174,7 @@ pub fn approval_mode(policy: Option<&ApprovalPolicy>) -> Option<ApprovalMode> {
 
 /// Why a supplied approval token was not accepted (`details.reason`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[non_exhaustive]
 #[serde(rename_all = "kebab-case")]
 pub enum ApprovalRejection {
     /// Not a token: wrong shape, too long, or a signed payload that is not a token.

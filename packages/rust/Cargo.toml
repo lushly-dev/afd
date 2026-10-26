@@ -26,7 +26,9 @@ wasm = ["dep:web-time", "getrandom?/wasm_js"]
 # `FileJournalSink`: a command journal in a JSON Lines file, through blocking `std::fs`.
 journal-file = []
 # The approval middleware (`create_approval_middleware`): HMAC-SHA256 tokens and OS-random nonces.
-approval = ["dep:hmac", "dep:subtle", "dep:getrandom"]
+# `serde_json/float_roundtrip` parses floats exactly as JavaScript does, so canonical input JSON
+# (and so a token's input digest) matches TypeScript's.
+approval = ["dep:hmac", "dep:subtle", "dep:getrandom", "dep:ryu-js", "serde_json/float_roundtrip"]
 # MCP server over Streamable HTTP and stdio, built on the official Rust SDK (`rmcp`). Serves MCP
 # 2026-07-28 (stateless, per-request `_meta`) and 2025 `initialize` clients. Needs Rust 1.88.
 server = ["native", "dep:rmcp", "dep:getrandom", "tokio/rt", "tokio/io-std"]
@@ -45,6 +47,8 @@ sha2 = "0.10"
 # `approval` feature: the approval token's MAC and constant-time comparisons.
 hmac = { version = "0.12", optional = true }
 subtle = { version = "2.5", optional = true }
+# `approval` feature: numbers in canonical input JSON, spelled as ECMAScript `Number::toString`.
+ryu-js = { version = "1.0", optional = true }
 
 # Native-only: only `tokio::time::timeout` is used.
 tokio = { version = "1.0", default-features = false, features = ["time"], optional = true }

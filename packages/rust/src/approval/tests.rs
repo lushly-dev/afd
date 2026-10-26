@@ -662,7 +662,7 @@ async fn rejects_a_reused_single_use_token() {
     assert_eq!(harness.handled(), 1);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn runs_only_one_of_two_concurrent_calls_with_one_single_use_token() {
     let harness = setup();
     let token = token_of(
@@ -1246,6 +1246,13 @@ fn writes_numbers_as_javascript_does() {
         assert_eq!(js_number(value), expected, "{value}");
         assert_eq!(canonical_json(&json!(value)).unwrap(), expected, "{value}");
     }
+    // Exact ties between two shortest spellings go to the even digit, as ECMAScript requires.
+    for (text, expected) in [
+        ("662936471232937.25", "662936471232937.2"),
+        ("1658206780088562.25", "1658206780088562.2"),
+    ] {
+        assert_eq!(js_number(text.parse().unwrap()), expected, "{text}");
+    }
     assert_eq!(
         canonical_json(&json!(9_007_199_254_740_992_u64)).unwrap(),
         "9007199254740992"
@@ -1265,6 +1272,23 @@ fn writes_numbers_as_javascript_does() {
     assert!(canonical_json(&json!(9_007_199_254_740_993_u64)).is_err());
     assert!(canonical_json(&json!(u64::MAX)).is_err());
     assert!(canonical_json(&json!([{ "a": i64::MAX }])).is_err());
+}
+
+#[test]
+fn parses_floats_as_javascript_does() {
+    // serde_json's default float parsing reads these as the neighbouring double.
+    for text in ["985.6906946328695", "47960.756426982596"] {
+        let value: Value = serde_json::from_str(text).unwrap();
+        assert_eq!(canonical_json(&value).unwrap(), text);
+    }
+}
+
+#[test]
+fn never_prints_approval_evidence() {
+    let context = CommandContext::new().with_approval("afdap1.secret.mac");
+    let printed = format!("{context:?}");
+    assert!(!printed.contains("afdap1"), "{printed}");
+    assert!(printed.contains("[redacted]"));
 }
 
 #[test]

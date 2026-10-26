@@ -65,6 +65,7 @@ pub trait ApprovalNonceStore: Send + Sync {
 
 /// A call held for approval, as passed to the `on_approval_required` callback.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct ApprovalRequest {
     /// The command name.
     pub command: String,
@@ -440,7 +441,10 @@ impl Gate {
         actor: &str,
         now: i64,
     ) -> Result<Accepted, ApprovalRejection> {
-        if evidence.len() > MAX_TOKEN_LENGTH {
+        // TypeScript counts UTF-16 units; a UTF-8 byte count above 3× the cap is over it anyway.
+        if evidence.len() > 3 * MAX_TOKEN_LENGTH
+            || evidence.encode_utf16().count() > MAX_TOKEN_LENGTH
+        {
             return Err(ApprovalRejection::Malformed);
         }
         let parts: Vec<&str> = evidence.split('.').collect();

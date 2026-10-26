@@ -289,7 +289,7 @@ Ordered by how much an agent or a security boundary is affected.
 
 ## Name parity (`alfred parity`)
 
-Measured at `0777217`: TypeScript 186 exports, Python 179, Rust 225, C++ 158. The Rust row was re-measured after `execution_failure` was exported, after #401 (Rust then had 251 exports) and after #426, and the Python row after #348, #400 and #425 (Python then had 227 exports).
+Measured at `0777217`: TypeScript 186 exports, Python 179, Rust 225, C++ 158. The Rust row was re-measured after `execution_failure` was exported, after #401 (Rust then had 251 exports), after #426 and after #421 (Rust then had 285 exports), and the Python row after #348, #400 and #425 (Python then had 227 exports).
 
 | Language | Missing | What the missing names are |
 |---|---|---|
