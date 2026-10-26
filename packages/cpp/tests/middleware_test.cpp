@@ -29,7 +29,7 @@ std::unique_ptr<afd::CommandRegistry> registry_with(std::vector<afd::CommandMidd
 } // namespace
 
 TEST_CASE("random_uuid is a version 4 UUID") {
-    afd::SeededRandom random(42);
+    afd::SeededRandom random("42");
     const std::string uuid = afd::random_uuid(random);
     REQUIRE(uuid.size() == 36);
     CHECK(uuid[8] == '-');

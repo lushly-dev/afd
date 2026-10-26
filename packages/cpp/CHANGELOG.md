@@ -6,10 +6,14 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Added
 
+- Clock, random and actor on `CommandContext`, matching TypeScript (#271, #274, #402). `context.clock` and `context.random` are filled from `CommandRegistryOptions::clock` and `random` when the caller set none, and the registry times handlers with `context.clock`. `context.actor` (`Actor`, `ActorKind`, `actor_kinds`, `is_actor`, `is_actor_kind`, `parse_actor_kind`, `actor_kind_name`) says who is calling; `DirectClient` fills `human` (option `actor`; its `clock` and `random` options, when set, also reach the context), `CommandRegistryOptions::actor` sets a default, and the registry stamps the kind, never the id, as the typed `ResultMetadata::actor_kind` (`metadata.actorKind` on the wire; an unknown kind stays in `extra`). Also `ContextDefaults` and `with_context_defaults`, `fixed_clock(ms)`, `ManualClock::set(ms)`, `RandomSource::seed()` and `SystemRandom`. The todo backend's stdio loop calls as `agent`.
 - `error_codes::CONFIRMATION_REQUIRED` and `error_codes::CONFIRMATION_DECLINED`, for servers that enforce `confirm_prompt` (`spec/command-metadata.md`, "Confirmations"). Nothing emits them yet.
-
 - `afd_benchmarks` (behind `AFD_BUILD_BENCHMARKS`, OFF by default) replaces the dispatch-only benchmark and covers `execute` with and without `default_middleware()`, validation against 3, 20 and 100 property schemas, `DirectClient::call`, `execute_batch` and `execute_pipeline` at N = 1, 10 and 100, `get` and `list` on 1,000 commands, and `parse_bounded` and result serialization at 1 KB and 100 KB. CI runs it on the release preset and under Node (Emscripten) and uploads the numbers; there are no thresholds (#340).
 - `afd_benchmarks` also has `json_parse/1KB` and `/100KB`, plain `Json::parse` of the same text, as the reference for `parse_bounded`.
+
+### Changed
+
+- **Breaking:** `SeededRandom` is now mulberry32 seeded with the FNV-1a hash of a string, `SeededRandom("seed")`, and gives the same sequence as TypeScript's `seededRandom("seed")`. The `std::uint64_t` and default constructors are gone (a numeric seed no longer compiles): use `SeededRandom(std::to_string(n))` for a numbered seed, and `SystemRandom` (the former randomly seeded `std::mt19937_64`) for real randomness. Library defaults now use `SystemRandom`.
 
 ### Fixed
 

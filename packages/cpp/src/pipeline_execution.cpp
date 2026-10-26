@@ -738,7 +738,7 @@ PipelineResult execute_pipeline(const Json& raw_request, const CommandExecutor& 
     }
 
     std::shared_ptr<RandomSource> random =
-        options.random ? options.random : std::make_shared<SeededRandom>();
+        options.random ? options.random : std::make_shared<SystemRandom>();
     const std::string pipeline_id =
         request.id ? *request.id
                    : "pipeline-" + std::to_string(clock->wall_ms()) + "-" + random_suffix(*random);

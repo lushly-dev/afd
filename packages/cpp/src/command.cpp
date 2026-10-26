@@ -70,4 +70,19 @@ CommandNameCheck validate_command_name(std::string_view name) {
     return {.valid = true, .reason = std::nullopt};
 }
 
+CommandContext with_context_defaults(CommandContext context, const ContextDefaults& defaults) {
+    // New system sources rather than shared ones: afd-cpp keeps no global mutable state. The
+    // registry always passes its own, so this costs nothing on the execute path.
+    if (!context.clock) {
+        context.clock = defaults.clock ? defaults.clock : std::make_shared<SystemClock>();
+    }
+    if (!context.random) {
+        context.random = defaults.random ? defaults.random : std::make_shared<SystemRandom>();
+    }
+    if (!context.actor) {
+        context.actor = defaults.actor;
+    }
+    return context;
+}
+
 } // namespace afd

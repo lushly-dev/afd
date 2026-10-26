@@ -2,7 +2,7 @@
 
 TEST_CASE("equal timestamps keep insertion order (stable sort)") {
     auto clock = std::make_shared<afd::ManualClock>(0);
-    todo::TodoStore store(clock, std::make_shared<afd::SeededRandom>(2));
+    todo::TodoStore store(clock, std::make_shared<afd::SeededRandom>("2"));
     store.create("a", std::nullopt, "low");
     store.create("b", std::nullopt, "high");
     store.create("c", std::nullopt, "medium");
@@ -16,7 +16,7 @@ TEST_CASE("equal timestamps keep insertion order (stable sort)") {
 
 TEST_CASE("update sets and clears completedAt only on a change") {
     auto clock = std::make_shared<afd::ManualClock>(0);
-    todo::TodoStore store(clock, std::make_shared<afd::SeededRandom>(3));
+    todo::TodoStore store(clock, std::make_shared<afd::SeededRandom>("3"));
     const auto todo = store.create("x", std::nullopt, "medium");
     clock->advance(5);
     const auto done = store.update(todo.id, {.completed = true});

@@ -37,7 +37,7 @@ struct Fixture {
 
     afd::DirectClient client(afd::DirectClientOptions options = {}) {
         options.clock = clock;
-        options.random = std::make_shared<afd::SeededRandom>(7);
+        options.random = std::make_shared<afd::SeededRandom>("7");
         return afd::DirectClient(registry, std::move(options));
     }
 };

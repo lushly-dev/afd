@@ -24,9 +24,13 @@ struct DirectClientOptions {
     std::function<bool(std::string_view name)> allow;
     /// Client-side middleware, run around the registry's own chain.
     std::vector<CommandMiddleware> middleware;
+    /// The actor for calls whose context has none. Each call gets its own copy.
+    Actor actor{.kind = ActorKind::human};
     /// Copied into `context.extra["source"]` on every call when set.
     std::optional<std::string> source;
-    /// For trace IDs and timeouts. Defaults to `SystemClock` and a randomly seeded `SeededRandom`.
+    /// For trace IDs and timeouts. Defaults to `SystemClock` and a `SystemRandom`. When set, they
+    /// are also `context.clock` and `context.random` for calls whose context has none; otherwise
+    /// the registry's apply.
     std::shared_ptr<const Clock> clock;
     std::shared_ptr<RandomSource> random;
 };
@@ -43,8 +47,8 @@ public:
     /// 1. `allow` rejects: COMMAND_NOT_ALLOWED.
     /// 2. Unknown to this client: UNKNOWN_TOOL, with `data` listing the available commands and
     ///    close matches.
-    /// 3. The context gets a trace ID (`trace-<ms>-<random>`) if it has none, and this client's
-    ///    surface.
+    /// 3. The context gets a trace ID (`trace-<ms>-<random>`) and this client's actor if it has
+    ///    none, and this client's surface.
     /// 4. With a positive `context.timeout_ms`, the cancellation token carries the deadline, and a
     ///    call that finishes past it returns TIMEOUT. A synchronous handler is not interrupted.
     /// 5. Client middleware, then `CommandRegistry::execute`.
@@ -67,6 +71,8 @@ private:
 
     std::shared_ptr<const CommandRegistry> registry_;
     DirectClientOptions options_;
+    bool configured_clock_ = false;
+    bool configured_random_ = false;
 };
 
 } // namespace afd

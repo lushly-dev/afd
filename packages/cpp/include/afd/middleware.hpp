@@ -17,8 +17,7 @@ namespace afd {
 struct TraceIdOptions {
     /// Generates an ID. Defaults to a random UUID v4 from `random`.
     std::function<std::string()> generate;
-    /// Randomness for the default generator. Defaults to a `SeededRandom` seeded from
-    /// `std::random_device`.
+    /// Randomness for the default generator. Defaults to a `SystemRandom`.
     std::shared_ptr<RandomSource> random;
 };
 

@@ -23,7 +23,7 @@ struct ExecutorOptions {
     bool dev_mode = false;
     /// For deadlines, durations and timestamps. Defaults to `SystemClock`.
     std::shared_ptr<const Clock> clock;
-    /// For generated pipeline IDs. Defaults to a randomly seeded `SeededRandom`.
+    /// For generated pipeline IDs. Defaults to a `SystemRandom`.
     std::shared_ptr<RandomSource> random;
     /// Runs batch workers. Defaults to `InlineTaskRunner`.
     std::shared_ptr<TaskRunner> runner;

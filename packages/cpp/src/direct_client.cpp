@@ -51,12 +51,13 @@ CommandResult unknown_tool_failure(std::string_view name,
 
 DirectClient::DirectClient(std::shared_ptr<const CommandRegistry> registry,
                            DirectClientOptions options)
-    : registry_(std::move(registry)), options_(std::move(options)) {
+    : registry_(std::move(registry)), options_(std::move(options)),
+      configured_clock_(options_.clock != nullptr), configured_random_(options_.random != nullptr) {
     if (!options_.clock) {
         options_.clock = std::make_shared<SystemClock>();
     }
     if (!options_.random) {
-        options_.random = std::make_shared<SeededRandom>();
+        options_.random = std::make_shared<SystemRandom>();
     }
 }
 
@@ -98,6 +99,15 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
     // 3. Context.
     if (!context.trace_id || context.trace_id->empty()) {
         context.trace_id = generate_trace_id(*options_.clock, *options_.random);
+    }
+    if (!context.actor) {
+        context.actor = options_.actor;
+    }
+    if (!context.clock && configured_clock_) {
+        context.clock = options_.clock;
+    }
+    if (!context.random && configured_random_) {
+        context.random = options_.random;
     }
     context.surface = options_.surface;
     if (options_.source) {

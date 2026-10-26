@@ -2,11 +2,13 @@
 // (packages/core/src/commands.ts and packages/server/src/schema.ts).
 #pragma once
 
+#include "afd/actor.hpp"
 #include "afd/json.hpp"
 #include "afd/result.hpp"
 #include "afd/runtime.hpp"
 
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -52,12 +54,35 @@ struct CommandContext {
     std::optional<Interface> surface;
     /// The active command context (see `CommandDefinition::contexts`), if any.
     std::optional<std::string> active_context;
+    /// Who is calling. `DirectClient` sets `human` unless told otherwise; an MCP host should set
+    /// `agent`. The registry reports the kind as `metadata.actorKind`.
+    std::optional<Actor> actor;
+    /// The time source for handlers, instead of reading the system clock. The registry fills it
+    /// from `CommandRegistryOptions::clock` when unset, and times the handler with it.
+    std::shared_ptr<const Clock> clock;
+    /// The randomness source for handlers. The registry fills it from
+    /// `CommandRegistryOptions::random` when unset. Tests and replays pass a `SeededRandom`.
+    std::shared_ptr<RandomSource> random;
     /// Cooperative cancellation. Handlers that run long should poll it.
     CancellationToken cancellation;
     /// Anything else the host passes along, as a JSON object. TypeScript's `[key: string]:
     /// unknown`, and the only extension point.
     Json extra = Json::object();
 };
+
+/// Defaults for `with_context_defaults`.
+struct ContextDefaults {
+    /// Clock when the context has none. Default: a `SystemClock`.
+    std::shared_ptr<const Clock> clock;
+    /// Random source when the context has none. Default: a `SystemRandom`.
+    std::shared_ptr<RandomSource> random;
+    /// Actor when the context has none. Default: none (the context keeps no actor).
+    std::optional<Actor> actor;
+};
+
+/// `context` with `clock`, `random` and (when given) `actor` filled in where it has none. Values
+/// already on the context always win.
+CommandContext with_context_defaults(CommandContext context, const ContextDefaults& defaults = {});
 
 /// A command handler. Receives the validated input (defaults applied, undeclared keys removed).
 using CommandHandler = std::function<CommandResult(const Json& input, CommandContext& context)>;

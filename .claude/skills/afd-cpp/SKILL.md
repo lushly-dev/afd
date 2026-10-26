@@ -196,8 +196,10 @@ if (!parsed) {
 
 ## Runtime Seams (for Tests and Hosts)
 
-- **`Clock`:** `SystemClock`, or `ManualClock` for tests, which move time explicitly with `advance(ms)`.
-- **`RandomSource`:** `SeededRandom`, which takes a seed for reproducible tests.
+- **`Clock`:** `SystemClock`, or `ManualClock` (`fixed_clock(ms)`) for tests, which move time explicitly with `advance(ms)` and `set(ms)`.
+- **`RandomSource`:** `SystemRandom` (the default), or `SeededRandom("seed")` for reproducible tests and replays. `SeededRandom` gives the same sequence as TypeScript's `seededRandom`.
+- **On the context:** handlers read `context.clock` and `context.random` instead of the system clock or `<random>`. The registry fills them from `CommandRegistryOptions` when the caller did not, and times the handler with `context.clock`.
+- **`context.actor`:** who is calling (`Actor{.kind = ActorKind::agent}`). `DirectClient` defaults to `human`; a host's MCP loop should set `agent`. The registry stamps the kind (never the id) as `metadata.actorKind`.
 - **`CancellationSource` and `CancellationToken`:** cooperative cancellation, optionally with a deadline or a parent token.
 - **`TaskRunner`:** `InlineTaskRunner`, or `ThreadTaskRunner` when `AFD_ENABLE_THREADS` is set (off for Emscripten).
 

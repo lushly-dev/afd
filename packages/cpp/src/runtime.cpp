@@ -2,6 +2,8 @@
 
 #include <chrono>
 #include <exception>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "detail/exceptions.hpp"
@@ -27,11 +29,41 @@ void ManualClock::advance(double ms) {
     wall_ms_.fetch_add(static_cast<std::int64_t>(ms));
 }
 
-SeededRandom::SeededRandom() : engine_(std::random_device{}()) {}
+std::shared_ptr<ManualClock> fixed_clock(std::int64_t wall_ms) {
+    return std::make_shared<ManualClock>(wall_ms);
+}
 
-double SeededRandom::next() {
+SystemRandom::SystemRandom() : engine_(std::random_device{}()) {}
+
+double SystemRandom::next() {
     const std::lock_guard lock(mutex_);
     return std::uniform_real_distribution<double>(0.0, 1.0)(engine_);
+}
+
+namespace {
+
+// FNV-1a (32-bit). std::string holds the seed's UTF-8 bytes.
+std::uint32_t fnv1a(std::string_view text) {
+    std::uint32_t hash = 0x811c9dc5U;
+    for (const char byte : text) {
+        hash ^= static_cast<std::uint8_t>(byte);
+        hash *= 0x01000193U;
+    }
+    return hash;
+}
+
+} // namespace
+
+SeededRandom::SeededRandom(std::string seed) : seed_(std::move(seed)), state_(fnv1a(seed_)) {}
+
+double SeededRandom::next() {
+    // mulberry32, as in packages/core/src/clock.ts. Unsigned 32-bit arithmetic wraps exactly as
+    // Math.imul and >>> 0 do.
+    constexpr std::uint32_t increment = 0x6d2b79f5U;
+    std::uint32_t t = state_.fetch_add(increment) + increment;
+    t = (t ^ (t >> 15)) * (t | 1U);
+    t ^= t + (t ^ (t >> 7)) * (t | 61U);
+    return static_cast<double>(t ^ (t >> 14)) / 4294967296.0;
 }
 
 namespace {

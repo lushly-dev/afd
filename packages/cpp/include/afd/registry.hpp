@@ -45,8 +45,12 @@ struct CommandRegistryOptions {
     /// Runs batch workers. Defaults to `InlineTaskRunner` (no overlap). With `ThreadTaskRunner`,
     /// handlers run concurrently and must be thread-safe.
     std::shared_ptr<TaskRunner> runner;
-    /// For generated pipeline IDs. Defaults to a randomly seeded `SeededRandom`.
+    /// For generated pipeline IDs, and `context.random` when the caller set none. Defaults to a
+    /// `SystemRandom`.
     std::shared_ptr<RandomSource> random;
+    /// `context.actor` when the caller set none, e.g. `{.kind = ActorKind::agent}` for an MCP
+    /// host. Default: none.
+    std::optional<Actor> actor;
 };
 
 /// A registered command.
