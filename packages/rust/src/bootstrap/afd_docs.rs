@@ -89,6 +89,25 @@ impl AfdDocsHandler {
         ));
         lines.push(String::new());
 
+        if let Some(destructive) = cmd.destructive {
+            lines.push(format!(
+                "**Destructive:** {}",
+                if destructive { "Yes" } else { "No" }
+            ));
+            lines.push(String::new());
+        }
+        if let Some(prompt) = cmd.confirm_prompt.as_deref().filter(|p| !p.is_empty()) {
+            lines.push(format!("**Confirmation prompt:** {prompt}"));
+            lines.push(String::new());
+        }
+        if let Some(undoable) = cmd.undoable {
+            lines.push(format!(
+                "**Undoable:** {}",
+                if undoable { "Yes" } else { "No" }
+            ));
+            lines.push(String::new());
+        }
+
         let authoritative = self.registry.get_tool(&cmd.name);
         let legacy =
             serde_json::to_value(crate::command_to_mcp_tool(cmd)).expect("tool serializes");

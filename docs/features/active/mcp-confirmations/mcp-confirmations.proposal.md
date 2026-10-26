@@ -4,11 +4,11 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed 2026-10-25. Ranked 1 of 4 among the [MCP 2026-07-28 Phase 7 follow-ons](../../active/mcp-2026-07-28/proposal.md#phase-7-optional-follow-ons-each-its-own-proposal). Resolves decision D10 of that plan. |
+| Status | Active: accepted 2026-10-25 with every recommendation (C1–C6). Phase 1 (spec, error codes, Python and Rust fields) implemented on `claude/mcp-confirmations-phase1`. Ranked 1 of 4 among the [MCP 2026-07-28 Phase 7 follow-ons](../mcp-2026-07-28/proposal.md#phase-7-optional-follow-ons-each-its-own-proposal). Resolves decision D10 of that plan. |
 | Author | jasfalk (drafted with Claude) |
 | Spec | [MRTR](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr), [elicitation](https://modelcontextprotocol.io/specification/2026-07-28/client/elicitation) |
 | Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `packages/cli`, `python/`, `packages/rust`, the C++ todo backend |
-| Related | [Command trust config](../../complete/command-trust-config/) (added `destructive` and `confirmPrompt`), [command exposure and undo](../../complete/command-exposure-undo/), [MCP authorization](../mcp-authorization/mcp-authorization.proposal.md) (supplies the principal that confirmations bind to) |
+| Related | [Command trust config](../../complete/command-trust-config/) (added `destructive` and `confirmPrompt`), [command exposure and undo](../../complete/command-exposure-undo/), [MCP authorization](../../proposed/mcp-authorization/mcp-authorization.proposal.md) (supplies the principal that confirmations bind to) |
 
 ## Why this is first
 
@@ -66,7 +66,7 @@ DirectClient and the in-process registry do not enforce confirmations. The host 
 ## Spec and catalog changes (first PR)
 
 - `spec/command-metadata.md`: a "Confirmations" section with the behavior above, the acknowledgement fields, and the batch rule. Fix the spelling table so it matches what Python and Rust actually have.
-- `spec/error-codes.md` and `spec/vectors/error-codes.json`: add `CONFIRMATION_REQUIRED`, `CONFIRMATION_DECLINED` and `INPUT_REQUIRED`, which brings the catalog to 45 codes. Every language's catalog test then fails until it adds them.
+- `spec/error-codes.md` and `spec/vectors/error-codes.json`: add `CONFIRMATION_REQUIRED` and `CONFIRMATION_DECLINED` to the shared catalog, which brings it to 44 codes. Every language's catalog test then fails until it adds them. `INPUT_REQUIRED` is an MCP client code, listed with the transport-specific codes, because only an MCP client produces it.
 - Python and Rust gain `destructive`, `confirm_prompt` and `undoable`, with the same annotation and `_meta` rules as TypeScript.
 
 ## Per language
@@ -82,14 +82,14 @@ Keys come from server options. A server with several instances needs a shared ke
 
 ## Phases
 
-1. Spec, error codes, and the missing Python and Rust fields.
+1. Spec, error codes, and the missing Python and Rust fields. **Done (2026-10-25):** `spec/command-metadata.md` has the "Confirmations" section; `CONFIRMATION_REQUIRED` and `CONFIRMATION_DECLINED` are in the shared catalog (44 codes) in all four languages; `INPUT_REQUIRED` is listed as a planned MCP client code; Python and Rust have `destructive`, `confirm_prompt` and `undoable`, and a mutation's `destructiveHint` follows `destructive`. Rust tools still carry no `_meta`, so Rust reports the fields through annotations, afd-help and afd-docs.
 2. TypeScript server and client, CLI prompt, and conformance cases: a confirm-gated `todo-clear` in `confirm` mode for every backend, covering accept, decline, the acknowledgement path, and a replayed `requestState` with changed input.
 3. Python and Rust servers.
 4. Optional, and its own decision: elicitation beyond confirmation. That covers asking for missing required input instead of returning `VALIDATION_ERROR`, and offering the result's `undoCommand` after an undoable command. Undo has no machinery to build on yet: results carry `undoCommand` and `undoArgs`, but nothing runs them.
 
 ## Decisions
 
-| # | Question | Recommendation |
+| # | Question | Decision (accepted 2026-10-25) |
 |---|---|---|
 | C1 | Is enforcement opt-in in 2.x? | Yes, `'off'` by default. Consider `'enforce'` as the 3.0 default. |
 | C2 | How does a client without elicitation confirm? | The acknowledgement path above: a stripped `confirm` property, meta-tool fields, and `_meta["dev.afd/confirm"]`. |
@@ -100,7 +100,7 @@ Keys come from server options. A server with several instances needs a shared ke
 
 ## Out of scope
 
-Sampling and roots through MRTR, which AFD does not use. URL-mode elicitation, which is for secrets and authorization flows. Confirmations inside Tasks, which belong to the [Tasks proposal](../mcp-tasks/mcp-tasks.proposal.md).
+Sampling and roots through MRTR, which AFD does not use. URL-mode elicitation, which is for secrets and authorization flows. Confirmations inside Tasks, which belong to the [Tasks proposal](../../proposed/mcp-tasks/mcp-tasks.proposal.md).
 
 ## Sources
 

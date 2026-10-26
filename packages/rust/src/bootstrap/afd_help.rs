@@ -36,6 +36,12 @@ pub struct CommandInfo {
     pub tags: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mutation: Option<bool>,
+    /// `destructive` when set (`full` format only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub destructive: Option<bool>,
+    /// `undoable` when set (`full` format only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub undoable: Option<bool>,
     /// Commands to call first (always listed when set).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires: Option<Vec<String>>,
@@ -125,6 +131,8 @@ impl CommandHandler for AfdHelpHandler {
                 category: if is_full { cmd.category.clone() } else { None },
                 tags: if is_full { cmd.tags.clone() } else { None },
                 mutation: if is_full { Some(cmd.mutation) } else { None },
+                destructive: if is_full { cmd.destructive } else { None },
+                undoable: if is_full { cmd.undoable } else { None },
                 requires: cmd.requires.clone().filter(|requires| !requires.is_empty()),
             };
             let category = cmd

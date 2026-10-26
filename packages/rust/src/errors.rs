@@ -316,6 +316,10 @@ pub mod error_codes {
     pub const STREAM_ENDED_UNEXPECTEDLY: &str = "STREAM_ENDED_UNEXPECTEDLY";
     /// A streamed command failed without an error of its own.
     pub const COMMAND_FAILED: &str = "COMMAND_FAILED";
+    /// The command declares `confirm_prompt` and the call carried no accepted confirmation.
+    pub const CONFIRMATION_REQUIRED: &str = "CONFIRMATION_REQUIRED";
+    /// The user declined or cancelled the confirmation.
+    pub const CONFIRMATION_DECLINED: &str = "CONFIRMATION_DECLINED";
 }
 
 /// Standard error code alias for parity with other AFD implementations.

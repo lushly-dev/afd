@@ -168,6 +168,9 @@ def execute_detail(
             "examples": serialize_command_examples(list(command.examples or [])),
             "handoff": command.handoff,
             "handoffProtocol": command.handoff_protocol,
+            "destructive": command.destructive,
+            "confirmPrompt": command.confirm_prompt,
+            "undoable": command.undoable,
         }
         # Wire format: unset fields are omitted, never null.
         entries.append({key: value for key, value in entry.items() if value is not None})

@@ -6,7 +6,9 @@ Every AFD implementation carries these fields. Which ones each language has toda
 
 Names below are the wire (JSON) spelling. Code may use the language's own casing, such as
 `confirm_prompt` in Python, Rust and C++, and C++ calls `requires` `prerequisites`. Anything
-serialized uses the names below.
+serialized uses the names below. Python and Rust spell the three trust fields `destructive`,
+`confirm_prompt` and `undoable`, and hold `destructive` and `undoable` as optional booleans so that
+an unset field stays distinguishable from an explicit `false`.
 
 ## Fields
 
@@ -32,9 +34,10 @@ serialized uses the names below.
 | `examples` | `{ title, input }[]` | None | `_meta`, afd-help (full). Each `input` must pass the input schema when the command is defined |
 | `contexts` | string[] | None: the command is visible in every context | `_meta`; tools/list and the context tools scope on it |
 
-`destructive`, `confirmPrompt` and `undoable` are declarations for frontends and agents. AFD
-carries them and does not act on them: an undo mechanism, and the confirmation UI, belong to the
-consumer.
+`destructive`, `confirmPrompt` and `undoable` are declarations for frontends and agents. AFD does
+not act on `destructive` or `undoable`: an undo mechanism belongs to the consumer. A server MAY
+enforce `confirmPrompt` on its MCP surfaces, as [Confirmations](#confirmations) describes; it does
+not by default.
 
 ## Reporting rules
 
@@ -58,6 +61,47 @@ consumer.
 | afd-help | `name`, `description`, `requires`; the `full` format adds `category`, `tags`, `mutation`, `destructive`, `undoable`, `examples` |
 | afd-docs | `category`, `name`, `description`, `tags`, `mutation`, `destructive`, `confirmPrompt`, `undoable`, parameters |
 | afd-schema | `name`, `description`, `inputSchema` |
+
+## Confirmations
+
+A server MAY enforce `confirmPrompt` with the option `confirmations`: `off` (the default), `enforce`
+or `require-human`. Enforcement applies to the MCP surfaces (individual tools, the meta-tools and
+grouped tools) and to the HTTP `/stream` and REST routes. DirectClient and in-process registries
+never enforce it: the host owns in-process calls.
+
+When enforcement is on, a call to a command with `confirmPrompt` runs only with a confirmation:
+
+1. **An accepted elicitation.** If the request declares the form elicitation capability, the server
+   answers `input_required` with one form elicitation: `confirmPrompt` as the message and one
+   boolean property. Its `requestState` is integrity-protected and binds the command name, a digest
+   of the validated input, the principal when there is one, and an expiry. When the retry carries an
+   accepted response and a `requestState` that verifies and still matches the input, the command
+   runs.
+2. **An acknowledgement** (`enforce` only). The call sets `confirm: true` in the tool arguments, or
+   `_meta["dev.afd/confirm"]: true`. An agent can send an acknowledgement without asking anyone, so
+   it is a deliberate second call, not human consent. `require-human` accepts elicitations only.
+
+Otherwise the call fails before the handler runs:
+
+| Situation | Code | Suggestion |
+| --- | --- | --- |
+| The user declined or cancelled the elicitation | `CONFIRMATION_DECLINED` | Do not retry without asking the user |
+| No elicitation was possible, under `enforce` | `CONFIRMATION_REQUIRED` | Repeat the call with `confirm: true` once the action is intended |
+| No elicitation was possible, under `require-human` | `CONFIRMATION_REQUIRED` | Use a client that supports elicitation |
+
+Where the acknowledgement goes:
+
+- **Individual tools.** A command with `confirmPrompt` advertises an optional boolean `confirm`
+  property in its tool `inputSchema`. The server removes it before validating the input, so the
+  command's own schema never sees it.
+- **`afd-call`.** An optional `confirm` boolean next to `command` and `input`.
+- **`afd-batch` and `afd-pipe`.** An optional `confirm` array of the command names being
+  confirmed. A batch or pipeline with any confirm-gated command asks once, before any step runs,
+  and its elicitation message lists every gated command.
+- **Grouped tools.** An optional `confirm` boolean next to `action` and `params`.
+
+`requestState` is opaque to clients and is never trusted unverified. A stale, altered or mismatched
+`requestState` is treated as no confirmation.
 
 ## MCP tool fields (MCP 2026-07-28 tool surface)
 
@@ -108,13 +152,13 @@ commands; their per-command metadata stays in `_meta.actions`.
 ### Implementation status
 
 Python's, Rust's and C++'s `mutation` is a plain boolean with no unset state, so they report
-annotations only for `mutation: true` and never claim `readOnlyHint: true`. `destructiveHint` is
-`false` in Python and Rust, which have no `destructive` field yet, and follows `destructive` in
-C++.
+annotations only for `mutation: true` and never claim `readOnlyHint: true`. `destructiveHint`
+follows `destructive`, `false` when it is unset.
 
 | | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Annotations | Yes | `mutation: true` only | `mutation: true` only, from `CommandRegistry::get_tool` | `mutation: true` only, with `destructive` (todo backend) |
+| Annotations | Yes | `mutation: true` only, with `destructive` | `mutation: true` only, with `destructive`, from `CommandRegistry::get_tool` | `mutation: true` only, with `destructive` (todo backend) |
+| Confirmations | Planned | Planned | Planned | Planned |
 | `structuredContent` | Yes | Planned | Planned | Planned |
 | Top-level `outputSchema` | Yes (`advertiseOutputSchema`) | Planned | Planned | Planned |
 
