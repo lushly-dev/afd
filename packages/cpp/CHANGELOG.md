@@ -7,6 +7,11 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 ### Added
 
 - `afd_benchmarks` (behind `AFD_BUILD_BENCHMARKS`, OFF by default) replaces the dispatch-only benchmark and covers `execute` with and without `default_middleware()`, validation against 3, 20 and 100 property schemas, `DirectClient::call`, `execute_batch` and `execute_pipeline` at N = 1, 10 and 100, `get` and `list` on 1,000 commands, and `parse_bounded` and result serialization at 1 KB and 100 KB. CI runs it on the release preset and under Node (Emscripten) and uploads the numbers; there are no thresholds (#340).
+- `afd_benchmarks` also has `json_parse/1KB` and `/100KB`, plain `Json::parse` of the same text, as the reference for `parse_bounded`.
+
+### Fixed
+
+- `parse_bounded` is linear in input size. It enforced the depth limit with a nlohmann parser callback, and the callback parser rescans the enclosing container after every object, so an array of N objects cost O(N²); 100 KB took about 6 to 9 times as long as plain `nlohmann::json::parse`. It now builds the document from SAX events and stops at the first container over the limit, and costs about the same as `Json::parse` (within 10 percent at 100 KB). Results are unchanged: the outermost container is level 1, and the input is reported too deep or malformed by whichever comes first (#397).
 
 ### Documentation
 

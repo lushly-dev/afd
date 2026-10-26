@@ -53,8 +53,9 @@ TEST_CASE("parse_bounded accepts the depth limit and rejects one level more") {
     CHECK(afd::parse_bounded("42", afd::ParseLimits{.max_depth = 0}).has_value());
 }
 
-TEST_CASE("parse_bounded fails on the depth limit even though nlohmann reports success") {
-    // A rejecting parser callback drops the subtree and still returns a value (Phase 0 spike).
+TEST_CASE("parse_bounded fails on a deep subtree inside an otherwise valid document") {
+    // A rejecting nlohmann parser callback drops the subtree and still returns a value (Phase 0
+    // spike); parse_bounded must fail instead.
     const auto result = afd::parse_bounded(R"({"ok":1,"deep":[[[1]]]})", {.max_depth = 2});
     REQUIRE_FALSE(result.has_value());
     CHECK(result.error().kind == afd::JsonParseError::Kind::too_deep);
@@ -67,6 +68,12 @@ TEST_CASE("parse_bounded rejects deep hostile input without overflowing the stac
     CHECK(result.error().message == "JSON input is nested deeper than 256 levels");
 }
 
+TEST_CASE("parse_bounded accepts deep input under a raised limit") {
+    const auto result = afd::parse_bounded(nested_arrays(20000), {.max_depth = 20000});
+    REQUIRE(result.has_value());
+    CHECK(result->size() == 1);
+}
+
 TEST_CASE("parse_bounded rejects oversized and malformed input") {
     const auto large = afd::parse_bounded("[1,2,3]", {.max_depth = 256, .max_bytes = 4});
     REQUIRE_FALSE(large.has_value());
@@ -77,6 +84,35 @@ TEST_CASE("parse_bounded rejects oversized and malformed input") {
         REQUIRE_FALSE(malformed.has_value());
         CHECK(malformed.error().kind == afd::JsonParseError::Kind::malformed);
     }
+}
+
+TEST_CASE("parse_bounded reports whichever comes first, too deep or malformed") {
+    CHECK(afd::parse_bounded("[[[1,]]]", {.max_depth = 2}).error().kind ==
+          afd::JsonParseError::Kind::too_deep);
+    CHECK(afd::parse_bounded("[1,][[[1]]]", {.max_depth = 2}).error().kind ==
+          afd::JsonParseError::Kind::malformed);
+    CHECK(afd::parse_bounded("{} x").error().kind == afd::JsonParseError::Kind::malformed);
+}
+
+TEST_CASE("parse_bounded builds the same document as Json::parse") {
+    std::string text = R"({"a":1,"a":2,"items":[)";
+    for (int i = 0; i < 500; ++i) {
+        text += (i == 0 ? "" : ",");
+        text +=
+            R"({"id":)" + std::to_string(i) +
+            R"(,"title":"t\u00e9","done":false,"tags":[],"n":null,"x":-1.5e3,"f":2.0,"i":-7,"u":18446744073709551615})";
+    }
+    text += "]}";
+    const auto parsed = afd::parse_bounded(text);
+    REQUIRE(parsed.has_value());
+    CHECK(*parsed == afd::Json::parse(text));
+    // == compares numbers across kinds, so compare the text too: kinds must be preserved.
+    CHECK(parsed->dump() == afd::Json::parse(text).dump());
+    CHECK((*parsed)["a"] == 2); // the last duplicate key wins, as in Json::parse
+    CHECK((*parsed)["items"].size() == 500);
+    CHECK((*parsed)["items"][0]["u"].is_number_unsigned());
+    CHECK((*parsed)["items"][0]["i"].is_number_integer());
+    CHECK((*parsed)["items"][0]["f"].is_number_float());
 }
 
 TEST_CASE("wire::serialize replaces invalid UTF-8 instead of aborting") {
