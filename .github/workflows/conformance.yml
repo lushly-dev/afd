@@ -98,6 +98,12 @@ jobs:
       - name: Conformance (Python backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:py --mode modern
 
+      - name: Confirmations (Python backend)
+        run: pnpm --dir packages/examples/todo test:conformance:py --suite confirmations
+
+      - name: Confirmations (Python backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:py --suite confirmations --mode modern
+
       # The stores must never write tracked files (data/todos.json is gitignored).
       - name: Check the working tree is unchanged
         run: |
@@ -165,6 +171,11 @@ jobs:
 
       - name: Conformance (Rust backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:rs --mode modern
+
+      # Modern only: a 2025 request over the backend's stateless HTTP has no back channel for
+      # elicitation, so the accept and decline cases need MCP 2026-07-28.
+      - name: Confirmations (Rust backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:rs --suite confirmations --mode modern
 
       - name: Check the working tree is unchanged
         run: |

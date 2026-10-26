@@ -12,6 +12,7 @@ Run it over stdio::
 from __future__ import annotations
 
 import logging
+import os
 import sys
 
 from afd.server import MCPServer, create_server
@@ -28,6 +29,8 @@ def create_app(store: MemoryStore) -> MCPServer:
         name="todo-app",
         version="1.0.0",
         description="A todo list manager demonstrating AFD patterns",
+        # off (default), enforce or require-human (spec/command-metadata.md, "Confirmations").
+        confirmations=os.environ.get("CONFIRMATIONS", "off"),
     )
     register_commands(server, store)
     register_batch_commands(server, store)

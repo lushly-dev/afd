@@ -73,7 +73,19 @@ from afd.server.decorators import (
 from afd.core.builtin_names import AFD_META_TOOL_NAMES
 from afd.server.lazy_tools import not_found_suggestion
 from afd.server.middleware import CommandMiddleware
-from afd.server.session_context import SessionContextState, UnknownContextError
+from afd.server.confirmations import (
+    AFD_CONFIRM_META_KEY,
+    CONFIRM_INPUT_KEY,
+    CONFIRM_REQUESTED_SCHEMA,
+    CONFIRMATION_MODES,
+    ConfirmationGate,
+    bind_confirmation_channel,
+)
+from afd.server.session_context import (
+    SessionContextState,
+    UnknownContextError,
+    is_modern_protocol,
+)
 from afd.server.tool_router import ToolRouterDeps, create_tool_router, new_trace_id
 from afd.server.tools import get_tools_list
 from afd.server.types import ContextConfig, GroupByFn, ToolStrategy
@@ -129,6 +141,8 @@ class ServerConfig:
     clock: Clock | None = None
     random: RandomSource | None = None
     actor: Actor | None = None
+    confirmations: str = "off"
+    confirmation_key: bytes | str | None = None
 
 
 DEFAULT_TOOLS_LIST_TTL_MS = 300_000
@@ -930,6 +944,7 @@ class MCPServer:
                     exposed_command_names={command.name for command in commands},
                     context_state=self._context_state,
                     actor=self.config.actor or Actor(kind="agent"),
+                    confirmations=ConfirmationGate(self.config.confirmations, commands),
                 )
             )
         return self._router
@@ -956,6 +971,7 @@ class MCPServer:
             self.config.tool_strategy,
             group_by_fn=self.config.group_by,
             active_context=self._context_state.get_active(),
+            confirmations=self.config.confirmations,
         )
 
     def get_mcp_tools(self) -> list[dict[str, Any]]:
@@ -980,6 +996,7 @@ class MCPServer:
             self.config.tool_strategy,
             group_by_fn=self.config.group_by,
             active_context=None,
+            confirmations=self.config.confirmations,
         )
         for tool_definition in definitions:
             tool = self._create_fastmcp_tool(tool_definition)
@@ -1018,9 +1035,18 @@ class MCPServer:
 
         tool_name = tool_definition["name"]
 
-        async def handler(**payload: Any) -> Any:
+        async def handler(afd_ctx: Any = None, **payload: Any) -> Any:
+            # The SDK request this call serves decides how it can be confirmed.
+            channel = (
+                _SdkConfirmationChannel(afd_ctx, self._stateless_http, _CURRENT_REQUEST.get())
+                if afd_ctx is not None and self.config.confirmations != "off"
+                else None
+            )
             try:
-                result = await self.route_tool_call(tool_name, payload)
+                with bind_confirmation_channel(channel):
+                    result = await self.route_tool_call(tool_name, payload)
+                if _is_input_required(result):
+                    return result
                 return _tool_call_result(result)
             except Exception as exc:
                 return _tool_call_result(self._internal_error(tool_name, exc))
@@ -1032,7 +1058,7 @@ class MCPServer:
             parameters=input_schema,
             fn_metadata=FuncMetadata(arg_model=input_model),
             is_async=True,
-            context_kwarg=None,
+            context_kwarg="afd_ctx",
             meta=tool_definition.get("_meta"),
         )
 
@@ -1042,6 +1068,7 @@ class MCPServer:
         try:
             from mcp.server import CacheHint
             from mcp.server.mcpserver import MCPServer as SdkMCPServer
+            from mcp.server.request_state import RequestStateSecurity
         except ImportError as exc:  # pragma: no cover - optional dependency
             raise ImportError("mcp not installed. Install with: pip install afd[server]") from exc
 
@@ -1103,6 +1130,11 @@ class MCPServer:
             version=self.config.version,
             cache_hints={"tools/list": hint, "server/discover": hint},
             middleware=[capture_request],
+            **(
+                {"request_state_security": RequestStateSecurity(keys=[self.config.confirmation_key])}
+                if self.config.confirmation_key is not None
+                else {}
+            ),
         )
         self._sync_mcp_tool_definitions()
         self._install_fastmcp_context_error_translation()
@@ -1206,6 +1238,67 @@ def _is_error_result(result: Any) -> bool:
     return False
 
 
+def _is_input_required(result: Any) -> bool:
+    return type(result).__name__ == "InputRequiredResult"
+
+
+class _SdkConfirmationChannel:
+    """What one SDK ``tools/call`` can carry for confirmations (``afd.server.confirmations``).
+
+    A 2026-07-28 request elicits through ``input_required`` when it declares form
+    elicitation; the SDK seals the ``requestState`` and binds it to the request. A 2025
+    request elicits with a server-sent request when its connection has a back channel
+    (stdio, stateful HTTP), never over stateless HTTP.
+    """
+
+    def __init__(self, ctx: Any, stateless_http: bool, request: Any) -> None:
+        self._ctx = ctx
+        self._modern = is_modern_protocol(getattr(ctx, "protocol_version", None))
+        capabilities = getattr(ctx, "client_capabilities", None)
+        elicitation = getattr(capabilities, "elicitation", None) if capabilities else None
+        form = elicitation is not None and (
+            getattr(elicitation, "form", None) is not None or getattr(elicitation, "url", None) is None
+        )
+        self.can_elicit = form and (self._modern or not stateless_http)
+        params = getattr(request, "params", None)
+        meta = params.get("_meta") if isinstance(params, dict) else None
+        self.acknowledged = isinstance(meta, dict) and meta.get(AFD_CONFIRM_META_KEY) is True
+
+    @staticmethod
+    def _answer(action: Any, content: Any) -> str:
+        confirmed = isinstance(content, dict) and content.get("confirm") is True
+        return "accept" if action == "accept" and confirmed else "decline"
+
+    async def response(self, binding: str) -> str:
+        if not self._modern:
+            return "missing"
+        answer = (self._ctx.input_responses or {}).get(CONFIRM_INPUT_KEY)
+        if answer is None or not hasattr(answer, "action"):
+            return "missing"
+        if self._ctx.request_state != binding:
+            return "missing"
+        return self._answer(answer.action, getattr(answer, "content", None))
+
+    async def ask(self, message: str, binding: str) -> Any:
+        if self._modern:
+            from mcp_types import ElicitRequest, ElicitRequestFormParams, InputRequiredResult
+
+            return InputRequiredResult(
+                input_requests={
+                    CONFIRM_INPUT_KEY: ElicitRequest(
+                        params=ElicitRequestFormParams(
+                            message=message, requested_schema=CONFIRM_REQUESTED_SCHEMA
+                        )
+                    )
+                },
+                request_state=binding,
+            )
+        result = await self._ctx.session.elicit_form(
+            message, CONFIRM_REQUESTED_SCHEMA, related_request_id=self._ctx.request_id
+        )
+        return self._answer(result.action, result.content)
+
+
 def _tool_call_result(result: Any) -> Any:
     """Wrap a routed result in an MCP CallToolResult in the AFD wire format."""
     from mcp.types import CallToolResult, TextContent
@@ -1262,6 +1355,8 @@ def create_server(
     clock: Clock | None = None,
     random: RandomSource | None = None,
     actor: Actor | None = None,
+    confirmations: str = "off",
+    confirmation_key: bytes | str | None = None,
 ) -> MCPServer:
     """Create a new AFD MCP server.
 
@@ -1290,7 +1385,19 @@ def create_server(
         actor: Actor for commands called over MCP when the context has none.
             Default: ``Actor(kind="agent")``. Direct ``server.execute()`` calls
             get no default actor.
+        confirmations: Enforce ``confirm_prompt`` on MCP calls
+            (``spec/command-metadata.md``, "Confirmations"): ``"off"`` (the default),
+            ``"enforce"`` (an accepted elicitation, or an acknowledgement:
+            ``confirm: true`` or ``_meta["dev.afd/confirm"]``) or ``"require-human"``
+            (an accepted elicitation only). Otherwise the call fails with
+            ``CONFIRMATION_REQUIRED`` or ``CONFIRMATION_DECLINED`` before the handler
+            runs. ``server.execute()`` and DirectClient calls are never gated.
+        confirmation_key: Key (32 bytes or more) that seals the ``requestState`` of
+            confirmation elicitations, shared by every instance behind one URL.
+            Default: a random key per process.
     """
+    if confirmations not in CONFIRMATION_MODES:
+        raise ValueError("confirmations must be 'off', 'enforce' or 'require-human'")
 
     normalized_contexts = [
         item
@@ -1322,5 +1429,7 @@ def create_server(
         clock=clock,
         random=random,
         actor=actor,
+        confirmations=confirmations,
+        confirmation_key=confirmation_key,
     )
     return MCPServer(config)

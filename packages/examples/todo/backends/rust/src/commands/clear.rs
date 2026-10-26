@@ -23,6 +23,7 @@ impl Command for Clear {
     const NAME: &'static str = "todo-clear";
     const DESCRIPTION: &'static str = "Clear completed todos (or all if specified)";
     const MUTATION: bool = true;
+    const CONFIRM_PROMPT: Option<&'static str> = Some("Delete these todos? This cannot be undone.");
 
     fn schema() -> Value {
         json!({

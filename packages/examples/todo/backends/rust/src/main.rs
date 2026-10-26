@@ -77,7 +77,7 @@ async fn run_server(registry: CommandRegistry, tools: Vec<Tool>) -> ExitCode {
         }
     };
     let mcp = match server::mcp_server(registry, &tools) {
-        Ok(mcp) => mcp,
+        Ok(mcp) => mcp.with_confirmations(config.confirmations),
         Err(error) => {
             eprintln!("{error}");
             return ExitCode::FAILURE;

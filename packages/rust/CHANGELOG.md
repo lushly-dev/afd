@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Confirmations (`server` feature):** `McpServer::with_confirmations(ConfirmationMode::Enforce | RequireHuman)` and `with_confirmations_key` enforce `confirm_prompt` on tool calls (`spec/command-metadata.md`, "Confirmations"). A gated call runs after the user accepts an elicitation (an `input_required` result with an HMAC-signed `requestState` on MCP 2026-07-28, a server-sent request on a 2025 stdio connection), or, under `Enforce`, after `confirm: true` or `_meta["dev.afd/confirm"]`. Otherwise it fails with `CONFIRMATION_REQUIRED` or `CONFIRMATION_DECLINED`. The feature now enables `rmcp`'s `request-state` and `elicitation` features and depends on `getrandom`.
+
 - **Trust fields:** `CommandDefinition` gains `destructive`, `confirm_prompt` and `undoable`, with `with_destructive`, `with_confirm_prompt` and `with_undoable`. `afd-help` (full) reports `destructive` and `undoable`, `afd-docs` reports all three, and a mutation's `destructiveHint` annotation follows `destructive`. `afd-help`'s `CommandInfo` gains two optional fields, so code that builds it with a struct literal must add them.
 - **Confirmation error codes:** `error_codes::CONFIRMATION_REQUIRED` and `error_codes::CONFIRMATION_DECLINED`, for servers that enforce `confirm_prompt`. Nothing emits them yet.
 - **Approval error code:** `error_codes::APPROVAL_REQUIRED`, returned by an approval middleware before the handler runs (`spec/command-metadata.md`, "Approvals"). Nothing in the crate emits it yet (#421).

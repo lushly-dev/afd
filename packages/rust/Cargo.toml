@@ -25,7 +25,7 @@ native = ["dep:tokio"]
 wasm = ["dep:web-time"]
 # MCP server over Streamable HTTP and stdio, built on the official Rust SDK (`rmcp`). Serves MCP
 # 2026-07-28 (stateless, per-request `_meta`) and 2025 `initialize` clients. Needs Rust 1.88.
-server = ["native", "dep:rmcp", "tokio/rt", "tokio/io-std"]
+server = ["native", "dep:rmcp", "dep:getrandom", "tokio/rt", "tokio/io-std"]
 
 [dependencies]
 # Core dependencies
@@ -47,7 +47,11 @@ rmcp = { version = "3.7", default-features = false, features = [
     "server",
     "transport-streamable-http-server",
     "transport-io",
+    "request-state",
+    "elicitation",
 ], optional = true }
+# `server` feature: the per-process key that signs confirmation `requestState`.
+getrandom = { version = "0.4", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full", "test-util"] }
