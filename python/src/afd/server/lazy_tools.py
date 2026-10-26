@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Sequence
 
+from afd.core.approval import approval_mode
 from afd.core.commands import CommandDefinition, command_to_mcp_tool, serialize_command_examples
 from afd.core.result import CommandResult, success
 from afd.core.similarity import find_similar_tools, truncate_name
@@ -171,6 +172,7 @@ def execute_detail(
             "destructive": command.destructive,
             "confirmPrompt": command.confirm_prompt,
             "undoable": command.undoable,
+            "approval": approval_mode(command.approval),
         }
         # Wire format: unset fields are omitted, never null.
         entries.append({key: value for key, value in entry.items() if value is not None})

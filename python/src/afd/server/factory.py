@@ -32,6 +32,7 @@ from afd.core.batch import (
     create_failed_batch_result,
 )
 from afd.core.actor import Actor, ContextDefaults, actor_kind_of, with_context_defaults
+from afd.core.approval import ApprovalPolicy
 from afd.core.clock import Clock, RandomSource, system_clock
 from afd.core.commands import (
     DEFAULT_EXPOSE,
@@ -238,8 +239,10 @@ class MCPServer:
         destructive: bool | None = None,
         confirm_prompt: str | None = None,
         undoable: bool | None = None,
+        approval: ApprovalPolicy | None = None,
+        version: str | None = None,
     ) -> Callable:
-        """Decorator to register a command with this server."""
+        """Decorator to register a command with this server (arguments as ``define_command``)."""
 
         def decorator(func: Callable) -> Callable:
             decorated = define_command(
@@ -257,6 +260,8 @@ class MCPServer:
                 destructive=destructive,
                 confirm_prompt=confirm_prompt,
                 undoable=undoable,
+                approval=approval,
+                version=version,
                 # Point a name warning at the user's @server.command line.
                 _stacklevel=3,
             )(func)
@@ -776,6 +781,7 @@ class MCPServer:
                         actor=context.actor,
                         clock=context.clock,
                         random=context.random,
+                        approval=getattr(context, "approval", None),
                     )
                     task = asyncio.ensure_future(
                         self._run_batch_item(commands[index], item_context)

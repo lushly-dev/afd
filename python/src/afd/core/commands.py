@@ -35,6 +35,7 @@ from typing import (
 )
 
 from afd.core.actor import Actor, with_context_defaults
+from afd.core.approval import ApprovalPolicy, approval_mode
 from afd.core.clock import Clock, RandomSource
 from afd.core.result import CommandResult, execution_failure
 
@@ -130,6 +131,10 @@ class CommandContext:
             of ``random.random()`` so tests and replays can seed them. Set by
             the same surfaces as ``clock`` (to ``system_random`` unless
             overridden).
+        approval: Approval evidence for a command whose approval policy
+            requires it: the ``approvalToken`` from an ``APPROVAL_REQUIRED``
+            result, set by the surface once a human approved. Only trusted
+            surface code sets it, never tool arguments.
     """
 
     trace_id: Optional[str] = None
@@ -138,6 +143,7 @@ class CommandContext:
     actor: Optional[Actor] = None
     clock: Optional[Clock] = None
     random: Optional[RandomSource] = None
+    approval: Optional[str] = None
 
 
 # Type alias for command handler functions
@@ -178,6 +184,10 @@ class CommandDefinition:
         confirm_prompt: The question a frontend asks before running the command. A server
             may enforce it (``spec/command-metadata.md``, "Confirmations").
         undoable: Whether the command's effects can be undone. ``None`` is unset.
+        approval: Whether a call needs a human's approval before the handler runs:
+            ``"required"``, ``"not-required"`` (the default when unset) or a function of
+            the validated input and context. Enforced by ``create_approval_middleware``;
+            reported as ``_meta.approval``.
     
     Example:
         >>> async def create_doc(input, context=None):
@@ -222,6 +232,7 @@ class CommandDefinition:
     destructive: Optional[bool] = None
     confirm_prompt: Optional[str] = None
     undoable: Optional[bool] = None
+    approval: Optional[ApprovalPolicy] = None
 
 
 class CommandRegistry(Protocol):
@@ -530,6 +541,9 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
         meta["destructive"] = command.destructive
     if command.undoable is not None:
         meta["undoable"] = command.undoable
+    approval = approval_mode(command.approval)
+    if approval is not None:
+        meta["approval"] = approval
     if command.requires:
         meta["requires"] = list(command.requires)
     if command.examples:
