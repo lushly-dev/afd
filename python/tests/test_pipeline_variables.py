@@ -477,7 +477,7 @@ class EchoInput(BaseModel):
 def _echo_server():
     server = create_server("pipeline-variables")
 
-    @server.command(name="echo", description="Echo input", expose=ExposeOptions(mcp=True))
+    @server.command(name="message-echo", description="Echo input", expose=ExposeOptions(mcp=True))
     async def echo(input):
         return success(input)
 
@@ -494,7 +494,7 @@ class TestAfdPipe:
             {
                 "steps": [
                     {
-                        "command": "echo",
+                        "command": "message-echo",
                         "input": {
                             "price": "$9.99",
                             "escaped": "$$prev",
@@ -514,7 +514,7 @@ class TestAfdPipe:
         server = _echo_server()
 
         result = await server.call_tool(
-            "afd-pipe", {"steps": [{"command": "echo", "input": {"ctx": "$input", "trace": "$input.trace_id"}}]}
+            "afd-pipe", {"steps": [{"command": "message-echo", "input": {"ctx": "$input", "trace": "$input.trace_id"}}]}
         )
 
         assert result.data == {}
@@ -524,7 +524,7 @@ class TestAfdPipe:
         server = _echo_server()
 
         result = await server.call_tool(
-            "afd-pipe", {"steps": [{"command": "echo", "input": _nested(MAX_INPUT_DEPTH + 1)}]}
+            "afd-pipe", {"steps": [{"command": "message-echo", "input": _nested(MAX_INPUT_DEPTH + 1)}]}
         )
 
         assert result.steps[0].error.code == "VALIDATION_ERROR"
@@ -535,7 +535,7 @@ class TestAfdPipe:
         server = _echo_server()
 
         result = await server.call_tool(
-            "afd-pipe", {"steps": [{"command": "echo"}], "options": {"bogus": True}}
+            "afd-pipe", {"steps": [{"command": "message-echo"}], "options": {"bogus": True}}
         )
 
         assert result.steps[0].index == -1

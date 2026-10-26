@@ -225,7 +225,7 @@ class TestCommandRegistry:
     def test_register_duplicate_raises(self):
         registry = create_command_registry()
         cmd = CommandDefinition(
-            name="duplicate",
+            name="test-duplicate",
             description="Test",
             handler=self._handler_one,
         )
@@ -267,13 +267,13 @@ class TestCommandRegistry:
             raise ValueError("Something went wrong")
 
         cmd = CommandDefinition(
-            name="failing",
+            name="test-failing",
             description="Fails",
             handler=failing_handler,
         )
         registry.register(cmd)
 
-        result = await registry.execute("failing", {})
+        result = await registry.execute("test-failing", {})
         assert result.success is False
         assert result.error.code == "COMMAND_EXECUTION_ERROR"
 

@@ -1049,11 +1049,11 @@ class TestMiddlewareIntegration:
             ],
         )
 
-        @server.command(name="echo", description="Echo input")
+        @server.command(name="message-echo", description="Echo input")
         async def echo(input):
             return success({"echo": input.get("message", "")})
 
-        result = await server.execute("echo", {"message": "hello"})
+        result = await server.execute("message-echo", {"message": "hello"})
         assert result.success is True
         assert result.data["echo"] == "hello"
         assert len(messages) >= 2  # start + complete
@@ -1079,12 +1079,12 @@ class TestMiddlewareIntegration:
             middleware=[outer_mw, inner_mw],
         )
 
-        @server.command(name="ping", description="Ping")
+        @server.command(name="health-ping", description="Ping")
         async def ping(input):
             order.append("handler")
             return success({"pong": True})
 
-        await server.execute("ping", {})
+        await server.execute("health-ping", {})
         assert order == ["outer-in", "inner-in", "handler", "inner-out", "outer-out"]
 
     @pytest.mark.asyncio
@@ -1092,11 +1092,11 @@ class TestMiddlewareIntegration:
         """Server without middleware should work normally."""
         server = create_server("test-app")
 
-        @server.command(name="ping", description="Ping")
+        @server.command(name="health-ping", description="Ping")
         async def ping(input):
             return success({"pong": True})
 
-        result = await server.execute("ping", {})
+        result = await server.execute("health-ping", {})
         assert result.success is True
 
     @pytest.mark.asyncio

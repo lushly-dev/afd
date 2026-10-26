@@ -57,7 +57,7 @@ class TestDefineCommand:
 
     def test_decorator_with_schemas(self):
         @define_command(
-            name="greet",
+            name="user-greet",
             description="Greet someone",
             input_schema=GreetInput,
             output_schema=GreetOutput,
@@ -140,7 +140,7 @@ class TestDefineCommand:
     @pytest.mark.asyncio
     async def test_decorated_function_validates_input(self):
         @define_command(
-            name="validated",
+            name="test-validated",
             description="Validates input",
             input_schema=GreetInput,
         )
@@ -154,7 +154,7 @@ class TestDefineCommand:
     @pytest.mark.asyncio
     async def test_decorated_function_with_pydantic_input(self):
         @define_command(
-            name="pydantic",
+            name="test-pydantic",
             description="Pydantic input",
             input_schema=GreetInput,
         )
@@ -170,7 +170,7 @@ class TestHasCommandMetadata:
     """Tests for has_command_metadata."""
 
     def test_returns_true_for_decorated(self):
-        @define_command(name="test", description="Test")
+        @define_command(name="test-command", description="Test")
         async def decorated(input):
             return success({})
 
@@ -268,22 +268,22 @@ class TestMCPServer:
     def test_command_decorator(self):
         server = create_server("test-app")
 
-        @server.command(name="ping", description="Ping command")
+        @server.command(name="health-ping", description="Ping command")
         async def ping(input):
             return success({"status": "pong"})
 
         commands = server.list_commands()
         assert len(commands) == 1
-        assert commands[0].name == "ping"
+        assert commands[0].name == "health-ping"
 
     def test_multiple_commands(self):
         server = create_server("test-app")
 
-        @server.command(name="cmd1", description="Command 1")
+        @server.command(name="test-one", description="Command 1")
         async def cmd1(input):
             return success({})
 
-        @server.command(name="cmd2", description="Command 2")
+        @server.command(name="test-two", description="Command 2")
         async def cmd2(input):
             return success({})
 
@@ -294,7 +294,7 @@ class TestMCPServer:
         server = create_server("test-app")
 
         @server.command(
-            name="greet",
+            name="user-greet",
             description="Greet",
             input_schema=GreetInput,
             output_schema=GreetOutput,
@@ -311,11 +311,11 @@ class TestMCPServer:
     async def test_execute_command(self):
         server = create_server("test-app")
 
-        @server.command(name="echo", description="Echo input")
+        @server.command(name="message-echo", description="Echo input")
         async def echo(input):
             return success({"echo": input.get("message", "")})
 
-        result = await server.execute("echo", {"message": "hello"})
+        result = await server.execute("message-echo", {"message": "hello"})
         assert result.success is True
         assert result.data["echo"] == "hello"
 
@@ -329,7 +329,7 @@ class TestMCPServer:
     def test_register_external_command(self):
         server = create_server("test-app")
 
-        @define_command(name="external", description="External command")
+        @define_command(name="external-command", description="External command")
         async def external_cmd(input):
             return success({})
 
@@ -337,7 +337,7 @@ class TestMCPServer:
 
         commands = server.list_commands()
         assert len(commands) == 1
-        assert commands[0].name == "external"
+        assert commands[0].name == "external-command"
 
     def test_register_undecorated_raises(self):
         server = create_server("test-app")
