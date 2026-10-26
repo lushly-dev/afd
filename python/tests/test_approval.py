@@ -8,10 +8,17 @@ from __future__ import annotations
 import base64
 import json
 import math
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
 import pytest
-from pydantic import BaseModel, Field
+from pydantic import (
+    BaseModel,
+    Field,
+    PlainSerializer,
+    SecretStr,
+    field_serializer,
+    model_serializer,
+)
 
 from afd import Actor, ExposeOptions, approval_mode, fixed_clock, success
 from afd.core.commands import CommandContext, CommandDefinition, command_to_mcp_tool
@@ -506,11 +513,16 @@ def test_canonical_json_sorts_keys_at_every_depth_like_javascript():
 
 @pytest.mark.parametrize(
     "value",
-    [math.nan, math.inf, 2**53, {1: "a"}, {"a"}, b"bytes", object()],
+    [math.nan, math.inf, 2**53 + 1, 2**1024, {1: "a"}, {"a"}, b"bytes", object()],
 )
 def test_canonical_json_fails_closed(value):
     with pytest.raises(TypeError, match="Cannot bind an approval"):
         _canonical_json(value)
+
+
+def test_large_integers_bind_when_a_double_holds_them_exactly():
+    assert _canonical_json(2**53) == "9007199254740992"
+    assert _canonical_json(10**21) == _canonical_json(1e21) == "1e+21"
 
 
 def test_canonical_json_rejects_cycles():
@@ -547,6 +559,63 @@ async def test_a_model_input_with_a_non_finite_float_fails_the_call():
 
     with pytest.raises(TypeError, match="non-finite"):
         await Gate().call(Ratio(value=math.inf))
+
+
+class _Secret(BaseModel):
+    key: SecretStr
+
+
+class _Excluded(BaseModel):
+    target: str
+    note: str = Field(default="", exclude=True)
+
+
+class _FieldSerializer(BaseModel):
+    target: str
+
+    @field_serializer("target")
+    def _hide(self, value: str) -> str:
+        return "x"
+
+
+class _ModelSerializer(BaseModel):
+    target: str
+
+    @model_serializer
+    def _hide(self) -> dict[str, Any]:
+        return {}
+
+
+class _AnnotatedSerializer(BaseModel):
+    target: Annotated[str, PlainSerializer(lambda value: "x")]
+
+
+class _Tags(BaseModel):
+    tags: set[str]
+
+
+class _Nested(BaseModel):
+    inner: _Secret
+
+
+@pytest.mark.parametrize(
+    "model",
+    [
+        _Secret(key="one"),
+        _Excluded(target="a", note="b"),
+        _FieldSerializer(target="a"),
+        _ModelSerializer(target="a"),
+        _AnnotatedSerializer(target="a"),
+        _Tags(tags={"a", "b"}),
+        _Nested(inner=_Secret(key="one")),
+    ],
+)
+async def test_a_model_whose_dump_loses_information_fails_the_call(model):
+    """Two such inputs could share a digest (SecretStr dumps as asterisks), so refuse."""
+    gate = Gate()
+    with pytest.raises(TypeError, match="Cannot bind an approval"):
+        await gate.call(model)
+    assert gate.ran == []
 
 
 # ─── Cross-language ─────────────────────────────────────────────────────────
@@ -586,6 +655,39 @@ async def test_tokens_match_the_typescript_format():
     }
     assert isinstance(payload["iat"], int) and payload["exp"] == NOW + 300_000
     assert len(base64.urlsafe_b64decode(payload["n"] + "==")) == 16
+
+
+_TS_VERIFY = """
+const [dist, secret, now, token, input, actor] = process.argv.slice(1);
+const { createApprovalMiddleware } = await import(dist);
+const middleware = createApprovalMiddleware({
+    secret,
+    commands: [{ name: 'todo-delete', approval: 'required' }],
+    clock: { now: () => Number(now) },
+});
+const result = await middleware('todo-delete', JSON.parse(input),
+    { actor: JSON.parse(actor), approval: token }, async () => ({ success: true }));
+console.log(JSON.stringify(result));
+"""
+
+
+async def test_a_python_token_verifies_in_typescript():
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    dist = Path(__file__).resolve().parents[2] / "packages" / "server" / "dist" / "index.js"
+    node = shutil.which("node")
+    if node is None or not dist.exists():
+        pytest.skip("needs node and a built packages/server")
+    token = await Gate().token(_TS_INPUT)
+    actor = {"kind": "agent", "id": "claude", "label": "Claude", "onBehalfOf": "user-1"}
+    run = subprocess.run(
+        [node, "--input-type=module", "-e", _TS_VERIFY, dist.as_uri(), SECRET, str(NOW), token,
+         json.dumps(_TS_INPUT), json.dumps(actor)],
+        capture_output=True, text=True, check=True, timeout=60,
+    )
+    assert json.loads(run.stdout) == {"success": True}
 
 
 async def test_issue_time_is_whole_milliseconds():
@@ -677,6 +779,60 @@ async def test_batch_items_carry_the_approval_evidence():
         CommandContext(approval=token),
     )
     assert [item.result.success for item in approved.results] == [True, True]
+
+
+async def test_a_single_use_token_covers_one_batch_item():
+    server = _server()
+    token = (await server.execute("todo-delete", {"id": 1})).error.details["approvalToken"]
+    batch = await server._execute_batch(
+        {
+            "commands": [{"command": "todo-delete", "input": {"id": 1}}] * 2,
+            "options": {"parallelism": 1},
+        },
+        CommandContext(approval=token),
+    )
+    outcomes = [item.result for item in batch.results]
+    assert outcomes[0].success
+    assert outcomes[1].error.details["reason"] == "already-used"
+
+
+async def test_request_meta_never_becomes_approval_evidence():
+    pytest.importorskip("mcp")
+    from mcp import Client
+
+    server = _server()
+    token = (await server.call_tool("todo-delete", {"id": 7})).error.details["approvalToken"]
+    async with Client(server._create_mcp_server()) as client:
+        for meta in ({"approval": token}, {"dev.afd/approval": token}):
+            result = await client.call_tool("todo-delete", {"id": 7}, meta=meta)
+            assert json.loads(result.content[0].text)["error"]["code"] == "APPROVAL_REQUIRED"
+
+
+async def test_direct_client_passes_the_approval_evidence():
+    from afd.direct import DirectCallContext, DirectClient
+
+    server = _server()
+
+    class Registry:
+        async def execute(self, name, args, context):
+            return await server.execute(
+                name, args, CommandContext(actor=context.actor, approval=context.approval)
+            )
+
+        def has_command(self, name):
+            return True
+
+        def list_commands(self):
+            return []
+
+        def list_command_names(self):
+            return []
+
+    client = DirectClient(Registry())
+    held = await client.call("todo-delete", {"id": 3})
+    token = held.error.details["approvalToken"]
+    approved = await client.call("todo-delete", {"id": 3}, DirectCallContext(approval=token))
+    assert approved.success
 
 
 # ─── afd validate ───────────────────────────────────────────────────────────

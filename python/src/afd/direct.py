@@ -83,7 +83,8 @@ class CommandContext:
     ``actor`` is who is calling (``human`` unless the client or call sets
     another). ``clock`` and ``random`` are set only when the client or call
     configures them, so a registry can apply its own defaults (see
-    :func:`afd.core.with_context_defaults`).
+    :func:`afd.core.with_context_defaults`). ``approval`` is the call's approval
+    evidence, for a registry that runs ``create_approval_middleware``.
     """
     
     trace_id: str
@@ -93,6 +94,7 @@ class CommandContext:
     actor: Optional[Actor] = None
     clock: Optional[Clock] = None
     random: Optional[RandomSource] = None
+    approval: Optional[str] = None
 
 
 @dataclass
@@ -162,6 +164,8 @@ class DirectCallContext:
     """Clock for this call; wins over the client's."""
     random: Optional[RandomSource] = None
     """Random source for this call; wins over the client's."""
+    approval: Optional[str] = None
+    """Approval evidence (an ``approvalToken``) once a human approved; set by trusted code only."""
 
 
 @dataclass
@@ -586,6 +590,7 @@ class DirectClient:
             actor=copy.copy(actor),
             clock=(context.clock if context else None) or self.options.clock,
             random=(context.random if context else None) or self.options.random,
+            approval=getattr(context, "approval", None),
         )
         
         # Execute the command

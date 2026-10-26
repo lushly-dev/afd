@@ -45,7 +45,7 @@ from typing import (
     runtime_checkable,
 )
 
-from pydantic import BaseModel
+from pydantic import BaseModel, PlainSerializer, SecretBytes, SecretStr, WrapSerializer
 
 from afd.core.actor import Actor
 from afd.core.approval import ApprovalPolicy
@@ -70,7 +70,7 @@ _DEFAULT_TTL_MS = 5 * 60_000
 _MAX_TTL_MS = 24 * 60 * 60_000
 # Longer evidence is rejected unread, so a caller cannot make the server hash megabytes.
 _MAX_TOKEN_LENGTH = 1024
-# JavaScript numbers are doubles: a larger integer could share a digest with its neighbour.
+# JavaScript numbers are doubles: past this, an integer could share a digest with its neighbour.
 _MAX_SAFE_INTEGER = 2**53 - 1
 
 ApprovalSecret = Union[str, bytes, bytearray, memoryview]
@@ -271,6 +271,8 @@ def create_approval_middleware(
             return "expired"
         if not hmac.compare_digest(_utf8(payload["c"]), _utf8(command_name)):
             return "command-mismatch"
+        # The digests are compared encoded: stricter than decoding them first, and the same
+        # for every token a server issues (it always writes canonical base64url).
         if not hmac.compare_digest(
             _utf8(payload["i"]), _b64url(_digest(key, "input", input_binding)).encode()
         ):
@@ -420,22 +422,56 @@ def _as_command(command: Any) -> Any:
 
 def _plain_input(value: Any) -> Any:
     """The validated input as plain JSON values. A Pydantic model is dumped in JSON mode
-    with its aliases, keeping explicit ``None`` values (as the command journal does)."""
+    with its aliases, keeping explicit ``None`` values (as the command journal does).
+
+    A dump can lose information, so a model that could make two inputs share a digest
+    fails the call instead (rule 3): a secret field (dumped as asterisks), an excluded
+    field, a custom serializer, a non-finite float (dumped as ``null``) or a set (dumped
+    in hash order).
+
+    Raises:
+        TypeError: For a model whose dump is not a faithful binding.
+    """
     if isinstance(value, BaseModel):
-        # JSON mode writes inf and NaN as null: refuse them rather than collide with None.
-        _reject_non_finite(value.model_dump(by_alias=True))
+        _check_bindable(value)
         return value.model_dump(mode="json", by_alias=True)
     return value
 
 
-def _reject_non_finite(value: Any) -> None:
-    if isinstance(value, float) and not math.isfinite(value):
+def _check_bindable(value: Any) -> None:
+    if isinstance(value, BaseModel):
+        model = type(value)
+        decorators = model.__pydantic_decorators__
+        if decorators.field_serializers or decorators.model_serializers:
+            raise TypeError(
+                f"Cannot bind an approval to {model.__name__}: it has a custom serializer"
+            )
+        for name, info in model.model_fields.items():
+            if info.exclude:
+                raise TypeError(
+                    f"Cannot bind an approval to {model.__name__}: field '{name}' is excluded "
+                    "from its dump"
+                )
+            if any(isinstance(item, (PlainSerializer, WrapSerializer)) for item in info.metadata):
+                raise TypeError(
+                    f"Cannot bind an approval to {model.__name__}: field '{name}' has a "
+                    "custom serializer"
+                )
+            _check_bindable(getattr(value, name))
+        for item in (value.__pydantic_extra__ or {}).values():
+            _check_bindable(item)
+    elif isinstance(value, (SecretStr, SecretBytes)):
+        raise TypeError("Cannot bind an approval to a secret field")
+    elif isinstance(value, (set, frozenset)):
+        raise TypeError("Cannot bind an approval to a set: its dump order is not stable")
+    elif isinstance(value, float) and not math.isfinite(value):
         raise TypeError("Cannot bind an approval to a non-finite number")
-    if isinstance(value, dict):
-        value = value.values()
-    if isinstance(value, (list, tuple, set, frozenset, type({}.values()))):
+    elif isinstance(value, dict):
+        for item in value.values():
+            _check_bindable(item)
+    elif isinstance(value, (list, tuple)):
         for item in value:
-            _reject_non_finite(item)
+            _check_bindable(item)
 
 
 def _canonical_json(value: Any) -> str:
@@ -444,8 +480,8 @@ def _canonical_json(value: Any) -> str:
     writes it.
 
     It fails closed rather than collide: only dicts with string keys, lists, tuples,
-    strings, finite numbers (integers within JavaScript's safe range), booleans and
-    ``None`` are accepted. Anything else, or a cycle, raises, so a call whose validated
+    strings, finite numbers (integers only when a JavaScript number holds them exactly),
+    booleans and ``None`` are accepted. Anything else, or a cycle, raises, so a call whose validated
     input holds one cannot be approved.
 
     Raises:
@@ -463,8 +499,14 @@ def _canonical_json(value: Any) -> str:
         if isinstance(item, str):
             return _js_string(item)
         if isinstance(item, int):
-            if abs(item) > _MAX_SAFE_INTEGER:
-                raise TypeError("Cannot bind an approval to an integer outside JavaScript's safe range")
+            # Past 2**53 JavaScript holds a double: bind the integers a double represents
+            # exactly, as TypeScript would, and refuse the rest (neighbours would collide).
+            if abs(item) > _MAX_SAFE_INTEGER and (
+                abs(item) >= 2**1024 or int(float(item)) != item
+            ):
+                raise TypeError(
+                    "Cannot bind an approval to an integer a JavaScript number cannot hold exactly"
+                )
             return _js_number(item)
         if isinstance(item, float):
             if not math.isfinite(item):
