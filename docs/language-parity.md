@@ -110,7 +110,7 @@ Limits of these checks:
 | A thrown error becomes a redacted `COMMAND_EXECUTION_ERROR` | Yes (`devMode` shows detail) | Yes (`dev_mode` shows detail in the server, `create_command_registry`, `execute_pipeline` and `SimpleRegistry`) | Yes: a panic in `execute`, a batch or a pipeline (`execution_failure`); there is no dev mode to show detail | Yes, when built with exceptions |
 | Cancellation | `AbortSignal` | Partial: DirectClient enforces positive finite millisecond deadlines; server per-command timeout remains deferred | Per-command timeout drops the future; no signal | Cooperative `CancellationToken` and deadline |
 | `context.clock` and `context.random` (#274): injectable, `fixedClock`, `seededRandom` | Yes | No (#400) | Yes: `fixed_clock`, `seeded_random` (same sequence as TypeScript); the registry fills both | No: the registry `Clock` is a library test seam, not on the context (#402) |
-| `context.actor` (#271), filled per surface; `metadata.actorKind` | Yes | No: round-trips `actorKind` as extra metadata (#400) | Yes: typed `actor_kind`; the MCP server (`server` feature) fills `agent`; no DirectClient or testing package to fill `human`/`test` | No: round-trips it as `extra` (#402) |
+| `context.actor` (#271), filled per surface; `metadata.actorKind` | Yes | No: round-trips `actorKind` as extra metadata (#400) | Yes: typed `actor_kind`; the MCP server (`server` feature) fills `agent`; no DirectClient or testing package to fill `human`/`test`; middleware cannot change the actor the handler sees (`next` takes no context), so there is no auth refinement; pipelines take a plain map context | No: round-trips it as `extra` (#402) |
 
 ### Middleware
 

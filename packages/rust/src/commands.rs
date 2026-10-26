@@ -1362,10 +1362,10 @@ fn middleware_chain(
                 let actor_kind = context.actor.as_ref().map(|actor| actor.kind);
                 let mut result = command.execute(input, context).await;
                 if let Some(actor_kind) = actor_kind {
-                    result
-                        .metadata
-                        .get_or_insert_with(ResultMetadata::new)
-                        .actor_kind = Some(actor_kind);
+                    let metadata = result.metadata.get_or_insert_with(ResultMetadata::new);
+                    metadata.actor_kind = Some(actor_kind);
+                    // A handler that still writes the key into `extra` would serialize it twice.
+                    metadata.extra.remove("actorKind");
                 }
                 result
             })

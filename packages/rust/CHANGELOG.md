@@ -16,7 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- `TelemetryEvent` has a new public field, `actor_kind`, so struct literals must set it (or use `TelemetryEvent::new`).
+- **Breaking:** `TelemetryEvent` gains `actor_kind` and is now `#[non_exhaustive]`; build it with `TelemetryEvent::new` or `create_telemetry_event` and the `with_*` methods.
+- `metadata.actorKind` is now the typed `ResultMetadata::actor_kind`, so `metadata.extra.get("actorKind")` returns `None`. An unknown kind (not `human`, `agent`, `service`, `script` or `test`) reads as `None` and is not kept on a round trip, where 0.1.0 kept it in `extra`. When the registry stamps the kind, it removes any `actorKind` a handler left in `extra`.
 
 ### Deprecated
 

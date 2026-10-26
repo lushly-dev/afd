@@ -142,14 +142,23 @@ impl ClockInstant {
         self.0
     }
 
-    /// Parse an RFC 3339 date-time such as `2026-01-01T00:00:00Z`.
+    /// Parse an RFC 3339 date-time such as `2026-01-01T00:00:00Z`, or a date such as
+    /// `2026-01-01` (UTC midnight, as TypeScript's `Date.parse` reads it).
+    ///
+    /// TypeScript's `Date.parse` also accepts other, implementation-defined formats; this
+    /// accepts only these two.
     ///
     /// # Errors
-    /// Returns a message naming the input when it is not a valid RFC 3339 date-time.
+    /// Returns a message naming the input when it is neither.
     pub fn parse(text: &str) -> Result<Self, String> {
-        chrono::DateTime::parse_from_rfc3339(text)
-            .map(|at| Self(at.timestamp_millis()))
-            .map_err(|_| format!("Invalid clock instant: {text}"))
+        if let Ok(at) = chrono::DateTime::parse_from_rfc3339(text) {
+            return Ok(Self(at.timestamp_millis()));
+        }
+        chrono::NaiveDate::parse_from_str(text, "%Y-%m-%d")
+            .ok()
+            .and_then(|date| date.and_hms_opt(0, 0, 0))
+            .map(|at| Self(at.and_utc().timestamp_millis()))
+            .ok_or_else(|| format!("Invalid clock instant: {text}"))
     }
 }
 
@@ -375,10 +384,19 @@ mod tests {
     }
 
     #[test]
+    fn dates_parse_as_utc_midnight() {
+        assert_eq!(
+            ClockInstant::parse("2026-01-01").map(ClockInstant::as_millis),
+            Ok(1_767_225_600_000)
+        );
+    }
+
+    #[test]
     fn invalid_instants_are_rejected() {
         assert_eq!(
             ClockInstant::parse("not a date"),
             Err("Invalid clock instant: not a date".to_string())
         );
+        assert!(ClockInstant::parse("2026-02-30").is_err());
     }
 }

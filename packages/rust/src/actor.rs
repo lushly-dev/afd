@@ -3,7 +3,7 @@
 
 use std::fmt;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use serde::{Deserialize, Deserializer, Serialize};
 
@@ -204,21 +204,18 @@ pub fn with_context_defaults(
     mut context: CommandContext,
     defaults: &ContextDefaults,
 ) -> CommandContext {
+    // Shared instances, so filling the defaults allocates nothing per call.
+    static SYSTEM_CLOCK_ARC: OnceLock<Arc<dyn Clock>> = OnceLock::new();
+    static SYSTEM_RANDOM_ARC: OnceLock<Arc<dyn RandomSource>> = OnceLock::new();
     if context.clock.is_none() {
-        context.clock = Some(
-            defaults
-                .clock
-                .clone()
-                .unwrap_or_else(|| Arc::new(SYSTEM_CLOCK)),
-        );
+        context.clock = Some(defaults.clock.clone().unwrap_or_else(|| {
+            Arc::clone(SYSTEM_CLOCK_ARC.get_or_init(|| Arc::new(SYSTEM_CLOCK)))
+        }));
     }
     if context.random.is_none() {
-        context.random = Some(
-            defaults
-                .random
-                .clone()
-                .unwrap_or_else(|| Arc::new(SYSTEM_RANDOM)),
-        );
+        context.random = Some(defaults.random.clone().unwrap_or_else(|| {
+            Arc::clone(SYSTEM_RANDOM_ARC.get_or_init(|| Arc::new(SYSTEM_RANDOM)))
+        }));
     }
     if context.actor.is_none() {
         context.actor.clone_from(&defaults.actor);

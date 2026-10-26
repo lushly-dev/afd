@@ -1305,3 +1305,78 @@ async fn middleware_sees_the_filled_context_and_batches_keep_the_actor() {
         vec![(true, Some(crate::ActorKind::Script)); 2]
     );
 }
+
+/// Writes `actorKind` into `extra`, as code written for 0.1.0 might.
+struct ExtraActorKind;
+
+#[async_trait]
+impl CommandHandler for ExtraActorKind {
+    async fn execute(
+        &self,
+        _input: serde_json::Value,
+        _context: CommandContext,
+    ) -> CommandResult<serde_json::Value> {
+        let mut result = success(serde_json::json!({}));
+        result.metadata =
+            Some(ResultMetadata::new().with_extra("actorKind", serde_json::json!("human")));
+        result
+    }
+}
+
+#[tokio::test]
+async fn the_stamped_actor_kind_replaces_one_in_extra() {
+    let registry = probe_registry();
+    registry
+        .register(CommandDefinition::new(
+            "legacy-kind",
+            "Writes actorKind into extra",
+            vec![],
+            ExtraActorKind,
+        ))
+        .unwrap();
+    let result = registry
+        .execute(
+            "legacy-kind",
+            serde_json::json!({}),
+            Some(CommandContext::new().with_actor(crate::ActorKind::Agent)),
+        )
+        .await;
+    let json = serde_json::to_string(&result).unwrap();
+    assert_eq!(json.matches("actorKind").count(), 1, "{json}");
+    assert!(json.contains(r#""actorKind":"agent""#), "{json}");
+}
+
+#[tokio::test]
+async fn short_circuits_and_panics_carry_no_actor_kind() {
+    let registry = probe_registry();
+    registry
+        .register(CommandDefinition::new(
+            "panic-run",
+            "Panics on request",
+            vec![CommandParameter {
+                required: false,
+                ..CommandParameter::required_boolean("panic", "Panic")
+            }],
+            PanickingHandler,
+        ))
+        .unwrap();
+    let context = || Some(CommandContext::new().with_actor(crate::ActorKind::Agent));
+    let panicked = registry
+        .execute("panic-run", serde_json::json!({"panic": true}), context())
+        .await;
+    assert!(!panicked.success);
+    assert!(panicked
+        .metadata
+        .is_none_or(|metadata| metadata.actor_kind.is_none()));
+
+    registry.add_middleware(Arc::new(|_name, _input, _context, _next| {
+        Box::pin(async { success(serde_json::json!("blocked")) })
+    }));
+    let blocked = registry
+        .execute("context-probe", serde_json::json!({}), context())
+        .await;
+    assert_eq!(blocked.data, Some(serde_json::json!("blocked")));
+    assert!(blocked
+        .metadata
+        .is_none_or(|metadata| metadata.actor_kind.is_none()));
+}

@@ -12,6 +12,7 @@ use crate::errors::CommandError;
 /// Telemetry event representing a single command execution.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct TelemetryEvent {
     /// Name of the command that was executed.
     pub command_name: String,
