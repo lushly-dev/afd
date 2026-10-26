@@ -10,6 +10,7 @@ import {
 	registerDisconnectCommand,
 	registerStatusCommand,
 } from './commands/connect.js';
+import { registerReplayCommand } from './commands/replay.js';
 import { registerScenarioCommand } from './commands/scenario.js';
 import { registerShellCommand } from './commands/shell.js';
 import { registerStreamCommand } from './commands/stream.js';
@@ -41,6 +42,7 @@ export function createCli(): Command {
 	registerValidateCommand(program);
 	registerShellCommand(program);
 	registerScenarioCommand(program);
+	registerReplayCommand(program);
 
 	return program;
 }
