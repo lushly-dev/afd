@@ -76,7 +76,48 @@ export interface DirectClientOptions {
 	 * the registry's own default applies (`createDirectRegistry()`: `systemRandom`).
 	 */
 	random?: RandomSource;
+
+	/**
+	 * Ask a human whether a call held with `APPROVAL_REQUIRED` (by `createApprovalMiddleware`)
+	 * may run. On `true`, the client retries the same call once, with the same input and actor
+	 * and `context.approval` set to the result's `details.approvalToken`, and returns the
+	 * retry's result. On `false`, any other value, or a hook that throws, the original
+	 * `APPROVAL_REQUIRED` result is returned unchanged. Without the hook, or when the result
+	 * carries no `details.approvalToken`, the result is returned unchanged.
+	 *
+	 * The hook is trusted application code. It never sees the token, and the token never goes
+	 * into command input. `context.timeout` bounds each attempt, not the wait for the human: use
+	 * `request.signal`, which aborts with the call's signal, to close the prompt. A call whose
+	 * signal aborts during the wait counts as not approved. The token has a server-side expiry:
+	 * once it passes, the retry is held again (`details.reason: 'expired'`) and returned as is.
+	 * The client never retries more than once.
+	 *
+	 * In `pipe()`, each gated step asks when it is reached, with its resolved input; a denied
+	 * step fails like any other. A pipeline's `timeoutMs` includes the time spent waiting.
+	 */
+	onApprovalNeeded?: DirectApprovalHook;
 }
+
+/** A call held for approval, as passed to `onApprovalNeeded`. */
+export interface DirectApprovalRequest {
+	/** The command that needs approval. */
+	command: string;
+	/** A shallow copy of the call's arguments; the retry sends the originals, so do not change them. */
+	input: Record<string, unknown>;
+	/** The text to show the human, from `details.summary` (empty when it is missing). */
+	summary: string;
+	/** ISO 8601 time the approval token expires, from `details.expiresAt` (empty when it is missing). */
+	expiresAt: string;
+	/** Who made the call. */
+	actor?: Actor;
+	/** Why a token the call already carried was not accepted, from `details.reason`. */
+	reason?: string;
+	/** The call's signal, which aborts when the caller cancels the call. */
+	signal?: AbortSignal;
+}
+
+/** Decides whether a held call may run: resolve `true` to approve. */
+export type DirectApprovalHook = (request: DirectApprovalRequest) => boolean | Promise<boolean>;
 
 /**
  * Context options for individual command calls.

@@ -42,6 +42,8 @@ export {
 	type CommandDefinition,
 	type CommandParameter,
 	createDirectClient,
+	type DirectApprovalHook,
+	type DirectApprovalRequest,
 	type DirectCallContext,
 	DirectClient,
 	type DirectClientOptions,
