@@ -47,6 +47,7 @@ def _record(command: str = "todo-list", **overrides: Any) -> JournalRecord:
 
 class Note(BaseModel):
     text: str = ""
+    tag: str | None = "default"
 
 
 def _server(**options: Any):
@@ -57,7 +58,9 @@ def _server(**options: Any):
     @server.command(name="note-add", description="Add a note", input_schema=Note, expose=mcp)
     async def add(input: Note, context: CommandContext):
         state["count"] += 1
-        return success({"text": input.text, "roll": context.random.next(), "n": state["count"]})
+        return success(
+            {"text": input.text, "tag": input.tag, "roll": context.random.next(), "n": state["count"]}
+        )
 
     @server.command(name="note-fail", description="Fail", input_schema=Note, expose=mcp)
     async def fail(input: Note, context: CommandContext):
@@ -92,7 +95,7 @@ class TestJsonLines:
         line = serialize_journal_entry(entry)
         assert (
             '"values":[1,0.5,1e+21,1e-7,123456789012.5,0,10000000000000000,0.000123,'
-            "1152921504606846976]" in line
+            "1152921504606847000]" in line
         )
 
     def test_unset_fields_are_omitted_and_strings_keep_non_ascii(self):
@@ -108,6 +111,12 @@ class TestJsonLines:
             "durationMs",
         ]
         assert '"t":"é\\n"' in line
+
+    def test_lone_surrogates_are_escaped(self, tmp_path: Path):
+        line = serialize_journal_entry(JournalEntry.from_record(1, _record(input={"t": "a\ud800"})))
+        assert '"t":"a\\ud800"' in line
+        line.encode("utf-8")  # writable to a file
+        assert parse_journal(line)[0].input == {"t": "a\ud800"}
 
     def test_parse_skips_blank_lines_and_accepts_crlf(self):
         line = serialize_journal_entry(JournalEntry.from_record(1, _record()))
@@ -142,6 +151,7 @@ class TestJsonLines:
         )
         assert journal_actor(Actor(kind="human", id="u")) == Actor(kind="human", id="u")
         assert journal_actor({"kind": "robot"}) is None
+        assert journal_actor({"kind": "human", "id": None}) is None  # as TypeScript's isActor
         assert journal_actor("agent") is None
 
     def test_canonical_json_sorts_keys(self):
@@ -275,7 +285,7 @@ class TestMiddleware:
         result = await server.execute("note-add", {"text": "a"}, CommandContext(trace_id="t"))
         [entry] = await sink.read()
         assert entry.command == "note-add"
-        assert entry.input == {"text": "a"}
+        assert entry.input == {"text": "a", "tag": "default"}  # the validated input
         assert entry.result["data"]["roll"] == result.data["roll"]
         assert entry.result["metadata"]["traceId"] == "t"
         assert entry.tape is not None
@@ -385,6 +395,13 @@ class TestReplay:
         report = await replay_journal(_server(), entries)
         assert [entry.status for entry in report.entries] == ["same", "same"]
         assert report.same == 2 and not report.diverged
+
+    @pytest.mark.asyncio
+    async def test_explicit_null_input_replays_as_null(self):
+        entries = await _record_session(("note-add", {"text": "a", "tag": None}))
+        assert entries[0].input == {"text": "a", "tag": None}
+        report = await replay_journal(_server(), entries)
+        assert report.entries[0].status == "same"
 
     @pytest.mark.asyncio
     async def test_reports_differences_with_paths(self):

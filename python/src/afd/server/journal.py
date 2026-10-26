@@ -21,6 +21,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Protocol
 
+from pydantic_core import to_jsonable_python
+
 from afd.core.clock import (
     Clock,
     RandomSource,
@@ -150,6 +152,12 @@ def _to_json(value: Any) -> Any:
     return to_wire(value)
 
 
+def _input_json(value: Any) -> Any:
+    """The validated input as JSON. Unlike :func:`_to_json` it keeps explicit ``None``
+    values: an input field set to ``null`` must replay as ``null``, not as its default."""
+    return to_jsonable_python(value, by_alias=True, serialize_unknown=True)
+
+
 def _trace_id(context: Any) -> str | None:
     trace_id = getattr(context, "trace_id", None)
     return trace_id if isinstance(trace_id, str) else None
@@ -273,7 +281,7 @@ def create_journal_middleware(
                     timestamp=_iso_timestamp(start),
                     trace_id=_trace_id(context),
                     command=command_name,
-                    input=_to_json(input),
+                    input=_input_json(input),
                     actor=journal_actor(getattr(context, "actor", None)),
                     context_digest=create_context_digest(context),
                     result=_to_json(recorded),
@@ -570,6 +578,9 @@ async def replay_journal(
     the state the recording started from): replay re-runs mutations. Give it
     the same middleware as the recording server: a journal middleware in it
     lines the tape up with the handler and records nothing during replay.
+    Without one, a handler that calls another journaled server would let that
+    server's journal claim the tape mid-call (the replay marker is a context
+    variable, so it reaches calls that build a context of their own).
 
     Args:
         registry: Anything with ``execute(name, input, context)``.

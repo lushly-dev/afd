@@ -12,10 +12,13 @@ actor, the interface and the trace ID, plus a hash over those values and the
 names (never the values) of the other context keys.
 
 Mirrors ``packages/core/src/journal.ts`` and ``journal-file.ts``. Entries
-written here and by TypeScript are the same JSON: keys are camelCase, unset
-optional fields are omitted, and numbers and strings are written as
+written here and by TypeScript are the same JSON values: keys are camelCase,
+unset optional fields are omitted, and numbers and strings are written as
 JavaScript's ``JSON.stringify`` writes them, so a parsed journal serializes
-back to the same bytes.
+back to the same bytes. Entries recorded here can order object keys
+differently (Python keeps insertion order; JavaScript writes integer-like keys
+first), so compare recorded journals as JSON, not as text, as ``spec/journal.md``
+says.
 
 Example:
     >>> sink = MemoryJournalSink()
@@ -32,6 +35,7 @@ import hashlib
 import json
 import math
 import os
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -287,7 +291,7 @@ def _is_actor_dict(value: Any) -> bool:
         isinstance(value, dict)
         and is_actor_kind(value.get("kind"))
         and all(
-            value.get(key) is None or isinstance(value.get(key), str)
+            key not in value or isinstance(value[key], str)
             for key in ("id", "label", "onBehalfOf")
         )
     )
@@ -310,10 +314,14 @@ def journal_actor(actor: Any) -> Actor | None:
     """
     if isinstance(actor, Actor):
         candidate = {
-            "kind": actor.kind,
-            "id": actor.id,
-            "label": actor.label,
-            "onBehalfOf": actor.on_behalf_of,
+            key: value
+            for key, value in (
+                ("kind", actor.kind),
+                ("id", actor.id),
+                ("label", actor.label),
+                ("onBehalfOf", actor.on_behalf_of),
+            )
+            if value is not None
         }
     elif isinstance(actor, dict):
         candidate = actor
@@ -385,7 +393,8 @@ def create_context_digest(context: Any) -> JournalContextDigest:
 
 def _js_number(value: int | float) -> str:
     """``value`` as JavaScript's ``JSON.stringify`` writes it (``1`` for ``1.0``, ``1e+21``)."""
-    if isinstance(value, int) and abs(value) < 10**21:
+    # Integers past 2**53 are doubles in JavaScript: write the double, as it would.
+    if isinstance(value, int) and abs(value) <= _MAX_SAFE_INTEGER:
         return str(value)
     value = float(value)
     if not math.isfinite(value):
@@ -411,6 +420,17 @@ def _js_number(value: int | float) -> str:
     return sign + (digits if k == 1 else digits[0] + "." + digits[1:]) + exp
 
 
+_LONE_SURROGATE = re.compile("[\ud800-\udfff]")
+
+
+def _js_string(text: str) -> str:
+    """A JSON string as ``JSON.stringify`` writes it: non-ASCII kept, lone surrogates escaped."""
+    # A str holds surrogates only unpaired (pairs are one code point), and UTF-8 cannot encode them.
+    return _LONE_SURROGATE.sub(
+        lambda match: f"\\u{ord(match.group()):04x}", json.dumps(text, ensure_ascii=False)
+    )
+
+
 def _dumps(value: Any, *, sort_keys: bool = False) -> str:
     """JSON text as JavaScript's ``JSON.stringify`` writes it: compact, non-ASCII kept."""
     if value is None:
@@ -422,13 +442,13 @@ def _dumps(value: Any, *, sort_keys: bool = False) -> str:
     if isinstance(value, (int, float)):
         return _js_number(value)
     if isinstance(value, str):
-        return json.dumps(value, ensure_ascii=False)
+        return _js_string(value)
     if isinstance(value, dict):
         items = sorted(value.items()) if sort_keys else value.items()
         return (
             "{"
             + ",".join(
-                f"{json.dumps(str(key), ensure_ascii=False)}:{_dumps(item, sort_keys=sort_keys)}"
+                f"{_js_string(str(key))}:{_dumps(item, sort_keys=sort_keys)}"
                 for key, item in items
             )
             + "}"
