@@ -582,7 +582,7 @@ Only the first command of a tool call can use the relay: a command that a handle
 
 The relay trusts the MCP client application to put the question to a person. The server cannot tell a human's click from client code that accepts on its own, so the relay is off by default. Leave it off where the agent's own code is the MCP client, for example an `McpClient` whose `onElicitation` answers automatically. Servers with several instances must share `confirmationKey` and `nonceStore`.
 
-`spec/command-metadata.md` ("Approvals") is the cross-language contract. The CLI and DirectClient approval flows are follow-ups (#417, #419).
+`spec/command-metadata.md` ("Approvals") is the cross-language contract. The CLI approval flow is a follow-up (#417).
 
 ### Command Journal and Replay
 

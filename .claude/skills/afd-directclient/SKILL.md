@@ -113,6 +113,41 @@ if (result.error?.code === 'TIMEOUT') {
 }
 ```
 
+### Human Approval (`onApprovalNeeded`)
+
+When the registry runs `createApprovalMiddleware` (from `@lushly-dev/afd-server`), a
+command whose `approval` policy requires sign-off returns `APPROVAL_REQUIRED`
+before its handler runs. `onApprovalNeeded` lets the app ask the human and retry:
+
+```typescript
+const commands = [todoDelete, todoList];
+const registry = createDirectRegistry(commands, {
+  middleware: [createApprovalMiddleware({ secret: process.env.AFD_APPROVAL_SECRET!, commands })],
+});
+const client = createDirectClient(registry, {
+  actor: { kind: 'agent', label: 'Assistant', onBehalfOf: userId },
+  onApprovalNeeded: async ({ command, input, summary, expiresAt, signal }) =>
+    confirmDialog(summary, { signal }), // true to approve
+});
+```
+
+- `true`: the client retries the same call **once**, with the same input and
+  actor and `context.approval` set to `details.approvalToken`, and returns the
+  retry's result. A retry that is held again (for example `reason: 'expired'`,
+  when the human took longer than the token's TTL) is returned as is.
+- `false`, any non-`true` value, a hook that throws, or no hook: the original
+  `APPROVAL_REQUIRED` result is returned unchanged. So is a result without
+  `details.approvalToken` (a server that delivers tokens another way).
+- The hook is trusted app code and never sees the token. The token goes into
+  the context only, never into command input or tool arguments (spec rule 1).
+- `timeout` bounds each attempt, not the human's decision. `request.signal` is
+  the call's signal: close the prompt when it aborts. A call cancelled during
+  the wait counts as denied.
+- `pipe()`: each gated step asks when it is reached, mid-pipeline, with its
+  resolved input. Asking up front is not possible: tokens are bound to the input,
+  which may come from earlier steps. A denied step fails like any other step, and
+  the pipeline's `timeoutMs` includes the wait.
+
 ## AI Chat Integration
 
 ```typescript
@@ -356,8 +391,9 @@ const result = await client.pipe(
 ```
 
 Options: `continueOnFailure`, `when` clauses for conditional steps, and `timeoutMs`.
-Each step goes through `call()`, so `allow`, the registry's Zod validation and
-a `timeout` passed in the pipe context (applied per step) all hold for pipelines.
+Each step goes through `call()`, so `allow`, the registry's Zod validation,
+`onApprovalNeeded` (asked when a gated step is reached) and a `timeout` passed in
+the pipe context (applied per step) all hold for pipelines.
 
 ## Related
 

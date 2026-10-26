@@ -376,6 +376,7 @@ const client = createDirectClient(registry, {
   actor: { kind: 'agent', label: 'Assistant', onBehalfOf: userId }, // Default: { kind: 'human' }
   clock: fixedClock('2026-01-01T00:00:00Z'), // context.clock (default: the registry's)
   random: seededRandom('test-seed'),         // context.random (default: the registry's)
+  onApprovalNeeded: async ({ summary }) => askUser(summary), // APPROVAL_REQUIRED: true retries once
 });
 ```
 
@@ -388,6 +389,26 @@ can tell it apart from the user.
 `allow` narrows what the client may call. Refused commands return a
 `COMMAND_NOT_ALLOWED` failure without reaching the registry, and are left out of
 `listCommands()`, `listCommandNames()` and `hasCommand()`.
+
+#### Approvals
+
+With `createApprovalMiddleware` installed on the registry, a gated command returns
+`APPROVAL_REQUIRED` before its handler runs. `onApprovalNeeded` receives
+`{ command, input, summary, expiresAt, actor, reason?, signal? }`:
+
+- On `true`, the client retries the same call once, with the same input and
+  actor and `context.approval` set to the result's `details.approvalToken`, and
+  returns the retry's result. If the token expired while the human decided, the
+  retry is held again (`details.reason: 'expired'`) and returned as is; the
+  client never retries twice.
+- On `false`, a non-`true` value, a hook error, or without a hook, the original
+  `APPROVAL_REQUIRED` result is returned unchanged.
+- The hook never sees the token, and the token never goes into command input.
+- `timeout` applies to each attempt, not the wait. The hook's `signal` is the
+  call's signal; a call cancelled during the wait counts as denied.
+- In `pipe()`, each gated step asks when it is reached, with its resolved input,
+  since tokens are bound to the input. A denied step fails like any other, and
+  the pipeline's `timeoutMs` includes the wait.
 
 #### Context Propagation and Timeouts
 

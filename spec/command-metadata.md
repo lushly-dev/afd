@@ -220,8 +220,9 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 | --- | --- | --- | --- | --- |
 | `approval` field and `_meta.approval` | Yes | Planned (#420) | Planned (#421) | Planned (#422) |
 | Approval middleware | Yes (`createApprovalMiddleware`) | Planned (#420) | Planned (#421) | Planned (#422) |
+| DirectClient `onApprovalNeeded` | Yes | Planned | Planned | Planned |
 | MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Planned | Planned | Planned |
-| CLI approval flow, DirectClient `onApprovalNeeded` | Planned (#417, #419) | Planned | Planned | Planned |
+| CLI approval flow | Planned (#417) | Planned | Planned | Planned |
 
 ## MCP tool fields (MCP 2026-07-28 tool surface)
 

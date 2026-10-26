@@ -32,6 +32,7 @@ import {
 	truncateName,
 	validationError,
 } from '@lushly-dev/afd-core';
+import { askForApproval, heldForApproval } from './direct-approval.js';
 import { runWithTimeout } from './direct-timeout.js';
 import { validateInput } from './direct-validation.js';
 import type {
@@ -52,7 +53,13 @@ export { isUnknownToolError, type UnknownToolError } from './unknown-tool.js';
 // Option, context and registry types live in direct-types.ts
 import type { DirectCallContext, DirectClientOptions, DirectRegistry } from './direct-types.js';
 
-export type { DirectCallContext, DirectClientOptions, DirectRegistry } from './direct-types.js';
+export type {
+	DirectApprovalHook,
+	DirectApprovalRequest,
+	DirectCallContext,
+	DirectClientOptions,
+	DirectRegistry,
+} from './direct-types.js';
 
 /**
  * Generate a unique trace ID.
@@ -100,9 +107,12 @@ function generateTraceId(): string {
  */
 export class DirectClient {
 	private readonly options: Required<
-		Omit<DirectClientOptions, 'source' | 'middleware' | 'allow' | 'clock' | 'random'>
+		Omit<
+			DirectClientOptions,
+			'source' | 'middleware' | 'allow' | 'clock' | 'random' | 'onApprovalNeeded'
+		>
 	> &
-		Pick<DirectClientOptions, 'source' | 'allow' | 'clock' | 'random'> & {
+		Pick<DirectClientOptions, 'source' | 'allow' | 'clock' | 'random' | 'onApprovalNeeded'> & {
 			middleware: CommandMiddleware[];
 		};
 
@@ -119,6 +129,7 @@ export class DirectClient {
 			actor: options.actor ?? { kind: 'human' },
 			clock: options.clock,
 			random: options.random,
+			onApprovalNeeded: options.onApprovalNeeded,
 		};
 	}
 
@@ -191,11 +202,8 @@ export class DirectClient {
 		// Build command context. The call's actor, clock and random win over the client's.
 		// Clock and random are only set when configured, so a registry's own defaults
 		// (createDirectRegistry) still apply.
-		const commandContext: CommandContext = {
-			traceId,
-			...context,
-			actor: { ...(context?.actor ?? this.options.actor) },
-		};
+		const actor = context?.actor ?? this.options.actor;
+		const commandContext: CommandContext = { traceId, ...context, actor };
 		const clock = context?.clock ?? this.options.clock;
 		if (clock) commandContext.clock = clock;
 		const random = context?.random ?? this.options.random;
@@ -206,11 +214,42 @@ export class DirectClient {
 			commandContext.source = this.options.source;
 		}
 
-		// Execute the command (with middleware if configured), enforcing context.timeout
-		const result = await runWithTimeout<T>(name, context?.timeout, context?.signal, (signal) => {
-			if (signal) commandContext.signal = signal;
-			return this.execute<T>(name, args, commandContext);
-		});
+		// Execute the command (with middleware if configured), enforcing context.timeout per
+		// attempt. Each attempt gets its own copy of the context, so middleware that changes it
+		// (such as auth refining the actor) starts from the same state on the approval retry.
+		const attempt = (approval?: string) => {
+			const attemptContext: CommandContext = {
+				...commandContext,
+				actor: { ...actor },
+			};
+			if (approval !== undefined) attemptContext.approval = approval;
+			return runWithTimeout<T>(name, context?.timeout, context?.signal, (signal) => {
+				if (signal) attemptContext.signal = signal;
+				return this.execute<T>(name, args, attemptContext);
+			});
+		};
+		let result = await attempt();
+
+		// A call held for approval: ask the hook, and on a yes retry once with the token.
+		const hook = this.options.onApprovalNeeded;
+		const held = hook ? heldForApproval(result) : undefined;
+		if (hook && held) {
+			this.debug(`[${traceId}] Approval needed for ${name}`);
+			const approved = await askForApproval(hook, {
+				command: name,
+				input: { ...args },
+				summary: held.summary,
+				expiresAt: held.expiresAt,
+				actor: { ...actor },
+				...(held.reason && { reason: held.reason }),
+				...(context?.signal && { signal: context.signal }),
+			});
+			// A call cancelled as the hook answered is not retried.
+			if (approved && !context?.signal?.aborted) {
+				this.debug(`[${traceId}] Approved; retrying ${name}`);
+				result = await attempt(held.approvalToken);
+			}
+		}
 
 		if (this.options.debug) {
 			const duration = performance.now() - startTime;
