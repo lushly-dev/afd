@@ -12,7 +12,7 @@ check_cxx_source_compiles(
     AFD_HAS_LIBFUZZER)
 unset(CMAKE_REQUIRED_FLAGS)
 
-foreach(target parse_bounded pipeline schema similarity wire)
+foreach(target journal parse_bounded pipeline schema similarity wire)
     set(name afd_fuzz_${target})
     if(AFD_HAS_LIBFUZZER)
         add_executable(${name} fuzz_${target}.cpp)

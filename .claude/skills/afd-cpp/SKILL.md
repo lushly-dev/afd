@@ -200,6 +200,7 @@ if (!parsed) {
 - **`RandomSource`:** `SystemRandom` (the default), or `SeededRandom("seed")` for reproducible tests and replays. `SeededRandom` gives the same sequence as TypeScript's `seededRandom`.
 - **On the context:** handlers read `context.clock` and `context.random` instead of the system clock or `<random>`. The registry fills them from `CommandRegistryOptions` when the caller did not, and times the handler with `context.clock`.
 - **`context.actor`:** who is calling (`Actor{.kind = ActorKind::agent}`). `DirectClient` defaults to `human`; a host's MCP loop should set `agent`. The registry stamps the kind (never the id) as `metadata.actorKind`.
+- **Journal and replay** (`afd/journal.hpp`, `spec/journal.md`): `create_journal_middleware(sink)` records each call with its clock/random tape; `replay_journal(registry, entries)` restores the tape and diffs results. Add the middleware last. `FileJournalSink` is the optional `afd/journal_file.hpp` (`AFD_JOURNAL_FILE`). Only the names of `context.extra` members enter the context digest, never their values.
 - **`CancellationSource` and `CancellationToken`:** cooperative cancellation, optionally with a deadline or a parent token.
 - **`TaskRunner`:** `InlineTaskRunner`, or `ThreadTaskRunner` when `AFD_ENABLE_THREADS` is set (off for Emscripten).
 

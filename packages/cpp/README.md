@@ -59,6 +59,22 @@ std::vector<afd::StreamChunk> chunks = registry->execute_stream("todo-list");
 - **Concurrency.** Pass `CommandRegistryOptions{.runner = std::make_shared<afd::ThreadTaskRunner>()}` for real batch parallelism; handlers must then be thread-safe. The default `InlineTaskRunner` runs commands one at a time. `ThreadTaskRunner` joins all started workers on every exit path. With exceptions enabled, task exceptions are rethrown on the caller after all tasks finish; thread-start exceptions propagate after joining the workers already started.
 - **Deadlines are cooperative.** A handler sees the deadline on `context.cancellation`, and a late finish is reported as BATCH_TIMEOUT or PIPELINE_TIMEOUT. Nothing is interrupted. Observed caller cancellation prevents queued batch commands and pipeline steps from starting; their errors are COMMAND_CANCELLED, and pipeline steps are skipped. Inflight handlers keep their actual outcomes and can poll the inherited cancellation token.
 
+## Journal and replay
+
+```cpp
+auto journal = std::make_shared<afd::MemoryJournalSink>(); // or afd::FileJournalSink("s.jsonl")
+afd::CommandRegistry registry({.middleware = {afd::create_journal_middleware(journal)}});
+// ... calls ...
+std::string jsonl = afd::serialize_journal(*journal->read());
+
+auto entries = afd::parse_journal(jsonl);
+afd::ReplayReport report = afd::replay_journal(fresh_registry, *entries);
+```
+
+- **Format and rules** are [`spec/journal.md`](../../spec/journal.md); `tests/journal_wire_test.cpp` records the session in `spec/wire/journal.jsonl`, compares it entry for entry, and replays the file to `same`.
+- **No secrets from the context.** An entry keeps the actor, the surface and the trace ID; `contextDigest.hash` covers those and the names of the other members, never their values. Inputs and results are kept as they are: commands named `auth-*` are skipped, and `filter` and `redact` handle the rest.
+- **The tape** holds every `steady_ms`, `wall_ms` and `random->next()` value the handler and the registry's timing read, so add the middleware last. Replay feeds it back and reports each entry as `same`, `different` (with paths) or `error`.
+
 ## Wire types
 
 ```cpp
@@ -149,6 +165,7 @@ on CI's `linux-clang-sanitize` job, or run the preset on Linux (for example in a
 | `AFD_WARNINGS_AS_ERRORS` | OFF (ON in presets) | `-Werror` or `/WX` |
 | `AFD_USE_SYSTEM_JSON` | OFF | Require `nlohmann_json` from `find_package` instead of downloading it |
 | `AFD_ENABLE_THREADS` | ON (OFF for Emscripten) | Build `ThreadTaskRunner` and link `Threads::Threads` |
+| `AFD_JOURNAL_FILE` | ON | Build `FileJournalSink` (`afd/journal_file.hpp`, not in `afd/afd.hpp`), which uses `std::filesystem` |
 | `AFD_BUILD_BENCHMARKS` | OFF | Build `benchmarks/` (`afd_benchmarks`); see [Benchmarks](#benchmarks) |
 | `AFD_BUILD_FUZZERS` | OFF | Build the `fuzz/` targets: libFuzzer with Clang, corpus replay elsewhere |
 | `AFD_MACRO_HYGIENE_CHECK` | OFF (ON in `noexcept-nortti`) | Compile afd-cpp's own code with `cmake/macro_hygiene_prelude.hpp` force-included |

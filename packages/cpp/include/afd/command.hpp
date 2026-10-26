@@ -16,6 +16,10 @@
 
 namespace afd {
 
+namespace detail {
+struct JournalCallState;
+} // namespace detail
+
 /// A surface a command can be exposed to. TypeScript calls this the command's `interface`; C++
 /// avoids that word because <windows.h> defines `interface` as a macro.
 enum class Interface { palette, mcp, agent, cli };
@@ -68,6 +72,9 @@ struct CommandContext {
     /// Anything else the host passes along, as a JSON object. TypeScript's `[key: string]:
     /// unknown`, and the only extension point.
     Json extra = Json::object();
+    /// Set by the command journal (journal.hpp) while it records or replays the call; leave it
+    /// unset. Nested calls that copy the context carry it on. Never recorded or hashed.
+    std::shared_ptr<detail::JournalCallState> journal;
 };
 
 /// Defaults for `with_context_defaults`.
