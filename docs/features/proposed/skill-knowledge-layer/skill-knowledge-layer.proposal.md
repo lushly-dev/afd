@@ -1,5 +1,8 @@
 # Feature Proposal: Command Skill / Knowledge Layer
 
+> **Disposition (2026-10-25, audit #349):** **Proposed.** `@lushly-dev/afd-server` has no `skill` command option, `validateCommandSkills()` or `skill-docs` bootstrap command, and no merged PR adds them. Nothing shipped; remaining scope is the whole proposal and its [spec](./skill-knowledge-layer.spec.md).
+
+
 > **Spec:** [skill-knowledge-layer.spec.md](./skill-knowledge-layer.spec.md)
 
 ## Summary

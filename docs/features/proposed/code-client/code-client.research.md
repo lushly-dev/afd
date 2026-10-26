@@ -8,6 +8,9 @@ created: 2026-01-09
 origin: Interview discussion about CodeMCP
 ---
 
+> **Disposition (2026-10-25, audit #349):** **Proposed (research).** No code-generation client exists in `packages/client`; the recent client work (#392) adds MCP Streamable HTTP, not code execution. Stays research; nothing shipped.
+
+
 ## The Insight
 
 > "LLMs will never be as good at tool calling as they are at writing code."

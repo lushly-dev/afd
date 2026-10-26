@@ -438,6 +438,103 @@ def test_lint_result_dict_fields_backward_compatible(tmp_dir: Path) -> None:
     }
 
 
+# ─── Per-rule severity overrides ─────────────────────────────────────────────
+
+_GRID = "src/components/grid/grid.ts"
+_GRID_SRC = "export function avg(sum: number) {\n  return Math.round(sum);\n}\n"
+_FETCH = "src/components/api/client.ts"
+_FETCH_SRC = "export async function pull() {\n  return await fetch('https://example.com/x');\n}\n"
+
+
+def test_severity_override_promotes_warning_to_error(tmp_dir: Path) -> None:
+    _write(tmp_dir, _GRID, _GRID_SRC)
+    result = AFDLinter(rule_severity_overrides={"afd-no-business-in-ui": "error"}).lint(tmp_dir)
+    assert result.error_count == 1
+    assert result.warning_count == 0
+    assert result.passed is False
+    assert result.issues[0].severity is Severity.ERROR
+    assert result.issues[0].to_dict()["severity"] == "error"
+
+
+def test_severity_override_demotes_error_to_warning(tmp_dir: Path) -> None:
+    _write(tmp_dir, _FETCH, _FETCH_SRC)
+    result = AFDLinter(
+        rule_severity_overrides={"afd-no-direct-fetch": Severity.WARNING}
+    ).lint(tmp_dir)
+    assert result.error_count == 0
+    assert result.warning_count == 1
+    assert result.passed is True
+
+
+def test_severity_override_applies_to_rust_handlers(tmp_dir: Path) -> None:
+    """Rules emitted from every language path go through the override."""
+    _write(tmp_dir, "src/lib.rs", "pub fn handler(x: i32) -> i32 {\n    x\n}\n")
+    result = AFDLinter(rule_severity_overrides={"afd-command-result": "warning"}).lint(tmp_dir)
+    assert result.error_count == 0
+    assert result.warning_count == 1
+
+
+def test_severity_off_counts_as_suppressed(tmp_dir: Path) -> None:
+    _write(tmp_dir, _GRID, _GRID_SRC)
+    _write(tmp_dir, _FETCH, _FETCH_SRC)
+    result = AFDLinter(rule_severity_overrides={"afd-no-business-in-ui": "off"}).lint(tmp_dir)
+    assert result.warning_count == 0
+    assert result.error_count == 1  # other rules are unaffected
+    assert result.suppressed_summary() == {
+        "total": 1,
+        "by_rule": {"afd-no-business-in-ui": 1},
+        "by_reason": {"severity-off": 1},
+    }
+
+
+def test_severity_off_wins_over_other_suppression_reasons(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        "src/components/widget/widget.stories.ts",
+        "export const Default = () => Math.round(1.5);\n",
+    )
+    result = AFDLinter(rule_severity_overrides={"afd-no-business-in-ui": "off"}).lint(tmp_dir)
+    assert result.suppressed_by_reason == {"severity-off": 1}
+
+
+def test_severity_override_keeps_calibration_suppression(tmp_dir: Path) -> None:
+    """A promoted rule is still subject to story/test, path and directive suppression."""
+    _write(
+        tmp_dir,
+        "src/components/widget/widget.stories.ts",
+        "export const Default = () => Math.round(1.5);\n",
+    )
+    result = AFDLinter(rule_severity_overrides={"afd-no-business-in-ui": "error"}).lint(tmp_dir)
+    assert result.error_count == 0
+    assert result.suppressed_by_reason == {"story-or-test-file": 1}
+
+
+def test_severity_override_unknown_rule_raises() -> None:
+    with pytest.raises(ValueError, match="afd-no-busines-in-ui"):
+        AFDLinter(rule_severity_overrides={"afd-no-busines-in-ui": "off"})
+
+
+@pytest.mark.parametrize("value", ["info", "ERROR", "disabled", Severity.INFO])
+def test_severity_override_unsupported_value_raises(value: object) -> None:
+    with pytest.raises(ValueError, match="Unsupported severity"):
+        AFDLinter(rule_severity_overrides={"afd-no-business-in-ui": value})  # type: ignore[dict-item]
+
+
+@pytest.mark.parametrize("overrides", [["afd-no-business-in-ui"], {"afd-no-business-in-ui": []}])
+def test_severity_override_malformed_input_raises(overrides: object) -> None:
+    with pytest.raises(ValueError):
+        AFDLinter(rule_severity_overrides=overrides)  # type: ignore[arg-type]
+
+
+def test_severity_override_default_none_is_backward_compatible(tmp_dir: Path) -> None:
+    _write(tmp_dir, _GRID, _GRID_SRC)
+    _write(tmp_dir, _FETCH, _FETCH_SRC)
+    default = AFDLinter().lint(tmp_dir)
+    explicit = AFDLinter(rule_severity_overrides=None).lint(tmp_dir)
+    assert (default.error_count, default.warning_count) == (1, 1)
+    assert (explicit.error_count, explicit.warning_count) == (1, 1)
+
+
 # ─── Module-level helper units ───────────────────────────────────────────────
 
 

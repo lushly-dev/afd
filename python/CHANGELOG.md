@@ -28,7 +28,8 @@ Serves and speaks MCP 2026-07-28 (stateless, per-request `_meta`) next to the 20
 - **`ErrorCode`:** a `str` alias for `CommandError.code`. It is open: custom string codes remain valid next to `ErrorCodes`.
 - **`TimeoutController` and `create_timeout_controller(timeout_ms=None)`:** a deadline that starts at creation, with `remaining_ms`, `is_expired` and `await controller.run(awaitable)`, which bounds the await by the time left (not the full budget) and raises `TimeoutError`. Caller cancellation propagates as `CancelledError`. With no timeout it never expires.
 - **`create_progress_chunk_with_steps(progress, current_step, total_steps, ...)`:** a convenience over `create_progress_chunk`, as in TypeScript.
-- **Command name warnings:** `define_command` (so `MCPServer.command` and `register`) and the core registry, for a definition whose handler is not decorated, emit a `UserWarning` for a name that breaks the `domain-action` kebab-case rule, as TypeScript's `defineCommand` does. The command still registers.
+- **Command name warnings:** `define_command` (so `MCPServer.command` and `register`) and the core registry, for a definition `define_command` has not already checked, emit a `UserWarning` for a name that breaks the `domain-action` kebab-case rule, as TypeScript's `defineCommand` does. The command still registers.
+- **`AFDLinter(rule_severity_overrides=...)`:** sets a rule's severity to `"error"` or `"warning"`, or turns it `"off"`, through the same path every finding is emitted on, so `passed`, `error_count` and `warning_count` follow the override. Findings of an `"off"` rule are counted as suppressed with reason `severity-off`. An unknown rule id or severity raises `ValueError` (#268).
 
 ### Fixed
 

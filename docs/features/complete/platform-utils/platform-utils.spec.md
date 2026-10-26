@@ -1,7 +1,7 @@
 # Spec: Platform Utils
 
 **Proposal:** [platform-utils.proposal.md](./platform-utils.proposal.md)  
-**Status:** READY  
+**Status:** Complete (shipped in #92 TypeScript and #155 Python; see the [proposal disposition](./platform-utils.proposal.md#disposition-2026-10-25-audit-349))  
 **Created:** 2026-01-09  
 **Last Updated:** 2026-01-09  
 **Effort:** M (1-3 days)
