@@ -7,6 +7,9 @@ Supports fixture loading and step references.
 
 from __future__ import annotations
 
+import copy
+import dataclasses
+import inspect
 import re
 import time
 from collections.abc import Callable
@@ -16,6 +19,8 @@ from typing import Any
 
 from pydantic import BaseModel
 
+from afd.core.actor import Actor
+from afd.core.commands import CommandContext
 from afd.core.wire import to_wire
 from afd.testing.scenarios.evaluator import evaluate_result, get_value_at_path
 from afd.testing.scenarios.types import (
@@ -38,7 +43,12 @@ CommandHandler = Callable[
     [str, dict[str, Any] | None],
     Any,  # Awaitable[dict[str, Any]]
 ]
-"""Async function: (command, input) -> CommandResult dict."""
+"""Async function: (command, input) -> CommandResult dict.
+
+A handler that accepts a ``context`` keyword (or ``**kwargs``) also receives
+a :class:`~afd.core.CommandContext` for each step: its ``actor`` is
+``Actor(kind="test")`` unless the executor config's ``context`` sets one.
+"""
 
 
 @dataclass
@@ -53,6 +63,11 @@ class InProcessExecutorConfig:
 
     dry_run: bool = False
     """Dry run mode - validate scenario structure without executing commands."""
+
+    context: CommandContext | None = None
+    """Context for every scenario step, e.g. with ``clock=fixed_clock("2026-01-01")``
+    and ``random=seeded_random("abc")``. Its ``actor`` defaults to
+    ``Actor(kind="test")``. Passed only to handlers that accept ``context``."""
 
     on_step_complete: Callable[[Step, StepResult], None] | None = None
     """Step completion callback."""
@@ -119,6 +134,27 @@ def _format_value(value: Any) -> str:
     return str(value)
 
 
+_TEST_ACTOR = Actor(kind='test')
+"""The default actor of a scenario step."""
+
+
+def _accepts_context(handler: Callable[..., Any]) -> bool:
+    """Whether ``handler`` takes a ``context`` keyword (older handlers take two arguments)."""
+    try:
+        parameters = inspect.signature(handler).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        or (
+            parameter.name == 'context'
+            and parameter.kind
+            in (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+        )
+        for parameter in parameters
+    )
+
+
 # ============================================================================
 # In-Process Executor
 # ============================================================================
@@ -134,6 +170,8 @@ class InProcessExecutor:
 
     def __init__(self, config: InProcessExecutorConfig) -> None:
         self._handler = config.handler
+        self._context = config.context
+        self._pass_context = _accepts_context(config.handler)
         self._stop_on_failure = config.stop_on_failure
         self._dry_run = config.dry_run
         self._on_step_complete = config.on_step_complete
@@ -247,13 +285,28 @@ class InProcessExecutor:
 
         return result
 
+    def _step_context(self, step_id: str) -> CommandContext:
+        """A fresh context for one step: the configured context, with a ``test`` actor by default."""
+        base = self._context or CommandContext()
+        return dataclasses.replace(
+            base,
+            trace_id=base.trace_id or step_id,
+            extra=dict(base.extra),
+            actor=copy.copy(base.actor or _TEST_ACTOR),
+        )
+
     async def _execute_step(self, step: Step, step_num: int) -> StepResult:
         """Execute a single step in-process."""
         step_id = f'step-{step_num}'
         start_time = time.monotonic()
 
         try:
-            command_result = await self._handler(step.command, step.input)
+            if self._pass_context:
+                command_result = await self._handler(
+                    step.command, step.input, context=self._step_context(step_id)
+                )
+            else:
+                command_result = await self._handler(step.command, step.input)
             duration_ms = (time.monotonic() - start_time) * 1000
 
             # Evaluate the wire form (camelCase keys, unset fields omitted), the

@@ -46,6 +46,8 @@ class TelemetryEvent(BaseModel):
         metadata: Additional metadata from the command result.
         input: Input provided to the command (may be redacted for security).
         command_version: Command version that was executed.
+        actor_kind: Kind of principal that called the command
+            (``context.actor.kind``), never its id.
 
     Example:
         >>> event = TelemetryEvent(
@@ -69,6 +71,7 @@ class TelemetryEvent(BaseModel):
     metadata: Optional[dict[str, Any]] = None
     input: Optional[Any] = None
     command_version: Optional[str] = None
+    actor_kind: Optional[str] = None
 
 
 @runtime_checkable
@@ -157,6 +160,7 @@ def create_telemetry_event(
     metadata: Optional[dict[str, Any]] = None,
     input: Optional[Any] = None,
     command_version: Optional[str] = None,
+    actor_kind: Optional[str] = None,
 ) -> TelemetryEvent:
     """Create a telemetry event from command execution data.
 
@@ -174,6 +178,7 @@ def create_telemetry_event(
         metadata: Additional metadata from the command result.
         input: Input provided to the command.
         command_version: Command version that was executed.
+        actor_kind: Kind of principal that called the command.
 
     Returns:
         A TelemetryEvent instance.
@@ -212,6 +217,8 @@ def create_telemetry_event(
         kwargs["input"] = input
     if command_version is not None:
         kwargs["command_version"] = command_version
+    if actor_kind is not None:
+        kwargs["actor_kind"] = actor_kind
 
     return TelemetryEvent(**kwargs)
 

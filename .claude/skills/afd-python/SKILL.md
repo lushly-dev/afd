@@ -338,6 +338,20 @@ return success(
 )
 ```
 
+## Actor, Clock and Random
+
+A handler that takes `context` (`afd.core.CommandContext`) can read who is calling and should read time and randomness from the context, so tests and replays can control them:
+
+```python
+async def create_todo(input: CreateInput, context):
+    created_at = context.clock.now()      # epoch ms; not time.time()
+    token = context.random.next()         # [0, 1); not random.random()
+    if context.actor and context.actor.kind == "agent":
+        ...                               # human | agent | service | script | test
+```
+
+The server fills `clock`/`random` (`create_server(clock=..., random=...)`) and gives MCP calls `Actor(kind="agent")`; `DirectClient` uses `human`, the testing helpers `test`. Results carry `metadata.actorKind` (never the id). In tests, pass `fixed_clock("2026-01-01T00:00:00Z")` and `seeded_random("abc")` (same sequence as TypeScript's `seededRandom`).
+
 ## Error Responses
 
 ```python

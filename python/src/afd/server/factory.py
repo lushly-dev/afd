@@ -31,6 +31,8 @@ from afd.core.batch import (
     create_batch_result,
     create_failed_batch_result,
 )
+from afd.core.actor import Actor, ContextDefaults, actor_kind_of, with_context_defaults
+from afd.core.clock import Clock, RandomSource
 from afd.core.commands import (
     DEFAULT_EXPOSE,
     CommandContext,
@@ -124,6 +126,9 @@ class ServerConfig:
     max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM
     instructions: str | None = None
     tools_list_ttl_ms: int | None = None
+    clock: Clock | None = None
+    random: RandomSource | None = None
+    actor: Actor | None = None
 
 
 DEFAULT_TOOLS_LIST_TTL_MS = 300_000
@@ -448,16 +453,19 @@ class MCPServer:
         context: CommandContext,
     ) -> Any:
         """Call the handler with validated input and stamp its result's metadata."""
-        start = time.perf_counter()
+        clock = context.clock
+        start = clock.now()
         handler = getattr(command.handler, "__afd_validated_handler__", command.handler)
         result = await handler(data, context)
         if isinstance(result, CommandResult):
-            # Server metadata, as in TypeScript: executionTimeMs, commandVersion, traceId.
+            # Server metadata, as in TypeScript: executionTimeMs, commandVersion, traceId,
+            # actorKind. Read the actor after the handler: middleware may have refined it.
             result = _with_execution_metadata(
                 result,
-                execution_time_ms=(time.perf_counter() - start) * 1000,
+                execution_time_ms=max(0, clock.now() - start),
                 command_version=command.version,
                 trace_id=context.trace_id,
+                actor_kind=actor_kind_of(context.actor),
             )
         return result
 
@@ -503,7 +511,11 @@ class MCPServer:
         (see ``_internal_error``), so it never reaches the transport with its
         text.
         """
-        context = context or CommandContext()
+        # One context object, with a clock and a random source, flows through every
+        # middleware into the handler.
+        context = with_context_defaults(
+            context, ContextDefaults(clock=self.config.clock, random=self.config.random)
+        )
         prepared = self._prepare_command(name, input, context)
         if isinstance(prepared, CommandResult):
             return prepared
@@ -741,6 +753,9 @@ class MCPServer:
                         trace_id=f"{batch_trace_id}-{index}",
                         timeout=context.timeout,
                         extra=dict(context.extra),
+                        actor=context.actor,
+                        clock=context.clock,
+                        random=context.random,
                     )
                     task = asyncio.ensure_future(
                         self._run_batch_item(commands[index], item_context)
@@ -908,6 +923,7 @@ class MCPServer:
                     all_commands=commands,
                     exposed_command_names={command.name for command in commands},
                     context_state=self._context_state,
+                    actor=self.config.actor or Actor(kind="agent"),
                 )
             )
         return self._router
@@ -1141,6 +1157,7 @@ def _with_execution_metadata(
     execution_time_ms: float,
     command_version: str | None,
     trace_id: str | None,
+    actor_kind: str | None = None,
 ) -> CommandResult:
     """A copy of ``result`` whose metadata carries the server's execution fields.
 
@@ -1151,6 +1168,8 @@ def _with_execution_metadata(
         updates["command_version"] = command_version
     if trace_id:
         updates["trace_id"] = trace_id
+    if actor_kind:
+        updates["actor_kind"] = actor_kind
     metadata = (
         result.metadata.model_copy(update=updates)
         if result.metadata is not None
@@ -1234,6 +1253,9 @@ def create_server(
     max_batch_parallelism: int = DEFAULT_MAX_BATCH_PARALLELISM,
     instructions: str | None = None,
     tools_list_ttl_ms: int | None = None,
+    clock: Clock | None = None,
+    random: RandomSource | None = None,
+    actor: Actor | None = None,
 ) -> MCPServer:
     """Create a new AFD MCP server.
 
@@ -1255,6 +1277,13 @@ def create_server(
             and ``server/discover`` results (default 300000, or 0 when ``contexts``
             are configured, because clients cache ``tools/list`` without its
             ``_meta``).
+        clock: Clock given to handlers as ``context.clock`` when the context has
+            none. Default: ``system_clock``. Pass ``fixed_clock()`` in tests.
+        random: Random source given to handlers as ``context.random`` when the
+            context has none. Default: ``system_random``.
+        actor: Actor for commands called over MCP when the context has none.
+            Default: ``Actor(kind="agent")``. Direct ``server.execute()`` calls
+            get no default actor.
     """
 
     normalized_contexts = [
@@ -1284,5 +1313,8 @@ def create_server(
         max_batch_parallelism=max_batch_parallelism,
         instructions=instructions,
         tools_list_ttl_ms=tools_list_ttl_ms,
+        clock=clock,
+        random=random,
+        actor=actor,
     )
     return MCPServer(config)
