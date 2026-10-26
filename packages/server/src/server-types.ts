@@ -4,11 +4,14 @@
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type {
+	Actor,
+	Clock,
 	CommandContext,
 	CommandMiddleware,
 	CommandResult,
 	PipelineRequest,
 	PipelineResult,
+	RandomSource,
 } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from './schema.js';
 
@@ -119,6 +122,22 @@ export interface McpServerOptions {
 
 	/** Idle time in milliseconds after which an HTTP session expires (default: 1800000, 30 minutes). */
 	sessionIdleTimeoutMs?: number;
+
+	/**
+	 * Clock given to handlers as `context.clock` when the context has none, and used for
+	 * HTTP session idle expiry. Default: `systemClock`. Pass `fixedClock()` in tests.
+	 */
+	clock?: Clock;
+
+	/** Random source given to handlers as `context.random` when the context has none. Default: `systemRandom`. */
+	random?: RandomSource;
+
+	/**
+	 * Actor for commands called over MCP (stdio or HTTP) when the context has none.
+	 * Default: `{ kind: 'agent' }`. `createContext` can set a per-request `actor`, and auth
+	 * middleware can add its `id` and `label`.
+	 */
+	actor?: Actor;
 
 	/**
 	 * Guidance for agents returned by MCP `server/discover` on the `/mcp` endpoint and on

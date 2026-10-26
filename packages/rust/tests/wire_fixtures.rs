@@ -73,7 +73,12 @@ fn minimal_success_fields_are_typed() {
     assert_eq!(metadata.execution_time_ms, Some(0.0));
     assert_eq!(metadata.command_version.as_deref(), Some("1.0.0"));
     assert_eq!(metadata.trace_id.as_deref(), Some("trace-fixture"));
-    assert!(metadata.extra.is_empty());
+    // `actorKind` (the caller's kind; `agent` over MCP) is not a typed field in Rust yet.
+    assert_eq!(metadata.extra.len(), 1);
+    assert_eq!(
+        metadata.extra.get("actorKind"),
+        Some(&Value::String("agent".to_string()))
+    );
 }
 
 #[test]

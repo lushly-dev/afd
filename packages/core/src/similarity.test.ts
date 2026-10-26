@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
 	calculateSimilarity,
 	findSimilarTools,
@@ -94,6 +94,21 @@ function seededRandom(seed: number): () => number {
 	};
 }
 
+/**
+ * Run `fn` and count the Levenshtein matrix cells it computes. Every cell reads one
+ * character code with `charCodeAt`, and nothing else in `findSimilarTools` calls it, so the
+ * count is deterministic where a wall-clock budget fails on a busy machine (#336).
+ */
+function countDistanceCells<T>(fn: () => T): { result: T; distanceCells: number } {
+	const spy = vi.spyOn(String.prototype, 'charCodeAt');
+	try {
+		const result = fn();
+		return { result, distanceCells: spy.mock.calls.length };
+	} finally {
+		spy.mockRestore();
+	}
+}
+
 describe('findSimilarTools input cap', () => {
 	it('exports the cap', () => {
 		expect(MAX_SIMILARITY_INPUT_LENGTH).toBe(128);
@@ -110,11 +125,13 @@ describe('findSimilarTools input cap', () => {
 		expect(findSimilarTools(name, [name, 'todo-create'])).toEqual([]);
 	});
 
-	it('returns quickly for a 1 MB name', () => {
+	it('computes no distance for a 1 MB name', () => {
 		const tools = Array.from({ length: 200 }, (_, i) => `domain${i}-action`);
-		const start = performance.now();
-		expect(findSimilarTools('x'.repeat(1024 * 1024), tools)).toEqual([]);
-		expect(performance.now() - start).toBeLessThan(50);
+		const { result, distanceCells } = countDistanceCells(() =>
+			findSimilarTools('x'.repeat(1024 * 1024), tools)
+		);
+		expect(result).toEqual([]);
+		expect(distanceCells).toBe(0);
 	});
 });
 
@@ -149,10 +166,20 @@ describe('findSimilarTools length pre-filter', () => {
 	});
 
 	it('does not compute the distance for a candidate the length bound rules out', () => {
-		// Without the pre-filter this is 128 x 1,000,000 cells, far slower than the budget.
-		const start = performance.now();
-		expect(findSimilarTools('a'.repeat(128), ['a'.repeat(1_000_000)])).toEqual([]);
-		expect(performance.now() - start).toBeLessThan(50);
+		// Without the pre-filter this is 128 x 1,000,000 cells.
+		const { result, distanceCells } = countDistanceCells(() =>
+			findSimilarTools('a'.repeat(128), ['a'.repeat(1_000_000)])
+		);
+		expect(result).toEqual([]);
+		expect(distanceCells).toBe(0);
+	});
+
+	it('still computes the distance for a candidate the length bound keeps', () => {
+		const { result, distanceCells } = countDistanceCells(() =>
+			findSimilarTools('todo-crate', ['todo-create'])
+		);
+		expect(result).toEqual(['todo-create']);
+		expect(distanceCells).toBeGreaterThan(0);
 	});
 
 	it('matches the original full-matrix results on typical inputs', () => {

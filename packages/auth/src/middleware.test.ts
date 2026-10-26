@@ -257,3 +257,69 @@ describe('createAuthMiddleware', () => {
 		});
 	});
 });
+
+describe('createAuthMiddleware actor', () => {
+	const next = (): Promise<CommandResult> => Promise.resolve(success({ ok: true }));
+
+	it('makes a human (or unset) actor the session user', async () => {
+		const adapter = new MockAuthAdapter();
+		adapter._setUser({ id: 'u1', email: 'ada@example.com', name: 'Ada' });
+		const middleware = createAuthMiddleware(adapter);
+
+		const unset: CommandContext = {};
+		await middleware('private-cmd', {}, unset, next);
+		expect(unset.actor).toEqual({ kind: 'human', id: 'u1', label: 'Ada' });
+
+		const human: CommandContext = { actor: { kind: 'human', id: 'forged', label: 'Old' } };
+		await middleware('private-cmd', {}, human, next);
+		expect(human.actor).toEqual({ kind: 'human', id: 'u1', label: 'Ada' });
+	});
+
+	it('keeps an agent’s identity and records the user as onBehalfOf', async () => {
+		const adapter = new MockAuthAdapter();
+		adapter._setUser({ id: 'u1', email: 'ada@example.com' });
+		const middleware = createAuthMiddleware(adapter);
+
+		const agent: CommandContext = { actor: { kind: 'agent', label: 'Claude' } };
+		await middleware('private-cmd', {}, agent, next);
+		expect(agent.actor).toEqual({ kind: 'agent', label: 'Claude', onBehalfOf: 'u1' });
+
+		const delegated: CommandContext = { actor: { kind: 'service', onBehalfOf: 'u2' } };
+		await middleware('private-cmd', {}, delegated, next);
+		expect(delegated.actor).toEqual({ kind: 'service', onBehalfOf: 'u2' });
+	});
+
+	it('leaves the actor alone without a verified session', async () => {
+		const adapter = new MockAuthAdapter();
+		const middleware = createAuthMiddleware(adapter, { exclude: ['public-cmd'] });
+		const context: CommandContext = { actor: { kind: 'agent' } };
+		await middleware('public-cmd', {}, context, next);
+		expect(context.actor).toEqual({ kind: 'agent' });
+	});
+
+	it('reaches the MCP result as actorKind without the user id', async () => {
+		const adapter = new MockAuthAdapter();
+		adapter._setUser({ id: 'u1', email: 'ada@example.com', name: 'Ada' });
+		let seen: CommandContext | undefined;
+		const server = createMcpServer({
+			name: 'auth-actor',
+			version: '1',
+			middleware: [createAuthMiddleware(adapter)],
+			commands: [
+				defineCommand({
+					name: 'whoami',
+					description: 'Report the caller',
+					input: z.object({}),
+					handler: async (_input, context) => {
+						seen = context;
+						return success({ ok: true });
+					},
+				}),
+			],
+		});
+		const result = await server.execute('whoami', {}, { actor: { kind: 'human' } });
+		expect(seen?.actor).toEqual({ kind: 'human', id: 'u1', label: 'Ada' });
+		expect(result.metadata?.actorKind).toBe('human');
+		expect(JSON.stringify(result.metadata)).not.toContain('u1');
+	});
+});

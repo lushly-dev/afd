@@ -13,7 +13,7 @@ import type {
 	TelemetryEvent,
 	TelemetrySink,
 } from '@lushly-dev/afd-core';
-import { createTelemetryEvent } from '@lushly-dev/afd-core';
+import { createTelemetryEvent, systemClock } from '@lushly-dev/afd-core';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUTO TRACE ID MIDDLEWARE
@@ -583,8 +583,9 @@ export function createTelemetryMiddleware(options: TelemetryOptions): CommandMid
 			return next();
 		}
 
-		const startedAt = new Date().toISOString();
-		const startTime = Date.now();
+		const clock = context.clock ?? systemClock;
+		const startTime = clock.now();
+		const startedAt = new Date(startTime).toISOString();
 
 		let result: CommandResult | undefined;
 		let thrownError: Error | undefined;
@@ -596,8 +597,9 @@ export function createTelemetryMiddleware(options: TelemetryOptions): CommandMid
 			// Re-throw after recording telemetry
 			throw error;
 		} finally {
-			const completedAt = new Date().toISOString();
-			const durationMs = Date.now() - startTime;
+			const endTime = clock.now();
+			const completedAt = new Date(endTime).toISOString();
+			const durationMs = endTime - startTime;
 
 			const event: TelemetryEvent = createTelemetryEvent({
 				commandName,
@@ -613,6 +615,7 @@ export function createTelemetryMiddleware(options: TelemetryOptions): CommandMid
 				}),
 				...(!thrownError && !result?.success && result?.error && { error: result?.error }),
 				...(context.traceId && { traceId: context.traceId }),
+				...(context.actor && { actorKind: context.actor.kind }),
 				...(includeInput && { input }),
 				...(!thrownError && result?.confidence !== undefined && { confidence: result?.confidence }),
 				...(!thrownError && includeMetadata && result?.metadata && { metadata: result?.metadata }),

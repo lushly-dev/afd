@@ -21,6 +21,8 @@ constructors that the stream route uses).
   - Python: `python/tests/test_wire_fixtures.py`;
   - Rust: `packages/rust/tests/wire_fixtures.rs`;
   - C++: `packages/cpp/tests/wire_fixtures_test.cpp`.
+- `metadata.actorKind` is the kind of the calling principal; the fixtures were produced by MCP calls, so it
+  is `agent`. Only the kind crosses the wire, never the actor's id or label.
 - Keys are camelCase.
 - Optional fields that are not set are **omitted**, never `null`.
 - Run-dependent values are normalized in the files: durations (`*Ms`) are `0`, timestamps (`*At`) are

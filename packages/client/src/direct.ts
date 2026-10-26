@@ -31,6 +31,7 @@ import {
 	failure,
 	truncateName,
 	validationError,
+	withContextDefaults,
 } from '@lushly-dev/afd-core';
 import { runWithTimeout } from './direct-timeout.js';
 import { validateInput } from './direct-validation.js';
@@ -100,12 +101,11 @@ function generateTraceId(): string {
  */
 export class DirectClient {
 	private readonly options: Required<
-		Omit<DirectClientOptions, 'source' | 'middleware' | 'allow'>
-	> & {
-		source?: string;
-		middleware: CommandMiddleware[];
-		allow?: (commandName: string) => boolean;
-	};
+		Omit<DirectClientOptions, 'source' | 'middleware' | 'allow' | 'clock' | 'random'>
+	> &
+		Pick<DirectClientOptions, 'source' | 'allow' | 'clock' | 'random'> & {
+			middleware: CommandMiddleware[];
+		};
 
 	constructor(
 		private readonly registry: DirectRegistry,
@@ -117,6 +117,9 @@ export class DirectClient {
 			validateInputs: options.validateInputs ?? true,
 			middleware: options.middleware ?? [],
 			allow: options.allow,
+			actor: options.actor ?? { kind: 'human' },
+			clock: options.clock,
+			random: options.random,
 		};
 	}
 
@@ -186,11 +189,11 @@ export class DirectClient {
 			}
 		}
 
-		// Build command context
-		const commandContext: CommandContext = {
-			traceId,
-			...context,
-		};
+		// Build command context. The call's actor, clock and random win over the client's.
+		const commandContext: CommandContext = withContextDefaults(
+			{ traceId, ...context },
+			{ actor: this.options.actor, clock: this.options.clock, random: this.options.random }
+		);
 
 		// Add source if configured
 		if (this.options.source) {

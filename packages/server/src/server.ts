@@ -74,10 +74,12 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 	// stdio serves one client, so it uses this single state. HTTP callers each get a session
 	// state (or none), bound to their command context by the HTTP handler.
 	const contextState = contexts?.length ? createContextState() : undefined;
+	const { clock } = options;
 	const sessions = contextState
 		? createSessionStore({
 				maxSessions: options.maxSessions,
 				idleTimeoutMs: options.sessionIdleTimeoutMs,
+				...(clock ? { now: () => clock.now() } : {}),
 			})
 		: undefined;
 
@@ -121,12 +123,14 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		commandMap.set(cmd.name, cmd);
 	}
 
+	const contextDefaults = { clock: options.clock, random: options.random };
 	const engine = createExecutionEngine({
 		commandMap,
 		middleware,
 		devMode,
 		onCommand,
 		onError,
+		contextDefaults,
 	});
 
 	const remoteCommands = registeredCommands.filter((command) => isMcpExposed(command));
@@ -137,6 +141,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		onCommand,
 		onError,
 		contextState,
+		contextDefaults: { ...contextDefaults, actor: options.actor ?? { kind: 'agent' } },
 	});
 	const exposedCommandNames = new Set(remoteCommands.map((c) => c.name));
 	const mutationNames = new Set(

@@ -1,4 +1,12 @@
-import { type CommandDefinition, failure, success } from '@lushly-dev/afd-core';
+import {
+	type CommandDefinition,
+	failure,
+	fixedClock,
+	seededRandom,
+	success,
+	systemClock,
+	systemRandom,
+} from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
 import {
 	createFailureCommand,
@@ -18,6 +26,23 @@ describe('test helpers', () => {
 
 		expect(context).toMatchObject({ traceId: 'known', timeout: 20, userId: 'u1', now });
 		expect(createTestContext().traceId).toMatch(/^test-/);
+	});
+
+	it('calls as a test actor, and stops the clock at `now` unless a clock is given', () => {
+		const context = createTestContext();
+		expect(context.actor).toEqual({ kind: 'test' });
+		expect(context.clock).toBe(systemClock);
+		expect(context.random).toBe(systemRandom);
+
+		const now = new Date('2026-01-01T00:00:00Z');
+		expect(createTestContext({ now }).clock?.now()).toBe(now.getTime());
+
+		const clock = fixedClock(5);
+		const random = seededRandom('abc');
+		const custom = createTestContext({ now, clock, random, actor: { kind: 'script' } });
+		expect(custom.clock).toBe(clock);
+		expect(custom.random).toBe(random);
+		expect(custom.actor).toEqual({ kind: 'script' });
 	});
 
 	it('executes and validates a successful handler with the supplied context', async () => {

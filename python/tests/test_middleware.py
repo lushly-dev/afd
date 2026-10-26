@@ -624,7 +624,12 @@ class TestRateLimitMemoryAndSemantics:
     """The windows dict used to grow forever; the docs said sliding for a fixed window."""
 
     @pytest.mark.asyncio
-    async def test_expired_windows_are_evicted(self):
+    async def test_expired_windows_are_evicted(self, monkeypatch):
+        # A manual clock: with real time, a busy machine expired early windows mid-loop (#336).
+        now = [100.0]
+        monkeypatch.setattr(
+            middleware_module, "time", SimpleNamespace(monotonic=lambda: now[0])
+        )
         mw = create_rate_limit_middleware(
             max_requests=1, window_ms=20, key_fn=lambda ctx: ctx.trace_id
         )
@@ -632,7 +637,7 @@ class TestRateLimitMemoryAndSemantics:
             await mw("test-cmd", {}, make_context(trace_id=f"client-{index}"), success_handler)
         assert len(mw._windows) == 50
 
-        await asyncio.sleep(0.05)
+        now[0] += 0.05
         await mw("test-cmd", {}, make_context(trace_id="late"), success_handler)
 
         assert list(mw._windows) == ["late"]

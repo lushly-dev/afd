@@ -109,6 +109,8 @@ Limits of these checks:
 | `onCommand` / `onError` hooks | Yes | No | No | Yes |
 | A thrown error becomes a redacted `COMMAND_EXECUTION_ERROR` | Yes (`devMode` shows detail) | Yes (`dev_mode` shows detail in the server, `create_command_registry`, `execute_pipeline` and `SimpleRegistry`) | Yes: a panic in `execute`, a batch or a pipeline (`execution_failure`); there is no dev mode to show detail | Yes, when built with exceptions |
 | Cancellation | `AbortSignal` | Partial: DirectClient enforces positive finite millisecond deadlines; server per-command timeout remains deferred | Per-command timeout drops the future; no signal | Cooperative `CancellationToken` and deadline |
+| `context.clock` and `context.random` (#274): injectable, `fixedClock`, `seededRandom` | Yes | No (#400) | No (#401) | No: the registry `Clock` is a library test seam, not on the context (#402) |
+| `context.actor` (#271), filled per surface; `metadata.actorKind` | Yes | No: round-trips `actorKind` as extra metadata (#400) | No: round-trips it as `extra` (#401) | No: round-trips it as `extra` (#402) |
 
 ### Middleware
 

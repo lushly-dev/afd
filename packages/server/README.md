@@ -591,6 +591,9 @@ Create an MCP server from commands.
 | `maxSseConnections` | number | No | Concurrent `/sse` connections before HTTP 503 (default: 100) |
 | `maxSessions` | number | No | Live HTTP sessions when `contexts` are set; the least recently used is evicted (default: 1000) |
 | `sessionIdleTimeoutMs` | number | No | Idle time before an HTTP session expires (default: 1800000, 30 minutes) |
+| `clock` | `Clock` | No | `context.clock` for every command, and the clock for HTTP session expiry (default: `systemClock`) |
+| `random` | `RandomSource` | No | `context.random` for every command (default: `systemRandom`) |
+| `actor` | `Actor` | No | `context.actor` for commands called over MCP when the context has none (default: `{ kind: 'agent' }`) |
 | `instructions` | string | No | Agent guidance returned by MCP `server/discover` (default: a description of the tool strategy, meta-tools and contexts) |
 | `toolsListTtlMs` | number | No | `ttlMs` freshness hint on MCP 2026-07-28 `tools/list` and `server/discover` results (default: 300000, or 0 when `contexts` are set) |
 | `middleware` | array | No | Middleware functions |
@@ -896,6 +899,52 @@ const server = createMcpServer({
 - A throw from `createContext` is reported to `onError` and answered as an internal error (`-32603` on JSON-RPC routes, HTTP 500 elsewhere).
 - Pipeline `$input` does not expose these values, so a pipeline cannot copy them into step inputs.
 - stdio has no HTTP request, so `createContext` is not called there.
+
+## Actor, Clock and Random
+
+Every command context carries three standard values. Read them instead of ambient globals, so that tests and replays can control them and middleware can tell callers apart:
+
+| Field | What it is | Filled in by |
+|-------|------------|--------------|
+| `context.actor` | Who is calling: `{ kind, id?, label?, onBehalfOf? }`, `kind` one of `human`, `agent`, `service`, `script`, `test` | MCP calls (stdio and HTTP): the `actor` option, default `{ kind: 'agent' }`; `createContext` can set one per request; `createAuthMiddleware` adds the session user. `server.execute()` sets none. |
+| `context.clock` | `{ now(): number }`, milliseconds since the epoch | The `clock` option, default `systemClock` (`Date.now()`) |
+| `context.random` | `{ next(): number; seed? }`, a number in [0, 1) | The `random` option, default `systemRandom` (`Math.random()`) |
+
+A value the caller puts on the context always wins over the server default.
+
+```typescript
+import { fixedClock, seededRandom, systemClock, systemRandom } from '@lushly-dev/afd-core';
+
+const createTodo = defineCommand({
+  name: 'todo-create',
+  description: 'Create a todo',
+  input: z.object({ title: z.string() }),
+  async handler(input, context) {
+    // The fields are optional in the type (a handler can be called directly);
+    // every AFD surface sets them.
+    const clock = context.clock ?? systemClock;
+    const random = context.random ?? systemRandom;
+    const createdAt = new Date(clock.now()).toISOString();
+    const id = `todo-${Math.floor(random.next() * 1e9)}`;
+    return success({ id, title: input.title, createdAt });
+  },
+});
+
+// Deterministic in tests: the same ids and timestamps on every run.
+const server = createMcpServer({
+  name: 'todo',
+  version: '1.0.0',
+  commands: [createTodo],
+  clock: fixedClock('2026-01-01T00:00:00Z'),
+  random: seededRandom('test-seed'),
+});
+```
+
+- The execution engine stamps `metadata.actorKind` on every result whose context has an actor, and the telemetry middleware records it as `actorKind`. Only the kind is reported, never the actor's `id` or `label`.
+- Middleware can read and refine `context.actor` before calling `next()`; `actorKind` reflects the actor after the middleware ran.
+- The context's clock also times `metadata.executionTimeMs` and the telemetry middleware's timestamps, so a fixed clock gives deterministic durations.
+- `seededRandom()` is reproducible, not cryptographic. Use `crypto.getRandomValues()` for tokens and keys.
+- Using the actor to decide what data a handler returns is application logic: handlers read `context.actor` and filter their own data.
 
 ## Related
 

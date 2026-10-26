@@ -5,6 +5,7 @@
  * about command executions, enabling monitoring, debugging, and analytics.
  */
 
+import type { ActorKind } from './actor.js';
 import type { CommandError } from './errors.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -62,6 +63,9 @@ export interface TelemetryEvent {
 
 	/** Command version that was executed */
 	commandVersion?: string;
+
+	/** Kind of principal that called the command (`context.actor.kind`), never its id */
+	actorKind?: ActorKind;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -139,6 +143,7 @@ export function createTelemetryEvent(
 		...(data.metadata !== undefined && { metadata: data.metadata }),
 		...(data.input !== undefined && { input: data.input }),
 		...(data.commandVersion !== undefined && { commandVersion: data.commandVersion }),
+		...(data.actorKind !== undefined && { actorKind: data.actorKind }),
 	};
 }
 

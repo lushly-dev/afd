@@ -3,11 +3,14 @@
  */
 
 import type {
+	Actor,
+	Clock,
 	CommandContext,
 	CommandMiddleware,
 	CommandResult,
 	JsonSchema,
 	McpTool,
+	RandomSource,
 } from '@lushly-dev/afd-core';
 import type { CommandDefinition } from './direct-validation.js';
 
@@ -54,6 +57,19 @@ export interface DirectClientOptions {
 	 * which validates input and honours `expose.agent`.
 	 */
 	allow?: (commandName: string) => boolean;
+
+	/**
+	 * Who calls commands through this client, as `context.actor`. A call's own
+	 * `context.actor` wins. Default: `{ kind: 'human' }`; set `{ kind: 'agent' }` (with a
+	 * `label`, and `onBehalfOf` for the user) when an in-app assistant drives the client.
+	 */
+	actor?: Actor;
+
+	/** `context.clock` for calls that set none. Default: `systemClock`. Pass `fixedClock()` in tests. */
+	clock?: Clock;
+
+	/** `context.random` for calls that set none. Default: `systemRandom`. Pass `seededRandom()` in tests. */
+	random?: RandomSource;
 }
 
 /**

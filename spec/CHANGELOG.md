@@ -60,6 +60,11 @@ boundary (#283), accepts fractional timeouts (#329), lets in-flight work finish 
 `COMMAND_CANCELLED` code describes unstarted cancelled work; no wire shape or public JSON type changes.
 The contract remains a release candidate while all languages are being aligned.
 
+`ResultMetadata` gains the optional `actorKind` (`human`, `agent`, `service`, `script` or `test`):
+the kind of principal that called the command (#271). It is additive. The fixtures now carry
+`"actorKind": "agent"`, which the TypeScript server stamps on MCP calls; the other languages
+round-trip it as extra metadata until they stamp it themselves.
+
 The first versioned contract. It covers:
 
 - the six fixtures in `wire/`: minimal, full and failed `CommandResult`, `BatchResult`,

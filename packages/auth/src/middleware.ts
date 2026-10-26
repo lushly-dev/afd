@@ -2,7 +2,7 @@
  * @fileoverview Auth middleware for gating commands behind authentication
  */
 
-import type { CommandMiddleware } from '@lushly-dev/afd-core';
+import type { Actor, CommandMiddleware } from '@lushly-dev/afd-core';
 import { failure } from '@lushly-dev/afd-core';
 import { AUTH_COMMAND_NAMES } from './command-names.js';
 import { isSessionExpired } from './session-state.js';
@@ -30,12 +30,30 @@ export interface AuthMiddlewareOptions {
 }
 
 /**
+ * The actor for a call made with a verified session. A human (or unset) actor becomes the
+ * session user (`id`, and `label` from the user's name). An agent, service or script keeps
+ * its own identity and records the user as `onBehalfOf`, unless the caller already set one.
+ */
+function actorForSession(actor: Actor | undefined, session: AuthenticatedSessionState): Actor {
+	const { user } = session;
+	if (!actor || actor.kind === 'human') {
+		return {
+			...actor,
+			kind: 'human',
+			id: user.id,
+			...(user.name ? { label: user.name } : {}),
+		};
+	}
+	return actor.onBehalfOf ? actor : { ...actor, onBehalfOf: user.id };
+}
+
+/**
  * Create middleware that gates commands behind authentication.
  *
  * - Unauthenticated → failure with UNAUTHORIZED
  * - Loading → failure with UNAUTHORIZED (retryable)
  * - Authenticated but `expiresAt` reached → failure with TOKEN_EXPIRED (retryable)
- * - Authenticated → sets `context.auth` and calls next()
+ * - Authenticated → sets `context.auth`, fills `context.actor` from the session user and calls next()
  *
  * Excluded commands, and the built-in auth commands, always run. They see
  * `context.auth` only when the adapter holds an unexpired session.
@@ -54,6 +72,7 @@ export function createAuthMiddleware(
 		// Overwrite or remove whatever the caller put in the context.
 		if (verified) {
 			context.auth = verified;
+			context.actor = actorForSession(context.actor, verified);
 		} else {
 			delete context.auth;
 		}

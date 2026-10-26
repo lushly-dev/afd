@@ -373,8 +373,17 @@ const client = createDirectClient(registry, {
   validateInputs: true,    // Shallow checks for registries with getCommand() (default: true)
   middleware: [],          // Client-side middleware, outside the registry's own
   allow: (name) => name.startsWith('todo-'), // Others get COMMAND_NOT_ALLOWED
+  actor: { kind: 'agent', label: 'Assistant', onBehalfOf: userId }, // Default: { kind: 'human' }
+  clock: fixedClock('2026-01-01T00:00:00Z'), // context.clock (default: systemClock)
+  random: seededRandom('test-seed'),         // context.random (default: systemRandom)
 });
 ```
+
+`actor`, `clock` and `random` become `context.actor`, `context.clock` and
+`context.random` for every call, unless the call's own context sets them. The
+default actor is `{ kind: 'human' }`: set `{ kind: 'agent' }` when an in-app
+assistant drives the client, so middleware, telemetry and `metadata.actorKind`
+can tell it apart from the user.
 
 `allow` narrows what the client may call. Refused commands return a
 `COMMAND_NOT_ALLOWED` failure without reaching the registry, and are left out of
