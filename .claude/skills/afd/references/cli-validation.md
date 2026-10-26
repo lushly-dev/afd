@@ -66,6 +66,20 @@ afd shell
 > exit
 ```
 
+### Journal Replay
+
+```bash
+# Replay a journal recorded by createJournalMiddleware against a fresh registry
+afd replay session.jsonl --module ./dist/registry.js
+
+# JSON report for CI; exits 1 when any entry is not the same
+afd replay session.jsonl --module ./dist/registry.js --format json --ignore data.updatedAt
+```
+
+`--module` exports a registry (`createMcpServer(...)`) or a factory returning one. Replay is
+in-process only: an MCP connection cannot carry the recorded clock, random values, actor and
+trace ID.
+
 ## Validation Workflow
 
 ### Step 1: Start Server

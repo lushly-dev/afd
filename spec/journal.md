@@ -132,4 +132,6 @@ entries as JSON values, not as text.
 - Event sourcing (making the journal an application's source of truth, with state derived by
   replay). Applications can build it on these primitives.
 - Determinism beyond the clock and the random source.
-- A command-line replayer (`afd replay <file>`).
+
+The TypeScript CLI replays a journal file with `afd replay <file> --module <path>` (see
+`packages/cli/README.md`).

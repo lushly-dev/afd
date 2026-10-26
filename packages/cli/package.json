@@ -51,6 +51,7 @@
 	"dependencies": {
 		"@lushly-dev/afd-client": "workspace:*",
 		"@lushly-dev/afd-core": "workspace:*",
+		"@lushly-dev/afd-server": "workspace:*",
 		"@lushly-dev/afd-testing": "workspace:*",
 		"chalk": "^5.6.2",
 		"commander": "^14.0.3",
@@ -59,7 +60,6 @@
 		"ora": "^9.4.1"
 	},
 	"devDependencies": {
-		"@lushly-dev/afd-server": "workspace:*",
 		"@types/node": "^25.9.5",
 		"@vitest/coverage-v8": "^4.1.11",
 		"rimraf": "^6.1.3",

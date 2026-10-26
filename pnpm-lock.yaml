@@ -156,6 +156,9 @@ importers:
       '@lushly-dev/afd-core':
         specifier: workspace:*
         version: link:../core
+      '@lushly-dev/afd-server':
+        specifier: workspace:*
+        version: link:../server
       '@lushly-dev/afd-testing':
         specifier: workspace:*
         version: link:../testing
@@ -175,9 +178,6 @@ importers:
         specifier: ^9.4.1
         version: 9.4.1
     devDependencies:
-      '@lushly-dev/afd-server':
-        specifier: workspace:*
-        version: link:../server
       '@types/node':
         specifier: ^25.9.5
         version: 25.9.5
