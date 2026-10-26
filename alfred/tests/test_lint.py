@@ -162,3 +162,17 @@ async def test_lint_unknown_rule_override_is_invalid_input(tmp_dir):
     assert result.error.code == "INVALID_INPUT"
     assert "afd-nope" in result.error.message
     assert result.error.suggestion
+
+
+@pytest.mark.asyncio
+async def test_lint_option_unsupported_by_installed_afd(tmp_dir, monkeypatch):
+    """An older afd without the option is reported, not raised."""
+
+    def old_linter(**kwargs):
+        raise TypeError("unexpected keyword argument 'rule_severity_overrides'")
+
+    monkeypatch.setattr("alfred.commands.lint.AFDLinter", old_linter)
+    result = await alfred_lint(str(tmp_dir), rule_severity_overrides={"afd-command-result": "off"})
+    assert result.success is False
+    assert result.error.code == "UNSUPPORTED_OPTION"
+    assert result.error.suggestion

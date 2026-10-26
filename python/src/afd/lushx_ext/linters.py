@@ -321,6 +321,10 @@ class AFDLinter:
     ) -> dict[str, Severity | None]:
         """Resolve overrides to a Severity, or None for ``"off"``."""
         allowed = {"error": Severity.ERROR, "warning": Severity.WARNING, _SEVERITY_OFF: None}
+        if not isinstance(overrides, Mapping):
+            raise ValueError(
+                "rule_severity_overrides must map rule ids to 'error', 'warning' or 'off'"
+            )
         resolved: dict[str, Severity | None] = {}
         for rule, value in overrides.items():
             if rule not in self._rules:
@@ -329,7 +333,7 @@ class AFDLinter:
                     f"Unknown rule id {rule!r} in rule_severity_overrides. Known rules: {known}"
                 )
             key = value.value if isinstance(value, Severity) else value
-            if key not in allowed:
+            if not isinstance(key, str) or key not in allowed:
                 raise ValueError(
                     f"Unsupported severity {value!r} for rule {rule!r} in "
                     "rule_severity_overrides. Use 'error', 'warning' or 'off'."

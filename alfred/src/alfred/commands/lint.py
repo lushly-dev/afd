@@ -63,6 +63,13 @@ async def alfred_lint(
             str(exc),
             suggestion="Use a known rule id and one of 'error', 'warning' or 'off'",
         )
+    except TypeError as exc:
+        # The installed afd predates one of these options.
+        return error(
+            "UNSUPPORTED_OPTION",
+            f"The installed afd package does not support this lint option: {exc}",
+            suggestion="Upgrade afd (pip install -U afd), or omit the option",
+        )
     result = linter.lint(target)
     suppressed = result.suppressed_summary()
 

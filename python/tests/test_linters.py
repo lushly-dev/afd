@@ -520,6 +520,12 @@ def test_severity_override_unsupported_value_raises(value: object) -> None:
         AFDLinter(rule_severity_overrides={"afd-no-business-in-ui": value})  # type: ignore[dict-item]
 
 
+@pytest.mark.parametrize("overrides", [["afd-no-business-in-ui"], {"afd-no-business-in-ui": []}])
+def test_severity_override_malformed_input_raises(overrides: object) -> None:
+    with pytest.raises(ValueError):
+        AFDLinter(rule_severity_overrides=overrides)  # type: ignore[arg-type]
+
+
 def test_severity_override_default_none_is_backward_compatible(tmp_dir: Path) -> None:
     _write(tmp_dir, _GRID, _GRID_SRC)
     _write(tmp_dir, _FETCH, _FETCH_SRC)
