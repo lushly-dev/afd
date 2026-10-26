@@ -458,6 +458,34 @@ const retry = createRetryMiddleware({
 });
 ```
 
+### Command Journal and Replay
+
+`createJournalMiddleware(sink)` records each accepted call (validation and lookup rejections never reach middleware) as a `JournalEntry`: command, validated input, actor, trace ID, a context digest, the result and the duration. Context values outside the allowlist (actor, interface, trace ID) are never stored, so auth sessions and tokens stay out of the journal. Each entry also holds a tape of the values the handler read from `context.clock` and `context.random`. Failures are recorded only with `recordFailures: true`. Commands named `auth-*` are skipped by default; `filter` and `redact` keep other secret inputs or results out (drop `tape` as well when a secret comes from `context.random`). Put it last in the middleware list.
+
+`replayJournal(registry, entries)` re-runs the entries in order against a fresh server or registry, feeds each call its recorded clock and random values, and reports every entry as `same`, `different` (with a structural diff) or `error`. Replay against a server with the same middleware: the journal middleware in it lines the tape up with the handler and records nothing during replay. It reports divergence; it does not make other nondeterminism go away. The format is specified in [`spec/journal.md`](../../spec/journal.md).
+
+```typescript
+import { readFileSync } from 'node:fs';
+import { parseJournal } from '@lushly-dev/afd-core';
+import { FileJournalSink } from '@lushly-dev/afd-core/journal-file';
+import { createJournalMiddleware, createMcpServer, replayJournal } from '@lushly-dev/afd-server';
+
+// Record
+const server = createMcpServer({
+  name: 'todo',
+  version: '1.0.0',
+  commands,
+  middleware: [createJournalMiddleware(new FileJournalSink('./session.jsonl'))],
+});
+
+// Later: replay against a fresh build
+const entries = parseJournal(readFileSync('./session.jsonl', 'utf8'));
+const report = await replayJournal(createMcpServer({ name: 'todo', version: '2.0.0', commands }), entries);
+for (const entry of report.entries.filter((e) => e.status !== 'same')) {
+  console.log(entry.seq, entry.command, entry.status, entry.differences ?? entry.error);
+}
+```
+
 ### Custom Middleware
 
 ```typescript

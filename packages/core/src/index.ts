@@ -116,7 +116,24 @@ export {
 	isHandoffProtocol,
 	isReconnectPolicy,
 } from './handoff.js';
-
+// Command journal (the file sink is in '@lushly-dev/afd-core/journal-file')
+export type {
+	JournalContextDigest,
+	JournalEntry,
+	JournalRange,
+	JournalRecord,
+	JournalSink,
+	JournalTape,
+} from './journal.js';
+export {
+	createContextDigest,
+	isJournalEntry,
+	journalActor,
+	MemoryJournalSink,
+	parseJournal,
+	serializeJournal,
+	serializeJournalEntry,
+} from './journal.js';
 // MCP types
 export type {
 	McpClientCapabilities,

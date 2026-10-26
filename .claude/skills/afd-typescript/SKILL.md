@@ -408,6 +408,17 @@ const server2 = createMcpServer({
 });
 ```
 
+### Recording and Replaying Sessions
+
+`createJournalMiddleware(sink)` (last in the list) records accepted calls with a tape of the
+`context.clock` / `context.random` values the handler read; `replayJournal(server, entries)`
+re-runs them against a fresh server and reports `same`, `different` (with a diff) or `error` per
+entry. Handlers must read time and randomness from the context for replay to match. Sinks:
+`MemoryJournalSink` (core) and `FileJournalSink` (`@lushly-dev/afd-core/journal-file`, JSON Lines).
+Journals never store context values beyond actor, interface and trace ID. `auth-*` commands are
+skipped by default; use `redact` for other secret inputs or results (and drop `tape` when the
+secret comes from `context.random`). Replay against a server with the same middleware. Format: `spec/journal.md`.
+
 ## Command Registry Pattern
 
 ```typescript
