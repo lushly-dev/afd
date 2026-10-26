@@ -57,7 +57,9 @@ Wraps the `AFDLinter` from the `afd` Python package. Scans Python, TypeScript, a
 
 **Skipped directories:** `node_modules`, `.venv`, `__pycache__`, `.git`, `dist`, `build`, `target`, `.pytest_cache`, `.claude`, `.agent`, `chrome-profile`
 
-**Returns:** `{ passed, files_checked, error_count, warning_count, issues[] }`
+**Options:** `exclude_story_test_files`, `rule_path_excludes` (rule id → path substrings) and `rule_severity_overrides` (rule id → `"error"`, `"warning"` or `"off"`) pass through to `AFDLinter`; unset options keep the linter's defaults. An unknown rule id or severity returns `INVALID_INPUT`; an option the installed afd does not support returns `UNSUPPORTED_OPTION`.
+
+**Returns:** `{ passed, files_checked, error_count, warning_count, issues[], suppressed: { total, by_rule, by_reason } }`. `reasoning` appends `(N suppressed)` when anything was suppressed, so "0 errors" from a clean tree can be told apart from "0 errors" because findings were suppressed.
 
 ### `alfred parity` — Cross-Language API Surface, Wire-Shape and Contract-Version Sync
 
