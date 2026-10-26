@@ -176,3 +176,30 @@ async def test_lint_option_unsupported_by_installed_afd(tmp_dir, monkeypatch):
     assert result.success is False
     assert result.error.code == "UNSUPPORTED_OPTION"
     assert result.error.suggestion
+
+
+@pytest.mark.asyncio
+async def test_lint_flags_ambient_time_and_random_in_handlers(tmp_dir):
+    (tmp_dir / "todo.ts").write_text(
+        "export const c = defineCommand({\n"
+        "  name: 'todo-create',\n"
+        "  handler: async () => success({ at: Date.now(), id: crypto.randomUUID() }),\n"
+        "});\n"
+        "const startedAt = Date.now();\n",
+        encoding="utf-8",
+    )
+    result = await alfred_lint(str(tmp_dir))
+    assert result.data["passed"] is True
+    assert result.data["warning_count"] == 2
+    assert sorted(i["rule"] for i in result.data["issues"]) == [
+        "afd-no-ambient-random",
+        "afd-no-ambient-time",
+    ]
+
+    gated = await alfred_lint(
+        str(tmp_dir),
+        rule_severity_overrides={"afd-no-ambient-time": "error", "afd-no-ambient-random": "off"},
+    )
+    assert gated.data["passed"] is False
+    assert gated.data["error_count"] == 1
+    assert gated.data["suppressed"]["by_rule"] == {"afd-no-ambient-random": 1}
