@@ -611,16 +611,16 @@ CommandMiddleware create_journal_middleware(std::shared_ptr<JournalSink> sink,
                 JournalTape recorded = tape->tape();
                 const bool has_tape =
                     !recorded.clock.empty() || !recorded.random.empty() || recorded.truncated;
-                return JournalRecord{
-                    .timestamp = wire::iso8601_utc(started_at),
-                    .trace_id = context.trace_id,
-                    .command = std::string(name),
-                    .input = input,
-                    .actor = context.actor,
-                    .context_digest = create_context_digest(context),
-                    .result = result,
-                    .duration_ms = duration_ms,
-                    .tape = has_tape ? std::optional(std::move(recorded)) : std::nullopt};
+                return JournalRecord{.timestamp = wire::iso8601_utc(started_at),
+                                     .trace_id = context.trace_id,
+                                     .command = std::string(name),
+                                     .input = input,
+                                     .actor = context.actor,
+                                     .context_digest = create_context_digest(context),
+                                     .result = result,
+                                     .duration_ms = duration_ms,
+                                     .tape = has_tape ? std::optional(std::move(recorded))
+                                                      : std::nullopt};
             });
         }
 #if AFD_HAS_EXCEPTIONS
