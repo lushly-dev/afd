@@ -582,6 +582,10 @@ if __name__ == "__main__":
 
 `create_server(..., confirmations="enforce")` gates every command with `confirm_prompt` on MCP calls: an elicitation when the client supports it, otherwise `CONFIRMATION_REQUIRED` until the call is repeated with `confirm: True`. `"require-human"` accepts the elicitation only. Pass `confirmation_key` (32+ bytes) when several instances serve one URL. `server.execute()` is never gated. See `spec/command-metadata.md`, "Confirmations".
 
+### Approvals
+
+Declare `approval="required"` (or `"not-required"`, or a function of the input and context returning one) on `define_command` / `@server.command`, and install `create_approval_middleware(secret=os.environ["AFD_APPROVAL_SECRET"], commands=[...])` (from `afd.server`) after any middleware that sets `context.actor`. A held call returns `APPROVAL_REQUIRED` with `details.approvalToken`; once a human approves, trusted surface code retries the same call with `CommandContext(approval=token)`, never from tool arguments. Tokens are single-use, expire after five minutes on the middleware's clock (pass `clock=fixed_clock(...)` in tests) and verify across TypeScript and Python servers that share the secret. Pass the decorated functions to both the middleware and `server.register()`: the middleware only gates the commands it was given. See `spec/command-metadata.md`, "Approvals".
+
 ## Complete Command Example
 
 ```python

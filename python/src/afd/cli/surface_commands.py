@@ -67,6 +67,34 @@ def _grouped_actions(tool: ToolInfo) -> Optional[list[dict[str, Any]]]:
     ]
 
 
+def approval_policy_warnings(tool: ToolInfo) -> list[dict[str, str]]:
+    """A ``MISSING_APPROVAL_POLICY`` warning for each command in the listing that is
+    ``mutation: true`` or ``destructive: true`` but declares no ``_meta.approval`` policy.
+    For a grouped tool, each ``_meta.actions`` entry is a command of its own."""
+    entries: list[tuple[str, dict[str, Any]]] = [("_meta", tool.meta or {})]
+    actions = (tool.meta or {}).get("actions")
+    if isinstance(actions, list):
+        entries.extend(
+            (f"_meta.actions[{index}]", action)
+            for index, action in enumerate(actions)
+            if isinstance(action, dict)
+        )
+    return [
+        {
+            "path": f"{path}.approval",
+            "message": (
+                f"{'Destructive' if meta.get('destructive') is True else 'Mutating'} command "
+                "declares no approval policy; set approval: 'required' or 'not-required' "
+                "(or a function) on its definition"
+            ),
+            "code": "MISSING_APPROVAL_POLICY",
+        }
+        for path, meta in entries
+        if (meta.get("mutation") is True or meta.get("destructive") is True)
+        and meta.get("approval") is None
+    ]
+
+
 def is_opaque_grouped_tool(tool: ToolInfo) -> bool:
     """Whether a tool looks grouped (``action`` enum plus ``params``) but lists no actions."""
     if _grouped_actions(tool) is not None:
