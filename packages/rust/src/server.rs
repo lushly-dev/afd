@@ -36,7 +36,10 @@ use rmcp::transport::streamable_http_server::{
 use rmcp::{ErrorData, RoleServer, ServerHandler, ServiceExt};
 use serde_json::{json, Value};
 
-use crate::{failure, CommandContext, CommandError, CommandInterface, CommandRegistry};
+use crate::{
+    failure, with_context_defaults, Actor, ActorKind, Clock, CommandContext, CommandError,
+    CommandInterface, CommandRegistry, ContextDefaults, RandomSource,
+};
 
 /// The MCP revision served statelessly.
 pub const MODERN_PROTOCOL_VERSION: &str = "2026-07-28";
@@ -78,6 +81,7 @@ struct Inner {
     instructions: Option<String>,
     tools: Option<Vec<Value>>,
     tools_list_ttl_ms: u64,
+    context_defaults: ContextDefaults,
 }
 
 /// An MCP server for the MCP-exposed commands of a [`CommandRegistry`].
@@ -103,6 +107,7 @@ impl McpServer {
                 instructions: None,
                 tools: None,
                 tools_list_ttl_ms: DEFAULT_TOOLS_LIST_TTL_MS,
+                context_defaults: ContextDefaults::new().with_actor(ActorKind::Agent),
             }),
         }
     }
@@ -115,6 +120,7 @@ impl McpServer {
             instructions: shared.instructions.clone(),
             tools: shared.tools.clone(),
             tools_list_ttl_ms: shared.tools_list_ttl_ms,
+            context_defaults: shared.context_defaults.clone(),
         });
         change(&mut inner);
         Self {
@@ -138,6 +144,26 @@ impl McpServer {
     /// `ttlMs` freshness hint of `tools/list` results (0 when the command set can change).
     pub fn with_tools_list_ttl_ms(self, ttl_ms: u64) -> Self {
         self.with(|inner| inner.tools_list_ttl_ms = ttl_ms)
+    }
+
+    /// The actor on every tool call's context. Default: `{ kind: "agent" }`, reported as
+    /// `metadata.actorKind`.
+    pub fn with_actor(self, actor: impl Into<Actor>) -> Self {
+        let actor = actor.into();
+        self.with(|inner| inner.context_defaults.actor = Some(actor))
+    }
+
+    /// The clock on every tool call's context. Default: [`SYSTEM_CLOCK`](crate::SYSTEM_CLOCK).
+    pub fn with_clock(self, clock: impl Clock + 'static) -> Self {
+        let clock: Arc<dyn Clock> = Arc::new(clock);
+        self.with(|inner| inner.context_defaults.clock = Some(clock))
+    }
+
+    /// The random source on every tool call's context. Default:
+    /// [`SYSTEM_RANDOM`](crate::SYSTEM_RANDOM).
+    pub fn with_random(self, random: impl RandomSource + 'static) -> Self {
+        let random: Arc<dyn RandomSource> = Arc::new(random);
+        self.with(|inner| inner.context_defaults.random = Some(random))
     }
 
     fn exposed(&self, name: &str) -> bool {
@@ -271,8 +297,10 @@ impl ServerHandler for McpServer {
     ) -> Result<CallToolResponse, ErrorData> {
         let name = request.name.as_ref();
         let result = if self.exposed(name) {
-            let mut context = CommandContext::new().with_trace_id(Self::trace_id());
-            context.interface = Some(CommandInterface::Mcp);
+            let context = CommandContext::new()
+                .with_trace_id(Self::trace_id())
+                .with_interface(CommandInterface::Mcp);
+            let context = with_context_defaults(context, &self.inner.context_defaults);
             let input = Value::Object(request.arguments.unwrap_or_default());
             self.inner
                 .registry

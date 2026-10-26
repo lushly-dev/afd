@@ -6,11 +6,13 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::actor::ActorKind;
 use crate::errors::CommandError;
 
 /// Telemetry event representing a single command execution.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct TelemetryEvent {
     /// Name of the command that was executed.
     pub command_name: String,
@@ -50,6 +52,14 @@ pub struct TelemetryEvent {
     /// Command version that was executed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub command_version: Option<String>,
+
+    /// Kind of principal that called the command (`context.actor.kind`), never its id.
+    #[serde(
+        default,
+        deserialize_with = "crate::actor::deserialize_lenient_actor_kind",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub actor_kind: Option<ActorKind>,
 }
 
 impl TelemetryEvent {
@@ -75,6 +85,7 @@ impl TelemetryEvent {
             metadata: None,
             input: None,
             command_version: None,
+            actor_kind: None,
         }
     }
 
@@ -117,6 +128,12 @@ impl TelemetryEvent {
     /// Attach the command version.
     pub fn with_command_version(mut self, command_version: impl Into<String>) -> Self {
         self.command_version = Some(command_version.into());
+        self
+    }
+
+    /// Attach the kind of principal that called the command.
+    pub fn with_actor_kind(mut self, actor_kind: ActorKind) -> Self {
+        self.actor_kind = Some(actor_kind);
         self
     }
 }
@@ -201,13 +218,21 @@ mod tests {
         .with_confidence(0.95)
         .with_metadata(metadata.clone())
         .with_input(serde_json::json!({"title": "Test"}))
-        .with_command_version("1.0.0");
+        .with_command_version("1.0.0")
+        .with_actor_kind(ActorKind::Agent);
 
         assert_eq!(event.duration_ms, 200);
         assert_eq!(event.trace_id, Some("trace-123".to_string()));
         assert_eq!(event.confidence, Some(0.95));
         assert_eq!(event.metadata, Some(metadata));
         assert_eq!(event.command_version, Some("1.0.0".to_string()));
+        assert_eq!(event.actor_kind, Some(ActorKind::Agent));
+        let json = serde_json::to_value(&event).unwrap();
+        assert_eq!(json["actorKind"], "agent");
+        assert_eq!(
+            serde_json::from_value::<TelemetryEvent>(json).unwrap(),
+            event
+        );
     }
 
     #[test]

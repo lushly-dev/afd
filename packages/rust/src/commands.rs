@@ -15,10 +15,12 @@ use std::pin::Pin;
 use std::sync::{Arc, OnceLock, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::Duration;
 
+use crate::actor::{with_context_defaults, Actor, ContextDefaults};
 use crate::batch::{
     create_batch_result, create_failed_batch_result, BatchCommandResult, BatchRequest, BatchResult,
     BatchTiming,
 };
+use crate::clock::{Clock, RandomSource, SYSTEM_CLOCK, SYSTEM_RANDOM};
 use crate::errors::{error_codes, CommandError};
 use crate::handoff::HandoffCommandLike;
 use crate::result::{execution_failure, failure, CommandResult, ResultMetadata};
@@ -416,6 +418,27 @@ pub struct CommandContext {
     /// in-process calls.
     pub interface: Option<CommandInterface>,
 
+    /// Who is calling: a human, an agent, a service, a script or a test.
+    ///
+    /// The MCP server (feature `server`) sets `agent` unless configured otherwise. When it is
+    /// set, [`CommandRegistry::execute`] reports its kind as `metadata.actorKind` on the
+    /// handler's result (never the id).
+    pub actor: Option<Actor>,
+
+    /// Source of the current time. Read time from [`CommandContext::clock`] instead of the
+    /// system time so tests and replays can control it.
+    ///
+    /// [`CommandRegistry::execute`] always sets it for the handler (to
+    /// [`SYSTEM_CLOCK`] unless the caller set one).
+    pub clock: Option<Arc<dyn Clock>>,
+
+    /// Source of randomness. Read random numbers from [`CommandContext::random`] so tests
+    /// and replays can seed them.
+    ///
+    /// [`CommandRegistry::execute`] always sets it for the handler (to
+    /// [`SYSTEM_RANDOM`] unless the caller set one).
+    pub random: Option<Arc<dyn RandomSource>>,
+
     /// Custom context values.
     pub extra: HashMap<String, serde_json::Value>,
 }
@@ -442,6 +465,40 @@ impl CommandContext {
     pub fn with_interface(mut self, interface: CommandInterface) -> Self {
         self.interface = Some(interface);
         self
+    }
+
+    /// Set the calling actor.
+    pub fn with_actor(mut self, actor: impl Into<Actor>) -> Self {
+        self.actor = Some(actor.into());
+        self
+    }
+
+    /// Set the clock, for example a [`fixed_clock`](crate::fixed_clock).
+    pub fn with_clock(mut self, clock: impl Clock + 'static) -> Self {
+        self.clock = Some(Arc::new(clock));
+        self
+    }
+
+    /// Set the random source, for example a [`seeded_random`](crate::seeded_random).
+    pub fn with_random(mut self, random: impl RandomSource + 'static) -> Self {
+        self.random = Some(Arc::new(random));
+        self
+    }
+
+    /// The context's clock, or [`SYSTEM_CLOCK`] when it has none.
+    pub fn clock(&self) -> &dyn Clock {
+        match &self.clock {
+            Some(clock) => clock.as_ref(),
+            None => &SYSTEM_CLOCK,
+        }
+    }
+
+    /// The context's random source, or [`SYSTEM_RANDOM`] when it has none.
+    pub fn random(&self) -> &dyn RandomSource {
+        match &self.random {
+            Some(random) => random.as_ref(),
+            None => &SYSTEM_RANDOM,
+        }
     }
 
     /// Add a custom context value.
@@ -950,6 +1007,11 @@ impl CommandRegistry {
     ///    does for a thrown exception outside `devMode`; the panic payload is
     ///    never included.
     ///
+    /// The middleware and the handler always see a `clock` and a `random`
+    /// source on the context ([`SYSTEM_CLOCK`] and [`SYSTEM_RANDOM`] unless the
+    /// caller set them). When the context has an `actor`, the handler's result
+    /// carries its kind as `metadata.actorKind`.
+    ///
     /// The handler is not called when any check fails.
     pub async fn execute(
         &self,
@@ -957,7 +1019,7 @@ impl CommandRegistry {
         input: serde_json::Value,
         context: Option<CommandContext>,
     ) -> CommandResult<serde_json::Value> {
-        let context = context.unwrap_or_default();
+        let context = with_context_defaults(context.unwrap_or_default(), &ContextDefaults::new());
         let Some(command) = self.get(name) else {
             // Suggest only names the caller could call: an interface caller must
             // not learn the names of commands that are not exposed to it.
@@ -1326,7 +1388,18 @@ fn middleware_chain(
             let command = Arc::clone(&command);
             let input = input.clone();
             let context = context.clone();
-            Box::pin(async move { command.execute(input, context).await })
+            Box::pin(async move {
+                // Only the kind is reported, never the actor's id or label.
+                let actor_kind = context.actor.as_ref().map(|actor| actor.kind);
+                let mut result = command.execute(input, context).await;
+                if let Some(actor_kind) = actor_kind {
+                    let metadata = result.metadata.get_or_insert_with(ResultMetadata::new);
+                    metadata.actor_kind = Some(actor_kind);
+                    // A handler that still writes the key into `extra` would serialize it twice.
+                    metadata.extra.remove("actorKind");
+                }
+                result
+            })
         })
     };
 

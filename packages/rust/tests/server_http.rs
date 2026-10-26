@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use afd::server::{HttpOptions, McpServer};
 use afd::{
-    success, CommandContext, CommandDefinition, CommandHandler, CommandRegistry, CommandResult,
+    fixed_clock, seeded_random, success, Actor, ActorKind, CommandContext, CommandDefinition,
+    CommandHandler, CommandRegistry, CommandResult,
 };
 use async_trait::async_trait;
 use http_body_util::{BodyExt, Full};
@@ -22,11 +23,30 @@ impl CommandHandler for Echo {
     }
 }
 
+/// Reports what the handler sees on its context.
+struct ContextProbe;
+
+#[async_trait]
+impl CommandHandler for ContextProbe {
+    async fn execute(&self, _input: Value, context: CommandContext) -> CommandResult<Value> {
+        success(json!({
+            "actor": context.actor,
+            "now": context.clock().now(),
+            "random": context.random().next(),
+            "seed": context.random().seed(),
+        }))
+    }
+}
+
 fn server() -> McpServer {
     let registry = CommandRegistry::new();
     let mut public = CommandDefinition::new("item-echo", "Echo the input", vec![], Echo);
     public.expose.mcp = true;
     registry.register(public).unwrap();
+    let mut probe =
+        CommandDefinition::new("context-probe", "Show the context", vec![], ContextProbe);
+    probe.expose.mcp = true;
+    registry.register(probe).unwrap();
     registry
         .register(CommandDefinition::new(
             "secret-rotate",
@@ -41,7 +61,11 @@ fn server() -> McpServer {
 const META: &str = r#"{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}"#;
 
 async fn post(body: Value, headers: &[(&str, &str)]) -> (u16, Value) {
-    let service = server().streamable_http_service(HttpOptions::default());
+    post_to(server(), body, headers).await
+}
+
+async fn post_to(server: McpServer, body: Value, headers: &[(&str, &str)]) -> (u16, Value) {
+    let service = server.streamable_http_service(HttpOptions::default());
     let mut request = http::Request::post("/mcp")
         .header("host", "localhost")
         .header("content-type", "application/json")
@@ -119,7 +143,7 @@ async fn tools_list_shows_exposed_commands_with_cache_hints() {
         .iter()
         .map(|tool| tool["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names, ["item-echo"]);
+    assert_eq!(names, ["item-echo", "context-probe"]);
 }
 
 #[tokio::test]
@@ -187,4 +211,51 @@ async fn foreign_origins_are_refused() {
     )
     .await;
     assert_eq!(status, 403);
+}
+
+async fn call_probe(server: McpServer) -> Value {
+    let (_, body) = post_to(
+        server,
+        modern(
+            "tools/call",
+            7,
+            json!({ "name": "context-probe", "arguments": {} }),
+        ),
+        &headers("tools/call", Some("context-probe")),
+    )
+    .await;
+    serde_json::from_str(body["result"]["content"][0]["text"].as_str().unwrap()).unwrap()
+}
+
+#[tokio::test]
+async fn tool_calls_run_as_an_agent_with_system_clock_and_random() {
+    let before = chrono::Utc::now().timestamp_millis();
+    let payload = call_probe(server()).await;
+    assert_eq!(payload["data"]["actor"], json!({ "kind": "agent" }));
+    assert_eq!(payload["metadata"]["actorKind"], "agent");
+    assert!(payload["data"]["now"].as_i64().unwrap() >= before);
+    assert!(payload["data"]["seed"].is_null());
+}
+
+#[tokio::test]
+async fn tool_call_actor_clock_and_random_are_configurable() {
+    let server = server()
+        .with_actor(
+            Actor::new(ActorKind::Service)
+                .with_id("svc-1")
+                .with_on_behalf_of("user-1"),
+        )
+        .with_clock(fixed_clock(1_234))
+        .with_random(seeded_random("abc"));
+    let payload = call_probe(server).await;
+    assert_eq!(
+        payload["data"]["actor"],
+        json!({ "kind": "service", "id": "svc-1", "onBehalfOf": "user-1" })
+    );
+    // Only the kind reaches the metadata.
+    assert_eq!(payload["metadata"]["actorKind"], "service");
+    assert!(!payload["metadata"].to_string().contains("svc-1"));
+    assert_eq!(payload["data"]["now"], 1_234);
+    assert_eq!(payload["data"]["random"], 0.5166419988963753);
+    assert_eq!(payload["data"]["seed"], "abc");
 }
