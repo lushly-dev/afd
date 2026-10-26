@@ -28,6 +28,7 @@ from afd.direct import (
     DirectCallContext,
     DirectClient,
     DirectClientOptions,
+    SimpleRegistry,
 )
 from afd.server import create_server
 from afd.server.middleware import create_telemetry_middleware, create_timing_middleware
@@ -332,6 +333,70 @@ class TestDirectClient:
         assert first.clock is client_clock and first.random is random
         assert second.actor == Actor(kind="script")
         assert second.clock is call_clock and second.random is random
+
+
+class TestSimpleRegistry:
+    """#431: SimpleRegistry passes a context to handlers that declare one."""
+
+    @staticmethod
+    def _registry(**options: Any) -> tuple[SimpleRegistry, list[Any]]:
+        registry = SimpleRegistry(**options)
+        seen: list[Any] = []
+
+        @registry.command(name="dice-roll", description="Roll a die")
+        async def roll(sides: int = 6, *, context):
+            seen.append(context)
+            return success({"roll": 1 + int(context.random.next() * sides), "at": context.clock.now()})
+
+        @registry.command(name="greet", description="Input only, as before")
+        async def greet(name: str = "World"):
+            return success({"message": f"Hello, {name}!"})
+
+        @registry.command(name="note-add", description="An argument named context")
+        async def note(context: str = ""):
+            return success({"context": context})
+
+        return registry, seen
+
+    @pytest.mark.asyncio
+    async def test_direct_client_calls_get_a_human_actor_clock_and_random(self):
+        registry, seen = self._registry(clock=fixed_clock(5), random=seeded_random("abc"))
+        result = await DirectClient(registry).call("dice-roll", {"sides": 6})
+        assert result.data == {"roll": 1 + int(ABC_SEQUENCE[0] * 6), "at": 5}
+        [context] = seen
+        assert context.actor == Actor(kind="human")
+        assert context.trace_id
+
+    @pytest.mark.asyncio
+    async def test_call_context_wins_and_bare_calls_get_real_sources(self):
+        registry, seen = self._registry(clock=fixed_clock(5))
+        call_clock = fixed_clock(9)
+        await DirectClient(registry).call(
+            "dice-roll", {}, DirectCallContext(actor=Actor(kind="agent"), clock=call_clock)
+        )
+        bare = SimpleRegistry()
+        bare.register("dice-roll", registry._commands["dice-roll"].handler)
+        await bare.execute("dice-roll", {})
+        first, second = seen
+        assert first.actor == Actor(kind="agent") and first.clock is call_clock
+        assert second.clock is system_clock and second.random is system_random
+        assert second.actor is None
+
+    @pytest.mark.asyncio
+    async def test_handlers_without_a_context_parameter_are_unchanged(self):
+        registry, _ = self._registry()
+        client = DirectClient(registry)
+        assert (await client.call("greet", {"name": "Ada"})).data == {"message": "Hello, Ada!"}
+        # A positional parameter named context is still an ordinary argument.
+        assert (await client.call("note-add", {"context": "x"})).data == {"context": "x"}
+
+    @pytest.mark.asyncio
+    async def test_context_is_not_an_argument_name_for_handlers_that_take_it(self):
+        registry, seen = self._registry()
+        result = await registry.execute("dice-roll", {"context": "spoof"})
+        assert not result.success
+        assert result.error.code == "VALIDATION_ERROR"
+        assert seen == []
 
 
 class TestTestingHelpers:

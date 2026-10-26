@@ -352,6 +352,10 @@ async def create_todo(input: CreateInput, context):
 
 The server fills `clock`/`random` (`create_server(clock=..., random=...)`) and gives MCP calls `Actor(kind="agent")`; `DirectClient` uses `human`, the testing helpers `test`. Results carry `metadata.actorKind` (never the id). In tests, pass `fixed_clock("2026-01-01T00:00:00Z")` and `seeded_random("abc")` (same sequence as TypeScript's `seededRandom`).
 
+`SimpleRegistry` handlers get the context only when they declare a keyword-only `context` parameter (`async def roll(sides=6, *, context)`); handlers without it take only their arguments.
+
+To record and replay sessions, add `create_journal_middleware(sink)` (from `afd.server`, last in the middleware list) with a `MemoryJournalSink` or `FileJournalSink`, and replay with `replay_journal(fresh_server, parse_journal(text))`. Journal files are byte-compatible with TypeScript's (`spec/journal.md`).
+
 ## Error Responses
 
 ```python
