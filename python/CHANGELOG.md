@@ -18,6 +18,9 @@ Serves and speaks MCP 2026-07-28 (stateless, per-request `_meta`) next to the 20
 
 ### Added
 
+- **Trust fields:** `define_command`, `@server.command` and `CommandDefinition` take `destructive`, `confirm_prompt` and `undoable` (`spec/command-metadata.md`). `destructive` and `undoable` appear in tool `_meta`, `afd-help` (full) and `afd-docs` when set; `afd-detail` and `afd-docs` also report `confirmPrompt`. A mutation's `destructiveHint` annotation now follows `destructive`.
+- **Confirmation error codes:** `ErrorCodes.CONFIRMATION_REQUIRED` and `ErrorCodes.CONFIRMATION_DECLINED`, for servers that enforce `confirmPrompt`. Nothing emits them yet.
+
 - **`StreamableHttpTransport`** (`afd.transports`, `create_transport("streamable-http", url)`): MCP Streamable HTTP on the SDK's `mcp.Client`. It probes `server/discover`, uses 2026-07-28 when offered and falls back to `initialize`; `McpClientConfig.protocol_mode` (`"auto"`, `"legacy"`, `"modern"`) controls it. `McpClient.stream()` on a `/mcp` URL uses the sibling `/stream` path.
 - **`server/discover`** carries `instructions` (new `create_server(instructions=...)`; a description of the meta-tools by default), and `tools/list` carries `ttlMs` and `cacheScope` (new `tools_list_ttl_ms`; 300000 by default, 0 when `contexts` are configured because clients cache `tools/list` without its `_meta`).
 - **`MCPServer.streamable_http_app(**options)`** returns the ASGI app for mounting.
@@ -37,6 +40,7 @@ Serves and speaks MCP 2026-07-28 (stateless, per-request `_meta`) next to the 20
   - `actorKind` from a TypeScript server now parses into `ResultMetadata.actor_kind` instead of `metadata.model_extra["actorKind"]`.
 - **Command name warnings:** `define_command` (so `MCPServer.command` and `register`) and the core registry, for a definition `define_command` has not already checked, emit a `UserWarning` for a name that breaks the `domain-action` kebab-case rule, as TypeScript's `defineCommand` does. The command still registers.
 - **`AFDLinter(rule_severity_overrides=...)`:** sets a rule's severity to `"error"` or `"warning"`, or turns it `"off"`, through the same path every finding is emitted on, so `passed`, `error_count` and `warning_count` follow the override. Findings of an `"off"` rule are counted as suppressed with reason `severity-off`. An unknown rule id or severity raises `ValueError` (#268).
+- **Lint rules `afd-no-ambient-time` and `afd-no-ambient-random` ([#403](https://github.com/lushly-dev/afd/issues/403)):** `AFDLinter` warns on `Date.now()`, argument-less `new Date()` and `performance.now()`, and on `Math.random()` and `crypto.randomUUID()`, inside the inline `handler` of a TypeScript `defineCommand(...)` call, and suggests `context.clock` / `context.random`. Calls outside handlers, in strings or comments, and `new Date(value)` are not flagged; a handler passed by name is not followed. Test and story files are checked too. The scan is lexical: strings, comments and (heuristically) regex literals are skipped, and a regex the heuristic misses can hide or misplace a handler. Both rules take severity overrides, path excludes and `afd-lint-disable:` directives. Python, Rust and C++ handlers are not checked yet ([#409](https://github.com/lushly-dev/afd/issues/409)).
 
 ### Fixed
 

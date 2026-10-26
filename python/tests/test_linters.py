@@ -18,6 +18,7 @@ from afd.lushx_ext.linters import (
     _is_comment_line,
     _is_data_uri_fetch,
     _is_story_or_test_file,
+    _mask_ts_source,
 )
 
 
@@ -533,6 +534,286 @@ def test_severity_override_default_none_is_backward_compatible(tmp_dir: Path) ->
     explicit = AFDLinter(rule_severity_overrides=None).lint(tmp_dir)
     assert (default.error_count, default.warning_count) == (1, 1)
     assert (explicit.error_count, explicit.warning_count) == (1, 1)
+
+
+# ─── Ambient time and randomness in command handlers ─────────────────────────
+
+_CMD = "src/commands/todo.ts"
+_AMBIENT_RULES = {"afd-no-ambient-time", "afd-no-ambient-random"}
+
+
+def _ambient(result) -> list[tuple[int, str, str]]:
+    return sorted(
+        (i.line, i.rule, i.message) for i in result.issues if i.rule in _AMBIENT_RULES
+    )
+
+
+def test_ambient_calls_in_handler_flagged_as_warnings(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        _CMD,
+        "export const create = defineCommand({\n"
+        "  name: 'todo-create',\n"
+        "  async handler(input, context) {\n"
+        "    const at = Date.now();\n"
+        "    const now = new Date();\n"
+        "    const t0 = performance.now();\n"
+        "    const roll = Math.random();\n"
+        "    const id = crypto.randomUUID();\n"
+        "    return success({ at, now, t0, roll, id });\n"
+        "  },\n"
+        "});\n",
+    )
+    result = AFDLinter().lint(tmp_dir)
+    assert _ambient(result) == [
+        (4, "afd-no-ambient-time", "Ambient Date.now() in command handler"),
+        (5, "afd-no-ambient-time", "Ambient new Date() in command handler"),
+        (6, "afd-no-ambient-time", "Ambient performance.now() in command handler"),
+        (7, "afd-no-ambient-random", "Ambient Math.random() in command handler"),
+        (8, "afd-no-ambient-random", "Ambient crypto.randomUUID() in command handler"),
+    ]
+    assert result.warning_count == 5
+    assert result.error_count == 0
+    time_issue = next(i for i in result.issues if i.rule == "afd-no-ambient-time")
+    random_issue = next(i for i in result.issues if i.rule == "afd-no-ambient-random")
+    assert "context.clock" in (time_issue.suggestion or "")
+    assert "context.random" in (random_issue.suggestion or "")
+
+
+@pytest.mark.parametrize(
+    "handler",
+    [
+        "handler: async () => success({ at: Date.now() }),",
+        "handler: async function (input) { return success({ at: Date.now() }); },",
+        "handler<T>(input: T) { return success({ at: Date.now() }); },",
+    ],
+)
+def test_ambient_flagged_in_every_handler_form(tmp_dir: Path, handler: str) -> None:
+    _write(
+        tmp_dir,
+        _CMD,
+        "export const c = defineCommand<In, Out>({\n"
+        "  name: 'todo-get',\n"
+        f"  {handler}\n"
+        "  mutation: false,\n"
+        "});\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == [
+        (3, "afd-no-ambient-time", "Ambient Date.now() in command handler"),
+    ]
+
+
+def test_ambient_outside_handlers_not_flagged(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        _CMD,
+        "import { defineCommand } from '@lushly-dev/afd-server';\n"
+        "const startedAt = Date.now();\n"
+        "function makeId() { return crypto.randomUUID(); }\n"
+        "export const c = defineCommand({\n"
+        "  name: 'todo-create',\n"
+        "  input: z.object({ due: z.string().default(() => new Date().toISOString()) }),\n"
+        "  handler: runCreate,\n"
+        "});\n"
+        "function runCreate() { return success({ r: Math.random() }); }\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == []
+
+
+def test_ambient_not_flagged_without_define_command(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        "src/util/time.ts",
+        "export const handler = { handler: () => Date.now() };\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == []
+
+
+def test_ambient_deterministic_forms_not_flagged(tmp_dir: Path) -> None:
+    """`new Date(x)` converts a value; strings and comments are not calls."""
+    _write(
+        tmp_dir,
+        _CMD,
+        "export const c = defineCommand({\n"
+        "  name: 'todo-get',\n"
+        "  async handler(input, context) {\n"
+        "    // Date.now() would be ambient here\n"
+        "    /* Math.random() too */\n"
+        "    const due = new Date(input.due);\n"
+        "    const at = new Date ( context.clock.now() );\n"
+        "    const label = 'Date.now()' + \"Math.random()\";\n"
+        "    const name = new DateFormatter();\n"
+        "    const now = (context.clock ?? systemClock).now();\n"
+        "    return success({ due, at, label, name, now });\n"
+        "  },\n"
+        "});\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == []
+
+
+def test_ambient_in_template_interpolation_flagged(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        _CMD,
+        "export const c = defineCommand({\n"
+        "  name: 'todo-get',\n"
+        "  description: `Date.now() in prose ${'is fine'}`,\n"
+        "  handler: async () => success({ id: `todo-${Math.random()}` }),\n"
+        "});\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == [
+        (4, "afd-no-ambient-random", "Ambient Math.random() in command handler"),
+    ]
+
+
+def test_ambient_argumentless_new_date_without_parens_flagged(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        _CMD,
+        "export const c = defineCommand({\n"
+        "  name: 'todo-get',\n"
+        "  handler: async () => success({ at: new Date }),\n"
+        "});\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == [
+        (3, "afd-no-ambient-time", "Ambient new Date() in command handler"),
+    ]
+
+
+def test_ambient_only_in_handler_of_each_command(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        _CMD,
+        "export const a = defineCommand({\n"
+        "  name: 'todo-a',\n"
+        "  handler: async () => success(Date.now()),\n"
+        "});\n"
+        "const between = Math.random();\n"
+        "export const b = defineCommand({\n"
+        "  name: 'todo-b',\n"
+        "  handler: async () => success(Math.random()),\n"
+        "});\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == [
+        (3, "afd-no-ambient-time", "Ambient Date.now() in command handler"),
+        (8, "afd-no-ambient-random", "Ambient Math.random() in command handler"),
+    ]
+
+
+_AMBIENT_SRC = (
+    "export const c = defineCommand({\n"
+    "  name: 'todo-get',\n"
+    "  async handler() {\n"
+    "    // afd-lint-disable: timestamp is display-only\n"
+    "    const shown = Date.now();\n"
+    "    return success({ shown, at: Date.now(), r: Math.random() });\n"
+    "  },\n"
+    "});\n"
+)
+
+
+def test_ambient_directive_suppresses(tmp_dir: Path) -> None:
+    _write(tmp_dir, _CMD, _AMBIENT_SRC)
+    result = AFDLinter().lint(tmp_dir)
+    assert [i.line for i in result.issues if i.rule == "afd-no-ambient-time"] == [6]
+    assert result.suppressed_by_rule == {"afd-no-ambient-time": 1}
+    assert result.suppressed_by_reason == {"inline-directive": 1}
+
+
+def test_ambient_severity_overrides(tmp_dir: Path) -> None:
+    _write(tmp_dir, _CMD, _AMBIENT_SRC)
+    result = AFDLinter(
+        rule_severity_overrides={"afd-no-ambient-time": "error", "afd-no-ambient-random": "off"}
+    ).lint(tmp_dir)
+    assert result.error_count == 1
+    assert result.warning_count == 0
+    assert result.passed is False
+    assert result.suppressed_by_rule == {"afd-no-ambient-time": 1, "afd-no-ambient-random": 1}
+
+
+def test_ambient_rule_path_exclude(tmp_dir: Path) -> None:
+    _write(tmp_dir, _CMD, _AMBIENT_SRC)
+    result = AFDLinter(rule_path_excludes={"afd-no-ambient-random": ["src/commands/"]}).lint(
+        tmp_dir
+    )
+    assert {i.rule for i in result.issues} == {"afd-no-ambient-time"}
+    assert result.suppressed_by_reason == {"inline-directive": 1, "rule-path-exclude": 1}
+
+
+def test_ambient_not_flagged_in_python_files(tmp_dir: Path) -> None:
+    """TypeScript only for now; other languages follow once they have context fields."""
+    _write(
+        tmp_dir,
+        "commands/todo.py",
+        "import time\n"
+        "# defineCommand\n"
+        "async def handler(input) -> CommandResult[dict]:\n"
+        "    return success({'at': time.time()})\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == []
+
+
+@pytest.mark.parametrize(
+    "handler",
+    [
+        "async handler(i): Promise<Record<string, X>> {\n    return Date.now();\n  },",
+        "handler: async (i): Promise<Result<A, B>> => {\n    return Date.now();\n  },",
+        "handler: async <T, U>(i: T) => {\n    return Date.now();\n  },",
+    ],
+)
+def test_ambient_flagged_past_commas_in_type_arguments(tmp_dir: Path, handler: str) -> None:
+    _write(
+        tmp_dir,
+        _CMD,
+        f"export const c = defineCommand({{\n  name: 'todo-get',\n  {handler}\n}});\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == [
+        (4, "afd-no-ambient-time", "Ambient Date.now() in command handler"),
+    ]
+
+
+def test_ambient_regex_literals_do_not_desync_scope(tmp_dir: Path) -> None:
+    """Quotes, `//` and backticks inside regex literals are not strings or comments."""
+    _write(
+        tmp_dir,
+        _CMD,
+        "export const c = defineCommand({\n"
+        "  handler: async (i) => {\n"
+        "    const a = i.s.replace(/'/g, '').replace(/\"/g, '').replace(/`/g, '');\n"
+        "    if (/^https?:\\/\\//.test(i.url)) { return Date.now(); }\n"
+        "    return i.n / 2 / 3;\n"
+        "  },\n"
+        "  name: 'todo-get',\n"
+        "});\n"
+        "const startedAt = Date.now();\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == [
+        (4, "afd-no-ambient-time", "Ambient Date.now() in command handler"),
+    ]
+
+
+def test_ambient_comparison_in_expression_body_keeps_sibling_scope(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        _CMD,
+        "export const c = defineCommand({\n"
+        "  handler: async (i) => i.n<3 && i.m>1,\n"
+        "  input: z.object({ at: z.number().default(() => Date.now()) }),\n"
+        "});\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == []
+
+
+def test_mask_ts_source_keeps_offsets_and_template_code() -> None:
+    src = "a('x//y') // c\n`t ${f(`u ${g()}`)} v` /* b\n*/ h"
+    masked = _mask_ts_source(src)
+    assert len(masked) == len(src)
+    assert [i for i, ch in enumerate(src) if ch == "\n"] == [
+        i for i, ch in enumerate(masked) if ch == "\n"
+    ]
+    assert "x//y" not in masked and "// c" not in masked and "/* b" not in masked
+    assert "f(" in masked and "g()" in masked and masked.endswith(" h")
+    assert "t " not in masked and " v" not in masked
 
 
 # ─── Module-level helper units ───────────────────────────────────────────────

@@ -584,6 +584,16 @@ pub struct CommandDefinition {
 
     /// Concrete input examples to help agents construct valid payloads.
     pub examples: Option<Vec<CommandExample>>,
+
+    /// Whether the command's effects are hard to reverse. `None` is unset.
+    pub destructive: Option<bool>,
+
+    /// The question a frontend asks before running the command. A server may enforce it
+    /// (`spec/command-metadata.md`, "Confirmations").
+    pub confirm_prompt: Option<String>,
+
+    /// Whether the command's effects can be undone. `None` is unset.
+    pub undoable: Option<bool>,
 }
 
 impl CommandDefinition {
@@ -612,6 +622,9 @@ impl CommandDefinition {
             execution_time: None,
             expose: default_expose(),
             examples: None,
+            destructive: None,
+            confirm_prompt: None,
+            undoable: None,
         }
     }
 
@@ -630,6 +643,24 @@ impl CommandDefinition {
     /// Mark as mutation.
     pub fn as_mutation(mut self) -> Self {
         self.mutation = true;
+        self
+    }
+
+    /// Declare whether the command's effects are hard to reverse.
+    pub fn with_destructive(mut self, destructive: bool) -> Self {
+        self.destructive = Some(destructive);
+        self
+    }
+
+    /// Set the question to ask before running the command.
+    pub fn with_confirm_prompt(mut self, prompt: impl Into<String>) -> Self {
+        self.confirm_prompt = Some(prompt.into());
+        self
+    }
+
+    /// Declare whether the command's effects can be undone.
+    pub fn with_undoable(mut self, undoable: bool) -> Self {
+        self.undoable = Some(undoable);
         self
     }
 
@@ -830,7 +861,7 @@ impl CommandRegistry {
     /// Export the authoritative MCP tool, including any whole schema registered with it.
     ///
     /// A command with `mutation: true` also carries MCP `annotations`
-    /// (`readOnlyHint: false`, `destructiveHint: false`; `spec/command-metadata.md`). `mutation`
+    /// (`readOnlyHint: false`, `destructiveHint` from `destructive`; `spec/command-metadata.md`). `mutation`
     /// has no unset state here, so a non-mutating command claims nothing.
     pub fn get_tool(&self, name: &str) -> Option<serde_json::Value> {
         let commands = read_lock(&self.commands);
@@ -1372,12 +1403,15 @@ pub struct McpInputSchema {
 /// MCP tool annotations for a command (`spec/command-metadata.md`, "Annotations").
 ///
 /// Only what the command declares is reported. `mutation` has no unset state here, so a
-/// mutation gives `readOnlyHint: false` and `destructiveHint: false`, and anything else gives
-/// `None`.
+/// mutation gives `readOnlyHint: false` and `destructiveHint` from `destructive` (`false` when
+/// unset), and anything else gives `None`.
 pub fn command_tool_annotations(command: &CommandDefinition) -> Option<serde_json::Value> {
-    command
-        .mutation
-        .then(|| serde_json::json!({ "readOnlyHint": false, "destructiveHint": false }))
+    command.mutation.then(|| {
+        serde_json::json!({
+            "readOnlyHint": false,
+            "destructiveHint": command.destructive.unwrap_or(false),
+        })
+    })
 }
 
 /// The MCP `outputSchema` of a command tool: the CommandResult envelope, with `data` typed by

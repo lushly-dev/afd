@@ -36,3 +36,29 @@ fn only_mutations_carry_annotations() {
         .get("annotations")
         .is_none());
 }
+
+#[test]
+fn destructive_sets_destructive_hint() {
+    let registry = CommandRegistry::new();
+    registry
+        .register(
+            CommandDefinition::new("todo-clear", "Delete every todo", vec![], Noop)
+                .as_mutation()
+                .with_destructive(true)
+                .with_confirm_prompt("Delete every todo?")
+                .with_undoable(false),
+        )
+        .unwrap();
+
+    assert_eq!(
+        registry.get_tool("todo-clear").unwrap()["annotations"],
+        json!({ "readOnlyHint": false, "destructiveHint": true })
+    );
+    let command = registry.get("todo-clear").unwrap();
+    assert_eq!(command.destructive, Some(true));
+    assert_eq!(
+        command.confirm_prompt.as_deref(),
+        Some("Delete every todo?")
+    );
+    assert_eq!(command.undoable, Some(false));
+}

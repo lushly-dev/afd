@@ -174,6 +174,10 @@ class CommandDefinition:
         tags: Tags for additional categorization.
         mutation: Whether this command performs side effects.
         execution_time: Estimated execution time category.
+        destructive: Whether the command's effects are hard to reverse. ``None`` is unset.
+        confirm_prompt: The question a frontend asks before running the command. A server
+            may enforce it (``spec/command-metadata.md``, "Confirmations").
+        undoable: Whether the command's effects can be undone. ``None`` is unset.
     
     Example:
         >>> async def create_doc(input, context=None):
@@ -215,6 +219,9 @@ class CommandDefinition:
     handoff: bool = False
     handoff_protocol: Optional[str] = None
     expose: Optional[ExposeOptions] = None
+    destructive: Optional[bool] = None
+    confirm_prompt: Optional[str] = None
+    undoable: Optional[bool] = None
 
 
 class CommandRegistry(Protocol):
@@ -518,6 +525,11 @@ def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:
         tool["annotations"] = annotations
 
     meta: Dict[str, Any] = {"mutation": command.mutation}
+    # Planning signals only: confirm_prompt is display text and stays out of _meta.
+    if command.destructive is not None:
+        meta["destructive"] = command.destructive
+    if command.undoable is not None:
+        meta["undoable"] = command.undoable
     if command.requires:
         meta["requires"] = list(command.requires)
     if command.examples:
@@ -537,11 +549,11 @@ def command_tool_annotations(command: CommandDefinition) -> Optional[Dict[str, b
     """MCP tool annotations for a command (``spec/command-metadata.md``, "Annotations").
 
     Only what the command declares is reported. ``mutation`` has no unset state in
-    Python, so a mutation gives ``readOnlyHint: False`` and ``destructiveHint: False``
-    (there is no ``destructive`` field yet), and anything else gives ``None``.
+    Python, so a mutation gives ``readOnlyHint: False`` and ``destructiveHint`` from
+    ``destructive`` (``False`` when unset), and anything else gives ``None``.
     """
     if command.mutation:
-        return {"readOnlyHint": False, "destructiveHint": False}
+        return {"readOnlyHint": False, "destructiveHint": bool(command.destructive)}
     return None
 
 

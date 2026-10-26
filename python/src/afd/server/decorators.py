@@ -84,6 +84,9 @@ class CommandMetadata:
     handoff: bool = False
     handoff_protocol: Optional[str] = None
     expose: Optional[ExposeOptions] = None
+    destructive: Optional[bool] = None
+    confirm_prompt: Optional[str] = None
+    undoable: Optional[bool] = None
 
 
 def define_command(
@@ -100,6 +103,9 @@ def define_command(
     handoff: bool = False,
     handoff_protocol: Optional[str] = None,
     expose: Optional[ExposeOptions] = None,
+    destructive: Optional[bool] = None,
+    confirm_prompt: Optional[str] = None,
+    undoable: Optional[bool] = None,
     _stacklevel: int = 2,
 ) -> Callable:
     """Decorator to define a command with metadata.
@@ -118,6 +124,10 @@ def define_command(
         requires: Related prerequisite commands (metadata only).
         contexts: Context names that scope this command.
         expose: Controls which interfaces this command is exposed to.
+        destructive: Whether the command's effects are hard to reverse (unset by default).
+        confirm_prompt: The question to ask before running the command. A server may
+            enforce it (``spec/command-metadata.md``, "Confirmations").
+        undoable: Whether the command's effects can be undone (unset by default).
 
     Returns:
         Decorator function that wraps the handler.
@@ -167,6 +177,9 @@ def define_command(
             handoff=handoff,
             handoff_protocol=handoff_protocol,
             expose=expose,
+            destructive=destructive,
+            confirm_prompt=confirm_prompt,
+            undoable=undoable,
         )
         
         @wraps(func)
@@ -309,6 +322,9 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
         handoff=metadata.handoff,
         handoff_protocol=metadata.handoff_protocol,
         expose=metadata.expose,
+        destructive=metadata.destructive,
+        confirm_prompt=metadata.confirm_prompt,
+        undoable=metadata.undoable,
     )
 
 

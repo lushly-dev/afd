@@ -34,6 +34,8 @@ class CommandInfo(WireModel):
     category: Optional[str] = None
     tags: Optional[List[str]] = None
     mutation: Optional[bool] = None
+    destructive: Optional[bool] = None
+    undoable: Optional[bool] = None
     requires: Optional[List[str]] = None
     contexts: Optional[List[str]] = None
     examples: Optional[List[dict[str, Any]]] = None
@@ -88,6 +90,8 @@ async def _afd_help_handler(
             info.category = command.category
             info.tags = command.tags
             info.mutation = command.mutation
+            info.destructive = command.destructive
+            info.undoable = command.undoable
             info.examples = _serialize_examples(command.examples)
             info.output_schema = command.returns
 

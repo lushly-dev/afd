@@ -8,7 +8,7 @@
 | Author | jasfalk (drafted with Claude) |
 | Spec | [SEP-2663: Tasks extension](https://modelcontextprotocol.io/seps/2663-tasks-extension) (Final, Extensions Track), [extensions overview](https://modelcontextprotocol.io/extensions/overview) |
 | Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `python/`, `packages/rust` |
-| Related | [Command progress](../mcp-progress/mcp-progress.proposal.md) (status messages), [MCP confirmations](../mcp-confirmations/mcp-confirmations.proposal.md) (the `input_required` status), [MCP authorization](../mcp-authorization/mcp-authorization.proposal.md) (task access checks), [handoff pattern](../../complete/handoff-pattern/) (AFD's command-level start-and-poll pattern) |
+| Related | [Command progress](../mcp-progress/mcp-progress.proposal.md) (status messages), [MCP confirmations](../../active/mcp-confirmations/mcp-confirmations.proposal.md) (the `input_required` status), [MCP authorization](../mcp-authorization/mcp-authorization.proposal.md) (task access checks), [handoff pattern](../../complete/handoff-pattern/) (AFD's command-level start-and-poll pattern) |
 
 ## Why this is fourth
 
@@ -52,7 +52,7 @@ A `TaskStore` interface holds task records and results: `create`, `get`, `update
 
 - The task runs the command through the normal executor with a fresh `CommandContext`. Its `signal` is aborted by `tasks/cancel` or by TTL expiry.
 - `context.progress` from the [progress proposal](../mcp-progress/mcp-progress.proposal.md) updates `statusMessage`, and `lastUpdatedAt`, instead of sending notifications.
-- A confirm-gated command (see [confirmations](../mcp-confirmations/mcp-confirmations.proposal.md)) moves to `input_required`, and continues when `tasks/update` brings an accepted confirmation.
+- A confirm-gated command (see [confirmations](../../active/mcp-confirmations/mcp-confirmations.proposal.md)) moves to `input_required`, and continues when `tasks/update` brings an accepted confirmation.
 - The result is the same `CallToolResult` that an inline call returns, including `structuredContent`.
 
 ### Per language

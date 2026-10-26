@@ -19,6 +19,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Python Parity Closure](./active/python-parity/) | Close the export-surface gap between TypeScript and Python. 97 names are missing; 60 of them are implemented but not exported. |
 | [Language Parity Closure](./active/parity-closure/parity-closure.plan.md) | Close the unintended cross-language gaps in [Language Parity](../language-parity.md): spec first, in waves 0–4, with every undeclared gap decided |
 | [MCP 2026-07-28 upgrade](./active/mcp-2026-07-28/proposal.md) | Move every AFD MCP surface to the stateless 2026-07-28 spec, served dual-era, with legacy lanes removed in 3.0 |
+| [MCP Confirmations](./active/mcp-confirmations/mcp-confirmations.proposal.md) | Enforce `confirmPrompt` through MCP `input_required` elicitation, with an acknowledgement fallback; resolves D10 of the MCP upgrade |
 | [Versioning and Release](./active/versioning/versioning.plan.md) | Maintain independent semver for each implementation and the shared AFD contract; keep release paths and current versions accurate |
 
 ## Complete Features
@@ -53,7 +54,6 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Code Client](./proposed/code-client/) | Code-based client research |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |
 | [MCP Authorization](./proposed/mcp-authorization/mcp-authorization.proposal.md) | OAuth resource-server role for HTTP MCP servers: RFC 9728 metadata, audience checks, per-command scopes (MCP follow-on, rank 2) |
-| [MCP Confirmations](./proposed/mcp-confirmations/mcp-confirmations.proposal.md) | Enforce `confirmPrompt` through MCP `input_required` elicitation, with an acknowledgement fallback (MCP follow-on, rank 1; resolves D10) |
 | [MCP Progress](./proposed/mcp-progress/mcp-progress.proposal.md) | A progress hook on the command context, delivered as MCP progress notifications, `/stream` chunks and DirectClient callbacks (MCP follow-on, rank 3) |
 | [MCP Tasks](./proposed/mcp-tasks/mcp-tasks.proposal.md) | Long-running commands as `io.modelcontextprotocol/tasks` tasks (MCP follow-on, rank 4; wait) |
 | [Multi-Tool Registration](./proposed/multi-tool-registration/) | Batch MCP tool registration |
