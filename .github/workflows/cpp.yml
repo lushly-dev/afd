@@ -55,7 +55,7 @@ jobs:
       - name: Check formatting
         working-directory: packages/cpp
         run: |
-          find include src tests cmake fuzz ../examples/todo/backends/cpp/src ../examples/todo/backends/cpp/tests \
+          find include src tests cmake fuzz benchmarks ../examples/todo/backends/cpp/src ../examples/todo/backends/cpp/tests \
             \( -name '*.cpp' -o -name '*.hpp' \) -print0 \
             | xargs -0 uvx --from "clang-format==${CLANG_FORMAT_VERSION}" clang-format --dry-run -Werror
 
@@ -183,6 +183,48 @@ jobs:
           cmake --build "$RUNNER_TEMP/consumer-fetch" --config Release
           ctest --test-dir "$RUNNER_TEMP/consumer-fetch" -C Release --output-on-failure
 
+  # Records per-call costs on the release preset (#340). There are no thresholds: shared runners
+  # are too noisy to gate on, so the numbers are uploaded for comparison across runs.
+  benchmarks:
+    name: C++ (benchmarks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: packages/cpp
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build benchmarks (release preset)
+        env:
+          CXX: g++
+        run: |
+          cmake --preset release -DAFD_BUILD_BENCHMARKS=ON -DAFD_BUILD_TESTS=OFF -DAFD_BUILD_EXAMPLES=OFF
+          cmake --build --preset release --target afd_benchmarks
+
+      - name: Run benchmarks
+        run: |
+          out="$RUNNER_TEMP/afd-benchmarks.txt"
+          {
+            echo "commit: ${GITHUB_SHA}"
+            echo "runner: ${RUNNER_OS} ${ImageOS:-} ${ImageVersion:-}"
+            echo "cpu: $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | xargs) ($(nproc) cores)"
+            echo "compiler: $(g++ --version | head -n1)"
+            echo
+          } > "$out"
+          build/release/benchmarks/afd_benchmarks | tee -a "$out"
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cpp-benchmarks
+          path: ${{ runner.temp }}/afd-benchmarks.txt
+          if-no-files-found: error
+
   fuzz:
     name: C++ (fuzz smoke)
     runs-on: ubuntu-latest
@@ -246,3 +288,29 @@ jobs:
           emcmake cmake --preset emscripten
           cmake --build --preset emscripten
           ctest --preset emscripten
+
+      # WebAssembly call overhead differs from native, so the benchmarks also run under Node
+      # (#340). No thresholds; the numbers are uploaded for comparison across runs.
+      - name: Run benchmarks under Node
+        working-directory: packages/cpp
+        run: |
+          source "${GITHUB_WORKSPACE}/emsdk/emsdk_env.sh"
+          emcmake cmake --preset emscripten -DAFD_BUILD_BENCHMARKS=ON
+          cmake --build --preset emscripten --target afd_benchmarks
+          out="$RUNNER_TEMP/afd-benchmarks-wasm.txt"
+          {
+            echo "commit: ${GITHUB_SHA}"
+            echo "runner: ${RUNNER_OS} ${ImageOS:-} ${ImageVersion:-}"
+            echo "cpu: $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2- | xargs) ($(nproc) cores)"
+            echo "compiler: $(emcc --version | head -n1)"
+            echo "node: $(node --version)"
+            echo
+          } > "$out"
+          node build/emscripten/benchmarks/afd_benchmarks.cjs | tee -a "$out"
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cpp-benchmarks-wasm
+          path: ${{ runner.temp }}/afd-benchmarks-wasm.txt
+          if-no-files-found: error

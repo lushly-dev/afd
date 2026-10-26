@@ -126,17 +126,18 @@ ctest --preset dev
 |---|---|
 | `dev` | Debug build with tests |
 | `release` | Release build with tests (Linux, macOS and Windows CI) |
-| `asan` | AddressSanitizer and UndefinedBehaviorSanitizer (Linux CI with Clang) |
+| `asan` | AddressSanitizer and UndefinedBehaviorSanitizer (Linux with Clang; unsupported on macOS, see below) |
 | `tsan` | ThreadSanitizer with `AFD_ENABLE_THREADS` (Clang) |
 | `noexcept-nortti` | `-fno-exceptions -fno-rtti`, unity build, macro-hygiene check (GCC or Clang) |
 | `emscripten` | WebAssembly; configure with `emcmake cmake --preset emscripten`. Tests run under Node. |
 
 Build trees go to `packages/cpp/build/<preset>/`, which git ignores. Set `CMAKE_GENERATOR=Ninja` for faster local builds.
 
-The `asan` preset is release-gated on Linux. Apple Clang 17 can hang in its sanitizer runtime while
-finding the dynamic shadow region, before afd-cpp enters `main`; disabling leak detection does not
-resolve it ([#331](https://github.com/lushly-dev/afd/issues/331)). Use the Linux sanitizer CI job for
-release evidence until that toolchain problem is resolved.
+**The `asan` preset is not supported on macOS.** It hangs at startup there: Apple Clang 17's
+sanitizer runtime stalls while finding the dynamic shadow region, before afd-cpp enters `main`, so no
+test runs, even when only listing test cases. `ASAN_OPTIONS=detect_leaks=0` does not help
+([#331](https://github.com/lushly-dev/afd/issues/331)). Do not use it as local evidence on a Mac; rely
+on CI's `linux-clang-sanitize` job, or run the preset on Linux (for example in a container).
 
 ## Options
 
@@ -148,6 +149,7 @@ release evidence until that toolchain problem is resolved.
 | `AFD_WARNINGS_AS_ERRORS` | OFF (ON in presets) | `-Werror` or `/WX` |
 | `AFD_USE_SYSTEM_JSON` | OFF | Require `nlohmann_json` from `find_package` instead of downloading it |
 | `AFD_ENABLE_THREADS` | ON (OFF for Emscripten) | Build `ThreadTaskRunner` and link `Threads::Threads` |
+| `AFD_BUILD_BENCHMARKS` | OFF | Build `benchmarks/` (`afd_benchmarks`); see [Benchmarks](#benchmarks) |
 | `AFD_BUILD_FUZZERS` | OFF | Build the `fuzz/` targets: libFuzzer with Clang, corpus replay elsewhere |
 | `AFD_MACRO_HYGIENE_CHECK` | OFF (ON in `noexcept-nortti`) | Compile afd-cpp's own code with `cmake/macro_hygiene_prelude.hpp` force-included |
 
@@ -157,7 +159,7 @@ The formatting source is `.clang-format`. CI pins clang-format through PyPI, and
 
 ```bash
 cd packages/cpp
-find include src tests cmake \( -name '*.cpp' -o -name '*.hpp' \) -print0 | xargs -0 uvx --from clang-format==22.1.8 clang-format -i
+find include src tests cmake fuzz benchmarks \( -name '*.cpp' -o -name '*.hpp' \) -print0 | xargs -0 uvx --from clang-format==22.1.8 clang-format -i
 ```
 
 ## Contributing
@@ -168,11 +170,75 @@ Library code must be exception-free and RTTI-free:
 - Write `(std::min)(…)`.
 - Never name anything `check`, `verify`, `require` or `interface`.
 
-CI (`.github/workflows/cpp.yml`) runs the `release` preset on Linux (GCC), macOS and Windows (MSVC and checksum-verified LLVM 22.1.8 clang-cl). The clang-cl configure step asserts that CMake selected that exact Clang version with the MSVC frontend; the regression gate also rejects Clang older than 21. The `asan`, `tsan`, `noexcept-nortti` and `emscripten` presets run on Linux only. CI also checks formatting, builds [`tests/consumer`](tests/consumer/CMakeLists.txt) on Linux and Windows, and fuzzes each target for 60 seconds on Linux.
+CI (`.github/workflows/cpp.yml`) runs the `release` preset on Linux (GCC), macOS and Windows (MSVC and checksum-verified LLVM 22.1.8 clang-cl). The clang-cl configure step asserts that CMake selected that exact Clang version with the MSVC frontend; the regression gate also rejects Clang older than 21. The `asan`, `tsan`, `noexcept-nortti` and `emscripten` presets run on Linux only. CI also checks formatting, runs the [benchmarks](#benchmarks) on the `release` preset, builds [`tests/consumer`](tests/consumer/CMakeLists.txt) on Linux and Windows, and fuzzes each target for 60 seconds on Linux.
 
-## Dispatch benchmark
+## Benchmarks
 
-Build the optional dependency-free benchmark with `cmake --preset release -DAFD_BUILD_BENCHMARKS=ON`,
-then `cmake --build --preset release`. Run `build/release/benchmarks/afd_registry_dispatch_benchmark`
-to compare successful dispatch with 1 and 1,000 registered commands. It reports the median of five
-samples; timing is manual evidence and does not impose a platform-dependent unit-test threshold.
+`benchmarks/` holds a dependency-free harness (`benchmarks/harness.hpp`) and one executable,
+`afd_benchmarks`, behind `AFD_BUILD_BENCHMARKS` (OFF by default). Each case doubles its batch until
+one batch lasts 50 ms, then times five batches and prints the median and fastest nanoseconds per
+operation. There are no pass or fail thresholds: timing is evidence to compare across commits and
+machines, not a unit-test gate (see [#336](https://github.com/lushly-dev/afd/issues/336)).
+
+```bash
+cd packages/cpp
+cmake --preset release -DAFD_BUILD_BENCHMARKS=ON
+cmake --build --preset release --target afd_benchmarks
+build/release/benchmarks/afd_benchmarks            # every case
+build/release/benchmarks/afd_benchmarks validate   # cases whose name contains "validate"
+```
+
+Under Emscripten, configure with `emcmake cmake --preset emscripten -DAFD_BUILD_BENCHMARKS=ON`, build
+the same target and run `node build/emscripten/benchmarks/afd_benchmarks.cjs`.
+
+| Case | Measures (one operation) |
+|---|---|
+| `execute/trivial` | `execute` of a no-op command, no middleware: lookup, exposure, validation, handler, metadata |
+| `execute/trace_id_middleware` | The same with `default_middleware()` reduced to the trace ID |
+| `execute/default_middleware` | The same with all of `default_middleware()`; logging writes to a discarding sink |
+| `direct_client/call` | `DirectClient::call` of the no-op command |
+| `execute/validate/string_properties=N` | `execute` with an input schema of N required string properties (3, 20, 100) |
+| `registry_1000/execute`, `/get`, `/list` | Dispatch, `get` and `list` on a registry of 1,000 commands |
+| `execute_batch/n=N` | One batch of N no-op commands (1, 10, 100) |
+| `execute_pipeline/n=N` | One pipeline of N steps, each after the first reading `$prev.value` (1, 10, 100) |
+| `parse_bounded/1KB`, `/100KB` | `parse_bounded` of a todo-list result |
+| `serialize_result/1KB`, `/100KB` | `CommandResult` to `Json` to `wire::serialize` text |
+
+CI's `C++ (benchmarks)` job runs it on the `release` preset (Linux, GCC) and uploads the output as the
+`cpp-benchmarks` artifact; the `C++ (emscripten)` job runs it under Node and uploads
+`cpp-benchmarks-wasm`. Shared runners are noisy, so compare runs rather than single numbers.
+
+### Baseline
+
+Recorded 2026-10-25 at commit `585265a` plus this harness, on an Apple M5 (10 cores), macOS 27.0.1.
+Native: Apple clang 17.0.0 (clang-1700.6.4.2), CMake 4.4.3, `release` preset. WebAssembly: Emscripten
+6.0.10, Node 24.21.0, `emscripten` preset. Other builds were running on the machine (load average
+about 40), so treat these as upper bounds. Median nanoseconds per operation:
+
+| Case | Native | WebAssembly |
+|---|---:|---:|
+| `execute/trivial` | 679 | 804 |
+| `execute/trace_id_middleware` | 1,231 | 1,332 |
+| `execute/default_middleware` | 2,112 | 2,853 |
+| `direct_client/call` | 1,136 | 1,626 |
+| `execute/validate/string_properties=3` | 1,760 | 1,710 |
+| `execute/validate/string_properties=20` | 10,323 | 7,490 |
+| `execute/validate/string_properties=100` | 58,202 | 40,379 |
+| `registry_1000/execute` | 645 | 826 |
+| `registry_1000/get` | 51 | 105 |
+| `registry_1000/list` | 4,279 | 4,702 |
+| `execute_batch/n=1` | 2,832 | 4,836 |
+| `execute_batch/n=10` | 11,792 | 19,935 |
+| `execute_batch/n=100` | 99,589 | 170,393 |
+| `execute_pipeline/n=1` | 4,129 | 4,513 |
+| `execute_pipeline/n=10` | 34,597 | 36,708 |
+| `execute_pipeline/n=100` | 326,519 | 409,671 |
+| `parse_bounded/1KB` | 16,990 | 26,294 |
+| `parse_bounded/100KB` | 6,243,180 | 3,054,655 |
+| `serialize_result/1KB` | 11,707 | 38,789 |
+| `serialize_result/100KB` | 992,546 | 2,415,343 |
+
+A call costs about 1 µs in process (about 2 µs with all of `default_middleware()`), and dispatch on 1,000 commands costs the same as on one.
+Batch and pipeline scale linearly in N. `parse_bounded` does not: 100 KB costs several hundred times
+1 KB, most likely because the depth-limit callback puts nlohmann on its callback parser
+([#397](https://github.com/lushly-dev/afd/issues/397)).
