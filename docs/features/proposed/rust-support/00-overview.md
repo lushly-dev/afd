@@ -10,6 +10,10 @@
 > documentation. See the [crate README](../../../../packages/rust/README.md).
 
 
+> **Disposition (2026-10-25, audit #349): partially shipped, stays proposed.**
+> Shipped: core types and registry (`rust-parity`, #181), WASM feature, `afd` 0.1.0 on crates.io (#379), and an optional `server` Cargo feature with stdio and Streamable HTTP on `rmcp` (#394).
+> Remaining scope: `cargo-dist` distribution; the `#[afd_command]` proc macro and `hello_mcp`/`todo_app` examples sketched in [01-afd-rust.md](./01-afd-rust.md); and verified interop with Claude Desktop and Cursor. Moving this folder to `complete/` waits on those or on an explicit decision to drop them. Update the "Success Criteria" below when that happens.
+
 > **Goal**: Add Rust as a third language implementation to AFD, enabling native binary and WASM distribution targets alongside the existing TypeScript and Python implementations.
 
 ## The Vision
@@ -80,7 +84,7 @@ afd/
 
 - [x] All AFD types match TypeScript/Python exactly (JSON serialization)
 - [x] Pass shared conformance test suite
-- [ ] General-purpose MCP transports work with Claude Desktop and Cursor (outside the released core library)
+- [ ] General-purpose MCP transports work with Claude Desktop and Cursor (stdio and Streamable HTTP ship behind the `server` feature, #394; client interop is not verified)
 - [x] Build for Windows, Mac, Linux, and WASM
 - [x] crates.io 0.1.0 published; GitHub trusted publisher configured (the tag check skips the existing version; a future release must verify an actual OIDC upload)
 - [ ] cargo-dist distribution framework (outside the released core library)

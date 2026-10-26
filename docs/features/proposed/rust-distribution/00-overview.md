@@ -1,5 +1,8 @@
 # Mint Distribution Framework - Plan Overview
 
+> **Disposition (2026-10-25, audit #349):** **Proposed (research).** Mint is a private framework in a separate repository that builds on AFD; none of its service layer, UI heads or distribution targets are in this repository. [06-future-phases.md](./06-future-phases.md) is explicitly not committed. Stays research.
+
+
 > **Goal**: Build a private distribution framework that combines AFD (commands), Violet (theming), and automated multi-platform release tooling to ship AI/MCP/API-enabled apps to 12+ distribution targets.
 
 **Note**: This plan describes "Mint," a private framework that builds ON TOP of the public AFD package. See [AFD Rust Support](../rust-support/00-overview.md) for the prerequisite Rust implementation in AFD core.

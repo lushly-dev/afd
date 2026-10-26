@@ -11,6 +11,9 @@ package: "@lushly-dev/afd-server", "@lushly-dev/afd-core", "fabric-ux-prototype"
 depends-on: AFD 0.3.0 upgrade (requires, expose, suggestions, undoCommand, McpImageContent)
 ---
 
+> **Disposition (2026-10-25, audit #349):** **Proposed.** The commands target the external `fabric-ux-prototype` app, not this repository, so nothing here can ship them. The AFD prerequisites (`requires`, `expose`, suggestions, undo, image content) are in `main`. #164 only cleaned up this document. Remaining scope is the whole proposal.
+
+
 ## Problem
 
 Zero's chat agent lives inside the Fabric Zero Shell and helps designers iterate on the live prototype. After the recent Zero chat sidebar improvements (#82), the agent can invoke 46 AFD commands — but none of them let it **see or act on** the canvas the designer is working in.

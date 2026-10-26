@@ -1,5 +1,8 @@
 # Design-to-Code Integration Plan
 
+> **Disposition (2026-10-25, audit #349):** **Proposed.** No Figma plugin, schema-export or documentation-pipeline code exists in `packages` or `python`; the only Figma material in the repo is the `implement-designs` skill. Nothing shipped; this stays a multi-part plan.
+
+
 > **Vision**: A unified workflow where AFD command schemas and Figma designs are the single source of truth, enabling automated UI generation, living documentation, and zero-drift development.
 
 ## Executive Summary
