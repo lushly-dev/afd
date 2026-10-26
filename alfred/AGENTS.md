@@ -54,6 +54,8 @@ Wraps the `AFDLinter` from the `afd` Python package. Scans Python, TypeScript, a
 | `afd-kebab-naming` | TypeScript | Error | Command names must be kebab-case |
 | `afd-no-business-in-ui` | TypeScript | Warning | No `.map().filter()`, `.reduce()`, `new Date()`, `Math.*` in UI |
 | `afd-layer-imports` | All | Warning | UI can't import from `services/`, `core/`, or `api/` directly |
+| `afd-no-ambient-time` | TypeScript | Warning | No `Date.now()`, argument-less `new Date()` or `performance.now()` inside a `defineCommand` handler; use `(context.clock ?? systemClock).now()` |
+| `afd-no-ambient-random` | TypeScript | Warning | No `Math.random()` or `crypto.randomUUID()` inside a `defineCommand` handler; use `(context.random ?? systemRandom).next()` |
 
 **Skipped directories:** `node_modules`, `.venv`, `__pycache__`, `.git`, `dist`, `build`, `target`, `.pytest_cache`, `.claude`, `.agent`, `chrome-profile`
 
