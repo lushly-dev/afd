@@ -3,7 +3,7 @@
 > Proposal: Standard utilities for cross-platform subprocess, path, and environment handling
 
 ---
-status: approved-with-changes
+status: complete
 created: 2026-01-09
 reviewed: 2026-01-09
 origin: Cross-platform audit of lushbot showing repeated patterns
@@ -15,6 +15,26 @@ effort: M (1-3 days)
 | Date | Verdict | Key Changes Applied |
 |------|---------|---------------------|
 | 2026-01-09 | ✅ Approved | Added debug logging, token protection, JSDoc requirements, error codes |
+| 2026-10-25 | ✅ Complete | Lifecycle audit (#349): shipped in TypeScript (#92) and Python (#155); see Disposition |
+
+## Disposition (2026-10-25, audit #349)
+
+**Complete.** Shipped scope, verified against `main`:
+
+| Scope | Evidence |
+|-------|----------|
+| TypeScript `platform.ts` (`isWindows`/`isMac`/`isLinux`, `exec`, `ExecErrorCode`, `findUp`, `getTempDir`, `normalizePath`) and `GitHubConnector`/`PackageManagerConnector` in `@lushly-dev/afd-core` | #92 (2026-01-09); `packages/core/src/platform.ts`, `packages/core/src/connectors/` |
+| Python equivalents (`afd.platform`, `afd.connectors`) | #155 (2026-02-25); `python/src/afd/platform.py`, `python/src/afd/connectors/` |
+| Debug logging and token protection (connector never logs stdout) | `debug` option in `platform.ts`; `SECURITY` notes in `connectors/github.ts` |
+| Agent reference | `.claude/skills/afd/references/platform-utils.md` |
+
+Deviations from this proposal, all later hardening rather than gaps:
+
+- `findUp` is a native implementation. The `find-up` dependency was dropped to keep `afd-core` at zero runtime dependencies (`267420a`).
+- `exec` gained an output cap (`maxOutputBytes`) and Windows spawn handling (`windows-spawn.ts`) in the 2.0 hardening waves (#225, #232, #250, #254).
+- The Python surface is `exec_command` (async) rather than `exec`, and adds `get_os_info`.
+
+**Remaining scope:** none. The spec's 90% coverage target and README example items were not re-measured in this audit; the repository's coverage gate (`pnpm check`) covers the TypeScript side.
 
 ## Problem
 

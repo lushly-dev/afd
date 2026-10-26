@@ -25,7 +25,7 @@ export async function startFixtureServer({ directory, deploymentUrl, origin }) {
 			if (request.url === '/config.js') {
 				response.setHeader('Content-Type', 'text/javascript; charset=utf-8');
 				response.end(
-					`window.__AFD_CONVEX_CONFIG__=${JSON.stringify({ deploymentUrl: deploymentUrl.href })};`
+					`window.__AFD_CONVEX_CONFIG__=${JSON.stringify({ deploymentUrl: deploymentUrl.origin })};`
 				);
 				return;
 			}

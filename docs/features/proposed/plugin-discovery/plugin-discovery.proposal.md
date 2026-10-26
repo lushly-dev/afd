@@ -1,5 +1,8 @@
 # Feature Proposal: Plugin Discovery via Entry Points
 
+> **Disposition (2026-10-25, audit #349):** **Proposed.** `@lushly-dev/afd-server` has no `AfdPlugin`, `PluginRegistry` or discovery option, and no merged PR adds them. Nothing shipped; remaining scope is the whole proposal and its [spec](./plugin-discovery.spec.md).
+
+
 ## Summary
 
 Enable opt-in plugin discovery so installed packages can contribute commands at server startup without modifying host registration code.

@@ -24,6 +24,7 @@ Serves and speaks MCP 2026-07-28 (stateless, per-request `_meta`) next to the 20
 - **`MODERN_PROTOCOL_VERSION`** and **`LEGACY_PROTOCOL_VERSIONS`** constants.
 - **MCP tool annotations:** a command with `mutation=True` lists `annotations` (`readOnlyHint: false`, `destructiveHint: false`), as `spec/command-metadata.md` specifies.
 - **The testing MCP server is dual-era:** `server/discover`, `resultType`, `serverInfo`, cache fields and `-32022` for requests carrying 2026-07-28 `_meta`.
+- **`AFDLinter(rule_severity_overrides=...)`:** sets a rule's severity to `"error"` or `"warning"`, or turns it `"off"`, through the same path every finding is emitted on, so `passed`, `error_count` and `warning_count` follow the override. Findings of an `"off"` rule are counted as suppressed with reason `severity-off`. An unknown rule id or severity raises `ValueError` (#268).
 
 ### Fixed
 

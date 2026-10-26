@@ -217,16 +217,42 @@ local OAuth callbacks and SQLite-backed provider restart. Run the repository-roo
 `pnpm test:hosted:local` on Node 24 with Chromium for this lifecycle, Convex SDK
 fixture checks and durable REST/view-state restart checks. The Convex fixture in
 `packages/auth/hosted/convex/` uses real SDKs and deployable functions; local build
-success does not establish live provider behavior. External opt-in runs require
+success does not establish live provider behavior. Convex backend module filenames
+use letters, digits, underscores and periods; hyphenated helper names fail hosted
+deployment. The fixture check validates module discovery and path names before
+bundling. External opt-in runs require
 explicit disposable-service configuration and assertion/cleanup receipts; missing
-configuration fails preflight. Keep #362 open pending hosted execution. See
-`docs/operations/hosted-verification.md` and the fixture READMEs for setup.
+configuration fails preflight. For hosted Better Auth with Google, prefer a
+dedicated synthetic identity. An explicitly approved existing signed-in Google
+account may instead be used when its exact email is configured in
+`AFD_BA_EXPECTED_EMAIL`, it is the sole External/Testing OAuth test user, and the
+dedicated app requests only `openid`, `email` and `profile`. Keep the fixture app
+and store dedicated; cleanup revokes the app grant and removes the fixture's exact
+app-user/session/account rows while retaining the upstream Google account. The
+Convex fixture can use an explicitly allowlisted existing GitHub account with
+exact account ID and verified primary
+email; this does not relax Password-user or protected-record run scoping. Use a
+dedicated OAuth App with profile/email scopes only. Cleanup removes Convex test
+data and the dedicated grant, never the existing GitHub account.
+The 2026-10-14 #362 round passed hosted H1/H2/H3 application assertions and
+external cleanup. Its scoped receipt retains failed attempts and defers missing
+historical browser/Node patch metadata to #386; it does not claim complete version
+provenance. Capture actual runtime/browser versions before future teardown. See
+`docs/operations/hosted-verification-round.md` for the execution record and
+`docs/operations/hosted-verification.md` plus fixture READMEs for setup.
+For the regular-Chrome H1 operator path after a provider rejects Playwright,
+keep OAuth and callback in one Chrome context. The disposable fixture exposes
+visible refresh, sign-out and one-use session replay controls plus DOM-readable
+own-session evidence. Inspect stored-cookie flags in Chrome and record manual
+observations separately from the automated runner receipt; an interrupted run
+does not become a pass. See `packages/auth/hosted/better-auth/README.md`.
 Registry publication is separate from merged source behavior. The hosted fixtures
 import reviewed workspace source; a receipt version is not registry installation
 evidence. The published npm baseline is 2.1.0; use the current release record and
-[package-update process](../do-release/references/next-round.md) before the next
-version change. See [the next hosted round](../../../docs/operations/hosted-verification-round.md)
-for proposed resources and the local preparation gate before provisioning.
+[release skill](../do-release/SKILL.md), including its next-round package update
+process, before the next version change. See [the hosted round record](../../../docs/operations/hosted-verification-round.md)
+for executed scope and the provisioning recipe. Future rounds require new scoped
+authorization and the local preparation gate before provisioning.
 The [Render operator recipe](../../../docs/operations/hosted-render.md) covers
 the two disposable services, exact source/resource ledger and local control
 helper. Its injected-response tests run in `pnpm test:hosted:local`; provider
