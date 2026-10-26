@@ -13,7 +13,7 @@
 //! otherwise.
 
 use crate::commands::Tool;
-use afd::server::{HttpOptions, McpServer};
+use afd::server::{ConfirmationMode, HttpOptions, McpServer};
 use afd::CommandRegistry;
 use axum::{
     extract::{DefaultBodyLimit, Request, State},
@@ -128,6 +128,9 @@ pub struct ServerConfig {
     /// Largest request body (`MAX_BODY_BYTES`, default 1 MiB).
     pub max_body_bytes: usize,
     pub policy: HttpPolicy,
+    /// Confirmation enforcement (`CONFIRMATIONS`: `off`, `enforce` or `require-human`; default
+    /// `off`).
+    pub confirmations: ConfirmationMode,
 }
 
 impl ServerConfig {
@@ -188,10 +191,22 @@ impl ServerConfig {
             }
         }
 
+        let confirmations = match var("CONFIRMATIONS").as_deref().map(str::trim) {
+            None | Some("off") => ConfirmationMode::Off,
+            Some("enforce") => ConfirmationMode::Enforce,
+            Some("require-human") => ConfirmationMode::RequireHuman,
+            Some(other) => {
+                return Err(format!(
+                    "CONFIRMATIONS must be off, enforce or require-human, got \"{other}\""
+                ))
+            }
+        };
+
         Ok(Self {
             host,
             port,
             max_body_bytes,
+            confirmations,
             policy: HttpPolicy {
                 allowed_origins,
                 allowed_hosts,

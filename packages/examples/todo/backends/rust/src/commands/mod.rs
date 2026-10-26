@@ -39,6 +39,8 @@ pub trait Command: Send + Sync + 'static {
     const NAME: &'static str;
     const DESCRIPTION: &'static str;
     const MUTATION: bool;
+    /// The confirmation question, enforced when the server runs with `CONFIRMATIONS`.
+    const CONFIRM_PROMPT: Option<&'static str> = None;
 
     /// JSON Schema of the input object.
     fn schema() -> Value;
@@ -142,6 +144,11 @@ fn register<C: Command>(registry: &mut CommandRegistry, command: C) -> Result<To
     .with_expose(exposure());
     if C::MUTATION {
         definition = definition.as_mutation();
+    }
+    if let Some(prompt) = C::CONFIRM_PROMPT {
+        definition = definition
+            .with_destructive(true)
+            .with_confirm_prompt(prompt);
     }
     registry.register(definition)?;
     Ok(Tool {

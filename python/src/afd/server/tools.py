@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, Callable, Optional, Sequence
 
 from afd.core.commands import CommandDefinition, command_to_mcp_tool
+from afd.server.confirmations import CONFIRM_PROPERTY, accepts_confirm
 from afd.server.types import ToolStrategy
 
 
@@ -138,6 +139,36 @@ DetailToolSchema = {
 }
 
 
+# Acknowledgement fields (spec/command-metadata.md, "Confirmations"), used only by servers that
+# enforce confirmations.
+CallToolSchema["inputSchema"]["properties"]["confirm"] = {
+    "type": "boolean",
+    "description": (
+        "Set to true to confirm a command that asks for confirmation, once the user intends it "
+        "(only on servers that enforce confirmations)"
+    ),
+}
+for _schema in (BatchToolSchema, PipeToolSchema):
+    _schema["inputSchema"]["properties"]["confirm"] = {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": (
+            "Names of the commands that ask for confirmation and are confirmed, once the user "
+            "intends them (only on servers that enforce confirmations)"
+        ),
+    }
+
+
+def _individual_tool(command: CommandDefinition, confirmations: str) -> dict[str, Any]:
+    """The command's tool, with the ``confirm`` argument when the command accepts it."""
+    tool = command_to_mcp_tool(command)
+    if accepts_confirm(command, confirmations):
+        schema = dict(tool["inputSchema"])
+        schema["properties"] = {**(schema.get("properties") or {}), "confirm": CONFIRM_PROPERTY}
+        tool["inputSchema"] = schema
+    return tool
+
+
 def filter_commands_by_context(
     commands: Sequence[CommandDefinition],
     active_context: Optional[str],
@@ -183,8 +214,12 @@ def get_tools_list(
 	tool_strategy: ToolStrategy,
 	group_by_fn: Optional[Callable[[CommandDefinition], Optional[str]]] = None,
 	active_context: Optional[str] = None,
+	confirmations: str = "off",
 ) -> list[dict[str, Any]]:
-	"""Return the MCP-visible tool list for the selected strategy."""
+	"""Return the MCP-visible tool list for the selected strategy.
+
+	With ``confirmations="enforce"``, confirm-gated tools advertise the ``confirm`` argument.
+	"""
 
 	builtins = [DiscoverToolSchema, DetailToolSchema, BatchToolSchema, PipeToolSchema, CallToolSchema]
 	filtered_commands = filter_commands_by_context(commands, active_context)
@@ -202,7 +237,7 @@ def get_tools_list(
 		]
 
 	if tool_strategy == "individual":
-		return [*builtins, *(command_to_mcp_tool(command) for command in filtered_commands)]
+		return [*builtins, *(_individual_tool(command, confirmations) for command in filtered_commands)]
 
 	group_name_for = group_by_fn or default_group_name
 	grouped: dict[str, list[CommandDefinition]] = {}
@@ -229,6 +264,11 @@ def get_tools_list(
 							"type": "object",
 							"description": "Input payload for the selected action",
 						},
+						**(
+							{"confirm": CONFIRM_PROPERTY}
+							if any(accepts_confirm(command, confirmations) for command in group_commands)
+							else {}
+						),
 					},
 					"required": ["action"],
 				},

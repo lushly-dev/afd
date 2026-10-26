@@ -47,7 +47,7 @@ from afd.core.result import (
     failure,
     success,
 )
-from afd.core.actor import Actor
+from afd.core.actor import Actor, ContextDefaults, with_context_defaults
 from afd.core.clock import Clock, RandomSource
 from afd.core.errors import CommandError, not_found_error, validation_error
 from afd.core.similarity import find_similar_tools, truncate_name
@@ -325,8 +325,24 @@ class RegisteredCommand:
     parameters: List[CommandParameter] = field(default_factory=list)
 
 
+def _takes_context(handler: Callable) -> bool:
+    """Whether ``handler`` declares a keyword-only ``context`` parameter."""
+    try:
+        parameter = inspect.signature(handler).parameters.get("context")
+    except (TypeError, ValueError):
+        return False
+    return parameter is not None and parameter.kind is inspect.Parameter.KEYWORD_ONLY
+
+
 class SimpleRegistry:
     """Simple in-memory command registry.
+
+    Handlers take the command's arguments as keyword arguments. A handler
+    that also declares a keyword-only ``context`` parameter (after ``*``)
+    receives the call's context, with ``clock``, ``random`` and ``actor``
+    (``human`` from a :class:`DirectClient`); ``clock`` and ``random`` default
+    to the registry's, then to the real ones. Handlers without it are called
+    as before. Arguments cannot be named ``context`` for such a handler.
 
     A handler that raises returns COMMAND_EXECUTION_ERROR with the message
     "An internal error occurred", and the exception is logged to the
@@ -342,11 +358,28 @@ class SimpleRegistry:
         >>> 
         >>> client = DirectClient(registry)
         >>> result = await client.call('hello', {'name': 'Agent'})
+        >>>
+        >>> @registry.command(name='dice-roll', description='Roll a die')
+        ... async def roll(*, context):
+        ...     return success({'roll': 1 + int(context.random.next() * 6)})
     """
     
-    def __init__(self, *, dev_mode: bool = False):
+    def __init__(
+        self,
+        *,
+        dev_mode: bool = False,
+        clock: Optional[Clock] = None,
+        random: Optional[RandomSource] = None,
+    ):
+        """
+        Args:
+            dev_mode: Return a raising handler's exception text.
+            clock: Clock for handlers when the call's context has none.
+            random: Random source for handlers when the call's context has none.
+        """
         self._commands: Dict[str, RegisteredCommand] = {}
         self._dev_mode = dev_mode
+        self._context_defaults = ContextDefaults(clock=clock, random=random)
     
     def command(
         self,
@@ -397,7 +430,13 @@ class SimpleRegistry:
         if not cmd:
             return failure(not_found_error("Command", name))
         
-        kwargs = args or {}
+        kwargs = dict(args or {})
+        if _takes_context(cmd.handler):
+            if "context" in kwargs:
+                return failure(validation_error(
+                    f"Invalid arguments for '{name}': 'context' is reserved for the command context"
+                ))
+            kwargs["context"] = with_context_defaults(context, self._context_defaults)
         try:
             inspect.signature(cmd.handler).bind(**kwargs)
         except TypeError as e:
@@ -941,12 +980,20 @@ def _validate_steps(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def create_registry(*, dev_mode: bool = False) -> SimpleRegistry:
+def create_registry(
+    *,
+    dev_mode: bool = False,
+    clock: Optional[Clock] = None,
+    random: Optional[RandomSource] = None,
+) -> SimpleRegistry:
     """Create a new SimpleRegistry instance.
 
     Args:
         dev_mode: Return a raising handler's exception text instead of
             "An internal error occurred" (see :class:`SimpleRegistry`).
+        clock: Clock for handlers that take a ``context``, when the call's
+            context has none.
+        random: Random source for those handlers, when the call's context has none.
 
     Example:
         >>> registry = create_registry()
@@ -955,7 +1002,7 @@ def create_registry(*, dev_mode: bool = False) -> SimpleRegistry:
         ... async def ping():
         ...     return success({'status': 'ok'})
     """
-    return SimpleRegistry(dev_mode=dev_mode)
+    return SimpleRegistry(dev_mode=dev_mode, clock=clock, random=random)
 
 
 def create_direct_client(

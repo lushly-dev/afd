@@ -70,6 +70,15 @@ from afd.server.middleware import (
     TelemetrySink,
     ConsoleTelemetrySink,
 )
+from afd.server.journal import (
+    JournalReplayTarget,
+    ReplayDifference,
+    ReplayEntryReport,
+    ReplayReport,
+    ReplayStatus,
+    create_journal_middleware,
+    replay_journal,
+)
 from afd.server.validation import (
     ValidationError,
     ValidationResult,
@@ -126,6 +135,14 @@ __all__ = [
     "TelemetryEvent",
     "TelemetrySink",
     "ConsoleTelemetrySink",
+    # Command journal: recording middleware and replay
+    "create_journal_middleware",
+    "replay_journal",
+    "JournalReplayTarget",
+    "ReplayDifference",
+    "ReplayEntryReport",
+    "ReplayReport",
+    "ReplayStatus",
     # Validation
     "ValidationError",
     "ValidationResult",

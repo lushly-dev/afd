@@ -12,6 +12,8 @@
 //! This module covers the individual tool strategy only. Grouped and lazy strategies, the
 //! meta-tools and context scoping remain in the parity plan (D1).
 //!
+//! [`McpServer::with_confirmations`] enforces `confirm_prompt` (see [`confirmations`]).
+//!
 //! ```no_run
 //! # async fn run() -> Result<(), String> {
 //! use std::sync::Arc;
@@ -49,6 +51,10 @@ pub const DEFAULT_TOOLS_LIST_TTL_MS: u64 = 300_000;
 
 static TRACE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+pub mod confirmations;
+pub use confirmations::{ConfirmationMode, AFD_CONFIRM_META_KEY};
+use confirmations::{Decision, Gate};
+
 /// Origin, Host and body-size policy for [`McpServer::streamable_http_service`].
 #[derive(Debug, Clone)]
 pub struct HttpOptions {
@@ -82,6 +88,10 @@ struct Inner {
     tools: Option<Vec<Value>>,
     tools_list_ttl_ms: u64,
     context_defaults: ContextDefaults,
+    confirmations: Arc<Gate>,
+    /// Whether a 2025 connection can receive server-sent requests (stdio: yes; the stateless
+    /// Streamable HTTP service: no).
+    legacy_back_channel: bool,
 }
 
 /// An MCP server for the MCP-exposed commands of a [`CommandRegistry`].
@@ -108,6 +118,11 @@ impl McpServer {
                 tools: None,
                 tools_list_ttl_ms: DEFAULT_TOOLS_LIST_TTL_MS,
                 context_defaults: ContextDefaults::new().with_actor(ActorKind::Agent),
+                confirmations: Arc::new(
+                    Gate::new(ConfirmationMode::Off, None)
+                        .expect("the OS random source is available"),
+                ),
+                legacy_back_channel: true,
             }),
         }
     }
@@ -121,6 +136,8 @@ impl McpServer {
             tools: shared.tools.clone(),
             tools_list_ttl_ms: shared.tools_list_ttl_ms,
             context_defaults: shared.context_defaults.clone(),
+            confirmations: Arc::clone(&shared.confirmations),
+            legacy_back_channel: shared.legacy_back_channel,
         });
         change(&mut inner);
         Self {
@@ -166,6 +183,56 @@ impl McpServer {
         self.with(|inner| inner.context_defaults.random = Some(random))
     }
 
+    /// Enforce `confirm_prompt` (`spec/command-metadata.md`, "Confirmations"). Default:
+    /// [`ConfirmationMode::Off`]. Under [`ConfirmationMode::Enforce`] a confirm-gated tool also
+    /// advertises an optional `confirm` argument.
+    ///
+    /// # Panics
+    /// When the OS random source that makes the per-process key is unavailable.
+    pub fn with_confirmations(self, mode: ConfirmationMode) -> Self {
+        let gate = Gate::new(mode, None).expect("the OS random source is available");
+        self.with(|inner| inner.confirmations = Arc::new(gate))
+    }
+
+    /// Enforce `confirm_prompt` with `key` (at least 32 bytes) signing the confirmation
+    /// `requestState`, shared by every instance behind one URL. Without a key each process
+    /// uses a random one.
+    ///
+    /// # Errors
+    /// The key is shorter than 32 bytes.
+    pub fn with_confirmations_key(
+        self,
+        mode: ConfirmationMode,
+        key: impl Into<Vec<u8>>,
+    ) -> Result<Self, String> {
+        let gate = Gate::new(mode, Some(key.into()))?;
+        Ok(self.with(|inner| inner.confirmations = Arc::new(gate)))
+    }
+
+    /// Add the `confirm` acknowledgement to a confirm-gated tool under `Enforce`.
+    fn with_confirm_argument(&self, mut tool: Value) -> Value {
+        if self.inner.confirmations.mode != ConfirmationMode::Enforce
+            || confirmations::declares_confirm(Some(&tool))
+        {
+            return tool;
+        }
+        let gated = tool["name"]
+            .as_str()
+            .and_then(|name| self.inner.registry.get(name))
+            .is_some_and(|command| command.confirm_prompt.is_some());
+        if gated {
+            if let Some(schema) = tool["inputSchema"].as_object_mut() {
+                let properties = schema
+                    .entry("properties")
+                    .or_insert_with(|| Value::Object(serde_json::Map::new()));
+                if let Some(properties) = properties.as_object_mut() {
+                    properties.insert("confirm".to_owned(), confirmations::confirm_property());
+                }
+            }
+        }
+        tool
+    }
+
     fn exposed(&self, name: &str) -> bool {
         self.inner
             .registry
@@ -175,7 +242,7 @@ impl McpServer {
 
     /// The listed tools: MCP-exposed commands, in registration order.
     pub fn tools(&self) -> Vec<Value> {
-        match &self.inner.tools {
+        let tools: Vec<Value> = match &self.inner.tools {
             Some(tools) => tools
                 .iter()
                 .filter(|tool| tool["name"].as_str().is_some_and(|name| self.exposed(name)))
@@ -189,7 +256,11 @@ impl McpServer {
                 .filter(|command| command.expose.mcp)
                 .filter_map(|command| self.inner.registry.get_tool(&command.name))
                 .collect(),
-        }
+        };
+        tools
+            .into_iter()
+            .map(|tool| self.with_confirm_argument(tool))
+            .collect()
     }
 
     /// The Streamable HTTP endpoint as a `tower` service, for mounting in an HTTP server
@@ -205,7 +276,8 @@ impl McpServer {
         config.allowed_hosts = options.allowed_hosts;
         config.allowed_origins = options.allowed_origins;
         let config = config.enforce_origin_validation_if_empty();
-        let server = self.clone();
+        // Stateless HTTP: a 2025 request cannot receive server-sent requests.
+        let server = self.clone().with(|inner| inner.legacy_back_channel = false);
         StreamableHttpService::new(
             move || Ok(server.clone()),
             Arc::new(LocalSessionManager::default()),
@@ -293,19 +365,48 @@ impl ServerHandler for McpServer {
     async fn call_tool(
         &self,
         request: CallToolRequestParams,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
         let name = request.name.as_ref();
         let result = if self.exposed(name) {
-            let context = CommandContext::new()
-                .with_trace_id(Self::trace_id())
-                .with_interface(CommandInterface::Mcp);
-            let context = with_context_defaults(context, &self.inner.context_defaults);
-            let input = Value::Object(request.arguments.unwrap_or_default());
-            self.inner
+            let gate = &self.inner.confirmations;
+            let prompt = self
+                .inner
                 .registry
-                .execute(name, input, Some(context))
-                .await
+                .get(name)
+                .and_then(|command| command.confirm_prompt.clone());
+            let decision = match prompt {
+                Some(prompt) if gate.mode != ConfirmationMode::Off => {
+                    let tool = self.inner.registry.get_tool(name);
+                    confirmations::check(
+                        gate,
+                        name,
+                        &prompt,
+                        tool.as_ref(),
+                        &request,
+                        &context,
+                        self.inner.legacy_back_channel,
+                    )
+                    .await
+                }
+                _ => {
+                    Decision::Proceed(Value::Object(request.arguments.clone().unwrap_or_default()))
+                }
+            };
+            match decision {
+                Decision::Ask(response) => return Ok(response),
+                Decision::Refuse(error) => failure(error),
+                Decision::Proceed(input) => {
+                    let context = CommandContext::new()
+                        .with_trace_id(Self::trace_id())
+                        .with_interface(CommandInterface::Mcp);
+                    let context = with_context_defaults(context, &self.inner.context_defaults);
+                    self.inner
+                        .registry
+                        .execute(name, input, Some(context))
+                        .await
+                }
+            }
         } else {
             // Unknown and unexposed commands look the same from outside.
             let shown: String = name.chars().take(64).collect();

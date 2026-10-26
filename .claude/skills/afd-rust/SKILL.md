@@ -471,6 +471,7 @@ let app = axum::Router::new().route_service("/mcp", server.streamable_http_servi
 - `with_instructions` sets the `server/discover` guidance; `with_tools_list_ttl_ms` the `tools/list` freshness hint.
 - Every tool call runs with actor `agent` (reported as `metadata.actorKind`); `with_actor`, `with_clock` and `with_random` override the actor, clock and random source on its context.
 - `HttpOptions` sets accepted `Host` names, browser `Origin`s (any other `Origin` is refused) and the body cap.
+- `with_confirmations(ConfirmationMode::Enforce)` gates commands with `confirm_prompt`: an elicitation when the client supports it, otherwise `CONFIRMATION_REQUIRED` until the call carries `confirm: true`. `RequireHuman` accepts the elicitation only; `with_confirmations_key` shares the `requestState` key across instances.
 - Individual tool strategy only; grouped and lazy strategies, meta-tools, bootstrap and contexts are parity D1 follow-ups.
 
 ## Metadata Types

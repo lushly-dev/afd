@@ -352,6 +352,10 @@ async def create_todo(input: CreateInput, context):
 
 The server fills `clock`/`random` (`create_server(clock=..., random=...)`) and gives MCP calls `Actor(kind="agent")`; `DirectClient` uses `human`, the testing helpers `test`. Results carry `metadata.actorKind` (never the id). In tests, pass `fixed_clock("2026-01-01T00:00:00Z")` and `seeded_random("abc")` (same sequence as TypeScript's `seededRandom`).
 
+`SimpleRegistry` handlers get the context only when they declare a keyword-only `context` parameter (`async def roll(sides=6, *, context)`); handlers without it take only their arguments.
+
+To record and replay sessions, add `create_journal_middleware(sink)` (from `afd.server`, last in the middleware list) with a `MemoryJournalSink` or `FileJournalSink`, and replay with `replay_journal(fresh_server, parse_journal(text))`. Journal files are byte-compatible with TypeScript's (`spec/journal.md`).
+
 ## Error Responses
 
 ```python
@@ -573,6 +577,10 @@ if __name__ == "__main__":
 ```
 
 `run()` and `run_async()` accept `"stdio"`, `"sse"` (deprecated) and `"streamable-http"`, and pass transport options (`host`, `port`, `stateless_http`, `json_response`, `transport_security`, ...) to the MCP SDK (`mcp` 2.x). `server.streamable_http_app(**options)` returns the ASGI app for mounting. Every transport serves MCP 2026-07-28 (stateless, per-request `_meta`) and 2025 clients that send `initialize`. Connect afd's client with `create_client("http://127.0.0.1:8000/mcp")`: a URL that does not end in `/sse` or `/message` uses `StreamableHttpTransport` (`protocol_mode="auto"`). With `contexts`, a 2026-07-28 request selects its context with `_meta["dev.afd/context"]`.
+
+### Confirmations
+
+`create_server(..., confirmations="enforce")` gates every command with `confirm_prompt` on MCP calls: an elicitation when the client supports it, otherwise `CONFIRMATION_REQUIRED` until the call is repeated with `confirm: True`. `"require-human"` accepts the elicitation only. Pass `confirmation_key` (32+ bytes) when several instances serve one URL. `server.execute()` is never gated. See `spec/command-metadata.md`, "Confirmations".
 
 ## Complete Command Example
 
