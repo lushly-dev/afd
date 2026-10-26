@@ -858,8 +858,9 @@ NAME_GAP_BUDGET = {
     # withContextDefaults, Clock, ClockInstant, ManualClock, RandomSource, fixedClock,
     # seededRandom, systemClock, systemRandom. Parity tracked in #400 (Python), #401 (Rust)
     # and #402 (C++, which already has a Clock).
+    # Rust 24 → 9 (#401): afd exports all 15 context primitives.
     "missing_from_python": 103,
-    "missing_from_rust": 24,
+    "missing_from_rust": 9,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps
     # conditions as validated JSON); telemetry; timeout controllers and streamable commands;
