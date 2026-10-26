@@ -11,7 +11,7 @@
 
 import { createAuthMiddleware, MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { createAuthCommands } from '@lushly-dev/afd-auth/commands';
-import { success } from '@lushly-dev/afd-core';
+import { type RandomSource, success, systemRandom } from '@lushly-dev/afd-core';
 import { createMcpServer, defaultMiddleware, defineCommand } from '@lushly-dev/afd-server';
 import { computeComplexity, validateCommandSurface } from '@lushly-dev/afd-testing';
 import { z } from 'zod';
@@ -35,6 +35,11 @@ async function run() {
 	});
 	const authCommands = createAuthCommands(auth);
 
+	const shortId = (random: RandomSource) =>
+		Math.floor(random.next() * 0x100000000)
+			.toString(16)
+			.padStart(8, '0');
+
 	const todoCreate = defineCommand({
 		name: 'todo-create',
 		description: 'Create a new todo item with title and optional category',
@@ -47,7 +52,7 @@ async function run() {
 		async handler(input, context) {
 			const user = (context.auth as { user: { id: string } })?.user;
 			return success(
-				{ id: crypto.randomUUID().slice(0, 8), title: input.title, owner: user?.id },
+				{ id: shortId(context.random ?? systemRandom), title: input.title, owner: user?.id },
 				{ confidence: 1, reasoning: 'Created in-memory' }
 			);
 		},

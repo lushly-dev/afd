@@ -351,9 +351,14 @@ describe('Latency Percentiles', () => {
 			}
 		);
 
-		expect(p50).toBeLessThan(10);
-		expect(p95).toBeLessThan(20);
-		expect(p99).toBeLessThan(30);
+		// Wall-clock bounds flake under machine load (#336, #428), so they are
+		// opt-in: run `AFD_PERF_ENFORCE=1 pnpm vitest run performance` to gate on them.
+		// The percentiles are always logged above.
+		if (process.env.AFD_PERF_ENFORCE === '1') {
+			expect(p50).toBeLessThan(10);
+			expect(p95).toBeLessThan(20);
+			expect(p99).toBeLessThan(30);
+		}
 	});
 });
 
