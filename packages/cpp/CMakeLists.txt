@@ -25,6 +25,7 @@ else()
     set(afd_threads_default ON)
 endif()
 option(AFD_ENABLE_THREADS "Build ThreadTaskRunner (std::thread)" ${afd_threads_default})
+option(AFD_JOURNAL_FILE "Build FileJournalSink (afd/journal_file.hpp), which uses std::filesystem" ON)
 option(AFD_MACRO_HYGIENE_CHECK
        "Force-include common macro collisions (windows.h min/max, AssertMacros.h check/verify/require)"
        OFF)
@@ -57,6 +58,8 @@ add_library(
     src/direct_client.cpp
     src/errors.cpp
     src/handoff.cpp
+    src/journal.cpp
+    src/journal_replay.cpp
     src/json.cpp
     src/metadata.cpp
     src/middleware.cpp
@@ -71,6 +74,12 @@ add_library(
     src/streaming.cpp
     src/version.cpp)
 add_library(afd::afd ALIAS afd)
+if(AFD_JOURNAL_FILE)
+    target_sources(afd PRIVATE src/journal_file.cpp)
+    target_compile_definitions(afd PUBLIC AFD_JOURNAL_FILE=1)
+else()
+    target_compile_definitions(afd PUBLIC AFD_JOURNAL_FILE=0)
+endif()
 target_compile_features(afd PUBLIC cxx_std_20)
 include(GNUInstallDirs)
 set_target_properties(afd PROPERTIES EXPORT_NAME afd)
@@ -115,8 +124,11 @@ if(AFD_INSTALL)
             ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
             LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+    if(NOT AFD_JOURNAL_FILE)
+        set(afd_header_exclude PATTERN journal_file.hpp EXCLUDE)
+    endif()
     install(DIRECTORY include/afd ${CMAKE_CURRENT_BINARY_DIR}/include/afd
-            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} ${afd_header_exclude})
     install(EXPORT afdTargets NAMESPACE afd:: DESTINATION ${AFD_INSTALL_CMAKEDIR})
     configure_package_config_file(cmake/afdConfig.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/afdConfig.cmake
                                   INSTALL_DESTINATION ${AFD_INSTALL_CMAKEDIR})
