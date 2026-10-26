@@ -4,8 +4,8 @@
 //! back to JSON equal to the file. See `spec/wire/README.md`.
 
 use afd::{
-    is_failure, is_success, BatchResult, CommandResult, PipelineResult, PlanStepStatus, StepStatus,
-    StreamChunk, WarningSeverity,
+    is_failure, is_success, ActorKind, BatchResult, CommandResult, PipelineResult, PlanStepStatus,
+    StepStatus, StreamChunk, WarningSeverity,
 };
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -73,12 +73,19 @@ fn minimal_success_fields_are_typed() {
     assert_eq!(metadata.execution_time_ms, Some(0.0));
     assert_eq!(metadata.command_version.as_deref(), Some("1.0.0"));
     assert_eq!(metadata.trace_id.as_deref(), Some("trace-fixture"));
-    // `actorKind` (the caller's kind; `agent` over MCP) is not a typed field in Rust yet.
-    assert_eq!(metadata.extra.len(), 1);
-    assert_eq!(
-        metadata.extra.get("actorKind"),
-        Some(&Value::String("agent".to_string()))
-    );
+    // The caller's kind: the fixtures come from MCP calls.
+    assert_eq!(metadata.actor_kind, Some(ActorKind::Agent));
+    assert!(metadata.extra.is_empty());
+}
+
+#[test]
+fn unknown_actor_kinds_read_as_absent() {
+    let mut fixture = load("result-success-minimal.json");
+    fixture["metadata"]["actorKind"] = Value::String("robot".to_string());
+    let result: CommandResult<Value> = serde_json::from_value(fixture).unwrap();
+    let metadata = result.metadata.expect("metadata");
+    assert_eq!(metadata.actor_kind, None);
+    assert!(metadata.extra.is_empty());
 }
 
 #[test]

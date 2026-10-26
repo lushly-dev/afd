@@ -48,9 +48,11 @@
 pub struct ReadmeDoctests;
 
 // Module declarations
+pub mod actor;
 pub mod batch;
 pub mod bootstrap;
 pub mod builtin_names;
+pub mod clock;
 pub mod commands;
 pub mod connectors;
 pub mod errors;
@@ -90,6 +92,13 @@ mod time {
     pub(crate) use tokio::time::Instant;
     #[cfg(feature = "wasm")]
     pub(crate) use web_time::Instant;
+
+    // `std::time::SystemTime::now()` traps on `wasm32-unknown-unknown` too; `web-time` reads
+    // `Date.now()` there.
+    #[cfg(not(feature = "wasm"))]
+    pub(crate) use std::time::SystemTime;
+    #[cfg(feature = "wasm")]
+    pub(crate) use web_time::SystemTime;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -225,6 +234,18 @@ pub use handoff::{
     is_handoff_command, is_handoff_expired, is_handoff_protocol, is_reconnect_policy,
     CreateHandoffOptions, HandoffCommandLike, HandoffCredentials, HandoffMetadata, HandoffProtocol,
     HandoffResult, ReconnectPolicy,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RE-EXPORTS: Context primitives (actor, clock, random)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+pub use actor::{
+    is_actor, is_actor_kind, with_context_defaults, Actor, ActorKind, ContextDefaults, ACTOR_KINDS,
+};
+pub use clock::{
+    fixed_clock, seeded_random, Clock, ClockInstant, ManualClock, RandomSource, SeededRandom,
+    SystemClock, SystemRandom, SYSTEM_CLOCK, SYSTEM_RANDOM,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

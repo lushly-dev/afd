@@ -317,6 +317,9 @@ registry.add_middleware(logging);
 //   in TypeScript (VALIDATION_ERROR, "Input validation failed"; see Current Parity Note),
 // - checks `expose` when the context names an interface (COMMAND_NOT_EXPOSED),
 // - applies `timeout_ms` (TIMEOUT; needs the `native` feature).
+// Middleware and the handler always get `context.clock()` and `context.random()` (system ones
+// unless set with `with_clock(fixed_clock(ms))` / `with_random(seeded_random(seed))`); a context
+// actor (`with_actor(ActorKind::Human)`) is reported as `metadata.actorKind`, never its id.
 // A panic in middleware or the handler becomes COMMAND_EXECUTION_ERROR with the redacted
 // message "An internal error occurred", as TypeScript does outside devMode.
 let context = CommandContext::new()
@@ -447,6 +450,7 @@ let app = axum::Router::new().route_service("/mcp", server.streamable_http_servi
 
 - Lists only commands with `expose.mcp`, through `CommandRegistry::get_tool` (or `with_tools` for full tool definitions); unknown and unexposed tools return a `COMMAND_NOT_FOUND` `CommandResult` as the tool result.
 - `with_instructions` sets the `server/discover` guidance; `with_tools_list_ttl_ms` the `tools/list` freshness hint.
+- Every tool call runs with actor `agent` (reported as `metadata.actorKind`); `with_actor`, `with_clock` and `with_random` override the actor, clock and random source on its context.
 - `HttpOptions` sets accepted `Host` names, browser `Origin`s (any other `Origin` is refused) and the body cap.
 - Individual tool strategy only; grouped and lazy strategies, meta-tools, bootstrap and contexts are parity D1 follow-ups.
 

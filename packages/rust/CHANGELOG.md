@@ -10,7 +10,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - **`server` feature:** `afd::server::McpServer` serves a `CommandRegistry` over MCP Streamable HTTP (`streamable_http_service`, a `tower` service) and stdio (`serve_stdio`), built on the official MCP Rust SDK (`rmcp` 3.7). It serves MCP 2026-07-28 statelessly and 2025 `initialize` clients from one endpoint, lists only MCP-exposed commands (`with_tools` supplies full tool definitions), returns `COMMAND_NOT_FOUND` for unknown and unexposed tools, carries `ttlMs` cache hints on `tools/list` (`with_tools_list_ttl_ms`) and refuses unlisted browser origins. The feature is off by default and needs Rust 1.88; the crate's minimum stays 1.82 without it.
 - **MCP tool annotations:** `CommandRegistry::get_tool` adds `annotations` (`readOnlyHint: false`, `destructiveHint: false`) for a command with `mutation: true` (`spec/command-metadata.md`).
+- **Actor, clock and random on `CommandContext`** (#401, parity with TypeScript #271/#274): `Clock` and `RandomSource` traits with `SYSTEM_CLOCK`, `SYSTEM_RANDOM`, `fixed_clock` (a `ManualClock` moved with `set` and `advance`; clones share time) and `seeded_random` (mulberry32 over FNV-1a of the UTF-8 seed, bit-for-bit the TypeScript sequence). `Actor` and `ActorKind` (`human`, `agent`, `service`, `script`, `test`), `ACTOR_KINDS`, `is_actor`, `is_actor_kind`, `ContextDefaults` and `with_context_defaults`. `CommandContext` gains `actor`, `clock` and `random` (with `with_*` builders and `clock()`/`random()` accessors); `CommandRegistry::execute` always fills the clock and random source and stamps the actor's kind as `metadata.actorKind`. The `wasm` feature reads the system time through `web-time`. The `server` feature runs tool calls as actor `agent`, configurable with `McpServer::with_actor`, `with_clock` and `with_random`.
+- **Typed `actorKind`:** `ResultMetadata::actor_kind` and `TelemetryEvent::actor_kind` (it used to round-trip in `extra`); an unknown kind on the wire reads as `None`.
 - **MCP 2026-07-28 error codes:** `McpErrorCodes::HEADER_MISMATCH` (-32020), `MISSING_REQUIRED_CLIENT_CAPABILITY` (-32021) and `UNSUPPORTED_PROTOCOL_VERSION` (-32022).
+
+### Changed
+
+- `TelemetryEvent` has a new public field, `actor_kind`, so struct literals must set it (or use `TelemetryEvent::new`).
 
 ### Deprecated
 
