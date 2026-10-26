@@ -68,7 +68,8 @@
 		"region": "test",
 		"executionTimeMs": 0,
 		"commandVersion": "2.1.0",
-		"traceId": "trace-fixture"
+		"traceId": "trace-fixture",
+		"actorKind": "agent"
 	},
 	"undoCommand": "todo-delete",
 	"undoArgs": {

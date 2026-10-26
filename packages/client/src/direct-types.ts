@@ -3,11 +3,14 @@
  */
 
 import type {
+	Actor,
+	Clock,
 	CommandContext,
 	CommandMiddleware,
 	CommandResult,
 	JsonSchema,
 	McpTool,
+	RandomSource,
 } from '@lushly-dev/afd-core';
 import type { CommandDefinition } from './direct-validation.js';
 
@@ -54,6 +57,25 @@ export interface DirectClientOptions {
 	 * which validates input and honours `expose.agent`.
 	 */
 	allow?: (commandName: string) => boolean;
+
+	/**
+	 * Who calls commands through this client, as `context.actor`. A call's own
+	 * `context.actor` wins. Default: `{ kind: 'human' }`; set `{ kind: 'agent' }` (with a
+	 * `label`, and `onBehalfOf` for the user) when an in-app assistant drives the client.
+	 */
+	actor?: Actor;
+
+	/**
+	 * `context.clock` for calls that set none. Pass `fixedClock()` in tests. When omitted,
+	 * the registry's own default applies (`createDirectRegistry()`: `systemClock`).
+	 */
+	clock?: Clock;
+
+	/**
+	 * `context.random` for calls that set none. Pass `seededRandom()` in tests. When omitted,
+	 * the registry's own default applies (`createDirectRegistry()`: `systemRandom`).
+	 */
+	random?: RandomSource;
 }
 
 /**
@@ -79,6 +101,15 @@ export interface DirectCallContext {
 	 * Signal for cancellation.
 	 */
 	signal?: AbortSignal;
+
+	/** Who makes this call; overrides the client's `actor`. */
+	actor?: Actor;
+
+	/** Clock for this call; overrides the client's `clock`. */
+	clock?: Clock;
+
+	/** Random source for this call; overrides the client's `random`. */
+	random?: RandomSource;
 
 	/**
 	 * Additional custom context values.

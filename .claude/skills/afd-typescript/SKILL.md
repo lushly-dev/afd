@@ -112,6 +112,9 @@ export const updateTodo = defineCommand({
 
   async handler(input, context) {
     // context.traceId - Correlation ID for logging
+    // context.actor    - Who is calling: { kind: 'human' | 'agent' | 'service' | 'script' | 'test', id?, label?, onBehalfOf? }
+    // context.clock    - Read time here, not Date.now(): `(context.clock ?? systemClock).now()`
+    // context.random   - Read randomness here, not Math.random(): `(context.random ?? systemRandom).next()`
     // Other context values (e.g. an authenticated user) are only present
     // when your own middleware sets them.
     console.error(`[${context.traceId}] Updating todo ${input.id}`); // stderr: stdout carries stdio JSON-RPC

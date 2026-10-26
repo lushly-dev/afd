@@ -100,12 +100,11 @@ function generateTraceId(): string {
  */
 export class DirectClient {
 	private readonly options: Required<
-		Omit<DirectClientOptions, 'source' | 'middleware' | 'allow'>
-	> & {
-		source?: string;
-		middleware: CommandMiddleware[];
-		allow?: (commandName: string) => boolean;
-	};
+		Omit<DirectClientOptions, 'source' | 'middleware' | 'allow' | 'clock' | 'random'>
+	> &
+		Pick<DirectClientOptions, 'source' | 'allow' | 'clock' | 'random'> & {
+			middleware: CommandMiddleware[];
+		};
 
 	constructor(
 		private readonly registry: DirectRegistry,
@@ -117,6 +116,9 @@ export class DirectClient {
 			validateInputs: options.validateInputs ?? true,
 			middleware: options.middleware ?? [],
 			allow: options.allow,
+			actor: options.actor ?? { kind: 'human' },
+			clock: options.clock,
+			random: options.random,
 		};
 	}
 
@@ -186,11 +188,18 @@ export class DirectClient {
 			}
 		}
 
-		// Build command context
+		// Build command context. The call's actor, clock and random win over the client's.
+		// Clock and random are only set when configured, so a registry's own defaults
+		// (createDirectRegistry) still apply.
 		const commandContext: CommandContext = {
 			traceId,
 			...context,
+			actor: { ...(context?.actor ?? this.options.actor) },
 		};
+		const clock = context?.clock ?? this.options.clock;
+		if (clock) commandContext.clock = clock;
+		const random = context?.random ?? this.options.random;
+		if (random) commandContext.random = random;
 
 		// Add source if configured
 		if (this.options.source) {

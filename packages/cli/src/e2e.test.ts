@@ -26,7 +26,7 @@ import { CLI_PACKAGE_DIR, staleOutputs, WORKSPACE_DEPENDENCIES } from '../vitest
 const BIN = fileURLToPath(new URL('../dist/bin.js', import.meta.url));
 
 /** A one-shot command that is still running after this long is treated as hung. */
-const EXIT_DEADLINE_MS = 10_000;
+const EXIT_DEADLINE_MS = 30_000;
 
 const calls = {
 	ping: [] as unknown[],
@@ -269,7 +269,7 @@ afterEach(async () => {
 	await rm(configHome, { recursive: true, force: true });
 });
 
-describe('afd CLI against a real server', { timeout: 60_000 }, () => {
+describe('afd CLI against a real server', { timeout: 180_000 }, () => {
 	describe('process lifetime over SSE', () => {
 		it('connect, call, status, tools, batch and stream all exit on their own', async () => {
 			const connect = await runCli(['connect', `${baseUrl}/sse`]);

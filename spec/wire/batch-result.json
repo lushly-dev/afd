@@ -14,7 +14,8 @@
 				"metadata": {
 					"executionTimeMs": 0,
 					"commandVersion": "1.0.0",
-					"traceId": "trace-fixture"
+					"traceId": "trace-fixture",
+					"actorKind": "agent"
 				}
 			},
 			"durationMs": 0
@@ -37,7 +38,8 @@
 				"metadata": {
 					"executionTimeMs": 0,
 					"commandVersion": "1.0.0",
-					"traceId": "trace-fixture"
+					"traceId": "trace-fixture",
+					"actorKind": "agent"
 				}
 			},
 			"durationMs": 0

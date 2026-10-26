@@ -318,11 +318,17 @@ export {
 // ============================================================================
 
 export {
+	type Actor,
+	type Clock,
 	type CommandDefinition,
 	type CommandError,
 	type CommandResult,
 	failure,
+	fixedClock,
 	isFailure,
 	isSuccess,
+	type ManualClock,
+	type RandomSource,
+	seededRandom,
 	success,
 } from '@lushly-dev/afd-core';

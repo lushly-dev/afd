@@ -5,7 +5,7 @@
 import { createServer, type IncomingMessage } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { McpClient } from '@lushly-dev/afd-client';
-import { type StreamChunk, success } from '@lushly-dev/afd-core';
+import { fixedClock, type StreamChunk, success } from '@lushly-dev/afd-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineCommand } from './schema.js';
@@ -299,14 +299,16 @@ describe('McpClient.stream() in the client session', () => {
 
 	it('renews an expired session and retries the stream once', async () => {
 		const streamSessions: Array<string | undefined> = [];
-		const url = await host({ sessionIdleTimeoutMs: 50 }, (req) => {
+		// A manual clock, so the session expires exactly when the test says (#336).
+		const clock = fixedClock('2026-01-01T00:00:00Z');
+		const url = await host({ sessionIdleTimeoutMs: 60_000, clock }, (req) => {
 			if (req.url?.startsWith('/stream/')) {
 				streamSessions.push(req.headers['mcp-session-id'] as string | undefined);
 			}
 		});
 		const client = await connected(url, 'http');
 		expect((await client.call('afd-context-enter', { context: 'edit' })).success).toBe(true);
-		await new Promise((resolve) => setTimeout(resolve, 80));
+		clock.advance(60_000);
 
 		// The server answers 404 for the expired session; the new session has no active context.
 		expect(await outcome(client.stream('print-run'))).toEqual({

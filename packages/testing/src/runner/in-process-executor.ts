@@ -7,7 +7,7 @@
  */
 
 import { dirname } from 'node:path';
-import type { CommandResult } from '@lushly-dev/afd-core';
+import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import type { ScenarioResult, StepResult } from '../types/report.js';
 import { createStepError } from '../types/report.js';
 import type { Scenario, Step } from '../types/scenario.js';
@@ -23,12 +23,14 @@ import {
  * Command handler function signature for in-process execution.
  *
  * The optional third argument carries the run's `AbortSignal`, so a handler
- * can stop work when a scenario times out or is cancelled.
+ * can stop work when a scenario times out or is cancelled. For scenario steps it
+ * also carries `actor` (`{ kind: 'test' }` unless configured) and any `context`
+ * from the executor config, such as a fixed `clock` or a seeded `random`.
  */
 export type CommandHandler = (
 	command: string,
 	input?: Record<string, unknown>,
-	context?: { signal?: AbortSignal }
+	context?: CommandContext
 ) => Promise<CommandResult<unknown>>;
 
 /**
@@ -40,6 +42,13 @@ export interface InProcessExecutorConfig {
 
 	/** Stop on first failure */
 	stopOnFailure?: boolean;
+
+	/**
+	 * Context passed to the handler for every scenario step, e.g.
+	 * `{ clock: fixedClock('2026-01-01'), random: seededRandom('abc') }`. Its `actor`
+	 * defaults to `{ kind: 'test' }`; the run's `signal` always wins.
+	 */
+	context?: CommandContext;
 
 	/**
 	 * Base path for resolving relative fixture paths of scenarios that were not
@@ -97,6 +106,7 @@ export class InProcessExecutor {
 			stopOnFailure: config.stopOnFailure ?? true,
 			basePath: config.basePath,
 			fixtureRoot: config.fixtureRoot,
+			context: config.context,
 			dryRun: config.dryRun ?? false,
 			onStepComplete: config.onStepComplete,
 			onScenarioStart: config.onScenarioStart,
@@ -127,7 +137,11 @@ export class InProcessExecutor {
 		const startTime = Date.now();
 		let commandResult: CommandResult<unknown>;
 		try {
-			commandResult = await this.handler(step.command, step.input, { signal });
+			commandResult = await this.handler(step.command, step.input, {
+				actor: { kind: 'test' },
+				...this.config.context,
+				signal,
+			});
 		} catch (err) {
 			return {
 				stepId,

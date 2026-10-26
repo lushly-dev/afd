@@ -14,6 +14,7 @@ import type {
 	CommandContext,
 	CommandMiddleware,
 	CommandResult,
+	ContextDefaults,
 	PipelineRequest,
 	PipelineResult,
 	StreamChunk,
@@ -24,7 +25,9 @@ import {
 	executeStream as executeCoreStream,
 	executionFailure,
 	failure,
+	isActorKind,
 	truncateName,
+	withContextDefaults,
 } from '@lushly-dev/afd-core';
 import type { ContextState } from './bootstrap/afd-context.js';
 import {
@@ -50,6 +53,8 @@ export interface ExecutionDeps {
 	devMode: boolean;
 	onCommand?: (command: string, input: unknown, result: CommandResult) => void;
 	onError?: (error: Error) => void;
+	/** `clock`, `random` and `actor` for contexts that do not set them. */
+	contextDefaults?: ContextDefaults;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -90,8 +95,10 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 	async function executeCommand(
 		commandName: string,
 		input: unknown,
-		context: CommandContext = {}
+		callerContext: CommandContext = {}
 	): Promise<CommandResult> {
+		// One context object flows through every middleware into the handler.
+		const context = withContextDefaults(callerContext, deps.contextDefaults);
 		const command = commandMap.get(commandName);
 		const activeContext = resolveContextState(context, deps.contextState)?.getActive();
 
@@ -151,17 +158,20 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 
 		// Build middleware chain
 		const runHandler = async (): Promise<CommandResult> => {
-			const startTime = Date.now();
+			const { clock } = context;
+			const startTime = clock.now();
 			const result = await command.handler(data, context);
 
 			// Build a new result rather than mutating the handler's (possibly frozen) object.
+			// Read the actor after the handler: middleware (auth) may have refined it.
 			return {
 				...result,
 				metadata: {
 					...result.metadata,
-					executionTimeMs: Date.now() - startTime,
+					executionTimeMs: Math.max(0, clock.now() - startTime),
 					commandVersion: command.version,
 					...(context.traceId ? { traceId: context.traceId } : {}),
+					...(isActorKind(context.actor?.kind) ? { actorKind: context.actor.kind } : {}),
 				},
 			};
 		};

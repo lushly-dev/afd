@@ -6,7 +6,9 @@
  * is defined as a command with a clear schema.
  */
 
+import { type Actor, withContextDefaults } from './actor.js';
 import type { BatchRequest, BatchResult } from './batch.js';
+import type { Clock, RandomSource } from './clock.js';
 import { type CommandToolMeta, commandToolMeta } from './command-metadata.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -330,6 +332,28 @@ export interface CommandContext {
 	/** The interface invoking this command (for exposure checks) */
 	interface?: keyof ExposeOptions;
 
+	/**
+	 * Who is calling: a human, an agent, a service, a script or a test.
+	 * Filled in by the surface (`DirectClient`: `human`; MCP server: `agent`; testing
+	 * package: `test`) unless the caller sets it.
+	 */
+	actor?: Actor;
+
+	/**
+	 * Source of the current time. Read time from here instead of `Date.now()` so tests and
+	 * replays can control it. The MCP server, `createDirectRegistry()` and the core registry
+	 * always set it (to `systemClock` unless overridden); `DirectClient` passes its
+	 * configured clock on to the registry.
+	 */
+	clock?: Clock;
+
+	/**
+	 * Source of randomness. Read random numbers from here instead of `Math.random()` so
+	 * tests and replays can seed them. Set by the same surfaces as `clock` (to
+	 * `systemRandom` unless overridden).
+	 */
+	random?: RandomSource;
+
 	/** Custom context values */
 	[key: string]: unknown;
 }
@@ -552,7 +576,7 @@ export function createCommandRegistry(options: CommandRegistryOptions = {}): Com
 			}
 
 			try {
-				const result = await command.handler(input, context);
+				const result = await command.handler(input, withContextDefaults(context));
 				return result as CommandResult<TOutput>;
 			} catch (error) {
 				// Raw messages and stacks only in devMode, as in the MCP server.

@@ -94,6 +94,27 @@ function seededRandom(seed: number): () => number {
 	};
 }
 
+/**
+ * Run `fn` and count the `charCodeAt` reads it makes. Only the Levenshtein matrix calls
+ * `charCodeAt` in `findSimilarTools` (one read per cell, plus one per row), so zero reads
+ * means no distance was computed. A deterministic count, where a wall-clock budget failed
+ * on busy machines (#336). The replacement counts without recording calls, so a regression
+ * slows the test down instead of exhausting memory.
+ */
+function countDistanceCells<T>(fn: () => T): { result: T; distanceCells: number } {
+	const original = String.prototype.charCodeAt;
+	let distanceCells = 0;
+	String.prototype.charCodeAt = function (this: string, index: number) {
+		distanceCells++;
+		return original.call(this, index);
+	};
+	try {
+		return { result: fn(), distanceCells };
+	} finally {
+		String.prototype.charCodeAt = original;
+	}
+}
+
 describe('findSimilarTools input cap', () => {
 	it('exports the cap', () => {
 		expect(MAX_SIMILARITY_INPUT_LENGTH).toBe(128);
@@ -110,11 +131,13 @@ describe('findSimilarTools input cap', () => {
 		expect(findSimilarTools(name, [name, 'todo-create'])).toEqual([]);
 	});
 
-	it('returns quickly for a 1 MB name', () => {
-		const tools = Array.from({ length: 200 }, (_, i) => `domain${i}-action`);
-		const start = performance.now();
-		expect(findSimilarTools('x'.repeat(1024 * 1024), tools)).toEqual([]);
-		expect(performance.now() - start).toBeLessThan(50);
+	it('computes no distance for a 1 MB name, even against a candidate as long', () => {
+		// The length pre-filter keeps an equal-length candidate, so only the cap skips it.
+		const name = 'x'.repeat(1024 * 1024);
+		const tools = [...Array.from({ length: 200 }, (_, i) => `domain${i}-action`), name];
+		const { result, distanceCells } = countDistanceCells(() => findSimilarTools(name, tools));
+		expect(result).toEqual([]);
+		expect(distanceCells).toBe(0);
 	});
 });
 
@@ -149,10 +172,20 @@ describe('findSimilarTools length pre-filter', () => {
 	});
 
 	it('does not compute the distance for a candidate the length bound rules out', () => {
-		// Without the pre-filter this is 128 x 1,000,000 cells, far slower than the budget.
-		const start = performance.now();
-		expect(findSimilarTools('a'.repeat(128), ['a'.repeat(1_000_000)])).toEqual([]);
-		expect(performance.now() - start).toBeLessThan(50);
+		// Without the pre-filter this is 128 x 1,000,000 cells.
+		const { result, distanceCells } = countDistanceCells(() =>
+			findSimilarTools('a'.repeat(128), ['a'.repeat(1_000_000)])
+		);
+		expect(result).toEqual([]);
+		expect(distanceCells).toBe(0);
+	});
+
+	it('still computes the distance for a candidate the length bound keeps', () => {
+		const { result, distanceCells } = countDistanceCells(() =>
+			findSimilarTools('todo-crate', ['todo-create'])
+		);
+		expect(result).toEqual(['todo-create']);
+		expect(distanceCells).toBeGreaterThan(0);
 	});
 
 	it('matches the original full-matrix results on typical inputs', () => {

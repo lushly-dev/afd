@@ -6,6 +6,7 @@
  * (confidence, reasoning, sources, etc.) that help build user trust.
  */
 
+import type { ActorKind } from './actor.js';
 import type { CommandError } from './errors.js';
 import type { Alternative, PlanStep, Source, Warning } from './metadata.js';
 
@@ -157,6 +158,13 @@ export interface ResultMetadata {
 
 	/** Timestamp when the command was executed */
 	timestamp?: string;
+
+	/**
+	 * Kind of principal that called the command (`context.actor.kind`): `human`, `agent`,
+	 * `service`, `script` or `test`. Set by the AFD execution engine when the context has
+	 * an actor. Only the kind is reported, never the actor's id or label.
+	 */
+	actorKind?: ActorKind;
 
 	/** Additional arbitrary metadata */
 	[key: string]: unknown;

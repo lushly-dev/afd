@@ -15,9 +15,12 @@ import {
 	createCommandRegistry,
 	defaultExpose,
 	failure,
+	fixedClock,
 	isFailure,
 	isSuccess,
 	success,
+	systemClock,
+	systemRandom,
 	wrapError,
 } from '@lushly-dev/afd-core';
 
@@ -32,7 +35,7 @@ import {
  * Test context for command execution.
  */
 export interface TestContext extends CommandContext {
-	/** Mock current time */
+	/** Mock current time. When no `clock` is given, the context gets `fixedClock(now)`. */
 	now?: Date;
 	/** Mock user ID */
 	userId?: string;
@@ -41,13 +44,26 @@ export interface TestContext extends CommandContext {
 }
 
 /**
- * Create a test context.
+ * Create a test context: `actor` is `{ kind: 'test' }`, and `clock` and `random` are the
+ * real ones unless overridden (a `now` without a `clock` stops the clock at `now`).
+ *
+ * @example
+ * ```typescript
+ * const context = createTestContext({
+ *   clock: fixedClock('2026-01-01T00:00:00Z'),
+ *   random: seededRandom('abc'),
+ * });
+ * await command.handler(input, context);
+ * ```
  */
 export function createTestContext(overrides?: Partial<TestContext>): TestContext {
 	return {
 		traceId: `test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
 		timeout: 5000,
+		actor: { kind: 'test' },
 		...overrides,
+		clock: overrides?.clock ?? (overrides?.now ? fixedClock(overrides.now) : systemClock),
+		random: overrides?.random ?? systemRandom,
 	};
 }
 

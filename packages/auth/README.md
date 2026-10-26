@@ -40,7 +40,7 @@ const middleware = createAuthMiddleware(adapter, { exclude: ['public-cmd'] });
 | `unauthenticated` | `UNAUTHORIZED`, not retryable |
 | `loading` | `UNAUTHORIZED`, retryable |
 | `authenticated`, `session.expiresAt` at or before now (or not a valid date) | `TOKEN_EXPIRED`, retryable |
-| `authenticated` | sets `context.auth` and runs the command |
+| `authenticated` | sets `context.auth`, fills `context.actor` from the session user and runs the command |
 
 - The built-in commands `auth-sign-in`, `auth-sign-out` and `auth-session-get`
   (`AUTH_COMMAND_NAMES`) always run, so a signed-out caller can sign in.
@@ -48,6 +48,10 @@ const middleware = createAuthMiddleware(adapter, { exclude: ['public-cmd'] });
 - The middleware sets or deletes `context.auth` on every call, excluded
   commands included. A handler never sees a `context.auth` that the caller
   supplied.
+- With a verified session, a `human` (or missing) `context.actor` becomes
+  `{ kind: 'human', id: user.id, label: user.name }`. An `agent`, `service` or
+  `script` actor keeps its identity and gets `onBehalfOf: user.id`, replacing any
+  `onBehalfOf` the caller set.
 - Importing the package types `context.auth` as
   `AuthenticatedSessionState | undefined` through a `CommandContext` module
   augmentation.

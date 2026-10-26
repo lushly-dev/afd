@@ -13,6 +13,9 @@
  * @packageDocumentation
  */
 
+// Actor and context defaults
+export type { Actor, ActorKind, ContextDefaults } from './actor.js';
+export { ACTOR_KINDS, isActor, isActorKind, withContextDefaults } from './actor.js';
 // Batch types
 export type {
 	BatchCommand,
@@ -41,6 +44,9 @@ export {
 	AFD_META_TOOL_NAMES,
 	isAfdBuiltinName,
 } from './builtin-tools.js';
+// Clock and random sources for handlers
+export type { Clock, ClockInstant, ManualClock, RandomSource } from './clock.js';
+export { fixedClock, seededRandom, systemClock, systemRandom } from './clock.js';
 // Batch and stream executors (shared by the registry and hosts such as the MCP server)
 export type { ExecutorOptions, StreamExecutorOptions } from './command-execution.js';
 export {

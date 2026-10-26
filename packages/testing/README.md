@@ -634,6 +634,25 @@ remaining steps are skipped, and the result has `outcome: 'error'` with
 `error: { type: 'timeout' | 'aborted', message }`. `ScenarioExecutor` (which runs
 steps through the `afd` CLI) behaves the same way and kills the CLI process.
 
+### Deterministic Time, Randomness and Actor
+
+Steps run as `actor: { kind: 'test' }`. Pass `context` to give every step a fixed
+clock and a seeded random source, so scenarios that assert on timestamps or
+generated ids are reproducible:
+
+```typescript
+import { fixedClock, InProcessExecutor, seededRandom } from '@lushly-dev/afd-testing';
+
+const executor = new InProcessExecutor({
+  handler: (command, input, context) => myCommandRegistry.execute(command, input, context),
+  context: { clock: fixedClock('2026-01-01T00:00:00Z'), random: seededRandom('scenario-1') },
+});
+```
+
+For unit tests, `createTestContext()` sets the same `actor`, plus `clock` and
+`random` (the real ones unless overridden; `now` without a `clock` stops the
+clock at `now`): `createTestContext({ clock: fixedClock('2026-01-01'), random: seededRandom('abc') })`.
+
 ### Dry Run Mode
 
 Validate scenarios without executing them using `validateScenario()`:

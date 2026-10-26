@@ -8,11 +8,14 @@
  */
 
 import type {
+	Actor,
+	Clock,
 	CommandContext,
 	CommandMiddleware,
 	CommandResult,
 	ExposeOptions,
 	JsonSchema,
+	RandomSource,
 } from '@lushly-dev/afd-core';
 import { failure, isExposedTo as isCoreExposedTo } from '@lushly-dev/afd-core';
 import { createExecutionEngine } from './execution.js';
@@ -45,6 +48,18 @@ export interface DirectRegistryOptions {
 
 	/** Called when a handler or input validation throws. */
 	onError?: (error: Error) => void;
+
+	/** `context.clock` when the caller sets none. Default: `systemClock`. */
+	clock?: Clock;
+
+	/** `context.random` when the caller sets none. Default: `systemRandom`. */
+	random?: RandomSource;
+
+	/**
+	 * `context.actor` when the caller sets none. Default: none. `DirectClient` sets its own
+	 * actor (`human` unless configured), so this only applies to direct `execute()` calls.
+	 */
+	actor?: Actor;
 }
 
 /**
@@ -150,6 +165,7 @@ export function createDirectRegistry(
 		devMode: options.devMode ?? false,
 		onCommand: options.onCommand,
 		onError: options.onError,
+		contextDefaults: { clock: options.clock, random: options.random, actor: options.actor },
 	});
 
 	return {

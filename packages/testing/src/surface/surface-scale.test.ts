@@ -35,14 +35,13 @@ function largeSurface(): SurfaceCommand[] {
 }
 
 describe('surface validation at scale', () => {
-	it('validates 2,000 commands without crashing in reasonable time', () => {
+	// No wall-clock budget: it failed on busy machines (#336). The generous test timeout
+	// still catches a return to the old pairwise code, which took far longer.
+	it('validates 2,000 commands without crashing', { timeout: 60_000 }, () => {
 		const commands = largeSurface();
-		const started = performance.now();
 
 		const result = validateCommandSurface(commands);
 
-		// Loose bound so CI stays stable; the old pairwise code took far longer
-		expect(performance.now() - started).toBeLessThan(5000);
 		expect(result.summary.commandCount).toBe(2000);
 		expect(result.summary.rulesEvaluated).toContain('similar-descriptions');
 	});
