@@ -12,6 +12,8 @@ version is separate from each implementation's own package version.
   behavior vectors in [`vectors/`](./vectors/README.md);
 - the todo conformance suite (`packages/examples/todo/spec`, run by `conformance.yml`).
 
+- [`journal.md`](./journal.md): the command journal format and replay rules, with the fixture
+  `wire/journal.jsonl` (TypeScript only so far);
 - [`error-codes.md`](./error-codes.md): the shared error-code catalog, checked by
   `vectors/error-codes.json`, and the rules for unknown and unexposed commands.
 
@@ -69,6 +71,10 @@ The shared catalog gains `CONFIRMATION_REQUIRED` and `CONFIRMATION_DECLINED`, fo
 enforce `confirmPrompt` (`command-metadata.md`, "Confirmations"). Enforcement is opt-in and off by
 default, so no existing result changes. Python and Rust gain the `destructive`, `confirm_prompt`
 and `undoable` command fields.
+
+The command journal (#273, TypeScript only for now): a JSON Lines record of executed commands,
+with a context digest that keeps no secrets and a tape of clock and random values for replay
+(`journal.md`, fixture `wire/journal.jsonl`). It is additive; no existing shape changes.
 
 The first versioned contract. It covers:
 

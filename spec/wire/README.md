@@ -12,6 +12,7 @@ constructors that the stream route uses).
 | `batch-result.json` | `BatchResult` with one success and one failure |
 | `pipeline-result.json` | `PipelineResult` with an alias and a `$prev` reference |
 | `stream-chunks.json` | One each of the progress, data, complete and error `StreamChunk` |
+| `journal.jsonl` | A four-entry command journal in JSON Lines ([`../journal.md`](../journal.md)) |
 
 ## Contract
 
@@ -21,6 +22,9 @@ constructors that the stream route uses).
   - Python: `python/tests/test_wire_fixtures.py`;
   - Rust: `packages/rust/tests/wire_fixtures.rs`;
   - C++: `packages/cpp/tests/wire_fixtures_test.cpp`.
+- `journal.jsonl` is not part of the round-trip contract yet: only TypeScript reads and writes
+  journals (`packages/server/src/journal-wire.test.ts` regenerates it, round-trips it and replays
+  it). The other languages' round-trip tests read `*.json` only. Parity is a follow-up.
 - `metadata.actorKind` is the kind of the calling principal; the fixtures were produced by MCP calls, so it
   is `agent`. Only the kind crosses the wire, never the actor's id or label.
 - Keys are camelCase.

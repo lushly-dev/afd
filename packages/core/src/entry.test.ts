@@ -55,7 +55,9 @@ describe('root entry', () => {
 		expect(result.errors).toEqual([]);
 		const inputs = Object.keys(result.metafile?.inputs ?? {});
 		expect(inputs.some((input) => input.endsWith('src/result.ts'))).toBe(true);
-		expect(inputs.filter((input) => /^node:|src\/(platform|connectors\/)/.test(input))).toEqual([]);
+		expect(
+			inputs.filter((input) => /^node:|src\/(platform|journal-file|connectors\/)/.test(input))
+		).toEqual([]);
 	});
 
 	it('no longer exports the resolveReference alias', () => {
