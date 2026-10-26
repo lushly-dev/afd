@@ -16,13 +16,15 @@ keywords = ["afd", "agent", "mcp", "ai", "commands"]
 categories = ["development-tools", "api-bindings"]
 
 [features]
-default = ["native"]
+default = ["native", "journal-file"]
 # Command, batch and pipeline deadlines through `tokio::time::timeout`. The
 # host application provides the Tokio runtime (with its time driver enabled).
 native = ["dep:tokio"]
 # Browser WebAssembly (`wasm32-unknown-unknown`): measures durations with
 # `web-time`, because `std::time::Instant::now()` traps on that target.
 wasm = ["dep:web-time"]
+# `FileJournalSink`: a command journal in a JSON Lines file, through blocking `std::fs`.
+journal-file = []
 # MCP server over Streamable HTTP and stdio, built on the official Rust SDK (`rmcp`). Serves MCP
 # 2026-07-28 (stateless, per-request `_meta`) and 2025 `initialize` clients. Needs Rust 1.88.
 server = ["native", "dep:rmcp", "tokio/rt", "tokio/io-std"]
@@ -35,6 +37,8 @@ async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 regex = "1.10"
 futures-util = "0.3"
+# The command journal's context digest (`sha256:` hashes).
+sha2 = "0.10"
 
 # Native-only: only `tokio::time::timeout` is used.
 tokio = { version = "1.0", default-features = false, features = ["time"], optional = true }

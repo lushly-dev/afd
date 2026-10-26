@@ -23,6 +23,7 @@ use crate::batch::{
 use crate::clock::{Clock, RandomSource, SYSTEM_CLOCK, SYSTEM_RANDOM};
 use crate::errors::{error_codes, CommandError};
 use crate::handoff::HandoffCommandLike;
+use crate::journal::{JournalContextState, JournalRecorder};
 use crate::result::{execution_failure, failure, CommandResult, ResultMetadata};
 use crate::time::Instant;
 use crate::validation::validate_input;
@@ -441,6 +442,9 @@ pub struct CommandContext {
 
     /// Custom context values.
     pub extra: HashMap<String, serde_json::Value>,
+
+    /// What a journal recorder and replay pass to nested calls.
+    pub(crate) journal_state: JournalContextState,
 }
 
 impl CommandContext {
@@ -840,6 +844,7 @@ impl HandoffCommandLike for CommandDefinition {
 pub struct CommandRegistry {
     commands: RwLock<RegisteredCommands>,
     middleware: RwLock<Vec<CommandMiddleware>>,
+    journal: RwLock<Option<Arc<JournalRecorder>>>,
 }
 
 /// Commands by name, plus their registration order.
@@ -941,6 +946,20 @@ impl CommandRegistry {
     /// the result, or return without calling `next()` to short-circuit.
     pub fn add_middleware(&self, middleware: CommandMiddleware) {
         write_lock(&self.middleware).push(middleware);
+    }
+
+    /// Record every accepted call to a journal (`spec/journal.md`), replacing any recorder set
+    /// before.
+    ///
+    /// The recorder runs after input validation and around the middleware chain; see
+    /// [`JournalRecorder`]. Replay with [`replay_journal`](crate::replay_journal).
+    pub fn set_journal(&self, recorder: JournalRecorder) {
+        *write_lock(&self.journal) = Some(Arc::new(recorder));
+    }
+
+    /// Stop recording to the journal set with [`Self::set_journal`].
+    pub fn clear_journal(&self) {
+        *write_lock(&self.journal) = None;
     }
 
     /// Get a command by name.
@@ -1081,10 +1100,27 @@ impl CommandRegistry {
 
         let timeout_ms = context.timeout_ms;
         let middleware = read_lock(&self.middleware).clone();
-        let chain = middleware_chain(&command, &middleware, input, context);
-        // `chain()` runs inside the guarded future, so a middleware layer that
-        // panics while building its future is caught too.
-        let run = run_guarded(async move { chain().await });
+        // Replayed calls, and the calls nested in them, are never recorded.
+        let journal = read_lock(&self.journal)
+            .clone()
+            .filter(|recorder| !context.journal_state.replaying && recorder.records(name));
+        let run = {
+            let command = Arc::clone(&command);
+            async move {
+                let mut context = context;
+                let recording = journal
+                    .as_ref()
+                    .map(|recorder| recorder.start(&command.name, &input, &mut context));
+                let chain = middleware_chain(&command, &middleware, input, context);
+                // `chain()` runs inside the guarded future, so a middleware layer that
+                // panics while building its future is caught too.
+                let result = run_guarded(async move { chain().await }).await;
+                match (journal, recording) {
+                    (Some(recorder), Some(recording)) => recorder.finish(recording, result).await,
+                    _ => result,
+                }
+            }
+        };
 
         match timeout_ms {
             #[cfg(feature = "native")]
