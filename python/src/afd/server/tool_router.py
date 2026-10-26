@@ -10,8 +10,17 @@ from dataclasses import dataclass
 from typing import Any
 
 from afd.core.actor import Actor
+from afd.core.batch import create_failed_batch_result
 from afd.core.commands import CommandContext, CommandDefinition
-from afd.core.result import CommandResult, error
+from afd.core.pipeline import create_pipeline_failure
+from afd.core.result import CommandResult, error, failure as command_failure
+from afd.server.confirmations import (
+    ConfirmationGate,
+    ConfirmationStep,
+    declares_confirm_input,
+    named_acknowledgement,
+    without_confirm,
+)
 from afd.core.similarity import truncate_name
 from afd.server.lazy_tools import execute_detail, execute_discover, not_found_suggestion
 from afd.server.tools import derive_group_action, derive_group_name
@@ -32,6 +41,8 @@ class ToolRouterDeps:
     context_state: Any = None
     # The actor of MCP calls; each call gets its own copy.
     actor: Actor | None = None
+    # Confirmation enforcement (`confirmations` server option); None means off.
+    confirmations: ConfirmationGate | None = None
 
 _MCP_ACTOR = Actor(kind="agent")
 """The default actor of a call over MCP."""
@@ -96,6 +107,28 @@ def create_tool_router(deps: ToolRouterDeps):
             suggestion="Use afd-context-list to see contexts or afd-context-enter to switch.",
         )
 
+    gate = deps.confirmations if deps.confirmations and deps.confirmations.mode != "off" else None
+
+    async def unconfirmed(
+        steps: list[ConfirmationStep],
+        acknowledged: bool | set[str] | None,
+        how: str,
+        to_result: Callable[[Any], Any] | None = None,
+    ) -> Any:
+        """``None`` when the call may run; otherwise its result (an error, or an
+        ``input_required`` result for a request that can elicit)."""
+        if gate is None:
+            return None
+        outcome = await gate.check(steps, acknowledged, how)
+        if outcome.kind == "proceed":
+            return None
+        if outcome.kind == "input-required":
+            return outcome.result
+        refusal = outcome.error
+        if to_result is not None:
+            return to_result(refusal)
+        return command_failure(refusal)
+
     async def route_tool_call(tool_name: str, args: Any) -> Any:
         active_context = deps.context_state.get_active() if deps.context_state else None
 
@@ -128,9 +161,18 @@ def create_tool_router(deps: ToolRouterDeps):
             if not is_command_accessible(command, active_context):
                 return not_in_context(command_name, active_context)
 
+            command_input = payload.get("input", {})
+            refused = await unconfirmed(
+                [ConfirmationStep(command_name, command_input)],
+                payload.get("confirm") is True,
+                "repeat the afd-call with confirm: true",
+            )
+            if refused is not None:
+                return refused
+
             return await deps.execute_command(
                 command_name,
-                payload.get("input", {}),
+                command_input,
                 mcp_context("afd-call", active_context),
             )
 
@@ -151,10 +193,28 @@ def create_tool_router(deps: ToolRouterDeps):
             return execute_detail(visible_all_commands, exposed_command_names, {} if args is None else args)
 
         if tool_name == "afd-batch":
-            return await deps.execute_batch(args, mcp_context("batch", active_context))
+            refused = await unconfirmed(
+                _steps(args, "commands"),
+                named_acknowledgement(args.get("confirm") if isinstance(args, dict) else None),
+                "repeat the afd-batch with confirm: [the command names]",
+                lambda failure: create_failed_batch_result(failure),
+            )
+            if refused is not None:
+                return refused
+            return await deps.execute_batch(without_confirm(args), mcp_context("batch", active_context))
 
         if tool_name == "afd-pipe":
-            return await deps.execute_pipeline(args, mcp_context("pipeline", active_context))
+            refused = await unconfirmed(
+                _steps(args, "steps"),
+                named_acknowledgement(args.get("confirm") if isinstance(args, dict) else None),
+                "repeat the afd-pipe with confirm: [the command names]",
+                lambda failure: create_pipeline_failure(failure),
+            )
+            if refused is not None:
+                return refused
+            return await deps.execute_pipeline(
+                without_confirm(args), mcp_context("pipeline", active_context)
+            )
 
         if deps.tool_strategy == "grouped":
             payload = {} if args is None else args
@@ -227,9 +287,17 @@ def create_tool_router(deps: ToolRouterDeps):
                         f"Action '{action}' is not available for grouped tool '{tool_name}'",
                         suggestion="Use afd-discover or afd-help to inspect available actions.",
                     )
+                params = payload.get("params", {})
+                refused = await unconfirmed(
+                    [ConfirmationStep(command.name, params)],
+                    payload.get("confirm") is True,
+                    f"repeat the {tool_name} call with confirm: true",
+                )
+                if refused is not None:
+                    return refused
                 return await deps.execute_command(
                     command.name,
-                    payload.get("params", {}),
+                    params,
                     mcp_context("trace", active_context),
                 )
 
@@ -237,10 +305,38 @@ def create_tool_router(deps: ToolRouterDeps):
         if not is_command_accessible(command, active_context):
             return not_in_context(tool_name, active_context)
 
+        # A confirm-gated tool advertises an optional `confirm` argument, removed here before
+        # the command validates its input, unless the command's own schema declares it.
+        command_input = {} if args is None else args
+        acknowledged = False
+        if gate is not None and command is not None and command.confirm_prompt and isinstance(command_input, dict):
+            acknowledged = command_input.get("confirm") is True
+            if not declares_confirm_input(command):
+                command_input = without_confirm(command_input)
+        refused = await unconfirmed(
+            [ConfirmationStep(tool_name, command_input)],
+            acknowledged,
+            "repeat the call with confirm: true",
+        )
+        if refused is not None:
+            return refused
+
         return await deps.execute_command(
             tool_name,
-            {} if args is None else args,
+            command_input,
             mcp_context("trace", active_context),
         )
 
     return route_tool_call
+
+
+def _steps(args: Any, key: str) -> list[ConfirmationStep]:
+    """The commands of an ``afd-batch`` (``commands``) or ``afd-pipe`` (``steps``) request."""
+    items = args.get(key) if isinstance(args, dict) else None
+    if not isinstance(items, list):
+        return []
+    return [
+        ConfirmationStep(item["command"], item.get("input", {}))
+        for item in items
+        if isinstance(item, dict) and isinstance(item.get("command"), str)
+    ]

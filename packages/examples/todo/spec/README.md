@@ -47,8 +47,10 @@ command is shown to have changed nothing.
 
 | Backend | Script | Enforces confirmations |
 |---------|--------|------------------------|
-| TypeScript | `pnpm test:conformance:ts --suite confirmations` | Yes |
-| Python, Rust, C++ | Not yet | Planned (confirmations proposal, phase 3) |
+| TypeScript | `pnpm test:conformance:ts --suite confirmations` | Yes, every protocol mode |
+| Python | `pnpm test:conformance:py --suite confirmations` | Yes, every protocol mode |
+| Rust | `pnpm test:conformance:rs --suite confirmations --mode modern` | Yes. In legacy mode the accept and decline cases fail by design: a 2025 request over the backend's stateless HTTP has no back channel, so the backend answers `CONFIRMATION_REQUIRED` |
+| C++ | Not yet | Planned |
 
 ## Data Types
 

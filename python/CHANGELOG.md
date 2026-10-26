@@ -18,6 +18,8 @@ Serves and speaks MCP 2026-07-28 (stateless, per-request `_meta`) next to the 20
 
 ### Added
 
+- **Confirmations:** `create_server(confirmations="enforce" | "require-human", confirmation_key=...)` enforces `confirm_prompt` on MCP calls (`spec/command-metadata.md`, "Confirmations"). A gated call runs after the user accepts an elicitation (an `input_required` result on MCP 2026-07-28, a server-sent request on a stateful 2025 connection), or, under `"enforce"`, after an acknowledgement (`confirm: true`, `confirm: [names]` on `afd-batch` and `afd-pipe`, or `_meta["dev.afd/confirm"]`). Otherwise it fails with `CONFIRMATION_REQUIRED` or `CONFIRMATION_DECLINED`. Gated tools advertise the optional `confirm` argument. `server.execute()` is never gated; `server.call_tool()` routes like an MCP call and is.
+
 - **Trust fields:** `define_command`, `@server.command` and `CommandDefinition` take `destructive`, `confirm_prompt` and `undoable` (`spec/command-metadata.md`). `destructive` and `undoable` appear in tool `_meta`, `afd-help` (full) and `afd-docs` when set; `afd-detail` and `afd-docs` also report `confirmPrompt`. A mutation's `destructiveHint` annotation now follows `destructive`.
 - **Confirmation error codes:** `ErrorCodes.CONFIRMATION_REQUIRED` and `ErrorCodes.CONFIRMATION_DECLINED`, for servers that enforce `confirmPrompt`. Nothing emits them yet.
 - **Approval error code:** `ErrorCodes.APPROVAL_REQUIRED`, returned by an approval middleware before the handler runs (`spec/command-metadata.md`, "Approvals"). TypeScript emits it; Python's middleware is #420.
