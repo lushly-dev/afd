@@ -24,7 +24,14 @@ const H3 = {
 };
 const source = 'e'.repeat(40);
 const depOld = `dep-${'3'.repeat(20)}`;
-const depNew = `dep-${'4'.repeat(20)}`;
+const instanceId = (item, suffix) => `${item.serviceId}-${suffix}`;
+const instance = (item, suffix, overrides = {}) => ({
+	id: instanceId(item, suffix),
+	createdAt: '2026-10-14T17:09:38Z',
+	status: 'RUNNING',
+	ready: true,
+	...overrides,
+});
 const ledger = {
 	schema: 1,
 	purpose: 'afd-362-disposable-hosted-fixtures',
@@ -42,6 +49,8 @@ function mock({
 	wrong = null,
 	secret = 'top-secret-token',
 	mutate = false,
+	instanceResponses = null,
+	postRestartWrong = null,
 	initialDiskAbsent = false,
 	initialServiceAbsent = false,
 } = {}) {
@@ -51,6 +60,8 @@ function mock({
 	let deletedDisk = initialDiskAbsent;
 	let deletedService = initialServiceAbsent;
 	let restarted = false;
+	let restartPosted = false;
+	let instanceRead = 0;
 	let suspended = 'not_suspended';
 	let clock = 0;
 	const fetchImpl = async (url, options) => {
@@ -72,6 +83,7 @@ function mock({
 		if (options.method === 'POST') {
 			if (path.endsWith('/restart')) {
 				if (fault === 'restart-http') return new Response(secret, { status: 500 });
+				restartPosted = true;
 				restarted = mutate;
 				return new Response(secret, { status: 200 });
 			}
@@ -133,13 +145,31 @@ function mock({
 					: [
 							{
 								deploy: {
-									id: fault === 'malicious-deploy-id' ? `${secret}\n` : restarted ? depNew : depOld,
+									id: fault === 'malicious-deploy-id' ? `${secret}\n` : depOld,
 									status: fault === 'status' ? 'failed' : 'live',
-									commit: { id: fault === 'source' ? 'f'.repeat(40) : source, message: secret },
+									commit: {
+										id:
+											fault === 'source' || (restartPosted && postRestartWrong === 'source')
+												? 'f'.repeat(40)
+												: source,
+										message: secret,
+									},
 								},
 							},
 						]
 			);
+		if (path === `/v1/services/${item.serviceId}/instances`) {
+			if (fault === 'foreign-instance')
+				return Response.json([instance(role === 'h1' ? H3 : H1, 'w2fcz')]);
+			if (fault === 'malformed-instance')
+				return Response.json([instance(item, 'w2fcz', { createdAt: 'not-a-time', ready: 'yes' })]);
+			if (instanceResponses) {
+				const value = instanceResponses[Math.min(instanceRead, instanceResponses.length - 1)];
+				instanceRead += 1;
+				return Response.json(value);
+			}
+			return Response.json([instance(item, restarted ? 'x7k9p' : 'w2fcz')]);
+		}
 		if (path === '/v1/disks')
 			return Response.json(deletedDisk ? [] : [{ disk: { id: item.diskId } }]);
 		if (path === `/v1/blueprints/${ledger.blueprintId}`)
@@ -206,6 +236,8 @@ for (const wrong of [
 	'syncing',
 	'ambiguous',
 	'malicious-deploy-id',
+	'foreign-instance',
+	'malformed-instance',
 ]) {
 	test(`${wrong} drift blocks restart without a POST`, async () => {
 		const client = mock({ wrong, secret: 'local-secret' });
@@ -221,13 +253,71 @@ for (const wrong of [
 	});
 }
 
-test('restart requires a new provider live deploy under one deadline', async () => {
+test('restart preflight requires exactly one ready running instance', async () => {
+	for (const instanceRows of [
+		[],
+		[instance(H1, 'w2fcz'), instance(H1, 'x7k9p')],
+		[instance(H1, 'w2fcz', { status: 'STARTING', ready: false })],
+	]) {
+		const client = mock({ instanceResponses: [instanceRows], secret: 'local-secret' });
+		await assert.rejects(
+			createControl({ ...client, apiKey: 'local-secret' }).operate('restart', ledger, 'h1', {
+				apply: true,
+			}),
+			/instance-not-ready/
+		);
+		assert.equal(
+			client.paths.some((path) => path.startsWith('POST')),
+			false
+		);
+	}
+});
+
+test('restart accepts an unchanged live deploy after one ready provider instance is replaced', async () => {
 	const client = mock({ mutate: true, secret: 'local-secret' });
 	const control = createControl({ ...client, apiKey: 'local-secret' });
 	const result = await control.operate('restart', ledger, 'h1', { apply: true });
 	assert.equal(result.previousDeployId, depOld);
-	assert.equal(result.deployId, depNew);
+	assert.equal(result.deployId, depOld);
+	assert.equal(result.previousInstanceId, instanceId(H1, 'w2fcz'));
+	assert.equal(result.instanceId, instanceId(H1, 'x7k9p'));
 	assert.equal(result.source, source);
+	assert.equal(client.paths.filter((path) => path.endsWith('/restart')).length, 1);
+});
+
+test('restart tolerates transitional instance lists but requires one ready replacement', async () => {
+	const client = mock({
+		secret: 'local-secret',
+		instanceResponses: [
+			[instance(H1, 'w2fcz')],
+			[],
+			[instance(H1, 'w2fcz', { status: 'STARTING', ready: false })],
+			[instance(H1, 'w2fcz'), instance(H1, 'x7k9p', { status: 'STARTING', ready: false })],
+			[instance(H1, 'x7k9p')],
+		],
+	});
+	const result = await createControl({ ...client, apiKey: 'local-secret', pollMs: 1 }).operate(
+		'restart',
+		ledger,
+		'h1',
+		{ apply: true }
+	);
+	assert.equal(result.previousInstanceId, instanceId(H1, 'w2fcz'));
+	assert.equal(result.instanceId, instanceId(H1, 'x7k9p'));
+	assert.equal(
+		client.paths.filter((path) => path.endsWith(`/services/${H1.serviceId}/instances`)).length,
+		5
+	);
+});
+
+test('restart fails when provider source drifts after mutation', async () => {
+	const client = mock({ mutate: true, postRestartWrong: 'source', secret: 'local-secret' });
+	await assert.rejects(
+		createControl({ ...client, apiKey: 'local-secret' }).operate('restart', ledger, 'h1', {
+			apply: true,
+		}),
+		/provider-source-drift/
+	);
 	assert.equal(client.paths.filter((path) => path.endsWith('/restart')).length, 1);
 });
 
@@ -243,7 +333,7 @@ test('H3 status binds its separate service and disk with TCP readiness', async (
 	assert.equal(result.deployStatus, 'live');
 });
 
-test('restart timeout and HTTP failures are bounded and redact bodies', async () => {
+test('unchanged or ambiguous restart instances time out and HTTP failures redact bodies', async () => {
 	const client = mock({ secret: 'top-secret-token' });
 	const control = createControl({
 		...client,
@@ -253,6 +343,22 @@ test('restart timeout and HTTP failures are bounded and redact bodies', async ()
 	});
 	await assert.rejects(
 		control.operate('restart', ledger, 'h1', { apply: true }),
+		/deadline-exceeded/
+	);
+	const ambiguous = mock({
+		secret: 'top-secret-token',
+		instanceResponses: [
+			[instance(H1, 'w2fcz')],
+			[instance(H1, 'w2fcz'), instance(H1, 'x7k9p', { ready: false })],
+		],
+	});
+	await assert.rejects(
+		createControl({
+			...ambiguous,
+			apiKey: 'top-secret-token',
+			deadlineMs: 4,
+			pollMs: 2,
+		}).operate('restart', ledger, 'h1', { apply: true }),
 		/deadline-exceeded/
 	);
 	const failing = createControl({

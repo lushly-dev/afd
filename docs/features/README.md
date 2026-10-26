@@ -37,6 +37,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Handoff Pattern](./complete/handoff-pattern/) | Real-time protocol handoff |
 | [Lazy Loading & Discovery](./complete/lazy-loading-discovery/) | `afd-discover`/`afd-detail`/`afd-call` tool strategy for lazy command enumeration |
 | [Middleware Defaults](./complete/middleware-defaults/) | Zero-config observability bundle (`defaultMiddleware()`) |
+| [Platform Utils](./complete/platform-utils/) | Cross-platform `exec`, `findUp` and GitHub/package-manager connectors in `afd-core` (#92) and Python (#155) |
 | [Output Shape Predictability](./complete/output-shape-predictability/) | Optional `output` Zod schema for agent response shape introspection |
 | [Rust Parity Closure](./complete/rust-parity/) | Closed the export-surface gap between TypeScript and Rust (78 missing exports to 0 in #181), tracked with `alfred parity`. The remaining behavioral work is Wave 2 of Language Parity Closure. |
 | [Schema Complexity Scoring](./complete/schema-complexity-scoring/) | Weighted input schema complexity analysis |
@@ -52,12 +53,30 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Code Client](./proposed/code-client/) | Code-based client research |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |
 | [Multi-Tool Registration](./proposed/multi-tool-registration/) | Batch MCP tool registration |
-| [Platform Utils](./proposed/platform-utils/) | Cross-platform subprocess and connectors |
 | [Plugin Discovery](./proposed/plugin-discovery/) | Auto-discovery of AFD plugins |
 | [Rust Distribution](./proposed/rust-distribution/) | Rust-based distribution layer |
 | [Rust Support](./proposed/rust-support/) | Core crate published as 0.1.0; broader MCP transport and distribution proposal remains open |
 | [Skill Knowledge Layer](./proposed/skill-knowledge-layer/) | Skills as structured knowledge for agents |
 | [Zero Chat Tools](./proposed/zero-chat-tools/) | Canvas-aware AFD commands for Zero chat agent |
+
+### Lifecycle audit (2026-10-25, #349)
+
+Each proposed folder was compared with the code on `main`, merged PRs and the active and complete plans. A folder moves only when the evidence supports it.
+
+| Folder | Disposition | Evidence and remaining scope |
+|--------|-------------|------------------------------|
+| platform-utils | Complete (moved) | TypeScript #92, Python #155; no remaining scope |
+| rust-support | Proposed, partially shipped | Core, WASM, crates.io 0.1.0 (#379) and the `server` feature (#394) shipped; `cargo-dist`, proc macro and examples, and client interop remain |
+| rust-distribution | Proposed (research) | Mint is a private framework in another repository; nothing in this repo |
+| code-client | Proposed (research) | No code-generation client in `packages/client` |
+| design-to-code | Proposed | No Figma or schema-export code in the repo |
+| multi-tool-registration | Proposed | No `afd register` command in `packages/cli` |
+| plugin-discovery | Proposed | No `AfdPlugin` or discovery option in `afd-server` |
+| skill-knowledge-layer | Proposed | No `skill` option, `validateCommandSkills()` or `skill-docs` command |
+| chat-history-panel | Proposed | No session-history UI; `packages/examples/chat` is a WebSocket server |
+| zero-chat-tools | Proposed | Targets the external `fabric-ux-prototype` app |
+
+No folder is superseded. Each proposal opens with a dated disposition note.
 
 ## Feature Structure
 

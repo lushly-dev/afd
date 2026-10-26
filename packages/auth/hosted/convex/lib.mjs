@@ -73,6 +73,23 @@ function requireFixedLoopbackPort(url) {
 	}
 }
 
+function normalizedEmail(value, name) {
+	const email = value.trim().toLowerCase();
+	if (
+		!email ||
+		/\s/.test(email) ||
+		email.indexOf('@') <= 0 ||
+		email.indexOf('@') !== email.lastIndexOf('@')
+	) {
+		throw new ConfigurationError([`${name} is invalid`]);
+	}
+	return email;
+}
+
+function isRunScopedEmail(email, runId, suffix) {
+	return email.endsWith(suffix) && email.includes(runId.toLowerCase());
+}
+
 export function loadConfig(env = process.env, { explicit = false } = {}) {
 	if (env.AFD_AUTH_HOSTED_ADAPTER === undefined) {
 		if (explicit) throw new ConfigurationError(['AFD_AUTH_HOSTED_ADAPTER']);
@@ -89,13 +106,16 @@ export function loadConfig(env = process.env, { explicit = false } = {}) {
 		throw new ConfigurationError(['AFD_AUTH_HOSTED_RUN_ID has invalid format']);
 	}
 	const suffix = env.AFD_AUTH_HOSTED_EMAIL_SUFFIX.toLowerCase();
-	const primaryEmail = env.AFD_AUTH_HOSTED_PRIMARY_EMAIL.toLowerCase();
-	const secondaryEmail = env.AFD_AUTH_HOSTED_SECONDARY_EMAIL.toLowerCase();
+	const primaryEmail = normalizedEmail(env.AFD_AUTH_HOSTED_PRIMARY_EMAIL, 'primary identity email');
+	const secondaryEmail = normalizedEmail(
+		env.AFD_AUTH_HOSTED_SECONDARY_EMAIL,
+		'secondary identity email'
+	);
 	for (const [name, email] of [
 		['AFD_AUTH_HOSTED_PRIMARY_EMAIL', primaryEmail],
 		['AFD_AUTH_HOSTED_SECONDARY_EMAIL', secondaryEmail],
 	]) {
-		if (!email.endsWith(suffix) || !email.includes(runId.toLowerCase())) {
+		if (!isRunScopedEmail(email, runId, suffix)) {
 			throw new ConfigurationError([`${name} is outside the run ID and email suffix scope`]);
 		}
 	}
@@ -117,6 +137,19 @@ export function loadConfig(env = process.env, { explicit = false } = {}) {
 		]);
 	}
 	const providerId = env.AFD_AUTH_HOSTED_PROVIDER_ID;
+	const oauthIdentityMode = env.AFD_AUTH_HOSTED_OAUTH_IDENTITY_MODE ?? 'run-scoped';
+	if (oauthIdentityMode !== 'run-scoped' && oauthIdentityMode !== 'verified-github-account') {
+		throw new ConfigurationError(['AFD_AUTH_HOSTED_OAUTH_IDENTITY_MODE is invalid']);
+	}
+	if (
+		providerId === undefined &&
+		(oauthIdentityMode !== 'run-scoped' ||
+			env.AFD_AUTH_HOSTED_OAUTH_GITHUB_ACCOUNT_ID !== undefined)
+	) {
+		throw new ConfigurationError([
+			'GitHub OAuth identity configuration requires the OAuth provider case',
+		]);
+	}
 	let oauth = null;
 	if (providerId !== undefined) {
 		const oauthRequired = [
@@ -156,9 +189,24 @@ export function loadConfig(env = process.env, { explicit = false } = {}) {
 		) {
 			throw new ConfigurationError(['OAuth return URL must be an HTTP loopback URL']);
 		}
-		const email = env.AFD_AUTH_HOSTED_OAUTH_EMAIL.toLowerCase();
-		if (!email.endsWith(suffix) || !email.includes(runId.toLowerCase())) {
+		const email = normalizedEmail(env.AFD_AUTH_HOSTED_OAUTH_EMAIL, 'OAuth identity email');
+		const githubAccountId = env.AFD_AUTH_HOSTED_OAUTH_GITHUB_ACCOUNT_ID;
+		if (oauthIdentityMode === 'verified-github-account') {
+			if (
+				!githubAccountId ||
+				!/^[1-9]\d*$/.test(githubAccountId) ||
+				!Number.isSafeInteger(Number(githubAccountId))
+			) {
+				throw new ConfigurationError([
+					'AFD_AUTH_HOSTED_OAUTH_GITHUB_ACCOUNT_ID must be a positive numeric account ID',
+				]);
+			}
+		} else if (!isRunScopedEmail(email, runId, suffix)) {
 			throw new ConfigurationError(['OAuth identity email is outside the run scope']);
+		} else if (githubAccountId !== undefined) {
+			throw new ConfigurationError([
+				'AFD_AUTH_HOSTED_OAUTH_GITHUB_ACCOUNT_ID is only valid for verified-github-account mode',
+			]);
 		}
 		if (email === primaryEmail || email === secondaryEmail) {
 			throw new ConfigurationError([
@@ -167,6 +215,8 @@ export function loadConfig(env = process.env, { explicit = false } = {}) {
 		}
 		oauth = {
 			providerId,
+			identityMode: oauthIdentityMode,
+			...(oauthIdentityMode === 'verified-github-account' ? { githubAccountId } : {}),
 			callbackUrl,
 			returnUrl,
 			email,

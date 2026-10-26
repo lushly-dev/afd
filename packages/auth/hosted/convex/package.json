@@ -8,5 +8,8 @@
 		"convex": "1.32.0",
 		"react": "19.3.0",
 		"react-dom": "19.3.0"
+	},
+	"devDependencies": {
+		"typescript": "^5.9.3"
 	}
 }

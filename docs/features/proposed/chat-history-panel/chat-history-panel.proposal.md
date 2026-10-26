@@ -4,6 +4,9 @@ Status: Proposed
 Created: 2026-01-12  
 Updated: 2026-02-24
 
+> **Disposition (2026-10-25, audit #349):** **Proposed.** No session-history UI exists in the repository: `packages/examples/chat` is a WebSocket chat server, not a history panel, and no merged PR implements this. Nothing shipped; remaining scope is the whole proposal.
+
+
 ## Summary
 
 Add a history sidebar that supports multiple chat sessions, session switching, and persistent local history.

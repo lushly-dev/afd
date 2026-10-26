@@ -7,7 +7,7 @@ Supports Python, TypeScript, and Rust codebases.
 import logging
 import re
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
 from typing import Any, ClassVar
@@ -48,6 +48,10 @@ _REASON_RULE_PATH = "rule-path-exclude"
 _REASON_COMMENT = "comment-line"
 _REASON_DATA_URI = "data-uri-fetch"
 _REASON_DIRECTIVE = "inline-directive"
+_REASON_SEVERITY_OFF = "severity-off"
+
+# Value accepted by `rule_severity_overrides` to turn a rule off entirely.
+_SEVERITY_OFF = "off"
 
 _RULE_DIRECT_FETCH = "afd-no-direct-fetch"
 
@@ -258,6 +262,7 @@ class AFDLinter:
         *,
         exclude_story_test_files: bool = True,
         rule_path_excludes: Mapping[str, Sequence[str]] | None = None,
+        rule_severity_overrides: Mapping[str, Severity | str] | None = None,
     ) -> None:
         """Initialize the linter.
 
@@ -277,6 +282,19 @@ class AFDLinter:
                 patterns. Lets a project exclude its own framework/tooling paths
                 from a specific rule without forking. Default None preserves the
                 pre-existing behavior for every rule.
+            rule_severity_overrides: Optional mapping of rule id to the
+                severity its findings are reported at: ``"error"``,
+                ``"warning"`` (or the matching ``Severity`` members) or
+                ``"off"``. Since ``passed`` is derived from the error count,
+                this decides which rules gate a build. ``"off"`` records every
+                finding of the rule as suppressed with reason
+                ``severity-off`` instead of dropping it silently. Default None
+                keeps each rule's built-in severity.
+
+        Raises:
+            ValueError: If ``rule_severity_overrides`` names an unknown rule id
+                or an unsupported severity, so a typo cannot silently change
+                nothing.
         """
         self.exclude_story_test_files = exclude_story_test_files
         self._rule_path_excludes: dict[str, list[str]] = {
@@ -294,6 +312,34 @@ class AFDLinter:
             # Cross-language rules
             "afd-layer-imports": self._check_layer_imports,
         }
+        self._severity_overrides = self._validate_severity_overrides(
+            rule_severity_overrides or {}
+        )
+
+    def _validate_severity_overrides(
+        self, overrides: Mapping[str, Severity | str]
+    ) -> dict[str, Severity | None]:
+        """Resolve overrides to a Severity, or None for ``"off"``."""
+        allowed = {"error": Severity.ERROR, "warning": Severity.WARNING, _SEVERITY_OFF: None}
+        if not isinstance(overrides, Mapping):
+            raise ValueError(
+                "rule_severity_overrides must map rule ids to 'error', 'warning' or 'off'"
+            )
+        resolved: dict[str, Severity | None] = {}
+        for rule, value in overrides.items():
+            if rule not in self._rules:
+                known = ", ".join(sorted(self._rules))
+                raise ValueError(
+                    f"Unknown rule id {rule!r} in rule_severity_overrides. Known rules: {known}"
+                )
+            key = value.value if isinstance(value, Severity) else value
+            if not isinstance(key, str) or key not in allowed:
+                raise ValueError(
+                    f"Unsupported severity {value!r} for rule {rule!r} in "
+                    "rule_severity_overrides. Use 'error', 'warning' or 'off'."
+                )
+            resolved[rule] = allowed[key]
+        return resolved
 
     def lint(self, path: Path) -> LintResult:
         """Lint all supported files in the given path."""
@@ -384,7 +430,18 @@ class AFDLinter:
     # ═══════════════════════════════════════════════════════════════════════════
 
     def _emit(self, issue: LintIssue, lines: Sequence[str], result: LintResult) -> None:
-        """Add an issue unless calibration suppresses it; record either way."""
+        """Add an issue unless calibration suppresses it; record either way.
+
+        Severity overrides apply here so every rule is covered in one place. A
+        rule set to ``"off"`` wins over every other suppression reason, since it
+        is configuration for the whole rule rather than for a file or line.
+        """
+        if issue.rule in self._severity_overrides:
+            severity = self._severity_overrides[issue.rule]
+            if severity is None:
+                result.add_suppression(issue.rule, _REASON_SEVERITY_OFF)
+                return
+            issue = replace(issue, severity=severity)
         reason = self._suppression_reason(issue, lines)
         if reason is None:
             result.add_issue(issue)

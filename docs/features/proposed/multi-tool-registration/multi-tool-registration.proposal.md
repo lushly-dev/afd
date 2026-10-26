@@ -1,5 +1,8 @@
 # Feature Proposal: Multi-Tool Registration Automation
 
+> **Disposition (2026-10-25, audit #349):** **Proposed.** `packages/cli/src/commands` has no `register` command and no merged PR adds one (#2 only added MCP transports). Nothing shipped; remaining scope is the whole proposal and its [spec](./multi-tool-registration.spec.md).
+
+
 ## Summary
 
 Create an `afd register` CLI command to detect installed AI tools and write the required MCP server configuration in each tool-specific format.

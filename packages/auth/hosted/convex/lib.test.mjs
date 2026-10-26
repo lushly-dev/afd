@@ -96,6 +96,7 @@ const completeOAuth = {
 
 test('OAuth requires a distinct run-scoped identity and fixed loopback port', () => {
 	const config = loadConfig(completeOAuth);
+	assert.equal(config.oauth.identityMode, 'run-scoped');
 	assert.equal(config.oauth.email, 'run-12345678-oauth@example.test');
 	assert.equal(config.oauth.returnUrl.port, '4173');
 	for (const overrides of [
@@ -110,6 +111,49 @@ test('OAuth requires a distinct run-scoped identity and fixed loopback port', ()
 	]) {
 		assert.throws(() => loadConfig({ ...completeOAuth, ...overrides }), ConfigurationError);
 	}
+});
+
+test('optional reusable GitHub mode requires an exact numeric ID and a third identity', () => {
+	const stable = {
+		...completeOAuth,
+		AFD_AUTH_HOSTED_OAUTH_IDENTITY_MODE: 'verified-github-account',
+		AFD_AUTH_HOSTED_OAUTH_GITHUB_ACCOUNT_ID: '7654321',
+		AFD_AUTH_HOSTED_OAUTH_EMAIL: 'Owner@External.Example',
+	};
+	const config = loadConfig(stable);
+	assert.equal(config.oauth.identityMode, 'verified-github-account');
+	assert.equal(config.oauth.githubAccountId, '7654321');
+	assert.equal(config.oauth.email, 'owner@external.example');
+	for (const overrides of [
+		{ AFD_AUTH_HOSTED_OAUTH_GITHUB_ACCOUNT_ID: '' },
+		{ AFD_AUTH_HOSTED_OAUTH_GITHUB_ACCOUNT_ID: '07654321' },
+		{ AFD_AUTH_HOSTED_OAUTH_GITHUB_ACCOUNT_ID: '999999999999999999999' },
+		{ AFD_AUTH_HOSTED_OAUTH_EMAIL: 'run-12345678-a@example.test' },
+		{ AFD_AUTH_HOSTED_OAUTH_EMAIL: 'not-an-email' },
+		{ AFD_AUTH_HOSTED_OAUTH_IDENTITY_MODE: 'email-only' },
+	]) {
+		assert.throws(() => loadConfig({ ...stable, ...overrides }), ConfigurationError);
+	}
+	assert.throws(
+		() => loadConfig({ ...completeOAuth, AFD_AUTH_HOSTED_OAUTH_GITHUB_ACCOUNT_ID: '7654321' }),
+		/only valid for verified-github-account mode/
+	);
+	assert.throws(
+		() =>
+			loadConfig({
+				...completeOAuth,
+				AFD_AUTH_HOSTED_OAUTH_IDENTITY_MODE: 'verified-github-account',
+			}),
+		/positive numeric account ID/
+	);
+	assert.throws(
+		() =>
+			loadConfig({
+				...complete,
+				AFD_AUTH_HOSTED_OAUTH_IDENTITY_MODE: 'verified-github-account',
+			}),
+		/requires the OAuth provider case/
+	);
 });
 
 test('occupied OAuth loopback port fails clearly during server startup preflight', async () => {

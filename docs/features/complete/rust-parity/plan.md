@@ -355,7 +355,7 @@ Recommendation:
 
 Still open:
 
-- whether `docs/features/proposed/rust-support/` should move from proposed to complete
+- ~~whether `docs/features/proposed/rust-support/` should move from proposed to complete~~ Decided in the #349 audit: it stays proposed until `cargo-dist`, the proc macro and client interop are done or dropped (see the folder's disposition note)
 - whether `alfred parity` should gain a narrower Rust-only mode or machine-readable wave summaries
 
 Settled: parity is part of regular CI through the `NAME_GAP_BUDGET` test in the Alfred workflow (see [Outcome](#outcome)), not the Rust workflow.
