@@ -13,6 +13,7 @@ import {
 	verifyDeploys,
 	verifyDisk,
 	verifyDiskRows,
+	verifyInstances,
 	verifyService,
 } from './render-verify.mjs';
 
@@ -56,21 +57,27 @@ export function createControl({
 		if (method !== 'GET' || response.status === 404) return null;
 		return boundedJson(response, Math.min(deadline - now(), 15_000));
 	}
-	async function snapshot(ledger, role, deadline) {
+	async function snapshot(ledger, role, deadline, instanceMode = null) {
 		const item = checkLedger(ledger, role);
-		const [service, disk, deployRows, diskRows, blueprint] = await Promise.all([
+		const [service, disk, deployRows, diskRows, blueprint, instanceRows] = await Promise.all([
 			request('GET', `/v1/services/${item.serviceId}`, deadline),
 			request('GET', `/v1/disks/${item.diskId}`, deadline),
 			request('GET', `/v1/services/${item.serviceId}/deploys?limit=100`, deadline),
 			request('GET', `/v1/disks?serviceId=${item.serviceId}&limit=100`, deadline),
 			request('GET', `/v1/blueprints/${ledger.blueprintId}`, deadline),
+			instanceMode
+				? request('GET', `/v1/services/${item.serviceId}/instances`, deadline)
+				: Promise.resolve(null),
 		]);
 		verifyBlueprint(blueprint, ledger, item, role, true);
 		verifyService(service, ledger, item, role, true);
 		verifyDisk(disk, item);
 		verifyDiskRows(diskRows, item, true);
 		const deploy = verifyDeploys(deployRows, ledger);
-		return { service, disk, deploy, item };
+		const instance = instanceMode
+			? verifyInstances(instanceRows, item, { requireReady: instanceMode === 'ready' })
+			: null;
+		return { service, disk, deploy, instance, item };
 	}
 	async function cleanupSnapshot(ledger, role, deadline) {
 		const item = checkLedger(ledger, role);
@@ -177,8 +184,9 @@ export function createControl({
 				throw failure;
 			}
 		}
-		const before = await snapshot(ledger, role, deadline);
+		const before = await snapshot(ledger, role, deadline, action === 'restart' ? 'ready' : null);
 		const prior = before.deploy.id;
+		const priorInstance = before.instance?.id;
 		if (action === 'status')
 			return receipt(action, role, ledger, item, {
 				status: before.service.suspended,
@@ -205,7 +213,7 @@ export function createControl({
 		while (true) {
 			let after;
 			try {
-				after = await snapshot(ledger, role, deadline);
+				after = await snapshot(ledger, role, deadline, action === 'restart' ? 'poll' : null);
 			} catch (error) {
 				if (!(error instanceof Error) || error.message !== 'ambiguous-deploy-state') throw error;
 				const remaining = deadline - now();
@@ -215,13 +223,16 @@ export function createControl({
 			}
 			if (
 				after.service.suspended === wanted &&
-				(action !== 'restart' || after.deploy.id !== prior)
+				(action !== 'restart' || (after.instance && after.instance.id !== priorInstance))
 			) {
 				return receipt(action, role, ledger, item, {
 					status: after.service.suspended,
 					deployId: after.deploy.id,
 					previousDeployId: prior,
 					deployStatus: after.deploy.status,
+					...(action === 'restart'
+						? { instanceId: after.instance.id, previousInstanceId: priorInstance }
+						: {}),
 					restartTime: action === 'restart' ? new Date().toISOString() : undefined,
 				});
 			}
