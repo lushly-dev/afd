@@ -335,6 +335,25 @@ let result = registry.execute(
 `CommandDefinition::execute` calls the handler directly and skips all of these checks; call
 commands through the registry.
 
+### Journal and replay
+
+```rust
+use afd::{parse_journal, replay_journal, JournalRecorder, MemoryJournalSink, ReplayJournalOptions};
+
+// Record each accepted call (after validation, around the middleware chain). Not a middleware:
+// Rust middleware cannot swap the clock and random source the handler sees.
+let journal = Arc::new(MemoryJournalSink::new()); // or FileJournalSink (`journal-file` feature)
+registry.set_journal(JournalRecorder::new(journal.clone()).with_record_failures(true));
+
+// Replay against a fresh registry with the same middleware; tapes restore clock and random.
+let report = replay_journal(&fresh, &journal.entries(), ReplayJournalOptions::default()).await;
+assert!(!report.diverged);
+```
+
+Entries keep only the actor, interface and trace ID from the context (plus a hash of the other key
+names). `parse_journal`/`serialize_journal` read and write `spec/journal.md` JSON Lines; compare with
+TypeScript output as JSON values, since object key order differs.
+
 ## Batch Execution
 
 ```rust
@@ -746,6 +765,8 @@ tokio-test = "0.4"
   application provides the runtime. Without it, deadlines return `UNSUPPORTED_OPTION`.
 - `wasm`: `wasm32-unknown-unknown` (browsers), using `web-time` for durations. Build with
   `--no-default-features --features wasm`.
+- `journal-file` (default): `FileJournalSink` (blocking `std::fs`). Everything else in the journal
+  works without it.
 
 ```rust
 // Check compilation mode

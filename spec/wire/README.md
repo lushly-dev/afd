@@ -22,9 +22,10 @@ constructors that the stream route uses).
   - Python: `python/tests/test_wire_fixtures.py`;
   - Rust: `packages/rust/tests/wire_fixtures.rs`;
   - C++: `packages/cpp/tests/wire_fixtures_test.cpp`.
-- `journal.jsonl` is not part of the round-trip contract yet: only TypeScript reads and writes
-  journals (`packages/server/src/journal-wire.test.ts` regenerates it, round-trips it and replays
-  it). The other languages' round-trip tests read `*.json` only. Parity is a follow-up.
+- `journal.jsonl` is round-tripped (and replayed to `same`) by TypeScript
+  (`packages/server/src/journal-wire.test.ts`, which regenerates it) and Rust
+  (`packages/rust/tests/journal_wire.rs`, which compares entries as JSON values and also records
+  the same session). Python and C++ read `*.json` only until their journals land (#425, #427).
 - `metadata.actorKind` is the kind of the calling principal; the fixtures were produced by MCP calls, so it
   is `agent`. Only the kind crosses the wire, never the actor's id or label.
 - Keys are camelCase.

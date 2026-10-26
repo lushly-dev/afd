@@ -4,8 +4,11 @@ A journal is an ordered, append-only record of executed commands. It is used to 
 agent session, to turn a recorded session into a regression test, and to audit who ran what, in
 what order and with what result. The golden fixture is [`wire/journal.jsonl`](./wire/journal.jsonl).
 
-TypeScript implements it (#273). Python, Rust and C++ do not yet; their parity is tracked in
-follow-up issues.
+TypeScript (#273) and Rust (#426) implement it. Python and C++ do not yet; their parity is tracked
+in follow-up issues. Rust records with a registry-level recorder (`CommandRegistry::set_journal`)
+instead of a middleware: Rust middleware cannot change the context the handler sees, so the
+recorder sits after validation and outside every middleware, and its tape holds what the
+middleware read as well.
 
 ## File format
 

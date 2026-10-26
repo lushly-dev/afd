@@ -871,8 +871,9 @@ NAME_GAP_BUDGET = {
     # Python 101 → 104, Rust 22 → 25, C++ 89 → 92: TypeScript's approval policy (#272):
     # ApprovalDecision, ApprovalPolicy and approvalMode. Parity tracked in #420 (Python),
     # #421 (Rust) and #422 (C++).
+    # Rust 25 → 12 (#426): afd exports the 13 command journal names.
     "missing_from_python": 104,
-    "missing_from_rust": 25,
+    "missing_from_rust": 12,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps
     # conditions as validated JSON); telemetry; timeout controllers and streamable commands;
