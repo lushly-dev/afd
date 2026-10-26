@@ -356,8 +356,8 @@ struct ApprovalState {
         return !decide || !*decide || (*decide)(input, context) != ApprovalDecision::not_required;
     }
 
-    Verdict verify(std::string_view evidence, std::string_view command, std::string_view input,
-                   std::string_view actor, std::int64_t now) const {
+    Verdict verify_token(std::string_view evidence, std::string_view command,
+                         std::string_view input, std::string_view actor, std::int64_t now) const {
         if (evidence.size() > max_token_length) {
             return reject(ApprovalRejection::malformed);
         }
@@ -426,7 +426,7 @@ struct ApprovalState {
             return reject(ApprovalRejection::actor_mismatch);
         }
         // `expires` is above `now` here; clamp a far-future expiry into range.
-        const double capped = std::min(expires, 9.0e18);
+        const double capped = (std::min)(expires, 9.0e18);
         return {.rejection = std::nullopt,
                 .nonce = payload["n"].get<std::string>(),
                 .expires_at_ms = static_cast<std::int64_t>(std::ceil(capped))};
@@ -571,7 +571,7 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         std::optional<ApprovalRejection> rejected;
         if (context.approval) {
             const Verdict verdict =
-                state->verify(*context.approval, name, *input_binding, *actor, now);
+                state->verify_token(*context.approval, name, *input_binding, *actor, now);
             if (!verdict.rejection) {
                 if (state->consume(verdict.nonce, verdict.expires_at_ms, now)) {
                     return next();
