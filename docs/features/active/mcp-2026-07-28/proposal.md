@@ -277,7 +277,7 @@ Sizes follow the parity plan: **S** under a day, **M** a few days, **L** a week 
 
 | Rank | Proposal | Value | Readiness | Effort | Recommendation |
 |---|---|---|---|---|---|
-| 1 | [Confirmations and input requests](../../proposed/mcp-confirmations/mcp-confirmations.proposal.md) | High: `destructive` and `confirmPrompt` are advertised but ignored | High: MRTR and signed `requestState` in all three SDKs | M | Start next; resolves D10 |
+| 1 | [Confirmations and input requests](../mcp-confirmations/mcp-confirmations.proposal.md) | High: `destructive` and `confirmPrompt` are advertised but ignored | High: MRTR and signed `requestState` in all three SDKs | M | Accepted 2026-10-25 (C1–C6); resolves D10 |
 | 2 | [Authorization](../../proposed/mcp-authorization/mcp-authorization.proposal.md) | High for hosted servers, low for stdio | Mixed: TypeScript complete, Python with gaps, Rust none | M + M | Do the spec phase now; build when a hosted deployment is planned |
 | 3 | [Progress](../../proposed/mcp-progress/mcp-progress.proposal.md) | Medium: few AFD commands run long | High on MCP; AFD core has no progress hook | M | After confirmations |
 | 4 | [Tasks](../../proposed/mcp-tasks/mcp-tasks.proposal.md) | Low to medium today | Low: only rmcp has a runtime | L | Wait; Rust pilot first |
@@ -413,7 +413,7 @@ MCP Apps and Enterprise Managed Authorization extensions; Resources and Prompts 
 4. D8: is 3.0 acceptable as the removal release, and should the window be time-boxed (for example, no sooner than 2027-01) as well as version-boxed?
 5. Phase 7: is MCP authorization wanted in 2.x, or deferred until a hosted AFD deployment needs it? (See decision A1 in the [authorization proposal](../../proposed/mcp-authorization/mcp-authorization.proposal.md).)
 6. Should this proposal replace parity Wave 3's D7 row and D1/D2 transport details, or be linked from them?
-7. D10 (raised by Phase 0): should AFD servers enforce `confirmPrompt` through `input_required`, with a `CONFIRMATION_REQUIRED` fallback? (Worked out in the [confirmations proposal](../../proposed/mcp-confirmations/mcp-confirmations.proposal.md), decisions C1–C6.)
+7. D10 (raised by Phase 0): should AFD servers enforce `confirmPrompt` through `input_required`, with a `CONFIRMATION_REQUIRED` fallback? (Worked out in the [confirmations proposal](../mcp-confirmations/mcp-confirmations.proposal.md), decisions C1–C6.)
 8. Phase 4: raise the Rust crate MSRV to 1.88, or keep 1.82 for the core and document a higher MSRV for the `server` feature?
 
 ## Sources

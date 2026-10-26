@@ -68,6 +68,18 @@ async def _afd_docs_handler(
             lines.append(f"**Mutation:** {'Yes' if command.mutation else 'No (read-only)'}")
             lines.append("")
 
+            if command.destructive is not None:
+                lines.append(f"**Destructive:** {'Yes' if command.destructive else 'No'}")
+                lines.append("")
+
+            if command.confirm_prompt:
+                lines.append(f"**Confirmation prompt:** {command.confirm_prompt}")
+                lines.append("")
+
+            if command.undoable is not None:
+                lines.append(f"**Undoable:** {'Yes' if command.undoable else 'No'}")
+                lines.append("")
+
             if command.requires:
                 lines.append(f"**Requires:** {', '.join(f'`{name}`' for name in command.requires)}")
                 lines.append("")

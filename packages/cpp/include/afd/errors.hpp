@@ -98,6 +98,9 @@ inline constexpr char STREAM_TIMEOUT[] = "STREAM_TIMEOUT";
 inline constexpr char STREAM_ERROR[] = "STREAM_ERROR";
 inline constexpr char STREAM_ENDED_UNEXPECTEDLY[] = "STREAM_ENDED_UNEXPECTEDLY";
 inline constexpr char COMMAND_FAILED[] = "COMMAND_FAILED";
+// Confirmations
+inline constexpr char CONFIRMATION_REQUIRED[] = "CONFIRMATION_REQUIRED";
+inline constexpr char CONFIRMATION_DECLINED[] = "CONFIRMATION_DECLINED";
 } // namespace error_codes
 
 /// `{code, message}` plus any of `options`.

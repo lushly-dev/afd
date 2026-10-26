@@ -62,6 +62,8 @@ fn error_codes_match_the_shared_catalog() {
         error_codes::STREAM_ERROR,
         error_codes::STREAM_ENDED_UNEXPECTEDLY,
         error_codes::COMMAND_FAILED,
+        error_codes::CONFIRMATION_REQUIRED,
+        error_codes::CONFIRMATION_DECLINED,
     ];
     assert_eq!(catalog.as_slice(), expected.as_slice());
 }

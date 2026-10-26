@@ -8,7 +8,7 @@
 | Author | jasfalk (drafted with Claude) |
 | Spec | [Authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization), [authorization server discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery), RFC 9728, RFC 8707, RFC 6750 |
 | Packages | `spec/`, `packages/core`, `packages/server`, `python/`, `packages/rust` (`server` feature), `packages/auth` (coexistence only) |
-| Related | [Auth adapter](../../complete/auth-adapter/) (`@lushly-dev/afd-auth`, application sign-in), [MCP confirmations](../mcp-confirmations/mcp-confirmations.proposal.md) (binds `requestState` to the principal), [MCP tasks](../mcp-tasks/mcp-tasks.proposal.md) (task access checks) |
+| Related | [Auth adapter](../../complete/auth-adapter/) (`@lushly-dev/afd-auth`, application sign-in), [MCP confirmations](../../active/mcp-confirmations/mcp-confirmations.proposal.md) (binds `requestState` to the principal), [MCP tasks](../mcp-tasks/mcp-tasks.proposal.md) (task access checks) |
 
 ## Why this is second
 

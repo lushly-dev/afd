@@ -152,6 +152,10 @@ class ErrorCodes:
     STREAM_ENDED_UNEXPECTEDLY = "STREAM_ENDED_UNEXPECTEDLY"
     COMMAND_FAILED = "COMMAND_FAILED"
 
+    # Confirmations (spec/command-metadata.md, "Confirmations")
+    CONFIRMATION_REQUIRED = "CONFIRMATION_REQUIRED"
+    CONFIRMATION_DECLINED = "CONFIRMATION_DECLINED"
+
 
 def create_error(
     code: str,

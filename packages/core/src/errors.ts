@@ -157,6 +157,10 @@ export const ErrorCodes = {
 	STREAM_ERROR: 'STREAM_ERROR',
 	STREAM_ENDED_UNEXPECTEDLY: 'STREAM_ENDED_UNEXPECTEDLY',
 	COMMAND_FAILED: 'COMMAND_FAILED',
+
+	// Confirmations (spec/command-metadata.md, "Confirmations")
+	CONFIRMATION_REQUIRED: 'CONFIRMATION_REQUIRED',
+	CONFIRMATION_DECLINED: 'CONFIRMATION_DECLINED',
 } as const;
 
 export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

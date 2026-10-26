@@ -216,6 +216,9 @@ class MCPServer:
         requires: list[str] | None = None,
         contexts: list[str] | None = None,
         expose: ExposeOptions | None = None,
+        destructive: bool | None = None,
+        confirm_prompt: str | None = None,
+        undoable: bool | None = None,
     ) -> Callable:
         """Decorator to register a command with this server."""
 
@@ -232,6 +235,9 @@ class MCPServer:
                 requires=requires,
                 contexts=contexts,
                 expose=expose,
+                destructive=destructive,
+                confirm_prompt=confirm_prompt,
+                undoable=undoable,
                 # Point a name warning at the user's @server.command line.
                 _stacklevel=3,
             )(func)

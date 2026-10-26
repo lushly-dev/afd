@@ -6,6 +6,8 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Added
 
+- `error_codes::CONFIRMATION_REQUIRED` and `error_codes::CONFIRMATION_DECLINED`, for servers that enforce `confirm_prompt` (`spec/command-metadata.md`, "Confirmations"). Nothing emits them yet.
+
 - `afd_benchmarks` (behind `AFD_BUILD_BENCHMARKS`, OFF by default) replaces the dispatch-only benchmark and covers `execute` with and without `default_middleware()`, validation against 3, 20 and 100 property schemas, `DirectClient::call`, `execute_batch` and `execute_pipeline` at N = 1, 10 and 100, `get` and `list` on 1,000 commands, and `parse_bounded` and result serialization at 1 KB and 100 KB. CI runs it on the release preset and under Node (Emscripten) and uploads the numbers; there are no thresholds (#340).
 
 ### Documentation

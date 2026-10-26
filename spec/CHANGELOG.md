@@ -65,6 +65,11 @@ the kind of principal that called the command (#271). It is additive. The fixtur
 `"actorKind": "agent"`, which the TypeScript server stamps on MCP calls; the other languages
 round-trip it as extra metadata until they stamp it themselves.
 
+The shared catalog gains `CONFIRMATION_REQUIRED` and `CONFIRMATION_DECLINED`, for servers that
+enforce `confirmPrompt` (`command-metadata.md`, "Confirmations"). Enforcement is opt-in and off by
+default, so no existing result changes. Python and Rust gain the `destructive`, `confirm_prompt`
+and `undoable` command fields.
+
 The first versioned contract. It covers:
 
 - the six fixtures in `wire/`: minimal, full and failed `CommandResult`, `BatchResult`,
@@ -76,7 +81,7 @@ The first versioned contract. It covers:
 - the 34 cases of the todo conformance suite;
 - command input validation in `validation.md`, with 34 cases and 130 tests in
   `vectors/validation.json`. Its former open questions are settled in `validation.md`;
-- the 42 codes of the shared error-code catalog in `error-codes.md` and
+- the 44 codes of the shared error-code catalog in `error-codes.md` and
   `vectors/error-codes.json`, and its rules for unknown and unexposed commands (D4).
 
 Every language round-trips the wire fixtures, loads `vectors/pipeline-variables.json`,

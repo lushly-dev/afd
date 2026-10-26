@@ -96,8 +96,8 @@ can call that tool.
 
 ## The shared catalog
 
-42 codes. The first 22 are the original TypeScript `ErrorCodes`; the other 20 are the codes the
-engines emitted without a constant.
+44 codes. The first 22 are the original TypeScript `ErrorCodes`; the next 20 are the codes the
+engines emitted without a constant; the last 2 are the confirmation codes.
 
 ### Validation
 
@@ -196,6 +196,16 @@ engines emitted without a constant.
 | `STREAM_ENDED_UNEXPECTEDLY` | `consumeStream` saw the stream end without a complete or error chunk | Yes | Core executors (stream) |
 | `COMMAND_FAILED` | A streamed command failed without an error of its own | No | Core executors (stream) |
 
+### Confirmations
+
+Emitted only by a server that enforces `confirmPrompt`; see
+[Confirmations](./command-metadata.md#confirmations). No handler ran.
+
+| Code | Meaning | Retryable | Layers |
+| --- | --- | --- | --- |
+| `CONFIRMATION_REQUIRED` | The command declares `confirmPrompt` and the call carried no confirmation the server accepts. The suggestion says how to confirm: repeat the call with `confirm: true`, or use a client that supports elicitation | No | Server engine, router, HTTP layer |
+| `CONFIRMATION_DECLINED` | The user declined or cancelled the confirmation. Do not retry without asking the user | No | Server engine, router |
+
 ## Transport-specific codes
 
 Not in the shared catalog. An implementation with the transport uses these codes; one without it
@@ -228,6 +238,7 @@ does not define them.
 | `STREAM_TRUNCATED` | The connection closed before a complete or error chunk. The command may have run | No | TypeScript |
 | `STREAM_EVENT_TOO_LARGE` | An SSE event exceeded `maxStreamEventSize` | No | TypeScript |
 | `TRANSPORT_ERROR`, `CLIENT_ERROR`, `INVALID_RESULT` | The transport failed, the client failed, or the server's result could not be parsed | No | Python |
+| `INPUT_REQUIRED` | The server answered `input_required` and no elicitation handler was registered. `data.inputRequests` holds what the server asked for | No | Planned: TypeScript, Python |
 
 ### Middleware and telemetry
 

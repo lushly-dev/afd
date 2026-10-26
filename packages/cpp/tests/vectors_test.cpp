@@ -112,6 +112,8 @@ TEST_CASE("error_codes is the shared catalog in spec/vectors/error-codes.json") 
         afd::error_codes::STREAM_ERROR,
         afd::error_codes::STREAM_ENDED_UNEXPECTEDLY,
         afd::error_codes::COMMAND_FAILED,
+        afd::error_codes::CONFIRMATION_REQUIRED,
+        afd::error_codes::CONFIRMATION_DECLINED,
     };
     const afd::Json vectors = load_vectors("error-codes.json");
     CHECK(catalog == vectors.at("codes").get<std::vector<std::string>>());
