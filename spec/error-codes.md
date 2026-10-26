@@ -213,7 +213,7 @@ handler ran.
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
-| `APPROVAL_REQUIRED` | The command's approval policy requires a human's approval and the call carried no valid approval token. `details` holds `approvalToken` (unless the server delivers it elsewhere), `expiresAt`, `summary` and, for a rejected token, `reason`. Retry the same call with the token once a human approved | No | Middleware |
+| `APPROVAL_REQUIRED` | The command's approval policy requires a human's approval and the call carried no valid approval token. `details` holds `approvalToken` (unless the server delivers it elsewhere, the default on MCP), `expiresAt`, `summary` and, for a rejected token or a declined MCP approval, `reason`. Retry the same call with the token once a human approved | No | Middleware |
 
 ## Transport-specific codes
 

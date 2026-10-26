@@ -1,0 +1,5 @@
+---
+"@lushly-dev/afd-server": minor
+---
+
+Relay approvals to the human over MCP (#418). `createApprovalMiddleware` takes `relay: 'mcp-elicitation'` (default `'none'`). With it, a call to a single gated command from an MCP client that declares form elicitation is answered with a form elicitation showing the approval summary: `input_required` on `/mcp` (MCP 2026-07-28), or a server-sent elicitation on a 2025-era stdio connection. The command runs once the human accepts. No approval token is issued on this path. The signed `requestState` binds the command, the validated input, the actor, a single-use nonce and an expiry. A declined form fails with `APPROVAL_REQUIRED`, `details.reason: 'declined'` and `retryable: false`. `afd-batch` and `afd-pipe` steps, and clients that cannot elicit, still get `APPROVAL_REQUIRED`. `includeToken` now defaults to `false` for MCP calls, so the agent never receives the token unless the server opts in. The confirmation and approval elicitations share one `requestState`, so a call that needs both asks for each in turn.

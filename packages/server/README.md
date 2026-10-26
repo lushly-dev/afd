@@ -543,7 +543,7 @@ A held call returns:
 To resume, retry the same command with the same input and `context.approval` set to the token, for example `registry.execute('todo-delete', { id: '42' }, { approval: token })`.
 
 - **The token is the approval.** It is an HMAC-SHA256 over the command name, a keyed digest of the validated input (canonical JSON: sorted keys, so key order and defaults do not matter), a keyed digest of the actor's `kind`, `id` and `onBehalfOf`, an expiry and a random nonce. Tampered, expired, other-command, other-input and other-actor tokens are rejected, using constant-time comparisons; the new result's `details.reason` says why (which also tells a token's holder that its signature is valid).
-- **Only trusted code sets `context.approval`**, after a human approved: a surface such as `createContext(req)` or the application, never tool arguments. Whoever holds a token can use it, and the `APPROVAL_REQUIRED` result goes to the caller. Over MCP the agent cannot set the context, so it cannot use the token itself; where the gated caller could, set `includeToken: false` and deliver the token to the human through `onApprovalRequired` instead.
+- **Only trusted code sets `context.approval`**, after a human approved: a surface such as `createContext(req)` or the application, never tool arguments. Whoever holds a token can use it, and the `APPROVAL_REQUIRED` result goes to the caller. So `includeToken` defaults to `false` for MCP calls (`context.interface === 'mcp'`), whose caller is the agent: deliver the token to the human through `onApprovalRequired`. Elsewhere it defaults to `true`; set it explicitly to override either default.
 - **Plain JSON input only.** A validated input holding a `Map`, `Set`, `RegExp`, typed array, class instance, `bigint` or non-finite number cannot be bound without ambiguity, so such a call fails before the handler instead of being held.
 - **Single-use by default.** A token runs the command once (`reason: 'already-used'` after). `replay: 'within-ttl'` lets it run the same call as often as it is presented until it expires, so one approval also covers repeats such as duplicate batch items. Spent tokens are remembered in memory by this middleware instance: share one `nonceStore` (`consume(nonce, expiresAt)` returning `true` only for an unused nonce, atomically) between every instance that uses the secret, across processes or between a server and a `createDirectRegistry`.
 - **Short-lived.** `ttlMs` defaults to 5 minutes, at most 24 hours. Time comes from the `clock` option, else the system clock; never from `context.clock`, which a caller can set.
@@ -554,7 +554,35 @@ To resume, retry the same command with the same input and `context.approval` set
 - **Batches and pipelines** pass one `context.approval` to every step. Retrying a pipeline reruns its ungated steps, and a gated step whose input comes from an earlier step may never match its token, so approve such steps as separate calls.
 - `afd validate` warns (`MISSING_APPROVAL_POLICY`) about `mutation` or `destructive` commands that declare no policy. Declare `approval: 'not-required'` to say a command was considered and needs none.
 
-`spec/command-metadata.md` ("Approvals") is the cross-language contract. The CLI, MCP and DirectClient approval flows are follow-ups (#417, #418, #419).
+#### Asking the human over MCP
+
+Over MCP the caller is the agent, so the human has to be reached some other way. With `relay: 'mcp-elicitation'`, the middleware asks the human behind the MCP client, through a form elicitation, instead of returning a token:
+
+```typescript
+createApprovalMiddleware({ secret, commands, relay: 'mcp-elicitation' });
+```
+
+A call to one gated command (its own tool, `afd-call` or a grouped tool) from a client that declares form elicitation gets an `input_required` result on `/mcp` (MCP 2026-07-28), or a server-sent `elicitation/create` on a 2025-era stdio connection. The form shows the approval summary and one required `approve` checkbox. The client asks its user and retries, and the command runs once:
+
+- the `requestState` verifies (HMAC-signed with `confirmationKey`, bound to the method and the OAuth client id, and valid for 10 minutes);
+- it names this command, validated input and actor (a digest keyed with the approval secret);
+- the approval has not expired (`ttlMs`, on the middleware's clock);
+- the answer is `accept` with `approve: true`;
+- its nonce is unspent (single-use by default; `replay: 'within-ttl'` allows reuse).
+
+No approval token is issued on this path, so the model never sees one. A stale, altered or mismatched state counts as unanswered and the human is asked again. A declined or cancelled form fails the call with `APPROVAL_REQUIRED`, `details.reason: 'declined'` and `retryable: false`. A call that needs both a confirmation and an approval asks for each in turn.
+
+Calls that cannot elicit fail with `APPROVAL_REQUIRED` and no token, as without the relay:
+
+- the client declares no form elicitation;
+- a 2025-era HTTP request, or the legacy `/message` lane, which have no back channel;
+- an `afd-batch` or `afd-pipe` step. Asking mid-run would rerun the earlier steps on the retry, so call the gated command on its own.
+
+Only the first command of a tool call can use the relay: a command that a handler runs cannot elicit.
+
+The relay trusts the MCP client application to put the question to a person. The server cannot tell a human's click from client code that accepts on its own, so the relay is off by default. Leave it off where the agent's own code is the MCP client, for example an `McpClient` whose `onElicitation` answers automatically. Servers with several instances must share `confirmationKey` and `nonceStore`.
+
+`spec/command-metadata.md` ("Approvals") is the cross-language contract. The CLI and DirectClient approval flows are follow-ups (#417, #419).
 
 ### Command Journal and Replay
 

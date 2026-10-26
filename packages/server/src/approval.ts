@@ -18,9 +18,13 @@
  * The MAC is HMAC-SHA256 over `afdap1.<payload>` with the application's secret. The input and
  * actor are keyed digests rather than plain hashes, so a token reveals neither a low-entropy
  * input (such as a record ID) nor the actor ID. Every comparison is constant-time.
+ *
+ * With `relay: 'mcp-elicitation'` (#418), an MCP call that can carry a form elicitation is not
+ * answered with a token at all: the MCP lane asks the human behind the client, and the retry runs
+ * once the signed `requestState` and the human's answer check out (see `approval-relay.ts`).
  */
 
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import type {
 	Actor,
 	ApprovalDecision,
@@ -30,16 +34,25 @@ import type {
 	CommandMiddleware,
 } from '@lushly-dev/afd-core';
 import { ErrorCodes, failure, systemClock } from '@lushly-dev/afd-core';
+import {
+	type ApprovalSecret,
+	actorJson,
+	canonicalJson,
+	createMemoryNonceStore,
+	digest,
+	hmac,
+	safeEqual,
+	toKeys,
+} from './approval-crypto.js';
+import { approvalRelay } from './approval-relay.js';
+
+export { type ApprovalSecret, canonicalJson };
 
 const TOKEN_PREFIX = 'afdap1';
-const MIN_SECRET_BYTES = 32;
 const DEFAULT_TTL_MS = 5 * 60_000;
 const MAX_TTL_MS = 24 * 60 * 60_000;
 /** Longer evidence is rejected unread, so a caller cannot make the server hash megabytes. */
 const MAX_TOKEN_LENGTH = 1024;
-
-/** An HMAC key: a string (UTF-8) or raw bytes, at least 32 bytes long. */
-export type ApprovalSecret = string | Uint8Array;
 
 /** What the middleware reads from a command: its name, approval policy and confirmation prompt. */
 export interface ApprovalCommand {
@@ -125,12 +138,28 @@ export interface ApprovalMiddlewareOptions {
 	summarize?: (command: string, input: unknown, context: CommandContext) => string | undefined;
 
 	/**
-	 * Whether the `APPROVAL_REQUIRED` result carries `details.approvalToken`. Default: `true`,
-	 * which is safe only while the gated caller cannot set `context.approval` itself (true of MCP
-	 * tool calls, whose arguments never reach the context). Set `false` when the caller must not
-	 * hold the token, and deliver it to the approving human through `onApprovalRequired`.
+	 * Whether the `APPROVAL_REQUIRED` result carries `details.approvalToken`. Default: `false`
+	 * for MCP calls (`context.interface === 'mcp'`), whose caller is the agent, and `true`
+	 * elsewhere. Without the token in the result, deliver it to the approving human through
+	 * `onApprovalRequired`. `true` is safe only while the gated caller cannot set
+	 * `context.approval` itself.
 	 */
 	includeToken?: boolean;
+
+	/**
+	 * How an MCP call asks the human. `'none'` (default): it fails with `APPROVAL_REQUIRED`, and
+	 * the application obtains the approval out of band. `'mcp-elicitation'`: a call to a single
+	 * command from an MCP client that declares form elicitation is answered with a form
+	 * elicitation showing the summary, and runs once the human accepts. No token is issued on that
+	 * path. Calls that cannot elicit (no capability, a 2025-era HTTP request, an `afd-batch` or
+	 * `afd-pipe` step) still fail with `APPROVAL_REQUIRED`.
+	 *
+	 * This trusts the MCP client application to show the question to a human: the server cannot
+	 * tell a person's answer from client code that accepts on its own. Leave it off when the
+	 * agent's own code is the MCP client. Servers with several instances must share
+	 * `confirmationKey` (it signs the elicitation state) and `nonceStore`.
+	 */
+	relay?: 'none' | 'mcp-elicitation';
 
 	/** Called for every held call, before the result is returned, for example to notify a human. */
 	onApprovalRequired?: (request: ApprovalRequest) => void | Promise<void>;
@@ -192,7 +221,10 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 	const clock = options.clock ?? systemClock;
 	const singleUse = (options.replay ?? 'single-use') === 'single-use';
 	const memoryStore = options.nonceStore ? undefined : createMemoryNonceStore();
-	const includeToken = options.includeToken !== false;
+	const relayMode = options.relay ?? 'none';
+	if (relayMode !== 'none' && relayMode !== 'mcp-elicitation') {
+		throw new TypeError("Approval relay must be 'none' or 'mcp-elicitation'");
+	}
 
 	const commands = new Map<string, ApprovalCommand>();
 	for (const command of options.commands) {
@@ -276,6 +308,22 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		};
 	}
 
+	/** The binding of a relayed approval, one per key: a keyed digest of the command, input and actor. */
+	function relayBindings(commandName: string, input: string, actor: string): string[] {
+		return keys.map((key) =>
+			hmac(key, `relay\0${canonicalJson([commandName, input, actor])}`).toString('base64url')
+		);
+	}
+
+	/** Spend a single-use nonce; `true` when it was fresh (or reuse is allowed). */
+	async function spend(nonce: string, expiresAt: number, now: number): Promise<boolean> {
+		if (!singleUse) return true;
+		// Only an explicit `true` from the store counts as fresh.
+		return memoryStore
+			? memoryStore.consume(nonce, expiresAt, now)
+			: (await options.nonceStore?.consume(nonce, expiresAt)) === true;
+	}
+
 	function sign(payload: TokenPayload): string {
 		const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
 		const signingInput = `${TOKEN_PREFIX}.${encodedPayload}`;
@@ -283,6 +331,12 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 	}
 
 	return async (commandName, input, context, next) => {
+		// Claimed by the first command of the tool call, gated or not, so a command that runs
+		// inside another (or after it) cannot turn the tool call into an elicitation.
+		const relay =
+			relayMode === 'mcp-elicitation' && approvalRelay(context)?.claim()
+				? approvalRelay(context)
+				: undefined;
 		const command = commands.get(commandName);
 		if (!(await requiresApproval(command, input, context))) return next();
 
@@ -294,26 +348,60 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		if (context.approval !== undefined) {
 			const verdict = verify(context.approval, commandName, inputBinding, actorBinding, now);
 			if (verdict.ok) {
-				// Only an explicit `true` from the store counts as fresh.
-				const fresh =
-					!singleUse ||
-					(memoryStore
-						? memoryStore.consume(verdict.nonce, verdict.expiresAt, now)
-						: (await options.nonceStore?.consume(verdict.nonce, verdict.expiresAt)) === true);
-				if (fresh) return next();
+				if (await spend(verdict.nonce, verdict.expiresAt, now)) return next();
 				rejected = 'already-used';
 			} else {
 				rejected = verdict.reason;
 			}
 		}
 
-		const payload = issue(commandName, inputBinding, actorBinding, now);
-		const approvalToken = sign(payload);
-		const expiresAt = new Date(payload.exp).toISOString();
 		const summary =
 			options.summarize?.(commandName, input, context) ||
 			command?.confirmPrompt ||
 			`Run ${commandName}`;
+
+		if (relay) {
+			const bindings = relayBindings(commandName, inputBinding, actorBinding);
+			const answer = await relay.answer(bindings);
+			if (answer.kind === 'decline') {
+				return failure({
+					code: ErrorCodes.APPROVAL_REQUIRED,
+					message: `The user did not approve ${commandName}`,
+					suggestion:
+						'Do not run this again without asking the user first; the user chose not to approve it.',
+					retryable: false,
+					details: { summary, reason: 'declined' },
+				});
+			}
+			// An expired or already spent approval is asked again.
+			if (
+				answer.kind === 'accept' &&
+				now < answer.expiresAt &&
+				(await spend(answer.nonce, answer.expiresAt, now))
+			) {
+				return next();
+			}
+			const expiresAt = now + ttlMs;
+			relay.hold({
+				binding: bindings[0] as string,
+				nonce: randomBytes(16).toString('base64url'),
+				expiresAt,
+				summary,
+			});
+			// The lane answers with the elicitation instead; this result is never sent.
+			return failure({
+				code: ErrorCodes.APPROVAL_REQUIRED,
+				message: `${commandName} needs approval before it runs`,
+				suggestion: `Wait for the user to approve "${summary}" in the client.`,
+				retryable: false,
+				details: { expiresAt: new Date(expiresAt).toISOString(), summary },
+			});
+		}
+
+		const payload = issue(commandName, inputBinding, actorBinding, now);
+		const approvalToken = sign(payload);
+		const expiresAt = new Date(payload.exp).toISOString();
+		const includeToken = options.includeToken ?? context.interface !== 'mcp';
 
 		await options.onApprovalRequired?.({
 			command: commandName,
@@ -330,7 +418,9 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		// caller must not resubmit it on its own, and tool arguments cannot carry it.
 		const retry = includeToken
 			? `once they approve, the application retries the same call with the same input and details.approvalToken as its approval evidence (tool arguments cannot carry it). The token expires at ${expiresAt}${singleUse ? ' and works once' : ''}.`
-			: 'the application retries the same call once it has recorded the approval.';
+			: relayMode === 'mcp-elicitation' && context.interface === 'mcp'
+				? `the client could not be asked here. Call ${commandName} on its own (not in afd-batch or afd-pipe) from an MCP client that supports form elicitation, or the application records the approval and retries.`
+				: 'the application retries the same call once it has recorded the approval.';
 		return failure({
 			code: ErrorCodes.APPROVAL_REQUIRED,
 			message: `${commandName} needs approval before it runs`,
@@ -346,106 +436,6 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 	};
 }
 
-/**
- * Stable JSON for binding a token to an input: object keys sorted at every depth, otherwise the
- * `JSON.stringify` rules (`toJSON` is honoured, so a `Date` is its ISO string; `undefined`
- * members are dropped, and `undefined` in an array is `null`).
- *
- * It fails closed rather than collide: only plain objects, arrays, strings, finite numbers,
- * booleans, `null` and values with `toJSON` are accepted. A `bigint`, a non-finite number, a
- * cycle, or an object of any other kind (`Map`, `Set`, `RegExp`, typed arrays, class
- * instances) throws, so a call whose validated input holds one cannot be approved.
- *
- * @throws TypeError for a value it cannot encode without ambiguity
- */
-export function canonicalJson(value: unknown): string {
-	const ancestors = new Set<object>();
-
-	function encode(raw: unknown): string | undefined {
-		let value = raw;
-		if (value !== null && typeof value === 'object' && 'toJSON' in value) {
-			const toJSON = (value as { toJSON: unknown }).toJSON;
-			if (typeof toJSON === 'function') value = toJSON.call(value);
-		}
-		switch (typeof value) {
-			case 'string':
-			case 'boolean':
-				return JSON.stringify(value);
-			case 'number':
-				if (!Number.isFinite(value)) {
-					throw new TypeError('Cannot bind an approval to a non-finite number');
-				}
-				return JSON.stringify(value);
-			case 'bigint':
-				throw new TypeError('Cannot bind an approval to a bigint');
-			case 'undefined':
-			case 'function':
-			case 'symbol':
-				return undefined;
-		}
-		if (value === null) return 'null';
-
-		const object = value as object;
-		if (ancestors.has(object)) throw new TypeError('Cannot bind an approval to a cyclic input');
-		ancestors.add(object);
-		try {
-			if (Array.isArray(object)) {
-				return `[${object.map((item) => encode(item) ?? 'null').join(',')}]`;
-			}
-			const prototype = Object.getPrototypeOf(object);
-			if (prototype !== Object.prototype && prototype !== null) {
-				const kind = object.constructor?.name ?? 'object';
-				throw new TypeError(`Cannot bind an approval to a ${kind}: use plain JSON input`);
-			}
-			const members: string[] = [];
-			for (const key of Object.keys(object).sort()) {
-				const member = encode((object as Record<string, unknown>)[key]);
-				if (member !== undefined) members.push(`${JSON.stringify(key)}:${member}`);
-			}
-			return `{${members.join(',')}}`;
-		} finally {
-			ancestors.delete(object);
-		}
-	}
-
-	return encode(value) ?? 'null';
-}
-
-/** The actor fields a token is bound to. `label` is display text, so it is left out. */
-function actorJson(actor: Actor | undefined): string {
-	if (!actor) return 'null';
-	return canonicalJson({ kind: actor.kind, id: actor.id, onBehalfOf: actor.onBehalfOf });
-}
-
-function toKeys(secret: ApprovalMiddlewareOptions['secret'] | undefined): Buffer[] {
-	const secrets: readonly unknown[] = Array.isArray(secret) ? secret : [secret];
-	if (secrets.length === 0) throw new TypeError('Approval secret is required');
-	return secrets.map((candidate) => {
-		if (typeof candidate !== 'string' && !(candidate instanceof Uint8Array)) {
-			throw new TypeError('Approval secret is required: pass a string or Uint8Array');
-		}
-		const key = Buffer.from(candidate);
-		if (key.length < MIN_SECRET_BYTES) {
-			throw new TypeError(`Approval secret must be at least ${MIN_SECRET_BYTES} bytes`);
-		}
-		return key;
-	});
-}
-
-function hmac(key: Buffer, data: string): Buffer {
-	return createHmac('sha256', key).update(data).digest();
-}
-
-/** A keyed digest; `purpose` keeps an input digest from ever matching an actor digest. */
-function digest(key: Buffer, purpose: 'input' | 'actor', value: string): Buffer {
-	return hmac(key, `${purpose}\0${value}`);
-}
-
-/** Constant-time equality. Lengths are not secret (every digest here is 32 bytes). */
-function safeEqual(a: Buffer, b: Buffer): boolean {
-	return a.length === b.length && timingSafeEqual(a, b);
-}
-
 function parsePayload(encoded: string): TokenPayload | undefined {
 	let value: unknown;
 	try {
@@ -458,19 +448,4 @@ function parsePayload(encoded: string): TokenPayload | undefined {
 	const strings = ['c', 'i', 'a', 'n'].every((field) => typeof payload[field] === 'string');
 	const times = ['iat', 'exp'].every((field) => Number.isFinite(payload[field]));
 	return strings && times ? (payload as unknown as TokenPayload) : undefined;
-}
-
-/** In-memory single-use nonces, forgotten once their token has expired. */
-function createMemoryNonceStore() {
-	const used = new Map<string, number>();
-	return {
-		consume(nonce: string, expiresAt: number, now: number): boolean {
-			for (const [spent, until] of used) {
-				if (until <= now) used.delete(spent);
-			}
-			if (used.has(nonce)) return false;
-			used.set(nonce, expiresAt);
-			return true;
-		},
-	};
 }

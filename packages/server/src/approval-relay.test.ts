@@ -1,0 +1,746 @@
+/**
+ * The MCP approval relay (#418): `createApprovalMiddleware({ relay: 'mcp-elicitation' })` asks the
+ * human behind the MCP client through a form elicitation, and an agent cannot approve its own call.
+ */
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import { success } from '@lushly-dev/afd-core';
+import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
+import { InMemoryTransport } from '@modelcontextprotocol/server';
+import { afterEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
+import {
+	type ApprovalMiddlewareOptions,
+	type ApprovalRequest,
+	createApprovalMiddleware,
+} from './approval.js';
+import {
+	type ApprovalAnswer,
+	type ApprovalHold,
+	approvalRelay,
+	bindApprovalRelay,
+	withoutApprovalRelay,
+} from './approval-relay.js';
+import { defineCommand } from './schema.js';
+import { createMcpHandler } from './server.js';
+import type { McpHandlerOptions } from './server-types.js';
+
+const MODERN = '2026-07-28';
+const SECRET = 'test-approval-secret-0123456789abcdef';
+const TTL_MS = 60_000;
+
+const cleanups: Array<() => Promise<void>> = [];
+afterEach(async () => {
+	await Promise.all(cleanups.splice(0).map((cleanup) => cleanup()));
+});
+
+function commands(calls: string[]) {
+	return [
+		defineCommand({
+			name: 'todo-delete',
+			description: 'Delete a todo permanently',
+			mutation: true,
+			destructive: true,
+			approval: 'required',
+			expose: { mcp: true },
+			// Not strict: unknown arguments are stripped by validation.
+			input: z.object({ id: z.number() }),
+			handler: async (input) => {
+				calls.push(`delete:${input.id}`);
+				return success({ deleted: input.id });
+			},
+		}),
+		defineCommand({
+			name: 'todo-delete-strict',
+			description: 'Delete, with a strict schema',
+			mutation: true,
+			approval: 'required',
+			expose: { mcp: true },
+			input: z.object({ id: z.number() }).strict(),
+			handler: async (input) => {
+				calls.push(`strict:${input.id}`);
+				return success({ deleted: input.id });
+			},
+		}),
+		defineCommand({
+			name: 'todo-clear',
+			description: 'Delete every todo',
+			mutation: true,
+			destructive: true,
+			confirmPrompt: 'Delete every todo?',
+			approval: 'required',
+			expose: { mcp: true },
+			input: z.object({}),
+			handler: async () => {
+				calls.push('clear');
+				return success({ cleared: true });
+			},
+		}),
+		defineCommand({
+			name: 'todo-list',
+			description: 'List todos',
+			expose: { mcp: true },
+			input: z.object({}),
+			handler: async () => {
+				calls.push('list');
+				return success([]);
+			},
+		}),
+	];
+}
+
+interface Setup {
+	middleware?: Partial<ApprovalMiddlewareOptions>;
+	server?: Partial<McpHandlerOptions>;
+}
+
+/** A clock the tests move: approvals expire on the middleware's clock. */
+function movableClock() {
+	let now = Date.parse('2026-10-26T12:00:00.000Z');
+	return {
+		now: () => now,
+		advance(ms: number) {
+			now += ms;
+		},
+	};
+}
+
+async function serve(setup: Setup = {}) {
+	const calls: string[] = [];
+	const requests: ApprovalRequest[] = [];
+	const clock = movableClock();
+	const list = commands(calls);
+	const handler = createMcpHandler({
+		name: 'approval-relay-test',
+		version: '1.0.0',
+		commands: list,
+		host: '127.0.0.1',
+		toolStrategy: 'individual',
+		middleware: [
+			createApprovalMiddleware({
+				secret: SECRET,
+				commands: list,
+				ttlMs: TTL_MS,
+				clock,
+				relay: 'mcp-elicitation',
+				onApprovalRequired: (request) => {
+					requests.push(request);
+				},
+				...setup.middleware,
+			}),
+		],
+		...setup.server,
+	});
+	const server = createServer(handler);
+	await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+	cleanups.push(async () => {
+		handler.dispose();
+		server.closeAllConnections();
+		await new Promise<void>((resolve) => server.close(() => resolve()));
+	});
+	const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+	return { url: `${base}/mcp`, calls, requests, clock };
+}
+
+type Answer = 'accept' | 'decline' | 'cancel' | 'unchecked';
+
+/**
+ * An MCP client whose human answers every elicitation with `answer` (no elicitation capability
+ * when `answer` is left out). `prompts` records each question with its form fields.
+ */
+async function connect(
+	url: string,
+	answer?: Answer,
+	prompts: string[] = [],
+	mode: 'auto' | 'legacy' = 'auto'
+) {
+	const client = new Client(
+		{ name: 'relay-client', version: '0' },
+		{
+			versionNegotiation: { mode },
+			...(answer && { capabilities: { elicitation: { form: {} } } }),
+		}
+	);
+	if (answer) {
+		client.setRequestHandler('elicitation/create', async (request) => {
+			const params = request.params as {
+				message?: string;
+				requestedSchema?: { properties?: Record<string, unknown> };
+			};
+			const field = Object.keys(params.requestedSchema?.properties ?? {})[0] ?? '';
+			prompts.push(`${field}: ${params.message}`);
+			if (answer === 'accept') return { action: 'accept', content: { [field]: true } };
+			if (answer === 'unchecked') return { action: 'accept', content: { [field]: false } };
+			return { action: answer };
+		});
+	}
+	await client.connect(new StreamableHTTPClientTransport(new URL(url)));
+	cleanups.push(() => client.close());
+	return client;
+}
+
+function body(result: unknown): Record<string, unknown> {
+	const content = (result as { content: Array<{ text: string }> }).content;
+	return JSON.parse(content[0]?.text ?? '{}');
+}
+
+function error(result: unknown) {
+	return body(result).error as
+		| { code: string; suggestion: string; retryable?: boolean; details?: Record<string, unknown> }
+		| undefined;
+}
+
+async function post(url: string, payload: unknown, headers: Record<string, string> = {}) {
+	const response = await fetch(url, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			Accept: 'application/json, text/event-stream',
+			...headers,
+		},
+		body: JSON.stringify(payload),
+	});
+	const text = await response.text();
+	const data = /^data: (.*)$/m.exec(text)?.[1];
+	return JSON.parse(data ?? text) as { result?: Record<string, unknown>; error?: unknown };
+}
+
+/** Raw modern `tools/call`s from a client that declares form elicitation. */
+function rawCaller(url: string) {
+	let id = 0;
+	return (tool: string, args: object, extra: object = {}, meta: object = {}) =>
+		post(
+			url,
+			{
+				jsonrpc: '2.0',
+				id: ++id,
+				method: 'tools/call',
+				params: {
+					name: tool,
+					arguments: args,
+					_meta: {
+						'io.modelcontextprotocol/protocolVersion': MODERN,
+						'io.modelcontextprotocol/clientCapabilities': { elicitation: {} },
+						'io.modelcontextprotocol/clientInfo': { name: 'raw', version: '0' },
+						...meta,
+					},
+					...extra,
+				},
+			},
+			{ 'MCP-Protocol-Version': MODERN, 'Mcp-Method': 'tools/call', 'Mcp-Name': tool }
+		);
+}
+
+const approved = { approval: { action: 'accept', content: { approve: true } } };
+
+interface StatePayload {
+	p: Array<Record<string, unknown>>;
+	a: Array<Record<string, unknown>>;
+}
+
+/** Re-encode a `requestState` with an edited payload, keeping its original MAC. */
+function editState(state: string, edit: (payload: StatePayload) => StatePayload): string {
+	const dot = state.lastIndexOf('.');
+	const prefix = state.slice(0, 3);
+	const envelope = JSON.parse(Buffer.from(state.slice(3, dot), 'base64url').toString('utf8'));
+	const body = Buffer.from(JSON.stringify({ ...envelope, p: edit(envelope.p) })).toString(
+		'base64url'
+	);
+	return `${prefix}${body}${state.slice(dot)}`;
+}
+
+function asked(response: { result?: Record<string, unknown> }) {
+	const result = response.result as {
+		resultType?: string;
+		requestState?: string;
+		inputRequests?: Record<string, { params?: { message?: string } }>;
+	};
+	return result;
+}
+
+describe('approval relay over MCP', () => {
+	it('asks the human through the client and runs the call once they approve', async () => {
+		const { url, calls, requests } = await serve();
+		const prompts: string[] = [];
+		const client = await connect(url, 'accept', prompts);
+		const result = await client.callTool({ name: 'todo-delete', arguments: { id: 7 } });
+		expect(body(result)).toMatchObject({ success: true, data: { deleted: 7 } });
+		expect(prompts).toEqual(['approve: Run todo-delete']);
+		expect(calls).toEqual(['delete:7']);
+		// No token was issued on the relay path.
+		expect(requests).toEqual([]);
+	});
+
+	it('never puts an approval token on the wire', async () => {
+		const { url } = await serve();
+		const first = await rawCaller(url)('todo-delete', { id: 1 });
+		const text = JSON.stringify(first);
+		expect(asked(first).resultType).toBe('input_required');
+		expect(asked(first).inputRequests?.approval?.params?.message).toBe('Run todo-delete');
+		expect(text).not.toContain('afdap1');
+	});
+
+	it.each(['decline', 'cancel', 'unchecked'] as const)(
+		'fails without running when the human answers %s',
+		async (answer) => {
+			const { url, calls } = await serve();
+			const client = await connect(url, answer);
+			const result = await client.callTool({ name: 'todo-delete', arguments: { id: 7 } });
+			expect(error(result)).toMatchObject({
+				code: 'APPROVAL_REQUIRED',
+				retryable: false,
+				details: { reason: 'declined', summary: 'Run todo-delete' },
+			});
+			expect(error(result)?.details).not.toHaveProperty('approvalToken');
+			expect(calls).toEqual([]);
+		}
+	);
+
+	it('asks for the confirmation, then the approval, keeping the first answer', async () => {
+		const { url, calls } = await serve({ server: { confirmations: 'require-human' } });
+		const prompts: string[] = [];
+		const client = await connect(url, 'accept', prompts);
+		const result = await client.callTool({ name: 'todo-clear', arguments: {} });
+		expect(body(result)).toMatchObject({ success: true });
+		expect(prompts).toEqual(['confirm: Delete every todo?', 'approve: Delete every todo?']);
+		expect(calls).toEqual(['clear']);
+	});
+
+	it('elicits on a 2025-era stdio connection through the SDK shim', async () => {
+		const calls: string[] = [];
+		const list = commands(calls);
+		const { serveModernStdio } = await import('./mcp-modern.js');
+		const { createToolRouter } = await import('./tool-router.js');
+		const { createExecutionEngine } = await import('./execution.js');
+		const { getToolsList } = await import('./tools.js');
+		const engine = createExecutionEngine({
+			commandMap: new Map(list.map((command) => [command.name, command])),
+			middleware: [
+				createApprovalMiddleware({ secret: SECRET, commands: list, relay: 'mcp-elicitation' }),
+			],
+			devMode: false,
+		});
+		const routeToolCall = createToolRouter({
+			executeCommand: engine.executeCommand,
+			executeBatch: engine.executeBatch,
+			executePipeline: engine.executePipeline,
+			commands: list,
+			toolStrategy: 'individual',
+			devMode: false,
+		});
+		const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+		const handle = serveModernStdio(
+			{
+				name: 'stdio-approval',
+				version: '1.0.0',
+				instructions: '',
+				getToolsList: () => getToolsList(list, 'individual', undefined, undefined, {}),
+				routeToolCall,
+				devMode: false,
+			},
+			undefined,
+			serverSide
+		);
+		const prompts: string[] = [];
+		const client = new Client(
+			{ name: 'legacy', version: '0' },
+			{ capabilities: { elicitation: { form: {} } } }
+		);
+		client.setRequestHandler('elicitation/create', async (request) => {
+			prompts.push(String((request.params as { message?: string }).message));
+			return { action: 'accept', content: { approve: true } };
+		});
+		await client.connect(clientSide);
+		cleanups.push(async () => {
+			await client.close();
+			await handle.close();
+		});
+		expect(client.getProtocolEra()).toBe('legacy');
+		const result = await client.callTool({ name: 'todo-delete', arguments: { id: 3 } });
+		expect(body(result)).toMatchObject({ success: true });
+		expect(prompts).toEqual(['Run todo-delete']);
+		expect(calls).toEqual(['delete:3']);
+	});
+
+	describe('falls back to APPROVAL_REQUIRED without a token', () => {
+		it('when the client declares no elicitation', async () => {
+			const { url, calls, requests } = await serve();
+			const client = await connect(url);
+			const result = await client.callTool({ name: 'todo-delete', arguments: { id: 7 } });
+			expect(error(result)?.code).toBe('APPROVAL_REQUIRED');
+			expect(error(result)?.details).not.toHaveProperty('approvalToken');
+			expect(error(result)?.suggestion).toContain('supports form elicitation');
+			// The application still receives the token, out of band.
+			expect(requests).toHaveLength(1);
+			expect(requests[0]?.approvalToken).toMatch(/^afdap1\./);
+			expect(calls).toEqual([]);
+		});
+
+		it('on a 2025-era HTTP request, which has no back channel', async () => {
+			const { url, calls } = await serve();
+			const client = await connect(url, 'accept', [], 'legacy');
+			expect(client.getProtocolEra()).toBe('legacy');
+			const result = await client.callTool({ name: 'todo-delete', arguments: { id: 7 } });
+			expect(error(result)?.code).toBe('APPROVAL_REQUIRED');
+			expect(error(result)?.details).not.toHaveProperty('approvalToken');
+			expect(calls).toEqual([]);
+		});
+
+		it('when the relay is off', async () => {
+			const { url, calls } = await serve({ middleware: { relay: 'none' } });
+			const prompts: string[] = [];
+			const client = await connect(url, 'accept', prompts);
+			const result = await client.callTool({ name: 'todo-delete', arguments: { id: 7 } });
+			expect(error(result)?.code).toBe('APPROVAL_REQUIRED');
+			expect(error(result)?.details).not.toHaveProperty('approvalToken');
+			expect(prompts).toEqual([]);
+			expect(calls).toEqual([]);
+		});
+
+		it('for afd-batch and afd-pipe steps, without running earlier steps twice', async () => {
+			const { url, calls } = await serve();
+			const prompts: string[] = [];
+			const client = await connect(url, 'accept', prompts);
+			const batch = await client.callTool({
+				name: 'afd-batch',
+				arguments: {
+					commands: [
+						{ command: 'todo-list', input: {} },
+						{ command: 'todo-delete', input: { id: 1 } },
+					],
+				},
+			});
+			const results = body(batch).results as Array<{ result: CommandResult }>;
+			expect(results[1]?.result.error?.code).toBe('APPROVAL_REQUIRED');
+			expect(results[1]?.result.error?.details).not.toHaveProperty('approvalToken');
+			expect(results[1]?.result.error?.suggestion).toContain('not in afd-batch or afd-pipe');
+
+			// A gated first step would claim the relay if steps could: it must not.
+			const gatedFirst = await client.callTool({
+				name: 'afd-batch',
+				arguments: {
+					commands: [
+						{ command: 'todo-delete', input: { id: 2 } },
+						{ command: 'todo-list', input: {} },
+					],
+				},
+			});
+			const gatedResults = body(gatedFirst).results as Array<{ result: CommandResult }>;
+			expect(gatedResults[0]?.result.error?.code).toBe('APPROVAL_REQUIRED');
+
+			const pipe = await client.callTool({
+				name: 'afd-pipe',
+				arguments: {
+					steps: [{ command: 'todo-list' }, { command: 'todo-delete', input: { id: 1 } }],
+				},
+			});
+			const steps = body(pipe).steps as Array<{ error?: { code: string } }>;
+			expect(steps[1]?.error?.code).toBe('APPROVAL_REQUIRED');
+			const gatedPipe = await client.callTool({
+				name: 'afd-pipe',
+				arguments: { steps: [{ command: 'todo-delete', input: { id: 2 } }] },
+			});
+			expect((body(gatedPipe).steps as Array<{ error?: { code: string } }>)[0]?.error?.code).toBe(
+				'APPROVAL_REQUIRED'
+			);
+			expect(prompts).toEqual([]);
+			expect(calls).toEqual(['list', 'list', 'list']);
+		});
+
+		it('keeps the token in the result when includeToken is set explicitly', async () => {
+			const { url } = await serve({ middleware: { includeToken: true } });
+			const client = await connect(url);
+			const result = await client.callTool({ name: 'todo-delete', arguments: { id: 7 } });
+			expect(error(result)?.details?.approvalToken).toMatch(/^afdap1\./);
+		});
+	});
+
+	describe('an agent cannot approve its own call', () => {
+		it('ignores approval fields and a valid token in the tool arguments', async () => {
+			const { url, calls, requests } = await serve();
+			const client = await connect(url);
+			await client.callTool({ name: 'todo-delete', arguments: { id: 7 } });
+			const token = requests[0]?.approvalToken as string;
+			expect(token).toMatch(/^afdap1\./);
+
+			const smuggled = {
+				id: 7,
+				approval: token,
+				approvalToken: token,
+				approve: true,
+				confirm: true,
+				_meta: { 'dev.afd/approval': token },
+			};
+			const loose = await client.callTool({ name: 'todo-delete', arguments: smuggled });
+			expect(error(loose)?.code).toBe('APPROVAL_REQUIRED');
+			const viaCall = await client.callTool({
+				name: 'afd-call',
+				arguments: { command: 'todo-delete', input: smuggled, confirm: true },
+			});
+			expect(error(viaCall)?.code).toBe('APPROVAL_REQUIRED');
+			const strict = await client.callTool({
+				name: 'todo-delete-strict',
+				arguments: { id: 7, approval: token },
+			});
+			expect(error(strict)?.code).toBe('VALIDATION_ERROR');
+			expect(calls).toEqual([]);
+		});
+
+		it('ignores approval keys and the confirm acknowledgement in request _meta', async () => {
+			const { url, calls } = await serve();
+			const call = rawCaller(url);
+			const response = await call(
+				'todo-delete',
+				{ id: 7 },
+				{},
+				{ 'dev.afd/confirm': true, 'dev.afd/approval': true, 'dev.afd/approve': true }
+			);
+			expect(asked(response).resultType).toBe('input_required');
+			expect(calls).toEqual([]);
+		});
+
+		it('does not accept an approval answer without a valid requestState', async () => {
+			const { url, calls } = await serve();
+			const call = rawCaller(url);
+			const first = asked(await call('todo-delete', { id: 7 }));
+			const state = first.requestState as string;
+
+			const none = await call('todo-delete', { id: 7 }, { inputResponses: approved });
+			expect(asked(none).resultType).toBe('input_required');
+			const tampered = await call(
+				'todo-delete',
+				{ id: 7 },
+				{ inputResponses: approved, requestState: `${state.slice(0, -2)}xx` }
+			);
+			expect(asked(tampered).resultType).toBe('input_required');
+			// The state is readable, not writable: marking the approval accepted, or extending its
+			// expiry, breaks the MAC.
+			const promoted = await call(
+				'todo-delete',
+				{ id: 7 },
+				{ requestState: editState(state, (payload) => ({ p: [], a: payload.p })) }
+			);
+			expect(asked(promoted).resultType).toBe('input_required');
+			const extended = await call(
+				'todo-delete',
+				{ id: 7 },
+				{
+					inputResponses: approved,
+					requestState: editState(state, (payload) => ({
+						...payload,
+						p: payload.p.map((item) => ({ ...item, x: Number.MAX_SAFE_INTEGER })),
+					})),
+				}
+			);
+			expect(asked(extended).resultType).toBe('input_required');
+			expect(calls).toEqual([]);
+
+			const genuine = await call(
+				'todo-delete',
+				{ id: 7 },
+				{ inputResponses: approved, requestState: state }
+			);
+			expect((genuine.result as { isError?: boolean }).isError).toBe(false);
+			expect(calls).toEqual(['delete:7']);
+		});
+
+		it('does not reuse an approval for another input or another command', async () => {
+			const { url, calls } = await serve();
+			const call = rawCaller(url);
+			const state = asked(await call('todo-delete', { id: 7 })).requestState as string;
+			const other = await call(
+				'todo-delete',
+				{ id: 8 },
+				{ inputResponses: approved, requestState: state }
+			);
+			expect(asked(other).resultType).toBe('input_required');
+			const otherCommand = await call(
+				'todo-delete-strict',
+				{ id: 7 },
+				{ inputResponses: approved, requestState: state }
+			);
+			expect(asked(otherCommand).resultType).toBe('input_required');
+			expect(calls).toEqual([]);
+		});
+
+		it('does not replay an approved requestState: an approval runs the call once', async () => {
+			const { url, calls } = await serve();
+			const call = rawCaller(url);
+			const state = asked(await call('todo-delete', { id: 7 })).requestState as string;
+			const retry = { inputResponses: approved, requestState: state };
+			const first = await call('todo-delete', { id: 7 }, retry);
+			expect((first.result as { isError?: boolean }).isError).toBe(false);
+			const replay = await call('todo-delete', { id: 7 }, retry);
+			expect(asked(replay).resultType).toBe('input_required');
+			expect(calls).toEqual(['delete:7']);
+		});
+
+		it('does not take a confirmation answer as an approval', async () => {
+			const { url, calls } = await serve({ server: { confirmations: 'require-human' } });
+			const call = rawCaller(url);
+			const confirmState = asked(await call('todo-clear', {})).requestState as string;
+			// The confirmation's state, answered under the approval key, is not an approval: the
+			// confirmation is still unanswered, so it is asked again.
+			const swapped = await call(
+				'todo-clear',
+				{},
+				{ inputResponses: approved, requestState: confirmState }
+			);
+			expect(asked(swapped).inputRequests).toHaveProperty('confirm');
+			// Confirmed: now the approval is asked, and a confirm answer does not satisfy it.
+			const confirmed = asked(
+				await call(
+					'todo-clear',
+					{},
+					{
+						inputResponses: { confirm: { action: 'accept', content: { confirm: true } } },
+						requestState: confirmState,
+					}
+				)
+			);
+			expect(confirmed.inputRequests).toHaveProperty('approval');
+			const wrongField = await call(
+				'todo-clear',
+				{},
+				{
+					inputResponses: { approval: { action: 'accept', content: { confirm: true } } },
+					requestState: confirmed.requestState,
+				}
+			);
+			expect(error(wrongField.result)?.details).toMatchObject({ reason: 'declined' });
+			expect(calls).toEqual([]);
+		});
+
+		it('asks again when the approval expired before the answer came back', async () => {
+			const { url, calls, clock } = await serve();
+			const call = rawCaller(url);
+			const state = asked(await call('todo-delete', { id: 7 })).requestState as string;
+			clock.advance(TTL_MS);
+			const late = await call(
+				'todo-delete',
+				{ id: 7 },
+				{ inputResponses: approved, requestState: state }
+			);
+			expect(asked(late).resultType).toBe('input_required');
+			const fresh = asked(late).requestState as string;
+			const onTime = await call(
+				'todo-delete',
+				{ id: 7 },
+				{ inputResponses: approved, requestState: fresh }
+			);
+			expect((onTime.result as { isError?: boolean }).isError).toBe(false);
+			expect(calls).toEqual(['delete:7']);
+		});
+	});
+});
+
+describe('approval middleware with a relay', () => {
+	const remove = {
+		name: 'todo-delete',
+		approval: 'required' as const,
+	};
+
+	/** A relay that records holds and answers `answer` for the bindings it was asked about. */
+	function fakeRelay(answer: (bindings: readonly string[]) => ApprovalAnswer) {
+		let claimed = false;
+		const holds: ApprovalHold[] = [];
+		const asked: string[][] = [];
+		return {
+			holds,
+			asked,
+			relay: {
+				claim() {
+					if (claimed) return false;
+					claimed = true;
+					return true;
+				},
+				answer: async (bindings: readonly string[]) => {
+					asked.push([...bindings]);
+					return answer(bindings);
+				},
+				hold: (hold: ApprovalHold) => void holds.push(hold),
+			},
+		};
+	}
+
+	const ran = (): Promise<CommandResult> => Promise.resolve(success('ran'));
+
+	it('gives the relay only to the first command of a tool call', async () => {
+		const middleware = createApprovalMiddleware({
+			secret: SECRET,
+			commands: [remove, { name: 'todo-list' }],
+			relay: 'mcp-elicitation',
+		});
+		const fake = fakeRelay(() => ({ kind: 'missing' }));
+		const context: CommandContext = bindApprovalRelay({ interface: 'mcp' }, fake.relay);
+		// An ungated command claims it first, so a gated command it runs cannot elicit.
+		await middleware('todo-list', {}, context, async () =>
+			middleware('todo-delete', { id: 1 }, context, ran)
+		);
+		expect(fake.holds).toEqual([]);
+		expect(fake.asked).toEqual([]);
+	});
+
+	it('answers with a binding per key, and holds with the signing key', async () => {
+		const middleware = createApprovalMiddleware({
+			secret: [SECRET, `${SECRET}-old`],
+			commands: [remove],
+			relay: 'mcp-elicitation',
+		});
+		const fake = fakeRelay(() => ({ kind: 'missing' }));
+		const result = await middleware(
+			'todo-delete',
+			{ id: 1 },
+			bindApprovalRelay({ interface: 'mcp' }, fake.relay),
+			ran
+		);
+		expect(result.error?.code).toBe('APPROVAL_REQUIRED');
+		expect(result.error?.details).not.toHaveProperty('approvalToken');
+		expect(fake.asked[0]).toHaveLength(2);
+		expect(fake.holds[0]?.binding).toBe(fake.asked[0]?.[0]);
+		expect(fake.holds[0]?.nonce).toMatch(/^[\w-]{22}$/);
+	});
+
+	it('runs an approval accepted under a rotated key, once', async () => {
+		const middleware = createApprovalMiddleware({
+			secret: [SECRET, `${SECRET}-old`],
+			commands: [remove],
+			relay: 'mcp-elicitation',
+		});
+		const answer = (bindings: readonly string[]): ApprovalAnswer =>
+			bindings[1]
+				? { kind: 'accept', nonce: 'n-1', expiresAt: Date.now() + 60_000 }
+				: { kind: 'missing' };
+		const first = fakeRelay(answer);
+		const context = bindApprovalRelay({ interface: 'mcp' }, first.relay);
+		expect((await middleware('todo-delete', { id: 1 }, context, ran)).data).toBe('ran');
+		const second = fakeRelay(answer);
+		const replay = await middleware(
+			'todo-delete',
+			{ id: 1 },
+			bindApprovalRelay({ interface: 'mcp' }, second.relay),
+			ran
+		);
+		expect(replay.error?.code).toBe('APPROVAL_REQUIRED');
+		expect(second.holds).toHaveLength(1);
+	});
+
+	it('strips the relay from a context', () => {
+		const fake = fakeRelay(() => ({ kind: 'missing' }));
+		const context = bindApprovalRelay({ interface: 'mcp' }, fake.relay);
+		expect(approvalRelay(context)).toBe(fake.relay);
+		expect(approvalRelay(withoutApprovalRelay(context))).toBeUndefined();
+		expect(approvalRelay({ ...context })).toBe(fake.relay);
+	});
+
+	it('rejects an unknown relay mode', () => {
+		expect(() =>
+			createApprovalMiddleware({
+				secret: SECRET,
+				commands: [remove],
+				relay: 'auto' as never,
+			})
+		).toThrow(TypeError);
+	});
+});
