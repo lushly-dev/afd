@@ -34,6 +34,8 @@ from typing import (
     TypeVar,
 )
 
+from afd.core.actor import Actor, with_context_defaults
+from afd.core.clock import Clock, RandomSource
 from afd.core.result import CommandResult, execution_failure
 
 logger = logging.getLogger("afd.core")
@@ -116,11 +118,26 @@ class CommandContext:
         trace_id: Unique ID for this command invocation.
         timeout: Timeout in milliseconds.
         extra: Additional custom context values.
+        actor: Who is calling: a human, an agent, a service, a script or a
+            test. Filled in by the surface (DirectClient: ``human``; MCP
+            server: ``agent``; testing helpers: ``test``) unless the caller
+            sets it.
+        clock: Source of the current time. Read time from here instead of
+            ``time.time()`` so tests and replays can control it. The MCP
+            server and the core registry always set it (to ``system_clock``
+            unless overridden).
+        random: Source of randomness. Read random numbers from here instead
+            of ``random.random()`` so tests and replays can seed them. Set by
+            the same surfaces as ``clock`` (to ``system_random`` unless
+            overridden).
     """
 
     trace_id: Optional[str] = None
     timeout: Optional[int] = None
     extra: Dict[str, Any] = field(default_factory=dict)
+    actor: Optional[Actor] = None
+    clock: Optional[Clock] = None
+    random: Optional[RandomSource] = None
 
 
 # Type alias for command handler functions
@@ -395,7 +412,8 @@ class _CommandRegistryImpl:
                 ))
 
         try:
-            result = await command.handler(input, context)
+            # Handlers always get a context with a clock and a random source.
+            result = await command.handler(input, with_context_defaults(context))
             return result
         except Exception as exc:
             logger.error("Command '%s' raised an unhandled exception", name, exc_info=exc)

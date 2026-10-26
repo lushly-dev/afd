@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import copy
 import time
 import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
+from afd.core.actor import Actor
 from afd.core.commands import CommandContext, CommandDefinition
 from afd.core.result import CommandResult, error
 from afd.core.similarity import truncate_name
@@ -28,6 +30,11 @@ class ToolRouterDeps:
     all_commands: list[CommandDefinition] | None = None
     exposed_command_names: set[str] | None = None
     context_state: Any = None
+    # The actor of MCP calls; each call gets its own copy.
+    actor: Actor | None = None
+
+_MCP_ACTOR = Actor(kind="agent")
+"""The default actor of a call over MCP."""
 
 
 def new_trace_id(prefix: str) -> str:
@@ -79,6 +86,7 @@ def create_tool_router(deps: ToolRouterDeps):
         return CommandContext(
             trace_id=new_trace_id(prefix),
             extra={"interface": "mcp", "remote": True, "active_context": active_context},
+            actor=copy.copy(deps.actor or _MCP_ACTOR),
         )
 
     def not_in_context(name: str, active_context: str | None) -> CommandResult[Any]:

@@ -20,10 +20,13 @@ from typing import Any, Callable, Dict, Generator, Optional, TypeVar
 import pytest
 
 from afd.core import (
+    Actor,
     CommandContext,
     CommandRegistry,
     CommandResult,
     create_command_registry,
+    system_clock,
+    system_random,
 )
 from afd.transports import MockTransport
 
@@ -44,12 +47,16 @@ def command_context() -> CommandContext:
         ...     assert result.success
     
     Returns:
-        A CommandContext with default values.
+        A CommandContext with default values, the actor ``Actor(kind="test")``
+        and the real clock and random source.
     """
     return CommandContext(
         trace_id="test-trace-001",
         timeout=5000,
         extra={"environment": "test"},
+        actor=Actor(kind="test"),
+        clock=system_clock,
+        random=system_random,
     )
 
 
