@@ -261,7 +261,7 @@ Or via the client SDK:
 ```typescript
 import { McpClient } from '@lushly-dev/afd-client';
 
-const client = new McpClient({ url: 'http://localhost:3100/sse' });
+const client = new McpClient({ url: 'http://localhost:3100/mcp' });
 await client.connect();
 
 const result = await client.batch(
@@ -284,7 +284,7 @@ The `@lushly-dev/afd-core` streaming types enable progress updates for long-runn
 ```typescript
 import { McpClient } from '@lushly-dev/afd-client';
 
-const client = new McpClient({ url: 'http://localhost:3100/sse' });
+const client = new McpClient({ url: 'http://localhost:3100/mcp' });
 await client.connect();
 
 // Stream with progress updates

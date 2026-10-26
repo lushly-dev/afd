@@ -1,6 +1,7 @@
 #include "mcp_stdio.hpp"
 
 #include <array>
+#include <cstdint>
 #include <istream>
 #include <ostream>
 #include <string_view>
@@ -13,19 +14,63 @@ namespace {
 
 using afd::Json;
 
-// Newest first. A client's requested version is echoed when supported; otherwise the newest.
-constexpr std::array<std::string_view, 3> supported_protocol_versions{"2025-06-18", "2025-03-26",
-                                                                      "2024-11-05"};
+// initialize-era versions, newest first. A client's requested version is echoed when supported;
+// otherwise the newest.
+constexpr std::array<std::string_view, 4> supported_protocol_versions{"2025-11-25", "2025-06-18",
+                                                                      "2025-03-26", "2024-11-05"};
+
+// The stateless revision: every request carries its version in _meta, there is no initialize.
+constexpr std::string_view modern_protocol_version = "2026-07-28";
+constexpr std::string_view protocol_version_key = "io.modelcontextprotocol/protocolVersion";
+constexpr std::string_view client_capabilities_key = "io.modelcontextprotocol/clientCapabilities";
+constexpr std::string_view server_info_key = "io.modelcontextprotocol/serverInfo";
+constexpr int unsupported_protocol_version = -32022;
+constexpr std::int64_t tools_list_ttl_ms = 300000;
 
 std::string response(const Json& id, Json result) {
     return afd::wire::serialize(
         Json{{"jsonrpc", "2.0"}, {"id", id}, {"result", std::move(result)}});
 }
 
-std::string error_response(const Json& id, int code, std::string message) {
-    return afd::wire::serialize(Json{{"jsonrpc", "2.0"},
-                                     {"id", id},
-                                     {"error", {{"code", code}, {"message", std::move(message)}}}});
+std::string error_response(const Json& id, int code, std::string message, Json data = nullptr) {
+    Json error{{"code", code}, {"message", std::move(message)}};
+    if (!data.is_null()) {
+        error["data"] = std::move(data);
+    }
+    return afd::wire::serialize(Json{{"jsonrpc", "2.0"}, {"id", id}, {"error", std::move(error)}});
+}
+
+/// The `_meta` object of a request's params, or nullptr.
+const Json* request_meta(const Json& params) {
+    if (!params.is_object()) {
+        return nullptr;
+    }
+    const auto meta = params.find("_meta");
+    return meta != params.end() && meta->is_object() ? &*meta : nullptr;
+}
+
+Json server_info_json(const McpServerInfo& info) {
+    return {{"name", info.name}, {"version", info.version}};
+}
+
+/// A modern (2026-07-28) result: `resultType` and the server's identity in `_meta`.
+Json modern_result(Json result, const McpServerInfo& info) {
+    result["resultType"] = "complete";
+    result["_meta"][std::string(server_info_key)] = server_info_json(info);
+    return result;
+}
+
+Json discover_result(const McpServerInfo& info) {
+    return {{"resultType", "complete"},
+            {"supportedVersions", Json::array({std::string(modern_protocol_version)})},
+            {"capabilities", {{"tools", {{"listChanged", false}}}}},
+            {"_meta", {{std::string(server_info_key), server_info_json(info)}}},
+            {"instructions",
+             info.name +
+                 " is an AFD server. Every tool returns a CommandResult as JSON text; follow "
+                 "error.suggestion to recover."},
+            {"ttlMs", tools_list_ttl_ms},
+            {"cacheScope", "public"}};
 }
 
 Json initialize_result(const Json& params, const McpServerInfo& info) {
@@ -48,9 +93,16 @@ Json initialize_result(const Json& params, const McpServerInfo& info) {
 Json tools_list(const afd::CommandRegistry& registry) {
     Json tools = Json::array();
     for (const auto& command : registry.list_by_exposure(afd::Interface::mcp)) {
-        tools.push_back({{"name", command->definition.name},
-                         {"description", command->definition.description},
-                         {"inputSchema", command->definition.input_schema}});
+        Json tool{{"name", command->definition.name},
+                  {"description", command->definition.description},
+                  {"inputSchema", command->definition.input_schema}};
+        // MCP annotations (spec/command-metadata.md): `mutation` has no unset state here, so only
+        // a mutation claims anything.
+        if (command->definition.mutation) {
+            tool["annotations"] = {{"readOnlyHint", false},
+                                   {"destructiveHint", command->definition.destructive}};
+        }
+        tools.push_back(std::move(tool));
     }
     return {{"tools", std::move(tools)}};
 }
@@ -107,17 +159,47 @@ std::optional<std::string> handle_message(const afd::CommandRegistry& registry,
     const Json& id = *id_it;
     const Json params = message.contains("params") ? message["params"] : Json::object();
 
+    // A modern request names its protocol version in _meta; a legacy one relies on initialize.
+    const Json* meta = request_meta(params);
+    const auto version =
+        meta != nullptr ? meta->find(std::string(protocol_version_key)) : Json::const_iterator{};
+    const bool modern = meta != nullptr && version != meta->end() && version->is_string();
+    if (modern) {
+        const auto& requested = version->get_ref<const std::string&>();
+        if (requested != modern_protocol_version) {
+            return error_response(
+                id, unsupported_protocol_version, "Unsupported protocol version",
+                {{"supported", Json::array({std::string(modern_protocol_version)})},
+                 {"requested", requested}});
+        }
+        const auto capabilities = meta->find(std::string(client_capabilities_key));
+        if (capabilities == meta->end() || !capabilities->is_object()) {
+            return error_response(id, -32602,
+                                  "Missing _meta[\"io.modelcontextprotocol/clientCapabilities\"]");
+        }
+    }
+
+    if (method == "server/discover") {
+        return response(id, discover_result(info));
+    }
     if (method == "initialize") {
         return response(id, initialize_result(params, info));
     }
-    if (method == "ping") {
-        return response(id, Json::object());
+    if (method == "ping" && !modern) {
+        return response(id, Json::object()); // removed in 2026-07-28
     }
     if (method == "tools/list") {
-        return response(id, tools_list(registry));
+        Json result = tools_list(registry);
+        if (!modern) {
+            return response(id, std::move(result));
+        }
+        result["ttlMs"] = tools_list_ttl_ms;
+        result["cacheScope"] = "public";
+        return response(id, modern_result(std::move(result), info));
     }
     if (method == "tools/call") {
-        return response(id, tools_call(registry, params));
+        Json result = tools_call(registry, params);
+        return response(id, modern ? modern_result(std::move(result), info) : std::move(result));
     }
     return error_response(id, -32601, "Method not found: " + method);
 }

@@ -1,43 +1,60 @@
-# Bounded AFD protocol acceptance tier
+# AFD protocol conformance tier
 
-Status: stabilization candidate, 2026-10-10; source changes based on `ddb1663` remain unmerged and unpublished. This document indexes AFD acceptance criteria exercised over real local sockets. It is not full MCP certification, deployed-service assurance, or a shared executable protocol fixture. The 34-case todo conformance suite remains a separate domain tier.
+Status: updated 2026-10-25 for MCP 2026-07-28 (the [upgrade plan](../docs/features/active/mcp-2026-07-28/proposal.md), Phases 1–5). This document indexes the protocol-level acceptance criteria AFD exercises over real transports, in both MCP eras. It is not full MCP certification or deployed-service assurance. The 34-case todo conformance suite is the shared executable tier; the per-language protocol tests below each construct their own fixtures.
 
-## Executors and transports
+## Eras
 
-- **TypeScript:** `packages/server/src/http-transport.test.ts`, describe **AFD contracts over HTTP**. An actual Node loopback server hosts `createMcpHandler`; requests use the existing legacy JSON-RPC `/message` route and POST `/batch`. The tests do not use an official SDK client or establish Streamable HTTP, stdio, or hosted behavior.
-- **Python:** `python/tests/test_mcp_protocol_live.py`, hosting `python/tests/fixtures/protocol_server.py` as a real AFD/FastMCP subprocess. Official MCP SDK clients initialize over actual loopback SSE and Streamable HTTP sockets. Two tests are parameterized across three tool strategies and two transports, plus one stateless HTTP test: 13 network cases.
-- **Rust/C++:** no library-transport coverage in this tier. Their todo backend conformance results do not imply implementation of optional Rust `server` or C++ `afd::mcp_stdio` library targets.
+- **Modern:** MCP 2026-07-28. No `initialize`; every request carries `_meta["io.modelcontextprotocol/protocolVersion"]` and `clientCapabilities`; `server/discover`; `resultType` on results; on Streamable HTTP, the `MCP-Protocol-Version`, `Mcp-Method` and `Mcp-Name` headers.
+- **Legacy:** MCP 2025-11-25 and earlier, opened with `initialize`.
 
-The common criteria below are an acceptance index, not an assertion of equal coverage or a common runner. Each test suite constructs its own commands and assertions.
+Every AFD server is dual-era: one stdio connection or one `/mcp` endpoint serves both.
+
+## Shared tier: todo conformance in three negotiation modes
+
+`packages/examples/todo/dx/run-conformance.ts` drives each backend with the official MCP TypeScript SDK v2 client (`@modelcontextprotocol/client`) and checks 34 todo cases plus the `spec/wire` shape of every result. `--mode` selects how the client negotiates:
+
+| `--mode` | Client behaviour |
+| --- | --- |
+| `legacy` (default) | 2025 `initialize` handshake |
+| `auto` | `server/discover` probe; 2026-07-28 when offered, else `initialize` |
+| `modern` | 2026-07-28 required; connecting fails otherwise |
+
+| Backend | Transport | `legacy` | `auto` | `modern` | In `conformance.yml` |
+| --- | --- | --- | --- | --- | --- |
+| TypeScript (`@lushly-dev/afd-server`, SDK v2) | stdio | 34/34 | 34/34, 2026-07-28 | 34/34 | `legacy` and `modern` |
+| Python (`afd`, `mcp` 2.x) | stdio | 34/34 | 34/34, 2026-07-28 | 34/34 | `legacy` and `modern` |
+| Rust (`afd` `server` feature, `rmcp`) | Streamable HTTP | 34/34 | 34/34, 2026-07-28 | 34/34 | `legacy` and `modern` |
+| C++ (todo backend `mcp_stdio.cpp`) | stdio | 34/34 | 34/34, 2026-07-28 | 34/34 | `legacy` and `modern` |
+
+Run one locally, for example:
+
+```sh
+pnpm --dir packages/examples/todo test:conformance:ts --mode modern
+```
 
 ## Acceptance index
 
-| Criterion | TypeScript source evidence | Python source evidence | Limit |
-|---|---|---|---|
-| List/discover exposed commands for individual/grouped/lazy strategies | `discovers and calls only exposed commands with %s tools`: `tools/list`, `afd-discover` | `test_protocol_discovery_exposure_errors_and_meta_tools`: same three strategies, both transports | Different fixtures and transport stacks |
-| Detail advertises command schema | Same TS test asserts `afd-detail` contains `inputSchema` | Same Python test checks detail and individual tool schema plus `_meta.contexts` / `_meta.requires` | TS canonical metadata also has separate unit tests; this row is bounded network evidence |
-| Private command stays hidden; execution rejection | Private name absent from list/discovery; handler spy remains unused | Private name absent from list/discovery; direct and `afd-call` requests return `COMMAND_NOT_FOUND` | No broader application-auth claim |
-| Unknown/private command errors are structured and give suggestions | Both names through `afd-call`: `COMMAND_NOT_FOUND` and string suggestion | Direct unknown/private tools plus `afd-call`; no private name in suggestions | The TS case does not test every direct unknown-tool route |
-| Exposed command dispatch succeeds | `afd-call` returns expected item data | Strategy-native invocation returns expected value | Domain behavior beyond fixture commands is out of scope |
-| Invalid command input rejects before handler execution | Existing validation vector suite is separate; this TS protocol describe does not assert this criterion | Strategy-native invalid input returns `VALIDATION_ERROR` | Do not promote TS unit/vector coverage to network coverage |
-| Malformed batch rejects before any mutation | `keeps malformed batch vectors in the core failure shape on MCP and POST /batch`: 16 failed vectors on REST, 15 at AFD MCP routing; no handler writes | Malformed second command after a write command rejects; independent `probe-read` confirms zero writes | Python does not replay all malformed vectors in this network test |
-| Malformed batch retains canonical failed `BatchResult` | TS compares result/summary/confidence/reasoning/error/timing with core | Python network case asserts `INVALID_BATCH_REQUEST`; complete shape covered elsewhere | Non-object MCP arguments stop at JSON-RPC `-32602` before the TS AFD router |
-| Successful batch and pipeline execution | Not in this TS describe | Same Python discovery test executes both and checks pipeline data reference | Shared executor vectors remain separate from transport tests |
-| Independent session contexts, depth and lifetime | Not in this TS describe | `test_two_transport_sessions_isolate_contexts_and_fresh_connections`: overlapping clients, concurrent calls, discovery/execution, batch/pipeline inheritance, depth 16, repeated-active no-op, fresh connection | Caller-provided `sessionId` is deliberately forged identically on distinct clients and cannot establish identity; no app-auth proof |
-| Stateless HTTP context mutation requires a session | Not applicable to this TS transport case | `test_stateless_http_context_mutation_requires_a_persistent_session`: enter/exit return `SESSION_REQUIRED` | Only Python stateless Streamable HTTP exercised |
+Each criterion names the tests that exercise it over a real transport. "Runner" means the shared todo tier above.
 
-## Running the tier
+| Criterion | TypeScript | Python | Rust | C++ |
+| --- | --- | --- | --- | --- |
+| Modern requests served without `initialize`; `server/discover` describes the server | `packages/server/src/mcp-modern.test.ts` (HTTP and stdio); runner | `tests/test_mcp_modern_live.py`; runner | `packages/rust/tests/server_http.rs`; todo backend `serves_mcp_2026_07_28_statelessly`; runner | todo backend `mcp_stdio_test.cpp`; runner |
+| Legacy `initialize` clients served on the same endpoint or connection | `mcp-modern.test.ts` (v2 client in its default 2025 mode, over HTTP and stdio); runner `legacy` | `tests/test_mcp_protocol_live.py` (SSE and Streamable HTTP sessions); runner `legacy` | `server_http.rs` `legacy_clients_initialize_on_the_same_endpoint`; runner `legacy` | `mcp_stdio_test.cpp`; runner `legacy` |
+| Unsupported version → `-32022` with `data.supported`; missing `clientCapabilities` → `-32602` | `mcp-modern.test.ts` | SDK behaviour (`mcp` 2.x) | SDK behaviour (`rmcp`); `server_http.rs` | `mcp_stdio_test.cpp` |
+| Header/body mismatch or missing `Mcp-Name` → 400, `-32020` | `mcp-modern.test.ts` | SDK behaviour | `server_http.rs`; todo backend tests | N/A (stdio has no headers) |
+| `GET` on the endpoint → 405 | `mcp-modern.test.ts` | Not asserted (the SDK's 2025 stateless lane opens an SSE stream) | todo backend `get_on_the_endpoint_is_405` | N/A |
+| Host and Origin validation before the SDK | `mcp-modern.test.ts` | SDK `transport_security` (default) | `server_http.rs` (`enforce_origin_validation`); todo backend guard tests | N/A |
+| Only MCP-exposed commands listed; unknown and private tools → `COMMAND_NOT_FOUND` tool result | `mcp-modern.test.ts`, `mcp-modern-client.test.ts` | `test_mcp_modern_live.py`, `test_mcp_protocol_live.py` | `server_http.rs`; todo backend | `mcp_stdio_test.cpp` |
+| Contexts are request input on the modern era (`_meta["dev.afd/context"]`), never stored | `mcp-modern.test.ts` | `test_mcp_modern_live.py` | N/A (no contexts in the `server` feature yet) | N/A |
+| Legacy sessions keep separate context stacks | stdio `mcp-modern.test.ts`; `session-contexts.test.ts` (`/message` lane) | `test_mcp_protocol_live.py` | N/A | N/A |
+| `tools/list` cache hints (`ttlMs`, `cacheScope`) | `mcp-modern.test.ts` | `test_mcp_modern_live.py` | `server_http.rs` | `mcp_stdio_test.cpp` |
+| MCP annotations from command metadata | `tool-surface.test.ts` | `tests/test_tool_annotations.py` | `tests/tool_annotations.rs` | `mcp_stdio_test.cpp` |
+| `structuredContent` validated against the CommandResult `outputSchema` | `tool-surface.test.ts`; runner (todo `output` schemas) | Planned | Planned | Planned |
+| AFD client negotiates each mode against an AFD server | `mcp-modern-client.test.ts` (call, batch, pipe, stream) | `test_mcp_modern_live.py` | N/A (no Rust client) | N/A (no C++ client) |
 
-From the repository root, with the repository toolchains and dependencies installed:
+## Limits
 
-```sh
-pnpm -F @lushly-dev/afd-server exec vitest run src/http-transport.test.ts
-cd python
-uv run pytest -q tests/test_mcp_protocol_live.py
-```
-
-The TypeScript command includes the broader existing HTTP suite. A passing local tier does not replace `pnpm check`, the supported Python version/wheel matrix, native CI, or release gates. Lane receipts describe their actual runtime versions; final combined validation is coordinator-owned.
-
-## Remaining scope
-
-A reusable shared protocol fixture/runner, native library transports, broader bootstrap behavior, additional TypeScript session/executor paths, stream semantics and general MCP interoperability remain open. The separate local Better Auth and local-db integration tests are unrelated to protocol certification: hosted local-db was skipped, and OAuth, Convex, browser cookie/multi-tab behavior and durable storage were not proven. Python 0.8.0 remains the published broken artifact; #347 remains publication-blocked until release requirements are met.
+- The per-language suites are independent; there is no shared executable protocol fixture beyond the todo runner.
+- Where a row says "SDK behaviour", AFD relies on the official SDK for that rule and does not assert it separately.
+- Rust's `server` feature covers the individual tool strategy only; grouped and lazy strategies, meta-tools, bootstrap and contexts are tracked in the [parity plan](../docs/features/active/parity-closure/parity-closure.plan.md) (D1). The C++ loop lives in the todo backend until `afd::mcp_stdio` lands (#341).
+- The deprecated TypeScript `/sse` and `/message` lane keeps its own tests in `packages/server/src/http-transport.test.ts`; it is removed in 3.0.

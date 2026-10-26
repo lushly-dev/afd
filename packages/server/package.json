@@ -29,11 +29,13 @@
 	},
 	"dependencies": {
 		"@lushly-dev/afd-core": "workspace:*",
-		"@modelcontextprotocol/sdk": "^1.32.1",
+		"@modelcontextprotocol/node": "^2.1.2",
+		"@modelcontextprotocol/server": "^2.4.0",
 		"zod": "^4.5.4"
 	},
 	"devDependencies": {
 		"@lushly-dev/afd-client": "workspace:*",
+		"@modelcontextprotocol/client": "^2.4.0",
 		"@vitest/coverage-v8": "^4.1.11",
 		"typescript": "^5.9.3",
 		"vitest": "^4.1.11"

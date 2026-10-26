@@ -25,7 +25,7 @@ async def test_fastmcp_unknown_and_unexposed_tools_share_structured_error(strate
     mcp = server._create_mcp_server()
     for name in ("todo-creat", "private-rotate"):
         result = await mcp.call_tool(name, {})
-        assert result.isError is True
+        assert result.is_error is True
         payload = json.loads(result.content[0].text)
         assert payload["error"]["code"] == "COMMAND_NOT_FOUND"
         assert payload["error"]["suggestion"]
@@ -36,7 +36,7 @@ async def test_fastmcp_unknown_and_unexposed_tools_share_structured_error(strate
     names = {tool.name for tool in await mcp.list_tools()}
     assert {"afd-discover", "afd-detail"} <= names
     discovered = await mcp.call_tool("afd-discover", {})
-    assert discovered.isError is False
+    assert discovered.is_error is False
     assert "private-rotate" not in json.dumps(json.loads(discovered.content[0].text))
     detailed = await mcp.call_tool("afd-detail", {"command": "todo-create"})
-    assert detailed.isError is False
+    assert detailed.is_error is False

@@ -8,9 +8,6 @@
 import { createServer, type Server as HttpServer } from 'node:http';
 import type { CommandContext } from '@lushly-dev/afd-core';
 import { isMcpExposed } from '@lushly-dev/afd-core';
-import { Server as McpSdkServer } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import {
 	createAfdContextEnterCommand,
@@ -25,6 +22,12 @@ import { resolveContextState } from './context-scope.js';
 import { createExecutionEngine } from './execution.js';
 import { createHttpHandler } from './http-handler.js';
 import { createSessionStore } from './http-sessions.js';
+import {
+	createModernHttpLane,
+	defaultInstructions,
+	type ModernMcpDeps,
+	serveModernStdio,
+} from './mcp-modern.js';
 import { defineCommand, type ZodCommandDefinition } from './schema.js';
 import type { McpHandler, McpHandlerOptions, McpServer, McpServerOptions } from './server-types.js';
 import { isStdinPiped } from './server-types.js';
@@ -158,8 +161,27 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 			remoteCommands,
 			toolStrategy,
 			groupByFn,
-			resolveContextState(context, contextState)?.getActive()
+			resolveContextState(context, contextState)?.getActive(),
+			{ outputSchema: options.advertiseOutputSchema }
 		);
+
+	const modernDeps: ModernMcpDeps = {
+		name,
+		version,
+		instructions:
+			options.instructions ?? defaultInstructions({ name, toolStrategy, contexts, bootstrap }),
+		getToolsList: boundGetToolsList,
+		routeToolCall,
+		contexts,
+		toolsListTtlMs: options.toolsListTtlMs,
+		devMode,
+		onError,
+	};
+	const modern = createModernHttpLane({
+		...modernDeps,
+		createContext: options.createContext,
+		maxBodyBytes: options.maxBodyBytes ?? 1024 * 1024,
+	});
 
 	const { handler, dispose } = createHttpHandler({
 		name,
@@ -181,6 +203,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		sessions,
 		createContext: options.createContext,
 		onError,
+		modern,
 	});
 
 	return {
@@ -189,6 +212,8 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		getToolsList: boundGetToolsList,
 		handler,
 		dispose,
+		modernDeps,
+		contextState,
 		url: `http://${host}:${port}`,
 	};
 }
@@ -284,7 +309,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 	// ── Server state ────────────────────────────────────────────────────────
 
 	let httpServer: HttpServer | null = null;
-	let mcpSdkServer: McpSdkServer | null = null;
+	let stdioHandle: { close(): Promise<void> } | null = null;
 	let isRunning = false;
 
 	// ── Public API ──────────────────────────────────────────────────────────
@@ -293,27 +318,9 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 		async start() {
 			if (isRunning) return;
 
-			// Stdio transport via MCP SDK
+			// Stdio via the MCP SDK v2: dual-era (2026-07-28 per-request _meta, or initialize).
 			if (useStdio) {
-				mcpSdkServer = new McpSdkServer({ name, version }, { capabilities: { tools: {} } });
-
-				mcpSdkServer.setRequestHandler(ListToolsRequestSchema, async () => ({
-					tools: sharedRuntime.getToolsList(),
-				}));
-
-				mcpSdkServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
-					// Spread into anonymous object for MCP SDK index signature compatibility
-					return {
-						...(await sharedRuntime.routeToolCall(
-							request.params.name,
-							request.params.arguments ?? {},
-							{ signal: extra.signal, interface: 'mcp' }
-						)),
-					};
-				});
-
-				const stdioTransport = new StdioServerTransport();
-				await mcpSdkServer.connect(stdioTransport);
+				stdioHandle = serveModernStdio(sharedRuntime.modernDeps, sharedRuntime.contextState);
 				isRunning = true;
 				// stdout carries MCP frames, so the notice goes to stderr.
 				console.error(
@@ -345,9 +352,9 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 		async stop() {
 			if (!isRunning) return;
 
-			if (mcpSdkServer) {
-				await mcpSdkServer.close();
-				mcpSdkServer = null;
+			if (stdioHandle) {
+				await stdioHandle.close();
+				stdioHandle = null;
 			}
 
 			if (httpServer) {

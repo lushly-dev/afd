@@ -290,13 +290,13 @@ class TestMiddlewareExceptionsOnDirectCalls:
 
     @pytest.mark.asyncio
     async def test_over_mcp_the_text_never_reaches_the_client(self):
-        from mcp.shared.memory import create_connected_server_and_client_session
+        from mcp import Client
 
         mcp = self._server()._create_mcp_server()
-        async with create_connected_server_and_client_session(mcp._mcp_server) as session:
+        async with Client(mcp) as session:
             result = await session.call_tool("afd-call", {"command": "todo-create"})
 
-        assert result.isError is True
+        assert result.is_error is True
         assert "hunter2" not in result.content[0].text
         assert json.loads(result.content[0].text)["error"]["code"] == "COMMAND_EXECUTION_ERROR"
 

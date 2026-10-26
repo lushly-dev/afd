@@ -130,6 +130,14 @@ impl McpErrorCodes {
     pub const METHOD_NOT_FOUND: i32 = -32601;
     pub const INVALID_PARAMS: i32 = -32602;
     pub const INTERNAL_ERROR: i32 = -32603;
+    /// MCP 2026-07-28: the HTTP headers do not match the body, or a required one is missing.
+    pub const HEADER_MISMATCH: i32 = -32020;
+    /// MCP 2026-07-28: the request needs a client capability its `_meta` does not declare.
+    pub const MISSING_REQUIRED_CLIENT_CAPABILITY: i32 = -32021;
+    /// MCP 2026-07-28: the server does not serve the requested protocol version.
+    pub const UNSUPPORTED_PROTOCOL_VERSION: i32 = -32022;
+    /// A 2025-era code. MCP 2026-07-28 has no initialization, and servers must not emit it.
+    #[deprecated(note = "MCP 2026-07-28 has no initialization; servers must not emit -32002")]
     pub const SERVER_NOT_INITIALIZED: i32 = -32002;
     pub const REQUEST_CANCELLED: i32 = -32800;
     pub const CONTENT_MODIFIED: i32 = -32801;

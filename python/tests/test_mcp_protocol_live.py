@@ -78,7 +78,7 @@ async def call(session, name, arguments=None):
     result = await session.call_tool(name, arguments or {})
     payload = json.loads(result.content[0].text)
     # Both success and failure must remain typed AFD data on the actual wire.
-    assert result.isError is (
+    assert result.is_error is (
         not payload["success"]
         if "success" in payload
         else any(step["status"] == "failure" for step in payload["steps"])
@@ -120,7 +120,7 @@ async def test_protocol_discovery_exposure_errors_and_meta_tools(strategy, trans
             alpha = next(item for item in tools if item.name == "alpha-run")
             assert alpha.meta["contexts"] == ["alpha"]
             assert alpha.meta["requires"] == ["probe-read"]
-            assert alpha.inputSchema["properties"]["value"]["type"] == "integer"
+            assert alpha.input_schema["properties"]["value"]["type"] == "integer"
         for unknown in ("alpha-rnu", "private-rotate"):
             result = await call(session, unknown)
             assert result["error"]["code"] == "COMMAND_NOT_FOUND"

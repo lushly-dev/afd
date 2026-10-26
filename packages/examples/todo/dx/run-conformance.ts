@@ -2,18 +2,39 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { createServer } from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+import {
+	Client,
+	StreamableHTTPClientTransport,
+	type Transport,
+} from '@modelcontextprotocol/client';
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 import { ConformanceRunner, wireProblems } from './conformance.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKENDS = ['ts', 'py', 'rs', 'cpp'] as const;
 type Backend = (typeof BACKENDS)[number];
 
+/**
+ * How the runner negotiates the MCP protocol revision:
+ *
+ * - `legacy` (default): the 2025 `initialize` handshake, as every backend speaks today;
+ * - `auto`: probe `server/discover`, fall back to `initialize` for a legacy backend;
+ * - `modern`: require 2026-07-28 (stateless, per-request `_meta`) and fail otherwise.
+ */
+const MODES = ['legacy', 'auto', 'modern'] as const;
+type Mode = (typeof MODES)[number];
+
 function isBackend(value: string | undefined): value is Backend {
 	return BACKENDS.some((backend) => backend === value);
+}
+
+function isMode(value: string | undefined): value is Mode {
+	return MODES.some((mode) => mode === value);
+}
+
+function option(name: string): string | undefined {
+	const index = process.argv.indexOf(name);
+	return index >= 0 ? process.argv[index + 1] : undefined;
 }
 
 /** A free TCP port on 127.0.0.1. */
@@ -76,15 +97,17 @@ async function startRustBackend(): Promise<{ transport: Transport; child: ChildP
 }
 
 async function run() {
-	const backendOption = process.argv.indexOf('--backend');
-	const target = backendOption >= 0 ? process.argv[backendOption + 1] : undefined;
-	if (!isBackend(target)) {
-		console.error(`Usage: tsx dx/run-conformance.ts --backend <${BACKENDS.join('|')}>`);
+	const target = option('--backend');
+	const mode = option('--mode') ?? 'legacy';
+	if (!isBackend(target) || !isMode(mode)) {
+		console.error(
+			`Usage: tsx dx/run-conformance.ts --backend <${BACKENDS.join('|')}> [--mode <${MODES.join('|')}>]`
+		);
 		process.exit(1);
 	}
 	const specPath = path.join(__dirname, '../spec/test-cases.json');
 
-	console.log(`Running conformance tests against: ${target}`);
+	console.log(`Running conformance tests against: ${target} (protocol mode: ${mode})`);
 
 	let transport: Transport;
 	let child: ChildProcess | undefined;
@@ -112,12 +135,22 @@ async function run() {
 		({ transport, child } = await startRustBackend());
 	}
 
-	const client = new Client({ name: 'conformance-runner', version: '1.0.0' }, { capabilities: {} });
+	const client = new Client(
+		{ name: 'conformance-runner', version: '1.0.0' },
+		{
+			capabilities: {},
+			versionNegotiation: {
+				mode: mode === 'modern' ? { pin: '2026-07-28' } : mode,
+			},
+		}
+	);
 
 	console.log('Connecting to MCP server...');
 	try {
 		await client.connect(transport);
-		console.log('Connected.');
+		console.log(
+			`Connected: ${client.getProtocolEra()} era, protocol ${client.getNegotiatedProtocolVersion()}.`
+		);
 
 		const runner = new ConformanceRunner(async (name, args) => {
 			console.log(`Calling tool: ${name}`, args);

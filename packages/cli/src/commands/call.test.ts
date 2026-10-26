@@ -71,7 +71,7 @@ describe('afd call invocation', () => {
 
 		await expect(parse('--connect', 'http://x', '--transport', 'ws')).rejects.toThrow();
 		await expect(parse('--header', 'no colon here')).rejects.toThrow();
-		expect(errors.join('')).toContain('Allowed choices are sse, http');
+		expect(errors.join('')).toContain('Allowed choices are streamable-http, sse, http');
 		expect(errors.join('')).toContain('Use "Name: value"');
 	});
 });

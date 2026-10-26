@@ -34,14 +34,13 @@ import {
 	methodNotFound,
 	parseJsonRpcMessage,
 } from './json-rpc.js';
+import type { ModernHttpLane } from './mcp-modern.js';
+import { requestContextValues } from './request-context.js';
 import type { CreateRequestContext } from './server-types.js';
 import type { ToolCallResult } from './tool-router.js';
 
-/** CommandContext keys the server sets itself; `createContext` cannot override them. */
-const RESERVED_CONTEXT_KEYS = new Set(['traceId', 'signal', 'interface']);
-
 /** Routes whose errors are JSON-RPC error objects rather than AFD failures. */
-const JSON_RPC_PATHS = new Set(['/message', '/rpc']);
+const JSON_RPC_PATHS = new Set(['/message', '/rpc', '/mcp']);
 
 export interface HttpHandlerDeps extends HttpSecurityOptions {
 	name: string;
@@ -77,6 +76,8 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	maxSseConnections?: number;
 	/** Interval between SSE heartbeat comments in milliseconds (default: 25000). */
 	sseHeartbeatMs?: number;
+	/** The MCP 2026-07-28 endpoint served at `POST /mcp`. */
+	modern?: ModernHttpLane;
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -107,6 +108,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		sessions,
 		createContext,
 		onError,
+		modern,
 	} = deps;
 	const maxBodyBytes = deps.maxBodyBytes ?? 1024 * 1024;
 	if (!Number.isSafeInteger(maxBodyBytes) || maxBodyBytes <= 0)
@@ -161,11 +163,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		res.once('close', () => {
 			if (!res.writableFinished) controller.abort(new Error('Client disconnected'));
 		});
-		const extra: unknown = createContext ? await createContext(req) : {};
-		if (!isRecord(extra)) throw new Error('createContext must return an object');
-		const custom = Object.fromEntries(
-			Object.entries(extra).filter(([key]) => !RESERVED_CONTEXT_KEYS.has(key))
-		);
+		const custom = await requestContextValues(createContext, req);
 		return scoped({ ...custom, signal: controller.signal, interface: 'mcp' }, state);
 	}
 
@@ -353,12 +351,19 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			res.setHeader('Access-Control-Allow-Origin', devMode ? '*' : req.headers.origin);
 			res.setHeader('Vary', 'Origin');
 			res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-			res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Mcp-Session-Id');
+			res.setHeader(
+				'Access-Control-Allow-Headers',
+				'Content-Type, Accept, Authorization, Mcp-Session-Id, MCP-Protocol-Version, Mcp-Method, Mcp-Name'
+			);
 			res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
 		}
 		if (req.method === 'OPTIONS') {
 			res.writeHead(204);
 			res.end();
+			return;
+		}
+		if (url.pathname === '/mcp' && modern) {
+			await modern.handle(req, res);
 			return;
 		}
 		if (url.pathname === '/health' && req.method === 'GET') {
@@ -461,6 +466,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		}
 		streams.clear();
 		sessions?.clear();
+		modern?.close().catch(() => {});
 	};
 	return { handler, sseClients: sse.clients, dispose };
 }

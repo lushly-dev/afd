@@ -22,6 +22,12 @@ export interface ContextState {
 	stack: string[];
 	/** Maximum stack depth (default: 16). `afd-context-enter` fails once it is reached. */
 	maxDepth?: number;
+	/**
+	 * `false` for the per-request state of a stateless MCP 2026-07-28 request: the active
+	 * context comes from the request's `_meta["dev.afd/context"]`, and `afd-context-enter` and
+	 * `afd-context-exit` validate but never change it. Omitted (persistent) otherwise.
+	 */
+	persistent?: boolean;
 	getActive(): string | null;
 	enter(name: string): void;
 	exit(): string | null;
@@ -33,7 +39,9 @@ export interface ContextState {
  * The MCP server keeps one for stdio and one per HTTP session. Re-entering the active context
  * is a no-op, and `enter` throws once `maxDepth` contexts are stacked.
  */
-export function createContextState(options: { maxDepth?: number } = {}): ContextState {
+export function createContextState(
+	options: { maxDepth?: number; persistent?: boolean } = {}
+): ContextState {
 	const maxDepth = options.maxDepth ?? DEFAULT_CONTEXT_MAX_DEPTH;
 	if (!Number.isSafeInteger(maxDepth) || maxDepth <= 0) {
 		throw new Error('Context maxDepth must be a positive integer');
@@ -43,6 +51,7 @@ export function createContextState(options: { maxDepth?: number } = {}): Context
 	return {
 		stack,
 		maxDepth,
+		...(options.persistent === false && { persistent: false }),
 		getActive() {
 			return stack.length > 0 ? (stack[stack.length - 1] ?? null) : null;
 		},
@@ -65,9 +74,14 @@ function sessionRequired(): CommandResult<never> {
 		code: 'SESSION_REQUIRED',
 		message: 'Entering or exiting a context needs an MCP session, and this request has none',
 		suggestion:
-			'Send an MCP initialize request to /message and repeat its Mcp-Session-Id response header on later requests',
+			'Send an MCP initialize request to /message and repeat its Mcp-Session-Id response header on later requests, or use the stateless /mcp endpoint and send _meta["dev.afd/context"] on each request',
 	});
 }
+
+/** `_meta` key that selects the active context of one MCP 2026-07-28 request. */
+export const AFD_CONTEXT_META_KEY = 'dev.afd/context';
+
+const STATELESS_CONTEXT_HINT = `Context changes do not persist between stateless MCP requests. Send _meta["${AFD_CONTEXT_META_KEY}"] with the context name on each tools/list and tools/call request instead.`;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // afd-context-list
@@ -140,6 +154,8 @@ const enterInputSchema = z.object({
 interface ContextEnterOutput {
 	entered: string;
 	previous: string | null;
+	/** `false` on a stateless request: nothing was stored, see the reasoning. */
+	persisted?: false;
 }
 
 /**
@@ -177,6 +193,12 @@ export function createAfdContextEnterCommand(
 			}
 
 			const previous = state.getActive();
+			if (state.persistent === false) {
+				return success(
+					{ entered: contextName, previous, persisted: false },
+					{ reasoning: STATELESS_CONTEXT_HINT, confidence: 1.0 }
+				);
+			}
 			if (previous === contextName) {
 				return success(
 					{ entered: contextName, previous },
@@ -213,6 +235,8 @@ const exitInputSchema = z.object({});
 interface ContextExitOutput {
 	exited: string | null;
 	current: string | null;
+	/** `false` on a stateless request: nothing was changed, see the reasoning. */
+	persisted?: false;
 }
 
 /**
@@ -233,6 +257,13 @@ export function createAfdContextExitCommand(
 		async handler(_input, context) {
 			const state = resolveContextState(context, contextState);
 			if (!state) return sessionRequired();
+			if (state.persistent === false) {
+				const current = state.getActive();
+				return success(
+					{ exited: null, current, persisted: false },
+					{ reasoning: STATELESS_CONTEXT_HINT, confidence: 1.0 }
+				);
+			}
 			const exited = state.exit();
 			const current = state.getActive();
 

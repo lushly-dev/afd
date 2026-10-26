@@ -14,16 +14,27 @@ import type { DirectRegistry } from './direct-types.js';
  * Transport names that appear in AFD configuration. `McpClient` accepts only
  * {@link McpTransportType}; `websocket` and `stdio` are not implemented.
  */
-export type TransportType = 'sse' | 'http' | 'websocket' | 'stdio' | 'direct';
+export type TransportType = 'streamable-http' | 'sse' | 'http' | 'websocket' | 'stdio' | 'direct';
 
 /**
  * Transports `McpClient` supports:
  *
- * - `'sse'`: an AFD server's `/sse` stream plus `POST /message`
- * - `'http'`: `POST /message` request/response against an AFD server
+ * - `'streamable-http'`: MCP Streamable HTTP, such as an AFD server's `/mcp` or any official MCP
+ *   SDK server. Speaks MCP 2026-07-28 when the server offers it, else the 2025 handshake.
+ * - `'sse'`: deprecated, an AFD server's `/sse` stream plus `POST /message`
+ * - `'http'`: deprecated, `POST /message` request/response against an AFD server
  * - `'direct'`: an in-process `DirectRegistry` (set `registry`), no network
  */
-export type McpTransportType = 'sse' | 'http' | 'direct';
+export type McpTransportType = 'streamable-http' | 'sse' | 'http' | 'direct';
+
+/**
+ * How the `streamable-http` transport negotiates the MCP revision:
+ *
+ * - `'auto'` (default): probe `server/discover`; use 2026-07-28 when offered, else `initialize`
+ * - `'legacy'`: always use the 2025 `initialize` handshake
+ * - `'modern'`: require 2026-07-28 and fail otherwise
+ */
+export type ProtocolMode = 'auto' | 'legacy' | 'modern';
 
 /**
  * Client configuration options.
@@ -31,8 +42,9 @@ export type McpTransportType = 'sse' | 'http' | 'direct';
 export interface McpClientConfig {
 	/**
 	 * Server URL to connect to. Required unless `transport` is `'direct'`.
-	 * For SSE: http://localhost:3100/sse
-	 * For HTTP: http://localhost:3100/message
+	 * For Streamable HTTP: http://localhost:3100/mcp
+	 * For SSE (deprecated): http://localhost:3100/sse
+	 * For HTTP (deprecated): http://localhost:3100/message
 	 */
 	url?: string;
 
@@ -44,10 +56,16 @@ export interface McpClientConfig {
 	endpoint?: string;
 
 	/**
-	 * Transport type to use.
-	 * @default 'sse'
+	 * Transport type to use. Default: `'sse'` for a URL ending in `/sse`, otherwise
+	 * `'streamable-http'`.
 	 */
 	transport?: McpTransportType;
+
+	/**
+	 * Protocol negotiation of the `streamable-http` transport; ignored by the others.
+	 * @default 'auto'
+	 */
+	protocolMode?: ProtocolMode;
 
 	/**
 	 * Registry for `transport: 'direct'`, such as `createDirectRegistry(commands)` from

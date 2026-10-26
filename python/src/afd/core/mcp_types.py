@@ -32,8 +32,16 @@ from pydantic import BaseModel, ConfigDict, Field
 # PROTOCOL CONSTANTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
-MCP_PROTOCOL_VERSION = "2024-11-05"
-"""Current MCP protocol version."""
+MCP_PROTOCOL_VERSION = "2025-11-25"
+"""Newest MCP revision that uses the ``initialize`` handshake (the default for
+:class:`InitializeParams` and :class:`InitializeResult`)."""
+
+MODERN_PROTOCOL_VERSION = "2026-07-28"
+"""MCP revision without the handshake: every request carries its version in
+``_meta["io.modelcontextprotocol/protocolVersion"]``."""
+
+LEGACY_PROTOCOL_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
+"""``initialize``-era MCP revisions, newest first."""
 
 JSONRPC_VERSION = "2.0"
 """JSON-RPC version used by MCP."""

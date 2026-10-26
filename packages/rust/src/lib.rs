@@ -61,6 +61,9 @@ pub mod pipeline;
 pub mod result;
 mod schema_legacy;
 mod schema_validation;
+#[cfg(feature = "server")]
+#[cfg_attr(docsrs, doc(cfg(feature = "server")))]
+pub mod server;
 pub mod similarity;
 pub mod streaming;
 pub mod telemetry;
@@ -121,11 +124,11 @@ pub use metadata::{
 // ═══════════════════════════════════════════════════════════════════════════════
 
 pub use commands::{
-    command_to_mcp_tool, create_command_registry, default_expose, is_exposed_to,
-    validate_command_name, BoxFuture, CommandContext, CommandDefinition, CommandExample,
-    CommandHandler, CommandInterface, CommandMiddleware, CommandParameter, CommandRegistry,
-    ExecutionTime, ExposeOptions, JsonSchema, JsonSchemaType, McpInputSchema, McpTool,
-    MiddlewareNext,
+    command_result_output_schema, command_to_mcp_tool, command_tool_annotations,
+    create_command_registry, default_expose, is_exposed_to, validate_command_name, BoxFuture,
+    CommandContext, CommandDefinition, CommandExample, CommandHandler, CommandInterface,
+    CommandMiddleware, CommandParameter, CommandRegistry, ExecutionTime, ExposeOptions, JsonSchema,
+    JsonSchemaType, McpInputSchema, McpTool, MiddlewareNext,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

@@ -418,8 +418,8 @@ class TestFastMcpRegistration:
         todo_create_tool = next(tool for tool in tools if tool.name == "todo-create")
         tool_payload = todo_create_tool.model_dump(by_alias=True)
 
-        assert "value" in todo_create_tool.inputSchema["properties"]
-        assert "input" not in todo_create_tool.inputSchema["properties"]
+        assert "value" in todo_create_tool.input_schema["properties"]
+        assert "input" not in todo_create_tool.input_schema["properties"]
         assert tool_payload["_meta"]["requires"] == ["session-open"]
         assert tool_payload["_meta"]["contexts"] == ["editing"]
         assert tool_payload["_meta"]["outputSchema"]["properties"]["total"]["type"] == "integer"

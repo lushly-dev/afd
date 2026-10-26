@@ -80,8 +80,15 @@ jobs:
       - name: Conformance (TypeScript backend)
         run: pnpm --dir packages/examples/todo test:conformance:ts
 
+      # MCP 2026-07-28 (stateless, per-request _meta); the step above covers the 2025 handshake.
+      - name: Conformance (TypeScript backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:ts --mode modern
+
       - name: Conformance (Python backend)
         run: pnpm --dir packages/examples/todo test:conformance:py
+
+      - name: Conformance (Python backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:py --mode modern
 
       # The stores must never write tracked files (data/todos.json is gitignored).
       - name: Check the working tree is unchanged
@@ -148,6 +155,9 @@ jobs:
       - name: Conformance (Rust backend)
         run: pnpm --dir packages/examples/todo test:conformance:rs
 
+      - name: Conformance (Rust backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:rs --mode modern
+
       - name: Check the working tree is unchanged
         run: |
           changes=$(git status --porcelain)
@@ -193,6 +203,9 @@ jobs:
 
       - name: Conformance (C++ backend)
         run: pnpm --dir packages/examples/todo test:conformance:cpp
+
+      - name: Conformance (C++ backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:cpp --mode modern
 
       - name: Check the working tree is unchanged
         run: |

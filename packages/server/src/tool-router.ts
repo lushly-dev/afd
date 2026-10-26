@@ -49,6 +49,8 @@ import type { ZodCommandDefinition } from './schema.js';
 
 export interface ToolCallResult {
 	content: Array<{ type: string; text: string }>;
+	/** The same result as JSON (`spec/command-metadata.md`, "Structured results"). */
+	structuredContent?: unknown;
 	isError: boolean;
 }
 
@@ -103,6 +105,7 @@ const emptyPipelineResult = {
 function resultContent(data: unknown, isError: boolean): ToolCallResult {
 	return {
 		content: [{ type: 'text', text: JSON.stringify(data) }],
+		...(data !== null && typeof data === 'object' && { structuredContent: data }),
 		isError,
 	};
 }

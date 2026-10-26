@@ -15,11 +15,11 @@ pnpm add -g @lushly-dev/afd-cli
 ### Connect to a Server
 
 ```bash
-# Connect to an MCP server via SSE
-afd connect http://localhost:3100/sse
+# Connect to an MCP server (MCP Streamable HTTP; 2026-07-28 when the server offers it)
+afd connect http://localhost:3100/mcp
 
-# Connect via HTTP
-afd connect http://localhost:3100/message --transport http
+# Connect to an AFD server's deprecated /sse lane
+afd connect http://localhost:3100/sse
 
 # Check connection status
 afd status
@@ -88,7 +88,7 @@ afd call document-analyze id=doc-123 --verbose
 afd call document-list --format json
 
 # Use another server for one call without replacing the saved connection
-afd call document-list --connect http://localhost:3200/mcp --transport http --format json
+afd call document-list --connect http://localhost:3200/mcp --format json
 ```
 
 Arguments are one JSON object, or whitespace-separated `key=value` pairs. A
@@ -139,10 +139,10 @@ matches `todo-create`).
 afd shell
 
 # Connect to another server and save it as the default connection
-afd shell --url http://localhost:3100/sse
+afd shell --url http://localhost:3100/mcp
 
 # Choose the transport and timeout, send a header, and never reconnect
-afd shell --url http://localhost:3100/message --transport http --timeout 10000 \
+afd shell --url http://localhost:3100/mcp --transport streamable-http --timeout 10000 \
   --header "Authorization: Bearer $TOKEN" --no-reconnect
 ```
 
@@ -167,9 +167,9 @@ afd:connected> exit
   legacy dotted name). Grouped and lazy servers do not list every command.
   Shell commands (`status`, `tools`, ...) take precedence; use `call <name>`
   for a tool with the same name.
-- `--url` and `connect <url> [sse|http]` pick SSE for a URL ending in `/sse`
-  and HTTP otherwise, and save the URL together with its transport and
-  timeout. Without `--url`, the shell reopens the saved connection with its
+- `--url` and `connect <url> [streamable-http|sse|http]` pick `sse` for a URL
+  ending in `/sse`, `http` for one ending in `/message`, and `streamable-http`
+  otherwise, and save the URL together with its transport and timeout. Without `--url`, the shell reopens the saved connection with its
   saved transport and timeout.
 - The shell reconnects when its connection drops, unless you pass
   `--no-reconnect` or the saved connection was made with
@@ -191,10 +191,10 @@ afd stream export-run format=csv
 
 ```bash
 # Run JTBD scenario files against a server
-afd scenario run ./scenarios --server http://localhost:3100/message --transport http
+afd scenario run ./scenarios --server http://localhost:3100/mcp
 
 # Keep going after a scenario fails
-afd scenario run ./scenarios --server http://localhost:3100/sse --no-stop-on-failure
+afd scenario run ./scenarios --server http://localhost:3100/mcp --no-stop-on-failure
 ```
 
 Scenario files run in path order. By default the run stops after the first
@@ -230,7 +230,7 @@ always skips the remaining steps unless that step sets `continueOnFailure`.
 
 | Option | Description |
 |--------|-------------|
-| `-t, --transport <type>` | Transport type (sse, http). Default: sse |
+| `-t, --transport <type>` | Transport type (streamable-http, sse, http). Default: inferred from the URL |
 | `--timeout <ms>` | Connection timeout. Default: 30000 |
 | `--no-reconnect` | Save the connection with auto-reconnect off, so `afd shell` does not reconnect it when it drops. One-shot commands never reconnect |
 | `-H, --header <header>` | Request header `"Name: value"`, repeatable. Not saved |
@@ -248,7 +248,7 @@ always skips the remaining steps unless that step sets `continueOnFailure`.
 | Option | Description |
 |--------|-------------|
 | `--connect <url>` | Use a server URL for this call only |
-| `--transport <type>` | Transport for `--connect` (sse, http). Default: http |
+| `--transport <type>` | Transport for `--connect` (streamable-http, sse, http). Default: inferred from the URL |
 | `--timeout <ms>` | Connection timeout for this call |
 | `-H, --header <header>` | Request header `"Name: value"`, repeatable |
 | `-f, --format <format>` | Output format (json, text). Default: text |
@@ -268,7 +268,7 @@ always skips the remaining steps unless that step sets `continueOnFailure`.
 | Option | Description |
 |--------|-------------|
 | `-u, --url <url>` | Server URL to connect to and save. Default: the saved connection |
-| `-t, --transport <type>` | Transport (sse, http). Default: the saved one, or inferred from the URL |
+| `-t, --transport <type>` | Transport (streamable-http, sse, http). Default: the saved one, or inferred from the URL |
 | `--timeout <ms>` | Request timeout. Default: the saved timeout, or 30000 |
 | `--no-reconnect` | Do not reconnect when the connection drops |
 | `-H, --header <header>` | Request header `"Name: value"`, repeatable. Not saved |
@@ -278,7 +278,7 @@ always skips the remaining steps unless that step sets `continueOnFailure`.
 | Option | Description |
 |--------|-------------|
 | `-s, --server <url>` | Server to test against (required) |
-| `-t, --transport <type>` | Transport (sse, http). Default: sse |
+| `-t, --transport <type>` | Transport (streamable-http, sse, http). Default: inferred from the URL |
 | `--stop-on-failure` / `--no-stop-on-failure` | Stop after the first failing scenario (default), or run them all |
 | `--timeout <ms>` | Timeout per command. Default: 30000 |
 | `-H, --header <header>` | Request header `"Name: value"`, repeatable |
@@ -296,7 +296,7 @@ older version with a wider mode is narrowed the next time the CLI runs.
 
 Stored settings:
 - `serverUrl`: Last connected server URL
-- `transport`: The transport used with that URL (`sse` or `http`), saved with it
+- `transport`: The transport used with that URL (`streamable-http`, `sse` or `http`), saved with it
 - `timeout`: Default timeout
 - `autoReconnect`: The `--no-reconnect` choice from the last `connect`, used by `afd shell`
 - `format`: Default output format
@@ -382,7 +382,7 @@ Suggestion: Provide a title in the arguments
 
 ```bash
 # Connect
-afd connect http://localhost:3100/sse
+afd connect http://localhost:3100/mcp
 
 # List what's available
 afd tools
@@ -401,7 +401,7 @@ afd shell
 
 ```bash
 # JSON output for parsing
-afd connect http://localhost:3100/sse
+afd connect http://localhost:3100/mcp
 afd call document-list --format json | jq '.data'
 afd validate --strict || exit 1
 ```

@@ -116,13 +116,17 @@ from afd.core.commands import (
     ExposeOptions,
     DEFAULT_EXPOSE,
     JsonSchema,
+    command_result_output_schema,
     command_to_mcp_tool,
+    command_tool_annotations,
     serialize_command_examples,
     validate_command_name,
 )
 from afd.core.contract import CONTRACT_VERSION
 from afd.core.mcp_types import (
+    LEGACY_PROTOCOL_VERSIONS,
     MCP_PROTOCOL_VERSION,
+    MODERN_PROTOCOL_VERSION,
     JSONRPC_VERSION,
     TextContent,
     ImageContent,
@@ -366,11 +370,15 @@ __all__ = [
     "DEFAULT_EXPOSE",
     "CommandExample",
     "JsonSchema",
+    "command_result_output_schema",
     "command_to_mcp_tool",
+    "command_tool_annotations",
     "serialize_command_examples",
     "validate_command_name",
     # MCP protocol types
+    "LEGACY_PROTOCOL_VERSIONS",
     "MCP_PROTOCOL_VERSION",
+    "MODERN_PROTOCOL_VERSION",
     "JSONRPC_VERSION",
     "TextContent",
     "ImageContent",

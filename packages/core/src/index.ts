@@ -49,8 +49,12 @@ export {
 	executionFailure,
 	failedBatchRequest,
 } from './command-execution.js';
-export type { CommandToolMeta } from './command-metadata.js';
-export { commandToolMeta } from './command-metadata.js';
+export type { CommandToolAnnotations, CommandToolMeta } from './command-metadata.js';
+export {
+	commandResultOutputSchema,
+	commandToolAnnotations,
+	commandToolMeta,
+} from './command-metadata.js';
 // Command types
 export type {
 	CommandContext,

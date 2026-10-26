@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2021"
 # The minimum supported Rust version: 1.81 lacks `Option::is_none_or`. With dependencies resolved
 # for it (Cargo's `incompatible-rust-versions = "fallback"`), `cargo +1.82.0 check` passes for
-# every feature set. Clippy's `incompatible_msrv` lint flags std APIs newer than this.
+# every feature set except `server`, whose `rmcp` dependency needs Rust 1.88. Clippy's
+# `incompatible_msrv` lint flags std APIs newer than this.
 rust-version = "1.82"
 description = "Agent-First Development - Core types and utilities for Rust"
 license = "MIT"
@@ -22,6 +23,9 @@ native = ["dep:tokio"]
 # Browser WebAssembly (`wasm32-unknown-unknown`): measures durations with
 # `web-time`, because `std::time::Instant::now()` traps on that target.
 wasm = ["dep:web-time"]
+# MCP server over Streamable HTTP and stdio, built on the official Rust SDK (`rmcp`). Serves MCP
+# 2026-07-28 (stateless, per-request `_meta`) and 2025 `initialize` clients. Needs Rust 1.88.
+server = ["native", "dep:rmcp", "tokio/rt", "tokio/io-std"]
 
 [dependencies]
 # Core dependencies
@@ -38,9 +42,21 @@ tokio = { version = "1.0", default-features = false, features = ["time"], option
 # WASM-only
 web-time = { version = "1.1", optional = true }
 
+# `server` feature: the MCP Rust SDK (stateless Streamable HTTP, stdio).
+rmcp = { version = "3.7", default-features = false, features = [
+    "server",
+    "transport-streamable-http-server",
+    "transport-io",
+], optional = true }
+
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full", "test-util"] }
 pretty_assertions = "1.4"
+# `server` feature tests drive the HTTP service in process.
+http = "1"
+http-body-util = "0.1"
+bytes = "1"
+tower = { version = "0.5", features = ["util"] }
 
 [package.metadata.docs.rs]
 all-features = true

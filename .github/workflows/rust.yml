@@ -69,6 +69,13 @@ jobs:
       - name: Test (no default features)
         run: cargo test --no-default-features
 
+      # The MCP server (rmcp); off by default, and it needs Rust 1.88.
+      - name: Clippy (server feature)
+        run: cargo clippy --all-targets --features server -- -D warnings
+
+      - name: Test (server feature)
+        run: cargo test --features server
+
       # The `wasm` feature targets browsers, where `std::time::Instant::now()` traps.
       - name: Install wasm32 target
         run: rustup target add wasm32-unknown-unknown

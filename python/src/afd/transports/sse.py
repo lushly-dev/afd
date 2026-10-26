@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import AsyncExitStack
-from datetime import timedelta
 from typing import Any, Callable, Dict, List, Optional
 
 from afd.transports.base import (
@@ -25,6 +24,63 @@ from afd.transports.base import (
     TransportState,
 )
 from afd.transports._mcp_protocol import _HttpBasedTransport
+
+
+class _EndOfStreamSignal:
+    """A read stream that calls ``on_end`` once when the stream ends or closes."""
+
+    def __init__(self, stream: Any, on_end: Callable[[], None]) -> None:
+        self._stream = stream
+        self._on_end = on_end
+
+    def _ended(self) -> None:
+        on_end, self._on_end = self._on_end, (lambda: None)
+        on_end()
+
+    async def receive(self) -> Any:
+        import anyio
+
+        try:
+            return await self._stream.receive()
+        except (anyio.EndOfStream, anyio.ClosedResourceError, anyio.BrokenResourceError):
+            self._ended()
+            raise
+
+    def __aiter__(self) -> "_EndOfStreamSignal":
+        return self
+
+    async def __anext__(self) -> Any:
+        import anyio
+
+        try:
+            return await self.receive()
+        except anyio.EndOfStream:
+            raise StopAsyncIteration from None
+
+    async def __aenter__(self) -> "_EndOfStreamSignal":
+        await self._stream.__aenter__()
+        return self
+
+    async def __aexit__(self, *exc: Any) -> Any:
+        try:
+            return await self._stream.__aexit__(*exc)
+        finally:
+            self._ended()
+
+    async def aclose(self) -> None:
+        try:
+            await self._stream.aclose()
+        finally:
+            self._ended()
+
+    def close(self) -> None:
+        try:
+            self._stream.close()
+        finally:
+            self._ended()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._stream, name)
 
 
 class SseTransport(_HttpBasedTransport):
@@ -94,42 +150,22 @@ class SseTransport(_HttpBasedTransport):
         """Enter and exit AnyIO contexts in the same task, including reconnects."""
         connected = False
         try:
-            try:
-                from mcp.client.session import ClientSession
-                from mcp.client.sse import sse_client
-            except ImportError as exc:  # pragma: no cover - optional dependency
-                raise ImportError("MCP client dependencies not installed. Install with: pip install afd[client]") from exc
             async with AsyncExitStack() as stack:
                 if self._ready is ready:
                     self._exit_stack = stack
-                read, write = await stack.enter_async_context(sse_client(
-                    self._url, headers=self._headers, timeout=self._timeout,
-                ))
-
-                class OwnedSession(ClientSession):
-                    async def _receive_loop(session) -> None:
-                        # Signal EOF only after upstream has notified all pending
-                        # requests; closing earlier cancels that notification.
-                        try:
-                            await super()._receive_loop()
-                        finally:
-                            stop.set()
-
-                session = await stack.enter_async_context(OwnedSession(
-                    read, write, read_timeout_seconds=timedelta(seconds=self._timeout),
-                ))
+                session, server_info, capabilities = await self._open_session(stack, stop)
                 if self._ready is ready:
                     self._session = session
-                init_result = await session.initialize()
                 if self._ready is not ready or ready.cancelled() or self._closing:
                     return
                 self._server_info = (
-                    init_result.serverInfo.model_dump(mode="json")
-                    if getattr(init_result, "serverInfo", None) is not None else None
+                    server_info.model_dump(mode="json", by_alias=True, exclude_none=True)
+                    if server_info is not None
+                    else None
                 )
                 self._capabilities = (
-                    init_result.capabilities.model_dump(mode="json", exclude_none=True)
-                    if getattr(init_result, "capabilities", None) is not None else None
+                    capabilities.model_dump(mode="json", by_alias=True, exclude_none=True)
+                    if capabilities is not None else None
                 )
                 self._state = TransportState.CONNECTED
                 connected = True
@@ -155,6 +191,34 @@ class SseTransport(_HttpBasedTransport):
                 if connected and not self._closing:
                     self._report_close()
 
+    async def _open_session(self, stack: AsyncExitStack, stop: asyncio.Event) -> Any:
+        """Open and initialize the SDK session inside ``stack``.
+
+        Returns ``(session, server_info, capabilities)``. ``stop`` is set when the
+        connection ends on its own.
+        """
+        try:
+            from mcp.client.session import ClientSession
+            from mcp.client.sse import sse_client
+        except ImportError as exc:  # pragma: no cover - optional dependency
+            raise ImportError("MCP client dependencies not installed. Install with: pip install afd[client]") from exc
+        read, write = await stack.enter_async_context(sse_client(
+            self._url, headers=self._headers, timeout=self._timeout,
+        ))
+        # The SDK session's dispatcher ends when the SSE stream does; seeing
+        # end-of-stream on the read side is how the connection loss is noticed.
+        session = await stack.enter_async_context(ClientSession(
+            _EndOfStreamSignal(read, stop.set),
+            write,
+            read_timeout_seconds=float(self._timeout),
+        ))
+        init_result = await session.initialize()
+        return (
+            session,
+            getattr(init_result, "server_info", None),
+            getattr(init_result, "capabilities", None),
+        )
+
     async def disconnect(self) -> None:
         """Close the upstream owner task and its session resources."""
         ready = self._ready
@@ -174,7 +238,11 @@ class SseTransport(_HttpBasedTransport):
 
         session = self._session
         try:
-            result = await session.call_tool(name, arguments or {})
+            result = await self._bounded(
+                session.call_tool(
+                    name, arguments or {}, read_timeout_seconds=float(self._timeout)
+                )
+            )
             payload = result.model_dump(by_alias=True, mode="json", exclude_none=True)
             return self._extract_content(payload)
         except Exception as exc:
@@ -201,21 +269,44 @@ class SseTransport(_HttpBasedTransport):
         except Exception as exc:
             self._raise_operation_error(exc, session)
 
+    async def _bounded(self, operation: Any) -> Any:
+        """Await ``operation`` for at most the transport timeout.
+
+        mcp 2.x does not bound a call whose POST never completes: its timeout sends a
+        cancellation that waits behind the stuck POST. The call runs as its own task,
+        and on timeout the transport stops waiting (the task ends with the session)
+        and raises ``TimeoutError``, which counts as a lost connection.
+        """
+        task = asyncio.ensure_future(operation)
+        done, _ = await asyncio.wait({task}, timeout=self._timeout)
+        if task in done:
+            return task.result()
+        task.cancel()
+        task.add_done_callback(lambda finished: finished.cancelled() or finished.exception())
+        raise asyncio.TimeoutError(f"MCP request timed out after {self._timeout}s")
+
     def _raise_operation_error(self, exc: Exception, session: Any) -> None:
         """Reconnect only for explicit IO/timeout failures, not SDK validation."""
         import anyio
         import httpx
-        from mcp.shared.exceptions import McpError
+        from mcp import MCPError
         from mcp.types import CONNECTION_CLOSED
         from afd.transports.base import ToolExecutionError
+
+        try:  # mcp 2.x sends its HTTP requests with httpx2.
+            import httpx2
+
+            http_errors: tuple = (httpx.TransportError, httpx2.TransportError)
+        except ImportError:  # pragma: no cover - httpx2 ships with mcp 2.x
+            http_errors = (httpx.TransportError,)
 
         if isinstance(exc, ToolExecutionError):
             raise exc
         lost = (
-            isinstance(exc, McpError) and exc.error.code in (CONNECTION_CLOSED, 408)
+            isinstance(exc, MCPError) and exc.code in (CONNECTION_CLOSED, 408)
         ) or isinstance(exc, (
             anyio.BrokenResourceError, anyio.ClosedResourceError, anyio.EndOfStream,
-            httpx.TransportError, ConnectionError, EOFError, asyncio.TimeoutError,
+            ConnectionError, EOFError, asyncio.TimeoutError, *http_errors,
         ))
         if lost and self._session is session and self._state == TransportState.CONNECTED:
             self._state = TransportState.ERROR

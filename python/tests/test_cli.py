@@ -575,3 +575,26 @@ class TestCLIErrorHandling:
         """Should error on unknown command."""
         result = runner.invoke(cli, ["unknown"])
         assert result.exit_code == 2  # Click's "no such command" code
+
+
+class TestTransportSelection:
+    """`afd connect <url>` picks the transport from the URL."""
+
+    def test_urls_map_to_transports(self):
+        from afd.transports import (
+            HttpTransport,
+            MockTransport,
+            SseTransport,
+            StreamableHttpTransport,
+        )
+
+        cases = {
+            "http://localhost:3100/mcp": StreamableHttpTransport,
+            "http://localhost:3100": StreamableHttpTransport,
+            "http://localhost:3100/sse": SseTransport,
+            "http://localhost:3100/message": HttpTransport,
+            "http://localhost:3100/messages/": HttpTransport,
+            "mock": MockTransport,
+        }
+        for url, expected in cases.items():
+            assert type(_cli_main_module._get_transport(url)) is expected, url

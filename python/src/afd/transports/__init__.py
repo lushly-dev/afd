@@ -14,8 +14,8 @@ Example:
     >>> transport = MockTransport()
     >>>
     >>> # For remote MCP servers
-    >>> from afd.transports import SseTransport, HttpTransport, create_transport
-    >>> transport = create_transport("sse", "http://localhost:3100/sse")
+    >>> from afd.transports import StreamableHttpTransport, create_transport
+    >>> transport = create_transport("streamable-http", "http://localhost:3100/mcp")
 """
 
 from typing import Dict, Literal, Optional
@@ -34,19 +34,21 @@ from afd.transports.fastmcp import FastMCPTransport
 from afd.transports.mock import MockTransport
 from afd.transports.http import HttpTransport
 from afd.transports.sse import SseTransport
+from afd.transports.streamable_http import StreamableHttpTransport
 
 
 def create_transport(
-    transport_type: Literal["sse", "http"],
+    transport_type: Literal["streamable-http", "sse", "http"],
     url: str,
     *,
     headers: Optional[Dict[str, str]] = None,
     timeout: float = 30.0,
-) -> "HttpTransport | SseTransport":
+) -> "HttpTransport | SseTransport | StreamableHttpTransport":
     """Create a transport by type.
 
     Args:
-        transport_type: ``"sse"`` or ``"http"``.
+        transport_type: ``"streamable-http"`` (MCP Streamable HTTP, 2026-07-28 or
+            2025), or the deprecated ``"sse"`` and ``"http"``.
         url: Server URL.
         headers: Optional custom HTTP headers.
         timeout: Request timeout in seconds.
@@ -54,6 +56,8 @@ def create_transport(
     Returns:
         Transport instance.
     """
+    if transport_type == "streamable-http":
+        return StreamableHttpTransport(url, headers=headers, timeout=timeout)
     if transport_type == "http":
         return HttpTransport(url, headers=headers, timeout=timeout)
     elif transport_type == "sse":
@@ -75,5 +79,6 @@ __all__ = [
     "MockTransport",
     "HttpTransport",
     "SseTransport",
+    "StreamableHttpTransport",
     "create_transport",
 ]

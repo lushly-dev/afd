@@ -188,6 +188,9 @@ def _mock_sse_session(
     init_error: Exception | None = None,
 ):
     """Patch the upstream MCP SSE/session modules with lightweight fakes."""
+    # Import the real package first: the transport imports `mcp` (MCPError) while the
+    # fakes are installed, and the package's own imports must not see them.
+    import mcp  # noqa: F401
 
     class FakeClientSession:
         def __init__(self, *streams, **kwargs):
@@ -203,12 +206,12 @@ def _mock_sse_session(
             if init_error is not None:
                 raise init_error
             return SimpleNamespace(
-                serverInfo=_FakeModel({"name": "test-server", "version": "1.0.0"}),
+                server_info=_FakeModel({"name": "test-server", "version": "1.0.0"}),
                 capabilities=_FakeModel({}),
             )
 
-        async def call_tool(self, name, arguments=None):
-            _ = name, arguments
+        async def call_tool(self, name, arguments=None, **options):
+            _ = name, arguments, options
             payload = tool_response or {"content": [{"type": "text", "text": "{}"}], "isError": False}
             return _FakeCallToolResult(payload)
 

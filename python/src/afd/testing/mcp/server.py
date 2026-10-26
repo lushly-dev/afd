@@ -14,6 +14,22 @@ import sys
 from typing import Any, Callable
 
 from afd.testing.mcp.tools import create_tool_registry, generate_tools
+from afd.core.mcp_types import (
+	LEGACY_PROTOCOL_VERSIONS,
+	MCP_PROTOCOL_VERSION,
+	MODERN_PROTOCOL_VERSION,
+)
+
+SERVER_INFO_KEY = "io.modelcontextprotocol/serverInfo"
+UNSUPPORTED_PROTOCOL_VERSION = -32022
+
+
+def _requested_modern_version(params: Any) -> str | None:
+	"""The `_meta` protocol version of a modern request, or None for a legacy one."""
+	meta = params.get("_meta") if isinstance(params, dict) else None
+	version = meta.get("io.modelcontextprotocol/protocolVersion") if isinstance(meta, dict) else None
+	return version if isinstance(version, str) else None
+
 
 # JSON-RPC 2.0 error codes
 JSON_RPC_ERRORS = {
@@ -62,9 +78,31 @@ class McpTestingServer:
 		params = request.get("params")
 
 		try:
+			# A modern (2026-07-28) request names its protocol version in `_meta`.
+			modern = _requested_modern_version(params)
+			if modern is not None and modern != MODERN_PROTOCOL_VERSION:
+				raise _JsonRpcError(
+					UNSUPPORTED_PROTOCOL_VERSION,
+					"Unsupported protocol version",
+					{"supported": [MODERN_PROTOCOL_VERSION], "requested": modern},
+				)
 			if method == "initialize":
-				result = self._handle_initialize()
+				result = self._handle_initialize(params)
+			elif method == "server/discover":
+				result = {
+					"resultType": "complete",
+					"supportedVersions": [MODERN_PROTOCOL_VERSION],
+					"capabilities": {"tools": {"listChanged": False}},
+					"_meta": {SERVER_INFO_KEY: {"name": self.name, "version": self.version}},
+					"ttlMs": 0,
+					"cacheScope": "private",
+				}
 			elif method == "ping":
+				# Removed in MCP 2026-07-28; still answered for legacy clients.
+				if modern is not None:
+					raise _JsonRpcError(
+						JSON_RPC_ERRORS["METHOD_NOT_FOUND"], f"Unknown method: {method}"
+					)
 				result = self._handle_ping()
 			elif method == "tools/list":
 				result = self._handle_tools_list()
@@ -76,6 +114,16 @@ class McpTestingServer:
 					f"Unknown method: {method}",
 				)
 
+			if modern is not None and method != "server/discover":
+				result = {
+					**result,
+					"resultType": "complete",
+					"_meta": {
+						**(result.get("_meta") or {}),
+						SERVER_INFO_KEY: {"name": self.name, "version": self.version},
+					},
+					**({"ttlMs": 0, "cacheScope": "private"} if method == "tools/list" else {}),
+				}
 			return {"jsonrpc": "2.0", "id": req_id, "result": result}
 
 		except _JsonRpcError as e:
@@ -112,10 +160,13 @@ class McpTestingServer:
 			}
 		return await handler(input)
 
-	def _handle_initialize(self) -> dict[str, Any]:
+	def _handle_initialize(self, params: Any = None) -> dict[str, Any]:
 		self._log("initialize")
+		requested = params.get("protocolVersion") if isinstance(params, dict) else None
 		return {
-			"protocolVersion": "2024-11-05",
+			"protocolVersion": (
+				requested if requested in LEGACY_PROTOCOL_VERSIONS else MCP_PROTOCOL_VERSION
+			),
 			"serverInfo": {"name": self.name, "version": self.version},
 			"capabilities": {"tools": {"listChanged": False}},
 		}

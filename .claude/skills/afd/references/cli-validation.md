@@ -18,7 +18,7 @@ CLI validation is a quality gate that:
 
 ```bash
 # Connect to MCP server
-afd connect http://localhost:3100/sse
+afd connect http://localhost:3100/mcp
 
 # Check connection status
 afd status
@@ -76,17 +76,17 @@ node packages/examples/todo-app/dist/server.js
 
 # Expected output:
 # Todo MCP Server running at http://localhost:3100
-# SSE endpoint: http://localhost:3100/sse
+# MCP endpoint: http://localhost:3100/mcp
 # Health check: http://localhost:3100/health
 ```
 
 ### Step 2: Connect
 
 ```bash
-afd connect http://localhost:3100/sse
+afd connect http://localhost:3100/mcp
 
 # Expected output:
-# ✓ Connected to http://localhost:3100/sse
+# ✓ Connected to http://localhost:3100/mcp
 # Server: todo-app v1.0.0
 # Available tools: 8
 ```
@@ -198,7 +198,7 @@ Before building UI, verify:
 ### Connection Failed
 
 ```bash
-afd connect http://localhost:3100/sse
+afd connect http://localhost:3100/mcp
 # Error: Connection failed
 
 # Fixes:
@@ -251,7 +251,7 @@ Create a validation script:
 set -e
 
 echo "Connecting..."
-afd connect http://localhost:3100/sse
+afd connect http://localhost:3100/mcp
 
 echo "Testing todo.create..."
 afd call todo.create '{"title": "Test", "priority": "high"}' > /tmp/created.json

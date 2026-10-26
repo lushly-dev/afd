@@ -5,7 +5,12 @@
  * is exactly what the router validates.
  */
 
-import type { CommandError, CommandResult, CommandToolMeta } from '@lushly-dev/afd-core';
+import type {
+	CommandError,
+	CommandResult,
+	CommandToolAnnotations,
+	CommandToolMeta,
+} from '@lushly-dev/afd-core';
 import { AFD_META_TOOL_NAMES, failure } from '@lushly-dev/afd-core';
 import { z } from 'zod';
 import { zodToJsonSchema } from './schema.js';
@@ -200,6 +205,10 @@ export type McpToolDefinition = {
 	name: string;
 	description: string;
 	inputSchema: ToolInputSchema;
+	/** MCP annotations derived from `mutation`/`destructive` (individual command tools only). */
+	annotations?: CommandToolAnnotations;
+	/** The CommandResult envelope with typed `data` (individual command tools with an output schema). */
+	outputSchema?: Record<string, unknown>;
 	_meta?: CommandToolMeta & { actions?: GroupedToolAction[] };
 };
 

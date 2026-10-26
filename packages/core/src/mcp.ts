@@ -69,7 +69,18 @@ export const McpErrorCodes = {
 	INVALID_PARAMS: -32602,
 	INTERNAL_ERROR: -32603,
 
-	// MCP specific errors (-32000 to -32099)
+	// MCP 2026-07-28 errors (-32020 to -32099 is reserved for the MCP specification)
+	/** The HTTP headers do not match the request body, or a required header is missing. */
+	HEADER_MISMATCH: -32020,
+	/** The request needs a client capability that its `_meta` does not declare. */
+	MISSING_REQUIRED_CLIENT_CAPABILITY: -32021,
+	/** The server does not serve the requested protocol version; `data.supported` lists those it does. */
+	UNSUPPORTED_PROTOCOL_VERSION: -32022,
+
+	/**
+	 * @deprecated A 2025-era code: MCP 2026-07-28 has no initialization and servers must not
+	 * emit `-32002`.
+	 */
 	SERVER_NOT_INITIALIZED: -32002,
 	REQUEST_CANCELLED: -32800,
 	CONTENT_MODIFIED: -32801,
@@ -102,6 +113,18 @@ export interface McpTool {
 		properties?: Record<string, unknown>;
 		required?: string[];
 	};
+
+	/** MCP tool annotations derived from `mutation` and `destructive` (`spec/command-metadata.md`). */
+	annotations?: {
+		title?: string;
+		readOnlyHint?: boolean;
+		destructiveHint?: boolean;
+		idempotentHint?: boolean;
+		openWorldHint?: boolean;
+	};
+
+	/** JSON Schema of the tool's `structuredContent`: for an AFD command, the CommandResult envelope. */
+	outputSchema?: Record<string, unknown>;
 
 	/** AFD extensions carried through MCP tools/list. */
 	_meta?: McpToolCommandMeta & {
@@ -156,6 +179,8 @@ export interface McpToolCallParams {
  */
 export interface McpToolCallResult {
 	content: McpContent[];
+	/** The result as JSON; an AFD server sends the whole CommandResult here as well as in `content[0]`. */
+	structuredContent?: unknown;
 	isError?: boolean;
 }
 

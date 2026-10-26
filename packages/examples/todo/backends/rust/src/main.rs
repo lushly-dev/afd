@@ -76,9 +76,15 @@ async fn run_server(registry: CommandRegistry, tools: Vec<Tool>) -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    let mcp = match server::mcp_server(registry, &tools) {
+        Ok(mcp) => mcp,
+        Err(error) => {
+            eprintln!("{error}");
+            return ExitCode::FAILURE;
+        }
+    };
     let state = server::AppState {
-        registry,
-        tools,
+        mcp,
         policy: config.policy.clone(),
     };
     match server::start_server(state, &config).await {
