@@ -4,7 +4,7 @@
  * End a chat session.
  */
 
-import { createError } from '@lushly-dev/afd-core';
+import { createError, systemClock } from '@lushly-dev/afd-core';
 import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
 import { chatService } from '../services/chat.js';
@@ -32,7 +32,7 @@ export const chatDisconnect = defineCommand<typeof inputSchema, DisconnectResult
 	input: inputSchema,
 	errors: ['SESSION_NOT_FOUND', 'FORBIDDEN'],
 
-	async handler(input) {
+	async handler(input, context) {
 		const session = chatService.getSession(input.sessionId);
 
 		if (!session) {
@@ -54,7 +54,9 @@ export const chatDisconnect = defineCommand<typeof inputSchema, DisconnectResult
 		return success<DisconnectResult>(
 			{
 				sessionId: closedSession.id,
-				closedAt: closedSession.closedAt?.toISOString() ?? new Date().toISOString(),
+				closedAt:
+					closedSession.closedAt?.toISOString() ??
+					new Date((context.clock ?? systemClock).now()).toISOString(),
 				duration: closedSession.duration,
 				messagesSent: closedSession.messagesSent,
 			},

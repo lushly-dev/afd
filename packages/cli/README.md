@@ -202,6 +202,46 @@ scenario that does not pass (including a `partial` one, where some steps
 failed); `--no-stop-on-failure` runs them all. Within a scenario, a failed step
 always skips the remaining steps unless that step sets `continueOnFailure`.
 
+### Replay a Journal
+
+```bash
+# Replay a JSON Lines journal against a fresh registry and diff each result
+afd replay session.jsonl --module ./dist/registry.js
+
+# CI: JSON report, ignore a field that legitimately changes, stop at the first divergence
+afd replay session.jsonl --module ./dist/registry.js --format json \
+  --ignore data.updatedAt --stop-on-divergence
+```
+
+`afd replay` reads a journal written by `createJournalMiddleware` (format in
+[`spec/journal.md`](../../spec/journal.md)) and replays it with `replayJournal`
+from `@lushly-dev/afd-server`. Each entry is reported as `same`, `different`
+(with the paths that changed) or `error`; the exit code is 1 when any entry is
+not `same`, so the command works as a CI regression check.
+
+`--module` names a JavaScript module whose default export (or the export named
+by `--export`) is a registry, such as the result of `createMcpServer()`, or a
+function, possibly async, returning one. A factory is called once, so the
+registry starts empty; give it the same middleware as the recording server.
+
+The CLI replays with the `@lushly-dev/afd-server` the module itself resolves
+(its own `node_modules`), falling back to the CLI's copy, so the registry's
+journal middleware recognizes the replay and records nothing.
+
+Replay runs in-process only. Each call gets its recorded clock readings,
+random values, actor, interface and trace ID, which an MCP connection cannot
+carry, and replaying into a long-lived server would re-run its mutations
+against existing state. `--from`/`--to` also start from a fresh registry, so
+state written by earlier entries is missing and can cause divergence.
+
+Replay executes the journal's commands against the module's real handlers, and
+`--module` is code the CLI runs: replay only journals you trust, or give the
+registry fake dependencies. To bound memory, files over 64 MiB, lines over
+1 MiB (`--max-line-bytes`) and journals over 10,000 entries (`--max-entries`,
+counted before `--from`/`--to`) are rejected before parsing. There is no
+per-command timeout. `metadata.executionTimeMs` is always left out of the
+comparison.
+
 ## Commands
 
 | Command | Description |
@@ -216,6 +256,7 @@ always skips the remaining steps unless that step sets `continueOnFailure`.
 | `validate` | Validate the tool listing (and, with `--execute`, command results) |
 | `shell` | Start interactive mode |
 | `scenario run\|validate\|init` | Run, check or create JTBD scenario files |
+| `replay <file>` | Replay a command journal in-process and diff the results |
 
 ## Options
 
@@ -283,6 +324,21 @@ always skips the remaining steps unless that step sets `continueOnFailure`.
 | `--timeout <ms>` | Timeout per command. Default: 30000 |
 | `-H, --header <header>` | Request header `"Name: value"`, repeatable |
 | `--json`, `-v, --verbose`, `--no-color` | Output format and detail |
+
+### replay
+
+| Option | Description |
+|--------|-------------|
+| `-m, --module <path>` | Module exporting a registry or a factory returning one (required) |
+| `--export <name>` | Export to use from `--module`. Default: `default` |
+| `--ignore <path>` | Result path left out of the comparison, e.g. `data.updatedAt`, repeatable |
+| `--seed <seed>` | Seed for random values an entry has no recording for. Default: `afd-replay` |
+| `--stop-on-divergence` | Stop after the first entry that is not `same` |
+| `--from <seq>`, `--to <seq>` | Replay only entries in this `seq` range (inclusive) |
+| `--max-entries <n>` | Most journal entries accepted. Default: 10000 |
+| `--max-line-bytes <n>` | Longest journal line accepted. Default: 1048576 |
+| `-f, --format <format>` | Output format (json, text). Default: text |
+| `-v, --verbose` | Also list entries that replayed the same |
 
 ## Configuration
 
@@ -373,7 +429,8 @@ Suggestion: Provide a title in the arguments
 |------|---------|
 | 0 | Success |
 | 1 | Command failed or error occurred |
-| 2 | `batch` completed with some failed commands |
+| 1 | `replay`: an entry was `different` or `error`, or the command line was invalid |
+| 2 | `batch` completed with some failed commands; `replay` could not load the journal or the module |
 | 130 | `stream` cancelled with Ctrl+C |
 
 ## Examples
@@ -404,6 +461,9 @@ afd shell
 afd connect http://localhost:3100/mcp
 afd call document-list --format json | jq '.data'
 afd validate --strict || exit 1
+
+# Regression check: replay a recorded session against the current build
+afd replay fixtures/session.jsonl --module ./dist/registry.js
 ```
 
 ## License
