@@ -10,8 +10,8 @@ Handler scope is heuristic, per language:
   ``@<x>.command(...)`` taking a description (``@server.command``,
   ``@registry.command``) or with ``@define_command(...)``, and the ``handler=``
   of a ``CommandDefinition(...)`` call when it is a lambda or a function
-  defined in the same file (``handler=self.create`` resolves to a method named
-  ``create``). A call counts only when its root name was imported
+  defined in the same file (matched by name), or ``handler=self.create`` /
+  ``cls.create`` naming a method of the class the call sits in. A call counts only when its root name was imported
   (``import time``, ``from datetime import datetime``) and is not one of the
   handler's own parameters, so a parameter named ``random`` is not mistaken
   for the module. Nested functions inside a handler are checked too.
@@ -22,7 +22,8 @@ Handler scope is heuristic, per language:
   the cost is a false negative for a handler written as a method of a plain
   ``impl`` and registered through a wrapper, and for untyped closures.
 - **C++**: lambdas, functions and ``operator()`` whose parameters name
-  ``CommandContext`` (the ``CommandHandler`` signature).
+  ``CommandContext`` (the ``CommandHandler`` signature). A parameter list is
+  looked for at most 2000 characters back from the ``CommandContext``.
 
 In Rust and C++, a parameter list that also names a ``Next`` type is
 middleware and is skipped. The Rust and C++ scans are lexical: strings,
@@ -168,11 +169,34 @@ def _python_handlers(tree: ast.Module) -> Iterator[ast.FunctionDef | ast.AsyncFu
                 yield keyword.value
             elif isinstance(keyword.value, ast.Name):
                 referenced.add(keyword.value.id)
-            elif isinstance(keyword.value, ast.Attribute):
-                referenced.add(keyword.value.attr)  # self.create, handlers.create
     for function in functions:
         if function.name in referenced:
             yield function
+    yield from _python_method_handlers(tree)
+
+
+def _python_method_handlers(tree: ast.Module) -> Iterator[ast.FunctionDef | ast.AsyncFunctionDef]:
+    """Methods named by ``CommandDefinition(handler=self.<name>)`` in their own class."""
+    for cls in (node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)):
+        names: set[str] = set()
+        for node in ast.walk(cls):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if (func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)) != "CommandDefinition":
+                continue
+            for keyword in node.keywords:
+                value = keyword.value
+                if (
+                    keyword.arg == "handler"
+                    and isinstance(value, ast.Attribute)
+                    and isinstance(value.value, ast.Name)
+                    and value.value.id in ("self", "cls")
+                ):
+                    names.add(value.attr)
+        for stmt in cls.body:
+            if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef)) and stmt.name in names:
+                yield stmt
 
 
 # ─── Rust and C++ ───────────────────────────────────────────────────────────

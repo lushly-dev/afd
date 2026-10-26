@@ -865,7 +865,12 @@ def test_ambient_python_review_cases(tmp_dir: Path) -> None:
         "    def create(self, i, context):\n"
         "        return secrets.token_hex(8)\n"
         "    def defs(self):\n"
-        "        return [CommandDefinition(name='a-create', description='d', handler=self.create)]\n",
+        "        return [CommandDefinition(name='a-create', description='d', handler=self.create)]\n"
+        "class Unrelated:\n"
+        "    def create(self):\n"
+        "        return time.time()\n"
+        "    def other(self, h):\n"
+        "        return CommandDefinition(name='a-x', description='d', handler=h.create)\n",
     )
     assert _ambient(AFDLinter().lint(tmp_dir)) == [
         (9, "afd-no-ambient-time", "Ambient time.time() in command handler"),
