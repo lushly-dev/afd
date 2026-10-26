@@ -4,11 +4,10 @@ A journal is an ordered, append-only record of executed commands. It is used to 
 agent session, to turn a recorded session into a regression test, and to audit who ran what, in
 what order and with what result. The golden fixture is [`wire/journal.jsonl`](./wire/journal.jsonl).
 
-TypeScript (#273), Python (#425) and Rust (#426) implement it. C++ does not yet; its parity is
-tracked in #427. Rust records with a registry-level recorder (`CommandRegistry::set_journal`)
-instead of a middleware: Rust middleware cannot change the context the handler sees, so the
-recorder sits after validation and outside every middleware, and its tape holds what the
-middleware read as well.
+TypeScript (#273), Python (#425), Rust (#426) and C++ (#427) implement it. Rust records with
+a registry-level recorder (`CommandRegistry::set_journal`) instead of a middleware: Rust
+middleware cannot change the context the handler sees, so the recorder sits after validation
+and outside every middleware, and its tape holds what the middleware read as well.
 
 ## File format
 
@@ -69,7 +68,7 @@ The tape holds every value the handler (and the server's own timing of the handl
 
 | Field | Type | Meaning |
 |---|---|---|
-| `clock` | number[] | Required (may be empty). Each `context.clock.now()` reading, in epoch milliseconds |
+| `clock` | number[] | Required (may be empty). Each `context.clock.now()` reading, in epoch milliseconds. C++ clocks have two readings, `steady_ms()` and `wall_ms()`; both go here, in the order they were read |
 | `random` | number[] | Required (may be empty). Each `context.random.next()` value, in [0, 1) |
 | `truncated` | boolean | Present and `true` when the handler read more values than the recorder keeps |
 

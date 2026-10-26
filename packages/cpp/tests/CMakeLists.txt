@@ -9,6 +9,8 @@ add_executable(
     direct_client_test.cpp
     handoff_test.cpp
     helpers_test.cpp
+    journal_test.cpp
+    journal_wire_test.cpp
     json_test.cpp
     main.cpp
     middleware_test.cpp
@@ -22,6 +24,9 @@ add_executable(
     stream_test.cpp
     vectors_test.cpp
     wire_fixtures_test.cpp)
+if(AFD_JOURNAL_FILE)
+    target_sources(afd_tests PRIVATE journal_file_test.cpp)
+endif()
 target_link_libraries(afd_tests PRIVATE afd::afd afd_doctest)
 # main.cpp compiles doctest's implementation; in a unity build it must not share a translation
 # unit with a test file that included doctest.h first.

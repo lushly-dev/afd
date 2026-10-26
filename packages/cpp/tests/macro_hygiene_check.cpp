@@ -2,3 +2,6 @@
 // force-included. It includes the whole public API, so a header that uses min/max unguarded, or
 // an identifier named check, verify or require, fails the build.
 #include "afd/afd.hpp"
+#if AFD_JOURNAL_FILE
+#include "afd/journal_file.hpp"
+#endif
