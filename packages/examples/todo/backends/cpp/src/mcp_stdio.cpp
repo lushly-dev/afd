@@ -102,6 +102,11 @@ Json tools_list(const afd::CommandRegistry& registry) {
             tool["annotations"] = {{"readOnlyHint", false},
                                    {"destructiveHint", command->definition.destructive}};
         }
+        // The approval policy (spec/command-metadata.md, "Approvals"); `conditional` for a
+        // function policy.
+        if (const auto mode = afd::approval_mode(command->definition.approval)) {
+            tool["_meta"] = {{"approval", std::string(afd::approval_mode_name(*mode))}};
+        }
         tools.push_back(std::move(tool));
     }
     return {{"tools", std::move(tools)}};
@@ -124,6 +129,8 @@ Json tools_call(const afd::CommandRegistry& registry, const Json& params) {
     afd::CommandContext context;
     context.surface = afd::Interface::mcp;
     context.actor = afd::Actor{.kind = afd::ActorKind::agent};
+    // `context.approval` stays unset: approval evidence comes only from trusted surface code
+    // after a human approved, never from the arguments or `_meta` of a tool call.
     context.trace_id =
         "trace-" + std::to_string(clock.wall_ms()) + "-" + afd::random_uuid(random).substr(0, 8);
 

@@ -171,3 +171,53 @@ TEST_CASE("an oversized line is rejected without buffering it") {
     CHECK(afd::Json::parse(first)["error"]["message"] == "Message too large");
     CHECK(afd::Json::parse(second)["id"] == 9);
 }
+
+TEST_CASE("tools/list reports _meta.approval; tools/call never takes approval from the call") {
+    auto runs = std::make_shared<int>(0);
+    const afd::CommandDefinition gated{
+        .name = "vault-open",
+        .description = "Open the vault",
+        .handler =
+            [runs](const afd::Json&, afd::CommandContext&) {
+                ++*runs;
+                return afd::success(nullptr);
+            },
+        .expose = {.mcp = true},
+        .approval = afd::ApprovalDecision::required,
+    };
+    auto approval =
+        afd::create_approval_middleware({.secrets = {std::string(32, 'k')}, .commands = {gated}});
+    REQUIRE(approval);
+    afd::CommandRegistry registry({.middleware = {*approval}});
+    REQUIRE(!registry.register_command(gated));
+
+    const auto tools = afd::Json::parse(*todo::handle_message(
+        registry, R"({"jsonrpc":"2.0","id":1,"method":"tools/list"})"))["result"]["tools"];
+    REQUIRE(tools.size() == 1);
+    CHECK(tools[0]["_meta"] == afd::Json{{"approval", "required"}});
+
+    const auto held = afd::Json::parse(*todo::handle_message(
+        registry,
+        R"({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"vault-open","arguments":{}}})"));
+    const auto token =
+        afd::Json::parse(held["result"]["content"][0]["text"]
+                             .get<std::string>())["error"]["details"]["approvalToken"]
+            .get<std::string>();
+    // The token in the arguments or in the request's _meta is ignored: the call is held again.
+    const afd::Json call{{"jsonrpc", "2.0"},
+                         {"id", 3},
+                         {"method", "tools/call"},
+                         {"params",
+                          {{"name", "vault-open"},
+                           {"arguments", {{"approval", token}}},
+                           {"_meta", {{"approval", token}}}}}};
+    const auto again =
+        afd::Json::parse(*todo::handle_message(registry, afd::wire::serialize(call)));
+    CHECK(again["result"]["isError"] == true);
+    const auto error =
+        afd::Json::parse(again["result"]["content"][0]["text"].get<std::string>())["error"];
+    CHECK(error["code"] == "APPROVAL_REQUIRED");
+    // No `reason`: the call carried no evidence at all, not a rejected token.
+    CHECK_FALSE(error["details"].contains("reason"));
+    CHECK(*runs == 0);
+}

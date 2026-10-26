@@ -85,4 +85,27 @@ CommandContext with_context_defaults(CommandContext context, const ContextDefaul
     return context;
 }
 
+std::optional<ApprovalMode> approval_mode(const std::optional<ApprovalPolicy>& policy) noexcept {
+    if (!policy) {
+        return std::nullopt;
+    }
+    if (const auto* decision = std::get_if<ApprovalDecision>(&*policy)) {
+        return *decision == ApprovalDecision::required ? ApprovalMode::required
+                                                       : ApprovalMode::not_required;
+    }
+    return ApprovalMode::conditional;
+}
+
+std::string_view approval_mode_name(ApprovalMode mode) noexcept {
+    switch (mode) {
+    case ApprovalMode::not_required:
+        return "not-required";
+    case ApprovalMode::required:
+        return "required";
+    case ApprovalMode::conditional:
+        return "conditional";
+    }
+    return "conditional";
+}
+
 } // namespace afd

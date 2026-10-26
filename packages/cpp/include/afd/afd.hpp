@@ -2,6 +2,7 @@
 #pragma once
 
 #include "afd/actor.hpp"
+#include "afd/approval.hpp"
 #include "afd/batch.hpp"
 #include "afd/builtin_names.hpp"
 #include "afd/command.hpp"

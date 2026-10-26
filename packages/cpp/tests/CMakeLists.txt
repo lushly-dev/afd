@@ -2,6 +2,7 @@ afd_fetch_doctest()
 
 add_executable(
     afd_tests
+    approval_test.cpp
     batch_test.cpp
     batch_vectors_test.cpp
     command_test.cpp
@@ -28,6 +29,8 @@ if(AFD_JOURNAL_FILE)
     target_sources(afd_tests PRIVATE journal_file_test.cpp)
 endif()
 target_link_libraries(afd_tests PRIVATE afd::afd afd_doctest)
+# approval_test.cpp checks the private HMAC and base64url helpers (header-only) directly.
+target_include_directories(afd_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
 # main.cpp compiles doctest's implementation; in a unity build it must not share a translation
 # unit with a test file that included doctest.h first.
 set_source_files_properties(main.cpp PROPERTIES SKIP_UNITY_BUILD_INCLUSION ON)

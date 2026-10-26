@@ -175,8 +175,8 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 
 | | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| `approval` field and `_meta.approval` | Yes | Planned (#420) | Planned (#421) | Planned (#422) |
-| Approval middleware | Yes (`createApprovalMiddleware`) | Planned (#420) | Planned (#421) | Planned (#422) |
+| `approval` field and `_meta.approval` | Yes | Planned (#420) | Planned (#421) | Yes (`_meta.approval` in the todo backend) |
+| Approval middleware | Yes (`createApprovalMiddleware`) | Planned (#420) | Planned (#421) | Yes (`create_approval_middleware`) |
 | DirectClient `onApprovalNeeded` | Yes | Planned | Planned | Planned |
 | CLI approval flow, MCP relay | Planned (#417, #418) | Planned | Planned | Planned |
 

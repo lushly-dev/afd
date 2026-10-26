@@ -1,5 +1,6 @@
-// Private: SHA-256 (FIPS 180-4) of a byte string, as lowercase hex. For the journal's context
-// digest, which must equal TypeScript's `crypto.subtle.digest('SHA-256', ...)`. Not installed.
+// Private: SHA-256 (FIPS 180-4) of a byte string, raw or as lowercase hex. For the journal's
+// context digest, which must equal TypeScript's `crypto.subtle.digest('SHA-256', ...)`, and for
+// approval tokens (hmac.hpp). Not installed.
 #pragma once
 
 #include <array>
@@ -10,7 +11,9 @@
 
 namespace afd::detail {
 
-inline std::string sha256_hex(std::string_view text) {
+using Sha256Digest = std::array<std::uint8_t, 32>;
+
+inline Sha256Digest sha256(std::string_view text) {
     static constexpr std::array<std::uint32_t, 64> k = {
         0x428a2f98U, 0x71374491U, 0xb5c0fbcfU, 0xe9b5dba5U, 0x3956c25bU, 0x59f111f1U, 0x923f82a4U,
         0xab1c5ed5U, 0xd807aa98U, 0x12835b01U, 0x243185beU, 0x550c7dc3U, 0x72be5d74U, 0x80deb1feU,
@@ -64,13 +67,22 @@ inline std::string sha256_hex(std::string_view text) {
         }
     }
 
+    Sha256Digest digest{};
+    for (std::size_t i = 0; i < 8; ++i) {
+        for (std::size_t b = 0; b < 4; ++b) {
+            digest[i * 4 + b] = static_cast<std::uint8_t>((h[i] >> (24 - 8 * b)) & 0xffU);
+        }
+    }
+    return digest;
+}
+
+inline std::string sha256_hex(std::string_view text) {
     static constexpr char digits[] = "0123456789abcdef";
     std::string hex;
     hex.reserve(64);
-    for (const std::uint32_t word : h) {
-        for (int shift = 28; shift >= 0; shift -= 4) {
-            hex.push_back(digits[(word >> shift) & 0xfU]);
-        }
+    for (const std::uint8_t byte : sha256(text)) {
+        hex.push_back(digits[byte >> 4]);
+        hex.push_back(digits[byte & 0xfU]);
     }
     return hex;
 }

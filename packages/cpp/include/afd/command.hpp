@@ -12,6 +12,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <variant>
 #include <vector>
 
 namespace afd {
@@ -61,6 +62,11 @@ struct CommandContext {
     /// Who is calling. `DirectClient` sets `human` unless told otherwise; an MCP host should set
     /// `agent`. The registry reports the kind as `metadata.actorKind`.
     std::optional<Actor> actor;
+    /// Approval evidence for a command whose approval policy requires it: the `approvalToken`
+    /// from an `APPROVAL_REQUIRED` result (approval.hpp). Only trusted surface code sets it, once
+    /// a human approved; never set it from tool arguments, since whoever holds a token can run
+    /// the call. TypeScript's `context.approval`.
+    std::optional<std::string> approval;
     /// The time source for handlers, instead of reading the system clock. The registry fills it
     /// from `CommandRegistryOptions::clock` when unset, and times the handler with it.
     std::shared_ptr<const Clock> clock;
@@ -90,6 +96,30 @@ struct ContextDefaults {
 /// `context` with `clock`, `random` and (when given) `actor` filled in where it has none. Values
 /// already on the context always win.
 CommandContext with_context_defaults(CommandContext context, const ContextDefaults& defaults = {});
+
+/// Whether one call needs a human's approval before its handler runs. Wire values are
+/// `not-required` and `required`.
+enum class ApprovalDecision { not_required, required };
+
+/// A policy that decides per call, from the validated input and the context (for example,
+/// "agents need approval, humans do not"). An empty function holds every call.
+using ApprovalPolicyFunction =
+    std::function<ApprovalDecision(const Json& input, const CommandContext& context)>;
+
+/// A command's approval policy: a fixed decision, or a function of the call. Unset means
+/// `not_required`. Enforced only where `create_approval_middleware` (approval.hpp) runs.
+using ApprovalPolicy = std::variant<ApprovalDecision, ApprovalPolicyFunction>;
+
+/// How a policy is reported (`_meta.approval`): a function cannot be serialized, so it is
+/// `conditional`.
+enum class ApprovalMode { not_required, required, conditional };
+
+/// The reported mode of `policy`; `std::nullopt` when no policy is declared. TypeScript's
+/// `approvalMode`.
+std::optional<ApprovalMode> approval_mode(const std::optional<ApprovalPolicy>& policy) noexcept;
+
+/// The wire name of `mode`: `not-required`, `required` or `conditional`.
+std::string_view approval_mode_name(ApprovalMode mode) noexcept;
 
 /// A command handler. Receives the validated input (defaults applied, undeclared keys removed).
 using CommandHandler = std::function<CommandResult(const Json& input, CommandContext& context)>;
@@ -139,6 +169,9 @@ struct CommandDefinition {
     std::optional<std::string> handoff_protocol;
     std::vector<CommandExample> examples;
     std::optional<ExecutionTime> execution_time;
+    /// Whether a call needs a human's approval before the handler runs. Unset means
+    /// `not_required`. Enforced by `create_approval_middleware`; reported as `_meta.approval`.
+    std::optional<ApprovalPolicy> approval;
 };
 
 /// The result of `validate_command_name`.
