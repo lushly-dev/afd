@@ -1,7 +1,7 @@
 """
 AFD Linter - Multi-language linting for Agent-First Development patterns.
 
-Supports Python, TypeScript, and Rust codebases.
+Supports Python, TypeScript, Rust and C++ codebases.
 """
 
 import logging
@@ -11,6 +11,8 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
 from typing import Any, ClassVar
+
+from afd.lushx_ext.ambient import cpp_ambient_calls, python_ambient_calls, rust_ambient_calls
 
 logger = logging.getLogger("afd.lint")
 
@@ -71,6 +73,25 @@ _AMBIENT_RANDOM_PATTERNS = (
     (re.compile(r"\bMath\s*\.\s*random\s*\("), "Math.random()"),
     (re.compile(r"\bcrypto\s*\.\s*randomUUID\s*\("), "crypto.randomUUID()"),
 )
+
+# Finder and (time, random) suggestions for the languages handled in `ambient.py`.
+_AMBIENT_OTHER: Mapping[str, tuple[Callable[[str], list[tuple[int, str, str]]], str, str]] = {
+    "python": (
+        python_ambient_calls,
+        "Read time from the context: context.clock.now() (epoch ms)",
+        "Read randomness from the context: context.random.next(), and derive IDs from it",
+    ),
+    "rust": (
+        rust_ambient_calls,
+        "Read time from the context: context.clock().now() (epoch ms)",
+        "Read randomness from the context: context.random().next(), and derive IDs from it",
+    ),
+    "cpp": (
+        cpp_ambient_calls,
+        "Read time from the context: context.clock->wall_ms(), or steady_ms() for durations",
+        "Read randomness from the context: context.random->next(), and derive IDs from it",
+    ),
+}
 
 _DEFINE_COMMAND_RE = re.compile(r"\bdefineCommand\b")
 # A `handler` property at the start of an options-object property:
@@ -424,6 +445,7 @@ class Language(Enum):
     PYTHON = "python"
     TYPESCRIPT = "typescript"
     RUST = "rust"
+    CPP = "cpp"
 
 
 @dataclass
@@ -500,6 +522,7 @@ class AFDLinter:
         Language.PYTHON: frozenset({".py"}),
         Language.TYPESCRIPT: frozenset({".ts", ".tsx", ".js", ".jsx"}),
         Language.RUST: frozenset({".rs"}),
+        Language.CPP: frozenset({".cpp", ".cc", ".cxx", ".hpp", ".hh", ".hxx", ".h"}),
     }
 
     # Directories to skip
@@ -599,9 +622,9 @@ class AFDLinter:
             # TypeScript rules
             "afd-kebab-naming": self._check_kebab_naming,
             "afd-no-business-in-ui": self._check_no_business_in_ui,
+            # Cross-language rules (TypeScript, Python, Rust and C++ handlers)
             _RULE_AMBIENT_TIME: self._check_no_ambient_in_handlers,
             _RULE_AMBIENT_RANDOM: self._check_no_ambient_in_handlers,
-            # Cross-language rules
             "afd-layer-imports": self._check_layer_imports,
         }
         self._severity_overrides = self._validate_severity_overrides(
@@ -705,6 +728,7 @@ class AFDLinter:
             self._check_command_result(relative_path, content, lines, result)
             self._check_actionable_errors(relative_path, content, lines, result)
             self._check_no_direct_fetch(relative_path, content, lines, result)
+            self._check_no_ambient_other(relative_path, content, lines, language, result)
 
         elif language == Language.TYPESCRIPT:
             self._check_kebab_naming(relative_path, content, lines, result)
@@ -714,6 +738,10 @@ class AFDLinter:
 
         elif language == Language.RUST:
             self._check_command_result_rust(relative_path, content, lines, result)
+            self._check_no_ambient_other(relative_path, content, lines, language, result)
+
+        elif language == Language.CPP:
+            self._check_no_ambient_other(relative_path, content, lines, language, result)
 
         # Cross-language rules
         self._check_layer_imports(relative_path, content, lines, language, result)
@@ -1013,6 +1041,34 @@ class AFDLinter:
                             lines,
                             result,
                         )
+
+    def _check_no_ambient_other(
+        self,
+        file_path: str,
+        content: str,
+        lines: Sequence[str],
+        language: Language,
+        result: LintResult,
+    ) -> None:
+        """Flag ambient time and randomness in Python, Rust and C++ handlers.
+
+        Handler scope per language is described in ``afd.lushx_ext.ambient``.
+        """
+        finder, time_hint, random_hint = _AMBIENT_OTHER[language.value]
+        for line_num, kind, name in finder(content):
+            is_time = kind == "time"
+            self._emit(
+                LintIssue(
+                    rule=_RULE_AMBIENT_TIME if is_time else _RULE_AMBIENT_RANDOM,
+                    message=f"Ambient {name} in command handler",
+                    file=file_path,
+                    line=line_num,
+                    severity=Severity.WARNING,
+                    suggestion=time_hint if is_time else random_hint,
+                ),
+                lines,
+                result,
+            )
 
     # ═══════════════════════════════════════════════════════════════════════════
     # RUST RULES
