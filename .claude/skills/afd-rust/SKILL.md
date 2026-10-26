@@ -354,6 +354,25 @@ Entries keep only the actor, interface and trace ID from the context (plus a has
 names). `parse_journal`/`serialize_journal` read and write `spec/journal.md` JSON Lines; compare with
 TypeScript output as JSON values, since object key order differs.
 
+### Approvals (`approval` feature, default)
+
+```rust
+use afd::{create_approval_middleware, ApprovalMiddlewareOptions, ApprovalPolicy, CommandContext};
+
+let delete = delete.with_approval(ApprovalPolicy::Required); // or ApprovalPolicy::when(|input, ctx| ...)
+registry.register(delete)?;
+// After any middleware that sets the actor: tokens are bound to command, validated input and actor.
+let options = ApprovalMiddlewareOptions::new(std::env::var("AFD_APPROVAL_SECRET")?, registry.list());
+registry.add_middleware(create_approval_middleware(options)?);
+// APPROVAL_REQUIRED carries details.approvalToken; once a human approves, trusted code retries:
+let context = CommandContext::new().with_approval(token); // never from tool arguments
+```
+
+Single-use by default (`with_replay(ApprovalReplay::WithinTtl)` to allow repeats), five-minute TTL,
+security time from `with_clock` only (never the context clock). Tokens are byte-compatible with
+TypeScript's `createApprovalMiddleware`, including `canonical_json` (JavaScript number spelling,
+UTF-16 key order; integers beyond 2^53 that a float cannot hold fail the call).
+
 ## Batch Execution
 
 ```rust
@@ -413,7 +432,7 @@ let chunk: StreamChunk = progress.into();
 
 ## Current Parity Note
 
-The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-parity.md). `alfred parity` reports 9 names missing from Rust, and most of those are export artifacts. The real gaps are behavioral.
+The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-parity.md). `alfred parity` reports the names missing from Rust (see `docs/language-parity.md`), and most of those are export artifacts. The real gaps are behavioral.
 
 - **Shared with TypeScript today:**
   - wire shapes (round-trip `spec/wire`);
@@ -438,7 +457,6 @@ The cross-language matrix is [`docs/language-parity.md`](../../../docs/language-
   - active-context scoping (`contexts` is metadata; use `CommandDefinition::is_accessible_in_context`);
   - result metadata stamping and `onCommand` hooks;
   - a registry dev mode: panic details are always redacted;
-  - `destructive`, `confirmPrompt` and `undoable`.
 - **Validation in the unmerged stabilization candidate:**
   - `register_with_schema(command, serde_json::Value)` adds the full required schema subset, including nullable type lists, root/nested `additionalProperties`, recursive local refs and numeric/string/array bounds. Existing public schema fields remain compatible.
   - Use `registry.get_tool(name)` for authoritative discovery. `afd-schema` and `afd-docs` use it; standalone `command_to_mcp_tool` converts legacy definitions only. Read whole-schema bootstrap results as JSON when they exceed legacy `SchemaInfo`/`McpTool` types.

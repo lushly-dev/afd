@@ -340,6 +340,13 @@ async fn main() {
 - `journal-file` (default) - `FileJournalSink`, a command journal in a JSON Lines file, through
   blocking `std::fs`. The rest of the journal (entries, `MemoryJournalSink`, recording, replay) is in
   every build, WebAssembly included.
+- `approval` (default) - The approval middleware (`create_approval_middleware`): a command whose
+  `ApprovalPolicy` holds the call fails with `APPROVAL_REQUIRED` and an HMAC-SHA256 token bound to
+  the command, the validated input and the actor, until trusted code retries it with
+  `CommandContext::with_approval(token)` (`spec/command-metadata.md`, "Approvals"). Tokens verify
+  across TypeScript and Rust. Policies themselves (`CommandDefinition::with_approval`,
+  `_meta.approval`) need no feature. With `wasm`, the token nonce comes from
+  `crypto.getRandomValues`.
 - `server` - An MCP server for a `CommandRegistry` (`afd::server::McpServer`), built on the official
   MCP Rust SDK ([`rmcp`](https://crates.io/crates/rmcp)). One Streamable HTTP endpoint
   (`streamable_http_service`, a `tower` service to mount at `/mcp`) or one stdio connection

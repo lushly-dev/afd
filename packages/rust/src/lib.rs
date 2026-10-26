@@ -43,6 +43,9 @@
 //!   durations with `web-time`
 //! - `journal-file` (default): [`FileJournalSink`], a command journal in a
 //!   JSON Lines file (`std::fs`)
+//! - `approval` (default): the approval middleware ([`create_approval_middleware`]), with
+//!   HMAC-SHA256 tokens and an OS-random nonce (`getrandom`; with `wasm`, through the browser's
+//!   `crypto.getRandomValues`). Approval policies and their reporting need no feature.
 
 /// Compiles and runs the README examples as doctests.
 #[doc = include_str!("../README.md")]
@@ -51,6 +54,7 @@ pub struct ReadmeDoctests;
 
 // Module declarations
 pub mod actor;
+pub mod approval;
 pub mod batch;
 pub mod bootstrap;
 pub mod builtin_names;
@@ -251,6 +255,21 @@ pub use journal::{
     serialize_journal, serialize_journal_entry, JournalContextDigest, JournalEntry, JournalRange,
     JournalRecord, JournalRecorder, JournalSink, JournalTape, MemoryJournalSink, ReplayDifference,
     ReplayDifferenceKind, ReplayEntryReport, ReplayJournalOptions, ReplayReport, ReplayStatus,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// RE-EXPORTS: Approvals
+// ═══════════════════════════════════════════════════════════════════════════════
+
+pub use approval::{
+    approval_mode, ApprovalDecision, ApprovalMode, ApprovalPolicy, ApprovalPolicyFn,
+    ApprovalRejection,
+};
+#[cfg(feature = "approval")]
+#[cfg_attr(docsrs, doc(cfg(feature = "approval")))]
+pub use approval::{
+    canonical_json, create_approval_middleware, ApprovalMiddlewareOptions, ApprovalNonceStore,
+    ApprovalReplay, ApprovalRequest,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

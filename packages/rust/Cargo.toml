@@ -16,15 +16,17 @@ keywords = ["afd", "agent", "mcp", "ai", "commands"]
 categories = ["development-tools", "api-bindings"]
 
 [features]
-default = ["native", "journal-file"]
+default = ["native", "journal-file", "approval"]
 # Command, batch and pipeline deadlines through `tokio::time::timeout`. The
 # host application provides the Tokio runtime (with its time driver enabled).
 native = ["dep:tokio"]
 # Browser WebAssembly (`wasm32-unknown-unknown`): measures durations with
 # `web-time`, because `std::time::Instant::now()` traps on that target.
-wasm = ["dep:web-time"]
+wasm = ["dep:web-time", "getrandom?/wasm_js"]
 # `FileJournalSink`: a command journal in a JSON Lines file, through blocking `std::fs`.
 journal-file = []
+# The approval middleware (`create_approval_middleware`): HMAC-SHA256 tokens and OS-random nonces.
+approval = ["dep:hmac", "dep:subtle", "dep:getrandom"]
 # MCP server over Streamable HTTP and stdio, built on the official Rust SDK (`rmcp`). Serves MCP
 # 2026-07-28 (stateless, per-request `_meta`) and 2025 `initialize` clients. Needs Rust 1.88.
 server = ["native", "dep:rmcp", "dep:getrandom", "tokio/rt", "tokio/io-std"]
@@ -40,6 +42,10 @@ futures-util = "0.3"
 # The command journal's context digest (`sha256:` hashes).
 sha2 = "0.10"
 
+# `approval` feature: the approval token's MAC and constant-time comparisons.
+hmac = { version = "0.12", optional = true }
+subtle = { version = "2.5", optional = true }
+
 # Native-only: only `tokio::time::timeout` is used.
 tokio = { version = "1.0", default-features = false, features = ["time"], optional = true }
 
@@ -54,8 +60,11 @@ rmcp = { version = "3.7", default-features = false, features = [
     "request-state",
     "elicitation",
 ], optional = true }
-# `server` feature: the per-process key that signs confirmation `requestState`.
-getrandom = { version = "0.4", optional = true }
+# `server` feature: the per-process key that signs confirmation `requestState`; `approval`
+# feature: the approval token's nonce.
+# 0.3 and 0.4 share `getrandom::fill`; 0.4 needs Rust 1.85, so the MSRV resolver falls back to
+# 0.3 (the `server` feature needs 1.88 and gets 0.4).
+getrandom = { version = ">=0.3, <0.5", optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full", "test-util"] }

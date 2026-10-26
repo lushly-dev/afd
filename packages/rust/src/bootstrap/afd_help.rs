@@ -42,6 +42,10 @@ pub struct CommandInfo {
     /// `undoable` when set (`full` format only).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub undoable: Option<bool>,
+    /// The approval policy when declared (`full` format only); a function policy is
+    /// `conditional`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub approval: Option<crate::ApprovalMode>,
     /// Commands to call first (always listed when set).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requires: Option<Vec<String>>,
@@ -133,6 +137,11 @@ impl CommandHandler for AfdHelpHandler {
                 mutation: if is_full { Some(cmd.mutation) } else { None },
                 destructive: if is_full { cmd.destructive } else { None },
                 undoable: if is_full { cmd.undoable } else { None },
+                approval: if is_full {
+                    crate::approval_mode(cmd.approval.as_ref())
+                } else {
+                    None
+                },
                 requires: cmd.requires.clone().filter(|requires| !requires.is_empty()),
             };
             let category = cmd
