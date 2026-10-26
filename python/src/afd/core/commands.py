@@ -21,6 +21,7 @@ Example:
 from dataclasses import dataclass, field
 import logging
 import re
+import warnings
 from typing import (
     Any,
     Awaitable,
@@ -127,6 +128,17 @@ CommandHandler = Callable[
     [Any, Optional[CommandContext]],
     Awaitable[CommandResult[Any]],
 ]
+
+# Middleware types, matching TypeScript's CommandMiddleware. ``afd.server``
+# re-exports these same objects; the server runs the chain.
+NextFn = Callable[[], Awaitable[CommandResult[Any]]]
+"""Runs the rest of the middleware chain and then the handler."""
+
+CommandMiddleware = Callable[
+    [str, Any, CommandContext, NextFn],
+    Awaitable[CommandResult[Any]],
+]
+"""Middleware: ``(command_name, input, context, next_fn) -> CommandResult``."""
 
 
 @dataclass
@@ -272,6 +284,10 @@ class _CommandRegistryImpl:
     def register(self, command: CommandDefinition) -> None:
         if command.name in self._commands:
             raise ValueError(f"Command '{command.name}' is already registered")
+        # define_command already warned about a decorated handler's own name.
+        decorated = getattr(command.handler, "__afd_command__", None)
+        if getattr(decorated, "name", None) != command.name:
+            warn_invalid_command_name(command.name)
         if command.input_schema is not None:
             from afd.core.schema_validation import check_schema
 
@@ -413,6 +429,24 @@ def validate_command_name(name: str) -> dict[str, Any]:
             ),
         }
     return {"valid": True}
+
+
+def warn_invalid_command_name(name: str, *, stacklevel: int = 2) -> bool:
+    """Warn when ``name`` breaks the ``domain-action`` naming rule.
+
+    The rule is advisory, as in TypeScript's ``defineCommand``: the command
+    still registers. ``define_command`` (and so ``MCPServer.command`` and
+    ``MCPServer.register``) and the core ``CommandRegistry.register`` call
+    this, once per command. ``afd.direct.SimpleRegistry`` does not.
+
+    Returns:
+        True when the name is valid.
+    """
+    check = validate_command_name(name)
+    if not check["valid"]:
+        warnings.warn(f"[AFD] {check['reason']}", UserWarning, stacklevel=stacklevel + 1)
+        return False
+    return True
 
 
 def command_to_mcp_tool(command: CommandDefinition) -> dict[str, Any]:

@@ -17,11 +17,15 @@ Example:
     >>> assert chunk.type == "data"
 """
 
+import asyncio
+import math
+import time
 from dataclasses import dataclass, field
 from typing import (
     Annotated,
     Any,
     AsyncIterator,
+    Awaitable,
     Callable,
     Generic,
     List,
@@ -324,6 +328,40 @@ def create_progress_chunk(
     )
 
 
+def create_progress_chunk_with_steps(
+    progress: float,
+    current_step: int,
+    total_steps: int,
+    *,
+    message: Optional[str] = None,
+    items_processed: Optional[int] = None,
+    items_total: Optional[int] = None,
+    estimated_time_remaining_ms: Optional[int] = None,
+    phase: Optional[str] = None,
+) -> ProgressChunk:
+    """Create a progress chunk with explicit step tracking.
+
+    A convenience over :func:`create_progress_chunk` with ``current_step``
+    and ``total_steps`` positional, as in TypeScript's
+    ``createProgressChunkWithSteps``.
+
+    Example:
+        >>> chunk = create_progress_chunk_with_steps(0.5, 2, 4, message="Step 2 of 4")
+        >>> (chunk.current_step, chunk.total_steps)
+        (2, 4)
+    """
+    return create_progress_chunk(
+        progress,
+        message=message,
+        current_step=current_step,
+        total_steps=total_steps,
+        items_processed=items_processed,
+        items_total=items_total,
+        estimated_time_remaining_ms=estimated_time_remaining_ms,
+        phase=phase,
+    )
+
+
 def create_data_chunk(
     data: T,
     index: int,
@@ -606,3 +644,112 @@ async def collect_stream_data(stream: AsyncIterator[StreamChunk]) -> List[Any]:
             raise RuntimeError(chunk.error.message)
 
     return items
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TIMEOUT CONTROLLER
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TimeoutController:
+    """A deadline that starts when the controller is created.
+
+    The Python counterpart of TypeScript's ``createTimeoutController``. Instead
+    of an ``AbortSignal``, :meth:`run` bounds an awaitable by the time left, so
+    several awaits under one controller share one budget. A controller with no
+    timeout never expires.
+
+    Args:
+        timeout_ms: The budget in milliseconds, a finite number of at least 0,
+            or None for no timeout.
+        clock: Returns monotonic seconds. Defaults to ``time.monotonic``; tests
+            pass a fake clock.
+
+    Raises:
+        ValueError: If ``timeout_ms`` is negative, infinite or not a number.
+    """
+
+    def __init__(
+        self,
+        timeout_ms: Optional[float] = None,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        if timeout_ms is not None and (
+            isinstance(timeout_ms, bool)
+            or not isinstance(timeout_ms, (int, float))
+            or not math.isfinite(timeout_ms)
+            or timeout_ms < 0
+        ):
+            raise ValueError(
+                f"timeout_ms must be a finite number of at least 0, or None; got {timeout_ms!r}"
+            )
+        self._timeout_ms = timeout_ms
+        self._clock = clock
+        self._deadline = None if timeout_ms is None else clock() + timeout_ms / 1000
+
+    @property
+    def timeout_ms(self) -> Optional[float]:
+        """The full budget in milliseconds, or None for no timeout."""
+        return self._timeout_ms
+
+    @property
+    def remaining_ms(self) -> Optional[float]:
+        """Milliseconds left before the deadline (never below 0), or None for no timeout."""
+        if self._deadline is None:
+            return None
+        return max(0.0, (self._deadline - self._clock()) * 1000)
+
+    @property
+    def is_expired(self) -> bool:
+        """Whether the deadline has passed. Always False with no timeout."""
+        remaining = self.remaining_ms
+        return remaining is not None and remaining <= 0
+
+    async def run(self, awaitable: Awaitable[T]) -> T:
+        """Await ``awaitable``, bounded by the time left on this controller.
+
+        The bound is :attr:`remaining_ms`, not the full budget. On expiry the
+        awaitable is cancelled and ``TimeoutError`` is raised. Cancelling the
+        caller cancels the awaitable and raises ``asyncio.CancelledError`` as
+        usual; it is never turned into a timeout. The awaitable's own result
+        and exceptions, its own ``TimeoutError`` included, pass through.
+
+        Raises:
+            TimeoutError: If the deadline passes first, including when it had
+                already passed before the call (unless the awaitable is a
+                future that has already finished).
+        """
+        remaining = self.remaining_ms
+        if remaining is None:
+            return await awaitable
+        # asyncio.wait_for would relabel the awaitable's own TimeoutError on
+        # 3.11+, where asyncio.TimeoutError is the builtin, so time it here.
+        task = asyncio.ensure_future(awaitable)
+        try:
+            done, _ = await asyncio.wait({task}, timeout=remaining / 1000)
+        except asyncio.CancelledError:
+            task.cancel()
+            raise
+        if task in done:
+            return task.result()
+        task.cancel()
+        await asyncio.wait({task})
+        raise TimeoutError(f"Timed out after {self._timeout_ms}ms")
+
+
+def create_timeout_controller(
+    timeout_ms: Optional[float] = None,
+    *,
+    clock: Callable[[], float] = time.monotonic,
+) -> TimeoutController:
+    """Create a :class:`TimeoutController` whose deadline starts now.
+
+    Example:
+        >>> controller = create_timeout_controller(5000)
+        >>> controller.is_expired
+        False
+        >>> create_timeout_controller().remaining_ms is None
+        True
+    """
+    return TimeoutController(timeout_ms, clock=clock)

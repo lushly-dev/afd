@@ -38,15 +38,8 @@ from typing import (
 )
 from uuid import uuid4
 
-from afd.core.commands import CommandContext
+from afd.core.commands import CommandContext, CommandMiddleware, NextFn
 from afd.core.result import CommandError, CommandResult
-
-# Type aliases matching TS CommandMiddleware pattern
-NextFn = Callable[[], Awaitable[CommandResult[Any]]]
-CommandMiddleware = Callable[
-    [str, Any, CommandContext, NextFn],
-    Awaitable[CommandResult[Any]],
-]
 
 
 # =============================================================================
