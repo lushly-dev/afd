@@ -201,6 +201,7 @@ the same target and run `node build/emscripten/benchmarks/afd_benchmarks.cjs`.
 | `registry_1000/execute`, `/get`, `/list` | Dispatch, `get` and `list` on a registry of 1,000 commands |
 | `execute_batch/n=N` | One batch of N no-op commands (1, 10, 100) |
 | `execute_pipeline/n=N` | One pipeline of N steps, each after the first reading `$prev.value` (1, 10, 100) |
+| `json_parse/1KB`, `/100KB` | Plain `nlohmann::json::parse` of the same text, the reference for `parse_bounded` |
 | `parse_bounded/1KB`, `/100KB` | `parse_bounded` of a todo-list result |
 | `serialize_result/1KB`, `/100KB` | `CommandResult` to `Json` to `wire::serialize` text |
 
@@ -240,7 +241,19 @@ about 40), so treat these as upper bounds. Median nanoseconds per operation:
 | `serialize_result/100KB` | 992,546 | 2,415,343 |
 
 A call costs about 1 µs in process (about 2 µs with all of `default_middleware()`), and dispatch on 1,000 commands costs the same as on one.
-Batch and pipeline scale linearly in N. Natively, `parse_bounded` looked superlinear: 100 KB cost
-about 370 times 1 KB, and a separate comparison measured it 12 times slower than plain
-`nlohmann::json::parse` at 295 KB. Under WebAssembly the ratio was about 120 times, close to linear.
-The cause is not yet confirmed ([#397](https://github.com/lushly-dev/afd/issues/397)).
+Batch and pipeline scale linearly in N. The `parse_bounded` rows above predate the fix for
+[#397](https://github.com/lushly-dev/afd/issues/397): it enforced the depth limit with a nlohmann parser
+callback, and the callback parser rescans the enclosing container after every object, which is
+quadratic in the number of objects in an array. It now builds the document from SAX events and costs
+about the same as `json_parse`. On the same machine (load average about 25), median nanoseconds per
+operation:
+
+| Case | Native before | Native after | WebAssembly after |
+|---|---:|---:|---:|
+| `json_parse/1KB` | | 16,264–31,339 | 18,789 |
+| `parse_bounded/1KB` | 23,036–26,469 | 19,254–23,885 | 18,103 |
+| `json_parse/100KB` | | 1,402,186–2,228,992 | 1,587,483 |
+| `parse_bounded/100KB` | 8,825,469–12,287,302 | 1,423,739–1,818,014 | 1,609,969 |
+
+Native ranges are three interleaved runs of each build; before, 100 KB was about 6 to 9 times
+`json_parse`, and after, within 10 percent of it.
