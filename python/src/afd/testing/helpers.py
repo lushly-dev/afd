@@ -16,6 +16,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Any, Callable, Generic, List, Optional, TypeVar
 
+from afd.core.actor import Actor
+from afd.core.clock import fixed_clock, system_clock, system_random
 from afd.core.commands import CommandContext, CommandDefinition
 from afd.core.result import CommandError as ResultCommandError
 from afd.core.result import CommandResult, failure, is_failure, is_success, success
@@ -56,8 +58,11 @@ def create_test_context(
 ) -> CommandContext:
     """Create a CommandContext suitable for testing.
 
-    Generates a unique trace_id and sets a 5-second timeout.
-    Override any field via the overrides dict.
+    Generates a unique trace_id, sets a 5-second timeout and the actor
+    ``Actor(kind="test")``, and gives the real ``clock`` and ``random`` unless
+    overridden. Override any field via the overrides dict; a ``now`` key
+    (epoch milliseconds, an ISO string or a ``datetime``) without a ``clock``
+    stops the clock at ``now``.
 
     Args:
         overrides: Optional dict of field overrides.
@@ -69,17 +74,27 @@ def create_test_context(
         >>> ctx = create_test_context({"timeout": 10000})
         >>> assert ctx.timeout == 10000
         >>> assert ctx.trace_id is not None
+        >>> ctx = create_test_context({"now": "2026-01-01T00:00:00Z"})
+        >>> ctx.clock.now()
+        1767225600000
     """
     defaults: dict[str, Any] = {
         "trace_id": f"test-{uuid.uuid4().hex[:12]}",
         "timeout": 5000,
         "extra": {"environment": "test"},
+        "actor": Actor(kind="test"),
     }
+    now = None
     if overrides:
         overrides = dict(overrides)
+        now = overrides.pop("now", None)
         if "extra" in overrides and "extra" in defaults:
             defaults["extra"] = {**defaults["extra"], **overrides.pop("extra")}
         defaults.update(overrides)
+    if defaults.get("clock") is None:
+        defaults["clock"] = fixed_clock(now) if now is not None else system_clock
+    if defaults.get("random") is None:
+        defaults["random"] = system_random
 
     return CommandContext(**defaults)
 

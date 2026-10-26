@@ -858,11 +858,12 @@ NAME_GAP_BUDGET = {
     # withContextDefaults, Clock, ClockInstant, ManualClock, RandomSource, fixedClock,
     # seededRandom, systemClock, systemRandom. Parity tracked in #400 (Python), #401 (Rust)
     # and #402 (C++, which already has a Clock).
+    # Python 103 → 88 (#400): all 15 context primitives exported.
     # Rust 24 → 9 (#401): afd exports all 15 context primitives.
     # C++ 85 → 76 (#402): Actor, ActorKind, actor_kinds, is_actor, is_actor_kind,
     # ContextDefaults, with_context_defaults, fixed_clock and SystemRandom. ClockInstant stays
     # missing: C++ clocks take epoch milliseconds only.
-    "missing_from_python": 103,
+    "missing_from_python": 88,
     "missing_from_rust": 9,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps

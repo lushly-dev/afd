@@ -107,7 +107,8 @@ class TestResultWireFormat:
         metadata = body.pop("metadata")
         assert metadata.pop("executionTimeMs") >= 0
         assert metadata.pop("traceId").startswith("trace-")
-        assert metadata == {"commandVersion": "1.0.0"}
+        # MCP calls are agents (#271): only the kind is reported.
+        assert metadata == {"commandVersion": "1.0.0", "actorKind": "agent"}
         assert body == {
             "success": True,
             "data": {"id": "todo-1", "title": "Buy milk", "description": None},
@@ -122,7 +123,7 @@ class TestResultWireFormat:
         is_error, body = await _call(_server(), "todo-get", {"id": "x"})
 
         assert is_error is True
-        assert set(body.pop("metadata")) == {"executionTimeMs", "traceId"}
+        assert body.pop("metadata").keys() == {"executionTimeMs", "traceId", "actorKind"}
         assert body == {
             "success": False,
             "error": {

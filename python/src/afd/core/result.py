@@ -38,6 +38,11 @@ class ResultMetadata(WireModel):
         command_version: Version of the command that produced this result.
         trace_id: Unique trace ID for debugging and correlation.
         timestamp: ISO timestamp when the command was executed.
+        actor_kind: Kind of principal that called the command
+            (``context.actor.kind``): ``human``, ``agent``, ``service``,
+            ``script`` or ``test``. Set by the AFD server when the context has
+            an actor. Only the kind is reported, never the actor's id or label.
+            Typed as a string so a result with a kind added later still parses.
 
     Additional metadata fields are allowed and serialized under their own
     names. The declared fields use camelCase on the wire (``executionTimeMs``).
@@ -49,6 +54,7 @@ class ResultMetadata(WireModel):
     command_version: Optional[str] = None
     trace_id: Optional[str] = None
     timestamp: Optional[str] = None
+    actor_kind: Optional[str] = None
 
 
 class CommandResult(WireModel, Generic[T]):

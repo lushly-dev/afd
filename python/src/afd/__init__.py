@@ -134,6 +134,25 @@ from afd.core.commands import (
     validate_command_name,
 )
 from afd.core.contract import CONTRACT_VERSION
+from afd.core.actor import (
+    ACTOR_KINDS,
+    Actor,
+    ActorKind,
+    ContextDefaults,
+    is_actor,
+    is_actor_kind,
+    with_context_defaults,
+)
+from afd.core.clock import (
+    Clock,
+    ClockInstant,
+    ManualClock,
+    RandomSource,
+    fixed_clock,
+    seeded_random,
+    system_clock,
+    system_random,
+)
 from afd.core.mcp_types import (
     LEGACY_PROTOCOL_VERSIONS,
     MCP_PROTOCOL_VERSION,
@@ -314,6 +333,22 @@ def __dir__() -> list[str]:
 __version__ = "0.9.0"
 
 __all__ = [
+    # Context primitives (actor, clock, random)
+    "ACTOR_KINDS",
+    "Actor",
+    "ActorKind",
+    "ContextDefaults",
+    "is_actor",
+    "is_actor_kind",
+    "with_context_defaults",
+    "Clock",
+    "ClockInstant",
+    "ManualClock",
+    "RandomSource",
+    "fixed_clock",
+    "seeded_random",
+    "system_clock",
+    "system_random",
     # Version
     "__version__",
     "CONTRACT_VERSION",

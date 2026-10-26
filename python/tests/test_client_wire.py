@@ -107,8 +107,9 @@ class TestCallParsesTypeScriptResults:
         assert result.alternatives[0].label == "Completed"
         assert result.suggestions == ["Use todo-list to review existing todos"]
         assert result.metadata.command_version == "2.1.0"
-        # actorKind is the TypeScript server stamping the MCP caller (#271); not typed here yet.
-        assert result.metadata.model_extra == {"region": "test", "actorKind": "agent"}
+        # actorKind is the TypeScript server stamping the MCP caller (#271).
+        assert result.metadata.actor_kind == "agent"
+        assert result.metadata.model_extra == {"region": "test"}
         assert result.undo_command == "todo-delete"
 
     @pytest.mark.asyncio

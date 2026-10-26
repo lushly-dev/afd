@@ -21,6 +21,7 @@ Pipeline Example:
 from __future__ import annotations
 
 import asyncio
+import copy
 import inspect
 import math
 import logging
@@ -46,6 +47,8 @@ from afd.core.result import (
     failure,
     success,
 )
+from afd.core.actor import Actor
+from afd.core.clock import Clock, RandomSource
 from afd.core.errors import CommandError, not_found_error, validation_error
 from afd.core.similarity import find_similar_tools, truncate_name
 from afd.core.pipeline import (
@@ -69,15 +72,27 @@ logger = logging.getLogger("afd.direct")
 
 T = TypeVar("T")
 
+_HUMAN_ACTOR = Actor(kind="human")
+"""The default actor of a DirectClient call."""
+
 
 @dataclass
 class CommandContext:
-    """Context for command execution; ``timeout`` is in milliseconds."""
+    """Context for command execution; ``timeout`` is in milliseconds.
+
+    ``actor`` is who is calling (``human`` unless the client or call sets
+    another). ``clock`` and ``random`` are set only when the client or call
+    configures them, so a registry can apply its own defaults (see
+    :func:`afd.core.with_context_defaults`).
+    """
     
     trace_id: str
     source: Optional[str] = None
     timeout: Optional[float] = None
     extra: Dict[str, Any] = field(default_factory=dict)
+    actor: Optional[Actor] = None
+    clock: Optional[Clock] = None
+    random: Optional[RandomSource] = None
 
 
 @dataclass
@@ -111,11 +126,22 @@ class CommandDefinition:
 
 @dataclass
 class DirectClientOptions:
-    """Options for DirectClient."""
+    """Options for DirectClient.
+
+    Attributes:
+        actor: Actor of every call that sets none. Default: ``Actor(kind="human")``.
+            Each call gets its own copy.
+        clock: ``context.clock`` of every call that sets none. Default: none, so
+            the registry's own default applies.
+        random: ``context.random`` of every call that sets none. Default: none.
+    """
     
     source: Optional[str] = None
     debug: bool = False
     validate_inputs: bool = True
+    actor: Optional[Actor] = None
+    clock: Optional[Clock] = None
+    random: Optional[RandomSource] = None
 
 
 @dataclass
@@ -130,6 +156,12 @@ class DirectCallContext:
     trace_id: Optional[str] = None
     timeout: Optional[float] = None
     extra: Dict[str, Any] = field(default_factory=dict)
+    actor: Optional[Actor] = None
+    """Who is calling; wins over the client's actor."""
+    clock: Optional[Clock] = None
+    """Clock for this call; wins over the client's."""
+    random: Optional[RandomSource] = None
+    """Random source for this call; wins over the client's."""
 
 
 @dataclass
@@ -503,12 +535,18 @@ class DirectClient:
                         )
                     )
         
-        # Build command context
+        # Build command context. The call's actor, clock and random win over the client's.
+        # Clock and random are only set when configured, so a registry's own defaults
+        # still apply.
+        actor = (context.actor if context else None) or self.options.actor or _HUMAN_ACTOR
         cmd_context = CommandContext(
             trace_id=trace_id,
             source=self.options.source,
             timeout=context.timeout if context else None,
             extra=context.extra if context else {},
+            actor=copy.copy(actor),
+            clock=(context.clock if context else None) or self.options.clock,
+            random=(context.random if context else None) or self.options.random,
         )
         
         # Execute the command

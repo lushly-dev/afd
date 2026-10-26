@@ -38,6 +38,8 @@ from typing import (
 )
 from uuid import uuid4
 
+from afd.core.actor import actor_kind_of
+from afd.core.clock import system_clock
 from afd.core.commands import CommandContext, CommandMiddleware, NextFn
 from afd.core.result import CommandError, CommandResult
 
@@ -63,6 +65,8 @@ class TelemetryEvent:
         confidence: Result confidence score.
         metadata: Result metadata.
         command_version: Version of the command.
+        actor_kind: Kind of principal that called the command
+            (``context.actor.kind``), never its id.
     """
 
     command_name: str
@@ -76,6 +80,7 @@ class TelemetryEvent:
     confidence: Optional[float] = None
     metadata: Optional[Dict[str, Any]] = None
     command_version: Optional[str] = None
+    actor_kind: Optional[str] = None
 
 
 @runtime_checkable
@@ -133,6 +138,8 @@ class ConsoleTelemetrySink:
                 event_dict["error"] = event.error
             if event.trace_id is not None:
                 event_dict["trace_id"] = event.trace_id
+            if event.actor_kind is not None:
+                event_dict["actor_kind"] = event.actor_kind
             if event.confidence is not None:
                 event_dict["confidence"] = event.confidence
             self._log(json.dumps(event_dict))
@@ -298,9 +305,11 @@ def create_timing_middleware(
         context: CommandContext,
         next_fn: NextFn,
     ) -> CommandResult[Any]:
-        start = time.monotonic()
+        # The context clock, so a test can drive a slow command with fixed_clock().
+        clock = getattr(context, "clock", None) or system_clock
+        start = clock.now()
         result = await next_fn()
-        duration_ms = (time.monotonic() - start) * 1000
+        duration_ms = max(0, clock.now() - start)
 
         if duration_ms > slow_threshold:
             default_on_slow(command_name, duration_ms)
@@ -541,6 +550,15 @@ def create_rate_limit_middleware(
 # =============================================================================
 
 
+def _iso_from_ms(ms: float) -> str:
+    """An epoch-milliseconds instant as an ISO 8601 UTC timestamp."""
+    from datetime import datetime, timedelta, timezone
+
+    # Epoch plus a delta, not fromtimestamp(), which rejects negative instants on Windows.
+    epoch = datetime(1970, 1, 1, tzinfo=timezone.utc)
+    return (epoch + timedelta(milliseconds=ms)).isoformat()
+
+
 def create_telemetry_middleware(
     sink: TelemetrySink,
     *,
@@ -567,10 +585,9 @@ def create_telemetry_middleware(
         if not _filter(command_name):
             return await next_fn()
 
-        from datetime import datetime, timezone
-
-        started_at = datetime.now(timezone.utc).isoformat()
-        start_time = time.monotonic()
+        clock = getattr(context, "clock", None) or system_clock
+        start_time = clock.now()
+        started_at = _iso_from_ms(start_time)
 
         result: Optional[CommandResult[Any]] = None
         thrown_error: Optional[Exception] = None
@@ -581,8 +598,9 @@ def create_telemetry_middleware(
             thrown_error = exc
             raise
         finally:
-            completed_at = datetime.now(timezone.utc).isoformat()
-            duration_ms = (time.monotonic() - start_time) * 1000
+            end_time = clock.now()
+            completed_at = _iso_from_ms(end_time)
+            duration_ms = max(0, end_time - start_time)
 
             error_dict = None
             if thrown_error:
@@ -613,6 +631,7 @@ def create_telemetry_middleware(
                 success=False if thrown_error else (result.success if result else False),
                 error=error_dict,
                 trace_id=context.trace_id,
+                actor_kind=actor_kind_of(getattr(context, "actor", None)),
                 input=input if include_input else None,
                 confidence=(
                     result.confidence
