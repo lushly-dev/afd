@@ -341,8 +341,9 @@ export interface CommandContext {
 
 	/**
 	 * Source of the current time. Read time from here instead of `Date.now()` so tests and
-	 * replays can control it. The MCP server, `createDirectRegistry()`, the core registry
-	 * and `DirectClient` always set it (to `systemClock` unless overridden).
+	 * replays can control it. The MCP server, `createDirectRegistry()` and the core registry
+	 * always set it (to `systemClock` unless overridden); `DirectClient` passes its
+	 * configured clock on to the registry.
 	 */
 	clock?: Clock;
 

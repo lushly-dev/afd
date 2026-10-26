@@ -25,6 +25,7 @@ import {
 	executeStream as executeCoreStream,
 	executionFailure,
 	failure,
+	isActorKind,
 	truncateName,
 	withContextDefaults,
 } from '@lushly-dev/afd-core';
@@ -167,10 +168,10 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 				...result,
 				metadata: {
 					...result.metadata,
-					executionTimeMs: clock.now() - startTime,
+					executionTimeMs: Math.max(0, clock.now() - startTime),
 					commandVersion: command.version,
 					...(context.traceId ? { traceId: context.traceId } : {}),
-					...(context.actor ? { actorKind: context.actor.kind } : {}),
+					...(isActorKind(context.actor?.kind) ? { actorKind: context.actor.kind } : {}),
 				},
 			};
 		};

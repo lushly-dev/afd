@@ -32,19 +32,15 @@ export interface AuthMiddlewareOptions {
 /**
  * The actor for a call made with a verified session. A human (or unset) actor becomes the
  * session user (`id`, and `label` from the user's name). An agent, service or script keeps
- * its own identity and records the user as `onBehalfOf`, unless the caller already set one.
+ * its own identity and acts on behalf of the session user; a caller-supplied `onBehalfOf`
+ * is replaced, so it can never name someone other than the verified user.
  */
 function actorForSession(actor: Actor | undefined, session: AuthenticatedSessionState): Actor {
 	const { user } = session;
 	if (!actor || actor.kind === 'human') {
-		return {
-			...actor,
-			kind: 'human',
-			id: user.id,
-			...(user.name ? { label: user.name } : {}),
-		};
+		return { kind: 'human', id: user.id, ...(user.name ? { label: user.name } : {}) };
 	}
-	return actor.onBehalfOf ? actor : { ...actor, onBehalfOf: user.id };
+	return { ...actor, onBehalfOf: user.id };
 }
 
 /**

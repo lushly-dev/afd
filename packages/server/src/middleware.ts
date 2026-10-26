@@ -13,7 +13,7 @@ import type {
 	TelemetryEvent,
 	TelemetrySink,
 } from '@lushly-dev/afd-core';
-import { createTelemetryEvent, systemClock } from '@lushly-dev/afd-core';
+import { createTelemetryEvent, isActorKind, systemClock } from '@lushly-dev/afd-core';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // AUTO TRACE ID MIDDLEWARE
@@ -615,7 +615,7 @@ export function createTelemetryMiddleware(options: TelemetryOptions): CommandMid
 				}),
 				...(!thrownError && !result?.success && result?.error && { error: result?.error }),
 				...(context.traceId && { traceId: context.traceId }),
-				...(context.actor && { actorKind: context.actor.kind }),
+				...(isActorKind(context.actor?.kind) && { actorKind: context.actor.kind }),
 				...(includeInput && { input }),
 				...(!thrownError && result?.confidence !== undefined && { confidence: result?.confidence }),
 				...(!thrownError && includeMetadata && result?.metadata && { metadata: result?.metadata }),

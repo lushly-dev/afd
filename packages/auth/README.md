@@ -50,8 +50,8 @@ const middleware = createAuthMiddleware(adapter, { exclude: ['public-cmd'] });
   supplied.
 - With a verified session, a `human` (or missing) `context.actor` becomes
   `{ kind: 'human', id: user.id, label: user.name }`. An `agent`, `service` or
-  `script` actor keeps its identity and gets `onBehalfOf: user.id`, unless the
-  caller already set `onBehalfOf`.
+  `script` actor keeps its identity and gets `onBehalfOf: user.id`, replacing any
+  `onBehalfOf` the caller set.
 - Importing the package types `context.auth` as
   `AuthenticatedSessionState | undefined` through a `CommandContext` module
   augmentation.

@@ -16,8 +16,8 @@ export type ActorKind = (typeof ACTOR_KINDS)[number];
  * Who is calling a command.
  *
  * Surfaces fill in `kind`: `DirectClient` defaults to `human`, the MCP server to `agent`,
- * and the testing package to `test`. Auth middleware adds `id` and `label` from the
- * session. Middleware and handlers read `context.actor` to key trust, approval,
+ * and the testing package to `test`. Auth middleware sets a human actor's `id` and
+ * `label` from the session, and another actor's `onBehalfOf`. Middleware and handlers read `context.actor` to key trust, approval,
  * rate-limit or data rules on it; AFD itself only reports `kind` (as
  * `metadata.actorKind`), never the id.
  */
@@ -61,7 +61,7 @@ export interface ContextDefaults {
 
 /**
  * A copy of `context` with `clock`, `random` and (when given) `actor` filled in where it
- * has none. Values already on the context always win.
+ * has none. Values already on the context always win. The actor is copied too.
  */
 export function withContextDefaults(
 	context: CommandContext = {},
@@ -72,6 +72,8 @@ export function withContextDefaults(
 		...context,
 		clock: context.clock ?? defaults.clock ?? systemClock,
 		random: context.random ?? defaults.random ?? systemRandom,
-		...(actor ? { actor } : {}),
+		// A copy: middleware may refine `context.actor` in place, and a shared default
+		// object would carry one caller's identity into the next call.
+		...(actor ? { actor: { ...actor } } : {}),
 	};
 }

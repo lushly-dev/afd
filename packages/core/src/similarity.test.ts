@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
 	calculateSimilarity,
 	findSimilarTools,
@@ -95,17 +95,23 @@ function seededRandom(seed: number): () => number {
 }
 
 /**
- * Run `fn` and count the Levenshtein matrix cells it computes. Every cell reads one
- * character code with `charCodeAt`, and nothing else in `findSimilarTools` calls it, so the
- * count is deterministic where a wall-clock budget fails on a busy machine (#336).
+ * Run `fn` and count the `charCodeAt` reads it makes. Only the Levenshtein matrix calls
+ * `charCodeAt` in `findSimilarTools` (one read per cell, plus one per row), so zero reads
+ * means no distance was computed. A deterministic count, where a wall-clock budget failed
+ * on busy machines (#336). The replacement counts without recording calls, so a regression
+ * slows the test down instead of exhausting memory.
  */
 function countDistanceCells<T>(fn: () => T): { result: T; distanceCells: number } {
-	const spy = vi.spyOn(String.prototype, 'charCodeAt');
+	const original = String.prototype.charCodeAt;
+	let distanceCells = 0;
+	String.prototype.charCodeAt = function (this: string, index: number) {
+		distanceCells++;
+		return original.call(this, index);
+	};
 	try {
-		const result = fn();
-		return { result, distanceCells: spy.mock.calls.length };
+		return { result: fn(), distanceCells };
 	} finally {
-		spy.mockRestore();
+		String.prototype.charCodeAt = original;
 	}
 }
 
@@ -125,11 +131,11 @@ describe('findSimilarTools input cap', () => {
 		expect(findSimilarTools(name, [name, 'todo-create'])).toEqual([]);
 	});
 
-	it('computes no distance for a 1 MB name', () => {
-		const tools = Array.from({ length: 200 }, (_, i) => `domain${i}-action`);
-		const { result, distanceCells } = countDistanceCells(() =>
-			findSimilarTools('x'.repeat(1024 * 1024), tools)
-		);
+	it('computes no distance for a 1 MB name, even against a candidate as long', () => {
+		// The length pre-filter keeps an equal-length candidate, so only the cap skips it.
+		const name = 'x'.repeat(1024 * 1024);
+		const tools = [...Array.from({ length: 200 }, (_, i) => `domain${i}-action`), name];
+		const { result, distanceCells } = countDistanceCells(() => findSimilarTools(name, tools));
 		expect(result).toEqual([]);
 		expect(distanceCells).toBe(0);
 	});

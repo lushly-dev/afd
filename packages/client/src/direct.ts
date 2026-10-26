@@ -31,7 +31,6 @@ import {
 	failure,
 	truncateName,
 	validationError,
-	withContextDefaults,
 } from '@lushly-dev/afd-core';
 import { runWithTimeout } from './direct-timeout.js';
 import { validateInput } from './direct-validation.js';
@@ -190,10 +189,17 @@ export class DirectClient {
 		}
 
 		// Build command context. The call's actor, clock and random win over the client's.
-		const commandContext: CommandContext = withContextDefaults(
-			{ traceId, ...context },
-			{ actor: this.options.actor, clock: this.options.clock, random: this.options.random }
-		);
+		// Clock and random are only set when configured, so a registry's own defaults
+		// (createDirectRegistry) still apply.
+		const commandContext: CommandContext = {
+			traceId,
+			...context,
+			actor: { ...(context?.actor ?? this.options.actor) },
+		};
+		const clock = context?.clock ?? this.options.clock;
+		if (clock) commandContext.clock = clock;
+		const random = context?.random ?? this.options.random;
+		if (random) commandContext.random = random;
 
 		// Add source if configured
 		if (this.options.source) {

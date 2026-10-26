@@ -850,15 +850,20 @@ NAME_GAP_BUDGET = {
     # timeout). Neither language has an executor options type, like ExecutorOptions.
     # 98 → 97: 2.0 removed TypeScript's deprecated resolveReference alias.
     # Rust 10 → 9: afd exports execution_failure.
-    "missing_from_python": 97,
-    "missing_from_rust": 9,
+    # Python 97 → 112, Rust 9 → 24, C++ 75 → 85: TypeScript's context primitives (#271, #274):
+    # Actor, ActorKind, ACTOR_KINDS, isActor, isActorKind, ContextDefaults,
+    # withContextDefaults, Clock, ClockInstant, ManualClock, RandomSource, fixedClock,
+    # seededRandom, systemClock, systemRandom. Parity tracked in #400 (Python), #401 (Rust)
+    # and #402 (C++, which already has a Clock).
+    "missing_from_python": 112,
+    "missing_from_rust": 24,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps
     # conditions as validated JSON); telemetry; timeout controllers and streamable commands;
     # the pipeline aggregation helpers; CommandParameter and createCommandRegistry.
     # 73 → 75: commandToolAnnotations and commandResultOutputSchema (MCP tool fields), in
     # the deferred MCP helpers group; the C++ todo backend derives them inline.
-    "missing_from_cpp": 75,
+    "missing_from_cpp": 85,
 }
 
 # Exports every language must have; if one disappears the parser is broken.

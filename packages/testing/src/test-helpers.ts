@@ -61,9 +61,9 @@ export function createTestContext(overrides?: Partial<TestContext>): TestContext
 		traceId: `test-${Date.now()}-${Math.random().toString(36).slice(2)}`,
 		timeout: 5000,
 		actor: { kind: 'test' },
-		clock: overrides?.now ? fixedClock(overrides.now) : systemClock,
-		random: systemRandom,
 		...overrides,
+		clock: overrides?.clock ?? (overrides?.now ? fixedClock(overrides.now) : systemClock),
+		random: overrides?.random ?? systemRandom,
 	};
 }
 

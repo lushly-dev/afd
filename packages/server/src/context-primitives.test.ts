@@ -4,7 +4,7 @@
  */
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { McpClient } from '@lushly-dev/afd-client';
+import { createDirectClient, McpClient } from '@lushly-dev/afd-client';
 import {
 	type CommandContext,
 	type CommandMiddleware,
@@ -119,6 +119,44 @@ describe('MCP server context defaults', () => {
 		const result = await client.call('context-inspect', {});
 		expect(result.metadata?.actorKind).toBe('human');
 		expect(JSON.stringify(result.metadata)).not.toContain('user-1');
+	});
+});
+
+describe('context defaults are per call', () => {
+	it('does not let middleware edits to the default actor reach the next call', async () => {
+		const tag: CommandMiddleware = (_name, _input, context, next) => {
+			if (context.actor && seen.length === 0) context.actor.id = 'first-user';
+			return next();
+		};
+		const registry = createDirectRegistry([inspect], {
+			actor: { kind: 'agent' },
+			middleware: [tag],
+		});
+		await registry.execute('context-inspect');
+		const second = await registry.execute('context-inspect');
+		expect(seen[0]?.actor).toEqual({ kind: 'agent', id: 'first-user' });
+		expect(second.data).toMatchObject({ actor: { kind: 'agent' } });
+	});
+
+	it('keeps the registry clock and random source behind a DirectClient', async () => {
+		const registry = createDirectRegistry([inspect], {
+			clock: fixedClock(1000),
+			random: seededRandom('abc'),
+		});
+		const result = await createDirectClient(registry).call('context-inspect');
+		expect(result.data).toEqual({
+			now: 1000,
+			roll: 0.5166419988963753,
+			actor: { kind: 'human' },
+		});
+		expect(result.metadata?.actorKind).toBe('human');
+	});
+
+	it('does not report an actor kind outside the five', async () => {
+		const client = await remote({ createContext: () => ({ actor: { kind: 'admin' } }) });
+		const result = await client.call('context-inspect', {});
+		expect(result.success).toBe(true);
+		expect(result.metadata?.actorKind).toBeUndefined();
 	});
 });
 

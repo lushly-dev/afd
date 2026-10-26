@@ -273,9 +273,14 @@ describe('createAuthMiddleware actor', () => {
 		const human: CommandContext = { actor: { kind: 'human', id: 'forged', label: 'Old' } };
 		await middleware('private-cmd', {}, human, next);
 		expect(human.actor).toEqual({ kind: 'human', id: 'u1', label: 'Ada' });
+		// Nothing the caller supplied survives, even without a user name.
+		adapter._setUser({ id: 'u2', email: 'bob@example.com' });
+		const stale: CommandContext = { actor: { kind: 'human', label: 'Ada', onBehalfOf: 'u1' } };
+		await middleware('private-cmd', {}, stale, next);
+		expect(stale.actor).toEqual({ kind: 'human', id: 'u2' });
 	});
 
-	it('keeps an agent’s identity and records the user as onBehalfOf', async () => {
+	it('keeps an agent’s identity and acts on behalf of the session user', async () => {
 		const adapter = new MockAuthAdapter();
 		adapter._setUser({ id: 'u1', email: 'ada@example.com' });
 		const middleware = createAuthMiddleware(adapter);
@@ -284,9 +289,10 @@ describe('createAuthMiddleware actor', () => {
 		await middleware('private-cmd', {}, agent, next);
 		expect(agent.actor).toEqual({ kind: 'agent', label: 'Claude', onBehalfOf: 'u1' });
 
+		// A stale or forged onBehalfOf is replaced by the verified user.
 		const delegated: CommandContext = { actor: { kind: 'service', onBehalfOf: 'u2' } };
 		await middleware('private-cmd', {}, delegated, next);
-		expect(delegated.actor).toEqual({ kind: 'service', onBehalfOf: 'u2' });
+		expect(delegated.actor).toEqual({ kind: 'service', onBehalfOf: 'u1' });
 	});
 
 	it('leaves the actor alone without a verified session', async () => {

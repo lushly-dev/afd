@@ -3,7 +3,7 @@
  */
 
 import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
-import { fixedClock, seededRandom, success, systemClock, systemRandom } from '@lushly-dev/afd-core';
+import { fixedClock, seededRandom, success } from '@lushly-dev/afd-core';
 import { describe, expect, it } from 'vitest';
 import { createDirectClient, type DirectRegistry } from './direct.js';
 
@@ -23,12 +23,30 @@ function recordingRegistry() {
 }
 
 describe('DirectClient context defaults', () => {
-	it('calls as a human with the real clock and random source by default', async () => {
+	it('calls as a human and leaves clock and random to the registry by default', async () => {
 		const { registry, contexts } = recordingRegistry();
 		await createDirectClient(registry).call('time-read');
 		expect(contexts[0]?.actor).toEqual({ kind: 'human' });
-		expect(contexts[0]?.clock).toBe(systemClock);
-		expect(contexts[0]?.random).toBe(systemRandom);
+		expect(contexts[0]?.clock).toBeUndefined();
+		expect(contexts[0]?.random).toBeUndefined();
+	});
+
+	it('gives each call its own copy of the default actor', async () => {
+		const { registry, contexts } = recordingRegistry();
+		let calls = 0;
+		const client = createDirectClient(registry, {
+			actor: { kind: 'agent' },
+			middleware: [
+				(_name, _input, context, next) => {
+					if (calls++ === 0 && context.actor) context.actor.id = 'first-user';
+					return next();
+				},
+			],
+		});
+		await client.call('time-read');
+		await client.call('time-read');
+		expect(contexts[0]?.actor).toEqual({ kind: 'agent', id: 'first-user' });
+		expect(contexts[1]?.actor).toEqual({ kind: 'agent' });
 	});
 
 	it('uses the configured actor, clock and random source', async () => {

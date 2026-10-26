@@ -46,8 +46,11 @@ if (!apiKey) {
 
 const genAI = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
-// DirectClient for zero-overhead command execution
-const directClient = new DirectClient(registry);
+// DirectClient for zero-overhead command execution. The model calls the tools, so its
+// calls run as an agent (context.actor, metadata.actorKind), not as the human user.
+const directClient = new DirectClient(registry, {
+	actor: { kind: 'agent', label: 'Gemini (todo assistant)' },
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // METRICS

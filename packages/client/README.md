@@ -374,8 +374,8 @@ const client = createDirectClient(registry, {
   middleware: [],          // Client-side middleware, outside the registry's own
   allow: (name) => name.startsWith('todo-'), // Others get COMMAND_NOT_ALLOWED
   actor: { kind: 'agent', label: 'Assistant', onBehalfOf: userId }, // Default: { kind: 'human' }
-  clock: fixedClock('2026-01-01T00:00:00Z'), // context.clock (default: systemClock)
-  random: seededRandom('test-seed'),         // context.random (default: systemRandom)
+  clock: fixedClock('2026-01-01T00:00:00Z'), // context.clock (default: the registry's)
+  random: seededRandom('test-seed'),         // context.random (default: the registry's)
 });
 ```
 
