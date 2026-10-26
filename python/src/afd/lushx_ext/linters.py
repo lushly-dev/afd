@@ -74,6 +74,21 @@ _AMBIENT_RANDOM_PATTERNS = (
     (re.compile(r"\bcrypto\s*\.\s*randomUUID\s*\("), "crypto.randomUUID()"),
 )
 
+# Names `node:crypto` exports that generate random values. Imported under any
+# local alias they are as ambient as `crypto.randomUUID()`.
+_CRYPTO_RANDOM_EXPORTS = ("randomUUID", "randomBytes", "randomInt")
+_CRYPTO_MODULES = frozenset({"crypto", "node:crypto"})
+# `import <default>, { a as b } from '<spec>'` or `import <default>, * as ns from '<spec>'`,
+# matched on masked source, where the specifier's text is blanked but its quotes remain.
+_IMPORT_RE = re.compile(
+    # Each clause owns its trailing whitespace, so no two `\s*` are adjacent
+    # (adjacent ones backtrack badly on a long run of spaces).
+    r"\bimport\s+(?!type\b)(?:(?P<default>[\w$]+)(?:\s*,)?\s*)?"
+    r"(?:(?:\{(?P<named>[^}]*)\}|\*\s*as\s+(?P<ns>[\w$]+))\s*)?"
+    r"from\s*(?P<q>[\"'])(?P<spec>\s*)(?P=q)"
+)
+_NAMED_IMPORT_RE = re.compile(r"(type\s+)?([\w$]+)(?:\s+as\s+([\w$]+))?")
+
 # Finder and (time, random) suggestions for the languages handled in `ambient.py`.
 _AMBIENT_OTHER: Mapping[str, tuple[Callable[[str], list[tuple[int, str, str]]], str, str]] = {
     "python": (
@@ -97,6 +112,44 @@ _DEFINE_COMMAND_RE = re.compile(r"\bdefineCommand\b")
 # A `handler` property at the start of an options-object property:
 # `handler: ...`, `handler(...)`, `async handler(...)` or `handler<T>(...)`.
 _HANDLER_KEY_RE = re.compile(r"\s*(?:async\s+)?handler\s*[:(<]")
+
+
+def _crypto_random_patterns(content: str, masked: str) -> list[tuple[re.Pattern[str], str]]:
+    """Call patterns for random generators imported from ``crypto``/``node:crypto``.
+
+    Covers named imports (``{ randomUUID }``, ``{ randomUUID as uuid }``) and
+    namespace or default imports (``import * as c``, ``import nc``), so a bare
+    ``uuid()`` or ``c.randomUUID()`` in a handler is flagged. A namespace named
+    ``crypto`` is already covered by the fixed ``crypto.randomUUID()`` pattern.
+    Only ES ``import`` statements are read: ``require()``, dynamic ``import()``
+    and ``webcrypto`` are not followed, and a local that shadows an imported
+    name is not detected.
+    """
+    patterns: list[tuple[re.Pattern[str], str]] = []
+    for match in _IMPORT_RE.finditer(masked):
+        # The specifier is blanked in `masked`; read it from the original text.
+        spec = content[match.start("spec") : match.end("spec")]
+        if spec not in _CRYPTO_MODULES:
+            continue
+        for named in (match.group("named") or "").split(","):
+            parsed = _NAMED_IMPORT_RE.fullmatch(named.strip()) if named.strip() else None
+            # `type x` is an inline type-only specifier: no runtime value.
+            if parsed is None or parsed.group(1) or parsed.group(2) not in _CRYPTO_RANDOM_EXPORTS:
+                continue
+            local = parsed.group(3) or parsed.group(2)
+            patterns.append(
+                (
+                    re.compile(rf"(?<![\w$.]){re.escape(local)}\s*\("),
+                    f"{parsed.group(2)}()",
+                )
+            )
+        for namespace in (match.group("ns"), match.group("default")):
+            if namespace and namespace != "crypto":
+                for export in _CRYPTO_RANDOM_EXPORTS:
+                    pattern = rf"(?<![\w$.]){re.escape(namespace)}\s*\.\s*{export}\s*\("
+                    patterns.append((re.compile(pattern), f"{namespace}.{export}()"))
+    # Two imports of one name (`crypto` and `node:crypto`) would report a call twice.
+    return list({(pattern.pattern, name): (pattern, name) for pattern, name in patterns}.values())
 
 
 def _normalize_path(path: str) -> str:
@@ -1012,6 +1065,7 @@ class AFDLinter:
         if "defineCommand" not in content:
             return
         masked = _mask_ts_source(content)
+        random_patterns = (*_AMBIENT_RANDOM_PATTERNS, *_crypto_random_patterns(content, masked))
         rules = (
             (
                 _RULE_AMBIENT_TIME,
@@ -1020,7 +1074,7 @@ class AFDLinter:
             ),
             (
                 _RULE_AMBIENT_RANDOM,
-                _AMBIENT_RANDOM_PATTERNS,
+                random_patterns,
                 "Read randomness from the context: (context.random ?? systemRandom).next(), and derive IDs from it",
             ),
         )
