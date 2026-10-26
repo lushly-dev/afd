@@ -200,7 +200,7 @@ fn fixture_fields_are_typed() {
     );
     assert_eq!(first.context_digest.interface.as_deref(), Some("mcp"));
     let tape = first.tape.as_ref().expect("a tape");
-    assert_eq!(tape.clock, [1_767_225_600_000; 3]);
+    assert_eq!(tape.clock, [1_767_225_600_000.0; 3]);
     assert_eq!(tape.random, [0.734_576_779_650_524_3]);
     assert!(!tape.truncated);
     assert!(!entries[2].result.success);

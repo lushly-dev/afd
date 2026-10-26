@@ -1104,33 +1104,30 @@ impl CommandRegistry {
         let journal = read_lock(&self.journal)
             .clone()
             .filter(|recorder| !context.journal_state.replaying && recorder.records(name));
-        let run = {
-            let command = Arc::clone(&command);
-            async move {
-                let mut context = context;
-                let recording = journal
-                    .as_ref()
-                    .map(|recorder| recorder.start(&command.name, &input, &mut context));
-                let chain = middleware_chain(&command, &middleware, input, context);
-                // `chain()` runs inside the guarded future, so a middleware layer that
-                // panics while building its future is caught too.
-                let result = run_guarded(async move { chain().await }).await;
-                match (journal, recording) {
-                    (Some(recorder), Some(recording)) => recorder.finish(recording, result).await,
-                    _ => result,
-                }
-            }
-        };
+        let mut context = context;
+        let recording = journal
+            .as_ref()
+            .map(|recorder| recorder.start(&command.name, &input, &mut context));
+        let chain = middleware_chain(&command, &middleware, input, context);
+        // `chain()` runs inside the guarded future, so a middleware layer that
+        // panics while building its future is caught too.
+        let run = run_guarded(async move { chain().await });
 
-        match timeout_ms {
+        // The deadline covers the chain only: a slow journal append cannot turn a finished call
+        // into a TIMEOUT, and a call that timed out is not recorded.
+        let result = match timeout_ms {
             #[cfg(feature = "native")]
             Some(timeout_ms) => {
                 match tokio::time::timeout(Duration::from_millis(timeout_ms), run).await {
                     Ok(result) => result,
-                    Err(_) => failure(CommandError::timeout(&command.name, timeout_ms)),
+                    Err(_) => return failure(CommandError::timeout(&command.name, timeout_ms)),
                 }
             }
             _ => run.await,
+        };
+        match (journal, recording) {
+            (Some(recorder), Some(recording)) => recorder.finish(recording, result).await,
+            _ => result,
         }
     }
 

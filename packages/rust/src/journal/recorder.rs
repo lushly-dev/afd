@@ -126,10 +126,14 @@ impl JournalRecorder {
         self
     }
 
-    /// Whether calls to `command` are recorded.
+    /// Whether calls to `command` are recorded. A filter that panics records nothing.
     pub fn records(&self, command: &str) -> bool {
         match &self.filter {
-            Some(filter) => filter(command),
+            Some(filter) => std::panic::catch_unwind(AssertUnwindSafe(|| filter(command)))
+                .unwrap_or_else(|_| {
+                    self.report("The journal filter panicked");
+                    false
+                }),
             None => !command.starts_with("auth-"),
         }
     }
@@ -278,7 +282,7 @@ impl TapeWriter {
         self.tape.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    fn clock(&self, reading: i64) {
+    fn clock(&self, reading: f64) {
         let mut tape = self.lock();
         if tape.clock.len() < self.max_reads {
             tape.clock.push(reading);
@@ -310,7 +314,7 @@ struct RecordingClock {
 impl Clock for RecordingClock {
     fn now(&self) -> i64 {
         let reading = self.inner.now();
-        self.tape.clock(reading);
+        self.tape.clock(reading as f64);
         reading
     }
 }

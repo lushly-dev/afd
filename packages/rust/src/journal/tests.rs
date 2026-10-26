@@ -193,7 +193,7 @@ fn optional_fields_are_omitted_and_numbers_match_javascript() {
     let mut value = entry(1);
     value.duration_ms = 2.0;
     value.tape = Some(JournalTape {
-        clock: vec![5],
+        clock: vec![5.0],
         random: vec![0.0, 0.5],
         truncated: false,
     });
@@ -201,6 +201,14 @@ fn optional_fields_are_omitted_and_numbers_match_javascript() {
         serialize_journal_entry(&value),
         r#"{"seq":1,"timestamp":"2026-01-01T00:00:00.000Z","command":"secret-ping","input":{},"contextDigest":{"hash":"sha256:00"},"result":{"success":true,"data":null},"durationMs":2,"tape":{"clock":[5],"random":[0,0.5]}}"#
     );
+}
+
+#[test]
+fn fractional_clock_readings_from_typescript_parse() {
+    let mut value = serde_json::to_value(entry(1)).unwrap();
+    value["tape"] = json!({"clock": [1000.5], "random": []});
+    let parsed = parse_journal(&value.to_string()).unwrap();
+    assert_eq!(parsed[0].tape.as_ref().unwrap().clock, [1000.5]);
 }
 
 #[test]
@@ -342,6 +350,26 @@ mod file_sink {
     }
 
     #[tokio::test]
+    async fn a_last_line_cut_inside_a_character_is_torn() {
+        let path = temp_path("journal.jsonl");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let mut bytes = format!("{}\n", serialize_journal_entry(&entry(1))).into_bytes();
+        let mut cafe = entry(2);
+        cafe.input = json!({"title": "Café"});
+        let line = serialize_journal_entry(&cafe);
+        let cut = line.find('é').unwrap() + 1; // inside the two-byte é
+        bytes.extend_from_slice(&line.as_bytes()[..cut]);
+        std::fs::write(&path, bytes).unwrap();
+
+        let sink = FileJournalSink::new(&path);
+        assert_eq!(sink.read(JournalRange::all()).await.unwrap(), [entry(1)]);
+        assert_eq!(sink.append(record()).await.unwrap().seq, 2);
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(parse_journal(&text).unwrap().len(), 2);
+        let _ = std::fs::remove_dir_all(path.parent().unwrap());
+    }
+
+    #[tokio::test]
     async fn a_complete_last_line_without_newline_is_kept() {
         let path = temp_path("journal.jsonl");
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -389,7 +417,7 @@ async fn records_successes_with_their_tape() {
     assert_eq!(entry.result, result);
     assert_eq!(entry.duration_ms, 0.0);
     let tape = entry.tape.as_ref().unwrap();
-    assert_eq!(tape.clock, [1_767_225_600_000]);
+    assert_eq!(tape.clock, [1_767_225_600_000.0]);
     let random = seeded_random("journal-test");
     assert_eq!(tape.random, [random.next(), random.next()]);
 }
@@ -566,4 +594,54 @@ async fn a_call_that_times_out_is_not_recorded() {
         .await;
     assert_eq!(result.error.map(|e| e.code), Some("TIMEOUT".to_string()));
     assert!(sink.entries().is_empty());
+}
+
+#[tokio::test]
+async fn a_replacement_replay_context_is_still_a_replay() {
+    let registry = registry();
+    let sink = recorded(&registry, |recorder| recorder);
+    registry
+        .execute("secret-quiet", json!({}), Some(context()))
+        .await;
+    let entries = sink.entries();
+    let report = replay_journal(
+        &registry,
+        &entries,
+        ReplayJournalOptions::default().with_context(|_, _| CommandContext::new()),
+    )
+    .await;
+    assert_eq!(report.same, 1);
+    assert_eq!(sink.entries().len(), 1, "the replay was recorded");
+
+    let report = replay_journal(
+        &registry,
+        &[entries[0].clone(), entries[0].clone()],
+        ReplayJournalOptions::default().with_context(|_, _| panic!("factory bug")),
+    )
+    .await;
+    assert_eq!(report.errors, 2);
+    assert_eq!(
+        report.entries[0].error.as_deref(),
+        Some("The replay context function panicked")
+    );
+}
+
+#[tokio::test]
+async fn a_panicking_filter_records_nothing() {
+    let registry = registry();
+    let errors = Arc::new(Mutex::new(0));
+    let seen = Arc::clone(&errors);
+    let sink = recorded(&registry, |recorder| {
+        recorder
+            .with_filter(|_| panic!("filter bug"))
+            .with_on_error(move |_| *seen.lock().unwrap() += 1)
+    });
+    assert!(
+        registry
+            .execute("secret-quiet", json!({}), None)
+            .await
+            .success
+    );
+    assert!(sink.entries().is_empty());
+    assert_eq!(*errors.lock().unwrap(), 1);
 }

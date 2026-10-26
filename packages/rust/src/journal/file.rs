@@ -21,8 +21,10 @@ use super::{
 /// complete entry that only lacks its newline is kept and the newline is added. The first
 /// append reads the whole existing file once, to find the last `seq`.
 ///
-/// The sink uses blocking `std::fs` calls: each append is one small write. It needs the
-/// `journal-file` feature (on by default) and a platform with a file system.
+/// The sink uses blocking `std::fs` calls on the calling thread, holding a lock: each append is
+/// one small write, but a read loads the whole file. For a busy server, wrap a sink of your own
+/// around it that runs the calls with `tokio::task::spawn_blocking`. It needs the `journal-file`
+/// feature (on by default) and a platform with a file system.
 ///
 /// ```rust,no_run
 /// use afd::{CommandRegistry, FileJournalSink, JournalRecorder};
@@ -68,8 +70,8 @@ impl FileJournalSink {
     }
 
     fn read_file(&self) -> Result<FileContents, String> {
-        let text = match fs::read_to_string(&self.path) {
-            Ok(text) => text,
+        let bytes = match fs::read(&self.path) {
+            Ok(bytes) => bytes,
             Err(error) if error.kind() == ErrorKind::NotFound => {
                 return Ok(FileContents {
                     entries: Vec::new(),
@@ -79,15 +81,22 @@ impl FileJournalSink {
             }
             Err(error) => return Err(self.describe(error)),
         };
-        let cut = text.rfind('\n').map_or(0, |index| index + 1);
-        let (complete, tail) = text.split_at(cut);
+        let cut = bytes
+            .iter()
+            .rposition(|byte| *byte == b'\n')
+            .map_or(0, |index| index + 1);
+        let (complete, tail) = bytes.split_at(cut);
+        let complete = std::str::from_utf8(complete).map_err(|error| self.describe(error))?;
         let mut entries = parse_journal(complete).map_err(|error| self.describe(error))?;
         let mut torn_at = None;
-        if !tail.trim().is_empty() {
-            match parse_journal(tail) {
+        // A write cut inside a multi-byte character leaves a tail that is not UTF-8: torn too.
+        match std::str::from_utf8(tail) {
+            Ok(tail) if tail.trim().is_empty() => {}
+            Ok(tail) => match parse_journal(tail) {
                 Ok(last) => entries.extend(last),
                 Err(_) => torn_at = Some(cut as u64),
-            }
+            },
+            Err(_) => torn_at = Some(cut as u64),
         }
         entries.sort_by_key(|entry| entry.seq);
         Ok(FileContents {

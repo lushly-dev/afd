@@ -51,8 +51,10 @@ const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 /// same time and the same random numbers.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct JournalTape {
-    /// Each `context.clock().now()` reading, in epoch milliseconds.
-    pub clock: Vec<i64>,
+    /// Each `context.clock().now()` reading, in epoch milliseconds. Rust clocks read whole
+    /// milliseconds; a TypeScript clock may record fractions, which replay truncates.
+    #[serde(serialize_with = "numbers")]
+    pub clock: Vec<f64>,
     /// Each `context.random().next()` value.
     #[serde(serialize_with = "numbers")]
     pub random: Vec<f64>,

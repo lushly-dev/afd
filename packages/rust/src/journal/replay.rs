@@ -8,6 +8,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::fmt;
+use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use super::JournalEntry;
@@ -191,12 +192,12 @@ struct TapeState {
 
 /// Replays the recorded clock readings, then holds the last one.
 struct TapeClock {
-    readings: Vec<i64>,
+    readings: Vec<f64>,
     state: Mutex<(TapeState, i64)>,
 }
 
 impl TapeClock {
-    fn new(readings: Vec<i64>, start: i64) -> Self {
+    fn new(readings: Vec<f64>, start: i64) -> Self {
         Self {
             readings,
             state: Mutex::new((TapeState::default(), start)),
@@ -216,7 +217,8 @@ impl Clock for TapeClock {
         match self.readings.get(tape.used) {
             Some(reading) => {
                 tape.used += 1;
-                *last = *reading;
+                // Whole milliseconds, as `Clock::now` reads them.
+                *last = *reading as i64;
             }
             None => tape.overran = true,
         }
@@ -498,7 +500,26 @@ pub async fn replay_journal(
                 random,
             }) => {
                 let context = match &options.context {
-                    Some(adjust) => adjust(entry, context),
+                    Some(adjust) => {
+                        let adjusted =
+                            std::panic::catch_unwind(AssertUnwindSafe(|| adjust(entry, context)));
+                        match adjusted {
+                            Ok(mut adjusted) => {
+                                // The adjusted context may be a new one: keep it a replay.
+                                adjusted.journal_state.replaying = true;
+                                adjusted
+                            }
+                            Err(_) => {
+                                outcome.error = Some("The replay context function panicked".into());
+                                record_outcome(&mut report, outcome);
+                                if options.stop_on_divergence {
+                                    report.skipped = ordered.len() - index - 1;
+                                    break;
+                                }
+                                continue;
+                            }
+                        }
+                    }
                     None => context,
                 };
                 let replayed = registry
@@ -524,22 +545,25 @@ pub async fn replay_journal(
             }
         }
 
-        match outcome.status {
-            ReplayStatus::Same => report.same += 1,
-            ReplayStatus::Different => report.different += 1,
-            ReplayStatus::Error => report.errors += 1,
-        }
         let diverged = outcome.status != ReplayStatus::Same;
-        report.entries.push(outcome);
-        if diverged {
-            report.diverged = true;
-            if options.stop_on_divergence {
-                report.skipped = ordered.len() - index - 1;
-                break;
-            }
+        record_outcome(&mut report, outcome);
+        if diverged && options.stop_on_divergence {
+            report.skipped = ordered.len() - index - 1;
+            break;
         }
     }
     report
+}
+
+/// Add `outcome` to `report` and its counts.
+fn record_outcome(report: &mut ReplayReport, outcome: ReplayEntryReport) {
+    match outcome.status {
+        ReplayStatus::Same => report.same += 1,
+        ReplayStatus::Different => report.different += 1,
+        ReplayStatus::Error => report.errors += 1,
+    }
+    report.diverged |= outcome.status != ReplayStatus::Same;
+    report.entries.push(outcome);
 }
 
 #[cfg(test)]
@@ -606,7 +630,7 @@ mod tests {
 
     #[test]
     fn tape_sources_replay_then_fall_back() {
-        let clock = TapeClock::new(vec![10, 20], 5);
+        let clock = TapeClock::new(vec![10.0, 20.9], 5);
         assert_eq!([clock.now(), clock.now(), clock.now()], [10, 20, 20]);
         assert_eq!(clock.state(), (2, true));
 
