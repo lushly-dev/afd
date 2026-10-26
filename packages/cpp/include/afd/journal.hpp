@@ -63,7 +63,8 @@ struct JournalRecord {
     /// Who called: `kind`, and `id`, `label` and `on_behalf_of` when set.
     std::optional<Actor> actor;
     JournalContextDigest context_digest;
-    /// The command result, metadata included.
+    /// The command result, metadata included. Read through `CommandResult`, so top-level result
+    /// members it does not model are dropped (unknown metadata members are kept).
     CommandResult result;
     /// Time of the call through the rest of the middleware chain, from `context.clock`.
     double duration_ms = 0;

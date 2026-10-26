@@ -110,18 +110,10 @@ bool default_filter(std::string_view name) {
     return name.substr(0, 5) != "auth-";
 }
 
-const std::shared_ptr<const Clock>& system_clock() {
-    static const std::shared_ptr<const Clock> clock = std::make_shared<SystemClock>();
-    return clock;
-}
-
-const std::shared_ptr<RandomSource>& system_random() {
-    static const std::shared_ptr<RandomSource> random = std::make_shared<SystemRandom>();
-    return random;
-}
-
-// Builds and stores the entry for one call. Errors go to `on_error`, never to the caller.
-void store(JournalSink& sink, const JournalMiddlewareOptions& options, JournalRecord record) {
+// Builds and stores the entry for one call. Errors, including a throw while building it, go to
+// `on_error`, never to the caller.
+template <class Build>
+void store(JournalSink& sink, const JournalMiddlewareOptions& options, const Build& build) {
     const auto report = [&](std::string_view message) {
         if (!options.on_error) {
             return;
@@ -138,6 +130,7 @@ void store(JournalSink& sink, const JournalMiddlewareOptions& options, JournalRe
 #if AFD_HAS_EXCEPTIONS
     try {
 #endif
+        JournalRecord record = build();
         std::optional<JournalRecord> kept =
             options.redact ? options.redact(std::move(record)) : std::optional(std::move(record));
         if (kept) {
@@ -335,7 +328,8 @@ std::optional<std::int64_t> parse_iso8601_ms(std::string_view text) {
         if (positive || negative) {
             int offset_hours = 0;
             int offset_mins = 0;
-            if (!digits(2, offset_hours) || !literal(':') || !digits(2, offset_mins)) {
+            if (!digits(2, offset_hours) || !literal(':') || !digits(2, offset_mins) ||
+                offset_hours > 23 || offset_mins > 59) {
                 return std::nullopt;
             }
             offset_minutes = (negative ? -1 : 1) * (offset_hours * 60 + offset_mins);
@@ -384,7 +378,7 @@ std::vector<std::string> tape_notes(const JournalEntry& entry, const TapeClock* 
     return notes;
 }
 
-std::string child(const std::string& path, const std::string& key) {
+std::string diff_child_path(const std::string& path, const std::string& key) {
     return path.empty() ? key : path + "." + key;
 }
 
@@ -430,7 +424,7 @@ void diff_json(const Json& recorded, const Json& replayed, const std::string& pa
             keys.insert(it.key());
         }
         for (const auto& key : keys) {
-            const std::string at = child(path, key);
+            const std::string at = diff_child_path(path, key);
             const auto in_recorded = recorded.find(key);
             const auto in_replayed = replayed.find(key);
             if (in_replayed == replayed.end()) {
@@ -460,7 +454,14 @@ ReplayEntryReport replay_entry(const CommandExecutor& execute, const JournalEntr
                                      options.seed + ":" + std::to_string(entry.seq));
     std::shared_ptr<TapeClock> clock;
 
-    const auto start = parse_iso8601_ms(entry.timestamp);
+    // With a tape the timestamp only seeds the clock until the first reading, as in TypeScript;
+    // without one, the clock is fixed at it, so it must parse.
+    auto start = parse_iso8601_ms(entry.timestamp);
+    if (!start && entry.tape) {
+        outcome.notes.push_back("the timestamp '" + entry.timestamp +
+                                "' is not an ISO 8601 date; the clock starts at 0");
+        start = 0;
+    }
     if (!start) {
         outcome.error = "the timestamp '" + entry.timestamp + "' is not an ISO 8601 date";
         return outcome;
@@ -559,9 +560,11 @@ CommandMiddleware create_journal_middleware(std::shared_ptr<JournalSink> sink,
             return next();
         }
 
-        const std::shared_ptr<const Clock> clock = context.clock ? context.clock : system_clock();
+        // Contexts from a registry always have both; a bare executor's may not.
+        const std::shared_ptr<const Clock> clock =
+            context.clock ? context.clock : std::make_shared<SystemClock>();
         const std::shared_ptr<RandomSource> random =
-            context.random ? context.random : system_random();
+            context.random ? context.random : std::make_shared<SystemRandom>();
         const std::shared_ptr<detail::JournalCallState> outer = context.journal;
         // This journal's own timing reads the clock under any outer journal's recorder.
         const std::shared_ptr<const Clock> timing =
@@ -572,9 +575,7 @@ CommandMiddleware create_journal_middleware(std::shared_ptr<JournalSink> sink,
         auto state = std::make_shared<detail::JournalCallState>();
         state->untaped = timing;
         state->recording = std::make_shared<RecordingClock>(clock, tape);
-        context.clock = state->recording;
-        context.random = std::make_shared<RecordingRandom>(random, tape);
-        context.journal = std::move(state);
+        auto recording_random = std::make_shared<RecordingRandom>(random, tape);
 
         const std::int64_t started_at = timing->wall_ms();
         const double start = timing->steady_ms();
@@ -588,6 +589,9 @@ CommandMiddleware create_journal_middleware(std::shared_ptr<JournalSink> sink,
                 context.random = random;
                 context.journal = outer;
             });
+            context.clock = state->recording;
+            context.random = std::move(recording_random);
+            context.journal = std::move(state);
 #if AFD_HAS_EXCEPTIONS
             try {
                 result = next();
@@ -603,20 +607,21 @@ CommandMiddleware create_journal_middleware(std::shared_ptr<JournalSink> sink,
         const double duration_ms = (std::max)(0.0, timing->steady_ms() - start);
 
         if (result.success || options.record_failures) {
-            JournalTape recorded = tape->tape();
-            const bool has_tape =
-                !recorded.clock.empty() || !recorded.random.empty() || recorded.truncated;
-            store(*sink, options,
-                  JournalRecord{.timestamp = wire::iso8601_utc(started_at),
-                                .trace_id = context.trace_id,
-                                .command = std::string(name),
-                                .input = input,
-                                .actor = context.actor,
-                                .context_digest = create_context_digest(context),
-                                .result = result,
-                                .duration_ms = duration_ms,
-                                .tape =
-                                    has_tape ? std::optional(std::move(recorded)) : std::nullopt});
+            store(*sink, options, [&]() {
+                JournalTape recorded = tape->tape();
+                const bool has_tape =
+                    !recorded.clock.empty() || !recorded.random.empty() || recorded.truncated;
+                return JournalRecord{
+                    .timestamp = wire::iso8601_utc(started_at),
+                    .trace_id = context.trace_id,
+                    .command = std::string(name),
+                    .input = input,
+                    .actor = context.actor,
+                    .context_digest = create_context_digest(context),
+                    .result = result,
+                    .duration_ms = duration_ms,
+                    .tape = has_tape ? std::optional(std::move(recorded)) : std::nullopt};
+            });
         }
 #if AFD_HAS_EXCEPTIONS
         if (thrown) {

@@ -22,6 +22,7 @@ namespace afd {
 /// A last line without a newline is a write that did not finish. Reads skip it when it is not a
 /// complete entry, and the first append removes it; a complete entry that only lacks its newline
 /// is kept and the newline is added. The first append reads the whole existing file once.
+/// Lines are read with `limits`, so an entry over them is refused on append.
 class FileJournalSink final : public JournalSink {
 public:
     explicit FileJournalSink(std::filesystem::path path, ParseLimits limits = {});

@@ -75,8 +75,14 @@ Expected<JournalEntry> FileJournalSink::append(JournalRecord record) {
     JournalEntry entry;
     static_cast<JournalRecord&>(entry) = std::move(record);
     entry.seq = *last_seq_ + 1;
+    const std::string line = serialize_journal_entry(entry);
+    // A line the next load could not parse would end the journal there.
+    if (auto check = parse_bounded(line, limits_); !check) {
+        return unexpected("Journal entry " + std::to_string(entry.seq) +
+                          " exceeds the sink's parse limits: " + check.error().message);
+    }
     std::ofstream out(path_, std::ios::binary | std::ios::app);
-    out << prefix << serialize_journal_entry(entry) << '\n';
+    out << prefix << line << '\n';
     out.flush();
     if (!out) {
         return unexpected("Cannot append to journal " + path_.string());
