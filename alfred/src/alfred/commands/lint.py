@@ -19,9 +19,10 @@ async def alfred_lint(
 ) -> CommandResult[dict]:
     """Run AFD architecture compliance validation.
 
-    Scans Python, TypeScript, and Rust files for AFD pattern violations
+    Scans Python, TypeScript, Rust and C++ files for AFD pattern violations
     including missing CommandResult returns, non-actionable errors,
-    direct API calls in UI, non-kebab command names, and layer import violations.
+    direct API calls in UI, non-kebab command names, layer import violations,
+    and ambient time or randomness in command handlers.
 
     Args:
         path: Directory to lint. Defaults to current working directory.

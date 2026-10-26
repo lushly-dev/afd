@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from afd.lushx_ext.ambient import mask_c_like
 from afd.lushx_ext.linters import (
     AFDLinter,
     Severity,
@@ -740,17 +741,321 @@ def test_ambient_rule_path_exclude(tmp_dir: Path) -> None:
     assert result.suppressed_by_reason == {"inline-directive": 1, "rule-path-exclude": 1}
 
 
-def test_ambient_not_flagged_in_python_files(tmp_dir: Path) -> None:
-    """TypeScript only for now; other languages follow once they have context fields."""
+# ─── Ambient time and randomness: Python, Rust and C++ handlers ─────────────
+
+_PY_CMD = "commands/todo.py"
+
+
+def test_ambient_python_decorated_handler_flagged(tmp_dir: Path) -> None:
     _write(
         tmp_dir,
-        "commands/todo.py",
+        _PY_CMD,
+        "import random\n"
         "import time\n"
-        "# defineCommand\n"
-        "async def handler(input) -> CommandResult[dict]:\n"
-        "    return success({'at': time.time()})\n",
+        "import uuid\n"
+        "from datetime import date, datetime\n"
+        "\n"
+        "@server.command(name='todo-create', description='Create a todo')\n"
+        "async def create(input, context):\n"
+        "    at = time.time()\n"
+        "    now = datetime.now()\n"
+        "    day = date.today()\n"
+        "    roll = random.random()\n"
+        "    todo_id = uuid.uuid4()\n"
+        "    return success({'at': at})\n",
+    )
+    result = AFDLinter().lint(tmp_dir)
+    assert _ambient(result) == [
+        (8, "afd-no-ambient-time", "Ambient time.time() in command handler"),
+        (9, "afd-no-ambient-time", "Ambient datetime.now() in command handler"),
+        (10, "afd-no-ambient-time", "Ambient date.today() in command handler"),
+        (11, "afd-no-ambient-random", "Ambient random.random() in command handler"),
+        (12, "afd-no-ambient-random", "Ambient uuid.uuid4() in command handler"),
+    ]
+    assert result.warning_count == 5
+    time_issue = next(i for i in result.issues if i.rule == "afd-no-ambient-time")
+    random_issue = next(i for i in result.issues if i.rule == "afd-no-ambient-random")
+    assert "context.clock.now()" in (time_issue.suggestion or "")
+    assert "context.random.next()" in (random_issue.suggestion or "")
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        # define_command, aliased import
+        (
+            "import time as t\n@define_command(name='x-get', description='d')\n"
+            "async def get(input):\n    return t.monotonic()\n",
+            (4, "afd-no-ambient-time", "Ambient t.monotonic() in command handler"),
+        ),
+        # registry.command with positional name and description
+        (
+            "import time\n@registry.command('x-get', 'd')\n"
+            "def get(input):\n    return time.perf_counter()\n",
+            (4, "afd-no-ambient-time", "Ambient time.perf_counter() in command handler"),
+        ),
+        # CommandDefinition handler defined in the same file
+        (
+            "from time import time\ndef run(input, context):\n    return time()\n"
+            "CMD = CommandDefinition(name='x-get', description='d', handler=run)\n",
+            (3, "afd-no-ambient-time", "Ambient time() in command handler"),
+        ),
+        # CommandDefinition with a lambda handler
+        (
+            "import secrets\nCMD = CommandDefinition(name='x-get', description='d',\n"
+            "    handler=lambda i, c: secrets.token_hex())\n",
+            (3, "afd-no-ambient-random", "Ambient secrets.token_hex() in command handler"),
+        ),
+    ],
+)
+def test_ambient_python_handler_forms_flagged(
+    tmp_dir: Path, source: str, expected: tuple[int, str, str]
+) -> None:
+    _write(tmp_dir, _PY_CMD, source)
+    assert _ambient(AFDLinter().lint(tmp_dir)) == [expected]
+
+
+def test_ambient_python_negatives_not_flagged(tmp_dir: Path) -> None:
+    """Outside handlers, click commands, seeded generators and context sources."""
+    _write(
+        tmp_dir,
+        _PY_CMD,
+        "import random\n"
+        "import time\n"
+        "from datetime import datetime\n"
+        "STARTED = time.time()\n"
+        "\n"
+        "def helper():\n"
+        "    return random.random()\n"
+        "\n"
+        "@cli.command()\n"
+        "def cli_main():\n"
+        "    return time.time()\n"
+        "\n"
+        "@server.command(name='todo-get', description='Get', examples=[time.time()])\n"
+        "async def get(input, context, random=None):\n"
+        "    # time.time() in a comment\n"
+        "    label = 'datetime.now()'\n"
+        "    seeded = random.Random(42) if random else None\n"
+        "    gen = __import__('random').Random(7)\n"
+        "    at = datetime.fromtimestamp(input.ts)\n"
+        "    now = context.clock.now()\n"
+        "    roll = context.random.next()\n"
+        "    return success({'now': now})\n",
     )
     assert _ambient(AFDLinter().lint(tmp_dir)) == []
+
+
+def test_ambient_python_seeded_random_class_not_flagged(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        _PY_CMD,
+        "import random\n"
+        "@server.command(name='todo-get', description='Get')\n"
+        "async def get(input):\n"
+        "    seeded = random.Random(input.seed)\n"
+        "    unseeded = random.Random()\n"
+        "    return success({})\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == [
+        (5, "afd-no-ambient-random", "Ambient random.Random() in command handler"),
+    ]
+
+
+def test_ambient_python_syntax_error_is_skipped(tmp_dir: Path) -> None:
+    _write(tmp_dir, _PY_CMD, "import time\n@server.command(name='x', description='d'\ndef broken(:\n")
+    assert _ambient(AFDLinter().lint(tmp_dir)) == []
+
+
+_RS_CMD = "src/commands.rs"
+
+
+def test_ambient_rust_handler_impl_flagged(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        _RS_CMD,
+        "use std::time::{Instant, SystemTime};\n"
+        "struct Create;\n"
+        "#[async_trait]\n"
+        "impl CommandHandler for Create {\n"
+        "    async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {\n"
+        "        let t = SystemTime::now();\n"
+        "        let started = Instant::now();\n"
+        "        let at = chrono::Utc::now();\n"
+        "        let id = Uuid::new_v4();\n"
+        "        let roll: f64 = rand::random();\n"
+        "        let mut rng = rand::thread_rng();\n"
+        "        success(json!({}))\n"
+        "    }\n"
+        "}\n",
+    )
+    result = AFDLinter().lint(tmp_dir)
+    assert _ambient(result) == [
+        (6, "afd-no-ambient-time", "Ambient SystemTime::now() in command handler"),
+        (7, "afd-no-ambient-time", "Ambient Instant::now() in command handler"),
+        (8, "afd-no-ambient-time", "Ambient Utc::now() in command handler"),
+        (9, "afd-no-ambient-random", "Ambient Uuid::new_v4() in command handler"),
+        (10, "afd-no-ambient-random", "Ambient rand::random() in command handler"),
+        (11, "afd-no-ambient-random", "Ambient thread_rng() in command handler"),
+    ]
+    time_issue = next(i for i in result.issues if i.rule == "afd-no-ambient-time")
+    random_issue = next(i for i in result.issues if i.rule == "afd-no-ambient-random")
+    assert "context.clock().now()" in (time_issue.suggestion or "")
+    assert "context.random().next()" in (random_issue.suggestion or "")
+
+
+def test_ambient_rust_free_fn_and_closure_flagged(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        _RS_CMD,
+        "fn stamp<T: Into<String>>(name: T, context: &CommandContext) -> Result<u64, String> {\n"
+        "    Ok(SystemTime::now().elapsed().unwrap().as_secs())\n"
+        "}\n"
+        "let handler = |input: Value, context: CommandContext| async move { Uuid::new_v4() };\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == [
+        (2, "afd-no-ambient-time", "Ambient SystemTime::now() in command handler"),
+        (4, "afd-no-ambient-random", "Ambient Uuid::new_v4() in command handler"),
+    ]
+
+
+def test_ambient_rust_negatives_not_flagged(tmp_dir: Path) -> None:
+    """No context, other impls, middleware, declarations, strings and comments."""
+    _write(
+        tmp_dir,
+        _RS_CMD,
+        "fn helper() -> u64 { SystemTime::now(); 0 }\n"
+        "impl CommandRegistry {\n"
+        "    pub async fn execute_batch(&self, context: CommandContext) -> BatchResult {\n"
+        "        let started = Instant::now();\n"
+        "    }\n"
+        "}\n"
+        "trait Handler { fn execute(&self, c: CommandContext) -> CommandResult<Value>; }\n"
+        "fn run(this: X) { let x = Instant::now(); }\n"
+        "let mw = |n: String, ctx: CommandContext, next: MiddlewareNext| { Instant::now(); next() };\n"
+        "impl CommandHandler for Get {\n"
+        "    async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {\n"
+        "        let s = \"SystemTime::now()\"; // Instant::now()\n"
+        "        let raw = r#\"Uuid::new_v4() \" still raw\"#;\n"
+        "        /* outer /* nested */ rand::random() */\n"
+        "        let c = '\"'; let l: &'static str = \"x\";\n"
+        "        let now = context.clock().now();\n"
+        "        let roll = context.random().next();\n"
+        "        success(json!({ \"now\": now }))\n"
+        "    }\n"
+        "}\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == []
+
+
+_CPP_CMD = "src/commands.cpp"
+
+
+def test_ambient_cpp_handler_lambda_flagged(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        _CPP_CMD,
+        "auto create = command(\"todo-create\", \"Create\", {\"todo\"}, true,\n"
+        "    [store](const Json& input, CommandContext& context) -> afd::CommandResult {\n"
+        "        auto now = std::chrono::system_clock::now();\n"
+        "        auto t0 = std::chrono::steady_clock::now();\n"
+        "        std::time_t at = std::time(nullptr);\n"
+        "        int roll = std::rand();\n"
+        "        std::random_device device;\n"
+        "        return afd::success(input);\n"
+        "    });\n",
+    )
+    result = AFDLinter().lint(tmp_dir)
+    assert _ambient(result) == [
+        (3, "afd-no-ambient-time", "Ambient system_clock::now() in command handler"),
+        (4, "afd-no-ambient-time", "Ambient steady_clock::now() in command handler"),
+        (5, "afd-no-ambient-time", "Ambient std::time() in command handler"),
+        (6, "afd-no-ambient-random", "Ambient std::rand() in command handler"),
+        (7, "afd-no-ambient-random", "Ambient std::random_device in command handler"),
+    ]
+    time_issue = next(i for i in result.issues if i.rule == "afd-no-ambient-time")
+    random_issue = next(i for i in result.issues if i.rule == "afd-no-ambient-random")
+    assert "context.clock->wall_ms()" in (time_issue.suggestion or "")
+    assert "context.random->next()" in (random_issue.suggestion or "")
+
+
+def test_ambient_cpp_function_and_designated_initializer_flagged(tmp_dir: Path) -> None:
+    _write(
+        tmp_dir,
+        "src/commands.hpp",
+        "inline afd::CommandResult get(const afd::Json& input, afd::CommandContext&) noexcept {\n"
+        "    return afd::success(time(nullptr));\n"
+        "}\n"
+        "afd::CommandDefinition def{.name = \"x-get\",\n"
+        "    .handler = [](const afd::Json& input, afd::CommandContext&) {\n"
+        "        return afd::success(rand());\n"
+        "    }};\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == [
+        (2, "afd-no-ambient-time", "Ambient std::time() in command handler"),
+        (6, "afd-no-ambient-random", "Ambient std::rand() in command handler"),
+    ]
+
+
+def test_ambient_cpp_negatives_not_flagged(tmp_dir: Path) -> None:
+    """Outside handlers, middleware, declarations, aliases, strings and comments."""
+    _write(
+        tmp_dir,
+        _CPP_CMD,
+        "auto t0 = std::chrono::steady_clock::now();\n"
+        "using CommandHandler = std::function<CommandResult(const Json&, CommandContext&)>;\n"
+        "CommandResult run(const Json&, CommandContext&);\n"
+        "auto mw = [](std::string_view n, const Json& i, CommandContext& c, const Next& next) {\n"
+        "    auto t = std::chrono::steady_clock::now(); return next();\n"
+        "};\n"
+        "void f() { if (run(CommandContext{})) { std::rand(); } }\n"
+        "auto h = [](const Json& input, CommandContext& context) {\n"
+        "    const char* s = \"std::rand()\"; // std::time(nullptr)\n"
+        "    const char* raw = R\"x(std::random_device \" still raw)x\";\n"
+        "    int big = 1'000'000; char q = '\"';\n"
+        "    auto at = context.clock->wall_ms();\n"
+        "    double roll = context.random->next();\n"
+        "    return afd::success(store.rand());\n"
+        "};\n",
+    )
+    assert _ambient(AFDLinter().lint(tmp_dir)) == []
+
+
+@pytest.mark.parametrize(
+    ("rel", "source"),
+    [
+        (_PY_CMD, "import time\n@server.command(name='x', description='d')\nasync def h(i):\n"
+         "    # afd-lint-disable: display-only timestamp\n    return time.time()\n"),
+        (_RS_CMD, "fn h(c: CommandContext) {\n    // afd-lint-disable: display-only timestamp\n"
+         "    SystemTime::now();\n}\n"),
+        (_CPP_CMD, "auto h = [](const Json& i, CommandContext& c) {\n"
+         "    // afd-lint-disable: display-only timestamp\n    std::time(nullptr);\n};\n"),
+    ],
+)
+def test_ambient_other_languages_take_directives_and_overrides(
+    tmp_dir: Path, rel: str, source: str
+) -> None:
+    _write(tmp_dir, rel, source)
+    result = AFDLinter().lint(tmp_dir)
+    assert result.issues == []
+    assert result.suppressed_by_reason == {"inline-directive": 1}
+    _write(tmp_dir, rel, source.replace("afd-lint-disable", "note"))
+    gated = AFDLinter(rule_severity_overrides={"afd-no-ambient-time": "error"}).lint(tmp_dir)
+    assert gated.error_count == 1 and gated.passed is False
+    excluded = AFDLinter(rule_path_excludes={"afd-no-ambient-time": [rel]}).lint(tmp_dir)
+    assert excluded.issues == []
+    assert excluded.suppressed_by_reason == {"rule-path-exclude": 1}
+
+
+def test_mask_c_like_keeps_offsets() -> None:
+    src = 'a("x//y") // c\nr#"q"# /* b\n*/ \'x\' h'
+    masked = mask_c_like(src, rust=True)
+    assert len(masked) == len(src)
+    assert [i for i, ch in enumerate(src) if ch == "\n"] == [
+        i for i, ch in enumerate(masked) if ch == "\n"
+    ]
+    assert "x//y" not in masked and "// c" not in masked and "q" not in masked
+    assert masked.endswith(" h") and masked.startswith("a(")
 
 
 @pytest.mark.parametrize(

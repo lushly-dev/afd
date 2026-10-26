@@ -44,7 +44,7 @@ uv run python -m alfred.mcp_server --sse    # SSE transport
 
 ### `alfred lint` — Architecture Compliance
 
-Wraps the `AFDLinter` from the `afd` Python package. Scans Python, TypeScript, and Rust files for AFD anti-patterns.
+Wraps the `AFDLinter` from the `afd` Python package. Scans Python, TypeScript, Rust and C++ files for AFD anti-patterns.
 
 | Rule | Language | Severity | Description |
 |------|----------|----------|-------------|
@@ -54,8 +54,18 @@ Wraps the `AFDLinter` from the `afd` Python package. Scans Python, TypeScript, a
 | `afd-kebab-naming` | TypeScript | Error | Command names must be kebab-case |
 | `afd-no-business-in-ui` | TypeScript | Warning | No `.map().filter()`, `.reduce()`, `new Date()`, `Math.*` in UI |
 | `afd-layer-imports` | All | Warning | UI can't import from `services/`, `core/`, or `api/` directly |
-| `afd-no-ambient-time` | TypeScript | Warning | No `Date.now()`, argument-less `new Date()` or `performance.now()` inside a `defineCommand` handler; use `(context.clock ?? systemClock).now()` |
-| `afd-no-ambient-random` | TypeScript | Warning | No `Math.random()` or `crypto.randomUUID()` inside a `defineCommand` handler; use `(context.random ?? systemRandom).next()` |
+| `afd-no-ambient-time` | All | Warning | No ambient time inside a command handler; read the context's clock (table below) |
+| `afd-no-ambient-random` | All | Warning | No ambient randomness inside a command handler; read the context's random source (table below) |
+
+
+**Ambient rules by language.** Detection is heuristic (`python/src/afd/lushx_ext/ambient.py`); handlers passed by reference across files are not followed, and parameter lists that also name a `Next` type are middleware and skipped.
+
+| Language | Handler scope | `afd-no-ambient-time` | `afd-no-ambient-random` | Use instead |
+|----------|---------------|-----------------------|-------------------------|-------------|
+| TypeScript | Inline `handler` of `defineCommand(...)` | `Date.now()`, argument-less `new Date()`, `performance.now()` | `Math.random()`, `crypto.randomUUID()` | `(context.clock ?? systemClock).now()`, `(context.random ?? systemRandom).next()` |
+| Python | Functions decorated with `@<x>.command(...)` taking a description or `@define_command(...)`; a `CommandDefinition(handler=...)` lambda or same-file function. Parsed with `ast`; a call counts only when its module was imported | `time.time()`, `monotonic()`, `perf_counter()` (and `_ns`), `datetime.now()`, `utcnow()`, `today()`, `date.today()` | `random.*` except a seeded `random.Random(seed)`, `secrets.*`, `uuid.uuid1()`, `uuid4()`, `os.urandom()` | `context.clock.now()`, `context.random.next()` |
+| Rust | `impl CommandHandler for` bodies, free `fn`s taking a `CommandContext`, closures with a `CommandContext`-typed parameter; methods of other `impl` blocks are skipped | `SystemTime::now()`, `Instant::now()`, `Utc::now()`, `Local::now()`, `OffsetDateTime::now_utc()`/`now_local()` | `rand::random`, `rand::thread_rng`, `rand::rng`, `thread_rng()`, `Uuid::new_v4()`/`now_v1()`/`now_v7()`, `OsRng` | `context.clock().now()`, `context.random().next()` |
+| C++ | Lambdas and functions whose parameters name `CommandContext` | `std::chrono::*_clock::now()`, `std::time`, `time(nullptr)`, `clock_gettime`, `gettimeofday` | `std::rand()`, `rand()`, `std::random_device` | `context.clock->wall_ms()` (`steady_ms()` for durations), `context.random->next()` |
 
 **Skipped directories:** `node_modules`, `.venv`, `__pycache__`, `.git`, `dist`, `build`, `target`, `.pytest_cache`, `.claude`, `.agent`, `chrome-profile`
 
