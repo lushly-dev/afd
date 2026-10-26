@@ -52,6 +52,10 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |
+| [MCP Authorization](./proposed/mcp-authorization/mcp-authorization.proposal.md) | OAuth resource-server role for HTTP MCP servers: RFC 9728 metadata, audience checks, per-command scopes (MCP follow-on, rank 2) |
+| [MCP Confirmations](./proposed/mcp-confirmations/mcp-confirmations.proposal.md) | Enforce `confirmPrompt` through MCP `input_required` elicitation, with an acknowledgement fallback (MCP follow-on, rank 1; resolves D10) |
+| [MCP Progress](./proposed/mcp-progress/mcp-progress.proposal.md) | A progress hook on the command context, delivered as MCP progress notifications, `/stream` chunks and DirectClient callbacks (MCP follow-on, rank 3) |
+| [MCP Tasks](./proposed/mcp-tasks/mcp-tasks.proposal.md) | Long-running commands as `io.modelcontextprotocol/tasks` tasks (MCP follow-on, rank 4; wait) |
 | [Multi-Tool Registration](./proposed/multi-tool-registration/) | Batch MCP tool registration |
 | [Plugin Discovery](./proposed/plugin-discovery/) | Auto-discovery of AFD plugins |
 | [Rust Distribution](./proposed/rust-distribution/) | Rust-based distribution layer |
