@@ -42,7 +42,7 @@ CommandMiddleware create_auto_trace_id_middleware(TraceIdOptions options) {
     auto generate = std::move(options.generate);
     if (!generate) {
         std::shared_ptr<RandomSource> random =
-            options.random ? std::move(options.random) : std::make_shared<SeededRandom>();
+            options.random ? std::move(options.random) : std::make_shared<SystemRandom>();
         generate = [random] { return random_uuid(*random); };
     }
     return [generate](std::string_view, const Json&, CommandContext& context, const Next& next) {

@@ -89,7 +89,7 @@ CommandRegistry::CommandRegistry(CommandRegistryOptions options) : options_(std:
         options_.runner = std::make_shared<InlineTaskRunner>();
     }
     if (!options_.random) {
-        options_.random = std::make_shared<SeededRandom>();
+        options_.random = std::make_shared<SystemRandom>();
     }
 }
 
@@ -257,6 +257,9 @@ void CommandRegistry::report_error(std::string_view message) const {
 
 CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
                                        CommandContext context) const {
+    context = with_context_defaults(
+        std::move(context),
+        {.clock = options_.clock, .random = options_.random, .actor = options_.actor});
     std::shared_ptr<const RegisteredCommand> command;
     std::vector<std::string> candidates;
     std::vector<std::string> exposed_names;
@@ -363,18 +366,24 @@ CommandResult CommandRegistry::run_chain(const RegisteredCommand& command, const
         middleware = options_.middleware;
     }
     const auto& definition = command.definition;
-    const Clock& clock = *options_.clock;
 
     // The innermost step: run the handler and stamp its result (a copy; never in place).
     const Next run_handler = [&]() -> CommandResult {
-        const double start = clock.steady_ms();
+        // The context's clock (the registry's unless the caller set one), read again here
+        // because middleware may replace it.
+        const std::shared_ptr<const Clock> clock = context.clock ? context.clock : options_.clock;
+        const double start = clock->steady_ms();
         CommandResult result = definition.handler(input, context);
-        const double elapsed = clock.steady_ms() - start;
+        const double elapsed = clock->steady_ms() - start;
         ResultMetadata metadata = result.metadata.value_or(ResultMetadata{});
-        metadata.execution_time_ms = std::round(elapsed);
+        metadata.execution_time_ms = std::round((std::max)(0.0, elapsed));
         metadata.command_version = definition.version;
         if (context.trace_id && !context.trace_id->empty()) {
             metadata.trace_id = context.trace_id;
+        }
+        // Read the actor after the handler: middleware (auth) may have refined it.
+        if (context.actor) {
+            metadata.actor_kind = context.actor->kind;
         }
         result.metadata = std::move(metadata);
         return result;

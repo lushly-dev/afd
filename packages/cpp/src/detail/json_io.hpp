@@ -4,6 +4,7 @@
 // (`results[1].result.error.code: expected a string`), in a caller-owned error string.
 #pragma once
 
+#include "afd/actor.hpp"
 #include "afd/batch.hpp"
 #include "afd/errors.hpp"
 #include "afd/json.hpp"
@@ -25,6 +26,8 @@ namespace afd::detail {
 
 // One overload per wire type, declared before the templates below so they can find them.
 // Each is defined next to its type's to_json.
+bool read_value(const Json& value, const std::string& path, ActorKind& out, std::string& error);
+bool read_value(const Json& value, const std::string& path, Actor& out, std::string& error);
 bool read_value(const Json& value, const std::string& path, CommandError& out, std::string& error);
 bool read_value(const Json& value, const std::string& path, Source& out, std::string& error);
 bool read_value(const Json& value, const std::string& path, PlanStepStatus& out,

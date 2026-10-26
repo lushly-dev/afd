@@ -10,6 +10,8 @@
 #include <mutex>
 #include <optional>
 #include <random>
+#include <string>
+#include <type_traits>
 
 namespace afd {
 
@@ -29,38 +31,66 @@ public:
     [[nodiscard]] std::int64_t wall_ms() const override;
 };
 
-/// A clock that moves only when told to. For deterministic tests.
+/// A clock that moves only when told to. For deterministic tests, replays and simulations.
+/// TypeScript's `ManualClock`.
 class ManualClock final : public Clock {
 public:
     explicit ManualClock(std::int64_t wall_ms = 0) : wall_ms_(wall_ms) {}
     [[nodiscard]] double steady_ms() const override { return steady_ms_.load(); }
     [[nodiscard]] std::int64_t wall_ms() const override { return wall_ms_.load(); }
-    /// Moves both clocks forward by `ms`.
+    /// Moves both clocks forward by `ms` (backward when negative).
     void advance(double ms);
+    /// Moves the wall clock to `wall_ms`. The steady clock does not move.
+    void set(std::int64_t wall_ms) { wall_ms_.store(wall_ms); }
 
 private:
     std::atomic<double> steady_ms_{0};
     std::atomic<std::int64_t> wall_ms_;
 };
 
+/// A clock stopped at `wall_ms` (milliseconds since the Unix epoch). TypeScript's `fixedClock`;
+/// unlike it, the instant is epoch milliseconds only (no ISO string).
+std::shared_ptr<ManualClock> fixed_clock(std::int64_t wall_ms = 0);
+
 /// A source of uniform random numbers in [0, 1).
 class RandomSource {
 public:
     virtual ~RandomSource() = default;
     [[nodiscard]] virtual double next() = 0;
+    /// The seed this source was created from, when it is seeded (for journals and replay).
+    [[nodiscard]] virtual std::optional<std::string> seed() const { return std::nullopt; }
 };
 
-/// A seeded, thread-safe `std::mt19937_64`. The default constructor seeds from
-/// `std::random_device`; pass a seed for reproducible tests.
-class SeededRandom final : public RandomSource {
+/// The real random source: a thread-safe `std::mt19937_64` seeded from `std::random_device`. Not
+/// reproducible. The default wherever afd-cpp needs randomness.
+class SystemRandom final : public RandomSource {
 public:
-    SeededRandom();
-    explicit SeededRandom(std::uint64_t seed) : engine_(seed) {}
+    SystemRandom();
     [[nodiscard]] double next() override;
 
 private:
     std::mutex mutex_;
     std::mt19937_64 engine_;
+};
+
+/// A reproducible random source: the same seed always gives the same sequence, the same one
+/// TypeScript's `seededRandom(seed)` gives. The generator is mulberry32, seeded with the FNV-1a
+/// (32-bit) hash of the seed's UTF-8 bytes. Thread-safe. Fast and well distributed, and not
+/// suitable for secrets.
+class SeededRandom final : public RandomSource {
+public:
+    explicit SeededRandom(std::string seed);
+    /// Seeds are strings, as in TypeScript. Deleted so that a former numeric seed fails to
+    /// compile; `SeededRandom(0)` would otherwise construct a `std::string` from a null pointer.
+    template <class Integer>
+        requires std::is_integral_v<Integer>
+    SeededRandom(Integer) = delete;
+    [[nodiscard]] double next() override;
+    [[nodiscard]] std::optional<std::string> seed() const override { return seed_; }
+
+private:
+    std::string seed_;
+    std::atomic<std::uint32_t> state_;
 };
 
 namespace detail {

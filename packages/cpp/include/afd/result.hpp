@@ -1,6 +1,7 @@
 // CommandResult: the contract every AFD command returns (packages/core/src/result.ts).
 #pragma once
 
+#include "afd/actor.hpp"
 #include "afd/errors.hpp"
 #include "afd/expected.hpp"
 #include "afd/json.hpp"
@@ -19,6 +20,10 @@ struct ResultMetadata {
     std::optional<std::string> command_version;
     std::optional<std::string> trace_id;
     std::optional<std::string> timestamp;
+    /// The kind of principal that called the command (`context.actor->kind`), stamped by the
+    /// registry when the context has an actor. Only the kind, never the actor's id or label. A
+    /// kind this version does not know is kept in `extra`.
+    std::optional<ActorKind> actor_kind;
     /// Any other members, as a JSON object.
     Json extra = Json::object();
 

@@ -49,6 +49,7 @@ configure_file(cmake/version.hpp.in ${CMAKE_CURRENT_BINARY_DIR}/include/afd/vers
 
 add_library(
     afd
+    src/actor.cpp
     src/batch.cpp
     src/batch_execution.cpp
     src/command.cpp

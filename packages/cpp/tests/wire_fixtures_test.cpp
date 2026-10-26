@@ -106,8 +106,9 @@ TEST_CASE("result-success-minimal carries only server metadata") {
     REQUIRE(result.metadata.has_value());
     CHECK(result.metadata->trace_id == "trace-fixture");
     CHECK(result.metadata->command_version == "1.0.0");
-    // `actorKind` (the caller's kind; `agent` over MCP) is not a typed field in C++ yet.
-    CHECK(result.metadata->extra == afd::Json{{"actorKind", "agent"}});
+    // The caller's kind; `agent` over MCP.
+    CHECK(result.metadata->actor_kind == afd::ActorKind::agent);
+    CHECK(result.metadata->extra == afd::Json::object());
     CHECK_FALSE(result.error.has_value());
 }
 
@@ -123,7 +124,8 @@ TEST_CASE("result-success-full keeps every optional field and extra metadata") {
     REQUIRE(result.warnings.has_value());
     CHECK(result.warnings->at(0).severity == afd::WarningSeverity::caution);
     REQUIRE(result.metadata.has_value());
-    CHECK(result.metadata->extra == afd::Json{{"region", "test"}, {"actorKind", "agent"}});
+    CHECK(result.metadata->actor_kind == afd::ActorKind::agent);
+    CHECK(result.metadata->extra == afd::Json{{"region", "test"}});
     CHECK(result.undo_command == "todo-delete");
     REQUIRE(result.undo_args.has_value());
     CHECK(result.undo_args->at("id") == "todo-2");

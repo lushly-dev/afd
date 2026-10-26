@@ -29,8 +29,18 @@ bool read_value(const Json& value, const std::string& path, ResultMetadata& out,
     reader.optional("commandVersion", out.command_version);
     reader.optional("traceId", out.trace_id);
     reader.optional("timestamp", out.timestamp);
+    // Lenient, unlike other enums: a kind added in a later contract version stays in `extra`
+    // instead of failing the whole result.
+    out.actor_kind.reset();
+    if (const auto it = value.is_object() ? value.find("actorKind") : value.end();
+        it != value.end() && it->is_string()) {
+        out.actor_kind = parse_actor_kind(it->get_ref<const std::string&>());
+    }
     out.extra =
-        reader.unknown_members({"executionTimeMs", "commandVersion", "traceId", "timestamp"});
+        out.actor_kind
+            ? reader.unknown_members(
+                  {"executionTimeMs", "commandVersion", "traceId", "timestamp", "actorKind"})
+            : reader.unknown_members({"executionTimeMs", "commandVersion", "traceId", "timestamp"});
     return reader.ok();
 }
 
@@ -69,6 +79,7 @@ void to_json(Json& out, const ResultMetadata& metadata) {
     detail::put(out, "commandVersion", metadata.command_version);
     detail::put(out, "traceId", metadata.trace_id);
     detail::put(out, "timestamp", metadata.timestamp);
+    detail::put(out, "actorKind", metadata.actor_kind);
     detail::merge_extra(out, metadata.extra);
 }
 

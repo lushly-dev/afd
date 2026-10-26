@@ -120,9 +120,10 @@ Json tools_call(const afd::CommandRegistry& registry, const Json& params) {
         }
     }
     static afd::SystemClock clock;
-    static afd::SeededRandom random;
+    static afd::SystemRandom random;
     afd::CommandContext context;
     context.surface = afd::Interface::mcp;
+    context.actor = afd::Actor{.kind = afd::ActorKind::agent};
     context.trace_id =
         "trace-" + std::to_string(clock.wall_ms()) + "-" + afd::random_uuid(random).substr(0, 8);
 

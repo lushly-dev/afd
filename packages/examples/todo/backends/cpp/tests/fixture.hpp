@@ -13,7 +13,7 @@ namespace todo::testing {
 struct Fixture {
     std::shared_ptr<afd::ManualClock> clock = std::make_shared<afd::ManualClock>(1767225600000);
     std::shared_ptr<TodoStore> store =
-        std::make_shared<TodoStore>(clock, std::make_shared<afd::SeededRandom>(1));
+        std::make_shared<TodoStore>(clock, std::make_shared<afd::SeededRandom>("1"));
     std::unique_ptr<afd::CommandRegistry> registry =
         std::make_unique<afd::CommandRegistry>(afd::CommandRegistryOptions{.clock = clock});
 

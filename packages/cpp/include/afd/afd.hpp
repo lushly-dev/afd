@@ -1,6 +1,7 @@
 // Umbrella header for afd-cpp: include this to get the whole public API.
 #pragma once
 
+#include "afd/actor.hpp"
 #include "afd/batch.hpp"
 #include "afd/builtin_names.hpp"
 #include "afd/command.hpp"
