@@ -4,11 +4,11 @@
  */
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import type { CommandResult } from '@lushly-dev/afd-core';
 import { success } from '@lushly-dev/afd-core';
 import { Client, StreamableHTTPClientTransport } from '@modelcontextprotocol/client';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
 	type ApprovalMiddlewareOptions,
@@ -18,6 +18,7 @@ import {
 import {
 	type ApprovalAnswer,
 	type ApprovalHold,
+	type ApprovalRelay,
 	approvalRelay,
 	bindApprovalRelay,
 	withoutApprovalRelay,
@@ -266,7 +267,7 @@ describe('approval relay over MCP', () => {
 		const client = await connect(url, 'accept', prompts);
 		const result = await client.callTool({ name: 'todo-delete', arguments: { id: 7 } });
 		expect(body(result)).toMatchObject({ success: true, data: { deleted: 7 } });
-		expect(prompts).toEqual(['approve: Run todo-delete']);
+		expect(prompts).toEqual(['approve: Run todo-delete\n\nCommand: todo-delete\nInput: {"id":7}']);
 		expect(calls).toEqual(['delete:7']);
 		// No token was issued on the relay path.
 		expect(requests).toEqual([]);
@@ -277,7 +278,9 @@ describe('approval relay over MCP', () => {
 		const first = await rawCaller(url)('todo-delete', { id: 1 });
 		const text = JSON.stringify(first);
 		expect(asked(first).resultType).toBe('input_required');
-		expect(asked(first).inputRequests?.approval?.params?.message).toBe('Run todo-delete');
+		expect(asked(first).inputRequests?.approval?.params?.message).toBe(
+			'Run todo-delete\n\nCommand: todo-delete\nInput: {"id":1}'
+		);
 		expect(text).not.toContain('afdap1');
 	});
 
@@ -303,7 +306,10 @@ describe('approval relay over MCP', () => {
 		const client = await connect(url, 'accept', prompts);
 		const result = await client.callTool({ name: 'todo-clear', arguments: {} });
 		expect(body(result)).toMatchObject({ success: true });
-		expect(prompts).toEqual(['confirm: Delete every todo?', 'approve: Delete every todo?']);
+		expect(prompts).toEqual([
+			'confirm: Delete every todo?',
+			'approve: Delete every todo?\n\nCommand: todo-clear\nInput: {}',
+		]);
 		expect(calls).toEqual(['clear']);
 	});
 
@@ -359,7 +365,7 @@ describe('approval relay over MCP', () => {
 		expect(client.getProtocolEra()).toBe('legacy');
 		const result = await client.callTool({ name: 'todo-delete', arguments: { id: 3 } });
 		expect(body(result)).toMatchObject({ success: true });
-		expect(prompts).toEqual(['Run todo-delete']);
+		expect(prompts).toEqual(['Run todo-delete\n\nCommand: todo-delete\nInput: {"id":3}']);
 		expect(calls).toEqual(['delete:3']);
 	});
 
@@ -414,7 +420,7 @@ describe('approval relay over MCP', () => {
 			const results = body(batch).results as Array<{ result: CommandResult }>;
 			expect(results[1]?.result.error?.code).toBe('APPROVAL_REQUIRED');
 			expect(results[1]?.result.error?.details).not.toHaveProperty('approvalToken');
-			expect(results[1]?.result.error?.suggestion).toContain('not in afd-batch or afd-pipe');
+			expect(results[1]?.result.error?.suggestion).toContain('Call todo-delete on its own');
 
 			// A gated first step would claim the relay if steps could: it must not.
 			const gatedFirst = await client.callTool({
@@ -612,6 +618,44 @@ describe('approval relay over MCP', () => {
 			expect(calls).toEqual([]);
 		});
 
+		it('does not keep an earlier answer alive by carrying it into new rounds', async () => {
+			const { url, calls } = await serve({ server: { confirmations: 'require-human' } });
+			const call = rawCaller(url);
+			const start = Date.now();
+			const now = vi.spyOn(Date, 'now');
+			try {
+				now.mockReturnValue(start);
+				const confirmState = asked(await call('todo-clear', {})).requestState as string;
+				// Confirmed 6 minutes in: the approval is asked, carrying the confirmation.
+				now.mockReturnValue(start + 6 * 60_000);
+				const approval = asked(
+					await call(
+						'todo-clear',
+						{},
+						{
+							inputResponses: { confirm: { action: 'accept', content: { confirm: true } } },
+							requestState: confirmState,
+						}
+					)
+				);
+				expect(approval.inputRequests).toHaveProperty('approval');
+				// 12 minutes in, the state itself is still valid, but the confirmation, asked 12
+				// minutes ago, has lapsed: it is asked again rather than counted.
+				now.mockReturnValue(start + 12 * 60_000);
+				const late = asked(
+					await call(
+						'todo-clear',
+						{},
+						{ inputResponses: approved, requestState: approval.requestState }
+					)
+				);
+				expect(late.inputRequests).toHaveProperty('confirm');
+			} finally {
+				now.mockRestore();
+			}
+			expect(calls).toEqual([]);
+		});
+
 		it('asks again when the approval expired before the answer came back', async () => {
 			const { url, calls, clock } = await serve();
 			const call = rawCaller(url);
@@ -623,6 +667,9 @@ describe('approval relay over MCP', () => {
 				{ inputResponses: approved, requestState: state }
 			);
 			expect(asked(late).resultType).toBe('input_required');
+			expect(asked(late).inputRequests?.approval?.params?.message).toMatch(
+				/^The earlier approval expired or was already used/
+			);
 			const fresh = asked(late).requestState as string;
 			const onTime = await call(
 				'todo-delete',
@@ -641,97 +688,154 @@ describe('approval middleware with a relay', () => {
 		approval: 'required' as const,
 	};
 
-	/** A relay that records holds and answers `answer` for the bindings it was asked about. */
-	function fakeRelay(answer: (bindings: readonly string[]) => ApprovalAnswer) {
+	/**
+	 * A relay routed to `routed` that records holds and answers `answer` for the bindings it is
+	 * asked about.
+	 */
+	function fakeRelay(
+		answer: (bindings: readonly string[]) => ApprovalAnswer,
+		routed = 'todo-delete'
+	) {
 		let claimed = false;
 		const holds: ApprovalHold[] = [];
 		const asked: string[][] = [];
-		return {
-			holds,
-			asked,
-			relay: {
-				claim() {
-					if (claimed) return false;
-					claimed = true;
-					return true;
-				},
-				answer: async (bindings: readonly string[]) => {
-					asked.push([...bindings]);
-					return answer(bindings);
-				},
-				hold: (hold: ApprovalHold) => void holds.push(hold),
+		const relay: ApprovalRelay = {
+			route() {},
+			claim(command) {
+				if (claimed || command !== routed) return false;
+				claimed = true;
+				return true;
+			},
+			answer: async (bindings) => {
+				asked.push([...bindings]);
+				return answer(bindings);
+			},
+			hold(hold) {
+				holds.push(hold);
 			},
 		};
+		return { holds, asked, relay, context: bindApprovalRelay({ interface: 'mcp' }, relay) };
 	}
 
+	const missing = (): ApprovalAnswer => ({ kind: 'missing' });
 	const ran = (): Promise<CommandResult> => Promise.resolve(success('ran'));
+	const accepting = (hold: ApprovalHold, edit: Partial<ApprovalHold> = {}) => {
+		const { binding, nonce, expiresAt, mac } = { ...hold, ...edit };
+		return (): ApprovalAnswer => ({ kind: 'accept', binding, nonce, expiresAt, mac });
+	};
 
-	it('gives the relay only to the first command of a tool call', async () => {
+	async function heldOnce(secret: string | string[] = SECRET) {
+		const middleware = createApprovalMiddleware({
+			secret,
+			commands: [remove],
+			relay: 'mcp-elicitation',
+		});
+		const fake = fakeRelay(missing);
+		await middleware('todo-delete', { id: 1 }, fake.context, ran);
+		return fake.holds[0] as ApprovalHold;
+	}
+
+	it('gives the relay only to the routed command', async () => {
 		const middleware = createApprovalMiddleware({
 			secret: SECRET,
 			commands: [remove, { name: 'todo-list' }],
 			relay: 'mcp-elicitation',
 		});
-		const fake = fakeRelay(() => ({ kind: 'missing' }));
-		const context: CommandContext = bindApprovalRelay({ interface: 'mcp' }, fake.relay);
-		// An ungated command claims it first, so a gated command it runs cannot elicit.
-		await middleware('todo-list', {}, context, async () =>
-			middleware('todo-delete', { id: 1 }, context, ran)
+		// The routed command never reaches this middleware; a gated command its handler runs
+		// cannot claim the relay, so the tool call is not turned into an elicitation.
+		const fake = fakeRelay(missing, 'todo-list-elsewhere');
+		const nested = await middleware('todo-delete', { id: 1 }, fake.context, ran);
+		expect(nested.error?.suggestion).toContain('Call todo-delete on its own');
+		// Routed and first: an ungated command claims it, so a gated one it runs cannot.
+		const first = fakeRelay(missing, 'todo-list');
+		await middleware('todo-list', {}, first.context, async () =>
+			middleware('todo-delete', { id: 1 }, first.context, ran)
 		);
-		expect(fake.holds).toEqual([]);
-		expect(fake.asked).toEqual([]);
+		expect([...fake.holds, ...first.holds]).toEqual([]);
+		expect([...fake.asked, ...first.asked]).toEqual([]);
 	});
 
-	it('answers with a binding per key, and holds with the signing key', async () => {
+	it('holds with a binding per key, a MAC, and the input in the question', async () => {
 		const middleware = createApprovalMiddleware({
 			secret: [SECRET, `${SECRET}-old`],
 			commands: [remove],
 			relay: 'mcp-elicitation',
 		});
-		const fake = fakeRelay(() => ({ kind: 'missing' }));
-		const result = await middleware(
-			'todo-delete',
-			{ id: 1 },
-			bindApprovalRelay({ interface: 'mcp' }, fake.relay),
-			ran
-		);
+		const fake = fakeRelay(missing);
+		const result = await middleware('todo-delete', { id: 1 }, fake.context, ran);
 		expect(result.error?.code).toBe('APPROVAL_REQUIRED');
 		expect(result.error?.details).not.toHaveProperty('approvalToken');
+		const [hold] = fake.holds;
 		expect(fake.asked[0]).toHaveLength(2);
-		expect(fake.holds[0]?.binding).toBe(fake.asked[0]?.[0]);
-		expect(fake.holds[0]?.nonce).toMatch(/^[\w-]{22}$/);
+		expect(hold?.bindings).toEqual(fake.asked[0]);
+		expect(hold?.binding).toBe(fake.asked[0]?.[0]);
+		expect(hold?.nonce).toMatch(/^[\w-]{22}$/);
+		expect(hold?.mac).toMatch(/^[\w-]{43}$/);
+		expect(hold?.message).toBe('Run todo-delete\n\nCommand: todo-delete\nInput: {"id":1}');
 	});
 
-	it('runs an approval accepted under a rotated key, once', async () => {
+	it('runs a genuine accepted approval once', async () => {
 		const middleware = createApprovalMiddleware({
-			secret: [SECRET, `${SECRET}-old`],
+			secret: SECRET,
 			commands: [remove],
 			relay: 'mcp-elicitation',
 		});
-		const answer = (bindings: readonly string[]): ApprovalAnswer =>
-			bindings[1]
-				? { kind: 'accept', nonce: 'n-1', expiresAt: Date.now() + 60_000 }
-				: { kind: 'missing' };
-		const first = fakeRelay(answer);
-		const context = bindApprovalRelay({ interface: 'mcp' }, first.relay);
-		expect((await middleware('todo-delete', { id: 1 }, context, ran)).data).toBe('ran');
-		const second = fakeRelay(answer);
-		const replay = await middleware(
-			'todo-delete',
-			{ id: 1 },
-			bindApprovalRelay({ interface: 'mcp' }, second.relay),
-			ran
-		);
-		expect(replay.error?.code).toBe('APPROVAL_REQUIRED');
-		expect(second.holds).toHaveLength(1);
+		const first = fakeRelay(missing);
+		await middleware('todo-delete', { id: 1 }, first.context, ran);
+		const hold = first.holds[0] as ApprovalHold;
+		const accepted = fakeRelay(accepting(hold));
+		expect((await middleware('todo-delete', { id: 1 }, accepted.context, ran)).data).toBe('ran');
+		const replay = fakeRelay(accepting(hold));
+		expect((await middleware('todo-delete', { id: 1 }, replay.context, ran)).data).toBeUndefined();
+		expect(replay.holds[0]?.message).toMatch(/^The earlier approval expired or was already used/);
 	});
 
-	it('strips the relay from a context', () => {
-		const fake = fakeRelay(() => ({ kind: 'missing' }));
-		const context = bindApprovalRelay({ interface: 'mcp' }, fake.relay);
-		expect(approvalRelay(context)).toBe(fake.relay);
-		expect(approvalRelay(withoutApprovalRelay(context))).toBeUndefined();
-		expect(approvalRelay({ ...context })).toBe(fake.relay);
+	it('does not run an approval whose nonce, expiry or MAC was not issued by the middleware', async () => {
+		const hold = await heldOnce();
+		const middleware = createApprovalMiddleware({
+			secret: SECRET,
+			commands: [remove],
+			relay: 'mcp-elicitation',
+		});
+		const forgeries: Array<Partial<ApprovalHold>> = [
+			{ nonce: 'fresh-nonce-0123456789' },
+			{ expiresAt: hold.expiresAt + 1 },
+			{ mac: hold.mac.replace(/^./, (c) => (c === 'A' ? 'B' : 'A')) },
+			{ mac: '' },
+		];
+		for (const edit of forgeries) {
+			const fake = fakeRelay(accepting(hold, edit));
+			const result = await middleware('todo-delete', { id: 1 }, fake.context, ran);
+			expect(result.data).toBeUndefined();
+			expect(fake.holds).toHaveLength(1);
+		}
+		// Another secret's approval is not this one's.
+		const otherHold = await heldOnce(`${SECRET}-other`);
+		const fake = fakeRelay(accepting(otherHold));
+		expect((await middleware('todo-delete', { id: 1 }, fake.context, ran)).data).toBeUndefined();
+	});
+
+	it('runs an approval asked under a key that has since rotated', async () => {
+		const old = `${SECRET}-old`;
+		const hold = await heldOnce(old);
+		const rotated = createApprovalMiddleware({
+			secret: [SECRET, old],
+			commands: [remove],
+			relay: 'mcp-elicitation',
+		});
+		const fake = fakeRelay(accepting(hold));
+		expect((await rotated('todo-delete', { id: 1 }, fake.context, ran)).data).toBe('ran');
+	});
+
+	it('replaces the relay of afd-batch and afd-pipe steps with one that never asks', () => {
+		const fake = fakeRelay(missing);
+		expect(approvalRelay(fake.context)).toBe(fake.relay);
+		const stripped = approvalRelay(withoutApprovalRelay(fake.context));
+		expect(stripped).toBeDefined();
+		expect(stripped).not.toBe(fake.relay);
+		expect(stripped?.claim('todo-delete')).toBe(false);
+		expect(approvalRelay(withoutApprovalRelay({}))).toBeUndefined();
+		expect(approvalRelay({ ...fake.context })).toBe(fake.relay);
 	});
 
 	it('rejects an unknown relay mode', () => {

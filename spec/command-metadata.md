@@ -185,13 +185,22 @@ its own.
 When a call to a single command (its tool, `afd-call` or a grouped tool) needs approval and the
 request can carry a form elicitation, the server answers as for a confirmation: `input_required` on
 MCP 2026-07-28, or a server-sent elicitation on a 2025-era stdio connection. The form uses the
-input key `approval`, the summary as its message and one required boolean property `approve`. No
-approval token is issued. Its `requestState` is integrity-protected, bound to the method and the
-principal, and carries a digest of the command name, the canonical validated input and the actor
-(keyed with the approval secret), a random nonce and the approval's expiry. The command runs when
-the retry carries:
+input key `approval` and one required boolean property `approve`. Its message is the summary
+followed by the command name and its validated input (canonical JSON, truncated), so the human sees
+what exactly would run. No approval token is issued. Its `requestState` is integrity-protected and
+bound to the method and to the authenticated client when there is one. It carries:
+
+- a digest of the command name, the canonical validated input and the actor, keyed with the
+  approval secret;
+- a random nonce and the approval's expiry, under a MAC keyed with the approval secret, so the
+  state's own key alone cannot mint an approval;
+- the time its question was asked: an answer counts for 10 minutes from then, however many later
+  rounds carry it.
+
+The command runs when the retry carries:
 
 - a `requestState` that verifies and names this command, input and actor;
+- a nonce and expiry whose MAC verifies under one of the approval keys;
 - an approval that has not expired on the server's clock;
 - the answer `accept` with `approve: true`;
 - a nonce not yet spent (single-use unless the server allows reuse until expiry).
@@ -211,8 +220,11 @@ Some calls fall back to `APPROVAL_REQUIRED` without a token:
   stateless HTTP;
 - a step of `afd-batch` or `afd-pipe`. A policy is evaluated on the validated input when the step
   runs, and asking mid-run would run the earlier steps again on the retry;
-- a command run by another command in the same tool call. Only the first command of a tool call to
-  reach the middleware may ask.
+- a command run by another command in the same tool call. Only the command the tool call routes to
+  may ask, and only once.
+
+An accepted approval that has expired or was already used is asked again, and the question says
+so.
 
 The result is an ordinary failed `CommandResult`, so it needs no wire fixture of its own.
 

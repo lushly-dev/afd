@@ -44,7 +44,7 @@ import {
 	safeEqual,
 	toKeys,
 } from './approval-crypto.js';
-import { approvalRelay } from './approval-relay.js';
+import { type ApprovalAnswer, approvalRelay } from './approval-relay.js';
 
 export { type ApprovalSecret, canonicalJson };
 
@@ -139,8 +139,8 @@ export interface ApprovalMiddlewareOptions {
 
 	/**
 	 * Whether the `APPROVAL_REQUIRED` result carries `details.approvalToken`. Default: `false`
-	 * for MCP calls (`context.interface === 'mcp'`), whose caller is the agent, and `true`
-	 * elsewhere. Without the token in the result, deliver it to the approving human through
+	 * when `context.interface` is `'mcp'` (every MCP lane, and the HTTP routes of
+	 * `createMcpHandler`), whose caller is the agent, and `true` elsewhere. Without the token in the result, deliver it to the approving human through
 	 * `onApprovalRequired`. `true` is safe only while the gated caller cannot set
 	 * `context.approval` itself.
 	 */
@@ -161,7 +161,10 @@ export interface ApprovalMiddlewareOptions {
 	 */
 	relay?: 'none' | 'mcp-elicitation';
 
-	/** Called for every held call, before the result is returned, for example to notify a human. */
+	/**
+	 * Called for every call held with a token, before the result is returned, for example to notify
+	 * a human. Not called for a call whose approval is asked over MCP (`relay`): no token exists.
+	 */
 	onApprovalRequired?: (request: ApprovalRequest) => void | Promise<void>;
 
 	/**
@@ -315,6 +318,27 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		);
 	}
 
+	/** The MAC of a relayed approval's nonce and expiry, so the elicitation state cannot set them. */
+	function holdMac(key: Buffer, binding: string, nonce: string, expiresAt: number): string {
+		return hmac(key, `relay-hold\0${canonicalJson([binding, nonce, expiresAt])}`).toString(
+			'base64url'
+		);
+	}
+
+	/** Whether an accepted relayed approval is genuine, unexpired and (single-use) unspent. */
+	async function relayedApprovalHolds(
+		answer: Extract<ApprovalAnswer, { kind: 'accept' }>,
+		bindings: readonly string[],
+		now: number
+	): Promise<boolean> {
+		const key = keys[bindings.indexOf(answer.binding)];
+		if (!key) return false;
+		const expected = Buffer.from(holdMac(key, answer.binding, answer.nonce, answer.expiresAt));
+		if (!safeEqual(Buffer.from(answer.mac), expected)) return false;
+		if (now >= answer.expiresAt || answer.expiresAt > now + ttlMs) return false;
+		return spend(answer.nonce, answer.expiresAt, now);
+	}
+
 	/** Spend a single-use nonce; `true` when it was fresh (or reuse is allowed). */
 	async function spend(nonce: string, expiresAt: number, now: number): Promise<boolean> {
 		if (!singleUse) return true;
@@ -331,12 +355,10 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 	}
 
 	return async (commandName, input, context, next) => {
-		// Claimed by the first command of the tool call, gated or not, so a command that runs
-		// inside another (or after it) cannot turn the tool call into an elicitation.
-		const relay =
-			relayMode === 'mcp-elicitation' && approvalRelay(context)?.claim()
-				? approvalRelay(context)
-				: undefined;
+		// Claimed only by the command the tool call routes to, once, gated or not, so a command
+		// that runs inside another (or after it) cannot turn the tool call into an elicitation.
+		const bound = relayMode === 'mcp-elicitation' ? approvalRelay(context) : undefined;
+		const relay = bound?.claim(commandName) ? bound : undefined;
 		const command = commands.get(commandName);
 		if (!(await requiresApproval(command, input, context))) return next();
 
@@ -373,20 +395,27 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 					details: { summary, reason: 'declined' },
 				});
 			}
-			// An expired or already spent approval is asked again.
-			if (
-				answer.kind === 'accept' &&
-				now < answer.expiresAt &&
-				(await spend(answer.nonce, answer.expiresAt, now))
-			) {
+			if (answer.kind === 'accept' && (await relayedApprovalHolds(answer, bindings, now))) {
 				return next();
 			}
+			// An expired, spent or invalid approval is asked again, saying why.
+			const binding = bindings[0] as string;
+			const nonce = randomBytes(16).toString('base64url');
 			const expiresAt = now + ttlMs;
 			relay.hold({
-				binding: bindings[0] as string,
-				nonce: randomBytes(16).toString('base64url'),
+				binding,
+				bindings,
+				nonce,
 				expiresAt,
-				summary,
+				mac: holdMac(keys[0] as Buffer, binding, nonce, expiresAt),
+				message: relayMessage(
+					summary,
+					commandName,
+					inputBinding,
+					answer.kind === 'accept'
+						? 'The earlier approval expired or was already used; approve again to run it.'
+						: undefined
+				),
 			});
 			// The lane answers with the elicitation instead; this result is never sent.
 			return failure({
@@ -418,9 +447,11 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		// caller must not resubmit it on its own, and tool arguments cannot carry it.
 		const retry = includeToken
 			? `once they approve, the application retries the same call with the same input and details.approvalToken as its approval evidence (tool arguments cannot carry it). The token expires at ${expiresAt}${singleUse ? ' and works once' : ''}.`
-			: relayMode === 'mcp-elicitation' && context.interface === 'mcp'
-				? `the client could not be asked here. Call ${commandName} on its own (not in afd-batch or afd-pipe) from an MCP client that supports form elicitation, or the application records the approval and retries.`
-				: 'the application retries the same call once it has recorded the approval.';
+			: bound
+				? `the client could not be asked from inside afd-batch, afd-pipe or another command. Call ${commandName} on its own so the client can ask the user.`
+				: relayMode === 'mcp-elicitation' && context.interface === 'mcp'
+					? `the client could not be asked here. Call ${commandName} from an MCP client that supports form elicitation, or the application records the approval and retries.`
+					: 'the application retries the same call once it has recorded the approval.';
 		return failure({
 			code: ErrorCodes.APPROVAL_REQUIRED,
 			message: `${commandName} needs approval before it runs`,
@@ -448,4 +479,15 @@ function parsePayload(encoded: string): TokenPayload | undefined {
 	const strings = ['c', 'i', 'a', 'n'].every((field) => typeof payload[field] === 'string');
 	const times = ['iat', 'exp'].every((field) => Number.isFinite(payload[field]));
 	return strings && times ? (payload as unknown as TokenPayload) : undefined;
+}
+
+/** Longest input shown in an approval elicitation, in characters. */
+const MAX_SHOWN_INPUT = 1000;
+
+/** The question of a relayed approval: the summary, then what exactly would run. */
+function relayMessage(summary: string, command: string, input: string, note?: string): string {
+	const shown = input.length > MAX_SHOWN_INPUT ? `${input.slice(0, MAX_SHOWN_INPUT)}…` : input;
+	return [...(note ? [note] : []), summary, '', `Command: ${command}`, `Input: ${shown}`].join(
+		'\n'
+	);
 }

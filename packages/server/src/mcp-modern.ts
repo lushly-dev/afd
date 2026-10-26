@@ -57,6 +57,13 @@ import {
 	InputRequiredSignal,
 } from './confirmations.js';
 import { bindContextState } from './context-scope.js';
+import {
+	ANSWER_TTL_SECONDS,
+	type Asked,
+	isRoundState,
+	type RoundAnswers,
+	type RoundState,
+} from './elicitation-state.js';
 import { requestContextValues } from './request-context.js';
 import type { ContextConfig, CreateRequestContext } from './server-types.js';
 import type { ToolCallResult } from './tool-router.js';
@@ -90,43 +97,6 @@ export interface ModernMcpDeps {
 	devMode: boolean;
 	/** Receives unexpected errors from tool handlers and `createContext`. */
 	onError?: (error: Error) => void;
-}
-
-/** One question an elicitation asked: its input key, binding and, for an approval, nonce and expiry. */
-interface Asked {
-	k: string;
-	b: string;
-	n?: string;
-	x?: number;
-}
-
-/** The signed `requestState`: the questions just asked, and those accepted in earlier rounds. */
-interface RoundState {
-	p: Asked[];
-	a: Asked[];
-}
-
-interface RoundAnswers {
-	accepted: Asked[];
-	declined: Asked[];
-}
-
-function isAsked(value: unknown): value is Asked {
-	if (!isRecord(value) || typeof value.k !== 'string' || typeof value.b !== 'string') return false;
-	return (
-		(value.n === undefined || typeof value.n === 'string') &&
-		(value.x === undefined || Number.isFinite(value.x))
-	);
-}
-
-function isRoundState(value: unknown): value is RoundState {
-	return (
-		isRecord(value) &&
-		Array.isArray(value.p) &&
-		Array.isArray(value.a) &&
-		value.p.every(isAsked) &&
-		value.a.every(isAsked)
-	);
 }
 
 interface FactoryOptions {
@@ -240,6 +210,7 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 	// answer", not an error.
 	const stateCodec = createRequestStateCodec<RoundState>({
 		key: deps.confirmationKey ?? randomBytes(32),
+		ttlSeconds: ANSWER_TTL_SECONDS,
 		bind: (ctx) => `${ctx.mcpReq.method}\0${ctx.http?.authInfo?.clientId ?? ''}`,
 	});
 
@@ -263,9 +234,12 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 					return none;
 				}
 				if (!isRoundState(payload)) return none;
-				const accepted = [...payload.a];
+				// An answer carried from an earlier round lapses with its own question, so
+				// re-minting the state never extends it.
+				const now = Date.now();
+				const accepted = payload.a.filter((item) => item.t > now);
 				const declined: Asked[] = [];
-				for (const asked of payload.p) {
+				for (const asked of payload.p.filter((item) => item.t > now)) {
 					const view = inputResponse(ctx.mcpReq.inputResponses, asked.k);
 					if (view.kind !== 'elicit') continue;
 					const field = asked.k === APPROVAL_INPUT_KEY ? 'approve' : 'confirm';
@@ -276,11 +250,17 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			})();
 			return answers;
 		};
-		const ask = async (asked: Asked, message: string, requestedSchema: unknown) => {
+		const ask = async (
+			question: Omit<Asked, 't'>,
+			message: string,
+			requestedSchema: unknown,
+			replaces: readonly string[] = [question.b]
+		) => {
 			const { accepted } = await read();
-			// An earlier answer to the same question (an expired or spent approval) is dropped, so
-			// the new answer is the only one.
-			const kept = accepted.filter((item) => item.k !== asked.k || item.b !== asked.b);
+			// Earlier answers to the same question (an expired or spent approval, under any key)
+			// are dropped, so the new answer is the only one.
+			const kept = accepted.filter((item) => item.k !== question.k || !replaces.includes(item.b));
+			const asked: Asked = { ...question, t: Date.now() + ANSWER_TTL_SECONDS * 1000 };
 			return inputRequired({
 				inputRequests: {
 					[asked.k]: inputRequired.elicit({ message, requestedSchema: requestedSchema as never }),
@@ -330,11 +310,15 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 
 	/** The approval relay of one `tools/call` that can elicit, and the hold recorded on it. */
 	function approvalRelayFor(round: ReturnType<typeof elicitationRound>) {
+		let routed: string | undefined;
 		let claimed = false;
 		let held: ApprovalHold | undefined;
 		const relay: ApprovalRelay = {
-			claim() {
-				if (claimed) return false;
+			route(command) {
+				routed ??= command;
+			},
+			claim(command) {
+				if (claimed || command !== routed) return false;
 				claimed = true;
 				return true;
 			},
@@ -342,9 +326,10 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 				const { accepted, declined } = await round.read();
 				const asks = (item: Asked) => item.k === APPROVAL_INPUT_KEY && bindings.includes(item.b);
 				if (declined.some(asks)) return { kind: 'decline' };
-				const match = accepted.find(asks);
-				return match?.n !== undefined && match.x !== undefined
-					? { kind: 'accept', nonce: match.n, expiresAt: match.x }
+				// The latest answer wins: this round's are read after those carried forward.
+				const match = accepted.filter(asks).at(-1);
+				return match?.n !== undefined && match.x !== undefined && match.m !== undefined
+					? { kind: 'accept', binding: match.b, nonce: match.n, expiresAt: match.x, mac: match.m }
 					: { kind: 'missing' };
 			},
 			hold(hold) {
@@ -405,9 +390,16 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 				const held = relay?.held();
 				if (held) {
 					return (await round.ask(
-						{ k: APPROVAL_INPUT_KEY, b: held.binding, n: held.nonce, x: held.expiresAt },
-						held.summary,
-						APPROVAL_REQUESTED_SCHEMA
+						{
+							k: APPROVAL_INPUT_KEY,
+							b: held.binding,
+							n: held.nonce,
+							x: held.expiresAt,
+							m: held.mac,
+						},
+						held.message,
+						APPROVAL_REQUESTED_SCHEMA,
+						held.bindings
 					)) as never;
 				}
 				return { ...result } as never;
