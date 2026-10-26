@@ -10,6 +10,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use crate::actor::ActorKind;
 use crate::errors::CommandError;
 use crate::metadata::{Alternative, PlanStep, Source, Warning};
 
@@ -40,6 +41,18 @@ pub struct ResultMetadata {
     /// Timestamp when the command was executed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timestamp: Option<String>,
+
+    /// Kind of principal that called the command (`context.actor.kind`).
+    ///
+    /// [`CommandRegistry::execute`](crate::CommandRegistry::execute) sets it when the context
+    /// has an actor. Only the kind is reported, never the actor's id or label. An unknown kind
+    /// on the wire reads as `None`.
+    #[serde(
+        default,
+        deserialize_with = "crate::actor::deserialize_lenient_actor_kind",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub actor_kind: Option<ActorKind>,
 
     /// Additional arbitrary metadata.
     #[serde(flatten)]
@@ -73,6 +86,12 @@ impl ResultMetadata {
     /// Set the timestamp.
     pub fn with_timestamp(mut self, timestamp: impl Into<String>) -> Self {
         self.timestamp = Some(timestamp.into());
+        self
+    }
+
+    /// Set the kind of principal that called the command.
+    pub fn with_actor_kind(mut self, actor_kind: ActorKind) -> Self {
+        self.actor_kind = Some(actor_kind);
         self
     }
 

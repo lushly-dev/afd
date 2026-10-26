@@ -209,6 +209,13 @@ assert_eq!(request.steps[1].alias, None);
   (`native` feature).
 - **Middleware.** `add_middleware` wraps every execution; the first middleware added is the
   outermost.
+- **Actor, clock and random.** Middleware and the handler always see a clock and a random source
+  on the context: `context.clock().now()` (epoch milliseconds) and `context.random().next()` (in
+  `[0, 1)`), the system ones unless the caller set `with_clock` or `with_random`. Tests and replays
+  use `fixed_clock(ms)` (moved with `set` and `advance`) and `seeded_random(seed)`, which gives the
+  same sequence as TypeScript's `seededRandom`. `with_actor(Actor::new(ActorKind::Human).with_id(..))`
+  says who is calling (`human`, `agent`, `service`, `script` or `test`); the registry reports its
+  kind, never its id, as `metadata.actorKind` on the handler's result. The MCP server uses `agent`.
 - **Crashes.** A panic in a middleware layer or the handler returns `COMMAND_EXECUTION_ERROR` with
   the message `An internal error occurred`, as TypeScript does for a thrown exception outside
   `devMode`. The panic payload is never included, and the registry has no dev mode that would show

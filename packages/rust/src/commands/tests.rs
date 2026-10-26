@@ -1203,3 +1203,180 @@ fn test_truncate_name_counts_utf16_code_units() {
     );
     assert_eq!(truncate_name("todo-create"), "todo-create");
 }
+
+/// Reports the actor, clock and random source the handler sees.
+struct ContextProbe;
+
+#[async_trait]
+impl CommandHandler for ContextProbe {
+    async fn execute(
+        &self,
+        _input: serde_json::Value,
+        context: CommandContext,
+    ) -> CommandResult<serde_json::Value> {
+        success(serde_json::json!({
+            "actor": context.actor,
+            "hasClock": context.clock.is_some(),
+            "hasRandom": context.random.is_some(),
+            "now": context.clock().now(),
+            "random": context.random().next(),
+        }))
+    }
+}
+
+fn probe_registry() -> CommandRegistry {
+    let registry = CommandRegistry::new();
+    registry
+        .register(CommandDefinition::new(
+            "context-probe",
+            "Show the context",
+            vec![],
+            ContextProbe,
+        ))
+        .unwrap();
+    registry
+}
+
+#[tokio::test]
+async fn execute_fills_clock_and_random_and_reports_no_actor_by_default() {
+    let result = probe_registry()
+        .execute("context-probe", serde_json::json!({}), None)
+        .await;
+    let data = result.data.unwrap();
+    assert_eq!(data["actor"], serde_json::Value::Null);
+    assert_eq!(data["hasClock"], true);
+    assert_eq!(data["hasRandom"], true);
+    assert!(result
+        .metadata
+        .is_none_or(|metadata| metadata.actor_kind.is_none()));
+}
+
+#[tokio::test]
+async fn execute_passes_the_callers_clock_random_and_actor() {
+    let context = CommandContext::new()
+        .with_clock(crate::fixed_clock(42))
+        .with_random(crate::seeded_random("abc"))
+        .with_actor(crate::Actor::new(crate::ActorKind::Human).with_id("user-1"));
+    let result = probe_registry()
+        .execute("context-probe", serde_json::json!({}), Some(context))
+        .await;
+    let metadata = result.metadata.clone().unwrap();
+    assert_eq!(metadata.actor_kind, Some(crate::ActorKind::Human));
+    assert!(!serde_json::to_string(&metadata).unwrap().contains("user-1"));
+    let data = result.data.unwrap();
+    assert_eq!(
+        data["actor"],
+        serde_json::json!({"kind": "human", "id": "user-1"})
+    );
+    assert_eq!(data["now"], 42);
+    assert_eq!(data["random"], 0.5166419988963753);
+}
+
+#[tokio::test]
+async fn middleware_sees_the_filled_context_and_batches_keep_the_actor() {
+    let registry = probe_registry();
+    let seen = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let record = Arc::clone(&seen);
+    registry.add_middleware(Arc::new(move |_name, _input, context, next| {
+        record.lock().unwrap().push((
+            context.clock.is_some(),
+            context.actor.map(|actor| actor.kind),
+        ));
+        Box::pin(async move { next().await })
+    }));
+    let request = BatchRequest::new(vec![
+        BatchCommand::new("context-probe", serde_json::json!({})),
+        BatchCommand::new("context-probe", serde_json::json!({})),
+    ]);
+    let batch = registry
+        .execute_batch_with_context(
+            request,
+            CommandContext::new().with_actor(crate::ActorKind::Script),
+        )
+        .await;
+    for item in &batch.results {
+        assert_eq!(
+            item.result.metadata.as_ref().unwrap().actor_kind,
+            Some(crate::ActorKind::Script)
+        );
+    }
+    assert_eq!(
+        *seen.lock().unwrap(),
+        vec![(true, Some(crate::ActorKind::Script)); 2]
+    );
+}
+
+/// Writes `actorKind` into `extra`, as code written for 0.1.0 might.
+struct ExtraActorKind;
+
+#[async_trait]
+impl CommandHandler for ExtraActorKind {
+    async fn execute(
+        &self,
+        _input: serde_json::Value,
+        _context: CommandContext,
+    ) -> CommandResult<serde_json::Value> {
+        let mut result = success(serde_json::json!({}));
+        result.metadata =
+            Some(ResultMetadata::new().with_extra("actorKind", serde_json::json!("human")));
+        result
+    }
+}
+
+#[tokio::test]
+async fn the_stamped_actor_kind_replaces_one_in_extra() {
+    let registry = probe_registry();
+    registry
+        .register(CommandDefinition::new(
+            "legacy-kind",
+            "Writes actorKind into extra",
+            vec![],
+            ExtraActorKind,
+        ))
+        .unwrap();
+    let result = registry
+        .execute(
+            "legacy-kind",
+            serde_json::json!({}),
+            Some(CommandContext::new().with_actor(crate::ActorKind::Agent)),
+        )
+        .await;
+    let json = serde_json::to_string(&result).unwrap();
+    assert_eq!(json.matches("actorKind").count(), 1, "{json}");
+    assert!(json.contains(r#""actorKind":"agent""#), "{json}");
+}
+
+#[tokio::test]
+async fn short_circuits_and_panics_carry_no_actor_kind() {
+    let registry = probe_registry();
+    registry
+        .register(CommandDefinition::new(
+            "panic-run",
+            "Panics on request",
+            vec![CommandParameter {
+                required: false,
+                ..CommandParameter::required_boolean("panic", "Panic")
+            }],
+            PanickingHandler,
+        ))
+        .unwrap();
+    let context = || Some(CommandContext::new().with_actor(crate::ActorKind::Agent));
+    let panicked = registry
+        .execute("panic-run", serde_json::json!({"panic": true}), context())
+        .await;
+    assert!(!panicked.success);
+    assert!(panicked
+        .metadata
+        .is_none_or(|metadata| metadata.actor_kind.is_none()));
+
+    registry.add_middleware(Arc::new(|_name, _input, _context, _next| {
+        Box::pin(async { success(serde_json::json!("blocked")) })
+    }));
+    let blocked = registry
+        .execute("context-probe", serde_json::json!({}), context())
+        .await;
+    assert_eq!(blocked.data, Some(serde_json::json!("blocked")));
+    assert!(blocked
+        .metadata
+        .is_none_or(|metadata| metadata.actor_kind.is_none()));
+}

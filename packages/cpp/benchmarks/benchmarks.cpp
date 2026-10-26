@@ -201,6 +201,10 @@ int main(int argc, char** argv) {
           std::pair<std::string_view, std::size_t>{"100KB", 100 * 1024}}) {
         const afd::CommandResult result = afd::success(payload(bytes));
         const std::string text = afd::wire::serialize(afd::Json(result));
+        // The unbounded nlohmann parse of the same text, as the reference for parse_bounded.
+        ok = run_case(filter, "json_parse/" + std::string(label),
+                      [&] { return !afd::Json::parse(text, nullptr, false).is_discarded(); }) &&
+             ok;
         ok = run_case(filter, "parse_bounded/" + std::string(label),
                       [&] { return afd::parse_bounded(text).has_value(); }) &&
              ok;

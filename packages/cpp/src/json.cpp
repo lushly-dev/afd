@@ -2,8 +2,98 @@
 
 #include <cmath>
 #include <cstdio>
+#include <utility>
+#include <vector>
 
 namespace afd {
+
+namespace {
+
+// Builds the document from SAX events, as nlohmann's own DOM parser does, and stops at the first
+// container deeper than the limit. Not a parser callback: nlohmann's callback parser rescans the
+// enclosing container for discarded values after every object, which is quadratic in the number of
+// objects in an array (#397).
+// With JSON_DIAGNOSTIC_POSITIONS (nlohmann 3.12), values carry no byte positions.
+class BoundedDomBuilder {
+public:
+    explicit BoundedDomBuilder(std::size_t max_depth) : max_depth_(max_depth) {}
+
+    bool null() { return add(nullptr); }
+    bool boolean(bool value) { return add(value); }
+    bool number_integer(Json::number_integer_t value) { return add(value); }
+    bool number_unsigned(Json::number_unsigned_t value) { return add(value); }
+    bool number_float(Json::number_float_t value, const Json::string_t&) { return add(value); }
+    bool string(Json::string_t& value) { return add(std::move(value)); }
+    bool binary(Json::binary_t& value) { return add(std::move(value)); }
+
+    bool start_object(std::size_t) { return open(Json::value_t::object); }
+    bool start_array(std::size_t) { return open(Json::value_t::array); }
+    bool end_object() { return close(); }
+    bool end_array() { return close(); }
+
+    bool key(Json::string_t& name) {
+        // operator[] keeps the last of duplicate keys, as Json::parse does.
+        slot_ = &(*stack_.back())[std::move(name)];
+        return true;
+    }
+
+    bool parse_error(std::size_t, const std::string&, const Json::exception&) {
+        malformed_ = true;
+        return false;
+    }
+
+    [[nodiscard]] bool too_deep() const { return too_deep_; }
+    [[nodiscard]] bool malformed() const { return malformed_; }
+    Json& root() { return root_; }
+
+private:
+    // Places `value` in the enclosing container (or as the root) and returns where it now lives.
+    // Pointers on the stack stay valid: a container only grows while it is the innermost one.
+    template <typename Value>
+    Json* place(Value&& value) {
+        if (stack_.empty()) {
+            root_ = Json(std::forward<Value>(value));
+            return &root_;
+        }
+        Json& parent = *stack_.back();
+        if (parent.is_array()) {
+            parent.push_back(Json(std::forward<Value>(value)));
+            return &parent.back();
+        }
+        *slot_ = Json(std::forward<Value>(value));
+        return slot_;
+    }
+
+    template <typename Value>
+    bool add(Value&& value) {
+        place(std::forward<Value>(value));
+        return true;
+    }
+
+    bool open(Json::value_t type) {
+        // The outermost container is level 1.
+        if (stack_.size() + 1 > max_depth_) {
+            too_deep_ = true;
+            return false;
+        }
+        stack_.push_back(place(type));
+        return true;
+    }
+
+    bool close() {
+        stack_.pop_back();
+        return true;
+    }
+
+    std::size_t max_depth_;
+    Json root_;
+    std::vector<Json*> stack_;
+    Json* slot_ = nullptr;
+    bool too_deep_ = false;
+    bool malformed_ = false;
+};
+
+} // namespace
 
 Expected<Json, JsonParseError> parse_bounded(std::string_view text, ParseLimits limits) {
     if (text.size() > limits.max_bytes) {
@@ -12,31 +102,20 @@ Expected<Json, JsonParseError> parse_bounded(std::string_view text, ParseLimits 
                                              std::to_string(limits.max_bytes) + " bytes"});
     }
 
-    // nlohmann reports the depth of the enclosing container at a start event, so the outermost
-    // object or array arrives with depth 0 and is level 1.
-    bool too_deep = false;
-    const Json::parser_callback_t callback = [&](int depth, Json::parse_event_t event, Json&) {
-        const bool opens =
-            event == Json::parse_event_t::object_start || event == Json::parse_event_t::array_start;
-        if (opens && static_cast<std::size_t>(depth) + 1 > limits.max_depth) {
-            too_deep = true;
-        }
-        return !too_deep;
-    };
-
-    // A callback that rejects a value makes nlohmann drop it silently and still report success
-    // (Phase 0 spike), so the flag decides, not is_discarded().
-    Json parsed = Json::parse(text.begin(), text.end(), callback, /*allow_exceptions=*/false);
-    if (too_deep) {
+    // Parsing stops at whichever comes first, a container over the limit or a syntax error, so
+    // input that is too deep before it goes wrong is reported as too deep.
+    BoundedDomBuilder builder(limits.max_depth);
+    const bool parsed = Json::sax_parse(text.begin(), text.end(), &builder);
+    if (builder.too_deep()) {
         return unexpected(JsonParseError{JsonParseError::Kind::too_deep,
                                          "JSON input is nested deeper than " +
                                              std::to_string(limits.max_depth) + " levels"});
     }
-    if (parsed.is_discarded()) {
+    if (!parsed || builder.malformed()) {
         return unexpected(
             JsonParseError{JsonParseError::Kind::malformed, "JSON input is malformed"});
     }
-    return parsed;
+    return std::move(builder.root());
 }
 
 namespace wire {
