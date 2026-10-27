@@ -1,5 +1,39 @@
 # @lushly-dev/afd-cli
 
+## 2.2.0
+
+### Minor Changes
+
+- [#432](https://github.com/lushly-dev/afd/pull/432) [`03e4c37`](https://github.com/lushly-dev/afd/commit/03e4c374618d5e9ebe05af96c712d5aa2b7dbef0) Thanks [@Falkicon](https://github.com/Falkicon)! - Pre-execution approvals ([#272](https://github.com/lushly-dev/afd/issues/272)): a command can be held for a human's sign-off before its handler runs.
+
+  - `@lushly-dev/afd-core`: `CommandDefinition` gains `approval` (`'required'`, `'not-required'` or a function of the validated input and context; `ApprovalPolicy`, `ApprovalDecision`), and `CommandContext` gains `approval`, the approval token. `ErrorCodes.APPROVAL_REQUIRED` joins the shared catalog (45 codes). Tool `_meta` reports `approval` as `'required'`, `'not-required'` or `'conditional'` (a function; `approvalMode()`).
+  - `@lushly-dev/afd-server`: `defineCommand` accepts `approval` and keeps it through `toCommandDefinition()`; afd-detail and afd-docs report it. New `createApprovalMiddleware({ secret, commands })` returns `APPROVAL_REQUIRED` before the handler when a call needs approval and `context.approval` holds no valid token. `details` carries `approvalToken`, `expiresAt`, `summary` and, for a rejected token, `reason`. Tokens are HMAC-SHA256-signed with an app-supplied secret (required, at least 32 bytes, rotatable), bound to the command, the canonical validated input and the actor, short-lived (5 minutes by default) and single-use by default (`replay: 'within-ttl'` to allow reuse; `nonceStore` for several instances). Options `summarize`, `includeToken`, `onApprovalRequired` and `clock`.
+  - `@lushly-dev/afd-cli`: `afd validate` warns (`MISSING_APPROVAL_POLICY`) about `mutation` or `destructive` tools, and grouped-tool actions, whose `_meta` declares no approval policy.
+
+- [#446](https://github.com/lushly-dev/afd/pull/446) [`99fa015`](https://github.com/lushly-dev/afd/commit/99fa01517754c8b123cdca535f58cdf0a77977d9) Thanks [@Falkicon](https://github.com/Falkicon)! - `afd call` approval flow ([#417](https://github.com/lushly-dev/afd/issues/417)). New `--module <path>` (with `--export`) runs a call in-process on the registry a module exports. When such a call fails with `APPROVAL_REQUIRED`, the CLI prints the summary and expiry, asks `Approve? [y/N]` on a terminal, and on yes retries the same command and input with the server's `details.approvalToken` as `context.approval`. `--approve` approves without asking, once, and only with a token the server returned for this call; the CLI never makes one. With no terminal and no `--approve`, the `APPROVAL_REQUIRED` result is printed unchanged with exit code 1. Over MCP the CLI cannot deliver approval evidence (tool arguments never carry it and MCP has no trusted channel yet), so `--approve` is rejected there and the result is returned unchanged.
+
+- [#438](https://github.com/lushly-dev/afd/pull/438) [`439cd60`](https://github.com/lushly-dev/afd/commit/439cd6015542bd3be405728140506cd14aba1611) Thanks [@Falkicon](https://github.com/Falkicon)! - Add `afd replay <file> --module <path>` ([#423](https://github.com/lushly-dev/afd/issues/423)): replay a JSON Lines command journal against a fresh in-process registry with `replayJournal` and print each entry as `same`, `different` (with the changed paths) or `error`. Exits 1 on any divergence and 2 when the journal or module cannot be loaded, so it works as a CI regression check. Options: `--export`, `--ignore`, `--seed`, `--stop-on-divergence`, `--from`/`--to`, `--format json` and `--verbose`. The journal is bounded (64 MiB file, `--max-line-bytes` 1 MiB, `--max-entries` 10,000) before parsing. Replay over MCP is not supported, because a remote server cannot be given the recorded clock and random values. `@lushly-dev/afd-server` is now a runtime dependency of the CLI.
+
+- [#392](https://github.com/lushly-dev/afd/pull/392) [`cf7fc58`](https://github.com/lushly-dev/afd/commit/cf7fc58dddd8b7005b50cd3a038e49849351eb63) Thanks [@Falkicon](https://github.com/Falkicon)! - Talk MCP 2026-07-28 from the client, CLI and testing tools.
+
+  - `@lushly-dev/afd-client`: new `streamable-http` transport, built on the official MCP TypeScript SDK v2 client. It speaks MCP 2026-07-28 when the server offers it and falls back to the 2025 `initialize` handshake, so `McpClient` now talks to an AFD server's `/mcp` endpoint, the Python and Rust AFD servers, and any official MCP SDK server. It is the default for URLs that do not end in `/sse`; `protocolMode: 'auto' | 'legacy' | 'modern'` controls negotiation. `stream()` on a `/mcp` URL uses the sibling `/stream` path. The `sse` and `http` transports are deprecated and removed in 3.0.
+  - `@lushly-dev/afd-cli`: `--transport` accepts `streamable-http`, and `connect`, `call --connect`, `shell` and `scenario run` infer the transport from the URL (`sse` for `/sse`, `http` for `/message`, `streamable-http` otherwise) instead of defaulting to `sse` or `http`.
+  - `@lushly-dev/afd-testing`: the mock MCP servers are dual-era. `initialize` echoes a supported requested version (the newest legacy revision otherwise, instead of always `2024-11-05`), and requests carrying MCP 2026-07-28 `_meta` get `server/discover`, `resultType`, `serverInfo`, cache fields and `-32022` for unsupported versions.
+
+- [#435](https://github.com/lushly-dev/afd/pull/435) [`0e66fdb`](https://github.com/lushly-dev/afd/commit/0e66fdb5e666f7c36037a4d126374161f563807f) Thanks [@Falkicon](https://github.com/Falkicon)! - Enforce `confirmPrompt` (`spec/command-metadata.md`, "Confirmations").
+
+  - **Server:** `createMcpServer` and `createMcpHandler` take `confirmations` (`'off'` by default, `'enforce'` or `'require-human'`) and `confirmationKey`. A call that reaches a command with `confirmPrompt` runs only after the user accepts an MCP elicitation, through an `input_required` result on `/mcp` or a server-side elicitation on a 2025 stdio connection. Under `'enforce'` the caller can instead acknowledge: `confirm: true` on the tool, `afd-call` or a grouped tool, `confirm: [names]` on `afd-batch` and `afd-pipe`, `_meta["dev.afd/confirm"]`, or the `Afd-Confirm` header on `/rpc`, `/batch` and `/stream`. Otherwise the call fails with `CONFIRMATION_REQUIRED` or `CONFIRMATION_DECLINED` before the handler runs. Gated tools advertise the optional `confirm` argument.
+  - **Client:** `McpClient` takes `onElicitation` to answer servers' form elicitations on the `streamable-http` transport. Without it, an `input_required` result becomes an `INPUT_REQUIRED` failure carrying the server's `inputRequests`.
+  - **CLI:** at a terminal, the CLI asks a server's yes/no elicitation (`[y/N]`) on stderr; otherwise it declares no elicitation, so the server's error explains how to acknowledge.
+
+### Patch Changes
+
+- Updated dependencies [[`03e4c37`](https://github.com/lushly-dev/afd/commit/03e4c374618d5e9ebe05af96c712d5aa2b7dbef0), [`51f6f73`](https://github.com/lushly-dev/afd/commit/51f6f737cefcc5f4b818e40b39dc675811a81a60), [`f152bb9`](https://github.com/lushly-dev/afd/commit/f152bb93c62a3fe06162705b37abcd0ddfc29fc9), [`9b79b8e`](https://github.com/lushly-dev/afd/commit/9b79b8eac07b10080a0f3b411e79ffffc56219cd), [`50e17b6`](https://github.com/lushly-dev/afd/commit/50e17b60e3334b8d8ae314719e417002aa35bfd3), [`99fa015`](https://github.com/lushly-dev/afd/commit/99fa01517754c8b123cdca535f58cdf0a77977d9), [`cf7fc58`](https://github.com/lushly-dev/afd/commit/cf7fc58dddd8b7005b50cd3a038e49849351eb63), [`2e10d29`](https://github.com/lushly-dev/afd/commit/2e10d299627da1286b14052d7ec073ba8d652f3d), [`d225fee`](https://github.com/lushly-dev/afd/commit/d225fee04831ce8c4404ce2f322a67b639efb1cd), [`a73a6b9`](https://github.com/lushly-dev/afd/commit/a73a6b9399154796b15c1a3d8359d755b3c7a761), [`0e66fdb`](https://github.com/lushly-dev/afd/commit/0e66fdb5e666f7c36037a4d126374161f563807f), [`ac87f87`](https://github.com/lushly-dev/afd/commit/ac87f879217c1af4f4536eeaf8f7e6613f47eea4)]:
+  - @lushly-dev/afd-core@2.2.0
+  - @lushly-dev/afd-server@2.2.0
+  - @lushly-dev/afd-client@2.2.0
+  - @lushly-dev/afd-testing@2.2.0
+
 ## 2.1.0
 
 ### Minor Changes
@@ -76,13 +110,11 @@
 ### Minor Changes
 
 - ### Breaking Changes
-
   - **Node.js 22+ required** — dropped Node 20 support, CI tests on 22.x and 24.x
   - **Zod 4** — upgraded from Zod 3. `zod-to-json-schema` replaced with built-in `z.toJSONSchema()`. `ZodEffects` replaced by `ZodPipe` for transforms. Schema introspection uses `.unwrap()`/`.removeDefault()` instead of `._def.innerType`.
   - **eventsource 4** — named import (`{ EventSource }` instead of default), custom `fetch` option for headers instead of `EventSourceInitDict`. `@types/eventsource` removed (types now bundled).
 
   ### Other Updates
-
   - TypeScript target bumped to ES2024
   - All dependencies updated to latest: commander 14, conf 15, glob 13, ora 9, jsdom 28, dotenv 17, vite 8, commitlint 20
   - Replaced custom `scripts/release.mjs` with `@changesets/cli` for versioning and changelogs

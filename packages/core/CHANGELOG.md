@@ -1,5 +1,43 @@
 # @lushly-dev/afd-core
 
+## 2.2.0
+
+### Minor Changes
+
+- [#432](https://github.com/lushly-dev/afd/pull/432) [`03e4c37`](https://github.com/lushly-dev/afd/commit/03e4c374618d5e9ebe05af96c712d5aa2b7dbef0) Thanks [@Falkicon](https://github.com/Falkicon)! - Pre-execution approvals ([#272](https://github.com/lushly-dev/afd/issues/272)): a command can be held for a human's sign-off before its handler runs.
+
+  - `@lushly-dev/afd-core`: `CommandDefinition` gains `approval` (`'required'`, `'not-required'` or a function of the validated input and context; `ApprovalPolicy`, `ApprovalDecision`), and `CommandContext` gains `approval`, the approval token. `ErrorCodes.APPROVAL_REQUIRED` joins the shared catalog (45 codes). Tool `_meta` reports `approval` as `'required'`, `'not-required'` or `'conditional'` (a function; `approvalMode()`).
+  - `@lushly-dev/afd-server`: `defineCommand` accepts `approval` and keeps it through `toCommandDefinition()`; afd-detail and afd-docs report it. New `createApprovalMiddleware({ secret, commands })` returns `APPROVAL_REQUIRED` before the handler when a call needs approval and `context.approval` holds no valid token. `details` carries `approvalToken`, `expiresAt`, `summary` and, for a rejected token, `reason`. Tokens are HMAC-SHA256-signed with an app-supplied secret (required, at least 32 bytes, rotatable), bound to the command, the canonical validated input and the actor, short-lived (5 minutes by default) and single-use by default (`replay: 'within-ttl'` to allow reuse; `nonceStore` for several instances). Options `summarize`, `includeToken`, `onApprovalRequired` and `clock`.
+  - `@lushly-dev/afd-cli`: `afd validate` warns (`MISSING_APPROVAL_POLICY`) about `mutation` or `destructive` tools, and grouped-tool actions, whose `_meta` declares no approval policy.
+
+- [#433](https://github.com/lushly-dev/afd/pull/433) [`51f6f73`](https://github.com/lushly-dev/afd/commit/51f6f737cefcc5f4b818e40b39dc675811a81a60) Thanks [@Falkicon](https://github.com/Falkicon)! - Add a command journal with replay ([#273](https://github.com/lushly-dev/afd/issues/273)).
+
+  - **Core:** `JournalEntry` (`seq`, `timestamp`, `traceId`, `command`, `input`, `actor`, `contextDigest`, `result`, `durationMs` and a `tape` of the clock and random values the handler read), the `JournalSink` interface (append, read a `seq` range), `MemoryJournalSink`, `createContextDigest()` and the JSON Lines helpers `serializeJournal()` and `parseJournal()`. `FileJournalSink` writes JSON Lines and is in the new Node-only subpath `@lushly-dev/afd-core/journal-file`; the root entry stays browser-safe. A journal keeps only the actor, the interface and the trace ID from the context, plus a SHA-256 hash over those and the names (never the values) of the other context keys.
+  - **Server:** `createJournalMiddleware(sink, options)` records each call that passed validation (failures only with `recordFailures: true`; `auth-*` commands are skipped by default; `filter` and `redact` keep other secret inputs and results out, and `redact` should drop the tape when a secret comes from `context.random`). `replayJournal(registry, entries, options)` re-executes entries in `seq` order with each entry's trace ID, actor, interface and tape-restored clock and random source, and reports each as `same`, `different` (with a structural diff) or `error`. It reports divergence; it does not make handlers deterministic beyond the clock and random source.
+
+  The format is specified in `spec/journal.md`, with the fixture `spec/wire/journal.jsonl`.
+
+- [#410](https://github.com/lushly-dev/afd/pull/410) [`f152bb9`](https://github.com/lushly-dev/afd/commit/f152bb93c62a3fe06162705b37abcd0ddfc29fc9) Thanks [@Falkicon](https://github.com/Falkicon)! - Add `ErrorCodes.CONFIRMATION_REQUIRED` and `ErrorCodes.CONFIRMATION_DECLINED` to the shared catalog, for servers that enforce `confirmPrompt` (`spec/command-metadata.md`, "Confirmations"). Nothing emits them yet.
+
+- [#406](https://github.com/lushly-dev/afd/pull/406) [`9b79b8e`](https://github.com/lushly-dev/afd/commit/9b79b8eac07b10080a0f3b411e79ffffc56219cd) Thanks [@Falkicon](https://github.com/Falkicon)! - Add standard `actor`, `clock` and `random` fields to `CommandContext` ([#271](https://github.com/lushly-dev/afd/issues/271), [#274](https://github.com/lushly-dev/afd/issues/274)).
+
+  - **Core:** `Actor` (`kind`: `human`, `agent`, `service`, `script` or `test`, with optional `id`, `label` and `onBehalfOf`), `Clock`, `RandomSource`, `systemClock`, `systemRandom`, `fixedClock()` (a manual clock with `set` and `advance`), `seededRandom()` (reproducible, not cryptographic) and `withContextDefaults()`. `ResultMetadata` and `TelemetryEvent` gain `actorKind`. The core registry gives handlers a clock and a random source.
+  - **Server:** new `clock`, `random` and `actor` options. MCP calls run as `{ kind: 'agent' }` unless the option or `createContext` says otherwise; every context gets a clock and a random source; results carry `metadata.actorKind` (the kind only, never the id). `executionTimeMs`, the telemetry middleware and HTTP session expiry use the clock. `createDirectRegistry()` accepts the same three defaults.
+  - **Client:** `DirectClient` accepts `actor` (default `{ kind: 'human' }`), `clock` and `random` (default: the registry's own); a call's own context wins.
+  - **Auth:** `createAuthMiddleware` fills `context.actor` from the verified session: a human actor gets the user's `id` and `label`, other actors get `onBehalfOf`.
+  - **Testing:** `createTestContext()` sets `actor: { kind: 'test' }`, a clock and a random source (`now` stops the clock); `InProcessExecutor` takes a `context` for every step and runs steps as a test actor. `fixedClock` and `seededRandom` are re-exported.
+
+  The golden wire fixtures now include `"actorKind": "agent"` in result metadata.
+
+  The server engine, `createDirectRegistry()` and the core registry now pass handlers a copy of the caller's context (with the defaults filled in), so changes middleware or handlers make to it no longer show on the caller's object. The CLI talks to servers over MCP, so its calls run as `agent` unless the server's `actor` option or `createContext` says otherwise; the same holds for `ScenarioExecutor`, which runs steps through the CLI.
+
+- [#395](https://github.com/lushly-dev/afd/pull/395) [`d225fee`](https://github.com/lushly-dev/afd/commit/d225fee04831ce8c4404ce2f322a67b639efb1cd) Thanks [@Falkicon](https://github.com/Falkicon)! - Report standard MCP tool fields from command metadata (`spec/command-metadata.md`, "MCP tool fields").
+
+  - Individual command tools carry MCP `annotations`: `mutation: false` gives `readOnlyHint: true`; `mutation: true` gives `readOnlyHint: false` and `destructiveHint` from `destructive`. An unset `mutation` claims nothing.
+  - Every `tools/call` result for a command, batch or pipeline carries the result as `structuredContent` as well as text.
+  - Individual command tools with an `output` schema advertise a top-level `outputSchema`: the CommandResult envelope with `data` typed by that schema. MCP clients validate `structuredContent` against it, so a handler whose data does not match its declared output schema now fails on the client; `advertiseOutputSchema: false` switches it off. `_meta.outputSchema` is unchanged.
+  - Core: `commandToolAnnotations` and `commandResultOutputSchema` helpers, `annotations`/`outputSchema` on `McpTool`, `structuredContent` on `McpToolCallResult`, and the MCP 2026-07-28 error codes `HEADER_MISMATCH`, `MISSING_REQUIRED_CLIENT_CAPABILITY` and `UNSUPPORTED_PROTOCOL_VERSION`. `SERVER_NOT_INITIALIZED` is deprecated.
+
 ## 2.1.0
 
 ### Minor Changes
@@ -120,13 +158,11 @@
 ### Minor Changes
 
 - ### Breaking Changes
-
   - **Node.js 22+ required** — dropped Node 20 support, CI tests on 22.x and 24.x
   - **Zod 4** — upgraded from Zod 3. `zod-to-json-schema` replaced with built-in `z.toJSONSchema()`. `ZodEffects` replaced by `ZodPipe` for transforms. Schema introspection uses `.unwrap()`/`.removeDefault()` instead of `._def.innerType`.
   - **eventsource 4** — named import (`{ EventSource }` instead of default), custom `fetch` option for headers instead of `EventSourceInitDict`. `@types/eventsource` removed (types now bundled).
 
   ### Other Updates
-
   - TypeScript target bumped to ES2024
   - All dependencies updated to latest: commander 14, conf 15, glob 13, ora 9, jsdom 28, dotenv 17, vite 8, commitlint 20
   - Replaced custom `scripts/release.mjs` with `@changesets/cli` for versioning and changelogs
