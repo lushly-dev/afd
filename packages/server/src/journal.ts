@@ -27,10 +27,14 @@ import {
  * Context key `replayJournal()` sets on each replayed call. The first journal middleware that
  * finds it rewinds the replay tape at its own position, so readings by middleware outside it do
  * not shift what the handler gets, and spends the marker so nested calls and inner journals do
- * not rewind again. No journal middleware records during replay. Module-private: only
- * `replayJournal()` can set it.
+ * not rewind again. No journal middleware records during replay. Only `replayJournal()` sets it.
+ *
+ * A registered symbol (`Symbol.for`), so separately loaded copies of afd-server agree on it: a
+ * globally installed `afd replay` marks calls that a project's own copy of the journal
+ * middleware recognizes. Any code can therefore name it, but setting it only stops recording
+ * and rewinds a tape the caller would have to supply itself.
  */
-export const JOURNAL_REPLAY = Symbol('afd.journal.replay');
+export const JOURNAL_REPLAY: unique symbol = Symbol.for('@lushly-dev/afd-server/journal-replay');
 
 /** A marker that does nothing: what nested calls and inner journal middleware see. */
 const SPENT_REPLAY: JournalReplayMarker = { rewind() {}, end() {} };

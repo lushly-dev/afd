@@ -97,6 +97,38 @@ value is read as JSON when it parses (`count=2`, `done=true`,
 (`id=doc-123`, `note='single-quoted text'`). A word without `=` is an error.
 `stream` and the shell parse arguments the same way.
 
+### Approvals
+
+A command whose `approval` policy holds it fails with `APPROVAL_REQUIRED`
+when the server installs `createApprovalMiddleware` (see
+`spec/command-metadata.md`, "Approvals"). `afd call` can approve it when it
+runs the command in-process, on the registry a module exports:
+
+```bash
+# On a terminal: shows the summary and expiry, asks "Approve? [y/N]", and on
+# yes retries the same command and input with the server's token
+afd call todo-delete id=42 --module ./dist/registry.js
+
+# Scripts: approve without asking
+afd call todo-delete id=42 --module ./dist/registry.js --approve --format json
+```
+
+`--module` takes the same exports as `afd replay`: a registry or a factory
+returning one. The CLI never makes a token. It retries only with the
+`details.approvalToken` the server returned for this call, and the server
+checks that the token matches the command, input and actor, has not expired
+and has not been used. `--approve` approves once: when the retry is held
+again (an expired token, say), the result is printed and the exit code is 1.
+On a terminal, a held retry asks again.
+
+With no terminal and no `--approve`, the `APPROVAL_REQUIRED` result is
+printed unchanged (JSON intact with `--format json`) and the exit code is 1.
+
+Over MCP (`--connect` or a saved connection) the CLI cannot approve, and
+`--approve` is rejected. Approval evidence must come from trusted code, never
+from tool arguments, and MCP has no trusted channel for it yet. The result is
+printed unchanged.
+
 ### Validate Commands
 
 ```bash
@@ -294,6 +326,9 @@ comparison.
 | `-H, --header <header>` | Request header `"Name: value"`, repeatable |
 | `-f, --format <format>` | Output format (json, text). Default: text |
 | `-v, --verbose` | Show detailed output |
+| `-m, --module <path>` | Run the command in-process on the registry this module exports, instead of over MCP |
+| `--export <name>` | Export to use from `--module`. Default: `default` |
+| `--approve` | Approve a call held for approval without asking (needs `--module`) |
 
 ### validate
 

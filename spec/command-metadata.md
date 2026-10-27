@@ -230,11 +230,11 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 
 | | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| `approval` field and `_meta.approval` | Yes | Planned (#420) | Planned (#421) | Planned (#422) |
-| Approval middleware | Yes (`createApprovalMiddleware`) | Planned (#420) | Planned (#421) | Planned (#422) |
+| `approval` field and `_meta.approval` | Yes | Yes | Planned (#421) | Planned (#422) |
+| Approval middleware | Yes (`createApprovalMiddleware`) | Yes (`create_approval_middleware`) | Planned (#421) | Planned (#422) |
 | DirectClient `onApprovalNeeded` | Yes | Planned | Planned | Planned |
+| CLI approval flow (`afd call --module`, in-process only) | Yes | Planned | Planned | Planned |
 | MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Planned | Planned | Planned |
-| CLI approval flow | Planned (#417) | Planned | Planned | Planned |
 
 ## MCP tool fields (MCP 2026-07-28 tool surface)
 

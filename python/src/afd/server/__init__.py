@@ -70,6 +70,14 @@ from afd.server.middleware import (
     TelemetrySink,
     ConsoleTelemetrySink,
 )
+from afd.server.approval import (
+    ApprovalCommand,
+    ApprovalNonceStore,
+    ApprovalRejection,
+    ApprovalRequest,
+    ApprovalSecret,
+    create_approval_middleware,
+)
 from afd.server.journal import (
     JournalReplayTarget,
     ReplayDifference,
@@ -135,6 +143,13 @@ __all__ = [
     "TelemetryEvent",
     "TelemetrySink",
     "ConsoleTelemetrySink",
+    # Pre-execution approval gate
+    "create_approval_middleware",
+    "ApprovalCommand",
+    "ApprovalNonceStore",
+    "ApprovalRejection",
+    "ApprovalRequest",
+    "ApprovalSecret",
     # Command journal: recording middleware and replay
     "create_journal_middleware",
     "replay_journal",
