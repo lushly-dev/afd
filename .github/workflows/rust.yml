@@ -82,3 +82,7 @@ jobs:
 
       - name: Check (wasm32, wasm feature)
         run: cargo check --target wasm32-unknown-unknown --no-default-features --features wasm
+
+      # The approval middleware's nonce comes from `crypto.getRandomValues` (getrandom `wasm_js`).
+      - name: Check (wasm32, wasm and approval features)
+        run: cargo check --target wasm32-unknown-unknown --no-default-features --features wasm,approval

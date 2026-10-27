@@ -16,6 +16,7 @@ use std::sync::{Arc, OnceLock, PoisonError, RwLock, RwLockReadGuard, RwLockWrite
 use std::time::Duration;
 
 use crate::actor::{with_context_defaults, Actor, ContextDefaults};
+use crate::approval::{approval_mode, ApprovalPolicy};
 use crate::batch::{
     create_batch_result, create_failed_batch_result, BatchCommandResult, BatchRequest, BatchResult,
     BatchTiming,
@@ -398,7 +399,7 @@ pub fn is_exposed_to(command: &CommandDefinition, interface: CommandInterface) -
 /// Context provided to command handlers.
 ///
 /// Build it with [`CommandContext::new`] and the `with_*` methods.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 #[non_exhaustive]
 pub struct CommandContext {
     /// Unique ID for this command invocation.
@@ -426,6 +427,13 @@ pub struct CommandContext {
     /// handler's result (never the id).
     pub actor: Option<Actor>,
 
+    /// Approval evidence for a command whose approval policy requires it: the
+    /// `details.approvalToken` of an `APPROVAL_REQUIRED` result, set by the surface once a human
+    /// approved (`spec/command-metadata.md`, "Approvals"). Only trusted surface code sets it,
+    /// never tool arguments: whoever holds a valid token can run the call. The MCP server never
+    /// sets it.
+    pub approval: Option<String>,
+
     /// Source of the current time. Read time from [`CommandContext::clock`] instead of the
     /// system time so tests and replays can control it.
     ///
@@ -445,6 +453,23 @@ pub struct CommandContext {
 
     /// What a journal recorder and replay pass to nested calls.
     pub(crate) journal_state: JournalContextState,
+}
+
+impl fmt::Debug for CommandContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CommandContext")
+            .field("trace_id", &self.trace_id)
+            .field("timeout_ms", &self.timeout_ms)
+            .field("interface", &self.interface)
+            .field("actor", &self.actor)
+            // An approval token is a credential: never print it.
+            .field("approval", &self.approval.as_ref().map(|_| "[redacted]"))
+            .field("clock", &self.clock.as_ref().map(|_| ".."))
+            .field("random", &self.random.as_ref().map(|_| ".."))
+            .field("extra", &self.extra)
+            .field("journal_state", &self.journal_state)
+            .finish()
+    }
 }
 
 impl CommandContext {
@@ -474,6 +499,12 @@ impl CommandContext {
     /// Set the calling actor.
     pub fn with_actor(mut self, actor: impl Into<Actor>) -> Self {
         self.actor = Some(actor.into());
+        self
+    }
+
+    /// Set the approval evidence: a token a human approved. Trusted surface code only.
+    pub fn with_approval(mut self, token: impl Into<String>) -> Self {
+        self.approval = Some(token.into());
         self
     }
 
@@ -655,6 +686,10 @@ pub struct CommandDefinition {
 
     /// Whether the command's effects can be undone. `None` is unset.
     pub undoable: Option<bool>,
+
+    /// Whether a call needs a human's approval before the handler runs. `None` is unset
+    /// (`not-required`). Enforced by the approval middleware; reported as `_meta.approval`.
+    pub approval: Option<ApprovalPolicy>,
 }
 
 impl CommandDefinition {
@@ -686,6 +721,7 @@ impl CommandDefinition {
             destructive: None,
             confirm_prompt: None,
             undoable: None,
+            approval: None,
         }
     }
 
@@ -716,6 +752,14 @@ impl CommandDefinition {
     /// Set the question to ask before running the command.
     pub fn with_confirm_prompt(mut self, prompt: impl Into<String>) -> Self {
         self.confirm_prompt = Some(prompt.into());
+        self
+    }
+
+    /// Set the approval policy: [`ApprovalPolicy::Required`], [`ApprovalPolicy::NotRequired`],
+    /// an [`ApprovalDecision`](crate::ApprovalDecision), or a function
+    /// ([`ApprovalPolicy::when`]). Enforced by the approval middleware.
+    pub fn with_approval(mut self, approval: impl Into<ApprovalPolicy>) -> Self {
+        self.approval = Some(approval.into());
         self
     }
 
@@ -934,6 +978,12 @@ impl CommandRegistry {
         }
         if let Some(annotations) = command_tool_annotations(command) {
             tool["annotations"] = annotations;
+        }
+        if let Some(approval) = approval_mode(command.approval.as_ref()) {
+            if !tool["_meta"].is_object() {
+                tool["_meta"] = serde_json::json!({});
+            }
+            tool["_meta"]["approval"] = serde_json::json!(approval);
         }
         Some(tool)
     }
