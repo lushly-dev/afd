@@ -873,11 +873,12 @@ NAME_GAP_BUDGET = {
     # #421 (Rust) and #422 (C++).
     # Python 104 → 91 (#425): the 13 command journal names.
     # Rust 25 → 12 (#426): afd exports the 13 command journal names.
+    # Rust 12 → 9 (#421): afd exports ApprovalDecision, ApprovalPolicy and approval_mode.
     # C++ 92 → 79 (#427): afd-cpp exports all 13 command-journal names.
     # Python 91 → 88 (#420): ApprovalDecision, ApprovalPolicy and approval_mode.
     # C++ 79 → 76 (#422): afd-cpp exports ApprovalDecision, ApprovalPolicy and approval_mode.
     "missing_from_python": 88,
-    "missing_from_rust": 12,
+    "missing_from_rust": 9,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
     # types and helpers; the typed pipeline-condition structs and their guards (C++ keeps
     # conditions as validated JSON); telemetry; timeout controllers and streamable commands;
