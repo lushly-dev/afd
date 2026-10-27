@@ -48,6 +48,10 @@
 //!   `crypto.getRandomValues`, on Rust 1.85 or later). Approval policies and their reporting need no
 //!   feature.
 
+// docs.rs builds with `--cfg docsrs` on nightly, where the `doc(cfg)` badges on
+// feature-gated items need the unstable `doc_cfg` feature.
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 /// Compiles and runs the README examples as doctests.
 #[doc = include_str!("../README.md")]
 #[cfg(doctest)]

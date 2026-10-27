@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-27
+
+Implements AFD contract **1.0-rc**.
+
+### Fixed
+
+- The docs.rs build: the crate root enables `doc_cfg` under `--cfg docsrs`, so the feature badges on `approval`, `journal-file` and `server` items build on nightly rustdoc. 0.2.0 failed to document with E0658 and has no docs on docs.rs; its code is unchanged in 0.2.1.
+
 ## [0.2.0] - 2026-10-27
 
 Implements AFD contract **1.0-rc**.
@@ -99,6 +107,7 @@ These changes affect code that used the crate as a git dependency before this re
 - A `when` condition treats a first operand that is not a reference (`"$$prev"`, `"text"`) as absent, and `$eq`/`$ne` compare numbers by value (`2` equals `2.0`), as in TypeScript. `tests/pipeline_vectors.rs` and `tests/batch_controls_vectors.rs` load the shared `spec/vectors` files (#317).
 - `CommandRegistry::execute` catches a panic in a middleware layer or the handler, including one raised while building the future and one under `timeout_ms`, instead of letting it unwind to the caller (#306).
 
-[Unreleased]: https://github.com/lushly-dev/afd/compare/rust-v0.2.0...HEAD
+[Unreleased]: https://github.com/lushly-dev/afd/compare/rust-v0.2.1...HEAD
+[0.2.1]: https://github.com/lushly-dev/afd/compare/rust-v0.2.0...rust-v0.2.1
 [0.2.0]: https://github.com/lushly-dev/afd/compare/rust-v0.1.0...rust-v0.2.0
 [0.1.0]: https://github.com/lushly-dev/afd/releases/tag/rust-v0.1.0
