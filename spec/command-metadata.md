@@ -147,7 +147,8 @@ context's approval evidence (TypeScript `context.approval`). A server may leave
 `details.approvalToken` out and deliver the token to the approver another way. When the call
 carried a token that was not accepted, `details.reason` says why: `malformed`,
 `invalid-signature`, `expired`, `command-mismatch`, `input-mismatch`, `actor-mismatch` or
-`already-used`, and the result carries a fresh token.
+`already-used`, and the result carries a fresh token. A human's refusal relayed over MCP is
+`declined` (see "Asking the human over MCP").
 
 Rules:
 
@@ -170,6 +171,60 @@ Rules:
    a store. Expiry uses the server's clock, never a clock the caller can supply.
 5. **Policies fail closed.** A policy function that returns anything other than `not-required`
    holds the call; one that throws fails the call before the handler.
+6. **The agent does not get the token by default.** On MCP calls the result leaves
+   `details.approvalToken` out unless the server opts in, and the token goes to the approver
+   another way.
+
+### Asking the human over MCP
+
+A server MAY relay the approval to the human behind the MCP client (TypeScript
+`relay: 'mcp-elicitation'`). The relay is opt-in: it trusts the client application to show the
+question to a person, and a server cannot tell a person's answer from client code that answers on
+its own.
+
+When a call to a single command (its tool, `afd-call` or a grouped tool) needs approval and the
+request can carry a form elicitation, the server answers as for a confirmation: `input_required` on
+MCP 2026-07-28, or a server-sent elicitation on a 2025-era stdio connection. The form uses the
+input key `approval` and one required boolean property `approve`. Its message is the summary
+followed by the command name and its validated input (canonical JSON, truncated), so the human sees
+what exactly would run. No approval token is issued. Its `requestState` is integrity-protected and
+bound to the method and to the authenticated client when there is one. It carries:
+
+- a digest of the command name, the canonical validated input and the actor, keyed with the
+  approval secret;
+- a random nonce and the approval's expiry, under a MAC keyed with the approval secret, so the
+  state's own key alone cannot mint an approval;
+- the time its question was asked: an answer counts for 10 minutes from then, however many later
+  rounds carry it.
+
+The command runs when the retry carries:
+
+- a `requestState` that verifies and names this command, input and actor;
+- a nonce and expiry whose MAC verifies under one of the approval keys;
+- an approval that has not expired on the server's clock;
+- the answer `accept` with `approve: true`;
+- a nonce not yet spent (single-use unless the server allows reuse until expiry).
+
+A missing, stale, altered or mismatched `requestState` is not an answer, and the server asks again.
+An answer to a confirmation is never an approval: the input keys, form fields and digests differ.
+One `requestState` carries the answers of earlier rounds, so a call that needs a confirmation and
+an approval asks for each in turn.
+
+A declined or cancelled form, or an accepted form with `approve` not `true`, fails the call with
+`APPROVAL_REQUIRED`, `details.reason: "declined"` and `retryable: false`, and the agent must not
+retry without asking the user.
+
+Some calls fall back to `APPROVAL_REQUIRED` without a token:
+
+- a request that cannot elicit: no form elicitation capability, or a 2025-era request over
+  stateless HTTP;
+- a step of `afd-batch` or `afd-pipe`. A policy is evaluated on the validated input when the step
+  runs, and asking mid-run would run the earlier steps again on the retry;
+- a command run by another command in the same tool call. Only the command the tool call routes to
+  may ask, and only once.
+
+An accepted approval that has expired or was already used is asked again, and the question says
+so.
 
 The result is an ordinary failed `CommandResult`, so it needs no wire fixture of its own.
 
@@ -179,7 +234,7 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 | Approval middleware | Yes (`createApprovalMiddleware`) | Yes (`create_approval_middleware`) | Yes (`create_approval_middleware`) | Yes (`create_approval_middleware`) |
 | DirectClient `onApprovalNeeded` | Yes | Planned | Planned | Planned |
 | CLI approval flow (`afd call --module`, in-process only) | Yes | Planned | Planned | Planned |
-| MCP relay | Planned (#418) | Planned | Planned | Planned |
+| MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Planned | Planned | Planned |
 
 ## MCP tool fields (MCP 2026-07-28 tool surface)
 

@@ -37,6 +37,13 @@ import {
 } from '@modelcontextprotocol/server';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import {
+	APPROVAL_INPUT_KEY,
+	APPROVAL_REQUESTED_SCHEMA,
+	type ApprovalHold,
+	type ApprovalRelay,
+	bindApprovalRelay,
+} from './approval-relay.js';
+import {
 	AFD_CONTEXT_META_KEY,
 	type ContextState,
 	createContextState,
@@ -50,6 +57,13 @@ import {
 	InputRequiredSignal,
 } from './confirmations.js';
 import { bindContextState } from './context-scope.js';
+import {
+	ANSWER_TTL_SECONDS,
+	type Asked,
+	isRoundState,
+	type RoundAnswers,
+	type RoundState,
+} from './elicitation-state.js';
 import { requestContextValues } from './request-context.js';
 import type { ContextConfig, CreateRequestContext } from './server-types.js';
 import type { ToolCallResult } from './tool-router.js';
@@ -75,7 +89,10 @@ export interface ModernMcpDeps {
 	contexts?: ContextConfig[];
 	/** Freshness hint for `tools/list` and `server/discover` (default: 5 minutes, 0 with contexts). */
 	toolsListTtlMs?: number;
-	/** HMAC key for confirmation `requestState` (default: a random key per process). */
+	/**
+	 * HMAC key for the `requestState` of confirmation and approval elicitations (default: a random
+	 * key per process).
+	 */
 	confirmationKey?: string | Uint8Array;
 	devMode: boolean;
 	/** Receives unexpected errors from tool handlers and `createContext`. */
@@ -188,60 +205,138 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 		return state === undefined ? context : bindContextState(context, state);
 	}
 
-	// Confirmation requestState: HMAC-signed, bound to the method and the caller's client id, and
-	// verified in the handler so a stale or altered state is "no confirmation", not an error.
-	const confirmationCodec = createRequestStateCodec<{ b: string }>({
+	// The requestState of confirmation and approval elicitations: HMAC-signed, bound to the method
+	// and the caller's client id, and verified in the handler so a stale or altered state is "no
+	// answer", not an error.
+	const stateCodec = createRequestStateCodec<RoundState>({
 		key: deps.confirmationKey ?? randomBytes(32),
+		ttlSeconds: ANSWER_TTL_SECONDS,
 		bind: (ctx) => `${ctx.mcpReq.method}\0${ctx.http?.authInfo?.clientId ?? ''}`,
 	});
 
 	/**
-	 * What one `tools/call` can carry for confirmations. A modern request elicits when it declares
+	 * The elicitations of one `tools/call`: the answers its retry carries, and the
+	 * `input_required` result for the next question. One `requestState` carries the questions
+	 * accepted in earlier rounds, so a call that needs a confirmation and then an approval keeps
+	 * the first answer while the second is asked.
+	 */
+	function elicitationRound(ctx: ServerContext) {
+		let answers: Promise<RoundAnswers> | undefined;
+		const read = (): Promise<RoundAnswers> => {
+			answers ??= (async () => {
+				const none: RoundAnswers = { accepted: [], declined: [] };
+				const state = ctx.mcpReq.requestState();
+				if (typeof state !== 'string') return none;
+				let payload: unknown;
+				try {
+					payload = await stateCodec.verify(state, ctx);
+				} catch {
+					return none;
+				}
+				if (!isRoundState(payload)) return none;
+				// An answer carried from an earlier round lapses with its own question, so
+				// re-minting the state never extends it.
+				const now = Date.now();
+				const accepted = payload.a.filter((item) => item.t > now);
+				const declined: Asked[] = [];
+				for (const asked of payload.p.filter((item) => item.t > now)) {
+					const view = inputResponse(ctx.mcpReq.inputResponses, asked.k);
+					if (view.kind !== 'elicit') continue;
+					const field = asked.k === APPROVAL_INPUT_KEY ? 'approve' : 'confirm';
+					const yes = view.action === 'accept' && view.content?.[field] === true;
+					(yes ? accepted : declined).push(asked);
+				}
+				return { accepted, declined };
+			})();
+			return answers;
+		};
+		const ask = async (
+			question: Omit<Asked, 't'>,
+			message: string,
+			requestedSchema: unknown,
+			replaces: readonly string[] = [question.b]
+		) => {
+			const { accepted } = await read();
+			// Earlier answers to the same question (an expired or spent approval, under any key)
+			// are dropped, so the new answer is the only one.
+			const kept = accepted.filter((item) => item.k !== question.k || !replaces.includes(item.b));
+			const asked: Asked = { ...question, t: Date.now() + ANSWER_TTL_SECONDS * 1000 };
+			return inputRequired({
+				inputRequests: {
+					[asked.k]: inputRequired.elicit({ message, requestedSchema: requestedSchema as never }),
+				},
+				requestState: await stateCodec.mint({ p: [asked], a: kept }, ctx),
+			});
+		};
+		return { read, ask };
+	}
+
+	/**
+	 * Whether one `tools/call` can carry a form elicitation. A modern request can when it declares
 	 * form elicitation; a legacy stdio connection when its client declared it at `initialize` (the
 	 * SDK shim then sends a real elicitation); a legacy HTTP request never (no back channel).
 	 */
+	function canElicitFor(era: McpRequestContext['era'], server: Server, ctx: ServerContext) {
+		return era === 'legacy'
+			? !options.requestValues && allowsFormElicitation(server.getClientCapabilities())
+			: allowsFormElicitation(
+					(ctx.mcpReq.envelope as Record<string, unknown> | undefined)?.[
+						CLIENT_CAPABILITIES_META_KEY
+					]
+				);
+	}
+
+	/** What one `tools/call` can carry for confirmations. */
 	function confirmationChannelFor(
-		era: McpRequestContext['era'],
-		server: Server,
+		canElicit: boolean,
+		round: ReturnType<typeof elicitationRound>,
 		ctx: ServerContext
 	): ConfirmationChannel {
-		const canElicit =
-			era === 'legacy'
-				? !options.requestValues && allowsFormElicitation(server.getClientCapabilities())
-				: allowsFormElicitation(
-						(ctx.mcpReq.envelope as Record<string, unknown> | undefined)?.[
-							CLIENT_CAPABILITIES_META_KEY
-						]
-					);
 		const meta = ctx.mcpReq._meta as Record<string, unknown> | undefined;
+		const asks = (binding: string) => (item: Asked) =>
+			item.k === CONFIRM_INPUT_KEY && item.b === binding;
 		return {
 			canElicit,
 			acknowledged: meta?.[AFD_CONFIRM_META_KEY] === true,
 			async response(binding) {
-				const view = inputResponse(ctx.mcpReq.inputResponses, CONFIRM_INPUT_KEY);
-				if (view.kind !== 'elicit') return 'missing';
-				const state = ctx.mcpReq.requestState();
-				if (typeof state !== 'string') return 'missing';
-				try {
-					const payload = await confirmationCodec.verify(state, ctx);
-					if (payload?.b !== binding) return 'missing';
-				} catch {
-					return 'missing';
-				}
-				return view.action === 'accept' && view.content?.confirm === true ? 'accept' : 'decline';
+				const { accepted, declined } = await round.read();
+				if (declined.some(asks(binding))) return 'decline';
+				return accepted.some(asks(binding)) ? 'accept' : 'missing';
 			},
-			async request(message, binding) {
-				return inputRequired({
-					inputRequests: {
-						[CONFIRM_INPUT_KEY]: inputRequired.elicit({
-							message,
-							requestedSchema: CONFIRM_REQUESTED_SCHEMA as never,
-						}),
-					},
-					requestState: await confirmationCodec.mint({ b: binding }, ctx),
-				});
+			request: (message, binding) =>
+				round.ask({ k: CONFIRM_INPUT_KEY, b: binding }, message, CONFIRM_REQUESTED_SCHEMA),
+		};
+	}
+
+	/** The approval relay of one `tools/call` that can elicit, and the hold recorded on it. */
+	function approvalRelayFor(round: ReturnType<typeof elicitationRound>) {
+		let routed: string | undefined;
+		let claimed = false;
+		let held: ApprovalHold | undefined;
+		const relay: ApprovalRelay = {
+			route(command) {
+				routed ??= command;
+			},
+			claim(command) {
+				if (claimed || command !== routed) return false;
+				claimed = true;
+				return true;
+			},
+			async answer(bindings) {
+				const { accepted, declined } = await round.read();
+				const asks = (item: Asked) => item.k === APPROVAL_INPUT_KEY && bindings.includes(item.b);
+				if (declined.some(asks)) return { kind: 'decline' };
+				// The latest answer wins: this round's are read after those carried forward.
+				const match = accepted.filter(asks).at(-1);
+				return match?.n !== undefined && match.x !== undefined && match.m !== undefined
+					? { kind: 'accept', binding: match.b, nonce: match.n, expiresAt: match.x, mac: match.m }
+					: { kind: 'missing' };
+			},
+			hold(hold) {
+				held ??= hold;
 			},
 		};
+		return { relay, held: () => held };
 	}
 
 	function internalError(error: unknown): ProtocolError {
@@ -280,12 +375,34 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			} catch (error) {
 				throw internalError(error);
 			}
-			const context = bindConfirmationChannel(
+			const canElicit = canElicitFor(era, server, ctx);
+			const round = elicitationRound(ctx);
+			const relay = canElicit ? approvalRelayFor(round) : undefined;
+			let context = bindConfirmationChannel(
 				scoped({ ...values, signal: ctx.mcpReq.signal, interface: 'mcp' }, state),
-				confirmationChannelFor(era, server, ctx)
+				confirmationChannelFor(canElicit, round, ctx)
 			);
+			if (relay) context = bindApprovalRelay(context, relay.relay);
 			try {
-				return { ...(await deps.routeToolCall(name, args ?? {}, context)) } as never;
+				const result = await deps.routeToolCall(name, args ?? {}, context);
+				// The approval middleware held the call for the human: ask, instead of returning
+				// the held result.
+				const held = relay?.held();
+				if (held) {
+					return (await round.ask(
+						{
+							k: APPROVAL_INPUT_KEY,
+							b: held.binding,
+							n: held.nonce,
+							x: held.expiresAt,
+							m: held.mac,
+						},
+						held.message,
+						APPROVAL_REQUESTED_SCHEMA,
+						held.bindings
+					)) as never;
+				}
+				return { ...result } as never;
 			} catch (error) {
 				if (error instanceof InputRequiredSignal) return error.result as never;
 				throw internalError(error);

@@ -125,6 +125,7 @@ Limits of these checks:
 | Tracing (OpenTelemetry-shaped), `composeMiddleware` | Yes | Yes | No | No: not declared |
 | Auth middleware | Yes (`packages/auth`) | No | No | N/A: built by the host |
 | Approval middleware (`APPROVAL_REQUIRED`, signed tokens) | Yes (`createApprovalMiddleware`) | Yes (`create_approval_middleware`; tokens verify across the two) | Yes (`create_approval_middleware`, `approval` feature, default); tokens verify across TypeScript and Rust | Yes (#422): `create_approval_middleware` and `canonical_json`, evidence in `CommandContext::approval`; tokens are TypeScript's byte for byte and verify across the two. Configuration errors are an `Expected`, not an exception. An integer beyond 2^53 − 1 can be bound only when spelled as JavaScript writes its double (`2^53 + 1` cannot; `1e18` can) |
+| Approval relay over MCP (form elicitation, #418) | Yes (`relay: 'mcp-elicitation'`) | No | No | N/A: built by the host |
 
 ### Batch, pipeline and stream
 
