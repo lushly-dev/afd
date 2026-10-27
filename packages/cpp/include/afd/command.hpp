@@ -12,7 +12,8 @@
 #include <optional>
 #include <string>
 #include <string_view>
-#include <variant>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace afd {
@@ -108,7 +109,32 @@ using ApprovalPolicyFunction =
 
 /// A command's approval policy: a fixed decision, or a function of the call. Unset means
 /// `not_required`. Enforced only where `create_approval_middleware` (approval.hpp) runs.
-using ApprovalPolicy = std::variant<ApprovalDecision, ApprovalPolicyFunction>;
+/// Converts implicitly from either, so `.approval = afd::ApprovalDecision::required` and
+/// `.approval = [](const afd::Json&, const afd::CommandContext&) { ... }` both work. (A class,
+/// not a `std::variant`: GCC reports a false `-Wmaybe-uninitialized` when a definition holding
+/// `std::optional<std::variant<..., std::function>>` is copied.)
+class ApprovalPolicy {
+public:
+    ApprovalPolicy(ApprovalDecision decision) noexcept : decision_(decision) {}
+    template <class Function>
+        requires std::is_constructible_v<ApprovalPolicyFunction, Function> &&
+                     (!std::is_same_v<std::remove_cvref_t<Function>, ApprovalPolicy>) &&
+                     (!std::is_same_v<std::remove_cvref_t<Function>, ApprovalDecision>)
+    ApprovalPolicy(Function&& function)
+        : function_(std::forward<Function>(function)), is_function_(true) {}
+
+    /// The function, for a policy that decides per call; `nullptr` for a fixed decision.
+    [[nodiscard]] const ApprovalPolicyFunction* function() const noexcept {
+        return is_function_ ? &function_ : nullptr;
+    }
+    /// The fixed decision. Meaningful only when `function()` is `nullptr`.
+    [[nodiscard]] ApprovalDecision decision() const noexcept { return decision_; }
+
+private:
+    ApprovalDecision decision_ = ApprovalDecision::required;
+    ApprovalPolicyFunction function_;
+    bool is_function_ = false;
+};
 
 /// How a policy is reported (`_meta.approval`): a function cannot be serialized, so it is
 /// `conditional`.

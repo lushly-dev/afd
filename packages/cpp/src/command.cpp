@@ -89,11 +89,11 @@ std::optional<ApprovalMode> approval_mode(const std::optional<ApprovalPolicy>& p
     if (!policy) {
         return std::nullopt;
     }
-    if (const auto* decision = std::get_if<ApprovalDecision>(&*policy)) {
-        return *decision == ApprovalDecision::required ? ApprovalMode::required
-                                                       : ApprovalMode::not_required;
+    if (policy->function()) {
+        return ApprovalMode::conditional;
     }
-    return ApprovalMode::conditional;
+    return policy->decision() == ApprovalDecision::not_required ? ApprovalMode::not_required
+                                                                : ApprovalMode::required;
 }
 
 std::string_view approval_mode_name(ApprovalMode mode) noexcept {

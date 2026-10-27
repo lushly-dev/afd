@@ -55,10 +55,10 @@ struct ApprovalCommand {
     std::optional<std::string> confirm_prompt;
 
     ApprovalCommand() = default;
-    ApprovalCommand(std::string name, std::optional<ApprovalPolicy> approval,
-                    std::optional<std::string> confirm_prompt = std::nullopt)
-        : name(std::move(name)), approval(std::move(approval)),
-          confirm_prompt(std::move(confirm_prompt)) {}
+    ApprovalCommand(std::string command_name, std::optional<ApprovalPolicy> policy,
+                    std::optional<std::string> prompt = std::nullopt)
+        : name(std::move(command_name)), approval(std::move(policy)),
+          confirm_prompt(std::move(prompt)) {}
     /// Implicit, so `.commands = {todo_delete, todo_list}` takes definitions as they are.
     ApprovalCommand(const CommandDefinition& definition)
         : name(definition.name), approval(definition.approval),

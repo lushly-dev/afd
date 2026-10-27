@@ -12,7 +12,6 @@
 #include <mutex>
 #include <random>
 #include <utility>
-#include <variant>
 
 #include "detail/hmac.hpp"
 #include "detail/utf8.hpp"
@@ -379,12 +378,12 @@ struct ApprovalState {
         if (!command || !command->approval) {
             return false;
         }
-        if (const auto* decision = std::get_if<ApprovalDecision>(&*command->approval)) {
-            return *decision != ApprovalDecision::not_required;
+        const ApprovalPolicyFunction* decide = command->approval->function();
+        if (!decide) {
+            return command->approval->decision() != ApprovalDecision::not_required;
         }
-        const auto* decide = std::get_if<ApprovalPolicyFunction>(&*command->approval);
         // Fail closed: anything but an explicit not_required holds the call.
-        return !decide || !*decide || (*decide)(input, context) != ApprovalDecision::not_required;
+        return !*decide || (*decide)(input, context) != ApprovalDecision::not_required;
     }
 
     Verdict verify_token(std::string_view evidence, std::string_view command,
@@ -561,7 +560,7 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
     auto state = std::make_shared<ApprovalState>();
     for (auto& command : options.commands) {
         if (command.approval) {
-            const auto* decide = std::get_if<ApprovalPolicyFunction>(&*command.approval);
+            const ApprovalPolicyFunction* decide = command.approval->function();
             if (decide && !*decide) {
                 return unexpected("Command '" + command.name +
                                   "' has an invalid approval policy: the function is empty");
@@ -587,7 +586,7 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         if (!state->requires_approval(command, input, context)) {
             return next();
         }
-        const ApprovalMiddlewareOptions& options = state->options;
+        const ApprovalMiddlewareOptions& settings = state->options;
 
         const auto input_binding = canonical_json(input);
         if (!input_binding) {
@@ -597,7 +596,7 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         if (!actor) {
             return unbindable(name, actor.error());
         }
-        const std::int64_t now = options.clock->wall_ms();
+        const std::int64_t now = settings.clock->wall_ms();
         // Expiry must fit an ISO 8601 date (years up to 9999), as `expiresAt` reports it.
         constexpr std::int64_t max_wall_ms = 253402300799999 - max_ttl_ms; // 9999-12-31, less a day
         if (now < 0 || now > max_wall_ms) {
@@ -630,8 +629,8 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         std::string token = state->issue(name, *input_binding, *actor, now, expires_at_ms);
         const std::string expires_at = wire::iso8601_utc(expires_at_ms);
         std::string summary;
-        if (options.summarize) {
-            summary = options.summarize(name, input, context).value_or("");
+        if (settings.summarize) {
+            summary = settings.summarize(name, input, context).value_or("");
         }
         if (summary.empty() && command->confirm_prompt) {
             summary = *command->confirm_prompt;
@@ -640,8 +639,8 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
             summary = "Run " + std::string(name);
         }
 
-        if (options.on_approval_required) {
-            options.on_approval_required(ApprovalRequest{
+        if (settings.on_approval_required) {
+            settings.on_approval_required(ApprovalRequest{
                 .command = std::string(name),
                 .input = input,
                 .actor = context.actor,
@@ -659,14 +658,14 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         // Addressed to whoever relays the decision: the token is the approval, so the gated
         // caller must not resubmit it on its own, and tool arguments cannot carry it.
         const std::string retry =
-            options.include_token
+            settings.include_token
                 ? "once they approve, the application retries the same call with the same input "
                   "and details.approvalToken as its approval evidence (tool arguments cannot "
                   "carry it). The token expires at " +
                       expires_at + (state->single_use ? " and works once." : ".")
                 : "the application retries the same call once it has recorded the approval.";
         Json details = Json::object();
-        if (options.include_token) {
+        if (settings.include_token) {
             details["approvalToken"] = token;
         }
         details["expiresAt"] = expires_at;
