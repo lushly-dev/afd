@@ -16,7 +16,7 @@
 	"dependencies": {
 		"@lushly-dev/afd-core": "workspace:*",
 		"@lushly-dev/afd-server": "workspace:*",
-		"zod": "^4.5.4"
+		"zod": "^4.6.6"
 	},
 	"devDependencies": {
 		"tsx": "^4.23.15",
