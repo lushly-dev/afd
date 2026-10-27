@@ -4,6 +4,10 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ## Unreleased
 
+## [0.2.0] - 2026-10-27
+
+Implements AFD contract `1.0-rc`.
+
 ### Added
 
 - Approval policy and approval middleware, matching TypeScript (#272, #422; `spec/command-metadata.md`, "Approvals"). `CommandDefinition::approval` takes an `ApprovalDecision` (`required`, `not_required`) or an `ApprovalPolicyFunction` of the validated input and context; `approval_mode` and `approval_mode_name` report it (`conditional` for a function), and the todo backend's `tools/list` sends it as `_meta.approval`. `afd/approval.hpp` adds `create_approval_middleware`, which returns `APPROVAL_REQUIRED` before the handler with `details.approvalToken`, `expiresAt`, `summary` and, for a rejected token, `reason` (`ApprovalRejection`). Tokens are `afdap1.<payload>.<mac>`, byte for byte TypeScript's, so a token issued by one verifies on the other with the same secret: HMAC-SHA256 with an app-supplied secret (no default, at least 32 bytes, several for rotation), constant-time comparison, single-use by default (`ApprovalReplay::within_ttl`, `ApprovalNonceStore`), expiry from the middleware's own clock. Also `canonical_json` (keys in UTF-16 order, numbers as JavaScript writes them; refuses an integer beyond 2^53 − 1 unless it is spelled as JavaScript writes its double (so `2^53 + 1` and `2^60` are refused, `1e18` is accepted), non-finite numbers and invalid UTF-8 rather than risk two inputs sharing a digest), `ApprovalCommand`, `ApprovalRequest`, `summarize`, `include_token`, `on_approval_required` and `random_bytes`. `CommandContext` gains `approval`, the evidence a trusted surface sets; the journal names it in the context digest, never its value. HMAC-SHA256 is self-contained on the existing SHA-256 and checked against RFC 4231; a new `afd_fuzz_approval` target fuzzes token verification and the `canonical_json` round trip.

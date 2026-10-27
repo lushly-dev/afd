@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.25)
 
 project(
     afd
-    VERSION 0.1.0
+    VERSION 0.2.0
     DESCRIPTION "Agent-First Development (AFD) core for C++"
     HOMEPAGE_URL "https://github.com/lushly-dev/afd"
     LANGUAGES CXX)
@@ -117,7 +117,7 @@ if(AFD_BUILD_BENCHMARKS)
 endif()
 
 # Install: the library, its headers (including the generated version.hpp), and a CMake package
-# so consumers can `find_package(afd 0.1 CONFIG REQUIRED)` and link `afd::afd`.
+# so consumers can `find_package(afd 0.2 CONFIG REQUIRED)` and link `afd::afd`.
 if(AFD_INSTALL)
     include(CMakePackageConfigHelpers)
     set(AFD_INSTALL_CMAKEDIR ${CMAKE_INSTALL_LIBDIR}/cmake/afd)

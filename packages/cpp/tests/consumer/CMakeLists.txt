@@ -11,7 +11,7 @@ if(AFD_CONSUME STREQUAL "fetchcontent")
     FetchContent_Declare(afd SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../..)
     FetchContent_MakeAvailable(afd)
 else()
-    find_package(afd 0.1 CONFIG REQUIRED)
+    find_package(afd 0.2 CONFIG REQUIRED)
 endif()
 
 add_executable(consumer ../../examples/quickstart.cpp)
