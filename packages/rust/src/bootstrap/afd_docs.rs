@@ -107,6 +107,10 @@ impl AfdDocsHandler {
             ));
             lines.push(String::new());
         }
+        if let Some(approval) = crate::approval_mode(cmd.approval.as_ref()) {
+            lines.push(format!("**Approval:** {approval}"));
+            lines.push(String::new());
+        }
 
         let authoritative = self.registry.get_tool(&cmd.name);
         let legacy =
