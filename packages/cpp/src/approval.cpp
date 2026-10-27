@@ -108,7 +108,8 @@ void append_string(std::string& out, std::string_view text) {
 /// rounded `%.*e` is tried, then its neighbours one unit in the last digit away: at a power of
 /// two the gap below is half the gap above, so a farther decimal can round-trip where the
 /// nearest does not. Candidates are read back as `<integer>e<exponent>` and only digits are
-/// taken from the formatted text, so the locale's decimal separator does not matter.
+/// taken from the formatted text, so the locale's decimal separator does not matter. `value`
+/// must be finite and nonzero (zero is written as an integer before it gets here).
 std::string format_double(double value) {
     std::string sign;
     if (value < 0) {
