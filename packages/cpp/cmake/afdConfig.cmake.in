@@ -1,4 +1,4 @@
-# The afd CMake package: find_package(afd 0.1 CONFIG REQUIRED), then link afd::afd.
+# The afd CMake package: find_package(afd 0.2 CONFIG REQUIRED), then link afd::afd.
 @PACKAGE_INIT@
 
 include(CMakeFindDependencyMacro)

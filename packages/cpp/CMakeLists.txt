@@ -117,7 +117,7 @@ if(AFD_BUILD_BENCHMARKS)
 endif()
 
 # Install: the library, its headers (including the generated version.hpp), and a CMake package
-# so consumers can `find_package(afd 0.1 CONFIG REQUIRED)` and link `afd::afd`.
+# so consumers can `find_package(afd 0.2 CONFIG REQUIRED)` and link `afd::afd`.
 if(AFD_INSTALL)
     include(CMakePackageConfigHelpers)
     set(AFD_INSTALL_CMAKEDIR ${CMAKE_INSTALL_LIBDIR}/cmake/afd)
