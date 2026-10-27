@@ -72,6 +72,7 @@ from afd.core.actor import (
     is_actor_kind,
     with_context_defaults,
 )
+from afd.core.approval import ApprovalDecision, ApprovalPolicy, approval_mode
 from afd.core.clock import (
     Clock,
     ClockInstant,
@@ -204,6 +205,10 @@ __all__ = [
     "is_actor",
     "is_actor_kind",
     "with_context_defaults",
+    # Pre-execution approval policy
+    "ApprovalDecision",
+    "ApprovalPolicy",
+    "approval_mode",
     "Clock",
     "ClockInstant",
     "ManualClock",

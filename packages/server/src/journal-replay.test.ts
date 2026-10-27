@@ -13,7 +13,7 @@ import {
 	serializeJournal,
 	success,
 } from '@lushly-dev/afd-core';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { createJournalMiddleware } from './journal.js';
 import { replayJournal } from './journal-replay.js';
@@ -329,5 +329,30 @@ describe('replayJournal', () => {
 			['same', undefined],
 		]);
 		expect(await replaySink.read()).toEqual([]);
+	});
+});
+
+describe('JOURNAL_REPLAY across module copies (#441)', () => {
+	it('is the same registered symbol in separately loaded copies of the module', async () => {
+		const first = await import('./journal.js');
+		vi.resetModules();
+		const second = await import('./journal.js');
+
+		expect(second).not.toBe(first);
+		expect(second.JOURNAL_REPLAY).toBe(first.JOURNAL_REPLAY);
+		expect(Symbol.keyFor(first.JOURNAL_REPLAY)).toBe('@lushly-dev/afd-server/journal-replay');
+	});
+
+	it("is recognized by another copy's journal middleware, which does not re-record", async () => {
+		const { entries } = await recordSession();
+		vi.resetModules();
+		const other = await import('./journal-replay.js');
+
+		// The registry records with this file's copy; replay marks calls with the other copy.
+		const sink = new MemoryJournalSink();
+		const report = await other.replayJournal(host(todoCommands(), sink), entries);
+
+		expect(report.diverged).toBe(false);
+		expect(await sink.read()).toEqual([]);
 	});
 });

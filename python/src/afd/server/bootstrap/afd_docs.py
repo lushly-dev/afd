@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from pydantic import BaseModel, Field, ValidationError
 
+from afd.core.approval import approval_mode
 from afd.core.commands import CommandContext, CommandDefinition, CommandParameter
 from afd.core.result import CommandResult, success
 from afd.core.wire import WireModel
@@ -78,6 +79,11 @@ async def _afd_docs_handler(
 
             if command.undoable is not None:
                 lines.append(f"**Undoable:** {'Yes' if command.undoable else 'No'}")
+                lines.append("")
+
+            approval = approval_mode(command.approval)
+            if approval is not None:
+                lines.append(f"**Approval:** {approval}")
                 lines.append("")
 
             if command.requires:
