@@ -125,6 +125,7 @@ Limits of these checks:
 | Tracing (OpenTelemetry-shaped), `composeMiddleware` | Yes | Yes | No | No: not declared |
 | Auth middleware | Yes (`packages/auth`) | No | No | N/A: built by the host |
 | Approval middleware (`APPROVAL_REQUIRED`, signed tokens) | Yes (`createApprovalMiddleware`) | Yes (`create_approval_middleware`; tokens verify across the two) | Yes (`create_approval_middleware`, `approval` feature, default); tokens verify across TypeScript and Rust | No (#422; see the intended differences) |
+| Approval relay over MCP (form elicitation, #418) | Yes (`relay: 'mcp-elicitation'`) | No | No | N/A: built by the host |
 
 ### Batch, pipeline and stream
 

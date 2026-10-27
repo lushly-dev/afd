@@ -21,6 +21,7 @@ import {
 	isPipelineRequest,
 	truncateName,
 } from '@lushly-dev/afd-core';
+import { approvalRelay, withoutApprovalRelay } from './approval-relay.js';
 import type { ContextState } from './bootstrap/afd-context.js';
 import {
 	commandAction,
@@ -253,6 +254,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			if (unconfirmed) return unconfirmed;
 
 			// Execute through the execution engine (full middleware chain)
+			approvalRelay(callContext)?.route(commandName);
 			const result = await executeCommand(commandName, input ?? {}, traced('afd-call'));
 			return resultContent(result, !result.success);
 		}
@@ -315,7 +317,11 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				(outcome) => resultContent(createFailedBatchResult(outcome.error, {}), true)
 			);
 			if (unconfirmed) return unconfirmed;
-			const result = await executeBatch(withoutConfirm(args), traced('batch'));
+			// Steps cannot ask for approval mid-run: the retry would run the earlier steps again.
+			const result = await executeBatch(
+				withoutConfirm(args),
+				withoutApprovalRelay(traced('batch'))
+			);
 			return resultContent(result, !result.success);
 		}
 
@@ -371,7 +377,10 @@ export function createToolRouter(deps: ToolRouterDeps) {
 					)
 			);
 			if (unconfirmed) return unconfirmed;
-			const result = await executePipeline(withoutConfirm(args), traced('pipeline'));
+			const result = await executePipeline(
+				withoutConfirm(args),
+				withoutApprovalRelay(traced('pipeline'))
+			);
 			const hasFailed = result.steps.some((s) => s.status === 'failure');
 			return resultContent(result, hasFailed);
 		}
@@ -419,6 +428,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				);
 				if (unconfirmed) return unconfirmed;
 
+				approvalRelay(callContext)?.route(actualCommandName);
 				const result = await executeCommand(actualCommandName, commandParams, traced('trace'));
 				return resultContent(result, !result.success);
 			}
@@ -466,6 +476,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		);
 		if (unconfirmed) return unconfirmed;
 
+		approvalRelay(callContext)?.route(toolName);
 		const result = await executeCommand(toolName, input, traced('trace'));
 		return resultContent(result, !result.success);
 	};
