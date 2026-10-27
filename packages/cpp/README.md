@@ -75,6 +75,27 @@ afd::ReplayReport report = afd::replay_journal(fresh_registry, *entries);
 - **No secrets from the context.** An entry keeps the actor, the surface and the trace ID; `contextDigest.hash` covers those and the names of the other members, never their values. Inputs and results are kept as they are: commands named `auth-*` are skipped, and `filter` and `redact` handle the rest.
 - **The tape** holds every `steady_ms`, `wall_ms` and `random->next()` value the handler and the registry's timing read, so add the middleware last. Replay feeds it back and reports each entry as `same`, `different` (with paths) or `error`.
 
+## Approvals
+
+```cpp
+afd::CommandDefinition remove{.name = "todo-delete", /* ... */ .approval = afd::ApprovalDecision::required};
+auto approval = afd::create_approval_middleware(
+    {.secrets = {secret_from_environment}, .commands = {remove}}); // at least 32 bytes, no default
+if (!approval) { /* approval.error() says why */ }
+afd::CommandRegistry registry({.middleware = {*approval}});
+
+auto held = registry.execute("todo-delete", {{"id", 42}}); // APPROVAL_REQUIRED, details.approvalToken
+// ... trusted surface code shows the summary; once a human approves, it (never the gated caller) retries:
+afd::CommandContext context;
+context.approval = held.error->details->at("approvalToken").get<std::string>();
+registry.execute("todo-delete", {{"id", 42}}, context); // runs once
+```
+
+- **Rules** are [`spec/command-metadata.md`](../../spec/command-metadata.md#approvals) ("Approvals"). A policy is an `ApprovalDecision` or a function of the validated input and the context; anything but `not_required` holds the call.
+- **Evidence comes from trusted code.** Only the surface sets `CommandContext::approval`, after a human approved; never copy it from tool arguments.
+- **Tokens are TypeScript's**, byte for byte: HMAC-SHA256 over the command, keyed digests of `canonical_json(input)` and of the actor's kind, id and `on_behalf_of`, issue and expiry times and a random nonce. A token issued by a TypeScript server with the same secret verifies here, and the reverse. Single-use by default (`ApprovalReplay::within_ttl` allows reuse until expiry); share an `ApprovalNonceStore` between instances. Expiry uses the middleware's `clock`, never the context's.
+- **HMAC-SHA256** is self-contained (on the SHA-256 the journal uses) and checked against the RFC 4231 vectors, so there is no crypto dependency. Nonces come from `std::random_device` unless `random_bytes` is set.
+
 ## Wire types
 
 ```cpp

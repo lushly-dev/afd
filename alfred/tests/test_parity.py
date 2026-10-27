@@ -876,6 +876,7 @@ NAME_GAP_BUDGET = {
     # Rust 12 → 9 (#421): afd exports ApprovalDecision, ApprovalPolicy and approval_mode.
     # C++ 92 → 79 (#427): afd-cpp exports all 13 command-journal names.
     # Python 91 → 88 (#420): ApprovalDecision, ApprovalPolicy and approval_mode.
+    # C++ 79 → 76 (#422): afd-cpp exports ApprovalDecision, ApprovalPolicy and approval_mode.
     "missing_from_python": 88,
     "missing_from_rust": 9,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
@@ -884,7 +885,7 @@ NAME_GAP_BUDGET = {
     # the pipeline aggregation helpers; CommandParameter and createCommandRegistry.
     # 73 → 75: commandToolAnnotations and commandResultOutputSchema (MCP tool fields), in
     # the deferred MCP helpers group; the C++ todo backend derives them inline.
-    "missing_from_cpp": 79,
+    "missing_from_cpp": 76,
 }
 
 # Exports every language must have; if one disappears the parser is broken.

@@ -299,6 +299,9 @@ JournalContextDigest create_context_digest(const CommandContext& context) {
     if (context.active_context) {
         keys.emplace_back("activeContext");
     }
+    if (context.approval) {
+        keys.emplace_back("approval");
+    }
     if (context.clock) {
         keys.emplace_back("clock");
     }
