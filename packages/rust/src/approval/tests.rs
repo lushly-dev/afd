@@ -1154,6 +1154,10 @@ struct Direct {
 
 impl Direct {
     fn new() -> Self {
+        Self::at(START)
+    }
+
+    fn at(now: i64) -> Self {
         let handled = Arc::new(AtomicUsize::new(0));
         let command = CommandDefinition::new(
             "todo-delete",
@@ -1163,7 +1167,7 @@ impl Direct {
         )
         .with_approval(ApprovalPolicy::Required);
         let options =
-            ApprovalMiddlewareOptions::new(SECRET, [command]).with_clock(fixed_clock(START));
+            ApprovalMiddlewareOptions::new(SECRET, [command]).with_clock(fixed_clock(now));
         Self {
             gate: create_approval_middleware(options).unwrap(),
             handled,
@@ -1193,6 +1197,34 @@ async fn verifies_a_token_issued_by_typescript() {
     let result = direct.call(json!({ "id": 1 }), anonymous).await;
     assert!(result.success, "{result:?}");
     assert_eq!(direct.handled.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn verifies_the_typescript_token_python_tests_against() {
+    // `_TS_TOKEN` in python/tests/test_approval.py: issued by TypeScript with SECRET at
+    // 1761480000000 for this input and actor, so the three languages agree on one token.
+    let token = concat!(
+        "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiR3NQWlBNSDlvdzdmZ1dZb3pOWDUzdU5JajN6eVVGTUZhN3p1",
+        "SXp3VDdlRSIsImEiOiJjTTV4djJjTzNjWDN3bUJ5dHNwY1lqcFRDRmltRkhENUN1SmhiYW1kT3M0IiwiaWF0Ijox",
+        "NzYxNDgwMDAwMDAwLCJleHAiOjE3NjE0ODAzMDAwMDAsIm4iOiJlU251YlIxV2dtYng5dlVSYjZYTWt3In0.",
+        "-BEoGpUaFO3f1e9kPdEGJwSH9APJuGOCtvc85d1MzGA",
+    );
+    let input = json!({
+        "id": 42,
+        "title": "café ✓",
+        "tags": ["a", "b"],
+        "ratio": 0.5,
+        "big": 1e21,
+        "nested": { "z": null, "a": true },
+    });
+    let actor = Actor::new(ActorKind::Agent)
+        .with_id("claude")
+        .with_label("Claude")
+        .with_on_behalf_of("user-1");
+    let direct = Direct::at(1_761_480_000_000);
+    let context = CommandContext::new().with_actor(actor).with_approval(token);
+    let result = direct.call(input, context).await;
+    assert!(result.success, "{result:?}");
 }
 
 #[tokio::test]

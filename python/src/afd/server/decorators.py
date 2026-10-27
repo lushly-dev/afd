@@ -41,6 +41,7 @@ from typing import (
 from pydantic import BaseModel
 from pydantic import ValidationError as PydanticValidationError
 
+from afd.core.approval import ApprovalPolicy
 from afd.core.commands import (
     CommandDefinition,
     CommandExample,
@@ -87,6 +88,8 @@ class CommandMetadata:
     destructive: Optional[bool] = None
     confirm_prompt: Optional[str] = None
     undoable: Optional[bool] = None
+    approval: Optional[ApprovalPolicy] = None
+    version: Optional[str] = None
 
 
 def define_command(
@@ -106,6 +109,8 @@ def define_command(
     destructive: Optional[bool] = None,
     confirm_prompt: Optional[str] = None,
     undoable: Optional[bool] = None,
+    approval: Optional[ApprovalPolicy] = None,
+    version: Optional[str] = None,
     _stacklevel: int = 2,
 ) -> Callable:
     """Decorator to define a command with metadata.
@@ -128,6 +133,12 @@ def define_command(
         confirm_prompt: The question to ask before running the command. A server may
             enforce it (``spec/command-metadata.md``, "Confirmations").
         undoable: Whether the command's effects can be undone (unset by default).
+        approval: Whether a call needs a human's approval before the handler runs:
+            ``"required"``, ``"not-required"`` or a function of the validated input and
+            context. Enforced by ``create_approval_middleware``; reported as
+            ``_meta.approval`` (``"conditional"`` for a function).
+        version: The command's version, reported by ``afd-detail`` and recorded as
+            ``metadata.commandVersion`` on its results (and so in journal entries).
 
     Returns:
         Decorator function that wraps the handler.
@@ -148,6 +159,11 @@ def define_command(
     
     # Advisory, as in TypeScript's defineCommand: the command still registers.
     warn_invalid_command_name(name, stacklevel=_stacklevel)
+    if approval is not None and approval not in ("required", "not-required") and not callable(approval):
+        raise TypeError(
+            f"Command '{name}' has an invalid approval policy: "
+            "use 'required', 'not-required' or a function"
+        )
     if input_schema is not None:
         check_schema(_advertised_schema(input_schema))
 
@@ -180,6 +196,8 @@ def define_command(
             destructive=destructive,
             confirm_prompt=confirm_prompt,
             undoable=undoable,
+            approval=approval,
+            version=version,
         )
         
         @wraps(func)
@@ -325,6 +343,8 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
         destructive=metadata.destructive,
         confirm_prompt=metadata.confirm_prompt,
         undoable=metadata.undoable,
+        approval=metadata.approval,
+        version=metadata.version,
     )
 
 

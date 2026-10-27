@@ -61,6 +61,7 @@ def _todo_server(**options: Any):
         input_schema=CreateInput,
         mutation=True,
         expose=mcp,
+        version="1.0.0",
     )
     async def create(input: CreateInput, context: CommandContext):
         todo_id = f"todo-{int(context.random.next() * 0x10000):x}"
@@ -73,6 +74,7 @@ def _todo_server(**options: Any):
         description="Get a todo",
         input_schema=GetInput,
         expose=mcp,
+        version="1.0.0",
     )
     async def get(input: GetInput, context: CommandContext):
         todo = todos.get(input.id)
@@ -91,13 +93,11 @@ def _todo_server(**options: Any):
         description="List todos",
         input_schema=Empty,
         expose=mcp,
+        version="1.0.0",
     )
     async def list_todos(input: Empty, context: CommandContext):
         return success({"items": list(todos.values()), "count": len(todos)})
 
-    # @server.command takes no version; the fixture's metadata has commandVersion 1.0.0.
-    for command in server._registry.list():
-        command.version = "1.0.0"
     return server
 
 

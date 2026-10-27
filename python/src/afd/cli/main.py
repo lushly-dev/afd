@@ -25,7 +25,7 @@ from afd.cli.output import (
     print_tools,
     print_warning,
 )
-from afd.cli.surface_commands import collect_surface_commands
+from afd.cli.surface_commands import approval_policy_warnings, collect_surface_commands
 from afd.core.builtin_names import is_afd_builtin_name
 from afd.transports import (
     HttpTransport,
@@ -386,6 +386,9 @@ def validate(
 ) -> None:
     """
     Validate server connection/tools, or run cross-command surface validation.
+
+    A mutation or destructive tool whose _meta has no approval policy gets a
+    MISSING_APPROVAL_POLICY warning (an error with --strict).
     """
     json_output = ctx.obj.get("json_output", False)
     
@@ -405,13 +408,27 @@ def validate(
             tools = await transport.list_tools()
             results["tools_listed"] = True
             results["tool_count"] = len(tools)
-            
+            warnings = [
+                {"tool": tool.name, **warning}
+                for tool in tools
+                for warning in approval_policy_warnings(tool)
+            ]
+            results["warnings"] = warnings
+            failed = strict and bool(warnings)
+
             if json_output:
                 console.print(json.dumps(results, indent=2))
             else:
                 print_success("Connection: OK")
                 print_success(f"Tools listed: {len(tools)}")
-                print_success("Validation passed!")
+                for warning in warnings:
+                    print_warning(f"{warning['tool']} {warning['path']}: {warning['message']}")
+                if failed:
+                    print_error("Validation failed: warnings are errors with --strict")
+                else:
+                    print_success("Validation passed!")
+            if failed:
+                sys.exit(1)
                 
         except Exception as e:
             results["errors"].append(str(e))

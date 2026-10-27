@@ -550,7 +550,7 @@ def _replay_context(
     if entry.context_digest.interface is not None:
         context.extra["interface"] = entry.context_digest.interface
     for name, value in (extra or {}).items():
-        if name in ("trace_id", "timeout", "actor", "clock", "random"):
+        if name in ("trace_id", "timeout", "actor", "clock", "random", "approval"):
             setattr(context, name, value)
         elif name == "extra":
             context.extra.update(value)
