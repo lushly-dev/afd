@@ -51,7 +51,7 @@
 	"sideEffects": false,
 	"dependencies": {
 		"@lushly-dev/afd-server": "workspace:*",
-		"zod": "^4.5.4"
+		"zod": "^4.6.6"
 	},
 	"peerDependencies": {
 		"@lushly-dev/local-db": "workspace:^"

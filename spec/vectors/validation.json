@@ -1,7 +1,7 @@
 {
 	"description": "Command input validation (spec/validation.md), with results produced by the TypeScript implementation. Regenerate with node spec/vectors/generate-validation.mjs.",
 	"generatedWith": {
-		"zod": "4.5.4"
+		"zod": "4.6.7"
 	},
 	"cases": [
 		{
@@ -3592,7 +3592,7 @@
 					"email": {
 						"type": "string",
 						"format": "email",
-						"pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+						"pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
 					},
 					"id": {
 						"type": "string",

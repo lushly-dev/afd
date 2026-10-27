@@ -31,7 +31,7 @@
 		"@lushly-dev/afd-core": "workspace:*",
 		"@modelcontextprotocol/node": "^2.1.2",
 		"@modelcontextprotocol/server": "^2.4.0",
-		"zod": "^4.5.4"
+		"zod": "^4.6.6"
 	},
 	"devDependencies": {
 		"@lushly-dev/afd-client": "workspace:*",

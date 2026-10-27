@@ -1,5 +1,6 @@
 {
 	"name": "@lushly-dev/afd-auth-convex-hosted-fixture",
+	"version": "0.0.0",
 	"private": true,
 	"type": "module",
 	"dependencies": {
