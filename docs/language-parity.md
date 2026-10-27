@@ -34,7 +34,7 @@ Versions below describe repository manifests. Registry checks independently conf
 | Package | 9 `@lushly-dev/*` packages | `afd` | `afd` crate | `afd-cpp` (`afd::afd`) |
 | Version | 2.2.0 | 0.10.0 | 0.2.0 (published) | 0.2.0 |
 | Contract | 1.0-rc (`AFD_CONTRACT_VERSION`) | 1.0-rc (`afd.CONTRACT_VERSION`) | 1.0-rc (`afd::CONTRACT_VERSION`) | 1.0-rc (`afd::contract_version`) |
-| Distribution | npm | PyPI | [crates.io](https://crates.io/crates/afd); published 0.1.0 | CMake `FetchContent`, `find_package`, `add_subdirectory`; published [cpp-v0.1.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.1.0) |
+| Distribution | npm | PyPI | [crates.io](https://crates.io/crates/afd); published 0.2.0 | CMake `FetchContent`, `find_package`, `add_subdirectory`; published [cpp-v0.2.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.2.0) |
 | Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, FastMCP server, client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch and pipeline executors, bootstrap commands, optional MCP server (`server` feature). No client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors. No server or client |
 | Todo backend | stdio (SDK v2), both MCP eras | stdio (`mcp` 2.x), both eras | Streamable HTTP (`server` feature on axum), both eras | stdio (hand-rolled), both eras |
 | CI | `ci.yml` (`pnpm check`) | `python.yml` | `rust.yml` | `cpp.yml` |

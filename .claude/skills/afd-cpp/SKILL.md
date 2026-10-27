@@ -35,14 +35,14 @@ the TypeScript server engine.
 include(FetchContent)
 FetchContent_Declare(afd
     GIT_REPOSITORY https://github.com/lushly-dev/afd.git
-    GIT_TAG cpp-v0.1.0
+    GIT_TAG cpp-v0.2.0
     SOURCE_SUBDIR packages/cpp)
 FetchContent_MakeAvailable(afd)
 target_link_libraries(my_app PRIVATE afd::afd)
 ```
 
-The published 0.1.0 release implements contract `1.0-rc`. An installed package
-also provides `find_package(afd 0.1 CONFIG REQUIRED)`; a source checkout can use
+The published 0.2.0 release implements contract `1.0-rc`. An installed package
+also provides `find_package(afd 0.2 CONFIG REQUIRED)`; a source checkout can use
 `add_subdirectory(path/to/afd/packages/cpp afd)`.
 
 ```cpp

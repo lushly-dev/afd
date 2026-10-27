@@ -2,7 +2,7 @@
 
 The C++20 implementation of [AFD (Agent-First Development)](../../README.md). The [proposal](../../docs/features/complete/cpp-support/proposal.md) records the design decisions, and the [work plan](../../docs/features/complete/cpp-support/work-plan.md) records how each phase was built.
 
-> **Status: v0.1.0 released.** The library is feature-complete for v0.1: the wire types, the validating `CommandRegistry`, middleware, `DirectClient`, and batch, pipeline and stream execution. The [C++ todo backend](../examples/todo/backends/cpp/README.md) passes the 34-case conformance suite, `alfred parity` tracks the API, and the package installs with a CMake config. The first release is [cpp-v0.1.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.1.0), implementing AFD contract `1.0-rc`.
+> **Status: v0.2.0 released.** The library is feature-complete for v0.2: the wire types, the validating `CommandRegistry`, middleware, `DirectClient`, and batch, pipeline and stream execution. The [C++ todo backend](../examples/todo/backends/cpp/README.md) passes the 34-case conformance suite, `alfred parity` tracks the API, and the package installs with a CMake config. The current release is [cpp-v0.2.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.2.0), implementing AFD contract `1.0-rc`; the first was [cpp-v0.1.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.1.0).
 
 ## Design in brief
 
@@ -115,7 +115,7 @@ auto untrusted = afd::parse_bounded(text);                   // depth- and size-
 
 ## Using the package
 
-afd-cpp is not on a package registry. Get it in one of three ways, and link `afd::afd`. Use the immutable `cpp-v0.1.0` tag for the published 0.1.0 release.
+afd-cpp is not on a package registry. Get it in one of three ways, and link `afd::afd`. Use the immutable `cpp-v0.2.0` tag for the published 0.2.0 release.
 
 **FetchContent:**
 
@@ -123,7 +123,7 @@ afd-cpp is not on a package registry. Get it in one of three ways, and link `afd
 include(FetchContent)
 FetchContent_Declare(afd
     GIT_REPOSITORY https://github.com/lushly-dev/afd.git
-    GIT_TAG cpp-v0.1.0
+    GIT_TAG cpp-v0.2.0
     SOURCE_SUBDIR packages/cpp)
 FetchContent_MakeAvailable(afd)
 target_link_libraries(my_app PRIVATE afd::afd)
@@ -138,7 +138,7 @@ cmake --install build --config Release --prefix /opt/afd
 ```
 
 ```cmake
-find_package(afd 0.1 CONFIG REQUIRED)  # with CMAKE_PREFIX_PATH=/opt/afd
+find_package(afd 0.2 CONFIG REQUIRED)  # with CMAKE_PREFIX_PATH=/opt/afd
 target_link_libraries(my_app PRIVATE afd::afd)
 ```
 
