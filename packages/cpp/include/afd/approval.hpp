@@ -133,7 +133,9 @@ struct ApprovalMiddlewareOptions {
     /// is never used: the caller can set it, and this is security time.
     std::shared_ptr<const Clock> clock;
     /// Fills `size` bytes at `out` with cryptographically secure random bytes, for nonces.
-    /// Default: `std::random_device`. Never pass a `RandomSource`-based generator.
+    /// Default: `std::random_device`, which is the OS entropy source on glibc, libc++ (macOS),
+    /// MSVC and Emscripten. MinGW's libstdc++ before GCC 9.2 makes it deterministic: supply a
+    /// generator there. Never pass a `RandomSource`-based generator.
     std::function<void(std::uint8_t* out, std::size_t size)> random_bytes;
 };
 
@@ -145,7 +147,9 @@ struct ApprovalMiddlewareOptions {
 /// `COMMAND_EXECUTION_ERROR`.
 ///
 /// Install it after any middleware that sets or refines `context.actor`, since tokens are bound
-/// to the actor.
+/// to the actor. A registry may run calls concurrently: `summarize`, `on_approval_required`,
+/// `random_bytes` and a custom `nonce_store` must then be thread-safe. The built-in nonce store
+/// is.
 ///
 ///     auto approval = afd::create_approval_middleware(
 ///         {.secrets = {secret_from_environment}, .commands = {todo_delete, todo_list}});
@@ -158,9 +162,9 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
 
 /// The JSON a token binds an input to: object keys sorted at every depth by UTF-16 code units,
 /// otherwise as JavaScript's `JSON.stringify` writes it, so it equals TypeScript's
-/// `canonicalJson`. Fails rather than collide: on an integer beyond ±(2^53 − 1) (JavaScript
-/// cannot hold it exactly), a non-finite number, a string that is not valid UTF-8, binary or
-/// discarded values, and nesting deeper than 256 levels.
+/// `canonicalJson`. Fails rather than collide: on an integer beyond ±(2^53 − 1) not spelled as
+/// JavaScript writes its double (JavaScript reads `2^53 + 1` as `2^53`), a non-finite number, a
+/// string that is not valid UTF-8, binary or discarded values, and nesting deeper than 256 levels.
 Expected<std::string> canonical_json(const Json& value);
 
 } // namespace afd

@@ -124,7 +124,7 @@ Limits of these checks:
 | Retry, rate limit, telemetry | Yes | Yes | No | Deferred |
 | Tracing (OpenTelemetry-shaped), `composeMiddleware` | Yes | Yes | No | No: not declared |
 | Auth middleware | Yes (`packages/auth`) | No | No | N/A: built by the host |
-| Approval middleware (`APPROVAL_REQUIRED`, signed tokens) | Yes (`createApprovalMiddleware`) | No (#420) | No (#421) | Yes (#422): `create_approval_middleware` and `canonical_json`, evidence in `CommandContext::approval`; tokens are TypeScript's byte for byte and verify across the two. Configuration errors are an `Expected`, not an exception. An integer beyond 2^53 − 1 cannot be bound (JavaScript cannot hold it exactly) |
+| Approval middleware (`APPROVAL_REQUIRED`, signed tokens) | Yes (`createApprovalMiddleware`) | No (#420) | No (#421) | Yes (#422): `create_approval_middleware` and `canonical_json`, evidence in `CommandContext::approval`; tokens are TypeScript's byte for byte and verify across the two. Configuration errors are an `Expected`, not an exception. An integer beyond 2^53 − 1 can be bound only when spelled as JavaScript writes its double (`2^53 + 1` cannot; `1e18` can) |
 
 ### Batch, pipeline and stream
 

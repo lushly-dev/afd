@@ -230,6 +230,10 @@ TEST_CASE("canonical_json matches TypeScript's canonicalJson") {
         {-34077362267111670.0, "-34077362267111670"},
         {9.918674300000001e-16, "9.918674300000001e-16"},
         {77734751.57149825, "77734751.57149825"},
+        // Powers of two, where the nearest decimal at the shortest length does not round-trip.
+        {5.9604644775390625e-8, "5.960464477539063e-8"},   // 2^-24
+        {5.6843418860808015e-14, "5.684341886080802e-14"}, // 2^-44
+        {6.1897001964269014e+26, "6.189700196426902e+26"}, // 2^89
     };
     for (const auto& [number, text] : numbers) {
         CHECK(afd::canonical_json(afd::Json(number)).value() == text);
@@ -237,8 +241,25 @@ TEST_CASE("canonical_json matches TypeScript's canonicalJson") {
 }
 
 TEST_CASE("canonical_json fails closed on values that could collide") {
-    CHECK_FALSE(afd::canonical_json(afd::Json(std::int64_t{9007199254740992})));
+    // Beyond 2^53 − 1, an integer is accepted only in JavaScript's spelling of its double:
+    // JavaScript reads 2^53 + 1 as 2^53 and writes 2^60 as 1152921504606847000.
+    CHECK_FALSE(afd::canonical_json(afd::Json(std::int64_t{9007199254740993})));
+    CHECK_FALSE(afd::canonical_json(afd::Json(std::int64_t{-9007199254740993})));
+    CHECK_FALSE(afd::canonical_json(afd::Json(std::int64_t{1152921504606846976})));
     CHECK_FALSE(afd::canonical_json(afd::Json(std::uint64_t{18446744073709551615ULL})));
+    CHECK_FALSE(afd::canonical_json(afd::Json(std::int64_t{-9223372036854775807 - 1})));
+    CHECK(afd::canonical_json(afd::Json(std::int64_t{1152921504606847000})).value() ==
+          "1152921504606847000");
+    CHECK(afd::canonical_json(afd::Json(std::int64_t{9007199254740992})).value() ==
+          "9007199254740992");
+    CHECK(afd::canonical_json(afd::Json(std::uint64_t{1000000000000000000ULL})).value() ==
+          "1000000000000000000");
+    CHECK(afd::canonical_json(afd::Json(std::int64_t{-1000000000000000000})).value() ==
+          "-1000000000000000000");
+    CHECK(afd::canonical_json(afd::Json(std::uint64_t{45035996273704970ULL})).value() ==
+          "45035996273704970");
+    CHECK(afd::canonical_json(afd::Json(1e18)).value() == "1000000000000000000");
+    CHECK(afd::canonical_json(afd::Json(4.503599627370497e16)).value() == "45035996273704970");
     CHECK(afd::canonical_json(afd::Json(std::int64_t{-9007199254740991})).value() ==
           "-9007199254740991");
     CHECK_FALSE(afd::canonical_json(afd::Json(std::numeric_limits<double>::infinity())));
@@ -638,6 +659,17 @@ TEST_CASE("approval middleware options") {
         context.approval = token;
         context.clock = afd::fixed_clock(start_ms);
         CHECK(reason_of(gate.registry->execute("todo-delete", {{"id", 42}}, context)) == "expired");
+    }
+
+    SUBCASE("fails the call when the approval clock is out of range") {
+        Gate gate;
+        gate.clock->set(-1);
+        auto before = gate.call({{"id", 42}});
+        REQUIRE(before.error);
+        CHECK(before.error->code == "COMMAND_EXECUTION_ERROR");
+        gate.clock->set(std::numeric_limits<std::int64_t>::max());
+        CHECK(gate.call({{"id", 42}}).error->code == "COMMAND_EXECUTION_ERROR");
+        CHECK(*gate.runs == 0);
     }
 
     SUBCASE("a ttl_ms sets the expiry") {

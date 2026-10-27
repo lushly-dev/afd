@@ -85,7 +85,7 @@ if (!approval) { /* approval.error() says why */ }
 afd::CommandRegistry registry({.middleware = {*approval}});
 
 auto held = registry.execute("todo-delete", {{"id", 42}}); // APPROVAL_REQUIRED, details.approvalToken
-// ... a human approves ...
+// ... trusted surface code shows the summary; once a human approves, it (never the gated caller) retries:
 afd::CommandContext context;
 context.approval = held.error->details->at("approvalToken").get<std::string>();
 registry.execute("todo-delete", {{"id", 42}}, context); // runs once

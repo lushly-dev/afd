@@ -103,44 +103,66 @@ void append_string(std::string& out, std::string_view text) {
 }
 
 /// A finite, non-integral (or beyond 2^53) double as JavaScript's `Number.prototype.toString`
-/// writes it: the fewest significant digits that read back as the same double (the correctly
-/// rounded `%.*e` at the smallest precision that round-trips, which is the closest such
-/// decimal), laid out by ECMA-262's Number::toString rules. Only the digits and the exponent are
-/// read from the formatted text, so the locale's decimal separator does not matter.
+/// writes it: the fewest significant digits that read back as the same double, the closest such
+/// decimal, laid out by ECMA-262's Number::toString rules. At each precision the correctly
+/// rounded `%.*e` is tried, then its neighbours one unit in the last digit away: at a power of
+/// two the gap below is half the gap above, so a farther decimal can round-trip where the
+/// nearest does not. Candidates are read back as `<integer>e<exponent>` and only digits are
+/// taken from the formatted text, so the locale's decimal separator does not matter.
 std::string format_double(double value) {
     std::string sign;
     if (value < 0) {
         sign = "-";
         value = -value;
     }
-    char buffer[64];
+    std::uint64_t mantissa = 0;
+    int scale = 0; // value = mantissa × 10^scale
     for (int precision = 1; precision <= 17; ++precision) {
+        char buffer[64];
         std::snprintf(buffer, sizeof buffer, "%.*e", precision - 1, value);
-        if (std::strtod(buffer, nullptr) == value) {
+        std::uint64_t nearest = 0;
+        int exponent = 0;
+        const char* c = buffer;
+        for (; *c != '\0' && *c != 'e' && *c != 'E'; ++c) {
+            if (*c >= '0' && *c <= '9') {
+                nearest = nearest * 10 + static_cast<std::uint64_t>(*c - '0');
+            }
+        }
+        if (*c != '\0') {
+            ++c;
+            const bool negative = *c == '-';
+            if (*c == '-' || *c == '+') {
+                ++c;
+            }
+            for (; *c >= '0' && *c <= '9'; ++c) {
+                exponent = exponent * 10 + (*c - '0');
+            }
+            exponent = negative ? -exponent : exponent;
+        }
+        scale = exponent - (precision - 1);
+        const auto round_trips = [&](std::uint64_t candidate) {
+            if (candidate == 0) {
+                return false;
+            }
+            const std::string text = std::to_string(candidate) + "e" + std::to_string(scale);
+            return std::strtod(text.c_str(), nullptr) == value;
+        };
+        if (round_trips(nearest) || precision == 17) {
+            mantissa = nearest;
+            break;
+        }
+        if (round_trips(nearest - 1)) {
+            mantissa = nearest - 1;
+            break;
+        }
+        if (round_trips(nearest + 1)) {
+            mantissa = nearest + 1;
             break;
         }
     }
-    std::string digits;
-    int exponent = 0;
-    const char* c = buffer;
-    for (; *c != '\0' && *c != 'e' && *c != 'E'; ++c) {
-        if (*c >= '0' && *c <= '9') {
-            digits.push_back(*c);
-        }
-    }
-    if (*c != '\0') {
-        ++c;
-        const bool negative = *c == '-';
-        if (*c == '-' || *c == '+') {
-            ++c;
-        }
-        for (; *c >= '0' && *c <= '9'; ++c) {
-            exponent = exponent * 10 + (*c - '0');
-        }
-        exponent = negative ? -exponent : exponent;
-    }
-    // buffer is d.ddd × 10^exponent, so value = 0.dddd × 10^n.
-    const int n = exponent + 1;
+    std::string digits = std::to_string(mantissa);
+    // value = 0.<digits> × 10^n.
+    const int n = static_cast<int>(digits.size()) + scale;
     digits.erase(digits.find_last_not_of('0') + 1);
     const int k = static_cast<int>(digits.size());
 
@@ -169,6 +191,20 @@ std::string format_double(double value) {
     return out;
 }
 
+/// An integer written as `text`, whose nearest double is `nearest`. Beyond 2^53 − 1 JavaScript
+/// holds only the double, which it writes with as few digits as identify it (2^60 is
+/// `1152921504606847000`). An integer is accepted there only when `text` is that spelling, so
+/// two distinct integers can never share one; anything else could not have come from
+/// JavaScript, and is refused.
+std::optional<std::string> encode_integer(const std::string& text, double nearest, bool safe,
+                                          std::string& out) {
+    if (!safe && format_double(nearest) != text) {
+        return std::string("an integer beyond 2^53 - 1 that JavaScript would write differently");
+    }
+    out += text;
+    return std::nullopt;
+}
+
 /// Appends the canonical JSON of `value` to `out`; returns why it cannot, if it cannot.
 std::optional<std::string> encode(const Json& value, std::string& out, std::size_t depth) {
     if (depth > max_canonical_depth) {
@@ -183,19 +219,13 @@ std::optional<std::string> encode(const Json& value, std::string& out, std::size
         return std::nullopt;
     case Json::value_t::number_integer: {
         const auto number = value.get<std::int64_t>();
-        if (number > max_safe_integer || number < -max_safe_integer) {
-            return std::string("an integer beyond 2^53 - 1 is not exact in JavaScript");
-        }
-        out += std::to_string(number);
-        return std::nullopt;
+        return encode_integer(std::to_string(number), static_cast<double>(number),
+                              number <= max_safe_integer && number >= -max_safe_integer, out);
     }
     case Json::value_t::number_unsigned: {
         const auto number = value.get<std::uint64_t>();
-        if (number > static_cast<std::uint64_t>(max_safe_integer)) {
-            return std::string("an integer beyond 2^53 - 1 is not exact in JavaScript");
-        }
-        out += std::to_string(number);
-        return std::nullopt;
+        return encode_integer(std::to_string(number), static_cast<double>(number),
+                              number <= static_cast<std::uint64_t>(max_safe_integer), out);
     }
     case Json::value_t::number_float: {
         const auto number = value.get<double>();
@@ -567,6 +597,19 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
             return unbindable(name, actor.error());
         }
         const std::int64_t now = options.clock->wall_ms();
+        // Expiry must fit an ISO 8601 date (years up to 9999), as `expiresAt` reports it.
+        constexpr std::int64_t max_wall_ms = 253402300799999 - max_ttl_ms; // 9999-12-31, less a day
+        if (now < 0 || now > max_wall_ms) {
+            return failure(CommandError{
+                .code = error_codes::COMMAND_EXECUTION_ERROR,
+                .message = std::string(name) + " cannot be approved: the approval clock is out "
+                                               "of range",
+                .suggestion = "Give the approval middleware a clock that reads the current time.",
+                .retryable = false,
+                .details = std::nullopt,
+                .cause = nullptr,
+            });
+        }
 
         std::optional<ApprovalRejection> rejected;
         if (context.approval) {
