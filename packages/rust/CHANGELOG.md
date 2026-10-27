@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-27
+
+Implements AFD contract **1.0-rc**.
+
 ### Added
 
 - **Confirmations (`server` feature):** `McpServer::with_confirmations(ConfirmationMode::Enforce | RequireHuman)` and `with_confirmations_key` enforce `confirm_prompt` on tool calls (`spec/command-metadata.md`, "Confirmations"). A gated call runs after the user accepts an elicitation (an `input_required` result with an HMAC-signed `requestState` on MCP 2026-07-28, a server-sent request on a 2025 stdio connection), or, under `Enforce`, after `confirm: true` or `_meta["dev.afd/confirm"]`. Otherwise it fails with `CONFIRMATION_REQUIRED` or `CONFIRMATION_DECLINED`. The feature now enables `rmcp`'s `request-state` and `elicitation` features and depends on `getrandom`.
@@ -95,5 +99,6 @@ These changes affect code that used the crate as a git dependency before this re
 - A `when` condition treats a first operand that is not a reference (`"$$prev"`, `"text"`) as absent, and `$eq`/`$ne` compare numbers by value (`2` equals `2.0`), as in TypeScript. `tests/pipeline_vectors.rs` and `tests/batch_controls_vectors.rs` load the shared `spec/vectors` files (#317).
 - `CommandRegistry::execute` catches a panic in a middleware layer or the handler, including one raised while building the future and one under `timeout_ms`, instead of letting it unwind to the caller (#306).
 
-[Unreleased]: https://github.com/lushly-dev/afd/compare/rust-v0.1.0...HEAD
+[Unreleased]: https://github.com/lushly-dev/afd/compare/rust-v0.2.0...HEAD
+[0.2.0]: https://github.com/lushly-dev/afd/compare/rust-v0.1.0...rust-v0.2.0
 [0.1.0]: https://github.com/lushly-dev/afd/releases/tag/rust-v0.1.0

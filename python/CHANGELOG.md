@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-27
+
+Implements AFD contract `1.0-rc`.
+
 Serves and speaks MCP 2026-07-28 (stateless, per-request `_meta`) next to the 2025 protocol.
 
 ### Breaking changes
@@ -203,7 +207,8 @@ These were released together with the repository-wide releases of the same perio
 
 - Published to PyPI: `pip install afd>=0.1.1`
 
-[Unreleased]: https://github.com/lushly-dev/afd/compare/python-v0.9.0...main
+[Unreleased]: https://github.com/lushly-dev/afd/compare/python-v0.10.0...main
+[0.10.0]: https://github.com/lushly-dev/afd/compare/python-v0.9.0...python-v0.10.0
 [0.9.0]: https://github.com/lushly-dev/afd/compare/python-v0.8.0...python-v0.9.0
 [0.8.0]: https://github.com/lushly-dev/afd/compare/python-v0.7.0...python-v0.8.0
 [0.7.0]: https://github.com/lushly-dev/afd/compare/python-v0.6.0...python-v0.7.0
