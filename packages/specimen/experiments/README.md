@@ -73,3 +73,26 @@ node packages/specimen/experiments/run-heap-profile.mjs \
 The driver samples the coordinator's main V8 isolate before/after API import, during three real capture batches, after closing each bench while retaining its public handle, and after releasing all handles. Natural post-close and explicit diagnostic-GC checkpoints are separate. It records V8 heap spaces/code statistics, Node memory counters, active resources, weak handle liveness and raw `.heapprofile.json` allocation samples. It does not take full heap snapshots or identify dominator paths. Allocation self sizes are statistical surviving allocation estimates, not proof of which object retains them; native memory and worker isolates are outside this profile. Use the surrounding process-family metrics for total resource cost.
 
 The same admission and family limits apply; these instrumented/GC runs are separate from ordinary CPU/memory acceptance. Production cleanup never forces GC. `--consumer fast-af|lushly`, `--api`, `--isolation` and per-consumer source paths allow bounded repeat runs. An admission hold remains a failed/held receipt; retry only the held consumer after headroom returns. See [heap lifetime validation](../../../docs/features/active/specimens/heap-lifetime-validation.md) for findings and the CPU/memory tradeoff.
+
+## Reused-worker batches
+
+Run larger verified capture workloads through the same process-family recorder:
+
+```sh
+node packages/specimen/experiments/run-resources.mjs \
+  --consumer fast-af \
+  --fast-af /path/to/clean/fast-af \
+  --workload batches --batches 10 \
+  --isolation process --lifetime reuse \
+  --out /path/to/empty-batch-evidence
+```
+
+Use `--isolation in-process --lifetime reuse` for the in-process control, or `--isolation process --lifetime batch` to restart the worker after each complete batch. `--consumer lushly --lushly /path/to/clean/lushly` selects Lushly. The default resource workload remains the original mixed consumer probe; `--workload batches` selects this separate experiment.
+
+Each batch runs every existing descriptor request in order and verifies all behavior assertions: nine FAST-AF or seven Lushly captures. `--batches 1..10` repeats those cases rather than discovering additional components or stories. Reuse holds one bench/browser across all batches; every capture still has a fresh browser context. Batch lifetime recreates the bench/browser after each round, while sharing the one copied project and process-wide OS/package caches.
+
+Baseline, open-bench checkpoints after rounds 1/5/10, and post-close windows use the same one-second idle interval. Current-batch observation scope is released before each checkpoint; full artifacts are saved only for the first and final batch. Reports check actual bench create/close totals, successful renders, verified captures and source readback. The family collector independently records observed Node/browser identities and surviving owned processes.
+
+Waited CPU and CPU per verified capture include preparation, verification, phase/artifact writing and cleanup. Coordinator-only Node counters in the batch receipt exclude the isolated worker/browser and must not replace the whole-family measurements. No inspector sampling, forced GC, cold representative samples or offline diff loops run in this workload. Existing 120-second/2-GiB limits and host admission remain unchanged; partial or held jobs do not supply valid comparison ratios.
+
+See the [worker-reuse validation](../../../docs/features/active/specimens/worker-reuse-validation.md) for the paired experiment, open-worker memory trend and post-close cost.

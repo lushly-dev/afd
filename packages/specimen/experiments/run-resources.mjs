@@ -19,6 +19,14 @@ const samples = Number(option('--samples', '5'));
 if (!Number.isInteger(samples) || samples < 1 || samples > 20)
 	throw new Error('--samples must be 1..20');
 const selected = option('--consumer', 'all');
+const workload = option('--workload', 'consumer');
+if (!['consumer', 'batches'].includes(workload))
+	throw new Error('--workload must be consumer or batches');
+const batches = Number(option('--batches', '5'));
+if (!Number.isInteger(batches) || batches < 1 || batches > 10)
+	throw new Error('--batches must be 1..10');
+const lifetime = option('--lifetime', 'reuse');
+if (!['reuse', 'batch'].includes(lifetime)) throw new Error('--lifetime must be reuse or batch');
 const runtimeIsolation = option('--isolation', 'in-process');
 if (!['in-process', 'process'].includes(runtimeIsolation))
 	throw new Error('--isolation must be in-process or process');
@@ -30,6 +38,7 @@ const json = (file, data) => writeFile(file, `${JSON.stringify(data, null, 2)}\n
 const implementationFiles = [
 	'run-resources.mjs',
 	'run-consumers.mjs',
+	'run-batches.mjs',
 	'consumer-project.mjs',
 	'fast-af.fixture.mjs',
 	'lushly.fixture.mjs',
@@ -52,6 +61,8 @@ async function implementationDigests() {
 const report = {
 	formatVersion: 1,
 	runtimeIsolation,
+	workload,
+	...(workload === 'batches' ? { batches, lifetime } : {}),
 	createdUtc: new Date().toISOString(),
 	status: 'failed',
 	purpose: 'Single-job native resource pilot; no incumbent savings or concurrency claim',
@@ -101,14 +112,15 @@ try {
 			const probeOutput = join(profileDirectory, 'probe');
 			const phasesFile = join(profileDirectory, 'phases.jsonl');
 			const childArgs = [
-				join(import.meta.dirname, 'run-consumers.mjs'),
+				join(import.meta.dirname, workload === 'batches' ? 'run-batches.mjs' : 'run-consumers.mjs'),
 				'--consumer',
 				consumer,
-				'--samples',
-				String(samples),
 				'--out',
 				probeOutput,
 			];
+			if (workload === 'batches')
+				childArgs.push('--batches', String(batches), '--lifetime', lifetime);
+			else childArgs.push('--samples', String(samples));
 			for (const name of ['--fast-af', '--lushly']) {
 				const value = option(name);
 				if (value) childArgs.push(name, resolve(value));
@@ -152,6 +164,17 @@ try {
 			profile.consumerAfter = result.consumerAfter;
 			profile.probeStatus = result.status;
 			profile.probeReport = join(probeOutput, 'report.json');
+			if (workload === 'batches') {
+				profile.batchWorkload = {
+					batchCount: result.batchCount,
+					batches: result.batches,
+					lifetime,
+					expectedBenchStarts: result.expectedBenchStarts,
+					actualBenchCreates: result.actualBenchCreates,
+					actualBenchCloses: result.actualBenchCloses,
+					capturesPerBatch: result.capturesPerBatch,
+				};
+			}
 			profile.hostAfter = await hostSnapshot();
 			profile.hostChanges = {
 				swapUsedBytes:
