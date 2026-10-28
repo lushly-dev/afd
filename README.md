@@ -192,6 +192,7 @@ AFD ships as packages across **TypeScript, Python, Rust, and C++**. All four sha
 | **@lushly-dev/afd-cli** | CLI for connecting, calling, validating, and exploring commands |
 | **@lushly-dev/afd-auth** | Provider-agnostic auth adapter — middleware, commands, session sync, React hooks, adapters for Mock/Convex/BetterAuth |
 | **@lushly-dev/afd-adapters** | Frontend adapters for rendering `CommandResult` → styled HTML with CSS variable theming |
+| **@lushly-dev/specimen** *(experimental workspace package)* | [Component observation bench](./packages/specimen/README.md) — commands and a JSON CLI for DOM, accessibility, layout, style and live-state captures |
 | **afd** *(Python)* | Idiomatic Python AFD: `CommandResult`, MCP server/client, middleware, validation, telemetry, batch, pipelines, stream types, testing, handoff |
 | **afd** *(Rust)* | `CommandResult` types, validating `CommandRegistry`, batch and pipeline execution, stream types, bootstrap commands; WASM-compatible; no MCP server yet |
 | **afd-cpp** *(C++20, published preview)* | [`packages/cpp`](./packages/cpp): `CommandResult` types, validating `CommandRegistry`, middleware, `DirectClient`, batch/pipeline/stream execution; engine-free, builds without exceptions or RTTI and for WebAssembly |

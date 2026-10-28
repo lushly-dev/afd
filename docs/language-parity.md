@@ -185,6 +185,7 @@ These gaps are appropriate. They follow the framework-agnostic rule, a language'
 | Difference | Where | Why it is fine |
 |---|---|---|
 | UI packages (`view-state`, `adapters`, `local-db`) and auth React hooks | TypeScript only | The `afd` skill keeps React and browser integration in ecosystem layers, outside the core parity target. |
+| Experimental component bench (`specimen`) | TypeScript only | Browser/tooling integration over AFD commands; its native feasibility milestone does not extend the shared wire contract. |
 | No HTTP transport, engine adapters or auth in the library | C++ | The C++ [scope principle](./features/complete/cpp-support/proposal.md#scope-principle-host-agnostic): hosts build these on middleware, `CommandContext::extra`, `TaskRunner` and `Clock`. Approval is the exception (#422): its tokens must match TypeScript's byte for byte, which a host should not have to reimplement. |
 | Synchronous handlers and cooperative deadlines | C++ | Decision D4. A late finish still produces the reference `TIMEOUT` result and error codes; nothing is interrupted. |
 | `CancellationSource` instead of a timeout controller | C++ | It is the C++ idiom for `AbortSignal` plus a deadline. |

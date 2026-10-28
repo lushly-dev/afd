@@ -1,0 +1,57 @@
+{
+	"name": "@lushly-dev/specimen",
+	"version": "2.2.0",
+	"description": "Command-first component observations and comparison bench",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./types": {
+			"types": "./dist/types.d.ts",
+			"import": "./dist/types.js"
+		}
+	},
+	"bin": {
+		"specimen": "./dist/bin.js"
+	},
+	"files": [
+		"dist",
+		"README.md"
+	],
+	"scripts": {
+		"build": "tsc",
+		"clean": "rimraf dist *.tsbuildinfo",
+		"typecheck": "tsc -p tsconfig.typecheck.json",
+		"test": "vitest run"
+	},
+	"engines": {
+		"node": ">=22.12.0"
+	},
+	"sideEffects": false,
+	"dependencies": {
+		"@lushly-dev/afd-core": "workspace:*",
+		"@lushly-dev/afd-server": "workspace:*",
+		"parse5": "^8.0.0",
+		"playwright": "^1.64.0",
+		"vite": "^8.3.0",
+		"zod": "^4.6.6"
+	},
+	"devDependencies": {
+		"@types/node": "^25.9.5",
+		"@vitest/coverage-v8": "^4.1.11",
+		"rimraf": "^6.1.3",
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.11"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "packages/specimen"
+	},
+	"license": "MIT"
+}

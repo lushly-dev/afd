@@ -42,6 +42,7 @@ packages/
 ├── view-state/ # @lushly-dev/afd-view-state — UI view state management via commands
 ├── adapters/   # @lushly-dev/afd-adapters — Frontend adapters for rendering CommandResult
 ├── local-db/   # @lushly-dev/local-db — Async data adapter with swappable backends (Memory, HTTP)
+├── specimen/   # @lushly-dev/specimen — Experimental browser component observation bench and CLI
 ├── rust/       # afd crate — Rust core types and utilities
 ├── cpp/        # afd-cpp — C++20 implementation (CMake; see packages/cpp/README.md)
 └── examples/
