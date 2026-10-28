@@ -86,3 +86,40 @@ jobs:
       # The approval middleware's nonce comes from `crypto.getRandomValues` (getrandom `wasm_js`).
       - name: Check (wasm32, wasm and approval features)
         run: cargo check --target wasm32-unknown-unknown --no-default-features --features wasm,approval
+
+  docs-rs:
+    # Builds the API docs the way docs.rs does: nightly rustdoc, every feature
+    # and `--cfg docsrs` (packages/rust/Cargo.toml [package.metadata.docs.rs]).
+    # 0.2.0 failed there (doc(cfg) without feature(doc_cfg)), so a crate that
+    # docs.rs cannot document fails CI, and publish-rust.yml, which calls this
+    # workflow, refuses to upload it. Nightly is deliberately unpinned to match
+    # docs.rs; warnings are not denied, because docs.rs does not deny them.
+    name: Rust (docs.rs build, nightly rustdoc)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: packages/rust
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # `+nightly` overrides the stable pin in packages/rust/rust-toolchain.toml.
+      - name: Install nightly toolchain
+        run: rustup toolchain install nightly --profile minimal
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          workspaces: packages/rust
+          key: docs-rs
+
+      # Only rustdoc gets the cfg, as on docs.rs: passing it to rustc too
+      # (RUSTFLAGS) reaches dependencies whose docsrs paths no longer build.
+      - name: Document (all features, --cfg docsrs)
+        env:
+          RUSTDOCFLAGS: --cfg docsrs
+        run: cargo +nightly doc --all-features --no-deps

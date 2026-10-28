@@ -31,7 +31,7 @@ For source development, Cargo finds the package in `packages/rust`:
 
 ```toml
 [dependencies]
-afd = { git = "https://github.com/lushly-dev/afd", tag = "rust-v0.2.0" }
+afd = { git = "https://github.com/lushly-dev/afd", tag = "rust-v0.2.1" }
 # Or use a local checkout: afd = { path = "../afd/packages/rust" }
 ```
 
