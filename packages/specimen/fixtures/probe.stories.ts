@@ -53,6 +53,36 @@ export const Activated = {
 	scenario: [{ action: { click: 'control' } }, { capture: 'checked' }],
 } satisfies SpecimenDefinition;
 
+export const FrameUpdated = {
+	render: () => {
+		const container = document.createElement('div');
+		const button = document.createElement('button');
+		button.textContent = 'Schedule update';
+		button.setAttribute('aria-pressed', 'false');
+		button.addEventListener('click', () => {
+			requestAnimationFrame(() => button.setAttribute('aria-pressed', 'true'));
+		});
+		const input = document.createElement('input');
+		input.name = 'account';
+		input.setAttribute('aria-label', 'Account');
+		input.addEventListener('input', () => {
+			container.dataset.clickedBeforeInput = button.getAttribute('aria-pressed') ?? '';
+			requestAnimationFrame(() => {
+				container.dataset.submitted = input.value;
+			});
+		});
+		container.append(button, input);
+		return container;
+	},
+	targets: { button: { selector: 'button' }, input: { selector: 'input' } },
+	scenario: [
+		{ action: { click: 'button' } },
+		{ capture: 'clicked' },
+		{ action: { fill: 'input', value: 'frame-value' } },
+		{ capture: 'filled' },
+	],
+} satisfies SpecimenDefinition;
+
 function namedButton(name: string): HTMLElement {
 	const element = document.createElement('button');
 	element.textContent = 'Action';

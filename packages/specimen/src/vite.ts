@@ -35,7 +35,10 @@ export interface BenchServer {
 		outDir: string
 	): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }>;
 }
-export async function startBenchServer(config: LoadedConfig): Promise<BenchServer> {
+export async function startBenchServer(
+	config: LoadedConfig,
+	options: { automation?: boolean } = {}
+): Promise<BenchServer> {
 	const root = await realpath(await mkdtemp(join(tmpdir(), 'afd-specimen-')));
 	const runtime = await runtimePath();
 	await writeFile(join(root, 'index.html'), html);
@@ -53,8 +56,18 @@ export async function startBenchServer(config: LoadedConfig): Promise<BenchServe
 		configFile: false,
 		root,
 		plugins: [plugin],
+		// The HTML references a virtual entry; scan its actual import roots before
+		// dynamic specimen loading can discover dependencies and reload the page.
+		optimizeDeps: { entries: [runtime, ...new Set(Object.values(config.modules))] },
 		logLevel: 'silent',
-		server: { host: '127.0.0.1', port: 0, fs: { allow: [root, config.root, dirname(runtime)] } },
+		server: {
+			host: '127.0.0.1',
+			port: 0,
+			// Captures must retain their document even if dependency discovery or a
+			// source edit requests a reload. Interactive benches retain live updates.
+			hmr: options.automation ? false : undefined,
+			fs: { allow: [root, config.root, dirname(runtime)] },
+		},
 	});
 	try {
 		await server.listen();

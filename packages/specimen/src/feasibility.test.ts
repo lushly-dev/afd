@@ -147,6 +147,18 @@ describe('native specimen feasibility in Chromium', () => {
 		expect(activated.manifest.checkpoint).toBe('checked');
 	});
 
+	it('includes next-frame click and fill updates at action checkpoints', async () => {
+		const clicked = await bench.render({ id: 'frame-updated', checkpoint: 'clicked' });
+		expect(element(clicked, 'button').attributes['aria-pressed']).toBe('true');
+		expect(clicked.channels.a11y.snapshot).toContain('[pressed]');
+		for (const checkpoint of ['filled', 'after-run']) {
+			const filled = await bench.render({ id: 'frame-updated', checkpoint });
+			expect(element(filled, 'input').state.value).toBe('frame-value');
+			expect(filled.channels.dom.raw).toContain('data-submitted="frame-value"');
+			expect(filled.channels.dom.raw).toContain('data-clicked-before-input="true"');
+		}
+	});
+
 	it('reports accessible-name and label-relationship changes', async () => {
 		const named = await bench.render({ id: 'named' });
 		const renamed = await bench.render({ id: 'renamed' });

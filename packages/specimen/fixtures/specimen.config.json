@@ -1,6 +1,12 @@
 {
 	"specimens": [
 		{
+			"id": "frame-updated",
+			"title": "Feasibility/FrameUpdated",
+			"module": "./probe.stories.ts",
+			"exportName": "FrameUpdated"
+		},
+		{
 			"id": "baseline",
 			"title": "Feasibility/Baseline",
 			"module": "./probe.stories.ts",

@@ -24,6 +24,8 @@ Every command emits one `CommandResult` JSON value on stdout. Errors use stderr 
 
 Use `--viewport 375x812`, `--container 320x600`, `--theme dark` or `--checkpoint hovered` with `render`. Viewport changes the browsing context; container constrains the mount element inside it. The `interactive` fixture exposes `hovered` and `focused` checkpoints. By default rendering stops at `mount`; `after-run` executes all supported scenario steps. The feasibility runner supports named click, focus, hover, fill and capture steps, using real Playwright input.
 
+Each action includes one animation-frame boundary before the next action or checkpoint, covering already queued frame callbacks and their microtasks. Later asynchronous work and animation completion require a future explicit readiness contract. Automated benches disable Vite hot reload so dependency discovery cannot replace a document during capture.
+
 ## Register a component
 
 The feasibility manifest is explicit metadata, so listing and loading one specimen never executes unrelated modules. Paths are relative to the configuration file and must resolve inside the project root. Automatic CSF discovery is a separate compatibility workstream.
@@ -89,3 +91,5 @@ The static page's Theme control applies CSS color-scheme and theme attributes. F
 `pnpm -F @lushly-dev/specimen test` runs unit, command/CLI and Chromium integration tests. Chromium must be installed; missing binaries are failures, not skipped acceptance. Browser-runtime coverage comes from those real-browser assertions; the Node V8 coverage report excludes browser-only modules because they execute in a different process.
 
 See [implementation status](../../docs/features/active/specimens/implementation.md) for the current acceptance boundary and remaining proposal gates.
+
+The opt-in [real consumer probes](experiments/README.md) exercise actual FAST-AF and Lushly source with recorded dependency limitations. They are separate from the self-contained package suite and do not establish retained-CSF parity.

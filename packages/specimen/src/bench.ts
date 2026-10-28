@@ -66,6 +66,11 @@ async function performSteps(
 		else if ('focus' in action) await locator.focus();
 		else if ('hover' in action) await locator.hover();
 		else await locator.fill(action.value);
+		// Include callbacks already queued for the next frame and their microtasks.
+		// This is a bounded checkpoint, not arbitrary async or animation settlement.
+		await page.evaluate(
+			() => new Promise<void>((resolveFrame) => requestAnimationFrame(() => resolveFrame()))
+		);
 	}
 }
 async function deadline<T>(promise: Promise<T>, milliseconds: number): Promise<T> {
@@ -94,7 +99,7 @@ export interface SpecimenBench {
 }
 export async function createSpecimenBench(options: BenchOptions): Promise<SpecimenBench> {
 	const config = await loadConfig(options);
-	const server = await startBenchServer(config);
+	const server = await startBenchServer(config, { automation: true });
 	let browser: Promise<Browser> | undefined;
 	let closed = false;
 	const ensureOpen = () => {
@@ -239,16 +244,22 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 				);
 				disposed = true;
 				return observation;
-			} finally {
+			} catch (error) {
 				try {
 					if (runtimeReady && !disposed)
 						await deadline(
 							page.evaluate(() => window.__specimen.dispose()),
 							Math.min(request.timeoutMs, 1000)
 						);
-				} finally {
-					await browserContext.close();
+				} catch (cleanupError) {
+					throw new AggregateError(
+						[error, cleanupError],
+						`Specimen render and disposal failed: ${String(error)}; ${String(cleanupError)}`
+					);
 				}
+				throw error;
+			} finally {
+				await browserContext.close();
 			}
 		},
 		async close() {

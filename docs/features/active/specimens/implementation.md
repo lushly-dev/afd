@@ -1,6 +1,6 @@
 # Specimens implementation
 
-Status: native feasibility milestone validated locally, 2026-10-28; complete workstream 0 remains open. Branch: `codex/specimens-feasibility`. Base: `bc43019a4acd237e5ef3a2bf65f21564900143aa`.
+Status: native feasibility milestone committed as `f1bc4488`; exploratory real-consumer pilot validated locally, 2026-10-28. Complete workstream 0 remains open. Branch: `codex/specimens-feasibility`. Base: `bc43019a4acd237e5ef3a2bf65f21564900143aa`.
 
 The [proposal](../../proposed/specimens/specimens.proposal.md) remains the full acceptance contract. This milestone builds the first local observation tool; consumer migration and Storybook removal remain gated by the later compatibility and operational checks.
 
@@ -28,7 +28,7 @@ The first package is [`@lushly-dev/specimen`](../../../../packages/specimen/READ
 - [x] Full TypeScript repository `pnpm check` recorded for the final local source.
 - [x] Independent capture-only interpretation experiment recorded.
 
-The complete workstream 0 gate remains open: representative FAST-AF/Lushly consumers, their current cost baseline, and parity across the eventual Vitest browser driver are not established by this native fixture milestone. Helper and axe budget categories remain unmeasured until integrated. The proposal's compatibility adapter, full coverage rules, token-impact plugin and consumer cutover have not been implemented.
+The complete workstream 0 gate remains open. The later [real-consumer pilot](consumer-validation.md) exercises eight actual FAST-AF/Lushly components with sixteen behavior captures, but frozen current dependency conditions, an incumbent cost baseline, full consumer acceptance and eventual Vitest browser-driver parity remain unestablished. Helper and axe budget categories remain unmeasured until integrated. The proposal's compatibility adapter, full coverage rules, token-impact plugin and consumer cutover have not been implemented.
 
 ## Validation receipts
 
@@ -57,4 +57,4 @@ A bounded read-only reviewer found four issues. All were corrected and closed by
 
 The static Theme control applies CSS color-scheme and theme attributes. Forced browser/OS `prefers-color-scheme` parity with the CLI's browser emulation is not proven. Closed-root construction tracking covers the initialized specimen realm and cannot retrospectively inspect pre-existing or untouched foreign-realm internals. The complete proposal gate must account for these limits before general consumer acceptance.
 
-Next work is representative consumer feasibility and baseline measurement, followed by the supported CSF compatibility slice. No consumer Storybook configuration or suite was modified by this milestone.
+The consumer pilot found and corrected queued-update capture timing and cold Vite reload races, with 71 package tests now passing. See its [validation record](consumer-validation.md) for measured scope, incomplete evidence and the Rust assessment. Next work is current consumer baseline measurement and the supported CSF compatibility slice. No consumer Storybook configuration or suite was modified.
