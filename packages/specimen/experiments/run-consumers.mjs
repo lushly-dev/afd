@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { execFile as execFileCallback } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
+	appendFile,
 	cp,
 	mkdir,
 	mkdtemp,
@@ -33,6 +34,38 @@ const samples = Number(option('--samples', '5'));
 if (!Number.isInteger(samples) || samples < 1 || samples > 20) {
 	throw new Error('--samples must be an integer from 1 to 20');
 }
+const resourceEvents = process.env.SPECIMEN_RESOURCE_EVENTS;
+const resourceIdleMs = resourceEvents ? Number(process.env.SPECIMEN_RESOURCE_IDLE_MS ?? '1000') : 0;
+if (!Number.isInteger(resourceIdleMs) || resourceIdleMs < 0 || resourceIdleMs > 10_000) {
+	throw new Error('SPECIMEN_RESOURCE_IDLE_MS must be an integer from 0 to 10000');
+}
+let phaseId = 0;
+async function phase(name, work, details = {}) {
+	if (!resourceEvents) return work();
+	const id = ++phaseId;
+	const record = (event) =>
+		appendFile(
+			resourceEvents,
+			`${JSON.stringify({
+				type: 'phase',
+				id,
+				name,
+				event,
+				...details,
+				timestampMs: Date.now(),
+			})}\n`
+		);
+	await record('start');
+	try {
+		return await work();
+	} finally {
+		await record('end');
+	}
+}
+const idle = (name, consumer) =>
+	phase(name, () => new Promise((resolveIdle) => setTimeout(resolveIdle, resourceIdleMs)), {
+		consumer,
+	});
 const roots = {
 	'fast-af': resolve(option('--fast-af', join(homedir(), 'github/fast-af'))),
 	lushly: resolve(option('--lushly', join(homedir(), 'github/lushly'))),
@@ -72,10 +105,10 @@ function summary(values) {
 		max: sorted.at(-1),
 	};
 }
-async function measuredRender(bench, request) {
+async function measuredRender(render) {
 	const cpu = process.cpuUsage();
 	const start = performance.now();
-	const capture = await bench.render(request);
+	const capture = await render();
 	const elapsedMs = performance.now() - start;
 	const used = process.cpuUsage(cpu);
 	return {
@@ -169,6 +202,8 @@ const report = {
 		cold: 'new Vite bench/cache directory and Chromium process; OS/package caches retained',
 		warm: 'primed Vite bench/Chromium process; fresh browser context per render',
 		memory: 'Node coordinator RSS only; excludes Chromium and is not total suite memory',
+		resourceEvents: resourceEvents ?? null,
+		resourceIdleMs,
 		performance:
 			'pilot timing under shared host load; no incumbent baseline or fixed acceptance tolerances',
 	},
@@ -178,14 +213,32 @@ const report = {
 for (const descriptor of descriptors) {
 	const directory = join(output, descriptor.name);
 	await mkdir(directory);
-	const result = { name: descriptor.name, status: 'failed' };
+	const result = {
+		name: descriptor.name,
+		status: 'failed',
+		successfulRenders: 0,
+		verifiedCaptures: 0,
+	};
 	report.consumers.push(result);
+	const observe = async (bench, request, details = {}) => {
+		const capture = await phase('render', () => bench.render(request), {
+			consumer: descriptor.name,
+			specimenId: request.id,
+			...details,
+		});
+		assert.deepEqual(capture.channels.console.errors, [], `${request.id}: browser errors`);
+		result.successfulRenders++;
+		return capture;
+	};
 	let root;
 	try {
+		if (resourceEvents) await idle('baseline-idle', descriptor.name);
 		// A neutral temporary root avoids inheriting AFD's Git and lockfile identities.
 		root = await realpath(await mkdtemp(join(tmpdir(), `specimens-${descriptor.name}-`)));
 		result.snapshot = { executionRoot: root, retainedRoot: join(directory, 'project') };
-		result.provenance = await prepare(descriptor, root);
+		result.provenance = await phase('prepare', () => prepare(descriptor, root), {
+			consumer: descriptor.name,
+		});
 		await json(join(directory, 'capture-provenance.json'), {
 			...result.provenance,
 			captureIdentity:
@@ -194,26 +247,40 @@ for (const descriptor of descriptors) {
 				'declared lock hashes and installed versions are separate; installed links are not a frozen-lockfile installation',
 		});
 		const captures = {};
-		const bench = await createSpecimenBench({ root });
+		const bench = await phase('bench-create', () => createSpecimenBench({ root }), {
+			consumer: descriptor.name,
+			kind: 'warm',
+		});
 		try {
 			for (const item of descriptor.captures) {
-				const capture = await bench.render({ ...item.request, timeoutMs: 20_000 });
+				const capture = await observe(
+					bench,
+					{ ...item.request, timeoutMs: 20_000 },
+					{ kind: 'assertion', key: item.key }
+				);
 				captures[item.key] = capture;
 				await json(join(directory, `${item.key}.json`), capture);
 				assert.deepEqual(capture.channels.console.errors, [], `${item.key}: browser errors`);
 			}
 			result.findings = descriptor.verify(captures);
+			result.verifiedCaptures = descriptor.captures.length;
 			const request = descriptor.captures[0].request;
-			const repeat = await bench.render(request);
+			const repeat = await observe(bench, request, { kind: 'repeat' });
 			result.repeat = diffObservations(captures[descriptor.captures[0].key], repeat);
 			await json(join(directory, 'repeat-diff.json'), result.repeat);
 			const capture = captures[descriptor.captures[0].key];
 			const timings = [];
-			for (let index = 0; index < 100; index++) {
-				const start = performance.now();
-				diffObservations(capture, repeat);
-				timings.push(performance.now() - start);
-			}
+			await phase(
+				'comparison',
+				async () => {
+					for (let index = 0; index < 100; index++) {
+						const start = performance.now();
+						diffObservations(capture, repeat);
+						timings.push(performance.now() - start);
+					}
+				},
+				{ consumer: descriptor.name }
+			);
 			result.comparison = {
 				iterations: 100,
 				milliseconds: summary(timings),
@@ -221,21 +288,35 @@ for (const descriptor of descriptors) {
 			};
 			result.warm = [];
 			for (let index = 0; index < samples; index++) {
-				result.warm.push((await measuredRender(bench, request)).metrics);
+				result.warm.push(
+					(await measuredRender(() => observe(bench, request, { kind: 'warm', index }))).metrics
+				);
 			}
 			result.warmMilliseconds = summary(result.warm.map((sample) => sample.elapsedMs));
+			if (resourceEvents) await idle('warm-idle', descriptor.name);
 		} finally {
-			await bench.close();
+			await phase('bench-close', () => bench.close(), { consumer: descriptor.name, kind: 'warm' });
 		}
+		if (resourceEvents) await idle('post-close-idle', descriptor.name);
 		result.cold = [];
 		for (let index = 0; index < samples; index++) {
 			const start = performance.now();
-			const cold = await createSpecimenBench({ root });
+			const cold = await phase('bench-create', () => createSpecimenBench({ root }), {
+				consumer: descriptor.name,
+				kind: 'cold',
+				index,
+			});
 			try {
-				const sample = await measuredRender(cold, descriptor.captures[0].request);
+				const sample = await measuredRender(() =>
+					observe(cold, descriptor.captures[0].request, { kind: 'cold', index })
+				);
 				result.cold.push({ ...sample.metrics, startupAndRenderMs: performance.now() - start });
 			} finally {
-				await cold.close();
+				await phase('bench-close', () => cold.close(), {
+					consumer: descriptor.name,
+					kind: 'cold',
+					index,
+				});
 			}
 		}
 		result.coldMilliseconds = summary(result.cold.map((sample) => sample.startupAndRenderMs));

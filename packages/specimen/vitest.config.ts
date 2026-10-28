@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
 	test: {
 		globals: false,
-		include: ['src/**/*.test.ts'],
+		include: ['src/**/*.test.ts', 'experiments/resources/**/*.test.mjs'],
 		testTimeout: 30000,
 		hookTimeout: 30000,
 		maxWorkers: 2,
