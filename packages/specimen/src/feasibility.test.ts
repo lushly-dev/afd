@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { extname, join, relative, resolve } from 'node:path';
 import { type Browser, chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createInProcessBench as createSpecimenBench } from './bench-runtime.js';
 import { diffObservations } from './diff.js';
-import { createSpecimenBench } from './index.js';
 import type { ElementObservation, Observation } from './types.js';
 
 const root = resolve(import.meta.dirname, '../fixtures');

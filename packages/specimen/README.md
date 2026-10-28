@@ -74,6 +74,12 @@ try {
 
 `createSpecimenCommands(bench)` returns MCP-exposed AFD definitions suitable for `createMcpServer({ commands })`. CLI and programmatic command execution validate the same inputs and outputs. Browser resources and Vite's local server remain owned by the bench and must be closed by its caller.
 
+Creating or listing a bench loads configuration without importing Vite/Playwright or starting a browser. The first render/build loads the runtime in the caller's process by default. Operations accepted by one bench run serially; `close()` rejects new work, drains accepted work and releases its backend references. Always await it.
+
+For long-lived SDK or MCP hosts that need to recover runtime memory after closing a bench, use `createSpecimenBench({ root, runtimeIsolation: 'process' })`. This starts one private Node worker on first use and waits for its exit during close. Reuse a bench across captures to amortize startup. The compiled package must be built before using this mode, including from source tests; it launches plain JavaScript without inheriting TypeScript loaders.
+
+Process isolation substantially reduced post-close retained memory in the real consumer pilot, but repeated cold workers increased CPU. It is an explicit resource tradeoff, described in the [heap lifetime validation](../../docs/features/active/specimens/heap-lifetime-validation.md). Normal in-process close does not unload imported modules or promise immediate RSS reclamation. Worker abort has bounded cleanup, but a blocked worker requiring an OS kill cannot guarantee descendant cleanup; Windows cleanup remains empirically unverified.
+
 ## Interpret the evidence
 
 - `changed` means a difference was observed in compatible DOM, ARIA, layout, selected styles or live state. `no-change-observed` is restricted to that scope. Partial required channels yield `insufficient-evidence`, with observed differences retained.

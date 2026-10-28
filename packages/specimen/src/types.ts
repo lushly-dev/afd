@@ -56,6 +56,8 @@ export interface BenchConfig {
 }
 export interface BenchOptions {
 	root: string;
+	/** Process isolation releases runtime caches on close at the cost of cold-start CPU. */
+	runtimeIsolation?: 'in-process' | 'process';
 	configFile?: string;
 	executablePath?: string;
 }

@@ -2,26 +2,23 @@
 import assert from 'node:assert/strict';
 /** Exploratory native wrappers; this does not execute or compare retained CSF suites. */
 import { execFile as execFileCallback } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import {
-	appendFile,
-	cp,
-	mkdir,
-	mkdtemp,
-	readdir,
-	readFile,
-	realpath,
-	rm,
-	symlink,
-	writeFile,
-} from 'node:fs/promises';
+import { appendFile, cp, mkdir, mkdtemp, readdir, realpath, rm, writeFile } from 'node:fs/promises';
 import { cpus, freemem, homedir, loadavg, platform, release, tmpdir, totalmem } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { performance } from 'node:perf_hooks';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import { createSpecimenBench, diffObservations } from '../dist/index.js';
+import { readGitState as git, prepareConsumerProject } from './consumer-project.mjs';
 import fastAf from './fast-af.fixture.mjs';
 import lushly from './lushly.fixture.mjs';
+
+const apiPath = resolve(
+	process.env.SPECIMEN_BENCH_API ?? join(import.meta.dirname, '../dist/index.js')
+);
+const { createSpecimenBench, diffObservations } = await import(pathToFileURL(apiPath).href);
+const runtimeIsolation = process.env.SPECIMEN_BENCH_ISOLATION ?? 'in-process';
+if (!['in-process', 'process'].includes(runtimeIsolation))
+	throw new Error('SPECIMEN_BENCH_ISOLATION must be in-process or process');
 
 const execFile = promisify(execFileCallback);
 const args = process.argv.slice(2);
@@ -78,15 +75,6 @@ if (!descriptors.length) throw new Error('Unknown --consumer; use fast-af, lushl
 await mkdir(output, { recursive: true });
 if ((await readdir(output)).length) throw new Error('Evidence output must be empty');
 const json = (file, value) => writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
-const hash = (value) => createHash('sha256').update(value).digest('hex');
-async function git(root) {
-	const run = async (...command) => (await execFile('git', ['-C', root, ...command])).stdout.trim();
-	return {
-		root,
-		revision: await run('rev-parse', 'HEAD'),
-		status: await run('status', '--porcelain'),
-	};
-}
 async function workloads() {
 	const { stdout } = await execFile('ps', ['-axo', 'comm=']);
 	return {
@@ -120,75 +108,14 @@ async function measuredRender(render) {
 		},
 	};
 }
-async function prepare(descriptor, destination) {
-	const source = roots[descriptor.name];
-	const before = await git(source);
-	if (before.status) throw new Error(`Consumer checkout must be clean: ${source}`);
-	await mkdir(destination, { recursive: true });
-	for (const path of descriptor.paths) {
-		await mkdir(dirname(join(destination, path)), { recursive: true });
-		await cp(join(source, path), join(destination, path), { recursive: true });
-	}
-	const dependencies = [];
-	for (const link of descriptor.dependencyLinks) {
-		const target = await realpath(join(source, link.from));
-		await mkdir(dirname(join(destination, link.to)), { recursive: true });
-		await symlink(target, join(destination, link.to), 'dir');
-		dependencies.push({ ...link, target });
-	}
-	await writeFile(join(destination, 'probe.ts'), descriptor.source);
-	await json(join(destination, 'specimen.config.json'), { specimens: descriptor.specimens });
-	if (descriptor.tsconfig) await json(join(destination, 'tsconfig.json'), descriptor.tsconfig);
-	for (const [file, content] of Object.entries(descriptor.generatedFiles ?? {})) {
-		await mkdir(dirname(join(destination, file)), { recursive: true });
-		await writeFile(join(destination, file), content);
-	}
-	const installed = [];
-	for (const base of [
-		'node_modules',
-		'apps/web/node_modules',
-		'packages/violet-elements/node_modules',
-	]) {
-		for (const name of [
-			'vite',
-			'vitest',
-			'playwright',
-			'storybook',
-			'@lushly-dev/fast-element',
-			'@microsoft/fast-element',
-			'@lushly-dev/violet-elements',
-		]) {
-			try {
-				const file = join(source, base, name, 'package.json');
-				const pkg = JSON.parse(await readFile(file, 'utf8'));
-				installed.push({ name, version: pkg.version, path: await realpath(file) });
-			} catch {
-				/* Absent packages are not part of this link's installed graph. */
-			}
-		}
-	}
-	const declaredInputs = [];
-	for (const file of ['pnpm-lock.yaml', 'package.json', 'apps/web/package.json']) {
-		try {
-			declaredInputs.push({ file, sha256: hash(await readFile(join(source, file))) });
-		} catch {
-			/* This consumer may not have a web workspace or pnpm lockfile. */
-		}
-	}
-	return {
-		before,
-		dependencies,
-		installed,
-		declaredInputs,
-		wrapperSha256: hash(descriptor.source),
-	};
-}
 const report = {
 	formatVersion: 1,
 	purpose: 'Exploratory native consumer observation; no CSF or performance parity claim',
 	createdUtc: new Date().toISOString(),
 	afd: await git(resolve(import.meta.dirname, '../../..')),
 	runtime: { node: process.version, executable: process.execPath },
+	apiPath,
+	runtimeIsolation,
 	host: {
 		platform: platform(),
 		release: release(),
@@ -236,9 +163,13 @@ for (const descriptor of descriptors) {
 		// A neutral temporary root avoids inheriting AFD's Git and lockfile identities.
 		root = await realpath(await mkdtemp(join(tmpdir(), `specimens-${descriptor.name}-`)));
 		result.snapshot = { executionRoot: root, retainedRoot: join(directory, 'project') };
-		result.provenance = await phase('prepare', () => prepare(descriptor, root), {
-			consumer: descriptor.name,
-		});
+		result.provenance = await phase(
+			'prepare',
+			() => prepareConsumerProject(descriptor, roots[descriptor.name], root),
+			{
+				consumer: descriptor.name,
+			}
+		);
 		await json(join(directory, 'capture-provenance.json'), {
 			...result.provenance,
 			captureIdentity:
@@ -247,10 +178,14 @@ for (const descriptor of descriptors) {
 				'declared lock hashes and installed versions are separate; installed links are not a frozen-lockfile installation',
 		});
 		const captures = {};
-		const bench = await phase('bench-create', () => createSpecimenBench({ root }), {
-			consumer: descriptor.name,
-			kind: 'warm',
-		});
+		const bench = await phase(
+			'bench-create',
+			() => createSpecimenBench({ root, runtimeIsolation }),
+			{
+				consumer: descriptor.name,
+				kind: 'warm',
+			}
+		);
 		try {
 			for (const item of descriptor.captures) {
 				const capture = await observe(
@@ -301,11 +236,15 @@ for (const descriptor of descriptors) {
 		result.cold = [];
 		for (let index = 0; index < samples; index++) {
 			const start = performance.now();
-			const cold = await phase('bench-create', () => createSpecimenBench({ root }), {
-				consumer: descriptor.name,
-				kind: 'cold',
-				index,
-			});
+			const cold = await phase(
+				'bench-create',
+				() => createSpecimenBench({ root, runtimeIsolation }),
+				{
+					consumer: descriptor.name,
+					kind: 'cold',
+					index,
+				}
+			);
 			try {
 				const sample = await measuredRender(() =>
 					observe(cold, descriptor.captures[0].request, { kind: 'cold', index })

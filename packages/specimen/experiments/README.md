@@ -47,6 +47,8 @@ Ownership follows verified PID/start/unique identities and matching kernel paren
 
 Evidence includes `resource-report.json`, `calibration.json`, per-consumer `resources.json`, raw `processes.jsonl`, phase events, collector source/binary/compiler identities, controller stop records and the original native probe artifacts. Observer CPU/memory is reported separately from the target. The resource runner binds measurement source hashes before and after execution. Native collector/guard compilation is setup outside the target job totals; the controller is also outside the target process family.
 
+Use `--isolation in-process` (default) or `--isolation process` to compare backend lifetime. `--api /absolute/path/to/index.js` selects a frozen compiled implementation; JavaScript hashes are checked before and after each job. Older APIs can ignore the new isolation option, so the requested mode alone does not prove backend support. The direct `run-consumers.mjs` equivalent is `SPECIMEN_BENCH_ISOLATION=process` and optionally `SPECIMEN_BENCH_API=/absolute/path/to/index.js`.
+
 The pure resource tests run with the package suite. To run them alone:
 
 ```sh
@@ -54,3 +56,20 @@ pnpm -F @lushly-dev/specimen exec vitest run experiments/resources
 ```
 
 See the [resource validation record](../../../docs/features/active/specimens/resource-validation.md) for measured results and remaining limits.
+
+## Diagnostic heap lifetime
+
+Run a separate, guarded allocation-sampling job:
+
+```sh
+node packages/specimen/experiments/run-heap-profile.mjs \
+  --fast-af /path/to/clean/fast-af \
+  --lushly /path/to/clean/lushly \
+  --isolation process \
+  --batches 3 \
+  --out /path/to/empty-heap-evidence
+```
+
+The driver samples the coordinator's main V8 isolate before/after API import, during three real capture batches, after closing each bench while retaining its public handle, and after releasing all handles. Natural post-close and explicit diagnostic-GC checkpoints are separate. It records V8 heap spaces/code statistics, Node memory counters, active resources, weak handle liveness and raw `.heapprofile.json` allocation samples. It does not take full heap snapshots or identify dominator paths. Allocation self sizes are statistical surviving allocation estimates, not proof of which object retains them; native memory and worker isolates are outside this profile. Use the surrounding process-family metrics for total resource cost.
+
+The same admission and family limits apply; these instrumented/GC runs are separate from ordinary CPU/memory acceptance. Production cleanup never forces GC. `--consumer fast-af|lushly`, `--api`, `--isolation` and per-consumer source paths allow bounded repeat runs. An admission hold remains a failed/held receipt; retry only the held consumer after headroom returns. See [heap lifetime validation](../../../docs/features/active/specimens/heap-lifetime-validation.md) for findings and the CPU/memory tradeoff.

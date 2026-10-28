@@ -4,6 +4,7 @@ import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { arch, cpus, platform, release } from 'node:os';
 import { join, resolve } from 'node:path';
 import { calibrate } from './resources/calibrate.mjs';
+import { apiIdentity } from './resources/heap.mjs';
 import { admission, hostSnapshot } from './resources/host.mjs';
 import { buildCollector, readJsonLines, runCollected } from './resources/native.mjs';
 import { summarizeResources } from './resources/summary.mjs';
@@ -18,6 +19,9 @@ const samples = Number(option('--samples', '5'));
 if (!Number.isInteger(samples) || samples < 1 || samples > 20)
 	throw new Error('--samples must be 1..20');
 const selected = option('--consumer', 'all');
+const runtimeIsolation = option('--isolation', 'in-process');
+if (!['in-process', 'process'].includes(runtimeIsolation))
+	throw new Error('--isolation must be in-process or process');
 const consumers = ['fast-af', 'lushly'].filter((name) => selected === 'all' || name === selected);
 if (!consumers.length) throw new Error('--consumer must be all, fast-af or lushly');
 await mkdir(directory, { recursive: true });
@@ -26,6 +30,7 @@ const json = (file, data) => writeFile(file, `${JSON.stringify(data, null, 2)}\n
 const implementationFiles = [
 	'run-resources.mjs',
 	'run-consumers.mjs',
+	'consumer-project.mjs',
 	'fast-af.fixture.mjs',
 	'lushly.fixture.mjs',
 	...(await readdir(join(import.meta.dirname, 'resources')))
@@ -46,6 +51,7 @@ async function implementationDigests() {
 }
 const report = {
 	formatVersion: 1,
+	runtimeIsolation,
 	createdUtc: new Date().toISOString(),
 	status: 'failed',
 	purpose: 'Single-job native resource pilot; no incumbent savings or concurrency claim',
@@ -108,18 +114,23 @@ try {
 				if (value) childArgs.push(name, resolve(value));
 			}
 			const observerCpu = process.cpuUsage();
+			const apiPath = resolve(option('--api', join(import.meta.dirname, '../dist/index.js')));
+			profile.apiBefore = await apiIdentity(apiPath);
 			const run = await runCollected({
 				collector: report.collector,
 				directory: profileDirectory,
 				command: process.execPath,
 				args: childArgs,
 				env: {
+					SPECIMEN_BENCH_ISOLATION: runtimeIsolation,
+					...(option('--api') ? { SPECIMEN_BENCH_API: resolve(option('--api')) } : {}),
 					SPECIMEN_RESOURCE_EVENTS: phasesFile,
 					SPECIMEN_RESOURCE_IDLE_MS: String(report.budgets.idleWindowMs),
 				},
 				...report.budgets,
 			});
 			profile.controllerCpu = process.cpuUsage(observerCpu);
+			profile.apiAfter = await apiIdentity(apiPath);
 			profile.controllerRssBytes = process.memoryUsage().rss;
 			profile.collectorExit = {
 				code: run.code,
@@ -161,6 +172,7 @@ try {
 			};
 			profile.status =
 				run.code === 0 &&
+				JSON.stringify(profile.apiBefore) === JSON.stringify(profile.apiAfter) &&
 				!run.timedOut &&
 				!run.parseError &&
 				result.status === 'passed' &&

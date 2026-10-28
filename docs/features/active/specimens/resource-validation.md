@@ -45,4 +45,4 @@ Local ignored evidence: `test-results/specimens-resources-final-admitted/resourc
 
 ## Acceptance boundary
 
-The next comparison requires frozen current consumer dependencies/assets and the actual incumbent Storybook/Vitest path with equivalent checks. Full-suite resource comparison waits for retained-CSF parity. The retained Node/Vite footprint makes coordinator loading, cache lifetime and heap retention useful next profiling targets; one-second retention does not establish a leak. Rust and lifecycle/cache changes remain candidates for measured improvements. Concurrent capacity and long-duration repeated-batch growth remain unmeasured.
+The next incumbent comparison requires frozen current consumer dependencies/assets and the actual Storybook/Vitest path with equivalent checks. Full-suite comparison waits for retained-CSF parity. Follow-up [heap/cache lifetime profiling](heap-lifetime-validation.md) now records diagnostic allocation samples, lazy runtime loading and optional process isolation, including its CPU cost. Concurrent capacity and long-duration repeated-batch growth remain unmeasured.
