@@ -756,8 +756,8 @@ async fn test_command_not_found() {
 
 ## Cargo.toml Configuration
 
-`afd` 0.2.0 is published and verified on crates.io. Install with `cargo add afd`,
-or pin this release with `cargo add afd@=0.2.0`.
+`afd` 0.2.1 is published and verified on crates.io, with API docs on docs.rs. Install
+with `cargo add afd`, or pin this release with `cargo add afd@=0.2.1`.
 
 ```toml
 [package]
