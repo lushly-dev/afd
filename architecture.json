@@ -116,6 +116,31 @@
 			"layer": "foundation"
 		},
 		{
+			"manifest": "foundations/violet/packages/core/package.json",
+			"family": "violet",
+			"layer": "foundation"
+		},
+		{
+			"manifest": "foundations/violet/packages/runtime/package.json",
+			"family": "violet",
+			"layer": "foundation"
+		},
+		{
+			"manifest": "integrations/violet-afd/package.json",
+			"family": "violet",
+			"layer": "integration"
+		},
+		{
+			"manifest": "endpoints/violet-cli/package.json",
+			"family": "violet",
+			"layer": "endpoint"
+		},
+		{
+			"manifest": "endpoints/violet-server/package.json",
+			"family": "violet",
+			"layer": "endpoint"
+		},
+		{
 			"manifest": "alfred/pyproject.toml",
 			"family": "alfred",
 			"layer": "endpoint",

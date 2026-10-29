@@ -13,6 +13,7 @@ export const testFiles = [
 	'scripts/skill-profiles.test.mjs',
 	'scripts/specimen-provenance.test.mjs',
 	'scripts/fast-af-provenance.test.mjs',
+	'scripts/violet-provenance.test.mjs',
 	'scripts/release-control.test.mjs',
 	'scripts/release/changeset.test.mjs',
 	'scripts/release/control.test.mjs',

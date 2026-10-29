@@ -1,0 +1,40 @@
+/**
+ * @fileoverview Violet error codes
+ *
+ * Shared by the native token API and the AFD command integration.
+ */
+
+/**
+ * Standard error codes used across Violet commands
+ */
+export const ErrorCodes = {
+	// Node errors
+	NODE_NOT_FOUND: 'NODE_NOT_FOUND',
+	NODE_ALREADY_EXISTS: 'NODE_ALREADY_EXISTS',
+	NODE_HAS_CHILDREN: 'NODE_HAS_CHILDREN',
+	INVALID_PARENT: 'INVALID_PARENT',
+	CIRCULAR_REFERENCE: 'CIRCULAR_REFERENCE',
+
+	// Token errors
+	TOKEN_NOT_FOUND: 'TOKEN_NOT_FOUND',
+	TOKEN_ALREADY_EXISTS: 'TOKEN_ALREADY_EXISTS',
+	INVALID_TOKEN_VALUE: 'INVALID_TOKEN_VALUE',
+	TOKEN_REFERENCE_NOT_FOUND: 'TOKEN_REFERENCE_NOT_FOUND',
+
+	// Operation errors
+	INVALID_OPERATION: 'INVALID_OPERATION',
+	OPERATION_NOT_ALLOWED: 'OPERATION_NOT_ALLOWED',
+
+	// Constraint errors
+	CONSTRAINT_VIOLATION: 'CONSTRAINT_VIOLATION',
+	CONTRAST_TOO_LOW: 'CONTRAST_TOO_LOW',
+	VALUE_OUT_OF_RANGE: 'VALUE_OUT_OF_RANGE',
+
+	// System errors
+	DATABASE_ERROR: 'DATABASE_ERROR',
+	VALIDATION_ERROR: 'VALIDATION_ERROR',
+	INTERNAL_ERROR: 'INTERNAL_ERROR',
+	NOT_IMPLEMENTED: 'NOT_IMPLEMENTED',
+} as const;
+
+export type ErrorCode = (typeof ErrorCodes)[keyof typeof ErrorCodes];

@@ -14,7 +14,9 @@
  *   Where N ≤ 1000 (hard cap). File must still be under N lines.
  *
  * Skip patterns: *.stories.ts, *.test.ts, *.spec.ts, *.d.ts, generated files
- * Skip directories: alfred/, python/, packages/rust/, foundations/fast-af/ (imported upstream source)
+ * Skip directories: alfred/, python/, packages/rust/, and the imported upstream source in
+ *   foundations/fast-af/, foundations/violet/, integrations/violet-afd/, endpoints/violet-cli/
+ *   and endpoints/violet-server/
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
@@ -38,7 +40,7 @@ const SKIP_SUFFIXES = [
 	'.test.mjs',
 	'.spec.mjs',
 ];
-// foundations/fast-af is upstream source bound to file-level provenance hashes; splitting it is not an import.
+// FAST-AF and Violet are upstream source bound to file-level provenance hashes; splitting it is not an import.
 const SKIP_DIRS = [
 	'node_modules',
 	'dist',
@@ -46,6 +48,10 @@ const SKIP_DIRS = [
 	'python',
 	'packages/rust',
 	'foundations/fast-af',
+	'foundations/violet',
+	'integrations/violet-afd',
+	'endpoints/violet-cli',
+	'endpoints/violet-server',
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
