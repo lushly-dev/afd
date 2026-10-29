@@ -86,6 +86,7 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 
 **Key rules:**
 - Always run `pnpm check` before pushing — catches everything `ci.yml` would catch
+- The pre-push `test` step does not install or build, and packages import each other's `dist`: after pulling `main` run `pnpm install`, and after changing a package another one imports run `pnpm build` (or `pnpm check`), before `git push`, or the hook fails on stale output
 - Changed `python/`, `packages/rust/` or `packages/cpp/`? `pnpm check` does not test them. Run the commands from `python.yml`, `rust.yml` or `cpp.yml` locally (`cd python && uv run pytest -q`; `cd packages/rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test`; `cd packages/cpp && cmake --preset dev && cmake --build --preset dev && ctest --preset dev`)
 - Workflow actions are pinned to full commit SHAs with a `# vX.Y.Z` comment; Dependabot updates them
 - Changesets manages versioning — run `pnpm changeset` to describe publishable package changes
