@@ -78,19 +78,17 @@ export interface DirectClientOptions {
 	random?: RandomSource;
 
 	/**
-	 * Ask a human whether a call held with `APPROVAL_REQUIRED` (by `createApprovalMiddleware`)
-	 * may run. On `true`, the client retries the same call once, with the same input and actor
-	 * and `context.approval` set to the result's `details.approvalToken`, and returns the
-	 * retry's result. On `false`, any other value, or a hook that throws, the original
-	 * `APPROVAL_REQUIRED` result is returned unchanged. Without the hook, or when the result
-	 * carries no `details.approvalToken`, the result is returned unchanged.
+	 * Ask a human whether a call held by `createApprovalMiddleware` may run. On explicit
+	 * `true`, retry once with the same input and actor using a private credential exchange.
+	 * Approval credentials never appear in public results or `context.approval`. Public
+	 * `call`/`pipe` contexts cannot supply approval evidence. Custom registries must support
+	 * the exchange; a legacy token-in-result registry is held without prompting.
 	 *
-	 * The hook is trusted application code. It never sees the token, and the token never goes
-	 * into command input. `context.timeout` bounds each attempt, not the wait for the human: use
-	 * `request.signal`, which aborts with the call's signal, to close the prompt. A call whose
-	 * signal aborts during the wait counts as not approved. The token has a server-side expiry:
-	 * once it passes, the retry is held again (`details.reason: 'expired'`) and returned as is.
-	 * The client never retries more than once.
+	 * The hook is trusted application code and never sees the credential. On denial, a hook
+	 * error or no hook, return a token-free `APPROVAL_REQUIRED` result. `context.timeout`
+	 * bounds each attempt, not the wait: close the prompt when `request.signal` aborts.
+	 * Cancellation during the wait denies the call. An expired retry is held again with
+	 * `details.reason: 'expired'`; the client never retries more than once.
 	 *
 	 * In `pipe()`, each gated step asks when it is reached, with its resolved input; a denied
 	 * step fails like any other. A pipeline's `timeoutMs` includes the time spent waiting.
@@ -153,7 +151,7 @@ export interface DirectCallContext {
 	random?: RandomSource;
 
 	/**
-	 * Additional custom context values.
+	 * Additional custom context values. `approval` is reserved and stripped at runtime.
 	 */
 	[key: string]: unknown;
 }

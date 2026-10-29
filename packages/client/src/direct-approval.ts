@@ -4,31 +4,16 @@
  */
 
 import type { CommandResult } from '@lushly-dev/afd-core';
-import { ErrorCodes } from '@lushly-dev/afd-core';
 import type { DirectApprovalHook, DirectApprovalRequest } from './direct-types.js';
 
-/** What a held call's `APPROVAL_REQUIRED` result carries for the retry. */
-export interface HeldCall {
-	approvalToken: string;
-	expiresAt: string;
-	summary: string;
-	reason?: string;
-}
-
-/**
- * The approval details of an `APPROVAL_REQUIRED` result, or `undefined` for any other result
- * and for one without `details.approvalToken` (a server that delivers the token another way).
- */
-export function heldForApproval(result: CommandResult<unknown>): HeldCall | undefined {
-	if (result.success || result.error?.code !== ErrorCodes.APPROVAL_REQUIRED) return undefined;
-	const details = result.error.details;
-	if (!details || typeof details.approvalToken !== 'string') return undefined;
-	return {
-		approvalToken: details.approvalToken,
-		expiresAt: typeof details.expiresAt === 'string' ? details.expiresAt : '',
-		summary: typeof details.summary === 'string' ? details.summary : '',
-		...(typeof details.reason === 'string' && { reason: details.reason }),
-	};
+/** Older/custom registries cannot put approval credentials back into the public result. */
+export function publicApprovalResult<T>(result: CommandResult<T>): CommandResult<T> {
+	if (result.success || result.error?.code !== 'APPROVAL_REQUIRED' || !result.error.details) {
+		return result;
+	}
+	if (!('approvalToken' in result.error.details)) return result;
+	const { approvalToken: _token, ...details } = result.error.details;
+	return { ...result, error: { ...result.error, details } };
 }
 
 /**

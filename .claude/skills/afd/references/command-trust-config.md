@@ -50,7 +50,7 @@ createMcpServer({
 });
 ```
 
-A gated call fails with `APPROVAL_REQUIRED` before the handler runs; `error.details` has `approvalToken`, `expiresAt` and `summary`. After the human approves, retry the same command, input and actor with `context.approval` set to the token. Tokens are HMAC-signed, expire (5 minutes by default) and work once by default.
+A gated call fails with `APPROVAL_REQUIRED` before the handler runs; `error.details` has `approvalToken`, `expiresAt` and `summary`. After the human approves, retry the same command, input and actor with `context.approval` set to the token. Tokens are HMAC-signed, expire (5 minutes by default) and work once by default. This token-in-result path is for trusted host execution. DirectClient and createDirectRegistry use a private exchange and strip public `context.approval`; use the client's `onApprovalNeeded` hook. Their held results contain no credential, even with `includeToken: true`.
 
 - Only trusted surface code sets `context.approval`, never tool arguments. MCP calls leave the token out of the result by default (`includeToken` is `false` when `context.interface === 'mcp'`), so deliver it to the human through `onApprovalRequired`.
 - `relay: 'mcp-elicitation'` asks the human behind the MCP client instead: a single-command tool call from a client that declares form elicitation gets a form showing the summary and runs once the human accepts. No token is issued, and a declined form fails with `details.reason: 'declined'`. `afd-batch` and `afd-pipe` steps, and clients that cannot elicit, still get `APPROVAL_REQUIRED`. The relay trusts the client application to ask a person, so leave it off where the agent's own code is the MCP client. Several instances must share `confirmationKey` and `nonceStore`.

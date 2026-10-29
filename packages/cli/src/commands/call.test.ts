@@ -112,7 +112,7 @@ describe('afd call approvals (#417)', () => {
 		return { code: exitCode as number, stdout: stdout.join('\n'), stderr: stderr.join('') };
 	}
 
-	it('without a terminal or --approve, prints APPROVAL_REQUIRED unchanged and exits 1', async () => {
+	it('without a terminal or --approve, prints a token-free APPROVAL_REQUIRED and exits 1', async () => {
 		const { deleted } = await fixture();
 		deleted.length = 0;
 
@@ -130,7 +130,7 @@ describe('afd call approvals (#417)', () => {
 		expect(result.success).toBe(false);
 		expect(result.error.code).toBe('APPROVAL_REQUIRED');
 		expect(result.error.details).toMatchObject({ summary: 'Delete the todo (permanent)' });
-		expect(result.error.details.approvalToken).toMatch(/^afdap1\./);
+		expect(result.error.details).not.toHaveProperty('approvalToken');
 		expect(deleted).toEqual([]);
 	});
 

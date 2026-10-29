@@ -32,7 +32,11 @@ import {
 	truncateName,
 	validationError,
 } from '@lushly-dev/afd-core';
-import { askForApproval, heldForApproval } from './direct-approval.js';
+import {
+	createDirectApprovalExchange,
+	publicDirectContext,
+} from '@lushly-dev/afd-core/internal/direct-approval';
+import { askForApproval, publicApprovalResult } from './direct-approval.js';
 import { runWithTimeout } from './direct-timeout.js';
 import { validateInput } from './direct-validation.js';
 import type {
@@ -203,7 +207,11 @@ export class DirectClient {
 		// Clock and random are only set when configured, so a registry's own defaults
 		// (createDirectRegistry) still apply.
 		const actor = context?.actor ?? this.options.actor;
-		const commandContext: CommandContext = { traceId, ...context, actor };
+		const commandContext: CommandContext = {
+			traceId,
+			...publicDirectContext(context ?? {}),
+			actor,
+		};
 		const clock = context?.clock ?? this.options.clock;
 		if (clock) commandContext.clock = clock;
 		const random = context?.random ?? this.options.random;
@@ -217,48 +225,56 @@ export class DirectClient {
 		// Execute the command (with middleware if configured), enforcing context.timeout per
 		// attempt. Each attempt gets its own copy of the context, so middleware that changes it
 		// (such as auth refining the actor) starts from the same state on the approval retry.
-		const attempt = (approval?: string) => {
-			const attemptContext: CommandContext = {
+		const exchange = createDirectApprovalExchange();
+		const attempt = () => {
+			const attemptContext = exchange.bind({
 				...commandContext,
 				actor: { ...actor },
-			};
-			if (approval !== undefined) attemptContext.approval = approval;
+			});
 			return runWithTimeout<T>(name, context?.timeout, context?.signal, (signal) => {
 				if (signal) attemptContext.signal = signal;
 				return this.execute<T>(name, args, attemptContext);
 			});
 		};
-		let result = await attempt();
+		try {
+			let result = await attempt();
 
-		// A call held for approval: ask the hook, and on a yes retry once with the token.
-		const hook = this.options.onApprovalNeeded;
-		const held = hook ? heldForApproval(result) : undefined;
-		if (hook && held) {
-			this.debug(`[${traceId}] Approval needed for ${name}`);
-			const approved = await askForApproval(hook, {
-				command: name,
-				input: { ...args },
-				summary: held.summary,
-				expiresAt: held.expiresAt,
-				actor: { ...actor },
-				...(held.reason && { reason: held.reason }),
-				...(context?.signal && { signal: context.signal }),
-			});
-			// A call cancelled as the hook answered is not retried.
-			if (approved && !context?.signal?.aborted) {
-				this.debug(`[${traceId}] Approved; retrying ${name}`);
-				result = await attempt(held.approvalToken);
+			// A call held for approval: ask the hook, and on a yes retry once with the token.
+			const hook = this.options.onApprovalNeeded;
+			const held =
+				!result.success && result.error?.code === 'APPROVAL_REQUIRED'
+					? exchange.pending()
+					: undefined;
+			if (hook && held) {
+				this.debug(`[${traceId}] Approval needed for ${name}`);
+				const approved = await askForApproval(hook, {
+					command: name,
+					input: { ...args },
+					summary: held.summary,
+					expiresAt: held.expiresAt,
+					actor: { ...actor },
+					...(held.reason && { reason: held.reason }),
+					...(context?.signal && { signal: context.signal }),
+				});
+				// A call cancelled as the hook answered is not retried.
+				if (approved && !context?.signal?.aborted) {
+					this.debug(`[${traceId}] Approved; retrying ${name}`);
+					exchange.approve();
+					result = await attempt();
+				}
 			}
-		}
 
-		if (this.options.debug) {
-			const duration = performance.now() - startTime;
-			this.debug(`[${traceId}] Completed in ${duration.toFixed(3)}ms`, {
-				success: result.success,
-			});
-		}
+			if (this.options.debug) {
+				const duration = performance.now() - startTime;
+				this.debug(`[${traceId}] Completed in ${duration.toFixed(3)}ms`, {
+					success: result.success,
+				});
+			}
 
-		return result;
+			return publicApprovalResult(result);
+		} finally {
+			exchange.dispose();
+		}
 	}
 
 	/**

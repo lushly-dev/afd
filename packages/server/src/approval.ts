@@ -35,6 +35,11 @@ import type {
 } from '@lushly-dev/afd-core';
 import { ErrorCodes, failure, systemClock } from '@lushly-dev/afd-core';
 import {
+	directApprovalExchange,
+	holdDirectApproval,
+	takeDirectApproval,
+} from '@lushly-dev/afd-core/internal/direct-approval';
+import {
 	type ApprovalSecret,
 	actorJson,
 	canonicalJson,
@@ -44,7 +49,7 @@ import {
 	safeEqual,
 	toKeys,
 } from './approval-crypto.js';
-import { type ApprovalAnswer, approvalRelay } from './approval-relay.js';
+import { type ApprovalAnswer, approvalRelay, relayMessage } from './approval-relay.js';
 
 export { type ApprovalSecret, canonicalJson };
 
@@ -142,7 +147,8 @@ export interface ApprovalMiddlewareOptions {
 	 * when `context.interface` is `'mcp'` (every MCP lane, and the HTTP routes of
 	 * `createMcpHandler`), whose caller is the agent, and `true` elsewhere. Without the token in the result, deliver it to the approving human through
 	 * `onApprovalRequired`. `true` is safe only while the gated caller cannot set
-	 * `context.approval` itself.
+	 * `context.approval` itself. DirectClient, createDirectRegistry and the in-process CLI
+	 * use a private exchange instead: evidence is omitted regardless of this option.
 	 */
 	includeToken?: boolean;
 
@@ -367,8 +373,10 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		const actorBinding = actorJson(context.actor);
 
 		let rejected: ApprovalRejection | undefined;
-		if (context.approval !== undefined) {
-			const verdict = verify(context.approval, commandName, inputBinding, actorBinding, now);
+		const directExchange = directApprovalExchange(context);
+		const evidence = directExchange ? takeDirectApproval(context) : context.approval;
+		if (evidence !== undefined) {
+			const verdict = verify(evidence, commandName, inputBinding, actorBinding, now);
 			if (verdict.ok) {
 				if (await spend(verdict.nonce, verdict.expiresAt, now)) return next();
 				rejected = 'already-used';
@@ -430,7 +438,15 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		const payload = issue(commandName, inputBinding, actorBinding, now);
 		const approvalToken = sign(payload);
 		const expiresAt = new Date(payload.exp).toISOString();
-		const includeToken = options.includeToken ?? context.interface !== 'mcp';
+		const includeToken = !directExchange && (options.includeToken ?? context.interface !== 'mcp');
+		if (directExchange) {
+			holdDirectApproval(context, {
+				approvalToken,
+				expiresAt,
+				summary,
+				...(rejected && { reason: rejected }),
+			});
+		}
 
 		await options.onApprovalRequired?.({
 			command: commandName,
@@ -479,15 +495,4 @@ function parsePayload(encoded: string): TokenPayload | undefined {
 	const strings = ['c', 'i', 'a', 'n'].every((field) => typeof payload[field] === 'string');
 	const times = ['iat', 'exp'].every((field) => Number.isFinite(payload[field]));
 	return strings && times ? (payload as unknown as TokenPayload) : undefined;
-}
-
-/** Longest input shown in an approval elicitation, in characters. */
-const MAX_SHOWN_INPUT = 1000;
-
-/** The question of a relayed approval: the summary, then what exactly would run. */
-function relayMessage(summary: string, command: string, input: string, note?: string): string {
-	const shown = input.length > MAX_SHOWN_INPUT ? `${input.slice(0, MAX_SHOWN_INPUT)}…` : input;
-	return [...(note ? [note] : []), summary, '', `Command: ${command}`, `Input: ${shown}`].join(
-		'\n'
-	);
 }

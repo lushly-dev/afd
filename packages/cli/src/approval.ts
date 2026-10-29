@@ -14,6 +14,7 @@
 
 import { createInterface } from 'node:readline/promises';
 import type { CommandResult } from '@lushly-dev/afd-core';
+import type { DirectApprovalExchange } from '@lushly-dev/afd-core/internal/direct-approval';
 import { isYes } from './elicitation.js';
 import { sanitizeForTerminal } from './terminal.js';
 
@@ -85,6 +86,8 @@ export function interactiveApproval(): ApprovalPrompt | undefined {
 const RETRYABLE_REJECTIONS = new Set(['expired', 'already-used']);
 
 export interface ApprovalFlowOptions {
+	/** Private exchange for an in-process registry; credentials stay out of results. */
+	exchange?: DirectApprovalExchange;
 	/** Approve without asking (`--approve`): once, and only with a token the server returned. */
 	approve?: boolean;
 	/** Asks the human; without it and without `approve`, the held result is returned unchanged. */
@@ -117,7 +120,7 @@ export async function callWithApproval(
 		output.write(describeApproval(command, details));
 		// Only a token that ran out or was spent can be fixed by asking again.
 		if (details.reason !== undefined && !RETRYABLE_REJECTIONS.has(details.reason)) return result;
-		if (!details.approvalToken) {
+		if (!details.approvalToken && !options.exchange?.pending()) {
 			output.write('The server delivers this approval to the approver another way.\n');
 			return result;
 		}
@@ -133,6 +136,11 @@ export async function callWithApproval(
 			return result;
 		}
 		if (!approved) return result;
-		result = await execute(details.approvalToken);
+		if (options.exchange?.pending()) {
+			options.exchange.approve();
+			result = await execute();
+		} else {
+			result = await execute(details.approvalToken);
+		}
 	}
 }
