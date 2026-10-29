@@ -29,7 +29,7 @@ import {
 	versionSelected,
 } from './release-control.mjs';
 import { dependencyOrder, verifyPublished } from './release-operations/prerequisites.mjs';
-import { packedManifest, validatePacked } from './release-operations/publish.mjs';
+import { notes, packedManifest, validatePacked } from './release-operations/publish.mjs';
 import { reconcilePublication } from './release-operations/recovery.mjs';
 import {
 	entryHash,
@@ -1087,4 +1087,77 @@ test('reconciliation rejects wrong evidence and uncertain missing or mismatched 
 	);
 	const proof = verifyPublished(plan.artifacts[0], successfulReadback);
 	assert.equal(reconcilePublication(options).verified[0].integrity, proof.integrity);
+});
+
+test('held finalization requires the complete source-bound set and fresh byte proofs, then adopts without uploads', (t) => {
+	const f = fixture(t),
+		plan = build(f),
+		artifact = plan.artifacts[0];
+	const prior = {
+		state: 'complete',
+		binding: plan.binding,
+		intentDigest: plan.intentDigest,
+		sourceRevision: plan.sourceRevision,
+		finalization: { state: 'held', head: plan.sourceRevision, reason: 'hook failure' },
+		publishedPackages: [
+			{
+				name: artifact.name,
+				version: artifact.version,
+				tag: `${artifact.name}@${artifact.version}`,
+				notes: notes(f.root, artifact),
+			},
+		],
+	};
+	const proof = (a) => {
+		const bytes = readFileSync(a.file);
+		return {
+			name: a.name,
+			version: a.version,
+			method: 'registry-tarball',
+			sha256: a.artifactHash,
+			bytes: bytes.length,
+			url: 'https://registry.npmjs.org/fixture',
+			integrity: `sha512-${createHash('sha512').update(bytes).digest('base64')}`,
+		};
+	};
+	const options = { root: f.root, plan, receipt: prior, registry: registry(f), readback: proof };
+	for (const patch of [
+		{ publishedPackages: [] },
+		{ publishedPackages: [...prior.publishedPackages, ...prior.publishedPackages] },
+		{ finalization: { state: 'held', head: 'wrong' } },
+		{ publishedPackages: [{ ...prior.publishedPackages[0], notes: 'wrong' }] },
+		{ publishedPackages: [{ ...prior.publishedPackages[0], tag: 'wrong' }] },
+	])
+		assert.throws(
+			() => reconcilePublication({ ...options, receipt: { ...prior, ...patch } }),
+			/complete original/
+		);
+	assert.throws(
+		() => reconcilePublication({ ...options, readback: successfulReadback }),
+		/every artifact proof/
+	);
+	assert.throws(
+		() => reconcilePublication({ ...options, readback: () => ({}) }),
+		/missing or uncertain/
+	);
+	const reconciled = reconcilePublication(options);
+	assert.equal(reconciled.finalizationOnly, true);
+	assert.deepEqual(reconciled.missing, []);
+	let uploads = 0;
+	const receipt = publishPlan({
+		root: f.root,
+		plan,
+		receiptFile: f.receipt,
+		registry: registry(f),
+		readback: proof,
+		previouslyPublished: reconciled.verified,
+		publisher: () => {
+			uploads++;
+			throw new Error('finalization cannot upload');
+		},
+		tagger: () => {},
+	});
+	assert.equal(uploads, 0);
+	assert.equal(receipt.state, 'complete');
+	assert.equal(prior.finalization.state, 'held');
 });

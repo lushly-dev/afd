@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /** Finalize verified npm uploads; never upload packages or overwrite GitHub state. */
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -73,6 +73,7 @@ export function finalizeRelease({
 	receiptFile,
 	command = run,
 	readback = readPublished,
+	pushRoot = root,
 }) {
 	if (!receiptFile) throw new Error('Finalization requires a durable receipt path');
 	if (
@@ -88,6 +89,20 @@ export function finalizeRelease({
 		throw new Error('Invalid or unresolved publication receipt; reconcile before finalization');
 	validatePlan(root, plan, plan.core.registryEvidence);
 	verifyRepository(command, root, plan.core.selectedUnits);
+	if (pushRoot !== root) {
+		verifyRepository(command, pushRoot, plan.core.selectedUnits);
+		const common = (directory) =>
+			realpathSync(
+				command(
+					'git',
+					['rev-parse', '--path-format=absolute', '--git-common-dir'],
+					directory
+				).trim()
+			);
+		if (common(root) !== common(pushRoot))
+			throw new Error('Tag push checkout uses a different Git common directory');
+	}
+	const hookHead = command('git', ['rev-parse', 'HEAD'], pushRoot).trim();
 	const head = command('git', ['rev-parse', 'HEAD'], root).trim();
 	if (head !== plan.sourceRevision) throw new Error('Finalization candidate revision changed');
 	const seen = new Set();
@@ -129,16 +144,25 @@ export function finalizeRelease({
 	const temporary = mkdtempSync(join(tmpdir(), 'afd-release-notes-'));
 	const save = () => writeFileSync(receiptFile, `${JSON.stringify(receipt, null, '\t')}\n`);
 	try {
-		for (const [index, item] of expected.entries()) {
-			if (item.remote && item.release) continue;
-			receipt.finalization = { state: 'running', head, tag: item.entry.tag };
+		const missing = expected.filter((item) => !item.remote);
+		if (missing.length) {
+			receipt.finalization = {
+				state: 'running',
+				head,
+				hookHead,
+				tags: missing.map((item) => item.entry.tag),
+			};
 			save();
-			if (!item.remote) {
-				command(
-					'git',
-					['push', 'origin', `refs/tags/${item.entry.tag}:refs/tags/${item.entry.tag}`],
-					root
-				);
+			command(
+				'git',
+				[
+					'push',
+					'origin',
+					...missing.map((item) => `refs/tags/${item.entry.tag}:refs/tags/${item.entry.tag}`),
+				],
+				pushRoot
+			);
+			for (const item of missing) {
 				const remote = remoteTarget(
 					command(
 						'git',
@@ -154,7 +178,13 @@ export function finalizeRelease({
 					item.entry.tag
 				);
 				if (remote !== head) throw new Error(`Remote tag readback failed: ${item.entry.tag}`);
+				item.remote = remote;
 			}
+		}
+		for (const [index, item] of expected.entries()) {
+			if (item.release) continue;
+			receipt.finalization = { state: 'running', head, hookHead, tag: item.entry.tag };
+			save();
 			if (!item.release) {
 				const noteFile = join(temporary, `${index}.md`);
 				writeFileSync(noteFile, item.entry.notes);
@@ -181,12 +211,13 @@ export function finalizeRelease({
 		receipt.finalization = {
 			state: 'complete',
 			head,
+			hookHead,
 			tags: expected.map(({ entry }) => entry.tag),
 		};
 		save();
 		return receipt.finalization;
 	} catch (error) {
-		receipt.finalization = { state: 'held', head, reason: error.message };
+		receipt.finalization = { state: 'held', head, hookHead, reason: error.message };
 		save();
 		throw new Error(`Finalization held; reconcile ${receiptFile}: ${error.message}`);
 	} finally {
