@@ -50,6 +50,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 
 | Feature | Description |
 |---------|-------------|
+| [Agent Engine](./proposed/agent-engine/proposal.md) | Research and proposed new packages for modular, controllable, ongoing agentic work |
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |
