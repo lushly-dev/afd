@@ -71,6 +71,10 @@ Every release, whatever the implementation:
 
 Configuration is in `.changeset/config.json`: explicit AFD fixed membership keeps its nine packages coordinated, `"access": "public"`, and `@changesets/changelog-github` links pull requests. Internal peer dependencies use `workspace:^` (published as `^X.Y.Z`), and `onlyUpdatePeerDependentsWhenOutOfRange` (under `___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH`) stops Changesets from giving a peer dependent a major bump while the new version stays in range. Without both, any minor bump became a major one, and the fixed group spread it to all nine packages. Check `pnpm changeset status --verbose` before merging a changeset whose bump level matters. Version-PR creation needs Actions permission to create pull requests; upload separately needs the npm authorization described in [Unblocking npm](#unblocking-npm).
 
+- **The version PR starts without CI.** `release.yml` opens it with `GITHUB_TOKEN`, and GitHub starts no workflows for events that token causes, so the PR shows no checks. Close and reopen it as a person to run CI before merging; that is what #453 (2.2.0) needed. A GitHub App or fine-grained token for that step would remove the workaround (#470).
+- **Release failures on `main` are silent.** Nothing alerts on a red `release.yml`. Before 2.2.0 it failed on every push for about a day (a private workspace package without a `version` inside the then-glob fixed group; fixed in #452, and #464 made membership explicit). Check `gh run list --workflow Release --branch main` before assuming a version PR will appear.
+- **2.2.0** was published on 2026-10-27 from #453's merge commit `7cf2286`: all nine packages are `latest`, each with `_npmUser` `npm-oidc-no-reply@github.com` and SLSA provenance. The registry took a few minutes to list all nine. Query `https://registry.npmjs.org/<name>` directly rather than trusting a cached `npm view`.
+
 ## Python (PyPI)
 
 1. Set the version in `python/pyproject.toml` and `__version__` in `python/src/afd/__init__.py`.
@@ -95,6 +99,14 @@ and base/client/server/CLI, including the original base-import reproduction.
 #347 is closed. See `docs/operations/stabilization-release.md` for the wheel
 digest, registry consumer checks and current npm release sequence.
 
+Python **0.10.0** was published on 2026-10-27 from #454's merge commit
+`ddb42ad`, tagged `python-v0.10.0` (Publish Python run 40472309686: the 3.10–3.12
+matrix, isolated wheels and the PyPI upload passed; the wheel carries a provenance
+attestation). A fresh `pip install afd[server,client]==0.10.0` reported 0.10.0.
+Run the Python gate as CI does (`uv sync --frozen --all-extras` on 3.10–3.12): a
+stale local `.venv` on another interpreter fails test collection with misleading
+import errors.
+
 ## Rust (crates.io)
 
 1. Set the version in `packages/rust/Cargo.toml`.
@@ -103,7 +115,14 @@ digest, registry consumer checks and current npm release sequence.
 4. Run `node scripts/check-versions.mjs --write`. It updates the Rust column of the Version row in `docs/language-parity.md` from `Cargo.toml`, and the README's Rust badge from `rust-version`.
 5. Commit `chore(rust): release afd X.Y.Z`, open a pull request, and merge it after `rust.yml` passes.
 6. **Maintainer:** tag the merge commit `rust-vX.Y.Z` and push the tag. `publish-rust.yml` checks that the tag matches `Cargo.toml`, runs `rust.yml`, and then runs `cargo publish` with a short-lived token from crates.io trusted publishing (`rust-lang/crates-io-auth-action`, environment `crates-io`). If crates.io already has that version, it skips the upload.
-7. **Verify:** <https://crates.io/crates/afd> and <https://docs.rs/afd>.
+7. **Verify:** <https://crates.io/crates/afd> and <https://docs.rs/afd>. docs.rs builds each version once, with nightly rustdoc and `--cfg docsrs`. `rust.yml`'s `docs-rs` job mirrors that (#457), and `publish-rust.yml` runs it before uploading. Check `https://docs.rs/crate/afd/<version>/status.json` for `doc_status: true`; a failed build is listed at `/crate/afd/<version>/builds`.
+
+0.2.0 (2026-10-27, Publish Rust Crate run 40472313107) was the first version uploaded
+through crates.io trusted publishing. Its docs.rs build failed with E0658: `doc(cfg)`
+badges without `#![cfg_attr(docsrs, feature(doc_cfg))]`. 0.2.1 (run 40616779408,
+`87fd19b`) fixed that with no code change and documents on docs.rs. Pass `--cfg docsrs`
+to rustdoc only; as `RUSTFLAGS` it reaches dependencies whose docsrs paths no longer
+build on nightly.
 
 ### First release: 0.1.0
 
@@ -112,8 +131,8 @@ digest, registry consumer checks and current npm release sequence.
 archive and fresh default/no-default consumers passed, docs.rs serves the API
 docs, and the exact GitHub trusted publisher is configured.
 [Tag workflow 38359125471](https://github.com/lushly-dev/afd/actions/runs/38359125471)
-passed and skipped the existing upload; a future new version still needs an
-actual OIDC exchange/upload receipt. See
+passed and skipped the existing upload; 0.2.0 later provided the first actual OIDC
+upload receipt (see above). See
 [the native release receipt](../../../docs/operations/native-first-releases.md).
 Do not repeat this successful first upload. The following records its bootstrap
 procedure for reference.
@@ -143,8 +162,11 @@ The first release, `cpp-v0.1.0`, was published on 2026-10-12 from
 `a3115622ce8252a45ffff9d752e3cc161a481035` with explicit maintainer authorization.
 All post-merge gates and fresh tagged FetchContent/install/find_package consumers
 passed. See `docs/operations/native-first-releases.md` for the receipt and limits.
+`cpp-v0.2.0` was published on 2026-10-27 from `ddb42ad` (GitHub Release created with
+`--latest=false`, so the npm release keeps "latest"). Fresh `FetchContent` and
+installed `find_package(afd 0.2)` consumers built and ran from the tag.
 
-1. Set `project(afd VERSION X.Y.Z)` in `packages/cpp/CMakeLists.txt`. It generates `afd/version.hpp`, and the CMake package uses `SameMinorVersion` compatibility.
+1. Set `project(afd VERSION X.Y.Z)` in `packages/cpp/CMakeLists.txt`. It generates `afd/version.hpp`, and the CMake package uses `SameMinorVersion` compatibility, so on a minor bump also update `find_package(afd X.Y …)` in `tests/consumer/CMakeLists.txt` (the `C++ (package, …)` CI jobs fail otherwise, as #454 showed).
 2. In `packages/cpp/CHANGELOG.md`, move `Unreleased` under the new version with the date, and add an empty `Unreleased` above it.
 3. Run `node scripts/check-versions.mjs --write` to update the C++ column of the Version row in `docs/language-parity.md`. Keep installation pinned to the previous published tag until the new tag exists; distinguish candidate versions from published versions.
 4. Merge after `cpp.yml` and `conformance.yml` pass on `main`.
