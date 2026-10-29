@@ -29,6 +29,10 @@ Features progress through three stages:
 - [Handoff Pattern](./features/complete/handoff-pattern/) — Real-time protocol handoff for streaming
 - [Command Pipeline](./features/complete/command-pipeline/) — Declarative command chaining
 
+### Proposed Architecture
+
+- [AFD platform monorepo: foundations and endpoints](./features/proposed/platform-monorepo/proposal.md) — Independent library families, composable developer applications, shared publishing, and a phased migration with Lushly remaining separate. Documentation only; migration has not started. [Proposed decision](./features/proposed/platform-monorepo/decision.md). [Initial review](./features/proposed/platform-monorepo/review.md) and [focused rereview](./features/proposed/platform-monorepo/rereview.md): both blockers and all seven improvements addressed; proposal review passed.
+
 ## Guides
 
 Guides have been migrated to skills under `.claude/skills/`. See:
