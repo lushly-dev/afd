@@ -54,6 +54,8 @@ Cargo.lock
 !PLAN/**/*.plan.md
 !archive/**/*.plan.md
 !docs/features/active/**/*.plan.md
+# Imported Botcore tracks its plan documents; provenance hashes them.
+!endpoints/botcore/**/*.plan.md
 .claude/worktrees/
 .cursor/
 nul

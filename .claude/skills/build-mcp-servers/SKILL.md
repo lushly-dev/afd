@@ -1,6 +1,6 @@
 ---
 name: build-mcp-servers
-source: botcore
+source: afd
 description: >
   Guides construction of MCP servers using FastMCP 2.x with emphasis on token budget management, tool consolidation, output truncation, and the execute pattern for Opus compatibility. Covers async subprocess patterns, safe output limits, and action-based tool design. Use when creating MCP servers, debugging tool overload or context overflow, optimizing token usage, fixing Opus silent failures, or consolidating tools. Triggers: MCP, FastMCP, tool schema, token limit, context overflow, MCP server, execute pattern, tool consolidation.
 

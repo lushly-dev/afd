@@ -1,6 +1,6 @@
 ---
 name: integrate-llms
-source: botcore
+source: afd
 description: >
   Guides integration of LLMs into applications with production-grade patterns. Covers prompt engineering, structured outputs, tool use, RAG pipelines, embeddings, agentic patterns, evaluation, cost optimization, and guardrails for both TypeScript and Python. Use when building AI-powered features, integrating Claude or OpenAI APIs, designing RAG systems, implementing agents, optimizing LLM costs, or adding safety guardrails. Triggers: LLM, AI integration, prompt engineering, RAG, embeddings, tool use, structured output, agent, eval, guardrails, Claude API, OpenAI.
 

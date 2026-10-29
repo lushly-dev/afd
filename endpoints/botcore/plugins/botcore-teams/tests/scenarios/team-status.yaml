@@ -1,0 +1,14 @@
+name: team-status
+description: User requests team status overview
+steps:
+  - action: teams_handle_message
+    input:
+      text: "team status"
+      user_id: "user-001"
+      user_name: "Alice"
+      conversation_id: "conv-001"
+    expect:
+      success: true
+      data_contains:
+        - agents
+      has_reasoning: true

@@ -2,9 +2,18 @@
 name: manage-commands
 source: botcore
 description: >
-  Creates, validates, and organizes Claude slash commands with consistent patterns and automated quality checks. Covers frontmatter syntax (description, argument-hint, allowed-tools, model, hooks), variable injection ($ARGUMENTS, $1/$2, quoted args), context operators (! for bash stdout, @ for file injection), tool permissions (Bash wildcards, MCP patterns, subagent scoping), command namespacing (directory structure, scoping rules, naming conventions), and lifecycle hooks (PreToolUse, PostToolUse, Stop). Use when creating new slash commands, debugging command invocations, organizing command libraries, configuring tool permissions, or setting up command-level hooks. Triggers: command, slash command, /command, argument, allowed-tools, context injection, namespace, hooks, permissions, frontmatter.
-
-version: 1.0.0
+  Creates, validates, and organizes Claude slash commands with consistent
+  patterns and automated quality checks. Covers frontmatter syntax (description,
+  argument-hint, allowed-tools, model, hooks), variable injection ($ARGUMENTS,
+  $1/$2, quoted args), context operators (! for bash stdout, @ for file
+  injection), tool permissions (Bash wildcards, MCP patterns, subagent scoping),
+  command namespacing (directory structure, scoping rules, naming conventions),
+  and lifecycle hooks (PreToolUse, PostToolUse, Stop). Use when creating new
+  slash commands, debugging command invocations, organizing command libraries,
+  configuring tool permissions, or setting up command-level hooks. Triggers:
+  command, slash command, /command, argument, allowed-tools, context injection,
+  namespace, hooks, permissions, frontmatter.
+version: "1.0.0"
 triggers:
   - command
   - slash command
@@ -16,11 +25,13 @@ triggers:
   - hooks
   - permissions
   - frontmatter
-  - !bash
-  - @file
+  - "!bash"
+  - "@file"
   - variable injection
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical commands-learn skill. -->
 
 # Managing Commands
 

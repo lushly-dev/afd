@@ -76,12 +76,13 @@ When `tools` is specified without `agent`, the agent defaults to `agent` mode (n
 
 ### model
 
-Override the language model for this specific prompt. Useful when a task benefits from a specific model's strengths.
+Override the language model for this specific prompt. Use the model name exactly as it appears in the chat model picker.
 
 ```yaml
-model: claude-sonnet-4
-model: gpt-4o
+model: <model-name>  # e.g. a Claude Opus or GPT-6 model from the picker
 ```
+
+Omit `model` unless the task genuinely needs a specific model -- pinned names break when models are retired or renamed.
 
 ### name
 

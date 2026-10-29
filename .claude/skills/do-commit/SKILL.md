@@ -1,6 +1,6 @@
 ---
 name: do-commit
-source: botcore
+source: afd
 description: >
   Run quality gates, clean up temp files, update docs, and commit changes. Two modes: quick (automated checks + commit) and full (checks + cleanup + docs gate + self-review + commit). Delegates to write-commits for message generation. Use when ready to finalize and commit changes.
 

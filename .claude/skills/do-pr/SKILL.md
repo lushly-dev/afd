@@ -2,9 +2,11 @@
 name: do-pr
 source: botcore
 description: >
-  Push branch and create a pull request with structured description, linked issues, and review configuration. Verifies branch readiness, generates PR description from commits and diff, and creates the PR via CLI or API. Use when ready to submit work for review.
-
-version: 1.0.0
+  Push branch and create a pull request with structured description, linked
+  issues, and review configuration. Verifies branch readiness, generates PR
+  description from commits and diff, and creates the PR via CLI or API.
+  Use when ready to submit work for review.
+version: "1.0.0"
 triggers:
   - do pr
   - create pr
@@ -17,6 +19,8 @@ triggers:
 portable: true
 user-invocable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical pr skill. -->
 
 # Do PR
 

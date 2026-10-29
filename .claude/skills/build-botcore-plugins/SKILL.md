@@ -1,6 +1,6 @@
 ---
 name: build-botcore-plugins
-source: botcore
+source: afd
 description: >
   Guides development of botcore plugins from protocol implementation to distribution. Covers BotCorePlugin protocol, PluginRegistry API, async command authoring with AFD/CommandResult, MCP server factory (create_mcp_server, meta-tool pattern), CLI generation (build_namespace), entry-point registration, docs registration, and skills directory bundling. Use when building a new botcore plugin, adding commands to a plugin, registering entry points, or integrating with the MCP server factory. Triggers: plugin, botcore plugin, BotCorePlugin, PluginRegistry, entry point, command authoring, CommandResult, MCP server, create_mcp_server, build_namespace, plugin protocol, register commands.
 

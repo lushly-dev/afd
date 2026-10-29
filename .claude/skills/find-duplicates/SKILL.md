@@ -2,9 +2,13 @@
 name: find-duplicates
 source: botcore
 description: >
-  Detects code duplication using hybrid analysis combining algorithmic (JSCPD) and semantic (AI) techniques. Covers Type-1 through Type-4 clone detection, safe refactoring workflows, and duplication prevention strategies. Use when scanning for copy-paste code, reducing code bloat, consolidating duplicate utilities, or improving DRY compliance. Triggers: duplicates, duplication, copy paste, code clone, DRY, refactor.
-
-version: 1.0.0
+  Detects code duplication using hybrid analysis combining algorithmic (JSCPD)
+  and semantic (AI) techniques. Covers Type-1 through Type-4 clone detection,
+  safe refactoring workflows, and duplication prevention strategies.
+  Use when scanning for copy-paste code, reducing code bloat, consolidating
+  duplicate utilities, or improving DRY compliance.
+  Triggers: duplicates, duplication, copy paste, code clone, DRY, refactor.
+version: "1.0.0"
 triggers:
   - duplicates
   - duplication
@@ -17,6 +21,8 @@ triggers:
   - code smell
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical duplication-finder skill. -->
 
 # Finding Duplicates
 

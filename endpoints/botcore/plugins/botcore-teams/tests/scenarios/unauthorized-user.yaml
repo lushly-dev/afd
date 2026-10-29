@@ -1,0 +1,14 @@
+name: unauthorized-user
+description: User from wrong tenant is rejected
+steps:
+  - action: validate_tenant
+    input:
+      activity_tenant_id: "wrong-tenant-id"
+      allowed_tenant_id: "correct-tenant-id"
+    expect:
+      result: false
+  - action: create_unauthorized_error
+    input: {}
+    expect:
+      success: false
+      error_code: "UNAUTHORIZED"

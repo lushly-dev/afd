@@ -8,7 +8,7 @@ AFD's quality bot — deterministic architecture compliance checks so agents can
 
 ## Overview
 
-Alfred is a Python package that validates AFD codebases follow architectural conventions. It provides three commands exposed via CLI, MCP server, and botcore plugin. All commands return `CommandResult` and are async.
+Alfred is a Python package that validates AFD codebases follow architectural conventions. Its managed host provides one explicit catalog through CLI, MCP and AFD DirectClient, including three AFD-specific checks. The old Botcore plugin remains a trusted compatibility interface. All commands return `CommandResult` and are async.
 
 ---
 
@@ -20,22 +20,22 @@ cd alfred
 uv sync --all-extras --dev
 
 # Run tests
-uv run pytest tests/ -v
+uv run --locked pytest tests/ -v
 
 # Run single test file
 uv run pytest tests/test_lint.py -v
 
 # Lint
-uv run ruff check .
+uv run --locked ruff check .
 
 # CLI
-uv run alfred lint [--path PATH]
-uv run alfred parity [--path PATH]
-uv run alfred quality [--path PATH]
+uv run alfred --workspace /path/to/worktree lint [--path PATH]
+uv run alfred --workspace /path/to/worktree parity [--path PATH]
+uv run alfred --workspace /path/to/worktree quality [--path PATH]
 
 # MCP server
-uv run python -m alfred.mcp_server          # stdio transport
-uv run python -m alfred.mcp_server --sse    # SSE transport
+uv run python -m alfred.mcp_server --workspace /path/to/worktree # stdio
+uv run python -m alfred.mcp_server --workspace /path/to/worktree --sse
 ```
 
 ---
@@ -124,15 +124,17 @@ Recognized imperative verbs include: get, list, create, update, delete, validate
 
 ## MCP Server
 
-Uses botcore's `create_mcp_server()` factory to expose the standard 3-tool pattern:
+Uses Botcore's `create_host_mcp_server()` factory and Alfred's `build_alfred_host()`:
 
 | Tool | Description |
 |------|-------------|
 | `alfred-start` | Discovery — available commands and capabilities |
 | `alfred-docs` | Reference documentation by topic |
-| `alfred-run` | Execute Python code with all Alfred functions available |
+| `alfred-call` | Execute one admitted command with structured JSON arguments |
 
 ---
+
+Managed inspection rejects declared writers and subprocesses before execution. Raw Python requires explicit `--raw-python --profile trusted-local`; trusted local code is not a sandbox. See README.md for target resolution, capabilities, quality verdicts, required check plans and the approved npm controller binding.
 
 ## Plugin System
 
@@ -143,7 +145,7 @@ Uses botcore's `create_mcp_server()` factory to expose the standard 3-tool patte
 alfred = "alfred.plugin:AlfredPlugin"
 ```
 
-Registers 3 commands + inline docs. No custom configuration schema.
+Registers 3 legacy commands + inline docs. No custom configuration schema. This plugin is deliberately not admitted to managed inspection (`host_context_safe = False`); managed AFD commands use contextual wrappers.
 
 ---
 
@@ -155,7 +157,10 @@ alfred/
 ├── AGENTS.md
 ├── src/alfred/
 │   ├── __init__.py         # Package init, version
-│   ├── cli.py              # Click CLI (lint, parity, quality)
+│   ├── cli.py              # Managed catalog/call CLI plus lint/parity/quality aliases
+│   ├── host.py             # Per-worktree host, targets, scoped AFD checks and plans
+│   ├── release_controller.py # Approved root npm fragment/version binding
+│   ├── npm_fragments.mjs   # Static structured-stdin fragment bridge
 │   ├── plugin.py           # BotCorePlugin (auto-discovered)
 │   ├── mcp_server.py       # MCP server entry point
 │   └── commands/
@@ -169,13 +174,13 @@ alfred/
     └── test_quality.py     # 17 tests
 ```
 
-**Tests:** 45 total (pytest + pytest-asyncio)
+**Tests:** Run the complete Alfred suite from this repository; full-repository parity and quality checks must run alongside disposable release-controller fixtures. Native Node/pnpm dependencies are required for those fixtures.
 
 ---
 
 ## Dependencies
 
-- **Core:** `lushly-botcore>=0.2.0`, `afd>=0.2.0`, `click>=8.0`, `rich>=13.0`
+- **Core:** `lushly-botcore>=0.6.0`, `afd>=0.8.0`, `click>=8.0`, `rich>=13.0`
 - **MCP:** `lushly-botcore[mcp]`
 - **Python:** ≥3.11
 
@@ -192,4 +197,4 @@ that path instead of a PyPI release. The source is uv-only: a built alfred wheel
 - Uses `success()` and `error()` from `afd.core.result`
 - Every error includes `suggestion=` for agent recovery
 - CLI exits with code 1 on failures (CI-compatible)
-- Default path is current working directory when `--path` not provided
+- Managed entry points require an explicit workspace and resolve paths inside the selected target; legacy bare Python functions retain their historical cwd default

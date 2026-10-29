@@ -2,9 +2,18 @@
 name: migrate-systems
 source: botcore
 description: >
-  Guides orchestration of system migrations, framework upgrades, dependency version bumps, database schema evolution, and codemod generation with safe incremental transformation patterns. Covers strangler fig, expand-contract, parallel run, dual-write verification, feature-flag-gated rollouts, AST-based codemods (jscodeshift, ts-morph, libcst), and agentic migration workflows where AI agents discover, transform, verify, and land changes at scale. Use when upgrading frameworks, migrating APIs, evolving database schemas, generating codemods, planning incremental migrations, or orchestrating large-scale automated refactors. Triggers: migrate, migration, upgrade, codemod, schema evolution, strangler fig, expand-contract, version bump, framework upgrade, dependency upgrade, database migration.
-
-version: 1.0.0
+  Guides orchestration of system migrations, framework upgrades, dependency
+  version bumps, database schema evolution, and codemod generation with safe
+  incremental transformation patterns. Covers strangler fig, expand-contract,
+  parallel run, dual-write verification, feature-flag-gated rollouts, AST-based
+  codemods (jscodeshift, ts-morph, libcst), and agentic migration workflows
+  where AI agents discover, transform, verify, and land changes at scale.
+  Use when upgrading frameworks, migrating APIs, evolving database schemas,
+  generating codemods, planning incremental migrations, or orchestrating
+  large-scale automated refactors. Triggers: migrate, migration, upgrade,
+  codemod, schema evolution, strangler fig, expand-contract, version bump,
+  framework upgrade, dependency upgrade, database migration.
+version: "1.0.0"
 triggers:
   - migrate
   - migration
@@ -24,6 +33,8 @@ triggers:
   - AST transform
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical migration-learn skill. -->
 
 # Migrating Systems
 

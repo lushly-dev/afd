@@ -9,14 +9,14 @@ When available in a project, `lushbot research` provides fast, sourced answers v
 ### Fast Research
 
 ```bash
-# Uses Gemini 3 Flash (~15-30s)
+# Uses the fast research model
 lushbot research "FAST Element v2 binding syntax"
 ```
 
 ### Deep Research
 
 ```bash
-# Uses Gemini 3 Pro (~30-90s) for complex questions
+# Uses the deeper research model for complex questions
 lushbot research "complex architecture question" --mode thinking
 ```
 
@@ -33,10 +33,24 @@ Agent mode response format:
 {
   "answer": "...",
   "mode": "fast",
-  "model": "gemini-3-flash-preview",
+  "model": "<model-id>",
   "sources": ["https://...", "https://..."]
 }
 ```
+
+## Botcore Research Commands
+
+`research_query(query, mode)` runs GPT web research and returns the answer with cited sources. Modes are `fast`, `deep`, and `thinking`; the model for each lives in one constant in `botcore.commands.research`. It needs `OPENAI_API_KEY` and the `research` extra.
+
+`research_stream(query, mode)` yields the same research as afd stream chunks: progress, then `{"text": ...}` data chunks, then a complete or error chunk. Use it when partial output matters:
+
+```python
+async for chunk in research_stream("Vite 6 features"):
+    if chunk.type == "data":
+        print(chunk.data["text"], end="")
+```
+
+The MCP `{name}-research` tool forwards the stream as progress notifications, so clients that send a progress token see the answer as it arrives.
 
 ## Built-in Tools
 

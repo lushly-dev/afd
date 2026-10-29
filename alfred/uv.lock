@@ -33,7 +33,7 @@ provides-extras = ["server", "client", "cli", "testing", "all", "dev"]
 
 [[package]]
 name = "alfred"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "afd" },
@@ -58,8 +58,8 @@ requires-dist = [
     { name = "afd", editable = "../python" },
     { name = "alfred", extras = ["mcp"], marker = "extra == 'dev'" },
     { name = "click", specifier = ">=8.0" },
-    { name = "lushly-botcore", specifier = ">=0.2.0" },
-    { name = "lushly-botcore", extras = ["mcp"], marker = "extra == 'mcp'" },
+    { name = "lushly-botcore", editable = "../endpoints/botcore" },
+    { name = "lushly-botcore", extras = ["mcp"], marker = "extra == 'mcp'", editable = "../endpoints/botcore" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
     { name = "rich", specifier = ">=15.0.0" },
@@ -350,23 +350,40 @@ wheels = [
 
 [[package]]
 name = "lushly-botcore"
-version = "0.2.0"
-source = { registry = "https://pypi.org/simple" }
+version = "0.6.0"
+source = { editable = "../endpoints/botcore" }
 dependencies = [
     { name = "afd" },
     { name = "click" },
     { name = "pydantic" },
     { name = "pyyaml" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b7/5a/6977fe2f87e8b0c6de78b3173514d3cb947d2515af7e34cc2ed60f603359/lushly_botcore-0.2.0.tar.gz", hash = "sha256:a715f65b8e8c67a17d40a761bb65e163cb5e2efd5947bef5940952d9d08b8551", size = 629832, upload-time = "2026-02-22T06:00:01.186Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/fb/61/69afa11452047c5fa3fe930cc1284bce0ad6b53653bccde775f1686dabb1/lushly_botcore-0.2.0-py3-none-any.whl", hash = "sha256:71e70d86435f4f057455c308bcc1e450e40c40ff78e38a83261a36424138cab8", size = 835160, upload-time = "2026-02-22T05:59:59.666Z" },
-]
 
 [package.optional-dependencies]
 mcp = [
     { name = "mcp" },
 ]
+
+[package.metadata]
+requires-dist = [
+    { name = "afd", editable = "../python" },
+    { name = "click", specifier = ">=8.1.0" },
+    { name = "httpx", marker = "extra == 'cdp'", specifier = ">=0.24.0" },
+    { name = "httpx", marker = "extra == 'quality'", specifier = ">=0.24.0" },
+    { name = "lushly-botcore", extras = ["cdp", "research", "quality", "mcp"], marker = "extra == 'all'" },
+    { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.0.0" },
+    { name = "openai", marker = "extra == 'research'", specifier = ">=3.37.0" },
+    { name = "perfetto", marker = "extra == 'cdp'", specifier = ">=0.16.0" },
+    { name = "playwright", marker = "extra == 'cdp'", specifier = ">=1.40.0" },
+    { name = "pydantic", specifier = ">=2.5.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.0.0" },
+    { name = "pyyaml", specifier = ">=6.0.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4.0" },
+    { name = "vulture", marker = "extra == 'dev'", specifier = ">=2.11" },
+]
+provides-extras = ["dev", "cdp", "research", "quality", "mcp", "all"]
 
 [[package]]
 name = "markdown-it-py"

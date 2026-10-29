@@ -2,9 +2,15 @@
 name: architect-systems
 source: botcore
 description: >
-  Guides software architecture decisions across patterns, trade-offs, and documentation. Covers monolith vs microservices, modular monoliths, event-driven architecture, CQRS, hexagonal/ports-and-adapters, DDD bounded contexts, ADRs, evolutionary architecture with fitness functions, and platform engineering. Use when designing system architecture, choosing patterns, writing ADRs, decomposing domains, evaluating trade-offs, or planning migrations. Triggers: architecture, system design, microservices, monolith, DDD, bounded context, event-driven, CQRS, ADR, hexagonal, fitness function, platform engineering.
-
-version: 1.0.0
+  Guides software architecture decisions across patterns, trade-offs, and
+  documentation. Covers monolith vs microservices, modular monoliths, event-driven
+  architecture, CQRS, hexagonal/ports-and-adapters, DDD bounded contexts, ADRs,
+  evolutionary architecture with fitness functions, and platform engineering.
+  Use when designing system architecture, choosing patterns, writing ADRs, decomposing
+  domains, evaluating trade-offs, or planning migrations.
+  Triggers: architecture, system design, microservices, monolith, DDD, bounded context,
+  event-driven, CQRS, ADR, hexagonal, fitness function, platform engineering.
+version: "1.0.0"
 triggers:
   - architecture
   - system design
@@ -27,6 +33,8 @@ triggers:
   - system decomposition
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical systems-architect skill. -->
 
 # Architecting Systems
 

@@ -1,6 +1,6 @@
 ---
 name: do-release
-source: botcore
+source: afd
 description: >
   Version bump, changelog finalize, build, test, tag, publish to registries, and create GitHub Release. Covers AFD's four release paths: TypeScript (npm, Changesets), Python (PyPI), Rust (crates.io) and C++ (CMake, tags only), with their tag schemes, the contract version, and the steps that unblock npm publishing. Delegates to manage-git for tagging strategy and manage-documentation for changelog format. Use when ready to release a new version.
 

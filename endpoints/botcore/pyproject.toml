@@ -1,0 +1,112 @@
+[project]
+name = "lushly-botcore"
+version = "0.6.0"
+description = "Shared bot infrastructure — config, plugin contract, and extracted commands"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Falkicon" }]
+keywords = ["botcore", "cli", "mcp", "plugins", "agent"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "afd>=0.9.0",
+    "pydantic>=2.5.0",
+    "click>=8.1.0",
+    "pyyaml>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.4.0",
+    "vulture>=2.11",
+]
+cdp = [
+    "playwright>=1.40.0",
+    "httpx>=0.24.0",
+    "perfetto>=0.16.0",
+]
+research = [
+    "openai>=3.37.0",
+]
+quality = [
+    "httpx>=0.24.0",
+]
+mcp = [
+    "mcp>=1.0.0",
+]
+all = [
+    "lushly-botcore[cdp,research,quality,mcp]",
+]
+
+[project.scripts]
+botcore = "botcore.cli:cli"
+
+[project.entry-points."botcore.plugins"]
+# Plugins register here, e.g.:
+# lushbot = "lushbot_plugin:LushbotPlugin"
+
+[project.urls]
+Homepage = "https://github.com/lushly-dev/botcore"
+Repository = "https://github.com/lushly-dev/botcore"
+Changelog = "https://github.com/lushly-dev/botcore/blob/main/CHANGELOG.md"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/botcore"]
+
+[tool.hatch.build]
+include = ["src/botcore/**/*.py", "src/botcore/skills/**/*.md", "src/botcore/provenance/*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "I", "UP",
+    "C901",
+    "PLR0912", "PLR0915", "PLR0913",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 20
+
+[tool.ruff.lint.pylint]
+max-args = 8
+max-branches = 20
+max-statements = 80
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["src/botcore"]
+branch = true
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+# Development bootstrap only; built distributions retain afd>=0.9.0 metadata.
+[tool.uv.sources]
+afd = { path = "../../python", editable = true }

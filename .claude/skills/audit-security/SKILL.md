@@ -2,9 +2,16 @@
 name: audit-security
 source: botcore
 description: >
-  Performs comprehensive security audits of web applications, APIs, MCP servers, and AI agent systems. Covers OWASP/CWE vulnerability discovery, threat modeling, SAST/DAST/SCA tooling, MCP server hardening, agentic review orchestration, supply chain security, secret management, risk prioritization, and structured reporting. Use when performing security audits, reviewing code for vulnerabilities, hardening MCP servers, designing agent permission models, building CI/CD security gates, or generating audit reports. Triggers: security audit, vulnerability, OWASP, CWE, threat model, injection, XSS, SSRF, MCP security, agent security, SAST, DAST, SCA, secrets scanning, supply chain, SBOM, penetration test, security checklist, access control, authentication, sanitize.
-
-version: 1.0.0
+  Performs comprehensive security audits of web applications, APIs, MCP servers, and AI agent
+  systems. Covers OWASP/CWE vulnerability discovery, threat modeling, SAST/DAST/SCA tooling,
+  MCP server hardening, agentic review orchestration, supply chain security, secret management,
+  risk prioritization, and structured reporting.
+  Use when performing security audits, reviewing code for vulnerabilities, hardening MCP servers,
+  designing agent permission models, building CI/CD security gates, or generating audit reports.
+  Triggers: security audit, vulnerability, OWASP, CWE, threat model, injection, XSS, SSRF,
+  MCP security, agent security, SAST, DAST, SCA, secrets scanning, supply chain, SBOM,
+  penetration test, security checklist, access control, authentication, sanitize.
+version: "1.0.0"
 triggers:
   - security audit
   - vulnerability
@@ -28,6 +35,8 @@ triggers:
   - sanitize
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical security-auditor skill. -->
 
 # Security Audit
 

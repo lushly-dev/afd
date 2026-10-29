@@ -2,9 +2,15 @@
 name: audit-licenses
 source: botcore
 description: >
-  Performs OSS license compliance audits, dependency license analysis, and SBOM generation. Covers license categorization (permissive, copyleft, public domain), compatibility matrices, per-ecosystem audit tooling (Node.js, Python, Go), CI/CD license gate integration, required attribution files, and red-flag detection. Use when adding dependencies, auditing existing licenses, checking compatibility, generating SBOMs, preparing for release, or setting up license enforcement in CI. Triggers: license, licensing, OSS compliance, SBOM, GPL, MIT, Apache, copyleft, dependency audit, license check, attribution, SPDX, CycloneDX, bill of materials.
-
-version: 1.0.0
+  Performs OSS license compliance audits, dependency license analysis, and SBOM generation.
+  Covers license categorization (permissive, copyleft, public domain), compatibility
+  matrices, per-ecosystem audit tooling (Node.js, Python, Go), CI/CD license gate
+  integration, required attribution files, and red-flag detection.
+  Use when adding dependencies, auditing existing licenses, checking compatibility,
+  generating SBOMs, preparing for release, or setting up license enforcement in CI.
+  Triggers: license, licensing, OSS compliance, SBOM, GPL, MIT, Apache, copyleft,
+  dependency audit, license check, attribution, SPDX, CycloneDX, bill of materials.
+version: "1.0.0"
 triggers:
   - license
   - licensing
@@ -24,6 +30,8 @@ triggers:
   - license compatibility
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical license-auditor skill. -->
 
 # License Auditing
 
@@ -169,7 +177,7 @@ Ensure the following files exist and are up to date.
 
 ```yaml
 # GitHub Actions example
-name: License Compliance
+name: license-auditor
 on: [pull_request]
 
 jobs:

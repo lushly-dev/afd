@@ -30,7 +30,7 @@ Instructions for Claude...
 |-------|------|---------|-------------|
 | `argument-hint` | string | -- | UI hint showing expected parameters |
 | `allowed-tools` | array | all | Tool whitelist (see [permissions.md](permissions.md)) |
-| `model` | string | session | Override model (e.g., `claude-3-5-sonnet-20241022`) |
+| `model` | string | session | Override model. Prefer an alias (`opus`, `fable`) that resolves to the latest version over a pinned ID |
 | `hooks` | object | -- | Command-level lifecycle hooks (see [hooks.md](hooks.md)) |
 
 ## Example: Complete Frontmatter
@@ -43,7 +43,7 @@ allowed-tools:
   - Read
   - Bash(git diff *)
   - Bash(git log *)
-model: claude-3-5-sonnet-20241022
+model: opus
 hooks:
   PostToolUse:
     - matcher: Write
@@ -115,7 +115,7 @@ allowed-tools:
   - Glob
   - Bash(git diff *)
   - Bash(git log *)
-model: claude-3-5-sonnet-20241022
+model: opus
 hooks:
   PostToolUse:
     - matcher: Write

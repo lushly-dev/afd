@@ -2,9 +2,15 @@
 name: manage-projects
 source: botcore
 description: >
-  Orchestrates GitHub Projects, issues, specs, and parallel Claude agent waves. Covers feature lifecycle (proposed/active/complete), issue templates with parent/sub-issue patterns, wave-based parallelization, STATUS.md tracking, and spec review workflows. Use when creating issues, managing feature lifecycles, launching parallel agent waves, tracking project status, or reviewing proposals and specs. Triggers: project management, create issue, launch agents, wave orchestration, STATUS.md, feature lifecycle, parallel development, spec review, proposal review.
-
-version: 1.0.0
+  Orchestrates GitHub Projects, issues, specs, and parallel Claude agent waves.
+  Covers feature lifecycle (proposed/active/complete), issue templates with
+  parent/sub-issue patterns, wave-based parallelization, STATUS.md tracking,
+  and spec review workflows. Use when creating issues, managing feature
+  lifecycles, launching parallel agent waves, tracking project status, or
+  reviewing proposals and specs. Triggers: project management, create issue,
+  launch agents, wave orchestration, STATUS.md, feature lifecycle, parallel
+  development, spec review, proposal review.
+version: "1.0.0"
 triggers:
   - project management
   - create issue
@@ -17,6 +23,8 @@ triggers:
   - proposal review
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical project-manager skill. -->
 
 # Managing Projects
 

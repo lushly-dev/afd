@@ -143,6 +143,146 @@
 					"initialVersion": "0.2.0"
 				}
 			]
+		},
+		{
+			"id": "botcore",
+			"family": "botcore",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "7d5c54cae8aae90e145374467456af619cf54e41",
+			"authority": "github: lushly-dev/botcore",
+			"state": "quarantined",
+			"routes": ["pypi-botcore"],
+			"gates": ["botcore.yml", "artifact-contents", "isolated-install", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "lushly-botcore",
+					"registry": "pypi",
+					"manifest": "endpoints/botcore/pyproject.toml",
+					"format": "python",
+					"initialVersion": "0.5.0"
+				}
+			]
+		},
+		{
+			"id": "botcore-connectors",
+			"family": "botcore",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "7d5c54cae8aae90e145374467456af619cf54e41",
+			"authority": "github: lushly-dev/botcore",
+			"state": "quarantined",
+			"routes": ["pypi-plugin"],
+			"gates": ["botcore.yml", "artifact-contents", "isolated-install", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "botcore-connectors",
+					"registry": "pypi",
+					"manifest": "endpoints/botcore/botcore-connectors/pyproject.toml",
+					"format": "python",
+					"initialVersion": "0.1.0"
+				}
+			]
+		},
+		{
+			"id": "botcore-llm",
+			"family": "botcore",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "7d5c54cae8aae90e145374467456af619cf54e41",
+			"authority": "github: lushly-dev/botcore",
+			"state": "quarantined",
+			"routes": ["pypi-plugin"],
+			"gates": ["botcore.yml", "artifact-contents", "isolated-install", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "botcore-llm",
+					"registry": "pypi",
+					"manifest": "endpoints/botcore/packages/botcore-llm/pyproject.toml",
+					"format": "python",
+					"initialVersion": "0.1.0"
+				}
+			]
+		},
+		{
+			"id": "botcore-agents",
+			"family": "botcore",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "7d5c54cae8aae90e145374467456af619cf54e41",
+			"authority": "github: lushly-dev/botcore",
+			"state": "quarantined",
+			"routes": ["pypi-plugin"],
+			"gates": ["botcore.yml", "artifact-contents", "isolated-install", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "botcore-agents",
+					"registry": "pypi",
+					"manifest": "endpoints/botcore/packages/botcore-agents/pyproject.toml",
+					"format": "python",
+					"initialVersion": "0.1.0"
+				}
+			]
+		},
+		{
+			"id": "botcore-memory",
+			"family": "botcore",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "7d5c54cae8aae90e145374467456af619cf54e41",
+			"authority": "github: lushly-dev/botcore",
+			"state": "quarantined",
+			"routes": ["pypi-plugin"],
+			"gates": ["botcore.yml", "artifact-contents", "isolated-install", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "botcore-memory",
+					"registry": "pypi",
+					"manifest": "endpoints/botcore/packages/botcore-memory/pyproject.toml",
+					"format": "python",
+					"initialVersion": "0.1.0"
+				}
+			]
+		},
+		{
+			"id": "botcore-teams",
+			"family": "botcore",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "7d5c54cae8aae90e145374467456af619cf54e41",
+			"authority": "github: lushly-dev/botcore",
+			"state": "quarantined",
+			"routes": ["pypi-plugin"],
+			"gates": ["botcore.yml", "artifact-contents", "isolated-install", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "botcore-teams",
+					"registry": "pypi",
+					"manifest": "endpoints/botcore/plugins/botcore-teams/pyproject.toml",
+					"format": "python",
+					"initialVersion": "0.1.0"
+				}
+			]
+		},
+		{
+			"id": "alfred",
+			"family": "alfred",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "508f763460e5b21071bd279b02e36fba371fc0fb",
+			"authority": "github: lushly-dev/afd",
+			"state": "quarantined",
+			"routes": ["pypi-alfred"],
+			"gates": ["alfred.yml", "artifact-contents", "isolated-install", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "alfred",
+					"registry": "pypi",
+					"manifest": "alfred/pyproject.toml",
+					"format": "python",
+					"initialVersion": "0.1.0"
+				}
+			]
 		}
 	]
 }

@@ -2,9 +2,16 @@
 name: configure-botcore
 source: botcore
 description: >
-  Guides configuration of botcore projects via botcore.toml or pyproject.toml. Covers BotCoreConfig model, SkillsConfig, PackageOverrideConfig, EnvConfig, language detection and tool defaults, per-package overrides, precedence rules, plugin config validation, and common misconfiguration pitfalls. Use when setting up a new botcore project, configuring thresholds, adding per-package overrides, troubleshooting config-related silent failures, or understanding the config loading flow. Triggers: config, configuration, botcore.toml, pyproject.toml, BotCoreConfig, thresholds, language detection, tool defaults, per-package, SkillsConfig.
-
-version: 1.0.0
+  Guides configuration of botcore projects via botcore.toml or pyproject.toml.
+  Covers BotCoreConfig model, SkillsConfig, PackageOverrideConfig, EnvConfig,
+  language detection and tool defaults, per-package overrides, precedence rules,
+  plugin config validation, and common misconfiguration pitfalls.
+  Use when setting up a new botcore project, configuring thresholds, adding
+  per-package overrides, troubleshooting config-related silent failures, or
+  understanding the config loading flow.
+  Triggers: config, configuration, botcore.toml, pyproject.toml, BotCoreConfig,
+  thresholds, language detection, tool defaults, per-package, SkillsConfig.
+version: "1.0.1"
 triggers:
   - config
   - configuration
@@ -23,6 +30,8 @@ triggers:
   - configure botcore
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical botcore-config skill. -->
 
 # Configuring Botcore
 

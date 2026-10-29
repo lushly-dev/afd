@@ -2,9 +2,21 @@
 name: manage-state
 source: botcore
 description: >
-  Guides state management architecture and implementation across frontend and backend applications. Covers signals and fine-grained reactivity (Preact, Angular, Solid, TC39 proposal), atomic and proxy stores (Zustand, Jotai, Valtio, Pinia, Svelte stores), state machines and statecharts (XState), server state synchronization (TanStack Query, SWR), reactive primitives, pub/sub and observable patterns, CQRS/command pattern, and Python state management (dataclasses, Pydantic, transitions, event-driven patterns). Use when choosing a state management approach, implementing stores or signals, modeling complex UI flows with state machines, synchronizing server state, debugging reactivity issues, or migrating between state libraries. Triggers: state management, signals, store, Zustand, Jotai, Redux, Pinia, XState, state machine, TanStack Query, SWR, reactivity, observable, pub/sub, Pydantic state, reactive, server state, cache invalidation.
-
-version: 1.0.0
+  Guides state management architecture and implementation across frontend and
+  backend applications. Covers signals and fine-grained reactivity (Preact,
+  Angular, Solid, TC39 proposal), atomic and proxy stores (Zustand, Jotai,
+  Valtio, Pinia, Svelte stores), state machines and statecharts (XState),
+  server state synchronization (TanStack Query, SWR), reactive primitives,
+  pub/sub and observable patterns, CQRS/command pattern, and Python state
+  management (dataclasses, Pydantic, transitions, event-driven patterns).
+  Use when choosing a state management approach, implementing stores or
+  signals, modeling complex UI flows with state machines, synchronizing
+  server state, debugging reactivity issues, or migrating between state
+  libraries.
+  Triggers: state management, signals, store, Zustand, Jotai, Redux, Pinia,
+  XState, state machine, TanStack Query, SWR, reactivity, observable,
+  pub/sub, Pydantic state, reactive, server state, cache invalidation.
+version: "1.0.0"
 triggers:
   - state management
   - signals
@@ -35,6 +47,8 @@ triggers:
   - computed state
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical state-learn skill. -->
 
 # Managing State
 

@@ -4,10 +4,13 @@ import { createHash } from 'node:crypto';
 import {
 	chmodSync,
 	existsSync,
+	lstatSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
+	readlinkSync,
 	rmSync,
+	symlinkSync,
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -27,7 +30,14 @@ import {
 } from './release-control.mjs';
 import { dependencyOrder } from './release-operations/prerequisites.mjs';
 import { packedManifest, validatePacked } from './release-operations/publish.mjs';
-import { registryNames } from './release-operations/shared.mjs';
+import {
+	entryHash,
+	registryNames,
+	repositoryEntry,
+	sourceDigest,
+	tree,
+} from './release-operations/shared.mjs';
+import { inWorktree } from './release-operations/version.mjs';
 
 const repository = dirname(dirname(fileURLToPath(import.meta.url)));
 const shell = (cwd, command, args) =>
@@ -833,4 +843,139 @@ test('published compatible held dependency uses no prerequisites from its unrele
 	assert.equal(receipt.state, 'complete');
 	assert.deepEqual(uploads, ['@fixture/a']);
 	assert.ok(queried.every((name) => name === '@fixture/a' || name === '@fixture/b'));
+});
+
+function trackedMirror(f) {
+	write(f.root, '.claude/skills/fixture/SKILL.md', '# Canonical fixture skill\n');
+	mkdirSync(join(f.root, '.codex'));
+	symlinkSync('../.claude/skills', join(f.root, '.codex/skills'), 'dir');
+	commit(f.root);
+}
+test('tracked skills mirror survives real Changesets versioning and actual pnpm packing', (t) => {
+	const f = fixture(t);
+	trackedMirror(f);
+	const mirror = join(f.root, '.codex/skills'),
+		canonical = join(f.root, '.claude/skills/fixture/SKILL.md');
+	const canonicalBytes = readFileSync(canonical, 'utf8');
+	const mirrorHash = entryHash(repositoryEntry(f.root, '.codex/skills'));
+	assert.equal(
+		mirrorHash,
+		createHash('sha256')
+			.update(JSON.stringify({ type: 'symlink', target: '../.claude/skills' }))
+			.digest('hex')
+	);
+	const before = sourceDigest(f.root);
+	writeFileSync(canonical, `${canonicalBytes}changed\n`);
+	assert.notEqual(sourceDigest(f.root), before);
+	assert.equal(entryHash(repositoryEntry(f.root, '.codex/skills')), mirrorHash);
+	writeFileSync(canonical, canonicalBytes);
+	assert.throws(() => tree(f.root), /Symlink is not release input/);
+	assert.equal(
+		new Map(tree(f.root, '', { allowRepositoryMirror: true })).get('.codex/skills'),
+		mirrorHash
+	);
+	const selected = selectRelease({
+		root: f.root,
+		selectedUnits: ['a'],
+		registryEvidence: f.evidence,
+	});
+	versionSelected({
+		root: f.root,
+		plan: selected,
+		inventory: loadInventory(f.root),
+		invoke: (candidate) => {
+			assert.equal(lstatSync(join(candidate, '.codex/skills')).isSymbolicLink(), true);
+			assert.equal(readlinkSync(join(candidate, '.codex/skills')), '../.claude/skills');
+			shell(candidate, process.execPath, [
+				join(repository, 'node_modules/@changesets/cli/bin.js'),
+				'version',
+			]);
+		},
+	});
+	assert.equal(readlinkSync(mirror), '../.claude/skills');
+	assert.equal(readFileSync(canonical, 'utf8'), canonicalBytes);
+	approve(f);
+	const plan = createPublishPlan({
+		root: f.root,
+		selectedUnits: ['a'],
+		registryEvidence: f.evidence,
+		artifactsDirectory: f.artifacts,
+		pack: (directory, destination) => {
+			const candidate = dirname(dirname(directory));
+			assert.equal(readlinkSync(join(candidate, '.codex/skills')), '../.claude/skills');
+			assert.equal(
+				readFileSync(join(candidate, '.claude/skills/fixture/SKILL.md'), 'utf8'),
+				canonicalBytes
+			);
+			shell(directory, 'pnpm', ['pack', '--pack-destination', destination]);
+		},
+	});
+	assert.equal(plan.artifacts[0].name, '@fixture/a');
+	assert.equal(readlinkSync(mirror), '../.claude/skills');
+	assert.equal(readFileSync(canonical, 'utf8'), canonicalBytes);
+	assert.equal(typeof sourceDigest(f.root), 'string');
+});
+test('unknown, escaping and symlinked-parent repository inputs fail before worktree or artifact effects', async (t) => {
+	for (const kind of ['unknown', 'escaping-mirror', 'symlinked-parent', 'untracked-mirror'])
+		await t.test(kind, (t) => {
+			const f = fixture(t),
+				outside = join(f.base, 'outside');
+			mkdirSync(outside);
+			writeFileSync(join(outside, 'protected.txt'), 'protected\n');
+			if (kind === 'symlinked-parent') {
+				trackedMirror(f);
+				rmSync(join(f.root, '.codex'), { recursive: true });
+				symlinkSync(outside, join(f.root, '.codex'), 'dir');
+			} else {
+				write(f.root, '.claude/skills/fixture/SKILL.md', '# canonical\n');
+				mkdirSync(join(f.root, '.codex'));
+				const path = kind === 'unknown' ? '.codex/other' : '.codex/skills';
+				symlinkSync(
+					kind === 'escaping-mirror' ? outside : '../.claude/skills',
+					join(f.root, path),
+					'dir'
+				);
+				if (kind !== 'untracked-mirror') commit(f.root);
+			}
+			if (kind !== 'untracked-mirror') approve(f);
+			const worktrees = shell(f.root, 'git', ['worktree', 'list', '--porcelain']);
+			const reject =
+				kind === 'untracked-mirror' ? /must be a tracked symlink/ : /Symlink is not release input/;
+			assert.throws(() => sourceDigest(f.root), reject);
+			assert.throws(
+				() => inWorktree(f.root, () => assert.fail('must not invoke worktree callback')),
+				reject
+			);
+			if (kind !== 'untracked-mirror') {
+				const selected = selectRelease({
+					root: f.root,
+					selectedUnits: ['a'],
+					registryEvidence: f.evidence,
+				});
+				assert.throws(
+					() =>
+						versionSelected({
+							root: f.root,
+							plan: selected,
+							inventory: loadInventory(f.root),
+							invoke: () => assert.fail('must not invoke Changesets'),
+						}),
+					reject
+				);
+				assert.throws(
+					() =>
+						createPublishPlan({
+							root: f.root,
+							selectedUnits: ['a'],
+							registryEvidence: f.evidence,
+							artifactsDirectory: f.artifacts,
+							pack: () => assert.fail('must not pack'),
+						}),
+					reject
+				);
+			}
+			assert.equal(shell(f.root, 'git', ['worktree', 'list', '--porcelain']), worktrees);
+			assert.equal(existsSync(f.artifacts), false);
+			assert.equal(readFileSync(join(outside, 'protected.txt'), 'utf8'), 'protected\n');
+		});
 });

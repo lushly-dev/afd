@@ -1,0 +1,39 @@
+# Skill Linting Workflow
+# Validates Claude skills on PR
+
+name: Skill Lint
+
+on:
+  pull_request:
+    paths:
+      - '.claude/skills/**'
+
+jobs:
+  lint:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Run Skill Linter
+        shell: pwsh
+        run: |
+          $result = & .\.claude\skills\skill-manager\scripts\skill-lint.ps1 -Path ".\.claude\skills" -Format json
+          $result | Out-File -FilePath skill-lint-results.json
+          
+          # Parse results
+          $json = $result | ConvertFrom-Json
+          $errors = $json.summary.errors
+          
+          if ($errors -gt 0) {
+            Write-Error "Skill linting failed with $errors errors"
+            exit 1
+          }
+          
+          Write-Host "✓ All skills passed ($($json.summary.total) skills, $($json.summary.warnings) warnings)"
+      
+      - name: Upload Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-lint-results
+          path: skill-lint-results.json

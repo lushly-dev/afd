@@ -2,9 +2,14 @@
 name: write-specifications
 source: botcore
 description: >
-  Writes high-quality technical specifications for AI agent implementation using Spec-Driven Development (SDD) methodology. Covers clarification, structured spec authoring, architecture planning, task breakdown, and quality gates. Use when creating specs, writing technical plans, authoring SPEC.md files, or following SDD workflows. Triggers: write spec, create specification, technical plan, SDD, spec-driven development, SPEC.md, feature specification, spec template.
-
-version: 1.0.0
+  Writes high-quality technical specifications for AI agent implementation
+  using Spec-Driven Development (SDD) methodology. Covers clarification,
+  structured spec authoring, architecture planning, task breakdown, and
+  quality gates. Use when creating specs, writing technical plans, authoring
+  SPEC.md files, or following SDD workflows.
+  Triggers: write spec, create specification, technical plan, SDD,
+  spec-driven development, SPEC.md, feature specification, spec template.
+version: "1.0.0"
 triggers:
   - write spec
   - create specification
@@ -18,6 +23,8 @@ triggers:
   - task breakdown
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical spec-writer skill. -->
 
 # Writing Specifications
 

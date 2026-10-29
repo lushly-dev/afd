@@ -31,10 +31,10 @@ For Alfred (quality bot):
 
 ```bash
 cd alfred
-uv pip install -e ".[dev]"
-uv run alfred lint        # Architecture compliance
-uv run alfred parity      # Cross-language API sync
-uv run alfred quality     # Command description quality
+uv sync --frozen --all-extras --dev
+uv run alfred --workspace .. lint        # Architecture compliance
+uv run alfred --workspace .. parity      # Cross-language API sync
+uv run alfred --workspace .. quality     # Command description quality
 ```
 
 ## Core Principles

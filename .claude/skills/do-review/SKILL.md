@@ -2,9 +2,12 @@
 name: do-review
 source: botcore
 description: >
-  Review code changes — either self-review your own uncommitted work or review an incoming pull request. Routes on argument: no args for self-review, PR reference for PR review. Delegates to the review-code skill for methodology and structured feedback. Use when reviewing changes before committing or reviewing a PR.
-
-version: 1.0.0
+  Review code changes — either self-review your own uncommitted work or review
+  an incoming pull request. Routes on argument: no args for self-review,
+  PR reference for PR review. Delegates to the review-code skill for
+  methodology and structured feedback.
+  Use when reviewing changes before committing or reviewing a PR.
+version: "1.0.0"
 triggers:
   - do review
   - review changes
@@ -13,10 +16,12 @@ triggers:
   - code review
   - check my changes
   - review my work
-argument-hint: 'PR #number | (no args for self-review)'
 portable: true
 user-invocable: true
+argument-hint: "PR #number | (no args for self-review)"
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical review skill. -->
 
 # Do Review
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "alfred"
-version = "0.1.0"
+version = "0.2.0"
 description = "AFD repo quality bot — deterministic tooling as MCP commands"
 license = "MIT"
 requires-python = ">=3.11"
@@ -30,7 +30,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "lushly-botcore>=0.2.0",
+    "lushly-botcore>=0.6.0",
     "afd>=0.8.0",
     "click>=8.0",
     "rich>=15.0.0",
@@ -64,6 +64,8 @@ packages = ["src/alfred"]
 # built wheels keep the plain `afd>=...` requirement and install afd from PyPI.
 [tool.uv.sources]
 afd = { path = "../python", editable = true }
+# Develop against the separately owned in-repository endpoint.
+lushly-botcore = { path = "../endpoints/botcore", editable = true }
 
 [tool.ruff]
 line-length = 100

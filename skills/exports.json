@@ -1,0 +1,344 @@
+{
+	"version": 1,
+	"canonical": {
+		"owner": "botcore",
+		"root": "endpoints/botcore/src/botcore/skills",
+		"skills": [
+			"accessibility-learn",
+			"agent-config",
+			"api-designer",
+			"authentication-learn",
+			"botcore-config",
+			"browser-automation",
+			"caching-learn",
+			"code-reviewer",
+			"code-standards-learn",
+			"commands-learn",
+			"commit",
+			"commit-writer",
+			"component-tester",
+			"concurrency-learn",
+			"content-designer",
+			"content-humanizer",
+			"css-learn",
+			"data-modeling-learn",
+			"dependency-manager",
+			"deployment-learn",
+			"design-implementer",
+			"dev-checks",
+			"dev-environment-learn",
+			"docs-manager",
+			"docs-update",
+			"duplication-finder",
+			"error-handling-learn",
+			"feature-flags-learn",
+			"git-manager",
+			"hotfix",
+			"i18n-learn",
+			"license-auditor",
+			"llm-integration-learn",
+			"mcp-builder",
+			"migration-learn",
+			"observability-learn",
+			"performance-learn",
+			"persona-creator",
+			"plugin-builder",
+			"pr",
+			"problem-solver",
+			"project-manager",
+			"prompt-creator",
+			"refactoring-learn",
+			"release",
+			"repo-cleanup",
+			"research",
+			"review",
+			"security-auditor",
+			"skill-manager",
+			"spec-writer",
+			"state-learn",
+			"storybook-builder",
+			"systems-architect",
+			"test-writer"
+		],
+		"export": "wheel-and-sdist",
+		"resources": "complete-tree"
+	},
+	"profiles": {
+		"afd": {
+			"root": ".claude/skills",
+			"mirror": ".codex/skills",
+			"projections": [
+				{
+					"name": "architect-systems",
+					"canonical": "systems-architect"
+				},
+				{
+					"name": "audit-licenses",
+					"canonical": "license-auditor"
+				},
+				{
+					"name": "audit-security",
+					"canonical": "security-auditor"
+				},
+				{
+					"name": "automate-browsers",
+					"canonical": "browser-automation"
+				},
+				{
+					"name": "build-stories",
+					"canonical": "storybook-builder"
+				},
+				{
+					"name": "configure-botcore",
+					"canonical": "botcore-config"
+				},
+				{
+					"name": "create-personas",
+					"canonical": "persona-creator"
+				},
+				{
+					"name": "create-prompts",
+					"canonical": "prompt-creator"
+				},
+				{
+					"name": "deploy-infrastructure",
+					"canonical": "deployment-learn"
+				},
+				{
+					"name": "design-apis",
+					"canonical": "api-designer"
+				},
+				{
+					"name": "design-content",
+					"canonical": "content-designer"
+				},
+				{
+					"name": "do-clean-repo",
+					"canonical": "repo-cleanup",
+					"rewrites": {
+						"SKILL.md": [["`commit`", "`do-commit`"]]
+					}
+				},
+				{
+					"name": "do-hotfix",
+					"canonical": "hotfix",
+					"rewrites": {
+						"SKILL.md": [
+							["`commit`", "`do-commit`"],
+							["`pr`", "`do-pr`"],
+							["`release patch`", "`do-release patch`"]
+						]
+					}
+				},
+				{
+					"name": "do-pr",
+					"canonical": "pr",
+					"rewrites": {
+						"SKILL.md": [["`commit`", "`do-commit`"]]
+					}
+				},
+				{
+					"name": "do-review",
+					"canonical": "review",
+					"rewrites": {
+						"SKILL.md": [["`commit`", "`do-commit`"]]
+					}
+				},
+				{
+					"name": "enforce-standards",
+					"canonical": "code-standards-learn"
+				},
+				{
+					"name": "ensure-accessibility",
+					"canonical": "accessibility-learn"
+				},
+				{
+					"name": "explore-css",
+					"canonical": "css-learn"
+				},
+				{
+					"name": "find-duplicates",
+					"canonical": "duplication-finder"
+				},
+				{
+					"name": "handle-authentication",
+					"canonical": "authentication-learn"
+				},
+				{
+					"name": "handle-errors",
+					"canonical": "error-handling-learn"
+				},
+				{
+					"name": "implement-caching",
+					"canonical": "caching-learn"
+				},
+				{
+					"name": "implement-designs",
+					"canonical": "design-implementer"
+				},
+				{
+					"name": "implement-i18n",
+					"canonical": "i18n-learn"
+				},
+				{
+					"name": "implement-observability",
+					"canonical": "observability-learn"
+				},
+				{
+					"name": "manage-commands",
+					"canonical": "commands-learn"
+				},
+				{
+					"name": "manage-concurrency",
+					"canonical": "concurrency-learn"
+				},
+				{
+					"name": "manage-dependencies",
+					"canonical": "dependency-manager"
+				},
+				{
+					"name": "manage-environment",
+					"canonical": "dev-environment-learn"
+				},
+				{
+					"name": "manage-feature-flags",
+					"canonical": "feature-flags-learn"
+				},
+				{
+					"name": "manage-git",
+					"canonical": "git-manager"
+				},
+				{
+					"name": "manage-projects",
+					"canonical": "project-manager"
+				},
+				{
+					"name": "manage-state",
+					"canonical": "state-learn"
+				},
+				{
+					"name": "migrate-systems",
+					"canonical": "migration-learn"
+				},
+				{
+					"name": "model-data",
+					"canonical": "data-modeling-learn"
+				},
+				{
+					"name": "optimize-performance",
+					"canonical": "performance-learn"
+				},
+				{
+					"name": "refactor-code",
+					"canonical": "refactoring-learn"
+				},
+				{
+					"name": "research-topics",
+					"canonical": "research"
+				},
+				{
+					"name": "review-code",
+					"canonical": "code-reviewer"
+				},
+				{
+					"name": "solve-problems",
+					"canonical": "problem-solver"
+				},
+				{
+					"name": "test-components",
+					"canonical": "component-tester"
+				},
+				{
+					"name": "write-commits",
+					"canonical": "commit-writer"
+				},
+				{
+					"name": "write-specifications",
+					"canonical": "spec-writer"
+				},
+				{
+					"name": "write-tests",
+					"canonical": "test-writer"
+				}
+			],
+			"overrides": [
+				{
+					"name": "build-botcore-plugins",
+					"owner": "afd",
+					"canonical": "plugin-builder",
+					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
+				},
+				{
+					"name": "build-mcp-servers",
+					"owner": "afd",
+					"canonical": "mcp-builder",
+					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
+				},
+				{
+					"name": "do-commit",
+					"owner": "afd",
+					"canonical": "commit",
+					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
+				},
+				{
+					"name": "do-documentation-update",
+					"owner": "afd",
+					"canonical": "docs-update",
+					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
+				},
+				{
+					"name": "do-release",
+					"owner": "afd",
+					"canonical": "release",
+					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
+				},
+				{
+					"name": "humanize-content",
+					"owner": "afd",
+					"canonical": "content-humanizer",
+					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
+				},
+				{
+					"name": "integrate-llms",
+					"owner": "afd",
+					"canonical": "llm-integration-learn",
+					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
+				},
+				{
+					"name": "manage-documentation",
+					"owner": "afd",
+					"canonical": "docs-manager",
+					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
+				},
+				{
+					"name": "manage-skills",
+					"owner": "afd",
+					"canonical": "skill-manager",
+					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
+				},
+				{
+					"name": "run-dev-checks",
+					"owner": "afd",
+					"canonical": "dev-checks",
+					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
+				}
+			],
+			"local": [
+				"afd",
+				"afd-auth",
+				"afd-contracts",
+				"afd-cpp",
+				"afd-developer",
+				"afd-directclient",
+				"afd-python",
+				"afd-rust",
+				"afd-site-design",
+				"afd-typescript",
+				"do-end-session",
+				"do-init-afd",
+				"do-prepare-pr",
+				"optimistic-mutations"
+			]
+		}
+	}
+}

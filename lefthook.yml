@@ -71,6 +71,9 @@ pre-push:
     boundaries:
       run: pnpm check:boundaries
 
+    skills:
+      run: pnpm check:skills
+
     tooling-tests:
       run: pnpm test:tooling
 
@@ -107,6 +110,9 @@ check:
 
     boundaries:
       run: pnpm check:boundaries
+
+    skills:
+      run: pnpm check:skills
 
     tooling-tests:
       run: pnpm test:tooling

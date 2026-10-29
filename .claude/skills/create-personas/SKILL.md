@@ -2,9 +2,14 @@
 name: create-personas
 source: botcore
 description: >
-  Creates and manages agentic personas for role-based review and synthetic user testing. Covers persona YAML structure, data ingestion, LLM simulation, validation loops, and CI/CD integration. Use when creating user personas, simulating user feedback, conducting role-based reviews, validating features with synthetic users, or generating persona-driven critiques. Triggers: create persona, user persona, agentic persona, user simulation, persona review, role-based review, persona feedback, synthetic user.
-
-version: 1.0.0
+  Creates and manages agentic personas for role-based review and synthetic user
+  testing. Covers persona YAML structure, data ingestion, LLM simulation,
+  validation loops, and CI/CD integration. Use when creating user personas,
+  simulating user feedback, conducting role-based reviews, validating features
+  with synthetic users, or generating persona-driven critiques. Triggers: create
+  persona, user persona, agentic persona, user simulation, persona review,
+  role-based review, persona feedback, synthetic user.
+version: "1.0.0"
 triggers:
   - create persona
   - user persona
@@ -18,6 +23,8 @@ triggers:
   - persona YAML
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical persona-creator skill. -->
 
 # Creating Agentic Personas
 
@@ -105,7 +112,7 @@ Each persona represents a single coherent viewpoint. Do not overload a persona w
 ### Minimal persona YAML
 
 ```yaml
-name: "Data Engineer Dev"
+name: persona-creator
 id: data-engineer-dev
 role: "Data Engineer"
 experience: "5+ years with Spark, Airflow, dbt"

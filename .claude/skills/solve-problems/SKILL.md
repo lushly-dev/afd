@@ -2,9 +2,14 @@
 name: solve-problems
 source: botcore
 description: >
-  Diagnoses and fixes bugs using systematic investigation and the scientific method. Covers build failures, test failures, runtime errors, unexpected behavior, error pattern recognition, and isolation techniques. Use when debugging crashes, diagnosing test failures, fixing build errors, or investigating unexpected runtime behavior. Triggers: bug, error, debug, fix, diagnose, broken, failing, crash, build failure, test failure, runtime error.
-
-version: 1.0.0
+  Diagnoses and fixes bugs using systematic investigation and the scientific
+  method. Covers build failures, test failures, runtime errors, unexpected
+  behavior, error pattern recognition, and isolation techniques.
+  Use when debugging crashes, diagnosing test failures, fixing build errors,
+  or investigating unexpected runtime behavior.
+  Triggers: bug, error, debug, fix, diagnose, broken, failing, crash,
+  build failure, test failure, runtime error.
+version: "1.0.0"
 triggers:
   - bug
   - error
@@ -19,6 +24,8 @@ triggers:
   - runtime error
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical problem-solver skill. -->
 
 # Solving Problems
 

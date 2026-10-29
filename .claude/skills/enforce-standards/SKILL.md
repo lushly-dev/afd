@@ -2,9 +2,14 @@
 name: enforce-standards
 source: botcore
 description: >
-  Enforces language-specific coding conventions for Python, TypeScript, HTML, and CSS. Covers style rules, naming conventions, type safety, error handling, security practices, and performance patterns. Use when writing new code, reviewing pull requests, refactoring existing code, or applying linting and formatting rules. Triggers: code review, coding standards, Python style, TypeScript conventions, ESLint, Prettier, formatting, linting, BEM, PEP 8, type hints, error handling, security, performance, naming conventions.
-
-version: 1.0.0
+  Enforces language-specific coding conventions for Python, TypeScript, HTML,
+  and CSS. Covers style rules, naming conventions, type safety, error handling,
+  security practices, and performance patterns. Use when writing new code,
+  reviewing pull requests, refactoring existing code, or applying linting and
+  formatting rules. Triggers: code review, coding standards, Python style,
+  TypeScript conventions, ESLint, Prettier, formatting, linting, BEM, PEP 8,
+  type hints, error handling, security, performance, naming conventions.
+version: "1.0.0"
 triggers:
   - coding standards
   - code review
@@ -25,6 +30,8 @@ triggers:
   - css tokens
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical code-standards-learn skill. -->
 
 # Enforcing Standards
 

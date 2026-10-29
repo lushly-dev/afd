@@ -2,9 +2,13 @@
 name: research-topics
 source: botcore
 description: >
-  Researches APIs, best practices, and unfamiliar technologies using a systematic multi-source strategy. Covers codebase analysis, documentation lookup, web search, CLI research tools, and source verification workflows. Use when implementing unfamiliar APIs, troubleshooting unknown errors, evaluating libraries, or verifying best practices. Triggers: research, how to, learn, API, documentation, best practice, investigate, evaluate.
-
-version: 1.0.0
+  Researches APIs, best practices, and unfamiliar technologies using a systematic
+  multi-source strategy. Covers codebase analysis, documentation lookup, web search,
+  CLI research tools, and source verification workflows.
+  Use when implementing unfamiliar APIs, troubleshooting unknown errors, evaluating
+  libraries, or verifying best practices. Triggers: research, how to, learn, API,
+  documentation, best practice, investigate, evaluate.
+version: "1.0.1"
 triggers:
   - research
   - how to
@@ -18,6 +22,8 @@ triggers:
 portable: true
 ---
 
+<!-- Generated from skills/exports.json; edit the canonical research skill. -->
+
 # Researching Topics
 
 Systematic approach to investigating unfamiliar topics, APIs, and best practices using all available tools.
@@ -29,7 +35,7 @@ Systematic approach to investigating unfamiliar topics, APIs, and best practices
 3. Evaluate technologies and compare alternatives with evidence-based analysis
 4. Verify best practices against official documentation and reputable sources
 5. Synthesize findings into actionable guidance that matches project conventions
-6. Use CLI research tools (e.g., `lushbot research`) when available for fast, sourced answers
+6. Use CLI research tools (e.g., `lushbot research`) or botcore's `research_query` / `research_stream` when available for fast, sourced answers (see [research-tools.md](references/research-tools.md))
 
 ## Routing Logic
 
@@ -71,7 +77,7 @@ Research request received
 
 ```
 Project sources (check in order):
-1. README.md, AGENTS.md, CLAUDE.md — project-level guidance
+1. AGENTS.md, README.md — project-level guidance
 2. Codebase search — grep for similar patterns, imports, usages
 3. Package manifests — check installed versions in package.json, Cargo.toml, etc.
 4. Config files — existing tool/framework configuration

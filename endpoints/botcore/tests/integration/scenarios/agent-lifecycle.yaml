@@ -1,0 +1,47 @@
+name: agent-lifecycle
+description: Create an agent, start it with an LLM session, verify health, then stop cleanly
+job: agent-lifecycle
+tags: [smoke, p0, agents]
+
+steps:
+  - command: agent_create
+    description: Create researcher agent from config
+    input:
+      name: "researcher"
+    expect:
+      success: true
+      data:
+        name: "researcher"
+        status: "stopped"
+
+  - command: agent_start
+    description: Start agent — should create an LLM session
+    input:
+      name: "researcher"
+    expect:
+      success: true
+      data:
+        name: "researcher"
+        status: "idle"
+        session_id: { exists: true }
+
+  - command: agent_status
+    description: Verify agent health shows idle with zero tasks
+    input:
+      name: "researcher"
+    expect:
+      success: true
+      data:
+        status: "idle"
+        tasks_completed: 0
+        tasks_failed: 0
+
+  - command: agent_stop
+    description: Stop the agent and destroy its session
+    input:
+      name: "researcher"
+    expect:
+      success: true
+      data:
+        name: "researcher"
+        status: "stopped"

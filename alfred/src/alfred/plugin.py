@@ -48,6 +48,10 @@ alfred quality [--path DIR]
 class AlfredPlugin:
     """BotCorePlugin for the AFD repo quality bot."""
 
+    # Legacy auto-discovery remains trusted-local. Managed hosts use build_alfred_host,
+    # whose wrappers require explicit target context and policies.
+    host_context_safe = False
+
     def register(self, registry: PluginRegistry) -> None:
         registry.set_mcp_name("alfred")
         registry.set_cli_name("alfred")

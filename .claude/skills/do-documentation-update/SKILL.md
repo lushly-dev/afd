@@ -1,6 +1,6 @@
 ---
 name: do-documentation-update
-source: botcore
+source: afd
 description: >
   Run a documentation update pass across CHANGELOG, AGENTS.md, README.md, and skill files. Ensures docs reflect current code state with proper changelog formatting, semver alignment, and version-tag consistency. Standalone skill — invoke directly, not only as part of do-commit.
 

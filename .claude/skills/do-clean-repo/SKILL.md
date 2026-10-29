@@ -2,9 +2,11 @@
 name: do-clean-repo
 source: botcore
 description: >
-  Periodic deep cleanup of repository-level cruft — stale branches, orphaned worktrees, dead test files, agent artifacts, dangling configs, and build output. Confirms destructive actions before executing. Use when a repo feels cluttered or before major milestones.
-
-version: 1.0.0
+  Periodic deep cleanup of repository-level cruft — stale branches, orphaned
+  worktrees, dead test files, agent artifacts, dangling configs, and build
+  output. Confirms destructive actions before executing. Use when a repo
+  feels cluttered or before major milestones.
+version: "1.0.0"
 triggers:
   - do clean repo
   - clean repo
@@ -15,10 +17,12 @@ triggers:
   - dead tests
   - repo hygiene
   - repo maintenance
-argument-hint: scan | full
 portable: true
 user-invocable: true
+argument-hint: "scan | full"
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical repo-cleanup skill. -->
 
 # Do Clean Repo
 

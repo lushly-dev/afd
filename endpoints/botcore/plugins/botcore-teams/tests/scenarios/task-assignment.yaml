@@ -1,0 +1,15 @@
+name: task-assignment
+description: User assigns a task to an agent via Teams message
+steps:
+  - action: teams_handle_message
+    input:
+      text: "assign research the latest Azure SDK changes to @researcher"
+      user_id: "user-001"
+      user_name: "Alice"
+      conversation_id: "conv-001"
+    expect:
+      success: true
+      data:
+        agent: "researcher"
+      has_reasoning: true
+      has_plan: true

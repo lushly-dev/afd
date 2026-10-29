@@ -10,7 +10,9 @@
 				"mcp",
 				"python",
 				"-m",
-				"alfred.mcp_server"
+				"alfred.mcp_server",
+				"--workspace",
+				".."
 			]
 		}
 	}

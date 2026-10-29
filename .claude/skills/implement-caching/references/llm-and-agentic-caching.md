@@ -28,8 +28,8 @@ client = anthropic.Anthropic()
 # Place static content (system prompt, few-shot examples, documents)
 # at the BEGINNING of the prompt for maximum cache reuse
 response = client.messages.create(
-    model="claude-sonnet-4-20250514",
-    max_tokens=1024,
+    model="<model-id>",  # see llm-integration-learn Model Selection
+    max_tokens=16000,
     system=[
         {
             "type": "text",
@@ -152,7 +152,7 @@ async def get_llm_response(query: str) -> str:
 
     # Cache miss: call LLM
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="<model-id>",  # e.g. a GPT-6 model
         messages=[{"role": "user", "content": query}],
     ).choices[0].message.content
 

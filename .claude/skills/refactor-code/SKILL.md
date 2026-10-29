@@ -2,9 +2,17 @@
 name: refactor-code
 source: botcore
 description: >
-  Guides systematic code refactoring using extract, inline, move, and rename patterns, dependency inversion, legacy modernization, and technical debt reduction. Covers code smell detection, safe transformation techniques (strangler fig, branch by abstraction, parallel change), and agentic refactoring guardrails for AI-assisted workflows. Use when improving code structure, reducing complexity, eliminating duplication, modernizing legacy systems, or managing technical debt. Triggers: refactor, extract method, inline, move function, rename, code smell, technical debt, legacy code, dependency inversion, strangler fig, codemod.
-
-version: 1.0.0
+  Guides systematic code refactoring using extract, inline, move, and rename
+  patterns, dependency inversion, legacy modernization, and technical debt
+  reduction. Covers code smell detection, safe transformation techniques
+  (strangler fig, branch by abstraction, parallel change), and agentic
+  refactoring guardrails for AI-assisted workflows.
+  Use when improving code structure, reducing complexity, eliminating
+  duplication, modernizing legacy systems, or managing technical debt.
+  Triggers: refactor, extract method, inline, move function, rename, code
+  smell, technical debt, legacy code, dependency inversion, strangler fig,
+  codemod.
+version: "1.0.0"
 triggers:
   - refactor
   - refactoring
@@ -29,6 +37,8 @@ triggers:
   - decompose
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical refactoring-learn skill. -->
 
 # Refactoring Code
 

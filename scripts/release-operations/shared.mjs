@@ -1,8 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { safePath } from '../release/control.mjs';
+import { lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
 
 export const registryUrl = 'https://registry.npmjs.org';
 export const hash = (value) => createHash('sha256').update(value).digest('hex');
@@ -14,6 +13,44 @@ export const run = (command, args, cwd) =>
 		stdio: ['ignore', 'pipe', 'pipe'],
 	});
 export { safePath } from '../release/control.mjs';
+/** Repository snapshots have one tracked mirror exception; artifact inputs never opt in. */
+export function repositoryEntry(root, file, { allowRepositoryMirror = true } = {}) {
+	if (
+		typeof file !== 'string' ||
+		!file ||
+		isAbsolute(file) ||
+		file.includes('\\') ||
+		file.split('/').some((part) => !part || part === '.' || part === '..')
+	)
+		throw new Error(`Unsafe repository path: ${file}`);
+	let absolute = realpathSync(root),
+		status;
+	const parts = file.split('/');
+	for (const [index, part] of parts.entries()) {
+		absolute = join(absolute, part);
+		status = lstatSync(absolute, { throwIfNoEntry: false });
+		if (!status?.isSymbolicLink()) continue;
+		const target = readlinkSync(absolute);
+		if (
+			!allowRepositoryMirror ||
+			file !== '.codex/skills' ||
+			index !== parts.length - 1 ||
+			target !== '../.claude/skills'
+		)
+			throw new Error(`Symlink is not release input: ${file}`);
+		const tracked = run('git', ['ls-files', '--stage', '-z', '--', file], root);
+		if (!/^120000 [a-f0-9]+ 0\t\.codex\/skills\0$/.test(tracked))
+			throw new Error(`Repository mirror must be a tracked symlink: ${file}`);
+		return { absolute, kind: 'symlink', target };
+	}
+	return { absolute, kind: status ? 'file' : 'missing' };
+}
+export function entryHash(entry) {
+	if (entry.kind === 'missing') return null;
+	return entry.kind === 'symlink'
+		? hash(JSON.stringify({ type: 'symlink', target: entry.target }))
+		: hash(readFileSync(entry.absolute));
+}
 export function sourceDigest(root, exclude = [], include = []) {
 	const files = run('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], root)
 		.split('\0')
@@ -26,20 +63,18 @@ export function sourceDigest(root, exclude = [], include = []) {
 	return hash(
 		JSON.stringify(
 			files.sort().map((file) => {
-				const absolute = safePath(root, file);
-				return [file, existsSync(absolute) ? hash(readFileSync(absolute)) : null];
+				return [file, entryHash(repositoryEntry(root, file))];
 			})
 		)
 	);
 }
-export function tree(root, prefix = '') {
+export function tree(root, prefix = '', options = {}) {
 	return readdirSync(join(root, prefix), { withFileTypes: true }).flatMap((entry) => {
 		if (['.git', 'node_modules'].includes(entry.name)) return [];
 		const file = prefix ? `${prefix}/${entry.name}` : entry.name;
-		if (entry.isDirectory()) return tree(root, file);
-		if (lstatSync(join(root, file)).isSymbolicLink())
-			throw new Error(`Symlink in release candidate: ${file}`);
-		return [[file, hash(readFileSync(join(root, file)))]];
+		const input = repositoryEntry(root, file, { allowRepositoryMirror: false, ...options });
+		if (entry.isDirectory()) return tree(root, file, options);
+		return [[file, entryHash(input)]];
 	});
 }
 export function readRegistry(name) {
