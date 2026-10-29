@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 /** Explicit operator recovery of a reviewed, artifact-bound npm publication. */
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute, join, resolve } from 'node:path';
 import { releaseClaim } from './release-claim.mjs';
@@ -113,8 +114,17 @@ try {
 		plan,
 		receiptFile,
 		previouslyPublished: claim.reconciliation.verified,
+		...(claim.reconciliation.finalizationOnly
+			? {
+					publisher: () => {
+						throw new Error('Finalization-only recovery cannot upload packages');
+					},
+				}
+			: {}),
 	});
 	receipt.recovery = {
+		finalizationOnly: claim.reconciliation.finalizationOnly === true,
+		priorFinalization: prior.finalization,
 		originalRunId: approval.runId,
 		originalAttempt: approval.attempt,
 		failedStatusId: approval.failedStatusId,
@@ -123,13 +133,36 @@ try {
 		priorFailure: approval.failure ?? { runId: approval.runId, attempt: approval.attempt },
 	};
 	save('npm-publication.json', receipt);
-	finalizeRelease({ root: frozen, plan, receipt, receiptFile });
+	finalizeRelease({
+		root: frozen,
+		pushRoot: root,
+		plan,
+		receipt,
+		receiptFile,
+		command: (program, args, directory) =>
+			program === 'git' && args[0] === 'push'
+				? (execFileSync(program, args, { cwd: directory, stdio: 'inherit', encoding: 'utf8' }) ??
+					'')
+				: run(program, args, directory),
+	});
 	const result = releaseClaim({ action: 'complete', root: frozen, claim, plan, receipt });
 	save('npm-claim-result.json', result);
 	console.log(
 		`Recovered ${plan.artifacts.length} verified packages from ${approval.sourceRevision}`
 	);
 } catch (error) {
+	if (existsSync(receiptFile)) {
+		const held = json(receiptFile);
+		if (held.state === 'complete' && held.finalization?.state !== 'complete') {
+			held.finalization = {
+				...held.finalization,
+				state: 'held',
+				head: plan.sourceRevision,
+				reason: error.message,
+			};
+			save('npm-publication.json', held);
+		}
+	}
 	save('npm-claim-result.json', releaseClaim({ action: 'fail', root: frozen, claim }));
 	throw error;
 }
