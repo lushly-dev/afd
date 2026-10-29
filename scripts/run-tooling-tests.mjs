@@ -10,6 +10,7 @@ export const testFiles = [
 	'scripts/check-versions.test.mjs',
 	'scripts/repository-contract.test.mjs',
 	'scripts/check-boundaries.test.mjs',
+	'scripts/skill-profiles.test.mjs',
 	'scripts/release-control.test.mjs',
 	'scripts/release/changeset.test.mjs',
 	'scripts/release/control.test.mjs',

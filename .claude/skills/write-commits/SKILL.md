@@ -2,9 +2,15 @@
 name: write-commits
 source: botcore
 description: >
-  Generates clear, consistent commit messages following Conventional Commits format with project-appropriate scopes and changelog-friendly structure. Covers commit types, scope selection, subject/body/footer rules, breaking changes, multi-package commits, and anti-pattern avoidance. Use when writing commits, reviewing staged changes, generating commit messages, or enforcing commit conventions. Triggers: commit, commit message, write commit, generate commit, staged changes, conventional commits, git commit, changelog.
-
-version: 1.0.0
+  Generates clear, consistent commit messages following Conventional Commits
+  format with project-appropriate scopes and changelog-friendly structure.
+  Covers commit types, scope selection, subject/body/footer rules, breaking
+  changes, multi-package commits, and anti-pattern avoidance.
+  Use when writing commits, reviewing staged changes, generating commit
+  messages, or enforcing commit conventions.
+  Triggers: commit, commit message, write commit, generate commit,
+  staged changes, conventional commits, git commit, changelog.
+version: "1.0.0"
 triggers:
   - commit
   - commit message
@@ -16,6 +22,8 @@ triggers:
   - changelog
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical commit-writer skill. -->
 
 # Writing Commits
 

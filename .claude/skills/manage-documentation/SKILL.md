@@ -1,6 +1,6 @@
 ---
 name: manage-documentation
-source: botcore
+source: afd
 description: >
   Manages documentation architecture, review, staleness detection, and maintenance policy across project repositories. Covers README, AGENTS.md, CHANGELOG, ROADMAP, doc sites, and skill indexing. Use when creating docs, reviewing documentation structure, auditing for staleness, updating changelogs, maintaining roadmaps, or enforcing documentation standards. Triggers: docs, documentation, readme, changelog, roadmap, agents.md, doc site, docsify, update docs, documentation audit, docs review.
 

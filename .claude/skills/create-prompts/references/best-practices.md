@@ -167,7 +167,7 @@ Without an explicit output format, agent responses vary wildly between invocatio
 | No output template              | Agent produces inconsistent output    | Add a structured output section        |
 | Duplicated instructions         | Maintenance burden, content drift     | Reference shared docs via links        |
 | Missing guardrails              | Agent takes unintended actions        | Add Important section with constraints |
-| No verification step            | Agent claims success without checking | Include verification/status checks     |
+| Unused status command           | Agent re-reads output instead of running the real check | When a status tool or check command exists, name it in the prompt |
 | Using `mode` instead of `agent` | Deprecated -- may stop working        | Migrate to `agent: agent`              |
 | Multiple unrelated tasks        | Unfocused results                     | One purpose per prompt                 |
 | Over 200 lines                  | Hard to maintain, slow to load        | Extract to skill with references       |

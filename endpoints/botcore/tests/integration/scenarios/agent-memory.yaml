@@ -1,0 +1,77 @@
+name: agent-memory-workflow
+description: Agent stores learned knowledge in memory, retrieves it, and searches across entries
+job: agent-memory
+tags: [smoke, p0, memory, agents]
+
+steps:
+  - command: memory_set
+    description: Agent stores a learned pattern in private scope
+    input:
+      key: "python/release-notes-format"
+      value: "Python release notes use PEP format with What's New section"
+      scope: "agent"
+      scope_id: "researcher"
+      tags: ["python", "conventions"]
+    expect:
+      success: true
+      data:
+        key: "python/release-notes-format"
+        scope: "agent"
+
+  - command: memory_set
+    description: Agent stores a second pattern
+    input:
+      key: "github/search-syntax"
+      value: "Use qualifier:value syntax. Combine with AND (space) or OR (|)"
+      scope: "agent"
+      scope_id: "researcher"
+      tags: ["github", "search"]
+    expect:
+      success: true
+      data:
+        key: "github/search-syntax"
+
+  - command: memory_get
+    description: Retrieve the first entry by key
+    input:
+      key: "python/release-notes-format"
+      scope: "agent"
+      scope_id: "researcher"
+    expect:
+      success: true
+      data:
+        key: "python/release-notes-format"
+        value: { contains: "PEP format" }
+        tags: { includes: "python" }
+
+  - command: memory_search
+    description: Search by substring across agent memory
+    input:
+      query: "syntax"
+      scope: "agent"
+      scope_id: "researcher"
+    expect:
+      success: true
+      data: { length: 1 }
+
+  - command: memory_list
+    description: List all entries with prefix filter
+    input:
+      scope: "agent"
+      scope_id: "researcher"
+      prefix: "python/"
+    expect:
+      success: true
+      data:
+        entries: { length: 1 }
+
+  - command: memory_delete
+    description: Clean up an entry
+    input:
+      key: "github/search-syntax"
+      scope: "agent"
+      scope_id: "researcher"
+    expect:
+      success: true
+      data:
+        deleted: true

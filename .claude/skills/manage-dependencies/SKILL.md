@@ -2,9 +2,19 @@
 name: manage-dependencies
 source: botcore
 description: >
-  Guides dependency evaluation, selection, and lifecycle management for software projects. Covers package health assessment (OpenSSF Scorecard, maintenance signals, popularity metrics), vendoring vs forking decisions, major version upgrade strategies, automated update tooling (Dependabot, Renovate), supply chain security (SLSA, Sigstore, SBOM, provenance), monorepo dependency patterns, and agentic workflows for dependency operations. Use when evaluating new packages, adding dependencies, upgrading major versions, configuring automated updates, auditing dependency health, making vendor-or-fork decisions, or securing the software supply chain. Triggers: dependency, package, npm install, pip install, cargo add, upgrade, update, vendoring, fork, supply chain, SBOM, SLSA, Dependabot, Renovate, lockfile, vulnerability, dependency health, monorepo dependencies.
-
-version: 1.0.0
+  Guides dependency evaluation, selection, and lifecycle management for software
+  projects. Covers package health assessment (OpenSSF Scorecard, maintenance
+  signals, popularity metrics), vendoring vs forking decisions, major version
+  upgrade strategies, automated update tooling (Dependabot, Renovate), supply
+  chain security (SLSA, Sigstore, SBOM, provenance), monorepo dependency
+  patterns, and agentic workflows for dependency operations.
+  Use when evaluating new packages, adding dependencies, upgrading major
+  versions, configuring automated updates, auditing dependency health, making
+  vendor-or-fork decisions, or securing the software supply chain.
+  Triggers: dependency, package, npm install, pip install, cargo add, upgrade,
+  update, vendoring, fork, supply chain, SBOM, SLSA, Dependabot, Renovate,
+  lockfile, vulnerability, dependency health, monorepo dependencies.
+version: "1.0.0"
 triggers:
   - dependency
   - package
@@ -30,6 +40,8 @@ triggers:
   - dependency security
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical dependency-manager skill. -->
 
 # Dependency Management
 
@@ -102,7 +114,7 @@ Deep transitive dependency chains amplify risk. Prefer packages with few transit
 #### 2. Evaluate Candidates
 
 - [ ] Compare at least 2 alternatives when feasible
-- [ ] Run the Package Health Assessment (see `references/package-evaluation.md`)
+- [ ] Run the Package Health Assessment (see [references/package-evaluation.md](references/package-evaluation.md))
 - [ ] Check license compatibility with your project
 - [ ] Review transitive dependency count (`npm ls`, `pip show`, `cargo tree`)
 - [ ] Search for known vulnerabilities (`npm audit`, `pip-audit`, `cargo audit`)

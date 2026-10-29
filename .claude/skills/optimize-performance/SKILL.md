@@ -2,9 +2,15 @@
 name: optimize-performance
 source: botcore
 description: >
-  Guides bundle size reduction, Core Web Vitals improvement, and runtime performance optimization for web applications. Covers LCP, INP, CLS metrics, code splitting, lazy loading, tree shaking, compression, and long-task mitigation strategies. Use when bundle size exceeds thresholds, Core Web Vitals scores degrade, users report slowness, or before major releases. Triggers: performance, bundle size, LCP, INP, CLS, Lighthouse, slow, optimize, lazy loading, code splitting, web vitals.
-
-version: 1.0.0
+  Guides bundle size reduction, Core Web Vitals improvement, and runtime
+  performance optimization for web applications. Covers LCP, INP, CLS
+  metrics, code splitting, lazy loading, tree shaking, compression, and
+  long-task mitigation strategies.
+  Use when bundle size exceeds thresholds, Core Web Vitals scores
+  degrade, users report slowness, or before major releases.
+  Triggers: performance, bundle size, LCP, INP, CLS, Lighthouse, slow,
+  optimize, lazy loading, code splitting, web vitals.
+version: "1.0.0"
 triggers:
   - performance
   - bundle size
@@ -19,6 +25,8 @@ triggers:
   - web vitals
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical performance-learn skill. -->
 
 # Optimizing Performance
 

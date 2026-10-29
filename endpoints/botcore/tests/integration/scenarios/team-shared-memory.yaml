@@ -1,0 +1,51 @@
+name: team-shared-memory
+description: Two agents share knowledge via team-scoped memory
+job: team-collaboration
+tags: [p1, memory, agents, collaboration]
+
+steps:
+  - command: memory_set
+    description: Researcher stores finding in team scope
+    input:
+      key: "project/coding-standard"
+      value: "Use ruff for linting, pytest for testing, type hints required"
+      scope: "team"
+      scope_id: "virtual-team-alpha"
+      tags: ["standards", "conventions"]
+    expect:
+      success: true
+      data:
+        key: "project/coding-standard"
+        scope: "team"
+
+  - command: memory_get
+    description: Coder retrieves the team standard
+    input:
+      key: "project/coding-standard"
+      scope: "team"
+      scope_id: "virtual-team-alpha"
+    expect:
+      success: true
+      data:
+        value: { contains: "ruff" }
+
+  - command: memory_set
+    description: Coder adds implementation notes to team scope
+    input:
+      key: "project/api-patterns"
+      value: "All endpoints return CommandResult, use afd.success/error helpers"
+      scope: "team"
+      scope_id: "virtual-team-alpha"
+      tags: ["patterns", "api"]
+    expect:
+      success: true
+
+  - command: memory_search
+    description: Search team memory for project knowledge
+    input:
+      query: "project"
+      scope: "team"
+      scope_id: "virtual-team-alpha"
+    expect:
+      success: true
+      data: { length: 2 }

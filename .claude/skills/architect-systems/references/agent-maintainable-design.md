@@ -162,9 +162,9 @@ Modular monolith with event-driven integration between modules.
 See docs/architecture/decisions/
 ```
 
-### CLAUDE.md / AGENTS.md Integration
+### AGENTS.md Integration
 
-If the project uses agent instruction files, include architecture-relevant rules:
+If the project uses an AGENTS.md, include architecture-relevant rules:
 
 ```markdown
 ## Architecture Rules

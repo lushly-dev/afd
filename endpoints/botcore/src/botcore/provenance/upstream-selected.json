@@ -1,0 +1,3753 @@
+{
+  "kind": "immutable-git-object-baseline",
+  "repository": "https://github.com/lushly-dev/botcore",
+  "revision": "7d5c54cae8aae90e145374467456af619cf54e41",
+  "git_tree": "c3a49285b9c28d88bb78b549df4ff5b9372f9295",
+  "selection": "Frozen staged input paths plus reviewed post-stage import references",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "sha256": "f5450e1ba56adb4b95452b6700a3799cd614be00d3dfa7919778586c29121741",
+      "git_blob": "2a581ca85d6612c0af3a9651921520ef1dbcca50",
+      "git_mode": "100644",
+      "selected_in_staged_input": false
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
+      "git_blob": "70863eaddf511a2333ff1d20812b8dce1d7376e1",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "LICENSE",
+      "sha256": "3f888b54c5c5d37c35639fc241822dfff41e90605e74b7626b7e51c028ba8a37",
+      "git_blob": "a3501f144420bf3ffc868603779e5de8866befe2",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "README.md",
+      "sha256": "892db189b22b41214ab5637d9601beb0add2f9f2535c358c59cf5757e4d87979",
+      "git_blob": "603732469a00371579027cfcd0c440a4dd493425",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "SETUP.md",
+      "sha256": "2870d372847f64596db5b1fa974522ca8e959ff65683b066cdcb1d42bc8c124b",
+      "git_blob": "da1514c804a9d1952bca46aa422dea5a3a7b399f",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/pyproject.toml",
+      "sha256": "7ca2c9706030c7627bcd900cd9294144c23cdda883e10fe9c1aec011fb843e79",
+      "git_blob": "b94facc3137cda177cb179aff82e6bca72e9ceb3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/src/botcore_connectors/__init__.py",
+      "sha256": "d7b74d3bc091ef4d2c23d51fc62af6ed7ee8979749095c1c83716572d7c39db6",
+      "git_blob": "bb029fcb5dd1841942bdcb57f227c295c18f3be4",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/src/botcore_connectors/audit.py",
+      "sha256": "cf912cb089678fa756b80a3ec57f85aef5c5adcd0bd7009a7a7e4d3198c105a5",
+      "git_blob": "4929ab1d2fa30b46b460407fdfaa90beac238847",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/src/botcore_connectors/auth.py",
+      "sha256": "7d885c4fe4bbb237e85861d2110dd85510ac98eaa7f8cac1f4212a428c11408a",
+      "git_blob": "70419aae0ec380d4ca482a54bbc3df26f749813b",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/src/botcore_connectors/base.py",
+      "sha256": "2199ae2f68c4075bf3cf84da779ff6e3e49b754d92339eff80c22f67f5780e5f",
+      "git_blob": "5cb35aeac498e509979d20fb6fd03c620c922af1",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/src/botcore_connectors/config.py",
+      "sha256": "b31c4d9bd1fab8ced403d98f4dfa6c37fb66785e839ffaa394f5a92435c25386",
+      "git_blob": "6dff50654332c5bb38aa7031441ce3af0f40064c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/src/botcore_connectors/errors.py",
+      "sha256": "7e27e1306ce0234c469eb0278697e6f69d6692c82e4a4fb95faf6b38b4a50f5f",
+      "git_blob": "c0635c51db7d42773b8e4ce15d1e7a9a491619a8",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/src/botcore_connectors/github.py",
+      "sha256": "89a9ebe0ff72cfad0dc6e67d7cc7cf347581a6413762e1ec3fe39657d0ebcf35",
+      "git_blob": "60795c86e99c878a2925a8a42fd969a51c446c33",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/src/botcore_connectors/github_commands.py",
+      "sha256": "534dae4ec1fe6ce6b05939b6afd06afa3d6f9de1a62e80c57444e3bbf0db3c2a",
+      "git_blob": "6aa2e0ca788d92df2ed39737246f3c77deabc00d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/src/botcore_connectors/plugin.py",
+      "sha256": "1d0d0eb880fba09657132e7a3bdaca2e411d8466c69cfd785a012193b24e69fd",
+      "git_blob": "279fbeaf4886f118a4c85d4ef00108de66fba8c7",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/src/botcore_connectors/validation.py",
+      "sha256": "a2379a4961e99a2033fd56233c0db4a1339dc4b4296810dda71ca4e98c203ebb",
+      "git_blob": "4ff41ce95221d1bca3b41b4968b337c90ba300b5",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/tests/conftest.py",
+      "sha256": "6fa74e7becf8be7d7a711342b552f756be7b1a59f20611c1a699274d0a86d95b",
+      "git_blob": "5b16af05df9ec20a47d4236e3c747eed4c592baa",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/tests/test_audit.py",
+      "sha256": "ab77ee9e6e44e9971639cb325010d6f46809f7b6eb21566d1aa6953e558eea8b",
+      "git_blob": "bb0f09dd1989d6258f06168f9321d35ff981ba02",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/tests/test_auth.py",
+      "sha256": "4d94415edef261874994db6e1ec8c00b7cb9f7fc253572300cb05f5ad1a8890c",
+      "git_blob": "37d49b011c5cf7b82f3ce28ad685e48d03758909",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/tests/test_base.py",
+      "sha256": "09893fbafae7ac8b7670a2b43ca7b936c057b1476b3c19cdd5cd3474dadadce2",
+      "git_blob": "4fa27904e0be4878e52f1e96c6eb2e63c64c63a1",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/tests/test_config.py",
+      "sha256": "9cb8584abb561cf5c0ff12674b879603707ad4e891d9596191d724c6d524de58",
+      "git_blob": "0b60cb1c92af5c30ccd9ca1ee8284346fc44e559",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/tests/test_errors.py",
+      "sha256": "3e68eaa6c8f9f07e246c5d58f9f8e544d17d3e21aa65027474bcbdb339c2ad0b",
+      "git_blob": "4d8694ec0e4a959ff9ed9f3849e377bae9328097",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/tests/test_github.py",
+      "sha256": "76f71c7f167ceda9aa6daaf3b24a3846af155c03f22ec5d74ff546ff9faca3ef",
+      "git_blob": "d1f183dfc520af8d4557fa9d7e51f782115a7851",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/tests/test_github_commands.py",
+      "sha256": "aa4991336cbf878741c24ba3117b03ec6557e0308ba1bfde12b271cb2c9ffd85",
+      "git_blob": "e813b7c54fff6363d73eaaf1924bb9a7b8fd2960",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/tests/test_github_integration.py",
+      "sha256": "26556f51326ecddbed963ce6307272fc6e2715d33d004113e454c586692e0b6c",
+      "git_blob": "7b26980c8c0d7f8fe58e5dc1e3d7aa6ba2e9bc17",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/tests/test_plugin.py",
+      "sha256": "4bc2e0435e9ec78857a393a08215ca4a12a56a5e77734f3a8c6fa46cb91bb456",
+      "git_blob": "33f2da4932e476366a6cf2ce555ada0f15c9e0f3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/tests/test_scope.py",
+      "sha256": "abb84ab61fc0f0c4c951f0ad5dd97ad90fa301c626e8760ad3e85d54124a18cd",
+      "git_blob": "4e8b06a4ebb013260ca3c21ed905030a506fc11d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/tests/test_validation.py",
+      "sha256": "8b64ba4945b38a3ffb973590ea3c068ce36f1b3b1f99c0c4b07724d35e32c1ff",
+      "git_blob": "613aa7f16b5375c87f284afd5647546cca6479e9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "botcore-connectors/uv.lock",
+      "sha256": "4645ec86806de5308848216c363444eabcc27eabed54c025ae9f37dcdb1c2640",
+      "git_blob": "63bbb174e1a876be11e324aaf389ac33ef4bf2e3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/architecture-eval.plan.md",
+      "sha256": "b9f8e41370a4fb51f32cc650ced4c762c0f0978fea6cc6948135964b3da452e6",
+      "git_blob": "d0328cb75ba670759ebbdb9b9b05a177f3d76924",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/active/agent-runtime-model/agent-runtime-model.plan.md",
+      "sha256": "26f41e0160ff4dfd067a25fbe0b7a68c6920185e69dc7d39efbf4e5ce7348046",
+      "git_blob": "42e97fb0172ef2c5c08898e1c62b799185bef658",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/active/agent-scheduling/agent-scheduling.plan.md",
+      "sha256": "e56594531275a73d799557bed40cebbce3d62585d883e8e66df3f90f757e02c9",
+      "git_blob": "2580b6113faee9a5cad9d6e00490da3d9efddcf9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/active/agent-surfaces-and-deployment/agent-surfaces-and-deployment.plan.md",
+      "sha256": "c658a1a3ae28d48d3466a98b137ba6a4f7006176c30fd3742ca70e3719691350",
+      "git_blob": "cb2ed5701d99fead26e071b7e00ced04d183a5f2",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/active/agent-trust-and-approvals/agent-trust-and-approvals.plan.md",
+      "sha256": "4c8abb88842009ffdfdce9c61b9e660b0eeed175966b7917e9cba7e26eb3ec5d",
+      "git_blob": "3dc406c65e3d5d659a320410dca3f99fc124330f",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/active/multi-agent-collaboration/multi-agent-collaboration.plan.md",
+      "sha256": "4f1370b6d06c214bd4e788635af6a5f6c64ac8be9357879ec5774cb71c98eea7",
+      "git_blob": "20220200708e87b0f5afa4fc4f5b952c0a27134b",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/afd-060-adoption/spec.md",
+      "sha256": "c799f02181269fb7431b4ad991d1f24aaff266f00a6d1bc4f50d795810905dcd",
+      "git_blob": "d8e946ba6c8ad389ab28bbcf86dd30b356983468",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/agent-capability-declarations/spec.md",
+      "sha256": "80e62b8c6b02e12d213149e7a3bd28bb45448dd1e4a40503f0ce3d8e282f2065",
+      "git_blob": "1a3c4a244eab88475f1bdbfe7d4beb5948458d64",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/agent-orchestration/00-overview.plan.md",
+      "sha256": "ecd5185edb52e6e415b713e3447856a59ac1aa8736710c098d227af51c586d71",
+      "git_blob": "28fd3073e92e6074e55cd117bcc0568170b3c3b5",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/agent-skill-scoping/agent-skill-scoping.plan.md",
+      "sha256": "ba03457d68e6234de082261472e6722c7f3631454d60cc57432cc4f94b4f9acc",
+      "git_blob": "12a5af80896ba66f4fe56bcbd5a145cd23ce42b7",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/botcore-skill-registry/00-overview.md",
+      "sha256": "f8155e689b6df0d85a266ac93e519cabdd808cd34f1258cfcebb50ac41026a4f",
+      "git_blob": "4faf1922af283bd1ee35d37e2a4dccdca54d67bd",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/botcore-skill-registry/01-context-and-problem.md",
+      "sha256": "7cc16e92fc45c0bef1fd4dbe8f33b1fd8e8159c9aaa5cdf1bb50c9bf9a4572df",
+      "git_blob": "ba25bdaf16c095f0b731140312b15b2ee1caa2df",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/botcore-skill-registry/02-architecture.md",
+      "sha256": "8c14d3d3f39bbc8a5a05bf411c29a014ffec443566dde22156703869379e1663",
+      "git_blob": "19467382b3e0d757f8a070958afd141bafe1fc37",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/botcore-skill-registry/03-configuration.md",
+      "sha256": "473fa4d4cb28a5dd84595c14d6154a49e01b4afa232cb75c9185c5194f8ff054",
+      "git_blob": "d9baa40d29fee5998021fe561891601aec59106e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/botcore-skill-registry/04-mcp-tool-architecture.md",
+      "sha256": "fff67fd472e166d98b94090e935f46854574c67f1521f8076f0e774ae05656d5",
+      "git_blob": "c4be162c32199045086a08eb8980de7c13680a8c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/botcore-skill-registry/05-afd-leverage.md",
+      "sha256": "4e0b771f9b4b2f400fabf8cddcef7416c47169b9c4f8f1aba373b130b441eb78",
+      "git_blob": "cc6ac3c4c992014d45c08e82c3a55ee7667b9566",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/botcore-skill-registry/06-portability.md",
+      "sha256": "a50b6347c1495f49b8cfd48f9b7597deaf3b034288ecf449192458a35b9f55e7",
+      "git_blob": "3baa84d5da265af301b93859d88b28d77ef6b740",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/botcore-skill-registry/07-phases.md",
+      "sha256": "8c7890057417d45a21229cf430dacb335f424b55308bd3d5cce0eb5cbc4104bc",
+      "git_blob": "449596f4b9f15e943f1fad1b27ce50d27646585e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/botcore-skill-registry/08-migration-and-testing.md",
+      "sha256": "3ebbc29072ce36bb47bf2d8808e81c23c337c6547a3135710c167c9f67e919f8",
+      "git_blob": "141c21b94a99e88d8cc8ed8aa8f3d1b3c018e99a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/botcore-skill-registry/09-extraction-manifest.md",
+      "sha256": "8a129703458696f1e2861c0a2c6d75b5d2255227b4ac3a2d0f5865cb4d10db19",
+      "git_blob": "f21d2011c56c48e1a615e2e1d44303bd21a4ae70",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/botcore-skill-registry/10-appendix-module-architecture.md",
+      "sha256": "404994cdfa298c91447177bc175381339069cd12af295051084b23d3a74f00e8",
+      "git_blob": "a2bd02ff8870065e90723a678cce4864d1656b6e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/botcore-skill-registry/11-review-log.md",
+      "sha256": "267bd818653973a133f33adfab713fa56a3281bc6be88816a86344a7b3189181",
+      "git_blob": "eb9cdc93339e974aa7d3bdf81d4a1dc31a8d5eda",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/connectors/00-overview.plan.md",
+      "sha256": "ae325d3811a34454209e652874717204061f54f30181c2e09a43dbcd415e6b23",
+      "git_blob": "c23e97654be5436ea77633c68d335bf51cc60d95",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/connectors/01-connector-base.plan.md",
+      "sha256": "038319052ee54accfe12a7ba2addb8f1c41938558a144e7d34d671743081b8de",
+      "git_blob": "943babc6a42bfd79d5e8f3ae74d4137e4576669c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/connectors/02-auth.plan.md",
+      "sha256": "23ffc3309d7a4f9b23178de982b0dd7ef3ed7fd6fec1871ebb5dda0cf2659c9c",
+      "git_blob": "851cac66b003ddfbde9baba1a56c5cf7e7e3ed13",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/connectors/03-config-and-plugin.plan.md",
+      "sha256": "2adeb3cb7971cf448180592b7da3e4d5fb98851c89f3cb2ebcf472d3a9b2d52a",
+      "git_blob": "c6f08f6302e595bc37a305fd85a465b323e774c4",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/connectors/04-security-model.plan.md",
+      "sha256": "d88c8666524f81f214eab7fd941b47f4e78704f7e00e081548d0d6e6f3621179",
+      "git_blob": "445586b7a94f441d909d316c71e29e4b82b3e256",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/connectors/05-github-connector.plan.md",
+      "sha256": "009c5485d7e7ecdf8dc9ecd56266c9f1de87bace90e08e443eb9dfa8e7d47a7b",
+      "git_blob": "1670a356851882db00aaecabeb426eba4672f9c9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/connectors/06-azure-connectors.plan.md",
+      "sha256": "8abccb7ada59df1b9635505dbc64b4824a83f3a706cca4aea69d803d06b167cf",
+      "git_blob": "4f97c54a3992bcb91d0aca6d4c70b747d01994c6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/connectors/07-graph-connectors.plan.md",
+      "sha256": "773756e70d2ae6f1002bb55d8cff35e5aca16bb116250ca961164680a1888481",
+      "git_blob": "288a798d3b13fa9acb3ac549c6a17eda6c046524",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/connectors/08-phases.plan.md",
+      "sha256": "e92dd5a515cc2b3b77ed6d5ca6e198e3b2b91a349c82c2c330a717a999518a1a",
+      "git_blob": "f3cc0b36cd8db6b9756097388b64dfa58abadbeb",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/llm-runtime/00-overview.plan.md",
+      "sha256": "bc84956f9ddf293ec7d496852e92800f70a5b7a9faa3b2872850843ae9436ac3",
+      "git_blob": "a2dcb1773d1b45274424c4586dd8a7db08759ccf",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/memory-system/00-overview.plan.md",
+      "sha256": "461c048370e1c551dfdbb39aed02180b6c5afdb93b5c4bbe40ea603c8cb15cfc",
+      "git_blob": "98c47692bfec1ede53ffa9cbe3cab166e90ca18d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/multi-language-config/multi-language-config.plan.md",
+      "sha256": "56a2ea04b2e09ef1fd1b271378f590d72c3cf144d60d6891047c89d4ffa535f2",
+      "git_blob": "0990949070c5fe665257ad45e32b9ed5d1c61c3c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/orchestrator-state-serialization/orchestrator-state-serialization.plan.md",
+      "sha256": "4590ab91d1017dbf57b20bebad37170723956cbae1d8360e32f449339ccfb474",
+      "git_blob": "e1b0d485cd04aa058aed805010dfd8535881b4ef",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/per-agent-permissions/per-agent-permissions.plan.md",
+      "sha256": "c2dddc8e03dfd56d77bca639183f11715305805f7b4a5ee0259f1726717bde9d",
+      "git_blob": "a06bc5178f60fd719e913d7fe92eff8eff428c29",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/complete/teams-interface/00-overview.plan.md",
+      "sha256": "d9339c66af60cca0745890dfd2362c2dd1d935c2118039719f906551721432ae",
+      "git_blob": "e5701608ca4a25d10c1e196684eaa3b07e767590",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/proposed/async-task-execution/async-task-execution.plan.md",
+      "sha256": "01ef464d9259e36c2dff6a4a6565c36738739dced6afbb308f4c5cbadb25daf0",
+      "git_blob": "f58356ceeeac2c2813331529d89211050ef324e5",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/proposed/azure-connectors/azure-connectors.plan.md",
+      "sha256": "43f5ada7ad5abe5d5caf8f7ca7dcdf550d66239120372e5a7be359153753c2da",
+      "git_blob": "4bea4bea3f6f682b83b43d75f66065db27f99c00",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/proposed/cost-aware-routing/cost-aware-routing.plan.md",
+      "sha256": "946a2dc7069e7b8b2fd369ce0244bebbb9aec53a200b776637e2e759ea2b51e5",
+      "git_blob": "31eba0a1973ce8653c88ee15d1831e156c7825c1",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/proposed/skill-research/skill-research.plan.md",
+      "sha256": "1db97fa6e4ca590686f000f6503b2cc66e36075d38f56631098ff9545068fe99",
+      "git_blob": "83572b6fd702ff6100ecf236f3ecb19b3e0eccd9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/features/proposed/sqlite-memory-backend/sqlite-memory-backend.plan.md",
+      "sha256": "65cd6b059832041ff43ffb2309b978a185d11daca4ac862bc0d6136b53f30517",
+      "git_blob": "f795e8c9a4f2584efccb68a6f823070dd97ad4e3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "docs/operations/model-routing.md",
+      "sha256": "0857e34d7b43ed79f566f7d8e6ffefffe42354da9ce3f87f55924e3840905815",
+      "git_blob": "3fcfe485367e9875daad0d369aba7d6a3ac34cc2",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/pyproject.toml",
+      "sha256": "e8dd2a9d1fa2afe1e84ad789998319b92cf846cfdf722756ca9bd3afb6147c50",
+      "git_blob": "b14d8472bc6bbd2d9013b43a2d76126c60602a61",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/src/botcore_agents/__init__.py",
+      "sha256": "bf462f4e5e07a943804c5bde9700f9ef242f292c3d3e4a2caf43d7566adf4c5c",
+      "git_blob": "d8f24292ff45f6490b25c0758e44f0f84c909696",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/src/botcore_agents/_docs.py",
+      "sha256": "ca87cca087f3f4eb72dd8bcddf64ee0e395ce224c9211b0c4ceb7cd9f534ad8d",
+      "git_blob": "15ace5a20eeafe80ffee2b802232f566823b09fd",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/src/botcore_agents/commands.py",
+      "sha256": "113666ae1f189754532f5254f3e5d73670bc6338e6cac33e4c34680cc153f0b5",
+      "git_blob": "468da16e06e4dff07549859c06b81c582c18c219",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/src/botcore_agents/config.py",
+      "sha256": "2b0963bca6c3fc9b2e9d18397055205b4a55aa2294191885364ef482ff8e889e",
+      "git_blob": "3a23e7bf14dc319e989e54ffd6fb09cfdf905eec",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/src/botcore_agents/models.py",
+      "sha256": "dad1a0e1bc4a11b9fa3a94360e57dfdc5f257f9da3c94c5c16a19c34e509691c",
+      "git_blob": "e6c3c937727a9a01990762a16ce0148a8ae47e0c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/src/botcore_agents/orchestrator.py",
+      "sha256": "633b1e7c3a0277b6389eaeb73c38502e56d716dcb9a86b227ee0710eb23f2dc4",
+      "git_blob": "edb0089765d69971c41d6c18de5b871ad4e3aa09",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/src/botcore_agents/state.py",
+      "sha256": "b20a8dc05d57fc15ccf8342e904d88ce0fdd04c518762ffbe77c79b3ec76a57c",
+      "git_blob": "6bd6e8d8c3d8cf5a7eb30ea24b7333f17a6cd978",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/src/botcore_agents/task_stream.py",
+      "sha256": "d4cc5445734a0bb7f8d5a44c3d298fe630a033a353726b4d524b183bbd6f0897",
+      "git_blob": "8c3ed57acb533f862475c5721f4d217e6362392a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/tests/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/tests/conftest.py",
+      "sha256": "c989b7c2866fab2a7da1aa580cc74b79ea798f785fefcf137cb0b139b5e9dd17",
+      "git_blob": "40ecd36d342a4bfc886747f6274891f0c1bba3a5",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/tests/test_commands.py",
+      "sha256": "c47c539b3aa978f8e2c90e83c771c0ba1bb37df7c26f89f374ad3d4d2f172978",
+      "git_blob": "66f62e8390989e081e6c9c6d938617ecd3f2d583",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/tests/test_config.py",
+      "sha256": "812840aba9565238ff8cfb0da770dfa879584d4ab9e06e28686577e10c99031d",
+      "git_blob": "a0df7915c558597de478bca19caa0f228f7fa8a0",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/tests/test_models.py",
+      "sha256": "a1c18d15e78eac4870309d641566839dfce7fe33a55bca8c4fb2ef181e6e1f56",
+      "git_blob": "5949d406cb4a6195eb3b8ab2fcec5d82475dfe86",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/tests/test_orchestrator.py",
+      "sha256": "c8fac98e9bad29aac6e56a80b0bd894123bcd4c2f61ede86491794306d0eede3",
+      "git_blob": "920c2417326d3f20994e79a61baa835ef938b6ea",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/tests/test_plugin.py",
+      "sha256": "53077382d715d1a120d8243cc97206227bf2790546b3b4fac60d659dcf82128f",
+      "git_blob": "eea7eb6c26b732d981a18150c11bfef3aaa7b512",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/tests/test_resolve_connector_commands.py",
+      "sha256": "bcfe318eca2860dc214ec1899bb1b6c8c2f94d1a8440c76f857550f12c378903",
+      "git_blob": "086688c752e7f211dec72fb2ae49554d50308da4",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/tests/test_state.py",
+      "sha256": "981428e735231792c514f75765deec94abf868565121ee049fc9b9e5636d831f",
+      "git_blob": "7871a488e30e2d9b52c9b691efbf901508b26042",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-agents/tests/test_task_stream.py",
+      "sha256": "60892b14b5e7cac016aceee9d8f02ca20fbb789fe5eb8ba131e0644df710c6d6",
+      "git_blob": "1089ddf880b339f1e4d55d05067c51169049c047",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/pyproject.toml",
+      "sha256": "1eaa81dcbc343ab8c29ffbed106c3a0cb74bb8f3c99508b567e4a3cd49b4d983",
+      "git_blob": "34e7fc1b2de20d1e4465e4d6320e394069e67d24",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/src/botcore_llm/__init__.py",
+      "sha256": "81369746eba67af0c9c715bb50bea1eb2257926aeea841dc985e7a99794b60d1",
+      "git_blob": "c2c08062fd368baed6b95bb6843d44573a6ca530",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/src/botcore_llm/bridge.py",
+      "sha256": "8555b7087bb269c4f30f335d73e21cf4130744fe8fb9820be58798d2fd5b383a",
+      "git_blob": "23c2e5e21b437ca493c7dc55e9cfb21b05dee6c1",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/src/botcore_llm/chat_stream.py",
+      "sha256": "7eeec7e37941a22dbd7a1e588f53f45dfbf37744cc884f9135d70aebdf82226f",
+      "git_blob": "1ac2261551302772911be19856a182d29a6f1c8f",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/src/botcore_llm/client.py",
+      "sha256": "32a60efdf1d2be426183e82a5e48458af8b03142e0187da98334df83cab767b1",
+      "git_blob": "9abd38f19ddcb50e7638bd76163c3053d76aac39",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/src/botcore_llm/commands.py",
+      "sha256": "371568e111300b2d7b89e8ee4616219a6c04256decbd4a7c5a60387f7485f962",
+      "git_blob": "3f4a53b3f1ca2582463f9ce9014b295222e1e49d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/src/botcore_llm/config.py",
+      "sha256": "91742133aeca2087f98eed0d0a51ec435dfd8356eb0553ea651ad3f750f32471",
+      "git_blob": "a9ab235fe6f75e852a805ccda827567bd6becd51",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/src/botcore_llm/permissions.py",
+      "sha256": "8c564c035edc1b24b9e88fff026228142af9bbbcdbcdc454a4bcfb51a8bae7d4",
+      "git_blob": "bf605390c99b5a178135fb18b8042ca831e729e8",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/src/botcore_llm/session.py",
+      "sha256": "6cb5dd55fad7c85c317df0b48fa30c512bb41e525a96ac0c039316819ca7e21e",
+      "git_blob": "6972815c439747d85b899e5aa396f6757e422feb",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/tests/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/tests/conftest.py",
+      "sha256": "36d3a2351e41d8e21cec93f5dc474f66a10c3b6e8926003f1824ce78e9cae99c",
+      "git_blob": "908cce43bcf7befe2236b32baa6002a1239d5cdd",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/tests/test_bridge.py",
+      "sha256": "81300dbfdac249c0e86787c1049a55eb8eb9dc46bb80c8ef08d76c9ed91c1f74",
+      "git_blob": "2094d75dfbdf8e626d72003ecbc484e1f985895e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/tests/test_chat_stream.py",
+      "sha256": "b965d646c9cddc404636c69fe4887c1360903df520cde82b220bad988ca6cd68",
+      "git_blob": "314ab9e64734176d460c08f4cc2987080fce2ec7",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/tests/test_client.py",
+      "sha256": "84e7f8df9fc010ae411a4b1ae90a5206c5c62043f0d87cfa923b749869c3bdf4",
+      "git_blob": "4f71582f87e66b5e30bc810fa95b3d77604a8940",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/tests/test_commands.py",
+      "sha256": "69d9ffd9e7c8bdbba9868e9f784f256507c2f9fdc105280a8fdc149e58695553",
+      "git_blob": "f41e118c3a362a1af7f99763e0a4460722c64daf",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/tests/test_permissions.py",
+      "sha256": "0ba198ce07082c3a1c566cb5e66907bf6c45eeeb2fae790f3a621028add79eee",
+      "git_blob": "235c8f7754d427b3c736f9ed3f834a604d5a39fa",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-llm/tests/test_plugin.py",
+      "sha256": "156484674067b2ebb9822f5be0d9d4cd3efbe97eda800ee50f3e3e628a424adb",
+      "git_blob": "c3699e595836d1911ebd48f5a820212ccfed9a2d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-memory/pyproject.toml",
+      "sha256": "bee2f0c0c9504a047e0c4d9f689f2d19a3abc09c778344abff2eb5d85eb85a23",
+      "git_blob": "8f8c2349b94dc0fea8df06f9bfd50ae064c9aafa",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-memory/src/botcore_memory/__init__.py",
+      "sha256": "8a9d4eafe5811d338bf9222df9d989268f69d53961e8da60890602274bf15932",
+      "git_blob": "c1f3bb214f17de896466c9c987ce93160859ec5d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-memory/src/botcore_memory/access.py",
+      "sha256": "6ab42fa359743ffdbbabaa3ddf51ee7f980070ede07504893226011881a91016",
+      "git_blob": "5d27505fdd75a971d3625b7df394510c33ad53d7",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-memory/src/botcore_memory/commands.py",
+      "sha256": "531adceee1667480814da7dc65a3c6be8b418201ab2630e86df1ed81072c263d",
+      "git_blob": "aaf6da276340c4c6b3ac34ddacf37ff13c9c310e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-memory/src/botcore_memory/local_store.py",
+      "sha256": "f48611d7ba3c0d9de36f3338800d6102e525fd22472c24c113e166c4a1396999",
+      "git_blob": "e701501683e2676070f9ec968300d3b0a1062f27",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-memory/src/botcore_memory/models.py",
+      "sha256": "8339fa7465bf4ff89ec9f1997f6712cf44b68c4b8aa0e858400d63b5545caa54",
+      "git_blob": "fadf1c0e29c9397891cde3e1603cf454936b5beb",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-memory/src/botcore_memory/store.py",
+      "sha256": "6e2188fe0f53819817aa33a83c8df1cf08af29401894b0d11d3c4ef6aa242453",
+      "git_blob": "cacf115731a25e4ed6365f10576b0e0603d8d7f6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-memory/tests/conftest.py",
+      "sha256": "7c3346f23711f45f9af333634a69fabb676d28fb4c13721923f8281fb9e7b829",
+      "git_blob": "539ff924bfc9d50412bce3294676dcbdf2b293dd",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-memory/tests/test_access.py",
+      "sha256": "f22e1a885958f9e7018e8f41fec5baec7ac781b8d3e6260fa9da8410dac4d2ea",
+      "git_blob": "05c64fdf8cd78bca35354f651c66c3a3bb0bd7a6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-memory/tests/test_commands.py",
+      "sha256": "fab36b4f6cfa7e861d01c13ac3e179e1f8626b83398685bcfe650301d18dc464",
+      "git_blob": "a97fedb9d8adc37beb5782f57533aff189eebc69",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-memory/tests/test_local_store.py",
+      "sha256": "625d063380858b3abc78445c0d9b7e03912288e26e79d24fd20eae5aa40bc583",
+      "git_blob": "32dcf436cb6102834205b9ea42184b7ca236f5e1",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "packages/botcore-memory/tests/test_models.py",
+      "sha256": "c77cf9b7ad2bd86809d323a75d8901d1e64daeda860959d199e249786dde3f5b",
+      "git_blob": "f8d0f8ce538d132559b1cab95f63372fc1b72960",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/pyproject.toml",
+      "sha256": "e84c561a99f99910037bd12dcecd6f6a53548f83ad1db4be8a3aa0dfc17c82a0",
+      "git_blob": "b3d8579c4b37f3df635b0eb1d1736d81823dc980",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/src/botcore_teams/__init__.py",
+      "sha256": "f7c84e0622a54c4ff4dcb476d07f85234d7976aa77b3292e7d9fab600cc969dc",
+      "git_blob": "cff3a885cc4315ebb50f566390d38850af76ae70",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/src/botcore_teams/auth.py",
+      "sha256": "ff5b40594a9f22d0de50379a2cc85ca803b5c0be11c09f23a9d9941a2239f627",
+      "git_blob": "6404e98a6958fa02030b5ee9ecfc33be1073fe61",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/src/botcore_teams/bot.py",
+      "sha256": "e82dec5eb4c20605ce6709419bd1de6bd68d9318242e0092a4ddec894a3c2176",
+      "git_blob": "45fbbaf169b59b081d17eecdfc89f1e0d3327b91",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/src/botcore_teams/cards.py",
+      "sha256": "c9efc15d9e3ec6476295d4984a87fc52c3fd7f5437a148fe6f390ff456a575a8",
+      "git_blob": "81a6a805ca7e45a761c0bc302fe15bb8f093088d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/src/botcore_teams/commands.py",
+      "sha256": "1465b12dce904f15efbe19c0d69cc5f1e1649fc97c9e50e99be477d38e9f4467",
+      "git_blob": "c1294cd4c18e0cc0a9f7f7f26b839964623038eb",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/src/botcore_teams/config.py",
+      "sha256": "1f1f89abed2823896cb36b1d69b12a0416d8d7fb1430ef08e23df7652a3b6a47",
+      "git_blob": "3acee1884fbc135d9fe9ce852b8806827c4d1f22",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/src/botcore_teams/intent.py",
+      "sha256": "101ab0e6f9ce739cf20b7a2c8416dd680b068d8ff61a6540cc3072cc65f92f6c",
+      "git_blob": "9826fd666dd5b754199c21932fdfc150e95b0455",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/tests/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/tests/conftest.py",
+      "sha256": "7d5ef4abb78170aaab8231bb72bdc06b5182de4ccc6e84bc7c4873ea540b9ee5",
+      "git_blob": "53701533bc6f2fbb2d6586bdde5ce41164575094",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/tests/scenarios/task-assignment.yaml",
+      "sha256": "5f89d67ee7742ac9a974aeb99795f18f2e13608bdf00418e6e9e86417f50d8b0",
+      "git_blob": "f3f413014e08baf9fb6eb5e7cdc15ca3a87a5d61",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/tests/scenarios/team-status.yaml",
+      "sha256": "b84bf50f1e6ffc3a75348832da2de73f42dac463e65f0d1df0a44dc1b483b197",
+      "git_blob": "43ae26901b488b4ad62ef5bf0dbdf4249f22fe52",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/tests/scenarios/unauthorized-user.yaml",
+      "sha256": "71160614d0501bb2ec594a38cac56d3d0112be95d193aca58438f264128a3ed8",
+      "git_blob": "156dbc96bf52a22d4ff5e635e2103fa9768c7009",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/tests/test_auth.py",
+      "sha256": "2ae9e371c845ff00e82d7c43e6e29b7c36a7a2aee408cb9c0a51999796a9dc2d",
+      "git_blob": "cf0c1040153e51c3faa110d34a2e373dee11e9d5",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/tests/test_bot.py",
+      "sha256": "3fde0ec72dec44291ddce2143380ff7249909edb2e0b29fbc55a29d1c62a4f2a",
+      "git_blob": "a205bbc044c642dcdef032c9862461db25a9ef42",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/tests/test_cards.py",
+      "sha256": "2bdd3960592622c496ff5fdd4419ddfdef7968a4d88525b6d9e219be930e8967",
+      "git_blob": "9ad8997676c4bb3eaa59f4773052b87a0dd51a3d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/tests/test_commands.py",
+      "sha256": "92951fa373406fd3fbdee8752a67a5e5ed23c5c188038b764eb3550ad2982262",
+      "git_blob": "f531aeed378d519162563653c4a14604fa52d11d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/tests/test_intent.py",
+      "sha256": "8f52d0e561362d1be5a0ba8b6cc3b29d93d788133cb70b9ba51c976937a2fd07",
+      "git_blob": "49ce1b57c6d99eef496a087ed6df9483df8f8fca",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "plugins/botcore-teams/tests/test_plugin.py",
+      "sha256": "fb7de667b85dbf7187a330ef592a600dfaeb160cdd5ea60fb8e2e926b5d6a5da",
+      "git_blob": "411dba72bf0d13e973e52592dd5634cbcbe5c414",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "0db2afb97d025f6b29d935402ce8656a7c288f4a111b74d9348649af9fddfef2",
+      "git_blob": "ba26670afde8c3a8c2cd0bbd358a73f76e4364ee",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/__init__.py",
+      "sha256": "ecdb551f9b9774c5b2335e54eb9c7bf662cdf4e9fdbe4a557f5282cc08543edb",
+      "git_blob": "985e4b8742429e4ab12999da98e9dff66236623e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/__main__.py",
+      "sha256": "7d9657b2a177697c6241a57f9fc425b97f4fe21642d8066d0573de42815728fa",
+      "git_blob": "1e9794229cef0defd661dd769b53c20b80bb33e9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/cli.py",
+      "sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
+      "git_blob": "b4a2d7cbc13a4bcbe81b0cbf9df38b06e745fd58",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/__init__.py",
+      "sha256": "95b4a734dfe2263a6a1e65306f89685d97d809277c1dc07c12926442bb46ff0c",
+      "git_blob": "148ae2928e75fa615fa744dd74796de91d536917",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/cdp/__init__.py",
+      "sha256": "278e27d0e2e7198b2d15e3743f1d9d14ce204a3ac1047dea024b34a5d10a2a0c",
+      "git_blob": "239b551574335d74ddace72f943933cce967afe9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/cdp/core.py",
+      "sha256": "d7226f40a38974e3141d6aeb51e31de25999b65e2309185f6ebf8c3a85fe7b9f",
+      "git_blob": "b5454b3fd80f80230a3793ed7805c61cc2dda411",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/cdp/diagnostics.py",
+      "sha256": "c4fe45de0ec3f37b7a8d84dcdcc31fc29a8180c07508932075c4258ec076f765",
+      "git_blob": "9e5019163b9326fb5dce10154ecdddec3b05d7a8",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/cdp/forms.py",
+      "sha256": "1ef45a6c74083d58c52dbb3335de08a9e054690d60c07202f436884c3e1d093b",
+      "git_blob": "2848561edd1f9bacfeb760bd3d29390925b3eba9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/cdp/inspection.py",
+      "sha256": "e7a83b27f8516bf6d79623f77fa753c65dd3456bc0ea18f2147e81e52f28b12a",
+      "git_blob": "5212783af5f6ec63a75fe6a2b52f8aba87d4f2ed",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/cdp/interaction.py",
+      "sha256": "59ce8b2e30dd31f6a1b53c69542e42f8d20d17f94da57b370295fa3161f3fd85",
+      "git_blob": "c63a16200ac3e2dac10fda97285851e5755dd177",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/cdp/launcher.py",
+      "sha256": "c001e66c872e72f2f2ea45432c001080bc211239a207ba48029b80cd97f6df96",
+      "git_blob": "81e69330eb26bfc8dbafa2abc7141c8494e64172",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/cdp/navigation.py",
+      "sha256": "952293064217b76b3e848a10b18ae214507ed7b2030ee658559bb56f56dc7d2a",
+      "git_blob": "e62e7e4b14e9deb5a346cefc452e17dfb69c7e18",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/cdp_perf.py",
+      "sha256": "30dce29b53c8dde3d69658407dcc3f02cb1b523eba6f67febb6a0ac6c1f5a524",
+      "git_blob": "7245f998959249293b17410939e1a3cf13624046",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/changeset.py",
+      "sha256": "0d24d8ca9606dfdd10642ddf62875e1ff8dba22b64b60058e55ac2e3c1ed3cc6",
+      "git_blob": "f0d9d7e4150d929a10967fcf2be3979ec3f06061",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/dev/__init__.py",
+      "sha256": "ffa6b40b9003c5efd4174a6e9f74b9a500f92111f36e4918de43082c06045054",
+      "git_blob": "72972e6ce7a0e49efd88567b1951c27318262f02",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/dev/analysis.py",
+      "sha256": "2b8aada9f650958b3c1468df70e468b4e179675647fa14f5cf419b264ca1b6ce",
+      "git_blob": "0ed89c6fdc1a91f7216f0efed5e16315810a24f9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/dev/core.py",
+      "sha256": "ac146604bdd5e90f492ae40e21192ad4102e35ad4111a2a165d78025b6f76558",
+      "git_blob": "6e190a1b95669c1deeecb155b19a5e9815ed4acd",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/dev/portability.py",
+      "sha256": "34807e496fafb1f654f1d0ee15ee3c7b93d38eb9b093285138998b02c014749c",
+      "git_blob": "69b50c1d1bcf803dcd3e067f364a3d95d667af04",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/dev/quality.py",
+      "sha256": "219d9a8fecc0360b6b5320f5bcce49cb3fe1a296cf4f945cbbba4efffc5678c2",
+      "git_blob": "151e536ced75aea1c523fe421095095b82c6d887",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/docs.py",
+      "sha256": "b746173f917ca86c6b1dc0ddb06952c0418d4fb2d1912483553e65f52aa6a3d5",
+      "git_blob": "f2db808e590a7f64a61b8c968983ed31749464f4",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/info.py",
+      "sha256": "bcc5355ac25210f1ee0814cb85400879a00497d6a59b9e4892e463d2311c206c",
+      "git_blob": "864d1bf8a1a44cc7b305e6d0f324452b8c60553a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/research.py",
+      "sha256": "4d8efd941d13122d630f3ef0cff8ce0e36f481602a95174c3fd8bd464569a825",
+      "git_blob": "196aadb6bacbc57a742e5510255ebd546a1e63e6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/skill/__init__.py",
+      "sha256": "f646def04e11250e03b0ee81477b45705c5dd6c4eee89ecc0eb1dbae95f418f9",
+      "git_blob": "9cf35772cac7f28b579cf869f9bff61dca39546b",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/skill/_discovery.py",
+      "sha256": "0fb9929b52bc7e79c4029a220c7ff5b9c8cf792951dea3e9b6b7615580ab43bf",
+      "git_blob": "dbe1f409255c6a293129c7d6f4a20811525107e7",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/skill/adopt.py",
+      "sha256": "4f5b04cdb0f811239a486ff360afd61f1588e8fd050d9ecadbfc8ab495396e4b",
+      "git_blob": "2bc2ba21d62ebd6105e488d37db5df7d2f560243",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/skill/frontmatter.py",
+      "sha256": "cb17e59fe77388fceedf410ea4ac0f5e48f832c4f8ad37405c06928f4409f60e",
+      "git_blob": "26d9b1c7e06aa82992223a7e5b482a29074f4afc",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/skill/index.py",
+      "sha256": "d2e374c2bfe60b090b13556466eb49add73adbc74d0ccd848a51b5e5abb39416",
+      "git_blob": "9874726cd79f6f5d4af69cf8c9d68421f6ce80f4",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/skill/lint.py",
+      "sha256": "9ff339fcefa9da1ddd0273d84535c4aa58ff2d476d245c71af266710c29bf83d",
+      "git_blob": "2ec34cffd6ab76b0fe08c54f5dc8ba8bca7178ca",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/skill/list.py",
+      "sha256": "610a0021e569e4c8b03d10e839c7284194aef806084371e4b7336a27aa7e79bf",
+      "git_blob": "5dcf1f27515c19659dfadab26e8eceb26279629b",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/skill/renames.py",
+      "sha256": "a8b289bf5f6f1f9532a1f550e812dbb89b6127d26b7a635bfddf517a15e67630",
+      "git_blob": "7edc697148e4b56136cfe9f0018b5294a1e3d5b8",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/skill/seed.py",
+      "sha256": "493177197b3fc4aa0a0de00e5d1c8e25379df772261ed52a67417f1c7754197b",
+      "git_blob": "86d30c254e6315dc8ef91dd008bd820ea4bfffeb",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/skill/status.py",
+      "sha256": "9f9d5ef2a1172d587f613ee0e40eb369dfa9a8bc0330cc72999012212b2bd356",
+      "git_blob": "c5b4a1c900561730815e94ccf8e923d4cb15a782",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/skill_lint.py",
+      "sha256": "e85fbebe4455c5b8fda929e2cede35e89eee28e25d2308b91a1929e01fe263d0",
+      "git_blob": "9d6eb93703f9cf43f2f2ce4f5b2403d6275f8a1b",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/spec.py",
+      "sha256": "d05e3188ff2e9be82a5453957b38aec49117146337eaf3e601f5aff4360c38d4",
+      "git_blob": "c9a3a4cf4a7ce4c5f505ed7fde25a2b98a496ef8",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/commands/undo.py",
+      "sha256": "f78e8539ab40c4a86b86a9870d6ae52bad89d72849e74b25083674d0ddd1b915",
+      "git_blob": "014f0e562e07b8395569dccc297024a260494d1a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/config.py",
+      "sha256": "a01fbc4f11941c2e45efc2840ecdc4edb76b088ad8103536bf4bbd140ded515d",
+      "git_blob": "7f9bc5af3e066993f798545ea02f184480fa291e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/docs.py",
+      "sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
+      "git_blob": "b28645c83a899aad5ec66ee19e0b73b274ccf8be",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/plugin.py",
+      "sha256": "210c8510c9a303478bfe909dafa0b7e4e60a81c01f6965c9bc058cce53fa1bf4",
+      "git_blob": "3b9d44724995d5834a53d15eae39c66be6df44bf",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/registry.py",
+      "sha256": "44662667db769aae671455275cd538a2250ee7d8eb658fa114bbe7a898b0ceea",
+      "git_blob": "7fd584e00edd96cacfe0a6865f3304244dee31f3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/server.py",
+      "sha256": "6088aefc9d936a028f7e7f0b7d9b4db3c685868667faad6108c938cf93381b8d",
+      "git_blob": "db6e577a60bb7f4a2f450e210d2852e83d1a9d90",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/SKILL.md",
+      "sha256": "2f8f9bb3d5224f2fc3036c825c66a3b38f790985e5339f8f53a6ae63d6b62237",
+      "git_blob": "8800e2470c8c77eabd000c4751cdd98b4a0d7583",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/accessibility-qna.md",
+      "sha256": "8db322a29817c203ff36fe2564e0ecfa3b7d1edb81ed0bc4257dcaee60e83e7f",
+      "git_blob": "e676d67c2f34df4102d7fc95bf1fe2e316b61c0b",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/accessibility-review.md",
+      "sha256": "26cc8120eb3e85593ad908cb12da987e458a5318b3e9642f7db01e7e3c118a31",
+      "git_blob": "82f27669dd7ecfeb91547de09e23eae7c971cfeb",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/accessible-content.md",
+      "sha256": "8d70126c086b2d8a3144f54a48dd5f89567491f4ad0a44b806ada5e1992a2273",
+      "git_blob": "b39fee1590eadff5208944fc635f5495564290b1",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/aria-patterns.md",
+      "sha256": "f48016dafa815598ff4c02c7ff40acc2eeb288d827f277bc2284595802716153",
+      "git_blob": "2a891b9b2978a8e9d1f12b4593121bcf712654dd",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/assistive-tech/braille-display.md",
+      "sha256": "405a451893197419d5878299dd720f334c8885333846ca0f4e981fa3fbefae3a",
+      "git_blob": "607da4c0c30e7cb1d73d673796fae38b03366ca9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/assistive-tech/eye-tracking.md",
+      "sha256": "fb5520c2ee014235678d58ecfeb52e2aaf0aaf63fcf402bbeb638e223522c891",
+      "git_blob": "24bc5473693f096bd1fbc52533e9f00e3af92a47",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/assistive-tech/keyboard.md",
+      "sha256": "dedb4bf3db4828f8a1d53d93537138bc554101ea1abfb1414ffe0835366da7cc",
+      "git_blob": "8bd91f7d380810a6b894c08b258b3dbde4ab5b3d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/assistive-tech/screen-magnification.md",
+      "sha256": "a5c6e007dd3c4c63296de84dc6fdf6d19e2a0fcdddbc413ad096a1f36fc9ca38",
+      "git_blob": "9d6f34f71dd4270faf83b02060794092823af8e7",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/assistive-tech/screen-reader.md",
+      "sha256": "785e2b703b1bb258773b8ea80d0bdae83c2b660b1ea3040d1fddf1bae29ff3f7",
+      "git_blob": "54c9846935d437a55d40489e32251f6d0697f208",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/assistive-tech/speech-recognition.md",
+      "sha256": "cd4e6a8985cb37000df01d1e437265369adb483984ca711750dad64523a038dc",
+      "git_blob": "d03cd0e6c733cd522c05c36dde09966e2e1f1e59",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/assistive-tech/switch-devices.md",
+      "sha256": "ac3ad28304c9f9102bf18ae2b603efd45b1b855921133ad1b1d07e7127005d07",
+      "git_blob": "0df7fc1e8ca8e1ba2a42787fed4b275d626e8eaa",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/keyboard-nav.md",
+      "sha256": "911fa237fcf3e696430e0de4c8b33ef1dbd2feda77d3244564a243aa0cce7ca2",
+      "git_blob": "67cc5805f9ec3c0d8c557ed109854421b9e83ce0",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/spec-review/accessibility-annotations.md",
+      "sha256": "5e4cb8a81ed38e213c6be1b2612b412117c4aa279e213407dfead2385a43c509",
+      "git_blob": "d4f2b4b5efbb7e86c934c1e8f27f09a1a5cd0ec7",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/spec-review/keyboard-tab-order-spec-review.md",
+      "sha256": "05a63f4dac0f4145500df105a32a35d17ce6a97de2df838a4a2c645f58638d70",
+      "git_blob": "b72b61a5e20e6636365a05cf9671f5e269c2edae",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/spec-review/reflow-responsive-spec-review.md",
+      "sha256": "21ff30172ba974f786c3ffaa4c7dfa160c24f07e190187fd4485221bd2d4a292",
+      "git_blob": "9fbe18a6a8990baa0e69403245aeb19254d258ad",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/spec-review/screen-reader-annotations-spec-review.md",
+      "sha256": "43c1d0b7a676c3f3aaeae014ccbd49a7fc4e30d2112ffc8e523782762cfb1655",
+      "git_blob": "f2bae7bd5c2546ceaf1eb6f6793c8b7290058d19",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/standards-requirements/accessible-canada-act.md",
+      "sha256": "6c5ecc2101e4750992d65feb76a9cf5a873c657c8a41b1b78f00a0dc4b838cdc",
+      "git_blob": "e437d6d2cf2e66fe2f2f89df2743fbe248d9c977",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/standards-requirements/ada-title-ii-iii.md",
+      "sha256": "c36f088111f2beff61681f2abecc0a4326dacfaacadbe33bd3ea1c26e344ef6c",
+      "git_blob": "9339c00a7ffa8d0eb0e397519ee504f6d8e11e53",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/standards-requirements/cvaa.md",
+      "sha256": "449b7f4a95b34c73d0e77dc82db3eb7eced187cdf95b87d4f2858e55e747eadd",
+      "git_blob": "d6d733e683848fd18fdbc147ee9647d37ccada0a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/standards-requirements/en-301-549.md",
+      "sha256": "c495ef5c636340bc58dc542edb1ee19f374b347efb27e9973e3f0ffba1056295",
+      "git_blob": "6bbbfaae6f4ae4155d1c3a1d69c7f846fb44d147",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/standards-requirements/european-accessibility-act-EAA.md",
+      "sha256": "10c5dcfff74114fafc604c2b0c972fe5dc0a29d27ee8ef10217b9b1bd6b14599",
+      "git_blob": "622fe665abc0c53f58383acaf09142feb553b999",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/standards-requirements/section-508.md",
+      "sha256": "1f2078d1225b82850bc549eaf67efaa5e599664359f9ddbb117d26876dfa8f44",
+      "git_blob": "38a4c9b9b46fbae7ad164be9663f1e1d4f43224c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/standards-requirements/wcag.md",
+      "sha256": "c86243ade889e3d5a9451df648efee7f167831e851812ebb13be3e8ef42ed8c9",
+      "git_blob": "373122b255979b67290888dd3ff11e092587b5f6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/ux-component-pattern/accordions.md",
+      "sha256": "b256534161f67dc1f44e7184a675bb199056054b3421400abefe874abef81615",
+      "git_blob": "613b31be7c84d81c6944693a087d1b2d4e37cc37",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/ux-component-pattern/breadcrumbs.md",
+      "sha256": "b5f15ade37e5bb5b4cf4b01062cc0d8649cf5576f9ee9bdbfcd0e9826500b791",
+      "git_blob": "ae032696e6c57228b0a0b50041c4a08b82a8945b",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/ux-component-pattern/buttons.md",
+      "sha256": "4c3b6e29ae0445293d2cf857e8749bcb583c4d96c3de2e139d9a1f173cbd03bb",
+      "git_blob": "f5ef2b421a6e006efa591fde1713ee66c11e5788",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/ux-component-pattern/error-states.md",
+      "sha256": "98c3c01c977dee2168dcdeacba84c3f0b25561bbc64adb36bface23bf3409d52",
+      "git_blob": "1dce36f0d8736f47450032ae4036e69b63f41899",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/ux-component-pattern/form-fields.md",
+      "sha256": "c473ecceceac34074b9fac99a10f72182506983c9ac68ba47772c2f52618e157",
+      "git_blob": "e8a5df3b553bad36a3723a07959d9f64f0e0276e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/ux-component-pattern/headings.md",
+      "sha256": "0123fd398ed363f512521153ebcaa84d4f1ee5e34260f5938090f024e1996f85",
+      "git_blob": "fe48c8a8212dfa93a1b6fe07aca9704b7d96ce44",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/ux-component-pattern/loading-states.md",
+      "sha256": "a3ebf76219820697f651440a4d85eeee10139a9634b3e6cfa75aae692177a874",
+      "git_blob": "1e18a2619643eb0bb6d112ea880739921256a411",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/ux-component-pattern/modal-dialogs.md",
+      "sha256": "99dd1683bf71f321d1eea9b73cf87ea81d9647d1644afd79ef13960064596dc7",
+      "git_blob": "5b30c67a07ad3836afadc2d09a21caf146933e32",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/ux-component-pattern/tooltips.md",
+      "sha256": "5262e509b6c0a9300a54499a8aefdac2e40959b2759a8e4395a6e81a3f71706a",
+      "git_blob": "c54d5db7172fcc6b6dae74e9bd86d051998edd2a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/accessibility-learn/references/wcag-guidelines.md",
+      "sha256": "a6f36681d4d94d9a9505b590a23227b765abc1dfb2f47ca862120405026c731d",
+      "git_blob": "8cea834be3738a71b5cb7382ac5e28b6857aee21",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/agent-config/SKILL.md",
+      "sha256": "a4f3d29da55f9ca7191c9507808812a6797db83bb4425f51d6be57ffe646343e",
+      "git_blob": "a7d6ec940176820a97abab8de8d35579bec9bbdb",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/agent-config/references/examples.md",
+      "sha256": "d4257de3adb625da2183525cd5ec9b2e732456820ca08100df490763d1f34217",
+      "git_blob": "110c61d0588d4ca0d61a22abaf92a56878e8d1e9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/api-designer/SKILL.md",
+      "sha256": "92309bd78d5a42bee6081773eafad9c22a786a9664bd1e7f4cdc0c16e83cfb3b",
+      "git_blob": "6d66861f5bb125122e659ff99848e935bd958600",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/api-designer/references/agent-friendly-apis.md",
+      "sha256": "a147f279c3d302e7d1ae0a523b0005ac970af4727014760ddc0fdbb8a05c4dc5",
+      "git_blob": "946828c484ed2ca7b3b66f5f4c9b9e7f04d57c4b",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/api-designer/references/error-handling.md",
+      "sha256": "ac55b8c973619cc8a79bf1f733bef57cd8b6f87fa1ea2dbc148303bcf26b5b2b",
+      "git_blob": "65638f85ea6b027473241d52582dff761a55ea59",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/api-designer/references/graphql-patterns.md",
+      "sha256": "3f3562986a043af88e09b65493774437bac01691e5efd4bcf39d4a246f77c1fb",
+      "git_blob": "06abda725544b98ea5a14dc0c53cfb5bceca0e1e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/api-designer/references/grpc-patterns.md",
+      "sha256": "7d4642e5c939b6ef332eb7b35f4143d1d403733eb09ae64c3e5fd565ea3e23ec",
+      "git_blob": "f0e2e06aca6675a91b64e308a998d1f79ecb0f71",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/api-designer/references/openapi-and-documentation.md",
+      "sha256": "cd9f78069bbf731647c5e0788c27dfca17550a8bebfec1f0223262c6bfbf4dbf",
+      "git_blob": "4b64e626a4aeb99ce7fd8e4d2cc3817720053450",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/api-designer/references/pagination-and-filtering.md",
+      "sha256": "16c17a7c57ee9aa8e7648b3d88c0223b3692f5ceb259e106d3988efdf22b685d",
+      "git_blob": "4fc0ca2b12b8330a9a45f3260a870d217639724c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/api-designer/references/rest-patterns.md",
+      "sha256": "5d40890d5acc6e61acc32727b9436f3970106e1187531b6200b7612d16374777",
+      "git_blob": "166c755fa777d81cf3fadccbdd1b56a3ad2288f2",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/api-designer/references/security-patterns.md",
+      "sha256": "cc54a114d0339a49e8ce3498f36c2c21d03199fe8ff0532c0c9237bb9e47576e",
+      "git_blob": "378f5464b512bb97f10343790b3949757022104f",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/api-designer/references/versioning-strategies.md",
+      "sha256": "7e2108c29c7cf21e7c55643bb623065d2915fcf2e0c4a42d007ae8a1e8681536",
+      "git_blob": "8758bee1ee3df3e482c7cf5de4eb247279e589a6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/authentication-learn/SKILL.md",
+      "sha256": "202608a005ad856e5c9e1e6741d6483bdbcf396cd6bdc65313cc725d6ab3ac6f",
+      "git_blob": "0cd106c2199adca053cee9c6b909ffc2b36eade6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/authentication-learn/references/agentic-auth.md",
+      "sha256": "affd91b977be8f940ec2b231a90e2e58b88c121e20dd0d1176045480dddbb4d4",
+      "git_blob": "fc92db64a3b7fd10b71c94d3e406d62b799ef8e0",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/authentication-learn/references/authorization-models.md",
+      "sha256": "021e0dbdb74292aee24a8834ca17ab30ca0b57812c3a71f2fd9f6483cd02b82b",
+      "git_blob": "c9af5120bc5ea9c37b38114a59ad86b6278e9c0c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/authentication-learn/references/multi-tenant-auth.md",
+      "sha256": "1f339ced0d258aa2f609c80e221995f335d6867fcba3a61310f5f9da7e98b78b",
+      "git_blob": "a16bd48fed79c2d6b5a86357704485429398f0ec",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/authentication-learn/references/oauth-and-oidc.md",
+      "sha256": "a84747b269bdb92fd938d39a51fdf6a232b4cc1341c39fa52c3d8d0fd335e593",
+      "git_blob": "1cb3a580508ef255d3cb270962780889de823aac",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/authentication-learn/references/passkeys-and-webauthn.md",
+      "sha256": "ee9644a6eb3b8a3155a968f7795291ab6fffebc9100d1f6bfec3dfd5285c62a6",
+      "git_blob": "3fca49d05856e2c957646eae48dee9a03e350c62",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/authentication-learn/references/session-management.md",
+      "sha256": "b66f0b2e5ff061634d40a7691f3d70ca79f540ed1d1169545466ff87c31d9028",
+      "git_blob": "b7072b312105c92e001157e75c073e18111d46a5",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/authentication-learn/references/zero-trust-patterns.md",
+      "sha256": "f154496bbdac89a0ed700ab4dc19a8d49da857698371c6f6cc422ca00979844f",
+      "git_blob": "a834e1d6e24ff06f6886f2f0563f3694ee8e6010",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/botcore-config/SKILL.md",
+      "sha256": "8355eb61c097536213ed17d396bbda4df9640659d7aba6b37fac6a8d823527a3",
+      "git_blob": "0217d12e320be0f85ec093fbd501b66170c8185f",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/botcore-config/references/config-reference.md",
+      "sha256": "a1a25234e84215a9d1f983eb0354af82ad5bd4d2c6a9ab28437ed3f927a1ae97",
+      "git_blob": "e179b9846563f3d2d989d69f74c8200541738577",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/botcore-config/references/language-detection.md",
+      "sha256": "a9dc5b44184fb6f4a54316e2801af6e69499eb5bb6465793035188b503eb4dbe",
+      "git_blob": "e65222b4d89ee5305471d7ae748f485510829645",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/botcore-config/references/per-package.md",
+      "sha256": "9e37c89d37789349020c468a46a1d1cd204fc60115a94c3d25ca47af26581b9b",
+      "git_blob": "7fbb3df0d730d40901e464a73b2328c2fbfeb671",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/botcore-config/references/precedence.md",
+      "sha256": "42aa6eeae2796282d5616088e260d391d0041c5295d45e4d597ee1cfd6e32579",
+      "git_blob": "a92b402e1c38d611ac4fd1118f6336fcee890bf8",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/browser-automation/SKILL.md",
+      "sha256": "2c5062ee74a9014f3f2914a65d74f41d56466f09e32fb3a02c914ccbaa6abb8c",
+      "git_blob": "587440b68a402be025b028903bac2584174effb3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/browser-automation/references/diagnostics.md",
+      "sha256": "88a9f8a4b8c2b29319ec2f9accd0d2968459afec35bc0472f3964d94f6237526",
+      "git_blob": "999574482ad111c72b35063d95ce60e2fd5c1b87",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/browser-automation/references/forms-and-pages.md",
+      "sha256": "1c4d17c82f92763ffc60abf0d04e6c0118df2c0ed5d1f8bc07efadbdb431e8a7",
+      "git_blob": "fa9c2be8ea8b6c7db52db269f571262cdf945d07",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/browser-automation/references/inspection.md",
+      "sha256": "3b91163949e7a7d9ecc39dea13e8b830eb4c0392af54b64483ad938c7cb20e1a",
+      "git_blob": "285cd0fa12aaf033747d2a7478a70598c8d13c2e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/browser-automation/references/interaction.md",
+      "sha256": "d3f882c7c9de61be4da10efcb49e082d9371765aee1fb1877ee7425438a172b5",
+      "git_blob": "0c135ea2b89bf65e61255135553766309e1716a3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/browser-automation/references/session-management.md",
+      "sha256": "e4976f94b11efef79567b71802a305941e8f2d99b2c5aa3b6499ce58a2219102",
+      "git_blob": "dd752ddb6b2792ed0ab629d8791ed0faf378bf0e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/caching-learn/SKILL.md",
+      "sha256": "930388570a2f04d6849e4befaffa903f2140d1e97d3998989f318a80b16ab496",
+      "git_blob": "03632c41fd353fcbf0116260e4e52de74b6d2c51",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/caching-learn/references/application-level-caching.md",
+      "sha256": "73228d33bce1c3972d2d9120ca9e7c7e2ff5742139bbe7d269b65004802bf0c2",
+      "git_blob": "bc6a5f3735eda527fef20907e81218c841d4ff82",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/caching-learn/references/cache-invalidation.md",
+      "sha256": "da07443e92723d20c01759924fd707719b2320343fc093b69065ea937fa589cf",
+      "git_blob": "5bcb06d5aba08cf60f736442728974f1ad0aeaaf",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/caching-learn/references/database-query-caching.md",
+      "sha256": "dd1740c64b9140ec9941233a8e495d26650a874acdcb2929a2b8dbebfae3d76b",
+      "git_blob": "1bef61a866399c5eaf81165df9a1ff65c34324a4",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/caching-learn/references/frontend-data-caching.md",
+      "sha256": "1e53dc1e981fe225ad2c2a0b2a21e73036d459c2596dc9c3766d295617fcda33",
+      "git_blob": "da4c6ce5e64527c3cfbc9691ff562285b536820b",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/caching-learn/references/http-and-cdn-caching.md",
+      "sha256": "f80576c2135458059d62329893f4bdc2c15120a1571198aed02481adddc124bf",
+      "git_blob": "5b460bd7f80ba69401fb21c86cba729334a52b0d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/caching-learn/references/llm-and-agentic-caching.md",
+      "sha256": "a1e31d54eb7a674190486523a8412a1d9ebc350e0d4a407d9949144fc0b82f4b",
+      "git_blob": "4dba731578d6887cc6412ce670d56eaf87acbd23",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/code-reviewer/SKILL.md",
+      "sha256": "3813666b152b84308385b64514bddffc80fdfaef3eb48124c97bffecc74c1465",
+      "git_blob": "92c11cf0102b9a731ee2cef920e400d56d68f811",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/code-reviewer/references/feedback-format.md",
+      "sha256": "7df3c25100ce111d02fc8f93aef0e8d874e47a3c635edf7b9417874e680dd0a4",
+      "git_blob": "c7112d26e2fbf525f55125664659e03b687dd9e3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/code-reviewer/references/orchestrator-workflow.md",
+      "sha256": "5db9610ddb3ef1b5db126468a4d0950a610e869288ae4418fba00c28ae117094",
+      "git_blob": "394c83057db4062d0cd8249ecb36634f637c0055",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/code-reviewer/references/review-checklists.md",
+      "sha256": "4c7dedd37c1f0c3a92ae6f0d972c9634e3694e593baac0d2a20992f06491574d",
+      "git_blob": "18381d84dec06e63b712fdf56b91f0e49c9bfa10",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/code-reviewer/references/spec-review-rules.md",
+      "sha256": "14a92e9b63741f4153f97b0bb5d2d91002c4aa72e91b256b024b9a91f10de594",
+      "git_blob": "f2a004e1e3bcd35572100d13af3c45bdf0dd86b6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/code-standards-learn/SKILL.md",
+      "sha256": "c25a490bceccce09da6edc8cc7fa12f5a50abfcabe05cc0e67ffcbd3b5ec1ae9",
+      "git_blob": "20fb9e607448ba8ba41720668d10e562ac621299",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/code-standards-learn/references/error-handling.md",
+      "sha256": "e4515163b0c86b0c30c5cca17b2b86e2debfdbd0212d1f78d15d18afe59231a9",
+      "git_blob": "72600ac0fc5fec5c525cf9456c874241f74a384a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/code-standards-learn/references/html-css.md",
+      "sha256": "64e510fe464cfa8b9de79ee129e787009ddf3864b0d7243fb0d08c74a7ccb950",
+      "git_blob": "ec5065d6337cbb4ec777b8829f6b36cd5715a17e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/code-standards-learn/references/javascript-typescript.md",
+      "sha256": "79657a06a1c907cd4d27dfb7d76d1cd986f213342b6f2151a2661f6f6d8f2bc6",
+      "git_blob": "c693ac6481867fa935136016affe5969a17819e1",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/code-standards-learn/references/performance.md",
+      "sha256": "2e3ec2aa1188442eb5155a53039fe2ccd82fd22289827219b735a4ef35bae10e",
+      "git_blob": "e2c4062384e380310999cb28faf423bf8fd64922",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/code-standards-learn/references/python.md",
+      "sha256": "b671d6600d8590e9596153f8da5442e062907c9eda313e0e23f96affb5f7007b",
+      "git_blob": "71471d46e819f299e317135c38726a5c66793a7d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/code-standards-learn/references/security.md",
+      "sha256": "5d73f5513cf9bb1e0f47b1097dbee1f8b1f1cd1c76fe391c2e3faac366da505e",
+      "git_blob": "8b2dc8c3226ee57d82b7753d567b012d76a4f141",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/commands-learn/SKILL.md",
+      "sha256": "7c629a3f58145a2691cba139ad1fdc6b3e977c9969febb62aadeff0ea73319be",
+      "git_blob": "0f6338ba09c5ebb4558ae9a9af103910eb8988a6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/commands-learn/references/context-injection.md",
+      "sha256": "e707287144c54eb257aff88d291332408704a42abdf1e62e140d42bbc2801a7b",
+      "git_blob": "f015ab91708637b6b11e72a29151aaf743e2b6c8",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/commands-learn/references/format.md",
+      "sha256": "4d557cb2bd822ac1cc4b8703d10030c7bd67396cf0715b2102668ebadc01fd77",
+      "git_blob": "bc38c23510b56e79d711de60bad4ea1fdd253b2d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/commands-learn/references/hooks.md",
+      "sha256": "506e0b322e992837b048bfbe4bf5166019ff4c5e901346f8e1f9c163b824d2c9",
+      "git_blob": "c115bdd9165b709d269ce627aba356e11f1f8d08",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/commands-learn/references/namespacing.md",
+      "sha256": "ee532d8c1ce6aafb963af5015245ab8e004968b0936584c28a194cb6c1db8029",
+      "git_blob": "f88400817088c225440637f8346b574ff78c7a0c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/commands-learn/references/permissions.md",
+      "sha256": "b210e0696a0946dac1baf9d472869ad12e572153164657a72d7693e89a9c844e",
+      "git_blob": "1caad057e5c6a1a2fa2ac125d0b893151c62276e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/commands-learn/references/specification.md",
+      "sha256": "77a3cf45e8ddbf4eb7d748573b0fbd8f6ad3ae2fdae7cfb7e075b4f419e307c0",
+      "git_blob": "e6db5565dc23e2626fd0def6a9c218206ff2e65b",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/commands-learn/references/variables.md",
+      "sha256": "0c0322ee7f790569dffb3ddcb2704399b96a36b590a41302aba26f0db98341b6",
+      "git_blob": "75734d6cf86cfa8942ebfc8ae3c601d609d97c6b",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/commit-writer/SKILL.md",
+      "sha256": "63c588e99f2cf083709f45768547a7ebfd18d64107274b6d497dd9fda150e402",
+      "git_blob": "a8d9258889e239aad7c6f8aae7af2d92cc522036",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/commit/SKILL.md",
+      "sha256": "dcefb1171623d6bc03d7c32377ef40cb2713654801ed9340e61eb2202f7a43bb",
+      "git_blob": "5d32a15ff3959dbfa1616a31f480aade158e7046",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/commit/references/checklist.md",
+      "sha256": "c69dc38311c76fc4ff5b23406bce9f038077b6bd40f4ebf4de50bf01a858bc1b",
+      "git_blob": "cc788e32375be258f3375257ca15073426752618",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/commit/scripts/quality_gate.py",
+      "sha256": "fe86bf312988f631dbd50705b00774a1ec44e92a2194c4e41c68ee0f0c9b9474",
+      "git_blob": "649941a5682de67ffee8e4652a72736e1255fe13",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/component-tester/SKILL.md",
+      "sha256": "315b71b82c056aa92b77b55e28e3a5c7e42b23fe03dbd4f958b139046882a7ae",
+      "git_blob": "1b4b75adf3a2fe27028b43527fd5d5c7252df702",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/component-tester/references/accessibility-testing.md",
+      "sha256": "0674b159766a221c7b0bf5835c2092856917998b88f27bdb37b47160a83ec9e4",
+      "git_blob": "c0521dd1975cacb55089253895ed63f2ac241421",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/component-tester/references/patterns.md",
+      "sha256": "c21eb48469fdc9bccfac7a1b5bdc1682682923a56e582d3a0624a6c2cb485efe",
+      "git_blob": "7bb48be1e6730ddd44067f9ba42aab071b8bf6d9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/component-tester/references/shadow-dom.md",
+      "sha256": "3d77cc361f4918f21954377fb587e5af3b23cbf30ab5c72816e56dafe13a7e90",
+      "git_blob": "4da052e4dfe521cb25264286b0ece5446adca922",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/component-tester/references/visual-regression.md",
+      "sha256": "a49927952f9fe4a55728ae4ba93b83d5c707a840824b8bc02b75ff6e475e521f",
+      "git_blob": "0191963702e3f559f5825d9cf71c559c53986b11",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/concurrency-learn/SKILL.md",
+      "sha256": "6ffee3564d9dd2becba84dd2f4463ebac6b0f31033cca0c4bb1446ffc0f85776",
+      "git_blob": "d6dbb8be6672fa04f44524b4f55e5c4830cf17d3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/concurrency-learn/references/agentic-concurrency.md",
+      "sha256": "162ac9387b21ee429b08daad8a7746a8baa5942ce12c9f01cc55a6d05d3c301e",
+      "git_blob": "15dc46dd0e76fcbd6b4fd9c5127098f608ca3b9e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/concurrency-learn/references/backpressure-and-flow-control.md",
+      "sha256": "f12a7d6367989d9decfaf8493fd8491654ddcdb7542d0c7ead8af55ed5b9436d",
+      "git_blob": "ea5edcfde96a5c86c5342d1e5e12f9fb3d282a5c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/concurrency-learn/references/database-concurrency.md",
+      "sha256": "070d0ac39a76246f4a72ccf3a6f5c54bfc6ebcfc4fbf715e0b053ca9ef9e939f",
+      "git_blob": "29bd7ae96e453958cb595c46a3a2a896c6c76a51",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/concurrency-learn/references/event-loop-internals.md",
+      "sha256": "eeb355d1d8bf1081668d5902eb50be6f11a7eb6752d8b44d09c6a59ba4946353",
+      "git_blob": "788792f9e089eaa03271e667dd12b7c06ab41dfc",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/concurrency-learn/references/rate-limiting.md",
+      "sha256": "8047cf278fdc18ab1379367c0fb355fdba50f14aa350a668e4c1ebbc083775e7",
+      "git_blob": "43d994b99002edf7ad07970e93398544649caa3c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/concurrency-learn/references/structured-concurrency.md",
+      "sha256": "a6448273a78d3533ef0857b44db20fc5e6999326f0a1444b90379158a821c8cd",
+      "git_blob": "8714de08c2a38be9de309be9ef28209d03482d50",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/concurrency-learn/references/synchronization-primitives.md",
+      "sha256": "416742c26c118ad4be99f4cd9f97aeceb501768cd4b0c6bee42d3386381407a7",
+      "git_blob": "780508ae928311069b1c394ca530b14581e3f7fe",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/concurrency-learn/references/worker-parallelism.md",
+      "sha256": "be7685b45bb82e0549c0e27e008c5db0290005c209cd7eab8a5e42a83b5e3585",
+      "git_blob": "47b1d3cf27039353530c94d700e3f42261ede411",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/content-designer/SKILL.md",
+      "sha256": "e2a3fdc9c610cc0a1274b3869c7cc3cab0627b9bd3e546d075a279e895219873",
+      "git_blob": "6a5e3903ed810419b96b9dafe0fe326e69722c02",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/content-humanizer/SKILL.md",
+      "sha256": "4d9d4d46e8f340d41a764b0b50d3559900aec070a17e821aebe29c6581ab205b",
+      "git_blob": "4af9fabfc36bf19282d255a012307ce7a02a9063",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/content-humanizer/references/remediation.md",
+      "sha256": "bf270658c17deabde25b76d4f9ac9b3cf43ba7874836c616e73eb48f8aab4a95",
+      "git_blob": "559ae35911c4c8eec0b1da33319d46eaeea7f790",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/content-humanizer/references/syntax.md",
+      "sha256": "36833a23e252e00f9638bf24226ebafd4f652cf8d241c40974c18f14d1957ef1",
+      "git_blob": "6db83cc3a2b1ae43af2ede7833eee330497790ee",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/content-humanizer/references/vocabulary.md",
+      "sha256": "0b46b79a8555dc61048cea3a9ae4afa4d2eb0199204ce8b23738523e7fd87b80",
+      "git_blob": "5b561fec81fc4e6f0de9d347004384eb8836a7d3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/css-learn/SKILL.md",
+      "sha256": "c2e0413314fd9d273ed354c5512248f79bccd78f0d4fc56a59b85876102836da",
+      "git_blob": "a461253edff48a2e4f54f8e531b6c22663c33b5c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/css-learn/references/css-frontier.md",
+      "sha256": "2d0e0e628783b3c706b8463b9ce0207d24640e5e2a9fa7ad06d23a97eecdc7ba",
+      "git_blob": "dfb56a752b1f6bc7f5c8d3b25b67a68d1c5faf39",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/data-modeling-learn/SKILL.md",
+      "sha256": "6f82e0f85dab8a314f307e60305f68a58f83b5e2054555f8f51d985a30efaedf",
+      "git_blob": "f84435353774ffe9f6d77c025c299a142464d727",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/data-modeling-learn/references/data-validation.md",
+      "sha256": "1f713ca10be34b3ca90fe57ef8b64d8db834129f9eb91d1ce969d873b33a2e78",
+      "git_blob": "1bc5eb22b6fce9a1f5cbc70af3a2c8f2645e7601",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/data-modeling-learn/references/document-graph-patterns.md",
+      "sha256": "e1e49dac791db97b1a519e078eaac3833125ecb5994d1e39c7b11699c8e72778",
+      "git_blob": "8456c2ddd6cb6e4a296b4f0b32d7705723852a70",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/data-modeling-learn/references/event-sourcing-cqrs.md",
+      "sha256": "3d3cae43debf4c6a2fe5483167e535f993f847db552edd61032903739e07e67e",
+      "git_blob": "0960f550d9c582d482825d1e9fb2a54c3babcca3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/data-modeling-learn/references/indexing-and-optimization.md",
+      "sha256": "949caecb44141b53b0ed467e5be9d1cb3bcffff55a8a80968525b86174aa2d71",
+      "git_blob": "ea431b9d759480ded9502efcd218983118748c3e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/data-modeling-learn/references/migrations-and-orms.md",
+      "sha256": "f0f89b6491135709ae4566d2b934a26ec89eaafb2a583f653fbacba01498fe78",
+      "git_blob": "274f820aad9fe21004705d82b36cd480f2021827",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/data-modeling-learn/references/relational-patterns.md",
+      "sha256": "080400da46c4d5d88a8aa9915f4d4b799c02941c3bdf287247b36301176f9807",
+      "git_blob": "8de054e6e48998702a50e56b7e3a50b76d523757",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dependency-manager/SKILL.md",
+      "sha256": "8187a56327e7535c9771f87b4778c684a2c5ea2e864ae4dce822a8d0db697d3d",
+      "git_blob": "894bb8748bd196351cbd6238cccdacd74a32217c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dependency-manager/references/agentic-workflows.md",
+      "sha256": "0cba3e24e606c5d1a903f6d11044f4cb687817ebd526ba24ac4d3c0674784af8",
+      "git_blob": "43aeebdfdb8985b16d920b555a19a691bace0b23",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dependency-manager/references/automated-updates.md",
+      "sha256": "64796918222ecbf65b95dea9218623754580881a9d443080d633eeec5524d77e",
+      "git_blob": "d2b1bc2f308ce7adca478e3ffeae9cb9cfd2f4d1",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dependency-manager/references/monorepo-patterns.md",
+      "sha256": "ec229fd145e876a1f10d3b1549ce40e8cb7785031e7db4564b9913ddb0755ad2",
+      "git_blob": "c92d2ed509ade9a0764203857804b314d51116b7",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dependency-manager/references/package-evaluation.md",
+      "sha256": "b340fba46f03122fb56f8b23d3b293bfebc9ee76272c423b7aa6c87099c17271",
+      "git_blob": "206a9c81fe4c44bbdef60d1b202ec80042b50b98",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dependency-manager/references/supply-chain-security.md",
+      "sha256": "404f9912febad732a80e929ae05c1cda2595fcc54cb13d8ef931d242ae9e1eb9",
+      "git_blob": "a7201277124c9268484310d432468858df06d4c0",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dependency-manager/references/vendoring-and-forking.md",
+      "sha256": "b687b7cca4beea2a791bd11d594be5f4e9b091f3953123fe29c050cf5bade4cc",
+      "git_blob": "056802ac44f0a10010ce8fcc20b689b62809fbab",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dependency-manager/references/version-upgrades.md",
+      "sha256": "f2ab5f4015c92c67ef8c75b18a136f5be5171bc4e27690b11f454734c14320e6",
+      "git_blob": "5687891da0e88be1495f3eee684148a6517e9e23",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dependency-manager/references/vulnerability-scanning.md",
+      "sha256": "82778fe7b3b74932919ac2f6127ac8563c775e9aaeb198192ed86cff35ac5407",
+      "git_blob": "4780cee395dc08684f186ef761d6483f841c945e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/deployment-learn/SKILL.md",
+      "sha256": "bcb8cd79dc62cadeab2205291499a22498f1ad2cb0896ed0de49ace5e0ec5993",
+      "git_blob": "cc17ff9fb543c1467cc4efb47bf534d6d6e14061",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/design-implementer/SKILL.md",
+      "sha256": "faa0a19d8127691cefff4438930c5f277b55f05ff0f7cc4e5f583e1dadc7ffd2",
+      "git_blob": "100966d40270224ba20d3bf8d0b9707158f88323",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/design-implementer/references/asset-management.md",
+      "sha256": "aacb1375db07c8063fd87c872686cf7895220cfa9adb646bcd1957481d01d0c8",
+      "git_blob": "19a67cb62f680ecc8b81760b0c4ed1c03be904e8",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/design-implementer/references/code-connect-map.md",
+      "sha256": "5a663600b65e7e8553022e6ced95f48252fde0ed0b8bb98cd408c154d00f4d45",
+      "git_blob": "a9e556c1d2fa110e4442b61c6ba8568f0734d4d6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/design-implementer/references/figma-token-map.md",
+      "sha256": "047a8684c0cd18f9380d0292fb6b54878e78d151db6f65497803c53ac4b04069",
+      "git_blob": "a74652e1aa1011c867e5eb62d713cd5d770ebfb4",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dev-checks/SKILL.md",
+      "sha256": "5edcb31591e3b1030b46d43168976230b2b8ac77cf7b059bd5ec5aa526f9527e",
+      "git_blob": "746b586e09d45d9b5b5d06c69e749b2bb2709b3a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dev-checks/references/analysis.md",
+      "sha256": "7c283c3796a07ffe0d957e2f1ab7468780fe68aabc28e2464476679df1f410ac",
+      "git_blob": "8b850237546e4ac1579a781e6be8d2883cc0a811",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dev-checks/references/core-commands.md",
+      "sha256": "cf151c28f4ac6b3cdeff8b91a88d986701041f12316410aeb131b2e25406e36c",
+      "git_blob": "9fa87b0007fadde50269a4cf4857b47259699471",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dev-checks/references/quality-checks.md",
+      "sha256": "38694cbd6e4a19a034667f9d4020f286db1d710d706cfc8a7dd8e4be8444dfbf",
+      "git_blob": "ec6109f128999784d98e53c9a0cf66e88b6943a9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dev-checks/references/troubleshooting.md",
+      "sha256": "a0cfb37af9ec99cd65435cea6dad17c5983b38268388570646098c9330851cc2",
+      "git_blob": "189fd3efd560c5b95b3ea11bf6bb224d3aa64413",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dev-environment-learn/SKILL.md",
+      "sha256": "50999ec0ba399e1c0dcdb9a97f4a2b0bfd6357b01860a747fb99491de7a533e9",
+      "git_blob": "1be9502d0be0f266da1781ca7a83097b374aa481",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dev-environment-learn/references/audit-checklist.md",
+      "sha256": "f7aaffd3a232423476b7871a2d8bfdd44e7e7a93b2f85c8b280f2f9bfd04bf42",
+      "git_blob": "fd2291a80aeb32a49f1a933be0febe35a33180d7",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dev-environment-learn/references/cleanup-playbook.md",
+      "sha256": "756498ff41e2fca89e7ddc8e677d9e624c50a4eb0bb87368621547a129f92816",
+      "git_blob": "fd45153e6117be864ccb6a30975bd736457cb084",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dev-environment-learn/references/node.md",
+      "sha256": "bb74b81234a4ec0270cef050a4cf0621cb00e2175c44786874445dc9fed39571",
+      "git_blob": "707fc485be12a596519e70dcc1bdb6c504ab7a86",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dev-environment-learn/references/path-management.md",
+      "sha256": "607de532c3e6379aea0241403b4b56e9db2b1d83253978eec51bcaf9e5f773af",
+      "git_blob": "00a6df42c090a409d63c87d9936d91fe903a6b31",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dev-environment-learn/references/platform-notes.md",
+      "sha256": "50daa77594fc991828da78297457265f5be266a4fef0cf8ab635bb81572e0368",
+      "git_blob": "83e004ca63029ae69c1af8d1fe51bbe0b76fe105",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/dev-environment-learn/references/python.md",
+      "sha256": "00cfffe24900243a464e3178e9ad1ef2046a77adb51e76f39a753d8d7c19dabe",
+      "git_blob": "0ede0dfc10125d74ad9e6006318f85438bda4f8e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/docs-manager/SKILL.md",
+      "sha256": "e5b35b54872fe5353a779e7016d4095607fc13c3cde3f2aa2217c8e754695305",
+      "git_blob": "a28facae3f8a5a5365894c43043a6e636f520818",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/docs-manager/references/doc-architecture.md",
+      "sha256": "b5c6512d3dfd68afaef58078ab800c10f90d99114e1dca5853f6d836d2f54c13",
+      "git_blob": "86fa6f35e1ea1b3d1cab8ef975a3b2b8bbe32ad3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/docs-manager/references/doc-formats.md",
+      "sha256": "941fb0b7f2b8ca706353ecbb06c703d80b98b8f9f952aec38a08262bc9ff8389",
+      "git_blob": "d9c22cd0126cb8f957e0e872383704621d690beb",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/docs-manager/references/doc-site-and-indexing.md",
+      "sha256": "f4d942cd7ea626769cd7dff7920159d792bb0482e763523fcd77de2604e9af5e",
+      "git_blob": "9bee960e464f775c6243740eab788b40466bbcf5",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/docs-manager/references/staleness-detection.md",
+      "sha256": "1ab34a8eb74cac447a24d9a3e128e78d79025e72e330e600c3ddbbace4361826",
+      "git_blob": "95425a9321fbbdadfc46fe43d3b8ba795be6067c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/docs-update/SKILL.md",
+      "sha256": "4960e61ace00ee3dc17e8f1fc4dfd3ae3f440329a709c0549466a191f6ddb237",
+      "git_blob": "ea6707e2a87a09293859cd6200f5765255167ff9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/docs-update/references/changelog-versioning.md",
+      "sha256": "5ce4f2e2dc0e9a497b067561f9b7fa33dd1bca78d98bc04d901193ed18dea7fa",
+      "git_blob": "a5c48edf0d1c6f3140411742bf9e6ee0c1d3c785",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/duplication-finder/SKILL.md",
+      "sha256": "8bc8318df660a0f16f4c74f71d15e4079a2db27f96b4b350693df38c79a53ffa",
+      "git_blob": "f94a3be467c6dee08599a03564f8d318b2e8864d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/duplication-finder/references/refactoring-guide.md",
+      "sha256": "e3c66a0c220c8cbc7c215c6f573a5d189e50ec9d2f79bea5dad782e862ac9b71",
+      "git_blob": "004000c743e6d3cee80881b81b93ee0201f3a86a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/error-handling-learn/SKILL.md",
+      "sha256": "a44d4edadacb0375e6154ea9e4f04d57e44bb5885bf9756191ec80978e1a67fe",
+      "git_blob": "73144b0a9ae477349e5817982b9fc2a69621dde7",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/error-handling-learn/references/agent-error-recovery.md",
+      "sha256": "c7158a2342b79a7aefb5ce993c3e2c78a67fa82d0cd53190554aa4085a222e83",
+      "git_blob": "33a5d6601eb0e1d68045fb2e33e3ebc7ac349f5f",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/error-handling-learn/references/api-error-design.md",
+      "sha256": "d030868904b61ceb2e27ca6fa50c6e9b872d5a385fc91655d2f3e995a75cf615",
+      "git_blob": "4c10580e3494233acec0499bbdfbd7197db48148",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/error-handling-learn/references/error-hierarchies.md",
+      "sha256": "eef2831dbc7ab728dd2f1252fdc83b6b9a0529caf3dbd30ca0c3d9cc1babf01e",
+      "git_blob": "e22f64817a42f0da7cb33e1e449eef24fb4308a7",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/error-handling-learn/references/error-observability.md",
+      "sha256": "f799a305208c554b58a84188c139c376431b5cab24b36dcf1e6524c76b2ec43a",
+      "git_blob": "ced3d5d452165e3c3b86073d91de7294527168fc",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/error-handling-learn/references/result-types.md",
+      "sha256": "ab10237394766a13253530b8ea55187eb90cd8282e4fe66b850f7f662ab1d7d0",
+      "git_blob": "0fe632f644e2b19810382bcb7cd8d5de60a5dd42",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/error-handling-learn/references/retry-and-resilience.md",
+      "sha256": "6b962ee042e5b24d02092253273b0345aa80f8494276f8ac47e6b0140fbacfe2",
+      "git_blob": "b87cb62dfde244ec1f6d8fc35057c704b532f822",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/feature-flags-learn/SKILL.md",
+      "sha256": "6d6077724e449438996c39f5422615448a5ed9a855dd3f3119e826f4b1b9bd88",
+      "git_blob": "051bc2e0e1db8a30eee29e6afe6f4f40857060d9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/feature-flags-learn/references/flag-schema.md",
+      "sha256": "1a08dd2c8ff4aa61f4fcfb6c6cfd7c1b31c353dd04d0626588a76653c37d2e0c",
+      "git_blob": "adbf35c20c96dceb9914c8d22f6a874a7c0e1738",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/feature-flags-learn/references/gating-patterns.md",
+      "sha256": "5d72f51cf38efcd95af103359c3118353422486b7846edfcb7a2167dcf97d530",
+      "git_blob": "471c6a910cbb372a83c1cbdc8cff0af692319719",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/git-manager/SKILL.md",
+      "sha256": "068e076f3d6e781cffa0437616d3753b6066df7fa9c2ad002d39fc097717b6ee",
+      "git_blob": "b29656558d3b6566be32b1abfd54bfc65ffdaf7d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/git-manager/references/branching-strategies.md",
+      "sha256": "2879dcc10066881d1ceaea6985224f15bc72d7f7100edce770e91a00ba82480e",
+      "git_blob": "3d2a21c2b3c8dc2306bf920befd6ec4162275f52",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/git-manager/references/conflict-resolution.md",
+      "sha256": "ba82e66bdf23842bdd192e50225c7e40735dfa9028c47291b10e7b2c3fc31773",
+      "git_blob": "d3524610656cdb6caa2a6dc9f992533dc59d25e0",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/git-manager/references/git-hooks.md",
+      "sha256": "2014e85c4285a53eb32c68a432052806e28b849ad52289ee3c3ada4d190d367b",
+      "git_blob": "60a3e3483aabe5573f99820359ab80c4d0177528",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/git-manager/references/monorepo-strategies.md",
+      "sha256": "b3c39c1df84b05d6240cd10a00aa4f94b30d5f2dae58745bc8259ba2b11d7ca4",
+      "git_blob": "4b48d3012d0a22eb88adb37823fa3092f2c33325",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/git-manager/references/release-management.md",
+      "sha256": "9e0a1345253b8d0e470d8db624b4df4972ab674d1ec6bde396638d99a0736073",
+      "git_blob": "137c202795d497de4e3f0bd126449fbee6d6cb2d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/git-manager/references/worktrees-parallel.md",
+      "sha256": "218be8f1c9283ab4b225106dfd4a21d098dfcea316e07b0c8f637253d72b42e4",
+      "git_blob": "f5d0d28ba4735f087562b10f705755e51f86cd5a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/hotfix/SKILL.md",
+      "sha256": "d322fb0a92b7a77d387fe42472c6e1721e192ae0c699fe000586600768d0b58f",
+      "git_blob": "a4b7ffd205fecf7e775fd33fdbf01bbd0575ff07",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/i18n-learn/SKILL.md",
+      "sha256": "53eb27a81f4550404fa3ba5cffa434b776131530691813827320a251b915efd9",
+      "git_blob": "e2cab9c09d0c92f3ad3d61aa5ac18d611e9d5032",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/license-auditor/SKILL.md",
+      "sha256": "b572a2346147b7ff14597d4c8830d9e2c6e10edd8793d60bc0b34e42a8d27979",
+      "git_blob": "de2df4ccffe458189a3d2949e241efa23183f04f",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/llm-integration-learn/SKILL.md",
+      "sha256": "185a3f387b8ffc9600ea04b91fc9400a19869041c4d894cc22f76588b99291f0",
+      "git_blob": "bca23bc8b8c39dba91710b88396cdb33a9d8b0ec",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/llm-integration-learn/references/agentic-patterns.md",
+      "sha256": "fc416e81b8e229d2a4e6ec6e811fd9f20379ba82227316ec5bd4f3afc5830dda",
+      "git_blob": "cd666b3267e23e85cc6fbae1377447138bf6cccc",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/llm-integration-learn/references/cost-optimization.md",
+      "sha256": "81f326cb144dea562dbb953d021f0df30ffbb3d9baf722316198b119f3eb907f",
+      "git_blob": "40c2b50e7ba3994a43ed9c33b6139e88cde880e5",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/llm-integration-learn/references/embeddings.md",
+      "sha256": "769a304958b3816b703f35fc5e12d621fae29d1abd7b3167af91a96d7e9f2faa",
+      "git_blob": "45d20156b645dadfa3736d5b3ad580058ce4818c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/llm-integration-learn/references/evaluation-testing.md",
+      "sha256": "bf27c92bb2c570656ccaf5c838998f0811deeb5b67a0423e702d4e828fee8add",
+      "git_blob": "6c555ee48d31567d3be743c560f310b5015afa47",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/llm-integration-learn/references/guardrails-safety.md",
+      "sha256": "99757e0bdf8158a9272284a34e80dbfc2c6fc93590f515e280ba8d212e3b8e47",
+      "git_blob": "38497e1dd1c60965143d34b442bbadc2bce2fe27",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/llm-integration-learn/references/prompt-engineering.md",
+      "sha256": "86cba0870b416207134fdb118465e3994ef1c3ec75615dd2a205825250455ea7",
+      "git_blob": "dfad1c24b1716e029198f28a4098320bed6e76aa",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/llm-integration-learn/references/rag-pipelines.md",
+      "sha256": "25468c4edbed6bd4ab5a9aea98bd11b2f795bf73f240e93b93232353a8e9a980",
+      "git_blob": "5144c07f42a7912205c75189174be2b41699753d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/llm-integration-learn/references/structured-outputs.md",
+      "sha256": "84d43a6bf2b4eec23250c85677a245e868dd4e0fab282af7d93f829e76f4bc3d",
+      "git_blob": "071aea3d14b86b7b734b7c042bcdd108df63035b",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/mcp-builder/SKILL.md",
+      "sha256": "1ea861a24f1c0466a379136411d31277ae2cc2b1d3fdcf3090dc6604ff3ad3f6",
+      "git_blob": "57cb0e76766ea2e3d5b26dddc13b632258085c74",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/mcp-builder/references/fastmcp-patterns.md",
+      "sha256": "958558b0e8e8e9d34b36b022a39863924c3fbe89283fdba5e1351af49d33d5bb",
+      "git_blob": "6ce81ae957feeeafe32dc73c6c353dc08e571b54",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/mcp-builder/references/token-budget.md",
+      "sha256": "230748a6ff9852f9fc3b2d155f3598489950728d3b2c4ae3e2eccf29c868e0bd",
+      "git_blob": "51e3c0f9249d174a9ec7923cecf30675129e1be6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/mcp-builder/references/troubleshooting.md",
+      "sha256": "782bf4199feb3f3431bfc8ca18f0346c5e3cbbb17e52de44e3af591561720457",
+      "git_blob": "5ca8a97d6e904725c3640b5bf67de61d6593ef16",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/migration-learn/SKILL.md",
+      "sha256": "803ab8219d0c8c4cfac6e556c488dd6b25cdfe31760165d52b650e47c5b64436",
+      "git_blob": "f2844ced3c6e6f1afd8851db912f63f888b11c89",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/migration-learn/references/agentic-workflows.md",
+      "sha256": "65d9cca37dd4a83c5e045c0a81006e6354ac987e8d0f710ca3276e81ccdb76f3",
+      "git_blob": "9a0a19abc19ce79cf39f087eac06dbd61b9477a7",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/migration-learn/references/codemod-authoring.md",
+      "sha256": "d8ba7e21b6153b0b65cdbbc1d32c3ce6cd4f7b627f4b3ecdde6e7f4f4c15a100",
+      "git_blob": "68083029cbdae6bb7e29db6e9a4b0272857d237a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/migration-learn/references/database-evolution.md",
+      "sha256": "1700ba3d0941e2435ab23a2f20a5bcee0c6d29bc07405d444e2b45f20b813e63",
+      "git_blob": "a199c3853768ce39fc70c3c70f1fcc2047333634",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/migration-learn/references/dependency-upgrades.md",
+      "sha256": "6b742ea684d7cdd909d867e6fe756a6b45b409b0c9b9d7bd24a011c844749641",
+      "git_blob": "14c3b520fee7f8cbfcd45b97d5483a5f499fdd2f",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/migration-learn/references/incremental-patterns.md",
+      "sha256": "9611c0143aca18286416bbd73b3b9b947eb8f43e2c652d3240f2d0bc1ef27ecd",
+      "git_blob": "9f1189fbf28dac8503b1b6a098b899f512029050",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/observability-learn/SKILL.md",
+      "sha256": "01e13d96baad9def8777d09e72c940da1673e5ba53922b3c98272a036091f658",
+      "git_blob": "901d8e40f1113b6eb21a79c814d6688f5750edc6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/performance-learn/SKILL.md",
+      "sha256": "1a017c6504460559df5b1011bfee2a2ede67b243575f2b83c8144f42a3f63958",
+      "git_blob": "db4015a38d1dc1b8b38f20c675afef5212499da6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/performance-learn/references/bundle-optimization.md",
+      "sha256": "2c445f0dee3bd57d815c7de4911ff96a7a3638d305f7b1273af1b8fe0f71d71a",
+      "git_blob": "723bd1fda70cdec4992c0a52cf2ea2982ce22ef9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/performance-learn/references/core-web-vitals.md",
+      "sha256": "e257f04e255cfaa3d94246c7ed02546c8f5a99a0e01e6ffdf006ca7ddcda020a",
+      "git_blob": "52e69ca427a8cdc74dd7dc00387340f485a0c7f5",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/performance-learn/references/lazy-loading.md",
+      "sha256": "4684c1d30c3a5305a320e6f6cb30c3774b9f65ad2d2ddc36c5fc829144c0c0d3",
+      "git_blob": "373bc28f0f277a238b80216029d3d98aafdf24a8",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/persona-creator/SKILL.md",
+      "sha256": "6b0f6704f0df20e64a53aec0c0c5d01ae867721b8d3523f9d27c97df299513e6",
+      "git_blob": "c5217cff3316abd38c857b035e76a489f857cedd",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/persona-creator/references/cicd.md",
+      "sha256": "14566a625451d9698acb0afba92452d135fa6833ffa5bcaf0d4dbaa7c1cb5ca1",
+      "git_blob": "c591139651b50b35c1646948e70505eaebd17386",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/persona-creator/references/ingestion.md",
+      "sha256": "85d49f6675ac9c56b5a2670941dbbbec9cc98bbc6176e816d04a18d015c8c5d7",
+      "git_blob": "ac0b9be69f1000fc05054061c60c021129f8701e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/persona-creator/references/persona-template.md",
+      "sha256": "85ffe4355749e8a52723fec1a1648c195ba8b66710a88e34399bbdc851842cbc",
+      "git_blob": "382d6396fd7ee32a397f3ceccfb48a67bcf752b2",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/persona-creator/references/simulation.md",
+      "sha256": "233ddd7d52135f3c515102199d7f4d0c5f625a79398d359c403396e39375296a",
+      "git_blob": "aa9c270b30ed6b070f70ebc5bd50539b7524946b",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/persona-creator/references/validation.md",
+      "sha256": "962c2e44571ace82b36c0e4e31fde7a079388f4bb798eecf962528609d74c008",
+      "git_blob": "abdfba2bb2af63732bb9e45b3870f433cf42c25d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/plugin-builder/SKILL.md",
+      "sha256": "24bfda6bee3feb2ef7d67de7803618c14cfe1f3fe347effa1f817e4e24fa5bb6",
+      "git_blob": "887751c84ff7fd7346a5b5cf6f1d9e06a75c43e8",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/plugin-builder/references/command-authoring.md",
+      "sha256": "0b6422cca6167b50bbed3147606929f631d57ffca8413b4b1bcf468e8b7c94c3",
+      "git_blob": "e19e9ce32ded4a82e83f28c63e5a2b935bf1594a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/plugin-builder/references/entry-points.md",
+      "sha256": "d66453111969c4f0e2501c334489cbc8b71cee99b91fdf94d6a2b6953ea3860b",
+      "git_blob": "8f211278e2f0d4075fc91b8a756ff1e3e1d8d1d1",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/plugin-builder/references/plugin-protocol.md",
+      "sha256": "3f6be1f4832127a2bfa08ae82e4474432de55da768f182e5c61b43dc366248b8",
+      "git_blob": "6ddd1deb957131e13491e4f3a97b1805016eb471",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/plugin-builder/references/server-factory.md",
+      "sha256": "9d28ba1817aa65faeb686f1037aaa6f55cba011aff063a1635dc97435a315b28",
+      "git_blob": "49bb97e547279eb579ebebcc9b64021ea6997ea5",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/pr/SKILL.md",
+      "sha256": "dafdbf525563c8a49caddcc9ef831e1b8d5dd47a19b93726349db22e53ab1294",
+      "git_blob": "2217de6c2032d4675f31777be03f1378610becca",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/pr/references/pr-template.md",
+      "sha256": "88340a1e55c78e40ac87ee75e86c34098e59d6b04086dcac6cae70e24a245438",
+      "git_blob": "29a5fb8cc5d0d9e1d341b17afdd948dc6669a1e6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/problem-solver/SKILL.md",
+      "sha256": "d1844ce39bc824b939b0b14608cb4e4fb5aae85cbf8f716c1e1ddb97c33397e9",
+      "git_blob": "71d920b6454f5a691c885d152d2aff768fa9548a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/problem-solver/references/debugging-strategies.md",
+      "sha256": "99303bfced4b810341e8cefcd5e5efaad47115a6754da7a8cb4d3972d2d2ed23",
+      "git_blob": "90a175c257d8df4f3ad9f7d82739863bb39c2c2d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/problem-solver/references/error-patterns.md",
+      "sha256": "081f82d9a44d106e30c6f16de34c4cd8ee22bc53eb450f574076eccba55f8052",
+      "git_blob": "7ab5059ea21d9d7013b702ac6dd5439f3cde6579",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/project-manager/SKILL.md",
+      "sha256": "5c30ba3f1af8c92d68846cd907da4d2876b2a31353d3b48ac6a10f6585e9c661",
+      "git_blob": "89b132208a77b6801ae1e6a7c52da07a02acbfc7",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/project-manager/references/cli-commands.md",
+      "sha256": "a9bd8d441814fad0a1fae995677b8d185649253ce19793616479b42603204de4",
+      "git_blob": "7930324d54f01c69ecc79e0d76847e03419c5d4a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/project-manager/references/feature-lifecycle.md",
+      "sha256": "9bb70d83320dacc3145b4a398f058874e9bfccd3c42a704662cd699404b5f85b",
+      "git_blob": "f0b5fd04af9768c24130231261b82e6fdea5a1de",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/project-manager/references/issue-templates.md",
+      "sha256": "7b3273e571bfe80b6ec04e5f7ca6a61bd3d5505c2ec161d1e232e3af6c85d5c2",
+      "git_blob": "db19fa8d8d72606b8dda0bf257888411a9158e48",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/project-manager/references/spec-review-workflow.md",
+      "sha256": "35779d3a40879a5476d2e6088bda5700fb0a034fc9e3be3943ca3f6749a41064",
+      "git_blob": "1b1e22118866ec43db33079a9ee8a0bf0e0d4f08",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/project-manager/references/status-tracking.md",
+      "sha256": "f0043885fded0959f60a3693eb1f00e1eb502c09ccb611188f02e085d10823fe",
+      "git_blob": "527e49364711228878d22884f67043ada2d7133c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/project-manager/references/wave-orchestration.md",
+      "sha256": "7e6b8240d60033022b04733f1641b4541025e1248adc1bf02d720de5ab77035f",
+      "git_blob": "721918201455b45929de6b2577ba8f8676af9ddc",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/prompt-creator/SKILL.md",
+      "sha256": "8e8b5a4738c4a24ec8c1967f5ff19facff3c14a44b5e5523f6cc3e369a1e57eb",
+      "git_blob": "ad535e5b80dca68350a0db148118dafc114a9178",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/prompt-creator/references/best-practices.md",
+      "sha256": "17a826d5c52b49315eb41e5ce8baf7e849e339cb2cfc3d756f68849f5d546194",
+      "git_blob": "2210490e3dd0f5aad169cea866370db8962b8564",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/prompt-creator/references/format.md",
+      "sha256": "018fa397be9444cc73b58adaeb299cb77d7aeb0fb58ce1f0b8da4bc1c0a6de41",
+      "git_blob": "89c7cda49110055c5b6b001770b6fbecd3b444c2",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/prompt-creator/references/patterns.md",
+      "sha256": "28a4d357584c95ced6625e9cd0e2f4921feb3a57f1a9128cd97b04f6a485396d",
+      "git_blob": "c1460e38f2388ce7114104151622dbf4a8829c77",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/prompt-creator/references/tools.md",
+      "sha256": "cd092963008fb99cdb0c7820e39bbf99049cd9fa139a26818f0dc1cb448507b5",
+      "git_blob": "9d2e1c9b3d27bd975ad91d1c7cc58d431ffa7dc2",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/prompt-creator/references/variables.md",
+      "sha256": "106b8eb6e96f7914305cc9c396d89cff062bb01e7cab9f707e29f10cc4b3cff3",
+      "git_blob": "2fd0bcf0380e269f2e6f7697fbdb6c3fbb4a4551",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/refactoring-learn/SKILL.md",
+      "sha256": "537a4b1944d639395d1c57cdb364fa246ae3cd48549bd4a3be3c096f3fd73185",
+      "git_blob": "0a74c774929904dd127bc25199eee2ac3856dc64",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/refactoring-learn/references/agentic-refactoring.md",
+      "sha256": "e994500b51c8e86490f6d5437fdef8affa9eec093456a89d5b949c9a3c4a59b3",
+      "git_blob": "689cc2ef40593a120ca21c7a033f3fad2a39a335",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/refactoring-learn/references/code-smells.md",
+      "sha256": "4f60ea8bdd8833b6c21a1cc0e2639680874d15e768f3d27f61e438cea4e94b66",
+      "git_blob": "43282bcda5e34f3a4f46e4ec036e59431735bdad",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/refactoring-learn/references/dependency-and-architecture.md",
+      "sha256": "13f450e45b9c5ce687a12e2012e1adb0dd1ac886ba9eb6d1225837d0c1aa156a",
+      "git_blob": "439c2401cf2bf047da34bb9713c226acf16c9357",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/refactoring-learn/references/refactoring-catalog.md",
+      "sha256": "d0cdfecf6221641fc51973daf77d08fe847ba44423c17aa50a8ef12da4b840d9",
+      "git_blob": "311103e837ea32b592a6f09484bf7a4222b52613",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/refactoring-learn/references/safe-transformation-techniques.md",
+      "sha256": "1b064a2414088988192a42e45697c3d04c062fa2ab6d45102f9b08d59a8e3f51",
+      "git_blob": "cd8247f2767a330f9b969bc79ad08c867fc176e7",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/refactoring-learn/references/technical-debt-management.md",
+      "sha256": "37b7360d6063f2365c1333aea8936a1549835cf879aade433cf7fbea82b3a264",
+      "git_blob": "038d7eaa79a194b0b4f513ec02715edc462269d6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/release/SKILL.md",
+      "sha256": "54992bcfc1ed9d74b996f7c72d8d02651ab514491a79f079d7e63b3a37c2afc9",
+      "git_blob": "7753f0f08b1d507e566b2db6249a884fdfd6b51c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/release/references/release-checklist.md",
+      "sha256": "7254d96665d2b9eed6f8e82044ef09bc38b2d77e476b33b99ecb38a8496f5c95",
+      "git_blob": "1594e98cb66dcd57c203cf828241ef29b8de2fcb",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/repo-cleanup/SKILL.md",
+      "sha256": "9cbe2b9f77d61186877742282cc89c77d162a85a745b8267e95c160ece3f7c41",
+      "git_blob": "d0c41089634fda2285bcc91c593a4e4fd4045a58",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/research/SKILL.md",
+      "sha256": "730c0ad132a0852134ebba949c7602231c7030cef016df92d5a44c1dda7440bb",
+      "git_blob": "c688fc365fd66f46306137f7adbc5ad2ba7e90a9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/research/references/research-tools.md",
+      "sha256": "c820bc65aeae83a96d72e65b9a777e57ac6d596f06435ddbf13868a66e4c0d87",
+      "git_blob": "0e958ac3b1194ca820b97f1cf9bcd396d12c3814",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/review/SKILL.md",
+      "sha256": "a2822c07c8c80d4032b0f9bcaa1c8c80d1a152aabe79bc11b522d8510bdb4a08",
+      "git_blob": "656a369e219f74aabafe53fa7099f41a710a2549",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/security-auditor/SKILL.md",
+      "sha256": "33abed3ec8792cfc5f0693985c5af2677afac15a1f10010593b4988d9a36eb47",
+      "git_blob": "95b9749469e9941984a9087ea64636488f6df93d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/security-auditor/references/agent-and-supply-chain.md",
+      "sha256": "e6d846343b8f7c03f259953ca1d64ac283037d87e95438fe9df7c87bdc91ed59",
+      "git_blob": "425621e009a17f1d71e98f2fcc27578d7cabc612",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/security-auditor/references/agentic-review-workflow.md",
+      "sha256": "352b5fb995e3fab21f93adfc02af578f27fcf006a06d6e4bd09bab3967308df5",
+      "git_blob": "032c1cf378e326deed41d7596cde748db112e842",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/security-auditor/references/checklists.md",
+      "sha256": "19e2433dbf962c9643c61d555f5cdca374e6098e28ee8101c7a85e962b5b2eda",
+      "git_blob": "f50a1ca43314aaf73fed568d487be683fc08b058",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/security-auditor/references/mcp-server-security.md",
+      "sha256": "17dd49951a67420cc4b08ed7b1bb69346caf79177e1de147cb9a18960c0cbf90",
+      "git_blob": "c85d1db177b61963bff68079c63c3a80627df611",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/security-auditor/references/owasp-top-10.md",
+      "sha256": "09d4450354ba10f1f876148e1736051dadc13ab86fc76492aeb89db4da3af07a",
+      "git_blob": "a5b750b53c72183f3f06adca25dcd96d64e34f36",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/security-auditor/references/reporting-and-metrics.md",
+      "sha256": "e10df827d12dd77397908d7f686a04e57aefff16338f116eae9f48dd25f598da",
+      "git_blob": "04ee99613e0e76171972bcdb829c14a187578961",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/security-auditor/references/risk-prioritization.md",
+      "sha256": "7aa8a2c1a44877360f99d2d6bf32d5e82dc44391cb24acaf8664eb42cb2bb56e",
+      "git_blob": "274f5b92efd0c8972131af3bb5938bc7e1f2095a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/security-auditor/references/scope-and-objectives.md",
+      "sha256": "c8447f79f026bcdc64af6fea05709c2e5cd220026083afe8d608da45f1feb423",
+      "git_blob": "51f69cb45c8c0f9e18fdf526cf48677f4abdd620",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/security-auditor/references/secure-coding-principles.md",
+      "sha256": "2d86ae020b5d72d2889a5897a04b5795152814a8b5aea8c7d747cad21ed5afde",
+      "git_blob": "a36ed4f9d48e366487905707c803bb6e06836f21",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/security-auditor/references/threat-modeling.md",
+      "sha256": "46d0b75daa4d6024459120badf28d6ede90b2a3ff6819120ef888acb55c0bd55",
+      "git_blob": "976ddfb3c58392880531457b963b2e5262e89338",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/security-auditor/references/tooling-and-cicd.md",
+      "sha256": "d76f064ccf0f353b2eb29a9f6d95e1c2c2fe41b8198b6817610d3dbf7f271f65",
+      "git_blob": "cbc139aee25cef85ae928150ff34db92ce57cf54",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/security-auditor/references/vulnerability-classes.md",
+      "sha256": "f2fbc55cb0587cb24aaf43743f00e39741f5e99642cc0015bdcc0ce498758704",
+      "git_blob": "180c656a812e14f62a5327bb525d08072c6b1370",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/skill-manager/README.md",
+      "sha256": "23388022b41484ab283d4dfd5a880e248c9feed21b414182042c2033a465f811",
+      "git_blob": "8fbbe5df8f84211b2307fdf95cd5061f2d8cc25a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/skill-manager/SKILL.md",
+      "sha256": "cc580bcb3e441ff31934ae249b3aaef38b3411501685302233e31b30a705e66b",
+      "git_blob": "7e8a9f1b82a73de5dcdeb1fe12d4669a37b53b91",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/skill-manager/examples/skill-lint.yml",
+      "sha256": "d215899557965ebee9fbcbaf46f9b6af45393b12fe1ea6ecd23bdc45c4b5ebaf",
+      "git_blob": "8ab1258fed9a30a0c5a674e733a210d0f69e90a2",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/skill-manager/references/architecture.md",
+      "sha256": "a9af1f1c7f4898ab63f7f8a16e36f5b868d4300b6c5f32975f54cde5650905ad",
+      "git_blob": "a294a4ffa44d8cb7159c38dff9dbe00c62be7c11",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/skill-manager/references/descriptions.md",
+      "sha256": "011768dbaf121d0867222cc57fae9c1ff9af57cc39acd24fb1c3bb37df052d53",
+      "git_blob": "00a252d72c0c5836fb1b70dfc57328be6ba05137",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/skill-manager/references/distributed-skills.md",
+      "sha256": "e979802a8a795534deeb8e1197057a0718cda7f91b2289e6de73b295433b13ba",
+      "git_blob": "428c2c263d1d59753efd98838b9ada4ad3b22d1c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/skill-manager/references/format.md",
+      "sha256": "83cbd270e4f6d07c75683539903ffacfb6f6b5b6872542c741e9213792b4afaa",
+      "git_blob": "8dd1d1d03055ec4250d8535e0418090bfd8f16d1",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/skill-manager/references/hooks.md",
+      "sha256": "fadd77c7cb4b425ed070a5b48cdb10e6eddeab546206a1feee98b896ce54ba85",
+      "git_blob": "d495c65c2047d0c17757a7c0cee23431e40704f1",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/skill-manager/references/linter-rules.md",
+      "sha256": "c98cf14b578e64c0ec6eac2d374484652a4b096e30747589a532fbf1424b7c7f",
+      "git_blob": "f66bff1189fc1f9f578c030826f18940503473bc",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/skill-manager/references/reference-files.md",
+      "sha256": "4701f8ae24df3ac3dfe67cfd60fa8881354a8bafa7d67a6044c11dada5b4393f",
+      "git_blob": "bc5bb3f7c7cf7ff56ce222e40cc653b5d9e828d9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/skill-manager/references/resource-scripts.md",
+      "sha256": "1381ebb5644aaa295e96454d2dffca270f5d97341c8b3e0d20c9962002ec9650",
+      "git_blob": "3d77f64cdcf69b80142a04b944e3fae134a41cd3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/skill-manager/references/routing.md",
+      "sha256": "afb095846b1357f3ea2ea3132406b82e06421a9708dcbf77fda70f2315134379",
+      "git_blob": "4410cdc82f9bb796413b6f15d3f6ac96a8a02c48",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/skill-manager/references/skills-specification.md",
+      "sha256": "ecce047f214cbad427a3fb95b261d88303eba3fdce0cd7ff4256fc66c7d00049",
+      "git_blob": "adb78916ff89051f24bb36ff7c2d4c60476ef0a6",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/skill-manager/templates/reference.template.md",
+      "sha256": "fa98b4ea37a3c19a60c91fc159bdf3bd947ca575a7624c3162eaba0277ef7185",
+      "git_blob": "c05d0030ce22db308cb79b3e1065b4a56d0fdaa0",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/skill-manager/templates/skill.template.md",
+      "sha256": "356fa439b51c62f4fb41406093d8596242cbc98b661a5bc5621c4c3d74b27228",
+      "git_blob": "a0fc72f8dc7d3687605a7d894a88ffa5702cfa07",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/spec-writer/SKILL.md",
+      "sha256": "14174b6c8ec41b1ba5ac31bed678c20f8b432771e8fb33dbc10d8b89d39fa054",
+      "git_blob": "5b6b8e7c9e6002283880cf94d3d21065bd3faac2",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/spec-writer/references/agent-formats.md",
+      "sha256": "910e8ca79e1f3a2b764f8476cf52d6642a2689b1a7aef47ba5fbea49c21e88de",
+      "git_blob": "2fca667707d18770104cb5bf85d8da0441f3837d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/spec-writer/references/content-boundaries.md",
+      "sha256": "a6ac969b9f71704890b4e22a73c575eb0d12b00663e8bee5b3217b20198361e0",
+      "git_blob": "501810208dcf20736d239557dc14c295ed3d484a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/spec-writer/references/spec-template.md",
+      "sha256": "4e519e48ee992b30eafc3c908e04803f154e09e2286901e95ff881a11c85b7dc",
+      "git_blob": "69b597484e6047abc5397fabf9e01a84e71262a1",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/state-learn/SKILL.md",
+      "sha256": "6a3014444441d866ee5009c43e2d7815ae7a3cf41614724cc006e901765712cd",
+      "git_blob": "eb25882e7072f3ad3755d2f667d2f4e683cb5e72",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/state-learn/references/framework-agnostic-patterns.md",
+      "sha256": "98a1ac8d06a478bbcd562adfbec7f1c99a86c65fa6a8f9df01f9a41e18b2b59d",
+      "git_blob": "c6bf339b4daa29a1bc21c1ad4fe303ad4d1e14c5",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/state-learn/references/python-state.md",
+      "sha256": "8550ad75b2f8503f496da7c9af8311dc26e425ca39f0001cdf6db40056f2df6c",
+      "git_blob": "9719bf4f2f917dfc8dd83671418143cc8b4fd797",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/state-learn/references/server-state.md",
+      "sha256": "2b84677f85dd42f3b50a300e070cc0b849ef46c44e80070dc978c85b39aa754b",
+      "git_blob": "5dc5073167537470ad122ca55b7b0da64ec547b3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/state-learn/references/signals-and-reactivity.md",
+      "sha256": "13274b0630a63e9ff4c94cbe1875504a6dc0ab34ce0d95fa06b7c5654aaa2d75",
+      "git_blob": "35922c832a4cbbf1ea64c6ee63e49d667eca3c5f",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/state-learn/references/state-machines.md",
+      "sha256": "04fa3fabeb51f10b2cd43b56cd4cad0e570d0e1747a7aa34c4d7a937894b749a",
+      "git_blob": "a89dfc5fd90b556979c48fa38706cf858a6d7d54",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/state-learn/references/stores-and-libraries.md",
+      "sha256": "062b362d380990f37feb71615c8232b453bd47b28c0ee0d68d05c814b1e5f458",
+      "git_blob": "566f7d78ce6787886767d388ab3590aff23cb82c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/storybook-builder/SKILL.md",
+      "sha256": "c9a312cc6eccd7188c46e64f2b71631f8d73374eb441b4fe3235033e03d2bb21",
+      "git_blob": "384796dbcb6ee77471ef02ca52fd9080da8ea664",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/storybook-builder/references/configuration.md",
+      "sha256": "825dff5faeff2c4fcb07f552fb14cd7fc541311e8cc79fc61133d2e34d786366",
+      "git_blob": "4ae3a1dd6c1e4874fa1cd50e8d24498669385185",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/storybook-builder/references/csf3-patterns.md",
+      "sha256": "42b2e366be8984c79cae87f63f0095192bbd4b806e2c4b26c25483d2087ad185",
+      "git_blob": "b4c9901ea44d9fc1df9d96a7d693c325d7e78074",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/storybook-builder/references/play-functions.md",
+      "sha256": "fde3c191f397680e194b7f154011f75d598f8d0cbc81fa3baba3ccc4061f3519",
+      "git_blob": "55924552fb6fdf801385887e5ee966dbcda28454",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/systems-architect/SKILL.md",
+      "sha256": "da6db1759d3a5b63626fd36d30bc3eadd52f483a5ccd0f3dd06118e16c10c068",
+      "git_blob": "6afbec5e3e7cb56180c360e8d1de13653d8d527c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/systems-architect/references/adr-guide.md",
+      "sha256": "fd897d4eca85a7fd73ca5a6ddcee7404ec7a75a71433388896e59db4479ac5b2",
+      "git_blob": "0d57b64281f3f1fe3292fdcad53c4ed2cd425b16",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/systems-architect/references/agent-maintainable-design.md",
+      "sha256": "3c655956b62bf363ceda5383b9f47bfe396812b8b841d83315c558c772798b4f",
+      "git_blob": "f34a0302fea20f14a848f6e82caa18137c512be2",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/systems-architect/references/architecture-patterns.md",
+      "sha256": "222ef49207cda22049d6f7884f428f1ea293167be97d1e89bad17020815a8a18",
+      "git_blob": "a69180553fb043e3ced5324e7026d2a135d14b06",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/systems-architect/references/ddd-strategic-design.md",
+      "sha256": "1f12f96a967913ab01931bd09f5a2a2ea432f9fdb0dddc34fafefbccdf8761f2",
+      "git_blob": "5171a5720373f8d68d74b071c1d9128ae773bfdb",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/systems-architect/references/evolutionary-architecture.md",
+      "sha256": "f83ebfa8807f42b71ce8b7c0053834d6a1bb7b79c6423d5feb88ae81a99a1c55",
+      "git_blob": "d0c2faa6356237c6bcb9418650b5e56329cb113f",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/systems-architect/references/pattern-selection.md",
+      "sha256": "67c13b9e034eb72558f39e2e6b8425d3e0607c71de2126bba618eaa263976603",
+      "git_blob": "97938ee095cf75cb16a99e942603a64099b46091",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/test-writer/SKILL.md",
+      "sha256": "5f94f93c27185d9f5640b7e4a12d32422951e429b4e81d6f773ce593fe05ffd5",
+      "git_blob": "2a937d9cf9987dfc32afc913f98792569040f458",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/test-writer/references/mocking.md",
+      "sha256": "b1b0e309d73c6b51f4a58b58ed7469bc1286946f9b3d6fb2908997e07459abe8",
+      "git_blob": "db0a58ef7627d5bd2cbe4680c99ee8af674c6823",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/test-writer/references/playwright-e2e.md",
+      "sha256": "0c590cde3edfe5bea51959dc5f93073ee825d30370d6e5dbda1e36d1b04450f6",
+      "git_blob": "766098f02c96a7963565a92a3ba0c777b2eb9c14",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/skills/test-writer/references/vitest-patterns.md",
+      "sha256": "316b01d122bce073f7b02376cfc60d2e8ad847c8dc729ec9df648e1e73d731eb",
+      "git_blob": "516b8f42c0cd329f9e1e164b177deccb251bd6bf",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/utils/__init__.py",
+      "sha256": "965e16f95520adf17e69c43b7f58e9b99c92a10b13ba244c57d7101389169029",
+      "git_blob": "7b1653fdc19d034debecaa64d21197a74d9e1bf8",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/utils/runner.py",
+      "sha256": "7ba281e687b104eaa76f7a033880413553b68915912351d54efbe36048dc2a79",
+      "git_blob": "98159f65fa6ffd3777db5beb2254da63e0f1da39",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "src/botcore/utils/workspace.py",
+      "sha256": "efd7e53b059213ecfaf22169a28dfe79be9d1b7a7c76d9adeacb1c8121acac23",
+      "git_blob": "331bd395fac56e56a6ab08d4e68077230bc4c3c2",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/conftest.py",
+      "sha256": "b89f851cf4cf0868f38cf73db9b014a09c42088cc7f27ca2461521780cbf3a3c",
+      "git_blob": "00aa3b0a963ff819f8606c257072cfc4c7bc8235",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/integration/__init__.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "git_blob": "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/integration/conftest.py",
+      "sha256": "b16cc0da8a80ddb1339f0b7e3b13354db40f3c095db9a3294988191a1d9e2ae8",
+      "git_blob": "6947207b8ca97abe056a83e574b455affdeb15de",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/integration/scenarios/agent-lifecycle.yaml",
+      "sha256": "ec9a7dd6bcc56afdbf79538683915ee53f29cd57ee9b0567ad85d4872febf28b",
+      "git_blob": "8513716234c0bd43075e47c6a7f67a10832e3a7a",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/integration/scenarios/agent-live-task.yaml",
+      "sha256": "826131ed1d7605950e336b29091d32c32ff614ae0db20a1ab260d7f6a8b480b9",
+      "git_blob": "423a0ed217133a8fa650ec8d19c9baffa0056340",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/integration/scenarios/agent-memory.yaml",
+      "sha256": "8327db30e40b6007c4846ee5dcdbda354912f123a26daee4b24257c03633c6c2",
+      "git_blob": "afd8365eec5f5e551cf6d9363bba1a3a19dfd4e4",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/integration/scenarios/task-execution.yaml",
+      "sha256": "9981b7091e2205658295eacc48c0ad332f95a09969b2064765ec35dcfebac0e9",
+      "git_blob": "a23aa5a0fd176019a374bb5c17fc8f55516a97c9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/integration/scenarios/team-shared-memory.yaml",
+      "sha256": "8176ecc3b8918d2ae870c7c25984b031c724fd80b7d00f74761182c349151834",
+      "git_blob": "40275a1b6755c219008d8fa975faa703a3e25ada",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/integration/test_scenarios.py",
+      "sha256": "536f9e6a77e7fece508f72981e389820309d4db54ae9692aa0092e88d3e09e84",
+      "git_blob": "115ae6a4d91291fbcaf7151856c6eaaa75e03063",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_batch.py",
+      "sha256": "3d1d7fc17d0873c0167a0384be970a07a41a749c3c2084d55e6e6a733ade349e",
+      "git_blob": "bdf690eed13d2de7a09673a1f49b27a935e9ee12",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_cdp_diagnostics.py",
+      "sha256": "8b3e796fde33ae93e79b525c27e29c39de7d8d577048d72907fb334688a716ea",
+      "git_blob": "d3a0e9ee022cb062226f834681287eafd8ee3b7d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_cdp_inspection.py",
+      "sha256": "2567b965c6bcf6efc58a8eeebf0172809c2be383a11806b7f32745fa94cd56a4",
+      "git_blob": "cdecdfa40044912a3cd4ab304ec8eb70aedaff4d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_cdp_session.py",
+      "sha256": "e4626cbae0d12a0f4590aff24f3a6447a70ca29cd8636097dc8fc877e02c60df",
+      "git_blob": "7d9f5ad1d086cd675c1b2e58fcf9f515a67f967d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_changeset.py",
+      "sha256": "3b81371e4a17432ade0037fef4875ff3dd41c5856895e07f61427f43022e68fb",
+      "git_blob": "41fa2638b3e6b1faaa0a24f44020c4446073ad8d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_cli.py",
+      "sha256": "c8f30056cc7743f011fd7ede00c4a09508eca9605adc2ea65e31dfd95fe61fd6",
+      "git_blob": "5a048cb8fa2e56462341fbc0f29fa9962c282455",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_config.py",
+      "sha256": "742313b112d4f8a8716ad119822f9fa5401b1b382b104fd215082db7f2de7f8e",
+      "git_blob": "b09fa1897818b9b93efc079cb231a94caa40e700",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_coverage_gaps.py",
+      "sha256": "d40ad6f85c4c4bf69c14712a854608d8312752c01e93f42d34f714be30784ac1",
+      "git_blob": "b5a6a041555fcedc2e2147fc5a2a6bbe1c147697",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_dev_analysis.py",
+      "sha256": "8147da08d3043c7b7f8bba73c942fb50377173ae86b864c364c5237acf445508",
+      "git_blob": "95e3dc7cfd02a89fa18cc900f069520dd01aa986",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_dev_analysis_python.py",
+      "sha256": "ab24d4d6475bc78af48ca4c73aca357f3e4ff9b9d0a84437d24607cac7108633",
+      "git_blob": "effe387382b978b72444c165294a2c23cce65f58",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_dev_core.py",
+      "sha256": "ca31897e48f7322137e4451635560824527b86986f30fa8178cca869b2d3f80f",
+      "git_blob": "f2026cfd092ff5ec44d508299374e5d5e895a68d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_dev_portability.py",
+      "sha256": "0a86d3c81a5edab3e4107dabbd6b7f4726c8ba8a039616a2c7cff88a50b461fd",
+      "git_blob": "593318513cf01ab1db164c0dccebf16937cf40ca",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_dev_quality.py",
+      "sha256": "e5478a32ca25f040aeaf9eff58b9b924d3768b7ae5ce56669c719e6658947d94",
+      "git_blob": "9cd63cac08d349b8208b8761baa5eb3fec27e67d",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_dev_quality_extended.py",
+      "sha256": "ef2056311e6358966ef456581bf926d4468bd4c9105d4eb56bc028605eb20dee",
+      "git_blob": "2001fdfcea57f8e4d849a9669e77443c9f7c92f3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_discovery.py",
+      "sha256": "60e52aba4930d8e940d6335cfcfcaef3a05dc446bb2309c18d0a72141f9abf8a",
+      "git_blob": "80c8e6e4bbe7cf0d8f580f86ac47b5828b279d6b",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_docs.py",
+      "sha256": "55cdad3db74529fc3cbf58dffb81303cbdb0f9d49d865286e7e20cac91d71884",
+      "git_blob": "3b9cd4ea811d76b177b9c938de4849178774d6de",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_docs_extended.py",
+      "sha256": "a9b9691d994ddd271c5ce73486c96e59a0dcc1d42ce9907a73c69b2ac264e5ab",
+      "git_blob": "ef6a869fe00c950a313868d4055d0166b69fe893",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_frontmatter.py",
+      "sha256": "fc17eb52ea1131b58ad61680b7e019926d23af0caa0bb2bb86c00b3838fe6e18",
+      "git_blob": "c1224e5ffc5dc5077a59a51f1c1d687c6b02a4cd",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_info.py",
+      "sha256": "2f14d244343f199460bcf5f48c115190c3480f3e2931282312bbd90de9d44c3a",
+      "git_blob": "666d2aecc86edfb13d93efae3a2ecfd3dbfe0417",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_middleware.py",
+      "sha256": "cc82863c10ae4906e6b39b530ac85add9706916f15dd8815a3b26d7f6a1f15cb",
+      "git_blob": "57ff228c95f5181799211c75a63d6e6f8f2b7491",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_pipeline.py",
+      "sha256": "5d593cba30a2df73d38d685912b863ab6d1d8e1c53932c5285bb6ee59ec795c5",
+      "git_blob": "6f5e08338447cee1987287472d2b96bd51857868",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_plugin.py",
+      "sha256": "1b90068996bbf10d7da97e98b1b7d4f13500f1d10db6c6863415888b30855cb0",
+      "git_blob": "fc08d2e1ac04390484211500d339757b0731f8dd",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_plugin_docs.py",
+      "sha256": "69f7abc09d0b7a7857d4f2e778ffb3a05462bd23743599e3ce4915998525425b",
+      "git_blob": "122c9d1ebd86950afa68573ab8aebbe674254bc3",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_registry.py",
+      "sha256": "f4d79927e485a5f876d04c572fdff89fb419595aac4dcb9c14a7e6d7611e344a",
+      "git_blob": "fd4c6a30ab65b5c82546da51588de880bb9927f2",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_remaining_coverage.py",
+      "sha256": "93b35c327491cb6291006758b8eccb29b1819201c2b12eb33077f7b8deccf0a3",
+      "git_blob": "732f69b0ca408918288a506fbdd4101b18406afa",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_research.py",
+      "sha256": "0c46ad5c63912aed517ed611a0c9f0a4cb49690828cc1d604a3d268858c1339a",
+      "git_blob": "1e44c75adcff65b5feeb79a621fe229bcc2e9481",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_runner.py",
+      "sha256": "d65512203bbed369f21c5ae05af4c92100af738443ab7c2e8db6a7300a7903b7",
+      "git_blob": "b77ec02054a096f2113b686586d7e137e3cc2f62",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_server.py",
+      "sha256": "e8899d03eb1867a2c1f4eae743dcac4f89e1c183958213d6b61755c726db87a0",
+      "git_blob": "9146cfdb667cf90e7fd46d187f1d81f6ab5c9d72",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_skill_adopt.py",
+      "sha256": "218540879fdb9889e34c77ff84edd2014a9450551ea804426e5fa0b7d23216a0",
+      "git_blob": "76807f680def530b0109677e4f62c90c43711c00",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_skill_index.py",
+      "sha256": "2dde847e701913e44524957e2a2d9de49cc8b7de9d09f8f75c81e3db5f4f4439",
+      "git_blob": "4266aa16c4001da8687d79d0946ecceed17ed461",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_skill_lint.py",
+      "sha256": "3307fcf37824f4b2dc0133e82dc9fc10e30b0897c44a3716a37f017f3af7ebaa",
+      "git_blob": "3c4c45745ad0baa29c10350ece634f4ea94e7873",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_skill_lint_sk008.py",
+      "sha256": "8b22998a2e3698820aaa473c5a4e11254934c242ac4cd8d2119334a9582172fc",
+      "git_blob": "d9c8c2106b04211b9c53cb9fd435dacc423adfc9",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_skill_list.py",
+      "sha256": "015906141dc95fa71d0fe78e9a827bd6fefb25d4b0047bc62dbaad24d55768b4",
+      "git_blob": "a3783ffb4b95f90866bfd312e38385844d3e5b9c",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_skill_seed.py",
+      "sha256": "9382144522fdf35e2292dff558aa29f8414a6e564315af839ec032f9651c2027",
+      "git_blob": "e513595b193af7492307d682f5a0fc19ded83d8e",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_skill_status.py",
+      "sha256": "f24a3c2838846d004158d98ab0bf3af1c9182ded28617406cd97ccd05ec6c354",
+      "git_blob": "7e631f9e0a6b4f6bf7c7a78955ace5ce7efa1408",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_spec.py",
+      "sha256": "686b7e823768b83226fc3a3f9805a907ea477ca2afa91862ed57337b711bdabf",
+      "git_blob": "02dd7ec54659519e162b4c5d0074c5db100b8fb5",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_undo.py",
+      "sha256": "bd5539f0dec0320171c046aea74a6e2f6c7fface19afb57360a678226b4e967c",
+      "git_blob": "68ddb832d59f3c615d8ffbc186e37a39d0b5ff82",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "tests/test_workspace.py",
+      "sha256": "35b31b1a4773105b4113503095a98543a347e2616193892d055a0a1a61e3755e",
+      "git_blob": "f6d503e0a05f8a34bdc52b72802805ab5cb37b18",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    },
+    {
+      "path": "uv.lock",
+      "sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
+      "git_blob": "e701b89adb6cf6f925f94eb43ef2dae3d884cc8f",
+      "git_mode": "100644",
+      "selected_in_staged_input": true
+    }
+  ],
+  "absent_at_revision": [
+    "VALIDATION.md",
+    "botcore-connectors/LICENSE",
+    "docs/host-composition.md",
+    "packages/botcore-agents/LICENSE",
+    "packages/botcore-llm/LICENSE",
+    "packages/botcore-memory/LICENSE",
+    "plugins/botcore-teams/LICENSE",
+    "scripts/package_smoke.py",
+    "scripts/record_provenance.py",
+    "scripts/verify_provenance.py",
+    "src/botcore/_mcp.py",
+    "src/botcore/context.py",
+    "src/botcore/host.py",
+    "src/botcore/host_surfaces.py",
+    "tests/test_host.py",
+    "tests/test_optional_connectors.py",
+    "tests/test_package_smoke.py",
+    "tests/test_provenance.py"
+  ]
+}

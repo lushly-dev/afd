@@ -27,9 +27,9 @@ fnm env --use-on-cd | Out-String | Invoke-Expression  # PowerShell profile
 eval "$(fnm env --use-on-cd)"                          # bash/zsh
 
 # Use
-fnm install 22          # Install Node 22 LTS
-fnm use 22              # Switch to it
-fnm default 22          # Set as default
+fnm install 24          # Install Node 24 LTS
+fnm use 24              # Switch to it
+fnm default 24          # Set as default
 fnm list                # List installed versions
 ```
 
@@ -38,7 +38,7 @@ fnm list                # List installed versions
 Create `.node-version` in project root:
 
 ```
-22
+24
 ```
 
 This ensures fnm auto-switches when entering the directory (with `--use-on-cd`).
@@ -48,7 +48,7 @@ Also set `engines` in `package.json`:
 ```json
 {
   "engines": {
-    "node": ">=22"
+    "node": ">=24 <25"
   }
 }
 ```
@@ -77,7 +77,7 @@ npm install -g pnpm
 
 ```json
 {
-  "packageManager": "pnpm@10.26.2"
+  "packageManager": "pnpm@10.32.1"
 }
 ```
 

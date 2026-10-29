@@ -8,6 +8,18 @@ on:
       # TypeScript/Rust export surfaces, so changes there must run them too.
       - 'alfred/**'
       - 'python/**'
+      - 'endpoints/botcore/**'
+      - 'scripts/release*/**'
+      - 'scripts/release-*.mjs'
+      - 'architecture.json'
+      - 'botcore.toml'
+      - 'skills/exports.json'
+      - 'scripts/skill-profiles*.mjs'
+      - '.claude/skills/**'
+      - '.codex/skills'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.nvmrc'
       - 'spec/**'
       - 'packages/**'
       - '.github/workflows/alfred.yml'
@@ -18,6 +30,18 @@ on:
       # TypeScript/Rust export surfaces, so changes there must run them too.
       - 'alfred/**'
       - 'python/**'
+      - 'endpoints/botcore/**'
+      - 'scripts/release*/**'
+      - 'scripts/release-*.mjs'
+      - 'architecture.json'
+      - 'botcore.toml'
+      - 'skills/exports.json'
+      - 'scripts/skill-profiles*.mjs'
+      - '.claude/skills/**'
+      - '.codex/skills'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - '.nvmrc'
       - 'spec/**'
       - 'packages/**'
       - '.github/workflows/alfred.yml'
@@ -28,6 +52,9 @@ permissions:
 jobs:
   test-and-package:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
     defaults:
       run:
         working-directory: alfred
@@ -43,22 +70,43 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - name: Set up Node for disposable release-controller fixtures
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+
+      - name: Install fixture controller dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      - name: Check lock
+        run: uv lock --check
 
       - name: Install development environment
         run: uv sync --all-extras --dev --frozen
 
       - name: Lint
-        run: uv run ruff check .
+        run: uv run --locked ruff check .
 
       - name: Test
-        run: uv run pytest tests/ -v
+        run: uv run --locked pytest tests/ -v
 
-      - name: Build wheel
-        run: uv build
+      - name: Build source packages and wheels
+        run: |
+          uv build --project ../python --out-dir "$RUNNER_TEMP/alfred-wheel-artifacts"
+          uv build --project ../endpoints/botcore --out-dir "$RUNNER_TEMP/alfred-wheel-artifacts"
+          uv build --out-dir "$RUNNER_TEMP/alfred-wheel-artifacts"
 
       - name: Smoke-test base wheel
         run: |
           python -m venv .wheel-smoke
-          uv pip install --python .wheel-smoke/bin/python dist/*.whl
+          uv pip install --python .wheel-smoke/bin/python "$RUNNER_TEMP"/alfred-wheel-artifacts/*.whl
           .wheel-smoke/bin/alfred --version
+          mkdir "$RUNNER_TEMP/alfred-external-workspace"
+          .wheel-smoke/bin/alfred --workspace "$RUNNER_TEMP/alfred-external-workspace" catalog

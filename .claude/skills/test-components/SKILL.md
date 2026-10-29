@@ -2,9 +2,15 @@
 name: test-components
 source: botcore
 description: >
-  Guides Playwright E2E testing, visual regression screenshots, Shadow DOM querying, and axe-core accessibility checks for web components. Covers test file structure, baseline management, WCAG 2.2 AA assertions, keyboard navigation, design token verification, and the build-test-verify loop. Use when writing component tests, debugging visual regressions, setting up accessibility checks, or querying Shadow DOM elements. Triggers: playwright, e2e, visual test, component test, screenshot, axe, accessibility test, shadow dom, wcag, visual regression.
-
-version: 1.0.0
+  Guides Playwright E2E testing, visual regression screenshots, Shadow DOM
+  querying, and axe-core accessibility checks for web components. Covers
+  test file structure, baseline management, WCAG 2.2 AA assertions, keyboard
+  navigation, design token verification, and the build-test-verify loop.
+  Use when writing component tests, debugging visual regressions, setting up
+  accessibility checks, or querying Shadow DOM elements.
+  Triggers: playwright, e2e, visual test, component test, screenshot,
+  axe, accessibility test, shadow dom, wcag, visual regression.
+version: "1.0.0"
 triggers:
   - playwright
   - e2e
@@ -18,6 +24,8 @@ triggers:
   - visual regression
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical component-tester skill. -->
 
 # Testing Components
 

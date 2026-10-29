@@ -2,9 +2,13 @@
 name: manage-environment
 source: botcore
 description: >
-  Dev environment hygiene for agentic development. Prevents global package pollution, version drift, PATH entropy, and lockfile conflicts across Python, Node.js, and system tooling. Covers installation best practices, audit workflows, cleanup playbooks, and cross-platform patterns (Windows + macOS). Use when installing packages, configuring MCP servers, setting up toolchains, debugging import/resolution errors, or cleaning up polluted environments.
-
-version: 1.0.0
+  Dev environment hygiene for agentic development. Prevents global package
+  pollution, version drift, PATH entropy, and lockfile conflicts across Python,
+  Node.js, and system tooling. Covers installation best practices, audit
+  workflows, cleanup playbooks, and cross-platform patterns (Windows + macOS).
+  Use when installing packages, configuring MCP servers, setting up toolchains,
+  debugging import/resolution errors, or cleaning up polluted environments.
+version: "1.0.0"
 triggers:
   - environment
   - python
@@ -29,6 +33,8 @@ triggers:
   - corepack
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical dev-environment-learn skill. -->
 
 # Manage Environment
 
@@ -116,13 +122,13 @@ uv pip install -e ".[dev]"
 # Windows: winget install Schniz.fnm
 # macOS: brew install fnm
 
-# Pin and use a Node version
-echo "22" > .node-version
+# Pin and use the project's Node LTS version
+echo "24" > .node-version
 fnm use
 
 # Align pnpm version
 corepack enable
-corepack prepare pnpm@10.26.2 --activate
+corepack prepare pnpm@10.32.1 --activate
 ```
 
 ### PATH Health

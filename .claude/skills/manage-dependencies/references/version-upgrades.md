@@ -170,7 +170,7 @@ When a dependency cannot be upgraded due to blockers:
       "matchPackageNames": ["problematic-package"],
       "matchUpdateTypes": ["major"],
       "enabled": false,
-      "description": "Blocked: requires Node 22+ which we don't support yet. Review Q3 2025."
+      "description": "Blocked: requires a newer Node major than our pinned LTS runtime. Review next quarter."
     }
   ]
 }

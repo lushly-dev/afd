@@ -11,24 +11,31 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { planRelease } from '../release/control.mjs';
-import { json, run, safePath, sourceDigest, tree } from './shared.mjs';
+import { json, repositoryEntry, run, safePath, sourceDigest, tree } from './shared.mjs';
 
 /** Preserve Changesets' git-backed changelog behavior, restricting only its workspace inputs. */
 export function inWorktree(root, callback) {
+	const files = run('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], root)
+		.split('\0')
+		.filter(Boolean);
+	// Validate every source path before allocating or registering the disposable worktree.
+	const inputs = files.map((file) => ({ file, ...repositoryEntry(root, file) }));
 	const directory = mkdtempSync(join(tmpdir(), 'afd-release-'));
 	const candidate = join(directory, 'candidate');
 	run('git', ['worktree', 'add', '--detach', candidate, 'HEAD'], root);
 	try {
-		const files = run('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], root)
-			.split('\0')
-			.filter(Boolean);
-		for (const file of files) {
-			const source = safePath(root, file);
-			const target = safePath(candidate, file);
-			if (existsSync(source)) {
-				mkdirSync(dirname(target), { recursive: true });
-				cpSync(source, target);
-			} else rmSync(target, { force: true });
+		for (const input of inputs) {
+			const target = repositoryEntry(candidate, input.file);
+			if (target.kind === 'symlink') rmSync(target.absolute, { force: true });
+			if (input.kind === 'symlink') {
+				if (target.kind !== 'missing' && target.kind !== 'symlink')
+					rmSync(target.absolute, { force: true });
+				mkdirSync(dirname(target.absolute), { recursive: true });
+				symlinkSync(input.target, target.absolute, 'dir');
+			} else if (input.kind !== 'missing') {
+				mkdirSync(dirname(target.absolute), { recursive: true });
+				cpSync(input.absolute, target.absolute);
+			} else rmSync(target.absolute, { force: true });
 		}
 		if (existsSync(join(root, 'node_modules')))
 			symlinkSync(join(root, 'node_modules'), join(candidate, 'node_modules'), 'dir');
@@ -86,9 +93,9 @@ export function versionSelected({
 			if (entry[0].endsWith('.md') && !entry[0].endsWith('/README.md') && !fragments.has(entry[0]))
 				rmSync(join(candidate, entry[0]));
 		}
-		const baseline = new Map(tree(candidate));
+		const baseline = new Map(tree(candidate, '', { allowRepositoryMirror: true }));
 		invoke(candidate);
-		const after = new Map(tree(candidate));
+		const after = new Map(tree(candidate, '', { allowRepositoryMirror: true }));
 		const changed = [...new Set([...baseline.keys(), ...after.keys()])].filter(
 			(file) => baseline.get(file) !== after.get(file)
 		);

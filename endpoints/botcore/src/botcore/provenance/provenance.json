@@ -1,0 +1,25 @@
+{
+  "schema_version": 2,
+  "source_repository": "https://github.com/lushly-dev/botcore",
+  "source_revision": "7d5c54cae8aae90e145374467456af619cf54e41",
+  "source_branch_at_selection": "main",
+  "records": {
+    "upstream": {
+      "manifest": "upstream-selected.json",
+      "sha256": "860ae21493bc9092558c5da3be50be62b218783b4ca04ae82d453af317226514"
+    },
+    "staged_input": {
+      "manifest": "staged-input-allowlist.json",
+      "sha256": "343a1ef0f35d0e069f70e85c73acbac70a30c778ec72a30620207a0aa6dabc45"
+    },
+    "adaptations": {
+      "manifest": "adaptations.json",
+      "sha256": "1fe163f0650e80b70464a9c3d40e91cd05913ccc009ea609421354c2cee75016"
+    }
+  },
+  "interpretation": "Only upstream-selected.json describes upstream bytes. The exact frozen staged input includes adaptations/additions; its revision is context, not upstream hash identity. adaptations.json records both transitions.",
+  "license": "MIT",
+  "source_authority": "https://github.com/lushly-dev/botcore",
+  "publisher_authority": "original Botcore repository; no handoff authorized",
+  "publication_state": "quarantined"
+}

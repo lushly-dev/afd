@@ -31,7 +31,7 @@ pip install -e ".[dev]"
 
 ```bash
 cd alfred
-uv pip install -e ".[dev]"
+uv sync --frozen --all-extras --dev
 ```
 
 ## Verify
@@ -47,7 +47,7 @@ pnpm typecheck    # tsc --noEmit
 cd python && pytest tests/ -v
 
 # Alfred
-cd alfred && uv run alfred lint
+cd alfred && uv run alfred --workspace .. lint
 ```
 
 ## Build & Test Commands

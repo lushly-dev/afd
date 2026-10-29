@@ -52,6 +52,7 @@ packages/
 
 python/  # Python AFD package (pip install afd) — CommandResult, MCP server/client, middleware, validation, telemetry, batch/streaming, testing, handoff
 alfred/  # Quality bot — lint, parity, quality (see alfred/AGENTS.md)
+endpoints/botcore/  # Reusable Python tooling and managed host; imported units remain quarantined
 ```
 
 ## Key Conventions
@@ -80,7 +81,8 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 | **Rust** (`rust.yml`) | Push to main / PR touching `packages/rust/**`, `spec/wire`, `spec/vectors` or `spec/VERSION` | `cargo fmt --check`; clippy `-D warnings` and `cargo test`, each with default and no default features |
 | **C++** (`cpp.yml`) | Push to main / PR touching `packages/cpp/**`, `spec/wire`, `spec/vectors`, the todo spec or the C++ todo backend | clang-format (pinned); GCC; Clang with ASan+UBSan and with TSan; no-exceptions/no-RTTI unity build with the macro-hygiene check; macOS; MSVC; Emscripten with tests under Node; 60 s libFuzzer run per fuzz target |
 | **Conformance** (`conformance.yml`) | Push to main / PR touching the todo example, `packages/server`, `packages/core`, `packages/rust`, `packages/cpp`, `python/` or the lockfile | Todo example: Python backend pytest, Rust backend fmt/clippy/test, C++ backend build/test, then the 34-case conformance suite against the TypeScript, Python, Rust and C++ backends |
-| **Alfred** (`alfred.yml`) | Push to main / PR touching `alfred/**`, `python/**`, `spec/**` or `packages/**` | ruff, pytest (including the `alfred parity` name-gap budgets), wheel smoke test |
+| **Alfred** (`alfred.yml`) | Push to main / PR touching Alfred, Botcore, its controller inputs or AFD language surfaces | ruff, pytest (including parity budgets and managed-host/controller fixtures), isolated wheel smoke |
+| **Botcore** (`botcore.yml`) | Push to main / PR touching `endpoints/botcore/**` or `python/**` | Python 3.11/3.12 core tests, Ruff, frozen lock, six-distribution asset/provenance/wheel checks; optional stateful integrations remain quarantined |
 | **Local hosted-test fixtures** (`hosted-fixtures.yml`) | Path-filtered auth/persistence/runtime/tooling changes; manual dispatch | Node 24, Chromium, `pnpm test:hosted:local`; no external services or credentials; not hosted-provider evidence |
 | **Release** (GitHub Actions) | Push to main | `pnpm check` → Changesets opens a version PR or publishes to npm |
 
@@ -93,6 +95,8 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 - The nine existing AFD npm packages form the explicit `afd-npm` fixed group. Other families retain independent versions; registry scope does not define release membership.
 - `scripts/release/inventory.json` owns publication admission, routes, identities, and release protocols. Unknown/imported units default to quarantine; source import does not authorize publication.
 - npm version PRs record `.release/npm-intent.json`; guarded artifact planning/publication validates that intent. Never run raw `changeset publish` on the complete workspace.
+- Shared skills are authored in Botcore's bundled source; `skills/exports.json` declares AFD projections and local overrides. Run `pnpm check:skills` or `pnpm skills:sync`; do not hand-edit generated projections. `.codex/skills` remains the mirror symlink.
+- Bootstrap Alfred with `cd alfred && uv sync --frozen --all-extras --dev`; local uv sources select AFD/Botcore without publishing them. From the repository root, use `uv run --project alfred alfred --workspace . catalog` and select a target/profile explicitly for operations.
 - Release flow: merge a PR with changesets → the Release workflow opens a release PR → merge it → the workflow runs `pnpm check` and publishes
 - Agent release flow: `pnpm changeset` → commit the changeset file → merge through the normal PR workflow
 

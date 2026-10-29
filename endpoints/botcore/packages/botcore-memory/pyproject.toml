@@ -1,0 +1,32 @@
+[project]
+name = "botcore-memory"
+version = "0.1.0"
+description = "Agent memory plugin for botcore — persistent memory across tasks and sessions"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = ["lushly-botcore>=0.2.0", "afd>=0.9.0"]
+
+[project.optional-dependencies]
+cosmos = ["azure-cosmos>=4.7.0", "azure-identity>=1.17.0"]
+dev = ["pytest>=8.0.0", "pytest-asyncio>=0.23.0", "ruff>=0.4.0"]
+
+[project.entry-points."botcore.plugins"]
+memory = "botcore_memory:MemoryPlugin"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/botcore_memory"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

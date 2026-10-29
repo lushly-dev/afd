@@ -1,0 +1,56 @@
+name: agent-with-memory-tools
+description: Agent uses memory tools via real LLM to store and retrieve knowledge
+job: agent-memory-tools
+tags: [live, p0, agents, memory, llm]
+
+steps:
+  - command: agent_create
+    description: Create researcher agent with memory tools
+    input:
+      name: "researcher"
+    expect:
+      success: true
+      data:
+        name: "researcher"
+        status: "stopped"
+
+  - command: agent_start
+    description: Start agent with LLM session
+    input:
+      name: "researcher"
+    expect:
+      success: true
+      data:
+        status: "idle"
+        session_id: { exists: true }
+
+  - command: task_assign
+    description: Ask agent to summarize something — verifies LLM responds
+    input:
+      description: "Reply with exactly: TASK_COMPLETE"
+      agent: "researcher"
+      priority: 1
+    expect:
+      success: true
+      data:
+        status: "completed"
+        result: { contains: "TASK_COMPLETE" }
+
+  - command: agent_status
+    description: Verify task was tracked
+    input:
+      name: "researcher"
+    expect:
+      success: true
+      data:
+        tasks_completed: 1
+        tasks_failed: 0
+
+  - command: agent_stop
+    description: Clean stop
+    input:
+      name: "researcher"
+    expect:
+      success: true
+      data:
+        status: "stopped"

@@ -2,9 +2,17 @@
 name: build-stories
 source: botcore
 description: >
-  Guides creation of Storybook 10 stories using CSF3 format, Custom Elements Manifest (CEM) integration, play function interaction tests, visual testing, and accessibility checks for web components. Covers story file structure, naming conventions, autodocs configuration, addon-vitest headless test loops, addon-a11y, coverage reporting, and shadow DOM assertion patterns. Use when writing stories, adding interaction tests to stories, configuring Storybook for web components, debugging play functions, or setting up story-based visual and accessibility testing. Triggers: storybook, story, stories, csf3, cem, custom elements manifest, play function, interaction test, visual testing, addon-vitest, autodocs.
-
-version: 1.0.0
+  Guides creation of Storybook 10 stories using CSF3 format, Custom Elements
+  Manifest (CEM) integration, play function interaction tests, visual testing,
+  and accessibility checks for web components. Covers story file structure,
+  naming conventions, autodocs configuration, addon-vitest headless test loops,
+  addon-a11y, coverage reporting, and shadow DOM assertion patterns.
+  Use when writing stories, adding interaction tests to stories, configuring
+  Storybook for web components, debugging play functions, or setting up
+  story-based visual and accessibility testing.
+  Triggers: storybook, story, stories, csf3, cem, custom elements manifest,
+  play function, interaction test, visual testing, addon-vitest, autodocs.
+version: "1.0.0"
 triggers:
   - storybook
   - story
@@ -19,6 +27,8 @@ triggers:
   - autodocs
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical storybook-builder skill. -->
 
 # Building Stories
 

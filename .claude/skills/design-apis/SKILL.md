@@ -2,9 +2,16 @@
 name: design-apis
 source: botcore
 description: >
-  Provides API design guidance for REST, GraphQL, and gRPC services covering naming conventions, resource modeling, versioning strategies, error handling (RFC 9457), pagination patterns, OpenAPI 3.1 specification authoring, security (OAuth 2.1, rate limiting), and agent-friendly design patterns including MCP tool integration. Use when designing new APIs, reviewing API contracts, choosing between REST/GraphQL/gRPC, implementing error handling or pagination, writing OpenAPI specs, or making APIs consumable by AI agents. Triggers: API design, REST, GraphQL, gRPC, OpenAPI, error handling, pagination, versioning, API security, agent-friendly API, MCP tools, API-first.
-
-version: 1.0.0
+  Provides API design guidance for REST, GraphQL, and gRPC services covering
+  naming conventions, resource modeling, versioning strategies, error handling
+  (RFC 9457), pagination patterns, OpenAPI 3.1 specification authoring, security
+  (OAuth 2.1, rate limiting), and agent-friendly design patterns including MCP
+  tool integration. Use when designing new APIs, reviewing API contracts,
+  choosing between REST/GraphQL/gRPC, implementing error handling or pagination,
+  writing OpenAPI specs, or making APIs consumable by AI agents. Triggers: API
+  design, REST, GraphQL, gRPC, OpenAPI, error handling, pagination, versioning,
+  API security, agent-friendly API, MCP tools, API-first.
+version: "1.0.0"
 triggers:
   - API design
   - REST API
@@ -25,6 +32,8 @@ triggers:
   - API documentation
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical api-designer skill. -->
 
 # Designing APIs
 

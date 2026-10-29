@@ -1,6 +1,6 @@
 ---
 name: run-dev-checks
-source: botcore
+source: afd
 description: >
   Guides usage of botcore's development commands for linting, testing, building, quality gates, and static analysis. Covers dev_lint/dev_test/dev_build (language-aware dispatch), quality checks (file size, coverage, dependency staleness), static analysis (dead code, circular imports, unused deps, dependency graphs), portability checks, and skill linting. Use when running dev checks, understanding quality thresholds, diagnosing lint or test failures, analyzing code quality, or checking cross-platform portability. Triggers: dev lint, dev test, dev build, coverage, file size, dead code, circular imports, unused deps, dependency graph, portability, skill lint.
 

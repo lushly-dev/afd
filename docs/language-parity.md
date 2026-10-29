@@ -332,5 +332,5 @@ The Python README and skill examples listed here previously were corrected in #3
 
 - Update the relevant row when a change adds, removes or changes a capability in any language. A change that closes a gap should also lower the `alfred` budget.
 - Update the Version and Contract rows with each release and each contract change (see [`spec/CHANGELOG.md`](../spec/CHANGELOG.md)). `node scripts/check-versions.mjs`, which `pnpm check` runs, fails when they disagree with the manifests or the contract constants. `node scripts/check-versions.mjs --write` rewrites them from those sources, and `pnpm version-packages` runs it for TypeScript releases.
-- Re-measure with `uv run --project alfred alfred parity --path .`. It exits 1 while any gap remains; `alfred/tests/test_parity.py` holds the budgets.
+- Re-measure from the repository root with `uv run --project alfred alfred --workspace . parity --path .`. It exits 1 while any gap remains; `alfred/tests/test_parity.py` holds the budgets.
 - When TypeScript gains a shared capability, add a row with **No** or **Deferred** for the other languages, rather than leaving it out.

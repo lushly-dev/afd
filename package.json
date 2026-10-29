@@ -28,6 +28,8 @@
 		"typecheck": "pnpm -r typecheck",
 		"check": "npx lefthook run check",
 		"check:boundaries": "node scripts/check-boundaries.mjs",
+		"check:skills": "node scripts/skill-profiles.mjs",
+		"skills:sync": "node scripts/skill-profiles.mjs --write",
 		"test:tooling": "node scripts/run-tooling-tests.mjs",
 		"changeset": "node scripts/release/changeset.mjs",
 		"version-packages": "node scripts/release-control.mjs version",

@@ -1,0 +1,67 @@
+name: task-execution
+description: Start an agent, assign a task, verify completion via LLM chat, check status
+job: task-execution
+tags: [smoke, p0, agents, llm]
+
+steps:
+  - command: agent_create
+    description: Create researcher agent
+    input:
+      name: "researcher"
+    expect:
+      success: true
+      data:
+        name: "researcher"
+
+  - command: agent_start
+    description: Start agent with LLM session
+    input:
+      name: "researcher"
+    expect:
+      success: true
+      data:
+        status: "idle"
+        session_id: { exists: true }
+
+  - command: task_assign
+    description: Assign a research task to the agent
+    input:
+      description: "Analyze the latest Python 3.13 release notes"
+      agent: "researcher"
+      priority: 3
+    expect:
+      success: true
+      data:
+        task_id: { exists: true }
+        status: "completed"
+        agent: "researcher"
+        result: { exists: true }
+
+  - command: task_status
+    description: Verify task details after completion
+    input:
+      task_id: ${{ steps[2].data.task_id }}
+    expect:
+      success: true
+      data:
+        status: "completed"
+        assigned_agent: "researcher"
+        priority: 3
+
+  - command: agent_status
+    description: Verify agent tracked the completed task
+    input:
+      name: "researcher"
+    expect:
+      success: true
+      data:
+        status: "idle"
+        tasks_completed: 1
+        tasks_failed: 0
+
+  - command: agent_stop
+    description: Clean stop
+    input:
+      name: "researcher"
+    expect:
+      success: true

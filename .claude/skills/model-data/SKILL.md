@@ -2,9 +2,16 @@
 name: model-data
 source: botcore
 description: >
-  Guides database schema design, migration strategies, query optimization, ORM patterns, and data validation for relational, document, and graph databases. Covers normalization, indexing, event sourcing, CQRS, and boundary validation with agent-friendly modeling practices. Use when designing new schemas, planning migrations, optimizing queries, choosing between database paradigms, or setting up data validation. Triggers: schema, database, migration, model, ORM, Prisma, Drizzle, index, query optimization, normalization, event sourcing, CQRS, validation, Zod, Pydantic.
-
-version: 1.0.0
+  Guides database schema design, migration strategies, query optimization,
+  ORM patterns, and data validation for relational, document, and graph
+  databases. Covers normalization, indexing, event sourcing, CQRS, and
+  boundary validation with agent-friendly modeling practices.
+  Use when designing new schemas, planning migrations, optimizing queries,
+  choosing between database paradigms, or setting up data validation.
+  Triggers: schema, database, migration, model, ORM, Prisma, Drizzle,
+  index, query optimization, normalization, event sourcing, CQRS,
+  validation, Zod, Pydantic.
+version: "1.0.0"
 triggers:
   - schema
   - database
@@ -33,6 +40,8 @@ triggers:
   - Neo4j
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical data-modeling-learn skill. -->
 
 # Modeling Data
 

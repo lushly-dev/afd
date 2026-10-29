@@ -2,9 +2,14 @@
 name: implement-observability
 source: botcore
 description: >
-  Guides implementation of structured logging, metrics collection, and distributed tracing for production services. Covers the three pillars of observability (logs, metrics, traces), OpenTelemetry integration, correlation ID propagation, alerting thresholds, and common anti-patterns. Use when adding monitoring to a service, debugging production issues, improving error visibility, setting up alerting, or instrumenting business metrics. Triggers: observability, logging, metrics, tracing, monitoring, OpenTelemetry, alerts, instrumentation, structured logs, correlation ID.
-
-version: 1.0.0
+  Guides implementation of structured logging, metrics collection, and distributed
+  tracing for production services. Covers the three pillars of observability (logs,
+  metrics, traces), OpenTelemetry integration, correlation ID propagation, alerting
+  thresholds, and common anti-patterns. Use when adding monitoring to a service,
+  debugging production issues, improving error visibility, setting up alerting, or
+  instrumenting business metrics. Triggers: observability, logging, metrics, tracing,
+  monitoring, OpenTelemetry, alerts, instrumentation, structured logs, correlation ID.
+version: "1.0.0"
 triggers:
   - observability
   - logging
@@ -18,6 +23,8 @@ triggers:
   - correlation ID
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical observability-learn skill. -->
 
 # Implementing Observability
 

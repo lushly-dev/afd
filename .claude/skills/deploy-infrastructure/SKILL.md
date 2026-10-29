@@ -2,9 +2,13 @@
 name: deploy-infrastructure
 source: botcore
 description: >
-  Guides containerization, CI/CD pipeline setup, and production deployment. Covers Dockerfile best practices, GitHub Actions workflows, secret management, health checks, resource limits, environment parity, and rollback strategies. Use when building Docker images, configuring pipelines, preparing deployments, or reviewing infrastructure code. Triggers: Docker, CI/CD, deployment, Kubernetes, pipeline, container, GitHub Actions, infrastructure, deploy.
-
-version: 1.0.0
+  Guides containerization, CI/CD pipeline setup, and production deployment.
+  Covers Dockerfile best practices, GitHub Actions workflows, secret management,
+  health checks, resource limits, environment parity, and rollback strategies.
+  Use when building Docker images, configuring pipelines, preparing deployments,
+  or reviewing infrastructure code. Triggers: Docker, CI/CD, deployment,
+  Kubernetes, pipeline, container, GitHub Actions, infrastructure, deploy.
+version: "1.0.0"
 triggers:
   - infrastructure
   - Docker
@@ -20,6 +24,8 @@ triggers:
   - health check
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical deployment-learn skill. -->
 
 # Deploying Infrastructure
 
@@ -75,7 +81,7 @@ Key rules:
 
 ```yaml
 # GitHub Actions
-name: CI
+name: deployment-learn
 on: [push, pull_request]
 
 jobs:

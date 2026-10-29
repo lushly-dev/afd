@@ -2,9 +2,17 @@
 name: implement-i18n
 source: botcore
 description: >
-  Guides implementation of internationalization and localization in web applications. Covers string externalization, pluralization, date/number/currency formatting, RTL layout support, translation file structure, translation workflows, and library selection across JavaScript, React, Vue, and Python ecosystems. Use when adding multi-language support, preparing for international markets, handling RTL layouts, formatting locale-sensitive data, externalizing hardcoded strings, or setting up translation pipelines. Triggers: i18n, internationalization, l10n, localization, translations, RTL, locale, language, multi-language, right-to-left, Intl, pluralization, translation files, react-intl, i18next, vue-i18n, gettext, string externalization.
-
-version: 1.0.0
+  Guides implementation of internationalization and localization in web applications.
+  Covers string externalization, pluralization, date/number/currency formatting,
+  RTL layout support, translation file structure, translation workflows, and library
+  selection across JavaScript, React, Vue, and Python ecosystems.
+  Use when adding multi-language support, preparing for international markets, handling
+  RTL layouts, formatting locale-sensitive data, externalizing hardcoded strings, or
+  setting up translation pipelines.
+  Triggers: i18n, internationalization, l10n, localization, translations, RTL,
+  locale, language, multi-language, right-to-left, Intl, pluralization, translation
+  files, react-intl, i18next, vue-i18n, gettext, string externalization.
+version: "1.0.0"
 triggers:
   - i18n
   - internationalization
@@ -26,6 +34,8 @@ triggers:
   - string externalization
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical i18n-learn skill. -->
 
 # Implementing i18n
 

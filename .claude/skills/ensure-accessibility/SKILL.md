@@ -2,9 +2,18 @@
 name: ensure-accessibility
 source: botcore
 description: >
-  Provides comprehensive accessibility review, guidance, and implementation patterns for WCAG 2.1+ AA compliance. Covers keyboard navigation, ARIA roles and states, screen reader support, assistive technology analysis, compliance frameworks (Section 508, ADA, EN 301 549, EAA, ACA, CVAA), UX component patterns, and accessible content authoring. Use when building interactive components, auditing UI for accessibility, implementing focus management, reviewing designs or specs against WCAG, mapping issues to compliance frameworks, or creating accessibility checklists. Triggers: accessibility, a11y, WCAG, ARIA, keyboard navigation, screen reader, assistive technology, focus management, inclusive design, compliance, Section 508, ADA.
-
-version: 1.0.0
+  Provides comprehensive accessibility review, guidance, and implementation
+  patterns for WCAG 2.1+ AA compliance. Covers keyboard navigation, ARIA
+  roles and states, screen reader support, assistive technology analysis,
+  compliance frameworks (Section 508, ADA, EN 301 549, EAA, ACA, CVAA),
+  UX component patterns, and accessible content authoring.
+  Use when building interactive components, auditing UI for accessibility,
+  implementing focus management, reviewing designs or specs against WCAG,
+  mapping issues to compliance frameworks, or creating accessibility
+  checklists. Triggers: accessibility, a11y, WCAG, ARIA, keyboard
+  navigation, screen reader, assistive technology, focus management,
+  inclusive design, compliance, Section 508, ADA.
+version: "1.0.0"
 triggers:
   - accessibility
   - a11y
@@ -20,6 +29,8 @@ triggers:
   - ADA
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical accessibility-learn skill. -->
 
 # Ensuring Accessibility
 

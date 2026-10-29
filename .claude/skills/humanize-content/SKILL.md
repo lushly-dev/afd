@@ -1,6 +1,6 @@
 ---
 name: humanize-content
-source: botcore
+source: afd
 description: >
   Identifies and remediates AI-generated text patterns including lexical signatures, syntactic rigidity, and structural tells that flag content as machine-written. Covers vocabulary replacement, sentence variation, specificity injection, and voice transformation across all content types. Use when reviewing content for authenticity, improving AI drafts, eliminating robotic writing patterns, or auditing text before publishing. Triggers: humanize, AI detection, sounds like AI, robotic writing, AI tells, machine-written, synthetic text, ai content, ai patterns, writing style.
 

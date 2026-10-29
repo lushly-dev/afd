@@ -121,11 +121,11 @@ fnm env --use-on-cd | Out-String | Invoke-Expression
 eval "$(fnm env --use-on-cd)"
 ```
 
-### Step 3: Install LTS Node
+### Step 3: Install the Project Node Version
 
 ```bash
-fnm install 22
-fnm default 22
+fnm install
+fnm use
 ```
 
 ### Step 4: Uninstall System Node
@@ -136,7 +136,7 @@ fnm default 22
 ### Step 5: Verify
 
 ```bash
-node --version     # Should be 22.x from fnm
+node --version     # Should match .node-version from fnm
 which node         # Should point to fnm directory
 ```
 
@@ -219,7 +219,7 @@ In each repo's root `package.json`:
 
 ```json
 {
-  "packageManager": "pnpm@10.26.2"
+  "packageManager": "pnpm@10.32.1"
 }
 ```
 

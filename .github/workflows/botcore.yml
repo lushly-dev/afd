@@ -1,0 +1,49 @@
+name: Botcore
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'endpoints/botcore/**'
+      - 'python/**'
+      - '.github/workflows/botcore.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'endpoints/botcore/**'
+      - 'python/**'
+      - '.github/workflows/botcore.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  core-and-package:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.11', '3.12']
+    defaults:
+      run:
+        working-directory: endpoints/botcore
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Verify lock and install core development environment
+        run: |
+          uv lock --check
+          uv sync --frozen --extra dev --extra mcp --extra cdp
+      - name: Lint
+        run: uv run --frozen ruff check src/ tests/ scripts/ packages/botcore-agents/src/
+      - name: Core tests
+        # Stateful optional plugin integration scenarios are preserved but not admitted here.
+        run: uv run --frozen pytest tests/ --ignore=tests/integration -q
+      - name: Build all distributions and smoke-test isolated wheel assets
+        run: uv run --frozen python scripts/package_smoke.py

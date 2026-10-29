@@ -2,9 +2,16 @@
 name: create-prompts
 source: botcore
 description: >
-  Provides expert guidance for creating VS Code Copilot prompt files (.prompt.md) used as reusable slash commands. Covers frontmatter schema, agent modes, tool scoping, variables, prompt patterns (review, generate, summarize, delegate, transform, multi-step, session init), naming conventions, and best practices. Use when creating new prompt files, reviewing prompt quality, designing prompt architecture, or improving existing prompts. Triggers: prompt file, .prompt.md, slash command, create prompt, prompt template, agent prompt, copilot prompt, reusable prompt, /command.
-
-version: 1.0.0
+  Provides expert guidance for creating VS Code Copilot prompt files
+  (.prompt.md) used as reusable slash commands. Covers frontmatter schema,
+  agent modes, tool scoping, variables, prompt patterns (review, generate,
+  summarize, delegate, transform, multi-step, session init), naming
+  conventions, and best practices. Use when creating new prompt files,
+  reviewing prompt quality, designing prompt architecture, or improving
+  existing prompts. Triggers: prompt file, .prompt.md, slash command, create
+  prompt, prompt template, agent prompt, copilot prompt, reusable prompt,
+  /command.
+version: "1.0.0"
 triggers:
   - prompt file
   - .prompt.md
@@ -18,6 +25,8 @@ triggers:
   - prompt patterns
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical prompt-creator skill. -->
 
 # Creating VS Code Copilot Prompt Files
 
@@ -109,7 +118,7 @@ severity, location, WCAG criterion, and fix.
 description: Generate a new component
 argument-hint: component name (e.g., data-grid)
 agent: agent
-model: claude-sonnet-4
+model: <model-name>  # optional; omit to use the model picker's choice
 tools:
   - create_file
   - read_file

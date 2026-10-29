@@ -6,7 +6,7 @@ Agentic migration uses AI agents to discover, plan, transform, verify, and land 
 
 ## Architecture
 
-````
+```
 ┌─────────────────────────────────────────────────────┐
 │                  Migration Orchestrator              │
 │                                                      │
@@ -125,7 +125,7 @@ The agent generates the actual code changes for each discovered location.
 
 ### LLM Transform Prompt Template
 
-````
+```
 You are performing a code migration. Transform the following code from the old pattern to the new pattern.
 
 ## Old Pattern
@@ -143,7 +143,7 @@ You are performing a code migration. Transform the following code from the old p
 ## Code to Transform
 ```[language]
 [code]
-````
+```
 
 ## Expected Output
 Provide ONLY the transformed code, no explanations.

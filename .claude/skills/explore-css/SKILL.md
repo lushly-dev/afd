@@ -2,9 +2,16 @@
 name: explore-css
 source: botcore
 description: >
-  Tracks cutting-edge CSS features, CSSWG specifications, and browser support status. Covers emerging layout primitives (Grid Lanes, Gap Decorations, Anchor Positioning), new selectors and scoping mechanisms, adoption tiers, and progressive enhancement strategies. Use when evaluating new CSS capabilities for production readiness, planning layout strategies with emerging specs, checking browser support for modern CSS, or reviewing CSSWG decisions that affect component architecture. Triggers: modern css, new css, css features, csswg, grid lanes, masonry, gap decorations, anchor positioning, css nesting, container queries, scope, css frontier, emerging css, flex-wrap balance, view transitions, starting-style.
-
-version: 1.0.0
+  Tracks cutting-edge CSS features, CSSWG specifications, and browser support status.
+  Covers emerging layout primitives (Grid Lanes, Gap Decorations, Anchor Positioning),
+  new selectors and scoping mechanisms, adoption tiers, and progressive enhancement
+  strategies. Use when evaluating new CSS capabilities for production readiness,
+  planning layout strategies with emerging specs, checking browser support for modern
+  CSS, or reviewing CSSWG decisions that affect component architecture.
+  Triggers: modern css, new css, css features, csswg, grid lanes, masonry,
+  gap decorations, anchor positioning, css nesting, container queries, scope,
+  css frontier, emerging css, flex-wrap balance, view transitions, starting-style.
+version: "1.0.0"
 triggers:
   - modern css
   - new css
@@ -27,6 +34,8 @@ triggers:
   - css layers
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical css-learn skill. -->
 
 # Exploring CSS
 

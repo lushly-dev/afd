@@ -2,9 +2,16 @@
 name: implement-designs
 source: botcore
 description: >
-  Guides the Figma design-to-code workflow using MCP integration, token extraction, and structured implementation. Covers Figma MCP setup, authentication, URL parsing, design context retrieval, token translation from Tailwind/Figma output to CSS custom properties, icon identification, asset management, and Code Connect mapping. Use when implementing a design from Figma, setting up the Figma MCP server, extracting design specs, translating design tokens, or converting React/Tailwind output to web components. Triggers: figma, design, design-to-code, implement design, figma link, screenshot, mcp, design tokens, figma mcp.
-
-version: 1.0.0
+  Guides the Figma design-to-code workflow using MCP integration, token
+  extraction, and structured implementation. Covers Figma MCP setup,
+  authentication, URL parsing, design context retrieval, token translation
+  from Tailwind/Figma output to CSS custom properties, icon identification,
+  asset management, and Code Connect mapping. Use when implementing a design
+  from Figma, setting up the Figma MCP server, extracting design specs,
+  translating design tokens, or converting React/Tailwind output to web
+  components. Triggers: figma, design, design-to-code, implement design,
+  figma link, screenshot, mcp, design tokens, figma mcp.
+version: "1.0.0"
 triggers:
   - figma
   - design
@@ -17,6 +24,8 @@ triggers:
   - token extraction
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical design-implementer skill. -->
 
 # Implementing Designs — Figma Design-to-Code Workflow
 

@@ -1,6 +1,6 @@
 ---
 name: manage-skills
-source: botcore
+source: afd
 description: >
   Create, maintain, and validate agent skills following the Agent Skills open standard (agentskills.io). Covers SKILL.md format, frontmatter fields (open standard + Claude Code extensions), progressive disclosure, hooks, resource scripts, naming conventions, routing tables, and automated quality checks. Use when creating new skills, auditing existing skills, fixing lint errors, adding hooks to skills, or writing resource scripts for deterministic offloading. Triggers: create skill, new skill, skill lint, audit skills, SKILL.md, hooks, resource scripts, progressive disclosure, Agent Skills, open standard, skill architecture, deterministic offloading.
 

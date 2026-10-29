@@ -2,9 +2,16 @@
 name: handle-authentication
 source: botcore
 description: >
-  Guides authentication and authorization design for web applications, APIs, and AI agent systems. Covers OAuth 2.1, OIDC, passkeys/WebAuthn, RBAC/ABAC/ReBAC, Cedar policy language, session management (JWT vs server sessions), multi-tenant patterns, zero trust continuous verification, MCP server auth, and agentic identity with machine-to-machine delegation. Use when designing login flows, implementing authorization, adding passkeys, configuring SSO, building multi-tenant auth, securing MCP servers, or managing AI agent credentials. Triggers: authentication, authorization, OAuth, OIDC, passkey, WebAuthn, RBAC, ABAC, session, JWT, token, multi-tenant, SSO, MFA, zero trust, MCP auth, agent identity, delegation.
-
-version: 1.0.0
+  Guides authentication and authorization design for web applications, APIs,
+  and AI agent systems. Covers OAuth 2.1, OIDC, passkeys/WebAuthn, RBAC/ABAC/ReBAC,
+  Cedar policy language, session management (JWT vs server sessions), multi-tenant
+  patterns, zero trust continuous verification, MCP server auth, and agentic identity
+  with machine-to-machine delegation. Use when designing login flows, implementing
+  authorization, adding passkeys, configuring SSO, building multi-tenant auth,
+  securing MCP servers, or managing AI agent credentials. Triggers: authentication,
+  authorization, OAuth, OIDC, passkey, WebAuthn, RBAC, ABAC, session, JWT, token,
+  multi-tenant, SSO, MFA, zero trust, MCP auth, agent identity, delegation.
+version: "1.0.0"
 triggers:
   - authentication
   - authorization
@@ -30,6 +37,8 @@ triggers:
   - access control
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical authentication-learn skill. -->
 
 # Handling Authentication
 

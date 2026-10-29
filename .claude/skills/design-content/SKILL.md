@@ -2,9 +2,15 @@
 name: design-content
 source: botcore
 description: >
-  Guides UX writing for user-facing interface text. Covers UI labels, button text, error messages, empty states, tooltips, dialog copy, headings, capitalization rules, voice and tone, and product terminology. Use when writing or reviewing any user-facing text in a prototype or production UI, crafting error messages, defining empty state copy, choosing button labels, or enforcing consistent terminology. Triggers: content design, UX writing, UI text, error message, button label, empty state, tooltip, dialog text, capitalization, terminology, microcopy, voice and tone.
-
-version: 1.0.0
+  Guides UX writing for user-facing interface text. Covers UI labels, button
+  text, error messages, empty states, tooltips, dialog copy, headings,
+  capitalization rules, voice and tone, and product terminology. Use when
+  writing or reviewing any user-facing text in a prototype or production UI,
+  crafting error messages, defining empty state copy, choosing button labels,
+  or enforcing consistent terminology. Triggers: content design, UX writing,
+  UI text, error message, button label, empty state, tooltip, dialog text,
+  capitalization, terminology, microcopy, voice and tone.
+version: "1.0.0"
 triggers:
   - content design
   - UX writing
@@ -22,6 +28,8 @@ triggers:
   - copy review
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical content-designer skill. -->
 
 # Design Content
 

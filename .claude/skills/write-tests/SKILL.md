@@ -2,9 +2,13 @@
 name: write-tests
 source: botcore
 description: >
-  Guides unit, integration, and E2E test authoring using TDD workflows, AAA pattern, and coverage-driven development. Covers Vitest unit testing, Playwright E2E testing, mocking strategies, regression test discipline, and coverage targets. Use when writing new tests, adding regression tests for bugs, improving coverage, or setting up test infrastructure. Triggers: test, unit test, E2E, TDD, coverage, regression, mock, vitest, playwright.
-
-version: 1.0.0
+  Guides unit, integration, and E2E test authoring using TDD workflows, AAA pattern,
+  and coverage-driven development. Covers Vitest unit testing, Playwright E2E testing,
+  mocking strategies, regression test discipline, and coverage targets.
+  Use when writing new tests, adding regression tests for bugs, improving coverage,
+  or setting up test infrastructure. Triggers: test, unit test, E2E, TDD, coverage,
+  regression, mock, vitest, playwright.
+version: "1.0.0"
 triggers:
   - test
   - unit test
@@ -18,6 +22,8 @@ triggers:
   - snapshot
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical test-writer skill. -->
 
 # Writing Tests
 

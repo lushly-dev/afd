@@ -2,9 +2,17 @@
 name: manage-git
 source: botcore
 description: >
-  Orchestrates git workflows including branching strategies, release management, conflict resolution, changelog generation, and multi-agent parallel development. Covers trunk-based development, GitHub Flow, stacked PRs, conventional commits, semantic versioning, git worktrees, monorepo strategies, and git hooks automation. Use when choosing branching strategies, setting up release pipelines, resolving merge conflicts, configuring git hooks, managing changelogs, coordinating parallel agent work with worktrees, or adopting monorepo patterns. Triggers: git workflow, branching strategy, release management, merge conflict, changelog, git hooks, worktree, monorepo, semantic versioning, trunk-based, GitHub Flow, stacked PRs, git automation, parallel development.
-
-version: 1.0.0
+  Orchestrates git workflows including branching strategies, release management,
+  conflict resolution, changelog generation, and multi-agent parallel development.
+  Covers trunk-based development, GitHub Flow, stacked PRs, conventional commits,
+  semantic versioning, git worktrees, monorepo strategies, and git hooks automation.
+  Use when choosing branching strategies, setting up release pipelines, resolving
+  merge conflicts, configuring git hooks, managing changelogs, coordinating parallel
+  agent work with worktrees, or adopting monorepo patterns.
+  Triggers: git workflow, branching strategy, release management, merge conflict,
+  changelog, git hooks, worktree, monorepo, semantic versioning, trunk-based,
+  GitHub Flow, stacked PRs, git automation, parallel development.
+version: "1.0.0"
 triggers:
   - git workflow
   - branching strategy
@@ -27,6 +35,8 @@ triggers:
   - lint-staged
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical git-manager skill. -->
 
 # Managing Git
 

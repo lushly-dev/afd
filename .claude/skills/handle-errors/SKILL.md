@@ -2,9 +2,17 @@
 name: handle-errors
 source: botcore
 description: >
-  Provides error handling patterns and recovery strategies for TypeScript and Python applications. Covers custom error hierarchies, Result/Either types (neverthrow, Effect), discriminated union errors, retry with exponential backoff and circuit breakers, RFC 9457 structured API error responses, exception groups, error observability, and agent-safe error recovery with graceful degradation. Use when designing error handling strategies, implementing Result types, adding retry logic, building error hierarchies, creating structured API errors, or making agent workflows resilient. Triggers: error handling, Result type, Either, neverthrow, Effect, retry, circuit breaker, backoff, error hierarchy, RFC 9457, error recovery, exception, try-catch, error boundary, structured errors, error logging.
-
-version: 1.0.0
+  Provides error handling patterns and recovery strategies for TypeScript and Python
+  applications. Covers custom error hierarchies, Result/Either types (neverthrow, Effect),
+  discriminated union errors, retry with exponential backoff and circuit breakers,
+  RFC 9457 structured API error responses, exception groups, error observability,
+  and agent-safe error recovery with graceful degradation. Use when designing error
+  handling strategies, implementing Result types, adding retry logic, building
+  error hierarchies, creating structured API errors, or making agent workflows
+  resilient. Triggers: error handling, Result type, Either, neverthrow, Effect,
+  retry, circuit breaker, backoff, error hierarchy, RFC 9457, error recovery,
+  exception, try-catch, error boundary, structured errors, error logging.
+version: "1.0.0"
 triggers:
   - error handling
   - Result type
@@ -30,6 +38,8 @@ triggers:
   - fault tolerance
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical error-handling-learn skill. -->
 
 # Handling Errors
 

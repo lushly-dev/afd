@@ -2,9 +2,17 @@
 name: manage-concurrency
 source: botcore
 description: >
-  Provides guidance on concurrency and async patterns for TypeScript and Python applications. Covers structured concurrency, parallel execution, race condition prevention, backpressure, rate limiting, event loop internals, database locking strategies, and agent-safe concurrent operations. Use when implementing async workflows, parallelizing tasks, preventing race conditions, managing connection pools, rate-limiting API calls, or building concurrent agentic pipelines. Triggers: concurrency, async, parallel, race condition, deadlock, semaphore, mutex, backpressure, rate limit, event loop, worker threads, asyncio, TaskGroup, Promise.all, connection pool, optimistic locking.
-
-version: 1.0.0
+  Provides guidance on concurrency and async patterns for TypeScript and Python
+  applications. Covers structured concurrency, parallel execution, race condition
+  prevention, backpressure, rate limiting, event loop internals, database locking
+  strategies, and agent-safe concurrent operations.
+  Use when implementing async workflows, parallelizing tasks, preventing race
+  conditions, managing connection pools, rate-limiting API calls, or building
+  concurrent agentic pipelines.
+  Triggers: concurrency, async, parallel, race condition, deadlock, semaphore,
+  mutex, backpressure, rate limit, event loop, worker threads, asyncio, TaskGroup,
+  Promise.all, connection pool, optimistic locking.
+version: "1.0.0"
 triggers:
   - concurrency
   - async
@@ -28,6 +36,8 @@ triggers:
   - fan-out fan-in
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical concurrency-learn skill. -->
 
 # Managing Concurrency
 

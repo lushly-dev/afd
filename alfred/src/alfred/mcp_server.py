@@ -1,45 +1,33 @@
-"""Alfred MCP server entry point.
+"""Alfred managed MCP surface, using the same catalog and dispatcher as its CLI."""
 
-Uses botcore's server factory to create a fully-wired MCP server
-with alfred-start, alfred-docs, and alfred-run tools.
+import argparse
+from pathlib import Path
 
-Run with:
-    python -m alfred.mcp_server
-"""
-
-import sys
-
-from botcore import create_mcp_server
+from botcore import create_host_mcp_server
 
 from alfred import __version__
-from alfred.commands.lint import alfred_lint
-from alfred.commands.parity import alfred_parity
-from alfred.commands.quality import alfred_quality
-
-DOCS = {
-    "commands": (
-        "# Alfred Commands\n\n"
-        "| Function | Description |\n"
-        "|----------|-------------|\n"
-        "| `alfred_lint(path)` | AFD architecture compliance validation |\n"
-        "| `alfred_parity(path)` | Cross-language API surface parity |\n"
-        "| `alfred_quality(path)` | Command description quality validation |\n"
-    ),
-}
+from alfred.host import build_alfred_host
 
 
-def main() -> None:
-    """Start Alfred as an MCP server."""
-    server = create_mcp_server(
-        "alfred",
-        version=__version__,
-        description="AFD repo quality bot — deterministic tooling as MCP commands",
-        extra_commands=[alfred_lint, alfred_parity, alfred_quality],
-        extra_docs=DOCS,
-    )
-    transport = "sse" if "--sse" in sys.argv else "stdio"
-    server.run(transport=transport)
+def create_server(workspace: str | Path, target=None, *, profile='inspection',
+                  raw_python=False, npm_controller=None):
+    """Create an explicit host; raw Python requires trusted-local opt-in."""
+    host = build_alfred_host(workspace, target, profile=profile, npm_controller=npm_controller)
+    return create_host_mcp_server(host, version=__version__, raw_python=raw_python,
+                                  description='Alfred unified repository command host')
 
 
-if __name__ == "__main__":
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--workspace', required=True)
+    parser.add_argument('--target')
+    parser.add_argument('--profile', choices=('inspection', 'trusted-local'), default='inspection')
+    parser.add_argument('--raw-python', action='store_true')
+    parser.add_argument('--sse', action='store_true')
+    args = parser.parse_args()
+    server = create_server(args.workspace, args.target, profile=args.profile, raw_python=args.raw_python)
+    server.run(transport='sse' if args.sse else 'stdio')
+
+
+if __name__ == '__main__':
     main()

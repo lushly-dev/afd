@@ -2,9 +2,12 @@
 name: do-hotfix
 source: botcore
 description: >
-  Create a hotfix branch from the latest release tag, apply a minimal targeted fix, verify with quality gates, and fast-track through commit and PR. Enforces scope discipline — hotfixes are minimal fixes only, no refactoring or features. Delegates to do-commit and do-pr for the landing steps. Use for emergency or urgent production fixes.
-
-version: 1.0.0
+  Create a hotfix branch from the latest release tag, apply a minimal targeted
+  fix, verify with quality gates, and fast-track through commit and PR.
+  Enforces scope discipline — hotfixes are minimal fixes only, no refactoring
+  or features. Delegates to commit and pr for the landing steps.
+  Use for emergency or urgent production fixes.
+version: "1.0.0"
 triggers:
   - do hotfix
   - hotfix
@@ -13,10 +16,12 @@ triggers:
   - patch fix
   - production fix
   - critical bug
-argument-hint: issue or description
 portable: true
 user-invocable: true
+argument-hint: "issue or description"
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical hotfix skill. -->
 
 # Do Hotfix
 

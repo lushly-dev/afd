@@ -2,9 +2,17 @@
 name: automate-browsers
 source: botcore
 description: >
-  Guides browser automation via botcore's CDP (Chrome DevTools Protocol) command suite. Covers session management (launch/attach/close), navigation and waiting, element interaction (click/type/fill/drag), DOM inspection with Shadow DOM traversal, diagnostics (screenshot/console/network/eval), form filling, multi-page management, and device emulation. Use when automating browsers, scraping web pages, testing web UIs, filling forms, taking screenshots, debugging frontend issues, or working with Shadow DOM components. Triggers: CDP, browser, Chrome, Chromium, automation, screenshot, click, fill form, Shadow DOM, console log, navigate, scrape, headless.
-
-version: 1.0.0
+  Guides browser automation via botcore's CDP (Chrome DevTools Protocol)
+  command suite. Covers session management (launch/attach/close), navigation
+  and waiting, element interaction (click/type/fill/drag), DOM inspection with
+  Shadow DOM traversal, diagnostics (screenshot/console/network/eval), form
+  filling, multi-page management, and device emulation.
+  Use when automating browsers, scraping web pages, testing web UIs, filling
+  forms, taking screenshots, debugging frontend issues, or working with
+  Shadow DOM components.
+  Triggers: CDP, browser, Chrome, Chromium, automation, screenshot, click,
+  fill form, Shadow DOM, console log, navigate, scrape, headless.
+version: "1.0.0"
 triggers:
   - CDP
   - browser
@@ -26,6 +34,8 @@ triggers:
   - DevTools Protocol
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical browser-automation skill. -->
 
 # Automating Browsers
 

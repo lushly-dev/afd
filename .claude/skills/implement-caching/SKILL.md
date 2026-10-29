@@ -2,9 +2,20 @@
 name: implement-caching
 source: botcore
 description: >
-  Guides caching strategy selection and implementation across the full stack including HTTP caching, application-level caching (Redis, in-memory), frontend data caching (SWR, TanStack Query), LLM response caching (prompt caching, semantic caching), database query caching, cache invalidation patterns, and distributed cache architectures. Covers cache-aside, read-through, write-through, write-behind patterns, eviction policies (LRU/LFU), and agentic workflow caching considerations. Use when adding caching to an application, choosing a caching strategy, debugging stale data, optimizing API response times, reducing LLM costs, or designing distributed cache topologies. Triggers: cache, caching, Redis, CDN, TTL, cache invalidation, stale data, Cache-Control, ETag, SWR, TanStack Query, prompt caching, semantic cache, LRU, write-through, cache-aside, materialized view.
-
-version: 1.0.0
+  Guides caching strategy selection and implementation across the full stack
+  including HTTP caching, application-level caching (Redis, in-memory),
+  frontend data caching (SWR, TanStack Query), LLM response caching (prompt
+  caching, semantic caching), database query caching, cache invalidation
+  patterns, and distributed cache architectures. Covers cache-aside,
+  read-through, write-through, write-behind patterns, eviction policies
+  (LRU/LFU), and agentic workflow caching considerations.
+  Use when adding caching to an application, choosing a caching strategy,
+  debugging stale data, optimizing API response times, reducing LLM costs,
+  or designing distributed cache topologies.
+  Triggers: cache, caching, Redis, CDN, TTL, cache invalidation, stale data,
+  Cache-Control, ETag, SWR, TanStack Query, prompt caching, semantic cache,
+  LRU, write-through, cache-aside, materialized view.
+version: "1.0.0"
 triggers:
   - cache
   - caching
@@ -31,6 +42,8 @@ triggers:
   - eviction policy
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical caching-learn skill. -->
 
 # Implementing Caching
 

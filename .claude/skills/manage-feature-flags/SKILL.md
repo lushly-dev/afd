@@ -2,9 +2,17 @@
 name: manage-feature-flags
 source: botcore
 description: >
-  Guides implementation and lifecycle management of feature flag systems with reactive stores, declarative gating elements, and handler delegation patterns. Covers flag definition schemas (types, expiry, dependencies, exclusions), flag store singletons, declarative frontend gating via custom elements, backend handler delegation for command variants, naming conventions, lifecycle management (creation, validation, cleanup), and hygiene compliance checks. Use when adding feature flags, gating UI components, swapping backend implementations behind flags, managing flag lifecycle, or auditing stale flags. Triggers: flag, feature flag, toggle, gate, feature toggle, variant, flag store, flag hygiene, kill switch.
-
-version: 1.0.0
+  Guides implementation and lifecycle management of feature flag systems with
+  reactive stores, declarative gating elements, and handler delegation patterns.
+  Covers flag definition schemas (types, expiry, dependencies, exclusions),
+  flag store singletons, declarative frontend gating via custom elements,
+  backend handler delegation for command variants, naming conventions,
+  lifecycle management (creation, validation, cleanup), and hygiene
+  compliance checks. Use when adding feature flags, gating UI components,
+  swapping backend implementations behind flags, managing flag lifecycle,
+  or auditing stale flags. Triggers: flag, feature flag, toggle, gate,
+  feature toggle, variant, flag store, flag hygiene, kill switch.
+version: "1.0.0"
 triggers:
   - flag
   - feature flag
@@ -19,6 +27,8 @@ triggers:
   - flag lifecycle
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical feature-flags-learn skill. -->
 
 # Managing Feature Flags
 

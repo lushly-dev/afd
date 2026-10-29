@@ -2,9 +2,13 @@
 name: review-code
 source: botcore
 description: >
-  Performs research-grounded code, spec, and proposal reviews using the Fresh Agent pattern and Generator-Critic loop. Covers codebase verification, API validation, spec density analysis, structured checklists across code quality, security, testing, performance, and documentation, and structured feedback output with BLOCKER/IMPROVEMENT/PRAISE classification. Use when reviewing PRs, proposals, specs, or any code artifact.
-
-version: 1.1.0
+  Performs research-grounded code, spec, and proposal reviews using the Fresh
+  Agent pattern and Generator-Critic loop. Covers codebase verification, API
+  validation, spec density analysis, structured checklists across code quality,
+  security, testing, performance, and documentation, and structured feedback
+  output with BLOCKER/IMPROVEMENT/PRAISE classification.
+  Use when reviewing PRs, proposals, specs, or any code artifact.
+version: "1.1.0"
 triggers:
   - review code
   - review PR
@@ -21,6 +25,8 @@ triggers:
   - test coverage review
 portable: true
 ---
+
+<!-- Generated from skills/exports.json; edit the canonical code-reviewer skill. -->
 
 # Reviewing Code
 
@@ -69,7 +75,7 @@ Before forming any opinion:
 1. **Search the codebase** — Verify current patterns, existing implementations
 2. **Verify 3rd-party APIs** — Check that code samples use real APIs (not hallucinated)
 3. **Use research tools** — Check latest docs, APIs, best practices
-4. **Read project files** — AGENTS.md, CLAUDE.md, existing specs
+4. **Read project files** — AGENTS.md first, then existing specs
 
 ### 3. Understand Before Judging
 
@@ -120,7 +126,7 @@ See [feedback-format.md](references/feedback-format.md) for the full output temp
 
 - Read PR description, linked issues, commit messages
 - Check scope — do the changed files match the stated intent?
-- Read project configuration (AGENTS.md, CLAUDE.md)
+- Read project configuration (AGENTS.md)
 
 ### Step 2: Research
 

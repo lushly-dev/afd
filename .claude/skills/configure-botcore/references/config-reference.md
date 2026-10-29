@@ -103,7 +103,7 @@ Loaded from environment variables, not TOML:
 
 | Field | Env Variable | Description |
 |---|---|---|
-| `gemini_api_key` | `GEMINI_API_KEY` | Gemini API key for research |
+| `openai_api_key` | `OPENAI_API_KEY` | OpenAI API key for research |
 | `github_token` | `GITHUB_TOKEN` | GitHub API token |
 | `convex_url` | `CONVEX_URL` | Convex deployment URL |
 
