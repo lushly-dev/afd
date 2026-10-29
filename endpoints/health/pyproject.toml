@@ -1,0 +1,65 @@
+[project]
+name = "lushly-health"
+version = "0.1.0"
+description = "Explicit, local repository health audits with a versioned report contract"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Lushly" }]
+keywords = ["health", "audit", "repository", "botcore", "afd"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+# The headless audit core uses only the standard library.
+dependencies = []
+
+[project.optional-dependencies]
+# Optional AFD/Botcore command adapter (the botcore.plugins entry point below).
+botcore = ["lushly-botcore>=0.6.0", "afd>=0.9.0"]
+dev = [
+    "lushly-health[botcore]",
+    "jsonschema>=4.23.0",
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+]
+
+[project.entry-points."botcore.plugins"]
+health = "botcore_health:HealthPlugin"
+
+[project.urls]
+Repository = "https://github.com/lushly-dev/afd"
+
+[build-system]
+requires = ["setuptools>=77.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+botcore_health = ["schemas/*.json"]
+
+# Develop against the in-repository AFD package and Botcore endpoint. uv-only:
+# built artifacts keep the plain requirements above.
+[tool.uv.sources]
+afd = { path = "../../python", editable = true }
+lushly-botcore = { path = "../botcore", editable = true }
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]

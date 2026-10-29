@@ -468,6 +468,26 @@
 					"initialVersion": "0.2.0"
 				}
 			]
+		},
+		{
+			"id": "health",
+			"family": "health",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "35e3cf041f9daff1354c9e8aee05388389397a0d",
+			"authority": "github: lushly-dev/health (private source repository with no declared license; reviewed generic code extracted under MIT by owner authorization; no publisher, release route or registry identity exists; distribution name tentative)",
+			"state": "quarantined",
+			"routes": ["pypi-health"],
+			"gates": ["health.yml", "artifact-contents", "isolated-install", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "lushly-health",
+					"registry": "pypi",
+					"manifest": "endpoints/health/pyproject.toml",
+					"format": "python",
+					"initialVersion": "0.1.0"
+				}
+			]
 		}
 	]
 }

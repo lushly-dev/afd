@@ -1,0 +1,410 @@
+{
+  "schema_version": 1,
+  "source": {
+    "project": "Health",
+    "repository": "lushly-dev/health",
+    "visibility": "private",
+    "license_at_source": "none declared",
+    "revision": "35e3cf041f9daff1354c9e8aee05388389397a0d",
+    "equivalent_revision": "faba9f74e555c6465ce4d110b0d2bef709b61d99",
+    "equivalence": "every consulted file has the same Git blob at both revisions; they differ only in excluded configuration",
+    "history_imported": false
+  },
+  "authorization": "Owner-authorized extraction of reviewed, generic implementation under MIT. Private inventories, reports, baselines, history and access configuration excluded.",
+  "license": "MIT",
+  "release": {
+    "distribution": "lushly-health",
+    "version": "0.1.0",
+    "identity_status": "tentative",
+    "publication_state": "quarantined",
+    "publisher_authority": "none"
+  },
+  "source_ast_python": "3.12",
+  "staged_candidate": "A prepared extraction candidate was used as a starting point only. Every selected function was re-derived from the source revision and compared by AST; the candidate's own manifests were not imported.",
+  "source_files": [
+    {
+      "path": "src/botcore_health/commands/audit.py",
+      "sha256": "b8c8fabc009a149024f67bcd34b6ce1df656cd68917e1073f5803b761dc54c1d",
+      "git_blob": "9f561f474c993c9b82bf092772c95cb6075dfb71",
+      "use": "selected functions (below); the module itself was not copied"
+    },
+    {
+      "path": "src/botcore_health/__init__.py",
+      "sha256": "a36998507e306697dfe997ad05c2d9b8087ce8df95e8579639abcb37deecadb1",
+      "git_blob": "02ea1cb8a4b43a298618cb96846a7e305daa4573",
+      "use": "plugin shape reference; HealthPlugin rewritten (explicit host admission, no CLI branding)"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "67ee39adee841a17124800c1d024c5d1ab83322cdfb5901ad8c09aa82d98091f",
+      "git_blob": "c9ced44651d8188c2ab862cd6938b519d772a058",
+      "use": "metadata reference; name, version, Botcore entry point and Ruff settings retained, dependencies rewritten"
+    },
+    {
+      "path": "tests/test_audit.py",
+      "sha256": "db75910bfccfba290c6b9f6f2a2b78855bdb9aadad6164393e4dd98975cf3be0",
+      "git_blob": "987de729fe0d54d4881cdfa8ebc6b6ff0f871b62",
+      "use": "test-pattern reference only; no test content copied"
+    }
+  ],
+  "selected_functions": [
+    {
+      "name": "_result",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "1baf14fa528121f47e6d20ff86592f30bce550457061e7de38b89f650d198083",
+      "source_ast_sha256": "92059c38ab00ede5721ebf6ff109a95c0e9742db9ca8025c11431d718febdb28",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "1baf14fa528121f47e6d20ff86592f30bce550457061e7de38b89f650d198083",
+      "relation": "byte-identical"
+    },
+    {
+      "name": "_extract_first_major_version",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "0a37b9e6112fc4e7bd8b04e9ff4f4e89bf34c14e6da4210bfe67873750307b5c",
+      "source_ast_sha256": "03a3730891cda3a818996fdb0aef64cace86796ae1fc7dc60cffb46820ebcdde",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "0a37b9e6112fc4e7bd8b04e9ff4f4e89bf34c14e6da4210bfe67873750307b5c",
+      "relation": "byte-identical"
+    },
+    {
+      "name": "_read_local_node_majors",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "a9774c366d9dedb132ca5ee3d121e1066fa349a4b538bf1f4d3dfd28200e49e0",
+      "source_ast_sha256": "b5b5d613fccfe44640e8ba9e98062264f9827b289edeffc2ccb555c083709e8b",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "a9774c366d9dedb132ca5ee3d121e1066fa349a4b538bf1f4d3dfd28200e49e0",
+      "relation": "byte-identical"
+    },
+    {
+      "name": "_resolve_workflow_version_reference",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "a8438805e0dad95be48ab43b0a25a65a87931f57f5120459390c385a2ec26967",
+      "source_ast_sha256": "de3f61e3649484b6ec50b4a65a3a5d95fd2e033ec09ea77ac30244720e36588c",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "1e607ff802ee77ea30ad048e83616207bff832f029268c268f6ce48a4f89724f",
+      "relation": "reformatted"
+    },
+    {
+      "name": "_read_ci_node_majors",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "c1a1cce9a1bffb530d971ef6c80545a481544714f458f33790923dd75db4c173",
+      "source_ast_sha256": "5e218dbd3824b864d4c6345593367d31c3d0a8046bf81568109f1eb2799276fd",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "c1a1cce9a1bffb530d971ef6c80545a481544714f458f33790923dd75db4c173",
+      "relation": "byte-identical"
+    },
+    {
+      "name": "_read_package_engines_node_major",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "281a0bbd71c20ac445b96152b5cc9c1c3e0bc0b577c80caf1c0bcffcc02151d5",
+      "source_ast_sha256": "6b0ceacbd6903680c95c2bd726c89516e4b0cc8b69dd743f8d078ae6612ddbe9",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "281a0bbd71c20ac445b96152b5cc9c1c3e0bc0b577c80caf1c0bcffcc02151d5",
+      "relation": "byte-identical"
+    },
+    {
+      "name": "check_node_version_alignment",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "be200f60238eee42511fc055a1eabd565caf7403c5a57086f100d3e0401d6b88",
+      "source_ast_sha256": "4c40368365b5629ab29869b78339ef2974934b6313a8c2a6da5fec277bbd27ae",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "be200f60238eee42511fc055a1eabd565caf7403c5a57086f100d3e0401d6b88",
+      "relation": "byte-identical"
+    },
+    {
+      "name": "_sorted_relative_paths",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "0fdcb179dc5dc6b037e4b508a7e2b45ad7b26e34e0a3a38174615dec376f419c",
+      "source_ast_sha256": "51756a7cb426b2ca12e26ed4c1922b4e87de5f4367aeffdcb488135dd4c821ba",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "0fdcb179dc5dc6b037e4b508a7e2b45ad7b26e34e0a3a38174615dec376f419c",
+      "relation": "byte-identical"
+    },
+    {
+      "name": "_summarize_skill_tree_drift",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "f93468bb731859bf1294409bc1ce276937fca4af06d0ee4b5e45d38780c93de9",
+      "source_ast_sha256": "100336bd62c2f978117302bb9d3e0a283ee2d72cf7df12fb9d04b137cb262ceb",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "f93468bb731859bf1294409bc1ce276937fca4af06d0ee4b5e45d38780c93de9",
+      "relation": "byte-identical"
+    },
+    {
+      "name": "check_codex_skills_mirror",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "e4027823a17d844f59d87b047acc97ff8611fbd6e2c92e68e1eec00e73e8cfcd",
+      "source_ast_sha256": "8fea4955a79deb66a5a90afc6424484a639da70a8549ca064ae6fd1edba7f57c",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "e4027823a17d844f59d87b047acc97ff8611fbd6e2c92e68e1eec00e73e8cfcd",
+      "relation": "byte-identical"
+    },
+    {
+      "name": "check_lefthook_configured",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "4c79e7694e338ec4bbdaa8301d5c6bf5a7e9bf7f2306512741ed3fd9acf5f502",
+      "source_ast_sha256": "2534ff36c31d42e48c358b06a13b2318a1482966bbb65234d9b6ec546bb66f5d",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "851260d980de23ac2750584b9bbc1f09b34032aab1293827bbe9e8fc50056f9a",
+      "relation": "reformatted"
+    },
+    {
+      "name": "check_linter_strict",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "a6c569dcadfaa63498f32b6dd73d7225ea31ec7c379a53efff37925438f426a1",
+      "source_ast_sha256": "43ad5b12a7bac4a76c018c1eef23bc7eba8c150fc2dba0eda11c64bbff0e7ec2",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "a6c569dcadfaa63498f32b6dd73d7225ea31ec7c379a53efff37925438f426a1",
+      "relation": "byte-identical"
+    },
+    {
+      "name": "check_ci_present",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "7c7c112a0d7a9b4572b54c407dfc73284d2b43c8e3d55d460dd34ebccf7b61df",
+      "source_ast_sha256": "5950e5b5ace1e1f538afbe3f24b2002dd0337558cf066d3bb3fe06cb42a43d10",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "7c7c112a0d7a9b4572b54c407dfc73284d2b43c8e3d55d460dd34ebccf7b61df",
+      "relation": "byte-identical"
+    },
+    {
+      "name": "check_dependabot_configured",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "59802459e75c864eff371b0bccce3f39fc2497ae505dcfa75de5e7343153763c",
+      "source_ast_sha256": "5cf9e33ff9f7c00415f7ab42b93347635395f1d7eff2d0a2664917dc61890655",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "c8e7f76cbe867ec5b7e8ff8af9f3fd70475ca9d51b6418a19cbd80acff21f6fd",
+      "relation": "reformatted"
+    },
+    {
+      "name": "check_commitlint_configured",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "ece6f12e723b4b30fca733e706603d5934cdbd40d634bda70584d5ca40870047",
+      "source_ast_sha256": "c9233488778c62050232f9cf1007412e697967a1312ee62fccecca9f89e2df2a",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "9e919bb2c4d40778ab203a15947945aa8e83143f61a1638496c9571a15e933a3",
+      "relation": "reformatted"
+    },
+    {
+      "name": "check_coverage_thresholds",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "181a180e5abb483cc7fdcb1259676e6b0b3309cb619afdeb23f596703df28271",
+      "source_ast_sha256": "2b53d100c234cbba0a48312c0cb0113074d3f0ae0147766e8f821e712cf77c6b",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "44843c42d77f8d20b08046f80a6c9359391584541fffd00f2ac3c81faf80690e",
+      "relation": "reformatted"
+    },
+    {
+      "name": "check_dead_code_tool",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "7c17c92fbadd806abfbba213419926c02f69270c2e45523c1482d41bf247ccf4",
+      "source_ast_sha256": "f30c6cbbeefcb287755f876d1d1681feea13dc7b367628b867833c4066d8e89e",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "7c17c92fbadd806abfbba213419926c02f69270c2e45523c1482d41bf247ccf4",
+      "relation": "byte-identical"
+    },
+    {
+      "name": "check_gitattributes_lf",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "a296877ea22f446ae1d0d582556dcdf3fe34764381dad64358e3604571bd412c",
+      "source_ast_sha256": "48746f25c90ec52b1289eed380ea4283da46f023869f84e86963f94eb05aeee7",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "2c362c63d2ac557510ef94557b20c5c7c870f8d86a065093e7d5743144c082a0",
+      "relation": "reformatted"
+    },
+    {
+      "name": "check_changesets_configured",
+      "source_path": "src/botcore_health/commands/audit.py",
+      "source_sha256": "cff4e49a9c53c106be688f29ff6e8f03ce67be75402d7aae37ff2555452c6bdc",
+      "source_ast_sha256": "a45af275c4eade10699cdf4454b1a2073ddb06ddb07426ea31c8e8cbf7a59955",
+      "imported_path": "src/botcore_health/checks.py",
+      "imported_sha256": "ee1cd5af2e806e465a0a252202e5d75776fcc94f01080213eca31db9cb22ab9d",
+      "relation": "reformatted"
+    }
+  ],
+  "adapted_functions": [
+    {
+      "name": "metric_last_commit",
+      "imported_as": "core._last_commit",
+      "change": "rewritten: checkout root required, inherited GIT_* variables removed, 5 second timeout, --no-optional-locks, no age classification, unavailable instead of unknown"
+    },
+    {
+      "name": "check_node_version_alignment",
+      "imported_as": "core._node_alignment (wrapper)",
+      "change": "the source function is imported unchanged; an added wrapper returns warn for engine ranges, version files and CI expressions outside its literal heuristic, and error for malformed package.json"
+    },
+    {
+      "name": "HealthPlugin",
+      "imported_as": "botcore_health.HealthPlugin",
+      "change": "rewritten: host_context_safe, registers explicit-target audit and capabilities commands only"
+    }
+  ],
+  "excluded": {
+    "functions": [
+      {
+        "name": "_detect_language",
+        "reason": "implicit language detection; targets declare their language"
+      },
+      {
+        "name": "_find_botcore_venv",
+        "reason": "assumes a project virtual-environment layout"
+      },
+      {
+        "name": "_get_botcore_version",
+        "reason": "executes the audited project's interpreter"
+      },
+      {
+        "name": "audit_repo",
+        "reason": "inventory-driven orchestration"
+      },
+      {
+        "name": "check_botcore_installed",
+        "reason": "executes the audited project's interpreter"
+      },
+      {
+        "name": "check_botcore_version",
+        "reason": "network registry lookup"
+      },
+      {
+        "name": "check_no_secrets",
+        "reason": "secret scan with incomplete-coverage semantics"
+      },
+      {
+        "name": "check_skills_seeded",
+        "reason": "not selected in this pass: depends on Botcore seed configuration semantics"
+      },
+      {
+        "name": "health_audit",
+        "reason": "inventory-driven command; replaced by explicit-target adapters"
+      },
+      {
+        "name": "load_repos",
+        "reason": "reads the private repository inventory and discovers sibling directories"
+      },
+      {
+        "name": "metric_dependency_freshness",
+        "reason": "network/package-manager subprocesses"
+      },
+      {
+        "name": "metric_last_commit",
+        "reason": "adapted, not copied: see adapted_functions"
+      },
+      {
+        "name": "metric_security_vulns",
+        "reason": "network/package-manager subprocesses"
+      }
+    ],
+    "files": [
+      {
+        "kind": "repository inventory",
+        "reason": "private operational record"
+      },
+      {
+        "kind": "Botcore configuration naming the author's repositories",
+        "reason": "private operational record"
+      },
+      {
+        "kind": "onboarding command",
+        "reason": "edited the private inventory; replaced by onboard() writing to an explicit caller scope"
+      },
+      {
+        "kind": "report command and HTML dashboard template",
+        "reason": "the dashboard is separate FAST-AF work that consumes the versioned report schema"
+      },
+      {
+        "kind": "planning documents, agent instructions, skills and CI configuration",
+        "reason": "repository-specific operations"
+      },
+      {
+        "kind": "generated reports, baselines and history",
+        "reason": "private operational records"
+      },
+      {
+        "kind": "access and credential configuration",
+        "reason": "private"
+      },
+      {
+        "kind": "Git history",
+        "reason": "not imported"
+      }
+    ]
+  },
+  "files": [
+    {
+      "path": "LICENSE",
+      "origin": "license",
+      "sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754"
+    },
+    {
+      "path": "MANIFEST.in",
+      "origin": "authored"
+    },
+    {
+      "path": "README.md",
+      "origin": "authored"
+    },
+    {
+      "path": "pyproject.toml",
+      "origin": "authored"
+    },
+    {
+      "path": "scripts/package_smoke.py",
+      "origin": "authored"
+    },
+    {
+      "path": "scripts/privacy.py",
+      "origin": "authored"
+    },
+    {
+      "path": "src/botcore_health/__init__.py",
+      "origin": "authored"
+    },
+    {
+      "path": "src/botcore_health/__main__.py",
+      "origin": "authored"
+    },
+    {
+      "path": "src/botcore_health/checks.py",
+      "origin": "derived",
+      "sha256": "0a1bcdc4eb7174d82580f254f4af3639aad6b3dd12c7731a0553a0e65c1e96b3"
+    },
+    {
+      "path": "src/botcore_health/commands.py",
+      "origin": "authored"
+    },
+    {
+      "path": "src/botcore_health/config.py",
+      "origin": "authored"
+    },
+    {
+      "path": "src/botcore_health/core.py",
+      "origin": "authored"
+    },
+    {
+      "path": "src/botcore_health/schemas/report-1.0.json",
+      "origin": "authored"
+    },
+    {
+      "path": "tests/test_audit.py",
+      "origin": "authored"
+    },
+    {
+      "path": "tests/test_contract.py",
+      "origin": "authored"
+    },
+    {
+      "path": "tests/test_plugin.py",
+      "origin": "authored"
+    },
+    {
+      "path": "tests/test_privacy.py",
+      "origin": "authored"
+    },
+    {
+      "path": "tests/test_provenance.py",
+      "origin": "authored"
+    },
+    {
+      "path": "uv.lock",
+      "origin": "authored"
+    }
+  ]
+}
