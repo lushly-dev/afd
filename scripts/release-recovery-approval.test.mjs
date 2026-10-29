@@ -155,3 +155,44 @@ test('escaping paths, mismatched bytes, source symlinks and destination symlinks
 	symlinkSync(other, join(f.temporary, 'npm-plan.json.artifacts'));
 	assert.throws(() => run(f.artifact), /Symlink/);
 });
+
+test('a failed recovery is pinned separately from original artifact authority', async () => {
+	const { validateFailureAttempt } = await import('./release-operations/recovery-approval.mjs');
+	const next = {
+		...approval,
+		failedStatusId: 98765,
+		failure: { runId: '456', attempt: '2', sourceRevision: 'd'.repeat(40) },
+	};
+	const nextBytes = JSON.stringify(next);
+	validateRecoveryApproval(
+		next,
+		nextBytes,
+		{ ...environment, RECOVERY_APPROVAL: hash(nextBytes) },
+		next.intentDigest
+	);
+	const run = {
+		...original,
+		id: 456,
+		run_attempt: 2,
+		head_sha: next.failure.sourceRevision,
+		event: 'workflow_dispatch',
+	};
+	validateFailureAttempt(next, run);
+	const claim = {
+		...failed,
+		statusId: 98765,
+		targetUrl: 'https://github.com/lushly-dev/afd/actions/runs/456/attempts/2',
+	};
+	validateRecoveryEvidence(next, plan, claim);
+	for (const delta of [
+		{ head_sha: approval.sourceRevision },
+		{ event: 'push' },
+		{ id: 123 },
+		{ run_attempt: 1 },
+		{ conclusion: 'success' },
+	])
+		assert.throws(() => validateFailureAttempt(next, { ...run, ...delta }), /Failed recovery/);
+	assert.throws(() => validateRecoveryEvidence(next, plan, failed), /Retained release/);
+	assert.equal(next.sourceRevision, approval.sourceRevision);
+	assert.equal(next.planBinding, approval.planBinding);
+});

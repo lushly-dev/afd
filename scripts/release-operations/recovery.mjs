@@ -32,9 +32,21 @@ export function reconcilePublication({
 		return result;
 	});
 	validatePlan(root, plan, evidence);
+	const known = new Set([receipt.current]);
+	for (const entry of [
+		...(receipt.verifiedArtifacts ?? []),
+		...(receipt.publishedPackages ?? []),
+	]) {
+		if (!plan.artifacts.some((a) => a.name === entry.name && a.version === entry.version))
+			throw new Error('Held receipt contains a foreign artifact');
+		known.add(entry.name);
+	}
 	const verified = [];
 	for (const artifact of plan.artifacts) {
-		if (evidence.find((e) => e.name === artifact.name)?.versions.includes(artifact.version)) {
+		if (
+			known.has(artifact.name) ||
+			evidence.find((e) => e.name === artifact.name)?.versions.includes(artifact.version)
+		) {
 			verified.push(verifyPublished(artifact, readback));
 		}
 	}

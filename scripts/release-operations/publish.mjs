@@ -308,11 +308,11 @@ export function publishPlan({
 		);
 		if (!artifact || knownPublished.has(entry.name))
 			throw new Error('Invalid previously verified publication set');
-		verifyPublished(artifact, () => ({
-			name: entry.name,
-			version: entry.version,
-			dist: { integrity: entry.integrity },
-		}));
+		verifyPublished(artifact, () =>
+			entry.method === 'registry-tarball'
+				? entry
+				: { name: entry.name, version: entry.version, dist: { integrity: entry.integrity } }
+		);
 		knownPublished.add(entry.name);
 	}
 	const readEvidence = () =>

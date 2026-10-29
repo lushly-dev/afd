@@ -175,5 +175,6 @@ jobs:
           path: |
             ${{ runner.temp }}/npm-recovery/
             ${{ runner.temp }}/npm-recovery-original/
+            ${{ runner.temp }}/npm-recovery-failed/
             ${{ runner.temp }}/npm-plan.json.artifacts/
           retention-days: 30

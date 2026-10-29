@@ -8,6 +8,7 @@ import { readIntent } from './release-operations/intent.mjs';
 import { publishPlan, validatePlan } from './release-operations/publish.mjs';
 import {
 	restoreRecoveryArtifacts,
+	validateFailureAttempt,
 	validateOriginalAttempt,
 	validateRecoveryApproval,
 	validateRecoveryEvidence,
@@ -54,8 +55,38 @@ run(
 	root
 );
 const plan = json(join(retained, 'npm-plan.json'));
-const prior = json(join(retained, 'npm-publication.json'));
-const failed = json(join(retained, 'npm-claim-result.json'));
+let priorRoot = retained;
+if (approval.failure) {
+	const failure = approval.failure;
+	validateFailureAttempt(
+		approval,
+		api(`actions/runs/${failure.runId}/attempts/${failure.attempt}`)
+	);
+	const failedBundle = join(temporary, 'npm-recovery-failed');
+	if (existsSync(failedBundle))
+		throw new Error('Failed recovery evidence directory already exists');
+	mkdirSync(failedBundle);
+	run(
+		'gh',
+		[
+			'run',
+			'download',
+			failure.runId,
+			'--repo',
+			repository,
+			'--name',
+			`npm-recovery-${failure.runId}-${failure.attempt}`,
+			'--dir',
+			failedBundle,
+		],
+		root
+	);
+	priorRoot = join(failedBundle, 'npm-recovery');
+	if (json(join(priorRoot, 'npm-plan.json')).binding !== plan.binding)
+		throw new Error('Failed recovery used a different artifact plan');
+}
+const prior = json(join(priorRoot, 'npm-publication.json'));
+const failed = json(join(priorRoot, 'npm-claim-result.json'));
 validateRecoveryEvidence(approval, plan, failed);
 restoreRecoveryArtifacts(plan, retained, temporary);
 const frozen = join(temporary, 'npm-recovery-source');
@@ -65,7 +96,8 @@ const save = (name, value) =>
 	writeFileSync(join(output, name), `${JSON.stringify(value, null, '\t')}\n`);
 save('npm-plan.json', plan);
 save('recovery-approval.json', approval);
-save('original-failure.json', failed);
+save('original-failure.json', json(join(retained, 'npm-claim-result.json')));
+save('prior-failure.json', failed);
 const claim = releaseClaim({
 	action: 'reconcile',
 	root: frozen,
@@ -87,6 +119,8 @@ try {
 		originalAttempt: approval.attempt,
 		failedStatusId: approval.failedStatusId,
 		originalReceiptHash: hash(readFileSync(join(retained, 'npm-publication.json'))),
+		priorReceiptHash: hash(readFileSync(join(priorRoot, 'npm-publication.json'))),
+		priorFailure: approval.failure ?? { runId: approval.runId, attempt: approval.attempt },
 	};
 	save('npm-publication.json', receipt);
 	finalizeRelease({ root: frozen, plan, receipt, receiptFile });

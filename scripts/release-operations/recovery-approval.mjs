@@ -16,6 +16,10 @@ export function validateRecoveryApproval(approval, bytes, environment, intentDig
 		![approval.planBinding, approval.intentDigest].every((value) => /^[a-f0-9]{64}$/.test(value)) ||
 		!Number.isSafeInteger(approval.failedStatusId) ||
 		approval.failedStatusId < 1 ||
+		(approval.failure &&
+			(!/^\d+$/.test(approval.failure.runId) ||
+				!/^\d+$/.test(approval.failure.attempt) ||
+				!/^[a-f0-9]{40}$/.test(approval.failure.sourceRevision))) ||
 		intentDigest !== approval.intentDigest
 	)
 		throw new Error('Recovery requires the exact reviewed main-branch approval and intent');
@@ -33,7 +37,23 @@ export function validateOriginalAttempt(approval, original) {
 	)
 		throw new Error('Original workflow attempt does not match recovery approval');
 }
+export function validateFailureAttempt(approval, original) {
+	const failure = approval.failure;
+	if (
+		!failure ||
+		original.head_sha !== failure.sourceRevision ||
+		original.event !== 'workflow_dispatch' ||
+		original.path !== '.github/workflows/release.yml' ||
+		original.conclusion !== 'failure' ||
+		original.status !== 'completed' ||
+		String(original.run_attempt) !== failure.attempt ||
+		String(original.id) !== failure.runId ||
+		original.repository?.full_name !== repository
+	)
+		throw new Error('Failed recovery attempt does not match recovery approval');
+}
 export function validateRecoveryEvidence(approval, plan, failed) {
+	const failure = approval.failure ?? approval;
 	if (
 		plan.binding !== approval.planBinding ||
 		plan.sourceRevision !== approval.sourceRevision ||
@@ -41,7 +61,7 @@ export function validateRecoveryEvidence(approval, plan, failed) {
 		failed.statusId !== approval.failedStatusId ||
 		failed.state !== 'failure' ||
 		failed.targetUrl !==
-			`https://github.com/${repository}/actions/runs/${approval.runId}/attempts/${approval.attempt}`
+			`https://github.com/${repository}/actions/runs/${failure.runId}/attempts/${failure.attempt}`
 	)
 		throw new Error('Retained release evidence differs from recovery approval');
 }

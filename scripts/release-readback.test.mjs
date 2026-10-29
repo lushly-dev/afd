@@ -31,8 +31,8 @@ test('lag has a fixed attempt limit and other errors fail immediately', () => {
 			),
 		/still not visible/
 	);
-	assert.equal(calls, 24);
-	assert.equal(waits, 23);
+	assert.equal(calls, 120);
+	assert.equal(waits, 119);
 	calls = 0;
 	assert.throws(
 		() =>
@@ -47,6 +47,28 @@ test('lag has a fixed attempt limit and other errors fail immediately', () => {
 				}
 			),
 		/network failed/
+	);
+	assert.equal(calls, 1);
+});
+
+test('the readback deadline stops slow lookups without another wait or read', () => {
+	let time = 0,
+		calls = 0;
+	assert.throws(
+		() =>
+			readPublished(
+				{ name: '@fixture/a', version: '1.0.0' },
+				{
+					now: () => time,
+					lookup: () => {
+						calls++;
+						time = 600_000;
+						return { notVisible: true };
+					},
+					wait: () => assert.fail('deadline reached'),
+				}
+			),
+		/still not visible/
 	);
 	assert.equal(calls, 1);
 });
