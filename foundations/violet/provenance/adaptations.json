@@ -132,9 +132,9 @@
       "path": "endpoints/violet-cli/src/cli.test.ts",
       "upstream_path": "packages/cli/src/cli.test.ts",
       "upstream_sha256": "64e2b5a8d70acf9b42f5c0c0325d48675a6da9bd35f753d45dfde7cfce4e75c4",
-      "current_import_sha256": "79089cc0926d0e6066c1b8458f7c92db702c414d290347ff7fcc3df9319643cb",
+      "current_import_sha256": "c532e5951f1d5a67c6059925f67a4d0cdfe068bb1aa4c9007543c96c18a9352c",
       "classification": "adapted",
-      "reason": "Package specifier @lushly-dev/violet-afd; header comment names where command logic is tested",
+      "reason": "Package specifier @lushly-dev/violet-afd; header comment names where command logic is tested Make trend test query clocks later than fixture writes so exclusive upper bounds cannot omit same-millisecond events or snapshots.",
       "candidate": {
         "path": "packages/cli/src/cli.test.ts",
         "sha256": "feb861d9a2f27a4c24b51ab38c5ea032e8f4440cbbecc27a8a10f592ff12c15e",
