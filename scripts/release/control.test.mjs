@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -311,6 +311,41 @@ test('duplicate identities and version progression resets are rejected', () => {
 		JSON.stringify({ name: '@fixture/a', version: '0.9.0' })
 	);
 	assert.throws(() => plan(f), /Version progression reset/);
+});
+
+test('declared private distributions record ownership but never enter selection', () => {
+	const f = fixture();
+	const unit = {
+		...structuredClone(f.inventory.units[1]),
+		id: 'c',
+		family: 'c',
+		state: 'quarantined',
+		distributions: [
+			{
+				name: '@fixture/c',
+				registry: 'npm',
+				format: 'npm',
+				manifest: 'foundations/c/package.json',
+				initialVersion: '0.1.0',
+				private: true,
+			},
+		],
+	};
+	const inventory = { schemaVersion: 1, units: [...f.inventory.units, unit] };
+	write(f.root, 'scripts/release/inventory.json', JSON.stringify(inventory));
+	const manifest = { name: '@fixture/c', version: '0.1.0', private: true };
+	write(f.root, 'foundations/c/package.json', JSON.stringify(manifest));
+	const loaded = { root: f.root, inventory: loadInventory(f.root) };
+	const found = discoverDistributions(f.root, loaded.inventory).map((entry) => entry.name);
+	assert.deepEqual(found.sort(), ['@fixture/a', '@fixture/b']);
+	assert.deepEqual(plan(loaded).selectedUnits, ['a']);
+	assert.throws(() => assertAdmission({ ...loaded, unit: 'c', route: 'npm-main' }), /not admitted/);
+	write(f.root, 'foundations/c/package.json', JSON.stringify({ ...manifest, name: '@fixture/d' }));
+	assert.throws(() => discoverDistributions(f.root, loaded.inventory), /identity changed/);
+	write(f.root, 'foundations/c/package.json', JSON.stringify({ ...manifest, private: false }));
+	assert.throws(() => discoverDistributions(f.root, loaded.inventory), /became public/);
+	rmSync(join(f.root, 'foundations/c/package.json'));
+	assert.throws(() => discoverDistributions(f.root, loaded.inventory), /missing or renamed/);
 });
 
 test('admission requires an explicit exact route rather than accepting an omitted route', () => {

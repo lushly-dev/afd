@@ -1,0 +1,58 @@
+import { declarativeTemplate } from "@lushly-dev/fast-element/declarative.js";
+import { FASTElement } from "@lushly-dev/fast-element/fast-element.js";
+import { enableHydration } from "@lushly-dev/fast-element/hydration.js";
+import { observerMap } from "@lushly-dev/fast-element/observer-map.js";
+
+class TestElement extends FASTElement {
+    public object: any = {
+        a: {
+            b2: {
+                c: "FOO",
+            },
+        },
+        b: "bar",
+        c: [
+            {
+                name: "Item 1",
+                status: "active",
+            },
+            {
+                name: "Item 2",
+                status: "active",
+            },
+            {
+                status: "active",
+            },
+        ],
+    };
+
+    public handleBClick = () => {
+        this.object.b = "Hello";
+    };
+
+    public handleAB1Click = () => {
+        if (this.object.a) {
+            this.object.a.b1 = "World";
+        } else {
+            this.object.a = {
+                b1: "World",
+            };
+        }
+    };
+
+    public handleAB2CClick = () => {
+        this.object.a.b2.c = "Pluto";
+    };
+}
+TestElement.define(
+    {
+        name: "test-element",
+        template: declarativeTemplate(),
+    },
+    [observerMap()],
+);
+
+const hydration = enableHydration();
+void hydration.whenHydrated().then(() => {
+    (window as any).hydrationCompleted = true;
+});

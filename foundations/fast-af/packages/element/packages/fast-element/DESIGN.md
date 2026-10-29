@@ -1,0 +1,728 @@
+# FAST Element – Design Overview
+
+This document is a contributor-oriented guide to the architecture of `@lushly-dev/fast-element`. It synthesises the individual architecture documents into a single entry point and explains how all the pieces fit together.
+
+For deep dives into specific areas, see the linked detailed documents.
+
+---
+
+## Table of Contents
+
+1. [High-Level Overview](#high-level-overview)
+2. [Core Concepts](#core-concepts)
+   - [FAST Object](#fast-object)
+   - [FASTElement & ElementController](#fastelement--elementcontroller)
+   - [Observables & Notifiers](#observables--notifiers)
+   - [Bindings](#bindings)
+   - [DOM Policy](#dom-policy)
+   - [html Tagged Template Literal](#html-tagged-template-literal)
+   - [ViewTemplate & Compiler](#viewtemplate--compiler)
+   - [Views & Behaviors](#views--behaviors)
+   - [Updates Queue](#updates-queue)
+   - [Styles](#styles)
+   - [Dependency Injection (DI)](#dependency-injection-di)
+   - [Context Protocol](#context-protocol)
+   - [State Helpers](#state-helpers)
+3. [Data Flow Diagrams](#data-flow-diagrams)
+   - [Module Load & Registration](#module-load--registration)
+   - [FASTElement Lifecycle](#fastelement-lifecycle)
+   - [Template Pipeline](#template-pipeline)
+   - [Observable Change Propagation](#observable-change-propagation)
+4. [How the Pieces Fit Together](#how-the-pieces-fit-together)
+5. [Package Layout](#package-layout)
+6. [Detailed Architecture Documents](#detailed-architecture-documents)
+
+---
+
+## High-Level Overview
+
+`@lushly-dev/fast-element` is a lightweight library for building standards-based Custom Elements (Web Components). Its key responsibilities are:
+
+| Concern | What FAST provides |
+|---|---|
+| Element authoring | `FASTElement` base class + `@customElement`, `@attr`, `@observable` decorators |
+| Reactive data binding | `Observable`, `ExpressionNotifier`, `oneWay`/`oneTime`/`listener` bindings |
+| Declarative templating | `html` tagged template literal → `ViewTemplate` → compiled `HTMLView` |
+| Declarative HTML runtime | `@lushly-dev/fast-element/declarative.js` → `declarativeTemplate()`, `TemplateParser`; `@lushly-dev/fast-element/schema.js` → `Schema` |
+| Schema-driven extensions | `@lushly-dev/fast-element/attribute-map.js` and `@lushly-dev/fast-element/observer-map.js` → map helpers usable with declarative or manually supplied schemas |
+| Async DOM updates | `Updates` queue (batched with `requestAnimationFrame`) |
+| Scoped styles | `css` tagged template literal → `ElementStyles` → `adoptedStylesheets` / `<style>` |
+| Dependency injection | `DI` container, `@inject`, `@singleton`, `@transient`, resolvers |
+| Context protocol | W3C community Context protocol (`Context.create`, `Context.for`) |
+| Reactive state helpers | `state()`, `watch()` (beta) |
+
+The library's kernel is module-scoped rather than stored on `globalThis`: import `FAST` from `@lushly-dev/fast-element`, `Updates` from `@lushly-dev/fast-element`, and `Observable` from `@lushly-dev/fast-element`.
+
+FAST Element is designed for client-side browser `Window` runtimes. Core
+element authoring and binding paths depend on browser platform APIs including
+Custom Elements, DOM, Shadow DOM, and `requestAnimationFrame` for async update
+batching. Worker contexts, server-side JavaScript runtimes, and other non-window
+hosts are outside the supported runtime boundary for the FAST Element client
+runtime. Server rendering should produce HTML for a browser to hydrate or render,
+rather than executing the FAST Element client runtime in the server process.
+
+The root entrypoint exports the FAST Element implementation APIs. Focused package
+path exports remain available when a consumer wants a narrower entrypoint,
+including `@lushly-dev/fast-element/registry.js` for FAST element definition
+lookups.
+
+---
+
+## Core Concepts
+
+### FAST Object
+
+**File**: `src/platform.ts`, `src/interfaces.ts`
+
+`FAST` is a module-scoped singleton exported from `@lushly-dev/fast-element`. It is **not** attached to `globalThis`. It provides:
+
+- `FAST.warn(code, values)` / `FAST.error(code, values)` – structured diagnostic messages
+- `FAST.addMessages(dict)` – registers human-readable debug messages used by `enableDebug()` and declarative runtime diagnostics
+
+The previous `FAST.getById()` slot registry, `FASTGlobal` type, and `KernelServiceId` enum have been removed. Kernel services (update queue, observable system, etc.) are resolved through standard ES module imports rather than a shared global registry.
+
+---
+
+### FASTElement & ElementController
+
+**Files**: `src/components/fast-element.ts`, `src/components/element-controller.ts`, `src/components/fast-definitions.ts`
+
+`FASTElement` is a thin mixin applied on top of `HTMLElement`. It:
+
+1. Calls `ElementController.forCustomElement(this)` in its `constructor` to create or locate the element's controller.
+2. Delegates all lifecycle hooks to the controller:
+   - `connectedCallback` → `$fastController.connect()`
+   - `disconnectedCallback` → `$fastController.disconnect()`
+   - `attributeChangedCallback` → `$fastController.onAttributeChangedCallback()`
+
+`ElementController` is the real workhorse. It:
+
+- Uses composition with an internal `_notifier` field (rather than extending `PropertyChangeNotifier`) and implements the `Notifier` interface directly, so the element still participates in the observable system.
+- Holds the element's `FASTElementDefinition` (name, template, styles, observed attributes).
+- Manages a `Stages` state machine: `disconnected → connecting → connected → disconnecting → disconnected`.
+- Exposes `isPrerendered: Promise<boolean>` which resolves to `true` when the element had a declarative shadow root (DSD) at connect time, regardless of whether hydration ran. Exposes `isHydrated: Promise<boolean>` which resolves to `true` only when hydration actually ran successfully. The `ViewController` interface also exposes both `isPrerendered` and `isHydrated` as `Promise<boolean>` for custom directives. Attribute-skip logic during the hydration bind uses an internal `_skipAttrUpdates` flag that is never exposed as a public boolean.
+- On `connect()`: restores public pre-upgrade observable values that were set as own properties, synchronizes any late-defined attribute-map attributes and observes only those late attributes for future DOM changes, calls `connectedCallback` on all `HostBehavior`s, renders the current template into the shadow root when one is available, and applies styles. Internal observable backing slots such as `_foo` are not normalized into public `foo` assignments; they already represent FAST-owned model state. Opt-in extensions such as `observerMap()` perform any additional proxying through the public accessor paths they install.
+- Rendering is split into two modular paths. Hydration is pluggable: `enableHydration()` from `@lushly-dev/fast-element/hydration.js` installs a hook via `ElementController.installHydrationHook()`, keeping zero hydration imports in the core controller:
+  - **Prerendered**: The hydration hook (installed by `enableHydration()`) registers the element in the active `HydrationTracker`, swaps `onAttributeChangedCallback` to a no-op so the upgrade-time burst of callbacks is discarded, hydrates the existing DOM via `template.hydrate()`, then restores the standard handler and removes the element from the tracker. The entire method is wrapped in `try/finally` to guarantee cleanup even if an error occurs during hydration. After this point, all future attribute changes flow through the real handler with zero overhead.
+  - **Client-side**: `renderClientSide()` clones the compiled fragment, binds, and appends to the host — the standard path with no prerender logic.
+- During hydration, server-rendered markup is treated as an optimisation over the
+  client template rather than as a source of blank output. If a `render()`
+  directive has an expected binding target but no SSR view boundaries, it creates
+  and binds the client view at the hydrated location. `repeat()` hydrates the
+  overlapping SSR/client item ranges, creates client views for missing SSR
+  ranges, and removes extra SSR ranges when the client item count is smaller.
+  Malformed or untargetable markers still surface structured hydration errors —
+  see [Hydration mismatch diagnostics](#hydration-mismatch-diagnostics) below.
+
+### Hydration mismatch diagnostics
+
+When SSR markup cannot be reconciled with the client template (a recovery path
+above does not apply), hydration throws either `HydrationBindingError`
+(after the DOM walk, when a binding factory has no resolved target) or
+`HydrationTargetElementError` (during the DOM walk, for structural marker
+problems).
+
+By default the error message is a short one-liner that points consumers at
+the opt-in `hydrationDebugger()`:
+
+```
+Hydration mismatch in <my-element>. Install hydrationDebugger() from
+"@lushly-dev/fast-element/hydration.js" and pass it as
+enableHydration({ debugger: hydrationDebugger() }) for an
+"Expected / Received" report including the SSR HTML snippet.
+```
+
+This keeps the rich diagnostic helpers (HTML serialization, aspect
+description, message formatter) out of production hydration bundles for
+consumers that do not need them.
+
+Opt in to the rich format at app boot:
+
+```ts
+import { enableHydration, hydrationDebugger } from "@lushly-dev/fast-element/hydration.js";
+
+enableHydration({ debugger: hydrationDebugger() });
+```
+
+With the debugger installed, the same errors emit:
+
+```
+Hydration mismatch in <my-element>.
+  Expected: <span> with content binding
+  Received: <span>server</span>
+```
+
+and the structured `expected` / `received` fields on the thrown error are
+populated so devtools or bug-report templates can read them without
+parsing the message string.
+
+- `HydrationBindingError` carries a `HydrationMismatchExpectation`
+  describing the binding factory that had no target (its `tagName` and a
+  human-readable `aspect`, e.g. `content`,
+  `` "property `className`" ``) and a `HydrationMismatchActual` with an
+  HTML snippet of the SSR view range where the binding was meant to apply.
+- `HydrationTargetElementError` carries either a structured
+  `HydrationMismatchExpectation` or a free-form description string
+  (e.g. `` "no more attribute bindings (template defines 1)" ``) plus the
+  same `received` HTML snippet pointing at the offending node.
+
+The diagnostic interface is pluggable: implement `HydrationDiagnostic`
+and call `installHydrationDiagnostic` (or, more commonly, wrap your
+formatter in a custom `HydrationDebugger` and pass it through
+`enableHydration({ debugger })`) if you want to route diagnostics into
+logging, telemetry, or a devtools panel.
+- **Hydration tracking**: Hydration is opt-in via `enableHydration()` from `@lushly-dev/fast-element/hydration.js`, which creates a `HydrationTracker` and installs a pluggable hydration hook on `ElementController` via `ElementController.installHydrationHook()`. Until this is called, `renderTemplate()` always uses the client-side path — even if the element has a pre-existing shadow root. `HydrationTracker` manages a `Set<HTMLElement>` of pending elements and resolves the returned controller's `whenHydrated()` promise via a debounced `setTimeout(0)` after the last element finishes binding — ensuring all async template batches settle first. It also resolves tag-specific `whenHydrated(tagName)` promises when work for that FAST element tag completes. By default, the hook no-ops for later prerendered batches after hydration completes; `enableHydration({ stopHydration: StopHydration.never })` keeps the hook active for streamed Declarative Shadow DOM so new elements continue checking for an existing shadow root and hydrate instead of re-rendering it. In that mode, the global `whenHydrated()` promise intentionally remains pending.
+- On `disconnect()`: calls `disconnectedCallback` on behaviors, unbinds the view.
+- `onAttributeChangedCallback()` is the standard handler that processes attribute changes. During the prerendered bind, it is temporarily swapped to a no-op (see above) to avoid redundant processing of server-rendered attribute values.
+- Exposes `addBehavior` / `removeBehavior` for dynamic `HostBehavior` management (used by `ElementStyles`).
+
+`FASTElementDefinition` wraps all the metadata for a custom element class: its tag name, template, styles, and observed attribute list. It is created by subclass `define()` calls and registered globally via `fastElementRegistry`. Consumers that need focused access to definition lookup can import `fastElementRegistry` from `@lushly-dev/fast-element/registry.js`; `fastElementRegistry.whenRegistered(tagName)` resolves with the matching definition once that tag name is registered. `PartialFASTElementDefinition.template` may be either a concrete `ElementViewTemplate<InstanceType<TType>>` or a `FASTElementTemplateResolver<TType>` function that receives the composed definition and returns the concrete template (sync or async). `FASTElementDefinition.template` always stores the concrete `ElementViewTemplate<InstanceType<TType>>` after composition or resolver settlement. The subclass static `define()` method returns `Promise<TType>` — resolving immediately for complete definitions or definitions without an initial template, and resolving async template resolver functions only after extensions have had a chance to update the definition.
+
+#### Extensions
+
+The subclass static `define()` method and `FASTElementDefinition.define()` accept an optional array of **extension callbacks** (`FASTElementExtension`). Each extension is a function that receives the resolved `FASTElementDefinition` and is invoked **before** the element is registered with the platform via `customElements.define()`. The subclass static `define()` method also invokes extensions before any template resolver function is asked to produce a concrete `ElementViewTemplate`, so plugins can attach state that affects template resolution without leaving non-template values on `definition.template`.
+
+```typescript
+type FASTElementExtension = (definition: FASTElementDefinition) => void;
+```
+
+Extensions are typically produced by factory functions:
+
+```typescript
+function myPlugin() {
+    return (definition: FASTElementDefinition) => {
+        console.log(`Registering: ${definition.name}`);
+    };
+}
+
+MyComponent.define({ name: "my-component" }, [myPlugin()]);
+```
+
+---
+
+### Observables & Notifiers
+
+**Files**: `src/observation/observable.ts`, `src/observation/notifier.ts`, `src/observation/arrays.ts`
+
+#### Property observability
+
+`Observable.defineProperty(target, name)` (or the `@observable` decorator) replaces a plain property with a getter/setter pair via `Reflect.defineProperty`. The setter:
+
+1. Stores the new value in a backing slot.
+2. Calls `Observable.getNotifier(this).notify(name)` to fan out to subscribers.
+
+Backing slots are internal implementation details. Lifecycle rebinding treats public own properties as pre-upgrade assignments that need to flow through the accessor, but it does not reinterpret FAST-owned backing slots as public property writes.
+
+`Observable.getNotifier(object)` returns the `PropertyChangeNotifier` for an object, creating one on demand. Notifiers are stored in a `WeakMap` so they don't prevent GC.
+
+#### SubscriberSet / PropertyChangeNotifier
+
+`SubscriberSet` is an optimised set that stores the first two subscribers inline (avoiding heap allocations for the common 1–2 subscriber case) and falls back to an array. `PropertyChangeNotifier` extends `SubscriberSet` to support per-property subscriptions.
+
+#### ExpressionNotifier (binding observer)
+
+`Observable.binding(expression, subscriber)` creates an `ExpressionNotifier`. When `observe(source, context)` is called it:
+
+1. Pushes itself as the _current watcher_ onto a thread-local stack.
+2. Evaluates the expression (e.g., `x => x.name`).
+3. Any `Observable`-tracked property get encountered during evaluation subscribes the notifier to that property's notifier automatically.
+4. Pops itself. Future changes to any accessed property trigger `handleChange` on the subscriber.
+
+This gives FAST automatic, fine-grained dependency tracking without explicit declarations.
+
+---
+
+### Bindings
+
+**Files**: `src/binding/binding.ts`, `src/binding/one-way.ts`, `src/binding/one-time.ts`, `src/binding/normalize.ts`
+
+`Binding` is an abstract class that pairs an `Expression` (arrow function) with a `DOMPolicy` and a volatility flag. Concrete subclasses implement `createObserver(subscriber, directive)`:
+
+| Binding | Observer behaviour |
+|---|---|
+| `oneWay` | Creates an `ExpressionNotifier`; tracks dependencies; re-evaluates on change |
+| `oneTime` | Evaluates once during `bind()`, returns immediately |
+| `listener` | Same as `oneWay` but attaches as a DOM event handler |
+
+`normalizeBinding(value)` converts raw arrow functions or static values into a `Binding` object.
+
+---
+
+### DOM Policy
+
+**Files**: `src/dom.ts`, `src/dom-policy.ts`
+
+`DOM.policy` is the templating system's DOM write policy. `DOMPolicy.create()` builds a
+policy from Trusted Types integration plus default guard maps for element-specific and
+aspect-wide sinks. User guard configuration is merged with those defaults so partial
+overrides preserve unspecified built-in guards.
+
+The default guards block known dangerous sinks such as inline event handlers,
+`innerHTML`, script text/source writes, and executable object/link/embed sources. URL
+attributes and properties that remain writable are routed through the built-in URL guard,
+which trims surrounding whitespace/control characters, normalizes protocol detection
+across case, embedded controls, and bounded percent-decoding, and rejects
+`javascript:`, `vbscript:`, and `data:` protocols without treating safe or
+protocol-relative URLs as unsafe.
+
+---
+
+### html Tagged Template Literal
+
+**File**: `src/templating/template.ts`
+
+The `html` tag is the primary authoring API:
+
+```typescript
+const template = html<MyElement>`
+  <div>${x => x.label}</div>
+  <button @click="${x => x.handleClick}">OK</button>
+`;
+```
+
+When the tag function is called it invokes `ViewTemplate.create(strings, values)` (static method) which:
+
+1. Iterates the template string fragments (`strings`) paired with interpolated values.
+2. For each value:
+   - A plain function → wrapped in `HTMLBindingDirective(oneWay(fn))`
+   - A `Binding` instance → wrapped in `HTMLBindingDirective(binding)`
+   - A registered `HTMLDirective` instance → used directly
+   - Anything else → wrapped as a `oneTime` static binding
+3. Calls `directive.createHTML(add)` which returns a **placeholder string** (a special attribute or marker containing the factory's unique ID).
+4. Concatenates all static strings and placeholders into a single HTML string.
+5. Returns a `ViewTemplate(html, factories)` – the factories dictionary maps IDs to `ViewBehaviorFactory` instances.
+
+No DOM nodes are created at this point; compilation is deferred.
+
+See [docs/architecture/html-tagged-template-literal.md](./docs/architecture/html-tagged-template-literal.md) for more detail on directives and the `Markup`/`Parser` helpers.
+
+---
+
+### ViewTemplate & Compiler
+
+**Files**: `src/templating/template.ts`, `src/templating/compiler.ts`, `src/templating/markup.ts`
+
+`ViewTemplate.compile()` is called lazily the first time the template is rendered. It delegates to `Compiler.compile(html, factories, policy)`:
+
+1. Sets the HTML string as the `innerHTML` of a `<template>` element (letting the browser parse the DOM once).
+2. Traverses the resulting `DocumentFragment` depth-first.
+3. For each node, calls `compileAttributes()` which scans attributes for factory placeholder IDs.
+4. When a placeholder is found, it associates the matching `ViewBehaviorFactory` with the node's structural ID (a dot-separated path like `"r.2.0"` meaning "third child of the root's second child").
+5. Lazily-resolved descriptors (using `Object.defineProperty` on a prototype) allow `HTMLView` to look up any target node via a chain of `childNodes` accesses without pre-walking the tree for every view instance.
+6. Returns a `CompilationContext` that implements `HTMLTemplateCompilationResult`.
+
+`CompilationContext.createView(hostBindingTarget?)` clones the compiled `DocumentFragment`, instantiates behaviors from factories, and returns an `HTMLView`.
+
+---
+
+### Views & Behaviors
+
+**Files**: `src/templating/view.ts`, `src/templating/html-directive.ts`
+
+`HTMLView` implements `ElementView` / `SyntheticView`. It:
+
+- Holds the cloned `DocumentFragment` nodes.
+- Has a `targets` map (resolved lazily) from structural node IDs to live `Node` references.
+- `bind(source, context)` updates the current source/context and iterates all
+  `ViewBehavior` instances when either identity changes; it returns early only
+  when both are unchanged.
+- `unbind()` calls `behavior.unbind()` on each behavior and clears the source.
+- `appendTo(node)` / `insertBefore(node)` / `remove()` move its DOM nodes in the tree.
+
+`ViewBehavior` is the runtime unit of work attached to a specific DOM node. Examples:
+
+| Directive | Created `ViewBehavior` | Effect |
+|---|---|---|
+| `HTMLBindingDirective` | `BindingBehavior` | Evaluates the binding; updates the DOM aspect (attribute / property / event / content / tokenList) |
+| `when` | `WhenBehavior` | Conditionally inserts a child view |
+| `repeat` | `RepeatBehavior` | Renders a list of child views |
+| `ref` | `RefDirective` | Writes the element reference onto the source |
+| `children` / `slotted` | `ChildrenDirective` / `SlottedDirective` | Observes DOM mutations |
+
+`ViewBehaviorFactory` (created at template-authoring time) is the blueprint; `ViewBehavior` (created per `HTMLView` instance) is the live runtime object.
+
+The `render` directive in `src/templating/render.ts` uses `RenderInstruction`
+registrations to resolve templates for arbitrary model types. Registrations are
+keyed by model constructor and instruction name. Registering another instruction
+for the same type/name pair intentionally replaces the existing instruction and
+emits a debug warning through `FAST.warn`; production behavior remains unchanged.
+
+See [docs/template-bindings.md](./docs/template-bindings.md) for the full binding pipeline including `DOMAspect` routing and two-way binding.
+
+---
+
+### Updates Queue
+
+**File**: `src/observation/update-queue.ts`
+
+**Exported as**: `Updates`
+
+`Updates` is a shared, batched task queue used to synchronise writes to the DOM. It is resolved through standard ES module imports so multiple parts of the application share a single flush cycle.
+
+- `Updates.enqueue(callable)` – schedules a task for the next batch.
+- `Updates.process()` – forces immediate synchronous flush (useful in tests).
+- `Updates.next()` – returns a `Promise` that resolves after the next flush.
+- `Updates.setMode(isAsync)` – toggle async (default) vs. synchronous mode.
+
+In async mode, the first `enqueue` call schedules a `requestAnimationFrame` callback that drains up to 1024 tasks per frame. Errors in tasks are deferred via `setTimeout` so they don't abort the remaining tasks.
+
+Observable setters and `attributeChangedCallback` enqueue their DOM mutations through `Updates`, ensuring that multiple synchronous property changes result in only one DOM update per frame.
+
+See [docs/architecture/updates.md](./docs/architecture/updates.md) for more detail.
+
+---
+
+### Styles
+
+**Files**: `src/styles/css.ts`, `src/styles/element-styles.ts`, `src/styles/css-directive.ts`
+
+**Exported from**: `@lushly-dev/fast-element`
+
+The `css` tag, `ElementStyles`, `CSSDirective`, `cssDirective`,
+`ComposableStyles`, `HostBehavior`, `HostController`, `StyleStrategy`, and
+`StyleTarget` are imported from `@lushly-dev/fast-element`. The `css` tag
+(analogous to `html`) builds `ElementStyles` objects. During
+`ElementController.connect()`, styles are applied to the element's shadow root
+either via `adoptedStylesheets` (preferred) or an appended `<style>` node,
+depending on platform support. `CSSDirective`s can contribute additional static
+CSS during template composition, but runtime CSS bindings and style-attached
+`HostBehavior`s are not supported. Arbitrary runtime style toggling is handled
+through `ElementController.addStyles()` / `removeStyles()`; `ElementStyles`
+itself is a static container.
+
+---
+
+### Dependency Injection (DI)
+
+**File**: `src/di/di.ts`
+
+FAST ships a full hierarchical DI container inspired by Aurelia. Key types:
+
+| Type | Role |
+|---|---|
+| `Container` | Resolves dependencies; parent containers are queried if a key is not found locally |
+| `Resolver` | Maps a key to a creation strategy (singleton, transient, callback, …) |
+| `Registration` | Produces a `Resolver` when registered in a container |
+| `Factory` | Constructs instances; supports `Transformer`s for post-construction mutation |
+
+Containers are typically attached to DOM elements and walk the DOM hierarchy. DI keys are classes, interfaces, or `Context`-like tokens. Constructor parameters are annotated with the `@inject(key)` decorator (or use `@singleton` / `@transient` to declare the class's own registration).
+
+See `docs/di/api-report.api.md` for the full public API surface.
+
+---
+
+### Context Protocol
+
+**File**: `src/context.ts`
+
+`Context` implements the [W3C Community Context Protocol](https://github.com/webcomponents-cg/community-protocols/blob/main/proposals/context.md). A `FASTContext<T>` object is both a DI key and a decorator:
+
+- `Context.create<T>(name, initialValue?)` – creates a named context token.
+- `Context.for<T>(name)` – gets or creates a globally-registered context token.
+- `context.provide(target, value)` – registers a provider on a DOM element.
+- `context.get(target)` – dispatches a `context-request` event and returns the synchronously provided value (or `initialValue`).
+- `context.request(target, callback, multiple?)` – async / multi-provider variant.
+- Used as a `@decorator` on class properties or constructor parameters to declare a context dependency.
+
+---
+
+### State Helpers
+
+**Files**: `src/state/state.ts`, `src/state/watch.ts`
+
+> **Status**: beta
+
+`state<T>(initialValue, options?)` creates a reactive `State<T>` object – a callable that returns the current value. The state's `.current` property is a FAST observable, so templates or `ExpressionNotifier`s that read it will automatically re-evaluate when it changes.
+
+`watch(object, subscriber)` deeply subscribes to all observable properties and array mutations on an object graph, returning a `Disposable`.
+
+---
+
+### Declarative HTML
+
+**Files**: `src/declarative/index.ts`, `src/declarative/*`
+
+FAST Element also owns the declarative HTML runtime that previously lived in a
+separate package. `@lushly-dev/fast-element` exports the declarative runtime API:
+`declarativeTemplate()`, `TemplateParser`, `Schema`, `schemaRegistry`, and
+related parser/schema types. Map helpers are also exported from the root so they
+can be used with declarative templates or manually supplied schemas. The
+`<f-template>` element is an internal native `HTMLElement` publisher that
+`declarativeTemplate()` defines in the target registry; it is not part of the
+public API.
+
+The declarative runtime intentionally reuses the same FAST Element primitives as
+the imperative `html` API:
+
+- The internal `<f-template>` publisher parses HTML and returns concrete
+  `ViewTemplate` instances through the registry-aware declarative template
+  bridge. If duplicate connected publishers share a name, the first connected
+  publisher supplies the definition template and later duplicates do not
+  reassign it.
+- `TemplateParser` lowers declarative syntax to the same `strings` / `values`
+  shape used by `ViewTemplate.create()`.
+- `attributeMap()` and `observerMap()` are `FASTElementExtension` factories
+  exported from `@lushly-dev/fast-element/attribute-map.js` and
+  `@lushly-dev/fast-element/observer-map.js`. With `declarativeTemplate()` they
+  register schema transforms on the element definition, and those transforms run
+  after parsing in deterministic order (`attributeMap()` before
+  `observerMap()`). Outside declarative templates, `attributeMap()` uses
+  `definition.schema`, while `observerMap()` can use either `definition.schema`
+  or `observerMap({ schema })`.
+
+The `src/declarative/index.ts` entrypoint is pure at module evaluation time. Running a
+declarative API lazily installs declarative debug messages only. Hydration hooks
+and hydratable `ViewTemplate` support are installed exclusively by
+`enableHydration()` from `@lushly-dev/fast-element/hydration.js`. See
+[`docs/declarative/design.md`](./docs/declarative/design.md) for the detailed
+architecture.
+
+---
+
+## Data Flow Diagrams
+
+### Module Load & Registration
+
+```mermaid
+flowchart TD
+    A([Browser loads script]) --> B[FAST module initialises singleton]
+    B --> C[FASTElement subclass executes define]
+    C --> D[Observable decorators register accessors on the prototype]
+    C --> E[Attribute decorators push AttributeDefinition to the class]
+    C --> F[html tag is evaluated – ViewTemplate created with factories]
+    D & E & F --> G[FASTElement.define registers with the Custom Element Registry]
+    G --> H[Browser detects element in DOM]
+    H --> I([FASTElement lifecycle begins])
+```
+
+### FASTElement Lifecycle
+
+```mermaid
+flowchart TD
+    CTOR[constructor] --> EC[ElementController.forCustomElement creates or locates the controller]
+    EC --> ATTACH[Controller captures element + definition, sets $fastController]
+
+    CONN[connectedCallback] --> STAGE[stage = connecting]
+    STAGE --> PRERENDER{Existing shadow root\nfrom SSR/DSD?}
+    PRERENDER -->|yes| SETFLAG[isPrerendered = true\nisHydrated = pending]
+    PRERENDER -->|no| NORMAL[isPrerendered = false\nisHydrated = false]
+    SETFLAG --> OBS[Restore pre-upgrade observable values]
+    NORMAL --> OBS
+    OBS --> LATEATTR[Sync and observe late-defined attributes]
+    LATEATTR --> BEHAV[Connect HostBehaviors]
+    BEHAV --> RENDER{isPrerendered AND\ntemplate is hydratable?}
+    RENDER -->|yes| HYDRATE[template.hydrate → HydrationView\nmaps existing DOM to binding targets\nisHydrated = true]
+    RENDER -->|no| CLONE[ViewTemplate.render → HTMLView.appendTo shadow root]
+    HYDRATE --> STYLES[Apply ElementStyles to shadow root]
+    CLONE --> STYLES
+    STYLES --> DONE[stage = connected]
+
+    ATTR[attributeChangedCallback] --> ATTRGUARD{isPrerendered AND\nneedsInitialization?}
+    ATTRGUARD -->|yes| SKIP[Skip — server-rendered values already correct]
+    ATTRGUARD -->|no| ACD[AttributeDefinition.onAttributeChangedCallback]
+    ACD --> ENQ[Updates.enqueue – reflect new value via Observable accessor]
+
+    DISC[disconnectedCallback] --> DBEHAV[Disconnect HostBehaviors]
+    DBEHAV --> UNBIND[HTMLView.unbind]
+    UNBIND --> DSTAGE[stage = disconnected]
+```
+
+### Template Pipeline
+
+```mermaid
+flowchart LR
+    TAG["html\`...\` tag call"]
+    CREATE["ViewTemplate.create() (static)\nBuilds HTML string with\nfactory placeholder IDs\nand factories dictionary"]
+    LAZY["First render call\nViewTemplate.create() / render()"]
+    COMPILE["ViewTemplate.compile()\n→ Compiler.compile()\nParses <template> innerHTML\nBuilds CompilationContext\nwith node ID descriptors"]
+    CLONE["CompilationContext.createView()\nClones DocumentFragment\nInstantiates ViewBehaviors"]
+    VIEW["HTMLView\nDOM nodes + behaviors"]
+    BIND["HTMLView.bind(source, context)\nEach ViewBehavior.bind(controller)\nEvaluates expressions\nWrites to DOM"]
+
+    TAG --> CREATE
+    CREATE --> LAZY
+    LAZY --> COMPILE
+    COMPILE --> CLONE
+    CLONE --> VIEW
+    VIEW --> BIND
+```
+
+### Observable Change Propagation
+
+```mermaid
+flowchart TD
+    SET["element.property = newValue\n(Observable setter)"]
+    NOTIFY["PropertyChangeNotifier.notify(propertyName)"]
+    SUBS["For each Subscriber in SubscriberSet\nsubscriber.handleChange(subject, propertyName)"]
+    ENQ["Updates.enqueue(binding task)"]
+    RAF["requestAnimationFrame fires\nUpdates.process()"]
+    EVAL["ExpressionNotifier re-evaluates expression"]
+    DOM["DOM aspect updated\n(attribute / property / content / event)"]
+
+    SET --> NOTIFY
+    NOTIFY --> SUBS
+    SUBS --> ENQ
+    ENQ --> RAF
+    RAF --> EVAL
+    EVAL --> GUARD{"Controller still bound?"}
+    GUARD -->|yes| DOM
+    GUARD -->|no| DROP["Notification dropped\n(stale observer)"]
+```
+
+> **Stale notification guard**: When a view is unbound (e.g., after a parent `when` directive tears down a child element), the coupled source lifetime optimisation may leave expression observers subscribed to the child element's properties. If a property change fires while the view is inactive, `HTMLBindingDirective.handleChange` and `RenderBehavior.handleChange` check `controller.isBound` and skip the update to prevent evaluating expressions against a null source.
+
+---
+
+## How the Pieces Fit Together
+
+Below is a conceptual map of the major subsystems and their relationships:
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                      FAST (module-scoped singleton)                          │
+│  warn / error / addMessages — diagnostic messaging                           │
+└────────────────────┬─────────────────────────────────────────────────────────┘
+                     │ ES module imports
+         ┌───────────┴───────────┐
+         │                       │
+┌────────▼──────────┐   ┌────────▼────────────────────┐
+│  Observable /      │   │  Updates queue               │
+│  ExpressionNotifier│   │  (rAF-batched task runner)   │
+│  SubscriberSet     │   └────────────────────────────-─┘
+└────────┬──────────┘            ▲
+         │ dependency tracking   │ enqueue
+         ▼                       │
+┌────────────────────────────────┴──────────────────────────────┐
+│                    Binding system                               │
+│  oneWay / oneTime / listener → Binding → ExpressionObserver    │
+└────────────────────────┬──────────────────────────────────────┘
+                         │ drives
+┌────────────────────────▼──────────────────────────────────────┐
+│                  Templating pipeline                            │
+│  html tag → ViewTemplate → Compiler → CompilationContext       │
+│  createView → HTMLView → ViewBehaviors (bind/update DOM)        │
+└────────────────────────┬──────────────────────────────────────┘
+                         │ owned by
+┌────────────────────────▼──────────────────────────────────────┐
+│                  ElementController                              │
+│  Lifecycle (connect/disconnect/attr) • Styles • Behaviors       │
+└────────────────────────┬──────────────────────────────────────┘
+                         │ wraps
+┌────────────────────────▼──────────────────────────────────────┐
+│    FASTElement (HTMLElement subclass)                           │
+│    + FASTElementDefinition (metadata: name, template, styles)   │
+└───────────────────────────────────────────────────────────────┘
+         │ optional higher-level services
+         ├──────────────────────────────────────────────┐
+┌────────▼──────────┐                        ┌──────────▼──────────┐
+│  DI container      │                        │  Context protocol    │
+│  (di/di.ts)        │                        │  (context.ts)        │
+└───────────────────┘                        └─────────────────────┘
+```
+
+**Authoring flow summary**:
+
+1. Developer writes a class extending `FASTElement`, decorates properties with `@observable` / `@attr`, and calls `MyElement.define({ name, template, styles })`.
+2. `MyElement.define` registers the element with the Custom Element Registry.
+3. When the browser upgrades the element, `ElementController.forCustomElement(element)` is called in the constructor.
+4. On `connectedCallback`, the controller renders the template into the shadow root. If the element already has a shadow root from SSR (prerendered content) and hydration has been enabled via `enableHydration()`, the installed hydration hook uses `template.hydrate()` to map existing DOM nodes to binding targets instead of cloning new DOM. If no template is available yet, the element connects without rendering until a later `definition.template` update recreates the controller. Compilation is lazy: the first render call triggers `Compiler.compile()`, subsequent calls clone the already-compiled `DocumentFragment`.
+5. `HTMLView.bind(source)` wires up each `ViewBehavior`. `oneWay` bindings create `ExpressionNotifier`s that track observable dependencies automatically.
+6. When an observed property changes, its notifier fans out to all subscribers. Each binding enqueues a DOM update via `Updates`. In the supported browser `Window` runtime, the next animation frame drains the queue and applies the mutations.
+7. On `disconnectedCallback`, `HTMLView.unbind()` tears down all bindings; behaviors disconnect; styles are removed.
+
+---
+
+## Package Layout
+
+```
+src/
+├── interfaces.ts          # Core types: Callable, Constructable, Message codes
+├── platform.ts            # FAST module-scoped singleton, TypeRegistry
+├── declarative/           # Pure declarative entrypoint and map helpers
+├── dom.ts                 # DOMAspect enum, DOMPolicy, DOMSink
+├── dom-policy.ts          # Default DOM security policy (TrustedTypes integration)
+├── metadata.ts            # Reflect-based metadata helpers
+├── utilities.ts           # UnobservableMutationObserver and other helpers
+├── debug.ts               # Exports enableDebug() for human-readable FAST errors
+├── registry.ts            # fastElementRegistry focused path export
+├── observation/
+│   ├── observable.ts      # Observable, @observable, ExpressionNotifier, ExecutionContext
+│   ├── notifier.ts        # Subscriber, Notifier, SubscriberSet, PropertyChangeNotifier
+│   ├── arrays.ts          # ArrayObserver, Splice, SpliceStrategy
+│   └── update-queue.ts    # Updates (UpdateQueue; browser Window scheduling)
+├── binding/
+│   ├── binding.ts         # Binding abstract base class, BindingDirective
+│   ├── one-way.ts         # oneWay, listener
+│   ├── one-time.ts        # oneTime
+│   └── normalize.ts       # normalizeBinding helper
+├── templating/
+│   ├── template.ts        # ViewTemplate, html tag, InlineTemplateDirective
+│   ├── compiler.ts        # Compiler, CompilationContext
+│   ├── view.ts            # HTMLView, ElementView, SyntheticView
+│   ├── html-directive.ts  # HTMLDirective, ViewBehavior, ViewBehaviorFactory
+│   ├── html-binding-directive.ts  # HTMLBindingDirective
+│   ├── markup.ts          # Markup placeholders, Parser
+│   ├── when.ts            # when directive
+│   ├── repeat.ts          # repeat directive
+│   ├── ref.ts             # ref directive
+│   ├── render.ts          # render directive
+│   ├── children.ts        # children directive
+│   └── slotted.ts         # slotted directive
+├── styles/
+│   ├── css.ts             # css tag
+│   ├── element-styles.ts  # ElementStyles
+│   ├── css-directive.ts   # CSSDirective, @cssDirective
+│   └── host.ts            # HostBehavior, HostController
+├── components/
+│   ├── fast-element.ts    # FASTElement, @customElement
+│   ├── element-controller.ts  # ElementController, Stages
+│   ├── fast-definitions.ts    # FASTElementDefinition, optional definition schema
+│   ├── schema.ts              # Schema class and schemaRegistry
+│   ├── definition-schema-transforms.ts # Definition-scoped schema transform storage
+│   └── attributes.ts          # AttributeDefinition, @attr, converters
+├── extensions/
+│   ├── observer-map.ts    # observerMap() extension and proxy-backed observation helpers
+│   └── attribute-map.ts   # attributeMap() extension and automatic @attr helpers
+├── di/
+│   └── di.ts              # DI container, decorators, resolvers, Registration
+├── context.ts             # Context, FASTContext, Context protocol
+├── declarative/
+│   ├── template.ts        # declarativeTemplate() and internal f-template publisher
+│   ├── template-parser.ts # Declarative HTML parser → ViewTemplate strings/values
+│   ├── schema.ts          # Compatibility re-export for Schema
+│   ├── definition-options.ts # Compatibility re-export for schema transforms
+│   ├── observer-map.ts    # Internal observer-map extension alias (not a package export)
+│   ├── attribute-map.ts   # Internal attribute-map extension alias (not a package export)
+│   ├── utilities.ts       # Declarative parsing utilities
+│   └── syntax.ts          # Declarative syntax constants
+├── state/
+│   ├── state.ts           # state() helper (beta)
+│   └── watch.ts           # watch() helper (beta)
+└── hydration/
+    └── target-builder.ts  # Hydration target resolution
+```
+
+The published export surface is guarded by scripts under `scripts/`.
+`smoke-package-exports.js` imports every `package.json` export after `build:tsc`, and
+`check-path-exports-docs.js` regenerates or verifies the 3.x path exports documentation table.
+
+---
+
+## Detailed Architecture Documents
+
+| Document | What it covers |
+|---|---|
+| [docs/architecture/intro.md](./docs/architecture/intro.md) | Glossary / index for all architecture docs |
+| [docs/architecture/overview.md](./docs/architecture/overview.md) | General FAST usage, compose/define flow, module load sequence |
+| [docs/architecture/fastelement.md](./docs/architecture/fastelement.md) | FASTElement & ElementController lifecycle in detail |
+| [docs/architecture/html-tagged-template-literal.md](./docs/architecture/html-tagged-template-literal.md) | `html` tag, directives, binding pre-processing |
+| [docs/architecture/updates.md](./docs/architecture/updates.md) | Updates queue, attribute and observable change batching |
+| [docs/declarative/design.md](./docs/declarative/design.md) | Declarative HTML runtime, parser, schema, maps, and fixture architecture |
+| [docs/template-bindings.md](./docs/template-bindings.md) | Full template binding pipeline: authoring → compilation → binding → DOM updates |
+| [docs/migration/fast-element-2.md](./docs/migration/fast-element-2.md) | Breaking changes from v1 to v2 |
+
+---
+
+## Bundle Size Reporting
+
+The build generates a `SIZES.md` file that records minified, gzip, and brotli sizes for the CDN rollup bundle and each individually tree-shaken export. Sizes are measured using `esbuild` for per-export bundles and from the Rollup minified output for the CDN rollup bundle. Compression sizes use Node.js `node:zlib`. The documentation site copies this file into the resources section during its prebuild step.

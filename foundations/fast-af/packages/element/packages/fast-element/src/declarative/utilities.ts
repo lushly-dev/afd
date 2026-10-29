@@ -1,0 +1,1604 @@
+import {
+    defsPropertyName,
+    fastContextMetaData,
+    type JSONSchema,
+    type Schema,
+} from "../components/schema.js";
+import {
+    attributeDirectivePrefix,
+    clientSideCloseExpression,
+    clientSideOpenExpression,
+    closeExpression,
+    eventArgAccessor,
+    executionContextAccessor,
+    openExpression,
+    repeatDirectiveClose,
+    repeatDirectiveOpen,
+    unescapedCloseExpression,
+    unescapedOpenExpression,
+    whenDirectiveClose,
+    whenDirectiveOpen,
+} from "./syntax.js";
+
+export {
+    assignObservables,
+    assignProxy,
+    deepEqual,
+    deepMerge,
+    findDef,
+    isPlainObject,
+} from "./observer-map-utilities.js";
+
+/**
+ * Declarative behavior type.
+ * @public
+ */
+export type BehaviorType = "dataBinding" | "templateDirective";
+
+/**
+ * Declarative attribute directive names.
+ * @public
+ */
+export type AttributeDirective = "children" | "slotted" | "ref";
+
+/**
+ * Declarative data binding marker type.
+ * @public
+ */
+export type DataBindingBindingType = "client" | "default" | "unescaped";
+
+/**
+ * Base behavior configuration.
+ * @public
+ */
+export interface BehaviorConfig {
+    type: BehaviorType;
+}
+
+/**
+ * Declarative schema path type.
+ * @public
+ */
+export type PathType = "access" | "default" | "event" | "repeat";
+
+/**
+ * Content binding behavior configuration.
+ * @public
+ */
+export interface ContentDataBindingBehaviorConfig extends BaseDataBindingBehaviorConfig {
+    subtype: "content";
+}
+
+/**
+ * Attribute binding behavior configuration.
+ * @public
+ */
+export interface AttributeDataBindingBehaviorConfig
+    extends BaseDataBindingBehaviorConfig {
+    subtype: "attribute";
+    aspect: "@" | ":" | "?" | null;
+}
+
+/**
+ * Attribute directive binding behavior configuration.
+ * @public
+ */
+export interface AttributeDirectiveBindingBehaviorConfig
+    extends BaseDataBindingBehaviorConfig {
+    subtype: "attributeDirective";
+    name: AttributeDirective;
+}
+
+/**
+ * Declarative data binding behavior configuration.
+ * @public
+ */
+export type DataBindingBehaviorConfig =
+    | ContentDataBindingBehaviorConfig
+    | AttributeDataBindingBehaviorConfig
+    | AttributeDirectiveBindingBehaviorConfig;
+
+/**
+ * Base data binding behavior configuration.
+ * @public
+ */
+export interface BaseDataBindingBehaviorConfig extends BehaviorConfig {
+    type: "dataBinding";
+    bindingType: DataBindingBindingType;
+    openingStartIndex: number;
+    openingEndIndex: number;
+    closingStartIndex: number;
+    closingEndIndex: number;
+}
+
+/**
+ * Declarative template directive names.
+ * @public
+ */
+export type TemplateDirective = "when" | "repeat";
+
+/**
+ * Template directive behavior configuration.
+ * @public
+ */
+export interface TemplateDirectiveBehaviorConfig extends BehaviorConfig {
+    type: "templateDirective";
+    name: TemplateDirective;
+    value: string;
+    openingTagStartIndex: number;
+    openingTagEndIndex: number;
+    closingTagStartIndex: number;
+    closingTagEndIndex: number;
+}
+
+/**
+ * Map between child component attribute references and custom element names.
+ * @public
+ */
+export interface ChildrenMap {
+    customElementName: string;
+    attributeName: string;
+}
+
+/**
+ * Prefix used for execution context paths.
+ * @public
+ */
+export const contextPrefixDot: string = `${executionContextAccessor}.`;
+
+export {
+    attributeDirectivePrefix,
+    clientSideCloseExpression,
+    clientSideOpenExpression,
+    closeExpression,
+    eventArgAccessor,
+    executionContextAccessor,
+    openExpression,
+};
+
+/**
+ * The type of a parsed event handler argument.
+ * @public
+ */
+export type EventArgType = "event" | "context" | "binding";
+
+/**
+ * A parsed event handler argument descriptor.
+ * @public
+ */
+export interface ParsedEventArg {
+    type: EventArgType;
+    /** The raw argument string, present only when `type` is `"binding"`. */
+    rawArg?: string;
+}
+
+/**
+ * Parses the arguments string of an event handler binding into an array of
+ * typed argument descriptors. Unrecognised tokens are returned as `"binding"`
+ * type with their raw string preserved.
+ *
+ * Special arguments:
+ * - `$e` — resolves to the DOM event object
+ * - `$c` — resolves to the full execution context object
+ *
+ * Any other token is treated as a binding path and resolved against the current
+ * data source.
+ *
+ * @param argsString - The raw arguments string from between the parentheses,
+ *   e.g. `""`, `"$e"`, `"$c"`, or `"$e, $c"`.
+ * @returns An array of {@link ParsedEventArg} descriptors.
+ * @public
+ */
+export function parseEventArgs(argsString: string): ParsedEventArg[] {
+    if (argsString.trim() === "") return [];
+
+    return argsString
+        .split(",")
+        .map(arg => arg.trim())
+        .filter(arg => arg !== "")
+        .map((arg): ParsedEventArg => {
+            switch (arg) {
+                case eventArgAccessor:
+                    return { type: "event" };
+                case executionContextAccessor:
+                    return { type: "context" };
+                default:
+                    return { type: "binding", rawArg: arg };
+            }
+        });
+}
+
+const startInnerHTMLDiv = `<div :innerHTML="{{`;
+const startInnerHTMLDivLength = startInnerHTMLDiv.length;
+const endInnerHTMLDiv = `}}"></div>`;
+const endInnerHTMLDivLength = endInnerHTMLDiv.length;
+
+/**
+ * Logical operator tokens.
+ * @public
+ */
+export const LogicalOperator = {
+    AND: "&&",
+    OR: "||",
+} as const;
+
+/**
+ * Logical operator token.
+ * @public
+ */
+export type LogicalOperator = (typeof LogicalOperator)[keyof typeof LogicalOperator];
+
+/**
+ * Comparison operator tokens.
+ * @public
+ */
+export const ComparisonOperator = {
+    ACCESS: "access",
+    EQUALS: "==",
+    GREATER_THAN: ">",
+    GREATER_THAN_OR_EQUALS: ">=",
+    LESS_THAN: "<",
+    LESS_THAN_OR_EQUALS: "<=",
+    NOT: "!",
+    NOT_EQUALS: "!=",
+} as const;
+
+/**
+ * Comparison operator token.
+ * @public
+ */
+export type ComparisonOperator =
+    (typeof ComparisonOperator)[keyof typeof ComparisonOperator];
+
+/**
+ * Declarative expression operator tokens.
+ * @public
+ */
+export const Operator = {
+    ...LogicalOperator,
+    ...ComparisonOperator,
+} as const;
+
+/**
+ * Declarative expression operator token.
+ * @public
+ */
+export type Operator = (typeof Operator)[keyof typeof Operator];
+
+/**
+ * Get the index of the next matching tag
+ * @param openingTagStartSlice - The slice starting from the opening tag
+ * @param openingTag - The opening tag string
+ * @param closingTag - The closing tag
+ * @param openingTagStartIndex - The opening tag start index derived from the innerHTML
+ * @returns index
+ * @public
+ */
+export function getIndexOfNextMatchingTag(
+    openingTagStartSlice: string,
+    openingTag: string,
+    closingTag: string,
+    openingTagStartIndex: number,
+): number {
+    let tagCount = 1;
+    let matchingCloseTagIndex = -1;
+    const openingTagLength = openingTag.length;
+    const closingTagLength = closingTag.length;
+    let nextSlice = openingTagStartSlice.slice(openingTagLength);
+    let nextOpenTag = nextSlice.indexOf(openingTag);
+    let nextCloseTag = nextSlice.indexOf(closingTag);
+    let tagOffset = openingTagStartIndex + openingTagLength;
+
+    do {
+        // if a closing tag has been found for the last open tag, decrement the tag count
+        if (nextOpenTag > nextCloseTag || nextOpenTag === -1) {
+            tagCount--;
+
+            if (tagCount === 0) {
+                matchingCloseTagIndex = nextCloseTag + tagOffset;
+                break;
+            }
+
+            tagOffset += nextCloseTag + closingTagLength;
+            nextSlice = nextSlice.slice(nextCloseTag + closingTagLength);
+            nextOpenTag = nextSlice.indexOf(openingTag);
+            nextCloseTag = nextSlice.indexOf(closingTag);
+        } else if (nextOpenTag !== -1) {
+            tagCount++;
+            tagOffset += nextOpenTag + openingTagLength;
+            nextSlice = nextSlice.slice(nextOpenTag + openingTagLength);
+            nextOpenTag = nextSlice.indexOf(openingTag);
+            nextCloseTag = nextSlice.indexOf(closingTag);
+        }
+
+        if (tagCount === 0) {
+            matchingCloseTagIndex = nextCloseTag + tagOffset;
+            break;
+        }
+    } while (tagCount > 0);
+
+    return matchingCloseTagIndex;
+}
+
+/**
+ * Get the next directive
+ * @param innerHTML - The innerHTML string to evaluate
+ * @returns DirectiveBehaviorConfig - A configuration object
+ */
+function getNextDirectiveBehavior(innerHTML: string): TemplateDirectiveBehaviorConfig {
+    const whenIndex = innerHTML.indexOf(whenDirectiveOpen);
+    const repeatIndex = innerHTML.indexOf(repeatDirectiveOpen);
+
+    const isWhen = whenIndex !== -1 && (repeatIndex === -1 || whenIndex < repeatIndex);
+
+    let openingTag: string = repeatDirectiveOpen;
+    let closingTag: string = repeatDirectiveClose;
+    let directiveTag: TemplateDirective = "repeat";
+    let openingTagStartIndex: number = repeatIndex;
+
+    if (isWhen) {
+        openingTag = whenDirectiveOpen;
+        closingTag = whenDirectiveClose;
+        directiveTag = "when";
+        openingTagStartIndex = whenIndex;
+    }
+
+    const openingTagStartSlice = innerHTML.slice(openingTagStartIndex);
+    const openingTagEndIndex = // account for f-when which may include >= or > as operators, but will always include a condition attr
+        openingTagStartSlice.indexOf(`">`) + openingTagStartIndex + 2;
+
+    const directiveValue = getNextDataBindingBehavior(innerHTML);
+
+    const matchingCloseTagIndex = getIndexOfNextMatchingTag(
+        openingTagStartSlice,
+        openingTag,
+        closingTag,
+        openingTagStartIndex,
+    );
+
+    return {
+        type: "templateDirective",
+        name: directiveTag,
+        value: innerHTML.slice(
+            directiveValue.openingEndIndex,
+            directiveValue.closingStartIndex,
+        ),
+        openingTagStartIndex,
+        openingTagEndIndex,
+        closingTagStartIndex: matchingCloseTagIndex,
+        closingTagEndIndex: matchingCloseTagIndex + closingTag.length,
+    };
+}
+
+/**
+ * Determine if this binding is an attribute binding
+ * @param innerHTML - The innerHTML string to evaluate
+ * @param openingStartIndex - The index of the binding opening marker
+ * @returns boolean
+ */
+function isAttribute(innerHTML: string, openingStartIndex: number): boolean {
+    return innerHTML.slice(openingStartIndex - 2, openingStartIndex - 1) === "=";
+}
+
+/**
+ * Determine if this binding is an attribute directive binding
+ * @param innerHTML - The innerHTML string to evaluate
+ * @param openingStartIndex - The index of the binding opening marker
+ * @returns boolean
+ */
+function isAttributeDirective(innerHTML: string, openingStartIndex: number): boolean {
+    const splitHTML = innerHTML.slice(0, openingStartIndex - 2).split(" ");
+    return splitHTML[splitHTML.length - 1].startsWith(attributeDirectivePrefix);
+}
+
+/**
+ * Get the attribute binding config
+ * @param innerHTML - The innerHTML string to evaluate
+ * @param config - The base configuration of the binding
+ * @returns AttributeDataBindingBehaviorConfig
+ */
+function getAttributeDataBindingConfig(
+    innerHTML: string,
+    config: BaseDataBindingBehaviorConfig,
+): AttributeDataBindingBehaviorConfig {
+    const splitInnerHTML = innerHTML.slice(0, config.openingStartIndex).split(" ");
+    const firstCharOfAttribute = splitInnerHTML[splitInnerHTML.length - 1][0];
+    const aspect =
+        firstCharOfAttribute === "?" ||
+        firstCharOfAttribute === "@" ||
+        firstCharOfAttribute === ":"
+            ? firstCharOfAttribute
+            : null;
+
+    return {
+        ...config,
+        subtype: "attribute",
+        aspect,
+    };
+}
+
+/**
+ * Get the attribute directive binding config
+ * @param innerHTML - The innerHTML string to evaluate
+ * @param config - The base configuration of the binding
+ * @returns AttributeDirectiveBindingBehaviorConfig
+ */
+function getAttributeDirectiveDataBindingConfig(
+    innerHTML: string,
+    config: BaseDataBindingBehaviorConfig,
+): AttributeDirectiveBindingBehaviorConfig {
+    const splitInnerHTML = innerHTML.slice(0, config.openingStartIndex).split(" ");
+    const lastItem = splitInnerHTML[splitInnerHTML.length - 1];
+    const equals = lastItem.indexOf("=");
+    const name = lastItem.slice(2, equals);
+
+    return {
+        ...config,
+        subtype: "attributeDirective",
+        name: name as AttributeDirective,
+    };
+}
+
+/**
+ * Get the content data binding config
+ * @param config - The base configuration of the binding
+ * @returns ContentDataBindingBehaviorConfig
+ */
+function getContentDataBindingConfig(
+    config: BaseDataBindingBehaviorConfig,
+): ContentDataBindingBehaviorConfig {
+    return {
+        ...config,
+        subtype: "content",
+    };
+}
+
+interface NextDataBindingBehaviorConfig {
+    openingStartIndex: number;
+    closingStartIndex: number;
+    bindingType: DataBindingBindingType;
+}
+
+/**
+ * Finds the next data binding in innerHTML and determines its type and indices
+ * @param innerHTML - The innerHTML string to search for data bindings
+ * @returns NextDataBindingBehaviorConfig containing the binding type and start indices
+ */
+function getIndexAndBindingTypeOfNextDataBindingBehavior(
+    innerHTML: string,
+): NextDataBindingBehaviorConfig {
+    // {{{}}} binding
+    const openingUnescapedStartIndex = innerHTML.indexOf(unescapedOpenExpression);
+    const closingUnescapedStartIndex = innerHTML.indexOf(unescapedCloseExpression);
+    // {{}} binding
+    const openingContentStartIndex = innerHTML.indexOf(openExpression);
+    const closingContentStartIndex = innerHTML.indexOf(closeExpression);
+    // {} binding
+    const openingClientStartIndex = innerHTML.indexOf(clientSideOpenExpression);
+    const closingClientStartIndex = innerHTML.indexOf(clientSideCloseExpression);
+
+    if (
+        openingUnescapedStartIndex !== -1 &&
+        openingUnescapedStartIndex <= openingContentStartIndex &&
+        openingUnescapedStartIndex <= openingClientStartIndex
+    ) {
+        // is unescaped {{{}}}
+        return {
+            openingStartIndex: openingUnescapedStartIndex,
+            closingStartIndex: closingUnescapedStartIndex,
+            bindingType: "unescaped",
+        };
+    } else if (
+        openingContentStartIndex !== -1 &&
+        openingContentStartIndex <= openingClientStartIndex
+    ) {
+        // is default {{}}
+        return {
+            openingStartIndex: openingContentStartIndex,
+            closingStartIndex: closingContentStartIndex,
+            bindingType: "default",
+        };
+    }
+
+    // is client {}
+    return {
+        openingStartIndex: openingClientStartIndex,
+        closingStartIndex: closingClientStartIndex,
+        bindingType: "client",
+    };
+}
+
+/**
+ * Get the next data binding
+ * @param innerHTML - The innerHTML string to evaluate
+ * @returns DataBindingBehaviorConfig - A configuration object
+ */
+function getNextDataBindingBehavior(innerHTML: string): DataBindingBehaviorConfig {
+    const { openingStartIndex, closingStartIndex, bindingType } =
+        getIndexAndBindingTypeOfNextDataBindingBehavior(innerHTML);
+    const bindingLength =
+        bindingType === "client" ? 1 : bindingType === "default" ? 2 : 3;
+    const partialConfig: BaseDataBindingBehaviorConfig = {
+        type: "dataBinding",
+        bindingType,
+        openingStartIndex,
+        openingEndIndex: openingStartIndex + bindingLength,
+        closingStartIndex,
+        closingEndIndex: closingStartIndex + bindingLength,
+    };
+
+    return isAttributeDirective(innerHTML, openingStartIndex)
+        ? getAttributeDirectiveDataBindingConfig(innerHTML, partialConfig)
+        : isAttribute(innerHTML, openingStartIndex)
+          ? getAttributeDataBindingConfig(innerHTML, partialConfig)
+          : getContentDataBindingConfig(partialConfig);
+}
+
+/**
+ * Get the next behavior
+ * @param innerHTML - The innerHTML string to evaluate
+ * @param offset - The current offset in the original string.
+ * @returns DataBindingBehaviorConfig | DirectiveBehaviorConfig | null - A configuration object or null
+ * @public
+ */
+export function getNextBehavior(
+    innerHTML: string,
+    offset: number = 0,
+): DataBindingBehaviorConfig | TemplateDirectiveBehaviorConfig | null {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+        const currentSlice = innerHTML.slice(offset);
+        // client side binding will capture all bindings starting with "{"
+        const dataBindingOpen = currentSlice.indexOf(clientSideOpenExpression);
+        const whenDirectiveIndex = currentSlice.indexOf(whenDirectiveOpen);
+        const repeatDirectiveIndex = currentSlice.indexOf(repeatDirectiveOpen);
+        const directiveBindingOpen =
+            whenDirectiveIndex === -1
+                ? repeatDirectiveIndex
+                : repeatDirectiveIndex === -1
+                  ? whenDirectiveIndex
+                  : Math.min(whenDirectiveIndex, repeatDirectiveIndex);
+        const nextDataBindingBehavior = getNextDataBindingBehavior(currentSlice);
+
+        if (dataBindingOpen === -1 && directiveBindingOpen === -1) {
+            return null;
+        }
+
+        if (
+            dataBindingOpen !== -1 &&
+            nextDataBindingBehavior.bindingType === "client" &&
+            !isLegitimateClientSideBinding(nextDataBindingBehavior)
+        ) {
+            offset = nextDataBindingBehavior.closingEndIndex + offset;
+            continue;
+        }
+
+        if (
+            directiveBindingOpen !== -1 &&
+            (dataBindingOpen === -1 || dataBindingOpen > directiveBindingOpen)
+        ) {
+            return offsetDirective(getNextDirectiveBehavior(currentSlice), offset);
+        }
+
+        return offsetDataBinding(nextDataBindingBehavior, offset);
+    }
+}
+
+/**
+ * Apply an offset to a data binding
+ * @param config DataBindingBehaviorConfig
+ * @param offset number
+ * @returns DataBindingBehaviorConfig
+ */
+function offsetDataBinding(
+    config: DataBindingBehaviorConfig,
+    offset: number,
+): DataBindingBehaviorConfig {
+    config.openingStartIndex = config.openingStartIndex + offset;
+    config.openingEndIndex = config.openingEndIndex + offset;
+    config.closingStartIndex = config.closingStartIndex + offset;
+    config.closingEndIndex = config.closingEndIndex + offset;
+
+    return config;
+}
+
+/**
+ * Apply an offset to a directive
+ * @param config TemplateDirectiveBehaviorConfig
+ * @param offset number
+ * @returns TemplateDirectiveBehaviorConfig
+ */
+function offsetDirective(
+    config: TemplateDirectiveBehaviorConfig,
+    offset: number,
+): TemplateDirectiveBehaviorConfig {
+    config.openingTagStartIndex = config.openingTagStartIndex + offset;
+    config.openingTagEndIndex = config.openingTagEndIndex + offset;
+    config.closingTagStartIndex = config.closingTagStartIndex + offset;
+    config.closingTagEndIndex = config.closingTagEndIndex + offset;
+
+    return config;
+}
+
+/**
+ * Determine if this client side binding is legitimate.
+ * Single-brace (client) bindings are only valid for events, properties, and attribute directives.
+ * Checking for this prevents CSS/JS curly braces from being misinterpreted as bindings.
+ * @param result
+ * @returns
+ */
+function isLegitimateClientSideBinding(result: DataBindingBehaviorConfig): boolean {
+    return (
+        (result.subtype === "attribute" &&
+            (result.aspect === "@" || result.aspect === ":")) ||
+        result.subtype === "attributeDirective"
+    );
+}
+
+type AccessibleObject = { [key: string]: AccessibleObject };
+
+/**
+ * Create a function to resolve a value from an object using a path with dot syntax.
+ * e.g. "foo.bar"
+ * @param path - The dot syntax path to an objects property.
+ * @param contextPath - The current repeat context path.
+ * @param level - The current repeat nesting level.
+ * @param rootSchema - The root schema for resolving context paths.
+ * @returns A function to access the value from a given path.
+ * @public
+ */
+export function pathResolver(
+    path: string,
+    contextPath: string | null,
+    level: number,
+    rootSchema: JSONSchema,
+): (accessibleObject: any, context: any) => any {
+    let splitPath: string[] = path.split(".");
+
+    // Explicit context access via executionContextAccessor — resolve directly from ExecutionContext
+    if (splitPath[0] === executionContextAccessor) {
+        const contextAccessPath = splitPath.slice(1);
+        return (_accessibleObject: any, context: any) => {
+            return contextAccessPath.reduce(
+                (prev: any, item: string) => prev?.[item],
+                context,
+            );
+        };
+    }
+
+    let levelCount = level;
+    let self = splitPath[0] === contextPath;
+    const parentContexts: string[] = [];
+
+    if (
+        level > 0 &&
+        rootSchema?.[defsPropertyName]?.[contextPath as string]?.[fastContextMetaData] ===
+            splitPath[splitPath.length - 1]
+    ) {
+        self = true;
+    }
+
+    while (levelCount > 0 && !self) {
+        if (levelCount !== 1) {
+            parentContexts.push("parentContext");
+        } else {
+            parentContexts.push("parent");
+        }
+
+        levelCount--;
+    }
+
+    splitPath = [...parentContexts, ...splitPath];
+
+    return pathWithContextResolver(splitPath, self);
+}
+
+/**
+ * Creates a resolver function that can access properties from an object using a split path array
+ * @param splitPath - The dot syntax path split into an array of property names
+ * @param self - Whether the first item in the path refers to the item itself
+ * @returns A function that resolves the value from the given path on an accessible object
+ */
+function pathWithContextResolver(splitPath: string[], self: boolean): any {
+    const isInPreviousContext =
+        splitPath[0] === "parent" || splitPath[0] === "parentContext";
+
+    if (self && !isInPreviousContext) {
+        if (splitPath.length > 1) {
+            splitPath = splitPath.slice(1);
+        } else {
+            return (accessibleObject: AccessibleObject) => {
+                return accessibleObject;
+            };
+        }
+    }
+
+    if (isInPreviousContext) {
+        return (accessibleObject: AccessibleObject, context: AccessibleObject) => {
+            return splitPath.reduce((previousAccessors, pathItem) => {
+                return previousAccessors?.[pathItem];
+            }, context);
+        };
+    }
+
+    return (accessibleObject: AccessibleObject) => {
+        return splitPath.reduce((previousAccessors, pathItem) => {
+            return previousAccessors?.[pathItem];
+        }, accessibleObject);
+    };
+}
+
+/**
+ * Creates a binding resolver and records the binding path in the schema.
+ * @param previousString - The previous literal string before the binding.
+ * @param rootPropertyName - The current root property name.
+ * @param path - The binding path to resolve.
+ * @param parentContext - The parent repeat context.
+ * @param type - The schema path type.
+ * @param schema - The schema to record paths in.
+ * @param currentContext - The current repeat context.
+ * @param level - The current repeat nesting level.
+ * @returns A function that resolves the binding path.
+ * @public
+ */
+export function bindingResolver(
+    previousString: string | null,
+    rootPropertyName: string | null,
+    path: string,
+    parentContext: string | null,
+    type: PathType,
+    schema: Schema,
+    currentContext: string | null,
+    level: number,
+): (accessibleObject: any, context: any) => any {
+    // Explicit context access — resolve from ExecutionContext, skip schema tracking
+    if (path.startsWith(contextPrefixDot)) {
+        const segments = path.split(".").slice(1);
+        return (_x: any, context: any) => {
+            return segments.reduce((prev: any, item: string) => prev?.[item], context);
+        };
+    }
+
+    rootPropertyName = getRootPropertyName(rootPropertyName, path, currentContext, type);
+
+    if (type !== "event" && rootPropertyName !== null) {
+        const childrenMap = getChildrenMap(previousString);
+
+        schema.addPath({
+            pathConfig: {
+                type,
+                currentContext,
+                parentContext,
+                path,
+            },
+            rootPropertyName,
+            childrenMap,
+        });
+    }
+
+    return pathResolver(
+        path,
+        currentContext,
+        level,
+        schema.getSchema(rootPropertyName as string) as JSONSchema,
+    );
+}
+
+/**
+ * Creates a resolver for a chained expression and records its paths in the schema.
+ * @param rootPropertyName - The current root property name.
+ * @param expression - The expression to resolve.
+ * @param parentContext - The parent repeat context.
+ * @param level - The current repeat nesting level.
+ * @param schema - The schema to record paths in.
+ * @returns A function that resolves the expression.
+ * @public
+ */
+export function expressionResolver(
+    rootPropertyName: string | null,
+    expression: ChainedExpression,
+    parentContext: string | null,
+    level: number,
+    schema: Schema,
+): (accessibleObject: any, context: any) => any {
+    // Extract all paths from the expression and add them to the schema
+    if (rootPropertyName !== null) {
+        const paths = extractPathsFromChainedExpression(expression);
+        paths.forEach(path => {
+            if (path.startsWith(contextPrefixDot)) return;
+            schema.addPath({
+                pathConfig: {
+                    type: "access",
+                    currentContext: parentContext,
+                    parentContext: null,
+                    path,
+                },
+                rootPropertyName,
+                childrenMap: null,
+            });
+        });
+    }
+
+    return (x, c) =>
+        resolveChainedExpression(
+            x,
+            c,
+            level,
+            parentContext || null,
+            expression,
+            schema.getSchema(rootPropertyName as string) as JSONSchema,
+        );
+}
+
+/**
+ * Extracts all paths from a ChainedExpression, including nested expressions
+ * @param chainedExpression - The chained expression to extract paths from
+ * @returns A Set containing all unique paths found in the expression chain
+ * @public
+ */
+export function extractPathsFromChainedExpression(
+    chainedExpression: ChainedExpression,
+): Set<string> {
+    const paths = new Set<string>();
+
+    function processExpression(expr: DeclarativeExpression) {
+        // Check left operand (only add if it's not a literal value)
+        if (typeof expr.left === "string" && !expr.leftIsValue) {
+            paths.add(expr.left);
+        }
+
+        // Check right operand (only add if it's not a literal value)
+        if (typeof expr.right === "string" && !expr.rightIsValue) {
+            paths.add(expr.right);
+        }
+    }
+
+    let current: ChainedExpression | undefined = chainedExpression;
+    while (current !== undefined) {
+        processExpression(current.expression);
+        current = current.next;
+    }
+
+    return paths;
+}
+
+/**
+ * Determine if the operand is a value (boolean, number, string) or an accessor.
+ * @param operand - The string to evaluate as either a literal value or property accessor
+ * @returns An object containing the parsed value and whether it represents a literal value
+ */
+function isOperandValue(operand: string): {
+    value: boolean | number | string;
+    isValue: boolean;
+} {
+    try {
+        operand = operand.replace(/'/g, '"');
+        const value = JSON.parse(operand);
+
+        return {
+            value,
+            isValue: true,
+        };
+    } catch {
+        return {
+            value: operand,
+            isValue: false,
+        };
+    }
+}
+
+/**
+ * Declarative expression descriptor.
+ * @public
+ */
+export interface DeclarativeExpression {
+    operator: Operator;
+    left: string;
+    leftIsValue: boolean | null;
+    right: string | boolean | number | null;
+    rightIsValue: boolean | null;
+}
+
+/**
+ * Declarative chained expression descriptor.
+ * @public
+ */
+export interface ChainedExpression {
+    operator?: LogicalOperator;
+    expression: DeclarativeExpression;
+    next?: ChainedExpression;
+}
+
+/**
+ * Evaluates parts of an expression chain and chains them with the specified operator
+ * @param parts - Each part of an expression chain to be evaluated
+ * @param operator - The logical operator used to chain the expression parts
+ * @returns A ChainedExpression object representing the linked expressions, or void if no valid expressions found
+ */
+function evaluatePartsInExpressionChain(
+    parts: string[],
+    operator: LogicalOperator,
+): void | ChainedExpression {
+    // Process each part recursively and chain them with ||
+    const firstPart = getExpressionChain(parts[0]);
+    if (firstPart) {
+        let current = firstPart;
+
+        for (let i = 1; i < parts.length; i++) {
+            const nextPart = getExpressionChain(parts[i]);
+            if (nextPart) {
+                // Find the end of the current chain
+                while (current.next) {
+                    current = current.next;
+                }
+                current.next = {
+                    operator,
+                    ...nextPart,
+                };
+            }
+        }
+
+        return firstPart;
+    }
+}
+
+/**
+ * Gets the expression chain as a configuration object
+ * @param value - The binding string value
+ * @returns - A configuration object containing information about the expression
+ * @public
+ */
+export function getExpressionChain(value: string): ChainedExpression | void {
+    // Decode HTML entities in the expression value first
+    const decodedValue = decodeExpressionOperators(value);
+
+    // Handle operator precedence: || has lower precedence than &&
+    // First, split by || (lowest precedence)
+    const orParts = decodedValue.split(/\s*\|\|\s*/);
+
+    if (orParts.length > 1) {
+        const firstPart = evaluatePartsInExpressionChain(orParts, Operator.OR);
+
+        if (firstPart) {
+            return firstPart;
+        }
+    }
+
+    // If no ||, check for && (higher precedence)
+    const andParts = decodedValue.split(/\s*&&\s*/);
+
+    if (andParts.length > 1) {
+        // Process each part recursively and chain them with &&
+        const firstPart = evaluatePartsInExpressionChain(andParts, "&&");
+
+        if (firstPart) {
+            return firstPart;
+        }
+    }
+
+    // No chaining operators found, create a single expression
+    if (decodedValue.trim()) {
+        return {
+            expression: getExpression(decodedValue.trim()),
+        };
+    }
+
+    return void 0;
+}
+
+/**
+ * Parses a binding value string into an Expression object
+ * @param value - The binding string value to parse (e.g., "!condition", "foo == bar", "property")
+ * @returns An Expression object containing the operator, operands, and whether operands are literal values
+ */
+function getExpression(value: string): DeclarativeExpression {
+    if (value[0] === Operator.NOT) {
+        const left = value.slice(1);
+        const operandValue = isOperandValue(left);
+
+        return {
+            operator: Operator.NOT,
+            left,
+            leftIsValue: operandValue.isValue,
+            right: null,
+            rightIsValue: null,
+        };
+    }
+
+    const split = value.split(/\s*([=!]=|[><]=?)\s*/);
+
+    if (split.length === 3) {
+        const operator = split[1] as ComparisonOperator;
+        const right = split[2];
+        const rightOperandValue = isOperandValue(right);
+        const left = split[0];
+        const leftOperandValue = isOperandValue(left);
+
+        return {
+            operator,
+            left: split[0],
+            leftIsValue: leftOperandValue.isValue,
+            right: rightOperandValue.isValue ? rightOperandValue.value : right,
+            rightIsValue: rightOperandValue.isValue,
+        };
+    }
+
+    return {
+        operator: Operator.ACCESS,
+        left: value,
+        leftIsValue: false,
+        right: null,
+        rightIsValue: null,
+    };
+}
+
+/**
+ * Decodes HTML entities within expression strings only (for operators like &&, <, >)
+ * This is safer than decoding the entire template as it preserves HTML-encoded content
+ * and only decodes operators needed for expression evaluation
+ * @param expression - The expression string to decode
+ * @returns The expression with operators decoded
+ */
+function decodeExpressionOperators(expression: string): string {
+    return expression
+        .replace(/&amp;&amp;/g, Operator.AND)
+        .replace(/&lt;/g, Operator.LESS_THAN)
+        .replace(/&gt;/g, Operator.GREATER_THAN);
+}
+
+/**
+ * Resolve a single expression by evaluating its operator and operands
+ * @param x - The current data context
+ * @param c - The parent context for accessing parent scope data
+ * @param level - The nesting level for context resolution
+ * @param contextPath - The current context path for property resolution
+ * @param expression - The expression object to evaluate
+ * @param rootSchema - The root JSON schema for data validation and navigation
+ * @returns The resolved value of the expression
+ */
+function resolveExpression(
+    x: boolean,
+    c: any,
+    level: number,
+    contextPath: string | null,
+    expression: DeclarativeExpression,
+    rootSchema: JSONSchema,
+): any {
+    const { operator, left, right, rightIsValue } = expression;
+
+    const resolvedLeft = pathResolver(left, contextPath, level, rootSchema)(x, c);
+    let resolvedRight = right;
+
+    if (!rightIsValue && typeof right === "string") {
+        resolvedRight = pathResolver(right, contextPath, level, rootSchema)(x, c);
+    }
+
+    switch (operator) {
+        case Operator.NOT: {
+            return !resolvedLeft;
+        }
+
+        case Operator.EQUALS: {
+            // biome-ignore lint/suspicious/noDoubleEquals: Breaks prior existing functionality - see when fixture
+            return resolvedLeft == resolvedRight;
+        }
+
+        case Operator.NOT_EQUALS: {
+            // biome-ignore lint/suspicious/noDoubleEquals: Breaks prior existing functionality - see when fixture
+            return resolvedLeft != resolvedRight;
+        }
+
+        case Operator.GREATER_THAN_OR_EQUALS: {
+            return resolvedLeft >= (resolvedRight as number);
+        }
+
+        case Operator.GREATER_THAN: {
+            return resolvedLeft > (resolvedRight as number);
+        }
+
+        case Operator.LESS_THAN_OR_EQUALS: {
+            return resolvedLeft <= (resolvedRight as number);
+        }
+
+        case Operator.LESS_THAN: {
+            return resolvedLeft < (resolvedRight as number);
+        }
+
+        default: {
+            if (typeof resolvedLeft === "boolean") {
+                return resolvedLeft;
+            }
+
+            if (typeof resolvedLeft === "number") {
+                return resolvedLeft !== 0;
+            }
+
+            if (typeof resolvedLeft === "string") {
+                return resolvedLeft.length > 0;
+            }
+
+            return !!resolvedLeft;
+        }
+    }
+}
+
+/**
+ * Resolve a chained expression by evaluating expressions linked with logical operators
+ * @param x - The current data context
+ * @param c - The parent context for accessing parent scope data
+ * @param level - The nesting level for context resolution
+ * @param contextPath - The current context path for property resolution
+ * @param expression - The chained expression object containing linked expressions
+ * @param rootSchema - The root JSON schema for data validation and navigation
+ * @returns The resolved boolean result of the chained expression
+ */
+function resolveChainedExpression(
+    x: boolean,
+    c: any,
+    level: number,
+    contextPath: string | null,
+    expression: ChainedExpression,
+    rootSchema: JSONSchema,
+): any {
+    const { expression: expr, next } = expression;
+    const resolvedLeft = resolveExpression(x, c, level, contextPath, expr, rootSchema);
+
+    if (next) {
+        const resolvedRight = resolveChainedExpression(
+            x,
+            c,
+            level,
+            contextPath,
+            next,
+            rootSchema,
+        );
+
+        switch (next.operator) {
+            case Operator.AND: {
+                return resolvedLeft && resolvedRight;
+            }
+
+            case Operator.OR: {
+                return resolvedLeft || resolvedRight;
+            }
+        }
+    }
+
+    return resolvedLeft;
+}
+
+/**
+ * This is the transform utility for rationalizing declarative HTML syntax
+ * with bindings in the ViewTemplate
+ * @param innerHTML - The innerHTML to transform.
+ * @param index - The index to start the current slice of HTML to evaluate.
+ * @public
+ */
+export function transformInnerHTML(innerHTML: string, index = 0): string {
+    const sliceToEvaluate = innerHTML.slice(index);
+    const nextBinding = getNextBehavior(sliceToEvaluate);
+    let transformedInnerHTML = innerHTML;
+
+    if (nextBinding && nextBinding.type === "dataBinding") {
+        if (nextBinding.bindingType === "unescaped") {
+            transformedInnerHTML = `${innerHTML.slice(0, index)}${sliceToEvaluate.slice(
+                0,
+                nextBinding.openingStartIndex,
+            )}${startInnerHTMLDiv}${sliceToEvaluate.slice(
+                nextBinding.openingStartIndex + 3,
+                nextBinding.closingStartIndex,
+            )}${endInnerHTMLDiv}${sliceToEvaluate.slice(
+                nextBinding.closingStartIndex + 3,
+            )}`;
+
+            return transformInnerHTML(
+                transformedInnerHTML,
+                index +
+                    startInnerHTMLDivLength +
+                    endInnerHTMLDivLength +
+                    nextBinding.closingStartIndex -
+                    3,
+            );
+        } else if (nextBinding.bindingType === "client") {
+            return transformInnerHTML(
+                transformedInnerHTML,
+                index + nextBinding.closingEndIndex,
+            );
+        }
+
+        return transformInnerHTML(
+            transformedInnerHTML,
+            index + nextBinding.closingEndIndex,
+        );
+    } else if (nextBinding) {
+        return transformInnerHTML(
+            transformedInnerHTML,
+            index + nextBinding.closingTagEndIndex,
+        );
+    }
+
+    return transformedInnerHTML;
+}
+
+/**
+ * Tag name of the HTML element whose contents are auto-escaped to render
+ * code samples literally. Inside this element FAST binding delimiters
+ * (`{{...}}`, `{{{...}}}`, `{...}`) are neutralised by replacing each
+ * `{` / `}` with the HTML numeric character reference `&#123;` /
+ * `&#125;` so the literal text is rendered instead of a binding.
+ *
+ * The escape behaviour is split between the server-side renderer
+ * (`escape_code_sample_elements` in `microsoft-fast-build`) and the
+ * client-side `<f-template>` parser (`escapeBracesInCodeElements`
+ * below):
+ *
+ *  - Curly-brace escape runs in **both** server and client because
+ *    `&#123;` / `&#125;` are decoded to literal `{` / `}` in the DOM
+ *    and the `.innerHTML` serializer does not re-encode them — so the
+ *    server-side escape would otherwise be undone on the client.
+ *  - Angle brackets of FAST directive tags (`<f-when>`, `</f-when>`,
+ *    `<f-repeat>`, `</f-repeat>`, case-insensitive) inside this element
+ *    are escaped on the **server only**. The DOM serializer
+ *    re-encodes `<` / `>` in text content automatically, so the client
+ *    never sees raw directive tags inside `<code>` regardless of what
+ *    the page source contained.
+ *  - Real HTML elements (`<button>`) and custom elements (`<my-widget>`)
+ *    inside this element keep their angle brackets and continue to
+ *    render as live DOM elements; only the brace-binding syntax inside
+ *    their text and attribute values is neutralised.
+ * @public
+ */
+export const codeElementName = "code";
+
+const CODE_ESCAPE_VOID_ELEMENTS = new Set([
+    "area",
+    "base",
+    "br",
+    "col",
+    "embed",
+    "hr",
+    "img",
+    "input",
+    "link",
+    "meta",
+    "param",
+    "source",
+    "track",
+    "wbr",
+]);
+
+interface OpeningTagMatch {
+    tagName: string;
+    tagStart: number;
+    tagEnd: number;
+    contentStart: number;
+    isSelfClosing: boolean;
+}
+
+/**
+ * Parse an opening tag at `pos` (which points at `<`). Returns the parsed tag
+ * descriptor if `<` introduces an element opening tag, otherwise `null`
+ * (e.g. for `</tag>`, `<!--`, `<!doctype`, `<?...`, or end-of-input).
+ *
+ * The parser is tolerant of attribute values containing `>` only when they
+ * are quoted; quoted attribute values are correctly handled so that a `>`
+ * inside quotes does not terminate the tag.
+ */
+function parseOpeningTagForCodeEscape(html: string, pos: number): OpeningTagMatch | null {
+    if (html.charAt(pos) !== "<") return null;
+    const next = html.charAt(pos + 1);
+    if (next === "/" || next === "!" || next === "?" || next === "") return null;
+    if (!/[A-Za-z]/.test(next)) return null;
+
+    let nameEnd = pos + 1;
+    while (nameEnd < html.length && /[A-Za-z0-9-]/.test(html.charAt(nameEnd))) {
+        nameEnd++;
+    }
+    const tagName = html.slice(pos + 1, nameEnd).toLowerCase();
+    if (tagName === "") return null;
+
+    let cursor = nameEnd;
+
+    while (cursor < html.length) {
+        while (cursor < html.length && /\s/.test(html.charAt(cursor))) cursor++;
+        const ch = html.charAt(cursor);
+        if (ch === ">" || ch === "" || (ch === "/" && html.charAt(cursor + 1) === ">")) {
+            break;
+        }
+        while (
+            cursor < html.length &&
+            !/[\s=>/]/.test(html.charAt(cursor)) &&
+            html.charAt(cursor) !== ""
+        ) {
+            cursor++;
+        }
+        let attrTerminator = cursor;
+        while (attrTerminator < html.length && /\s/.test(html.charAt(attrTerminator))) {
+            attrTerminator++;
+        }
+        if (html.charAt(attrTerminator) === "=") {
+            cursor = attrTerminator + 1;
+            while (cursor < html.length && /\s/.test(html.charAt(cursor))) cursor++;
+            const quote = html.charAt(cursor);
+            if (quote === '"' || quote === "'") {
+                const end = html.indexOf(quote, cursor + 1);
+                cursor = end === -1 ? html.length : end + 1;
+            } else {
+                while (cursor < html.length && !/[\s>]/.test(html.charAt(cursor))) {
+                    cursor++;
+                }
+            }
+        }
+    }
+
+    let isSelfClosing = false;
+    if (html.charAt(cursor) === "/" && html.charAt(cursor + 1) === ">") {
+        isSelfClosing = true;
+        cursor += 2;
+    } else if (html.charAt(cursor) === ">") {
+        cursor += 1;
+    } else {
+        return null;
+    }
+
+    return {
+        tagName,
+        tagStart: pos,
+        tagEnd: cursor,
+        contentStart: cursor,
+        isSelfClosing: isSelfClosing || CODE_ESCAPE_VOID_ELEMENTS.has(tagName),
+    };
+}
+
+/**
+ * Find the position of the matching close tag for an element opened at
+ * `contentStart` with name `tagName`. Returns the index of the `<` of the
+ * matching `</tagName>` close tag, or `html.length` if no matching tag is
+ * found. Nested same-name elements are tracked via a depth counter.
+ */
+function findMatchingCloseTagForCodeEscape(
+    html: string,
+    contentStart: number,
+    tagName: string,
+): number {
+    let depth = 1;
+    let pos = contentStart;
+    const closeNeedle = `</${tagName}`;
+
+    while (pos < html.length) {
+        const lt = html.indexOf("<", pos);
+        if (lt === -1) return html.length;
+
+        const lowerSlice = html.slice(lt, lt + closeNeedle.length).toLowerCase();
+        if (lowerSlice === closeNeedle) {
+            const charAfter = html.charAt(lt + closeNeedle.length);
+            if (charAfter === ">" || /\s/.test(charAfter)) {
+                depth--;
+                if (depth === 0) return lt;
+                const gt = html.indexOf(">", lt);
+                pos = gt === -1 ? html.length : gt + 1;
+                continue;
+            }
+        }
+
+        if (html.startsWith("<!--", lt)) {
+            const end = html.indexOf("-->", lt + 4);
+            pos = end === -1 ? html.length : end + 3;
+            continue;
+        }
+        if (html.charAt(lt + 1) === "!" || html.charAt(lt + 1) === "?") {
+            const end = html.indexOf(">", lt);
+            pos = end === -1 ? html.length : end + 1;
+            continue;
+        }
+        if (html.charAt(lt + 1) === "/") {
+            const end = html.indexOf(">", lt);
+            pos = end === -1 ? html.length : end + 1;
+            continue;
+        }
+
+        const opening = parseOpeningTagForCodeEscape(html, lt);
+        if (opening === null) {
+            pos = lt + 1;
+            continue;
+        }
+        if (opening.tagName === tagName && !opening.isSelfClosing) {
+            depth++;
+        }
+        pos = opening.tagEnd;
+    }
+
+    return html.length;
+}
+
+function escapeBracesInCodeContent(content: string): string {
+    return content.replace(/[{}]/g, c => (c === "{" ? "&#123;" : "&#125;"));
+}
+
+/**
+ * Preprocess an HTML string by escaping FAST brace characters inside every
+ * `<code>` element. Mirrors part of the brace/angle-bracket escaping
+ * behaviour of Microsoft WebUI's `webui-press` markdown renderer so that
+ * example template snippets inside `<code>` render literally instead of
+ * being interpreted as bindings.
+ *
+ * Nested `<code>` elements are handled via depth tracking. The pass is
+ * idempotent because `{` / `}` inside an already-processed `<code>` have
+ * been replaced with entities, so a second pass finds nothing to escape.
+ *
+ * This is the client-side half of a two-stage escape — see the JSDoc on
+ * {@link codeElementName} for why only braces are handled here and
+ * `<` / `>` are exclusively handled on the server.
+ * @public
+ */
+export function escapeBracesInCodeElements(innerHTML: string): string {
+    if (innerHTML.indexOf("<code") === -1) {
+        return innerHTML;
+    }
+
+    let pos = 0;
+    let result = "";
+
+    while (pos < innerHTML.length) {
+        const lt = innerHTML.indexOf("<", pos);
+        if (lt === -1) {
+            result += innerHTML.slice(pos);
+            break;
+        }
+
+        if (innerHTML.startsWith("<!--", lt)) {
+            const end = innerHTML.indexOf("-->", lt + 4);
+            const tail = end === -1 ? innerHTML.length : end + 3;
+            result += innerHTML.slice(pos, tail);
+            pos = tail;
+            continue;
+        }
+
+        const opening = parseOpeningTagForCodeEscape(innerHTML, lt);
+        if (opening === null) {
+            result += innerHTML.slice(pos, lt + 1);
+            pos = lt + 1;
+            continue;
+        }
+
+        if (opening.tagName !== codeElementName) {
+            result += innerHTML.slice(pos, opening.tagEnd);
+            pos = opening.tagEnd;
+            continue;
+        }
+
+        result += innerHTML.slice(pos, opening.tagEnd);
+
+        if (opening.isSelfClosing) {
+            pos = opening.tagEnd;
+            continue;
+        }
+
+        const closeStart = findMatchingCloseTagForCodeEscape(
+            innerHTML,
+            opening.contentStart,
+            codeElementName,
+        );
+        const innerContent = innerHTML.slice(opening.contentStart, closeStart);
+        result += escapeBracesInCodeContent(innerContent);
+        pos = closeStart;
+    }
+
+    return result;
+}
+
+/**
+ * Resolves boolean logic
+ * used for f-when and boolean attributes
+ * @param rootPropertyName - The current root property name.
+ * @param expression - The chained expression to resolve.
+ * @param parentContext - The parent repeat context.
+ * @param level - The current repeat nesting level.
+ * @param schema - The schema to record paths in.
+ * @returns - A binding that resolves the chained expression logic
+ * @public
+ */
+export function getBooleanBinding(
+    rootPropertyName: string | null,
+    expression: ChainedExpression,
+    parentContext: string | null,
+    level: number,
+    schema: Schema,
+): (x: boolean, c: any) => any {
+    const binding = expressionResolver(
+        rootPropertyName,
+        expression,
+        parentContext,
+        level,
+        schema,
+    );
+    return (x: boolean, c: any) => binding(x, c);
+}
+
+/**
+ * Get the root property name
+ * @param rootPropertyName - The root property
+ * @param path - The dot syntax path
+ * @param context - The context created by a repeat
+ * @param type - The type of path binding
+ * @returns
+ * @public
+ */
+export function getRootPropertyName(
+    rootPropertyName: string | null,
+    path: string,
+    context: null | string,
+    type: PathType,
+): string | null {
+    return (rootPropertyName === null || context === null) && type !== "event"
+        ? path.split(".")[0]
+        : rootPropertyName;
+}
+
+/**
+ * Get details of bindings to the attributes of child custom elements
+ * @param previousString - The previous string before the binding
+ * @returns null, or a custom element name and attribute name
+ * @public
+ */
+export function getChildrenMap(previousString: string | null): ChildrenMap | null {
+    if (
+        typeof previousString === "string" &&
+        isAttribute(previousString, previousString.length)
+    ) {
+        const customElementName = getAttributesCustomElementName(previousString);
+
+        if (customElementName) {
+            return {
+                customElementName,
+                attributeName: getAttributeName(previousString),
+            };
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Get the HTML element that is passing the attribute binding
+ * @param previousString - The previous string before the binding
+ * @returns null if this is not a custom element, or the custom element that is passing the binding as an attribute
+ */
+function getAttributesCustomElementName(previousString: string): string | null {
+    const indexOfElementTagStart = previousString.lastIndexOf("<") + 1;
+    const indexOfElementTagEnd =
+        previousString.slice(indexOfElementTagStart).indexOf(" ") +
+        indexOfElementTagStart;
+    const elementName = previousString.slice(
+        indexOfElementTagStart,
+        indexOfElementTagEnd,
+    );
+
+    if (elementName.includes("-")) {
+        return elementName;
+    }
+
+    return null;
+}
+
+/**
+ * Gets a non-aspected attribute name
+ * @param previousString - The previous string before the binding
+ * @returns The attribute name with any aspects (:, ?, @) removed
+ */
+function getAttributeName(previousString: string): string {
+    const indexOfAttributeStart = previousString.lastIndexOf(" ") + 1;
+    const indexOfAttributeEnd =
+        previousString.slice(indexOfAttributeStart).indexOf("=") + indexOfAttributeStart;
+    const attributeName = previousString.slice(
+        indexOfAttributeStart,
+        indexOfAttributeEnd,
+    );
+    const potentialAspect = attributeName.charAt(0);
+
+    if (potentialAspect === ":" || potentialAspect === "@" || potentialAspect === "?") {
+        return attributeName.slice(1);
+    }
+
+    return attributeName;
+}

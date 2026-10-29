@@ -361,6 +361,59 @@
 					"initialVersion": "2.2.0"
 				}
 			]
+		},
+		{
+			"id": "fast-element",
+			"family": "fast-af",
+			"protocol": "npm-changesets",
+			"sourceRevision": "dc3a2b98edb2d60a1162b142523e839d2b686e57",
+			"authority": "original lushly-dev/fast-af repository: Changesets version records and manual package-level publication, no root publish workflow, tags or GitHub releases; no handoff authorized",
+			"state": "quarantined",
+			"routes": ["npm-main"],
+			"gates": [
+				"pnpm check",
+				"fast-af.yml",
+				"artifact-contents",
+				"isolated-install",
+				"release-approval"
+			],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/fast-element",
+					"registry": "npm",
+					"manifest": "foundations/fast-af/packages/element/packages/fast-element/package.json",
+					"format": "npm",
+					"initialVersion": "3.0.1"
+				}
+			]
+		},
+		{
+			"id": "violet-elements",
+			"family": "fast-af",
+			"protocol": "npm-changesets",
+			"sourceRevision": "dc3a2b98edb2d60a1162b142523e839d2b686e57",
+			"authority": "original lushly-dev/fast-af repository: Changesets version records and manual package-level publication, no root publish workflow, tags or GitHub releases; no handoff authorized; manifest is private: true upstream and cannot publish",
+			"state": "quarantined",
+			"routes": ["npm-main"],
+			"gates": [
+				"pnpm check",
+				"fast-af.yml",
+				"artifact-contents",
+				"isolated-install",
+				"release-approval"
+			],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/violet-elements",
+					"registry": "npm",
+					"manifest": "foundations/fast-af/packages/violet-elements/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
 		}
 	]
 }

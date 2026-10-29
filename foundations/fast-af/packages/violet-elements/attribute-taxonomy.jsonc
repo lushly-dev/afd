@@ -1,0 +1,1336 @@
+{
+  "version": "0.1.0",
+  "description": "Canonical public-attribute taxonomy for Violet and FAST-AF reference components.",
+  "purpose": [
+    "Keep attribute names stable across components.",
+    "Prevent the same name from drifting into multiple meanings.",
+    "Prefer native HTML and Fluent-familiar naming when it reduces surprise.",
+    "Provide structured input for component linting and contract validation."
+  ],
+  "rules": [
+    {
+      "id": "one-name-one-meaning",
+      "summary": "A public attribute name should keep one stable meaning across the system."
+    },
+    {
+      "id": "native-first",
+      "summary": "Prefer native HTML naming like disabled, readonly, checked, value, placeholder, and type before inventing custom terms."
+    },
+    {
+      "id": "variant-vs-state",
+      "summary": "Use appearance-like attributes for stylistic variants and state attributes for interactive or validation state."
+    },
+    {
+      "id": "data-via-properties",
+      "summary": "Do not serialize rich objects or arrays through reflected attributes; use element properties for structured data."
+    }
+  ],
+  "attributes": [
+    {
+      "name": "as",
+      "property": "as",
+      "valueType": "enum",
+      "allowedValues": [],
+      "allowedValuesByComponent": {
+        "violet-text": ["span", "p", "small", "strong", "label", "h1", "h2", "h3", "h4"]
+      },
+      "category": "semantics",
+      "definition": "Selects the underlying semantic HTML element the component should render while keeping the Violet styling contract.",
+      "useFor": ["typography primitives", "semantic wrappers that intentionally vary their native tag without changing their broader API"],
+      "doNotUseFor": ["pure styling variants", "ARIA roles", "component family selection"],
+      "usedBy": ["violet-text"]
+    },
+    {
+      "name": "appearance",
+      "property": "appearance",
+      "valueType": "enum",
+      "allowedValues": ["primary", "secondary", "quiet", "transparent"],
+      "allowedValuesByComponent": {
+        "violet-card": ["filled", "outline", "subtle"],
+        "violet-badge": ["filled", "outline", "subtle"],
+        "violet-divider": ["subtle", "strong"],
+        "violet-empty-state": ["plain", "subtle", "outline"],
+        "violet-carousel": ["framed", "plain"],
+        "violet-file-upload": ["button", "dropzone"],
+        "violet-tree": ["plain", "framed"],
+        "violet-tabs": ["open", "closed", "mixed"]
+      },
+      "category": "variant",
+      "definition": "Selects a visual emphasis treatment for an action-like control without changing its semantic role.",
+      "useFor": ["buttons", "tabs", "action chips", "card surfaces", "other explicit action or navigation surfaces with multiple emphasis levels"],
+      "doNotUseFor": ["selection state", "validation state", "density or size", "component-specific mode toggles"],
+      "usedBy": ["violet-button", "violet-icon-button", "violet-card", "violet-badge", "violet-divider", "violet-empty-state", "violet-carousel", "violet-file-upload", "violet-tree", "violet-tabs"]
+    },
+    {
+      "name": "color",
+      "property": "color",
+      "valueType": "enum",
+      "allowedValues": [],
+      "allowedValuesByComponent": {
+        "violet-badge": ["neutral", "accent", "success", "warning", "danger"]
+      },
+      "category": "variant",
+      "definition": "Selects a semantic color family for a compact status or category indicator without changing the underlying content.",
+      "useFor": ["badges", "status chips", "small semantic indicators"],
+      "doNotUseFor": ["arbitrary CSS colors", "theme switching", "state that should use disabled, invalid, or checked semantics"],
+      "usedBy": ["violet-badge"]
+    },
+    {
+      "name": "type",
+      "property": "type",
+      "valueType": "enum",
+      "allowedValues": [],
+      "allowedValuesByComponent": {
+        "violet-button": ["button", "submit", "reset"],
+        "violet-icon-button": ["button", "submit", "reset"],
+        "violet-text-field": ["text", "search", "email", "url", "password", "tel", "number", "date"],
+        "violet-dialog": ["modal", "non-modal", "alert"]
+      },
+      "category": "native-form",
+      "definition": "Passes through the native HTML control type when the component wraps a native form control with standard type semantics.",
+      "useFor": ["button-like primitives", "single-line field primitives", "dialog components"],
+      "doNotUseFor": ["visual variants", "business modes", "custom component family names"],
+      "usedBy": ["violet-button", "violet-icon-button", "violet-text-field", "violet-dialog"],
+      "notes": ["Allowed values should stay aligned with the native control being wrapped."]
+    },
+    {
+      "name": "disabled",
+      "property": "disabled",
+      "valueType": "boolean",
+      "category": "state",
+      "definition": "Marks a control as unavailable for interaction and participation in normal form workflows.",
+      "useFor": ["interactive controls", "form fields", "toggle-like inputs"],
+      "doNotUseFor": ["temporary loading visuals unless the control is truly unavailable", "read-only content"],
+      "usedBy": ["violet-button", "violet-icon-button", "violet-checkbox", "violet-radio", "violet-radio-group", "violet-switch", "violet-text-field", "violet-text-area", "violet-data-grid", "violet-range-slider", "violet-chat-composer", "violet-listbox", "violet-option", "violet-option-group", "violet-select", "violet-combobox", "violet-accordion-item", "violet-segment", "violet-segmented-control", "violet-pagination", "violet-calendar", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker", "violet-tab", "violet-tabs", "violet-tree-item", "violet-data-grid-multi-picker", "violet-data-grid-reference-picker", "violet-data-grid-persona-picker", "violet-data-grid-attachment-cell", "violet-data-grid-rating"]
+    },
+    {
+      "name": "name",
+      "property": "name",
+      "valueType": "string",
+      "category": "native-form",
+      "definition": "Supplies the native form field name used when a component participates in form submission.",
+      "useFor": ["form-associated controls", "custom elements that intentionally mirror native form semantics"],
+      "doNotUseFor": ["visual labels", "analytics identifiers", "component registry names"],
+      "usedBy": ["violet-checkbox", "violet-radio", "violet-radio-group", "violet-slider", "violet-switch", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-select", "violet-combobox", "violet-segmented-control", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker"]
+    },
+    {
+      "name": "required",
+      "property": "required",
+      "valueType": "boolean",
+      "category": "validation",
+      "definition": "Marks a form-associated control as requiring a user-provided value or selection before validation succeeds.",
+      "useFor": ["text-entry controls", "checkboxes and other native-like selection inputs with required semantics"],
+      "doNotUseFor": ["visual emphasis", "business rules that should not map to native form validity"],
+      "usedBy": ["violet-checkbox", "violet-radio-group", "violet-slider", "violet-switch", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-select", "violet-combobox", "violet-segmented-control", "violet-file-upload", "violet-color-picker"]
+    },
+    {
+      "name": "readonly",
+      "property": "readonly",
+      "valueType": "boolean",
+      "category": "state",
+      "definition": "Prevents user edits while retaining a readable value; grid renderers may expose a non-interactive display instead of an editor.",
+      "useFor": ["text inputs", "textareas", "other editable text-like fields", "grid value renderers with a distinct non-editable display"],
+      "doNotUseFor": ["disabled-like behavior", "controls without a defined read-only value presentation"],
+      "usedBy": ["violet-text-field", "violet-text-area", "violet-data-grid-attachment-cell", "violet-data-grid-rating"]
+    },
+    {
+      "name": "checked",
+      "property": "checked",
+      "valueType": "boolean",
+      "category": "selection",
+      "definition": "Represents the on/off or selected/unselected state of a binary native-style control.",
+      "useFor": ["checkboxes", "switches", "radio-like wrappers where native checked semantics apply"],
+      "doNotUseFor": ["multi-value arrays", "non-binary UI state", "selected rows in rich data components"],
+      "usedBy": ["violet-checkbox", "violet-radio", "violet-switch", "violet-segment"]
+    },
+    {
+      "name": "indeterminate",
+      "property": "indeterminate",
+      "valueType": "boolean",
+      "category": "selection",
+      "definition": "Represents a mixed aggregate selection state for checkbox-like controls.",
+      "useFor": ["select-all checkboxes", "aggregate selection controls where some but not all children are selected"],
+      "doNotUseFor": ["regular binary checked state", "radio buttons", "visual loading states"],
+      "usedBy": ["violet-checkbox"]
+    },
+    {
+      "name": "selected",
+      "property": "selected",
+      "valueType": "boolean",
+      "category": "selection",
+      "definition": "Indicates that an item within a composite selection surface is currently selected.",
+      "useFor": ["listbox options", "tree items", "selectable collection items that expose option semantics"],
+      "doNotUseFor": ["overlay visibility", "focus-only active state", "checked native inputs unless they truly map to checked semantics"],
+      "usedBy": ["violet-option", "violet-tree-item"]
+    },
+    {
+      "name": "current",
+      "property": "current",
+      "valueType": "boolean",
+      "category": "navigation",
+      "definition": "Indicates that an item within a navigation sequence represents the current location.",
+      "useFor": ["breadcrumb items", "pagination items", "other navigation elements that map to aria-current semantics"],
+      "doNotUseFor": ["selection widgets that should use selected or checked", "transient focus state", "hover styling"],
+      "usedBy": ["violet-breadcrumb-item"]
+    },
+    {
+      "name": "activeid",
+      "property": "activeid",
+      "valueType": "string",
+      "category": "behavior",
+      "definition": "Identifies the active child item in a composite that coordinates one selected trigger with one visible content region.",
+      "useFor": ["tabs or similar composites that synchronize one active item with one active content region"],
+      "doNotUseFor": ["selected row ids in data collections", "generic HTML id passthrough", "single controls without child item coordination"],
+      "usedBy": ["violet-tabs"]
+    },
+    {
+      "name": "active-index",
+      "property": "activeIndex",
+      "valueType": "number",
+      "category": "behavior",
+      "definition": "Indicates the currently active zero-based item in a paged composite that renders one visible item at a time.",
+      "useFor": ["carousels or similar paged composites with slotted items and generated navigation"],
+      "doNotUseFor": ["page numbers", "selected row ids", "listbox option values", "generic collection indexes that are not part of a public paging contract"],
+      "usedBy": ["violet-carousel"]
+    },
+    {
+      "name": "multiple",
+      "property": "multiple",
+      "valueType": "boolean",
+      "category": "selection",
+      "definition": "Allows a composite selection surface to keep more than one option selected at the same time.",
+      "useFor": ["listbox-style selection primitives that intentionally support multiple selected options"],
+      "doNotUseFor": ["binary checked controls", "layout density", "freeform repeated data entry"],
+      "usedBy": ["violet-listbox", "violet-file-upload", "violet-data-grid-reference-picker", "violet-data-grid-persona-picker"]
+    },
+    {
+      "name": "allow-create",
+      "property": "allowCreate",
+      "valueType": "boolean",
+      "category": "behavior",
+      "definition": "Enables a host-owned create affordance for unmatched picker queries.",
+      "useFor": ["pickers delegating item creation to the host"],
+      "doNotUseFor": ["automatic data creation", "authorization flags"],
+      "usedBy": ["violet-data-grid-reference-picker"]
+    },
+    {
+      "name": "accept",
+      "property": "accept",
+      "valueType": "string",
+      "category": "native-form",
+      "definition": "Passes through accepted file type hints using the same syntax as the native file input accept attribute.",
+      "useFor": ["file upload controls that intentionally mirror native file input filtering semantics"],
+      "doNotUseFor": ["freeform content type validation unrelated to file selection", "display-only file badges"],
+      "usedBy": ["violet-file-upload"]
+    },
+    {
+      "name": "invalid",
+      "property": "invalid",
+      "valueType": "boolean",
+      "category": "validation",
+      "definition": "Indicates that the control or field should present invalid styling and invalid accessibility semantics.",
+      "useFor": ["form-associated controls", "selection controls with explicit validation requirements"],
+      "doNotUseFor": ["warning-only states", "application errors unrelated to the control's value"],
+      "usedBy": ["violet-checkbox", "violet-radio", "violet-radio-group", "violet-slider", "violet-switch", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-select", "violet-combobox", "violet-segmented-control", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker", "violet-data-grid-pill-select"]
+    },
+    {
+      "name": "value",
+      "property": "value",
+      "valueType": "string",
+      "category": "data",
+      "definition": "Carries the current scalar value of a form control wrapper.",
+      "useFor": ["text fields", "text areas", "single-value native-like controls"],
+      "doNotUseFor": ["row collections", "complex objects", "display-only labels"],
+      "usedBy": ["violet-checkbox", "violet-radio", "violet-radio-group", "violet-slider", "violet-switch", "violet-text-field", "violet-text-area", "violet-chat-composer", "violet-listbox", "violet-option", "violet-select", "violet-combobox", "violet-progress", "violet-segment", "violet-segmented-control", "violet-calendar", "violet-date-picker", "violet-time-picker", "violet-color-picker", "violet-color-swatch", "violet-tree", "violet-tree-item", "violet-data-grid-pill-select", "violet-data-grid-rating"]
+    },
+    {
+      "name": "value-start",
+      "property": "valueStart",
+      "valueType": "string",
+      "category": "data",
+      "definition": "Carries the lower bound value of a dual-thumb range control.",
+      "useFor": ["range sliders with two handles"],
+      "doNotUseFor": ["single-value controls"],
+      "usedBy": ["violet-range-slider"]
+    },
+    {
+      "name": "value-end",
+      "property": "valueEnd",
+      "valueType": "string",
+      "category": "data",
+      "definition": "Carries the upper bound value of a dual-thumb range control.",
+      "useFor": ["range sliders with two handles"],
+      "doNotUseFor": ["single-value controls"],
+      "usedBy": ["violet-range-slider"]
+    },
+    {
+      "name": "label-start",
+      "property": "labelStart",
+      "valueType": "string",
+      "category": "a11y",
+      "definition": "Accessible label for the lower thumb of a dual-thumb range control.",
+      "useFor": ["range sliders with two handles that need distinct screen-reader labels per thumb"],
+      "doNotUseFor": ["primary field labels", "single-value controls"],
+      "usedBy": ["violet-range-slider"]
+    },
+    {
+      "name": "label-end",
+      "property": "labelEnd",
+      "valueType": "string",
+      "category": "a11y",
+      "definition": "Accessible label for the upper thumb of a dual-thumb range control.",
+      "useFor": ["range sliders with two handles that need distinct screen-reader labels per thumb"],
+      "doNotUseFor": ["primary field labels", "single-value controls"],
+      "usedBy": ["violet-range-slider"]
+    },
+    {
+      "name": "icon",
+      "property": "icon",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Selects an icon asset from a component-owned icon registry or packaged icon source.",
+      "useFor": ["icon primitives", "components that intentionally resolve icons from an internal named registry"],
+      "doNotUseFor": ["form field names", "visual labels", "arbitrary image URLs"],
+      "usedBy": ["violet-icon", "violet-badge"]
+    },
+    {
+      "name": "src",
+      "property": "src",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Supplies the media source URL for a component that renders a native image resource.",
+      "useFor": ["image primitives", "other media components that intentionally wrap a native image source"],
+      "doNotUseFor": ["icon registry names", "fallback labels", "component identifiers"],
+      "usedBy": ["violet-image"]
+    },
+    {
+      "name": "alt",
+      "property": "alt",
+      "valueType": "string",
+      "category": "accessibility",
+      "definition": "Provides the alternative text for an informative image when the component renders a native image element.",
+      "useFor": ["image primitives", "other components that expose meaningful raster or photo content"],
+      "doNotUseFor": ["decorative images marked with decorative", "captions", "adjacent visible headings"],
+      "usedBy": ["violet-image"]
+    },
+    {
+      "name": "label",
+      "property": "label",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Provides the primary text label or internal accessible name for a control when the component owns its label rendering or accessible naming internally.",
+      "useFor": ["field wrappers", "control shells with internal label placement", "icon-only controls that need an explicit accessible name"],
+      "doNotUseFor": ["button body content that should come from a slot", "decorative headings"],
+      "usedBy": ["violet-icon", "violet-icon-button", "violet-persona", "violet-progress", "violet-radio-group", "violet-slider", "violet-spinner", "violet-badge", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-reasoning-block", "violet-chat-composer", "violet-listbox", "violet-option", "violet-option-group", "violet-select", "violet-combobox", "violet-segmented-control", "violet-breadcrumb", "violet-pagination", "violet-carousel", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker", "violet-color-swatch", "violet-tree", "violet-file-explorer"]
+    },
+    {
+      "name": "control-label",
+      "property": "controlLabel",
+      "valueType": "string",
+      "category": "accessibility",
+      "definition": "Names the field edited by the data-grid pill selector; its trigger combines this name with the current selected value.",
+      "useFor": ["the existing data-grid pill selector field-name contract"],
+      "doNotUseFor": ["selected option text", "new general controls that use label"],
+      "usedBy": ["violet-data-grid-pill-select"],
+      "notes": ["Preserves the existing control-label API used by custom grid editor templates."]
+    },
+    {
+      "name": "aria-label",
+      "property": "ariaLabel",
+      "valueType": "string",
+      "category": "accessibility",
+      "definition": "Provides an explicit ARIA label when visible label content is absent and the component needs a direct accessible name.",
+      "useFor": ["composite widgets that need a fallback accessible name", "controls whose visible label is intentionally omitted"],
+      "doNotUseFor": ["components that already render a visible label and can reference it internally", "duplicating adjacent visible text without need"],
+      "usedBy": ["violet-gantt", "violet-tree", "violet-data-grid-rating"]
+    },
+    {
+      "name": "aria-controls",
+      "property": "ariaControls",
+      "valueType": "string",
+      "category": "accessibility",
+      "definition": "Identifies the element whose content or presence is controlled by an interactive trigger.",
+      "useFor": ["button wrappers that forward a controls relationship to their native control"],
+      "doNotUseFor": ["visual grouping without an interactive control relationship", "references to unrelated content"],
+      "usedBy": ["violet-button"]
+    },
+    {
+      "name": "aria-expanded",
+      "property": "ariaExpanded",
+      "valueType": "string",
+      "category": "accessibility",
+      "definition": "Indicates whether content controlled by an interactive trigger is currently expanded or collapsed.",
+      "useFor": ["button wrappers that forward disclosure or popup state to their native control"],
+      "doNotUseFor": ["selection state", "visibility that is unrelated to the control"],
+      "usedBy": ["violet-button"]
+    },
+    {
+      "name": "aria-haspopup",
+      "property": "ariaHasPopup",
+      "valueType": "string",
+      "category": "accessibility",
+      "definition": "Indicates the availability and type of interactive popup triggered by a control.",
+      "useFor": ["button wrappers that open menus, listboxes, trees, grids, or dialogs"],
+      "doNotUseFor": ["noninteractive overlays", "content that does not use popup semantics"],
+      "usedBy": ["violet-button"]
+    },
+    {
+      "name": "heading",
+      "property": "heading",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Provides the primary title text for a component that owns an internal heading treatment.",
+      "useFor": ["empty states", "callouts", "other surfaces with a compact owned title slot"],
+      "doNotUseFor": ["slotted arbitrary heading markup when the consumer should control semantics directly", "button labels"],
+      "usedBy": ["violet-empty-state"]
+    },
+    {
+      "name": "message",
+      "property": "message",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Provides the main descriptive copy for a compact message surface that owns its text layout internally.",
+      "useFor": ["empty states", "message surfaces", "simple guided placeholders"],
+      "doNotUseFor": ["rich multi-slot body content", "ARIA live-region text that should stay separate from visible copy"],
+      "usedBy": ["violet-empty-state"]
+    },
+    {
+      "name": "decorative",
+      "property": "decorative",
+      "valueType": "boolean",
+      "category": "accessibility",
+      "definition": "Marks a visual-only element as decorative so assistive technology can ignore it.",
+      "useFor": ["icons or other visual affordances that are redundant with surrounding accessible text or labels"],
+      "doNotUseFor": ["interactive state", "hidden business logic", "content that carries unique meaning"],
+      "usedBy": ["violet-icon", "violet-persona", "violet-badge", "violet-spinner", "violet-divider", "violet-image", "violet-color-swatch"]
+    },
+    {
+      "name": "size",
+      "property": "size",
+      "valueType": "enum",
+      "allowedValues": [],
+      "allowedValuesByComponent": {
+        "violet-persona": ["xs", "sm", "md", "lg", "xl"],
+        "violet-badge": ["sm", "md", "lg"],
+        "violet-spinner": ["sm", "md", "lg"],
+        "violet-skeleton": ["sm", "md", "lg"],
+        "violet-date-picker": ["compact", "natural", "comfortable"],
+        "violet-time-picker": ["compact", "natural", "comfortable"],
+        "violet-date-range-picker": ["compact", "natural", "comfortable"],
+        "violet-file-upload": ["compact", "natural", "comfortable"],
+        "violet-color-picker": ["compact", "natural", "comfortable"],
+        "violet-color-swatch": ["compact", "natural", "comfortable"]
+      },
+      "category": "variant",
+      "definition": "Selects a component-owned size variant from a constrained set of supported visual sizes.",
+      "useFor": ["compact display primitives", "avatars", "badges", "status indicators where discrete sizes are part of the contract"],
+      "doNotUseFor": ["arbitrary CSS sizing", "data values", "semantic state"],
+      "usedBy": ["violet-persona", "violet-badge", "violet-spinner", "violet-skeleton", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker", "violet-color-swatch"]
+    },
+    {
+      "name": "fit",
+      "property": "fit",
+      "valueType": "enum",
+      "allowedValues": [],
+      "allowedValuesByComponent": {
+        "violet-image": ["cover", "contain", "fill"]
+      },
+      "category": "layout",
+      "definition": "Controls how media should scale inside the component's rendered bounds.",
+      "useFor": ["image or media primitives that intentionally expose object-fit-like behavior"],
+      "doNotUseFor": ["alignment unrelated to media sizing", "overall component density"],
+      "usedBy": ["violet-image"]
+    },
+    {
+      "name": "ratio",
+      "property": "ratio",
+      "valueType": "enum",
+      "allowedValues": [],
+      "allowedValuesByComponent": {
+        "violet-image": ["auto", "square", "landscape", "portrait", "video"]
+      },
+      "category": "layout",
+      "definition": "Constrains the aspect ratio of a media primitive without changing the underlying source.",
+      "useFor": ["image primitives", "media shells that need a few durable ratio presets"],
+      "doNotUseFor": ["arbitrary CSS sizing strings", "business-specific crop presets"],
+      "usedBy": ["violet-image"]
+    },
+    {
+      "name": "shape",
+      "property": "shape",
+      "valueType": "enum",
+      "allowedValues": [],
+      "allowedValuesByComponent": {
+        "violet-image": ["square", "rounded", "circle"],
+        "violet-skeleton": ["rect", "circle", "text"],
+        "violet-color-swatch": ["square", "circle"]
+      },
+      "category": "variant",
+      "definition": "Selects a bounded silhouette treatment for a visual primitive without changing its content semantics.",
+      "useFor": ["image and media primitives with a small durable set of outline treatments"],
+      "doNotUseFor": ["freeform border radii", "layout orientation", "selection state"],
+      "usedBy": ["violet-image", "violet-skeleton", "violet-color-swatch"]
+    },
+    {
+      "name": "lines",
+      "property": "lines",
+      "valueType": "string",
+      "category": "layout",
+      "definition": "Controls how many repeated placeholder lines a loading primitive should render.",
+      "useFor": ["skeleton or placeholder primitives with repeated line output"],
+      "doNotUseFor": ["rich text content", "pagination counts", "data values that should stay numeric properties"],
+      "usedBy": ["violet-skeleton"]
+    },
+    {
+      "name": "animated",
+      "property": "animated",
+      "valueType": "boolean",
+      "category": "state",
+      "definition": "Enables or disables a purely visual motion treatment without changing the component's content semantics.",
+      "useFor": ["decorative loading primitives", "other components where motion is optional but not stateful data"],
+      "doNotUseFor": ["business process state", "semantic busy indicators", "visibility control"],
+      "usedBy": ["violet-skeleton"]
+    },
+    {
+      "name": "loading",
+      "property": "loading",
+      "valueType": "enum",
+      "allowedValues": [],
+      "allowedValuesByComponent": {
+        "violet-image": ["eager", "lazy"]
+      },
+      "category": "native-media",
+      "definition": "Passes through the native media loading hint when the component wraps a resource that can be lazily loaded.",
+      "useFor": ["image primitives", "other native media wrappers"],
+      "doNotUseFor": ["general busy state", "placeholder visibility"],
+      "usedBy": ["violet-image"]
+    },
+    {
+      "name": "loop",
+      "property": "loop",
+      "valueType": "boolean",
+      "category": "behavior",
+      "definition": "Allows a paged or sequential component to wrap from the last item back to the first and vice versa during navigation.",
+      "useFor": ["carousels or other sequential composites where circular navigation is an intentional supported mode"],
+      "doNotUseFor": ["generic repeated data rendering", "animations", "pagination where wrapping would be surprising"],
+      "usedBy": ["violet-carousel"]
+    },
+    {
+      "name": "initials",
+      "property": "initials",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Provides explicit initials or short fallback text when a persona-like component is not rendering an image.",
+      "useFor": ["persona or avatar primitives with image fallback"],
+      "doNotUseFor": ["full visible names", "accessible labels that should use label instead", "arbitrary long text"],
+      "usedBy": ["violet-persona"]
+    },
+    {
+      "name": "placeholder",
+      "property": "placeholder",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Provides transient entry guidance when a text input or compact value picker is empty.",
+      "useFor": ["text-entry controls with native placeholder support", "chat composer input", "empty value pickers"],
+      "doNotUseFor": ["accessible labels", "persistent helper text", "non-entry content"],
+      "usedBy": ["violet-text-field", "violet-text-area", "violet-chat-composer", "violet-select", "violet-combobox", "violet-data-grid-pill-select", "violet-data-grid-multi-picker", "violet-data-grid-reference-picker", "violet-data-grid-persona-picker", "violet-data-grid-attachment-cell"]
+    },
+    {
+      "name": "supporting-text",
+      "property": "supportingText",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Provides secondary helper or contextual guidance associated with a control.",
+      "useFor": ["field helper copy", "supporting validation-adjacent guidance"],
+      "doNotUseFor": ["error state as a separate semantic concept", "tooltips", "button labels"],
+      "usedBy": ["violet-radio-group", "violet-slider", "violet-text-field", "violet-text-area", "violet-range-slider", "violet-select", "violet-combobox", "violet-segmented-control", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker", "violet-tree"],
+      "notes": ["If a component needs rich supporting content, prefer a named slot over overloading this attribute."]
+    },
+    {
+      "name": "error-text",
+      "property": "errorText",
+      "valueType": "string",
+      "category": "validation",
+      "definition": "Provides explicit validation copy that a component renders when it is invalid or required validation fails.",
+      "useFor": ["form-associated controls that own their visible error-message presentation", "custom controls that own their accessible error-message presentation"],
+      "doNotUseFor": ["helper copy", "browser-generated validation text passthrough without component-owned UI", "non-validation warnings"],
+      "usedBy": ["violet-radio-group", "violet-slider", "violet-range-slider", "violet-select", "violet-combobox", "violet-segmented-control", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-file-upload", "violet-color-picker", "violet-tree", "violet-data-grid-pill-select"]
+    },
+    {
+      "name": "error-announcement",
+      "property": "errorAnnouncement",
+      "valueType": "enum",
+      "allowedValues": ["self", "external"],
+      "category": "a11y",
+      "definition": "Selects whether a control announces its own validation text or delegates live announcement to an integrating surface.",
+      "useFor": ["custom controls embedded in a composite that already announces the same validation failure"],
+      "doNotUseFor": ["hiding validation text", "removing the focused control's error-message association", "selecting polite versus assertive urgency"],
+      "usedBy": ["violet-data-grid-pill-select"]
+    },
+    {
+      "name": "value-text",
+      "property": "valueText",
+      "valueType": "string",
+      "category": "accessibility",
+      "definition": "Provides user-meaningful spoken text for the current scalar value when the raw numeric value is not sufficient.",
+      "useFor": ["sliders or other range-like controls that expose discrete semantic labels such as low, medium, and high"],
+      "doNotUseFor": ["visible helper copy", "static labels", "general formatting unrelated to the current value"],
+      "usedBy": ["violet-slider", "violet-progress"]
+    },
+    {
+      "name": "min",
+      "property": "min",
+      "valueType": "string",
+      "category": "native-form",
+      "definition": "Passes through the minimum allowed scalar value for a native-like range or numeric control.",
+      "useFor": ["sliders", "numeric inputs", "other controls that intentionally mirror native range limits"],
+      "doNotUseFor": ["layout minimums", "string length validation", "collection sizes"],
+      "usedBy": ["violet-slider", "violet-range-slider", "violet-progress", "violet-calendar", "violet-date-picker", "violet-time-picker", "violet-text-field"]
+    },
+    {
+      "name": "page",
+      "property": "page",
+      "valueType": "number",
+      "category": "navigation",
+      "definition": "Indicates the current page number in a paginated navigation control.",
+      "useFor": ["pagination controls", "other explicit page-navigation primitives"],
+      "doNotUseFor": ["array indexes", "generic numeric values unrelated to navigation"],
+      "usedBy": ["violet-pagination"]
+    },
+    {
+      "name": "page-count",
+      "property": "pageCount",
+      "valueType": "number",
+      "category": "navigation",
+      "definition": "Indicates the total number of available pages in a paginated navigation control.",
+      "useFor": ["pagination controls"],
+      "doNotUseFor": ["collection sizes without paging semantics", "step counts in guided flows"],
+      "usedBy": ["violet-pagination"]
+    },
+    {
+      "name": "sibling-count",
+      "property": "siblingCount",
+      "valueType": "number",
+      "category": "layout",
+      "definition": "Controls how many adjacent page numbers remain visible on each side of the current page.",
+      "useFor": ["pagination controls with collapsed page ranges"],
+      "doNotUseFor": ["spacing values", "collection limits", "data counts"],
+      "usedBy": ["violet-pagination"]
+    },
+    {
+      "name": "boundary-count",
+      "property": "boundaryCount",
+      "valueType": "number",
+      "category": "layout",
+      "definition": "Controls how many always-visible page numbers are shown at the beginning and end of a paginated range.",
+      "useFor": ["pagination controls with collapsed page ranges"],
+      "doNotUseFor": ["border widths", "spacing values", "data counts"],
+      "usedBy": ["violet-pagination"]
+    },
+    {
+      "name": "slides-per-view",
+      "property": "slidesPerView",
+      "valueType": "number",
+      "category": "layout",
+      "definition": "Controls how many carousel items should be visible in the viewport at the same time.",
+      "useFor": ["carousels that intentionally support card-strip or multi-item layouts"],
+      "doNotUseFor": ["generic grid column counts", "arbitrary CSS layout knobs", "pagination item counts"],
+      "usedBy": ["violet-carousel"]
+    },
+    {
+      "name": "max",
+      "property": "max",
+      "valueType": "string",
+      "category": "native-form",
+      "definition": "Passes through the maximum allowed scalar value for a native-like range or numeric control.",
+      "useFor": ["sliders", "numeric inputs", "other controls that intentionally mirror native range limits"],
+      "doNotUseFor": ["layout maximums", "string length validation", "collection sizes"],
+      "usedBy": ["violet-slider", "violet-range-slider", "violet-calendar", "violet-date-picker", "violet-time-picker", "violet-date-range-picker", "violet-text-field"]
+    },
+    {
+      "name": "minlength",
+      "property": "minLength",
+      "valueType": "number",
+      "category": "native-form",
+      "definition": "Passes through the minimum allowed text length to the native single-line text control.",
+      "useFor": ["single-line field primitives that mirror native text length validation"],
+      "doNotUseFor": ["numeric minimums", "collection sizes", "layout minimums"],
+      "usedBy": ["violet-text-field"]
+    },
+    {
+      "name": "maxlength",
+      "property": "maxLength",
+      "valueType": "number",
+      "category": "native-form",
+      "definition": "Passes through the maximum allowed text length to the native text control.",
+      "useFor": ["single-line and multiline field primitives that mirror native text length validation"],
+      "doNotUseFor": ["numeric maximums", "collection sizes", "layout maximums", "display truncation"],
+      "usedBy": ["violet-text-field", "violet-text-area"]
+    },
+    {
+      "name": "pattern",
+      "property": "pattern",
+      "valueType": "string",
+      "category": "native-form",
+      "definition": "Passes through a regular expression the value must match to the native single-line text control.",
+      "useFor": ["single-line field primitives that mirror native pattern validation"],
+      "doNotUseFor": ["search filtering", "routing", "sanitization"],
+      "usedBy": ["violet-text-field"]
+    },
+    {
+      "name": "autocomplete",
+      "property": "autocomplete",
+      "valueType": "string",
+      "category": "native-form",
+      "definition": "Passes through the native autocomplete hint to the wrapped text control.",
+      "useFor": ["single-line field primitives that mirror native autofill semantics"],
+      "doNotUseFor": ["custom suggestion lists", "typeahead results"],
+      "usedBy": ["violet-text-field"]
+    },
+    {
+      "name": "max-files",
+      "property": "maxFiles",
+      "valueType": "number",
+      "category": "validation",
+      "definition": "Limits how many files a file-upload control may keep selected at one time.",
+      "useFor": ["file upload controls that intentionally cap the number of selected files"],
+      "doNotUseFor": ["generic collection pagination", "layout counts", "string length validation"],
+      "usedBy": ["violet-file-upload"]
+    },
+    {
+      "name": "max-file-size",
+      "property": "maxFileSize",
+      "valueType": "number",
+      "category": "validation",
+      "definition": "Limits the allowed size of each selected file, expressed in bytes.",
+      "useFor": ["file upload controls that validate per-file size before submission"],
+      "doNotUseFor": ["total payload budgeting", "visual sizing", "generic numeric ranges unrelated to files"],
+      "usedBy": ["violet-file-upload"]
+    },
+    {
+      "name": "step",
+      "property": "step",
+      "valueType": "string",
+      "category": "native-form",
+      "definition": "Passes through the increment interval for native-like range or numeric controls.",
+      "useFor": ["sliders", "numeric inputs", "other controls that intentionally mirror native stepping semantics"],
+      "doNotUseFor": ["animation timing", "layout spacing", "business workflow stages"],
+      "usedBy": ["violet-slider", "violet-range-slider", "violet-time-picker", "violet-text-field"]
+    },
+    {
+      "name": "rows",
+      "property": "rows",
+      "valueType": "number",
+      "category": "native-form",
+      "definition": "Passes through the visible row count for a multiline text control.",
+      "useFor": ["text areas", "multiline editors that intentionally mirror textarea semantics"],
+      "doNotUseFor": ["data-grid row collections", "layout density", "virtualization settings"],
+      "usedBy": ["violet-text-area"]
+    },
+    {
+      "name": "busy",
+      "property": "busy",
+      "valueType": "boolean",
+      "category": "state",
+      "definition": "Indicates the component is currently performing work and should present a loading or in-progress state.",
+      "useFor": ["rich components with asynchronous loading or refresh behavior", "conversation threads during streaming"],
+      "doNotUseFor": ["disabled controls unless they are actually loading", "one-off hover or pressed state"],
+      "usedBy": ["violet-data-grid", "violet-conversation-thread", "violet-file-explorer"]
+    },
+    {
+      "name": "inline",
+      "property": "inline",
+      "valueType": "boolean",
+      "category": "layout",
+      "definition": "Presents a compact inline-friendly layout that can collapse to control-only rendering when no label content is provided.",
+      "useFor": ["compact selection controls in tables, lists, toolbars, and other dense layouts"],
+      "doNotUseFor": ["display:inline styling in general", "visual emphasis variants", "selection state"],
+      "usedBy": ["violet-checkbox", "violet-radio", "violet-switch"]
+    },
+    {
+      "name": "density",
+      "property": "density",
+      "valueType": "enum",
+      "allowedValues": ["compact", "natural", "comfortable"],
+      "category": "layout",
+      "definition": "Selects a spacing and sizing rhythm variant for components that support multiple presentation densities.",
+      "useFor": ["data-heavy layouts", "components that intentionally support denser information display"],
+      "doNotUseFor": ["size scales like sm/md/lg", "visual emphasis", "selection mode"],
+      "usedBy": ["violet-gantt", "violet-data-grid"]
+    },
+    {
+      "name": "selection-mode",
+      "property": "selectionMode",
+      "valueType": "enum",
+      "allowedValues": ["none", "single", "multiple"],
+      "allowedValuesByComponent": {
+        "violet-data-grid": ["none", "single", "multiple"],
+        "violet-calendar": ["single", "range"],
+        "violet-file-explorer": ["none", "single", "multiple"]
+      },
+      "category": "behavior",
+      "definition": "Defines whether and how a collection component exposes row or item selection behavior.",
+      "useFor": ["data grids", "lists or collection views with explicit selection behavior"],
+      "doNotUseFor": ["binary checked state", "appearance variants"],
+      "usedBy": ["violet-data-grid", "violet-calendar", "violet-file-explorer"]
+    },
+    {
+      "name": "focus-mode",
+      "property": "focusMode",
+      "valueType": "enum",
+      "allowedValues": ["row", "cell"],
+      "category": "behavior",
+      "definition": "Defines whether keyboard navigation is oriented around whole rows or individual data cells.",
+      "useFor": ["data grids and spreadsheet-like collection components that support more than one keyboard navigation model"],
+      "doNotUseFor": ["selection state", "edit mode", "general focus styling"],
+      "usedBy": ["violet-data-grid"]
+    },
+    {
+      "name": "show-filter",
+      "property": "showFilter",
+      "valueType": "boolean",
+      "category": "behavior",
+      "definition": "Enables a component-owned filter control when the component intentionally offers built-in filtering chrome.",
+      "useFor": ["collection components that provide an optional built-in filter surface"],
+      "doNotUseFor": ["the filter query value itself", "generic visibility toggles unrelated to a built-in filter UI"],
+      "usedBy": ["violet-data-grid"]
+    },
+    {
+      "name": "show-fill",
+      "property": "showFill",
+      "valueType": "boolean",
+      "category": "behavior",
+      "definition": "Enables a visible fill track from the minimum value to the current value on a range-like control.",
+      "useFor": ["range inputs where a filled track conveys progress or magnitude"],
+      "doNotUseFor": ["general visibility toggles", "selection state"],
+      "usedBy": ["violet-slider"]
+    },
+    {
+      "name": "show-ticks",
+      "property": "showTicks",
+      "valueType": "boolean",
+      "category": "behavior",
+      "definition": "Renders tick marks at each step position along the track to indicate discrete stops.",
+      "useFor": ["range inputs with a small number of discrete steps where visual step indicators aid usability"],
+      "doNotUseFor": ["continuous ranges with many steps", "general decoration"],
+      "usedBy": ["violet-slider", "violet-range-slider"]
+    },
+    {
+      "name": "sort-mode",
+      "property": "sortMode",
+      "valueType": "enum",
+      "allowedValues": ["local", "external"],
+      "category": "behavior",
+      "definition": "Defines whether a component applies sorting internally or only reflects externally managed sort state.",
+      "useFor": ["data grids and collection components that can either sort local data or defer sorting to the host"],
+      "doNotUseFor": ["the current sort descriptor itself", "visual style variants", "general mode toggles unrelated to sorting"],
+      "usedBy": ["violet-data-grid"]
+    },
+    {
+      "name": "sticky-header",
+      "property": "stickyHeader",
+      "valueType": "boolean",
+      "category": "layout",
+      "definition": "Enables a header that remains pinned while the component's scrollable content moves beneath it.",
+      "useFor": ["table-like or collection components with a distinct header region"],
+      "doNotUseFor": ["global page chrome", "floating overlays", "general stickiness unrelated to a component header"],
+      "usedBy": ["violet-data-grid"]
+    },
+    {
+      "name": "virtualize",
+      "property": "virtualize",
+      "valueType": "boolean",
+      "category": "performance",
+      "definition": "Enables windowed rendering for large row sets while preserving the grid's semantic table contract.",
+      "useFor": ["collection components with large fixed-height data sets where rendering all rows would be unnecessarily expensive"],
+      "doNotUseFor": ["small tables", "column virtualization", "variable-height content that needs a different measurement strategy"],
+      "usedBy": ["violet-data-grid"]
+    },
+    {
+      "name": "preset",
+      "property": "preset",
+      "valueType": "enum",
+      "allowedValues": ["light", "dark"],
+      "category": "variant",
+      "definition": "Selects a named runtime theme preset for a scoped theme host.",
+      "useFor": ["theme hosts that intentionally switch a subtree between registered Violet theme presets"],
+      "doNotUseFor": ["component appearance variants", "selection state", "density", "brand-specific one-off modes"],
+      "usedBy": ["violet-theme"]
+    },
+    {
+      "name": "orientation",
+      "property": "orientation",
+      "valueType": "enum",
+      "allowedValues": ["horizontal", "vertical"],
+      "category": "layout",
+      "definition": "Defines whether a grouped set of options is laid out horizontally or vertically.",
+      "useFor": ["radio groups", "card surfaces", "other grouped controls where direction changes both layout and keyboard expectation framing"],
+      "doNotUseFor": ["text direction", "alignment", "single control icon placement"],
+      "usedBy": ["violet-radio-group", "violet-slider", "violet-range-slider", "violet-card", "violet-chat-suggestions", "violet-divider", "violet-empty-state", "violet-tabs"]
+    },
+    {
+      "name": "padding",
+      "property": "padding",
+      "valueType": "enum",
+      "allowedValues": ["none", "small", "medium", "large"],
+      "category": "layout",
+      "definition": "Selects a uniform internal spacing preset applied to all content sections of a surface component.",
+      "useFor": ["card surfaces", "dialog surfaces", "container components where internal padding should be controlled from the outside"],
+      "doNotUseFor": ["margin or external spacing", "gap between sibling components", "text indentation"],
+      "usedBy": ["violet-card", "violet-dialog"]
+    },
+    {
+      "name": "interactive",
+      "property": "interactive",
+      "valueType": "boolean",
+      "category": "behavior",
+      "definition": "Makes a surface component focusable and responsive to pointer and keyboard interaction without changing its semantic role.",
+      "useFor": ["card surfaces that act as clickable regions", "container components needing hover and focus feedback"],
+      "doNotUseFor": ["replacing a button or link", "disabled state", "selection state"],
+      "usedBy": ["violet-card"]
+    },
+    {
+      "name": "open",
+      "property": "open",
+      "valueType": "boolean",
+      "category": "state",
+      "definition": "Controls whether an overlay or expandable surface is currently visible.",
+      "useFor": ["dialogs", "tooltips", "teaching tips", "drawers", "expandable panels", "overlay surfaces with declarative open state"],
+      "doNotUseFor": ["checked state", "selection state", "visibility toggling via CSS classes"],
+      "usedBy": ["violet-dialog", "violet-tooltip", "violet-teaching-tip", "violet-select", "violet-combobox", "violet-toast", "violet-snackbar", "violet-date-picker", "violet-date-range-picker"]
+    },
+    {
+      "name": "locale",
+      "property": "locale",
+      "valueType": "string",
+      "category": "internationalization",
+      "definition": "Supplies a BCP 47 locale tag that influences locale-sensitive formatting and labels.",
+      "useFor": ["date and time controls", "calendar surfaces", "components with explicit locale-aware formatting behavior"],
+      "doNotUseFor": ["timezone identifiers", "theme names", "arbitrary display text"],
+      "usedBy": ["violet-gantt", "violet-calendar", "violet-date-picker", "violet-date-range-picker"]
+    },
+    {
+      "name": "start",
+      "property": "start",
+      "valueType": "string",
+      "category": "data",
+      "definition": "Carries the starting boundary of a range-like selection in canonical string form.",
+      "useFor": ["range calendars", "date-range controls"],
+      "doNotUseFor": ["single-value controls", "layout offsets"],
+      "usedBy": ["violet-calendar", "violet-date-range-picker"]
+    },
+    {
+      "name": "end",
+      "property": "end",
+      "valueType": "string",
+      "category": "data",
+      "definition": "Carries the ending boundary of a range-like selection in canonical string form.",
+      "useFor": ["range calendars", "date-range controls"],
+      "doNotUseFor": ["single-value controls", "layout offsets"],
+      "usedBy": ["violet-calendar", "violet-date-range-picker"]
+    },
+    {
+      "name": "dismissible",
+      "property": "dismissible",
+      "valueType": "boolean",
+      "category": "behavior",
+      "definition": "Adds a built-in dismiss control so the user can explicitly remove a message surface.",
+      "useFor": ["alerts", "toasts", "snackbars", "persistent notices that should expose a standard dismiss affordance"],
+      "doNotUseFor": ["disabling light-dismiss on overlays", "hiding content conditionally without user control"],
+      "usedBy": ["violet-alert", "violet-toast", "violet-snackbar"]
+    },
+    {
+      "name": "announcement",
+      "property": "announcement",
+      "valueType": "enum",
+      "allowedValues": ["off", "polite", "assertive"],
+      "category": "a11y",
+      "definition": "Controls whether a message surface should behave as a live region and how urgently it should be announced.",
+      "useFor": ["alerts", "toasts", "snackbars", "status messaging that may need explicit polite or assertive announcement"],
+      "doNotUseFor": ["general visibility state", "replacing visual tone", "author role semantics"],
+      "usedBy": ["violet-alert", "violet-toast", "violet-snackbar"]
+    },
+    {
+      "name": "timeout",
+      "property": "timeout",
+      "valueType": "number",
+      "category": "behavior",
+      "definition": "Specifies the auto-dismiss duration in milliseconds for a transient messaging surface.",
+      "useFor": ["toasts", "snackbars", "ephemeral notices that should close themselves after a delay"],
+      "doNotUseFor": ["animation durations", "network timeouts", "tooltip delays"],
+      "usedBy": ["violet-toast", "violet-snackbar"]
+    },
+    {
+      "name": "selection-follows-focus",
+      "property": "selectionFollowsFocus",
+      "valueType": "boolean",
+      "category": "behavior",
+      "definition": "Determines whether moving the active option with the keyboard also commits selection immediately.",
+      "useFor": ["listbox-like composites where authors need either APG-style focus-only navigation or selection-on-navigation behavior"],
+      "doNotUseFor": ["pointer hover behavior", "general focus styling", "single control pressed state"],
+      "usedBy": ["violet-listbox"]
+    },
+    {
+      "name": "no-close-button",
+      "property": "noCloseButton",
+      "valueType": "boolean",
+      "category": "behavior",
+      "definition": "Hides the default close button in an overlay surface header, requiring the consumer to provide explicit dismiss controls.",
+      "useFor": ["dialogs and overlays where the default close button conflicts with a custom header layout or where dismissal must be explicit"],
+      "doNotUseFor": ["disabling close entirely", "hiding all header content"],
+      "usedBy": ["violet-dialog", "violet-teaching-tip"]
+    },
+    {
+      "name": "no-backdrop",
+      "property": "noBackdrop",
+      "valueType": "boolean",
+      "category": "behavior",
+      "definition": "Removes the semi-transparent backdrop overlay behind a modal surface, allowing the background to remain fully visible.",
+      "useFor": ["dialogs where the backdrop dimming is undesirable or where the dialog sits over already-dimmed content"],
+      "doNotUseFor": ["disabling light dismiss", "hiding the dialog itself"],
+      "usedBy": ["violet-dialog"]
+    },
+    {
+      "name": "content",
+      "property": "content",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Provides plain-text content for a lightweight overlay as an alternative to slotting elements.",
+      "useFor": ["tooltips", "teaching tips", "other short-text overlays where slotting a child element is unnecessary"],
+      "doNotUseFor": ["rich formatted content", "body content of dialogs or cards", "replacing slot-based content models"],
+      "usedBy": ["violet-tooltip", "violet-teaching-tip"]
+    },
+    {
+      "name": "positioning",
+      "property": "positioning",
+      "valueType": "enum",
+      "allowedValues": ["above", "below", "before", "after"],
+      "category": "layout",
+      "definition": "Selects the preferred placement direction for a positioned overlay relative to its anchor.",
+      "useFor": ["tooltips", "teaching tips", "popovers", "positioned overlays that need a directional hint"],
+      "doNotUseFor": ["orientation of grouped controls", "text direction", "layout flow"],
+      "usedBy": ["violet-tooltip", "violet-teaching-tip", "violet-popover"]
+    },
+    {
+      "name": "delay",
+      "property": "delay",
+      "valueType": "number",
+      "category": "behavior",
+      "definition": "Specifies the show delay in milliseconds before a hover-triggered overlay becomes visible.",
+      "useFor": ["tooltips", "hover-triggered overlays where immediate display is undesirable"],
+      "doNotUseFor": ["animation duration", "debounce intervals", "timeout values for network requests"],
+      "usedBy": ["violet-tooltip"]
+    },
+    {
+      "name": "anchor",
+      "property": "anchor",
+      "valueType": "string",
+      "category": "a11y",
+      "definition": "References the ID of an external trigger element that the overlay positions itself relative to.",
+      "useFor": ["tooltips", "teaching tips", "popovers anchored to elements outside their DOM subtree"],
+      "doNotUseFor": ["internal component wiring", "replacing slot-based trigger patterns when the trigger is a direct child"],
+      "usedBy": ["violet-tooltip", "violet-teaching-tip", "violet-popover"]
+    },
+    {
+      "name": "current-step",
+      "property": "currentStep",
+      "valueType": "number",
+      "category": "state",
+      "definition": "Indicates the current step index in a multi-step sequence displayed by an overlay.",
+      "useFor": ["teaching tips", "onboarding overlays with step-by-step progression"],
+      "doNotUseFor": ["carousel slides", "pagination", "form wizard steps managed by a parent container"],
+      "usedBy": ["violet-teaching-tip"]
+    },
+    {
+      "name": "total-steps",
+      "property": "totalSteps",
+      "valueType": "number",
+      "category": "state",
+      "definition": "Indicates the total number of steps in a multi-step sequence, enabling a step indicator display.",
+      "useFor": ["teaching tips", "onboarding overlays where the user should see progress"],
+      "doNotUseFor": ["dynamic collections with unknown length", "pagination total counts"],
+      "usedBy": ["violet-teaching-tip"]
+    },
+    {
+      "name": "empty",
+      "property": "empty",
+      "valueType": "boolean",
+      "category": "state",
+      "definition": "Indicates the component has no content and should display an empty state.",
+      "useFor": ["conversation threads", "collection views that can be empty"],
+      "doNotUseFor": ["validation state", "loading state"],
+      "usedBy": ["violet-conversation-thread"]
+    },
+    {
+      "name": "message-role",
+      "property": "messageRole",
+      "valueType": "enum",
+      "allowedValues": [],
+      "allowedValuesByComponent": {
+        "violet-message": ["user", "assistant", "system"]
+      },
+      "category": "variant",
+      "definition": "Identifies the author role of a message for visual styling and semantic labeling.",
+      "useFor": ["chat messages where the author's role determines visual treatment"],
+      "doNotUseFor": ["ARIA roles", "user permissions", "access control"],
+      "usedBy": ["violet-message"]
+    },
+    {
+      "name": "tone",
+      "property": "tone",
+      "valueType": "enum",
+      "allowedValues": [],
+      "allowedValuesByComponent": {
+        "violet-message": ["default", "muted", "error", "success"],
+        "violet-alert": ["default", "info", "success", "warning", "danger"],
+        "violet-toast": ["default", "info", "success", "warning", "danger"],
+        "violet-snackbar": ["default", "info", "success", "warning", "danger"],
+        "violet-text": ["default", "secondary", "muted", "success", "warning", "danger"]
+      },
+      "category": "variant",
+      "definition": "Applies a semantic visual tone to a message surface without changing its structure.",
+      "useFor": ["messages that need to convey state beyond the default appearance", "typography primitives that need semantic text emphasis"],
+      "doNotUseFor": ["replacing role-based styling", "validation indicators on form fields"],
+      "usedBy": ["violet-message", "violet-alert", "violet-toast", "violet-snackbar", "violet-text"]
+    },
+    {
+      "name": "variant",
+      "property": "variant",
+      "valueType": "enum",
+      "allowedValues": [],
+      "allowedValuesByComponent": {
+        "violet-text": ["body", "label", "caption", "title-sm", "title-md"]
+      },
+      "category": "variant",
+      "definition": "Selects a bounded internal presentation variant while keeping the component's underlying semantic role intact.",
+      "useFor": ["typography primitives", "other reusable components with a small stable set of presentation modes"],
+      "doNotUseFor": ["business state", "native control type", "open-ended per-product styling"],
+      "usedBy": ["violet-text"]
+    },
+    {
+      "name": "truncate",
+      "property": "truncate",
+      "valueType": "boolean",
+      "category": "layout",
+      "definition": "Constrains a single line of content to ellipsis truncation when it overflows its available inline space.",
+      "useFor": ["typography primitives", "labels and other short content that may need single-line overflow behavior"],
+      "doNotUseFor": ["multi-line clamping", "hiding content for accessibility", "general visibility control"],
+      "usedBy": ["violet-text"]
+    },
+    {
+      "name": "streaming",
+      "property": "streaming",
+      "valueType": "boolean",
+      "category": "state",
+      "definition": "Indicates the component is actively receiving streamed content.",
+      "useFor": ["messages during streaming response", "components that render incrementally"],
+      "doNotUseFor": ["general loading state", "busy state"],
+      "usedBy": ["violet-message"]
+    },
+    {
+      "name": "state",
+      "property": "state",
+      "valueType": "enum",
+      "allowedValues": [],
+      "allowedValuesByComponent": {
+        "violet-message-text": ["streaming", "done"],
+        "violet-reasoning-block": ["streaming", "done"],
+        "violet-tool-call-card": ["pending", "approval-requested", "executing", "output-available", "output-error", "cancelled"],
+        "violet-tool-result-card": ["pending", "executing", "output-available", "output-error"],
+        "violet-approval-card": ["pending", "approved", "denied"]
+      },
+      "category": "state",
+      "definition": "Indicates the lifecycle state of a message part or tool invocation.",
+      "useFor": ["text parts", "reasoning blocks", "tool call cards", "tool result cards", "approval cards"],
+      "doNotUseFor": ["visual tone or appearance", "validation state"],
+      "usedBy": ["violet-message-text", "violet-reasoning-block", "violet-tool-call-card", "violet-tool-result-card", "violet-approval-card"],
+      "notes": ["Allowed values vary by component and will expand as more conversation primitives are added."]
+    },
+    {
+      "name": "status",
+      "property": "status",
+      "valueType": "enum",
+      "allowedValues": [],
+      "allowedValuesByComponent": {
+        "violet-message-status": ["submitted", "streaming", "error", "cancelled", "retrying"],
+        "violet-chat-composer": ["ready", "submitted", "streaming", "error"]
+      },
+      "category": "state",
+      "definition": "Indicates the current chat stream status for inline display between messages or composer state.",
+      "useFor": ["chat status indicators", "stream state display", "composer input state"],
+      "doNotUseFor": ["HTTP status codes", "validation status"],
+      "usedBy": ["violet-message-status", "violet-chat-composer"]
+    },
+    {
+      "name": "expandable",
+      "property": "expandable",
+      "valueType": "boolean",
+      "category": "state",
+      "definition": "Advertises that a branch can be expanded even though its children are not rendered yet, so lazily loaded branches still expose aria-expanded and an expansion toggle.",
+      "useFor": ["tree items whose children are loaded on demand"],
+      "doNotUseFor": ["current open state (use expanded)", "branches whose children are already rendered", "menu or dialog visibility"],
+      "usedBy": ["violet-tree-item"]
+    },
+    {
+      "name": "expanded",
+      "property": "expanded",
+      "valueType": "boolean",
+      "category": "state",
+      "definition": "Indicates whether a collapsible section is currently expanded and its content visible.",
+      "useFor": ["collapsible reasoning blocks", "tree branches", "expandable detail panels", "tool result detail"],
+      "doNotUseFor": ["menu open state", "dialog visibility"],
+      "usedBy": ["violet-reasoning-block", "violet-tool-result-card", "violet-accordion-item", "violet-tree-item"]
+    },
+    {
+      "name": "current-folder-id",
+      "property": "currentFolderId",
+      "valueType": "string",
+      "category": "navigation",
+      "definition": "Identifies the folder whose contents a file browser is currently showing; an empty value means the root.",
+      "useFor": ["file explorers and other hierarchical browsers whose current location is host-controllable"],
+      "doNotUseFor": ["selected item ids", "breadcrumb current state (use current)", "tree selection value"],
+      "usedBy": ["violet-file-explorer"]
+    },
+    {
+      "name": "root-label",
+      "property": "rootLabel",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Names the implicit top-level location of a hierarchical browser, shown as the first breadcrumb and tree root.",
+      "useFor": ["file explorers whose host supplies items without an explicit root item"],
+      "doNotUseFor": ["accessible names for the whole component (use label)"],
+      "usedBy": ["violet-file-explorer"]
+    },
+    {
+      "name": "load-error",
+      "property": "loadError",
+      "valueType": "string",
+      "category": "state",
+      "definition": "Host-supplied message describing why the current content failed to load; when set, the component shows an error state with a retry action instead of its content.",
+      "useFor": ["asynchronously loaded collection views that own their error presentation and retry affordance"],
+      "doNotUseFor": ["form validation copy (use error-text)", "transient notifications"],
+      "usedBy": ["violet-file-explorer"]
+    },
+    {
+      "name": "heading-level",
+      "property": "headingLevel",
+      "valueType": "number",
+      "category": "a11y",
+      "definition": "Sets the semantic heading level announced for a slotted accordion or disclosure header.",
+      "useFor": ["accordion items", "disclosure sections with heading semantics"],
+      "doNotUseFor": ["visual size changes", "CSS heading styles"],
+      "usedBy": ["violet-accordion-item"]
+    },
+    {
+      "name": "expand-mode",
+      "property": "expandMode",
+      "valueType": "enum",
+      "allowedValues": ["single", "multi"],
+      "category": "behavior",
+      "definition": "Controls whether a grouped disclosure container allows one expanded item at a time or multiple expanded items simultaneously.",
+      "useFor": ["accordions and grouped disclosure controls"],
+      "doNotUseFor": ["orientation", "selection modes unrelated to disclosure"],
+      "usedBy": ["violet-accordion"]
+    },
+    {
+      "name": "src",
+      "property": "src",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Specifies the URL or data URL of the media source to render.",
+      "useFor": ["media attachments", "image previews"],
+      "doNotUseFor": ["navigation links", "API endpoints"],
+      "usedBy": ["violet-message-media", "violet-persona"]
+    },
+    {
+      "name": "media-type",
+      "property": "mediaType",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Specifies the IANA media type (MIME type) of the content, used to determine rendering strategy.",
+      "useFor": ["media attachments", "source citations with document types"],
+      "doNotUseFor": ["file extensions", "display labels"],
+      "usedBy": ["violet-message-media", "violet-source-citation"]
+    },
+    {
+      "name": "filename",
+      "property": "filename",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Specifies the display filename for a media attachment or file reference.",
+      "useFor": ["file attachments", "download references"],
+      "doNotUseFor": ["file paths", "internal identifiers"],
+      "usedBy": ["violet-message-media"]
+    },
+    {
+      "name": "alt",
+      "property": "alt",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Provides alternative text for image media, used as the alt attribute on rendered images.",
+      "useFor": ["image media attachments"],
+      "doNotUseFor": ["tooltips", "visible labels"],
+      "usedBy": ["violet-message-media"]
+    },
+    {
+      "name": "href",
+      "property": "href",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Specifies the URL target for a rendered link.",
+      "useFor": ["source citations with URLs", "breadcrumb items", "other explicit navigation links"],
+      "doNotUseFor": ["API endpoints", "non-link identifiers"],
+      "usedBy": ["violet-source-citation", "violet-breadcrumb-item"]
+    },
+    {
+      "name": "source-title",
+      "property": "sourceTitle",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Provides the display title for a source citation.",
+      "useFor": ["source citations"],
+      "doNotUseFor": ["page headings", "component titles"],
+      "usedBy": ["violet-source-citation"]
+    },
+    {
+      "name": "source-id",
+      "property": "sourceId",
+      "valueType": "string",
+      "category": "identity",
+      "definition": "Unique identifier for a source reference, used for deduplication across citation lists.",
+      "useFor": ["source citations"],
+      "doNotUseFor": ["DOM element IDs", "data record IDs"],
+      "usedBy": ["violet-source-citation"]
+    },
+    {
+      "name": "index",
+      "property": "index",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Numeric badge label displayed alongside a citation for footnote-style referencing.",
+      "useFor": ["source citation numbering"],
+      "doNotUseFor": ["array indices", "sort order"],
+      "usedBy": ["violet-source-citation"]
+    },
+    {
+      "name": "tool-name",
+      "property": "toolName",
+      "valueType": "string",
+      "category": "content",
+      "definition": "Identifies the tool being invoked, displayed in the card header.",
+      "useFor": ["tool call cards"],
+      "doNotUseFor": ["general labels", "component names"],
+      "usedBy": ["violet-tool-call-card"]
+    },
+    {
+      "name": "tool-call-id",
+      "property": "toolCallId",
+      "valueType": "string",
+      "category": "identity",
+      "definition": "Unique identifier for a tool invocation, used to correlate calls with results and approval responses.",
+      "useFor": ["tool call cards"],
+      "doNotUseFor": ["DOM element IDs", "display text"],
+      "usedBy": ["violet-tool-call-card"]
+    }
+  ]
+}

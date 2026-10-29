@@ -1,0 +1,86 @@
+name: FAST-AF
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'foundations/fast-af/**'
+      - 'tests/consumers/fast-af/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/fast-af.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'foundations/fast-af/**'
+      - 'tests/consumers/fast-af/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/fast-af.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Upstream FAST-AF setting: force a Chromium GC after each Vitest browser file so shared-memory
+  # files do not accumulate in /tmp during the component suite.
+  VITEST_CHROMIUM_GC_DISK_THRESHOLD_GB: '1000'
+
+jobs:
+  runtime:
+    name: fast-element build, migration rules and three-browser suites
+    runs-on: ubuntu-latest
+    # Upstream reports 23-36 minutes for this scope on healthy runners.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build (exports, types, bundles, API reports)
+        run: pnpm -F @lushly-dev/fast-element build
+      - name: Build leaves tracked sources and API reports unchanged
+        run: git diff --exit-code -- foundations/fast-af && test -z "$(git status --porcelain -- foundations/fast-af)"
+      - name: Link the ast-grep binary (pnpm does not run dependency install scripts here)
+        run: node foundations/fast-af/packages/element/packages/fast-element/node_modules/@ast-grep/cli/postinstall.js
+      - run: pnpm -F @lushly-dev/fast-element exec playwright install --with-deps chromium firefox webkit
+      - name: Upstream test:ci (docs, API reports, exports, types, migration rules, Playwright)
+        run: pnpm -F @lushly-dev/fast-element test:ci
+
+  components:
+    name: violet-elements Chromium suite, generated artifacts and packed consumers
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -F "@lushly-dev/violet-elements..." build
+      - name: Regenerated theme, icons and custom-elements manifest match the tracked files
+        run: |
+          pnpm -F @lushly-dev/violet-elements theme:build
+          pnpm -F @lushly-dev/violet-elements icons:build
+          pnpm -F @lushly-dev/violet-elements cem:analyze
+          git diff --exit-code -- foundations/fast-af
+          test -z "$(git status --porcelain -- foundations/fast-af)"
+      - run: pnpm -F @lushly-dev/violet-elements lint
+      - run: pnpm -F @lushly-dev/violet-elements exec playwright install --with-deps chromium
+      - name: Component browser suite with coverage thresholds
+        run: pnpm -F @lushly-dev/violet-elements test:browser
+      - name: Packed-artifact consumers outside the workspace
+        run: node tests/consumers/fast-af/verify-artifacts.mjs --browser chromium --output "$RUNNER_TEMP/fast-af-receipt"
+      - name: Upload consumer receipt
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fast-af-artifact-receipt
+          path: ${{ runner.temp }}/fast-af-receipt/
+          retention-days: 7

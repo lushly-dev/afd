@@ -175,13 +175,16 @@ export function discoverDistributions(root, inventory = loadInventory(root), { f
 				if (format === 'python' && !parseToml(read(root, file)).project) continue;
 				if (format === 'rust' && !parseToml(read(root, file)).package) continue;
 				const distribution = readDistribution(root, { manifest: file, format });
-				if (distribution.private) continue;
 				const owner = inventory.units.find((unit) =>
 					unit.distributions.some((entry) => entry.manifest === file)
 				);
 				const declared = owner?.distributions.find((entry) => entry.manifest === file);
 				if (declared && (declared.name !== distribution.name || declared.format !== format))
 					fail(`Manifest identity changed: ${file}`);
+				// A private manifest can never publish; a declared one only records ownership.
+				if (distribution.private) continue;
+				if (declared?.private === true)
+					fail(`Declared private distribution became public: ${file}; review its release contract`);
 				if (
 					declared?.initialVersion &&
 					(!semver.valid(distribution.version) ||
@@ -203,8 +206,15 @@ export function discoverDistributions(root, inventory = loadInventory(root), { f
 	for (const unit of inventory.units)
 		for (const entry of unit.distributions) {
 			if (formats && !formats.includes(entry.format)) continue;
-			if (!found.some((distribution) => distribution.manifest === entry.manifest))
-				fail(`Declared public distribution missing: ${entry.manifest}`);
+			if (found.some((distribution) => distribution.manifest === entry.manifest)) continue;
+			if (entry.private === true) {
+				const manifest = existsSync(safePath(root, entry.manifest))
+					? readDistribution(root, entry)
+					: null;
+				if (manifest?.private && manifest.name === entry.name) continue;
+				fail(`Declared private distribution missing or renamed: ${entry.manifest}`);
+			}
+			fail(`Declared public distribution missing: ${entry.manifest}`);
 		}
 	const identities = found.map(
 		(entry) => `${entry.registry}:${registryName(entry.registry, entry.name)}`

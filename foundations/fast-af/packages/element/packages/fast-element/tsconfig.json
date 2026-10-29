@@ -1,0 +1,24 @@
+{
+    "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "rootDir": "./src",
+        "declarationDir": "dist/dts",
+        "outDir": "dist/esm",
+        "verbatimModuleSyntax": true,
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true,
+        "strict": false,
+        "noImplicitAny": false,
+        "noImplicitThis": false,
+        "strictBindCallApply": false,
+        "strictFunctionTypes": false,
+        "strictPropertyInitialization": false,
+        "target": "es2015",
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "types": [],
+        "lib": ["DOM", "ES2015", "ES2016.Array.Include"]
+    },
+    "include": ["src"],
+    "exclude": ["src/**/*.spec.ts", "src/**/*.pw.spec.ts"]
+}

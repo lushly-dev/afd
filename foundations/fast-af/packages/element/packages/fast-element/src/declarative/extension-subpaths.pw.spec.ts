@@ -1,0 +1,338 @@
+import { fileURLToPath } from "node:url";
+import { expect, test } from "@playwright/test";
+import { build } from "esbuild";
+
+const packageRoot = fileURLToPath(new URL("../../", import.meta.url));
+
+test.describe("extension subpaths", () => {
+    test("exports v3 and FAST-AF extension subpaths", async ({ page }) => {
+        await page.goto("/");
+
+        const result = await page.evaluate(async () => {
+            const {
+                AttributeMap,
+                CommandRegistry,
+                Schema,
+                TRUST_KEY,
+                attributeMap,
+                enableDefinitionSchema,
+                observerMap,
+                supportsScopedRegistries,
+            } = await import(
+                // @ts-expect-error: Client module.
+                "/extension-subpaths-main.js"
+            );
+
+            return {
+                hasAttributeMapClass: typeof AttributeMap === "function",
+                hasAttributeMap: typeof attributeMap === "function",
+                hasCommandRegistry: typeof CommandRegistry.execute === "function",
+                hasDefinitionSchema: typeof enableDefinitionSchema === "function",
+                hasObserverMap: typeof observerMap === "function",
+                hasSchema: typeof Schema === "function",
+                hasScopedRegistry: typeof supportsScopedRegistries === "function",
+                trustKey: TRUST_KEY,
+            };
+        });
+
+        expect(result.hasAttributeMapClass).toBe(true);
+        expect(result.hasAttributeMap).toBe(true);
+        expect(result.hasCommandRegistry).toBe(true);
+        expect(result.hasDefinitionSchema).toBe(true);
+        expect(result.hasObserverMap).toBe(true);
+        expect(result.hasSchema).toBe(true);
+        expect(result.hasScopedRegistry).toBe(true);
+        expect(result.trustKey).toBe("__trust");
+    });
+
+    test("exports the FAST element registry from the registry subpath", async ({
+        page,
+    }) => {
+        await page.goto("/");
+
+        const result = await page.evaluate(async () => {
+            // @ts-expect-error: Client module.
+            const { FASTElementDefinition, fastElementRegistry } = await import(
+                "/extension-subpaths-main.js"
+            );
+
+            class RegistrySubpathElement extends HTMLElement {}
+
+            const name = `registry-subpath-element-${crypto.randomUUID()}`;
+            const pendingDefinition = fastElementRegistry.whenRegistered(name);
+            const definition = await FASTElementDefinition.compose(
+                RegistrySubpathElement,
+                { name },
+            );
+            const registeredDefinition = await pendingDefinition;
+            definition.define();
+            const instance = document.createElement(name);
+
+            return {
+                hasRegistry: typeof fastElementRegistry.getByType === "function",
+                hasWhenRegistered:
+                    typeof fastElementRegistry.whenRegistered === "function",
+                whenRegisteredReturnsDefinition: registeredDefinition === definition,
+                getByTypeReturnsDefinition:
+                    fastElementRegistry.getByType(RegistrySubpathElement) === definition,
+                getForInstanceReturnsDefinition:
+                    fastElementRegistry.getForInstance(instance) === definition,
+            };
+        });
+        expect(result.hasRegistry).toBe(true);
+        expect(result.hasWhenRegistered).toBe(true);
+        expect(result.whenRegisteredReturnsDefinition).toBe(true);
+        expect(result.getByTypeReturnsDefinition).toBe(true);
+        expect(result.getForInstanceReturnsDefinition).toBe(true);
+    });
+
+    test("observerMap accepts a schema for non-declarative use", async ({ page }) => {
+        await page.goto("/");
+
+        const result = await page.evaluate(async () => {
+            // @ts-expect-error: Client module.
+            const { Schema, observerMap } = await import("/extension-subpaths-main.js");
+
+            class ManualElement {
+                public model: any;
+            }
+
+            const schema = new Schema("manual-observer-map");
+            schema.addPath({
+                rootPropertyName: "model",
+                pathConfig: {
+                    type: "default",
+                    path: "model.value",
+                    currentContext: null,
+                    parentContext: null,
+                },
+                childrenMap: null,
+            });
+
+            observerMap({ schema })({ type: ManualElement } as any);
+
+            const instance = new ManualElement();
+            instance.model = null;
+            const nextValue = { value: "before" };
+            instance.model = nextValue;
+
+            return {
+                hasAccessor:
+                    typeof Object.getOwnPropertyDescriptor(
+                        ManualElement.prototype,
+                        "model",
+                    )?.get === "function",
+                isProxy: instance.model.$isProxy === true,
+                preservesValue: instance.model.value === "before",
+                replacedOriginal: instance.model !== nextValue,
+            };
+        });
+
+        expect(result.hasAccessor).toBe(true);
+        expect(result.isProxy).toBe(true);
+        expect(result.preservesValue).toBe(true);
+        expect(result.replacedOriginal).toBe(true);
+    });
+
+    test("observerMap proxies public own properties rebound on connect", async ({
+        page,
+    }) => {
+        await page.goto("/");
+
+        const result = await page.evaluate(async () => {
+            // @ts-expect-error: Client module.
+            const { Schema, observerMap } = await import("/extension-subpaths-main.js");
+            // @ts-expect-error: Client module.
+            const { FASTElement, uniqueElementName } = await import("/main.js");
+
+            const name = uniqueElementName();
+            const schema = new Schema(name);
+            schema.addPath({
+                rootPropertyName: "model",
+                pathConfig: {
+                    type: "default",
+                    path: "model.value",
+                    currentContext: null,
+                    parentContext: null,
+                },
+                childrenMap: null,
+            });
+
+            class ObserverMapElement extends FASTElement {
+                public model: any;
+            }
+
+            await ObserverMapElement.define({ name, schema }, [observerMap({ schema })]);
+
+            const element = document.createElement(name) as any;
+            const originalValue = { value: "before" };
+            Object.defineProperty(element, "model", {
+                configurable: true,
+                enumerable: true,
+                value: originalValue,
+                writable: true,
+            });
+
+            document.body.appendChild(element);
+
+            const value = {
+                hasOwnModel: Object.prototype.hasOwnProperty.call(element, "model"),
+                isProxy: element.model.$isProxy === true,
+                preservesValue: element.model.value === "before",
+                replacedOriginal: element.model !== originalValue,
+            };
+
+            document.body.removeChild(element);
+
+            return value;
+        });
+
+        expect(result.hasOwnModel).toBe(false);
+        expect(result.isProxy).toBe(true);
+        expect(result.preservesValue).toBe(true);
+        expect(result.replacedOriginal).toBe(true);
+    });
+
+    test("observerMap observes items spliced into nested $defs arrays", async ({
+        page,
+    }) => {
+        await page.goto("/");
+
+        const result = await page.evaluate(async () => {
+            const { ArrayObserver, Schema, observerMap } = await import(
+                // @ts-expect-error: Client module.
+                "/extension-subpaths-main.js"
+            );
+
+            ArrayObserver.enable();
+
+            class ManualElement {
+                public someData: any;
+            }
+
+            const schema = new Schema("manual-defs-array");
+            schema.addPath({
+                rootPropertyName: "someData",
+                pathConfig: {
+                    type: "repeat",
+                    path: "someData.items",
+                    currentContext: "item",
+                    parentContext: null,
+                },
+                childrenMap: null,
+            });
+            schema.addPath({
+                rootPropertyName: "someData",
+                pathConfig: {
+                    type: "default",
+                    path: "item.name",
+                    currentContext: "item",
+                    parentContext: null,
+                },
+                childrenMap: null,
+            });
+
+            observerMap({ schema })({ type: ManualElement } as any);
+
+            const instance = new ManualElement();
+            instance.someData = {
+                items: [{ name: "first" }],
+            };
+
+            instance.someData.items.push({ name: "second" });
+            await new Promise(resolve =>
+                requestAnimationFrame(() => requestAnimationFrame(resolve)),
+            );
+
+            return {
+                hasObservableName:
+                    typeof Object.getOwnPropertyDescriptor(
+                        instance.someData.items[1],
+                        "name",
+                    )?.get === "function",
+            };
+        });
+
+        expect(result.hasObservableName).toBe(true);
+    });
+
+    test("observerMap reports missing schemas for non-declarative definitions", async ({
+        page,
+    }) => {
+        await page.goto("/");
+
+        const message = await page.evaluate(async () => {
+            // @ts-expect-error: Client module.
+            const { observerMap } = await import("/extension-subpaths-main.js");
+
+            class ManualElement {}
+
+            try {
+                observerMap()({ type: ManualElement } as any);
+            } catch (error) {
+                return (error as Error).message;
+            }
+
+            return "";
+        });
+
+        expect(message).toContain("observerMap requires a schema");
+    });
+
+    test("attributeMap reports missing schemas for non-declarative definitions", async ({
+        page,
+    }) => {
+        await page.goto("/");
+
+        const message = await page.evaluate(async () => {
+            // @ts-expect-error: Client module.
+            const { attributeMap } = await import("/extension-subpaths-main.js");
+
+            class ManualElement {}
+
+            try {
+                attributeMap()({ type: ManualElement } as any);
+            } catch (error) {
+                return (error as Error).message;
+            }
+
+            return "";
+        });
+
+        expect(message).toContain("attributeMap requires a schema");
+    });
+
+    test("map entrypoints do not bundle declarative template runtime", async () => {
+        const result = await build({
+            stdin: {
+                contents: `
+                    import { attributeMap } from "./src/declarative/attribute-map.ts";
+                    import { observerMap } from "./src/declarative/observer-map.ts";
+                    export { attributeMap, observerMap };
+                `,
+                loader: "ts",
+                resolveDir: packageRoot,
+            },
+            bundle: true,
+            format: "esm",
+            metafile: true,
+            minify: true,
+            treeShaking: true,
+            write: false,
+        });
+
+        const declarativeInputs = Object.keys(result.metafile!.inputs).filter(input => {
+            if (!input.includes("src/declarative/")) {
+                return false;
+            }
+
+            return !(
+                input.endsWith("src/declarative/attribute-map.ts") ||
+                input.endsWith("src/declarative/observer-map.ts") ||
+                input.endsWith("src/declarative/observer-map-utilities.ts")
+            );
+        });
+
+        expect(declarativeInputs).toEqual([]);
+    });
+});

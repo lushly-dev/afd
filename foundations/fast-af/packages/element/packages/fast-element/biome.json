@@ -1,0 +1,73 @@
+{
+    "root": false,
+    "extends": "//",
+    "files": {
+        "includes": [
+            "src/**",
+            "test/**",
+            "scripts/**",
+            "*.json",
+            "*.ts",
+            "*.js",
+            "!CHANGELOG.json",
+            "!package.json",
+            "!test/declarative/fixtures/**/*.html"
+        ]
+    },
+    "formatter": {
+        "indentStyle": "space",
+        "indentWidth": 4,
+        "lineWidth": 90
+    },
+    "linter": {
+        "rules": {
+            "complexity": {
+                "noBannedTypes": "off",
+                "noExtraBooleanCast": "off",
+                "noStaticOnlyClass": "off",
+                "noThisInStatic": "off",
+                "noUselessTypeConstraint": "warn",
+                "useArrowFunction": "off",
+                "useLiteralKeys": "off",
+                "useOptionalChain": "off"
+            },
+            "correctness": {
+                "noInnerDeclarations": "off",
+                "noUnusedFunctionParameters": "off",
+                "noUnusedImports": "warn",
+                "noUnusedPrivateClassMembers": "warn",
+                "noUnusedVariables": "warn"
+            },
+            "style": {
+                "noInferrableTypes": "off",
+                "noNonNullAssertion": "off",
+                "useImportType": "error",
+                "useTemplate": "off"
+            },
+            "suspicious": {
+                "noAssignInExpressions": "off",
+                "noConfusingVoidType": "off",
+                "noConstEnum": "off",
+                "noControlCharactersInRegex": "off",
+                "noEmptyBlockStatements": "off",
+                "noEmptyInterface": "off",
+                "noExplicitAny": "off",
+                "noFallthroughSwitchClause": "off",
+                "noImplicitAnyLet": "off",
+                "noPrototypeBuiltins": "off",
+                "noRedeclare": "off",
+                "noSelfCompare": "off",
+                "noTemplateCurlyInString": "off",
+                "noTsIgnore": "off",
+                "useIterableCallbackReturn": "off"
+            }
+        }
+    },
+    "javascript": {
+        "formatter": {
+            "arrowParentheses": "asNeeded",
+            "quoteStyle": "double",
+            "trailingCommas": "all"
+        }
+    }
+}

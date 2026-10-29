@@ -1,0 +1,2035 @@
+{
+  // Master semantic token registry for reusable Violet components.
+  // This file is intended to be:
+  // 1. a human-reviewed source of truth for token intent
+  // 2. a future validation source for duplicate/overlapping tokens
+  // 3. a seed input for Violet-aligned exports and tooling
+  //
+  // Important:
+  // - Meaning lives in structured fields, not only comments.
+  // - New semantic tokens should be added deliberately and reviewed.
+  // - Component-local aliases should not be added here unless they become
+  //   broadly reusable across multiple components.
+  "registryVersion": "0.1.0",
+  "package": "@lushly-dev/violet-elements",
+  "description": "Starter semantic token registry for Violet reusable components.",
+  "tokens": [
+    {
+      "id": "color.surface.page",
+      "value": "#FFFEFA",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Primary application/page background surface.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["surface", "page", "background"]
+      },
+      "usage": {
+        "intent": "Use for broad application canvases and page backgrounds.",
+        "allowedIn": ["app background", "page shell", "main canvas"],
+        "avoid": ["contained cards", "floating overlays", "selected states"],
+        "whyDistinct": "Page surface should remain broader and quieter than nested surfaces."
+      }
+    },
+    {
+      "id": "color.surface.card",
+      "value": "#FAF9F5",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default contained surface for cards, panels, and table containers.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["surface", "card", "container"]
+      },
+      "usage": {
+        "intent": "Use for contained surfaces that should read above the page background.",
+        "allowedIn": ["cards", "panels", "table wrappers", "contained sections"],
+        "avoid": ["page background", "selected rows", "hover-only states"],
+        "whyDistinct": "Contained surfaces need a stronger identity than the page background."
+      }
+    },
+    {
+      "id": "color.surface.subtle",
+      "value": "#F0EFE6",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Subtle recessed surface for secondary structure and quieter regions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["surface", "subtle", "recessed"]
+      },
+      "usage": {
+        "intent": "Use for quieter structural areas such as header rows, side rails, or recessed regions.",
+        "allowedIn": ["subtle headers", "secondary panes", "recessed sections"],
+        "avoid": ["primary cards", "strong call-to-action surfaces", "floating overlays"],
+        "whyDistinct": "Subtle surfaces should not compete visually with primary contained surfaces."
+      }
+    },
+    {
+      "id": "color.surface.selected",
+      "value": "#DDEADF",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Selected-state surface for rows, items, and selectable regions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["surface", "selected", "state"]
+      },
+      "usage": {
+        "intent": "Use only for persistent selected state, not transient hover.",
+        "allowedIn": ["selected rows", "selected list items", "selected cards"],
+        "avoid": ["default backgrounds", "pressed state", "focus indication"],
+        "whyDistinct": "Selection must remain distinct from hover and resting surfaces."
+      }
+    },
+    {
+      "id": "color.surface.floating",
+      "value": "#F0EFE6",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Floating overlay surface for menus, popovers, and dialogs.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["surface", "floating", "overlay"]
+      },
+      "usage": {
+        "intent": "Use for elevated layers that sit above page and card surfaces.",
+        "allowedIn": ["menus", "popovers", "tooltips", "dialogs"],
+        "avoid": ["static contained layout", "page canvas"],
+        "whyDistinct": "Floating layers need to pair with elevation and stand apart from static containers."
+      }
+    },
+    {
+      "id": "color.text.primary",
+      "value": "#18181b",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Primary foreground color for default readable text.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["text", "foreground", "primary"]
+      },
+      "usage": {
+        "intent": "Use for primary body and interface text.",
+        "allowedIn": ["body text", "headers", "table cells", "control labels"],
+        "avoid": ["placeholder text", "disabled text", "text on strong actions"],
+        "whyDistinct": "Primary text should be reserved for the most important readable content."
+      }
+    },
+    {
+      "id": "color.text.secondary",
+      "value": "#414651",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Secondary foreground color for supporting information.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["text", "foreground", "secondary"]
+      },
+      "usage": {
+        "intent": "Use for supporting labels, metadata, and non-primary text.",
+        "allowedIn": ["secondary labels", "supporting metadata", "subhead copy"],
+        "avoid": ["high-emphasis content", "disabled states", "placeholder text"],
+        "whyDistinct": "Secondary text should remain readable while staying visually subordinate to primary text."
+      }
+    },
+    {
+      "id": "color.text.muted",
+      "value": "#6b7280",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Muted foreground color for helper, placeholder, and low-emphasis text.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["text", "foreground", "muted"]
+      },
+      "usage": {
+        "intent": "Use for helper text and low-emphasis content only.",
+        "allowedIn": ["placeholder text", "helper text", "empty-state support copy"],
+        "avoid": ["primary labels", "text requiring strong emphasis"],
+        "whyDistinct": "Muted text should communicate reduced emphasis without turning into disabled text."
+      }
+    },
+    {
+      "id": "color.border.subtle",
+      "value": "rgba(28, 26, 13, 0.10)",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default low-emphasis border color.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["border", "subtle", "divider"]
+      },
+      "usage": {
+        "intent": "Use for default boundaries and dividers.",
+        "allowedIn": ["card borders", "table dividers", "input borders", "section boundaries"],
+        "avoid": ["selected borders", "focus indication", "error emphasis"],
+        "whyDistinct": "Default boundaries should remain visible without overpowering content."
+      }
+    },
+    {
+      "id": "color.border.strong",
+      "value": "rgba(28, 26, 13, 0.35)",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Higher-emphasis border color for stronger separation or selected structure.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["border", "strong", "emphasis"]
+      },
+      "usage": {
+        "intent": "Use when default boundary weight is insufficient.",
+        "allowedIn": ["selected containers", "strong separators", "higher-emphasis outlines"],
+        "avoid": ["default low-emphasis dividers", "focus rings"],
+        "whyDistinct": "Strong borders should be rare enough to retain meaning."
+      }
+    },
+    {
+      "id": "color.focus.ring",
+      "value": "rgba(24, 24, 27, 0.5)",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Dedicated focus-ring color for visible keyboard focus.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "outline-color",
+        "tags": ["focus", "ring", "accessibility"]
+      },
+      "usage": {
+        "intent": "Use only for focus indication.",
+        "allowedIn": ["focus rings", "focus outlines", "keyboard visibility states"],
+        "avoid": ["default borders", "selection backgrounds", "brand decoration"],
+        "whyDistinct": "Focus indication must remain semantically and visually distinct from all other states."
+      }
+    },
+    {
+      "id": "color.control.selected.background",
+      "value": { "ref": "color.surface.selected" },
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Background for selected binary controls such as checkboxes, radios, and toggles.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["control", "selected", "background"]
+      },
+      "usage": {
+        "intent": "Use for the selected state of controls that need a calm persistent indicator rather than primary call-to-action emphasis.",
+        "allowedIn": ["checked checkboxes", "selected radios", "active toggle tracks", "selected control demos"],
+        "avoid": ["primary buttons", "success messaging", "large selected surfaces"],
+        "whyDistinct": "Selected controls should feel confirmed and persistent without competing with primary action color."
+      }
+    },
+    {
+      "id": "color.control.selected.foreground",
+      "value": "#244635",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Foreground for marks and glyphs on selected binary controls.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["control", "selected", "foreground"]
+      },
+      "usage": {
+        "intent": "Use for the checkmark, radio dot, or thumb/accent details of selected binary controls.",
+        "allowedIn": ["checkbox marks", "radio dots", "toggle thumbs or accent details", "selected control iconography"],
+        "avoid": ["body text", "primary action labels", "success message text"],
+        "whyDistinct": "Selected control marks need a darker cool ink that stays legible on mint backgrounds without implying success messaging."
+      }
+    },
+    {
+      "id": "color.control.selected.border",
+      "value": "rgba(36, 70, 53, 0.22)",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Border color for selected binary controls.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["control", "selected", "border"]
+      },
+      "usage": {
+        "intent": "Use for the boundary of selected controls when a subtle edge definition improves clarity.",
+        "allowedIn": ["checked checkbox borders", "selected radio outlines", "active toggle tracks"],
+        "avoid": ["default layout borders", "focus rings", "success callouts"],
+        "whyDistinct": "Selected controls benefit from a quieter structural edge than either neutral borders or stronger foreground marks."
+      }
+    },
+    {
+      "id": "color.action.primary.background",
+      "value": "#C84F3B",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Primary action background for high-emphasis calls to action.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["action", "primary", "background"]
+      },
+      "usage": {
+        "intent": "Use for the main action surface when the interface needs a single strongest call to action.",
+        "allowedIn": ["primary buttons", "key confirmation actions", "main call-to-action controls"],
+        "avoid": ["secondary actions", "quiet actions", "destructive messaging backgrounds"],
+        "whyDistinct": "Primary actions need their own semantic background rather than borrowing from generic accent or status colors."
+      }
+    },
+    {
+      "id": "color.action.primary.text",
+      "value": "#FFFFFF",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Foreground color for text and icons on primary actions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["action", "primary", "text"]
+      },
+      "usage": {
+        "intent": "Use only for content placed on primary action surfaces.",
+        "allowedIn": ["primary button labels", "primary button icons"],
+        "avoid": ["body text", "secondary actions", "surface copy"],
+        "whyDistinct": "Text on primary actions needs a dedicated readable foreground separate from general text colors."
+      }
+    },
+    {
+      "id": "color.action.primary.hover",
+      "value": "#BD4A37",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Hover surface for primary actions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["action", "primary", "hover"]
+      },
+      "usage": {
+        "intent": "Use for hovered primary action surfaces.",
+        "allowedIn": ["hovered primary buttons"],
+        "avoid": ["resting primary actions", "pressed states", "secondary actions"],
+        "whyDistinct": "Primary hover states should feel intentional without inventing one-off darkened values."
+      }
+    },
+    {
+      "id": "color.action.primary.pressed",
+      "value": "#B54633",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Pressed surface for primary actions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["action", "primary", "pressed"]
+      },
+      "usage": {
+        "intent": "Use for pressed or active primary action surfaces.",
+        "allowedIn": ["pressed primary buttons", "active confirmation controls"],
+        "avoid": ["resting actions", "hover-only states", "secondary actions"],
+        "whyDistinct": "Pressed states need a distinct semantic step rather than relying on ad hoc darkening."
+      }
+    },
+    {
+      "id": "color.action.secondary.background",
+      "value": "#F0EFE6",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Background for lower-emphasis secondary actions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["action", "secondary", "background"]
+      },
+      "usage": {
+        "intent": "Use for secondary actions that should stay visible without dominating the surface.",
+        "allowedIn": ["secondary buttons", "supporting controls", "quiet action groups"],
+        "avoid": ["primary actions", "selected states", "surface backgrounds"],
+        "whyDistinct": "Secondary actions need a calmer semantic home than primary action surfaces."
+      }
+    },
+    {
+      "id": "color.action.secondary.text",
+      "value": "#18181b",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Foreground for text and icons on secondary actions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["action", "secondary", "text"]
+      },
+      "usage": {
+        "intent": "Use only for content placed on secondary action surfaces.",
+        "allowedIn": ["secondary button labels", "secondary button icons"],
+        "avoid": ["body text", "primary actions", "surface copy"],
+        "whyDistinct": "Secondary action text must balance against its own action surface, not generic body text."
+      }
+    },
+    {
+      "id": "color.action.secondary.border",
+      "value": "rgba(28, 26, 13, 0.18)",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Border for secondary actions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["action", "secondary", "border"]
+      },
+      "usage": {
+        "intent": "Use for the default outline of secondary action surfaces.",
+        "allowedIn": ["secondary buttons", "quiet outlined actions"],
+        "avoid": ["input borders", "focus rings", "state callouts"],
+        "whyDistinct": "Secondary actions need a dedicated structural border separate from input or layout borders."
+      }
+    },
+    {
+      "id": "color.action.secondary.hover",
+      "value": "#E7E4D8",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Hover surface for secondary actions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["action", "secondary", "hover"]
+      },
+      "usage": {
+        "intent": "Use for hovered secondary action surfaces.",
+        "allowedIn": ["hovered secondary buttons"],
+        "avoid": ["resting secondary actions", "pressed states", "selected states"],
+        "whyDistinct": "Secondary hover states should remain deliberate without reusing unrelated subtle surfaces."
+      }
+    },
+    {
+      "id": "color.action.secondary.pressed",
+      "value": "#DDD9CB",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Pressed surface for secondary actions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["action", "secondary", "pressed"]
+      },
+      "usage": {
+        "intent": "Use for pressed or active secondary action surfaces.",
+        "allowedIn": ["pressed secondary buttons", "active quiet controls"],
+        "avoid": ["resting actions", "hover-only states", "surface backgrounds"],
+        "whyDistinct": "Pressed secondary states need a consistent semantic step instead of one-off manual tuning."
+      }
+    },
+    {
+      "id": "color.state.success.background",
+      "value": "#E3F1E7",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Background for positive or successful state messaging.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["state", "success", "background"]
+      },
+      "usage": {
+        "intent": "Use for positive state surfaces such as success notices or healthy statuses.",
+        "allowedIn": ["success banners", "positive status chips", "success callouts"],
+        "avoid": ["default surfaces", "selected rows", "warning or danger messaging"],
+        "whyDistinct": "Positive state messaging needs a dedicated semantic background separate from action or selection colors."
+      }
+    },
+    {
+      "id": "color.state.success.text",
+      "value": "#166534",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Foreground for success state messaging.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["state", "success", "text"]
+      },
+      "usage": {
+        "intent": "Use for text and icons on success state surfaces.",
+        "allowedIn": ["success banners", "positive status chips", "success callouts"],
+        "avoid": ["body text", "neutral metadata", "danger messaging"],
+        "whyDistinct": "Success content needs a dedicated readable foreground aligned with positive state meaning."
+      }
+    },
+    {
+      "id": "color.state.success.border",
+      "value": "rgba(22, 101, 52, 0.28)",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Border for success state surfaces.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["state", "success", "border"]
+      },
+      "usage": {
+        "intent": "Use for the edge definition of success state surfaces.",
+        "allowedIn": ["success banners", "positive status chips", "success callouts"],
+        "avoid": ["default layout borders", "focus rings", "warning messaging"],
+        "whyDistinct": "Success surfaces need a structural boundary that stays semantically separate from neutral borders."
+      }
+    },
+    {
+      "id": "color.state.warning.background",
+      "value": "#FDEBCC",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Background for warning or caution state messaging.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["state", "warning", "background"]
+      },
+      "usage": {
+        "intent": "Use for cautionary states that need attention without reading as destructive.",
+        "allowedIn": ["warning banners", "caution chips", "attention callouts"],
+        "avoid": ["default surfaces", "danger messaging", "selected states"],
+        "whyDistinct": "Warnings need their own semantic background rather than borrowing from success or danger."
+      }
+    },
+    {
+      "id": "color.state.warning.text",
+      "value": "#92400E",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Foreground for warning state messaging.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["state", "warning", "text"]
+      },
+      "usage": {
+        "intent": "Use for text and icons on warning state surfaces.",
+        "allowedIn": ["warning banners", "caution chips", "attention callouts"],
+        "avoid": ["body text", "success messaging", "danger emphasis when a stronger signal is needed"],
+        "whyDistinct": "Warning content needs its own readable foreground aligned to caution rather than error."
+      }
+    },
+    {
+      "id": "color.state.warning.border",
+      "value": "rgba(245, 158, 11, 0.34)",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Border for warning state surfaces.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["state", "warning", "border"]
+      },
+      "usage": {
+        "intent": "Use for the edge definition of warning state surfaces.",
+        "allowedIn": ["warning banners", "caution chips", "attention callouts"],
+        "avoid": ["default layout borders", "focus rings", "success messaging"],
+        "whyDistinct": "Warning surfaces need a dedicated border that communicates caution without reading as error."
+      }
+    },
+    {
+      "id": "color.state.danger.background",
+      "value": "#FBE2E2",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Background for destructive or invalid state messaging.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["state", "danger", "background"]
+      },
+      "usage": {
+        "intent": "Use for destructive states, invalid surfaces, or clear error messaging.",
+        "allowedIn": ["error banners", "invalid fields", "destructive callouts"],
+        "avoid": ["default surfaces", "warning messaging", "selected states"],
+        "whyDistinct": "Danger states need a distinct semantic background separate from warning or success."
+      }
+    },
+    {
+      "id": "color.state.danger.text",
+      "value": "#B42318",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Foreground for danger state messaging.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["state", "danger", "text"]
+      },
+      "usage": {
+        "intent": "Use for text and icons on danger state surfaces.",
+        "allowedIn": ["error banners", "invalid fields", "destructive callouts"],
+        "avoid": ["body text", "warning messaging", "neutral metadata"],
+        "whyDistinct": "Danger content needs a strong readable foreground tied to destructive or invalid meaning."
+      }
+    },
+    {
+      "id": "color.state.danger.border",
+      "value": "rgba(220, 38, 38, 0.34)",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Border for danger state surfaces.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["state", "danger", "border"]
+      },
+      "usage": {
+        "intent": "Use for the edge definition of danger state surfaces.",
+        "allowedIn": ["error banners", "invalid fields", "destructive callouts"],
+        "avoid": ["default layout borders", "focus rings", "warning messaging"],
+        "whyDistinct": "Danger surfaces need a structural boundary stronger than neutral or warning borders."
+      }
+    },
+    {
+      "id": "color.field.background",
+      "value": { "ref": "color.surface.page" },
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default field background for text inputs and controls.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["field", "background", "input"]
+      },
+      "usage": {
+        "intent": "Use for the resting background of fields and inputs.",
+        "allowedIn": ["text inputs", "textareas", "select triggers"],
+        "avoid": ["readonly fields", "danger backgrounds", "surface containers"],
+        "whyDistinct": "Field backgrounds need a semantic home even when they reference the page surface."
+      }
+    },
+    {
+      "id": "color.field.background.readonly",
+      "value": { "ref": "color.surface.subtle" },
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Background for readonly or locked fields.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["field", "background", "readonly"]
+      },
+      "usage": {
+        "intent": "Use for fields that are visible but not editable.",
+        "allowedIn": ["readonly inputs", "locked textareas", "display-only field surfaces"],
+        "avoid": ["editable fields", "danger surfaces", "default cards"],
+        "whyDistinct": "Readonly fields need a semantic surface change without inventing component-local styles."
+      }
+    },
+    {
+      "id": "color.field.text",
+      "value": { "ref": "color.text.primary" },
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Foreground for input text values.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["field", "text", "input"]
+      },
+      "usage": {
+        "intent": "Use for entered values and readable field text.",
+        "allowedIn": ["input values", "textarea content", "select labels"],
+        "avoid": ["placeholder text", "muted support copy", "error accents"],
+        "whyDistinct": "Field text should reference the text system semantically rather than hardcoding values inside components."
+      }
+    },
+    {
+      "id": "color.field.placeholder",
+      "value": { "ref": "color.text.muted" },
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Foreground for placeholder and hint text inside fields.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["field", "placeholder", "input"]
+      },
+      "usage": {
+        "intent": "Use only for placeholder or in-field hint content.",
+        "allowedIn": ["input placeholders", "textarea placeholders", "empty field hints"],
+        "avoid": ["entered values", "labels", "validation messaging"],
+        "whyDistinct": "Placeholder text needs a semantic tie to muted text without becoming a component-local exception."
+      }
+    },
+    {
+      "id": "color.field.border",
+      "value": { "ref": "color.border.subtle" },
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default field border color.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["field", "border", "input"]
+      },
+      "usage": {
+        "intent": "Use for the resting outline of inputs and form controls.",
+        "allowedIn": ["text inputs", "textareas", "select triggers"],
+        "avoid": ["focus rings", "danger states", "layout separators"],
+        "whyDistinct": "Fields need a semantic border token even when it references the global border system."
+      }
+    },
+    {
+      "id": "color.field.border.hover",
+      "value": { "ref": "color.border.strong" },
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Hovered field border color.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["field", "border", "hover"]
+      },
+      "usage": {
+        "intent": "Use for hovered fields that need slightly stronger structure than the resting outline.",
+        "allowedIn": ["hovered inputs", "hovered textareas", "hovered select triggers"],
+        "avoid": ["focus rings", "danger states", "default borders"],
+        "whyDistinct": "Hovered fields need a semantic step between resting and focused structure."
+      }
+    },
+    {
+      "id": "color.field.border.focus",
+      "value": { "ref": "color.focus.ring" },
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Focused field ring or outline color.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["field", "border", "focus"]
+      },
+      "usage": {
+        "intent": "Use for focused fields that need visible keyboard and interaction emphasis.",
+        "allowedIn": ["focused inputs", "focused textareas", "focused select triggers"],
+        "avoid": ["resting borders", "danger states", "selected rows"],
+        "whyDistinct": "Focused fields need an explicit semantic tie to focus visibility rather than a generic stronger border."
+      }
+    },
+    {
+      "id": "color.field.border.invalid",
+      "value": { "ref": "color.state.danger.border" },
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Invalid field border color.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["field", "border", "invalid"]
+      },
+      "usage": {
+        "intent": "Use for invalid field outlines when validation fails.",
+        "allowedIn": ["invalid inputs", "invalid textareas", "invalid select triggers"],
+        "avoid": ["resting borders", "focus-only states", "warning messaging"],
+        "whyDistinct": "Invalid fields need a semantic link to the danger state system rather than a separate ad hoc red."
+      }
+    },
+    {
+      "id": "size.font.xs",
+      "value": "11px",
+      "metadata": {
+        "category": "typography",
+        "tier": "global",
+        "status": "beta",
+        "description": "Base typography ramp extra-small font size.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["typography", "font-size", "scale", "xs"]
+      },
+      "usage": {
+        "intent": "Use as a base type ramp value, not directly as a semantic style.",
+        "allowedIn": ["type scale"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "Typography measurement should be governed separately from semantic text styles."
+      }
+    },
+    {
+      "id": "size.font.sm",
+      "value": "12px",
+      "metadata": {
+        "category": "typography",
+        "tier": "global",
+        "status": "beta",
+        "description": "Base typography ramp small font size.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["typography", "font-size", "scale", "sm"]
+      },
+      "usage": {
+        "intent": "Use as a base type ramp value, not directly as a semantic style.",
+        "allowedIn": ["type scale"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "Typography measurement should be governed separately from semantic text styles."
+      }
+    },
+    {
+      "id": "size.font.md",
+      "value": "14px",
+      "metadata": {
+        "category": "typography",
+        "tier": "global",
+        "status": "beta",
+        "description": "Base typography ramp medium font size.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["typography", "font-size", "scale", "md"]
+      },
+      "usage": {
+        "intent": "Use as a base type ramp value, not directly as a semantic style.",
+        "allowedIn": ["type scale"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "Typography measurement should be governed separately from semantic text styles."
+      }
+    },
+    {
+      "id": "size.font.lg",
+      "value": "18px",
+      "metadata": {
+        "category": "typography",
+        "tier": "global",
+        "status": "beta",
+        "description": "Base typography ramp large font size.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["typography", "font-size", "scale", "lg"]
+      },
+      "usage": {
+        "intent": "Use as a base type ramp value, not directly as a semantic style.",
+        "allowedIn": ["type scale"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "Typography measurement should be governed separately from semantic text styles."
+      }
+    },
+    {
+      "id": "size.font.xl",
+      "value": "24px",
+      "metadata": {
+        "category": "typography",
+        "tier": "global",
+        "status": "beta",
+        "description": "Base typography ramp extra-large font size.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["typography", "font-size", "scale", "xl"]
+      },
+      "usage": {
+        "intent": "Use as a base type ramp value, not directly as a semantic style.",
+        "allowedIn": ["type scale"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "Typography measurement should be governed separately from semantic text styles."
+      }
+    },
+    {
+      "id": "size.line.xs",
+      "value": "14px",
+      "metadata": {
+        "category": "typography",
+        "tier": "global",
+        "status": "beta",
+        "description": "Base typography ramp extra-small line height.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["typography", "line-height", "scale", "xs"]
+      },
+      "usage": {
+        "intent": "Use as a base line-height ramp value, not directly as a semantic style.",
+        "allowedIn": ["line-height scale"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "Line height should evolve with the type system rather than per component exception."
+      }
+    },
+    {
+      "id": "size.line.sm",
+      "value": "16px",
+      "metadata": {
+        "category": "typography",
+        "tier": "global",
+        "status": "beta",
+        "description": "Base typography ramp small line height.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["typography", "line-height", "scale", "sm"]
+      },
+      "usage": {
+        "intent": "Use as a base line-height ramp value, not directly as a semantic style.",
+        "allowedIn": ["line-height scale"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "Line height should evolve with the type system rather than per component exception."
+      }
+    },
+    {
+      "id": "size.line.md",
+      "value": "20px",
+      "metadata": {
+        "category": "typography",
+        "tier": "global",
+        "status": "beta",
+        "description": "Base typography ramp medium line height.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["typography", "line-height", "scale", "md"]
+      },
+      "usage": {
+        "intent": "Use as a base line-height ramp value, not directly as a semantic style.",
+        "allowedIn": ["line-height scale"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "Line height should evolve with the type system rather than per component exception."
+      }
+    },
+    {
+      "id": "size.line.lg",
+      "value": "24px",
+      "metadata": {
+        "category": "typography",
+        "tier": "global",
+        "status": "beta",
+        "description": "Base typography ramp large line height.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["typography", "line-height", "scale", "lg"]
+      },
+      "usage": {
+        "intent": "Use as a base line-height ramp value, not directly as a semantic style.",
+        "allowedIn": ["line-height scale"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "Line height should evolve with the type system rather than per component exception."
+      }
+    },
+    {
+      "id": "size.line.xl",
+      "value": "32px",
+      "metadata": {
+        "category": "typography",
+        "tier": "global",
+        "status": "beta",
+        "description": "Base typography ramp extra-large line height.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["typography", "line-height", "scale", "xl"]
+      },
+      "usage": {
+        "intent": "Use as a base line-height ramp value, not directly as a semantic style.",
+        "allowedIn": ["line-height scale"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "Line height should evolve with the type system rather than per component exception."
+      }
+    },
+    {
+      "id": "weight.regular",
+      "value": "400",
+      "metadata": {
+        "category": "typography",
+        "tier": "global",
+        "status": "beta",
+        "description": "Default readable font weight.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["typography", "weight", "regular"]
+      },
+      "usage": {
+        "intent": "Use as a base font-weight ramp value, not directly as a semantic style.",
+        "allowedIn": ["font-weight scale"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "Weights should be governed consistently so emphasis remains meaningful."
+      }
+    },
+    {
+      "id": "weight.light",
+      "value": "100",
+      "metadata": {
+        "category": "typography",
+        "tier": "global",
+        "status": "beta",
+        "description": "Very light font weight for rare expressive or delicate treatments.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["typography", "weight", "light"]
+      },
+      "usage": {
+        "intent": "Use sparingly for expressive type moments, not default interface text.",
+        "allowedIn": ["decorative accents", "large display moments", "rare tonal contrast"],
+        "avoid": ["body copy", "small labels", "dense data views"],
+        "whyDistinct": "Very light weight should remain available without encouraging widespread use in core interface text."
+      }
+    },
+    {
+      "id": "weight.medium",
+      "value": "500",
+      "metadata": {
+        "category": "typography",
+        "tier": "global",
+        "status": "beta",
+        "description": "Medium emphasis font weight.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["typography", "weight", "medium"]
+      },
+      "usage": {
+        "intent": "Use as a base font-weight ramp value, not directly as a semantic style.",
+        "allowedIn": ["font-weight scale"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "Weights should be governed consistently so emphasis remains meaningful."
+      }
+    },
+    {
+      "id": "weight.semibold",
+      "value": "600",
+      "metadata": {
+        "category": "typography",
+        "tier": "global",
+        "status": "beta",
+        "description": "Stronger emphasis font weight for titles and highlighted labels.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["typography", "weight", "semibold"]
+      },
+      "usage": {
+        "intent": "Use as a base font-weight ramp value, not directly as a semantic style.",
+        "allowedIn": ["font-weight scale"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "Weights should be governed consistently so emphasis remains meaningful."
+      }
+    },
+    {
+      "id": "type.caption.xs.size",
+      "value": { "ref": "size.font.xs" },
+      "metadata": {
+        "category": "typography",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Caption size for the smallest support copy.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "font-size",
+        "tags": ["typography", "caption", "size", "xs"]
+      },
+      "usage": {
+        "intent": "Use for small supporting text styles only.",
+        "allowedIn": ["meta text", "micro labels", "small support copy"],
+        "avoid": ["body copy", "titles", "primary control labels"],
+        "whyDistinct": "Captions need a semantic home separate from labels and body copy."
+      }
+    },
+    {
+      "id": "type.caption.xs.line",
+      "value": { "ref": "size.line.xs" },
+      "metadata": {
+        "category": "typography",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Caption line height for the smallest support copy.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "line-height",
+        "tags": ["typography", "caption", "line", "xs"]
+      },
+      "usage": {
+        "intent": "Use with the caption size token for the smallest support text.",
+        "allowedIn": ["meta text", "micro labels", "small support copy"],
+        "avoid": ["body copy", "titles", "primary control labels"],
+        "whyDistinct": "Caption line height should move with the caption style rather than becoming a local exception."
+      }
+    },
+    {
+      "id": "type.caption.xs.weight",
+      "value": { "ref": "weight.medium" },
+      "metadata": {
+        "category": "typography",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Caption weight for compact metadata and support copy.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "font-weight",
+        "tags": ["typography", "caption", "weight", "xs"]
+      },
+      "usage": {
+        "intent": "Use with the caption style where a little extra clarity is helpful at small sizes.",
+        "allowedIn": ["meta text", "micro labels", "small support copy"],
+        "avoid": ["body copy", "titles", "primary control labels"],
+        "whyDistinct": "Caption emphasis should be encoded semantically instead of individually tuned in components."
+      }
+    },
+    {
+      "id": "type.label.sm.size",
+      "value": { "ref": "size.font.sm" },
+      "metadata": {
+        "category": "typography",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default label size for controls and small section headings.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "font-size",
+        "tags": ["typography", "label", "size", "sm"]
+      },
+      "usage": {
+        "intent": "Use for compact but readable labels.",
+        "allowedIn": ["form labels", "small section labels", "toolbar labels"],
+        "avoid": ["body copy", "display titles"],
+        "whyDistinct": "Labels need a distinct semantic role from body copy and titles."
+      }
+    },
+    {
+      "id": "type.label.sm.line",
+      "value": { "ref": "size.line.sm" },
+      "metadata": {
+        "category": "typography",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default label line height for controls and small section headings.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "line-height",
+        "tags": ["typography", "label", "line", "sm"]
+      },
+      "usage": {
+        "intent": "Use with the label style for compact readable labels.",
+        "allowedIn": ["form labels", "small section labels", "toolbar labels"],
+        "avoid": ["body copy", "display titles"],
+        "whyDistinct": "Label line height should stay coherent with the label style rather than becoming a local override."
+      }
+    },
+    {
+      "id": "type.label.sm.weight",
+      "value": { "ref": "weight.medium" },
+      "metadata": {
+        "category": "typography",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default label weight for controls and small section headings.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "font-weight",
+        "tags": ["typography", "label", "weight", "sm"]
+      },
+      "usage": {
+        "intent": "Use with the label style when controls need stronger identification than body text.",
+        "allowedIn": ["form labels", "small section labels", "toolbar labels"],
+        "avoid": ["body copy", "display titles"],
+        "whyDistinct": "Label emphasis should be encoded semantically instead of repeatedly tuned."
+      }
+    },
+    {
+      "id": "type.body.md.size",
+      "value": { "ref": "size.font.md" },
+      "metadata": {
+        "category": "typography",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default body size for comfortable reading.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "font-size",
+        "tags": ["typography", "body", "size", "md"]
+      },
+      "usage": {
+        "intent": "Use for default readable body copy in interface surfaces.",
+        "allowedIn": ["body copy", "table cells", "form content", "default interface text"],
+        "avoid": ["small labels", "titles", "micro meta text"],
+        "whyDistinct": "Body copy needs a stable semantic default rather than component-local sizing."
+      }
+    },
+    {
+      "id": "type.body.md.line",
+      "value": { "ref": "size.line.md" },
+      "metadata": {
+        "category": "typography",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default body line height for comfortable reading.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "line-height",
+        "tags": ["typography", "body", "line", "md"]
+      },
+      "usage": {
+        "intent": "Use with the default body style for comfortable reading.",
+        "allowedIn": ["body copy", "table cells", "form content", "default interface text"],
+        "avoid": ["small labels", "titles", "micro meta text"],
+        "whyDistinct": "Body line height needs a stable semantic default rather than component-local tuning."
+      }
+    },
+    {
+      "id": "type.body.md.weight",
+      "value": { "ref": "weight.regular" },
+      "metadata": {
+        "category": "typography",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default body weight for comfortable reading.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "font-weight",
+        "tags": ["typography", "body", "weight", "md"]
+      },
+      "usage": {
+        "intent": "Use with the default body style for comfortable reading.",
+        "allowedIn": ["body copy", "table cells", "form content", "default interface text"],
+        "avoid": ["small labels", "titles", "micro meta text"],
+        "whyDistinct": "Body emphasis should remain stable so stronger roles like labels and titles retain meaning."
+      }
+    },
+    {
+      "id": "type.title.sm.size",
+      "value": { "ref": "size.font.lg" },
+      "metadata": {
+        "category": "typography",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Small title size for compact section headings.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "font-size",
+        "tags": ["typography", "title", "size", "sm"]
+      },
+      "usage": {
+        "intent": "Use for compact title treatments and strong sectional headings.",
+        "allowedIn": ["section titles", "panel headings", "prominent field groups"],
+        "avoid": ["body copy", "micro labels", "display scale hero text"],
+        "whyDistinct": "Titles should have a semantic home separate from labels and body content."
+      }
+    },
+    {
+      "id": "type.title.sm.line",
+      "value": { "ref": "size.line.lg" },
+      "metadata": {
+        "category": "typography",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Small title line height for compact section headings.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "line-height",
+        "tags": ["typography", "title", "line", "sm"]
+      },
+      "usage": {
+        "intent": "Use with the small title style for compact strong headings.",
+        "allowedIn": ["section titles", "panel headings", "prominent field groups"],
+        "avoid": ["body copy", "micro labels", "display scale hero text"],
+        "whyDistinct": "Title line height should stay coherent with the title role instead of becoming a local exception."
+      }
+    },
+    {
+      "id": "type.title.sm.weight",
+      "value": { "ref": "weight.semibold" },
+      "metadata": {
+        "category": "typography",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Small title weight for compact section headings.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "font-weight",
+        "tags": ["typography", "title", "weight", "sm"]
+      },
+      "usage": {
+        "intent": "Use with the small title style when headings need stronger emphasis than labels or body text.",
+        "allowedIn": ["section titles", "panel headings", "prominent field groups"],
+        "avoid": ["body copy", "micro labels", "display scale hero text"],
+        "whyDistinct": "Title emphasis should be encoded semantically instead of repeated in local styles."
+      }
+    },
+    {
+      "id": "type.title.md.size",
+      "value": { "ref": "size.font.xl" },
+      "metadata": {
+        "category": "typography",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default medium title size for stronger headings.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "font-size",
+        "tags": ["typography", "title", "size", "md"]
+      },
+      "usage": {
+        "intent": "Use for stronger section titles and prominent callout headings.",
+        "allowedIn": ["large section headings", "callout titles", "feature headers"],
+        "avoid": ["body copy", "small labels", "hero display scales"],
+        "whyDistinct": "A larger title step is useful before the system reaches display-style scales."
+      }
+    },
+    {
+      "id": "type.title.md.line",
+      "value": { "ref": "size.line.xl" },
+      "metadata": {
+        "category": "typography",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default medium title line height for stronger headings.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "line-height",
+        "tags": ["typography", "title", "line", "md"]
+      },
+      "usage": {
+        "intent": "Use with the medium title style for strong headings and callouts.",
+        "allowedIn": ["large section headings", "callout titles", "feature headers"],
+        "avoid": ["body copy", "small labels", "hero display scales"],
+        "whyDistinct": "A larger title line height keeps stronger headings readable and coherent."
+      }
+    },
+    {
+      "id": "type.title.md.weight",
+      "value": { "ref": "weight.semibold" },
+      "metadata": {
+        "category": "typography",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default medium title weight for stronger headings.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "font-weight",
+        "tags": ["typography", "title", "weight", "md"]
+      },
+      "usage": {
+        "intent": "Use with the medium title style for stronger headings and callouts.",
+        "allowedIn": ["large section headings", "callout titles", "feature headers"],
+        "avoid": ["body copy", "small labels", "hero display scales"],
+        "whyDistinct": "A larger title emphasis step helps strong headings retain clear hierarchy."
+      }
+    },
+    {
+      "id": "size.target.compact",
+      "value": "24px",
+      "metadata": {
+        "category": "sizing",
+        "tier": "global",
+        "status": "beta",
+        "description": "Compact control target size for fine-pointer dense interfaces.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["size", "target", "compact", "density"]
+      },
+      "usage": {
+        "intent": "Use as the compact target-size ramp value for fine-pointer controls, not directly as a one-off component size.",
+        "allowedIn": ["density ramp", "fine pointer defaults", "compact control sizing"],
+        "avoid": ["touch defaults", "hard-coded visual checkbox size without hit-area logic"],
+        "whyDistinct": "Compact interfaces need a governed lower bound for dense mouse and stylus workflows."
+      }
+    },
+    {
+      "id": "size.target.natural",
+      "value": "32px",
+      "metadata": {
+        "category": "sizing",
+        "tier": "global",
+        "status": "beta",
+        "description": "Natural control target size for balanced default interfaces.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["size", "target", "natural", "density", "default"]
+      },
+      "usage": {
+        "intent": "Use as the balanced default target-size ramp value when neither compact nor touch-comfortable density is desired.",
+        "allowedIn": ["density ramp", "default control sizing", "user-selected natural density"],
+        "avoid": ["hard-coded platform detection without override", "very large touch targets"],
+        "whyDistinct": "A natural step gives the system a stable authored baseline while still leaving room to go denser or more comfortable."
+      }
+    },
+    {
+      "id": "size.target.comfortable",
+      "value": "44px",
+      "metadata": {
+        "category": "sizing",
+        "tier": "global",
+        "status": "beta",
+        "description": "Comfortable touch-oriented control target size.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["size", "target", "comfortable", "density", "touch"]
+      },
+      "usage": {
+        "intent": "Use as the touch-friendly target-size ramp value for coarse pointers and accessible comfortable density.",
+        "allowedIn": ["density ramp", "coarse pointer defaults", "comfortable control sizing"],
+        "avoid": ["dense mouse-only tables", "shrinking binary-control hit areas to only the visible icon"],
+        "whyDistinct": "Touch and accessibility-friendly interfaces need a larger governed target than dense mouse-first controls."
+      }
+    },
+    {
+      "id": "size.space.xs",
+      "value": "2px",
+      "metadata": {
+        "category": "spacing",
+        "tier": "global",
+        "status": "beta",
+        "description": "Base spacing ramp extra-small step.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["spacing", "scale", "xs"]
+      },
+      "usage": {
+        "intent": "Use as a base spacing ramp value, not directly as a semantic role.",
+        "allowedIn": ["spacing ramp"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "The base spacing ramp should be governed separately from semantic spacing tokens."
+      }
+    },
+    {
+      "id": "size.space.sm",
+      "value": "4px",
+      "metadata": {
+        "category": "spacing",
+        "tier": "global",
+        "status": "beta",
+        "description": "Base spacing ramp small step.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["spacing", "scale", "sm"]
+      },
+      "usage": {
+        "intent": "Use as a base spacing ramp value, not directly as a semantic role.",
+        "allowedIn": ["spacing ramp"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "The base spacing ramp should be governed separately from semantic spacing tokens."
+      }
+    },
+    {
+      "id": "size.space.md",
+      "value": "8px",
+      "metadata": {
+        "category": "spacing",
+        "tier": "global",
+        "status": "beta",
+        "description": "Base spacing ramp medium step.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["spacing", "scale", "md"]
+      },
+      "usage": {
+        "intent": "Use as a base spacing ramp value, not directly as a semantic role.",
+        "allowedIn": ["spacing ramp"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "The base spacing ramp should be governed separately from semantic spacing tokens."
+      }
+    },
+    {
+      "id": "size.space.lg",
+      "value": "12px",
+      "metadata": {
+        "category": "spacing",
+        "tier": "global",
+        "status": "beta",
+        "description": "Base spacing ramp large step.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["spacing", "scale", "lg"]
+      },
+      "usage": {
+        "intent": "Use as a base spacing ramp value, not directly as a semantic role.",
+        "allowedIn": ["spacing ramp"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "The base spacing ramp should be governed separately from semantic spacing tokens."
+      }
+    },
+    {
+      "id": "size.space.xl",
+      "value": "24px",
+      "metadata": {
+        "category": "spacing",
+        "tier": "global",
+        "status": "beta",
+        "description": "Base spacing ramp extra-large step.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["spacing", "scale", "xl"]
+      },
+      "usage": {
+        "intent": "Use as a base spacing ramp value, not directly as a semantic role.",
+        "allowedIn": ["spacing ramp"],
+        "avoid": ["direct component usage without semantic mapping"],
+        "whyDistinct": "The base spacing ramp should be governed separately from semantic spacing tokens."
+      }
+    },
+    {
+      "id": "space.inline.sm",
+      "value": { "ref": "size.space.sm" },
+      "metadata": {
+        "category": "spacing",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Small inline spacing for compact horizontal gaps.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "column-gap",
+        "tags": ["spacing", "inline", "small"]
+      },
+      "usage": {
+        "intent": "Use for small horizontal gaps between related items.",
+        "allowedIn": ["icon-label gaps", "compact control groups", "cell internals"],
+        "avoid": ["large section spacing", "page gutters"],
+        "whyDistinct": "Inline spacing should be directional and reusable across controls."
+      }
+    },
+    {
+      "id": "space.inline.md",
+      "value": { "ref": "size.space.md" },
+      "metadata": {
+        "category": "spacing",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default inline spacing for comfortable horizontal separation.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "column-gap",
+        "tags": ["spacing", "inline", "medium"]
+      },
+      "usage": {
+        "intent": "Use for default horizontal spacing between controls or content groups.",
+        "allowedIn": ["toolbar item gaps", "cell padding inline", "comfortable control groups"],
+        "avoid": ["tight compact internals", "page-level gutters"],
+        "whyDistinct": "This should be the default comfortable horizontal spacing, not a catch-all for every gap."
+      }
+    },
+    {
+      "id": "space.inline.lg",
+      "value": { "ref": "size.space.lg" },
+      "metadata": {
+        "category": "spacing",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Large inline spacing for looser control groups and wider horizontal separation.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "column-gap",
+        "tags": ["spacing", "inline", "large"]
+      },
+      "usage": {
+        "intent": "Use for larger inline group spacing when default comfortable spacing is not enough.",
+        "allowedIn": ["loose control groups", "toolbar clusters", "secondary action groups"],
+        "avoid": ["dense internals", "tight control labels"],
+        "whyDistinct": "Inline spacing sometimes needs a larger semantic step before jumping to layout spacing."
+      }
+    },
+    {
+      "id": "space.stack.xs",
+      "value": { "ref": "size.space.sm" },
+      "metadata": {
+        "category": "spacing",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Extra-small vertical spacing for tight stacked relationships.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "row-gap",
+        "tags": ["spacing", "stack", "xsmall"]
+      },
+      "usage": {
+        "intent": "Use for very tight vertical relationships.",
+        "allowedIn": ["dense metadata stacks", "helper text under labels"],
+        "avoid": ["section spacing", "default row spacing"],
+        "whyDistinct": "Tight stacked spacing needs a separate semantic home from default vertical rhythm."
+      }
+    },
+    {
+      "id": "space.stack.sm",
+      "value": { "ref": "size.space.md" },
+      "metadata": {
+        "category": "spacing",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default small vertical spacing for stacked related content.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "row-gap",
+        "tags": ["spacing", "stack", "small"]
+      },
+      "usage": {
+        "intent": "Use for default vertical rhythm between tightly related elements.",
+        "allowedIn": ["stacked controls", "cell content stacks", "toolbar sections"],
+        "avoid": ["major section breaks", "page margins"],
+        "whyDistinct": "Vertical rhythm should not reuse horizontal spacing tokens by accident."
+      }
+    },
+    {
+      "id": "space.stack.md",
+      "value": { "ref": "size.space.lg" },
+      "metadata": {
+        "category": "spacing",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Medium vertical spacing for more relaxed grouped content.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "row-gap",
+        "tags": ["spacing", "stack", "medium"]
+      },
+      "usage": {
+        "intent": "Use for comfortable stacked content that needs more separation than default tight groups.",
+        "allowedIn": ["section internals", "card content stacks", "form groups"],
+        "avoid": ["page-level section spacing", "dense metadata"],
+        "whyDistinct": "A medium stack step helps distinguish relaxed grouped content from tighter default stack rhythm."
+      }
+    },
+    {
+      "id": "space.layout.sm",
+      "value": { "ref": "size.space.lg" },
+      "metadata": {
+        "category": "spacing",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Small layout spacing for sectional separation and compact layout gutters.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["spacing", "layout", "small"]
+      },
+      "usage": {
+        "intent": "Use for small layout-level separation between groups or containers.",
+        "allowedIn": ["compact section gaps", "small layout gutters", "adjacent panels"],
+        "avoid": ["tight component internals", "very large section breaks"],
+        "whyDistinct": "Layout spacing should be governed separately from component internals."
+      }
+    },
+    {
+      "id": "space.layout.md",
+      "value": { "ref": "size.space.xl" },
+      "metadata": {
+        "category": "spacing",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default layout spacing for comfortable separation between sections or regions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["spacing", "layout", "medium"]
+      },
+      "usage": {
+        "intent": "Use for default layout-level separation between larger groups or regions.",
+        "allowedIn": ["section gaps", "page regions", "major layout gutters"],
+        "avoid": ["component internals", "tight grouped content"],
+        "whyDistinct": "Default layout spacing should remain noticeably larger than component-level stack or inline spacing."
+      }
+    },
+    {
+      "id": "radius.sm",
+      "value": "2px",
+      "metadata": {
+        "category": "radius",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Small corner radius for compact controls and tighter structural details.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "border-radius",
+        "tags": ["radius", "small", "compact"]
+      },
+      "usage": {
+        "intent": "Use for compact controls, chips, and tighter UI geometry.",
+        "allowedIn": ["chips", "small inputs", "compact controls", "dense utility surfaces"],
+        "avoid": ["large panels", "floating layers", "hero containers"],
+        "whyDistinct": "Compact shapes need a smaller radius than default controls to keep dense UI from feeling overly soft."
+      }
+    },
+    {
+      "id": "radius.md",
+      "value": "4px",
+      "metadata": {
+        "category": "radius",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default medium corner radius for controls and contained surfaces.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "border-radius",
+        "tags": ["radius", "medium", "control"]
+      },
+      "usage": {
+        "intent": "Use for default contained UI elements with rounded corners.",
+        "allowedIn": ["cards", "inputs", "buttons", "table wrappers"],
+        "avoid": ["fully pill-shaped elements", "sharp-edged structural surfaces"],
+        "whyDistinct": "A default radius should exist before component-specific radius aliases proliferate."
+      }
+    },
+    {
+      "id": "radius.lg",
+      "value": "6px",
+      "metadata": {
+        "category": "radius",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Large corner radius for softened containers and more expressive surfaces.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "border-radius",
+        "tags": ["radius", "large", "container"]
+      },
+      "usage": {
+        "intent": "Use for larger panels, floating layers, and softer container shapes.",
+        "allowedIn": ["cards", "menus", "soft containers", "floating layers"],
+        "avoid": ["compact controls", "dense utility surfaces", "tight structural dividers"],
+        "whyDistinct": "Larger surfaces need a visibly softer silhouette than default controls to create hierarchy."
+      }
+    },
+    {
+      "id": "radius.round",
+      "value": "9999px",
+      "metadata": {
+        "category": "radius",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Fully rounded radius for pill and circular shapes.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "border-radius",
+        "tags": ["radius", "round", "pill", "circle"]
+      },
+      "usage": {
+        "intent": "Use for intentionally round or pill-shaped UI elements.",
+        "allowedIn": ["pills", "badges", "avatar shells", "circular controls"],
+        "avoid": ["default cards", "standard inputs", "rectangular panels"],
+        "whyDistinct": "Pill and circular elements need a fully rounded token rather than overloading small, medium, or large container radii."
+      }
+    },
+    {
+      "id": "shadow.control",
+      "value": "0 1px 1px rgba(28, 26, 13, 0.09), 0 2px 5px rgba(28, 26, 13, 0.04)",
+      "metadata": {
+        "category": "shadow",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Tight control-level lift for buttons, toggles, and compact interactive elements.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "box-shadow",
+        "tags": ["shadow", "control", "lift"]
+      },
+      "usage": {
+        "intent": "Use for small interactive controls that need a little lift and edge definition without relying on visible outlines.",
+        "allowedIn": ["buttons", "toggles", "chips", "compact controls"],
+        "avoid": ["cards", "menus", "large floating surfaces"],
+        "whyDistinct": "Small controls need a tighter elevation token than cards so they can feel tactile without reading as separate layers."
+      }
+    },
+    {
+      "id": "shadow.card",
+      "value": "0 1px 2px rgba(28, 26, 13, 0.15), 0 5px 10px rgba(28, 26, 13, 0.06)",
+      "metadata": {
+        "category": "shadow",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Subtle resting elevation for cards and contained surfaces.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "box-shadow",
+        "tags": ["shadow", "card", "elevation"]
+      },
+      "usage": {
+        "intent": "Use for low-elevation resting surfaces.",
+        "allowedIn": ["cards", "grid wrappers", "raised panels"],
+        "avoid": ["dialogs", "menus", "strong overlays"],
+        "whyDistinct": "Resting elevation needs a separate token from floating overlays."
+      }
+    },
+    {
+      "id": "shadow.floating",
+      "value": "0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08)",
+      "metadata": {
+        "category": "shadow",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Floating elevation for overlays such as menus and popovers.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "box-shadow",
+        "tags": ["shadow", "floating", "overlay"]
+      },
+      "usage": {
+        "intent": "Use for overlays that must clearly sit above the rest of the interface.",
+        "allowedIn": ["menus", "popovers", "floating panels"],
+        "avoid": ["resting cards", "static sections"],
+        "whyDistinct": "Floating elevation must remain visually stronger than resting surfaces."
+      }
+    },
+    {
+      "id": "z-index.base",
+      "value": "0",
+      "metadata": {
+        "category": "layer",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default page-layer stacking level for ordinary content.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "z-index",
+        "tags": ["layer", "stacking", "base"]
+      },
+      "usage": {
+        "intent": "Use for standard content that should not compete with raised, sticky, or overlay layers.",
+        "allowedIn": ["default content", "resting sections", "ordinary component layout"],
+        "avoid": ["sticky headers", "floating popups", "modals"],
+        "whyDistinct": "A named base layer helps components avoid inventing arbitrary low z-index values."
+      }
+    },
+    {
+      "id": "z-index.raised",
+      "value": "1",
+      "metadata": {
+        "category": "layer",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Small local stacking lift above surrounding content.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "z-index",
+        "tags": ["layer", "stacking", "raised"]
+      },
+      "usage": {
+        "intent": "Use for local stacking within a component when one surface must sit above adjacent content.",
+        "allowedIn": ["open field shells", "selected rails", "local overlays inside a component"],
+        "avoid": ["cross-page overlays", "sticky chrome", "modals"],
+        "whyDistinct": "Raised should solve local stacking without escalating directly to overlay-level values."
+      }
+    },
+    {
+      "id": "z-index.sticky",
+      "value": "10",
+      "metadata": {
+        "category": "layer",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Sticky chrome layer for headers, rails, and pinned structural UI.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "z-index",
+        "tags": ["layer", "stacking", "sticky"]
+      },
+      "usage": {
+        "intent": "Use for structural UI that remains attached to scroll or pinned layouts.",
+        "allowedIn": ["sticky headers", "pinned columns", "persistent rails"],
+        "avoid": ["menus", "popovers", "dialogs"],
+        "whyDistinct": "Sticky surfaces need to beat ordinary content but still remain below true overlays."
+      }
+    },
+    {
+      "id": "z-index.overlay",
+      "value": "100",
+      "metadata": {
+        "category": "layer",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "General overlay layer for floating UI above normal page content.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "z-index",
+        "tags": ["layer", "stacking", "overlay"]
+      },
+      "usage": {
+        "intent": "Use for floating layers that need to escape ordinary layout and content stacks.",
+        "allowedIn": ["overlay shells", "anchored floating surfaces", "non-modal panels"],
+        "avoid": ["base content", "sticky-only chrome", "modal dialogs"],
+        "whyDistinct": "Overlay needs a semantically distinct range so component authors stop inventing ad hoc high z-index values."
+      }
+    },
+    {
+      "id": "z-index.popover",
+      "value": "200",
+      "metadata": {
+        "category": "layer",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Preferred stacking level for anchored popovers, menus, and selection surfaces.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "z-index",
+        "tags": ["layer", "stacking", "popover"]
+      },
+      "usage": {
+        "intent": "Use for anchored popup UI when it is not handled by a native top-layer API.",
+        "allowedIn": ["select popups", "combobox popups", "menus", "teaching tips"],
+        "avoid": ["base content", "modal backdrops", "toast/notification rails"],
+        "whyDistinct": "Popover-level overlays need a stable range above ordinary overlays but below modal and toast systems."
+      }
+    },
+    {
+      "id": "z-index.modal",
+      "value": "300",
+      "metadata": {
+        "category": "layer",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Modal layer for dialogs and blocking overlays when top-layer APIs are not used.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "z-index",
+        "tags": ["layer", "stacking", "modal"]
+      },
+      "usage": {
+        "intent": "Use for modal or blocking overlay systems that must sit above popovers and sticky chrome.",
+        "allowedIn": ["dialog fallbacks", "modal surfaces", "blocking overlays"],
+        "avoid": ["ordinary dropdowns", "non-blocking helpers", "toast notices"],
+        "whyDistinct": "Modal systems need a named layer above ordinary popovers so stacks do not collapse into arbitrary large numbers."
+      }
+    },
+    {
+      "id": "z-index.toast",
+      "value": "400",
+      "metadata": {
+        "category": "layer",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Notification layer for toast and transient global messaging.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "z-index",
+        "tags": ["layer", "stacking", "toast", "notification"]
+      },
+      "usage": {
+        "intent": "Use for transient notification surfaces that must remain visible above the rest of the application.",
+        "allowedIn": ["toast systems", "global notification stacks"],
+        "avoid": ["ordinary menus", "sticky layout", "local control layering"],
+        "whyDistinct": "Global notifications need the highest ordinary application layer without forcing every other overlay to escalate."
+      }
+    },
+    {
+      "id": "duration.fast",
+      "value": "120ms",
+      "metadata": {
+        "category": "motion",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Fast motion duration for quick responsive feedback.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "transition-duration",
+        "tags": ["motion", "duration", "fast"]
+      },
+      "usage": {
+        "intent": "Use for immediate interaction feedback such as hover, press, and compact state changes.",
+        "allowedIn": ["button hover", "toggle response", "small emphasis transitions"],
+        "avoid": ["large surface reveals", "slower structural transitions"],
+        "whyDistinct": "Fast feedback needs a dedicated duration so small interactions feel responsive without becoming abrupt."
+      }
+    },
+    {
+      "id": "duration.base",
+      "value": "180ms",
+      "metadata": {
+        "category": "motion",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default motion duration for most interface transitions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "transition-duration",
+        "tags": ["motion", "duration", "base"]
+      },
+      "usage": {
+        "intent": "Use for the default motion rhythm across controls, focus shifts, and small surface state changes.",
+        "allowedIn": ["focus transitions", "selected-state changes", "default component transitions"],
+        "avoid": ["instant feedback only", "large surface reveals"],
+        "whyDistinct": "A default duration keeps motion coherent instead of making every component choose its own timing."
+      }
+    },
+    {
+      "id": "duration.slow",
+      "value": "280ms",
+      "metadata": {
+        "category": "motion",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Slower motion duration for larger surface or overlay transitions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "transition-duration",
+        "tags": ["motion", "duration", "slow"]
+      },
+      "usage": {
+        "intent": "Use for larger transitions that need a little more space to feel deliberate and calm.",
+        "allowedIn": ["popover enter", "panel reveal", "larger surface movement"],
+        "avoid": ["hover feedback", "compact control responses"],
+        "whyDistinct": "Larger transitions need more time than compact feedback so the system feels paced rather than twitchy."
+      }
+    },
+    {
+      "id": "easing.standard",
+      "value": "cubic-bezier(0.2, 0, 0, 1)",
+      "metadata": {
+        "category": "motion",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Default easing for most transitions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "transition-timing-function",
+        "tags": ["motion", "easing", "standard"]
+      },
+      "usage": {
+        "intent": "Use as the default easing for interface transitions.",
+        "allowedIn": ["focus transitions", "hover transitions", "general UI motion"],
+        "avoid": ["special dramatic reveals", "bouncy decorative motion"],
+        "whyDistinct": "A single standard easing keeps default motion calm and consistent."
+      }
+    },
+    {
+      "id": "easing.emphasized",
+      "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+      "metadata": {
+        "category": "motion",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Emphasized easing for overlays, reveals, and more noticeable movement.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "cssProperty": "transition-timing-function",
+        "tags": ["motion", "easing", "emphasized"]
+      },
+      "usage": {
+        "intent": "Use when a transition needs slightly more character or lift than the default easing.",
+        "allowedIn": ["overlay reveal", "panel enter", "scroll bump motion"],
+        "avoid": ["everyday hover states", "tiny utility transitions"],
+        "whyDistinct": "Emphasized motion should remain available for slightly richer transitions without replacing the default rhythm."
+      }
+    }
+  ]
+}

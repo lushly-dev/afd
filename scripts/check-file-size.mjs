@@ -14,7 +14,7 @@
  *   Where N ≤ 1000 (hard cap). File must still be under N lines.
  *
  * Skip patterns: *.stories.ts, *.test.ts, *.spec.ts, *.d.ts, generated files
- * Skip directories: alfred/, python/, packages/rust/
+ * Skip directories: alfred/, python/, packages/rust/, foundations/fast-af/ (imported upstream source)
  */
 
 import { readdirSync, readFileSync } from 'node:fs';
@@ -38,7 +38,15 @@ const SKIP_SUFFIXES = [
 	'.test.mjs',
 	'.spec.mjs',
 ];
-const SKIP_DIRS = ['node_modules', 'dist', 'alfred', 'python', 'packages/rust'];
+// foundations/fast-af is upstream source bound to file-level provenance hashes; splitting it is not an import.
+const SKIP_DIRS = [
+	'node_modules',
+	'dist',
+	'alfred',
+	'python',
+	'packages/rust',
+	'foundations/fast-af',
+];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -118,7 +126,8 @@ function shouldSkip(filePath) {
 		if (name.endsWith(suffix)) return true;
 	}
 
-	// Skip files in excluded directories
+	// Skip files in excluded directories, including repository-relative staged paths
+	if (isSkippedDirectory(filePath)) return true;
 	for (const dir of SKIP_DIRS) {
 		if (normalized.includes(`/${dir}/`) || normalized.includes(`\\${dir}\\`)) return true;
 		if (normalized.includes(`/${dir}`) && dir.includes('/')) return true;

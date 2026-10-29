@@ -38,7 +38,8 @@
 		"publish:npm": "node scripts/release-control.mjs publish",
 		"prepare": "lefthook install",
 		"test:hosted:local": "pnpm build && node scripts/run-hosted-local.mjs",
-		"test:specimen": "pnpm -F \"@lushly-dev/specimen-cli...\" build && pnpm -F @lushly-dev/specimen test:browser && node tests/consumers/specimen/verify-artifacts.mjs"
+		"test:specimen": "pnpm -F \"@lushly-dev/specimen-cli...\" build && pnpm -F @lushly-dev/specimen test:browser && node tests/consumers/specimen/verify-artifacts.mjs",
+		"test:fast-af": "pnpm -F \"@lushly-dev/violet-elements...\" build && pnpm -F @lushly-dev/fast-element test:chromium && pnpm -F @lushly-dev/violet-elements test:browser && node tests/consumers/fast-af/verify-artifacts.mjs"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.5.14",

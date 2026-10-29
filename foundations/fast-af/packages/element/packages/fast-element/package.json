@@ -1,0 +1,237 @@
+{
+  "name": "@lushly-dev/fast-element",
+  "description": "A library for constructing Web Components",
+  "version": "3.0.1",
+  "author": "Lushly Dev (forked from Microsoft FAST)",
+  "homepage": "https://github.com/lushly-dev/fast-af#readme",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lushly-dev/fast-af.git",
+    "directory": "packages/element/packages/fast-element"
+  },
+  "bugs": {
+    "url": "https://github.com/lushly-dev/fast-af/issues"
+  },
+  "type": "module",
+  "main": "dist/esm/index.js",
+  "types": "dist/dts/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/dts/index.d.ts",
+      "production": "./dist/esm/index.js",
+      "development": "./dist/esm/index.debug.js",
+      "default": "./dist/esm/index.js"
+    },
+    "./arrays.js": {
+      "types": "./dist/dts/observation/arrays.d.ts",
+      "default": "./dist/esm/observation/arrays.js"
+    },
+    "./attr.js": {
+      "types": "./dist/dts/components/attributes.d.ts",
+      "default": "./dist/esm/components/attributes.js"
+    },
+    "./attribute-map.js": {
+      "types": "./dist/dts/declarative/attribute-map.d.ts",
+      "default": "./dist/esm/declarative/attribute-map.js"
+    },
+    "./binding.js": {
+      "types": "./dist/dts/binding/exports.d.ts",
+      "default": "./dist/esm/binding/exports.js"
+    },
+    "./children.js": {
+      "types": "./dist/dts/templating/children.d.ts",
+      "default": "./dist/esm/templating/children.js"
+    },
+    "./command.js": {
+      "types": "./dist/dts/command/index.d.ts",
+      "default": "./dist/esm/command/index.js"
+    },
+    "./context.js": {
+      "types": "./dist/dts/context.d.ts",
+      "default": "./dist/esm/context.js"
+    },
+    "./css.js": {
+      "types": "./dist/dts/styles/css.d.ts",
+      "default": "./dist/esm/styles/css.js"
+    },
+    "./debug.js": {
+      "types": "./dist/dts/debug.d.ts",
+      "default": "./dist/esm/debug.js"
+    },
+    "./declarative-utilities.js": {
+      "types": "./dist/dts/declarative/utilities.d.ts",
+      "default": "./dist/esm/declarative/utilities.js"
+    },
+    "./declarative.js": {
+      "types": "./dist/dts/declarative/index.d.ts",
+      "default": "./dist/esm/declarative/index.js"
+    },
+    "./definition-schema.js": {
+      "types": "./dist/dts/definition-schema/index.d.ts",
+      "default": "./dist/esm/definition-schema/index.js"
+    },
+    "./di.js": {
+      "types": "./dist/dts/di/di.d.ts",
+      "default": "./dist/esm/di/di.js"
+    },
+    "./dom-policy.js": {
+      "types": "./dist/dts/dom-policy.d.ts",
+      "default": "./dist/esm/dom-policy.js"
+    },
+    "./dom.js": {
+      "types": "./dist/dts/dom.d.ts",
+      "default": "./dist/esm/dom.js"
+    },
+    "./fast-element.js": {
+      "types": "./dist/dts/components/fast-element.d.ts",
+      "default": "./dist/esm/components/fast-element.js"
+    },
+    "./html.js": {
+      "types": "./dist/dts/templating/html.d.ts",
+      "default": "./dist/esm/templating/html.js"
+    },
+    "./hydration.js": {
+      "types": "./dist/dts/hydration/exports.d.ts",
+      "default": "./dist/esm/hydration/exports.js"
+    },
+    "./notifier.js": {
+      "types": "./dist/dts/observation/notifier.d.ts",
+      "default": "./dist/esm/observation/notifier.js"
+    },
+    "./observable.js": {
+      "types": "./dist/dts/observation/observable.d.ts",
+      "default": "./dist/esm/observation/observable.js"
+    },
+    "./observer-map.js": {
+      "types": "./dist/dts/declarative/observer-map.d.ts",
+      "default": "./dist/esm/declarative/observer-map.js"
+    },
+    "./ref.js": {
+      "types": "./dist/dts/templating/ref.d.ts",
+      "default": "./dist/esm/templating/ref.js"
+    },
+    "./registry.js": {
+      "types": "./dist/dts/registry.d.ts",
+      "default": "./dist/esm/registry.js"
+    },
+    "./render.js": {
+      "types": "./dist/dts/render.d.ts",
+      "default": "./dist/esm/render.js"
+    },
+    "./repeat.js": {
+      "types": "./dist/dts/templating/repeat.d.ts",
+      "default": "./dist/esm/templating/repeat.js"
+    },
+    "./schema.js": {
+      "types": "./dist/dts/schema.d.ts",
+      "default": "./dist/esm/schema.js"
+    },
+    "./scoped.js": {
+      "types": "./dist/dts/scoped/index.d.ts",
+      "default": "./dist/esm/scoped/index.js"
+    },
+    "./signal.js": {
+      "types": "./dist/dts/binding/signal.d.ts",
+      "default": "./dist/esm/binding/signal.js"
+    },
+    "./slotted.js": {
+      "types": "./dist/dts/templating/slotted.d.ts",
+      "default": "./dist/esm/templating/slotted.js"
+    },
+    "./state.js": {
+      "types": "./dist/dts/state/exports.d.ts",
+      "default": "./dist/esm/state/exports.js"
+    },
+    "./two-way.js": {
+      "types": "./dist/dts/binding/two-way.d.ts",
+      "default": "./dist/esm/binding/two-way.js"
+    },
+    "./trust.js": {
+      "types": "./dist/dts/trust/index.d.ts",
+      "default": "./dist/esm/trust/index.js"
+    },
+    "./updates.js": {
+      "types": "./dist/dts/observation/update-queue.d.ts",
+      "default": "./dist/esm/observation/update-queue.js"
+    },
+    "./utilities.js": {
+      "types": "./dist/dts/utilities.d.ts",
+      "default": "./dist/esm/utilities.js"
+    },
+    "./volatile.js": {
+      "types": "./dist/dts/observation/volatile.d.ts",
+      "default": "./dist/esm/observation/volatile.js"
+    },
+    "./when.js": {
+      "types": "./dist/dts/templating/when.d.ts",
+      "default": "./dist/esm/templating/when.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "unpkg": "dist/fast-element.min.js",
+  "sideEffects": false,
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist', { recursive: true, force: true }); require('fs').rmSync('temp', { recursive: true, force: true }); require('fs').rmSync('test-results', { recursive: true, force: true })\"",
+    "doc": "api-extractor run --local",
+    "doc:ci": "api-extractor run",
+    "doc:exports": "node ./scripts/run-api-extractor.js",
+    "doc:path-exports": "node ./scripts/check-path-exports-docs.js --write",
+    "doc:path-exports:check": "node ./scripts/check-path-exports-docs.js --check",
+    "doc:exports:ci": "node ./scripts/run-api-extractor.js ci",
+    "build": "npm run build:tsc && npm run test:exports && npm run test:types && npm run build:rollup && npm run doc && npm run doc:exports",
+    "build:fixtures": "node scripts/declarative/build-fixtures.js",
+    "build:fixtures:webui": "node scripts/declarative/build-fixtures-with-webui.js",
+    "build:rollup": "rollup -c",
+    "build:sizes": "node scripts/measure-sizes.js",
+    "build:tsc": "node ./node_modules/typescript/bin/tsc -p ./tsconfig.json",
+    "dev": "node ./node_modules/typescript/bin/tsc -p ./tsconfig.json -w",
+    "dev:declarative": "concurrently -k -n tsc,server \"npm run dev\" \"npm run test-server:declarative\"",
+    "prepublishOnly": "npm run clean && npm run build",
+    "lint": "biome lint .",
+    "lint:fix": "biome lint --write .",
+    "test:playwright": "playwright test && npm run test:playwright:declarative",
+    "test:exports": "node ./scripts/smoke-package-exports.js",
+    "test:types": "node ./node_modules/typescript/bin/tsc -p ./test/tsconfig.types.json",
+    "test:migration-rules": "sg test --config migration/fast-html/sgconfig.yml --skip-snapshot-tests",
+    "test:playwright:declarative": "playwright test --config=playwright.declarative.config.ts",
+    "test:coverage:command": "node ./scripts/command-coverage.mjs",
+    "test:chromium":"playwright test --project=chromium && npm run test:chromium:declarative",
+    "test:chromium:declarative": "playwright test --config=playwright.declarative.config.ts --project=chromium",
+    "test-server": "npx vite test/ --clearScreen false",
+    "test-server:declarative": "npx vite test/declarative --clearScreen false --port 5174 --strictPort",
+    "test-server:declarative:webui": "npx vite temp/integrations/webui --clearScreen false --port 5174 --strictPort",
+    "test": "npm run lint && npm run doc:path-exports:check && npm run doc:ci && npm run doc:exports:ci && npm run test:types && node ./scripts/smoke-package-exports.js",
+    "test:ci": "npm run doc:path-exports:check && npm run doc:ci && npm run doc:exports:ci && npm run test:exports && npm run test:types && npm run test:migration-rules && npm run test:playwright",
+    "test:ui:declarative": "concurrently -k -n tsc,playwright \"npm run dev\" \"npx playwright test --config=playwright.declarative.config.ts --ui\"",
+    "test:webui-integration": "npm run build:fixtures:webui && playwright test --config=playwright.declarative.webui.config.ts"
+  },
+  "dependencies": {
+    "@webcomponents/scoped-custom-element-registry": "^0.0.10"
+  },
+  "devDependencies": {
+    "@ast-grep/cli": "^0.37.0",
+    "@biomejs/biome": "^2.4.7",
+    "@microsoft/api-extractor": "7.58.1",
+    "@playwright/test": "1.56.1",
+    "@rollup/plugin-terser": "1.0.0",
+    "@rollup/plugin-typescript": "12.3.0",
+    "concurrently": "10.0.3",
+    "esbuild": "0.27.7",
+    "rollup": "4.59.0",
+    "tslib": "^2.8.1",
+    "typescript": "~5.9.3",
+    "vite": "7.3.5"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md",
+    "migration/fast-html/rules"
+  ],
+  "beachball": {
+    "disallowedChangeTypes": [
+      "prerelease",
+      "major"
+    ]
+  }
+}

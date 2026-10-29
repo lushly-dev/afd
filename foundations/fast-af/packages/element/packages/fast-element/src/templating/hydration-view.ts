@@ -1,0 +1,336 @@
+import { Hydratable } from "../components/hydration.js";
+import {
+    getHostName,
+    getHydrationDiagnostic,
+    type HydrationMismatchActual,
+    type HydrationMismatchExpectation,
+} from "../hydration/diagnostics.js";
+import {
+    buildViewBindingTargets,
+    createRangeForNodes,
+    HydrationTargetElementError,
+    targetFactory,
+    type ViewBehaviorBoundaries,
+} from "../hydration/target-builder.js";
+import { type ExecutionContext, SourceLifetime } from "../observation/observable.js";
+import { makeSerializationNoop } from "../platform.js";
+import type { ViewTemplate } from "../templating/template.js";
+import type {
+    CompiledViewBehaviorFactory,
+    ViewBehavior,
+    ViewBehaviorFactory,
+    ViewBehaviorTargets,
+    ViewController,
+} from "./html-directive.js";
+import {
+    DefaultExecutionContext,
+    type ElementView,
+    removeNodeSequence,
+    type SyntheticView,
+} from "./view.js";
+
+/** @public */
+export interface HydratableView<TSource = any, TParent = any>
+    extends ElementView<TSource, TParent>,
+        SyntheticView<TSource, TParent>,
+        DefaultExecutionContext<TParent> {
+    [Hydratable]: symbol;
+    readonly bindingViewBoundaries: Record<string, ViewNodes>;
+    readonly hydrationStage: keyof typeof HydrationStage;
+}
+
+/**
+ * A view controller that can hydrate existing DOM nodes.
+ * @beta
+ */
+export type HydratableViewController<TSource = any, TParent = any> = HydratableView<
+    TSource,
+    TParent
+> &
+    ViewController<TSource, TParent>;
+
+/** @public */
+export interface ViewNodes {
+    first: Node;
+    last: Node;
+}
+
+/** @public */
+export const HydrationStage = {
+    unhydrated: "unhydrated",
+    hydrating: "hydrating",
+    hydrated: "hydrated",
+} as const;
+
+/** @public */
+export class HydrationBindingError extends Error {
+    constructor(
+        /**
+         * The error message
+         */
+        message: string | undefined,
+        /**
+         * The factory that was unable to be bound
+         */
+        public readonly factory: ViewBehaviorFactory,
+        /**
+         * A DocumentFragment containing a clone of the
+         * view's Nodes.
+         */
+        public readonly fragment: DocumentFragment,
+
+        /**
+         * String representation of the HTML in the template that
+         * threw the binding error.
+         */
+        public readonly templateString: string,
+
+        /**
+         * Structured description of the binding the hydration walk was
+         * attempting to apply when the mismatch was detected.
+         */
+        public readonly expected?: HydrationMismatchExpectation,
+
+        /**
+         * Structured description of the server-rendered DOM that was
+         * encountered at the mismatch point.
+         */
+        public readonly received?: HydrationMismatchActual,
+    ) {
+        super(message);
+    }
+}
+
+export class HydrationView<TSource = any, TParent = any>
+    extends DefaultExecutionContext<TParent>
+    implements HydratableView
+{
+    [Hydratable] = Hydratable;
+    public context: ExecutionContext<any> = this;
+    public source: TSource | null = null;
+    public isBound = false;
+    public get hydrationStage() {
+        return this._hydrationStage;
+    }
+    public get targets() {
+        return this._targets;
+    }
+    public get bindingViewBoundaries() {
+        return this._bindingViewBoundaries;
+    }
+    public readonly sourceLifetime: SourceLifetime = SourceLifetime.unknown;
+    private unbindables: { unbind(controller: ViewController): void }[] = [];
+    private fragment: DocumentFragment | null = null;
+    private behaviors: ViewBehavior[] | null = null;
+    private factories: CompiledViewBehaviorFactory[];
+    private _hydrationStage: keyof typeof HydrationStage = HydrationStage.unhydrated;
+    private _bindingViewBoundaries: ViewBehaviorBoundaries = {};
+    private _targets: ViewBehaviorTargets = {};
+
+    constructor(
+        public readonly firstChild: Node,
+        public readonly lastChild: Node,
+        private sourceTemplate: ViewTemplate,
+        private hostBindingTarget?: Element,
+    ) {
+        super();
+        this.factories = sourceTemplate.compile().factories;
+    }
+
+    /**
+     * no-op. Hydrated views are don't need to be moved from a documentFragment
+     * to the target node.
+     */
+    public insertBefore(node: Node): void {
+        // No-op in cases where this is called before the view is removed,
+        // because the nodes will already be in the document and just need hydrating.
+        if (this.fragment === null) {
+            return;
+        }
+
+        if (this.fragment.hasChildNodes()) {
+            node.parentNode!.insertBefore(this.fragment, node);
+        } else {
+            const end = this.lastChild!;
+            if (node.previousSibling === end) return;
+
+            const parentNode = node.parentNode!;
+            let current = this.firstChild!;
+            let next;
+
+            while (current !== end) {
+                next = current.nextSibling;
+                parentNode.insertBefore(current, node);
+                current = next!;
+            }
+
+            parentNode.insertBefore(end, node);
+        }
+    }
+
+    /**
+     * Appends the view to a node. In cases where this is called before the
+     * view has been removed, the method will no-op.
+     * @param node - the node to append the view to.
+     */
+    public appendTo(node: Node): void {
+        if (this.fragment !== null) {
+            node.appendChild(this.fragment);
+        }
+    }
+
+    public remove(): void {
+        const fragment =
+            this.fragment || (this.fragment = document.createDocumentFragment());
+        const end = this.lastChild!;
+        let current = this.firstChild!;
+        let next;
+
+        while (current !== end) {
+            next = current.nextSibling;
+            if (!next) {
+                throw new Error(
+                    `Unmatched first/last child inside "${
+                        (end.getRootNode() as ShadowRoot).host.nodeName
+                    }".`,
+                );
+            }
+            fragment.appendChild(current);
+            current = next;
+        }
+
+        fragment.appendChild(end);
+    }
+
+    public bind(source: TSource, context: ExecutionContext<any> = this): void {
+        if (this.source === source && this.context === context) {
+            return;
+        }
+
+        if (this.hydrationStage !== HydrationStage.hydrated) {
+            this._hydrationStage = HydrationStage.hydrating;
+        }
+
+        let behaviors = this.behaviors;
+
+        if (behaviors === null) {
+            this.source = source;
+            this.context = context;
+            try {
+                const { targets, boundaries } = buildViewBindingTargets(
+                    this.firstChild,
+                    this.lastChild,
+                    this.factories,
+                );
+                this._targets = targets;
+                this._bindingViewBoundaries = boundaries;
+            } catch (error) {
+                if (error instanceof HydrationTargetElementError) {
+                    let templateString = this.sourceTemplate.html;
+                    if (typeof templateString !== "string") {
+                        templateString = templateString.innerHTML;
+                    }
+                    error.templateString = templateString;
+                }
+                throw error;
+            }
+            this.behaviors = behaviors = new Array<ViewBehavior>(this.factories.length);
+            const factories = this.factories;
+
+            for (let i = 0, ii = factories.length; i < ii; ++i) {
+                const factory = factories[i];
+
+                if (factory.targetNodeId === "h" && this.hostBindingTarget) {
+                    targetFactory(factory, this.hostBindingTarget, this._targets);
+                }
+
+                // If the binding has been targeted or it is a host binding and the view has a hostBindingTarget
+                if (factory.targetNodeId in this.targets) {
+                    const behavior = factory.createBehavior();
+                    behavior.bind(this);
+                    behaviors[i] = behavior;
+                } else {
+                    let templateString = this.sourceTemplate.html;
+
+                    if (typeof templateString !== "string") {
+                        templateString = templateString.innerHTML;
+                    }
+
+                    const fragment = createRangeForNodes(
+                        this.firstChild,
+                        this.lastChild,
+                    ).cloneContents();
+                    const result = getHydrationDiagnostic().formatBindingMismatch(
+                        factory,
+                        this.firstChild,
+                        this.lastChild,
+                        getHostName(this.firstChild),
+                    );
+
+                    throw new HydrationBindingError(
+                        result.message,
+                        factory,
+                        fragment,
+                        templateString,
+                        result.expected as HydrationMismatchExpectation | undefined,
+                        result.received as HydrationMismatchActual | undefined,
+                    );
+                }
+            }
+        } else {
+            if (this.source !== null) {
+                this.evaluateUnbindables();
+            }
+
+            this.isBound = false;
+            this.source = source;
+            this.context = context;
+
+            for (let i = 0, ii = behaviors.length; i < ii; ++i) {
+                behaviors[i].bind(this);
+            }
+        }
+
+        this.isBound = true;
+        this._hydrationStage = HydrationStage.hydrated;
+    }
+
+    public unbind(): void {
+        if (!this.isBound || this.source === null) {
+            return;
+        }
+
+        this.evaluateUnbindables();
+
+        this.source = null;
+        this.context = this;
+        this.isBound = false;
+    }
+
+    /**
+     * Removes the view and unbinds its behaviors, disposing of DOM nodes afterward.
+     * Once a view has been disposed, it cannot be inserted or bound again.
+     */
+    public dispose(): void {
+        removeNodeSequence(this.firstChild, this.lastChild);
+        this.unbind();
+    }
+
+    public onUnbind(behavior: {
+        unbind(controller: ViewController<TSource, TParent>): void;
+    }) {
+        this.unbindables.push(behavior);
+    }
+
+    private evaluateUnbindables() {
+        const unbindables = this.unbindables;
+
+        for (let i = 0, ii = unbindables.length; i < ii; ++i) {
+            unbindables[i].unbind(this);
+        }
+
+        unbindables.length = 0;
+    }
+}
+
+makeSerializationNoop(HydrationView);

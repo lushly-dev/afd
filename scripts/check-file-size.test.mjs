@@ -51,3 +51,22 @@ test('explicit staged-file mode still checks only supplied paths', () => {
 	assert.equal(result.status, 0);
 	assert.doesNotMatch(result.stderr, /large\.ts/);
 });
+
+test('staged imported FAST-AF source is skipped while other staged source is checked', () => {
+	const root = mkdtempSync(join(tmpdir(), 'afd-file-size-'));
+	const imported = join('foundations', 'fast-af', 'packages', 'demo', 'src', 'large.ts');
+	const owned = join('foundations', 'specimen', 'src', 'large.ts');
+	for (const path of [imported, owned]) {
+		mkdirSync(join(root, dirname(path)), { recursive: true });
+		writeFileSync(join(root, path), fixture(501));
+	}
+
+	const skipped = spawnSync(process.execPath, [script, imported], { cwd: root, encoding: 'utf8' });
+	assert.equal(skipped.status, 0, skipped.stderr);
+	const checked = spawnSync(process.execPath, [script, imported, owned], {
+		cwd: root,
+		encoding: 'utf8',
+	});
+	assert.equal(checked.status, 1);
+	assert.match(checked.stderr, /1 file size violation/);
+});

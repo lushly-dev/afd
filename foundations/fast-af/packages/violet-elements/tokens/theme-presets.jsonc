@@ -1,0 +1,38 @@
+{
+  "defaultPreset": "light",
+  "presets": {
+    "light": {},
+    "dark": {
+      "color.surface.page": "#161713",
+      "color.surface.card": "#1D1F1B",
+      "color.surface.subtle": "#272A24",
+      "color.surface.selected": "#22352C",
+      "color.surface.floating": "#20231D",
+      "color.text.primary": "#F5EFE3",
+      "color.text.secondary": "#D3CCBF",
+      "color.text.muted": "#A39B8D",
+      "color.border.subtle": "rgba(255, 248, 235, 0.12)",
+      "color.border.strong": "rgba(255, 248, 235, 0.26)",
+      "color.focus.ring": "rgba(245, 239, 227, 0.5)",
+      "color.control.selected.foreground": "#D9EFE0",
+      "color.control.selected.border": "rgba(172, 214, 188, 0.32)",
+      "color.action.secondary.background": "#2B2D27",
+      "color.action.secondary.text": { "ref": "color.text.primary" },
+      "color.action.secondary.border": "rgba(255, 248, 235, 0.14)",
+      "color.action.secondary.hover": "#34372F",
+      "color.action.secondary.pressed": "#3D4038",
+      "color.state.success.background": "rgba(22, 101, 52, 0.36)",
+      "color.state.success.text": "#B7E4C2",
+      "color.state.success.border": "rgba(134, 239, 172, 0.24)",
+      "color.state.warning.background": "rgba(146, 64, 14, 0.38)",
+      "color.state.warning.text": "#F3D6A3",
+      "color.state.warning.border": "rgba(251, 191, 36, 0.28)",
+      "color.state.danger.background": "rgba(180, 35, 24, 0.38)",
+      "color.state.danger.text": "#F5C7C2",
+      "color.state.danger.border": "rgba(252, 165, 165, 0.24)",
+      "shadow.control": "0 1px 1px rgba(0, 0, 0, 0.24), 0 6px 16px rgba(0, 0, 0, 0.18)",
+      "shadow.card": "0 2px 6px rgba(0, 0, 0, 0.28), 0 14px 32px rgba(0, 0, 0, 0.22)",
+      "shadow.floating": "0 8px 18px rgba(0, 0, 0, 0.34), 0 24px 48px rgba(0, 0, 0, 0.28)"
+    }
+  }
+}
