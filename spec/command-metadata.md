@@ -175,6 +175,26 @@ Rules:
    `details.approvalToken` out unless the server opts in, and the token goes to the approver
    another way.
 
+### Private in-process approval exchange
+
+TypeScript DirectClient and createDirectRegistry reserve approval authority for trusted
+application code. Their public `call`, `pipe` and `execute` contexts strip `approval`; their
+held results omit `details.approvalToken`, even when middleware sets `includeToken: true`.
+The client invokes its configured `onApprovalNeeded` hook with public decision metadata.
+Only an explicit `true` permits one private retry. The middleware still verifies the signed
+credential's input/actor/command binding, expiry and single-use nonce. Denial, missing hooks,
+hook errors, cancellation and expired retries never return a transferable credential.
+
+The in-process CLI binds the same exchange when loading a module. Trusted host execution
+without that exchange retains the token-based API above. Applications must own the hook,
+registry and authenticated context: this is not isolation from arbitrary same-process code.
+Custom registries must implement the exchange; legacy token-in-result registries remain held
+by DirectClient, which removes their credential field. Use matching client/core/server versions.
+
+This exchange currently ships in TypeScript. Python, Rust and C++ still require a review of
+their token-in-result defaults and caller context boundaries; track that work with #460 rather
+than copying the previous TypeScript token-return behavior.
+
 ### Asking the human over MCP
 
 A server MAY relay the approval to the human behind the MCP client (TypeScript

@@ -20,6 +20,10 @@
 			"types": "./dist/journal-file.d.ts",
 			"import": "./dist/journal-file.js"
 		},
+		"./internal/direct-approval": {
+			"types": "./dist/direct-approval.d.ts",
+			"import": "./dist/direct-approval.js"
+		},
 		"./commands": {
 			"types": "./dist/commands.d.ts",
 			"import": "./dist/commands.js"

@@ -102,3 +102,19 @@ export function withoutApprovalRelay(context: CommandContext): CommandContext {
 export function approvalRelay(context: CommandContext | undefined): ApprovalRelay | undefined {
 	return (context as RelayContext | undefined)?.[RELAY];
 }
+
+/** Longest input shown in an approval elicitation, in characters. */
+const MAX_SHOWN_INPUT = 1000;
+
+/** The question of a relayed approval: the summary, then what exactly would run. */
+export function relayMessage(
+	summary: string,
+	command: string,
+	input: string,
+	note?: string
+): string {
+	const shown = input.length > MAX_SHOWN_INPUT ? `${input.slice(0, MAX_SHOWN_INPUT)}…` : input;
+	return [...(note ? [note] : []), summary, '', `Command: ${command}`, `Input: ${shown}`].join(
+		'\n'
+	);
+}

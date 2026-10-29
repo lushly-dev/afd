@@ -18,6 +18,11 @@ import type {
 	RandomSource,
 } from '@lushly-dev/afd-core';
 import { failure, isExposedTo as isCoreExposedTo } from '@lushly-dev/afd-core';
+import {
+	createDirectApprovalExchange,
+	directApprovalExchange,
+	publicDirectContext,
+} from '@lushly-dev/afd-core/internal/direct-approval';
 import { createExecutionEngine } from './execution.js';
 import type { ZodCommandDefinition } from './schema.js';
 
@@ -188,11 +193,21 @@ export function createDirectRegistry(
 					retryable: false,
 				});
 			}
-			// SAFETY: T is the caller's assertion about the command's data, as in DirectRegistry.
-			return (await engine.executeCommand(name, input, {
-				...context,
-				interface: iface,
-			})) as CommandResult<T>;
+			// Only the client-owned exchange can carry approval; raw execute calls are held.
+			const supplied = directApprovalExchange(context);
+			const exchange = supplied ?? createDirectApprovalExchange();
+			try {
+				return (await engine.executeCommand(
+					name,
+					input,
+					exchange.bind({
+						...publicDirectContext(context),
+						interface: iface,
+					})
+				)) as CommandResult<T>;
+			} finally {
+				if (!supplied) exchange.dispose();
+			}
 		},
 
 		listCommandNames(): string[] {

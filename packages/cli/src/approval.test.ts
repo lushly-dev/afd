@@ -5,7 +5,13 @@
 
 import { PassThrough } from 'node:stream';
 import { type CommandResult, fixedClock, success } from '@lushly-dev/afd-core';
-import { createApprovalMiddleware, createMcpServer, defineCommand } from '@lushly-dev/afd-server';
+import { createDirectApprovalExchange } from '@lushly-dev/afd-core/internal/direct-approval';
+import {
+	createApprovalMiddleware,
+	createDirectRegistry,
+	createMcpServer,
+	defineCommand,
+} from '@lushly-dev/afd-server';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
@@ -295,5 +301,35 @@ describe('createTerminalApproval', () => {
 		const decision = prompt('todo-delete', {});
 		input.end();
 		expect(await decision).toBe(false);
+	});
+});
+
+describe('private in-process CLI approval', () => {
+	it('approves a DirectRegistry without returning or submitting public tokens', async () => {
+		const run = vi.fn(async () => success({ done: true }));
+		const command = defineCommand({
+			name: 'test-run',
+			description: 'Run',
+			approval: 'required',
+			input: z.object({}),
+			handler: run,
+		});
+		const registry = createDirectRegistry([command], {
+			middleware: [createApprovalMiddleware({ secret: SECRET, commands: [command] })],
+		});
+		const exchange = createDirectApprovalExchange();
+		const output = sink();
+		try {
+			const result = await callWithApproval(
+				'test-run',
+				() => registry.execute('test-run', {}, exchange.bind({})),
+				{ exchange, approve: true, output: output.stream }
+			);
+			expect(result.success).toBe(true);
+			expect(run).toHaveBeenCalledOnce();
+			expect(output.text()).not.toContain('afdap1.');
+		} finally {
+			exchange.dispose();
+		}
 	});
 });

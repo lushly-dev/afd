@@ -13,6 +13,7 @@ import {
 	createApprovalMiddleware,
 } from './approval.js';
 import { createDirectRegistry } from './direct-registry.js';
+import { createExecutionEngine } from './execution.js';
 import { defineCommand } from './schema.js';
 
 const SECRET = 'test-approval-secret-0123456789abcdef';
@@ -66,12 +67,15 @@ function setup(
 		handler: async () => ({ success: true as const, data: [] }),
 	});
 	const commands = [remove, purge, list];
-	const registry = createDirectRegistry(commands, {
-		clock,
+	// Token verification uses the trusted host engine; public DirectRegistry uses a private exchange.
+	const registry = createExecutionEngine({
+		commandMap: new Map(commands.map((command) => [command.name, command])),
+		contextDefaults: { clock },
+		devMode: false,
 		middleware: [createApprovalMiddleware({ secret: SECRET, commands, clock, ...options })],
 	});
 	const call = (name: string, input: unknown, context: CommandContext = {}) =>
-		registry.execute(name, input, { actor: agent, ...context });
+		registry.executeCommand(name, input, { actor: agent, ...context });
 	return { call, clock, handled };
 }
 
