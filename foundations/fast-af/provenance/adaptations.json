@@ -6801,11 +6801,11 @@
       "upstream_sha256": "69d6d5161e9c313e29b6797e5a22ca1efc3e089974bff2ee74466d19264fafef",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-fill-selection.spec.ts",
       "staged_sha256": "69d6d5161e9c313e29b6797e5a22ca1efc3e089974bff2ee74466d19264fafef",
-      "current_import_sha256": "69d6d5161e9c313e29b6797e5a22ca1efc3e089974bff2ee74466d19264fafef",
+      "current_import_sha256": "d3720a568aefa620cc353e2c4122986d8c706c884ea0dbc7f4766c2231d9eb36",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Await one frame after fillSelection so the filled rows render before the next click; the generated cell locator otherwise raced the re-render and matched two \"Alder\" cells on Linux CI"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-fill.spec.ts",

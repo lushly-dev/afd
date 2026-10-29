@@ -145,6 +145,8 @@ describe("violet-data-grid fillSelection", () => {
             { rowId: "c", columnId: "name", value: "Alder" },
             { rowId: "d", columnId: "name", value: "Birch" },
         ]);
+        // Let the filled rows render, so the click's generated locator is unique when it resolves.
+        await nextFrame();
 
         await userEvent.click(cell(grid, "a", "name"));
         const right = grid.fillSelection("right", 5);
