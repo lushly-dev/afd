@@ -295,11 +295,26 @@ export function publishPlan({
 			root
 		),
 	tagger = (tag) => run('git', ['tag', '-a', tag, '-m', tag], root),
+	previouslyPublished = [],
 }) {
 	if (!receiptFile) throw new Error('Publication requires a durable receipt path');
 	if (existsSync(receiptFile))
 		throw new Error('Existing publication receipt requires explicit reconciliation');
 	validatePlan(root, plan, plan.core.registryEvidence);
+	const knownPublished = new Set();
+	for (const entry of previouslyPublished) {
+		const artifact = plan.artifacts.find(
+			(a) => a.name === entry.name && a.version === entry.version
+		);
+		if (!artifact || knownPublished.has(entry.name))
+			throw new Error('Invalid previously verified publication set');
+		verifyPublished(artifact, () => ({
+			name: entry.name,
+			version: entry.version,
+			dist: { integrity: entry.integrity },
+		}));
+		knownPublished.add(entry.name);
+	}
 	const readEvidence = () =>
 		registryNames(root, plan.core.selectedUnits).map((name) => {
 			const result = registry(name);
@@ -316,7 +331,10 @@ export function publishPlan({
 	validatePlan(root, plan, evidence);
 	const ordered = dependencyOrder(root, plan.artifacts, packedManifest);
 	for (const artifact of ordered) {
-		if (evidence.find((entry) => entry.name === artifact.name)?.versions.includes(artifact.version))
+		if (
+			knownPublished.has(artifact.name) ||
+			evidence.find((entry) => entry.name === artifact.name)?.versions.includes(artifact.version)
+		)
 			continue;
 		const tag = `${artifact.name}@${artifact.version}`;
 		try {
@@ -335,16 +353,36 @@ export function publishPlan({
 	};
 	const save = () => writeFileSync(receiptFile, `${JSON.stringify(receipt, null, '\t')}\n`);
 	for (const artifact of ordered) {
+		const tag = `${artifact.name}@${artifact.version}`;
 		try {
 			evidence = readEvidence();
 			validatePlan(root, plan, evidence);
 			if (
+				knownPublished.has(artifact.name) ||
 				evidence.find((entry) => entry.name === artifact.name)?.versions.includes(artifact.version)
 			) {
 				receipt.state = 'checking';
 				receipt.current = artifact.name;
 				save();
-				verifyPublished(artifact, readback);
+				const observed = verifyPublished(artifact, readback);
+				receipt.verifiedArtifacts ??= [];
+				receipt.verifiedArtifacts.push(observed);
+				receipt.publishedPackages.push({
+					name: artifact.name,
+					version: artifact.version,
+					tag,
+					publication: 'previously-published',
+					notes: notes(root, artifact),
+				});
+				let target;
+				try {
+					target = run('git', ['rev-parse', '--verify', `refs/tags/${tag}^{commit}`], root).trim();
+				} catch {
+					tagger(tag);
+				}
+				if (target && target !== plan.sourceRevision)
+					throw new Error(`Existing release tag differs: ${tag}`);
+				save();
 				continue;
 			}
 			receipt.state = 'publishing';

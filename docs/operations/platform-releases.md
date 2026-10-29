@@ -32,6 +32,12 @@ C++ remains a source distribution. Immutable tags, `packages/cpp`, `afd::afd`, F
 
 A failed or uncertain publication requires receipt and registry reconciliation before retry. Never overwrite versions, infer absence from a stale cached response, automatically fall back to a second publisher, or label a partial family as fully released. Tag/release finalization failures also hold their receipts; repair the missing step only after matching registry bytes and source identity.
 
+An accepted npm upload can precede registry metadata visibility. Upload and finalization readback use fresh full metadata with bounded retries for an absent version. A mismatch or network failure holds the release; uploads are never retried automatically.
+
+For a held upload whose acceptance can be verified, review and commit `.release/npm-recovery.json` with the original run/attempt, source revision, plan binding, intent digest and exact failed status ID. After that change passes review and CI, dispatch `release.yml` on `main` with the SHA-256 of those approval bytes as `recovery_approval`. The recovery job runs the quality gate, downloads the retained original evidence, restores the sealed artifact paths, and checks the frozen source in a separate worktree. It verifies the uncertain upload before appending an owned recovery claim linked to the original failed status. Original failure history is preserved.
+
+Recovery adopts verified existing versions even if a later registry listing regresses, uploads only the remaining artifacts once, and requires the complete planned package/tag/release set before success. The original plan is neither repacked nor resealed. Missing retention evidence, an absent uncertain upload, changed source/intent, conflicting tags/releases or unknown registry state require further reconciliation. A failed recovery remains held; the previous approval cannot acquire or replace an active/successful claim.
+
 Before any publisher transfer, record old/new authority, queued/in-flight release handling, frozen candidate/artifact identity, registry settings, and restoration steps. Simulated authentication failure tests the decision process only. Actual credentials, first upload, registry readback, and isolated installations remain separate Phase 5 evidence.
 
 ## Scoped development
