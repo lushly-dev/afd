@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "family": "specimen",
+  "source_repository": "https://github.com/lushly-dev/afd",
+  "source_revision": "ceaa5156ae0461c2b076168ea4949535f8fcf176",
+  "source_branch_at_selection": "codex/specimens-feasibility",
+  "source_base": "bc43019a4acd237e5ef3a2bf65f21564900143aa",
+  "source_readback": "Source checkout clean at the selected revision and the remote branch unchanged on 2026-10-28, immediately before import",
+  "staged_candidate": {
+    "description": "Disposable staging directory outside the repository; prepared by another agent and treated as candidate evidence",
+    "provenance_sha256": "41a0f24845f9d8a914fddb6268472978d17fbfc1da48fd0f083d2d62d43da064",
+    "candidate_files_sha256": "8ced89583a503289eb32cb5c3a30b41cdd5684f18ff1ff4dd344146a28bb7b24",
+    "fixtures_only_not_imported": [
+      "packages/core",
+      "packages/server"
+    ]
+  },
+  "records": {
+    "upstream": {
+      "manifest": "upstream-selected.json",
+      "sha256": "a1abb93b7a56d9ffa30ede1442499e22379e242f6be1bf58e4be6b615fb8239d"
+    },
+    "adaptations": {
+      "manifest": "adaptations.json",
+      "sha256": "208c1c873b92c09933d73a312e685505b72c52636f2b77cbc883734b260a3354"
+    }
+  },
+  "units": [
+    {
+      "name": "@lushly-dev/specimen",
+      "layer": "foundation",
+      "path": "foundations/specimen"
+    },
+    {
+      "name": "@lushly-dev/specimen-afd",
+      "layer": "integration",
+      "path": "integrations/specimen-afd"
+    },
+    {
+      "name": "@lushly-dev/specimen-cli",
+      "layer": "endpoint",
+      "path": "endpoints/specimen-cli"
+    }
+  ],
+  "interpretation": "upstream-selected.json describes upstream bytes only. adaptations.json records upstream to staged and staged to imported transitions for every imported file. The staged candidate is context, not upstream identity.",
+  "license": "MIT",
+  "source_authority": "lushly-dev/afd branch codex/specimens-feasibility (unmerged)",
+  "publisher_authority": "none: never published; no publisher recorded or authorized",
+  "publication_state": "quarantined"
+}

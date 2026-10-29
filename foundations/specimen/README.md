@@ -1,0 +1,107 @@
+# Specimens
+
+Experimental native component observation bench. A separate `@lushly-dev/specimen-afd` integration exposes `specimen-list`, `specimen-render`, `specimen-diff` and `specimen-build` through the validated definitions shared by the `@lushly-dev/specimen-cli` JSON endpoint and available to MCP hosts.
+
+It captures actual Chromium geometry, selected computed styles, native control state, open-shadow DOM and ARIA snapshots. These observations detect changes that identical DOM markup can conceal. Each render gets a new browser context and registry; declared readiness and cleanup run before the environment is discarded.
+
+The package is the feasibility milestone of the [Specimens proposal](../../docs/features/proposed/specimens/specimens.proposal.md). Storybook migration, full CSF discovery, schema coverage, axe, token dependencies, event history, plugins and pixel comparison remain later work. This package does not establish that removing Storybook is safe.
+
+## Run the fixtures
+
+From the repository root, using the Node version in `.nvmrc`:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm -F @lushly-dev/specimen-cli... build
+pnpm -F @lushly-dev/specimen exec playwright install chromium
+node endpoints/specimen-cli/dist/bin.js --root foundations/specimen/fixtures list
+node endpoints/specimen-cli/dist/bin.js --root foundations/specimen/fixtures render baseline --output /tmp/specimen-left.json
+node endpoints/specimen-cli/dist/bin.js --root foundations/specimen/fixtures render padded --output /tmp/specimen-right.json --screenshot /tmp/specimen-right.png
+node endpoints/specimen-cli/dist/bin.js diff /tmp/specimen-left.json /tmp/specimen-right.json
+```
+
+Every command emits one `CommandResult` JSON value on stdout. Errors use stderr for diagnostics and a nonzero exit code. Capture files may contain raw observations or successful command-result envelopes. Output paths are resolved relative to `--root`; absolute paths work as shown. `diff` does not need a project or browser.
+
+Use `--viewport 375x812`, `--container 320x600`, `--theme dark` or `--checkpoint hovered` with `render`. Viewport changes the browsing context; container constrains the mount element inside it. The `interactive` fixture exposes `hovered` and `focused` checkpoints. By default rendering stops at `mount`; `after-run` executes all supported scenario steps. The feasibility runner supports named click, focus, hover, fill and capture steps, using real Playwright input.
+
+Each action includes one animation-frame boundary before the next action or checkpoint, covering already queued frame callbacks and their microtasks. Later asynchronous work and animation completion require a future explicit readiness contract. Automated benches disable Vite hot reload so dependency discovery cannot replace a document during capture.
+
+## Register a component
+
+The feasibility manifest is explicit metadata, so listing and loading one specimen never executes unrelated modules. Paths are relative to the configuration file and must resolve inside the project root. Automatic CSF discovery is a separate compatibility workstream.
+
+```json
+{
+  "specimens": [
+    {
+      "id": "button-primary",
+      "title": "Components/Button",
+      "module": "./button.stories.ts",
+      "exportName": "Primary",
+      "component": "my-button"
+    }
+  ]
+}
+```
+
+Save this as `specimen.config.json`. A module can export meta defaults and a specimen object with args, a custom renderer, targets and scenario steps. Custom renderers return an `HTMLElement` or `{ element, ready, dispose }`. An element-returning renderer can instead declare specimen-level `ready` and `dispose` hooks. Hook promises are bounded by the render deadline. Duplicate hook declarations fail instead of silently selecting one.
+
+The fallback component renderer assigns args as properties. Schema validation, slots, imperative Storybook plays and command/expectation scenario steps are not implemented in this milestone. Use custom renderers for the supported native fixtures; unsupported format features must not be assumed to execute.
+
+## Build a review page
+
+```sh
+node endpoints/specimen-cli/dist/bin.js --root foundations/specimen/fixtures build /tmp/specimen-static
+python3 -m http.server 4173 --directory /tmp/specimen-static
+```
+
+The output directory must be empty. Open `/index.html` for the metadata index, or `/specimen.html?id=baseline&viewport=375x812&theme=dark` for a preview. A selected viewport uses a sized iframe so media queries and viewport units reflect its actual dimensions. Each case loads through a separate dynamic import. The shell budget is **50,000 minified UTF-8 JavaScript bytes**, counting its emitted/static dependencies. `specimen-build.json` reports each JavaScript chunk as shell or consumer code. Interaction-library and axe budgets from the proposal are still untested because those integrations are not included yet.
+
+## Use programmatically
+
+```ts
+import { createSpecimenBench, diffObservations } from '@lushly-dev/specimen';
+
+const bench = await createSpecimenBench({ root: './components' });
+try {
+  const before = await bench.render({ id: 'baseline' });
+  const after = await bench.render({ id: 'changed' });
+  const comparison = diffObservations(before, after);
+} finally {
+  await bench.close();
+}
+```
+
+`createSpecimenCommands(bench)` from the separately installed `@lushly-dev/specimen-afd` integration returns MCP-exposed AFD definitions suitable for `createMcpServer({ commands })`. CLI and programmatic command execution validate the same inputs and outputs. Browser resources and Vite's local server remain owned by the bench and must be closed by its caller.
+
+Creating or listing a bench loads configuration without importing Vite/Playwright or starting a browser. The first render/build loads the runtime in the caller's process by default. Operations accepted by one bench run serially; `close()` rejects new work, drains accepted work and releases its backend references. Always await it.
+
+For long-lived SDK or MCP hosts that need to recover runtime memory after closing a bench, use `createSpecimenBench({ root, runtimeIsolation: 'process' })`. This starts one private Node worker on first use and waits for its exit during close. Reuse a bench across captures to amortize startup. The compiled package must be built before using this mode, including from source tests; it launches plain JavaScript without inheriting TypeScript loaders.
+
+Process isolation substantially reduced post-close retained memory in the real consumer pilot, but repeated cold workers increased CPU. It is an explicit resource tradeoff, described in the [heap lifetime validation](../../docs/features/active/specimens/heap-lifetime-validation.md). Normal in-process close does not unload imported modules or promise immediate RSS reclamation. Worker abort has bounded cleanup, but a blocked worker requiring an OS kill cannot guarantee descendant cleanup; Windows cleanup remains empirically unverified.
+
+## Interpret the evidence
+
+- `changed` means a difference was observed in compatible DOM, ARIA, layout, selected styles or live state. `no-change-observed` is restricted to that scope. Partial required channels yield `insufficient-evidence`, with observed differences retained.
+- Captures bind a source revision/dirty status when Git is available, a digest of the configuration and loaded page/module/style responses, a nearest lockfile digest, browser version, effective context and checkpoint. Streaming application traffic is excluded from that source digest and cannot hold readiness open. The loaded-resource digest is not a snapshot of every unused project file or proof of all external resources.
+- The selected style/geometry scope is accessible light DOM and open shadow roots. HTML-construction tracking observes the initialized specimen realm; pre-existing or untouched foreign-realm closed roots cannot be retrospectively identified. Closed roots, raster content, pseudo-element geometry and running animations carry limitations. Natural animations make layout/style evidence partial; request `motion: 'settled'` programmatically for an explicitly suppressed sample. The media preference for reduced motion remains separate.
+- ARIA snapshots are collected. Axe is reported as `not-run`; no empty violation list stands in for an axe check. Token dependencies and event history are explicitly unsupported.
+- Screenshots are review artifacts. `requireVisual: true` always returns insufficient evidence until pixel comparison exists, even when both screenshot paths are present.
+- Normalization preserves whitespace and authored identifiers. Only ids exactly matching `specimen-generated-N` are canonicalized, together with references in the same tree scope. Broken relationships remain observable.
+- Comparison rejects incompatible browser/version/context/checkpoint captures. An intentional context axis must be declared explicitly. Differing dependency identities are reported as an attribution limit.
+
+The static page's Theme control applies CSS color-scheme and theme attributes. Forced browser/OS media preferences can still differ; parity of `prefers-color-scheme` across the static UI and the CLI's browser emulation remains part of the later driver gate.
+
+## Validation
+
+`pnpm -F @lushly-dev/specimen test:browser` runs the full native suite: unit, resource-collector, process-worker and Chromium integration tests. Chromium must be installed (`pnpm -F @lushly-dev/specimen exec playwright install chromium`); missing binaries are failures, not skipped acceptance. The repository-wide `pnpm test` and `pnpm check` run only the browser-free subset (`pnpm -F @lushly-dev/specimen test`, see `vitest.unit.config.ts`); the full suite and the packed-artifact consumers run in the path-filtered `specimen.yml` workflow. The adapter and CLI retain their tests in their own packages. Browser-runtime coverage comes from those real-browser assertions; the Node V8 coverage report excludes browser-only modules because they execute in a different process.
+
+See [implementation status](../../docs/features/active/specimens/implementation.md) for the current acceptance boundary and remaining proposal gates.
+
+The opt-in [real consumer probes](experiments/README.md) exercise actual FAST-AF and Lushly source with recorded dependency limitations. They are separate from the self-contained package suite and do not establish retained-CSF parity.
+
+## Unreleased package split
+
+The selected feasibility source was never admitted for publication. The imported native package keeps version 2.2.0 while its AFD bindings and CLI move to separate distributions. This is a reviewed source transition, not permission to publish 2.2.0 or overwrite a released artifact. See [the split transition](../../docs/features/active/platform-monorepo/specimen-transition.md).
+
+Install `@lushly-dev/specimen` for the native API. It requires no AFD, FAST-AF, or Violet runtime, peers, configuration, or install hooks. Native validation contracts are available from `@lushly-dev/specimen/schema`. Install the separate `@lushly-dev/specimen-cli` endpoint for the `specimen` command, or `@lushly-dev/specimen-afd` with compatible AFD core/server packages for commands/MCP composition. The endpoint may install those foundations for its own operation; inspected applications do not need them.

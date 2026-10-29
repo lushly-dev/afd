@@ -283,6 +283,84 @@
 					"initialVersion": "0.1.0"
 				}
 			]
+		},
+		{
+			"id": "specimen",
+			"family": "specimen",
+			"protocol": "npm-changesets",
+			"sourceRevision": "ceaa5156ae0461c2b076168ea4949535f8fcf176",
+			"authority": "none: unpublished; no publisher recorded (source lushly-dev/afd branch codex/specimens-feasibility)",
+			"state": "quarantined",
+			"routes": ["npm-main"],
+			"gates": [
+				"pnpm check",
+				"specimen.yml",
+				"artifact-contents",
+				"isolated-install",
+				"release-approval"
+			],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/specimen",
+					"registry": "npm",
+					"manifest": "foundations/specimen/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				}
+			]
+		},
+		{
+			"id": "specimen-afd",
+			"family": "specimen",
+			"protocol": "npm-changesets",
+			"sourceRevision": "ceaa5156ae0461c2b076168ea4949535f8fcf176",
+			"authority": "none: unpublished; no publisher recorded (source lushly-dev/afd branch codex/specimens-feasibility)",
+			"state": "quarantined",
+			"routes": ["npm-main"],
+			"gates": [
+				"pnpm check",
+				"specimen.yml",
+				"artifact-contents",
+				"isolated-install",
+				"release-approval"
+			],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/specimen-afd",
+					"registry": "npm",
+					"manifest": "integrations/specimen-afd/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				}
+			]
+		},
+		{
+			"id": "specimen-cli",
+			"family": "specimen",
+			"protocol": "npm-changesets",
+			"sourceRevision": "ceaa5156ae0461c2b076168ea4949535f8fcf176",
+			"authority": "none: unpublished; no publisher recorded (source lushly-dev/afd branch codex/specimens-feasibility)",
+			"state": "quarantined",
+			"routes": ["npm-main"],
+			"gates": [
+				"pnpm check",
+				"specimen.yml",
+				"artifact-contents",
+				"isolated-install",
+				"release-approval"
+			],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/specimen-cli",
+					"registry": "npm",
+					"manifest": "endpoints/specimen-cli/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				}
+			]
 		}
 	]
 }

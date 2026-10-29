@@ -1,0 +1,398 @@
+{
+  "kind": "immutable-git-object-baseline",
+  "repository": "https://github.com/lushly-dev/afd",
+  "branch_at_selection": "codex/specimens-feasibility",
+  "revision": "ceaa5156ae0461c2b076168ea4949535f8fcf176",
+  "git_tree": "26163cfe0274058c77ed4d144dadeb5582395df1",
+  "selection": [
+    "packages/specimen",
+    "docs/features/active/specimens",
+    "docs/features/proposed/specimens"
+  ],
+  "files": [
+    {
+      "path": "docs/features/active/specimens/consumer-validation.md",
+      "sha256": "ebb01465048d49e3e84fc0c98f23e30310cb3a80ae1ed5ff9b40c4ba3fa0f262",
+      "git_blob": "2d04f3863ba37c9bfd4655a84475d794b30b4df7",
+      "git_mode": "100644"
+    },
+    {
+      "path": "docs/features/active/specimens/heap-lifetime-validation.md",
+      "sha256": "f9d5ac4fb2e327a4439f642cebd44f52b2f9ede27b5672b517bc7665c01bfdf3",
+      "git_blob": "64343e433f6db72f632f6f4bb00c379c3422fd8f",
+      "git_mode": "100644"
+    },
+    {
+      "path": "docs/features/active/specimens/implementation.md",
+      "sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
+      "git_blob": "c1b33f165b8d9a8ca41080966be73a5ecd416cc5",
+      "git_mode": "100644"
+    },
+    {
+      "path": "docs/features/active/specimens/resource-validation.md",
+      "sha256": "37e44057fcde47e1478e2f7ff2d8bf9cf4c38d10c0353ffc613f980d959b827c",
+      "git_blob": "906a8aa133f6e08178e56bb4085a40f83b59092f",
+      "git_mode": "100644"
+    },
+    {
+      "path": "docs/features/active/specimens/worker-reuse-validation.md",
+      "sha256": "e61a3798dc8310d60087bb0a5202f48f92b12d90a75b6523dfa78b2ae512e298",
+      "git_blob": "9cda3f3e30b73ecdf5811df71b9444b04a539f40",
+      "git_mode": "100644"
+    },
+    {
+      "path": "docs/features/proposed/specimens/review.md",
+      "sha256": "e2ca6ee51e49a3659eebc0f00b6e9242694714e20e90c72da41c9b58c86ab2ea",
+      "git_blob": "104baf6276b44592dec32ff869f4942d7210dcd3",
+      "git_mode": "100644"
+    },
+    {
+      "path": "docs/features/proposed/specimens/specimens.proposal.md",
+      "sha256": "3bf55e3699fdb17caa60e43d863bc307e9bc4a2831b25f87b5c3e200397eb8bf",
+      "git_blob": "1430e106f2a2bb0b69d9031a82189ce411315212",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/README.md",
+      "sha256": "3994cd025d5f9b53f0e7ecf77bb36de470db315285468f55bf8dcc58537ffc8b",
+      "git_blob": "d9819b57c4300fa9e4e91a727623234e42372d28",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/README.md",
+      "sha256": "1679fd7a89642030f5ded5a2fd38701e3c6a745beca1c0565fa709b5c16a329d",
+      "git_blob": "fff1557ed6d616822eefcc0c90c5320201d4053a",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/consumer-project.mjs",
+      "sha256": "35dabd0c92a674dd3127c664027596633431bb057787201ba484f9629c4a9ee9",
+      "git_blob": "88b552286786dbff5ee367d3bb49d351be7ef862",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/fast-af.fixture.mjs",
+      "sha256": "51256ea34cacf0c76f439d6ac1585e89d5987622b9a5893cfd01e44868e40ec9",
+      "git_blob": "adc12c3c17a5e9867cc077373d5de6f6592b4623",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/lushly.fixture.mjs",
+      "sha256": "504ad17ad035ed726b3e308ea8cdbf5e8df168598b4571a8b40f2c2853c316c1",
+      "git_blob": "1ac434a893ab2e5e74f06c92c68a40f89c537004",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/profile-heap.mjs",
+      "sha256": "157399e4748add6055310c36da0de28680864df76c48c6f5fbc5143e42138034",
+      "git_blob": "eb5e556917c5664302fbc13f3b9cc3e716cbbf64",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/resources/calibrate.mjs",
+      "sha256": "1909244cf38273be8e56f62fde48ed8f28223f3e9c54f258fead29d2b778d0c6",
+      "git_blob": "c9dd959aa58d06328e5890805e40e13414a2e3b1",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/resources/collector-checks.c",
+      "sha256": "e4716c4b5373a7bc11092679eeacf517d346993a8585acc2c51c4763f5fda98d",
+      "git_blob": "6e846160a2171d5f3168c03b7b7b169cb76aac70",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/resources/darwin.c",
+      "sha256": "b596dfc11a579c26009833c42060fb0d2c002a751c1c0e06cd340a41d9f9090a",
+      "git_blob": "bfcf75252d659fb48a8746357c1b624125d38a98",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/resources/heap.mjs",
+      "sha256": "558b35f8e060ff0696709852b3f64e65210df3d8fd1684e300eb272c5d368b1c",
+      "git_blob": "eb04e55d2be0ae2c62f04b5528e8586c658ddeb7",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/resources/heap.test.mjs",
+      "sha256": "e35af9230e491020c2ee7df4102fe8650948cae1f8d7962b3c7b24dad8692bff",
+      "git_blob": "d6cf4427251a0f5b655022bffba1b20debc627d4",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/resources/host.mjs",
+      "sha256": "bc5d1846a34a862e24db685a3e5cdb92a6d4a4e438b7def046298b9ac514ed75",
+      "git_blob": "92f9a4dd489fdfdff72ee2ec20d14d8eba87cd46",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/resources/host.test.mjs",
+      "sha256": "49c1960213e2d109a357b896ca2e2e6b2427e857b0b62202823763966b3444bf",
+      "git_blob": "39ad0025a44756ae0852b0b4f6d63d48cf6bc689",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/resources/native.mjs",
+      "sha256": "3743dffab4d011d429e2b785bd6546e24658065e203f94e5cff92fa89ac12988",
+      "git_blob": "d707539d9b33aa57c454c8034057591c6bb3aeab",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/resources/native.test.mjs",
+      "sha256": "3273eed90057ed9cafa0de5075cfe1db75da53f52aa1f499d76b6e1274634adb",
+      "git_blob": "e9cd59058e44115225c7c7864e2276023db38354",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/resources/summary.mjs",
+      "sha256": "da3bfecb2d7400683d6814ce9e1cde627dab151a41bb7e28b1a02d7939f8f274",
+      "git_blob": "8452a1ac3fed65323f20f22e0eb467ce3f5b9ede",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/resources/summary.test.mjs",
+      "sha256": "d2248f355c1afafdd9552da56fad771fb900849853b7b7f4f405de69abd86644",
+      "git_blob": "4454c4573dc9ce4867fc2f080f89d953c358eb29",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/resources/workload.mjs",
+      "sha256": "635f4203d0745a47bfbfd9689eb6dc4473874535f8cf8125b30452867d75a9ca",
+      "git_blob": "01389c05b06743df693a919cca79acbac5d2a0d5",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/run-batches.mjs",
+      "sha256": "7b9956d592c543c31177f4a2db9b489a0eb4de60e8b8f76dfe69a4718347e085",
+      "git_blob": "335bd0b7022e451363820db9232e783508fed632",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/run-consumers.mjs",
+      "sha256": "817f95dd7e13a27ac2f3e7b3e904dfe3a338020061685ef1976daffc3d5794f3",
+      "git_blob": "e1de151590e33c4eedc64304e1918f41f4a96e9b",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/run-heap-profile.mjs",
+      "sha256": "6657f2220e49896b6a0f636d1bfd583e44178e4baa257fb3dd8a7dcac88491af",
+      "git_blob": "bef0292bdb99c30aecbbd1d82c8c90d22b7bdfa6",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/experiments/run-resources.mjs",
+      "sha256": "1e29e59005896e388e11441efeedbc5adb8ff5f5f1fd80b9083d89d7c54347f1",
+      "git_blob": "54a2e44784d2244aff473269e4f68fb93d87edce",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/fixtures/probe.stories.ts",
+      "sha256": "238aae1ec9ca56920f6b7fc62a91c523a4c19751843fdcc1b5238874dd753c0b",
+      "git_blob": "e70a5e134607fa952978d19cecf7d82600bbd470",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/fixtures/specimen.config.json",
+      "sha256": "f6394f8ff74cb6549e98b9f15a28e6dd862d224a012e2a93efb72720707c73c8",
+      "git_blob": "e60d641d031c933b9ab9ec8495efdd9e74809235",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/fixtures/unrelated.stories.ts",
+      "sha256": "0193be967687d476f6b1cefea8cb04aea719bc11da426d030e4f362097d2d6c6",
+      "git_blob": "719e3a157b396d25858dd69731743c10eda6e92c",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/package.json",
+      "sha256": "d7edc73530a7f4fc9e87990b1f84b6b80015dc6b6cedc7b8c31ef7e8a1647783",
+      "git_blob": "3169383e28e0465ee56e61a2b962ea76a0807902",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/bench-runtime.ts",
+      "sha256": "c6ce5889f316575e7351ad9d4d94a0d377952a63d0b41746add91c6683ee9967",
+      "git_blob": "2350a7de3301cda5cf95e09e458d6a22c5b34f08",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/bench-worker-client.ts",
+      "sha256": "f5b0ebb489133554fbc2cdaf64fe6dd223e76b39ac8f5ba7227545ff076191e0",
+      "git_blob": "0a87bfbca8e450260ec71f830121a21ded9e1f95",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/bench-worker.test.ts",
+      "sha256": "a9b5c382cee06d2889a79385686a42036279ec0949d09aa8e3272c40341cc187",
+      "git_blob": "f48448e6f8e38db5d5e3fb0976eb1a182d126c77",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/bench-worker.ts",
+      "sha256": "6793bfedf9ee0f680fe888c7c4442b1132f2621142fe032c1d43ca560ad258c4",
+      "git_blob": "332d615ddf3e3c895a5908333830f460efdae8fd",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/bench.ts",
+      "sha256": "8943030e2ecad946b180fcbb20cfb20f3562aae39c70b2726abc3b92f0c3358a",
+      "git_blob": "e115002064262befc0d70a5c6a06a7a98a240fa7",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/bin.ts",
+      "sha256": "6a35fbccf3b9c07469095d48916e59ed0fdd6cd72874bd700f0d87b423da977b",
+      "git_blob": "53d9a276a59ba70c88a11c488e5ce1e7336d4563",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/browser/capture.ts",
+      "sha256": "5e7bed3421aa729b4f857a3b87c4a7887ac9415d68a9395651ad70356c177522",
+      "git_blob": "d7aa2e025f5d6675b7abc053e5aaa52a2f509773",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/browser/html-observation.ts",
+      "sha256": "e85e11cbb3589c058c2f9b0ece8a5b354d5d357fef265f93398b5400ca6f842c",
+      "git_blob": "13b6409259ba5f1862233b44be4c15aa6e0623d3",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/browser/index.ts",
+      "sha256": "0aa40ffd93b8c398ebb203e6c1a3d30a37283c261f6cbc14da22458348cebea9",
+      "git_blob": "cfe2eb65080851abd94c15c6e3f1fcaa6f37b1a4",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/browser/instrumentation.ts",
+      "sha256": "32b4a8408c9a6b47e3edb298db02e958de5b08a9173c74bf895240f6397cb456",
+      "git_blob": "bff7ab0eac839818ae78e609fea0c9955e10c3c3",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/browser/page.ts",
+      "sha256": "497e8ad7cd6373ae4ad5879a7c0b9f814e3077a500ff7404b0f732d210bf1be6",
+      "git_blob": "15ba87ade5ea24cadafe345d48369024ab75803c",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/browser/validate.ts",
+      "sha256": "3da1b78c1af7ed5bef4bb92ff2b374a2404997ae0f1c03468a4acc2cf45a707d",
+      "git_blob": "06a960b5698db761a3527368cf20ecbeaebc474e",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/cli.test.ts",
+      "sha256": "09cfa93b8b3511830ad06601f97af28caf97b1ae25920f636b324f6157ec24b1",
+      "git_blob": "7964b8e2435818e2365825e2f0ccfd08ffee5f3b",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/cli.ts",
+      "sha256": "05bee6e04928e79101da5f71aecf1b5b35a6c098040d416471e3eaccf251b794",
+      "git_blob": "467f0a80159e8006ca45aa1ad5eb1c70232a9944",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/commands.test.ts",
+      "sha256": "45fb6975b797b8b09b7d4e42aadd2a558bc799c7def51eea711d3dc8b22a69a4",
+      "git_blob": "433e4c58f6d13cb1a782a66dc95947573992ff27",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/commands.ts",
+      "sha256": "99ef9bf918af9278c85bd723a3222a14c42ebeb503069e893e4740153ff06f59",
+      "git_blob": "e4a3a29a96cc2181f13b48411c63fefe703d02e5",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/config.ts",
+      "sha256": "8a0701dff58becb602146ed5a73631f71cba5a11fd5a7194fd2960cd0dba770f",
+      "git_blob": "f2f6d59bb1275ad0762806a7e5bd63296d160967",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/diff.test.ts",
+      "sha256": "96678214a9e435bd59b40d381ce5cd873e227ddae170c758cc4ca87778441c4a",
+      "git_blob": "42a1e51c855815be38ef314a4e378ccf5ee7be9f",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/diff.ts",
+      "sha256": "5d560828f811eb24193f14ff8daa21c06c39aeb461564f38c52646c53a3b82b8",
+      "git_blob": "25c2bec4cd377160d199f0a1df3ead928d7c2764",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/feasibility.test.ts",
+      "sha256": "0af6a6ce3370540ce2ef1e14458de4e90bfdc053674b2ffeea4ac81dfd0d89be",
+      "git_blob": "6f9ec560c6e022a7a35239c9d20e2fefee282caa",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/index.ts",
+      "sha256": "7a34439f0f16c9df4190d303401b3516746fa9616784ded70c62dab457d5a800",
+      "git_blob": "7b4fe6aa6230ece55a0f1be519be518decdcb888",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/lifecycle.test.ts",
+      "sha256": "ddc2168f8868ca4d9e977230eee607f3cd926454dffb4b32eb94cb350151352b",
+      "git_blob": "d38f177df07c0eb6cf0a60920224f250d684b9c6",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/normalize.test.ts",
+      "sha256": "e228e027ded50bc4a6637b1d0e3966c78d92afe64471844bfc4bbf09aa969962",
+      "git_blob": "a6944f5aca8d9729ae646182a9b252c26150c5ef",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/normalize.ts",
+      "sha256": "d2cf0ff5e1c317d0fcca0f7928ae7d1df32e058c5ef15b8d2bd133c0eb2f1522",
+      "git_blob": "f9844fe38e6ad0937a75ab9686fdd86fe7f6efac",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/provenance.ts",
+      "sha256": "44cd94e65f9502b8f84265596639ddb7248c8499c8e471771f21b5d57c95520f",
+      "git_blob": "ce996e8c5d051487c990ff25f5dbd081388c04d7",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/schema.ts",
+      "sha256": "09c8a7ae03929807198fb977b06daa655537f1db50a3d7d9d01b2f831223f22d",
+      "git_blob": "e228b148ae1c5ded90bd199debdb861dcb401f98",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/types.ts",
+      "sha256": "4973c2aff8f6411fc44a342de0b7ae85248af25b441157950e15fde0e2906ea5",
+      "git_blob": "4046f6bb42870f5b398a371c031a38d53b1b9e9c",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/src/vite.ts",
+      "sha256": "48dee057969b44303f9b2bdfda342552e55b708aeda89c509641b9ecb2a17b8e",
+      "git_blob": "1a6990f5919419085b8d326b7685b4c10b1cd17c",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/tsconfig.json",
+      "sha256": "df892d73fc4596d3533c0801b78def99ae1e980c4fbe6b1265b01beac0684703",
+      "git_blob": "dfee6f3383dfe4a26a075050db51da54b8f30878",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/tsconfig.typecheck.json",
+      "sha256": "126cde4e0f04b802cfea584b4508463730e7a45a46e7e2e9283bd8d6f7669446",
+      "git_blob": "1884c01bc1ee277d0f05c8f52f2e5ff4e3263c2a",
+      "git_mode": "100644"
+    },
+    {
+      "path": "packages/specimen/vitest.config.ts",
+      "sha256": "687841ac1a16f34379cddf8c4ccc6c48ab49fa3c0f55cf13a7e13046f0835838",
+      "git_blob": "ceeb12c1387560344b9e4869615d4d67e29be168",
+      "git_mode": "100644"
+    }
+  ]
+}
