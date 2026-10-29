@@ -157,6 +157,31 @@ function testFiles(directory, root = directory) {
 	return found;
 }
 
+test('Health stays a quarantined endpoint with no publication route', async () => {
+	const { assertAdmission, loadInventory } = await import('./release/control.mjs');
+	const inventory = loadInventory(repoRoot);
+	const unit = inventory.units.find((entry) => entry.id === 'health');
+	assert.equal(unit.state, 'quarantined');
+	assert.deepEqual(
+		unit.distributions.map((entry) => [entry.name, entry.manifest]),
+		[['lushly-health', 'endpoints/health/pyproject.toml']]
+	);
+	assert.throws(
+		() => assertAdmission({ root: repoRoot, inventory, unit: 'health', route: 'pypi-health' }),
+		/not admitted/
+	);
+	for (const workflow of readdirSync(join(repoRoot, '.github/workflows')))
+		if (workflow !== 'health.yml')
+			assert.doesNotMatch(
+				read(`.github/workflows/${workflow}`),
+				/lushly-health|pypi-health|unit health/,
+				workflow
+			);
+	const health = read('.github/workflows/health.yml');
+	assert.match(health, /permissions:\n {2}contents: read/);
+	assert.doesNotMatch(health, /publish|upload|id-token|secrets\./);
+});
+
 test('every published package type-checks its tests', () => {
 	const packages = publishedPackageDirectories();
 	assert.ok(packages.includes('packages/core'), 'expected to find the published packages');

@@ -1,0 +1,55 @@
+name: Health
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # The botcore extra develops against the in-repository Botcore and AFD packages.
+      - 'endpoints/health/**'
+      - 'endpoints/botcore/**'
+      - 'python/**'
+      - 'LICENSE'
+      - '.github/workflows/health.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'endpoints/health/**'
+      - 'endpoints/botcore/**'
+      - 'python/**'
+      - 'LICENSE'
+      - '.github/workflows/health.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-package:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ['3.11', '3.12']
+    defaults:
+      run:
+        working-directory: endpoints/health
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Verify lock and install development environment
+        run: |
+          uv lock --check
+          uv sync --frozen --extra dev --python ${{ matrix.python }}
+      - name: Lint
+        run: |
+          uv run --frozen ruff check src tests scripts
+          uv run --frozen ruff format --check src tests scripts
+      - name: Test
+        run: uv run --frozen pytest -q
+      - name: Build wheel and sdist, scan contents and smoke-test isolated consumers
+        run: uv run --frozen python scripts/package_smoke.py

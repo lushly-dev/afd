@@ -21,6 +21,7 @@
 			"!!endpoints/violet-cli",
 			"!!endpoints/violet-server",
 			"!endpoints/botcore/provenance/*.json",
+			"!endpoints/health/provenance/*.json",
 			"!foundations/specimen/provenance/*.json",
 			"!endpoints/botcore/src/botcore/provenance/*.json",
 			"!spec/wire/*.json"

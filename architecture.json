@@ -188,6 +188,20 @@
 			"layer": "endpoint",
 			"pythonModules": ["botcore_teams"],
 			"publicSurfaces": ["wheel", "sdist", "python-import", "botcore.plugins"]
+		},
+		{
+			"manifest": "endpoints/health/pyproject.toml",
+			"family": "health",
+			"layer": "endpoint",
+			"pythonModules": ["botcore_health"],
+			"publicSurfaces": [
+				"wheel",
+				"sdist",
+				"python-import",
+				"python -m botcore_health",
+				"report-schema-1.0",
+				"botcore.plugins"
+			]
 		}
 	],
 	"coverageContract": {
