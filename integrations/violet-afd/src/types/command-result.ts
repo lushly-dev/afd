@@ -21,4 +21,5 @@ export {
 export type { CommandError } from '@lushly-dev/afd-core';
 
 /** Standard error codes used across Violet commands (native: @lushly-dev/violet-core) */
-export { ErrorCodes, type ErrorCode } from '@lushly-dev/violet-core';
+// Import from ./types, not the core root: the root loads the Node storage stores, which /worker must not.
+export { ErrorCodes, type ErrorCode } from '@lushly-dev/violet-core/types';

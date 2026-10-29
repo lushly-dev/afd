@@ -64,6 +64,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",
+		"@neondatabase/serverless": "^1.1.0",
 		"@types/better-sqlite3": "^9.6.0",
 		"@types/node": "^26.6.5",
 		"@types/pg": "^8.23.1",
@@ -72,12 +73,23 @@
 		"nanoid": "^5.1.16",
 		"pg": "^8.23.1",
 		"typescript": "^5.9.3",
-		"vitest": "^3.2.7"
+		"vitest": "^3.2.7",
+		"ws": "^8.22.0"
 	},
 	"files": ["dist", "README.md", "LICENSE"],
 	"optionalDependencies": {
+		"better-sqlite3": "^13.0.3"
+	},
+	"peerDependencies": {
 		"@neondatabase/serverless": "^1.1.0",
-		"better-sqlite3": "^13.0.3",
 		"ws": "^8.22.0"
+	},
+	"peerDependenciesMeta": {
+		"@neondatabase/serverless": {
+			"optional": true
+		},
+		"ws": {
+			"optional": true
+		}
 	}
 }

@@ -25,7 +25,7 @@ Exports to CSS, SCSS, TypeScript, JSON, Swift, Kotlin, Dart, Tailwind and Lua. F
 | `./css` | CSS validators only |
 | `./types` | Data contracts and `ErrorCodes` |
 
-Storage backends are optional. SQLite needs the optional `better-sqlite3` package and Neon the optional `@neondatabase/serverless` and `ws`; `npm install --omit=optional` leaves only `zod`, and in-memory storage, resolution and export still work.
+Storage backends are optional. SQLite needs the optional `better-sqlite3` package, and Neon needs `@neondatabase/serverless` and `ws`, declared as optional peers so your project's copies are used; `npm install --omit=optional` leaves only `zod`, and in-memory storage, resolution and export still work.
 
 `@lushly-dev/violet-core/css` holds allow-list validators for drawing token values safely: `safeCssColor`, `safeCssLength`, `safeFontFamily`, `safeShadow`, `safeDuration`, `safeEasing` and `safeCssNumber`. Each returns a rebuilt, safe value or `null` (never the input passed through), so a token holding `url(…)`, `;` or `}` can't reach a stylesheet. The subpath has no other imports, so browser code can load it alone.
 

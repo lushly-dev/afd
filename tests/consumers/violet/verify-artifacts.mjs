@@ -162,12 +162,13 @@ assert.deepEqual(Object.keys(core.exports), [
 	'./neon',
 ]);
 assert.deepEqual(Object.keys(core.dependencies), ['zod']);
-assert.deepEqual(Object.keys(core.optionalDependencies).sort(), [
-	'@neondatabase/serverless',
-	'better-sqlite3',
-	'ws',
-]);
-assert.equal(core.peerDependencies, undefined);
+assert.deepEqual(Object.keys(core.optionalDependencies), ['better-sqlite3']);
+// Neon/ws are optional peers, so an installing integration's copies satisfy ./neon in strict layouts.
+assert.deepEqual(Object.keys(core.peerDependencies).sort(), ['@neondatabase/serverless', 'ws']);
+assert.deepEqual(
+	Object.values(core.peerDependenciesMeta).map((meta) => meta.optional),
+	[true, true]
+);
 assert(!Object.keys(core.scripts ?? {}).some((key) => /^(pre|post)?install$|^prepare$/.test(key)));
 const coreFiles = packedFiles(CORE);
 assert(!coreFiles.some((path) => path.startsWith('package/dist/commands/')), 'commands packed');
@@ -188,8 +189,10 @@ assert.deepEqual(Object.keys(afd.exports), ['.', './worker', './commands', './cs
 const cli = packedManifest(CLI);
 assert.deepEqual(cli.bin, { violet: './dist/bin.js' });
 assert.equal(cli.dependencies[AFD], '0.2.0');
-assert.equal(cli.dependencies[CORE], undefined);
+// Endpoints depend on core directly: the integration only peers on it.
+assert.equal(cli.dependencies[CORE], '0.2.0');
 const server = packedManifest(SERVER);
+assert.equal(server.dependencies[CORE], '0.2.0');
 assert.deepEqual(server.bin, { 'violet-mcp': './dist/bin.js' });
 assert.deepEqual(Object.keys(server.exports), ['.', './server', './api']);
 for (const manifest of [core, runtime, afd, cli, server]) {
@@ -440,6 +443,25 @@ const integrationRun = spawnSync(process.execPath, ['integration.mjs'], {
 });
 assert.equal(integrationRun.status, 0, integrationRun.stderr);
 const integrationFacts = JSON.parse(integrationRun.stdout.trim().split('\n').at(-1));
+await writeFile(
+	join(integrationRoot, 'worker-cold.mjs'),
+	`import assert from 'node:assert/strict';
+import { registerHooks } from 'node:module';
+registerHooks({
+	resolve(specifier, context, next) {
+		const result = next(specifier, context);
+		// Test the package-relative path only: pnpm store directory names carry peer suffixes.
+		const loaded = result.url.split('/node_modules/').at(-1);
+		assert(!/^@lushly-dev\\/violet-core\\/dist\\/(?:index|db\\/(?:sqlite|postgres|neon))\\.js$|^@neondatabase\\/|^ws\\//.test(loaded), 'violet-afd/worker loaded ' + loaded);
+		return result;
+	},
+});
+const worker = await import('@lushly-dev/violet-afd/worker');
+assert.equal(typeof worker.initializeWorkerCore, 'function');
+`
+);
+run(integrationRoot, 'worker-cold.mjs');
+passed('cold import of violet-afd/worker loads no core root, Node store or driver');
 assert.equal(integrationFacts.commands, 46);
 assert.match(integrationFacts.afdCore, /^0\.1\./);
 passed(

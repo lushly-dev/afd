@@ -99,6 +99,9 @@ importers:
       '@lushly-dev/violet-afd':
         specifier: workspace:*
         version: link:../../integrations/violet-afd
+      '@lushly-dev/violet-core':
+        specifier: workspace:*
+        version: link:../../foundations/violet/packages/core
       '@lushly-dev/violet-server':
         specifier: workspace:*
         version: link:../violet-server
@@ -136,6 +139,9 @@ importers:
       '@lushly-dev/violet-afd':
         specifier: workspace:*
         version: link:../../integrations/violet-afd
+      '@lushly-dev/violet-core':
+        specifier: workspace:*
+        version: link:../../foundations/violet/packages/core
       '@modelcontextprotocol/sdk':
         specifier: ^1.31.0
         version: 1.32.1(zod@3.25.76)
@@ -285,6 +291,9 @@ importers:
       '@biomejs/biome':
         specifier: ^1.9.4
         version: 1.9.4
+      '@neondatabase/serverless':
+        specifier: ^1.1.0
+        version: 1.2.0
       '@types/better-sqlite3':
         specifier: ^9.6.0
         version: 9.6.0
@@ -312,16 +321,13 @@ importers:
       vitest:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@26.6.6)(happy-dom@15.11.7)(jiti@2.7.0)(jsdom@30.1.1(@noble/hashes@2.4.0))(lightningcss@1.33.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
-    optionalDependencies:
-      '@neondatabase/serverless':
-        specifier: ^1.1.0
-        version: 1.2.0
-      better-sqlite3:
-        specifier: ^13.0.3
-        version: 13.0.3
       ws:
         specifier: ^8.22.0
         version: 8.22.0
+    optionalDependencies:
+      better-sqlite3:
+        specifier: ^13.0.3
+        version: 13.0.3
 
   foundations/violet/packages/runtime:
     devDependencies:
