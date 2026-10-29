@@ -28,7 +28,7 @@
 		"typecheck": "pnpm -r typecheck",
 		"check": "npx lefthook run check",
 		"check:boundaries": "node scripts/check-boundaries.mjs",
-		"test:tooling": "node --test scripts/check-file-size.test.mjs scripts/check-versions.test.mjs scripts/repository-contract.test.mjs scripts/check-boundaries.test.mjs scripts/release-control.test.mjs scripts/release/*.test.mjs scripts/release-native.test.mjs scripts/release-finalize.test.mjs scripts/release-claim.test.mjs",
+		"test:tooling": "node scripts/run-tooling-tests.mjs",
 		"changeset": "node scripts/release/changeset.mjs",
 		"version-packages": "node scripts/release-control.mjs version",
 		"release:select": "node scripts/release-control.mjs select",

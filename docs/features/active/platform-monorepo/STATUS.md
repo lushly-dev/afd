@@ -27,6 +27,7 @@ Tracking: [#463](https://github.com/lushly-dev/afd/issues/463). Updated 2026-10-
 - Independent source review found and verified fixes for intent bypass, durable partial-publication recovery, restored-intent claims, workflow argument ordering, native holds/prerequisites, dependency queries and upload ordering/readback. The last targeted prerequisite regression passed before approval.
 - Documentation links/fences and historical snapshot hashes passed. No registry upload, deployment, tag push, publisher transfer or source import occurred during this checkpoint.
 - PR CI and landed-content verification remain outstanding; Phase 1 is not marked complete until those pass.
+- The first push was rejected: Git hook environment variables escaped into disposable test repositories and changed shared Git settings. The known settings were restored and HEAD/index/branch/origin verified. A sanitized tooling launcher and real-child regression passed independent review; fresh gate/push verification follows in the checkpoint commit.
 
 ## Prepared candidates outside the repository
 
