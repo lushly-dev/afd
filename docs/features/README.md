@@ -95,6 +95,8 @@ feature-name/
 └── assets/          # Diagrams, screenshots (optional)
 ```
 
+> **Plan files and `.gitignore`.** `.gitignore` ignores `*.plan.md` everywhere except `docs/features/active/` (and `PLAN/` and `archive/`). A `*.plan.md` written under `proposed/` or `complete/` is silently left out of commits; `git status` does not list it. Name plans outside `active/` without the `.plan` suffix, for example `complete/<feature>/plan.md`, and check that `git status` shows any new plan file before committing.
+
 ## Workflow
 
 ```
