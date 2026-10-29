@@ -1,0 +1,148 @@
+{
+	"schemaVersion": 1,
+	"roots": ["packages", "python", "alfred", "foundations", "endpoints", "integrations", "tools"],
+	"storages": [
+		{
+			"path": ".changeset",
+			"protocol": "npm-changesets"
+		}
+	],
+	"units": [
+		{
+			"id": "afd-npm",
+			"family": "afd",
+			"protocol": "npm-changesets",
+			"sourceRevision": "2243f4fc07bab3ad800313366b2de16673e996fc",
+			"authority": "github: lushly-dev/afd",
+			"state": "admitted",
+			"routes": ["npm-main"],
+			"gates": ["pnpm check", "artifact-contents", "isolated-install", "release-approval"],
+			"fixed": true,
+			"distributions": [
+				{
+					"name": "@lushly-dev/afd-adapters",
+					"registry": "npm",
+					"manifest": "packages/adapters/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				},
+				{
+					"name": "@lushly-dev/afd-auth",
+					"registry": "npm",
+					"manifest": "packages/auth/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				},
+				{
+					"name": "@lushly-dev/afd-cli",
+					"registry": "npm",
+					"manifest": "packages/cli/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				},
+				{
+					"name": "@lushly-dev/afd-client",
+					"registry": "npm",
+					"manifest": "packages/client/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				},
+				{
+					"name": "@lushly-dev/afd-core",
+					"registry": "npm",
+					"manifest": "packages/core/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				},
+				{
+					"name": "@lushly-dev/local-db",
+					"registry": "npm",
+					"manifest": "packages/local-db/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				},
+				{
+					"name": "@lushly-dev/afd-server",
+					"registry": "npm",
+					"manifest": "packages/server/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				},
+				{
+					"name": "@lushly-dev/afd-testing",
+					"registry": "npm",
+					"manifest": "packages/testing/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				},
+				{
+					"name": "@lushly-dev/afd-view-state",
+					"registry": "npm",
+					"manifest": "packages/view-state/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0"
+				}
+			]
+		},
+		{
+			"id": "afd-python",
+			"family": "afd",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "2243f4fc07bab3ad800313366b2de16673e996fc",
+			"authority": "github: lushly-dev/afd",
+			"state": "admitted",
+			"routes": ["pypi-tag"],
+			"gates": ["python.yml", "artifact-contents", "isolated-install", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "afd",
+					"registry": "pypi",
+					"manifest": "python/pyproject.toml",
+					"format": "python",
+					"initialVersion": "0.10.0"
+				}
+			]
+		},
+		{
+			"id": "afd-rust",
+			"family": "afd",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "2243f4fc07bab3ad800313366b2de16673e996fc",
+			"authority": "github: lushly-dev/afd",
+			"state": "admitted",
+			"routes": ["crates-tag"],
+			"gates": ["rust.yml", "artifact-contents", "isolated-install", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "afd",
+					"registry": "crates",
+					"manifest": "packages/rust/Cargo.toml",
+					"format": "rust",
+					"initialVersion": "0.2.1"
+				}
+			]
+		},
+		{
+			"id": "afd-cpp",
+			"family": "afd",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "2243f4fc07bab3ad800313366b2de16673e996fc",
+			"authority": "github: lushly-dev/afd",
+			"state": "admitted",
+			"routes": ["cpp-tag"],
+			"gates": ["cpp.yml", "artifact-contents", "isolated-install", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "afd",
+					"registry": "source",
+					"manifest": "packages/cpp/CMakeLists.txt",
+					"format": "cpp",
+					"initialVersion": "0.2.0"
+				}
+			]
+		}
+	]
+}

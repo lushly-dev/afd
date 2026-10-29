@@ -68,8 +68,11 @@ pre-push:
     versions:
       run: node scripts/check-versions.mjs
 
+    boundaries:
+      run: pnpm check:boundaries
+
     tooling-tests:
-      run: node --test scripts/check-file-size.test.mjs scripts/check-versions.test.mjs scripts/repository-contract.test.mjs
+      run: pnpm test:tooling
 
 # On-demand quality gate — run with: npx lefthook run check
 # Mirrors the TypeScript CI workflow (ci.yml) exactly so local `pnpm check` = remote CI.
@@ -102,5 +105,8 @@ check:
     versions:
       run: node scripts/check-versions.mjs
 
+    boundaries:
+      run: pnpm check:boundaries
+
     tooling-tests:
-      run: node --test scripts/check-file-size.test.mjs scripts/check-versions.test.mjs scripts/repository-contract.test.mjs
+      run: pnpm test:tooling

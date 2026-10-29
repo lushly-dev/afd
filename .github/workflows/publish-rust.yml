@@ -29,6 +29,9 @@ on:
 permissions:
   contents: read
 
+env:
+  RELEASE_TAG: ${{ github.ref_name }}
+
 jobs:
   version:
     name: Validate version matches tag
@@ -42,20 +45,19 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.ref }}
           persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
 
       - name: Validate version matches tag
         id: version
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#rust-v}"
-          CARGO_VERSION=$(python3 -c 'import tomllib; print(tomllib.load(open("Cargo.toml", "rb"))["package"]["version"])')
-          echo "Tag version: $TAG_VERSION"
-          echo "Cargo.toml version: $CARGO_VERSION"
-          if [ "$TAG_VERSION" != "$CARGO_VERSION" ]; then
-            echo "::error::Version mismatch: the tag is $TAG_VERSION but Cargo.toml is $CARGO_VERSION"
-            exit 1
-          fi
-          echo "version=$CARGO_VERSION" >> "$GITHUB_OUTPUT"
+          python ../../scripts/release-native.py --root ../.. --unit afd-rust --route crates-tag --tag "$RELEASE_TAG"
+          echo "version=${RELEASE_TAG#rust-v}" >> "$GITHUB_OUTPUT"
 
   check:
     name: Rust checks
@@ -79,7 +81,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ github.ref }}
           persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Validate publish admission before registry lookup
+        run: >-
+          python ../../scripts/release-native.py --root ../..
+          --unit afd-rust --route crates-tag --tag "$RELEASE_TAG"
 
       - name: Check whether crates.io has this version
         id: registry
@@ -109,6 +122,16 @@ jobs:
         if: steps.registry.outputs.published == 'false'
         run: rustup toolchain install
 
+      - name: Package and inspect the candidate before authentication
+        if: steps.registry.outputs.published == 'false'
+        id: package
+        run: |
+          cargo package --registry crates-io
+          ARTIFACT_DIR=$(mktemp -d "$RUNNER_TEMP/afd-rust-package.XXXXXX")
+          cp "target/package/afd-${RELEASE_TAG#rust-v}.crate" "$ARTIFACT_DIR/"
+          python ../../scripts/release-native.py --root ../.. --unit afd-rust --route crates-tag --tag "$RELEASE_TAG" --artifacts "$ARTIFACT_DIR" --receipt "$RUNNER_TEMP/native-rust-receipt.json"
+          echo "directory=$ARTIFACT_DIR" >> "$GITHUB_OUTPUT"
+
       - name: Authenticate with crates.io
         if: steps.registry.outputs.published == 'false'
         id: auth
@@ -116,6 +139,11 @@ jobs:
 
       - name: Publish to crates.io
         if: steps.registry.outputs.published == 'false'
-        run: cargo publish
         env:
+          ARTIFACT_DIR: ${{ steps.package.outputs.directory }}
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          python ../../scripts/release-native.py --root ../.. --unit afd-rust --route crates-tag --tag "$RELEASE_TAG" --artifacts "$ARTIFACT_DIR" --verify-receipt "$RUNNER_TEMP/native-rust-receipt.json"
+          # Cargo repackages the checked source; this receipt is inspection trace,
+          # not evidence that these exact archive bytes reached the registry.
+          cargo publish --registry crates-io

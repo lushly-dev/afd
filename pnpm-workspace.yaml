@@ -1,5 +1,10 @@
 packages:
   - "packages/*"
+  - "foundations/*"
+  - "foundations/*/packages/*"
+  - "foundations/afd/typescript/*"
+  - "integrations/*"
+  - "endpoints/*"
   - "packages/auth/hosted/convex"
   - "packages/examples/_shared/*"
   - "packages/examples/chat"

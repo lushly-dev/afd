@@ -41,6 +41,36 @@ const CONTRACT_ROW = '| Contract | 1.0-rc | 1.0-rc (`afd.CONTRACT_VERSION`) | 1.
 /** A repository whose versions all agree, with `overrides` replacing whole files. */
 function fixture(overrides = {}) {
 	const files = {
+		'scripts/release/inventory.json': JSON.stringify({
+			schemaVersion: 1,
+			units: [
+				{
+					id: 'afd-npm',
+					family: 'afd',
+					fixed: true,
+					protocol: 'npm-changesets',
+					sourceRevision: 'fixture',
+					authority: 'fixture',
+					state: 'admitted',
+					routes: ['npm-main'],
+					gates: ['fixture'],
+					distributions: [
+						{
+							name: '@lushly-dev/afd-core',
+							registry: 'npm',
+							manifest: 'packages/core/package.json',
+							format: 'npm',
+						},
+						{
+							name: '@lushly-dev/afd-server',
+							registry: 'npm',
+							manifest: 'packages/server/package.json',
+							format: 'npm',
+						},
+					],
+				},
+			],
+		}),
 		'packages/core/package.json': '{ "name": "@lushly-dev/afd-core", "version": "2.0.0" }',
 		'packages/server/package.json': '{ "name": "@lushly-dev/afd-server", "version": "2.0.0" }',
 		'packages/demo/package.json': '{ "name": "demo", "version": "0.0.1", "private": true }',
@@ -133,7 +163,7 @@ test("README's Contract column and Rust badge are checked", () => {
 	assert.match(result.stderr, /2 version problem/);
 });
 
-test('the @lushly-dev/* packages must share one version', () => {
+test('the explicit AFD fixed group must share one version', () => {
 	const server = '{ "name": "@lushly-dev/afd-server", "version": "2.0.1" }';
 	const result = run(fixture({ 'packages/server/package.json': server }));
 	assert.equal(result.status, 1);
@@ -209,4 +239,29 @@ test('--write keeps CRLF line endings', () => {
 		readFileSync(join(root, 'docs/language-parity.md'), 'utf8'),
 		doc.replace('| 1.9.0 |', '| 2.0.0 |')
 	);
+});
+
+test('an independent same-namespace family keeps its own version', () => {
+	const result = run(
+		fixture({
+			'packages/violet/package.json': JSON.stringify({
+				name: '@lushly-dev/violet',
+				version: '8.9.0',
+			}),
+		})
+	);
+	assert.equal(result.status, 0, result.stderr);
+});
+
+test('missing or renamed fixed group manifests fail closed', () => {
+	const result = run(
+		fixture({
+			'packages/server/package.json': JSON.stringify({
+				name: '@lushly-dev/renamed',
+				version: '2.0.0',
+			}),
+		})
+	);
+	assert.equal(result.status, 1);
+	assert.match(result.stderr, /Manifest identity changed/);
 });

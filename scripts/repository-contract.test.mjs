@@ -70,9 +70,11 @@ test('release documentation and workflow agree with root scripts', () => {
 
 test('publish workflows check the tag against the manifest before publishing', () => {
 	const python = read('.github/workflows/publish-python.yml');
-	const pythonCheck = python.indexOf('- name: Validate version matches tag');
-	assert.ok(pythonCheck >= 0, 'publish-python.yml must compare the tag with pyproject.toml');
-	const pythonCheckStep = python.slice(pythonCheck, python.indexOf('- name:', pythonCheck + 1));
+	const pythonCheck = python.indexOf('- name: Validate admission and version matches tag');
+	assert.ok(pythonCheck >= 0, 'publish-python.yml must validate source identity and tag');
+	const pythonCheckStep = python.slice(pythonCheck, python.indexOf('\n  test:', pythonCheck));
+	assert.match(pythonCheckStep, /release-native\.py/);
+	assert.match(pythonCheckStep, /--unit afd-python --route pypi-tag --tag/);
 	assert.doesNotMatch(
 		pythonCheckStep,
 		/^\s+if:/m,
@@ -88,11 +90,34 @@ test('publish workflows check the tag against the manifest before publishing', (
 	const rust = read('.github/workflows/publish-rust.yml');
 	const rustCheck = rust.indexOf('- name: Validate version matches tag');
 	const rustCi = rust.indexOf('uses: ./.github/workflows/rust.yml');
-	const rustPublish = rust.indexOf('run: cargo publish');
+	const rustPublish = rust.indexOf('- name: Publish to crates.io');
 	assert.ok(rustCheck >= 0, 'publish-rust.yml must compare the tag with Cargo.toml');
 	assert.ok(rustCi > rustCheck && rustPublish > rustCi, 'publish-rust.yml must run rust.yml first');
 	assert.match(rust, /needs: \[version, check\]/);
 	assert.match(read('.github/workflows/rust.yml'), /^ {2}workflow_call:/m);
+});
+
+test('npm publication requires durable ownership before upload and completion after finalization', () => {
+	const manifest = JSON.parse(read('package.json'));
+	const workflow = read('.github/workflows/release.yml');
+	assert.equal(manifest.scripts.changeset, 'node scripts/release/changeset.mjs');
+	assert.equal(manifest.scripts['version-packages'], 'node scripts/release-control.mjs version');
+	assert.equal(manifest.scripts['publish:npm'], 'node scripts/release-control.mjs publish');
+	assert.doesNotMatch(workflow, /publish: pnpm publish:npm/);
+	assert.match(workflow, /statuses: write/);
+	assert.match(workflow, /fetch-depth: 0/);
+	const inspect = workflow.indexOf('release-claim.mjs inspect');
+	const intent = workflow.indexOf('release-control.mjs intent-status');
+	const acquire = workflow.indexOf('release-claim.mjs acquire');
+	const publish = workflow.indexOf('run: pnpm publish:npm');
+	const finalize = workflow.indexOf('release-finalize.mjs');
+	const complete = workflow.indexOf('release-claim.mjs complete');
+	assert.ok(inspect >= 0 && intent > inspect && acquire > intent);
+	assert.ok(publish > acquire && finalize > publish && complete > finalize);
+	for (const line of workflow.split('\n').filter((line) => /run:.*release-claim\.mjs/.test(line)))
+		assert.match(line, /--output/, 'every claim command needs a persistent output argument');
+	assert.match(workflow, /npm-plan\.json\.artifacts\//);
+	assert.match(workflow, /registry versions exist without verified finalization/);
 });
 
 test('workflow actions are pinned to full commit SHAs', () => {

@@ -14,9 +14,12 @@ jobs:
       contents: write
       pull-requests: write
       id-token: write
+      statuses: write
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
@@ -35,14 +38,92 @@ jobs:
       - name: Quality gate
         run: pnpm check
 
-      - name: Create Release PR or Publish
+      - name: Inspect durable publication claim
+        id: claim-status
+        run: |
+          node scripts/release-claim.mjs inspect --output "$RUNNER_TEMP/npm-claim-status.json"
+          node --input-type=module -e 'import fs from "node:fs"; const claim = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/npm-claim-status.json`)); fs.appendFileSync(process.env.GITHUB_OUTPUT, `state=${claim.state}\n`);'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Inspect approved npm release intent
+        id: intent
+        run: |
+          node scripts/release-control.mjs intent-status --output "$RUNNER_TEMP/npm-intent-status.json"
+          node --input-type=module -e 'import fs from "node:fs"; const status = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/npm-intent-status.json`)); const claim = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/npm-claim-status.json`)); if (status.state === "fulfilled" && claim.state !== "succeeded") throw new Error("Publication held: registry versions exist without verified finalization"); if (status.publishable && claim.state === "succeeded") throw new Error("Publication held: completed claim disagrees with registry"); fs.appendFileSync(process.env.GITHUB_OUTPUT, `publishable=${status.publishable}\n`);'
+
+      - name: Plan approved npm artifacts
+        if: steps.intent.outputs.publishable == 'true'
+        run: pnpm release:plan --plan "$RUNNER_TEMP/npm-plan.json"
+
+      - name: Configure release tag author
+        if: steps.intent.outputs.publishable == 'true'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Acquire durable publication claim
+        id: claim
+        if: steps.intent.outputs.publishable == 'true'
+        run: node scripts/release-claim.mjs acquire --output "$RUNNER_TEMP/npm-claim.json"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish approved npm artifacts
+        id: publish
+        if: steps.intent.outputs.publishable == 'true'
+        run: pnpm publish:npm --plan "$RUNNER_TEMP/npm-plan.json" --receipt "$RUNNER_TEMP/npm-publication.json"
+        env:
+          NPM_CONFIG_PROVENANCE: true
+
+      - name: Push release tags and create GitHub Releases
+        if: steps.intent.outputs.publishable == 'true'
+        run: node scripts/release-finalize.mjs "$RUNNER_TEMP/npm-publication.json" "$RUNNER_TEMP/npm-plan.json"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Complete durable publication claim
+        id: complete
+        if: steps.intent.outputs.publishable == 'true'
+        run: node scripts/release-claim.mjs complete --claim "$RUNNER_TEMP/npm-claim.json" --plan "$RUNNER_TEMP/npm-plan.json" --receipt "$RUNNER_TEMP/npm-publication.json" --output "$RUNNER_TEMP/npm-claim-result.json"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Hold failed publication claim
+        if: ${{ failure() && steps.claim.outcome == 'success' && steps.complete.outcome != 'success' }}
+        run: node scripts/release-claim.mjs fail --claim "$RUNNER_TEMP/npm-claim.json" --output "$RUNNER_TEMP/npm-claim-result.json"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Retain npm publication evidence
+        if: ${{ !cancelled() && steps.intent.outputs.publishable == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: npm-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/npm-plan.json
+            ${{ runner.temp }}/npm-publication.json
+            ${{ runner.temp }}/npm-claim.json
+            ${{ runner.temp }}/npm-claim-result.json
+            ${{ runner.temp }}/npm-plan.json.artifacts/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Select pending release batch
+        id: selection
+        run: |
+          node scripts/release-control.mjs select --output "$RUNNER_TEMP/npm-selection.json"
+          node --input-type=module -e 'import fs from "node:fs"; const selection = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/npm-selection.json`)); fs.appendFileSync(process.env.GITHUB_OUTPUT, `selectable=${selection.selectable}\n`);'
+
+      # Publication is independent of pending fragments held in other families.
+      - name: Create selected release PR
+        if: steps.selection.outputs.selectable == 'true'
         id: changesets
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
           version: pnpm version-packages
-          publish: pnpm publish:npm
+          createGithubReleases: false
           title: 'chore: release packages'
           commit: 'chore: release packages'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true

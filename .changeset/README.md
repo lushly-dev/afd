@@ -10,12 +10,20 @@ pnpm changeset
 
 This creates a changeset file describing the change and its semver impact.
 The Release workflow runs `pnpm check` before Changesets can act. At release time,
-`pnpm version-packages` consumes all changesets, bumps versions, and updates
-CHANGELOG.md automatically. Merging that release PR lets the same workflow publish.
+`pnpm version-packages` selects complete admitted units, consumes only their
+compatible fragments, and updates their manifests/changelogs in a disposable
+workspace. The reviewed release PR records `.release/npm-intent.json`; guarded
+artifact planning and publication validate that selection after merge.
 
-All `@lushly-dev/*` packages use **fixed versioning** — they always share the same version number.
+The nine existing AFD npm packages form the explicit **afd-npm fixed group**.
+Other foundation/integration/endpoint families may have independent versions and
+release batches. Registry scope does not define group membership. Held units
+retain their release records; shared fragments require coordinated selection.
 
 Changesets only version the published npm packages in this monorepo.
+
+This directory contains npm package-to-semver fragments only. Botcore category
+fragments use separately owned storage. See [platform release controls](../docs/operations/platform-releases.md).
 
 - If you changed one or more `@lushly-dev/*` packages, add a changeset.
 - If you changed only `python/`, `packages/rust/`, `packages/cpp/` or docs/skills, do not add

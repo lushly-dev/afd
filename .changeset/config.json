@@ -1,8 +1,25 @@
 {
 	"$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
-	"changelog": ["@changesets/changelog-github", { "repo": "lushly-dev/afd" }],
+	"changelog": [
+		"@changesets/changelog-github",
+		{
+			"repo": "lushly-dev/afd"
+		}
+	],
 	"commit": false,
-	"fixed": [["@lushly-dev/*"]],
+	"fixed": [
+		[
+			"@lushly-dev/afd-adapters",
+			"@lushly-dev/afd-auth",
+			"@lushly-dev/afd-cli",
+			"@lushly-dev/afd-client",
+			"@lushly-dev/afd-core",
+			"@lushly-dev/local-db",
+			"@lushly-dev/afd-server",
+			"@lushly-dev/afd-testing",
+			"@lushly-dev/afd-view-state"
+		]
+	],
 	"linked": [],
 	"access": "public",
 	"baseBranch": "main",
