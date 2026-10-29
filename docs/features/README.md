@@ -16,6 +16,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 
 | Feature | Description |
 |---------|-------------|
+| [Platform Monorepo](./active/platform-monorepo/) | Consolidate independent foundations and composable developer endpoints with guarded publishing; Lushly remains separate and Creator is excluded. |
 | [Python Parity Closure](./active/python-parity/) | Close the export-surface gap between TypeScript and Python. 97 names are missing; 60 of them are implemented but not exported. |
 | [Language Parity Closure](./active/parity-closure/parity-closure.plan.md) | Close the unintended cross-language gaps in [Language Parity](../language-parity.md): spec first, in waves 0–4, with every undeclared gap decided |
 | [MCP 2026-07-28 upgrade](./active/mcp-2026-07-28/proposal.md) | Move every AFD MCP surface to the stateless 2026-07-28 spec, served dual-era, with legacy lanes removed in 3.0 |

@@ -1,0 +1,79 @@
+{
+	"schemaVersion": 1,
+	"families": ["afd", "specimen", "violet", "fast-af"],
+	"discoveryRoots": [
+		"packages",
+		"python",
+		"alfred",
+		"foundations",
+		"integrations",
+		"endpoints",
+		"tools"
+	],
+	"exclude": ["packages/examples", "packages/auth/hosted"],
+	"quarantine": [],
+	"units": [
+		{ "manifest": "packages/core/package.json", "family": "afd", "layer": "foundation" },
+		{ "manifest": "packages/server/package.json", "family": "afd", "layer": "foundation" },
+		{ "manifest": "packages/client/package.json", "family": "afd", "layer": "foundation" },
+		{ "manifest": "packages/auth/package.json", "family": "afd", "layer": "foundation" },
+		{ "manifest": "packages/testing/package.json", "family": "afd", "layer": "foundation" },
+		{ "manifest": "packages/adapters/package.json", "family": "afd", "layer": "foundation" },
+		{ "manifest": "packages/view-state/package.json", "family": "afd", "layer": "foundation" },
+		{ "manifest": "packages/local-db/package.json", "family": "afd", "layer": "foundation" },
+		{ "manifest": "packages/cli/package.json", "family": "afd", "layer": "endpoint" },
+		{
+			"manifest": "python/pyproject.toml",
+			"family": "afd",
+			"layer": "foundation",
+			"pythonModules": ["afd"],
+			"publicSurfaces": [
+				"wheel",
+				"sdist",
+				"afd",
+				"afd.cli:main",
+				"afd.lushx_ext:register",
+				"py.typed"
+			]
+		},
+		{
+			"manifest": "packages/rust/Cargo.toml",
+			"family": "afd",
+			"layer": "foundation",
+			"publicSurfaces": ["crate", "default-features", "no-default-features", "wasm", "server"]
+		},
+		{
+			"manifest": "packages/cpp/CMakeLists.txt",
+			"family": "afd",
+			"layer": "foundation",
+			"name": "afd",
+			"publicSurfaces": [
+				"source-tag",
+				"FetchContent",
+				"installed-cmake:afd::afd",
+				"vendored-headers"
+			]
+		},
+		{
+			"manifest": "alfred/pyproject.toml",
+			"family": "alfred",
+			"layer": "endpoint",
+			"pythonModules": ["alfred"],
+			"publicSurfaces": ["wheel", "alfred.cli:main", "alfred.plugin:AlfredPlugin"]
+		}
+	],
+	"coverageContract": {
+		"status": "required-before-family-admission",
+		"checks": [
+			"installation",
+			"import",
+			"types",
+			"dependencies",
+			"integration-absent",
+			"integration-present",
+			"integration-incompatible",
+			"integration-unavailable"
+		],
+		"evidence": "Not executed by check-boundaries; every exported condition and native surface is emitted by --coverage for isolated consumer planning."
+	}
+}

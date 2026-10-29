@@ -24,7 +24,9 @@ from application LLM selection in `integrate-llms`.
 | `pnpm test:hosted:local` | Credential-free HTTPS/OAuth, Convex fixture and durable REST/view-state checks (Node 24, OpenSSL and Chromium) |
 | `pnpm changeset` | Create a changeset describing your change and its semver impact |
 | `pnpm version-packages` | Consume changesets, bump versions, update CHANGELOGs |
-| `pnpm publish:npm` | Build and publish all @lushly-dev/* packages to npm |
+| `pnpm release:select` | Inspect eligible pending npm release units |
+| `pnpm release:plan --plan <path>` | Pack artifacts from committed release intent; no upload |
+| `pnpm publish:npm --plan <path>` | Publish only the approved, bound npm artifact plan |
 | `cd packages/server && pnpm vitest run src/server.test.ts` | Run single test file |
 
 ## Architecture
@@ -87,7 +89,9 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 - Changed `python/`, `packages/rust/` or `packages/cpp/`? `pnpm check` does not test them. Run the commands from `python.yml`, `rust.yml` or `cpp.yml` locally (`cd python && uv run pytest -q`; `cd packages/rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test`; `cd packages/cpp && cmake --preset dev && cmake --build --preset dev && ctest --preset dev`)
 - Workflow actions are pinned to full commit SHAs with a `# vX.Y.Z` comment; Dependabot updates them
 - Changesets manages versioning — run `pnpm changeset` to describe publishable package changes
-- All `@lushly-dev/*` packages share one version (fixed versioning)
+- The nine existing AFD npm packages form the explicit `afd-npm` fixed group. Other families retain independent versions; registry scope does not define release membership.
+- `scripts/release/inventory.json` owns publication admission, routes, identities, and release protocols. Unknown/imported units default to quarantine; source import does not authorize publication.
+- npm version PRs record `.release/npm-intent.json`; guarded artifact planning/publication validates that intent. Never run raw `changeset publish` on the complete workspace.
 - Release flow: merge a PR with changesets → the Release workflow opens a release PR → merge it → the workflow runs `pnpm check` and publishes
 - Agent release flow: `pnpm changeset` → commit the changeset file → merge through the normal PR workflow
 

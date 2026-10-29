@@ -20,8 +20,9 @@
  * Run from the repository root:   node scripts/check-versions.mjs [--write]
  */
 
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { loadInventory, readDistribution } from './release/control.mjs';
 
 const root = process.cwd();
 const WRITE = process.argv.includes('--write');
@@ -85,27 +86,33 @@ function required(file) {
 
 function typescriptVersion() {
 	const versions = new Map();
-	const packagesDir = join(root, 'packages');
-	if (!existsSync(packagesDir)) return null;
-	for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
-		const file = `packages/${entry.name}/package.json`;
-		const text = entry.isDirectory() ? read(file) : null;
-		if (text === null) continue;
-		let manifest;
+	let inventory;
+	try {
+		inventory = loadInventory(root);
+	} catch (error) {
+		problem(error.message, 'Restore the explicit release inventory');
+		return null;
+	}
+	const group = inventory.units.find((unit) => unit.id === 'afd-npm' && unit.fixed);
+	if (!group) {
+		problem('The afd-npm fixed release group is missing', 'Restore its explicit membership');
+		return null;
+	}
+	for (const entry of group.distributions) {
 		try {
-			manifest = JSON.parse(text);
+			const manifest = readDistribution(root, entry);
+			if (manifest.private || manifest.name !== entry.name)
+				throw new Error(`Manifest identity changed: ${entry.manifest}`);
+			versions.set(manifest.name, manifest.version);
 		} catch (error) {
-			problem(`${file} is not valid JSON: ${error.message}`, 'Fix the manifest');
-			continue;
+			problem(error.message, 'Fix the admitted fixed group manifest');
 		}
-		if (manifest.private === true || !manifest.name?.startsWith('@lushly-dev/')) continue;
-		versions.set(manifest.name, manifest.version);
 	}
 	const distinct = [...new Set(versions.values())];
 	if (distinct.length > 1) {
 		const list = [...versions].map(([name, version]) => `${name}@${version}`).join(', ');
 		problem(
-			`The @lushly-dev/* packages have different versions: ${list}`,
+			`The afd-npm fixed group packages have different versions: ${list}`,
 			'They are one fixed Changesets group; version them with pnpm version-packages'
 		);
 	}
