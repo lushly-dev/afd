@@ -4,7 +4,7 @@ What each AFD implementation provides, where they differ, and which differences 
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-27 (versions: TypeScript 2.2.0, Python 0.10.0, Rust 0.2.0, C++ 0.2.0); 2026-10-25 (MCP 2026-07-28 rows); 2026-10-13 otherwise |
+| Updated | 2026-10-29 (package versions: TypeScript 2.2.1, Python 0.10.0, Rust 0.2.1, C++ 0.2.0); 2026-10-25 (MCP 2026-07-28 rows); 2026-10-13 otherwise |
 | Reviewed at | Stabilization `f19257e` (#367); Python 0.9.0 published from `4e16a06` (#372); npm 2.1.0 published from `0148d22` (#338); C++ and Rust 0.1.0 published from `a311562` (#377); fresh consumers verified |
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans, which now link here |
