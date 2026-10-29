@@ -1,0 +1,83 @@
+{
+	"name": "@lushly-dev/violet-core",
+	"version": "0.2.0",
+	"license": "MIT",
+	"author": "Falkicon",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/violet.git",
+		"directory": "packages/core"
+	},
+	"homepage": "https://github.com/lushly-dev/violet#readme",
+	"bugs": {
+		"url": "https://github.com/lushly-dev/violet/issues"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"keywords": ["violet", "design-tokens", "dtcg", "design-system", "theming", "agent-first"],
+	"engines": {
+		"node": ">=24"
+	},
+	"description": "Violet Design Core - native token engine: storage, inheritance resolution and export",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		},
+		"./worker": {
+			"import": "./dist/worker.js",
+			"types": "./dist/worker.d.ts"
+		},
+		"./css": {
+			"import": "./dist/css/index.js",
+			"types": "./dist/css/index.d.ts"
+		},
+		"./types": {
+			"import": "./dist/types/index.js",
+			"types": "./dist/types/index.d.ts"
+		},
+		"./engine": {
+			"import": "./dist/engine/index.js",
+			"types": "./dist/engine/index.d.ts"
+		},
+		"./neon": {
+			"import": "./dist/db/neon.js",
+			"types": "./dist/db/neon.d.ts"
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"lint": "biome check src/",
+		"test": "vitest run --config vitest.unit.config.ts",
+		"test:db": "vitest run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest run --coverage",
+		"clean": "rm -rf dist *.tsbuildinfo"
+	},
+	"dependencies": {
+		"zod": "^3.25.76"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"@types/better-sqlite3": "^9.6.0",
+		"@types/node": "^26.6.5",
+		"@types/pg": "^8.23.1",
+		"@types/ws": "^8.18.2",
+		"@vitest/coverage-v8": "^3.2.7",
+		"nanoid": "^5.1.16",
+		"pg": "^8.23.1",
+		"typescript": "^5.9.3",
+		"vitest": "^3.2.7"
+	},
+	"files": ["dist", "README.md", "LICENSE"],
+	"optionalDependencies": {
+		"@neondatabase/serverless": "^1.1.0",
+		"better-sqlite3": "^13.0.3",
+		"ws": "^8.22.0"
+	}
+}

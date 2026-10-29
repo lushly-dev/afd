@@ -1,0 +1,100 @@
+{
+  "schema_version": 1,
+  "family": "violet",
+  "source_repository": "https://github.com/lushly-dev/violet",
+  "source_revision": "59b4bfa64a8cf423322b857c5c697e110201e0f2",
+  "source_branch_at_selection": "main",
+  "source_readback": "Fresh clone checked out at the selected revision on 2026-10-29; GitHub reported main still at this revision when the import was prepared",
+  "in_flight_source_changes": [
+    {
+      "ref": "PR #135 head b54b9f3b5c",
+      "touches": [
+        ".changeset",
+        "packages/core",
+        "packages/runtime",
+        "packages/cli",
+        "packages/server"
+      ],
+      "summary": "chore: release packages: consumes the three pending changesets and moves all four packages to 0.3.0"
+    },
+    {
+      "ref": "PR #80 head 3559d4b7e9",
+      "touches": [
+        "package.json",
+        "pnpm-lock.yaml"
+      ],
+      "summary": "build(deps-dev): bump @biomejs/biome from 1.9.4 to 2.6.2 (upstream root lint tool)"
+    },
+    {
+      "ref": ".changeset at the selected revision",
+      "touches": [
+        "packages/core",
+        "packages/cli",
+        "packages/server"
+      ],
+      "summary": "cli-contract-110-112, deprecation-plans-history-specimen-maps and engine-and-stores: pending minor/patch release intent, not imported"
+    }
+  ],
+  "in_flight_reconciliation": "Reconcile these, and every later upstream change to the selected paths, before any source or publisher cutover",
+  "staged_candidate": {
+    "description": "Disposable staging directory prepared by another agent from Violet main a283750b; context only. Its approach (move commands to an integration, native resolve/export functions) was reused; every file here is re-derived from the selected revision",
+    "source_revision": "a283750b6942d43970e20c9fa48d0d1dba356ea0",
+    "source_json_sha256": "ad10ce77bd1ffa50654d599818b16b4ac5ba6c73c6a785561519ba2bb69ea00d",
+    "import_manifest_sha256": "ca2eae1e2ff44c9443d2d83699897aae212f5819d2f09778d426fabb4a19556d",
+    "not_reused": {
+      "core ./internal/* export and shim files": "Replaced by explicit public entry points (./engine, ./neon) and rewritten import specifiers",
+      "core ./commands loader stub": "A native foundation must not import its integration; ./commands is removed instead",
+      "rewritten tokens.resolve and export handlers": "Upstream handlers are kept unchanged apart from imports so envelopes stay identical; parity is tested instead",
+      "private: true integration": "The CLI and server depend on it, so it stays publishable like them (and quarantined)",
+      "API, web, Figma, vendor archives": "Deferred to Phase 4"
+    }
+  },
+  "records": {
+    "upstream": {
+      "manifest": "upstream-selected.json",
+      "sha256": "b0f2db05aa82d36287c9fe70876e03d6fa1fd573ef5c96c5d41dfbd3db55e81f"
+    },
+    "adaptations": {
+      "manifest": "adaptations.json",
+      "sha256": "21e1f6c9a95ce386a3ccef419c9d61725c3780ae129f97e6083935e73840a27e"
+    }
+  },
+  "units": [
+    {
+      "name": "@lushly-dev/violet-core",
+      "layer": "foundation",
+      "path": "foundations/violet/packages/core"
+    },
+    {
+      "name": "@lushly-dev/violet-runtime",
+      "layer": "foundation",
+      "path": "foundations/violet/packages/runtime"
+    },
+    {
+      "name": "@lushly-dev/violet-afd",
+      "layer": "integration",
+      "path": "integrations/violet-afd"
+    },
+    {
+      "name": "@lushly-dev/violet-cli",
+      "layer": "endpoint",
+      "path": "endpoints/violet-cli"
+    },
+    {
+      "name": "@lushly-dev/violet-server",
+      "layer": "endpoint",
+      "path": "endpoints/violet-server"
+    }
+  ],
+  "interpretation": "upstream-selected.json describes upstream bytes only. adaptations.json maps every imported file to its upstream source (or marks it AFD-authored) with a reason for every change. Candidate hashes are context, not identity",
+  "license": "MIT (packages/*/LICENSE, verbatim; the integration carries a copy of the core license)",
+  "source_authority": "https://github.com/lushly-dev/violet",
+  "publisher_authority": "original Violet repository: main-branch Changesets release workflow, fixed group @lushly-dev/violet-*; sole publishing authority; no handoff authorized",
+  "publication_state": "quarantined",
+  "compatibility_holds": [
+    "Breaking for direct importers of the moved command, result, demo and Neon names; release needs a breaking pre-1.0 bump above what Violet has published (PR #135 would publish 0.3.0)",
+    "The integration keeps @lushly-dev/afd-core ^0.1.1 (resolved to 0.1.1), not the workspace AFD 2.2.0",
+    "Postgres/Neon store legs and the hosted-migration cases (packages/api/migrations) did not run",
+    "violet --version prints 0.1.0, hard-coded upstream"
+  ]
+}

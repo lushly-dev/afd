@@ -1,0 +1,50 @@
+{
+	"name": "@lushly-dev/violet-runtime",
+	"version": "0.2.0",
+	"license": "MIT",
+	"author": "Falkicon",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/violet.git",
+		"directory": "packages/runtime"
+	},
+	"homepage": "https://github.com/lushly-dev/violet#readme",
+	"bugs": {
+		"url": "https://github.com/lushly-dev/violet/issues"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"keywords": ["design-tokens", "theming", "css-variables", "runtime", "violet"],
+	"engines": {
+		"node": ">=24"
+	},
+	"description": "Violet Design Runtime - Web SDK for dynamic token loading and theme switching",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"lint": "biome check src/",
+		"test": "vitest run",
+		"test:coverage": "vitest run --coverage",
+		"test:watch": "vitest",
+		"clean": "rm -rf dist *.tsbuildinfo"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"@types/node": "^26.6.5",
+		"@vitest/coverage-v8": "^3.2.7",
+		"happy-dom": "^15.11.7",
+		"typescript": "^5.9.3",
+		"vitest": "^3.2.7"
+	},
+	"files": ["dist", "README.md", "LICENSE"]
+}

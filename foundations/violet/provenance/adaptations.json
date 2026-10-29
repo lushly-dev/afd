@@ -1,0 +1,3408 @@
+{
+  "kind": "reviewed-import-adaptations",
+  "source_revision": "59b4bfa64a8cf423322b857c5c697e110201e0f2",
+  "scope": "Every imported file; future edits to listed files require explicit adaptation updates",
+  "classifications": {
+    "unchanged": "Upstream bytes at the same package-relative path",
+    "moved-unchanged": "Upstream bytes at a new package (core to integration) or path",
+    "fixture-copy": "Upstream bytes renamed as an inert test fixture",
+    "adapted": "Upstream file changed for the split; reason given",
+    "derived": "New file cut verbatim from part of an upstream file",
+    "afd-authored": "Written for the import"
+  },
+  "files": [
+    {
+      "path": "docs/features/active/platform-monorepo/violet-transition.md",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "0d8ca8539940dff374f2d35b8771b88a4e45632a7e61462d62fd9039b6241b98",
+      "classification": "afd-authored",
+      "reason": "Public contract changes and upgrade steps for the split",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/CHANGELOG.md",
+      "upstream_path": "packages/cli/CHANGELOG.md",
+      "upstream_sha256": "af96cf9123f8695870483c98e7ab1e73e52c57151173fa8533c6f21b62169d2f",
+      "current_import_sha256": "af96cf9123f8695870483c98e7ab1e73e52c57151173fa8533c6f21b62169d2f",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/LICENSE",
+      "upstream_path": "packages/cli/LICENSE",
+      "upstream_sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
+      "current_import_sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/cli/LICENSE",
+        "sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/README.md",
+      "upstream_path": "packages/cli/README.md",
+      "upstream_sha256": "c85c13ab0fe986b57d54edae8d1088efea5f6546840413df7552f51f2a93771e",
+      "current_import_sha256": "c85c13ab0fe986b57d54edae8d1088efea5f6546840413df7552f51f2a93771e",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/cli/README.md",
+        "sha256": "c85c13ab0fe986b57d54edae8d1088efea5f6546840413df7552f51f2a93771e",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/biome.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "d6d4a8a0a5473e6a99e8f7f03e60dbd7c118f3b53f6ca8ddde891cb5fd86d718",
+      "classification": "afd-authored",
+      "reason": "Extends the upstream root Biome 1.9 configuration from foundations/violet",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/package.json",
+      "upstream_path": "packages/cli/package.json",
+      "upstream_sha256": "0c4b5cbc44d8ed4c4fe8239b51428c7c96de18f7eac8fd1a1b006fda51a96f91",
+      "current_import_sha256": "4766b4607e7b6c9827c1c5d7b32c92f204b57efaac0329dc3b295b9e48688fbc",
+      "classification": "adapted",
+      "reason": "Depend on @lushly-dev/violet-afd instead of @lushly-dev/violet-core; Biome 1.9 dev dependency",
+      "candidate": {
+        "path": "packages/cli/package.json",
+        "sha256": "3f4d5de9963def5ea02322e1e2f45c7bedc7ecd09749c07fc7253b72ab61da12",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/src/bin.ts",
+      "upstream_path": "packages/cli/src/bin.ts",
+      "upstream_sha256": "75350a8d70fc6583815eda2610109d841b7baa8acb5b4c271da2afef0cb60d3d",
+      "current_import_sha256": "75350a8d70fc6583815eda2610109d841b7baa8acb5b4c271da2afef0cb60d3d",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/cli/src/bin.ts",
+        "sha256": "75350a8d70fc6583815eda2610109d841b7baa8acb5b4c271da2afef0cb60d3d",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/src/cicd-templates.test.ts",
+      "upstream_path": "packages/cli/src/cicd-templates.test.ts",
+      "upstream_sha256": "f5ca49d8467884bfab66fbcea5bdffd1249c2ab69f0d05b53eed3e040206213d",
+      "current_import_sha256": "7419fc9434c2d36cceebf161cf0a91ec4457035a52cba451eb8f20e8100c98d4",
+      "classification": "adapted",
+      "reason": "Read the frozen fixture copy of Violet's CI workflow; package specifier @lushly-dev/violet-afd",
+      "candidate": {
+        "path": "packages/cli/src/cicd-templates.test.ts",
+        "sha256": "306cf6665772c62af847b55f984adb6dc813372733ccab1dffe90275312df606",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/src/cicd-templates.ts",
+      "upstream_path": "packages/cli/src/cicd-templates.ts",
+      "upstream_sha256": "2a506814c822e816d28a945a4929a6acadc3a189c3e76120f1441cffea3dc9c2",
+      "current_import_sha256": "bc7adc45657b3eb0fff1e35c4fb1330c4481f1384549fe0cc2a853795f748a2a",
+      "classification": "adapted",
+      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; code otherwise unchanged",
+      "candidate": {
+        "path": "packages/cli/src/cicd-templates.ts",
+        "sha256": "b67b611bde6b3b807b7dc277f8cf0e0c470606f08f7c362d5d94f119f1217da8",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/src/cli.test.ts",
+      "upstream_path": "packages/cli/src/cli.test.ts",
+      "upstream_sha256": "64e2b5a8d70acf9b42f5c0c0325d48675a6da9bd35f753d45dfde7cfce4e75c4",
+      "current_import_sha256": "79089cc0926d0e6066c1b8458f7c92db702c414d290347ff7fcc3df9319643cb",
+      "classification": "adapted",
+      "reason": "Package specifier @lushly-dev/violet-afd; header comment names where command logic is tested",
+      "candidate": {
+        "path": "packages/cli/src/cli.test.ts",
+        "sha256": "feb861d9a2f27a4c24b51ab38c5ea032e8f4440cbbecc27a8a10f592ff12c15e",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/src/cli.ts",
+      "upstream_path": "packages/cli/src/cli.ts",
+      "upstream_sha256": "09ec3df6132767797ab6af062ca0f60d0f52ae34f4ba51aa999c928d494d8e76",
+      "current_import_sha256": "a393bcd8067bd18f45ca4507428327019b8dc275ddea580003f9b1f08297684d",
+      "classification": "adapted",
+      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; code otherwise unchanged",
+      "candidate": {
+        "path": "packages/cli/src/cli.ts",
+        "sha256": "475f80decc27712ff654f3c981d96f6d2e374793846f48a4dd0ccebf85ab3c5b",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/src/index.ts",
+      "upstream_path": "packages/cli/src/index.ts",
+      "upstream_sha256": "99c9b47a47d1d992683396c07b55c695c7a286f4628f0707dd41bcd92d5a717b",
+      "current_import_sha256": "99c9b47a47d1d992683396c07b55c695c7a286f4628f0707dd41bcd92d5a717b",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/cli/src/index.ts",
+        "sha256": "99c9b47a47d1d992683396c07b55c695c7a286f4628f0707dd41bcd92d5a717b",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/src/output.ts",
+      "upstream_path": "packages/cli/src/output.ts",
+      "upstream_sha256": "82c2738efa3bf410c7af6ecf883a1a18f9b57d69830897357ac1b8c7faa32275",
+      "current_import_sha256": "45fd9173fda256bfa7016fbf3855c6d25ee7a68252e79ae3e6d4424a2025143d",
+      "classification": "adapted",
+      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; code otherwise unchanged",
+      "candidate": {
+        "path": "packages/cli/src/output.ts",
+        "sha256": "806827bebcebdf89ea95ad1ab74db40dc6557dd99303a82284657e6b50aebc42",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/src/skill-commands.test.ts",
+      "upstream_path": "packages/cli/src/skill-commands.test.ts",
+      "upstream_sha256": "22f4a927f52469c3851537a14344a955c734915371ecda85d882b0a839c39685",
+      "current_import_sha256": "04064616b03fce68bf519bb8464f311599e11678b85a897caa006482a817b7c9",
+      "classification": "adapted",
+      "reason": "Read the frozen fixture copy of the violet-usage skill catalog; package specifier @lushly-dev/violet-afd",
+      "candidate": {
+        "path": "packages/cli/src/skill-commands.test.ts",
+        "sha256": "e4bb80e8ce11ccfc23e9477b732d823d45f1d5d21b0c0fef042ab3080d0886ff",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/test-fixtures/violet-ci.yml.txt",
+      "upstream_path": ".github/workflows/ci.yml",
+      "upstream_sha256": "5523ef2e53f997e69031660a4cc0f8fced62c2c06d4e6dc8ed76e99332b1d58e",
+      "current_import_sha256": "5523ef2e53f997e69031660a4cc0f8fced62c2c06d4e6dc8ed76e99332b1d58e",
+      "classification": "fixture-copy",
+      "reason": "Frozen upstream copy read by a CLI contract test; inert text, not a workflow or skill",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/test-fixtures/violet-usage-workflows.md.txt",
+      "upstream_path": ".claude/skills/violet-usage/references/workflows.md",
+      "upstream_sha256": "46121f288a158a84a8d6dd6b5b83e98bfe9a09715e92fe4cdf792b1921f97fc3",
+      "current_import_sha256": "46121f288a158a84a8d6dd6b5b83e98bfe9a09715e92fe4cdf792b1921f97fc3",
+      "classification": "fixture-copy",
+      "reason": "Frozen upstream copy read by a CLI contract test; inert text, not a workflow or skill",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/tsconfig.json",
+      "upstream_path": "packages/cli/tsconfig.json",
+      "upstream_sha256": "2e41df0b6e59599756a8830095b71c9379d3d0dc0525a772b05d0fb55bbe1076",
+      "current_import_sha256": "f9c4cb8c51b6a8c881088b9874b2287bb3c4325352a8469df449ec94a4aaa65e",
+      "classification": "adapted",
+      "reason": "Extend the upstream root config from foundations/violet",
+      "candidate": {
+        "path": "packages/cli/tsconfig.json",
+        "sha256": "2e41df0b6e59599756a8830095b71c9379d3d0dc0525a772b05d0fb55bbe1076",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/CHANGELOG.md",
+      "upstream_path": "packages/server/CHANGELOG.md",
+      "upstream_sha256": "f5afbde86c347e83b423e6948ed60ac2b42f069831f6c9347072b620871ea5c0",
+      "current_import_sha256": "f5afbde86c347e83b423e6948ed60ac2b42f069831f6c9347072b620871ea5c0",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/LICENSE",
+      "upstream_path": "packages/server/LICENSE",
+      "upstream_sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
+      "current_import_sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/server/LICENSE",
+        "sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/README.md",
+      "upstream_path": "packages/server/README.md",
+      "upstream_sha256": "e32bc33eb3551f0a07f5f5a85dc8049bd5b266d4a3156dbfbaeaad4d5cdc0802",
+      "current_import_sha256": "e32bc33eb3551f0a07f5f5a85dc8049bd5b266d4a3156dbfbaeaad4d5cdc0802",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/server/README.md",
+        "sha256": "e32bc33eb3551f0a07f5f5a85dc8049bd5b266d4a3156dbfbaeaad4d5cdc0802",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/biome.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "d6d4a8a0a5473e6a99e8f7f03e60dbd7c118f3b53f6ca8ddde891cb5fd86d718",
+      "classification": "afd-authored",
+      "reason": "Extends the upstream root Biome 1.9 configuration from foundations/violet",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/package.json",
+      "upstream_path": "packages/server/package.json",
+      "upstream_sha256": "5f34f53cbff0550a001eb43a3b9540352aa49984e4ce3f11c4f2a633bd72912e",
+      "current_import_sha256": "ae2b1d0defb0cf4c21453fbb065e0a7c22a7cd47452776375d88d396f7ac16b8",
+      "classification": "adapted",
+      "reason": "Depend on @lushly-dev/violet-afd instead of @lushly-dev/violet-core; Biome 1.9 dev dependency",
+      "candidate": {
+        "path": "packages/server/package.json",
+        "sha256": "5d41d6c4cfa4452ac78bca816f4e7af42b70d7d08ef93df7c55518738b9b8556",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/src/api.test.ts",
+      "upstream_path": "packages/server/src/api.test.ts",
+      "upstream_sha256": "ac4df5d8e7c29b382ff960ddbb66bdf2e65d52e0a3643b93ef63ac90e73f2b21",
+      "current_import_sha256": "ac4df5d8e7c29b382ff960ddbb66bdf2e65d52e0a3643b93ef63ac90e73f2b21",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/server/src/api.test.ts",
+        "sha256": "ac4df5d8e7c29b382ff960ddbb66bdf2e65d52e0a3643b93ef63ac90e73f2b21",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/src/api.ts",
+      "upstream_path": "packages/server/src/api.ts",
+      "upstream_sha256": "3a53c8cee60c1abb0750f4094077482a161b900859cec961c9fd9fd04f0d755f",
+      "current_import_sha256": "92fb95b430bbd5793fa454a2b8f0e369d955f7811b9349a39abdf3ecb11aac55",
+      "classification": "adapted",
+      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; code otherwise unchanged",
+      "candidate": {
+        "path": "packages/server/src/api.ts",
+        "sha256": "92fb95b430bbd5793fa454a2b8f0e369d955f7811b9349a39abdf3ecb11aac55",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/src/bin.ts",
+      "upstream_path": "packages/server/src/bin.ts",
+      "upstream_sha256": "1eaad2fa53158aae37cab315153de85f961e496612350364b84a4bb6412613c8",
+      "current_import_sha256": "1eaad2fa53158aae37cab315153de85f961e496612350364b84a4bb6412613c8",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/server/src/bin.ts",
+        "sha256": "1eaad2fa53158aae37cab315153de85f961e496612350364b84a4bb6412613c8",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/src/index.ts",
+      "upstream_path": "packages/server/src/index.ts",
+      "upstream_sha256": "03f6cd3a6562ba92037ed017e972f90a4ba21511b51d3f32f4eabb2ecaadf4a3",
+      "current_import_sha256": "03f6cd3a6562ba92037ed017e972f90a4ba21511b51d3f32f4eabb2ecaadf4a3",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/server/src/index.ts",
+        "sha256": "03f6cd3a6562ba92037ed017e972f90a4ba21511b51d3f32f4eabb2ecaadf4a3",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/src/mcp-protocol.test.ts",
+      "upstream_path": "packages/server/src/mcp-protocol.test.ts",
+      "upstream_sha256": "4da4280fcb054ad5ac7c3445438e558a5a7271b00981ca088c54000e9751a6ab",
+      "current_import_sha256": "ef4a16979d2074f1b79e8ddbebf3b2bdf96eaa018caafc7ea11890cac054c562",
+      "classification": "adapted",
+      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; code otherwise unchanged",
+      "candidate": {
+        "path": "packages/server/src/mcp-protocol.test.ts",
+        "sha256": "ef4a16979d2074f1b79e8ddbebf3b2bdf96eaa018caafc7ea11890cac054c562",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/src/server.test.ts",
+      "upstream_path": "packages/server/src/server.test.ts",
+      "upstream_sha256": "6aef275ecec36c6f726d4411206fc91c8f03d4de20e90c6ba1a8db6974cbd5a0",
+      "current_import_sha256": "fb6673a6d82038c6b8a579f1f19a775e597d5c5588fdcd0b2abe6fbed8dec3bb",
+      "classification": "adapted",
+      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; code otherwise unchanged",
+      "candidate": {
+        "path": "packages/server/src/server.test.ts",
+        "sha256": "fb6673a6d82038c6b8a579f1f19a775e597d5c5588fdcd0b2abe6fbed8dec3bb",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/src/server.ts",
+      "upstream_path": "packages/server/src/server.ts",
+      "upstream_sha256": "4468c269a7a64ba554cfc39e69736d6da0570bb07c61b1b541678ad127fa261e",
+      "current_import_sha256": "9f7b725b84312cb41ce80a61eea98482082ba227544339a238409355c8ba1268",
+      "classification": "adapted",
+      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; code otherwise unchanged",
+      "candidate": {
+        "path": "packages/server/src/server.ts",
+        "sha256": "bf16ea771c8314732c6cd99128f775137aac7138bbdf626b7d6aca794e4216a9",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/src/tools/generator.test.ts",
+      "upstream_path": "packages/server/src/tools/generator.test.ts",
+      "upstream_sha256": "e3cd8f9afb0b7e1518f1678423f73e6d6f23876515189e26fa0528679c277d4b",
+      "current_import_sha256": "f365ceebd816256112f2e7576516a51d07cb3d419b95a0c261eaeb4f8eadf919",
+      "classification": "adapted",
+      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; code otherwise unchanged",
+      "candidate": {
+        "path": "packages/server/src/tools/generator.test.ts",
+        "sha256": "f365ceebd816256112f2e7576516a51d07cb3d419b95a0c261eaeb4f8eadf919",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/src/tools/generator.ts",
+      "upstream_path": "packages/server/src/tools/generator.ts",
+      "upstream_sha256": "0acad943958cd2c97944c21b8612a98decc6ae9c209a8ada89afaf9d4d41e5f1",
+      "current_import_sha256": "ec8b4031df160c4aa756efdc3884611847b1c487cb7e87d1160b772ec1800af8",
+      "classification": "adapted",
+      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; code otherwise unchanged",
+      "candidate": {
+        "path": "packages/server/src/tools/generator.ts",
+        "sha256": "9d3babf35bd411a74f638e561c081492f01db213d26123cdcb9fc05a5ef0e450",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/src/transports/stdio.ts",
+      "upstream_path": "packages/server/src/transports/stdio.ts",
+      "upstream_sha256": "66f10f26af5dbd3b07eb81d5e501f9eab785904ae6f56dbca17107cdb117f89b",
+      "current_import_sha256": "66f10f26af5dbd3b07eb81d5e501f9eab785904ae6f56dbca17107cdb117f89b",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/server/src/transports/stdio.ts",
+        "sha256": "66f10f26af5dbd3b07eb81d5e501f9eab785904ae6f56dbca17107cdb117f89b",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/tsconfig.json",
+      "upstream_path": "packages/server/tsconfig.json",
+      "upstream_sha256": "2e41df0b6e59599756a8830095b71c9379d3d0dc0525a772b05d0fb55bbe1076",
+      "current_import_sha256": "f9c4cb8c51b6a8c881088b9874b2287bb3c4325352a8469df449ec94a4aaa65e",
+      "classification": "adapted",
+      "reason": "Extend the upstream root config from foundations/violet",
+      "candidate": {
+        "path": "packages/server/tsconfig.json",
+        "sha256": "2e41df0b6e59599756a8830095b71c9379d3d0dc0525a772b05d0fb55bbe1076",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/README.md",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "b9075821ad9d1580cf9f068275bbf0c4e4354cfcf85c4b7bf8563b945b5aad27",
+      "classification": "afd-authored",
+      "reason": "Describe the imported units, configuration, gates and quarantine in the AFD tree",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "foundations/violet/biome.json",
+      "upstream_path": "biome.json",
+      "upstream_sha256": "c7ada5e309b806660281697e33dc10624560801fad43e134fee65756ed0932fb",
+      "current_import_sha256": "c7ada5e309b806660281697e33dc10624560801fad43e134fee65756ed0932fb",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "biome.json",
+        "sha256": "c7ada5e309b806660281697e33dc10624560801fad43e134fee65756ed0932fb",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/CHANGELOG.md",
+      "upstream_path": "packages/core/CHANGELOG.md",
+      "upstream_sha256": "005e14333ba7a222e4e2f98a0979783b38de45093ce36ad24d707773f5ef3f4c",
+      "current_import_sha256": "005e14333ba7a222e4e2f98a0979783b38de45093ce36ad24d707773f5ef3f4c",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/LICENSE",
+      "upstream_path": "packages/core/LICENSE",
+      "upstream_sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
+      "current_import_sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/LICENSE",
+        "sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/README.md",
+      "upstream_path": "packages/core/README.md",
+      "upstream_sha256": "df71c1ac465fd2dfa21b3afb536f8af6b31b58688498df9fb8a54868404fb5a1",
+      "current_import_sha256": "4b9c058402557a401ac93cce905c992d95f7aa43fd8dd54d43d42ddfa903ccab",
+      "classification": "adapted",
+      "reason": "Describe the native foundation and its entry points; the command example moved to the integration README",
+      "candidate": {
+        "path": "packages/core/README.md",
+        "sha256": "37e7e65e2aa693bd135bd4f4a012e87aca491abb28a779fa570f3ffbaa9b47d1",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/package.json",
+      "upstream_path": "packages/core/package.json",
+      "upstream_sha256": "1966100f0c58be7e00832c9962d9ce6fd50c6ebb17b3a3c876bfaf84043e94ce",
+      "current_import_sha256": "3fe17fed9db633310fb46d28282e7ba60dbaad3df2e3274616ea0c8667bc9364",
+      "classification": "adapted",
+      "reason": "Native manifest: remove ./commands, the AFD, zod-to-json-schema and nanoid dependencies (nanoid stays for test support); Neon/ws become optional beside better-sqlite3; add ./engine and ./neon; test runs the store-free subset and test:db the full suite; Biome 1.9 dev dependency",
+      "candidate": {
+        "path": "packages/core/package.json",
+        "sha256": "71e22d1ec46e057acbfdafe1fe94f4504788b68fbded2639e62d42fd55b6088b",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/constraints/index.ts",
+      "upstream_path": "packages/core/src/constraints/index.ts",
+      "upstream_sha256": "e13a38472a61f7db3c44502eb6740525d72d49ce8dd6ca11b09da088a857b229",
+      "current_import_sha256": "e13a38472a61f7db3c44502eb6740525d72d49ce8dd6ca11b09da088a857b229",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/constraints/index.ts",
+        "sha256": "e13a38472a61f7db3c44502eb6740525d72d49ce8dd6ca11b09da088a857b229",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/constraints/pattern-safety.ts",
+      "upstream_path": "packages/core/src/constraints/pattern-safety.ts",
+      "upstream_sha256": "83d5f0d5ce1b2043606f150da07f040c5591c5e8abea3462c6282ba16b07129c",
+      "current_import_sha256": "83d5f0d5ce1b2043606f150da07f040c5591c5e8abea3462c6282ba16b07129c",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/constraints/pattern-safety.ts",
+        "sha256": "83d5f0d5ce1b2043606f150da07f040c5591c5e8abea3462c6282ba16b07129c",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/constraints/validators.ts",
+      "upstream_path": "packages/core/src/constraints/validators.ts",
+      "upstream_sha256": "840f18e0a290a092bf9afd98aab74322a46cd3b7d6a6e7ccf1949694785b3cf6",
+      "current_import_sha256": "840f18e0a290a092bf9afd98aab74322a46cd3b7d6a6e7ccf1949694785b3cf6",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/constraints/validators.ts",
+        "sha256": "840f18e0a290a092bf9afd98aab74322a46cd3b7d6a6e7ccf1949694785b3cf6",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/css/index.ts",
+      "upstream_path": "packages/core/src/css/index.ts",
+      "upstream_sha256": "bc116b43722d71571ed428e61f41d45cc49af2eaa7732338a0fcd814344e8c62",
+      "current_import_sha256": "bc116b43722d71571ed428e61f41d45cc49af2eaa7732338a0fcd814344e8c62",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/css/index.ts",
+        "sha256": "0ccd066dea57443a3b60e71305034541b5ecca4be49658c589275ea25480fc98",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/css/safe-css.test.ts",
+      "upstream_path": "packages/core/src/css/safe-css.test.ts",
+      "upstream_sha256": "46965e1482d3e76a08ad09444ec714987ada4a148d29ce8c7c4f3f3a0a462118",
+      "current_import_sha256": "46965e1482d3e76a08ad09444ec714987ada4a148d29ce8c7c4f3f3a0a462118",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/css/safe-css.test.ts",
+        "sha256": "46965e1482d3e76a08ad09444ec714987ada4a148d29ce8c7c4f3f3a0a462118",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/css/safe-css.ts",
+      "upstream_path": "packages/core/src/css/safe-css.ts",
+      "upstream_sha256": "02aaa4dc68fafac2ff31234233d839a77550eb89bd7ac62a4e672a3aceb65fa9",
+      "current_import_sha256": "02aaa4dc68fafac2ff31234233d839a77550eb89bd7ac62a4e672a3aceb65fa9",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/css/safe-css.ts",
+        "sha256": "02aaa4dc68fafac2ff31234233d839a77550eb89bd7ac62a4e672a3aceb65fa9",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/css/specimens.ts",
+      "upstream_path": "packages/core/src/css/specimens.ts",
+      "upstream_sha256": "79206be870af510dee4414a35d85c74d150771b1c964bf46919eb1099001aec0",
+      "current_import_sha256": "79206be870af510dee4414a35d85c74d150771b1c964bf46919eb1099001aec0",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/db/audit-sequence.test.ts",
+      "upstream_path": "packages/core/src/db/audit-sequence.test.ts",
+      "upstream_sha256": "47c479fea10a2613d8e881a836ed968082aa18a70a3fba663ba4853ea4663d04",
+      "current_import_sha256": "e5665061d590870f0e51f163d48faca91644a6b77b1fb90e89125bc1c91a314a",
+      "classification": "adapted",
+      "reason": "The Database type is imported from the native storage module instead of the command registry",
+      "candidate": {
+        "path": "packages/core/src/db/audit-sequence.test.ts",
+        "sha256": "e5665061d590870f0e51f163d48faca91644a6b77b1fb90e89125bc1c91a314a",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/db/audit.contract.test.ts",
+      "upstream_path": "packages/core/src/db/audit.contract.test.ts",
+      "upstream_sha256": "0667c8897ea44aa1467717c8bb68e50169e888cc2a0ef23ec13d50e987f16678",
+      "current_import_sha256": "0d4510f67dddc060677c92003a3d4ce9bb58a842636d335ebc92453298850761",
+      "classification": "adapted",
+      "reason": "The Database type is imported from the native storage module instead of the command registry",
+      "candidate": {
+        "path": "packages/core/src/db/audit.contract.test.ts",
+        "sha256": "8cd2d911d84f5f516ddca33b332802075deee45646c9a276be1a4e14b72c945a",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/db/index.ts",
+      "upstream_path": "packages/core/src/db/index.ts",
+      "upstream_sha256": "6b85103e6ca481042c73b798074273b84a92907908ad5fd77492801df2902f7c",
+      "current_import_sha256": "170e45b5808edec235a2535f6357f81b27c82b414b961db6190f2f4bb1e87726",
+      "classification": "adapted",
+      "reason": "The Neon store needs optional drivers, so it moves to the ./neon subpath",
+      "candidate": {
+        "path": "packages/core/src/db/index.ts",
+        "sha256": "6b85103e6ca481042c73b798074273b84a92907908ad5fd77492801df2902f7c",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/db/memory.ts",
+      "upstream_path": "packages/core/src/db/memory.ts",
+      "upstream_sha256": "f354af4a7f836a06a97f2a27a4f89c68244e5a9aa3a642d3589cd015e9c37588",
+      "current_import_sha256": "05799c12769ed4a25e644c7faa53f3892b188c225a641e346f10f927ec751c9f",
+      "classification": "adapted",
+      "reason": "The Database type is imported from the native storage module instead of the command registry",
+      "candidate": {
+        "path": "packages/core/src/db/memory.ts",
+        "sha256": "f8cd92e1e659bced4a690009a71ff3c953633fb4b4dc64e150bec8cfc5645c62",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/db/neon.ts",
+      "upstream_path": "packages/core/src/db/neon.ts",
+      "upstream_sha256": "3beadb1daff31ddc24b371deb260f97d3ae08510cec843c9298d6b5626e3a6d3",
+      "current_import_sha256": "3beadb1daff31ddc24b371deb260f97d3ae08510cec843c9298d6b5626e3a6d3",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/db/neon.ts",
+        "sha256": "3beadb1daff31ddc24b371deb260f97d3ae08510cec843c9298d6b5626e3a6d3",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/db/overlay.ts",
+      "upstream_path": "packages/core/src/db/overlay.ts",
+      "upstream_sha256": "213924e15c0dbe0f1afcb93d8530ee28e0fe9d9f3bedd066ae79f7798dcc574e",
+      "current_import_sha256": "b36795fe88a363f5cd47cbc71d7f48e746dc36a42910253c37411f58ca568825",
+      "classification": "adapted",
+      "reason": "The Database type is imported from the native storage module instead of the command registry",
+      "candidate": {
+        "path": "packages/core/src/db/overlay.ts",
+        "sha256": "3b7aaea50210df47cddd45cb7d21bc6d5b98b25416262d82d04082ddae892517",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/db/postgres.ts",
+      "upstream_path": "packages/core/src/db/postgres.ts",
+      "upstream_sha256": "440253955bc4121f5551e005694877152ee1bc5596c6a0b6617e347722b9a638",
+      "current_import_sha256": "b8cc3410673ec3419960b99aa3a69cb297919c7918fe4132254c0098882f20f2",
+      "classification": "adapted",
+      "reason": "The Database type is imported from the native storage module instead of the command registry",
+      "candidate": {
+        "path": "packages/core/src/db/postgres.ts",
+        "sha256": "aa983ef65807be1a32227a6612c320d3e5761da75d00eeec9596b78c8e7a3a9c",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/db/sqlite.ts",
+      "upstream_path": "packages/core/src/db/sqlite.ts",
+      "upstream_sha256": "1f7ea08a13ef8d932a9000ec193c0e1e57677d013a86cc5f370da4a3b8ee60a9",
+      "current_import_sha256": "8db6cd845b5f4490cec6a7b2275a8d706fc2964991daf3df35cf57002028c85d",
+      "classification": "adapted",
+      "reason": "The Database type is imported from the native storage module instead of the command registry",
+      "candidate": {
+        "path": "packages/core/src/db/sqlite.ts",
+        "sha256": "eef455594055436f7989cc455d16f0fc0c0318a196c0a5637329a64e57421913",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/db/store-adapters.test-support.ts",
+      "upstream_path": "packages/core/src/db/store-adapters.test-support.ts",
+      "upstream_sha256": "5576e1bdaa490a9e2c9f17745818f9e67f3fcabf91b49bf3ebdd1cfe9c8194d2",
+      "current_import_sha256": "be8fd7b17550c2a17d2a924805de93fcc6e3860bc79f3c174105b2926e747a92",
+      "classification": "adapted",
+      "reason": "The Database type is imported from the native storage module instead of the command registry",
+      "candidate": {
+        "path": "packages/core/src/db/store-adapters.test-support.ts",
+        "sha256": "be8fd7b17550c2a17d2a924805de93fcc6e3860bc79f3c174105b2926e747a92",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/db/webhooks.contract.test.ts",
+      "upstream_path": "packages/core/src/db/webhooks.contract.test.ts",
+      "upstream_sha256": "f2d1537de48103b83660a48e0c864b7e48496f47b578137d892f3b131f8d02e6",
+      "current_import_sha256": "9e9bfd374381989f72522e146d09f726bb113ca215cda47eff560fc34d674a2a",
+      "classification": "adapted",
+      "reason": "The Database type is imported from the native storage module instead of the command registry",
+      "candidate": {
+        "path": "packages/core/src/db/webhooks.contract.test.ts",
+        "sha256": "9e9bfd374381989f72522e146d09f726bb113ca215cda47eff560fc34d674a2a",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/engine/index.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "33892504310889a0e18370a770f06b115f79f26a7faf3fa3aa285e197d582e19",
+      "classification": "afd-authored",
+      "reason": "Worker-safe ./engine barrel the integration imports instead of relative paths into core",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/engine/inheritance-graph.ts",
+      "upstream_path": "packages/core/src/commands/inheritance-graph.ts",
+      "upstream_sha256": "47dfe8bbea645635990440fb677a0ef3567e02c0843b79167e6f8962339fd6cd",
+      "current_import_sha256": "6b524ce52f935dfc79de37c6988251e22b7f29240925d6e3820a66f800a498f0",
+      "classification": "adapted",
+      "reason": "Moved from commands/; CommandContext['db'] becomes the native Database type; imports re-sorted by upstream Biome",
+      "candidate": {
+        "path": "packages/core/src/engine/inheritance-graph.ts",
+        "sha256": "6b524ce52f935dfc79de37c6988251e22b7f29240925d6e3820a66f800a498f0",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/engine/resolution-cache.ts",
+      "upstream_path": "packages/core/src/commands/token/resolution-cache.ts",
+      "upstream_sha256": "a1b4422016e2f6a6150d396218437850ae6d0d60b0c0117a1caff529be5048df",
+      "current_import_sha256": "0f85b02dc0f6a59f83355c682563251f5c95990b14f60a932a3bbb67fe2825b8",
+      "classification": "adapted",
+      "reason": "Moved from commands/token; scoped to a native ResolutionScope instead of CommandContext (generic withResolutionCache); imports re-sorted by upstream Biome",
+      "candidate": {
+        "path": "packages/core/src/engine/resolution-cache.ts",
+        "sha256": "2f2d616bbe6ffc7f98f760d6a554f95d0389601f83b2bf9c535d1bf9498473b0",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/engine/resolver.ts",
+      "upstream_path": "packages/core/src/commands/token/resolver.ts",
+      "upstream_sha256": "0569a19d78f57449516395fba4f60fd860cad31672f3210893f77cc03ee3c48e",
+      "current_import_sha256": "c66c8c92d4dde2abd24f0466a61889fb7c79a561e58d9fe67906b3b76a6d3ef2",
+      "classification": "adapted",
+      "reason": "Moved from commands/; CommandContext['db'] becomes the native Database type; imports re-sorted by upstream Biome",
+      "candidate": {
+        "path": "packages/core/src/engine/resolver.ts",
+        "sha256": "7ea56186091c81b54732089d12cfa330b72abcfa9793fd3626bae8c107df6100",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/index.ts",
+      "upstream_path": "packages/core/src/export/index.ts",
+      "upstream_sha256": "9361e8a1d26e492f03e0fdbd58b635adc0527b71389273bb79f6ee0062608eae",
+      "current_import_sha256": "9361e8a1d26e492f03e0fdbd58b635adc0527b71389273bb79f6ee0062608eae",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/export/index.ts",
+        "sha256": "9361e8a1d26e492f03e0fdbd58b635adc0527b71389273bb79f6ee0062608eae",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/registry.ts",
+      "upstream_path": "packages/core/src/export/registry.ts",
+      "upstream_sha256": "da9a560aa6be7bd49f5bcab371ecdd0eadf206dd6414bfd9f7272262c3b4e461",
+      "current_import_sha256": "da9a560aa6be7bd49f5bcab371ecdd0eadf206dd6414bfd9f7272262c3b4e461",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/export/registry.ts",
+        "sha256": "da9a560aa6be7bd49f5bcab371ecdd0eadf206dd6414bfd9f7272262c3b4e461",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/transformer.ts",
+      "upstream_path": "packages/core/src/export/transformer.ts",
+      "upstream_sha256": "a9caadfbbbc3458fa171f959ff4a7abd737625beb1257999c4412e9edaff5034",
+      "current_import_sha256": "a9caadfbbbc3458fa171f959ff4a7abd737625beb1257999c4412e9edaff5034",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/export/transformer.ts",
+        "sha256": "a9caadfbbbc3458fa171f959ff4a7abd737625beb1257999c4412e9edaff5034",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/transformers/css.ts",
+      "upstream_path": "packages/core/src/export/transformers/css.ts",
+      "upstream_sha256": "0524fe6da08de76b441cbc461595dc4f59eb64c70a4caf40362c4c5810de6223",
+      "current_import_sha256": "0524fe6da08de76b441cbc461595dc4f59eb64c70a4caf40362c4c5810de6223",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/export/transformers/css.ts",
+        "sha256": "0524fe6da08de76b441cbc461595dc4f59eb64c70a4caf40362c4c5810de6223",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/transformers/dart.ts",
+      "upstream_path": "packages/core/src/export/transformers/dart.ts",
+      "upstream_sha256": "899738f477cdae519917ce5bd1a997ca4f4459000e11d4e5087254769525deaf",
+      "current_import_sha256": "899738f477cdae519917ce5bd1a997ca4f4459000e11d4e5087254769525deaf",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/export/transformers/dart.ts",
+        "sha256": "899738f477cdae519917ce5bd1a997ca4f4459000e11d4e5087254769525deaf",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/transformers/json.ts",
+      "upstream_path": "packages/core/src/export/transformers/json.ts",
+      "upstream_sha256": "664c1063b99b6838f8f6d67bd72e30e19e3d0539e970f390f4292ce65f5eb17c",
+      "current_import_sha256": "664c1063b99b6838f8f6d67bd72e30e19e3d0539e970f390f4292ce65f5eb17c",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/export/transformers/json.ts",
+        "sha256": "664c1063b99b6838f8f6d67bd72e30e19e3d0539e970f390f4292ce65f5eb17c",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/transformers/kotlin.ts",
+      "upstream_path": "packages/core/src/export/transformers/kotlin.ts",
+      "upstream_sha256": "a37e011bfdacc3e8060278d728c71867181a5faf0bf30145c145087a4d11b1cb",
+      "current_import_sha256": "a37e011bfdacc3e8060278d728c71867181a5faf0bf30145c145087a4d11b1cb",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/export/transformers/kotlin.ts",
+        "sha256": "a37e011bfdacc3e8060278d728c71867181a5faf0bf30145c145087a4d11b1cb",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/transformers/lua.test.ts",
+      "upstream_path": "packages/core/src/export/transformers/lua.test.ts",
+      "upstream_sha256": "229cfeeda4802cf2bbbed77d85f92e37ac1f9362f145e468004163a2e6ed4df8",
+      "current_import_sha256": "229cfeeda4802cf2bbbed77d85f92e37ac1f9362f145e468004163a2e6ed4df8",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/export/transformers/lua.test.ts",
+        "sha256": "229cfeeda4802cf2bbbed77d85f92e37ac1f9362f145e468004163a2e6ed4df8",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/transformers/lua.ts",
+      "upstream_path": "packages/core/src/export/transformers/lua.ts",
+      "upstream_sha256": "bc1ec4f1f622b2a232fe403520dd8e64c190832394b729c65226b795282b761e",
+      "current_import_sha256": "bc1ec4f1f622b2a232fe403520dd8e64c190832394b729c65226b795282b761e",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/export/transformers/lua.ts",
+        "sha256": "bc1ec4f1f622b2a232fe403520dd8e64c190832394b729c65226b795282b761e",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/transformers/scss.ts",
+      "upstream_path": "packages/core/src/export/transformers/scss.ts",
+      "upstream_sha256": "83af4c9c086cd509091ce74daeb669a9455397bedb4cca9b341ee67680e3d687",
+      "current_import_sha256": "83af4c9c086cd509091ce74daeb669a9455397bedb4cca9b341ee67680e3d687",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/export/transformers/scss.ts",
+        "sha256": "83af4c9c086cd509091ce74daeb669a9455397bedb4cca9b341ee67680e3d687",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/transformers/swift.ts",
+      "upstream_path": "packages/core/src/export/transformers/swift.ts",
+      "upstream_sha256": "89921025a1feb70b88cf1ad434f0f2aec95c537cde02fae8ba3da2a62f497377",
+      "current_import_sha256": "89921025a1feb70b88cf1ad434f0f2aec95c537cde02fae8ba3da2a62f497377",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/export/transformers/swift.ts",
+        "sha256": "89921025a1feb70b88cf1ad434f0f2aec95c537cde02fae8ba3da2a62f497377",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/transformers/tailwind.ts",
+      "upstream_path": "packages/core/src/export/transformers/tailwind.ts",
+      "upstream_sha256": "5b9422e2256ac73c9056191f6856795354fd1c02d3c9410d3b347475d9d3fda7",
+      "current_import_sha256": "5b9422e2256ac73c9056191f6856795354fd1c02d3c9410d3b347475d9d3fda7",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/export/transformers/tailwind.ts",
+        "sha256": "5b9422e2256ac73c9056191f6856795354fd1c02d3c9410d3b347475d9d3fda7",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/export/transformers/typescript.ts",
+      "upstream_path": "packages/core/src/export/transformers/typescript.ts",
+      "upstream_sha256": "7d50d544897680133498895a6a165f9d9d0e35ef3c3bb81b0df44373125d454d",
+      "current_import_sha256": "7d50d544897680133498895a6a165f9d9d0e35ef3c3bb81b0df44373125d454d",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/export/transformers/typescript.ts",
+        "sha256": "7d50d544897680133498895a6a165f9d9d0e35ef3c3bb81b0df44373125d454d",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/index.ts",
+      "upstream_path": "packages/core/src/index.ts",
+      "upstream_sha256": "dab23df5a4eabda69a2c4f2f547af740a1396b686a21d0f999f23bad14738cca",
+      "current_import_sha256": "28c3874ce95518fc15e69c2be9ef639ae174080017042e5975fdf39b8599aec6",
+      "classification": "adapted",
+      "reason": "Native root: the same names minus commands, AFD results, initializeCore, demo seed and Neon; adds the native token API",
+      "candidate": {
+        "path": "packages/core/src/index.ts",
+        "sha256": "7c49d1f8149bb72494c35b0e58f53a2deaa55854e493d73c804d05a850f230a7",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/openapi/index.ts",
+      "upstream_path": "packages/core/src/openapi/index.ts",
+      "upstream_sha256": "565f8b95331a1c9d78948339a282e06d5d401abd9880fad45d0fd1a42739aa04",
+      "current_import_sha256": "565f8b95331a1c9d78948339a282e06d5d401abd9880fad45d0fd1a42739aa04",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/storage.ts",
+      "upstream_path": "packages/core/src/commands/registry.ts",
+      "upstream_sha256": "39d6acf9680984dc7edcaad0749bf58a064a78af034c1dcf8f541a97e7ae72aa",
+      "current_import_sha256": "a1e39e6e301c0aaa6970027cb7ca74d35dbd3bddb0dbe9c948e40ef4074366a1",
+      "classification": "derived",
+      "reason": "The Database interface from the command registry, verbatim apart from type-import paths, as the native storage contract",
+      "candidate": {
+        "path": "packages/core/src/storage.ts",
+        "sha256": "b8a52b7d6ac7695758763929a1a1c92aa8372ed6d653272bb904811e54bb80bd",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/tokens.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "24f78c05d512c261cfc2300e9a1c229ed7f5de7cae48701bcca4aacf24c1a718",
+      "classification": "afd-authored",
+      "reason": "Native resolution and export tests that write nodes and operations straight to the memory store",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/tokens.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "b7ed4dcd7661fe9bc63f682964e6d14a62113b542c65f2903723ed37581716e7",
+      "classification": "afd-authored",
+      "reason": "Native resolveTokens/exportTokens and TokenDomainError: the tokens.resolve and export steps without a registry or AFD envelope",
+      "candidate": {
+        "path": "packages/core/src/tokens.ts",
+        "sha256": "48adc08f9af51a2eae74f4d170f2a70098b4e1284827ea2fa599f1da5325b774",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/types/constraint.ts",
+      "upstream_path": "packages/core/src/types/constraint.ts",
+      "upstream_sha256": "6f87e02fbb057c7bff8f6ce22df120dd9cb7b7105b10ce1122bd85861d0a0fcb",
+      "current_import_sha256": "6f87e02fbb057c7bff8f6ce22df120dd9cb7b7105b10ce1122bd85861d0a0fcb",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/types/constraint.ts",
+        "sha256": "6f87e02fbb057c7bff8f6ce22df120dd9cb7b7105b10ce1122bd85861d0a0fcb",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/types/error-codes.ts",
+      "upstream_path": "packages/core/src/types/command-result.ts",
+      "upstream_sha256": "b5ecfbf0832f73d88bafcaa93a977dd1b7e33f94b90f257d8cbc072899771574",
+      "current_import_sha256": "7b711f229c21ebd159687b459f70424a5ad5115fca6f1ebe77c3bc531057a3ca",
+      "classification": "derived",
+      "reason": "The ErrorCodes constant and ErrorCode type from command-result.ts, verbatim, without the AFD re-exports",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/types/index.ts",
+      "upstream_path": "packages/core/src/types/index.ts",
+      "upstream_sha256": "514cffe6f64dc966180ec8db92a41d1b60133988b07f4eaaf1bd16bda570b165",
+      "current_import_sha256": "61adde561a303b106413773a5049603b35240455faa6bd9d7642c455522f8350",
+      "classification": "adapted",
+      "reason": "Error codes replace the AFD CommandResult barrel export",
+      "candidate": {
+        "path": "packages/core/src/types/index.ts",
+        "sha256": "b3364fbbfcaf268cf1d7b3d109d5954c96bfa7427b1ff13441508967981a438e",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/types/node.ts",
+      "upstream_path": "packages/core/src/types/node.ts",
+      "upstream_sha256": "b8e4700ed2a68335e6aed31defba522cb063afd86f4be425934dc9e35bfbe16a",
+      "current_import_sha256": "b8e4700ed2a68335e6aed31defba522cb063afd86f4be425934dc9e35bfbe16a",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/types/node.ts",
+        "sha256": "92b016be460b39c0f50f8264f855cd939891f9c9157863d64c9498d791e306c6",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/types/operation.ts",
+      "upstream_path": "packages/core/src/types/operation.ts",
+      "upstream_sha256": "48e459543e289eaa726874d0774f73ac15ca825189c4d12ed69db0675fb26a61",
+      "current_import_sha256": "48e459543e289eaa726874d0774f73ac15ca825189c4d12ed69db0675fb26a61",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/types/operation.ts",
+        "sha256": "42aa752f2525f783ae34b5a85eb176b1cb3080aa4e413e7361681edb76478a7b",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/types/snapshot.ts",
+      "upstream_path": "packages/core/src/types/snapshot.ts",
+      "upstream_sha256": "8ba0dc73a2961561f2149e7a75660f8c0b211c35307049e3f9e473f01f9e1abb",
+      "current_import_sha256": "8ba0dc73a2961561f2149e7a75660f8c0b211c35307049e3f9e473f01f9e1abb",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/types/specimen.ts",
+      "upstream_path": "packages/core/src/types/specimen.ts",
+      "upstream_sha256": "31e62f649e4aa171abafb3db392cb9ba7cb3e2a5e807e63cdfb60dcb2f3357df",
+      "current_import_sha256": "31e62f649e4aa171abafb3db392cb9ba7cb3e2a5e807e63cdfb60dcb2f3357df",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/types/token-id.ts",
+      "upstream_path": "packages/core/src/types/token-id.ts",
+      "upstream_sha256": "1bcfedf2bf99b4e84e19e5b3eb98134f068d1cfc009d2c75cb68d1ebd396cea6",
+      "current_import_sha256": "1bcfedf2bf99b4e84e19e5b3eb98134f068d1cfc009d2c75cb68d1ebd396cea6",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/types/token-id.ts",
+        "sha256": "1bcfedf2bf99b4e84e19e5b3eb98134f068d1cfc009d2c75cb68d1ebd396cea6",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/types/token.ts",
+      "upstream_path": "packages/core/src/types/token.ts",
+      "upstream_sha256": "d7f3d3303d64a6a813c33e0e30b89bf556cb8675feba4858f54f1bdc42447556",
+      "current_import_sha256": "d7f3d3303d64a6a813c33e0e30b89bf556cb8675feba4858f54f1bdc42447556",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/types/token.ts",
+        "sha256": "d7f3d3303d64a6a813c33e0e30b89bf556cb8675feba4858f54f1bdc42447556",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/types/webhook.ts",
+      "upstream_path": "packages/core/src/types/webhook.ts",
+      "upstream_sha256": "add75fff6967f76bc89bd8a20c93378d9af5c9e2c9b1d9768b9578d27288f7e1",
+      "current_import_sha256": "add75fff6967f76bc89bd8a20c93378d9af5c9e2c9b1d9768b9578d27288f7e1",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/types/webhook.ts",
+        "sha256": "add75fff6967f76bc89bd8a20c93378d9af5c9e2c9b1d9768b9578d27288f7e1",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/utils/glob.test.ts",
+      "upstream_path": "packages/core/src/utils/glob.test.ts",
+      "upstream_sha256": "82cbaba49a20c78d077adf0217f8f850421212eec6320dd8a15f0d4d4a6c2dfe",
+      "current_import_sha256": "82cbaba49a20c78d077adf0217f8f850421212eec6320dd8a15f0d4d4a6c2dfe",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/utils/glob.test.ts",
+        "sha256": "82cbaba49a20c78d077adf0217f8f850421212eec6320dd8a15f0d4d4a6c2dfe",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/utils/glob.ts",
+      "upstream_path": "packages/core/src/utils/glob.ts",
+      "upstream_sha256": "e8b264293a961537af0fd52fa176bdcccf510847d73dfd24623a7e9f2988ed20",
+      "current_import_sha256": "e8b264293a961537af0fd52fa176bdcccf510847d73dfd24623a7e9f2988ed20",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/src/utils/glob.ts",
+        "sha256": "e8b264293a961537af0fd52fa176bdcccf510847d73dfd24623a7e9f2988ed20",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/worker.ts",
+      "upstream_path": "packages/core/src/worker.ts",
+      "upstream_sha256": "debe421926624c3aa55d796064cc97e83f7d3ad567a10d40f117bed66acc3f70",
+      "current_import_sha256": "34794a9694ca6e208fbc02624d5b8d2d5cd1fd5bf9980acf5022bb8fec6df5a0",
+      "classification": "adapted",
+      "reason": "Native worker entry: memory store, OpenAPI document and native token API; the registry moved to the integration",
+      "candidate": {
+        "path": "packages/core/src/worker.ts",
+        "sha256": "e1ab9d7184cda0e770d115cab453c1491dc4f90d5829cf933fa0b8eb60d9c868",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/tsconfig.json",
+      "upstream_path": "packages/core/tsconfig.json",
+      "upstream_sha256": "6738cc5c2ff872bc84bc1f3ececc991ce7a2dbeb91ca05b218b218b4c0612391",
+      "current_import_sha256": "6738cc5c2ff872bc84bc1f3ececc991ce7a2dbeb91ca05b218b218b4c0612391",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/tsconfig.json",
+        "sha256": "6738cc5c2ff872bc84bc1f3ececc991ce7a2dbeb91ca05b218b218b4c0612391",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/vitest.config.ts",
+      "upstream_path": "packages/core/vitest.config.ts",
+      "upstream_sha256": "dd17e43e9613b203957535775e66cfe079fe12d5bc145931987d8e813d8034bd",
+      "current_import_sha256": "dd17e43e9613b203957535775e66cfe079fe12d5bc145931987d8e813d8034bd",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/core/vitest.config.ts",
+        "sha256": "dd17e43e9613b203957535775e66cfe079fe12d5bc145931987d8e813d8034bd",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/vitest.unit.config.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "8ac908a1d9e33e5a442ea69bfc864788662f00a04b83888ecf2d5a663df0b698",
+      "classification": "afd-authored",
+      "reason": "Store-free subset for pnpm check; SQLite/Postgres/Neon suites run with test:db in violet.yml",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/CHANGELOG.md",
+      "upstream_path": "packages/runtime/CHANGELOG.md",
+      "upstream_sha256": "8c08cf6800243dc53b2968ea5e9041d92ad11f52c9dddc44709719071d251836",
+      "current_import_sha256": "8c08cf6800243dc53b2968ea5e9041d92ad11f52c9dddc44709719071d251836",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/LICENSE",
+      "upstream_path": "packages/runtime/LICENSE",
+      "upstream_sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
+      "current_import_sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/runtime/LICENSE",
+        "sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/README.md",
+      "upstream_path": "packages/runtime/README.md",
+      "upstream_sha256": "85a4432484d3dde68ce3f7a416e08fae963add1bc8bd3b1b57fe9e8d0a05e05b",
+      "current_import_sha256": "85a4432484d3dde68ce3f7a416e08fae963add1bc8bd3b1b57fe9e8d0a05e05b",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/runtime/README.md",
+        "sha256": "85a4432484d3dde68ce3f7a416e08fae963add1bc8bd3b1b57fe9e8d0a05e05b",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/package.json",
+      "upstream_path": "packages/runtime/package.json",
+      "upstream_sha256": "53464ac59e55d40f06e2a2988dec06ced6d776156a114d479d08d12f0bec7e9c",
+      "current_import_sha256": "ecd88eeed636f485600e2400c18a4c0bce9773f798397c37ad70d146539e0160",
+      "classification": "adapted",
+      "reason": "Biome 1.9 dev dependency, which the upstream root supplied to the lint script",
+      "candidate": {
+        "path": "packages/runtime/package.json",
+        "sha256": "62eacdd88535bbad845c623b946107498a522658872cd4551806ace989466ec3",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/src/__tests__/cache.test.ts",
+      "upstream_path": "packages/runtime/src/__tests__/cache.test.ts",
+      "upstream_sha256": "1babf9349f74e29e2c2cc0bd160e60956b15471fb5738a25a78a29136e87f1a1",
+      "current_import_sha256": "1babf9349f74e29e2c2cc0bd160e60956b15471fb5738a25a78a29136e87f1a1",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/runtime/src/__tests__/cache.test.ts",
+        "sha256": "1babf9349f74e29e2c2cc0bd160e60956b15471fb5738a25a78a29136e87f1a1",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/src/__tests__/client-robustness.test.ts",
+      "upstream_path": "packages/runtime/src/__tests__/client-robustness.test.ts",
+      "upstream_sha256": "fb07128d18586888dd7173b6fd325f9c798695fb58e0b7d34c256a7d9fd16e3c",
+      "current_import_sha256": "fb07128d18586888dd7173b6fd325f9c798695fb58e0b7d34c256a7d9fd16e3c",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/runtime/src/__tests__/client-robustness.test.ts",
+        "sha256": "fb07128d18586888dd7173b6fd325f9c798695fb58e0b7d34c256a7d9fd16e3c",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/src/__tests__/client.test.ts",
+      "upstream_path": "packages/runtime/src/__tests__/client.test.ts",
+      "upstream_sha256": "9dde8cf2104ea0ee9cb6c13e26cf4174a667abb77c89b7da63eb5686244f0448",
+      "current_import_sha256": "9dde8cf2104ea0ee9cb6c13e26cf4174a667abb77c89b7da63eb5686244f0448",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/runtime/src/__tests__/client.test.ts",
+        "sha256": "9dde8cf2104ea0ee9cb6c13e26cf4174a667abb77c89b7da63eb5686244f0448",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/src/__tests__/theme-robustness.test.ts",
+      "upstream_path": "packages/runtime/src/__tests__/theme-robustness.test.ts",
+      "upstream_sha256": "d644e46910a5bd3b6515db55bf8909447c940bad35c0831cebfd4143026c0996",
+      "current_import_sha256": "d644e46910a5bd3b6515db55bf8909447c940bad35c0831cebfd4143026c0996",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/runtime/src/__tests__/theme-robustness.test.ts",
+        "sha256": "d644e46910a5bd3b6515db55bf8909447c940bad35c0831cebfd4143026c0996",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/src/__tests__/theme.test.ts",
+      "upstream_path": "packages/runtime/src/__tests__/theme.test.ts",
+      "upstream_sha256": "b5c43f763f66dec959dc347468efe24feabc0f9c9539f72e64c90277fbf25913",
+      "current_import_sha256": "b5c43f763f66dec959dc347468efe24feabc0f9c9539f72e64c90277fbf25913",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/runtime/src/__tests__/theme.test.ts",
+        "sha256": "b5c43f763f66dec959dc347468efe24feabc0f9c9539f72e64c90277fbf25913",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/src/cache.ts",
+      "upstream_path": "packages/runtime/src/cache.ts",
+      "upstream_sha256": "033baa71700194e984b72f36f8e9d522dfe6b5ed280f65cbf41b6b45d8da5122",
+      "current_import_sha256": "033baa71700194e984b72f36f8e9d522dfe6b5ed280f65cbf41b6b45d8da5122",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/runtime/src/cache.ts",
+        "sha256": "033baa71700194e984b72f36f8e9d522dfe6b5ed280f65cbf41b6b45d8da5122",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/src/client.ts",
+      "upstream_path": "packages/runtime/src/client.ts",
+      "upstream_sha256": "87badf970a29ec705033471780df6f8688a8675d2e2abcf532ac7e19ee569f64",
+      "current_import_sha256": "87badf970a29ec705033471780df6f8688a8675d2e2abcf532ac7e19ee569f64",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/runtime/src/client.ts",
+        "sha256": "87badf970a29ec705033471780df6f8688a8675d2e2abcf532ac7e19ee569f64",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/src/index.ts",
+      "upstream_path": "packages/runtime/src/index.ts",
+      "upstream_sha256": "3f582b4857b3072f8d4c03aa4467f058b65d421b2db53a99d8c89f456b3a6e9f",
+      "current_import_sha256": "3f582b4857b3072f8d4c03aa4467f058b65d421b2db53a99d8c89f456b3a6e9f",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/runtime/src/index.ts",
+        "sha256": "3f582b4857b3072f8d4c03aa4467f058b65d421b2db53a99d8c89f456b3a6e9f",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/src/theme.ts",
+      "upstream_path": "packages/runtime/src/theme.ts",
+      "upstream_sha256": "5c2adaff7730cc427b209fa060c1395534945ce7bb216062d637a40123975d3c",
+      "current_import_sha256": "5c2adaff7730cc427b209fa060c1395534945ce7bb216062d637a40123975d3c",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/runtime/src/theme.ts",
+        "sha256": "5c2adaff7730cc427b209fa060c1395534945ce7bb216062d637a40123975d3c",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/src/types.ts",
+      "upstream_path": "packages/runtime/src/types.ts",
+      "upstream_sha256": "d1a3d23f4c775e99bf9a55b5c7135a030c5455383e79a4b4db064f0d46169694",
+      "current_import_sha256": "d1a3d23f4c775e99bf9a55b5c7135a030c5455383e79a4b4db064f0d46169694",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/runtime/src/types.ts",
+        "sha256": "d1a3d23f4c775e99bf9a55b5c7135a030c5455383e79a4b4db064f0d46169694",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/tsconfig.json",
+      "upstream_path": "packages/runtime/tsconfig.json",
+      "upstream_sha256": "0b7d22345a861fc56cbb994701acb117cf3e9d037202c9c3870294633cb9a1e4",
+      "current_import_sha256": "0b7d22345a861fc56cbb994701acb117cf3e9d037202c9c3870294633cb9a1e4",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/runtime/tsconfig.json",
+        "sha256": "0b7d22345a861fc56cbb994701acb117cf3e9d037202c9c3870294633cb9a1e4",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/runtime/vitest.config.ts",
+      "upstream_path": "packages/runtime/vitest.config.ts",
+      "upstream_sha256": "f034e1fffb97f49cfc1a8498d8aa1fabfc87e086dc7dc8c187045e58b7f7c188",
+      "current_import_sha256": "f034e1fffb97f49cfc1a8498d8aa1fabfc87e086dc7dc8c187045e58b7f7c188",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "packages/runtime/vitest.config.ts",
+        "sha256": "f034e1fffb97f49cfc1a8498d8aa1fabfc87e086dc7dc8c187045e58b7f7c188",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "foundations/violet/tsconfig.json",
+      "upstream_path": "tsconfig.json",
+      "upstream_sha256": "dda3984a6877df8002e1d494f49062d461bb82fb7b6d2d84963f1f45c651655d",
+      "current_import_sha256": "dda3984a6877df8002e1d494f49062d461bb82fb7b6d2d84963f1f45c651655d",
+      "classification": "unchanged",
+      "reason": "Upstream bytes",
+      "candidate": {
+        "path": "tsconfig.json",
+        "sha256": "13d57ce078c6e2be7b1ac211fdf76b0dad8483af8827a61c1b92a0a06290b014",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/LICENSE",
+      "upstream_path": "packages/core/LICENSE",
+      "upstream_sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
+      "current_import_sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/LICENSE",
+        "sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/README.md",
+      "upstream_path": "packages/core/README.md",
+      "upstream_sha256": "df71c1ac465fd2dfa21b3afb536f8af6b31b58688498df9fb8a54868404fb5a1",
+      "current_import_sha256": "383db99e8056ae404fe829f02a4d64bc6ec657a9c12dbea375c2bd8b0e581a54",
+      "classification": "adapted",
+      "reason": "The pre-split core README with the integration package name, install and transition notes",
+      "candidate": {
+        "path": "packages/afd/README.md",
+        "sha256": "48e4e6302bb908a734b4844c2221a4ec334ebb6d0c32811aa148f656859ffd6a",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/biome.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "d6d4a8a0a5473e6a99e8f7f03e60dbd7c118f3b53f6ca8ddde891cb5fd86d718",
+      "classification": "afd-authored",
+      "reason": "Extends the upstream root Biome 1.9 configuration from foundations/violet",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/package.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "968743451d810baddf51ac5ee0c4b80a98a1cab4d5de31d8ac31549b6f181254",
+      "classification": "afd-authored",
+      "reason": "New integration manifest: the pre-split core entry points, peer violet-core ^0.2.0, the source AFD range ^0.1.1, version 0.2.0 like its family",
+      "candidate": {
+        "path": "packages/afd/package.json",
+        "sha256": "0007e820a3b32fb06d1ea01ae27cfff2ff4e539580b7f6fac5b9e46096b42a91",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/analyze/analyze-fixes.test.ts",
+      "upstream_path": "packages/core/src/commands/analyze/analyze-fixes.test.ts",
+      "upstream_sha256": "056da9600e7fa6998b2ac5c993b453114746d7c3a7dd20644ce833a6e62c100a",
+      "current_import_sha256": "e579b665d828e305d5668a111f718fbafb59fa54a9fa841ae9c5c4a358e63518",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/analyze/analyze-fixes.test.ts",
+        "sha256": "056da9600e7fa6998b2ac5c993b453114746d7c3a7dd20644ce833a6e62c100a",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/analyze/analyze.test.ts",
+      "upstream_path": "packages/core/src/commands/analyze/analyze.test.ts",
+      "upstream_sha256": "3fb9b51c82bc70cef785c456a07a0e0c220df1d61bfde25f76feb18178e2d65c",
+      "current_import_sha256": "9c531db1620394bd552f3d566b6d96f1525bb907a4a52b0a0c292925d82e8170",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/analyze/analyze.test.ts",
+        "sha256": "3fb9b51c82bc70cef785c456a07a0e0c220df1d61bfde25f76feb18178e2d65c",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/analyze/compare.ts",
+      "upstream_path": "packages/core/src/commands/analyze/compare.ts",
+      "upstream_sha256": "ad8581a37bee80c7e90040021fa5aefac2ba86c4734650b5ccb61d43b6ea137b",
+      "current_import_sha256": "71b30071ea9997c896050eff63e50c303abc730bf8c21d99037d0075d9151f95",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/analyze/compare.ts",
+        "sha256": "ad8581a37bee80c7e90040021fa5aefac2ba86c4734650b5ccb61d43b6ea137b",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/analyze/compliance.ts",
+      "upstream_path": "packages/core/src/commands/analyze/compliance.ts",
+      "upstream_sha256": "99929aa7a22b4c86fce02a826eb5b8516586c6808b6018dfaaa45a7b33ff37e7",
+      "current_import_sha256": "99929aa7a22b4c86fce02a826eb5b8516586c6808b6018dfaaa45a7b33ff37e7",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/analyze/compliance.ts",
+        "sha256": "99929aa7a22b4c86fce02a826eb5b8516586c6808b6018dfaaa45a7b33ff37e7",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/analyze/deviations.ts",
+      "upstream_path": "packages/core/src/commands/analyze/deviations.ts",
+      "upstream_sha256": "cd3d662dffd3241204bb0f055ca37368ebc3db95e4c59ca53d88c12141d9abb4",
+      "current_import_sha256": "3a59c4d1b9f604948602393fcc08ba5ad6352de00706875a8358ba8c878cc1aa",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/analyze/deviations.ts",
+        "sha256": "cd3d662dffd3241204bb0f055ca37368ebc3db95e4c59ca53d88c12141d9abb4",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/analyze/health.test.ts",
+      "upstream_path": "packages/core/src/commands/analyze/health.test.ts",
+      "upstream_sha256": "bc944add5f5f0d628aa3c81157c9e6e8a2ee39f85792f0725ead602e99d4ae2e",
+      "current_import_sha256": "ac08fdc5a80f92f66b1cdd56003cf63961885e2875202351f873cd8266de0200",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/analyze/health.test.ts",
+        "sha256": "b9b8d8f452d441c45f4b7cfd5bb351896668f83a2332d1dbd5cade96d0fca076",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/analyze/health.ts",
+      "upstream_path": "packages/core/src/commands/analyze/health.ts",
+      "upstream_sha256": "ebedb59b985b1dc5fbeb61c72d18934694c7701d69e691c0b9b37daa8e113417",
+      "current_import_sha256": "c786a882c74c5ff600f2849bfb4ade4a343d357c45778253522f53d20ae78313",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/analyze/health.ts",
+        "sha256": "6fbeedb7e3d1006d2ec3c8c349de780fc3084035e2ee8eaa8d05b55ceb2dc624",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/analyze/index.ts",
+      "upstream_path": "packages/core/src/commands/analyze/index.ts",
+      "upstream_sha256": "40bcfb2bd913da7689391794404f527f484e56b936b778ff72b4dfc5415e5c4a",
+      "current_import_sha256": "40bcfb2bd913da7689391794404f527f484e56b936b778ff72b4dfc5415e5c4a",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/analyze/index.ts",
+        "sha256": "3ce2e9917e123067743f46806cbef32b95099460870b5c55b7a8a83d0d03a3f9",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/analyze/snapshot.test.ts",
+      "upstream_path": "packages/core/src/commands/analyze/snapshot.test.ts",
+      "upstream_sha256": "f42368d5fb15f2057d5ee2ec6245c69a26b4bea9f9f61e523fb35cd1e62da2a8",
+      "current_import_sha256": "71da84a1cbfb80aa383a928ace37a2c5ae9aeab0158df1b5b019bb5f40550bf5",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/analyze/snapshot.ts",
+      "upstream_path": "packages/core/src/commands/analyze/snapshot.ts",
+      "upstream_sha256": "89e7b4bf95d1255175ff5cb2a38d6927d2c4aa9a2457f78235fd50af5d864533",
+      "current_import_sha256": "f7ab41de7ba19fa6a38bc527f9dc8e3a31c5ebb0758b1fd4eb95d570fcc7909c",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/analyze/trends.test.ts",
+      "upstream_path": "packages/core/src/commands/analyze/trends.test.ts",
+      "upstream_sha256": "068209a7d3bb7d5e6df9747e2df6ae3fd88f8e98d63f9c62a6596242f32f1095",
+      "current_import_sha256": "21394f303078272444e7ecd4685356e8da1016abeb079c732c4a5537811cd1be",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/analyze/trends.test.ts",
+        "sha256": "068209a7d3bb7d5e6df9747e2df6ae3fd88f8e98d63f9c62a6596242f32f1095",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/analyze/trends.ts",
+      "upstream_path": "packages/core/src/commands/analyze/trends.ts",
+      "upstream_sha256": "0b251f2df00141d72681fdc872fb045b604c08d8a684812ba6a42a33314a2dfd",
+      "current_import_sha256": "24210081abb68e22e63925790ed34f4fe1457938d1ddd66470421da45e200a07",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/analyze/trends.ts",
+        "sha256": "a6b76d1abec853a4f6e26fc29cd8a67fea66a1cd270d96269c2259f787e08dd7",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/analyze/violations.test.ts",
+      "upstream_path": "packages/core/src/commands/analyze/violations.test.ts",
+      "upstream_sha256": "db780a1a990101a88f162cc679bf21654089237afe872db1f9bea92becf60d16",
+      "current_import_sha256": "4e8354f4403cd39c2a3c7b595748f5ef4bfa4be80735c82317b02e2eff541f0d",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/analyze/violations.test.ts",
+        "sha256": "db780a1a990101a88f162cc679bf21654089237afe872db1f9bea92becf60d16",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/analyze/violations.ts",
+      "upstream_path": "packages/core/src/commands/analyze/violations.ts",
+      "upstream_sha256": "c0b2182f3be85a47dcb9d787ffdee19d0ade28c94f0fdba6525a83c89b0cdf9c",
+      "current_import_sha256": "d2fcf81d2e49b3f41ac8f39b28479562902d71bae4d433c913c4c0e18e4d1285",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/analyze/violations.ts",
+        "sha256": "c0b2182f3be85a47dcb9d787ffdee19d0ade28c94f0fdba6525a83c89b0cdf9c",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/apikeys/apikeys.test.ts",
+      "upstream_path": "packages/core/src/commands/apikeys/apikeys.test.ts",
+      "upstream_sha256": "911126391cd58903bb910fb19e383cc7ac5bd560ecd1e167228db902533a28ca",
+      "current_import_sha256": "f57863dec2ddfc86f010747e6e4ac398477aac47966adfbbe3cfd6cb30a87159",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/apikeys/apikeys.test.ts",
+        "sha256": "911126391cd58903bb910fb19e383cc7ac5bd560ecd1e167228db902533a28ca",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/apikeys/check.ts",
+      "upstream_path": "packages/core/src/commands/apikeys/check.ts",
+      "upstream_sha256": "464c76bfbe458fb38f016380028241f6ed45756fc7c3b6221caee36ee5741e76",
+      "current_import_sha256": "464c76bfbe458fb38f016380028241f6ed45756fc7c3b6221caee36ee5741e76",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/apikeys/check.ts",
+        "sha256": "464c76bfbe458fb38f016380028241f6ed45756fc7c3b6221caee36ee5741e76",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/apikeys/create.ts",
+      "upstream_path": "packages/core/src/commands/apikeys/create.ts",
+      "upstream_sha256": "cd05ab65fc29730cf592afd9f42beffa029ba0cf365f263511218a424f9e67a4",
+      "current_import_sha256": "cd05ab65fc29730cf592afd9f42beffa029ba0cf365f263511218a424f9e67a4",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/apikeys/create.ts",
+        "sha256": "cd05ab65fc29730cf592afd9f42beffa029ba0cf365f263511218a424f9e67a4",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/apikeys/index.ts",
+      "upstream_path": "packages/core/src/commands/apikeys/index.ts",
+      "upstream_sha256": "30ae49de2bfcd764bf5009c6107d55125490da2ded23c612ca5ef48536815203",
+      "current_import_sha256": "30ae49de2bfcd764bf5009c6107d55125490da2ded23c612ca5ef48536815203",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/apikeys/index.ts",
+        "sha256": "30ae49de2bfcd764bf5009c6107d55125490da2ded23c612ca5ef48536815203",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/apikeys/keys.ts",
+      "upstream_path": "packages/core/src/commands/apikeys/keys.ts",
+      "upstream_sha256": "cc24e2aff4f9559bed66070fb3f5e9b213580d4eef01e8a50ec6bd2e96bb9172",
+      "current_import_sha256": "cc24e2aff4f9559bed66070fb3f5e9b213580d4eef01e8a50ec6bd2e96bb9172",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/apikeys/keys.ts",
+        "sha256": "bc5a37293d16f6f9862e4ed2d5ff5206191afa5f320ab49dd7a65728e30d0e6f",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/audit/index.ts",
+      "upstream_path": "packages/core/src/commands/audit/index.ts",
+      "upstream_sha256": "b8198fc41709645020fc74dc0112f01f0b0f7b6a47584e22859a3e1e1257d81d",
+      "current_import_sha256": "b8198fc41709645020fc74dc0112f01f0b0f7b6a47584e22859a3e1e1257d81d",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/audit/index.ts",
+        "sha256": "b8198fc41709645020fc74dc0112f01f0b0f7b6a47584e22859a3e1e1257d81d",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/audit/list.test.ts",
+      "upstream_path": "packages/core/src/commands/audit/list.test.ts",
+      "upstream_sha256": "f561f7b296f9a325339e59f014a943d12f2c3904b23442f98ac6dbf5d8526654",
+      "current_import_sha256": "52804a9a9c31d6d0d9b6493dfa8863ecb0ffa246cdba1c753dab24b8783c96ca",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/audit/list.test.ts",
+        "sha256": "f561f7b296f9a325339e59f014a943d12f2c3904b23442f98ac6dbf5d8526654",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/audit/list.ts",
+      "upstream_path": "packages/core/src/commands/audit/list.ts",
+      "upstream_sha256": "60915fa46d50fbc49a4dd89ce2ccec147fb587bc8f6825c095142765ffed7de1",
+      "current_import_sha256": "80b268a125614ec0c3d34122720423cbb1e9601148d0d6f025d7e2b82734306c",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/audit/list.ts",
+        "sha256": "60915fa46d50fbc49a4dd89ce2ccec147fb587bc8f6825c095142765ffed7de1",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/changes/impact.test.ts",
+      "upstream_path": "packages/core/src/commands/changes/impact.test.ts",
+      "upstream_sha256": "566d6938864265482e06af0d8cda6fb9ff2bfbd647a8ed31c66799b4068d6e43",
+      "current_import_sha256": "48988d80c9680a412449f7c61eb192bbbd1f026bebbe221c5d31f4d8093a87cc",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/changes/impact.test.ts",
+        "sha256": "566d6938864265482e06af0d8cda6fb9ff2bfbd647a8ed31c66799b4068d6e43",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/changes/impact.ts",
+      "upstream_path": "packages/core/src/commands/changes/impact.ts",
+      "upstream_sha256": "35c265958572877caf93b3ef8e4a44a90d5757da7858983ae7f784fd581104cc",
+      "current_import_sha256": "cf5336f352e79ec2cc34e976b54b871a3c0dec64b5614bfab5f2dff66cd0fdb7",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/changes/impact.ts",
+        "sha256": "35c265958572877caf93b3ef8e4a44a90d5757da7858983ae7f784fd581104cc",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/changes/index.ts",
+      "upstream_path": "packages/core/src/commands/changes/index.ts",
+      "upstream_sha256": "f7d1c5c7283da756108fa8cc90adf657c3914d75ddf76e1633d88b16344b2050",
+      "current_import_sha256": "f7d1c5c7283da756108fa8cc90adf657c3914d75ddf76e1633d88b16344b2050",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/changes/index.ts",
+        "sha256": "f7d1c5c7283da756108fa8cc90adf657c3914d75ddf76e1633d88b16344b2050",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/constraints/constraints-fixes.test.ts",
+      "upstream_path": "packages/core/src/commands/constraints/constraints-fixes.test.ts",
+      "upstream_sha256": "be7726b6c3c8c3a8ed7d889d1aa143bfc6628759a86ea796159e49072d566e8e",
+      "current_import_sha256": "dd40c1b63733eff4c2547072b4399d4b9d3ad7da5b6dc845d56ca9a875c26f92",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/constraints/constraints-fixes.test.ts",
+        "sha256": "be7726b6c3c8c3a8ed7d889d1aa143bfc6628759a86ea796159e49072d566e8e",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/constraints/constraints.test.ts",
+      "upstream_path": "packages/core/src/commands/constraints/constraints.test.ts",
+      "upstream_sha256": "c1e1148fb81a728a16237b68b4782edb6086526e73140f26f562d52b081b96d3",
+      "current_import_sha256": "0af013f0435d1c988a5e92e61b41726305e4de12bab20bd866f00443898d2c48",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/constraints/constraints.test.ts",
+        "sha256": "c1e1148fb81a728a16237b68b4782edb6086526e73140f26f562d52b081b96d3",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/constraints/index.ts",
+      "upstream_path": "packages/core/src/commands/constraints/index.ts",
+      "upstream_sha256": "a9f1543c9abaadcead8a6b254dc043bc370de05b6745ecbba2f0dac1f359579a",
+      "current_import_sha256": "a9f1543c9abaadcead8a6b254dc043bc370de05b6745ecbba2f0dac1f359579a",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/constraints/index.ts",
+        "sha256": "a9f1543c9abaadcead8a6b254dc043bc370de05b6745ecbba2f0dac1f359579a",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/constraints/list.ts",
+      "upstream_path": "packages/core/src/commands/constraints/list.ts",
+      "upstream_sha256": "3a9e83b1dd3447cdde817819922d99d4cfd6c69f175f0300a62bfa45100c4576",
+      "current_import_sha256": "70d8db92c67b5946ce85673727c89fb86d2f404ee9004ed1465b52f8a31d00b0",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/constraints/list.ts",
+        "sha256": "3a9e83b1dd3447cdde817819922d99d4cfd6c69f175f0300a62bfa45100c4576",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/constraints/set.ts",
+      "upstream_path": "packages/core/src/commands/constraints/set.ts",
+      "upstream_sha256": "1bd7744a07927b154ec3797101ca37a391620c71df2b19cc7f4959f69f0e02b9",
+      "current_import_sha256": "02ec44bccd692c2136e2ce3e336a5a7d775fd6572aaf8cac89d36e69eff84d75",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/constraints/set.ts",
+        "sha256": "1bd7744a07927b154ec3797101ca37a391620c71df2b19cc7f4959f69f0e02b9",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/constraints/validate.ts",
+      "upstream_path": "packages/core/src/commands/constraints/validate.ts",
+      "upstream_sha256": "f4dc0cbcd93231ac817638b35d4050fcf1379bd6e43ab0729d7d01f4e527768f",
+      "current_import_sha256": "60a2058787c201cfca3033f6a9f4671814fa79e66279dea3cb50c86ccfd4e19b",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/constraints/validate.ts",
+        "sha256": "f4dc0cbcd93231ac817638b35d4050fcf1379bd6e43ab0729d7d01f4e527768f",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/docs/generator.test.ts",
+      "upstream_path": "packages/core/src/commands/docs/generator.test.ts",
+      "upstream_sha256": "b81bfb2de526134d5fec57f0a92f19f713792f39542e6ccaeff072d2ef27624b",
+      "current_import_sha256": "83a402adf9b74357cec70cb882766523446962fc659bde98471c6c6a45e09abb",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/docs/generator.test.ts",
+        "sha256": "b81bfb2de526134d5fec57f0a92f19f713792f39542e6ccaeff072d2ef27624b",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/docs/generator.ts",
+      "upstream_path": "packages/core/src/commands/docs/generator.ts",
+      "upstream_sha256": "16cd030ccee3413d476ffc6209a4c35ab188a1810066ecb26cbd95d8c92d4700",
+      "current_import_sha256": "08d8f58f54484c4845c7afe8472d67f4a1acabe4114321205457b575c3e104d9",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/docs/generator.ts",
+        "sha256": "9bf219cf3c2c295c0d09e42c812ad36868ee0d5d2afe14e920344f033aef21d6",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/docs/index.ts",
+      "upstream_path": "packages/core/src/commands/docs/index.ts",
+      "upstream_sha256": "9a0cd3c433c95bbb710b6ae79817ed90a6a4e209c077f56a88b8c4704598e8da",
+      "current_import_sha256": "9a0cd3c433c95bbb710b6ae79817ed90a6a4e209c077f56a88b8c4704598e8da",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/docs/index.ts",
+        "sha256": "9a0cd3c433c95bbb710b6ae79817ed90a6a4e209c077f56a88b8c4704598e8da",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/export/export-parity.test.ts",
+      "upstream_path": "packages/core/src/commands/export/export-parity.test.ts",
+      "upstream_sha256": "0333cbb4e99971dacd1cbfcc88e24f92c412a7d1bbf379617ef4bf69c9135f3c",
+      "current_import_sha256": "5c9211966f0b0f0f56aaeabd48866de4d5797daa62c1564167532e6facc2865d",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/export/export-parity.test.ts",
+        "sha256": "0333cbb4e99971dacd1cbfcc88e24f92c412a7d1bbf379617ef4bf69c9135f3c",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/export/export.test.ts",
+      "upstream_path": "packages/core/src/commands/export/export.test.ts",
+      "upstream_sha256": "a637982b88f8ebf36b2adf48fe6e3cde484b88ba128b1e7eca61220a5a6bfa3c",
+      "current_import_sha256": "73d7f4393acc4ef9fc7f89d076f56c188add4968b213e4dde34e64a502d2b08b",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/export/export.test.ts",
+        "sha256": "a637982b88f8ebf36b2adf48fe6e3cde484b88ba128b1e7eca61220a5a6bfa3c",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/export/export.ts",
+      "upstream_path": "packages/core/src/commands/export/export.ts",
+      "upstream_sha256": "76f5ed7ec593ddd38e36b1cfd72d742be67aefde1fd271fd109f777fc359b1d6",
+      "current_import_sha256": "76a0b2fc5fbfc41c38ed03376edc0dc64b0d4825b8c5efd4676dcc89b116f7aa",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/export/export.ts",
+        "sha256": "6f0e58c1ad155f302effb3bc3954403646f8fe75a27dc6b9a9b9e398f0f1bcf5",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/export/index.ts",
+      "upstream_path": "packages/core/src/commands/export/index.ts",
+      "upstream_sha256": "0374e326794a7378c8194af714ec125fdf4b05b46b9dfbc35da78f2d88a3b97b",
+      "current_import_sha256": "0374e326794a7378c8194af714ec125fdf4b05b46b9dfbc35da78f2d88a3b97b",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/export/index.ts",
+        "sha256": "0374e326794a7378c8194af714ec125fdf4b05b46b9dfbc35da78f2d88a3b97b",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/import/flatten.ts",
+      "upstream_path": "packages/core/src/commands/import/flatten.ts",
+      "upstream_sha256": "30264a7fe646c5b305dad2636c4b19c82b8e9553adac3e7a1d48679cb327d300",
+      "current_import_sha256": "83e24c819cfe1c768e4d81e665eeeb0b1291131448fec0466aee556f0f62fed9",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/import/flatten.ts",
+        "sha256": "30264a7fe646c5b305dad2636c4b19c82b8e9553adac3e7a1d48679cb327d300",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/import/import.test.ts",
+      "upstream_path": "packages/core/src/commands/import/import.test.ts",
+      "upstream_sha256": "4ed65cd8bc715780207dcdd72403cf5d22ed2e7da4d93e55d5e15ed4cb3253e3",
+      "current_import_sha256": "1dd99771a9cbd3b4b00c5028e205eebc143ce874ab310708d95052239a01c113",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/import/import.test.ts",
+        "sha256": "4ed65cd8bc715780207dcdd72403cf5d22ed2e7da4d93e55d5e15ed4cb3253e3",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/import/index.ts",
+      "upstream_path": "packages/core/src/commands/import/index.ts",
+      "upstream_sha256": "0a21a09d2e38b4033dc3169a5a9a9421e04e935e45024e6124c05356e8694c8c",
+      "current_import_sha256": "0a21a09d2e38b4033dc3169a5a9a9421e04e935e45024e6124c05356e8694c8c",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/import/index.ts",
+        "sha256": "0a21a09d2e38b4033dc3169a5a9a9421e04e935e45024e6124c05356e8694c8c",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/import/json.ts",
+      "upstream_path": "packages/core/src/commands/import/json.ts",
+      "upstream_sha256": "089458b3352492e997cebeeba00593c97838d3e774e8e7da6564eed7b0b3afaf",
+      "current_import_sha256": "d98cae871db1af53f051946690a7598f0d6a44e706745b056504439bb10495ea",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/import/json.ts",
+        "sha256": "089458b3352492e997cebeeba00593c97838d3e774e8e7da6564eed7b0b3afaf",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/import/tree.test.ts",
+      "upstream_path": "packages/core/src/commands/import/tree.test.ts",
+      "upstream_sha256": "5cc6d46ec7970585b572ef228f31042dbda98d0f8fc52d5a784238ddc40b70d2",
+      "current_import_sha256": "62c49876793156b033dab1f0787217c7780335bfb1f3ede83ba50568c8d51b00",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/import/tree.test.ts",
+        "sha256": "5cc6d46ec7970585b572ef228f31042dbda98d0f8fc52d5a784238ddc40b70d2",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/import/tree.ts",
+      "upstream_path": "packages/core/src/commands/import/tree.ts",
+      "upstream_sha256": "0f84c11edbe9efbb865bfeb8682a96ee542a6345befcdae223c9841916933d0e",
+      "current_import_sha256": "37e4bed39ce9319ee102b62dd010e95c85c181f1de10f4c5b9f97eddcffa4a61",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/import/tree.ts",
+        "sha256": "0f84c11edbe9efbb865bfeb8682a96ee542a6345befcdae223c9841916933d0e",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/import/validate.ts",
+      "upstream_path": "packages/core/src/commands/import/validate.ts",
+      "upstream_sha256": "4da9999ab483a0a6bcca85500f1df72e2b7a55eebdb56f468a0398ecfbe22387",
+      "current_import_sha256": "4da9999ab483a0a6bcca85500f1df72e2b7a55eebdb56f468a0398ecfbe22387",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/import/validate.ts",
+        "sha256": "4da9999ab483a0a6bcca85500f1df72e2b7a55eebdb56f468a0398ecfbe22387",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/index.ts",
+      "upstream_path": "packages/core/src/commands/index.ts",
+      "upstream_sha256": "db4273b636786efa30256d524c80ad0549b41ad670348689cca738f9b9379921",
+      "current_import_sha256": "db4273b636786efa30256d524c80ad0549b41ad670348689cca738f9b9379921",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/index.ts",
+        "sha256": "bce2b83902be84196a42e945b3119128c69fd0fb59ceca94b8cd5a98cee0e497",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/json-schema.test.ts",
+      "upstream_path": "packages/core/src/commands/json-schema.test.ts",
+      "upstream_sha256": "3bfe6cccbff46732d5e704589ae6ec47e6f4b6a5c0d3a8d6d9a9bc6bcc6b7651",
+      "current_import_sha256": "3bfe6cccbff46732d5e704589ae6ec47e6f4b6a5c0d3a8d6d9a9bc6bcc6b7651",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/json-schema.ts",
+      "upstream_path": "packages/core/src/commands/json-schema.ts",
+      "upstream_sha256": "524ebae8914989637f1b69ba2845deedec13229600e290750a322f65a263cbf2",
+      "current_import_sha256": "524ebae8914989637f1b69ba2845deedec13229600e290750a322f65a263cbf2",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/create.test.ts",
+      "upstream_path": "packages/core/src/commands/node/create.test.ts",
+      "upstream_sha256": "0c59f9faa82e1f7c4c89733657b2a1257e18fb18ee27d46789f0b020f95db0a5",
+      "current_import_sha256": "e5408dbf30a3ba65b4e917773488772f26d4d1a69692ffb527d0fa853e356b62",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/node/create.test.ts",
+        "sha256": "0c59f9faa82e1f7c4c89733657b2a1257e18fb18ee27d46789f0b020f95db0a5",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/create.ts",
+      "upstream_path": "packages/core/src/commands/node/create.ts",
+      "upstream_sha256": "e96e1c72b6c0253354bd886c81b2938bddb209f85295fbd45ca251114f4cd2a1",
+      "current_import_sha256": "321bf178b65dc75a6b950b1138fdd061294205dd8d6e47ff89219bca155e2ee2",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/node/create.ts",
+        "sha256": "e83493ef38d11731ad2ec5f172f9b570a24dfdb5ac85cbe8316a073737f8f23f",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/delete.test.ts",
+      "upstream_path": "packages/core/src/commands/node/delete.test.ts",
+      "upstream_sha256": "a7af70d0a6c1645da23fe02d0dd9824237b930f62beffde8a77d75109fd42795",
+      "current_import_sha256": "6736c922c79668f8d66d68693150bf8355f310620414e384ccb1789a1c76cddd",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/node/delete.test.ts",
+        "sha256": "a7af70d0a6c1645da23fe02d0dd9824237b930f62beffde8a77d75109fd42795",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/delete.ts",
+      "upstream_path": "packages/core/src/commands/node/delete.ts",
+      "upstream_sha256": "da496f5319ba4ef55a22c388d3fa672ff1006c12408f94863be2a25cf9fbb0ba",
+      "current_import_sha256": "da496f5319ba4ef55a22c388d3fa672ff1006c12408f94863be2a25cf9fbb0ba",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/node/delete.ts",
+        "sha256": "da496f5319ba4ef55a22c388d3fa672ff1006c12408f94863be2a25cf9fbb0ba",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/deprecation.test.ts",
+      "upstream_path": "packages/core/src/commands/node/deprecation.test.ts",
+      "upstream_sha256": "0891ff64eaa8ee2d5b9ba537e57ea12d5899bb8fbde1228becb482d5447fbeb0",
+      "current_import_sha256": "c6fa93e94f7a110fd5ab2a14038d9ae31d81c31c114c2266f90db7d62ec138a4",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/deprecation.ts",
+      "upstream_path": "packages/core/src/commands/node/deprecation.ts",
+      "upstream_sha256": "5a60cf6f8fd61f45bebff6379593c2256b4cc9fb2b531c7043aa1101ab2f07d2",
+      "current_import_sha256": "60c0f93f0564bce572603c086106f4b433b27ba0e20a0f252d1cd22c7835af8c",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/get.test.ts",
+      "upstream_path": "packages/core/src/commands/node/get.test.ts",
+      "upstream_sha256": "d130c35e12df879116e1bbca962f265af1b574a5bb7edb0e1f098df58e9fe454",
+      "current_import_sha256": "2c3e49a7fdf2d228b8458f4d2239cb82d658b9424699421d70ccc146b2fe5d4c",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/node/get.test.ts",
+        "sha256": "cf60986a3ffa75156d6be2c0cd83e0dcf7d0fd767579d22311a57a4ea366879f",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/get.ts",
+      "upstream_path": "packages/core/src/commands/node/get.ts",
+      "upstream_sha256": "ef63268be792a00f1e1fd79ac35441aca7d8c67b2f4bd71d83e9da0930d54d81",
+      "current_import_sha256": "3c325d84fa80e3267bec8ba4e61fd113f7026590bc5201fdba965e28f03b6d15",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/node/get.ts",
+        "sha256": "59366479b89297d673cf3e6c2e7d117f6442f8d2b506c1eaeb2178fbcb608c27",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/graph.test.ts",
+      "upstream_path": "packages/core/src/commands/node/graph.test.ts",
+      "upstream_sha256": "253240df3b9a9d393512030e10a69004e7fe914203ddeb415ddf4fbc5af03e0a",
+      "current_import_sha256": "8ca668091a73a93c570728b24ca27e5a88466375b6b2bb663f6853e42db57ba5",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/node/graph.test.ts",
+        "sha256": "94b69230c2e639ec7c2a7b7a04ee3325afc1fd4a9a1f28cad884fcb8db5342b7",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/graph.ts",
+      "upstream_path": "packages/core/src/commands/node/graph.ts",
+      "upstream_sha256": "c93a9924d2aad8a809693ba987e73890f2ca46b8ea8847d518adec5181aff188",
+      "current_import_sha256": "80ab6daff7e602fa7afb109656a2138b7665a9f7f1b52b4fb107abb749ca986f",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/node/graph.ts",
+        "sha256": "f9d7116e35245f30a1686de398c21804b0433237f9eac5e65f15e2ed974ea722",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/index.ts",
+      "upstream_path": "packages/core/src/commands/node/index.ts",
+      "upstream_sha256": "10ea5c03db8a4ca53c99a3db14b75c0fef5279340acc79489a299613e3fd32d6",
+      "current_import_sha256": "10ea5c03db8a4ca53c99a3db14b75c0fef5279340acc79489a299613e3fd32d6",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/node/index.ts",
+        "sha256": "10ea5c03db8a4ca53c99a3db14b75c0fef5279340acc79489a299613e3fd32d6",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/list.test.ts",
+      "upstream_path": "packages/core/src/commands/node/list.test.ts",
+      "upstream_sha256": "da5ecf4d993a6a21edb3a436959f137d6768ce13acd0be20033f92867919bd40",
+      "current_import_sha256": "aaf978bae8f4545957b508e3e5781d990514c5a4214f53eead706849b9051b35",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/node/list.test.ts",
+        "sha256": "da5ecf4d993a6a21edb3a436959f137d6768ce13acd0be20033f92867919bd40",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/list.ts",
+      "upstream_path": "packages/core/src/commands/node/list.ts",
+      "upstream_sha256": "4dffa875b2741ccde250e2754564ff89ca0ed8b3699d6b3ce95caa23dc6ce5e5",
+      "current_import_sha256": "b50b0b083e4cbd22f27927b6403148d7d52ddc2c17bb2fe380f8fc15cb477dc6",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/node/list.ts",
+        "sha256": "4dffa875b2741ccde250e2754564ff89ca0ed8b3699d6b3ce95caa23dc6ce5e5",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/operations.ts",
+      "upstream_path": "packages/core/src/commands/node/operations.ts",
+      "upstream_sha256": "564c63e945d71ea7fa96a555953045793961b6d5670e8c5a743e4375a907a528",
+      "current_import_sha256": "e76b34302ee0b05040f9fc6c20bc0f686f7d2a6665f25b93870a0f6c3288fed7",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/scope.ts",
+      "upstream_path": "packages/core/src/commands/node/scope.ts",
+      "upstream_sha256": "c706df9129aef38b36534d35ac415bd69b6ce78dbfe82cc96abac68f7380a156",
+      "current_import_sha256": "5f63382df83d6e3d243ef1510426b483e043e081805433c1b18d06eb65f68e84",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/node/scope.ts",
+        "sha256": "c706df9129aef38b36534d35ac415bd69b6ce78dbfe82cc96abac68f7380a156",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/update.test.ts",
+      "upstream_path": "packages/core/src/commands/node/update.test.ts",
+      "upstream_sha256": "0bd0472c334c4f6063a2f52c1862214f0fcf8123da73a548a2a6c0dcb86c8771",
+      "current_import_sha256": "fa946474e82a79c70ac853d9071738cf63d5887a86fb5eb3d4dd48ddeb545390",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/node/update.test.ts",
+        "sha256": "0bd0472c334c4f6063a2f52c1862214f0fcf8123da73a548a2a6c0dcb86c8771",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/node/update.ts",
+      "upstream_path": "packages/core/src/commands/node/update.ts",
+      "upstream_sha256": "762cd8c69d261bf11cfd3b89e9c0bebc143fec989c85ac7fbed52ab90256a7f9",
+      "current_import_sha256": "7f555fe101b654368e6e000ea83de7318f359c4635fb63175e3cd634aecca6fa",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/node/update.ts",
+        "sha256": "b6b9a4f76d53f84008dd4e96bbc39e0ff7cf1c7038ef912a865c6822ad357185",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/registry.ts",
+      "upstream_path": "packages/core/src/commands/registry.ts",
+      "upstream_sha256": "39d6acf9680984dc7edcaad0749bf58a064a78af034c1dcf8f541a97e7ae72aa",
+      "current_import_sha256": "d6450fc6336e97cc17c2109edca0bfb3d29e5dbc3cdd65f205a0d49ab0c35a28",
+      "classification": "adapted",
+      "reason": "The Database interface moved to the native core and is re-exported; the cache type comes from core; native imports through public entry points",
+      "candidate": {
+        "path": "packages/afd/src/commands/registry.ts",
+        "sha256": "513f5ab4619b900019ba0e8606fe23aef49a0d1660099b5309adc804d18b23e2",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/specimen/get.ts",
+      "upstream_path": "packages/core/src/commands/specimen/get.ts",
+      "upstream_sha256": "f6e70c7c9dcfa3f01c85458b8d99e92494422051dd07fba687aff81c7a74f6fc",
+      "current_import_sha256": "5754b104666551b688d17dbaa5879ef23fa49cbbbb197da62ae042a1eb3f4308",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/specimen/index.ts",
+      "upstream_path": "packages/core/src/commands/specimen/index.ts",
+      "upstream_sha256": "5f92d6b65807a379d2bbc7db4c49292ed479bfc79e70108ec4fc13cccf3b5710",
+      "current_import_sha256": "5f92d6b65807a379d2bbc7db4c49292ed479bfc79e70108ec4fc13cccf3b5710",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/specimen/set.ts",
+      "upstream_path": "packages/core/src/commands/specimen/set.ts",
+      "upstream_sha256": "458f843a0d17e957dd3725c1108c3c262992e4e4155c1c74302f07e954e465ba",
+      "current_import_sha256": "59058ebabf968062a30f097ad0c40d0daec5a6559e92cbacda3d6fae8a85ec46",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/specimen/shared.ts",
+      "upstream_path": "packages/core/src/commands/specimen/shared.ts",
+      "upstream_sha256": "ecf1c1e0b3b852e707cb0f2dd9dce80ae1b63944b3b5fe565186fa8dcfd8ab04",
+      "current_import_sha256": "b42a8dc4f493e946f610593504896a0f10be1b2a874c07bebc95d35d29f59cff",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/specimen/specimen.test.ts",
+      "upstream_path": "packages/core/src/commands/specimen/specimen.test.ts",
+      "upstream_sha256": "36fbdc68d4f83e7abb0b20b8e0f928cfbea7fc4f5a178387931dbe5ed57bde23",
+      "current_import_sha256": "ce0360aa6660577c0099918daa7a789200092e27749a7235480d980d88b0cb73",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/system/doctor.test.ts",
+      "upstream_path": "packages/core/src/commands/system/doctor.test.ts",
+      "upstream_sha256": "d6f2d942eb8c0ecd0e629311d92be8710aea0ce56acc11e752c7ae10cd3501fb",
+      "current_import_sha256": "926a88232305bf1963b30d21d12fc145e9b4a74d17169572cbf79fd4ac06cc89",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/system/doctor.test.ts",
+        "sha256": "d6f2d942eb8c0ecd0e629311d92be8710aea0ce56acc11e752c7ae10cd3501fb",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/system/doctor.ts",
+      "upstream_path": "packages/core/src/commands/system/doctor.ts",
+      "upstream_sha256": "1f6b04a85f5e4cb5ebae1b658a9d55c70a2d6c2f7ef5d3684785425c950c5a5b",
+      "current_import_sha256": "1f6b04a85f5e4cb5ebae1b658a9d55c70a2d6c2f7ef5d3684785425c950c5a5b",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/system/doctor.ts",
+        "sha256": "1f6b04a85f5e4cb5ebae1b658a9d55c70a2d6c2f7ef5d3684785425c950c5a5b",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/system/index.ts",
+      "upstream_path": "packages/core/src/commands/system/index.ts",
+      "upstream_sha256": "6ee2a56ffb7987e2dd7c7677aff03721466caf4fdaa5cd9b130acc96a1a44623",
+      "current_import_sha256": "6ee2a56ffb7987e2dd7c7677aff03721466caf4fdaa5cd9b130acc96a1a44623",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/system/index.ts",
+        "sha256": "6ee2a56ffb7987e2dd7c7677aff03721466caf4fdaa5cd9b130acc96a1a44623",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/system/validate.test.ts",
+      "upstream_path": "packages/core/src/commands/system/validate.test.ts",
+      "upstream_sha256": "ccb17bda072338af8fb3efb9a1f959f13c6ba56b34895175ed3ff6f0ff2d2c61",
+      "current_import_sha256": "ccb17bda072338af8fb3efb9a1f959f13c6ba56b34895175ed3ff6f0ff2d2c61",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/system/validate.test.ts",
+        "sha256": "ccb17bda072338af8fb3efb9a1f959f13c6ba56b34895175ed3ff6f0ff2d2c61",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/system/validate.ts",
+      "upstream_path": "packages/core/src/commands/system/validate.ts",
+      "upstream_sha256": "5e6e8efd6000ee5375ed8aad109fe68c2493787bff3437ae925e1708d403fc01",
+      "current_import_sha256": "5e6e8efd6000ee5375ed8aad109fe68c2493787bff3437ae925e1708d403fc01",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/system/validate.ts",
+        "sha256": "5e6e8efd6000ee5375ed8aad109fe68c2493787bff3437ae925e1708d403fc01",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/add.test.ts",
+      "upstream_path": "packages/core/src/commands/token/add.test.ts",
+      "upstream_sha256": "b13ae79c655d207d6250bc03289892740d63458231c85123fb750bea164e1785",
+      "current_import_sha256": "cb0732437b111a8ba03c6b477518cbc2217eb43b22f2e5705eb913c1a74a6638",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/add.test.ts",
+        "sha256": "b13ae79c655d207d6250bc03289892740d63458231c85123fb750bea164e1785",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/add.ts",
+      "upstream_path": "packages/core/src/commands/token/add.ts",
+      "upstream_sha256": "0492ccc0647fce32817b30e33f30905e6ff4f8c3d61da3d2aca4b26c9fde9ef5",
+      "current_import_sha256": "4a84c42b3987447fc63b1c373baf56d245505cad0ca0b38bbdaf99974b447d01",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/add.ts",
+        "sha256": "0492ccc0647fce32817b30e33f30905e6ff4f8c3d61da3d2aca4b26c9fde9ef5",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/catalog.test.ts",
+      "upstream_path": "packages/core/src/commands/token/catalog.test.ts",
+      "upstream_sha256": "8a6b5dd558ba299f87c7f6b1b51a4aa952e45f34f636c83588da6d5095869976",
+      "current_import_sha256": "c56e37172ce6459fd9b20f5d706dc0b16fea10497d86c5f4c9037216930329fc",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/catalog.test.ts",
+        "sha256": "8a6b5dd558ba299f87c7f6b1b51a4aa952e45f34f636c83588da6d5095869976",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/catalog.ts",
+      "upstream_path": "packages/core/src/commands/token/catalog.ts",
+      "upstream_sha256": "e588f30fb968989fcd2d71eaae02a65079deacf76eb8aee163ca0f105a004eb7",
+      "current_import_sha256": "1d4b3a4a260b51f5365d810740b129ad240b7635273b8faa7faec90f80d8da2c",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/catalog.ts",
+        "sha256": "e588f30fb968989fcd2d71eaae02a65079deacf76eb8aee163ca0f105a004eb7",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/compare.test.ts",
+      "upstream_path": "packages/core/src/commands/token/compare.test.ts",
+      "upstream_sha256": "533a3ab83aa30827b19adb6777581fbd852f747490e240864ee5de537bcd9c42",
+      "current_import_sha256": "b6addedc2ba693c35620f666def76fcb4813f67dd8f2bc85b0202100f03ba16d",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/compare.test.ts",
+        "sha256": "533a3ab83aa30827b19adb6777581fbd852f747490e240864ee5de537bcd9c42",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/compare.ts",
+      "upstream_path": "packages/core/src/commands/token/compare.ts",
+      "upstream_sha256": "68d848dc97b4d5325da0fae80129a11c2a56d6a02038715e34f911d1dc73ca2b",
+      "current_import_sha256": "db65877850f3cc64ca1033b6e6e6f1acd25b16692412648e502c1c7ba464db6f",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/compare.ts",
+        "sha256": "68d848dc97b4d5325da0fae80129a11c2a56d6a02038715e34f911d1dc73ca2b",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/composition.test.ts",
+      "upstream_path": "packages/core/src/commands/token/composition.test.ts",
+      "upstream_sha256": "db7952d78d4ab74c617defcfc64c6d6711fcdcee36492ffa0a9bcd32bea0377b",
+      "current_import_sha256": "b09e024c5ccd76f78a463e3888a7aeeb92a06c88be6b43c404c1da8eb73a4cc2",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/composition.test.ts",
+        "sha256": "db7952d78d4ab74c617defcfc64c6d6711fcdcee36492ffa0a9bcd32bea0377b",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/copy.test.ts",
+      "upstream_path": "packages/core/src/commands/token/copy.test.ts",
+      "upstream_sha256": "7fdf594511ae19b280b5d61598515580cc8323feec3f621bec3a25a3d5ca118e",
+      "current_import_sha256": "580f122a54b9dd1ee69bb1c7991455b401d6846efdd5b6138b9fc1fcd72120f9",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/copy.test.ts",
+        "sha256": "7fdf594511ae19b280b5d61598515580cc8323feec3f621bec3a25a3d5ca118e",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/copy.ts",
+      "upstream_path": "packages/core/src/commands/token/copy.ts",
+      "upstream_sha256": "d6ae9a65636c805901d27bbc3a7cb2410ff2084e0c0a1183a397a964b02f1505",
+      "current_import_sha256": "d287b3667d4e71f8c89acbd4c9eb78ed3b32b5d2f99b368e0c385d239d33f93e",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/copy.ts",
+        "sha256": "d6ae9a65636c805901d27bbc3a7cb2410ff2084e0c0a1183a397a964b02f1505",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/definitions.ts",
+      "upstream_path": "packages/core/src/commands/token/definitions.ts",
+      "upstream_sha256": "e247feb1d415ab3cc8403f3ad8d705f3f5dc2a8256b81a2656d8b2dec3d0ab46",
+      "current_import_sha256": "97523a80f2e3737a529d2912846877f8f92fdb99e4acc10947ed8f4b83be82ac",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/definitions.ts",
+        "sha256": "e247feb1d415ab3cc8403f3ad8d705f3f5dc2a8256b81a2656d8b2dec3d0ab46",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/index.ts",
+      "upstream_path": "packages/core/src/commands/token/index.ts",
+      "upstream_sha256": "947282271e0fa1e57d0054a26cc2b8f7d1cea0bd761278125fdef34193e724c7",
+      "current_import_sha256": "7c850ce92e0dd9a67ee13628d8095e9a7935a526769abb334b0797348c458d2a",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/index.ts",
+        "sha256": "947282271e0fa1e57d0054a26cc2b8f7d1cea0bd761278125fdef34193e724c7",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/lineage.test.ts",
+      "upstream_path": "packages/core/src/commands/token/lineage.test.ts",
+      "upstream_sha256": "9fea9f559ec6853b862d8d5ee2fb204182d811f1a124984ecab76bc446216d4f",
+      "current_import_sha256": "3a80b7709964a68477d238de3fc512b3c122501654d42eedfadb4bc4d2d2db8e",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/lineage.test.ts",
+        "sha256": "9fea9f559ec6853b862d8d5ee2fb204182d811f1a124984ecab76bc446216d4f",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/lineage.ts",
+      "upstream_path": "packages/core/src/commands/token/lineage.ts",
+      "upstream_sha256": "583a95d113ac3c919168c319860aeda56f82d51f78059c59134e474a699e1515",
+      "current_import_sha256": "0cf207e46e815a4096b4f55d2139c2786b9c6e74bd1e1119a21172e1c5dd78be",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/lineage.ts",
+        "sha256": "583a95d113ac3c919168c319860aeda56f82d51f78059c59134e474a699e1515",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/matrix.test.ts",
+      "upstream_path": "packages/core/src/commands/token/matrix.test.ts",
+      "upstream_sha256": "a46a8575715927e5ac365e6518ec48baab607db9277f3fff0cc284a94336fa62",
+      "current_import_sha256": "cec0dabaed4ed8bc3e04d722276600af57a42a74cca6943b4c4bb75a061e7e49",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/matrix.test.ts",
+        "sha256": "4d7fb0dff8809d1990457b78649f48dd2cd6214b055009abeece3c9c39b78997",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/matrix.ts",
+      "upstream_path": "packages/core/src/commands/token/matrix.ts",
+      "upstream_sha256": "0fa5ac08bbd145fa80fe9f0da244a28a72124612f7f4ef34593a6488db297979",
+      "current_import_sha256": "4b4a408f89a797c23a597df7bb6f2b67864a669447294315274e91fcf97cc646",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/matrix.ts",
+        "sha256": "4b052c3247943673d84271fcdca5f6a667de326a476f176f18b7aaa54067a159",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/mutation-validation.test.ts",
+      "upstream_path": "packages/core/src/commands/token/mutation-validation.test.ts",
+      "upstream_sha256": "13e84f8353e237d454746160f64b1fcf1fb7a4c815e859bbd7557fef36161995",
+      "current_import_sha256": "b929f83cdcb81782d8ece6760b46ea3fedd8ff70a04a6bcf72b1e3c722d486f8",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/mutation-validation.test.ts",
+        "sha256": "e44224824356ff2a96427559abb629df33e889e9677f529006aa3b7de56ad8d6",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/override.test.ts",
+      "upstream_path": "packages/core/src/commands/token/override.test.ts",
+      "upstream_sha256": "ac9c1c9e217ea46c044df2d2b7f6a0353be99c83992f8fd343478f3d6ec1208c",
+      "current_import_sha256": "8066791faa0c1fc48b71a87a87248a664d09c97a15b1cbffdc4fb1c7c4820d1f",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/override.test.ts",
+        "sha256": "ac9c1c9e217ea46c044df2d2b7f6a0353be99c83992f8fd343478f3d6ec1208c",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/override.ts",
+      "upstream_path": "packages/core/src/commands/token/override.ts",
+      "upstream_sha256": "72794184fa135e1890417884a0e38eeb3b07f80ed594deca67e02a9e1bf91490",
+      "current_import_sha256": "c1fad15d27d46c6efa4021661d749cd83a837b5edb726be4acdf92ce26dfa65a",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/override.ts",
+        "sha256": "72794184fa135e1890417884a0e38eeb3b07f80ed594deca67e02a9e1bf91490",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/previous-value.ts",
+      "upstream_path": "packages/core/src/commands/token/previous-value.ts",
+      "upstream_sha256": "a48af5d9372eab3fbe2b3de106c10e366ed4e290075fa2b9ad4f89e652d37a5b",
+      "current_import_sha256": "0cbfb01535899d8913d922cc205e00941148d246a2d4fbc678d0fa8c2242dc1e",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/previous-value.ts",
+        "sha256": "a48af5d9372eab3fbe2b3de106c10e366ed4e290075fa2b9ad4f89e652d37a5b",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/references.test.ts",
+      "upstream_path": "packages/core/src/commands/token/references.test.ts",
+      "upstream_sha256": "44e00a2260ec985c02ceeb817077b48a348ec9477d801a550233de9bb55c26e7",
+      "current_import_sha256": "6d96363ee83d44d2a79231e2e53963229aa9b0af669f1b3c59326c9f7af20faa",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/references.test.ts",
+        "sha256": "44e00a2260ec985c02ceeb817077b48a348ec9477d801a550233de9bb55c26e7",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/reset.test.ts",
+      "upstream_path": "packages/core/src/commands/token/reset.test.ts",
+      "upstream_sha256": "ddb08f2ebf0c4534be22de036fa2dbd099dc905416901f9db64da5e3f900f8e1",
+      "current_import_sha256": "bcf582ad91e7103a80386c3724993587c01b9152b37054d4cbbe9653d68ad991",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/reset.test.ts",
+        "sha256": "ddb08f2ebf0c4534be22de036fa2dbd099dc905416901f9db64da5e3f900f8e1",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/reset.ts",
+      "upstream_path": "packages/core/src/commands/token/reset.ts",
+      "upstream_sha256": "2553a8e6459c300cc0aebf84adae322be352f372e4ec073e120468f285275709",
+      "current_import_sha256": "2553a8e6459c300cc0aebf84adae322be352f372e4ec073e120468f285275709",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/reset.ts",
+        "sha256": "2553a8e6459c300cc0aebf84adae322be352f372e4ec073e120468f285275709",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/resolution-cache.test.ts",
+      "upstream_path": "packages/core/src/commands/token/resolution-cache.test.ts",
+      "upstream_sha256": "3a636f83cc07da6b495690658977a684ffdd9a7a915ede28b4276fa29b7f8f9e",
+      "current_import_sha256": "a191b1f456d467df9c55e61152fc9c85d313ec662961693f41313712db4db28b",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/resolution-cache.test.ts",
+        "sha256": "f5a12ed49ef6d73f48eb729e82790e0241eda5f62d39c1330cf76f0811d0d146",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/resolve.test.ts",
+      "upstream_path": "packages/core/src/commands/token/resolve.test.ts",
+      "upstream_sha256": "60569083ee58709d7ba471949aaedd68da60e608ba3739240a40fe3c5f41a9c6",
+      "current_import_sha256": "35941cf5fa3d3014445c70c1eac8a7d29ad9186b9a4c848066007507118edbcb",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/resolve.test.ts",
+        "sha256": "60569083ee58709d7ba471949aaedd68da60e608ba3739240a40fe3c5f41a9c6",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/resolve.ts",
+      "upstream_path": "packages/core/src/commands/token/resolve.ts",
+      "upstream_sha256": "6a31c6bbe91dfac887e4f9d331e4855ae103fcab18ecc791e122ffc5a3e3f290",
+      "current_import_sha256": "6ae90d4080c774134e18695f80f39fcfe9b997cda3d2c04b3712a95dd23ba09a",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/resolve.ts",
+        "sha256": "c031b203ddf7ec51af16aff45219860217d6305c046e0109f96a454fb721726c",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/subtract.test.ts",
+      "upstream_path": "packages/core/src/commands/token/subtract.test.ts",
+      "upstream_sha256": "8bb22eaa9e14b16816076b22288b4f117fd360f089b116c84055915e5c1f5d25",
+      "current_import_sha256": "edf99a735efbba5d35ab4400ec79cedb4e42b44281b1de0160256968d009c3fa",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/subtract.test.ts",
+        "sha256": "8bb22eaa9e14b16816076b22288b4f117fd360f089b116c84055915e5c1f5d25",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/token/subtract.ts",
+      "upstream_path": "packages/core/src/commands/token/subtract.ts",
+      "upstream_sha256": "b1678e075a21bf9c2b784debfa00f4be8d52214f114f56291bb389c855ea6040",
+      "current_import_sha256": "495bbdb4f4bde34123c7afc1550d5984fe092a3f36d2f89a6564a60dc4443f2e",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/token/subtract.ts",
+        "sha256": "b1678e075a21bf9c2b784debfa00f4be8d52214f114f56291bb389c855ea6040",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/delete.test.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/delete.test.ts",
+      "upstream_sha256": "3ab0b3a6abc7338cf667cf2d5e56bde32243fe6cffe4ed6a3ff0c610fb8c1414",
+      "current_import_sha256": "a737778a3558ac1a208ae143938a30d38744175f092e96a4b9ad33d54ee10ccb",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/delete.test.ts",
+        "sha256": "3ab0b3a6abc7338cf667cf2d5e56bde32243fe6cffe4ed6a3ff0c610fb8c1414",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/delete.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/delete.ts",
+      "upstream_sha256": "78b281ecb72ece595d9d36c0b002b8643cec6eda5f134bb523a2c6bce307a1f0",
+      "current_import_sha256": "78b281ecb72ece595d9d36c0b002b8643cec6eda5f134bb523a2c6bce307a1f0",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/delete.ts",
+        "sha256": "78b281ecb72ece595d9d36c0b002b8643cec6eda5f134bb523a2c6bce307a1f0",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/get.test.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/get.test.ts",
+      "upstream_sha256": "c3175f7f681d94d0f2b3bf6a619240b9b0a772872736851c5713fcb3054c66c1",
+      "current_import_sha256": "88019d05681c8ff362495c90c13a00c6ae923f401501fb209b3cd4fa05587e1f",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/get.test.ts",
+        "sha256": "c3175f7f681d94d0f2b3bf6a619240b9b0a772872736851c5713fcb3054c66c1",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/get.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/get.ts",
+      "upstream_sha256": "7ce4dc383f2e02cb1abd4efc1cc07297c660b98949e59b384c5796b3f4c09fb9",
+      "current_import_sha256": "7ce4dc383f2e02cb1abd4efc1cc07297c660b98949e59b384c5796b3f4c09fb9",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/get.ts",
+        "sha256": "7ce4dc383f2e02cb1abd4efc1cc07297c660b98949e59b384c5796b3f4c09fb9",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/index.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/index.ts",
+      "upstream_sha256": "5ff7723fc95d5d85fd40acec2525f3b2922856e958b934355618fd3d8d520770",
+      "current_import_sha256": "5ff7723fc95d5d85fd40acec2525f3b2922856e958b934355618fd3d8d520770",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/index.ts",
+        "sha256": "5ff7723fc95d5d85fd40acec2525f3b2922856e958b934355618fd3d8d520770",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/list.test.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/list.test.ts",
+      "upstream_sha256": "c684ed1d13a206105490023e2b347e07270768c632248ca7de7e3bf0f3b2f4be",
+      "current_import_sha256": "35e4dfa62bfa222fe411fa0dad3e88b7991fe9dc3d6905197812451849cc4365",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/list.test.ts",
+        "sha256": "c684ed1d13a206105490023e2b347e07270768c632248ca7de7e3bf0f3b2f4be",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/list.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/list.ts",
+      "upstream_sha256": "479bf4980fae2f58ab1ccdef72b9f95e6542ea32c2999c3da4271bb31fddb464",
+      "current_import_sha256": "23b8f57b94737af23fe11461b7995fb1643543ba13875582186605a6b2a43133",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/list.ts",
+        "sha256": "479bf4980fae2f58ab1ccdef72b9f95e6542ea32c2999c3da4271bb31fddb464",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/logs.test.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/logs.test.ts",
+      "upstream_sha256": "b2865e672959dca70811306e153fe4d511360449fd424428cbb27f5b2f885ad3",
+      "current_import_sha256": "1e1002e5f5e30dc3d63bba61284a815edd8e8fe980641fc9a8e8939372618a99",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/logs.test.ts",
+        "sha256": "b2865e672959dca70811306e153fe4d511360449fd424428cbb27f5b2f885ad3",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/logs.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/logs.ts",
+      "upstream_sha256": "a5cc302405ac6fe8bb445678de8da5a6194a326e2be2fdd08d1c8cc35046f80d",
+      "current_import_sha256": "a5cc302405ac6fe8bb445678de8da5a6194a326e2be2fdd08d1c8cc35046f80d",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/logs.ts",
+        "sha256": "a5cc302405ac6fe8bb445678de8da5a6194a326e2be2fdd08d1c8cc35046f80d",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/redact.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/redact.ts",
+      "upstream_sha256": "d1f2b7886c64fc2244e79741bdf8e56e0447ea73d0b5356245fe03e64fce9319",
+      "current_import_sha256": "d857568f50478fd18faa8ccdc494d768139cff54f7465e4959932ef2e97a5fd7",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/redact.ts",
+        "sha256": "d1f2b7886c64fc2244e79741bdf8e56e0447ea73d0b5356245fe03e64fce9319",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/register.test.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/register.test.ts",
+      "upstream_sha256": "82e99313daaa04e1e6a0a2e572809942c02841aee02009ff8b362b82a0fa6a85",
+      "current_import_sha256": "107c61778fe8f21af3ee90831a107c98379b89ab81ed4b09d0e95ba869665b18",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/register.test.ts",
+        "sha256": "82e99313daaa04e1e6a0a2e572809942c02841aee02009ff8b362b82a0fa6a85",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/register.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/register.ts",
+      "upstream_sha256": "6aded80393d23fd5313190f7eb5cc2b77099e33c605df60a3e24d60d0ae85a65",
+      "current_import_sha256": "65b2527ba72f24da52f7ecd76739fd3fec2bde7a0fb73d6d0623a7c4cd3ec482",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/register.ts",
+        "sha256": "6aded80393d23fd5313190f7eb5cc2b77099e33c605df60a3e24d60d0ae85a65",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/security.test.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/security.test.ts",
+      "upstream_sha256": "5c8e0a270ff689595113110948eff72055d1d7e59a3d6427f0da76366d3e05af",
+      "current_import_sha256": "d6c0d8b67b035d57950f64cd9a8b85d02b6f937324cf880f2aad4498c85c1bcc",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/security.test.ts",
+        "sha256": "5c8e0a270ff689595113110948eff72055d1d7e59a3d6427f0da76366d3e05af",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/test.test.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/test.test.ts",
+      "upstream_sha256": "b54b8fea4dea8bc24fe408dd0c1aabf4b6336a830635645d6f4a482d193e3bcf",
+      "current_import_sha256": "b5165c54e9cf376ed3cf936f363937fbfcc176126897d7dcc6d0296432dfc75d",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/test.test.ts",
+        "sha256": "b54b8fea4dea8bc24fe408dd0c1aabf4b6336a830635645d6f4a482d193e3bcf",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/test.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/test.ts",
+      "upstream_sha256": "37e89248c5265c904d7fafbbdc5cd3eabbcc96669bb17cefa464ceb9e4a9fdd8",
+      "current_import_sha256": "37e89248c5265c904d7fafbbdc5cd3eabbcc96669bb17cefa464ceb9e4a9fdd8",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/test.ts",
+        "sha256": "37e89248c5265c904d7fafbbdc5cd3eabbcc96669bb17cefa464ceb9e4a9fdd8",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/update.test.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/update.test.ts",
+      "upstream_sha256": "6c10915d53412285b07f4a3e4ee0e38e3fdcb68e0f7942d88fc640277f462db2",
+      "current_import_sha256": "4ca9db6be2bebbe1131375164a61b8298d029a1b5053b71a35337c2fb927cd8c",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/update.test.ts",
+        "sha256": "6c10915d53412285b07f4a3e4ee0e38e3fdcb68e0f7942d88fc640277f462db2",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/commands/webhooks/update.ts",
+      "upstream_path": "packages/core/src/commands/webhooks/update.ts",
+      "upstream_sha256": "6060490e41b7f0837bdf85c47bd153ac24713113b9de821843fda1702ac44eac",
+      "current_import_sha256": "e71704d1fff5e5bead15924e10a8a87b753314f7e4976311f73cdda1117d2645",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/commands/webhooks/update.ts",
+        "sha256": "6060490e41b7f0837bdf85c47bd153ac24713113b9de821843fda1702ac44eac",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/css.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "55cbe9946e5a775631b51b49dc56c06dea962a425533ecd06a92482b3ee24606",
+      "classification": "afd-authored",
+      "reason": "Keeps the pre-split ./css entry point on the integration by re-exporting the native validators",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/db/commands.contract.test.ts",
+      "upstream_path": "packages/core/src/db/commands.contract.test.ts",
+      "upstream_sha256": "23209f7865640ad88b90fb0fb4ec82878fbdf364d5658df76e3ac822b48bf949",
+      "current_import_sha256": "1d1adb0258cc535a7a0e3b2d6d1fbbae729a62ca9557f493230619a4f73a175d",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/db/commands.contract.test.ts",
+        "sha256": "5f46a5529f4e0eb09ab2af1e4fe40f823fbfcacfea45fd0a4a338dce2fbd0bd9",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/db/lens-follow-ups-upgrade.test.ts",
+      "upstream_path": "packages/core/src/db/lens-follow-ups-upgrade.test.ts",
+      "upstream_sha256": "b040d798e3cac28d2032552240855c7eb3ace6e9aec6082ee99372b097e2598e",
+      "current_import_sha256": "384b5ba552da1ed3c5043190e3657047680046fea36bf4f445aa147685469447",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/db/lens-follow-ups.contract.test.ts",
+      "upstream_path": "packages/core/src/db/lens-follow-ups.contract.test.ts",
+      "upstream_sha256": "6e7842e595dfabc3d0e212c5572526c708a0c08ba79d9565eb8ba8ce456cf1ad",
+      "current_import_sha256": "656bc51e7bfceff41580691bba9bb9275bac41d9e34bbd6da6e4a762683ac1b0",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/db/neon.test.ts",
+      "upstream_path": "packages/core/src/db/neon.test.ts",
+      "upstream_sha256": "64f51f4653d33893f4d95bd500f668c7b5ab79c67dc1f7be412d7764ede5c6d1",
+      "current_import_sha256": "10752e7827ac39286357d8317d4a4330ed1fd6cf1a48da76f7c74d7b241bd824",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/db/neon.test.ts",
+        "sha256": "64f51f4653d33893f4d95bd500f668c7b5ab79c67dc1f7be412d7764ede5c6d1",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/db/store-adapters.test-support.ts",
+      "upstream_path": "packages/core/src/db/store-adapters.test-support.ts",
+      "upstream_sha256": "5576e1bdaa490a9e2c9f17745818f9e67f3fcabf91b49bf3ebdd1cfe9c8194d2",
+      "current_import_sha256": "34820ad7c4e8a07142548032f4a51236a615258be311cbba07731cb6f297d1c2",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/db/store-adapters.test-support.ts",
+        "sha256": "5576e1bdaa490a9e2c9f17745818f9e67f3fcabf91b49bf3ebdd1cfe9c8194d2",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/demo/index.ts",
+      "upstream_path": "packages/core/src/demo/index.ts",
+      "upstream_sha256": "b04c77fbae340a905ba95b0cbc8d198e6becb3b3b0d45fb78066e3334f4febce",
+      "current_import_sha256": "b04c77fbae340a905ba95b0cbc8d198e6becb3b3b0d45fb78066e3334f4febce",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/demo/index.ts",
+        "sha256": "b04c77fbae340a905ba95b0cbc8d198e6becb3b3b0d45fb78066e3334f4febce",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/demo/realistic-system.test.ts",
+      "upstream_path": "packages/core/src/demo/realistic-system.test.ts",
+      "upstream_sha256": "8a9e7b22ef46b628806f609b4501403223bbe04a9256768d90483a3d1beb95a0",
+      "current_import_sha256": "e60f2631489724f04ea84ccb9cd0a93dbe3ae674d30790d34b2b5f9d9fd23dd7",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/demo/realistic-system.test.ts",
+        "sha256": "7377dce16ca169ca5b5e04d371d52d05808a2803aa1558ee9f2e9facc43e3cd5",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/demo/realistic-system.ts",
+      "upstream_path": "packages/core/src/demo/realistic-system.ts",
+      "upstream_sha256": "23fb847c04ee9cc2356a24f60b19451051f5168c41eff2dd0e9cc2e4c3c1d3e9",
+      "current_import_sha256": "16cfad415161095195494a4f8c707e1ac679efbcb34add10a0bc4e7166fe55aa",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/demo/realistic-system.ts",
+        "sha256": "813fdbc1103f756239ae91134e8698d77055fdaa86ec775c220413f34359ebe2",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/index.ts",
+      "upstream_path": "packages/core/src/index.ts",
+      "upstream_sha256": "dab23df5a4eabda69a2c4f2f547af740a1396b686a21d0f999f23bad14738cca",
+      "current_import_sha256": "482418f0822e323a5f2278dcf0920cb2469557b06a4a3c6c1ed08246e9b9d003",
+      "classification": "adapted",
+      "reason": "Keeps the pre-split root contract: native root, Neon store, AFD results, commands, demo seed and initializeCore",
+      "candidate": {
+        "path": "packages/afd/src/index.ts",
+        "sha256": "47863cf6ea1213e790c60730f608994ca6ce7f5f94eae7ffcbed3d1297d53b81",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/initialize.test.ts",
+      "upstream_path": "packages/core/src/initialize.test.ts",
+      "upstream_sha256": "878932733298a6f5d618cf4de42b8948a8d898008a048e54d859f1488cac19dc",
+      "current_import_sha256": "878932733298a6f5d618cf4de42b8948a8d898008a048e54d859f1488cac19dc",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/initialize.test.ts",
+        "sha256": "878932733298a6f5d618cf4de42b8948a8d898008a048e54d859f1488cac19dc",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/native-parity.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "6cdb5030a89e00a10c6a9f8c739a3b9d057218f6c50a172bf3e05472bd1cb24e",
+      "classification": "afd-authored",
+      "reason": "Checks the commands agree with the native resolveTokens/exportTokens for the demo system, failures included",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/types/command-result.ts",
+      "upstream_path": "packages/core/src/types/command-result.ts",
+      "upstream_sha256": "b5ecfbf0832f73d88bafcaa93a977dd1b7e33f94b90f257d8cbc072899771574",
+      "current_import_sha256": "d3498759115d8347bd79bce086c8c1658618959171d1e97abafc2351a1b471a6",
+      "classification": "adapted",
+      "reason": "ErrorCodes moved to the native core and is re-exported; the AFD re-exports are unchanged",
+      "candidate": {
+        "path": "packages/afd/src/types/command-result.ts",
+        "sha256": "b5ecfbf0832f73d88bafcaa93a977dd1b7e33f94b90f257d8cbc072899771574",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/types/index.ts",
+      "upstream_path": "packages/core/src/types/index.ts",
+      "upstream_sha256": "514cffe6f64dc966180ec8db92a41d1b60133988b07f4eaaf1bd16bda570b165",
+      "current_import_sha256": "926c5931b00328d6f4d9c83c70d90d9aed43f1809b11464dabcbf778d69220c0",
+      "classification": "adapted",
+      "reason": "Native data contracts from @lushly-dev/violet-core/types plus the AFD result names",
+      "candidate": {
+        "path": "packages/afd/src/types/index.ts",
+        "sha256": "d8523e1f75d8743566b290c64d9c4567755a0bf07016f5f58193f964a3e59a2e",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/webhooks/dispatcher.test.ts",
+      "upstream_path": "packages/core/src/webhooks/dispatcher.test.ts",
+      "upstream_sha256": "e5060648d811e3210e71571c9262e1271063a6809281cd1740ae9d32e9cab6cd",
+      "current_import_sha256": "07c50a9eb444b7e26976241a600a597350042a92fd8e7b1068b34f29604e9175",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/webhooks/dispatcher.test.ts",
+        "sha256": "e5060648d811e3210e71571c9262e1271063a6809281cd1740ae9d32e9cab6cd",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/webhooks/dispatcher.ts",
+      "upstream_path": "packages/core/src/webhooks/dispatcher.ts",
+      "upstream_sha256": "af5a492a4ec680310f5f28a9c577136972747464d8479ef306c9ad02fd213009",
+      "current_import_sha256": "36874bb43c56504773c3feea06a88c383fd6ed9fb515e8f340dab9f63e31a0f3",
+      "classification": "adapted",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": "packages/afd/src/webhooks/dispatcher.ts",
+        "sha256": "af5a492a4ec680310f5f28a9c577136972747464d8479ef306c9ad02fd213009",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/webhooks/index.ts",
+      "upstream_path": "packages/core/src/webhooks/index.ts",
+      "upstream_sha256": "45872864b16e71e2ca1cc9b8730bb1a9f36e97386f35711a7280bcf5c3567526",
+      "current_import_sha256": "45872864b16e71e2ca1cc9b8730bb1a9f36e97386f35711a7280bcf5c3567526",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/webhooks/index.ts",
+        "sha256": "45872864b16e71e2ca1cc9b8730bb1a9f36e97386f35711a7280bcf5c3567526",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/webhooks/signer.test.ts",
+      "upstream_path": "packages/core/src/webhooks/signer.test.ts",
+      "upstream_sha256": "af4e18bfb3f99489039291c44388905dff3f1b1d177272ecddcd5599a1e8bb25",
+      "current_import_sha256": "af4e18bfb3f99489039291c44388905dff3f1b1d177272ecddcd5599a1e8bb25",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/webhooks/signer.test.ts",
+        "sha256": "af4e18bfb3f99489039291c44388905dff3f1b1d177272ecddcd5599a1e8bb25",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/webhooks/signer.ts",
+      "upstream_path": "packages/core/src/webhooks/signer.ts",
+      "upstream_sha256": "7f29a57ced0a8430332994f41bd9ea0a13e4f30829953ca5e06240952a82c661",
+      "current_import_sha256": "7f29a57ced0a8430332994f41bd9ea0a13e4f30829953ca5e06240952a82c661",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/webhooks/signer.ts",
+        "sha256": "7f29a57ced0a8430332994f41bd9ea0a13e4f30829953ca5e06240952a82c661",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/webhooks/url-policy.test.ts",
+      "upstream_path": "packages/core/src/webhooks/url-policy.test.ts",
+      "upstream_sha256": "32c9476046b54f1109682939f38f0981e0c9b6ba0d34b647ce32684395d3567f",
+      "current_import_sha256": "32c9476046b54f1109682939f38f0981e0c9b6ba0d34b647ce32684395d3567f",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/webhooks/url-policy.test.ts",
+        "sha256": "32c9476046b54f1109682939f38f0981e0c9b6ba0d34b647ce32684395d3567f",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/webhooks/url-policy.ts",
+      "upstream_path": "packages/core/src/webhooks/url-policy.ts",
+      "upstream_sha256": "718daea91318bb3d15045d1a034d1ee5ccdc592ac8f91688d745bdff00584206",
+      "current_import_sha256": "718daea91318bb3d15045d1a034d1ee5ccdc592ac8f91688d745bdff00584206",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/src/webhooks/url-policy.ts",
+        "sha256": "718daea91318bb3d15045d1a034d1ee5ccdc592ac8f91688d745bdff00584206",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/worker.ts",
+      "upstream_path": "packages/core/src/worker.ts",
+      "upstream_sha256": "debe421926624c3aa55d796064cc97e83f7d3ad567a10d40f117bed66acc3f70",
+      "current_import_sha256": "4ce88ca3867b99a869de949bda4a5d03da8f0dfe85b2168266fa7c7290abe978",
+      "classification": "adapted",
+      "reason": "Keeps the pre-split worker contract over the native worker entry point",
+      "candidate": {
+        "path": "packages/afd/src/worker.ts",
+        "sha256": "94fe0f4b001eff941ae88af088dbf665ec253a4a66d0e3168bd59924729a9481",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/tsconfig.json",
+      "upstream_path": "packages/core/tsconfig.json",
+      "upstream_sha256": "6738cc5c2ff872bc84bc1f3ececc991ce7a2dbeb91ca05b218b218b4c0612391",
+      "current_import_sha256": "35b82d8950208bdcd095c57dc592ace95736f42606083b932f30ed74be2aa5d8",
+      "classification": "adapted",
+      "reason": "Copy of the core tsconfig extending the upstream root config from foundations/violet",
+      "candidate": {
+        "path": "packages/afd/tsconfig.json",
+        "sha256": "6738cc5c2ff872bc84bc1f3ececc991ce7a2dbeb91ca05b218b218b4c0612391",
+        "relation": "differs"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/vitest.config.ts",
+      "upstream_path": "packages/core/vitest.config.ts",
+      "upstream_sha256": "dd17e43e9613b203957535775e66cfe079fe12d5bc145931987d8e813d8034bd",
+      "current_import_sha256": "dd17e43e9613b203957535775e66cfe079fe12d5bc145931987d8e813d8034bd",
+      "classification": "moved-unchanged",
+      "reason": "Upstream bytes at a new path",
+      "candidate": {
+        "path": "packages/afd/vitest.config.ts",
+        "sha256": "dd17e43e9613b203957535775e66cfe079fe12d5bc145931987d8e813d8034bd",
+        "relation": "identical"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/vitest.unit.config.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "795e6c5f47b2da1111f6e34d70694aae5381e4f51a82a3cf3f310032e4e631b8",
+      "classification": "afd-authored",
+      "reason": "Store-free subset for pnpm check; SQLite/Postgres/Neon suites run with test:db in violet.yml",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "tests/consumers/violet/verify-artifacts.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "16a1283e802b01f38257a9ac8caa78b45e6910679f68cdd9c79418b89aba9980",
+      "classification": "afd-authored",
+      "reason": "Packed-artifact consumers outside the workspace (Phase 3 evidence)",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    }
+  ]
+}

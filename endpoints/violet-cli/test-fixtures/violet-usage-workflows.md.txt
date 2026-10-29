@@ -1,0 +1,214 @@
+# Violet Workflows
+
+## Source of truth
+
+- Live command inventory: `node packages/cli/dist/bin.js commands`
+- Command registration: `packages/core/src/commands/index.ts`
+- CLI surface: `packages/cli/src/cli.ts`
+- API surface: `packages/api/src/routes/`
+
+Prefer code or live command output over any generated command reference.
+
+## Setup and verification
+
+```bash
+pnpm install
+pnpm build
+pnpm test
+pnpm run doctor
+```
+
+For the active API runtime path:
+
+```bash
+pnpm api:dev
+pnpm api:migrate
+pnpm api:deploy:preview
+pnpm api:deploy:prod
+```
+
+If you need to invoke the CLI directly from the repo:
+
+```bash
+node packages/cli/dist/bin.js commands
+node packages/cli/dist/bin.js doctor --memory
+node packages/cli/dist/bin.js node list --memory
+```
+
+## Current command groups
+
+Every command in the registry (`violet commands`), grouped by its registry category. The CLI form
+follows each name; any command can also run as `violet call <name> -i '<json>'`, which is the only
+CLI route for the webhook commands. `packages/cli/src/skill-commands.test.ts` fails when this list
+drifts from the registry or names a CLI command that doesn't exist.
+
+### Node (`node`)
+
+- `node.create`: `violet node create`, with `--status`, `--sunset <date>` and `--replaced-by <id>` for a deprecated node's plan
+- `node.get`: `violet node get <id>` (`--ops` adds the node's own operations)
+- `node.list`: `violet node list`
+- `node.update`: `violet node update <id>` (`--sunset none` / `--replaced-by none` clear a plan; a sunset with no replacement, or a deprecated replacement, warns)
+- `node.delete`: `violet node delete <id>` (soft delete)
+- `nodes.graph`: `violet tree`, the hierarchy with parent, include and copy edges, change counts and an optional `--token` trace
+
+### Token and resolution (`token`)
+
+- `token.add`: `violet token add`
+- `token.override`: `violet token override`
+- `token.subtract`: `violet token subtract`
+- `token.reset`: `violet token reset`
+- `token.copy`: `violet token copy`
+- `tokens.resolve`: `violet tokens <nodeId>`
+- `token.lineage`: `violet token lineage`
+- `tokens.matrix`: `violet matrix`, tokens resolved across many nodes with how each value got there (`--group`, `--summary`, `--limit`/`--cursor` paging, `--around <token>` for the page holding a token)
+- `tokens.compare`: `violet compare <a> <b> [c] [d]`, 2–4 nodes side by side: the tokens that differ from the first node, per category and per pair (`--all`, `--category`, `--filter`)
+- `tokens.catalog`: `violet catalog`, tokens with metadata, where each is defined and which nodes customize or remove it
+
+### Export (`export`)
+
+- `export`: `violet export json|css|scss|ts|lua <nodeId>`; swift, kotlin, dart and tailwind through `violet call export`
+
+### Import (`import`)
+
+- `import.json`: `violet import json <nodeId> <file>`
+- `import.validate`: `violet import validate <file>`
+- `import.tree`: `violet --from <dir> <command>`, which builds an in-memory tree from DTCG files (one node per file) for any other command
+
+### Constraints (`constraint`)
+
+- `constraints.set`: `violet constraints set <nodeId>`
+- `constraints.list`: `violet constraints list <nodeId>`
+- `constraints.validate`: `violet constraints validate <nodeId>`
+
+### Analysis (`analyze`)
+
+- `analyze.deviations`: `violet analyze deviations <nodeId>`
+- `analyze.compliance`: `violet analyze compliance <nodeId>`
+- `compare.nodes`: `violet call compare.nodes`, the older two-node diff; `violet compare` runs `tokens.compare`
+- `analyze.violations`: `violet violations`, every constraint violation across a subtree, with the node, rule, values and owner
+- `analyze.health`: `violet health`, per node, own customizations by category, drift against a baseline (`--baseline parent|root|<id>`), violations, owner, status, deprecation plans (sunset date, replacement, usage), coupling and risk flags
+- `analyze.trends`: `violet trends`, changes per day for a node and its descendants (`--since 90d`), the open rule issues by the day their failing value was set, and the rule checks recorded with `violet snapshot`
+- `analyze.snapshot`: `violet snapshot`, checks the rules on a subtree (`--root`) or every tree and stores the results, so `trends` has true history; run it on a schedule
+- `changes.impact`: `violet impact`, a dry-run add/override/subtract/reset on a node; nothing is written
+
+### Audit log (`audit`)
+
+- `audit.list`: `violet audit`, the audit log filtered by node (`--subtree`), token, event types, actor and time (`--since 30d`), with counts per day and `--limit`/`--offset` paging
+
+### Specimens (`specimen`)
+
+- `specimen.get`: `violet specimen get <nodeId>`, the stored role map of the node's tree and which component roles (button, input, card) resolve and draw on the node
+- `specimen.set`: `violet specimen set <nodeId> button.background=btn.bg …`, maps roles to tokens on the tree's root (`role=` removes one, `--file map.json`, `--replace`); only known components, roles and tokens defined in the tree
+
+### System (`system`)
+
+- `doctor`: `violet doctor`
+- `validate`: `violet validate`
+- `docs.generate`: `violet docs`
+- `apikeys.create`: `violet apikeys create`, a hosted API key with its token, seed entry and insert/revoke SQL; offline, stores nothing
+- `apikeys.check`: `violet apikeys check [file]`, checks a `VIOLET_API_KEYS_JSON` value before it is saved; offline, never prints tokens
+
+### Webhooks (`webhook`)
+
+- `webhooks.register`: `violet call webhooks.register`
+- `webhooks.list`: `violet call webhooks.list`
+- `webhooks.get`: `violet call webhooks.get`
+- `webhooks.update`: `violet call webhooks.update`
+- `webhooks.delete`: `violet call webhooks.delete`
+- `webhooks.test`: `violet call webhooks.test`
+- `webhooks.logs`: `violet call webhooks.logs`
+
+## Common flows
+
+### Create a tree and resolve tokens
+
+```bash
+node packages/cli/dist/bin.js node create --memory --name global-base --type root
+node packages/cli/dist/bin.js token add --memory --node global-base --token color.brand.primary --value "#0078D4"
+node packages/cli/dist/bin.js node create --memory --name xbox --type product --parent global-base
+node packages/cli/dist/bin.js token override --memory --node xbox --token color.brand.primary --value "#107C10"
+node packages/cli/dist/bin.js tokens xbox --memory
+```
+
+### Trace inheritance
+
+```bash
+node packages/cli/dist/bin.js token lineage --memory --node xbox --token color.brand.primary
+```
+
+### Explore a system with the lens commands
+
+The web lenses (Tree, Matrix, Catalog, Violations) run these same commands. Seed the demo system
+into a scratch database first so the ids below exist:
+
+```bash
+node packages/cli/dist/bin.js --db demo.db demo seed
+node packages/cli/dist/bin.js --db demo.db tree                                # hierarchy and change counts
+node packages/cli/dist/bin.js --db demo.db tree --token color.accent.primary   # one token down the tree
+node packages/cli/dist/bin.js --db demo.db matrix --group category --summary   # where tokens vary, by group
+node packages/cli/dist/bin.js --db demo.db matrix --root xbox --filter 'color.*' --varying --limit 20
+node packages/cli/dist/bin.js --db demo.db catalog --most-customized --limit 10
+node packages/cli/dist/bin.js --db demo.db violations --severity error
+```
+
+Start broad with `tree` and `matrix --summary`, narrow to a subtree and token pattern, then use
+`catalog` to see which tokens are customized most and `violations` to see which break a rule and who
+owns the node. `matrix` prints `More rows: --cursor …` when there is another page; pass it back to
+continue. Add `--json` to any of them for the full result. To try a fix, follow with `impact`
+(below) before writing anything.
+
+### Preview a token change before making it
+
+```bash
+node packages/cli/dist/bin.js --db demo.db impact --node global --override color.accent.primary=#C50F1F
+node packages/cli/dist/bin.js --db demo.db --json impact --node xbox --reset color.accent.primary --no-violations
+```
+
+The result lists each affected node (`via` inheritance, include or copy) with before → after, who is
+shielded by their own customization, violations introduced or resolved, and `apply[].cli`, the
+`violet token …` commands that make the change.
+
+### Check system health and recent changes
+
+```bash
+node packages/cli/dist/bin.js --db demo.db health --sort drift
+node packages/cli/dist/bin.js --db demo.db --json health --root office --baseline root --no-violations
+node packages/cli/dist/bin.js --db demo.db audit --node xbox --subtree --since 30d
+node packages/cli/dist/bin.js --db demo.db audit --type token_updated,token_deleted --actor alice --offset 50
+```
+
+`health` flags redundant overrides (equal to the inherited value), sibling borrows (copies from a
+node outside the node's own line) and deprecated nodes that still have children. Drift is the share
+of resolved tokens that differ from the baseline; a root has no parent, so its drift is blank under
+the default `parent` baseline. `audit` day counts cover every match, not just the page shown.
+
+### Validate imports before changing state
+
+```bash
+node packages/cli/dist/bin.js import validate tokens.json --target global-base
+node packages/cli/dist/bin.js import json global-base tokens.json
+```
+
+### Compare variants or check compliance
+
+```bash
+node packages/cli/dist/bin.js compare xbox xbox-ios --filter "color.*"
+node packages/cli/dist/bin.js compare xbox-dark vscode-dark office-dark --category radius
+node packages/cli/dist/bin.js analyze compliance xbox-ios
+```
+
+### Work with webhooks
+
+```bash
+node packages/cli/dist/bin.js call webhooks.register -i '{"url":"https://example.com/webhook","events":["token.added","token.updated"]}'
+node packages/cli/dist/bin.js call webhooks.test -i '{"id":"wh_xxx"}'
+node packages/cli/dist/bin.js call webhooks.logs -i '{"id":"wh_xxx","status":"failed"}'
+```
+
+## Notes
+
+- Run system-level verification from the repo root so `validate` sees the workspace.
+- `docs.generate` is useful for regenerating machine-readable command docs, but do not treat previously generated markdown as automatically current.
+- The deployed API expects the Vercel env contract described in `SETUP.md`: `VIOLET_NEON_DATABASE_URL`, `ENVIRONMENT`, and `VIOLET_API_KEYS_JSON`.
+- The active Neon path now relies on explicit migrations rather than lazy schema initialization.
+- Protected API routes now enforce scopes and durable rate limiting on the live Vercel and Neon path.
