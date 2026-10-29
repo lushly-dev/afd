@@ -202,6 +202,12 @@
 				"report-schema-1.0",
 				"botcore.plugins"
 			]
+		},
+		{
+			"manifest": "endpoints/health-dashboard/package.json",
+			"family": "health",
+			"layer": "endpoint",
+			"configurationDependencies": ["lushly-health"]
 		}
 	],
 	"coverageContract": {

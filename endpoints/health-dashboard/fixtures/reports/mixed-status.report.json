@@ -1,0 +1,429 @@
+{
+	"schema_version": "1.0",
+	"generator": {
+		"name": "lushly-health",
+		"version": "0.1.0"
+	},
+	"targets": [
+		{
+			"id": "web-app",
+			"path": "<fixture>/web-app",
+			"language": "typescript"
+		},
+		{
+			"id": "broken-config",
+			"path": "<fixture>/broken-config",
+			"language": "typescript"
+		},
+		{
+			"id": "api-service",
+			"path": "<fixture>/api-service",
+			"language": "python"
+		}
+	],
+	"policy": {
+		"check_ids": [
+			"gitattributes_lf",
+			"lefthook_configured",
+			"node_version_alignment",
+			"commitlint_configured",
+			"linter_strict",
+			"dependabot_configured",
+			"last_commit"
+		],
+		"disabled": [
+			"dependabot_configured"
+		],
+		"severity": {
+			"gitattributes_lf": "required",
+			"lefthook_configured": "required",
+			"node_version_alignment": "required",
+			"commitlint_configured": "advisory",
+			"linter_strict": "advisory",
+			"dependabot_configured": "required",
+			"last_commit": "required"
+		},
+		"remediation": "none"
+	},
+	"outcomes": [
+		{
+			"check_id": "gitattributes_lf",
+			"target": "web-app",
+			"status": "passed",
+			"severity": "required",
+			"message": ".gitattributes enforces LF line endings",
+			"evidence": {
+				"paths": [
+					".gitattributes"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "LF"
+			},
+			"remediation": null,
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "lefthook_configured",
+			"target": "web-app",
+			"status": "failed",
+			"severity": "required",
+			"message": "lefthook.yml not found",
+			"evidence": {
+				"paths": [
+					"lefthook.yml"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "0/2"
+			},
+			"remediation": "Run 'lefthook install' and add lefthook.yml",
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "node_version_alignment",
+			"target": "web-app",
+			"status": "warn",
+			"severity": "required",
+			"message": "Node version declaration is not a literal version",
+			"evidence": {
+				"paths": [
+					".nvmrc",
+					".node-version",
+					"package.json",
+					".github/workflows"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic"
+			},
+			"remediation": "Resolve the declaration to a concrete Node major before comparison",
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "commitlint_configured",
+			"target": "web-app",
+			"status": "failed",
+			"severity": "advisory",
+			"message": "No commitlint config found",
+			"evidence": {
+				"paths": [
+					"commitlint.config.mjs",
+					"commitlint.config.js"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "no"
+			},
+			"remediation": "Create commitlint.config.mjs with conventional commit rules",
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "linter_strict",
+			"target": "web-app",
+			"status": "failed",
+			"severity": "advisory",
+			"message": "biome.json not found",
+			"evidence": {
+				"paths": [
+					"biome.json",
+					"pyproject.toml"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic"
+			},
+			"remediation": "Run 'pnpm biome init' to create biome.json",
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "dependabot_configured",
+			"target": "web-app",
+			"status": "skipped",
+			"severity": "required",
+			"message": "Explicitly disabled by selected policy",
+			"evidence": {
+				"paths": [
+					".github/dependabot.yml"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic"
+			},
+			"remediation": null,
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "last_commit",
+			"target": "web-app",
+			"status": "unavailable",
+			"severity": "required",
+			"message": "Target is not the root of a Git checkout",
+			"evidence": {
+				"paths": [
+					".git"
+				],
+				"required_tools": [
+					"git"
+				],
+				"kind": "local_configuration_heuristic"
+			},
+			"remediation": "Select the checkout root or disable this check",
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "gitattributes_lf",
+			"target": "broken-config",
+			"status": "failed",
+			"severity": "required",
+			"message": ".gitattributes not found",
+			"evidence": {
+				"paths": [
+					".gitattributes"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "no"
+			},
+			"remediation": "Create .gitattributes with '* text=auto eol=lf'",
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "lefthook_configured",
+			"target": "broken-config",
+			"status": "failed",
+			"severity": "required",
+			"message": "lefthook.yml not found",
+			"evidence": {
+				"paths": [
+					"lefthook.yml"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "0/2"
+			},
+			"remediation": "Run 'lefthook install' and add lefthook.yml",
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "node_version_alignment",
+			"target": "broken-config",
+			"status": "error",
+			"severity": "required",
+			"message": "Check could not complete",
+			"evidence": {
+				"paths": [
+					".nvmrc",
+					".node-version",
+					"package.json",
+					".github/workflows"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"error_type": "JSONDecodeError"
+			},
+			"remediation": "Validate configuration syntax and inspect the check implementation",
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "commitlint_configured",
+			"target": "broken-config",
+			"status": "failed",
+			"severity": "advisory",
+			"message": "No commitlint config found",
+			"evidence": {
+				"paths": [
+					"commitlint.config.mjs",
+					"commitlint.config.js"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "no"
+			},
+			"remediation": "Create commitlint.config.mjs with conventional commit rules",
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "linter_strict",
+			"target": "broken-config",
+			"status": "failed",
+			"severity": "advisory",
+			"message": "biome.json not found",
+			"evidence": {
+				"paths": [
+					"biome.json",
+					"pyproject.toml"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic"
+			},
+			"remediation": "Run 'pnpm biome init' to create biome.json",
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "dependabot_configured",
+			"target": "broken-config",
+			"status": "skipped",
+			"severity": "required",
+			"message": "Explicitly disabled by selected policy",
+			"evidence": {
+				"paths": [
+					".github/dependabot.yml"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic"
+			},
+			"remediation": null,
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "last_commit",
+			"target": "broken-config",
+			"status": "unavailable",
+			"severity": "required",
+			"message": "Target is not the root of a Git checkout",
+			"evidence": {
+				"paths": [
+					".git"
+				],
+				"required_tools": [
+					"git"
+				],
+				"kind": "local_configuration_heuristic"
+			},
+			"remediation": "Select the checkout root or disable this check",
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "gitattributes_lf",
+			"target": "api-service",
+			"status": "passed",
+			"severity": "required",
+			"message": ".gitattributes enforces LF line endings",
+			"evidence": {
+				"paths": [
+					".gitattributes"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "LF"
+			},
+			"remediation": null,
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "lefthook_configured",
+			"target": "api-service",
+			"status": "failed",
+			"severity": "required",
+			"message": "lefthook.yml not found",
+			"evidence": {
+				"paths": [
+					"lefthook.yml"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "0/2"
+			},
+			"remediation": "Run 'lefthook install' and add lefthook.yml",
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "node_version_alignment",
+			"target": "api-service",
+			"status": "skipped",
+			"severity": "required",
+			"message": "Check does not apply to the selected language",
+			"evidence": {
+				"paths": [
+					".nvmrc",
+					".node-version",
+					"package.json",
+					".github/workflows"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic"
+			},
+			"remediation": null,
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "commitlint_configured",
+			"target": "api-service",
+			"status": "skipped",
+			"severity": "advisory",
+			"message": "Check does not apply to the selected language",
+			"evidence": {
+				"paths": [
+					"commitlint.config.mjs",
+					"commitlint.config.js"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic"
+			},
+			"remediation": null,
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "linter_strict",
+			"target": "api-service",
+			"status": "passed",
+			"severity": "advisory",
+			"message": "pyproject.toml has [tool.ruff] configured",
+			"evidence": {
+				"paths": [
+					"biome.json",
+					"pyproject.toml"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "ruff"
+			},
+			"remediation": null,
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "dependabot_configured",
+			"target": "api-service",
+			"status": "skipped",
+			"severity": "required",
+			"message": "Explicitly disabled by selected policy",
+			"evidence": {
+				"paths": [
+					".github/dependabot.yml"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic"
+			},
+			"remediation": null,
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "last_commit",
+			"target": "api-service",
+			"status": "unavailable",
+			"severity": "required",
+			"message": "Target is not the root of a Git checkout",
+			"evidence": {
+				"paths": [
+					".git"
+				],
+				"required_tools": [
+					"git"
+				],
+				"kind": "local_configuration_heuristic"
+			},
+			"remediation": "Select the checkout root or disable this check",
+			"schema_version": "1.0"
+		}
+	],
+	"summary": {
+		"passed": 3,
+		"failed": 8,
+		"warn": 1,
+		"skipped": 5,
+		"unavailable": 3,
+		"error": 1
+	},
+	"effects": [
+		"target_read"
+	],
+	"artifacts_written": []
+}

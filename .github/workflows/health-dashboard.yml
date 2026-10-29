@@ -1,0 +1,69 @@
+name: Health dashboard
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'endpoints/health-dashboard/**'
+      # The report schema, the CLI that writes the fixtures and the headless wheel.
+      - 'endpoints/health/**'
+      - 'foundations/fast-af/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/health-dashboard.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'endpoints/health-dashboard/**'
+      - 'endpoints/health/**'
+      - 'foundations/fast-af/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/health-dashboard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dashboard:
+    name: Build, unit, fixtures, Chromium and axe
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - name: Install uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+      - run: pnpm install --frozen-lockfile
+      - name: Build the dashboard and its FAST-AF dependencies
+        run: pnpm -F "@lushly-dev/health-dashboard..." build
+      - run: pnpm -F @lushly-dev/health-dashboard typecheck
+      - name: Unit suites (parsing, validation, verdict, view, build plugins) with coverage
+        run: pnpm -F @lushly-dev/health-dashboard test --coverage
+      - name: Committed fixtures match the Health CLI's output
+        run: pnpm -F @lushly-dev/health-dashboard fixtures:check
+      - name: Headless Health wheel has no unconditional or frontend dependency
+        run: node endpoints/health-dashboard/scripts/verify-health-isolation.mjs
+      - run: pnpm -F @lushly-dev/health-dashboard exec playwright install --with-deps chromium
+      - name: Chromium suite (every status, invalid files, keyboard, CSP, axe WCAG 2.2 AA)
+        run: pnpm -F @lushly-dev/health-dashboard test:browser
+      - name: Build leaves tracked files unchanged
+        run: test -z "$(git status --porcelain)"
+      - name: Upload screenshots
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: health-dashboard-screenshots
+          path: endpoints/health-dashboard/test-results/
+          retention-days: 7
