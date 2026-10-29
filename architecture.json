@@ -106,6 +106,16 @@
 			"layer": "endpoint"
 		},
 		{
+			"manifest": "foundations/fast-af/packages/element/packages/fast-element/package.json",
+			"family": "fast-af",
+			"layer": "foundation"
+		},
+		{
+			"manifest": "foundations/fast-af/packages/violet-elements/package.json",
+			"family": "fast-af",
+			"layer": "foundation"
+		},
+		{
 			"manifest": "alfred/pyproject.toml",
 			"family": "alfred",
 			"layer": "endpoint",

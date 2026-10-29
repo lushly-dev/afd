@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en-US">
+    <head>
+        <meta charset="utf-8">
+        <title>Lifecycle Test</title>
+    </head>
+    <body>
+        <simple-element needs-hydration></simple-element>
+        <complex-element needs-hydration count="{{count}}"></complex-element>
+        <deferred-element needs-hydration defer-hydration></deferred-element>
+        <deferred-parent-element
+            needs-hydration
+            defer-hydration
+        ></deferred-parent-element>
+        <script type="module" src="./main.ts"></script>
+    </body>
+</html>

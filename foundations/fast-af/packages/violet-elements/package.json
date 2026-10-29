@@ -1,0 +1,61 @@
+{
+  "name": "@lushly-dev/violet-elements",
+  "description": "Reusable Violet web components for FAST-AF",
+  "version": "0.1.0",
+  "author": "Lushly Dev",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./custom-elements.json": "./custom-elements.json",
+    "./tokens/*": "./tokens/*",
+    "./package.json": "./package.json"
+  },
+  "customElements": "custom-elements.json",
+  "sideEffects": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.lib.json",
+    "dev": "tsc -p tsconfig.lib.json --watch",
+    "clean": "rimraf dist",
+    "lint": "biome lint src",
+    "test:browser": "vitest --run --coverage",
+    "theme:build": "node ./scripts/build-runtime-theme.mjs",
+    "icons:build": "node ./scripts/build-icons.mjs",
+    "cem:analyze": "cem analyze --config custom-elements-manifest.config.js && node ./scripts/normalize-custom-elements.mjs"
+  },
+  "dependencies": {
+    "@tanstack/virtual-core": "3.13.23",
+    "tslib": "^2.6.3"
+  },
+  "peerDependencies": {
+    "@lushly-dev/fast-element": "workspace:*"
+  },
+  "files": [
+    "dist",
+    "custom-elements.json",
+    "tokens",
+    "README.md"
+  ],
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.7",
+    "@custom-elements-manifest/analyzer": "^0.11.0",
+    "@lushly-dev/fast-element": "workspace:*",
+    "@vitest/browser-playwright": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.11",
+    "playwright": "^1.58.2",
+    "rimraf": "^6.0.0",
+    "typescript": "^5.9.3",
+    "vite": "8.0.1",
+    "vitest": "^4.1.11"
+  }
+}

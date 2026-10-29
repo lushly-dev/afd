@@ -1,0 +1,91 @@
+{
+  "version": "0.1.0",
+  "description": "FAST-AF Storybook performance baselines. Prefer capturing baselines from a built/static Storybook for stability.",
+  "stories": {
+    "foundations-violet-foundations--reference-kit-lab": {
+      "storyId": "foundations-violet-foundations--reference-kit-lab",
+      "baseUrl": "http://localhost:6008",
+      "viewport": "1440x1024",
+      "runs": 3,
+      "capturedAt": "2026-03-19T21:26:08.339620+00:00",
+      "summary": {
+        "paints": {
+          "firstContentfulPaintMs": {
+            "min": 104.0,
+            "median": 120.0,
+            "max": 128.0
+          }
+        },
+        "timings": {
+          "domContentLoadedMs": {
+            "min": 54.0,
+            "median": 60.6,
+            "max": 70.3
+          },
+          "loadMs": {
+            "min": 54.0,
+            "median": 62.2,
+            "max": 70.3
+          }
+        },
+        "dom": {
+          "totalElements": {
+            "min": 333.0,
+            "median": 333.0,
+            "max": 333.0
+          },
+          "customElements": {
+            "min": 1.0,
+            "median": 1.0,
+            "max": 1.0
+          },
+          "violetElements": {
+            "min": 1.0,
+            "median": 1.0,
+            "max": 1.0
+          },
+          "shadowHosts": {
+            "min": 1.0,
+            "median": 1.0,
+            "max": 1.0
+          }
+        },
+        "resources": {
+          "requestCount": {
+            "min": 14.0,
+            "median": 19.0,
+            "max": 19.0
+          },
+          "transferSizeBytes": {
+            "min": 10616.0,
+            "median": 10616.0,
+            "max": 10616.0
+          }
+        },
+        "memory": {
+          "usedJSHeapSizeBytes": {
+            "min": 19415239.0,
+            "median": 21648622.0,
+            "max": 27683650.0
+          }
+        },
+        "console": {
+          "errorCount": 0,
+          "warningCount": 0
+        }
+      },
+      "budgets": {
+        "firstContentfulPaintMs": null,
+        "totalElements": null,
+        "requestCount": null,
+        "transferSizeBytes": null,
+        "usedJSHeapSizeBytes": null,
+        "consoleErrorCount": null,
+        "consoleWarningCount": null
+      },
+      "notes": [
+        "Captured from built Storybook static output."
+      ]
+    }
+  }
+}

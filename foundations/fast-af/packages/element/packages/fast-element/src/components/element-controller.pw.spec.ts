@@ -1,0 +1,2211 @@
+import { expect, test } from "@playwright/test";
+
+const templateA = "a";
+const templateB = "b";
+const cssA = "class-a { color: red; }";
+const cssB = "class-b { color: blue; }";
+
+test.describe("The ElementController", () => {
+    test.describe("during construction", () => {
+        test("if no shadow options defined, uses open shadow dom", async ({ page }) => {
+            await page.goto("/");
+
+            const isShadowRoot = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const name = uniqueElementName();
+                (
+                    await FASTElementDefinition.compose(
+                        class ControllerTest extends FASTElement {
+                            static definition = { name };
+                        },
+                    )
+                ).define();
+
+                const element = document.createElement(name);
+                ElementController.forCustomElement(element);
+
+                return element.shadowRoot instanceof ShadowRoot;
+            });
+
+            expect(isShadowRoot).toBe(true);
+        });
+
+        test("if shadow options open, uses open shadow dom", async ({ page }) => {
+            await page.goto("/");
+
+            const isShadowRoot = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const name = uniqueElementName();
+                (
+                    await FASTElementDefinition.compose(
+                        class ControllerTest extends FASTElement {
+                            static definition = { name, shadowOptions: { mode: "open" } };
+                        },
+                    )
+                ).define();
+
+                const element = document.createElement(name);
+                ElementController.forCustomElement(element);
+
+                return element.shadowRoot instanceof ShadowRoot;
+            });
+
+            expect(isShadowRoot).toBe(true);
+        });
+
+        test("if shadow options nulled, does not create shadow root", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const hasShadowRoot = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const name = uniqueElementName();
+                (
+                    await FASTElementDefinition.compose(
+                        class ControllerTest extends FASTElement {
+                            static definition = { name, shadowOptions: null };
+                        },
+                    )
+                ).define();
+
+                const element = document.createElement(name);
+                ElementController.forCustomElement(element);
+
+                return element.shadowRoot instanceof ShadowRoot;
+            });
+
+            expect(hasShadowRoot).toBe(false);
+        });
+
+        test("if shadow options closed, does not expose shadow root", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const hasShadowRoot = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const name = uniqueElementName();
+                (
+                    await FASTElementDefinition.compose(
+                        class ControllerTest extends FASTElement {
+                            static definition = {
+                                name,
+                                shadowOptions: { mode: "closed" },
+                            };
+                        },
+                    )
+                ).define();
+
+                const element = document.createElement(name);
+                ElementController.forCustomElement(element);
+
+                return element.shadowRoot instanceof ShadowRoot;
+            });
+
+            expect(hasShadowRoot).toBe(false);
+        });
+
+        test("does not attach view to shadow root", async ({ page }) => {
+            await page.goto("/");
+
+            const childCount = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const name = uniqueElementName();
+                (
+                    await FASTElementDefinition.compose(
+                        class ControllerTest extends FASTElement {
+                            static definition = { name };
+                        },
+                    )
+                ).define();
+
+                const element = document.createElement(name);
+                ElementController.forCustomElement(element);
+
+                return element.shadowRoot?.childNodes.length ?? 0;
+            });
+
+            expect(childCount).toBe(0);
+        });
+    });
+
+    test.describe("during connect", () => {
+        test("does not rebind converted attribute backing fields through converters", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const result = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const { FASTElement, FASTElementDefinition, uniqueElementName } =
+                    await import("/main.js");
+
+                const calls: Array<{ type: string; value: string }> = [];
+                const json = '{"title":"hello"}';
+                const converter = {
+                    toView(value: any) {
+                        return JSON.stringify(value);
+                    },
+                    fromView(value: any) {
+                        calls.push({ type: typeof value, value: String(value) });
+                        return JSON.parse(value);
+                    },
+                };
+
+                const name = uniqueElementName();
+                (
+                    await FASTElementDefinition.compose(
+                        class ControllerTest extends FASTElement {
+                            static definition = {
+                                name,
+                                attributes: [{ property: "data", converter }],
+                            };
+                        },
+                    )
+                ).define();
+
+                const element = document.createElement(name) as any;
+                element.setAttribute("data", json);
+                document.body.appendChild(element);
+
+                const value = {
+                    calls,
+                    data: element.data,
+                };
+
+                document.body.removeChild(element);
+
+                return value;
+            });
+
+            expect(result.calls).toEqual([
+                { type: "string", value: '{"title":"hello"}' },
+            ]);
+            expect(result.data).toEqual({ title: "hello" });
+        });
+
+        test("rebinds public own observable properties before rendering", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const result = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    Observable,
+                    html,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const changes: string[] = [];
+                const name = uniqueElementName();
+
+                class ControllerTest extends FASTElement {
+                    public messageChanged(
+                        _oldValue: string | undefined,
+                        newValue: string,
+                    ) {
+                        changes.push(newValue);
+                    }
+                }
+
+                Observable.defineProperty(ControllerTest.prototype, "message");
+
+                (
+                    await FASTElementDefinition.compose(ControllerTest, {
+                        name,
+                        template: html<any>`<span>${x => x.message}</span>`,
+                    })
+                ).define();
+
+                const element = document.createElement(name) as any;
+                const controller = ElementController.forCustomElement(element);
+
+                Object.defineProperty(element, "message", {
+                    configurable: true,
+                    enumerable: true,
+                    value: "hello",
+                    writable: true,
+                });
+
+                controller.connect();
+
+                const value = {
+                    changes,
+                    hasOwnMessage: Object.prototype.hasOwnProperty.call(
+                        element,
+                        "message",
+                    ),
+                    message: element.message,
+                    text: element.shadowRoot?.textContent ?? "",
+                };
+
+                controller.disconnect();
+
+                return value;
+            });
+
+            expect(result.changes).toEqual(["hello"]);
+            expect(result.hasOwnMessage).toBe(false);
+            expect(result.message).toBe("hello");
+            expect(result.text).toBe("hello");
+        });
+
+        test("preserves observable backing fields set on the instance", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const result = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    Observable,
+                    html,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const changes: Array<{ oldValue: string; newValue: string }> = [];
+                const name = uniqueElementName();
+
+                class ControllerTest extends FASTElement {
+                    public _message = "hello";
+
+                    public messageChanged(oldValue: string, newValue: string) {
+                        changes.push({ oldValue, newValue });
+                    }
+                }
+
+                Observable.defineProperty(ControllerTest.prototype, "message");
+
+                (
+                    await FASTElementDefinition.compose(ControllerTest, {
+                        name,
+                        template: html<any>`<span>${x => x.message}</span>`,
+                    })
+                ).define();
+
+                const element = document.createElement(name) as any;
+                const controller = ElementController.forCustomElement(element);
+
+                controller.connect();
+
+                const initial = {
+                    hasOwnBackingField: Object.prototype.hasOwnProperty.call(
+                        element,
+                        "_message",
+                    ),
+                    hasOwnMessage: Object.prototype.hasOwnProperty.call(
+                        element,
+                        "message",
+                    ),
+                    message: element.message,
+                    text: element.shadowRoot?.textContent ?? "",
+                };
+
+                element.message = "updated";
+                await new Promise(resolve => requestAnimationFrame(resolve));
+
+                const updated = {
+                    backingField: element._message,
+                    changes,
+                    message: element.message,
+                    text: element.shadowRoot?.textContent ?? "",
+                };
+
+                controller.disconnect();
+
+                return { initial, updated };
+            });
+
+            expect(result.initial).toEqual({
+                hasOwnBackingField: true,
+                hasOwnMessage: false,
+                message: "hello",
+                text: "hello",
+            });
+            expect(result.updated).toEqual({
+                backingField: "updated",
+                changes: [{ oldValue: "hello", newValue: "updated" }],
+                message: "updated",
+                text: "updated",
+            });
+        });
+
+        test("renders nothing to shadow dom in shadow dom mode when there's no template", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const { beforeConnect, afterConnect } = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const toHTML = (node: Node): string => {
+                    return Array.from(node.childNodes)
+                        .map((x: any) => x.outerHTML || x.textContent)
+                        .join("");
+                };
+
+                const name = uniqueElementName();
+                (
+                    await FASTElementDefinition.compose(
+                        class ControllerTest extends FASTElement {
+                            static definition = { name };
+                        },
+                    )
+                ).define();
+
+                const element = document.createElement(name);
+                const controller = ElementController.forCustomElement(element);
+
+                const beforeConnect = toHTML(element.shadowRoot!);
+                controller.connect();
+                const afterConnect = toHTML(element.shadowRoot!);
+
+                return { beforeConnect, afterConnect };
+            });
+
+            expect(beforeConnect).toBe("");
+            expect(afterConnect).toBe("");
+        });
+
+        test("renders nothing to light dom in light dom mode when there's no template", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const { beforeConnect, afterConnect } = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const toHTML = (node: Node): string => {
+                    return Array.from(node.childNodes)
+                        .map((x: any) => x.outerHTML || x.textContent)
+                        .join("");
+                };
+
+                const name = uniqueElementName();
+                (
+                    await FASTElementDefinition.compose(
+                        class ControllerTest extends FASTElement {
+                            static definition = { name, shadowOptions: null };
+                        },
+                    )
+                ).define();
+
+                const element = document.createElement(name);
+                const controller = ElementController.forCustomElement(element);
+
+                const beforeConnect = toHTML(element);
+                controller.connect();
+                const afterConnect = toHTML(element);
+
+                return { beforeConnect, afterConnect };
+            });
+
+            expect(beforeConnect).toBe("");
+            expect(afterConnect).toBe("");
+        });
+
+        test("renders a template to shadow dom in shadow dom mode", async ({ page }) => {
+            await page.goto("/");
+
+            const { beforeConnect, afterConnect } = await page.evaluate(
+                async templateA => {
+                    // @ts-expect-error: Client module.
+                    const {
+                        FASTElement,
+                        FASTElementDefinition,
+                        ElementController,
+                        html,
+                        uniqueElementName,
+                    } = await import("/main.js");
+
+                    const toHTML = (node: Node): string => {
+                        return Array.from(node.childNodes)
+                            .map((x: any) => x.outerHTML || x.textContent)
+                            .join("");
+                    };
+
+                    const name = uniqueElementName();
+                    (
+                        await FASTElementDefinition.compose(
+                            class ControllerTest extends FASTElement {
+                                static definition = {
+                                    name,
+                                    template: html`
+                                    ${templateA}
+                                `,
+                                };
+                            },
+                        )
+                    ).define();
+
+                    const element = document.createElement(name);
+                    const controller = ElementController.forCustomElement(element);
+
+                    const beforeConnect = toHTML(element.shadowRoot!);
+                    controller.connect();
+                    const afterConnect = toHTML(element.shadowRoot!);
+
+                    return { beforeConnect, afterConnect };
+                },
+                templateA,
+            );
+
+            expect(beforeConnect).toBe("");
+            expect(afterConnect.trim()).toBe("a");
+        });
+
+        test("renders a template to light dom in light dom mode", async ({ page }) => {
+            await page.goto("/");
+
+            const { beforeConnect, afterConnect } = await page.evaluate(
+                async templateA => {
+                    // @ts-expect-error: Client module.
+                    const {
+                        FASTElement,
+                        FASTElementDefinition,
+                        ElementController,
+                        html,
+                        uniqueElementName,
+                    } = await import("/main.js");
+
+                    const toHTML = (node: Node): string => {
+                        return Array.from(node.childNodes)
+                            .map((x: any) => x.outerHTML || x.textContent)
+                            .join("");
+                    };
+
+                    const name = uniqueElementName();
+                    (
+                        await FASTElementDefinition.compose(
+                            class ControllerTest extends FASTElement {
+                                static definition = {
+                                    name,
+                                    shadowOptions: null,
+                                    template: html`
+                                    ${templateA}
+                                `,
+                                };
+                            },
+                        )
+                    ).define();
+
+                    const element = document.createElement(name);
+                    const controller = ElementController.forCustomElement(element);
+
+                    const beforeConnect = toHTML(element);
+                    controller.connect();
+                    const afterConnect = toHTML(element);
+
+                    return { beforeConnect, afterConnect };
+                },
+                templateA,
+            );
+
+            expect(beforeConnect).toBe("");
+            expect(afterConnect.trim()).toBe("a");
+        });
+
+        test("renders a template override to shadow dom when set", async ({ page }) => {
+            await page.goto("/");
+
+            const { beforeConnect, afterConnect } = await page.evaluate(
+                async ({ templateA, templateB }) => {
+                    // @ts-expect-error: Client module.
+                    const {
+                        FASTElement,
+                        FASTElementDefinition,
+                        ElementController,
+                        html,
+                        uniqueElementName,
+                    } = await import("/main.js");
+
+                    const toHTML = (node: Node): string => {
+                        return Array.from(node.childNodes)
+                            .map((x: any) => x.outerHTML || x.textContent)
+                            .join("");
+                    };
+
+                    const name = uniqueElementName();
+                    (
+                        await FASTElementDefinition.compose(
+                            class ControllerTest extends FASTElement {
+                                static definition = {
+                                    name,
+                                    template: html`
+                                    ${templateA}
+                                `,
+                                };
+                            },
+                        )
+                    ).define();
+
+                    const element = document.createElement(name);
+                    const controller = ElementController.forCustomElement(element);
+
+                    const beforeConnect = toHTML(element.shadowRoot!);
+                    controller.template = html`
+                        ${templateB}
+                    `;
+                    controller.connect();
+                    const afterConnect = toHTML(element.shadowRoot!);
+
+                    return { beforeConnect, afterConnect };
+                },
+                { templateA, templateB },
+            );
+
+            expect(beforeConnect).toBe("");
+            expect(afterConnect.trim()).toBe("b");
+        });
+
+        test("renders a template override to light dom when set", async ({ page }) => {
+            await page.goto("/");
+
+            const { beforeConnect, afterConnect } = await page.evaluate(
+                async ({ templateA, templateB }) => {
+                    // @ts-expect-error: Client module.
+                    const {
+                        FASTElement,
+                        FASTElementDefinition,
+                        ElementController,
+                        html,
+                        uniqueElementName,
+                    } = await import("/main.js");
+
+                    const toHTML = (node: Node): string => {
+                        return Array.from(node.childNodes)
+                            .map((x: any) => x.outerHTML || x.textContent)
+                            .join("");
+                    };
+
+                    const name = uniqueElementName();
+                    (
+                        await FASTElementDefinition.compose(
+                            class ControllerTest extends FASTElement {
+                                static definition = {
+                                    name,
+                                    shadowOptions: null,
+                                    template: html`
+                                    ${templateA}
+                                `,
+                                };
+                            },
+                        )
+                    ).define();
+
+                    const element = document.createElement(name);
+                    const controller = ElementController.forCustomElement(element);
+
+                    const beforeConnect = toHTML(element);
+                    controller.template = html`
+                        ${templateB}
+                    `;
+                    controller.connect();
+                    const afterConnect = toHTML(element);
+
+                    return { beforeConnect, afterConnect };
+                },
+                { templateA, templateB },
+            );
+
+            expect(beforeConnect).toBe("");
+            expect(afterConnect.trim()).toBe("b");
+        });
+
+        test("renders a resolved template to shadow dom in shadow dom mode", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const { beforeConnect, afterConnect } = await page.evaluate(
+                async templateA => {
+                    // @ts-expect-error: Client module.
+                    const {
+                        FASTElement,
+                        FASTElementDefinition,
+                        ElementController,
+                        html,
+                        uniqueElementName,
+                    } = await import("/main.js");
+
+                    const toHTML = (node: Node): string => {
+                        return Array.from(node.childNodes)
+                            .map((x: any) => x.outerHTML || x.textContent)
+                            .join("");
+                    };
+
+                    const name = uniqueElementName();
+                    (
+                        await FASTElementDefinition.compose(
+                            class ControllerTest extends FASTElement {
+                                static definition = { name };
+                                resolveTemplate() {
+                                    return html`
+                                    ${templateA}
+                                `;
+                                }
+                            },
+                        )
+                    ).define();
+
+                    const element = document.createElement(name);
+                    const controller = ElementController.forCustomElement(element);
+
+                    const beforeConnect = toHTML(element.shadowRoot!);
+                    controller.connect();
+                    const afterConnect = toHTML(element.shadowRoot!);
+
+                    return { beforeConnect, afterConnect };
+                },
+                templateA,
+            );
+
+            expect(beforeConnect).toBe("");
+            expect(afterConnect.trim()).toBe("a");
+        });
+
+        test("renders a resolved template to light dom in light dom mode", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const { beforeConnect, afterConnect } = await page.evaluate(
+                async templateA => {
+                    // @ts-expect-error: Client module.
+                    const {
+                        FASTElement,
+                        FASTElementDefinition,
+                        ElementController,
+                        html,
+                        uniqueElementName,
+                    } = await import("/main.js");
+
+                    const toHTML = (node: Node): string => {
+                        return Array.from(node.childNodes)
+                            .map((x: any) => x.outerHTML || x.textContent)
+                            .join("");
+                    };
+
+                    const name = uniqueElementName();
+                    (
+                        await FASTElementDefinition.compose(
+                            class ControllerTest extends FASTElement {
+                                static definition = { name, shadowOptions: null };
+                                resolveTemplate() {
+                                    return html`
+                                    ${templateA}
+                                `;
+                                }
+                            },
+                        )
+                    ).define();
+
+                    const element = document.createElement(name);
+                    const controller = ElementController.forCustomElement(element);
+
+                    const beforeConnect = toHTML(element);
+                    controller.connect();
+                    const afterConnect = toHTML(element);
+
+                    return { beforeConnect, afterConnect };
+                },
+                templateA,
+            );
+
+            expect(beforeConnect).toBe("");
+            expect(afterConnect.trim()).toBe("a");
+        });
+
+        test("renders a template override over a resolved template to shadow dom when set", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const { beforeConnect, afterConnect } = await page.evaluate(
+                async ({ templateA, templateB }) => {
+                    // @ts-expect-error: Client module.
+                    const {
+                        FASTElement,
+                        FASTElementDefinition,
+                        ElementController,
+                        html,
+                        uniqueElementName,
+                    } = await import("/main.js");
+
+                    const toHTML = (node: Node): string => {
+                        return Array.from(node.childNodes)
+                            .map((x: any) => x.outerHTML || x.textContent)
+                            .join("");
+                    };
+
+                    const name = uniqueElementName();
+                    (
+                        await FASTElementDefinition.compose(
+                            class ControllerTest extends FASTElement {
+                                static definition = { name };
+                                resolveTemplate() {
+                                    return html`
+                                    ${templateA}
+                                `;
+                                }
+                            },
+                        )
+                    ).define();
+
+                    const element = document.createElement(name);
+                    const controller = ElementController.forCustomElement(element);
+
+                    const beforeConnect = toHTML(element.shadowRoot!);
+                    controller.template = html`
+                        ${templateB}
+                    `;
+                    controller.connect();
+                    const afterConnect = toHTML(element.shadowRoot!);
+
+                    return { beforeConnect, afterConnect };
+                },
+                { templateA, templateB },
+            );
+
+            expect(beforeConnect).toBe("");
+            expect(afterConnect.trim()).toBe("b");
+        });
+
+        test("renders a template override over a resolved template to light dom when set", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const { beforeConnect, afterConnect } = await page.evaluate(
+                async ({ templateA, templateB }) => {
+                    // @ts-expect-error: Client module.
+                    const {
+                        FASTElement,
+                        FASTElementDefinition,
+                        ElementController,
+                        html,
+                        uniqueElementName,
+                    } = await import("/main.js");
+
+                    const toHTML = (node: Node): string => {
+                        return Array.from(node.childNodes)
+                            .map((x: any) => x.outerHTML || x.textContent)
+                            .join("");
+                    };
+
+                    const name = uniqueElementName();
+                    (
+                        await FASTElementDefinition.compose(
+                            class ControllerTest extends FASTElement {
+                                static definition = { name, shadowOptions: null };
+                                resolveTemplate() {
+                                    return html`
+                                    ${templateA}
+                                `;
+                                }
+                            },
+                        )
+                    ).define();
+
+                    const element = document.createElement(name);
+                    const controller = ElementController.forCustomElement(element);
+
+                    const beforeConnect = toHTML(element);
+                    controller.template = html`
+                        ${templateB}
+                    `;
+                    controller.connect();
+                    const afterConnect = toHTML(element);
+
+                    return { beforeConnect, afterConnect };
+                },
+                { templateA, templateB },
+            );
+
+            expect(beforeConnect).toBe("");
+            expect(afterConnect.trim()).toBe("b");
+        });
+
+        test("sets no styles when none are provided", async ({ page }) => {
+            await page.goto("/");
+
+            const { supportsAdoptedStyleSheets, beforeLength, afterLength } =
+                await page.evaluate(async () => {
+                    // @ts-expect-error: Client module.
+                    const {
+                        FASTElement,
+                        FASTElementDefinition,
+                        ElementController,
+                        ElementStyles,
+                        uniqueElementName,
+                    } = await import("/main.js");
+
+                    if (!ElementStyles.supportsAdoptedStyleSheets) {
+                        return {
+                            supportsAdoptedStyleSheets: false,
+                            beforeLength: 0,
+                            afterLength: 0,
+                        };
+                    }
+
+                    const name = uniqueElementName();
+                    (
+                        await FASTElementDefinition.compose(
+                            class ControllerTest extends FASTElement {
+                                static definition = { name };
+                            },
+                        )
+                    ).define();
+
+                    const element = document.createElement(name);
+                    const controller = ElementController.forCustomElement(element);
+                    const shadowRoot = element.shadowRoot as ShadowRoot & {
+                        adoptedStyleSheets: CSSStyleSheet[];
+                    };
+
+                    const beforeLength = shadowRoot.adoptedStyleSheets.length;
+                    controller.connect();
+                    const afterLength = shadowRoot.adoptedStyleSheets.length;
+
+                    return {
+                        supportsAdoptedStyleSheets: true,
+                        beforeLength,
+                        afterLength,
+                    };
+                });
+
+            if (supportsAdoptedStyleSheets) {
+                expect(beforeLength).toBe(0);
+                expect(afterLength).toBe(0);
+            }
+        });
+
+        test("sets styles when provided", async ({ page }) => {
+            await page.goto("/");
+
+            const { supportsAdoptedStyleSheets, beforeLength, cssText } =
+                await page.evaluate(async cssA => {
+                    // @ts-expect-error: Client module.
+                    const {
+                        FASTElement,
+                        FASTElementDefinition,
+                        ElementController,
+                        ElementStyles,
+                        css,
+                        uniqueElementName,
+                    } = await import("/main.js");
+
+                    if (!ElementStyles.supportsAdoptedStyleSheets) {
+                        return {
+                            supportsAdoptedStyleSheets: false,
+                            beforeLength: 0,
+                            cssText: "",
+                        };
+                    }
+
+                    const stylesA = css`
+                        ${cssA}
+                    `;
+
+                    const name = uniqueElementName();
+                    (
+                        await FASTElementDefinition.compose(
+                            class ControllerTest extends FASTElement {
+                                static definition = { name, styles: stylesA };
+                            },
+                        )
+                    ).define();
+
+                    const element = document.createElement(name);
+                    const controller = ElementController.forCustomElement(element);
+                    const shadowRoot = element.shadowRoot as ShadowRoot & {
+                        adoptedStyleSheets: CSSStyleSheet[];
+                    };
+
+                    const beforeLength = shadowRoot.adoptedStyleSheets.length;
+                    controller.connect();
+                    const cssText =
+                        shadowRoot.adoptedStyleSheets[0]?.cssRules[0]?.cssText ?? "";
+
+                    return { supportsAdoptedStyleSheets: true, beforeLength, cssText };
+                }, cssA);
+
+            if (supportsAdoptedStyleSheets) {
+                expect(beforeLength).toBe(0);
+                expect(cssText).toBe(cssA);
+            }
+        });
+
+        test("renders style override when set", async ({ page }) => {
+            await page.goto("/");
+
+            const { supportsAdoptedStyleSheets, beforeLength, cssText } =
+                await page.evaluate(
+                    async ({ cssA, cssB }) => {
+                        // @ts-expect-error: Client module.
+                        const {
+                            FASTElement,
+                            FASTElementDefinition,
+                            ElementController,
+                            ElementStyles,
+                            css,
+                            uniqueElementName,
+                        } = await import("/main.js");
+
+                        if (!ElementStyles.supportsAdoptedStyleSheets) {
+                            return {
+                                supportsAdoptedStyleSheets: false,
+                                beforeLength: 0,
+                                cssText: "",
+                            };
+                        }
+
+                        const stylesA = css`
+                            ${cssA}
+                        `;
+                        const stylesB = css`
+                            ${cssB}
+                        `;
+
+                        const name = uniqueElementName();
+                        (
+                            await FASTElementDefinition.compose(
+                                class ControllerTest extends FASTElement {
+                                    static definition = { name, styles: stylesA };
+                                },
+                            )
+                        ).define();
+
+                        const element = document.createElement(name);
+                        const controller = ElementController.forCustomElement(element);
+                        const shadowRoot = element.shadowRoot as ShadowRoot & {
+                            adoptedStyleSheets: CSSStyleSheet[];
+                        };
+
+                        const beforeLength = shadowRoot.adoptedStyleSheets.length;
+                        controller.mainStyles = stylesB;
+                        controller.connect();
+                        const cssText =
+                            shadowRoot.adoptedStyleSheets[0]?.cssRules[0]?.cssText ?? "";
+
+                        return {
+                            supportsAdoptedStyleSheets: true,
+                            beforeLength,
+                            cssText,
+                        };
+                    },
+                    { cssA, cssB },
+                );
+
+            if (supportsAdoptedStyleSheets) {
+                expect(beforeLength).toBe(0);
+                expect(cssText).toBe(cssB);
+            }
+        });
+
+        test("renders resolved styles", async ({ page }) => {
+            await page.goto("/");
+
+            const { supportsAdoptedStyleSheets, beforeLength, cssText } =
+                await page.evaluate(async cssA => {
+                    // @ts-expect-error: Client module.
+                    const {
+                        FASTElement,
+                        FASTElementDefinition,
+                        ElementController,
+                        ElementStyles,
+                        css,
+                        uniqueElementName,
+                    } = await import("/main.js");
+
+                    if (!ElementStyles.supportsAdoptedStyleSheets) {
+                        return {
+                            supportsAdoptedStyleSheets: false,
+                            beforeLength: 0,
+                            cssText: "",
+                        };
+                    }
+
+                    const stylesA = css`
+                        ${cssA}
+                    `;
+
+                    const name = uniqueElementName();
+                    (
+                        await FASTElementDefinition.compose(
+                            class ControllerTest extends FASTElement {
+                                static definition = { name };
+                                resolveStyles() {
+                                    return stylesA;
+                                }
+                            },
+                        )
+                    ).define();
+
+                    const element = document.createElement(name);
+                    const controller = ElementController.forCustomElement(element);
+                    const shadowRoot = element.shadowRoot as ShadowRoot & {
+                        adoptedStyleSheets: CSSStyleSheet[];
+                    };
+
+                    const beforeLength = shadowRoot.adoptedStyleSheets.length;
+                    controller.connect();
+                    const cssText =
+                        shadowRoot.adoptedStyleSheets[0]?.cssRules[0]?.cssText ?? "";
+
+                    return { supportsAdoptedStyleSheets: true, beforeLength, cssText };
+                }, cssA);
+
+            if (supportsAdoptedStyleSheets) {
+                expect(beforeLength).toBe(0);
+                expect(cssText).toBe(cssA);
+            }
+        });
+
+        test("renders a style override over a resolved style", async ({ page }) => {
+            await page.goto("/");
+
+            const { supportsAdoptedStyleSheets, beforeLength, cssText } =
+                await page.evaluate(
+                    async ({ cssA, cssB }) => {
+                        // @ts-expect-error: Client module.
+                        const {
+                            FASTElement,
+                            FASTElementDefinition,
+                            ElementController,
+                            ElementStyles,
+                            css,
+                            uniqueElementName,
+                        } = await import("/main.js");
+
+                        if (!ElementStyles.supportsAdoptedStyleSheets) {
+                            return {
+                                supportsAdoptedStyleSheets: false,
+                                beforeLength: 0,
+                                cssText: "",
+                            };
+                        }
+
+                        const stylesA = css`
+                            ${cssA}
+                        `;
+                        const stylesB = css`
+                            ${cssB}
+                        `;
+
+                        const name = uniqueElementName();
+                        (
+                            await FASTElementDefinition.compose(
+                                class ControllerTest extends FASTElement {
+                                    static definition = { name };
+                                    resolveStyles() {
+                                        return stylesA;
+                                    }
+                                },
+                            )
+                        ).define();
+
+                        const element = document.createElement(name);
+                        const controller = ElementController.forCustomElement(element);
+                        const shadowRoot = element.shadowRoot as ShadowRoot & {
+                            adoptedStyleSheets: CSSStyleSheet[];
+                        };
+
+                        const beforeLength = shadowRoot.adoptedStyleSheets.length;
+                        controller.mainStyles = stylesB;
+                        controller.connect();
+                        const cssText =
+                            shadowRoot.adoptedStyleSheets[0]?.cssRules[0]?.cssText ?? "";
+
+                        return {
+                            supportsAdoptedStyleSheets: true,
+                            beforeLength,
+                            cssText,
+                        };
+                    },
+                    { cssA, cssB },
+                );
+
+            if (supportsAdoptedStyleSheets) {
+                expect(beforeLength).toBe(0);
+                expect(cssText).toBe(cssB);
+            }
+        });
+    });
+
+    test.describe("after connect", () => {
+        test("can dynamically change the template in shadow dom mode", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const { beforeConnect, afterConnect, afterChange } = await page.evaluate(
+                async ({ templateA, templateB }) => {
+                    // @ts-expect-error: Client module.
+                    const {
+                        FASTElement,
+                        FASTElementDefinition,
+                        ElementController,
+                        html,
+                        uniqueElementName,
+                    } = await import("/main.js");
+
+                    const toHTML = (node: Node): string => {
+                        return Array.from(node.childNodes)
+                            .map((x: any) => x.outerHTML || x.textContent)
+                            .join("");
+                    };
+
+                    const name = uniqueElementName();
+                    (
+                        await FASTElementDefinition.compose(
+                            class ControllerTest extends FASTElement {
+                                static definition = {
+                                    name,
+                                    template: html`
+                                    ${templateA}
+                                `,
+                                };
+                            },
+                        )
+                    ).define();
+
+                    const element = document.createElement(name);
+                    const controller = ElementController.forCustomElement(element);
+
+                    const beforeConnect = toHTML(element.shadowRoot!);
+                    controller.connect();
+                    const afterConnect = toHTML(element.shadowRoot!);
+                    controller.template = html`
+                        ${templateB}
+                    `;
+                    const afterChange = toHTML(element.shadowRoot!);
+
+                    return { beforeConnect, afterConnect, afterChange };
+                },
+                { templateA, templateB },
+            );
+
+            expect(beforeConnect).toBe("");
+            expect(afterConnect.trim()).toBe("a");
+            expect(afterChange.trim()).toBe("b");
+        });
+
+        test("can dynamically change the template in light dom mode", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const { beforeConnect, afterConnect, afterChange } = await page.evaluate(
+                async ({ templateA, templateB }) => {
+                    // @ts-expect-error: Client module.
+                    const {
+                        FASTElement,
+                        FASTElementDefinition,
+                        ElementController,
+                        html,
+                        uniqueElementName,
+                    } = await import("/main.js");
+
+                    const toHTML = (node: Node): string => {
+                        return Array.from(node.childNodes)
+                            .map((x: any) => x.outerHTML || x.textContent)
+                            .join("");
+                    };
+
+                    const name = uniqueElementName();
+                    (
+                        await FASTElementDefinition.compose(
+                            class ControllerTest extends FASTElement {
+                                static definition = {
+                                    name,
+                                    shadowOptions: null,
+                                    template: html`
+                                    ${templateA}
+                                `,
+                                };
+                            },
+                        )
+                    ).define();
+
+                    const element = document.createElement(name);
+                    const controller = ElementController.forCustomElement(element);
+
+                    const beforeConnect = toHTML(element);
+                    controller.connect();
+                    const afterConnect = toHTML(element);
+                    controller.template = html`
+                        ${templateB}
+                    `;
+                    const afterChange = toHTML(element);
+
+                    return { beforeConnect, afterConnect, afterChange };
+                },
+                { templateA, templateB },
+            );
+
+            expect(beforeConnect).toBe("");
+            expect(afterConnect.trim()).toBe("a");
+            expect(afterChange.trim()).toBe("b");
+        });
+
+        test("can dynamically change the styles", async ({ page }) => {
+            await page.goto("/");
+
+            const {
+                supportsAdoptedStyleSheets,
+                beforeLength,
+                cssTextAfterConnect,
+                cssTextAfterChange,
+                lengthAfterChange,
+            } = await page.evaluate(
+                async ({ cssA, cssB }) => {
+                    // @ts-expect-error: Client module.
+                    const {
+                        FASTElement,
+                        FASTElementDefinition,
+                        ElementController,
+                        ElementStyles,
+                        css,
+                        uniqueElementName,
+                    } = await import("/main.js");
+
+                    if (!ElementStyles.supportsAdoptedStyleSheets) {
+                        return {
+                            supportsAdoptedStyleSheets: false,
+                            beforeLength: 0,
+                            cssTextAfterConnect: "",
+                            cssTextAfterChange: "",
+                            lengthAfterChange: 0,
+                        };
+                    }
+
+                    const stylesA = css`
+                        ${cssA}
+                    `;
+                    const stylesB = css`
+                        ${cssB}
+                    `;
+
+                    const name = uniqueElementName();
+                    (
+                        await FASTElementDefinition.compose(
+                            class ControllerTest extends FASTElement {
+                                static definition = { name, styles: stylesA };
+                            },
+                        )
+                    ).define();
+
+                    const element = document.createElement(name);
+                    const controller = ElementController.forCustomElement(element);
+                    const shadowRoot = element.shadowRoot as ShadowRoot & {
+                        adoptedStyleSheets: CSSStyleSheet[];
+                    };
+
+                    const beforeLength = shadowRoot.adoptedStyleSheets.length;
+                    controller.connect();
+                    const cssTextAfterConnect =
+                        shadowRoot.adoptedStyleSheets[0]?.cssRules[0]?.cssText ?? "";
+                    controller.mainStyles = stylesB;
+                    const lengthAfterChange = shadowRoot.adoptedStyleSheets.length;
+                    const cssTextAfterChange =
+                        shadowRoot.adoptedStyleSheets[0]?.cssRules[0]?.cssText ?? "";
+
+                    return {
+                        supportsAdoptedStyleSheets: true,
+                        beforeLength,
+                        cssTextAfterConnect,
+                        cssTextAfterChange,
+                        lengthAfterChange,
+                    };
+                },
+                { cssA, cssB },
+            );
+
+            if (supportsAdoptedStyleSheets) {
+                expect(beforeLength).toBe(0);
+                expect(cssTextAfterConnect).toBe(cssA);
+                expect(lengthAfterChange).toBe(1);
+                expect(cssTextAfterChange).toBe(cssB);
+            }
+        });
+    });
+
+    test("should use itself as the notifier", async ({ page }) => {
+        await page.goto("/");
+
+        const isNotifier = await page.evaluate(async () => {
+            // @ts-expect-error: Client module.
+            const {
+                FASTElement,
+                FASTElementDefinition,
+                ElementController,
+                Observable,
+                uniqueElementName,
+            } = await import("/main.js");
+
+            const name = uniqueElementName();
+            (
+                await FASTElementDefinition.compose(
+                    class ControllerTest extends FASTElement {
+                        static definition = { name };
+                    },
+                )
+            ).define();
+
+            const element = document.createElement(name);
+            const controller = ElementController.forCustomElement(element);
+            const notifier = Observable.getNotifier(controller);
+
+            return notifier === controller;
+        });
+
+        expect(isNotifier).toBe(true);
+    });
+
+    test("should have an observable isConnected property", async ({ page }) => {
+        await page.goto("/");
+
+        const { initialAttached, afterAppend, afterRemove } = await page.evaluate(
+            async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    Observable,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const name = uniqueElementName();
+                (
+                    await FASTElementDefinition.compose(
+                        class ControllerTest extends FASTElement {
+                            static definition = { name };
+                        },
+                    )
+                ).define();
+
+                const element = document.createElement(name);
+                const controller = ElementController.forCustomElement(element);
+
+                let attached = controller.isConnected;
+                const handler = {
+                    handleChange: () => {
+                        attached = controller.isConnected;
+                    },
+                };
+                Observable.getNotifier(controller).subscribe(handler, "isConnected");
+
+                const initialAttached = attached;
+                document.body.appendChild(element);
+                const afterAppend = attached;
+                document.body.removeChild(element);
+                const afterRemove = attached;
+
+                return { initialAttached, afterAppend, afterRemove };
+            },
+        );
+
+        expect(initialAttached).toBe(false);
+        expect(afterAppend).toBe(true);
+        expect(afterRemove).toBe(false);
+    });
+
+    test("should raise cancelable custom events by default", async ({ page }) => {
+        await page.goto("/");
+
+        const cancelable = await page.evaluate(async () => {
+            // @ts-expect-error: Client module.
+            const {
+                FASTElement,
+                FASTElementDefinition,
+                ElementController,
+                uniqueElementName,
+            } = await import("/main.js");
+
+            const name = uniqueElementName();
+            (
+                await FASTElementDefinition.compose(
+                    class ControllerTest extends FASTElement {
+                        static definition = { name };
+                    },
+                )
+            ).define();
+
+            const element = document.createElement(name);
+            const controller = ElementController.forCustomElement(element);
+
+            let cancelable = false;
+            controller.connect();
+            element.addEventListener("my-event", (e: Event) => {
+                cancelable = e.cancelable;
+            });
+
+            controller.emit("my-event");
+
+            return cancelable;
+        });
+
+        expect(cancelable).toBe(true);
+    });
+
+    test("should raise bubble custom events by default", async ({ page }) => {
+        await page.goto("/");
+
+        const bubbles = await page.evaluate(async () => {
+            // @ts-expect-error: Client module.
+            const {
+                FASTElement,
+                FASTElementDefinition,
+                ElementController,
+                uniqueElementName,
+            } = await import("/main.js");
+
+            const name = uniqueElementName();
+            (
+                await FASTElementDefinition.compose(
+                    class ControllerTest extends FASTElement {
+                        static definition = { name };
+                    },
+                )
+            ).define();
+
+            const element = document.createElement(name);
+            const controller = ElementController.forCustomElement(element);
+
+            let bubbles = false;
+            controller.connect();
+            element.addEventListener("my-event", (e: Event) => {
+                bubbles = e.bubbles;
+            });
+
+            controller.emit("my-event");
+
+            return bubbles;
+        });
+
+        expect(bubbles).toBe(true);
+    });
+
+    test("should raise composed custom events by default", async ({ page }) => {
+        await page.goto("/");
+
+        const composed = await page.evaluate(async () => {
+            // @ts-expect-error: Client module.
+            const {
+                FASTElement,
+                FASTElementDefinition,
+                ElementController,
+                uniqueElementName,
+            } = await import("/main.js");
+
+            const name = uniqueElementName();
+            (
+                await FASTElementDefinition.compose(
+                    class ControllerTest extends FASTElement {
+                        static definition = { name };
+                    },
+                )
+            ).define();
+
+            const element = document.createElement(name);
+            const controller = ElementController.forCustomElement(element);
+
+            let composed = false;
+            controller.connect();
+            element.addEventListener("my-event", (e: Event) => {
+                composed = e.composed;
+            });
+
+            controller.emit("my-event");
+
+            return composed;
+        });
+
+        expect(composed).toBe(true);
+    });
+
+    test("should attach and detach the HTMLStyleElement supplied to styles.add() and styles.remove() to the shadowRoot", async ({
+        page,
+    }) => {
+        await page.goto("/");
+
+        const { beforeAdd, afterAdd, afterRemove } = await page.evaluate(
+            async templateA => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    html,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const name = uniqueElementName();
+                (
+                    await FASTElementDefinition.compose(
+                        class ControllerTest extends FASTElement {
+                            static definition = {
+                                name,
+                                shadowOptions: { mode: "open" },
+                                template: html`
+                                ${templateA}
+                            `,
+                            };
+                        },
+                    )
+                ).define();
+
+                const element = document.createElement(name);
+                const controller = ElementController.forCustomElement(element);
+
+                const style = document.createElement("style") as HTMLStyleElement;
+                const beforeAdd = element.shadowRoot?.contains(style) ?? false;
+
+                controller.addStyles(style);
+                const afterAdd = element.shadowRoot?.contains(style) ?? false;
+
+                controller.removeStyles(style);
+                const afterRemove = element.shadowRoot?.contains(style) ?? false;
+
+                return { beforeAdd, afterAdd, afterRemove };
+            },
+            templateA,
+        );
+
+        expect(beforeAdd).toBe(false);
+        expect(afterAdd).toBe(true);
+        expect(afterRemove).toBe(false);
+    });
+
+    test("should not throw if DOM stringified", async ({ page }) => {
+        await page.goto("/");
+
+        const didThrow = await page.evaluate(async () => {
+            // @ts-expect-error: Client module.
+            const {
+                FASTElement,
+                FASTElementDefinition,
+                ElementController,
+                uniqueElementName,
+            } = await import("/main.js");
+
+            const name = uniqueElementName();
+            (
+                await FASTElementDefinition.compose(
+                    class ControllerTest extends FASTElement {
+                        static definition = { name };
+                    },
+                )
+            ).define();
+
+            const element = document.createElement(name);
+            ElementController.forCustomElement(element);
+
+            try {
+                JSON.stringify(element);
+                return false;
+            } catch {
+                return true;
+            }
+        });
+
+        expect(didThrow).toBe(false);
+    });
+
+    test.describe("with behaviors", () => {
+        test("should bind all behaviors added prior to connection, during connection", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const { beforeConnect, afterConnect } = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const name = uniqueElementName();
+                (
+                    await FASTElementDefinition.compose(
+                        class ControllerTest extends FASTElement {
+                            static definition = { name };
+                        },
+                    )
+                ).define();
+
+                const element = document.createElement(name) as any;
+                const controller = ElementController.forCustomElement(element);
+
+                const behaviors = [
+                    {
+                        bound: false,
+                        connectedCallback() {
+                            this.bound = true;
+                        },
+                        disconnectedCallback() {
+                            this.bound = false;
+                        },
+                    },
+                    {
+                        bound: false,
+                        connectedCallback() {
+                            this.bound = true;
+                        },
+                        disconnectedCallback() {
+                            this.bound = false;
+                        },
+                    },
+                    {
+                        bound: false,
+                        connectedCallback() {
+                            this.bound = true;
+                        },
+                        disconnectedCallback() {
+                            this.bound = false;
+                        },
+                    },
+                ];
+                behaviors.forEach(x => controller.addBehavior(x));
+
+                const beforeConnect = behaviors.map(x => x.bound);
+
+                document.body.appendChild(element);
+                const afterConnect = behaviors.map(x => x.bound);
+
+                document.body.removeChild(element);
+                return { beforeConnect, afterConnect };
+            });
+
+            expect(beforeConnect).toEqual([false, false, false]);
+            expect(afterConnect).toEqual([true, true, true]);
+        });
+
+        test("should bind a behavior B that is added to the Controller by behavior A, where A is added prior to connection and B is added during A's bind()", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const childBehaviorBound = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const name = uniqueElementName();
+                (
+                    await FASTElementDefinition.compose(
+                        class ControllerTest extends FASTElement {
+                            static definition = { name };
+                        },
+                    )
+                ).define();
+
+                const element = document.createElement(name) as any;
+                const controller = ElementController.forCustomElement(element);
+
+                let childBound = false;
+                controller.addBehavior({
+                    addedCallback(ctrl: any) {
+                        ctrl.addBehavior({
+                            connectedCallback() {
+                                childBound = true;
+                            },
+                        });
+                    },
+                });
+
+                document.body.appendChild(element);
+                const result = childBound;
+                document.body.removeChild(element);
+                return result;
+            });
+
+            expect(childBehaviorBound).toBe(true);
+        });
+
+        test("should disconnect a behavior B that is added to the Controller by behavior A, where A removes B during disconnection", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const childDisconnected = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const name = uniqueElementName();
+                (
+                    await FASTElementDefinition.compose(
+                        class ControllerTest extends FASTElement {
+                            static definition = { name };
+                        },
+                    )
+                ).define();
+
+                const element = document.createElement(name) as any;
+                const controller = ElementController.forCustomElement(element);
+
+                let childDisconnectCalled = false;
+                const childBehavior = {
+                    disconnectedCallback() {
+                        childDisconnectCalled = true;
+                    },
+                };
+
+                controller.addBehavior({
+                    connectedCallback(ctrl: any) {
+                        ctrl.addBehavior(childBehavior);
+                    },
+                    disconnectedCallback(ctrl: any) {
+                        ctrl.removeBehavior(childBehavior);
+                    },
+                });
+
+                controller.connect();
+                controller.disconnect();
+                return childDisconnectCalled;
+            });
+
+            expect(childDisconnected).toBe(true);
+        });
+
+        test("should unbind a behavior only when the behavior is removed the number of times it has been added", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const results = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const name = uniqueElementName();
+                (
+                    await FASTElementDefinition.compose(
+                        class ControllerTest extends FASTElement {
+                            static definition = { name };
+                        },
+                    )
+                ).define();
+
+                const element = document.createElement(name) as any;
+                const controller = ElementController.forCustomElement(element);
+
+                const behavior = {
+                    bound: false,
+                    connectedCallback() {
+                        this.bound = true;
+                    },
+                    disconnectedCallback() {
+                        this.bound = false;
+                    },
+                };
+
+                document.body.appendChild(element);
+
+                controller.addBehavior(behavior);
+                controller.addBehavior(behavior);
+                controller.addBehavior(behavior);
+
+                const afterAdd3 = behavior.bound;
+                controller.removeBehavior(behavior);
+                const afterRemove1 = behavior.bound;
+                controller.removeBehavior(behavior);
+                const afterRemove2 = behavior.bound;
+                controller.removeBehavior(behavior);
+                const afterRemove3 = behavior.bound;
+
+                document.body.removeChild(element);
+                return { afterAdd3, afterRemove1, afterRemove2, afterRemove3 };
+            });
+
+            expect(results.afterAdd3).toBe(true);
+            expect(results.afterRemove1).toBe(true);
+            expect(results.afterRemove2).toBe(true);
+            expect(results.afterRemove3).toBe(false);
+        });
+
+        test("should unbind a behavior whenever the behavior is removed with the force argument", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const results = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    FASTElement,
+                    FASTElementDefinition,
+                    ElementController,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const name = uniqueElementName();
+                (
+                    await FASTElementDefinition.compose(
+                        class ControllerTest extends FASTElement {
+                            static definition = { name };
+                        },
+                    )
+                ).define();
+
+                const element = document.createElement(name) as any;
+                const controller = ElementController.forCustomElement(element);
+
+                const behavior = {
+                    bound: false,
+                    connectedCallback() {
+                        this.bound = true;
+                    },
+                    disconnectedCallback() {
+                        this.bound = false;
+                    },
+                };
+
+                document.body.appendChild(element);
+
+                controller.addBehavior(behavior);
+                controller.addBehavior(behavior);
+
+                const afterAdd = behavior.bound;
+                controller.removeBehavior(behavior, true);
+                const afterForceRemove = behavior.bound;
+
+                document.body.removeChild(element);
+                return { afterAdd, afterForceRemove };
+            });
+
+            expect(results.afterAdd).toBe(true);
+            expect(results.afterForceRemove).toBe(false);
+        });
+    });
+
+    test.describe("with late-defined attributes", () => {
+        test("syncs late attributes and filters late attribute observation", async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const result = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const {
+                    AttributeMap,
+                    FASTElement,
+                    FASTElementDefinition,
+                    Schema,
+                    html,
+                    uniqueElementName,
+                } = await import("/main.js");
+
+                const NativeMutationObserver = window.MutationObserver;
+                const observeOptions: Array<{
+                    attributes?: boolean;
+                    attributeFilter?: string[];
+                }> = [];
+                const callbackAttributes: Array<string | null> = [];
+                let callbackCount = 0;
+
+                class FilteringMutationObserver extends NativeMutationObserver {
+                    constructor(callback: MutationCallback) {
+                        super((records, observer) => {
+                            callbackCount++;
+                            callbackAttributes.push(
+                                ...records.map(record => record.attributeName),
+                            );
+                            callback(records, observer);
+                        });
+                    }
+
+                    observe(target: Node, options?: MutationObserverInit): void {
+                        observeOptions.push({
+                            attributes: options?.attributes,
+                            attributeFilter: options?.attributeFilter
+                                ? [...options.attributeFilter]
+                                : undefined,
+                        });
+                        super.observe(target, options);
+                    }
+                }
+
+                (window as any).MutationObserver = FilteringMutationObserver;
+
+                try {
+                    class LateAttributeElement extends FASTElement {}
+
+                    const name = uniqueElementName();
+                    const definition = await FASTElementDefinition.compose(
+                        LateAttributeElement,
+                        {
+                            name,
+                            template: html<any>`<span>${x => x.lateValue}</span>`,
+                        },
+                    );
+
+                    definition.define();
+
+                    const schema = new Schema(name);
+                    schema.addPath({
+                        rootPropertyName: "lateValue",
+                        pathConfig: {
+                            type: "default",
+                            parentContext: null,
+                            currentContext: null,
+                            path: "lateValue",
+                        },
+                        childrenMap: null,
+                    });
+                    new AttributeMap(
+                        LateAttributeElement.prototype,
+                        schema,
+                        definition,
+                    ).defineProperties();
+
+                    const element = document.createElement(name) as any;
+                    element.setAttribute("late-value", "initial");
+                    document.body.appendChild(element);
+                    await new Promise(resolve => requestAnimationFrame(resolve));
+
+                    const initialProperty = element.lateValue;
+                    const initialText = element.shadowRoot?.textContent ?? "";
+
+                    element.setAttribute("unrelated", "noise");
+                    await new Promise(resolve => setTimeout(resolve, 0));
+
+                    const callbacksAfterUnrelated = callbackCount;
+                    const attributesAfterUnrelated = [...callbackAttributes];
+
+                    element.setAttribute("late-value", "updated");
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                    await new Promise(resolve => requestAnimationFrame(resolve));
+
+                    return {
+                        attributesAfterUnrelated,
+                        callbackAttributes,
+                        callbacksAfterLate: callbackCount,
+                        callbacksAfterUnrelated,
+                        initialProperty,
+                        initialText,
+                        observeOptions,
+                        updatedProperty: element.lateValue,
+                        updatedText: element.shadowRoot?.textContent ?? "",
+                    };
+                } finally {
+                    (window as any).MutationObserver = NativeMutationObserver;
+                }
+            });
+
+            expect(result.initialProperty).toBe("initial");
+            expect(result.initialText).toContain("initial");
+            expect(result.observeOptions).toContainEqual({
+                attributes: true,
+                attributeFilter: ["late-value"],
+            });
+            expect(result.callbacksAfterUnrelated).toBe(0);
+            expect(result.attributesAfterUnrelated).toEqual([]);
+            expect(result.callbacksAfterLate).toBe(1);
+            expect(result.callbackAttributes).toEqual(["late-value"]);
+            expect(result.updatedProperty).toBe("updated");
+            expect(result.updatedText).toContain("updated");
+        });
+    });
+
+    test.describe("with pre-existing shadow dom on the host", () => {
+        test("re-renders the view during connect", async ({ page }) => {
+            await page.goto("/");
+
+            const innerHTML = await page.evaluate(async () => {
+                // @ts-expect-error: Client module.
+                const { FASTElement, FASTElementDefinition, html, uniqueElementName } =
+                    await import("/main.js");
+
+                const name = uniqueElementName();
+                const element = document.createElement(name);
+                const root = element.attachShadow({ mode: "open" });
+                root.innerHTML = "Test 1";
+
+                document.body.append(element);
+
+                (
+                    await FASTElementDefinition.compose(
+                        class TestElement extends FASTElement {
+                            static definition = {
+                                name,
+                                template: html`Test 2`,
+                            };
+                        },
+                    )
+                ).define();
+
+                const result = root.innerHTML;
+                document.body.removeChild(element);
+                return result;
+            });
+
+            expect(innerHTML).toBe("Test 2");
+        });
+    });
+
+    test("should ensure proper invocation order of state, rendering, and behaviors during connection and disconnection", async ({
+        page,
+    }) => {
+        await page.goto("/");
+
+        const order = await page.evaluate(async () => {
+            // @ts-expect-error: Client module.
+            const {
+                FASTElement,
+                FASTElementDefinition,
+                ElementController,
+                Observable,
+                html,
+                uniqueElementName,
+            } = await import("/main.js");
+
+            const orderLog: string[] = [];
+            const name = uniqueElementName();
+
+            const template = new Proxy(html``, {
+                get(target: any, p: any, receiver: any) {
+                    if (p === "render") {
+                        orderLog.push("template rendered");
+                    }
+                    return Reflect.get(target, p, receiver);
+                },
+            });
+
+            class Test extends FASTElement {
+                observed: boolean;
+                observedChanged() {
+                    if (this.observed) {
+                        orderLog.push("observables bound");
+                    }
+                }
+            }
+
+            Observable.defineProperty(Test.prototype, "observed");
+            // Set the default via the internal backing field so that the
+            // change handler doesn't fire on the prototype itself. The
+            // @observable decorator does this automatically.
+            (Test.prototype as any)._observed = true;
+
+            (
+                await FASTElementDefinition.compose(
+                    class extends Test {
+                        static definition = { name, template };
+                    },
+                )
+            ).define();
+
+            const element = document.createElement(name) as any;
+            const controller = ElementController.forCustomElement(element);
+            Observable.getNotifier(controller).subscribe(
+                {
+                    handleChange() {
+                        orderLog.push(`isConnected set ${controller.isConnected}`);
+                    },
+                },
+                "isConnected",
+            );
+            controller.addBehavior({
+                connectedCallback() {
+                    orderLog.push("parent behavior connected");
+                    controller.addBehavior({
+                        connectedCallback() {
+                            orderLog.push("child behavior connected");
+                        },
+                        disconnectedCallback() {
+                            orderLog.push("child behavior disconnected");
+                        },
+                    });
+                },
+                disconnectedCallback() {
+                    orderLog.push("parent behavior disconnected");
+                },
+            });
+
+            controller.connect();
+            controller.disconnect();
+
+            return orderLog;
+        });
+
+        expect(order[0]).toBe("observables bound");
+        expect(order[1]).toBe("parent behavior connected");
+        expect(order[2]).toBe("child behavior connected");
+        expect(order[3]).toBe("template rendered");
+        expect(order[4]).toBe("isConnected set true");
+        expect(order[5]).toBe("isConnected set false");
+        expect(order[6]).toBe("parent behavior disconnected");
+        expect(order[7]).toBe("child behavior disconnected");
+    });
+});

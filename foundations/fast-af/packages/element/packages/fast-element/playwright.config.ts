@@ -1,0 +1,27 @@
+import { defineConfig, devices } from "@playwright/test";
+
+export default defineConfig({
+    testDir: ".",
+    testMatch: "**/*.pw.spec.ts",
+    maxFailures: process.env.CI ? 1 : 0,
+    retries: 3,
+    projects: [
+        {
+            name: "chromium",
+            use: { ...devices["Desktop Chrome"] },
+        },
+        {
+            name: "firefox",
+            use: { ...devices["Desktop Firefox"] },
+        },
+        {
+            name: "webkit",
+            use: { ...devices["Desktop Safari"] },
+        },
+    ],
+    webServer: {
+        command: "npm run test-server",
+        port: 5173,
+        reuseExistingServer: true,
+    },
+});

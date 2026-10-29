@@ -2,6 +2,7 @@ packages:
   - "packages/*"
   - "foundations/*"
   - "foundations/*/packages/*"
+  - "foundations/fast-af/packages/element/packages/fast-element"
   - "foundations/afd/typescript/*"
   - "integrations/*"
   - "endpoints/*"

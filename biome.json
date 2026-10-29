@@ -15,6 +15,7 @@
 			"!**/_generated",
 			"!**/alfred",
 			"!**/site",
+			"!!foundations/fast-af",
 			"!endpoints/botcore/provenance/*.json",
 			"!foundations/specimen/provenance/*.json",
 			"!endpoints/botcore/src/botcore/provenance/*.json",

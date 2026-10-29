@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "family": "fast-af",
+  "source_repository": "https://github.com/lushly-dev/fast-af",
+  "source_revision": "dc3a2b98edb2d60a1162b142523e839d2b686e57",
+  "source_branch_at_selection": "main",
+  "source_readback": "Fresh clone at the selected revision on 2026-10-28. Main had since advanced by one Dependabot commit, d5079dc7fedaa4a4fdad2b78b65f588cb87e9d4d (fast-element devDependency @ast-grep/cli ^0.37.0 to ^0.51.0 and its lockfile), which is not imported",
+  "in_flight_source_changes": [
+    {
+      "ref": "main d5079dc7fedaa4a4fdad2b78b65f588cb87e9d4d",
+      "touches": [
+        "packages/element/packages/fast-element/package.json"
+      ],
+      "summary": "chore(deps-dev): bump @ast-grep/cli from 0.37.0 to 0.51.0 (#186)"
+    },
+    {
+      "ref": "PR #232 head d9864fe12f",
+      "touches": [
+        "packages/violet-elements"
+      ],
+      "summary": "feat(violet): message-media image error fallback and allowed-origins policy (also regenerates custom-elements.json and attribute-taxonomy.jsonc)"
+    },
+    {
+      "ref": "PR #230 head c0a0733056",
+      "touches": [
+        "packages/violet-elements"
+      ],
+      "summary": "fix(violet): lay out the color-picker panel only while open"
+    },
+    {
+      "ref": "PR #185 head 36d1062c9b",
+      "touches": [
+        "packages/element/packages/fast-element/package.json"
+      ],
+      "summary": "chore(deps-dev): bump vite from 5.4.21 to 8.3.5"
+    }
+  ],
+  "in_flight_reconciliation": "Reconcile these, and every later upstream change to the selected paths, before any source or publisher cutover. Upstream .changeset holds 45 pending fragments for these packages; they were not imported and remain upstream release intent",
+  "staged_candidate": {
+    "description": "Disposable staging directory outside the repository prepared by another agent; candidate evidence, not upstream identity",
+    "receipt_sha256": "7ad119898bde61a5ff2ff0287bd96eb1e00f281462229f789cdd58a8f28ccc4b",
+    "source_file_manifest_sha256": "3162364bab4a479ac3f2e9c8a9643fe68dbdc8ffd18cf7835836f11e96b1a8c2",
+    "artifact_inventory_sha256": "c92e7217b582df92e8bc17c756c2d1eebea70f1f673c8b344db06d04011ebfee",
+    "maintained_source_archive_sha256": "6c9a6472f7846d0e742409d0d0cb8380643a548c1e03f115b25f14ec5bf61e05",
+    "not_imported": {
+      "AGENTS.md": "Upstream repository instructions cover excluded scope and upstream gates; AFD AGENTS.md and this README route the imported packages",
+      "STAGING.md": "Staging record",
+      "package.json": "Standalone staging root; replaced by the AFD workspace root",
+      "pnpm-lock.yaml": "Replaced by the AFD lockfile",
+      "pnpm-workspace.yaml": "Replaced by the AFD workspace",
+      "scripts/check-v3-pack-consumer.mjs": "Upstream root tooling; tests/consumers/fast-af covers and extends it",
+      "consumer/": "Staged consumer; replaced by tests/consumers/fast-af"
+    }
+  },
+  "records": {
+    "upstream": {
+      "manifest": "upstream-selected.json",
+      "sha256": "a58f87fb5a4acf20e44b7cb1d241aa801896a4ed681914f8aa3a859e188d96f4"
+    },
+    "adaptations": {
+      "manifest": "adaptations.json",
+      "sha256": "68f3f1d6c2ae9917055c03e12369c59d00b15667c6d1fa4991460e962b2c15d6"
+    }
+  },
+  "units": [
+    {
+      "name": "@lushly-dev/fast-element",
+      "layer": "foundation",
+      "path": "foundations/fast-af/packages/element/packages/fast-element"
+    },
+    {
+      "name": "@lushly-dev/violet-elements",
+      "layer": "foundation",
+      "path": "foundations/fast-af/packages/violet-elements",
+      "private": true
+    }
+  ],
+  "interpretation": "upstream-selected.json describes upstream bytes only. adaptations.json records upstream to staged and staged to imported transitions for every imported file. Imported paths are foundations/fast-af/ plus the upstream path, except the violet Vitest config derived from the upstream root config",
+  "license": "MIT (Lushly Dev root license; Microsoft FAST MIT for packages/element); see LICENSE and NOTICE.md",
+  "source_authority": "https://github.com/lushly-dev/fast-af",
+  "publisher_authority": "original FAST-AF repository: Changesets version records and manual package-level publication; no publish workflow, tags or releases; no handoff authorized",
+  "publication_state": "quarantined",
+  "compatibility_holds": [
+    "Violet web keeps its patched FAST archives (a989bfb3030272d381c3416364fc466b0c7738ef, patch digest 49e69e2): this source lacks their host-font inheritance, segment spacing and ./dist/* exports; no equivalence is claimed",
+    "Component declarations keep extensionless ESM specifiers: bundler resolution is supported, NodeNext component types are not claimed",
+    "Component sourcemaps reference TypeScript sources that are not packed",
+    "No package may publish under a Microsoft or other upstream namespace; the upstream-named router stays excluded"
+  ]
+}
