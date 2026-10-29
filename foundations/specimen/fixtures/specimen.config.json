@@ -1,0 +1,184 @@
+{
+	"specimens": [
+		{
+			"id": "frame-updated",
+			"title": "Feasibility/FrameUpdated",
+			"module": "./probe.stories.ts",
+			"exportName": "FrameUpdated"
+		},
+		{
+			"id": "baseline",
+			"title": "Feasibility/Baseline",
+			"module": "./probe.stories.ts",
+			"exportName": "Baseline"
+		},
+		{
+			"id": "padded",
+			"title": "Feasibility/Padded",
+			"module": "./probe.stories.ts",
+			"exportName": "Padded"
+		},
+		{
+			"id": "unchecked",
+			"title": "Feasibility/Unchecked",
+			"module": "./probe.stories.ts",
+			"exportName": "Unchecked"
+		},
+		{
+			"id": "checked",
+			"title": "Feasibility/Checked",
+			"module": "./probe.stories.ts",
+			"exportName": "Checked"
+		},
+		{
+			"id": "activated",
+			"title": "Feasibility/Activated",
+			"module": "./probe.stories.ts",
+			"exportName": "Activated"
+		},
+		{
+			"id": "named",
+			"title": "Feasibility/Named",
+			"module": "./probe.stories.ts",
+			"exportName": "Named"
+		},
+		{
+			"id": "renamed",
+			"title": "Feasibility/Renamed",
+			"module": "./probe.stories.ts",
+			"exportName": "Renamed"
+		},
+		{
+			"id": "generated-one",
+			"title": "Feasibility/GeneratedOne",
+			"module": "./probe.stories.ts",
+			"exportName": "GeneratedOne"
+		},
+		{
+			"id": "generated-two",
+			"title": "Feasibility/GeneratedTwo",
+			"module": "./probe.stories.ts",
+			"exportName": "GeneratedTwo"
+		},
+		{
+			"id": "broken-relationship",
+			"title": "Feasibility/BrokenRelationship",
+			"module": "./probe.stories.ts",
+			"exportName": "BrokenRelationship"
+		},
+		{
+			"id": "spacious",
+			"title": "Feasibility/Spacious",
+			"module": "./probe.stories.ts",
+			"exportName": "Spacious"
+		},
+		{
+			"id": "clipped",
+			"title": "Feasibility/Clipped",
+			"module": "./probe.stories.ts",
+			"exportName": "Clipped"
+		},
+		{
+			"id": "interactive",
+			"title": "Feasibility/Interactive",
+			"module": "./probe.stories.ts",
+			"exportName": "Interactive"
+		},
+		{
+			"id": "viewport",
+			"title": "Feasibility/Viewport",
+			"module": "./probe.stories.ts",
+			"exportName": "Viewport"
+		},
+		{
+			"id": "canvas",
+			"title": "Feasibility/Canvas",
+			"module": "./probe.stories.ts",
+			"exportName": "Canvas"
+		},
+		{
+			"id": "closed",
+			"title": "Feasibility/Closed",
+			"module": "./probe.stories.ts",
+			"exportName": "Closed"
+		},
+		{
+			"id": "async-ready",
+			"title": "Feasibility/AsyncReady",
+			"module": "./probe.stories.ts",
+			"exportName": "AsyncReady"
+		},
+		{
+			"id": "readiness-failure",
+			"title": "Feasibility/ReadinessFailure",
+			"module": "./probe.stories.ts",
+			"exportName": "ReadinessFailure"
+		},
+		{
+			"id": "readiness-timeout",
+			"title": "Feasibility/ReadinessTimeout",
+			"module": "./probe.stories.ts",
+			"exportName": "ReadinessTimeout"
+		},
+		{
+			"id": "disposal-failure",
+			"title": "Feasibility/DisposalFailure",
+			"module": "./probe.stories.ts",
+			"exportName": "DisposalFailure"
+		},
+		{
+			"id": "unrelated",
+			"title": "Feasibility/Unrelated",
+			"module": "./unrelated.stories.ts",
+			"exportName": "Unrelated"
+		},
+		{
+			"id": "animated",
+			"title": "Feasibility/Animated",
+			"module": "./probe.stories.ts",
+			"exportName": "Animated"
+		},
+		{
+			"id": "unsupported-play",
+			"title": "Feasibility/UnsupportedPlay",
+			"module": "./probe.stories.ts",
+			"exportName": "UnsupportedPlay"
+		},
+		{
+			"id": "unsupported-slots",
+			"title": "Feasibility/UnsupportedSlots",
+			"module": "./probe.stories.ts",
+			"exportName": "UnsupportedSlots"
+		},
+		{
+			"id": "unsupported-expectation",
+			"title": "Feasibility/UnsupportedExpectation",
+			"module": "./probe.stories.ts",
+			"exportName": "UnsupportedExpectation"
+		},
+		{
+			"id": "unsupported-command",
+			"title": "Feasibility/UnsupportedCommand",
+			"module": "./probe.stories.ts",
+			"exportName": "UnsupportedCommand"
+		},
+		{
+			"id": "body-animated",
+			"title": "Feasibility/BodyAnimated",
+			"module": "./probe.stories.ts",
+			"exportName": "BodyAnimated"
+		},
+		{
+			"id": "html-animated",
+			"title": "Feasibility/HtmlAnimated",
+			"module": "./probe.stories.ts",
+			"exportName": "HtmlAnimated"
+		},
+		{
+			"id": "declarative-closed",
+			"title": "Feasibility/DeclarativeClosed",
+			"module": "./probe.stories.ts",
+			"exportName": "DeclarativeClosed"
+		}
+	]
+}

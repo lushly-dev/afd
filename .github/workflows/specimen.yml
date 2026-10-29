@@ -1,0 +1,58 @@
+name: Specimen
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'foundations/specimen/**'
+      - 'integrations/specimen-afd/**'
+      - 'endpoints/specimen-cli/**'
+      - 'tests/consumers/specimen/**'
+      - 'packages/core/**'
+      - 'packages/server/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/specimen.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'foundations/specimen/**'
+      - 'integrations/specimen-afd/**'
+      - 'endpoints/specimen-cli/**'
+      - 'tests/consumers/specimen/**'
+      - 'packages/core/**'
+      - 'packages/server/**'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/specimen.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-and-consumers:
+    name: Specimen Chromium suite and packed consumers
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -F "@lushly-dev/specimen-cli..." build
+      - run: pnpm -F @lushly-dev/specimen exec playwright install --with-deps chromium
+      - name: Full native suite (unit, resource, process-worker and Chromium)
+        run: pnpm -F @lushly-dev/specimen test:browser
+      - name: Integration and endpoint suites
+        run: pnpm -F @lushly-dev/specimen-afd -F @lushly-dev/specimen-cli test
+      - name: Packed-artifact consumers outside the workspace
+        run: node tests/consumers/specimen/verify-artifacts.mjs --output "$RUNNER_TEMP/specimen-receipt"
+      - name: Upload consumer receipt
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: specimen-artifact-receipt
+          path: ${{ runner.temp }}/specimen-receipt/
+          retention-days: 7

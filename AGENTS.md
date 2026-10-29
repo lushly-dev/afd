@@ -22,6 +22,7 @@ from application LLM selection in `integrate-llms`.
 | `pnpm typecheck` | TypeScript type checking |
 | `pnpm check` | TypeScript quality gate (lint + build + typecheck + test:coverage) — mirrors `ci.yml` exactly |
 | `pnpm test:hosted:local` | Credential-free HTTPS/OAuth, Convex fixture and durable REST/view-state checks (Node 24, OpenSSL and Chromium) |
+| `pnpm test:specimen` | Specimen full Chromium suite and packed-artifact consumers outside the workspace (Node 24, Chromium) |
 | `pnpm changeset` | Create a changeset describing your change and its semver impact |
 | `pnpm version-packages` | Consume changesets, bump versions, update CHANGELOGs |
 | `pnpm release:select` | Inspect eligible pending npm release units |
@@ -53,6 +54,9 @@ packages/
 python/  # Python AFD package (pip install afd) — CommandResult, MCP server/client, middleware, validation, telemetry, batch/streaming, testing, handoff
 alfred/  # Quality bot — lint, parity, quality (see alfred/AGENTS.md)
 endpoints/botcore/  # Reusable Python tooling and managed host; imported units remain quarantined
+foundations/specimen/       # @lushly-dev/specimen — native component observation bench (no AFD dependency); quarantined
+integrations/specimen-afd/  # @lushly-dev/specimen-afd — AFD command bindings for Specimen; quarantined
+endpoints/specimen-cli/     # @lushly-dev/specimen-cli — the `specimen` JSON CLI; quarantined
 ```
 
 ## Key Conventions
@@ -69,7 +73,7 @@ endpoints/botcore/  # Reusable Python tooling and managed host; imported units r
 
 **Principle: for TypeScript, lefthook IS the CI pipeline.** `pnpm check` runs the exact same steps as the `CI` workflow (`ci.yml`). If it passes locally, that workflow passes remotely.
 
-Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/rust/`), C++ (`packages/cpp/`) or alfred. Each has its own path-filtered workflow, listed below. The TypeScript, Python, Rust and C++ todo example backends all run the shared conformance suite in `conformance.yml`.
+Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/rust/`), C++ (`packages/cpp/`), alfred or Specimen's Chromium suite (`pnpm check` runs only its browser-free subset). Each has its own path-filtered workflow, listed below. The TypeScript, Python, Rust and C++ todo example backends all run the shared conformance suite in `conformance.yml`.
 
 | Layer | When | What |
 |-------|------|------|
@@ -83,12 +87,14 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 | **Conformance** (`conformance.yml`) | Push to main / PR touching the todo example, `packages/server`, `packages/core`, `packages/rust`, `packages/cpp`, `python/` or the lockfile | Todo example: Python backend pytest, Rust backend fmt/clippy/test, C++ backend build/test, then the 34-case conformance suite against the TypeScript, Python, Rust and C++ backends |
 | **Alfred** (`alfred.yml`) | Push to main / PR touching Alfred, Botcore, its controller inputs or AFD language surfaces | ruff, pytest (including parity budgets and managed-host/controller fixtures), isolated wheel smoke |
 | **Botcore** (`botcore.yml`) | Push to main / PR touching `endpoints/botcore/**` or `python/**` | Python 3.11/3.12 core tests, Ruff, frozen lock, six-distribution asset/provenance/wheel checks; optional stateful integrations remain quarantined |
+| **Specimen** (`specimen.yml`) | Push to main / PR touching the three Specimen units, `tests/consumers/specimen`, `packages/core`, `packages/server` or the lockfile | Node 24, Chromium; full native suite (`test:browser`), integration/CLI suites, packed-artifact consumers (native-only, integration present/absent/unavailable, missing/incompatible peers) |
 | **Local hosted-test fixtures** (`hosted-fixtures.yml`) | Path-filtered auth/persistence/runtime/tooling changes; manual dispatch | Node 24, Chromium, `pnpm test:hosted:local`; no external services or credentials; not hosted-provider evidence |
 | **Release** (GitHub Actions) | Push to main | `pnpm check` → Changesets opens a version PR or publishes to npm |
 
 **Key rules:**
 - Always run `pnpm check` before pushing — catches everything `ci.yml` would catch
 - The pre-push `test` step does not install or build, and packages import each other's `dist`: after pulling `main` run `pnpm install`, and after changing a package another one imports run `pnpm build` (or `pnpm check`), before `git push`, or the hook fails on stale output
+- Changed a Specimen unit? `pnpm check` runs only its browser-free tests; also run `pnpm test:specimen` (Chromium required). Edits to imported Specimen files must update `foundations/specimen/provenance/adaptations.json`, or the tooling tests fail.
 - Changed `python/`, `packages/rust/` or `packages/cpp/`? `pnpm check` does not test them. Run the commands from `python.yml`, `rust.yml` or `cpp.yml` locally (`cd python && uv run pytest -q`; `cd packages/rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test`; `cd packages/cpp && cmake --preset dev && cmake --build --preset dev && ctest --preset dev`)
 - Workflow actions are pinned to full commit SHAs with a `# vX.Y.Z` comment; Dependabot updates them
 - Changesets manages versioning — run `pnpm changeset` to describe publishable package changes

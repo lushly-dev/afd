@@ -91,6 +91,21 @@
 			]
 		},
 		{
+			"manifest": "foundations/specimen/package.json",
+			"family": "specimen",
+			"layer": "foundation"
+		},
+		{
+			"manifest": "integrations/specimen-afd/package.json",
+			"family": "specimen",
+			"layer": "integration"
+		},
+		{
+			"manifest": "endpoints/specimen-cli/package.json",
+			"family": "specimen",
+			"layer": "endpoint"
+		},
+		{
 			"manifest": "alfred/pyproject.toml",
 			"family": "alfred",
 			"layer": "endpoint",

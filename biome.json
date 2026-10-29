@@ -16,6 +16,7 @@
 			"!**/alfred",
 			"!**/site",
 			"!endpoints/botcore/provenance/*.json",
+			"!foundations/specimen/provenance/*.json",
 			"!endpoints/botcore/src/botcore/provenance/*.json",
 			"!spec/wire/*.json"
 		]

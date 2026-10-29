@@ -60,6 +60,102 @@ importers:
         specifier: ^4.1.11
         version: 4.1.11(@types/node@25.9.5)(@vitest/coverage-v8@4.1.11)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@25.9.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
 
+  endpoints/specimen-cli:
+    dependencies:
+      '@lushly-dev/afd-core':
+        specifier: workspace:^2.2.0
+        version: link:../../packages/core
+      '@lushly-dev/afd-server':
+        specifier: workspace:^2.2.0
+        version: link:../../packages/server
+      '@lushly-dev/specimen':
+        specifier: workspace:^2.2.0
+        version: link:../../foundations/specimen
+      '@lushly-dev/specimen-afd':
+        specifier: workspace:^2.2.0
+        version: link:../../integrations/specimen-afd
+      zod:
+        specifier: ^4.6.6
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.5
+        version: 25.9.5
+      '@vitest/coverage-v8':
+        specifier: ^4.1.11
+        version: 4.1.11(vitest@4.1.11)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@25.9.5)(@vitest/coverage-v8@4.1.11)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@25.9.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
+
+  foundations/specimen:
+    dependencies:
+      parse5:
+        specifier: ^8.0.0
+        version: 8.0.1
+      playwright:
+        specifier: ^1.64.0
+        version: 1.64.0
+      vite:
+        specifier: ^8.3.0
+        version: 8.3.0(@types/node@25.9.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0)
+      zod:
+        specifier: ^4.6.6
+        version: 4.6.7
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.5
+        version: 25.9.5
+      '@vitest/coverage-v8':
+        specifier: ^4.1.11
+        version: 4.1.11(vitest@4.1.11)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@25.9.5)(@vitest/coverage-v8@4.1.11)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@25.9.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
+
+  integrations/specimen-afd:
+    dependencies:
+      zod:
+        specifier: ^4.6.6
+        version: 4.6.7
+    devDependencies:
+      '@lushly-dev/afd-core':
+        specifier: workspace:^2.2.0
+        version: link:../../packages/core
+      '@lushly-dev/afd-server':
+        specifier: workspace:^2.2.0
+        version: link:../../packages/server
+      '@lushly-dev/specimen':
+        specifier: workspace:^2.2.0
+        version: link:../../foundations/specimen
+      '@types/node':
+        specifier: ^25.9.5
+        version: 25.9.5
+      '@vitest/coverage-v8':
+        specifier: ^4.1.11
+        version: 4.1.11(vitest@4.1.11)
+      rimraf:
+        specifier: ^6.1.3
+        version: 6.1.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.11
+        version: 4.1.11(@types/node@25.9.5)(@vitest/coverage-v8@4.1.11)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@25.9.5)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.0))
+
   packages/adapters:
     devDependencies:
       '@lushly-dev/afd-core':
