@@ -1021,7 +1021,7 @@ test('recovery keeps known uploads adopted even if later registry listings regre
 		sourceRevision: plan.sourceRevision,
 		current: '@fixture/b',
 	};
-	f.evidence[1].versions.push('1.0.0');
+	// Prove the uncertain blob directly even while its version listing is stale.
 	const proof = reconcilePublication({
 		root: f.root,
 		plan,
@@ -1072,7 +1072,10 @@ test('reconciliation rejects wrong evidence and uncertain missing or mismatched 
 		() => reconcilePublication({ ...options, receipt: { ...prior, binding: 'wrong' } }),
 		/exact held/
 	);
-	assert.throws(() => reconcilePublication(options), /Uncertain upload is absent/);
+	assert.throws(
+		() => reconcilePublication({ ...options, readback: () => ({}) }),
+		/missing or uncertain/
+	);
 	assert.throws(
 		() => reconcilePublication({ ...options, registry: () => null }),
 		/Unknown recovery/
