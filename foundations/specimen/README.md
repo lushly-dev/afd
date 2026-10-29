@@ -98,6 +98,8 @@ The static page's Theme control applies CSS color-scheme and theme attributes. F
 
 See [implementation status](../../docs/features/active/specimens/implementation.md) for the current acceptance boundary and remaining proposal gates.
 
+The [warm CPU investigation](../../docs/features/active/specimens/cpu-hotspot-validation.md) records a development-server sourcemap optimization and its separate diagnostic and ordinary resource measurements. Existing maps and source invalidation remain covered by HTTP/browser regressions.
+
 The opt-in [real consumer probes](experiments/README.md) exercise actual FAST-AF and Lushly source with recorded dependency limitations. They are separate from the self-contained package suite and do not establish retained-CSF parity.
 
 ## Unreleased package split

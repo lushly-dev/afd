@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, createServer, type Plugin, type ViteDevServer } from 'vite';
 import { defaultContext, type LoadedConfig } from './config.js';
@@ -52,10 +52,31 @@ export async function startBenchServer(
 			if (id === '\0specimen-entry') return entrySource(config, runtime);
 		},
 	};
+	const cachedDevMaps: Plugin = {
+		name: 'afd-specimen-cached-dev-maps',
+		apply: 'serve',
+		enforce: 'post',
+		async transform(code, id) {
+			const file = id.split(/[?#]/, 1)[0];
+			if (!file || !isAbsolute(file) || !/\.[cm]?js$/.test(file)) return null;
+			// Vite can remove external map comments during load. Compare the original
+			// file too, leaving existing maps and earlier code transforms untouched.
+			if (/sourceMappingURL\s*=/.test(code)) return null;
+			const original = await readFile(file, 'utf8').catch(() => null);
+			if (original !== code) return null;
+			const map = this.getCombinedSourcemap();
+			if (map.sources.length !== 1 || map.sources[0] !== file || map.sourcesContent?.[0] !== code)
+				return null;
+			// Vite discards a transform's map when its code equals the loaded code.
+			// One trailing newline preserves JS behavior (including terminal comments)
+			// while making Vite retain this fallback map in its normal transform cache.
+			return { code: `${code}\n`, map };
+		},
+	};
 	const server = await createServer({
 		configFile: false,
 		root,
-		plugins: [plugin],
+		plugins: [plugin, cachedDevMaps],
 		// The HTML references a virtual entry; scan its actual import roots before
 		// dynamic specimen loading can discover dependencies and reload the page.
 		optimizeDeps: { entries: [runtime, ...new Set(Object.values(config.modules))] },

@@ -45,11 +45,11 @@
       "upstream_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
       "staged_path": "docs/features/active/specimens/implementation.md",
       "staged_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
-      "current_import_sha256": "404d0e44b59db2457b18eb0ade6e0d1f97a911968a559d4f0574145b5d43191c",
+      "current_import_sha256": "cb129dd06a7548a29c27dbf25a00a659651621f03d2f0f8833302f6df188114c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged"
+      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
     },
     {
       "path": "docs/features/active/specimens/resource-validation.md",
@@ -69,11 +69,11 @@
       "upstream_sha256": "e61a3798dc8310d60087bb0a5202f48f92b12d90a75b6523dfa78b2ae512e298",
       "staged_path": "docs/features/active/specimens/worker-reuse-validation.md",
       "staged_sha256": "e61a3798dc8310d60087bb0a5202f48f92b12d90a75b6523dfa78b2ae512e298",
-      "current_import_sha256": "21f3a4980387f980b72aacf0cd9cd54a112879e3c41a43f20a9d9f96a0315321",
+      "current_import_sha256": "fecdc8620036dd99c0cecad4bba22a5f1de2fdd6b50a19103ef92552fe170129",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged"
+      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
     },
     {
       "path": "docs/features/proposed/specimens/review.md",
@@ -213,11 +213,11 @@
       "upstream_sha256": "3994cd025d5f9b53f0e7ecf77bb36de470db315285468f55bf8dcc58537ffc8b",
       "staged_path": "packages/specimen/README.md",
       "staged_sha256": "19c9331ebd067dd32bee9a8cbf1170434f76327642aeca7d598b73ca3a3db2ca",
-      "current_import_sha256": "2d5cd29246db701c548ea007f15061c1439d3736ab787822ef5530e0b3061402",
+      "current_import_sha256": "33017b750b47921bcf0b0662410fe7e10483be30b23eb7a6b448f1f2367bd5c2",
       "stage_classification": "modified-upstream",
       "stage_reason": "Document the native/integration/endpoint split",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported fixture paths, transition document link and validation routes"
+      "import_reason": "Imported fixture paths, transition document link and validation routes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/README.md",
@@ -225,11 +225,11 @@
       "upstream_sha256": "1679fd7a89642030f5ded5a2fd38701e3c6a745beca1c0565fa709b5c16a329d",
       "staged_path": "packages/specimen/experiments/README.md",
       "staged_sha256": "1679fd7a89642030f5ded5a2fd38701e3c6a745beca1c0565fa709b5c16a329d",
-      "current_import_sha256": "ee011f0aee8bcb7cb73a6db57c4008a34f2ff797bb667ceb40171bbfa0e9bc41",
+      "current_import_sha256": "a57328a17c913320ebae1a9658c725b2144a7fc487a12752e4d9fa45f1f4029e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Driver commands use the imported foundations/specimen path"
+      "import_reason": "Driver commands use the imported foundations/specimen path; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/consumer-project.mjs",
@@ -429,11 +429,11 @@
       "upstream_sha256": "7b9956d592c543c31177f4a2db9b489a0eb4de60e8b8f76dfe69a4718347e085",
       "staged_path": "packages/specimen/experiments/run-batches.mjs",
       "staged_sha256": "7b9956d592c543c31177f4a2db9b489a0eb4de60e8b8f76dfe69a4718347e085",
-      "current_import_sha256": "7b9956d592c543c31177f4a2db9b489a0eb4de60e8b8f76dfe69a4718347e085",
+      "current_import_sha256": "59dbf8700301a7bb3abe40a3e4f3baca8e5285f52bc83d656333b735dc297b54",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/run-consumers.mjs",
@@ -465,11 +465,11 @@
       "upstream_sha256": "1e29e59005896e388e11441efeedbc5adb8ff5f5f1fd80b9083d89d7c54347f1",
       "staged_path": "packages/specimen/experiments/run-resources.mjs",
       "staged_sha256": "1e29e59005896e388e11441efeedbc5adb8ff5f5f1fd80b9083d89d7c54347f1",
-      "current_import_sha256": "1e29e59005896e388e11441efeedbc5adb8ff5f5f1fd80b9083d89d7c54347f1",
+      "current_import_sha256": "78e6dd88c1c658fad122fe2d8714cb56cd81ecfddf875d98a8750cbcf462e21d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
     },
     {
       "path": "foundations/specimen/fixtures/probe.stories.ts",
@@ -717,11 +717,11 @@
       "upstream_sha256": "ddc2168f8868ca4d9e977230eee607f3cd926454dffb4b32eb94cb350151352b",
       "staged_path": "packages/specimen/src/lifecycle.test.ts",
       "staged_sha256": "ddc2168f8868ca4d9e977230eee607f3cd926454dffb4b32eb94cb350151352b",
-      "current_import_sha256": "ddc2168f8868ca4d9e977230eee607f3cd926454dffb4b32eb94cb350151352b",
+      "current_import_sha256": "3ead8c2921aadfc584b5bf9c4eaf03be36ad9c973aec00192412ab3d703a9f5e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
     },
     {
       "path": "foundations/specimen/src/normalize.test.ts",
@@ -789,11 +789,11 @@
       "upstream_sha256": "48dee057969b44303f9b2bdfda342552e55b708aeda89c509641b9ecb2a17b8e",
       "staged_path": "packages/specimen/src/vite.ts",
       "staged_sha256": "48dee057969b44303f9b2bdfda342552e55b708aeda89c509641b9ecb2a17b8e",
-      "current_import_sha256": "48dee057969b44303f9b2bdfda342552e55b708aeda89c509641b9ecb2a17b8e",
+      "current_import_sha256": "80e3f7209717c132e6122e02eef6724876403bf45671cda42cc4445a6ded9d3e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
     },
     {
       "path": "foundations/specimen/tsconfig.json",
@@ -950,6 +950,54 @@
       "stage_reason": "Candidate staging tool or record, not upstream source",
       "import_classification": "derived-from-staging",
       "import_reason": "Packed-artifact consumers re-rooted on the AFD workspace; receipt written outside the repository; exact peer assertions and an incompatible AFD core case added"
+    },
+    {
+      "path": "docs/features/active/specimens/cpu-hotspot-validation.md",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "2515a624796bd0d6936dafbb5e5ff3e9909b52b03356094c1bf37e19d085e6aa",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Warm Node CPU profiling diagnostics and regression/measurement evidence; native unit remains quarantined; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/resources/cpu-profile-control.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "89f3f72b9db95047a24e49e19e82aa8b57d3a7cf294372a641ad57487c50e583",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Warm Node CPU profiling diagnostics and regression/measurement evidence; native unit remains quarantined"
+    },
+    {
+      "path": "foundations/specimen/experiments/resources/cpu-profile-preload.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "62574cf9879348adb4b0bed0d1df39d46207573c05e00e29fcef830b54fe50a8",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Warm Node CPU profiling diagnostics and regression/measurement evidence; native unit remains quarantined"
+    },
+    {
+      "path": "foundations/specimen/experiments/resources/cpu-profile.test.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "2d9c2e2fba9defd19a6f3586d7f1ed7ff2f46a8fd0db9957b663ec7437b3452c",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Warm Node CPU profiling diagnostics and regression/measurement evidence; native unit remains quarantined"
     }
   ]
 }

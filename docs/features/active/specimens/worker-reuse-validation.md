@@ -56,7 +56,7 @@ FAST-AF's CPU premium persisted after the first round. For rounds 2–10, sample
 
 Lushly's Node role CPU was also higher with isolation in both pairs, but browser CPU varied enough to reverse the whole-job ranking. Role/phase counters are sampled lower bounds and must not be added to or subtracted from waited totals. The `batch` phase encloses `render`, so their CPU counters overlap.
 
-The supported policy is to reuse an opt-in isolated bench across related captures and explicitly close it at the end of a run. This amortizes startup relative to restarting each round and retains memory recovery on close. Keep in-process execution as the default: FAST-AF has a remaining measured CPU premium, Lushly ordering is inconsistent, and active peaks are higher with isolation. The next performance investigation should profile the already-started worker's Node path before selecting a transport or serialization change. Long-lived worker recycling, concurrent capacity and a broader component suite still require separate evidence.
+The supported policy is to reuse an opt-in isolated bench across related captures and explicitly close it at the end of a run. This amortizes startup relative to restarting each round and retains memory recovery on close. Keep in-process execution as the default: FAST-AF has a remaining measured CPU premium, Lushly ordering is inconsistent, and active peaks are higher with isolation. The follow-up [warm Node CPU investigation](cpu-hotspot-validation.md) identified repeated Vite fallback-map generation and tested cached maps, without changing worker transport or shutdown. Long-lived worker recycling, concurrent capacity and a broader component suite still require separate evidence.
 
 ## Review and evidence
 

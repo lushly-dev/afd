@@ -9,6 +9,7 @@ import { pathToFileURL } from 'node:url';
 import { prepareConsumerProject, readGitState } from './consumer-project.mjs';
 import fastAf from './fast-af.fixture.mjs';
 import lushly from './lushly.fixture.mjs';
+import { createCpuProfileControl } from './resources/cpu-profile-control.mjs';
 
 const args = process.argv.slice(2);
 const supported = new Set([
@@ -41,6 +42,10 @@ if (!['in-process', 'process'].includes(runtimeIsolation)) {
 	throw new Error('SPECIMEN_BENCH_ISOLATION must be in-process or process');
 }
 const resourceEvents = process.env.SPECIMEN_RESOURCE_EVENTS;
+const cpuProfileDirectory = process.env.SPECIMEN_CPU_PROFILE_DIRECTORY;
+if (cpuProfileDirectory && (batches < 2 || lifetime !== 'reuse'))
+	throw new Error('CPU profiling requires at least two batches and lifetime reuse');
+const cpuProfiler = createCpuProfileControl(cpuProfileDirectory, runtimeIsolation);
 const resourceIdleMs = resourceEvents ? Number(process.env.SPECIMEN_RESOURCE_IDLE_MS ?? '1000') : 0;
 if (!Number.isInteger(resourceIdleMs) || resourceIdleMs < 0 || resourceIdleMs > 10_000) {
 	throw new Error('SPECIMEN_RESOURCE_IDLE_MS must be an integer from 0 to 10000');
@@ -140,6 +145,9 @@ const report = {
 		retention:
 			'Only the current batch observations are retained in memory; full captures saved for first and last batches',
 		context: 'Fresh browser context per render through the bench API',
+		cpuProfiling: cpuProfileDirectory
+			? 'Diagnostic rounds 2..N only; excluded from ordinary CPU/memory acceptance'
+			: 'disabled',
 	},
 	consumers: [result],
 };
@@ -224,6 +232,7 @@ try {
 	});
 	if (lifetime === 'reuse') await openBench(1);
 	for (let batchIndex = 1; batchIndex <= batches; batchIndex++) {
+		if (cpuProfiler && batchIndex === 2) result.cpuProfileStarted = await cpuProfiler.start();
 		if (lifetime === 'batch') await openBench(batchIndex);
 		try {
 			result.batches.push(await phase('batch', () => runBatch(batchIndex), { batchIndex }));
@@ -244,6 +253,7 @@ try {
 		}
 		if (result.cleanupErrors.length) break;
 	}
+	if (cpuProfiler) result.cpuProfiles = await cpuProfiler.stop();
 } catch (error) {
 	result.error = errorText(error);
 } finally {
