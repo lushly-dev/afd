@@ -2433,9 +2433,9 @@
       "path": "integrations/violet-afd/src/commands/system/doctor.test.ts",
       "upstream_path": "packages/core/src/commands/system/doctor.test.ts",
       "upstream_sha256": "d6f2d942eb8c0ecd0e629311d92be8710aea0ce56acc11e752c7ae10cd3501fb",
-      "current_import_sha256": "926a88232305bf1963b30d21d12fc145e9b4a74d17169572cbf79fd4ac06cc89",
+      "current_import_sha256": "da96d8321748fe6ac1383e69ee36903415203ebc7175633fa978ebb2d8390384",
       "classification": "adapted",
-      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; the healthy-configuration case expects healthy only on Node 24+, because AFD CI also runs Node 22, where doctor correctly reports the unsupported runtime",
       "candidate": {
         "path": "packages/afd/src/commands/system/doctor.test.ts",
         "sha256": "d6f2d942eb8c0ecd0e629311d92be8710aea0ce56acc11e752c7ae10cd3501fb",

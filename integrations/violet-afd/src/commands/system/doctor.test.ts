@@ -29,7 +29,9 @@ describe('Doctor Command', () => {
 
 		expect(result.success).toBe(true);
 		expect(result.data).toBeDefined();
-		expect(result.data?.healthy).toBe(true);
+		// Healthy only on Violet's supported runtime; AFD's CI also runs Node 22, which doctor rightly flags.
+		const supportedNode = Number.parseInt(process.versions.node.split('.')[0], 10) >= 24;
+		expect(result.data?.healthy).toBe(supportedNode);
 		expect(result.data?.checks).toBeInstanceOf(Array);
 		expect(result.data?.checks.length).toBeGreaterThan(0);
 	});
