@@ -6,6 +6,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadInventory } from './release/control.mjs';
 import { validatePlan } from './release-operations/publish.mjs';
+import { reconcilePublication } from './release-operations/recovery.mjs';
 import { hash, json, run } from './release-operations/shared.mjs';
 
 const intentPath = '.release/npm-intent.json';
@@ -156,7 +157,7 @@ function verifyOwn(key, current, claim, targetUrl) {
 	)
 		throw held('pending claim is not owned by this run attempt');
 }
-function post(options, key, state, targetUrl) {
+function post(options, key, state, targetUrl, recoveryStatusId) {
 	const result = options.api({
 		root: options.root,
 		endpoint: `repos/${repository}/statuses/${key.commit}`,
@@ -164,8 +165,9 @@ function post(options, key, state, targetUrl) {
 			state,
 			context: key.context,
 			target_url: targetUrl,
-			description:
-				state === 'success'
+			description: recoveryStatusId
+				? `Explicit recovery of held status ${recoveryStatusId}; verification pending`
+				: state === 'success'
 					? 'npm upload and finalization verified'
 					: 'npm publication requires reconciliation until complete',
 		},
@@ -200,8 +202,9 @@ export function releaseClaim({
 	command = run,
 	api = githubApi,
 	validate = validatePlan,
+	reconcile = reconcilePublication,
 }) {
-	if (!['inspect', 'acquire', 'complete', 'fail'].includes(action))
+	if (!['inspect', 'acquire', 'complete', 'fail', 'reconcile'].includes(action))
 		throw new Error('Unknown claim action');
 	const options = { root, environment, command, api };
 	const key = identity(options);
@@ -220,6 +223,27 @@ export function releaseClaim({
 		};
 	}
 	const targetUrl = owner(environment);
+	if (action === 'reconcile') {
+		if (
+			current?.state !== 'failure' ||
+			claim?.state !== 'failure' ||
+			claim.statusId !== current.id ||
+			claim.targetUrl !== current.target_url ||
+			claim.targetUrl === targetUrl ||
+			Object.entries(key).some(([name, value]) => claim[name] !== value) ||
+			plan?.sourceRevision !== key.commit ||
+			plan.intentDigest !== key.intentDigest
+		)
+			throw held('recovery does not match the exact failed claim');
+		const reconciliation = reconcile({ root, plan, receipt });
+		if (statuses(options, key)[0]?.id !== current.id)
+			throw held('failed claim changed during reconciliation');
+		return {
+			...post(options, key, 'pending', targetUrl, current.id),
+			recoveredFrom: { statusId: current.id, targetUrl: current.target_url },
+			reconciliation,
+		};
+	}
 	if (action === 'acquire') {
 		if (current) throw held(`existing release claim is ${current.state}`);
 		return post(options, key, 'pending', targetUrl);
@@ -233,6 +257,23 @@ export function releaseClaim({
 			receipt.binding !== plan.binding ||
 			receipt.state !== 'complete' ||
 			receipt.finalization?.state !== 'complete' ||
+			!Array.isArray(plan.artifacts) ||
+			!plan.artifacts.length ||
+			!Array.isArray(receipt.publishedPackages) ||
+			receipt.publishedPackages.length !== plan.artifacts.length ||
+			new Set(receipt.publishedPackages.map((entry) => entry.name)).size !==
+				plan.artifacts.length ||
+			!Array.isArray(receipt.finalization.tags) ||
+			receipt.finalization.tags.length !== plan.artifacts.length ||
+			plan.artifacts.some(
+				(artifact) =>
+					!receipt.publishedPackages.some(
+						(entry) =>
+							entry.name === artifact.name &&
+							entry.version === artifact.version &&
+							entry.tag === `${artifact.name}@${artifact.version}`
+					) || !receipt.finalization.tags.includes(`${artifact.name}@${artifact.version}`)
+			) ||
 			receipt.finalization.head !== command('git', ['rev-parse', 'HEAD'], root).trim()
 		)
 			throw held('publication, finalization, or current intent binding is incomplete');
@@ -251,7 +292,7 @@ export function main(args = process.argv.slice(2)) {
 			options[option]
 		)
 			throw new Error(
-				'Usage: release-claim.mjs inspect|acquire|complete|fail --output <json> [--claim <json> --plan <json> --receipt <json>]'
+				'Usage: release-claim.mjs inspect|acquire|complete|fail|reconcile --output <json> [--claim <json> --plan <json> --receipt <json>]'
 			);
 		options[option] = args.shift();
 	}

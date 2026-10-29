@@ -28,8 +28,9 @@ import {
 	selectRelease,
 	versionSelected,
 } from './release-control.mjs';
-import { dependencyOrder } from './release-operations/prerequisites.mjs';
+import { dependencyOrder, verifyPublished } from './release-operations/prerequisites.mjs';
 import { packedManifest, validatePacked } from './release-operations/publish.mjs';
+import { reconcilePublication } from './release-operations/recovery.mjs';
 import {
 	entryHash,
 	registryNames,
@@ -978,4 +979,109 @@ test('unknown, escaping and symlinked-parent repository inputs fail before workt
 			assert.equal(existsSync(f.artifacts), false);
 			assert.equal(readFileSync(join(outside, 'protected.txt'), 'utf8'), 'protected\n');
 		});
+});
+
+test('verified existing candidate is adopted and tagged without a second upload', (t) => {
+	const f = fixture(t);
+	const plan = build(f);
+	f.evidence.find((entry) => entry.name === '@fixture/a').versions.push('1.0.0');
+	const uploads = [],
+		tags = [];
+	const receipt = publishPlan({
+		root: f.root,
+		plan,
+		receiptFile: f.receipt,
+		registry: registry(f),
+		publisher: (artifact) => uploads.push(artifact.name),
+		tagger: (tag) => tags.push(tag),
+	});
+	assert.deepEqual(uploads, []);
+	assert.deepEqual(tags, ['@fixture/a@1.0.0']);
+	assert.equal(receipt.publishedPackages.length, plan.artifacts.length);
+	assert.equal(receipt.publishedPackages[0].publication, 'previously-published');
+	assert.equal(receipt.verifiedArtifacts.length, 1);
+});
+
+test('recovery keeps known uploads adopted even if later registry listings regress', (t) => {
+	const f = fixture(t, { bState: 'admitted' });
+	f.evidence[1].versions = [];
+	f.inventory.units[0].prerequisites = [{ registry: 'npm', name: '@fixture/b', range: '^1.0.0' }];
+	write(f.root, 'scripts/release/inventory.json', f.inventory);
+	approve(f, ['a', 'b']);
+	const plan = createPublishPlan({
+		root: f.root,
+		selectedUnits: ['a', 'b'],
+		registryEvidence: f.evidence,
+		artifactsDirectory: f.artifacts,
+	});
+	const prior = {
+		state: 'held',
+		binding: plan.binding,
+		intentDigest: plan.intentDigest,
+		sourceRevision: plan.sourceRevision,
+		current: '@fixture/b',
+	};
+	f.evidence[1].versions.push('1.0.0');
+	const proof = reconcilePublication({
+		root: f.root,
+		plan,
+		receipt: prior,
+		registry: registry(f),
+		readback: successfulReadback,
+	});
+	assert.deepEqual(
+		proof.verified.map((a) => a.name),
+		['@fixture/b']
+	);
+	assert.deepEqual(proof.missing, ['@fixture/a']);
+	f.evidence[1].versions = [];
+	const uploads = [],
+		tags = [];
+	const receipt = publishPlan({
+		root: f.root,
+		plan,
+		receiptFile: f.receipt,
+		registry: registry(f),
+		previouslyPublished: proof.verified,
+		publisher: (a) => uploads.push(a.name),
+		tagger: (t) => tags.push(t),
+	});
+	assert.deepEqual(uploads, ['@fixture/a']);
+	assert.deepEqual(tags, ['@fixture/b@1.0.0', '@fixture/a@1.0.0']);
+	assert.equal(receipt.publishedPackages.length, 2);
+	assert.equal(receipt.verifiedArtifacts.length, 2);
+});
+test('reconciliation rejects wrong evidence and uncertain missing or mismatched uploads', (t) => {
+	const f = fixture(t);
+	const plan = build(f);
+	const prior = {
+		state: 'held',
+		binding: plan.binding,
+		intentDigest: plan.intentDigest,
+		sourceRevision: plan.sourceRevision,
+		current: '@fixture/a',
+	};
+	const options = {
+		root: f.root,
+		plan,
+		receipt: prior,
+		registry: registry(f),
+		readback: successfulReadback,
+	};
+	assert.throws(
+		() => reconcilePublication({ ...options, receipt: { ...prior, binding: 'wrong' } }),
+		/exact held/
+	);
+	assert.throws(() => reconcilePublication(options), /Uncertain upload is absent/);
+	assert.throws(
+		() => reconcilePublication({ ...options, registry: () => null }),
+		/Unknown recovery/
+	);
+	f.evidence[0].versions.push('1.0.0');
+	assert.throws(
+		() => reconcilePublication({ ...options, readback: () => ({ name: 'wrong' }) }),
+		/missing or uncertain/
+	);
+	const proof = verifyPublished(plan.artifacts[0], successfulReadback);
+	assert.equal(reconcilePublication(options).verified[0].integrity, proof.integrity);
 });

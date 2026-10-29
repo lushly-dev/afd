@@ -93,12 +93,6 @@ function spy(f, { remote = null, release = null, badIntegrity = false, failRelea
 		state = { remote, release };
 	const command = (program, args, root) => {
 		calls.push([program, ...args]);
-		if (program === 'npm')
-			return JSON.stringify(
-				badIntegrity
-					? 'sha512-wrong'
-					: `sha512-${createHash('sha512').update(readFileSync(f.plan.artifacts[0].file)).digest('base64')}`
-			);
 		if (program === 'git' && args[0] === 'ls-remote')
 			return state.remote ? `${state.remote}\trefs/tags/${f.tag}\n` : '';
 		if (program === 'git' && args[0] === 'push') {
@@ -127,7 +121,21 @@ function spy(f, { remote = null, release = null, badIntegrity = false, failRelea
 		}
 		return run(root, program, args);
 	};
-	return { command, calls, effects, state };
+	return {
+		command,
+		calls,
+		effects,
+		state,
+		readback: (artifact) => ({
+			name: artifact.name,
+			version: artifact.version,
+			dist: {
+				integrity: badIntegrity
+					? 'sha512-wrong'
+					: `sha512-${createHash('sha512').update(readFileSync(artifact.file)).digest('base64')}`,
+			},
+		}),
+	};
 }
 const finalize = (f, s) =>
 	finalizeRelease({
@@ -136,6 +144,7 @@ const finalize = (f, s) =>
 		plan: f.plan,
 		receiptFile: f.receiptFile,
 		command: s.command,
+		readback: s.readback,
 	});
 
 test('verified receipt pushes exact tag then creates release through a literal notes file', (t) => {
@@ -212,7 +221,7 @@ test('fabricated, incomplete, stale and wrong-integrity receipts fail before eff
 	assert.throws(() => finalize(f, s), /Invalid.*receipt/);
 	f.receipt.state = 'complete';
 	const integrity = spy(f, { badIntegrity: true });
-	assert.throws(() => finalize(f, integrity), /integrity differs/);
+	assert.throws(() => finalize(f, integrity), /readback is missing or uncertain/);
 	assert.deepEqual(integrity.effects, []);
 	f.receipt.publishedPackages[0].notes = 'fabricated notes';
 	assert.throws(() => finalize(f, s), /outside the approved plan/);
@@ -249,5 +258,22 @@ test('a local tag moved to another commit fails while the approved HEAD remains 
 	run(f.root, 'git', ['tag', '-fa', f.tag, other, '-m', f.tag]);
 	const s = spy(f);
 	assert.throws(() => finalize(f, s), /Local tag does not resolve to approved candidate/);
+	assert.deepEqual(s.effects, []);
+});
+
+test('empty and duplicate completion receipts cannot finalize', (t) => {
+	const f = fixture(t);
+	const s = spy(f);
+	for (const entries of [[], [f.receipt.publishedPackages[0], f.receipt.publishedPackages[0]]]) {
+		assert.throws(
+			() =>
+				finalizeRelease({
+					...f,
+					receipt: { ...f.receipt, publishedPackages: entries },
+					command: s.command,
+				}),
+			/Invalid/
+		);
+	}
 	assert.deepEqual(s.effects, []);
 });

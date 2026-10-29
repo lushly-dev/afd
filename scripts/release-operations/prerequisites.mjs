@@ -72,23 +72,44 @@ export function dependencyOrder(root, artifacts, metadataFor) {
 	for (const artifact of artifacts) visit(artifact);
 	return ordered;
 }
-export function readPublished(artifact) {
-	return JSON.parse(
+const lookupPublished = (artifact) =>
+	JSON.parse(
 		run(
-			'npm',
+			process.execPath,
 			[
-				'view',
-				`${artifact.name}@${artifact.version}`,
-				'--json',
-				'--registry',
-				registryUrl,
-				...(artifact.name.startsWith('@')
-					? [`--${artifact.name.split('/')[0]}:registry=${registryUrl}`]
-					: []),
+				'--input-type=module',
+				'-e',
+				`
+const [name, version] = process.argv.slice(1);
+const url = new URL(encodeURIComponent(name), ${JSON.stringify(`${registryUrl}/`)});
+url.searchParams.set('afd-readback', Date.now().toString());
+const response = await fetch(url, { signal: AbortSignal.timeout(10000), headers: { 'cache-control': 'no-cache' } });
+if (!response.ok) throw new Error('Registry readback HTTP ' + response.status);
+const metadata = await response.json();
+console.log(JSON.stringify(metadata.versions?.[version] ?? { notVisible: true }));
+`,
+				artifact.name,
+				artifact.version,
 			],
 			process.cwd()
 		)
 	);
+
+/** Retry only an absent version after a successful upload; never retry an upload. */
+export function readPublished(
+	artifact,
+	{
+		lookup = lookupPublished,
+		wait = (milliseconds) =>
+			Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, milliseconds),
+	} = {}
+) {
+	for (let attempt = 0; attempt < 24; attempt++) {
+		const metadata = lookup(artifact);
+		if (metadata?.notVisible !== true) return metadata;
+		if (attempt < 23) wait(5000);
+	}
+	throw new Error(`Registry version is still not visible: ${artifact.name}@${artifact.version}`);
 }
 export function verifyPublished(artifact, readback) {
 	const bytes = readFileSync(artifact.file);

@@ -1245,6 +1245,8 @@ describe('CLI behaviour', () => {
 			);
 			logs.length = 0;
 
+			// Query strictly after fixture writes: audit upper bounds are exclusive.
+			vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 60_000);
 			await run('trends', '--root', 'global', '--since', '2d');
 
 			const out = logs.join('\n');
@@ -1326,6 +1328,8 @@ describe('CLI behaviour', () => {
 			});
 
 			logs.length = 0;
+			// Keep the query's exclusive upper bound later than the snapshot.
+			vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 60_000);
 			await run('trends', '--root', 'global', '--since', '1d');
 			const out = logs.join('\n');
 			expect(out).toMatch(/Day\s+changes\s+open issues\s+recorded/);

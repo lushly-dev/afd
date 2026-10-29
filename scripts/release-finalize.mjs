@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /** Finalize verified npm uploads; never upload packages or overwrite GitHub state. */
-import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import semver from 'semver';
 import { loadInventory } from './release/control.mjs';
+import { readPublished, verifyPublished } from './release-operations/prerequisites.mjs';
 import { notes, validatePlan } from './release-operations/publish.mjs';
-import { json, registryUrl, run } from './release-operations/shared.mjs';
+import { json, run } from './release-operations/shared.mjs';
 
 function verifyRepository(command, root, units) {
 	const inventory = loadInventory(root);
@@ -66,7 +66,14 @@ function verifyRelease(release, entry) {
 	)
 		throw new Error(`Existing GitHub release differs; reconcile ${entry.tag}`);
 }
-export function finalizeRelease({ root, receipt, plan, receiptFile, command = run }) {
+export function finalizeRelease({
+	root,
+	receipt,
+	plan,
+	receiptFile,
+	command = run,
+	readback = readPublished,
+}) {
 	if (!receiptFile) throw new Error('Finalization requires a durable receipt path');
 	if (
 		receipt.state !== 'complete' ||
@@ -74,6 +81,7 @@ export function finalizeRelease({ root, receipt, plan, receiptFile, command = ru
 		receipt.sourceRevision !== plan.sourceRevision ||
 		receipt.intentDigest !== plan.intentDigest ||
 		!Array.isArray(receipt.publishedPackages) ||
+		receipt.publishedPackages.length !== plan.artifacts.length ||
 		receipt.finalization?.state === 'held' ||
 		receipt.finalization?.state === 'running'
 	)
@@ -102,29 +110,7 @@ export function finalizeRelease({ root, receipt, plan, receiptFile, command = ru
 		).trim();
 		if (target !== head)
 			throw new Error(`Local tag does not resolve to approved candidate: ${entry.tag}`);
-		const integrity = createHash('sha512').update(readFileSync(artifact.file)).digest('base64');
-		const registryIntegrity = JSON.parse(
-			command(
-				'npm',
-				[
-					'view',
-					`${entry.name}@${entry.version}`,
-					'dist.integrity',
-					'--json',
-					'--registry',
-					registryUrl,
-					...(entry.name.startsWith('@')
-						? [`--${entry.name.split('/')[0]}:registry=${registryUrl}`]
-						: []),
-				],
-				root
-			)
-		);
-		if (
-			typeof registryIntegrity !== 'string' ||
-			!registryIntegrity.split(/\s+/).includes(`sha512-${integrity}`)
-		)
-			throw new Error(`Published artifact integrity differs: ${entry.name}`);
+		verifyPublished(artifact, readback);
 		const remote = remoteTarget(
 			command(
 				'git',

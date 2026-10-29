@@ -23,6 +23,8 @@ export const testFiles = [
 	'scripts/release-native.test.mjs',
 	'scripts/release-finalize.test.mjs',
 	'scripts/release-claim.test.mjs',
+	'scripts/release-readback.test.mjs',
+	'scripts/release-recovery-approval.test.mjs',
 	'scripts/run-tooling-tests.test.mjs',
 ];
 
