@@ -12,7 +12,7 @@ const mixed = () => JSON.parse(fixture('reports/mixed-status.report.json')) as H
 
 describe('parseReport', () => {
 	it('supports exactly the schema version Health publishes', () => {
-		expect(SUPPORTED_SCHEMA_VERSION).toBe('1.0');
+		expect(SUPPORTED_SCHEMA_VERSION).toBe('1.1');
 	});
 
 	it.each(fixtureNames('reports'))('accepts the Health CLI fixture %s', (name) => {
@@ -26,6 +26,8 @@ describe('parseReport', () => {
 		['unsupported-version.json', 'unsupported-version'],
 		['schema-violation.json', 'schema-mismatch'],
 		['inconsistent-summary.json', 'inconsistent'],
+		['verdict-mismatch.json', 'inconsistent'],
+		['report-1.0.json', 'unsupported-version'],
 	])('rejects %s as %s without a partial report', (name, kind) => {
 		const result = parseReport(fixture(`invalid/${name}`), name);
 		expect(result.ok).toBe(false);
@@ -41,16 +43,26 @@ describe('parseReport', () => {
 			'inconsistent-summary.json',
 			'not-a-report.json',
 			'not-json.json',
+			'report-1.0.json',
 			'schema-violation.json',
 			'unsupported-version.json',
+			'verdict-mismatch.json',
 		]);
 	});
 
 	it('explains schema mismatches by location', () => {
 		const result = parseReport(fixture('invalid/schema-violation.json'), 'bad.json');
 		expect(result.ok ? [] : result.details).toEqual([
-			'outcomes[1].status must be one of: passed, failed, warn, skipped, unavailable, error.',
+			'outcomes[1].status must be one of: passed, failed, warn, skipped, disabled, unavailable, error.',
 			'outcomes[2] is missing remediation.',
+		]);
+	});
+
+	it("rejects a report whose verdict doesn't match its outcomes", () => {
+		const result = parseReport(fixture('invalid/verdict-mismatch.json'), 'v.json');
+		expect(result.ok ? [] : result.details).toEqual([
+			'verdict.status is not_passed, but the outcomes give passed.',
+			'verdict.blocking_count is 1, but the outcomes give 0.',
 		]);
 	});
 

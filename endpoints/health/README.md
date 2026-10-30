@@ -5,7 +5,7 @@ endpoint: the repository it audits needs no AFD, Botcore or Health dependency, a
 the headless audit core uses only the Python standard library.
 
 > **Status:** quarantined import. The distribution identity `lushly-health` 0.1.0 and
-> the import package `botcore_health` are tentative. Nothing here is published, and
+> the import package `lushly_health` are tentative. Nothing here is published, and
 > `scripts/release/inventory.json` holds the `health` unit in quarantine.
 
 ## What it does
@@ -18,10 +18,20 @@ the headless audit core uses only the Python standard library.
   is no implied organization baseline.
 - **Versioned results.** Each outcome carries `schema_version`, a stable `check_id`,
   `target`, `status`, `severity`, `message`, `evidence` and `remediation`. Statuses
-  are `passed`, `failed`, `warn`, `skipped`, `unavailable` and `error`, each with its
-  own summary count. The contract is the JSON Schema
-  [`src/botcore_health/schemas/report-1.0.json`](src/botcore_health/schemas/report-1.0.json),
-  also available as `botcore_health.report_schema()` and `python -m botcore_health schema`.
+  are `passed`, `failed`, `warn`, `skipped` (did not apply to the target), `disabled`
+  (turned off by the policy), `unavailable` and `error`, each with its own summary
+  count. The report also records `generated_at` (UTC, whole seconds) and Health's
+  `verdict`. The contract is the JSON Schema
+  [`src/lushly_health/schemas/report-1.1.json`](src/lushly_health/schemas/report-1.1.json),
+  also available as `lushly_health.report_schema()` and `python -m lushly_health schema`.
+  The earlier [`report-1.0.json`](src/lushly_health/schemas/report-1.0.json) stays
+  available as `report_schema("1.0")`.
+- **One verdict.** `verdict.status` is `passed` only when the report has at least one
+  counted required check and every counted required check passed. Required checks
+  disabled by the policy are not counted; any other non-passing required status,
+  including `skipped`, prevents a pass, and advisory results never affect it. With no
+  counted required checks the verdict is `no_required_checks`, never a pass.
+  `aggregate_verdict()` applies the same rule to any list of outcomes.
 - **Read-only audit.** `audit()` reads the selected targets and returns data. It writes
   nothing, opens no browser, makes no network request, installs nothing and runs no
   project script. The optional `last_commit` check runs a bounded
@@ -34,34 +44,39 @@ the headless audit core uses only the Python standard library.
 ## Use
 
 ```sh
-python -m botcore_health capabilities
-python -m botcore_health audit \
+python -m lushly_health capabilities
+python -m lushly_health audit \
   --target sample ./sample-project typescript \
   --check node_version_alignment --check gitattributes_lf \
   --output-dir ./health-reports
-python -m botcore_health audit --targets my-targets.toml --policy my-policy.toml --fail-on failed,error
+python -m lushly_health audit --targets my-targets.toml --policy my-policy.toml --require-pass
 ```
 
-`--fail-on` makes the exit code 1 when a `required` check has one of the listed
-statuses; otherwise a completed audit exits 0. Invalid selections exit 2.
+`--require-pass` makes the exit code 1 unless the verdict is `passed`. `--fail-on`
+makes it 1 when a `required` check has one of the listed statuses. Otherwise a
+completed audit exits 0. Invalid selections exit 2.
 
-Policy and targets files are TOML or JSON with `schema_version = "1.0"`; relative
+Policy and targets files are TOML or JSON with `schema_version = "1.0"` (configuration
+has its own version, separate from the report's); relative
 target paths resolve against the file's own directory. See
-[`config.py`](src/botcore_health/config.py) for the format.
+[`config.py`](src/lushly_health/config.py) for the format.
 
 ```python
 from pathlib import Path
-from botcore_health import ArtifactScope, Policy, Target, audit, write_report
+from lushly_health import ArtifactScope, Policy, Target, audit, write_report
 
 report = audit(
     (Target("sample", Path("sample-project"), "typescript"),),
-    Policy(("node_version_alignment", "gitattributes_lf"), severity={"gitattributes_lf": "advisory"}),
+    Policy(
+        ("node_version_alignment", "gitattributes_lf"), severity={"gitattributes_lf": "advisory"}
+    ),
 )
+print(report["verdict"]["status"])
 write_report(report, ArtifactScope(Path("health-reports")))
 ```
 
-Reports contain each target's absolute path. Treat them as caller-local data when
-sharing.
+`audit(..., generated_at=datetime)` pins the timestamp for reproducible output. Reports
+contain each target's absolute path. Treat them as caller-local data when sharing.
 
 ## Checks
 
@@ -99,9 +114,11 @@ Install the `botcore` extra for the AFD/Botcore command adapter
 
 ```python
 from botcore import ExecutionContext, build_host
-from botcore_health.commands import host_policies
+from lushly_health.commands import host_policies
 
-host = build_host("tools", ExecutionContext(workspace), plugins=("health",), policies=host_policies())
+host = build_host(
+    "tools", ExecutionContext(workspace), plugins=("health",), policies=host_policies()
+)
 ```
 
 `alfred.host.build_alfred_host(..., plugins=("health",), policies=host_policies())`
@@ -115,8 +132,8 @@ Health's source repository is private. Only reviewed, generic implementation was
 extracted, under MIT, by the owner's authorization; see
 [`provenance/provenance.json`](provenance/provenance.json). Private inventories,
 reports, baselines, history, access configuration, the HTML dashboard and the source
-Git history were not imported. The FAST-AF dashboard that will consume the report
-schema is separate, later work.
+Git history were not imported. The local FAST-AF dashboard for these reports is a
+separate endpoint, [`endpoints/health-dashboard`](../health-dashboard/README.md).
 
 ## Development
 

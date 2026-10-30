@@ -16,12 +16,12 @@ import {
 const mixed = JSON.parse(fixture('reports/mixed-status.report.json')) as HealthReport;
 
 describe('status presentation', () => {
-	it('gives all six statuses distinct words and distinct icon/fill pairs', () => {
+	it('gives all seven statuses distinct words and distinct icon/fill pairs', () => {
 		const looks = STATUSES.map((status) => STATUS_PRESENTATION[status]);
-		expect(new Set(looks.map((look) => look.label)).size).toBe(6);
-		expect(new Set(looks.map((look) => look.icon)).size).toBe(6);
-		expect(new Set(looks.map((look) => `${look.color}/${look.appearance}`)).size).toBe(6);
-		expect(new Set(looks.map((look) => look.rank)).size).toBe(6);
+		expect(new Set(looks.map((look) => look.label)).size).toBe(7);
+		expect(new Set(looks.map((look) => look.icon)).size).toBe(7);
+		expect(new Set(looks.map((look) => `${look.color}/${look.appearance}`)).size).toBe(7);
+		expect(new Set(looks.map((look) => look.rank)).size).toBe(7);
 		for (const status of STATUSES)
 			expect(STATUS_PRESENTATION[status].icon).toBe(`health/${status}`);
 	});

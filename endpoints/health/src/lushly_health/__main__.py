@@ -1,7 +1,8 @@
-"""Standard-library command line: ``python -m botcore_health``.
+"""Standard-library command line: ``python -m lushly_health``.
 
 Exit codes: 0 audit completed, 1 a ``--fail-on`` status was found in a required
-check, 2 invalid selection or configuration.
+check or ``--require-pass`` was given and the verdict is not ``passed``, 2 invalid
+selection or configuration.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from .core import STATUSES, ArtifactScope, Policy, Target, audit, capabilities, 
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m botcore_health", description=__doc__)
+    parser = argparse.ArgumentParser(prog="python -m lushly_health", description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("capabilities", help="Print declared checks and effects")
     commands.add_parser("schema", help="Print the report JSON Schema")
@@ -41,6 +42,11 @@ def _parser() -> argparse.ArgumentParser:
         "--fail-on",
         default="",
         help=f"Comma-separated statuses that fail required checks ({', '.join(STATUSES)})",
+    )
+    run.add_argument(
+        "--require-pass",
+        action="store_true",
+        help="Exit 1 unless the report verdict is passed (checks disabled by policy excluded)",
     )
     return parser
 
@@ -92,7 +98,8 @@ def main(argv: list[str] | None = None) -> int:
         for item in report["outcomes"]
         if item["severity"] == "required" and item["status"] in fail_on
     ]
-    return 1 if failing else 0
+    blocked = options.require_pass and report["verdict"]["status"] != "passed"
+    return 1 if failing or blocked else 0
 
 
 if __name__ == "__main__":

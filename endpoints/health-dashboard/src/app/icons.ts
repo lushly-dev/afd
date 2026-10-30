@@ -15,6 +15,7 @@ export const STATUS_SHAPES: Record<Status, string> = {
 	failed: svg('<path d="M6.5 6.5L17.5 17.5"/><path d="M17.5 6.5L6.5 17.5"/>'),
 	warn: svg('<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12.5"/><path d="M12 16.25V16.5"/>'),
 	skipped: svg('<path d="M5 6.5L10.5 12L5 17.5"/><path d="M12.5 6.5L18 12L12.5 17.5"/>'),
+	disabled: svg('<rect x="4.5" y="4.5" width="15" height="15" rx="3"/><path d="M8.5 12H15.5"/>'),
 	unavailable: svg('<circle cx="12" cy="12" r="8.5"/><path d="M6 18L18 6"/>'),
 	error: svg('<path d="M12 3.5L21 19.5H3Z"/><path d="M12 9.5V14"/><path d="M12 17V17.25"/>'),
 };

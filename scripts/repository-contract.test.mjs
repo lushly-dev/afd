@@ -202,7 +202,7 @@ test('the Health dashboard is a private, route-less endpoint over FAST-AF and th
 		() => assertAdmission({ root: repoRoot, inventory, unit: unit.id, route: 'npm-main' }),
 		/not admitted/
 	);
-	// Runtime edges: FAST-AF only; plus the build-time read of Health's report-1.0 schema.
+	// Runtime edges: FAST-AF only; plus the build-time read of Health's report-1.1 schema.
 	const { dependencies, errors } = checkBoundaries(repoRoot);
 	assert.deepEqual(errors, []);
 	assert.deepEqual(dependencies['@lushly-dev/health-dashboard'], [

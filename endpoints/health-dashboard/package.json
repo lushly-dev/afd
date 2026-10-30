@@ -2,7 +2,7 @@
 	"name": "@lushly-dev/health-dashboard",
 	"version": "0.1.0",
 	"private": true,
-	"description": "Local, static FAST-AF dashboard for Health report-1.0 files",
+	"description": "Local, static FAST-AF dashboard for Health report-1.1 files",
 	"license": "MIT",
 	"type": "module",
 	"engines": {

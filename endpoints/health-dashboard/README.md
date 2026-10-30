@@ -1,6 +1,6 @@
 # Health dashboard
 
-A static, local page for reading Health audit reports (report schema 1.0). You pick
+A static, local page for reading Health audit reports (report schema 1.1). You pick
 or drop report files and it shows each report's targets, every check result and an
 overall verdict. It's an optional endpoint: Health audits and CI run without it, and
 nothing here is installed with Health.
@@ -46,30 +46,33 @@ python3 -m http.server --bind 127.0.0.1 8000 --directory endpoints/health-dashbo
 Create a report with Health, for example:
 
 ```sh
-python -m botcore_health audit --targets targets.toml --policy policy.toml --output-dir health-reports
+python -m lushly_health audit --targets targets.toml --policy policy.toml --output-dir health-reports
 ```
 
 ## What it shows
 
-Per report: the generator and schema, an overall verdict with its reasons, summary
-counts for all six statuses, a targets table with a per-target verdict, and a checks
+Per report: the generator, schema and generation time (UTC), an overall verdict with
+its reasons, summary counts for all seven statuses, a targets table with a per-target verdict, and a checks
 table (status, check, target, severity, message, evidence, remediation) that you can
 filter by status and target and sort.
 
-- **Statuses** `passed`, `failed`, `warn`, `skipped`, `unavailable` and `error` each have
-  their own words, icon and color/fill, so none relies on color. Only `passed` uses the
-  success treatment.
-- **Verdict.** Report 1.0 has no verdict field, so the dashboard derives it with the
-  platform rule ([proposal](../../docs/features/active/platform-monorepo/proposal.md#quality-verdicts-and-command-effects)):
-  a report or target passes only when it has at least one required check and every
-  required check passed. A required `failed`, `error`, `unavailable`, `warn` or `skipped`
-  result prevents a pass; advisory results stay visible but never decide it; an empty
-  report, or one with only advisory checks, is "Not passing: no required checks".
+- **Statuses** `passed`, `failed`, `warn`, `skipped`, `disabled`, `unavailable` and
+  `error` each have their own words, icon and color/fill, so none relies on color. Only
+  `passed` uses the success treatment.
+- **Verdict.** Health writes the verdict into the report; the dashboard recomputes it with
+  the same platform rule ([proposal](../../docs/features/active/platform-monorepo/proposal.md#quality-verdicts-and-command-effects))
+  to explain it, and rejects a report whose recorded verdict disagrees. A report or
+  target passes only when it has at least one counted required check and every counted
+  required check passed. Required checks `disabled` by the policy are not counted. A
+  required `failed`, `error`, `unavailable`, `warn` or `skipped` result prevents a pass;
+  advisory results stay visible but never decide it; an empty report, or one with no
+  counted required checks, is "Not passing: no required checks".
 - **Invalid files are never shown as reports.** A file is rendered only when it parses
-  as JSON, declares `schema_version` 1.0, validates against Health's
-  [`report-1.0.json`](../health/src/botcore_health/schemas/report-1.0.json) and is
+  as JSON, declares `schema_version` 1.1, validates against Health's
+  [`report-1.1.json`](../health/src/lushly_health/schemas/report-1.1.json) and is
   consistent (unique targets, outcomes naming known targets and checks, summary counts
-  equal to the outcomes). Otherwise you get an error naming the file, what's wrong and
+  and the verdict equal to what the outcomes give). Reports with schema 1.0 are refused
+  with an explanation: write them again with the current Health. Otherwise you get an error naming the file, what's wrong and
   what to do. Files over 10 MB aren't read.
 
 The schema isn't copied: the build compiles Health's schema file into a standalone
@@ -103,7 +106,7 @@ node endpoints/health-dashboard/scripts/verify-health-isolation.mjs
 `fixtures/reports/` is written by `pnpm -F @lushly-dev/health-dashboard fixtures`, which
 runs the real Health CLI (through uv and `endpoints/health`'s lock) on small plain
 repositories it creates in a temporary directory, then replaces each target path with
-`<fixture>/<id>`. `fixtures/invalid/` is hand-written. `fixtures:check` fails when the
+`<fixture>/<id>` and pins `generated_at` to `2026-01-01T00:00:00Z`. `fixtures/invalid/` is hand-written. `fixtures:check` fails when the
 committed reports differ from the CLI's output. `verify-health-isolation.mjs` builds
 Health's wheel from a copy of its sources and fails if it has an unconditional
 requirement or ships any frontend file.

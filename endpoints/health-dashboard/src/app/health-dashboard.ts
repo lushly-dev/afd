@@ -16,7 +16,7 @@ import { reportTemplate } from './report-template';
 import { ReportView } from './report-view';
 
 const AUDIT_EXAMPLE =
-	'python -m botcore_health audit --targets targets.toml --policy policy.toml --output-dir health-reports';
+	'python -m lushly_health audit --targets targets.toml --policy policy.toml --output-dir health-reports';
 
 const failureTemplate = html<LoadFailure>`
 	<violet-alert class="load-failure" tone="danger" data-kind="${(x) => x.kind}" data-source="${(x) => x.source}">

@@ -37,12 +37,15 @@ describe('report rendering (Chromium, file://)', () => {
 		await context.close();
 	});
 
-	it('renders all six statuses distinctly, with text, and a non-passing verdict', async () => {
+	it('renders all seven statuses distinctly, with text, and a non-passing verdict', async () => {
 		const { context, page, requests, errors, cspViolations } = await fresh();
 		await loadFiles(page, [fixturePath('reports/mixed-status.report.json')]);
 		const report = page.locator('section.report');
 		await expect(report.count()).resolves.toBe(1);
 		await expect(report.locator('h2').innerText()).resolves.toBe('mixed-status.report.json');
+		const generated = report.locator('.report-meta time');
+		await expect(generated.getAttribute('datetime')).resolves.toBe('2026-01-01T00:00:00Z');
+		await expect(generated.innerText()).resolves.toBe('2026-01-01 00:00:00 UTC');
 		await expect(report.locator('.verdict-label').innerText()).resolves.toBe(
 			'Overall: Not passing'
 		);
@@ -59,7 +62,8 @@ describe('report rendering (Chromium, file://)', () => {
 			{ status: 'passed', label: 'Passed', count: '3' },
 			{ status: 'failed', label: 'Failed', count: '8' },
 			{ status: 'warn', label: 'Warning', count: '1' },
-			{ status: 'skipped', label: 'Skipped', count: '5' },
+			{ status: 'skipped', label: 'Skipped', count: '2' },
+			{ status: 'disabled', label: 'Disabled', count: '3' },
 			{ status: 'unavailable', label: 'Unavailable', count: '3' },
 			{ status: 'error', label: 'Error', count: '1' },
 		]);
@@ -84,7 +88,7 @@ describe('report rendering (Chromium, file://)', () => {
 			expect(look?.text).toBe(STATUS_PRESENTATION[status].label);
 			expect(look?.icon).toBe(`health/${status}`);
 		}
-		expect(new Set(looks.map((look) => look.look)).size).toBe(6);
+		expect(new Set(looks.map((look) => look.look)).size).toBe(7);
 		expect(new Set([...byStatus.values()].map((look) => look.background)).size).toBeGreaterThan(3);
 		// Icons resolve to registered shapes, not the registry's fallback glyph.
 		const shapes = await report
@@ -94,7 +98,7 @@ describe('report rendering (Chromium, file://)', () => {
 					(badge) => badge.shadowRoot?.querySelector('violet-icon')?.shadowRoot?.innerHTML ?? ''
 				)
 			);
-		expect(new Set(shapes).size).toBe(6);
+		expect(new Set(shapes).size).toBe(7);
 
 		const errorRow = report.locator('tr[data-status="error"]');
 		await expect(errorRow.innerText()).resolves.toContain('JSONDecodeError');

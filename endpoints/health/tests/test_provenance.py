@@ -13,7 +13,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 RECORD = ROOT / "provenance" / "provenance.json"
 # Pinned so a changed claim cannot pass by rehashing the record alone.
-RECORD_SHA256 = "14ecd098423d59e1063cabbc633c28076d42dc73a5867915e01279bb93b07ee8"
+RECORD_SHA256 = "ce8e7bff05b13eb32a2320d0ddd2ec2dfcd81f096322c8f7f5b3f4539bcc6b46"
 SOURCE_REVISION = "35e3cf041f9daff1354c9e8aee05388389397a0d"
 IGNORED = {".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "dist", "build"}
 
@@ -66,7 +66,7 @@ def test_source_identity_and_privacy_boundary():
 
 def test_selected_functions_are_the_reviewed_source_functions():
     data = record()
-    imported = functions(ROOT / "src/botcore_health/checks.py")
+    imported = functions(ROOT / "src/lushly_health/checks.py")
     selected = {row["name"]: row for row in data["selected_functions"]}
     assert set(imported) == set(selected), "checks.py holds only recorded source functions"
     # ast.dump differs between Python versions; the text hash binds every version.
@@ -96,5 +96,5 @@ def test_every_file_is_recorded_and_derived_files_are_unchanged():
         assert row["origin"] in {"derived", "authored", "license"}
         if row["origin"] in {"derived", "license"}:
             assert sha256((ROOT / path).read_bytes()) == row["sha256"], path
-    assert files["src/botcore_health/checks.py"]["origin"] == "derived"
+    assert files["src/lushly_health/checks.py"]["origin"] == "derived"
     assert (ROOT / "LICENSE").read_bytes() == (ROOT.parents[1] / "LICENSE").read_bytes()
