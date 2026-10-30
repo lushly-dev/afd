@@ -42,11 +42,13 @@ Binaries and serialized output are unchanged: on the same inputs the packed `vio
 3. Native-only users (tokens, stores, transformers, CSS validators, OpenAPI document): no change. To drop the command layer, call `resolveTokens`/`exportTokens` and catch `TokenDomainError` instead of reading `result.error`.
 4. CLI and MCP users: no change. Both endpoints depend on core directly, so strict peer settings need nothing extra; install `@lushly-dev/violet-cli` or `@lushly-dev/violet-server` as before.
 
-This is a breaking change for direct importers of the moved names. Before any release it needs a breaking pre-1.0 minor bump above whatever Violet has published by then: open PR #135 would release the pending changesets as 0.3.0 for all four upstream packages, so if it lands first the split cannot also be 0.3.0. Publication stays with the Violet repository until a recorded handoff.
+This is a breaking change for direct importers of the moved names, so it ships as a breaking pre-1.0 minor. No Violet package has been published to npm, and by the owner's decision (2026-10-30) the first publication is 0.3.0 from AFD with the split layout; the Violet repository's release PR #135 is not merged. Four pending fragments in `.changeset/` bind the `violet-npm` unit to that minor: this split, plus Violet's three pending upstream changesets carried over verbatim with `@lushly-dev/violet-afd` added where their commands now live. A dry run with the inventory's fixed group versions all five packages to 0.3.0. They stay pending while the unit is quarantined; publication stays with the Violet repository until a recorded handoff.
+
+Pre-1.0, a minor bump of `@lushly-dev/violet-core` leaves the integration's `^0.x` peer range, and Changesets then major-bumps the integration and, through the fixed group, every package. The integration therefore peers on `^0.2.0 || ^0.3.0`; widen it to the next minor in the same change as each later minor's fragments.
 
 ## AFD requirement
 
-The integration keeps the source's `@lushly-dev/afd-core` `^0.1.1` dependency. That range excludes the workspace's AFD 2.2.0, so pnpm resolves `@lushly-dev/afd-core` 0.1.1 from the npm registry for the integration (as Violet's own lockfile did) and the integration, CLI and server are built and tested against 0.1.1. A consumer that also installs AFD 2.x gets two copies; the packed consumers show the integration keeps its own 0.1.1 and still runs. Moving to current AFD APIs is a separate decision.
+The integration depends on the workspace `@lushly-dev/afd-core` (`workspace:^2.2.0`, published as `^2.2.0`). The source's `^0.1.1` range was replaced on 2026-10-30; the `CommandResult` helpers and types it re-exports are unchanged in 2.x, and the full integration, CLI and server suites pass against it. A consumer that also installs AFD 2.x shares one copy with the integration; the packed consumers check that the integration's `success` is the consumer's. It stays a regular dependency, so the CLI and server need no new dependency. AFD releases cannot bump it: the version step narrows the workspace to the selected unit's packages.
 
 ## Validation routes
 
