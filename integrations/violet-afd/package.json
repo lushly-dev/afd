@@ -52,7 +52,7 @@
 		"clean": "rm -rf dist *.tsbuildinfo"
 	},
 	"dependencies": {
-		"@lushly-dev/afd-core": "^0.1.1",
+		"@lushly-dev/afd-core": "workspace:^2.2.0",
 		"@neondatabase/serverless": "^1.1.0",
 		"nanoid": "^5.1.16",
 		"ws": "^8.22.0",
@@ -60,7 +60,7 @@
 		"zod-to-json-schema": "^3.25.2"
 	},
 	"peerDependencies": {
-		"@lushly-dev/violet-core": "^0.2.0"
+		"@lushly-dev/violet-core": "^0.2.0 || ^0.3.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.9.4",

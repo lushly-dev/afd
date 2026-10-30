@@ -5,12 +5,12 @@
 	"author": "Falkicon",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/lushly-dev/violet.git",
-		"directory": "packages/runtime"
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "foundations/violet/packages/runtime"
 	},
-	"homepage": "https://github.com/lushly-dev/violet#readme",
+	"homepage": "https://github.com/lushly-dev/afd#readme",
 	"bugs": {
-		"url": "https://github.com/lushly-dev/violet/issues"
+		"url": "https://github.com/lushly-dev/afd/issues"
 	},
 	"publishConfig": {
 		"access": "public"

@@ -10,13 +10,14 @@
  *   imports, declarations, native resolution/export, tokens applied to plain HTML/CSS and through
  *   the runtime in Chromium, and optional storage backends that are absent.
  * - Integration absent, present, incompatible (bad or missing core peer) and unavailable (its
- *   declared AFD dependency missing), plus AFD 2.x beside it.
+ *   declared AFD dependency missing), plus a consumer's own AFD 2.x shared with it.
  * - Endpoints: the `violet` and `violet-mcp` binaries and the server's entry points. With
  *   `--baseline <violet checkout>` (built at the imported revision) the CLI's serialized output
  *   is compared byte for byte with the upstream binary.
  *
- * Local tarballs only: this is not registry installation evidence. `@lushly-dev/afd-core` 0.1.x
- * and third-party packages come from the configured registry or pnpm store.
+ * Local tarballs only: this is not registry installation evidence. `@lushly-dev/afd-core` is packed
+ * from the workspace like the Violet units; third-party packages come from the configured registry
+ * or pnpm store.
  *
  * Usage: pnpm -F "@lushly-dev/violet-cli..." -F @lushly-dev/violet-runtime -F @lushly-dev/afd-core build
  *        node tests/consumers/violet/verify-artifacts.mjs [--output <dir>] [--baseline <dir>]
@@ -55,12 +56,19 @@ const sources = [
 	'integrations/violet-afd',
 	'endpoints/violet-server',
 	'endpoints/violet-cli',
+	'packages/core',
 ];
 const CORE = '@lushly-dev/violet-core';
 const RUNTIME = '@lushly-dev/violet-runtime';
 const AFD = '@lushly-dev/violet-afd';
 const SERVER = '@lushly-dev/violet-server';
 const CLI = '@lushly-dev/violet-cli';
+const AFD_CORE = '@lushly-dev/afd-core';
+// Widened so the first 0.3.0 release keeps the fixed group on a minor bump (Changesets
+// major-bumps a dependent whose peer range the new version leaves).
+const CORE_PEER = '^0.2.0 || ^0.3.0';
+// pnpm quotes a peer range that contains spaces.
+const CORE_PEER_SPEC = `${CORE}@"${CORE_PEER}"`;
 const checks = [];
 const passed = (name) => {
 	checks.push(name);
@@ -183,8 +191,8 @@ for (const path of coreFiles.filter((entry) => /\.(?:js|d\.ts)$/.test(entry))) {
 const runtime = packedManifest(RUNTIME);
 assert.equal(runtime.dependencies, undefined);
 const afd = packedManifest(AFD);
-assert.deepEqual(afd.peerDependencies, { [CORE]: '^0.2.0' });
-assert.equal(afd.dependencies['@lushly-dev/afd-core'], '^0.1.1');
+assert.deepEqual(afd.peerDependencies, { [CORE]: CORE_PEER });
+assert.equal(afd.dependencies[AFD_CORE], '^2.2.0');
 assert.deepEqual(Object.keys(afd.exports), ['.', './worker', './commands', './css', './types']);
 const cli = packedManifest(CLI);
 assert.deepEqual(cli.bin, { violet: './dist/bin.js' });
@@ -200,7 +208,7 @@ for (const manifest of [core, runtime, afd, cli, server]) {
 	assert(!JSON.stringify(manifest).includes('workspace:'), `${manifest.name} leaks workspace:`);
 }
 passed(
-	'packed manifests: core needs only zod (storage drivers optional), no AFD text in its files; integration peers core ^0.2.0 and keeps afd-core ^0.1.1; binaries and versions preserved'
+	'packed manifests: core needs only zod (storage drivers optional), no AFD text in its files; integration peers core ^0.2.0 || ^0.3.0 and depends on afd-core ^2.2.0; binaries and versions preserved'
 );
 
 // ---- Violet only: native core without optional drivers, and runtime ---------------------------
@@ -463,7 +471,8 @@ assert.equal(typeof worker.initializeWorkerCore, 'function');
 run(integrationRoot, 'worker-cold.mjs');
 passed('cold import of violet-afd/worker loads no core root, Node store or driver');
 assert.equal(integrationFacts.commands, 46);
-assert.match(integrationFacts.afdCore, /^0\.1\./);
+assert.equal(integrationFacts.afdCore, packedManifest(AFD_CORE).version);
+assert.match(integrationFacts.afdCore, /^2\./);
 passed(
 	`integration present: pre-split root/commands/worker/types/css surfaces, ${integrationFacts.commands} commands, envelopes match native export; afd-core ${integrationFacts.afdCore}`
 );
@@ -484,36 +493,30 @@ passed(
 	'integration declarations compile under NodeNext for every entry point, with the Neon store'
 );
 
-// ---- AFD 2.x beside the integration: the declared ^0.1.1 requirement is kept -------------------
-const afdCore2 = join(artifacts, 'afd-core-current');
-assert(existsSync(join(repository, 'packages/core/dist')), 'packages/core is not built');
-execFileSync('pnpm', ['pack', '--pack-destination', afdCore2], {
-	cwd: join(repository, 'packages/core'),
-	stdio: 'pipe',
-});
-const [afdCore2Pack] = await readdir(afdCore2);
-const { root: mixedRoot } = await install('integration-with-afd-2', {
+// ---- A consumer's own AFD 2.x is the integration's: one shared afd-core -------------------------
+const { root: sharedRoot } = await install('integration-with-afd-2', {
 	[CORE]: file(CORE),
 	[AFD]: file(AFD),
-	'@lushly-dev/afd-core': `file:${join(afdCore2, afdCore2Pack)}`,
+	[AFD_CORE]: file(AFD_CORE),
 });
-const mixedGraph = await installedPackages(mixedRoot);
-const afdVersions = mixedGraph.filter((name) => name.startsWith('@lushly-dev+afd-core@'));
-assert.equal(afdVersions.length, 2, mixedGraph.join('\n'));
+const sharedGraph = await installedPackages(sharedRoot);
+const afdVersions = sharedGraph.filter((name) => name.startsWith('@lushly-dev+afd-core@'));
+assert.equal(afdVersions.length, 1, sharedGraph.join('\n'));
 await writeFile(
-	join(mixedRoot, 'mixed.mjs'),
+	join(sharedRoot, 'shared.mjs'),
 	`import assert from 'node:assert/strict';
-import { initializeCore, registry, createMemoryDatabase } from '@lushly-dev/violet-afd';
+import { initializeCore, registry, createMemoryDatabase, success as violetSuccess, isSuccess } from '@lushly-dev/violet-afd';
 import { success } from '@lushly-dev/afd-core';
 initializeCore();
 const context = { db: createMemoryDatabase() };
 assert((await registry.execute('node.create', { id: 'n', name: 'n', type: 'root' }, context)).success);
-assert.equal(success(1).success, true);
+assert.equal(violetSuccess, success);
+assert(isSuccess(success(1)));
 `
 );
-run(mixedRoot, 'mixed.mjs');
+run(sharedRoot, 'shared.mjs');
 passed(
-	`AFD ${afdCore2Pack.match(/\d+\.\d+\.\d+/)[0]} in the consumer does not satisfy ^0.1.1: the integration keeps its own afd-core and still runs`
+	`AFD ${packedManifest(AFD_CORE).version} in the consumer satisfies ^2.2.0: the integration shares the consumer's single afd-core`
 );
 
 // ---- Integration incompatible and unavailable ----------------------------------------------------
@@ -523,7 +526,7 @@ const missingPeer = await install(
 	{ expected: false, overrides: false }
 );
 assert.match(missingPeer.log, /ERR_PNPM_PEER_DEP_ISSUES/);
-assert(missingPeer.log.includes(`missing peer ${CORE}@^0.2.0`), missingPeer.log);
+assert(missingPeer.log.includes(`missing peer ${CORE_PEER_SPEC}`), missingPeer.log);
 passed('integration without the core peer is rejected (missing peer)');
 const fakeCore = join(consumers, 'fake-core-9');
 await mkdir(fakeCore, { recursive: true });
@@ -537,7 +540,7 @@ const incompatible = await install(
 	{ expected: false, overrides: false }
 );
 assert.match(incompatible.log, /ERR_PNPM_PEER_DEP_ISSUES/);
-assert(incompatible.log.includes(`unmet peer ${CORE}@^0.2.0: found 9.0.0`), incompatible.log);
+assert(incompatible.log.includes(`unmet peer ${CORE_PEER_SPEC}: found 9.0.0`), incompatible.log);
 passed('integration with violet-core 9.0.0 is rejected (unmet peer)');
 
 const { root: unavailableRoot } = await install('integration-afd-unavailable', {
@@ -711,7 +714,7 @@ const receipt = {
 	baseline: baseline ?? null,
 	limitations: [
 		'Local tarballs only; no registry installation or publication authorization',
-		'@lushly-dev/afd-core 0.1.x and third-party packages resolved from the configured registry/store at run time',
+		'@lushly-dev/afd-core packed from the workspace; third-party packages resolved from the configured registry/store at run time',
 		'No hosted CI receipt unless run by violet.yml',
 		'No Postgres or Neon store exercised; SQLite only through violet-mcp --db in the consumer directory',
 	],
