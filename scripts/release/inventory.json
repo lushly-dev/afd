@@ -488,6 +488,27 @@
 					"initialVersion": "0.1.0"
 				}
 			]
+		},
+		{
+			"id": "health-dashboard",
+			"family": "health",
+			"protocol": "npm-changesets",
+			"sourceRevision": "d221201f0fbbe3b1d013fddc5b00579fc33380b1",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "health-dashboard.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/health-dashboard",
+					"registry": "npm",
+					"manifest": "endpoints/health-dashboard/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
 		}
 	]
 }

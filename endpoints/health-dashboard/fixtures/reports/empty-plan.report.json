@@ -1,0 +1,33 @@
+{
+	"schema_version": "1.0",
+	"generator": {
+		"name": "lushly-health",
+		"version": "0.1.0"
+	},
+	"targets": [
+		{
+			"id": "tidy-lib",
+			"path": "<fixture>/tidy-lib",
+			"language": "python"
+		}
+	],
+	"policy": {
+		"check_ids": [],
+		"disabled": [],
+		"severity": {},
+		"remediation": "none"
+	},
+	"outcomes": [],
+	"summary": {
+		"passed": 0,
+		"failed": 0,
+		"warn": 0,
+		"skipped": 0,
+		"unavailable": 0,
+		"error": 0
+	},
+	"effects": [
+		"target_read"
+	],
+	"artifacts_written": []
+}

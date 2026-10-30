@@ -1,0 +1,300 @@
+/* Page styles over violet-elements' runtime theme tokens (fallbacks match its light preset). */
+:root {
+	color-scheme: light dark;
+	--page-bg: var(--color-surface-page, #fbfaf6);
+	--card-bg: var(--color-surface-card, #ffffff);
+	--subtle-bg: var(--color-surface-subtle, #f0efe6);
+	--text: var(--color-text-primary, #18181b);
+	--text-secondary: var(--color-text-secondary, #414651);
+	--border: var(--color-border-subtle, rgba(28, 26, 13, 0.1));
+	--border-strong: var(--color-border-strong, rgba(28, 26, 13, 0.3));
+	--focus: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
+	--radius: var(--radius-md, 4px);
+	--gap: var(--space-layout-sm, 16px);
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	background: var(--page-bg);
+	color: var(--text);
+	font-family: "Montserrat", "Segoe UI", system-ui, sans-serif;
+	font-size: var(--type-body-md-size, 14px);
+	line-height: 1.5;
+}
+
+health-dashboard {
+	display: block;
+}
+
+h1,
+h2,
+h3 {
+	line-height: 1.25;
+	margin: 0;
+}
+
+h1 {
+	font-size: 1.75rem;
+}
+
+h2 {
+	font-size: 1.3rem;
+}
+
+h3 {
+	font-size: 1.05rem;
+	margin-block: 1.5rem 0.5rem;
+}
+
+code,
+pre {
+	font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+	font-size: 0.92em;
+}
+
+pre {
+	margin: 0;
+	padding: 0.5rem 0.75rem;
+	border-radius: var(--radius);
+	background: var(--subtle-bg);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+:focus-visible {
+	outline: 2px solid var(--text);
+	outline-offset: 2px;
+}
+
+.banner {
+	border-block-end: 1px solid var(--border);
+	background: var(--card-bg);
+}
+
+.banner-inner,
+.page,
+.footer {
+	max-inline-size: 90rem;
+	margin-inline: auto;
+	padding-inline: var(--gap);
+}
+
+.banner-inner {
+	padding-block: 1.25rem;
+}
+
+.banner p {
+	margin: 0.25rem 0 0;
+	color: var(--text-secondary);
+}
+
+.page {
+	display: grid;
+	gap: 1.5rem;
+	padding-block: 1.5rem 2.5rem;
+}
+
+.load,
+.failures,
+.report {
+	display: grid;
+	gap: 0.75rem;
+	padding: 1.25rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-lg, 8px);
+	background: var(--card-bg);
+}
+
+.status-line,
+.row-count,
+.note,
+.report-meta,
+.verdict-rule {
+	margin: 0;
+	color: var(--text-secondary);
+}
+
+.failure-details {
+	margin: 0.5rem 0 0;
+	padding-inline-start: 1.25rem;
+}
+
+.verdict {
+	padding: 0.75rem 1rem;
+	border: 2px solid var(--color-state-danger-border, #d92d20);
+	border-radius: var(--radius);
+	background: var(--color-state-danger-background, #fef3f2);
+}
+
+.verdict[data-passed="true"] {
+	border-color: var(--color-state-success-border, #079455);
+	background: var(--color-state-success-background, #ecfdf3);
+}
+
+.verdict-label {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin: 0;
+	font-size: 1.1rem;
+}
+
+.verdict-reasons {
+	margin: 0.25rem 0;
+	padding-inline-start: 1.25rem;
+}
+
+.summary {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+	gap: 0.5rem;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.summary-item {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	align-items: center;
+	gap: 0.25rem 0.5rem;
+	padding: 0.625rem 0.75rem;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+
+.summary-count {
+	justify-self: end;
+	font-size: 1.4rem;
+	font-weight: 700;
+}
+
+.summary-description {
+	grid-column: 1 / -1;
+	color: var(--text-secondary);
+}
+
+.controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem 1rem;
+}
+
+.controls violet-select {
+	min-inline-size: 13rem;
+}
+
+.table-scroll {
+	overflow-x: auto;
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+
+table {
+	inline-size: 100%;
+	border-collapse: collapse;
+}
+
+th,
+td {
+	padding: 0.5rem 0.75rem;
+	border-block-end: 1px solid var(--border);
+	text-align: start;
+	vertical-align: top;
+}
+
+thead th {
+	background: var(--subtle-bg);
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+thead th[aria-sort]::after {
+	content: " (sorted)";
+	font-weight: 400;
+	color: var(--text-secondary);
+}
+
+tbody tr:last-child > * {
+	border-block-end: 0;
+}
+
+tbody th {
+	font-weight: 600;
+}
+
+.checks td:nth-child(5),
+.checks td:nth-child(7) {
+	min-inline-size: 14rem;
+}
+
+.path {
+	overflow-wrap: anywhere;
+}
+
+.severity[data-severity="advisory"] {
+	font-style: italic;
+}
+
+.verdict-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	font-weight: 600;
+}
+
+.evidence {
+	display: grid;
+	gap: 0.25rem;
+	margin: 0;
+}
+
+.evidence-item {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0 0.375rem;
+}
+
+.evidence dt {
+	color: var(--text-secondary);
+}
+
+.evidence dt::after {
+	content: ":";
+}
+
+.evidence dd {
+	margin: 0;
+}
+
+.no-match {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem;
+}
+
+.no-match p {
+	margin: 0;
+}
+
+.footer {
+	padding-block: 0 2rem;
+	color: var(--text-secondary);
+}
+
+.footer p {
+	margin: 0;
+}
+
+@media (forced-colors: active) {
+	.verdict,
+	.verdict[data-passed="true"] {
+		border-color: CanvasText;
+		background: Canvas;
+	}
+}

@@ -1,0 +1,93 @@
+{
+	"schema_version": "1.0",
+	"generator": {
+		"name": "lushly-health",
+		"version": "0.1.0"
+	},
+	"targets": [
+		{
+			"id": "tidy-lib",
+			"path": "<fixture>/tidy-lib",
+			"language": "python"
+		}
+	],
+	"policy": {
+		"check_ids": [
+			"gitattributes_lf",
+			"lefthook_configured",
+			"linter_strict"
+		],
+		"disabled": [],
+		"severity": {
+			"gitattributes_lf": "required",
+			"lefthook_configured": "required",
+			"linter_strict": "required"
+		},
+		"remediation": "none"
+	},
+	"outcomes": [
+		{
+			"check_id": "gitattributes_lf",
+			"target": "tidy-lib",
+			"status": "passed",
+			"severity": "required",
+			"message": ".gitattributes enforces LF line endings",
+			"evidence": {
+				"paths": [
+					".gitattributes"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "LF"
+			},
+			"remediation": null,
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "lefthook_configured",
+			"target": "tidy-lib",
+			"status": "ok",
+			"severity": "required",
+			"message": "lefthook.yml has pre-commit and pre-push hooks",
+			"evidence": {
+				"paths": [
+					"lefthook.yml"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "2/2"
+			},
+			"remediation": null,
+			"schema_version": "1.0"
+		},
+		{
+			"check_id": "linter_strict",
+			"target": "tidy-lib",
+			"status": "passed",
+			"severity": "required",
+			"message": "pyproject.toml has [tool.ruff] configured",
+			"evidence": {
+				"paths": [
+					"biome.json",
+					"pyproject.toml"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "ruff"
+			},
+			"schema_version": "1.0"
+		}
+	],
+	"summary": {
+		"passed": 3,
+		"failed": 0,
+		"warn": 0,
+		"skipped": 0,
+		"unavailable": 0,
+		"error": 0
+	},
+	"effects": [
+		"target_read"
+	],
+	"artifacts_written": []
+}

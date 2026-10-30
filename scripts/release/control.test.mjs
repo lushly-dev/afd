@@ -348,6 +348,51 @@ test('declared private distributions record ownership but never enter selection'
 	assert.throws(() => discoverDistributions(f.root, loaded.inventory), /missing or renamed/);
 });
 
+test('only units of declared private distributions may declare no route', () => {
+	const f = fixture();
+	const unit = {
+		...structuredClone(f.inventory.units[1]),
+		id: 'c',
+		family: 'c',
+		state: 'quarantined',
+		routes: [],
+		distributions: [
+			{
+				name: '@fixture/c',
+				registry: 'npm',
+				format: 'npm',
+				manifest: 'foundations/c/package.json',
+				initialVersion: '0.1.0',
+				private: true,
+			},
+		],
+	};
+	const writeInventory = (units) =>
+		write(f.root, 'scripts/release/inventory.json', JSON.stringify({ schemaVersion: 1, units }));
+	write(
+		f.root,
+		'foundations/c/package.json',
+		JSON.stringify({ name: '@fixture/c', version: '0.1.0', private: true })
+	);
+	writeInventory([...f.inventory.units, unit]);
+	const inventory = loadInventory(f.root);
+	assert.deepEqual(
+		discoverDistributions(f.root, inventory)
+			.map((entry) => entry.name)
+			.sort(),
+		['@fixture/a', '@fixture/b']
+	);
+	assert.throws(
+		() => assertAdmission({ root: f.root, inventory, unit: 'c', route: 'npm-main' }),
+		/not admitted/
+	);
+	writeInventory([...f.inventory.units, { ...unit, routes: undefined }]);
+	assert.throws(() => loadInventory(f.root), /Incomplete release contract: c/);
+	const publicUnit = { ...unit, distributions: [{ ...unit.distributions[0], private: false }] };
+	writeInventory([...f.inventory.units, publicUnit]);
+	assert.throws(() => loadInventory(f.root), /Only one enabled publication route/);
+});
+
 test('admission requires an explicit exact route rather than accepting an omitted route', () => {
 	const f = fixture();
 	assert.throws(() => assertAdmission({ ...f, unit: 'a' }), /Unapproved release route/);

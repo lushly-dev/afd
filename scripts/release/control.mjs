@@ -126,11 +126,14 @@ export function loadInventory(root) {
 			!unit.sourceRevision ||
 			!unit.protocol ||
 			!unit.gates?.length ||
-			!unit.routes?.length ||
+			!Array.isArray(unit.routes) ||
 			!unit.distributions?.length
 		)
 			fail(`Incomplete release contract: ${unit.id}`);
-		if (unit.routes.length !== 1) fail(`Only one enabled publication route is allowed: ${unit.id}`);
+		// A unit of declared private distributions can never publish, so it may declare no route.
+		const privateOnly = unit.distributions.every((distribution) => distribution.private === true);
+		if (unit.routes.length !== 1 && !(privateOnly && unit.routes.length === 0))
+			fail(`Only one enabled publication route is allowed: ${unit.id}`);
 		for (const distribution of unit.distributions) {
 			safePath(root, distribution.manifest);
 			const identity = `${distribution.registry}:${registryName(distribution.registry, distribution.name)}`;
