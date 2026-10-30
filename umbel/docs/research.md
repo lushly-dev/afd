@@ -1,4 +1,4 @@
-# AFD host: research synthesis
+# Umbel: research synthesis
 
 **Research date:** October 30, 2026
 

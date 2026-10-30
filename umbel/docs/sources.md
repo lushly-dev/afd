@@ -1,4 +1,4 @@
-# AFD host research: annotated source ledger
+# Umbel research: annotated source ledger
 
 **Retrieved:** October 30, 2026
 

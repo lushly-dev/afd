@@ -1,4 +1,4 @@
-# AFD host
+# Umbel
 
 | Field | Value |
 | --- | --- |
@@ -6,11 +6,11 @@
 | Date | 2026-10-30 |
 | Package boundary | New Rust units in this repository: a foundation crate for the plugin contract and host runtime, first-party plugins as integrations, the host binary as an endpoint |
 | Implementation | Not started by this proposal |
-| Working name | `afd-host`; see open decision 1 |
+| Name | Umbel, decided 2026-10-30; "AFD Umbel" in full |
 
 ## Purpose
 
-A shared system, reachable over MCP and as a CLI, that augments a team's
+Umbel is a shared system, reachable over MCP and as a CLI, that augments a team's
 environments and agent harnesses and can be customized to mesh with that
 team's systems, sources and knowledge. It starts with no capability of its
 own: it is a host into which plugins land. Knowledge, memory and context are
@@ -32,16 +32,21 @@ AFD already names most of these extension points, so the host reuses them.
 
 | Word | Meaning here | Precedent |
 | --- | --- | --- |
-| Plugin | The unit that lands in the host | [Plugin Discovery](../plugin-discovery/plugin-discovery.proposal.md); Botcore's `BotCorePlugin` and entry points |
+| Plugin | The unit that lands in the host | [Plugin Discovery](../../docs/features/proposed/plugin-discovery/plugin-discovery.proposal.md); Botcore's `BotCorePlugin` and entry points |
 | Command | The unit of capability inside a plugin, exposed to MCP, CLI and in-process callers | AFD core |
 | Connector | A plugin's binding to an external system or source | `connectors` in `packages/rust` |
 | Backend | A swappable implementation behind a store interface | `@lushly-dev/local-db` |
 | Adapter | An infrastructure binding such as auth or a frontend | `@lushly-dev/afd-auth`, `@lushly-dev/afd-adapters` |
 | Pack | Content a plugin ships by default and an instance overrides | New |
-| Skill, context | Guidance documents and command contexts a plugin contributes | [Skill Knowledge Layer](../skill-knowledge-layer/skill-knowledge-layer.proposal.md); `afd-context-*` commands |
+| Skill, context | Guidance documents and command contexts a plugin contributes | [Skill Knowledge Layer](../../docs/features/proposed/skill-knowledge-layer/skill-knowledge-layer.proposal.md); `afd-context-*` commands |
 
 "Module" and "extension" are avoided: the first collides with Rust modules,
 the second is MCP's word for protocol extensions.
+
+Plugins carry plain semantic names for what they do, such as `knowledge`,
+`memory`, `context` and `content-design`. Only the host carries a botanical
+name, in the register of Violet and Specimen: an umbel is an inflorescence in
+which every stalk rises from one point and none depends on another.
 
 ## The empty host
 
@@ -58,7 +63,7 @@ With zero plugins installed the host provides:
   that turns a request into a principal or a challenge, a protected-resource
   metadata provider, and a per-command required-scope resolver. Modes: none,
   static bearer, JWT with JWKS, token introspection, gateway-trusted identity,
-  custom. This is the Rust side of [MCP Authorization](../mcp-authorization/mcp-authorization.proposal.md).
+  custom. This is the Rust side of [MCP Authorization](../../docs/features/proposed/mcp-authorization/mcp-authorization.proposal.md).
 - Approvals, confirmations, the command journal, telemetry and per-tool output
   budgets, all from the `afd` crate.
 - A plugin loader for three kinds: compiled-in Rust crates, WebAssembly
@@ -174,6 +179,10 @@ auditability.
 
 ## Repository placement
 
+- The `umbel/` area at the repository root is the family home: these
+  documents now, and a Cargo workspace for the crates below when they land.
+  `architecture.json` and the release inventory gain the root and classify
+  each crate's layer at that point.
 - Foundation crate: plugin contract, host runtime, store traits; no domain
   code. A separate foundation crate for the knowledge engine if it has no
   AFD dependency.
@@ -181,7 +190,7 @@ auditability.
 - Endpoint: the host binary, shipped as per-platform binaries, an MCPB
   bundle, an OCI image, a registry entry and a Server Card.
 - All new units start quarantined under the
-  [platform migration](../../active/platform-monorepo/) rules.
+  [platform migration](../../docs/features/active/platform-monorepo/) rules.
 - Generic server features the host needs, such as the lazy strategy, contexts,
   resources and prompts, land in `packages/rust` so every Rust server
   inherits them.
@@ -201,22 +210,23 @@ auditability.
 
 ## Relationship to other proposals
 
-This host is a candidate first host for the [Agent Engine](../agent-engine/proposal.md).
-It consumes [MCP Authorization](../mcp-authorization/mcp-authorization.proposal.md)
-and [MCP Tasks](../mcp-tasks/mcp-tasks.proposal.md), and it is the Rust
-counterpart of [Plugin Discovery](../plugin-discovery/plugin-discovery.proposal.md)
-and the consumer of the [Skill Knowledge Layer](../skill-knowledge-layer/skill-knowledge-layer.proposal.md).
-It completes the MCP transport goals of [Rust Support](../rust-support/00-overview.md).
+This host is a candidate first host for the [Agent Engine](../../docs/features/proposed/agent-engine/proposal.md).
+It consumes [MCP Authorization](../../docs/features/proposed/mcp-authorization/mcp-authorization.proposal.md)
+and [MCP Tasks](../../docs/features/proposed/mcp-tasks/mcp-tasks.proposal.md), and it is the Rust
+counterpart of [Plugin Discovery](../../docs/features/proposed/plugin-discovery/plugin-discovery.proposal.md)
+and the consumer of the [Skill Knowledge Layer](../../docs/features/proposed/skill-knowledge-layer/skill-knowledge-layer.proposal.md).
+It completes the MCP transport goals of [Rust Support](../../docs/features/proposed/rust-support/00-overview.md).
 
 ## Decisions still open
 
-1. The name. `afd-host` collides loosely with Botcore's "managed host".
-2. The first external integration: a mounted MCP server or a native connector.
+Closed decisions are recorded in the [decision log](decisions.md).
+
+1. The first external integration: a mounted MCP server or a native connector.
    This sets the connector contract more than any document will.
-3. The execution model above.
-4. Manifest format and the shape of the WIT world.
-5. The default embedding model, if any, per profile.
-6. Tenancy: single-tenant per deployment with collection scoping and a
+2. The execution model above.
+3. Manifest format and the shape of the WIT world.
+4. The default embedding model, if any, per profile.
+5. Tenancy: single-tenant per deployment with collection scoping and a
    reserved tenant field is the recommendation.
 
 ## First proof
@@ -232,6 +242,8 @@ It completes the MCP transport goals of [Rust Support](../rust-support/00-overvi
 
 ## Research and evidence
 
+- [Architecture](architecture.md), the through line each phase implements against
+- [Decision log](decisions.md)
 - [Research synthesis](research.md)
 - [Annotated source ledger](sources.md)
 
