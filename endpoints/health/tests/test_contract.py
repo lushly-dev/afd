@@ -11,6 +11,7 @@ import jsonschema
 import pytest
 
 from lushly_health import (
+    CONFIG_SCHEMA_VERSION,
     REPORT_SCHEMA_VERSIONS,
     SCHEMA_VERSION,
     ArtifactScope,
@@ -157,6 +158,7 @@ def test_onboarded_declaration_is_a_loadable_targets_file(tmp_path, project):
         Target("plain-app", project, "typescript"), ArtifactScope(tmp_path / "own"), selected=True
     )
     assert snapshot(project) == before
+    assert receipt["schema_version"] == CONFIG_SCHEMA_VERSION
     assert load_targets(receipt["artifacts_written"][0])[0].path == project.resolve()
 
 
@@ -171,6 +173,7 @@ def test_cli_audit_is_read_only_and_writes_only_the_explicit_scope(tmp_path, pro
     assert main([*args, "--output-dir", str(out)]) == 0
     receipt = json.loads(capsys.readouterr().out)
     assert receipt["artifacts_written"] == [str(out / "health-report.json")]
+    assert receipt["schema_version"] == SCHEMA_VERSION
     VALIDATOR.validate(json.loads((out / "health-report.json").read_text()))
     assert main([*args, "--output-dir", str(project / "reports")]) == 2
     assert snapshot(project) == before
@@ -190,7 +193,9 @@ def test_cli_schema_and_capabilities(capsys):
     assert main(["schema"]) == 0
     assert json.loads(capsys.readouterr().out) == SCHEMA
     assert main(["capabilities"]) == 0
-    assert json.loads(capsys.readouterr().out)["schema_version"] == SCHEMA_VERSION
+    declared = json.loads(capsys.readouterr().out)
+    assert declared["schema_version"] == SCHEMA_VERSION
+    assert declared["config_schema_version"] == CONFIG_SCHEMA_VERSION == "1.0"
 
 
 def test_write_report_rejects_other_schema_versions(tmp_path, project):

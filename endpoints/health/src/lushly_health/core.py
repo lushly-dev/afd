@@ -236,6 +236,7 @@ def capabilities() -> dict:
     return {
         "schema_version": SCHEMA_VERSION,
         "generator": dict(GENERATOR),
+        "config_schema_version": CONFIG_SCHEMA_VERSION,
         "statuses": list(STATUSES),
         "severities": list(SEVERITIES),
         "verdicts": list(VERDICTS),
@@ -411,6 +412,7 @@ class ArtifactScope:
 
 
 def _write_artifact(data: dict, scope: ArtifactScope, name: str, targets: tuple[Path, ...]) -> dict:
+    """Write one JSON artifact; the receipt names the version of what was written."""
     if Path(name).name != name or name in ("", ".", ".."):
         raise ValueError("Artifact name must be a single filename")
     if any(scope.root.is_relative_to(path.resolve()) for path in targets):
@@ -422,7 +424,7 @@ def _write_artifact(data: dict, scope: ArtifactScope, name: str, targets: tuple[
         json.dump(data, stream, indent=2)
         stream.write("\n")
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": data["schema_version"],
         "effects": ["artifact_write"],
         "artifacts_written": [str(destination)],
     }

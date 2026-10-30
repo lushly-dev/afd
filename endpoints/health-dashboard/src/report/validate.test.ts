@@ -27,6 +27,7 @@ describe('parseReport', () => {
 		['schema-violation.json', 'schema-mismatch'],
 		['inconsistent-summary.json', 'inconsistent'],
 		['verdict-mismatch.json', 'inconsistent'],
+		['disabled-mismatch.json', 'inconsistent'],
 		['report-1.0.json', 'unsupported-version'],
 	])('rejects %s as %s without a partial report', (name, kind) => {
 		const result = parseReport(fixture(`invalid/${name}`), name);
@@ -40,6 +41,7 @@ describe('parseReport', () => {
 
 	it('covers every committed invalid fixture', () => {
 		expect(fixtureNames('invalid')).toEqual([
+			'disabled-mismatch.json',
 			'inconsistent-summary.json',
 			'not-a-report.json',
 			'not-json.json',
@@ -63,6 +65,24 @@ describe('parseReport', () => {
 		expect(result.ok ? [] : result.details).toEqual([
 			'verdict.status is not_passed, but the outcomes give passed.',
 			'verdict.blocking_count is 1, but the outcomes give 0.',
+		]);
+	});
+
+	it('accepts disabled only for checks the policy disables, in both directions', () => {
+		const claimed = parseReport(fixture('invalid/disabled-mismatch.json'), 'd.json');
+		expect(claimed.ok ? [] : claimed.details).toEqual([
+			"outcomes[1] is disabled, but policy.disabled doesn't list lefthook_configured.",
+		]);
+		const report = JSON.parse(fixture('reports/passed-with-disabled.report.json')) as HealthReport;
+		const ran = report.outcomes.find((outcome) => outcome.status === 'disabled');
+		if (!ran) throw new Error('fixture has a disabled outcome');
+		ran.status = 'passed';
+		report.summary.disabled--;
+		report.summary.passed++;
+		report.verdict.required_count++;
+		const result = parseReport(JSON.stringify(report), 'r.json');
+		expect(result.ok ? [] : result.details).toEqual([
+			`outcomes[2] is passed, but policy.disabled lists ${ran.check_id}.`,
 		]);
 	});
 

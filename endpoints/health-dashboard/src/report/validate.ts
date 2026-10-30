@@ -133,6 +133,7 @@ function consistencyDetails(report: HealthReport): string[] {
 		targets.add(target.id);
 	}
 	const checks = new Set(report.policy.check_ids);
+	const disabled = new Set(report.policy.disabled);
 	const counts = Object.fromEntries(STATUSES.map((status) => [status, 0])) as Record<
 		Status,
 		number
@@ -144,6 +145,13 @@ function consistencyDetails(report: HealthReport): string[] {
 		if (!checks.has(outcome.check_id))
 			details.push(
 				`outcomes[${index}] names check ${outcome.check_id}, which isn't in policy.check_ids.`
+			);
+		// Only the policy may exclude a check from the verdict, and it always does.
+		if ((outcome.status === 'disabled') !== disabled.has(outcome.check_id))
+			details.push(
+				outcome.status === 'disabled'
+					? `outcomes[${index}] is disabled, but policy.disabled doesn't list ${outcome.check_id}.`
+					: `outcomes[${index}] is ${outcome.status}, but policy.disabled lists ${outcome.check_id}.`
 			);
 	});
 	for (const status of STATUSES)
