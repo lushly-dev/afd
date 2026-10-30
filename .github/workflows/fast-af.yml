@@ -30,9 +30,7 @@ env:
 jobs:
   runtime:
     name: fast-element build, migration rules and three-browser suites
-    # The imported packages pin Playwright 1.56/1.58, which cannot install browsers on
-    # Ubuntu 26.04 (ubuntu-latest since 2026-10). Unpin when they move to Playwright >=1.64.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     # Upstream reports 23-36 minutes for this scope on healthy runners.
     timeout-minutes: 60
     steps:
@@ -55,9 +53,7 @@ jobs:
 
   components:
     name: violet-elements Chromium suite, generated artifacts and packed consumers
-    # The imported packages pin Playwright 1.56/1.58, which cannot install browsers on
-    # Ubuntu 26.04 (ubuntu-latest since 2026-10). Unpin when they move to Playwright >=1.64.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
