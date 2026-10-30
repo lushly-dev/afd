@@ -107,6 +107,22 @@ Each is small enough to read as a tutorial and real enough to deploy.
 
 ## Knowledge, memory and context
 
+The retrieval lanes, and what a profile switches. The path from memory to the
+knowledge base is drawn in the [architecture](architecture.md#7-data-and-content).
+
+```mermaid
+flowchart LR
+    Q["Query<br/>filters, format"] --> B["Fielded BM25<br/>always on"]
+    Q --> V["Vector lane<br/>optional: local ONNX or HTTP"]
+    B & V --> F["Reciprocal rank fusion"]
+    F --> RR["Rerank lane<br/>optional, gated by eval"]
+    RR --> G["Graph expansion<br/>structural neighbors, related documents"]
+    G --> PF["Permission filter<br/>by principal"]
+    PF --> D["Document-level hits<br/>best chunk, locators, status"]
+    PR["Scale profile"] -. switches .-> V
+    PR -. switches .-> RR
+```
+
 - **Retrieval.** A fielded BM25 index with boolean, phrase, field and boost
   syntax is the non-optional core. Embeddings are an optional lane fused by
   reciprocal rank, through a local ONNX model or an HTTP endpoint the deployer

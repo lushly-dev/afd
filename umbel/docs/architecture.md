@@ -127,9 +127,57 @@ organization.
 | Evaluation harness | Seeded queries with unanswerables, recall and ranking metrics, logged result ids, a calibrated judge | Replacing human review of content |
 | Distribution | Per-platform binaries, a bundle for desktop hosts, an OCI image, a registry entry, a server card | A hosted service; deployers host it |
 
+How a plugin reaches the registry. Every edge goes to the host; there is no
+edge between plugins.
+
+```mermaid
+flowchart TB
+    W["Workspace plugin list"] --> L
+    subgraph Umbel
+        direction TB
+        L["Loader<br/>manifest and contract version check"]
+        G["Capability grants<br/>search, store, outbound HTTP, secrets"]
+        R["Registry<br/>commands, connectors, backends, packs, skills, contexts"]
+        G --> R
+    end
+    subgraph Plugins
+        direction LR
+        P1["knowledge<br/>compiled-in crate"]
+        P2["content-design<br/>WebAssembly component"]
+        P3["tickets<br/>mounted MCP server"]
+    end
+    L -->|loads| P1 & P2 & P3
+    P1 & P2 & P3 -->|declared capabilities| G
+```
+
 ## 5. Interfaces
 
-Described at contract level; each phase specifies the exact shapes.
+Described at contract level; each phase specifies the exact shapes. One
+request end to end, the same across every surface:
+
+```mermaid
+sequenceDiagram
+    participant C as Caller
+    participant S as Surface MCP or CLI
+    participant A as Auth middleware
+    participant R as Registry
+    participant P as Plugin command
+    participant B as Store trait and backend
+    participant J as Journal
+    C->>S: search, open, or afd-call
+    S->>A: request with credentials
+    A-->>S: principal and scopes, or 401 and 403
+    S->>R: command, input, principal
+    R->>R: validate input, check approval and confirmation
+    R->>P: execute with granted capabilities
+    P->>B: query filtered by principal
+    B-->>P: records with provenance
+    P-->>R: CommandResult with data, sources, confidence
+    R->>J: append entry with context digest and result
+    R-->>S: result with structured content
+    S-->>C: text and structuredContent
+    Note over C,B: No language model anywhere on this path
+```
 
 - **MCP surface.** A small fixed set of first-class tools for the hot path,
   such as search, open, context and remember, plus the lazy strategy for the
@@ -159,6 +207,28 @@ Described at contract level; each phase specifies the exact shapes.
 - **Pack.** A directory with a manifest, data, reference material and
   declarative rules, selected per instance, overriding a plugin's default.
 
+A harness session end to end, with Umbel on the push side as well as the
+pull side:
+
+```mermaid
+sequenceDiagram
+    participant U as Person
+    participant HN as Harness
+    participant M as Model
+    participant UM as Umbel
+    U->>HN: start a task
+    HN->>UM: context for the task, principal, budget
+    UM-->>HN: bundle with sources and omissions
+    HN->>M: prompt with the bundle
+    loop while working
+        M->>UM: search, open, find, remember
+        UM-->>M: results with provenance and locators
+    end
+    HN->>UM: capture episodes, decisions, artifacts
+    UM-->>HN: receipt
+    Note over UM: Later: settling window, curator, proposals
+```
+
 ## 6. Libraries and infrastructure
 
 | Need | Choice | Why |
@@ -178,6 +248,28 @@ Deliberately absent from the host: any language-model client, any cloud
 vendor SDK, any dynamic-library plugin loading, in-memory sessions.
 
 ## 7. Data and content
+
+The two stores and the only path between them:
+
+```mermaid
+flowchart TD
+    H["Harness hook at session end"] -->|capture| M["Memory store<br/>scoped, bitemporal, expiring"]
+    A["Agent remember call"] --> M
+    M --> W{"Settling window<br/>stable for N days?"}
+    W -->|no, keep observing| M
+    W -->|yes| K["Candidates and conflict sets<br/>computed by the host"]
+    K --> U["Curator run<br/>scheduled, optional model"]
+    U -->|grounds evidence against| X["External systems"]
+    U -->|submits| P["Proposal<br/>diff, evidence, provenance"]
+    P --> V{"Host validation<br/>schema, caps, duplicates,<br/>provenance preserved?"}
+    V -->|rejected| U
+    V -->|queued| R{"Approval per area<br/>policy or person"}
+    R -->|rejected with reason| U
+    R -->|approved| KB["Knowledge base<br/>versioned, verified"]
+    KB --> I["Index and graph"]
+    M --> I
+    KB -. invalidates superseded facts .-> M
+```
 
 - The workspace holds content roots of markdown with frontmatter under a
   schema the workspace declares; a default schema ships.
@@ -221,7 +313,17 @@ vendor SDK, any dynamic-library plugin loading, in-memory sessions.
 Each phase has one owning agent, produces a specification under its own
 folder before implementation, and ends with a demonstrable exit criterion.
 A phase may amend this document by pull request; it may not silently diverge
-from it.
+from it. Order and parallelism:
+
+```mermaid
+flowchart LR
+    P0["0 Host skeleton"] --> P1["1 Plugin contract"] --> P2["2 Knowledge"]
+    P2 --> P3["3 Memory and context"] --> P4["4 Curator"]
+    P2 --> P5["5 Auth and hosted"]
+    P2 --> P6["6 Backends"]
+    P4 & P5 & P6 --> P7["7 Distribution and guides"]
+    O["Optional lanes<br/>vectors, rerank, extracted entities"] -. attach after .-> P2
+```
 
 | Phase | Goal | Exit criterion | The specification must settle |
 | --- | --- | --- | --- |
