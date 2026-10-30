@@ -155,20 +155,7 @@ authenticator, metadata provider and scope resolver; Tasks for ingestion and
 curation jobs; stateless from the first version; ship five distribution
 artifacts; trace context in `_meta`.
 
-## 4. Lessons from an earlier internal knowledge server
-
-An earlier internal system informed this proposal without contributing code.
-Its platform shape held up: a compact tool surface, docs generated from the
-live registry, a split between structured tool results and workflow guidance
-for the host model, deterministic checks beside model judgment, and
-content-hash identities with receipts and idempotency keys. Its retrieval did
-not: one record per file with no chunking, a vector schema never deployed, a
-graph that annotated results but never changed ranking and offered no
-traversal. Its modules were in-tree with hand-maintained wiring in several
-places, and its domain content was largely in code. Those are the gaps the
-host, the plugin contract and the pack model are designed to close.
-
-## 5. Scale
+## 4. Scale
 
 Estimates assume about eight 300-token chunks per document, a 300M-parameter
 embedding model on a laptop CPU and mid-tier model prices.
