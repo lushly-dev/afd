@@ -72,7 +72,7 @@ Skills load content in stages to optimize context token usage:
 | Stage | What loads | When | Budget |
 |-------|-----------|------|--------|
 | **Discovery** | Frontmatter only (name, description) | Session start — all skills | ~30 tokens per skill |
-| **Brain** | SKILL.md body | When skill is triggered | < 500 lines |
+| **Brain** | SKILL.md body | When skill is triggered | SK009 warns above 50,000 chars |
 | **Resources** | References, scripts, assets | When explicitly needed | No limit |
 
 Design for minimal initial context, with deep references on-demand. The total description budget across all skills is ~2% of the context window (~16K chars fallback).

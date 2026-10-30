@@ -103,10 +103,16 @@ def _patched(stream: _FakeStream, calls: list[dict]):
     )
 
 
-async def _collect(query: str, stream: _FakeStream, calls: list[dict], mode: str = "fast"):
+async def _collect(
+    query: str,
+    stream: _FakeStream,
+    calls: list[dict],
+    mode: str = "fast",
+    max_length: int = MAX_RESEARCH_LENGTH,
+):
     p1, p2, p3 = _patched(stream, calls)
     with p1, p2, p3:
-        return [chunk async for chunk in research_stream(query, mode)]
+        return [chunk async for chunk in research_stream(query, mode, max_length)]
 
 
 async def test_research_invalid_mode() -> None:
@@ -217,6 +223,29 @@ async def test_research_stream_truncates_and_stops_reading() -> None:
     assert "".join(c.data["text"] for c in chunks if c.type == "data") == answer
     assert stream.consumed == 2
     assert stream.closed
+
+
+async def test_research_stream_max_length_is_per_call() -> None:
+    """A caller can tighten the answer budget below the default."""
+    calls: list[dict] = []
+    stream = _FakeStream([_delta("abcdef"), _delta("ghij"), _delta("never"), _COMPLETED])
+    chunks = await _collect("q", stream, calls, max_length=8)
+
+    complete = chunks[-1]
+    assert complete.data["answer"] == "abcdefgh" + _TRUNCATION_MARKER
+    assert stream.consumed == 2
+
+
+async def test_research_query_passes_max_length_through() -> None:
+    """research_query forwards its budget to the stream."""
+    calls: list[dict] = []
+    stream = _FakeStream([_delta("x" * 20), _COMPLETED])
+    p1, p2, p3 = _patched(stream, calls)
+    with p1, p2, p3:
+        result = await research_query("q", max_length=5)
+
+    data = assert_success(result)
+    assert data["answer"] == "x" * 5 + _TRUNCATION_MARKER
 
 
 async def test_research_stream_failed_event() -> None:

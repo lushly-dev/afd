@@ -94,6 +94,8 @@ Override per-package in `[tool.botcore.packages.NAME]` for monorepos.
 | Major version lag | `deps_max_major_behind` | 1 |
 | Minor version lag | `deps_max_minor_behind` | 3 |
 
+`scripts/check-file-size.mjs` applies the same 500/1000 pair to `.ts` files under `packages/` and `.js`/`.mjs` under `scripts/`, with an override cap of 1500 lines (`// afd-override: max-lines=N`, given headroom rather than pinned to the current size). Neither tool size-checks markdown.
+
 ### 3. Analysis Commands Are Read-Only
 
 <rules>

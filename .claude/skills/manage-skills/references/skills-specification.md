@@ -91,7 +91,7 @@ argument-hint: "path/to/file or component name"
 ### Context Economy
 
 - Frontmatter is **always** in context — keep descriptions concise (<1024 chars)
-- Body loads **on-demand** — can be detailed but aim for <300 lines
+- Body loads **on-demand** — can be detailed; the linter warns above 50,000 characters (SK009), and content that is not the workflow belongs in references well before then
 - References load **only when requested** — can be extensive, load one at a time
 
 ## Directory Structure

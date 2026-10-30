@@ -1,4 +1,3 @@
-// afd-override: max-lines=900 — foundational types file: CommandDefinition, CommandResult, registry, middleware, expose, handoff all cohesive
 /**
  * @fileoverview Command definition and registry types
  *

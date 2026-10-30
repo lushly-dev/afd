@@ -102,7 +102,7 @@ Lefthook runs automatically on commit and push — no manual setup needed.
 **Pre-commit** (every commit):
 - Biome lint + auto-fix on staged `.ts`/`.js`/`.json` files
 - Portability check (no machine-specific paths)
-- File size check (warn >300 lines, error >500)
+- File size check on staged `.ts` files (warn >500 lines, error >1000; markdown is not size-checked)
 - TypeScript type checking
 
 **Pre-push** (before push):

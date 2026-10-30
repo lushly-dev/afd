@@ -1,4 +1,3 @@
-// afd-override: max-lines=1000 — canonical shared pipeline types and resolution helpers
 /** Pipeline types for chaining AFD commands. */
 
 import type { CommandError } from './errors.js';

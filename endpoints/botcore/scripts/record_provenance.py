@@ -28,11 +28,15 @@ STAGE_REASONS = {
     "src/botcore/plugin.py": (
         "Add explicit plugin allowlists, host identity and collision rejection"
     ),
-    "src/botcore/server.py": ("Reject command/docs replacement while retaining legacy local tools"),
+    "src/botcore/server.py": (
+        "Preserve legacy tool names and streaming under SDK 1/2; bound run output by budget"
+    ),
     "src/botcore/utils/workspace.py": (
         "Use task-local explicit target context without changing cwd"
     ),
-    "tests/test_server.py": ("Assert documentation collisions reject instead of replacing topics"),
+    "tests/test_server.py": (
+        "Accept the installed SDK result envelope; cover the run input guard and output budget"
+    ),
     "src/botcore/context.py": ("Add the explicit task-local worktree/target context"),
     "src/botcore/host.py": ("Add shared dispatch, effects policy and quality-verdict adapters"),
     "src/botcore/host_surfaces.py": ("Expose managed CLI/MCP through the shared host dispatcher"),
@@ -41,7 +45,9 @@ STAGE_REASONS = {
 }
 IMPORT_REASONS = {
     "AGENTS.md": ("Provide current AFD endpoint gates and authority instructions"),
-    "CHANGELOG.md": ("Record the 0.6.0 host adaptation and explicit compatibility changes"),
+    "CHANGELOG.md": (
+        "Record the 0.6.0 host adaptation, compatibility changes and budget modernization"
+    ),
     "VALIDATION.md": ("Record actual import checks, scope and provenance corrections"),
     "docs/host-composition.md": (
         "Describe actual versioning, SDK compatibility and optional integration"
@@ -79,7 +85,7 @@ IMPORT_REASONS = {
     ),
     "src/botcore/server.py": ("Preserve legacy tool names and streaming under SDK 1/2 imports"),
     "src/botcore/utils/runner.py": (
-        "Classify missing tool/module, timeout and completed check failures"
+        "Classify missing tool, timeout and failed checks; scale truncation with the budget"
     ),
     "tests/conftest.py": (
         "Clear inherited Git routing for child fixtures without changing caller state"
@@ -98,12 +104,51 @@ IMPORT_REASONS = {
     "tests/test_provenance.py": (
         "Reject rehashed false provenance and incorrect change classifications"
     ),
-    "tests/test_research.py": ("Test retained research streaming against SDK 1/2 result objects"),
+    "tests/test_research.py": (
+        "Test research streaming against SDK 1/2 result objects and per-call budgets"
+    ),
     "tests/test_runner.py": (
-        "Prove missing executables/modules and timeout differ from failed checks"
+        "Prove missing executables/modules and timeout differ from failed checks; cover budgets"
     ),
     "tests/test_server.py": (
         "Accept the installed SDK result envelope while retaining tool behavior"
+    ),
+    "src/botcore/commands/research.py": (
+        "Make the answer budget a per-call parameter with a long-context default"
+    ),
+    "src/botcore/skills/plugin-builder/references/server-factory.md": (
+        "Document the run input guard and the shared output budget"
+    ),
+    "src/botcore/skills/mcp-builder/SKILL.md": ("Record the configurable research budget default"),
+    "src/botcore/skills/mcp-builder/references/token-budget.md": (
+        "Record the configurable research budget default"
+    ),
+    "src/botcore/skills/systems-architect/references/agent-maintainable-design.md": (
+        "Ground the file-length target in cohesion rather than context-window size"
+    ),
+    "src/botcore/skills/skill-manager/SKILL.md": (
+        "Align skill body size guidance with the SK009 character threshold"
+    ),
+    "src/botcore/skills/skill-manager/references/architecture.md": (
+        "Align skill body size guidance with the SK009 character threshold"
+    ),
+    "src/botcore/skills/skill-manager/references/skills-specification.md": (
+        "Align skill body size guidance with the SK009 character threshold"
+    ),
+    "src/botcore/skills/skill-manager/references/linter-rules.md": (
+        "Align skill body size guidance with the SK009 character threshold"
+    ),
+    "src/botcore/skills/skill-manager/references/format.md": (
+        "Align skill body size guidance with the SK009 character threshold"
+    ),
+    "src/botcore/skills/skill-manager/references/resource-scripts.md": (
+        "Align skill body size guidance with the SK009 character threshold"
+    ),
+    "src/botcore/skills/skill-manager/references/hooks.md": (
+        "Restrict the example file-size hook to code files at the error threshold"
+    ),
+    "src/botcore/skills/dev-checks/references/troubleshooting.md": (
+        "State the configured file-size thresholds instead of a 300-line target"
     ),
     "uv.lock": ("Lock local AFD 0.10 and MCP 2.3 development dependencies"),
 }

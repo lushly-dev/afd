@@ -86,7 +86,7 @@ This keeps the MCP tool count under 5, saving thousands of tokens in tool descri
 
 The `run` tool accepts a Python code string and validates it before execution:
 
-- Maximum 8000 characters
+- Maximum 32,000 characters (`MAX_RUN_CODE_LENGTH`). This is an abuse guard on the exec surface, not a context budget; run output is bounded separately by `smart_truncate()` at `MAX_OUTPUT_LENGTH` (100,000 characters)
 - Must be valid Python (parsed via `ast.parse`)
 - Executed against the command namespace — all registered commands are available as globals
 - Returns the command's `CommandResult`

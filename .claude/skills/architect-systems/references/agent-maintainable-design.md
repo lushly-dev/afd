@@ -23,11 +23,11 @@ Agents cannot "just know" your conventions. Make structure explicit.
 
 ### 2. Small, Focused Units
 
-Agents work best with files they can read in a single context window and functions they can understand at a glance.
+Agents change code by locating one responsibility and editing it in place. A file that holds one cohesive unit gives an edit a single obvious home, keeps the diff small and makes review and rollback precise; a function that fits one idea can be reasoned about without tracing state through the rest of the module.
 
 | Metric | Target | Why |
 |---|---|---|
-| File length | < 500 lines | Fits in context window with room for instructions |
+| File length | < 500 lines | One responsibility per file: an edit lands in one place and the diff stays reviewable |
 | Function length | < 50 lines | Single responsibility; easy to reason about |
 | Module public API | < 15 exports | Narrow interface; clear contract |
 | Import depth | < 5 levels | Shallow dependency trees are easier to trace |
