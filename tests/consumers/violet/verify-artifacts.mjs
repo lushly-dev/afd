@@ -32,6 +32,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import semver from 'semver';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const argument = (name) => {
@@ -494,6 +495,8 @@ passed(
 );
 
 // ---- A consumer's own AFD 2.x is the integration's: one shared afd-core -------------------------
+// The overrides pin every afd-core to the packed one, so check the declared range accepts it.
+assert(semver.satisfies(packedManifest(AFD_CORE).version, afd.dependencies[AFD_CORE]));
 const { root: sharedRoot } = await install('integration-with-afd-2', {
 	[CORE]: file(CORE),
 	[AFD]: file(AFD),

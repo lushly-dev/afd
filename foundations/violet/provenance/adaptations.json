@@ -3395,7 +3395,7 @@
       "path": "tests/consumers/violet/verify-artifacts.mjs",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "ee0ca8630e91884b51fc0a9c3277ac583d3632576adc4730aa78b8f8c9368235",
+      "current_import_sha256": "714591174fbd540ad6d0cf5ac31f5099dba6f6dcd50d7d306b9f302486389c93",
       "classification": "afd-authored",
       "reason": "Packed-artifact consumers outside the workspace (Phase 3 evidence); afd-core is packed from the workspace and shared with the consumer after the move to AFD 2.x",
       "candidate": {

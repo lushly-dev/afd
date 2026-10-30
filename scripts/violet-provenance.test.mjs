@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -63,7 +63,20 @@ test('the native core has no AFD edge and the integration uses the workspace AFD
 	assert.equal(afd.dependencies['@lushly-dev/afd-core'], 'workspace:^2.2.0');
 	// Pre-1.0, widen the peer to the next minor before a fixed-group minor release, or
 	// Changesets major-bumps the integration and with it the whole group.
-	assert(semver.satisfies(core.version, afd.peerDependencies['@lushly-dev/violet-core']));
+	const peer = afd.peerDependencies['@lushly-dev/violet-core'];
+	assert(semver.satisfies(core.version, peer));
+	const pendingMinor = readdirSync(join(root, '.changeset'))
+		.filter((name) => name.endsWith('.md') && name !== 'README.md')
+		.some((name) =>
+			/^['"]@lushly-dev\/violet-core['"]: (?:minor|major)$/m.test(
+				readFileSync(join(root, '.changeset', name), 'utf8')
+			)
+		);
+	if (pendingMinor)
+		assert(
+			semver.satisfies(semver.inc(core.version, 'minor'), peer),
+			`a pending violet-core minor needs the integration peer (${peer}) to accept it`
+		);
 	for (const endpoint of ['endpoints/violet-cli', 'endpoints/violet-server'])
 		assert.equal(
 			json(`${endpoint}/package.json`).dependencies['@lushly-dev/violet-afd'],
