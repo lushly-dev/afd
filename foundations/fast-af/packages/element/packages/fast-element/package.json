@@ -213,7 +213,7 @@
     "@ast-grep/cli": "^0.37.0",
     "@biomejs/biome": "^2.4.7",
     "@microsoft/api-extractor": "7.58.1",
-    "@playwright/test": "1.56.1",
+    "@playwright/test": "1.64.0",
     "@rollup/plugin-terser": "1.0.0",
     "@rollup/plugin-typescript": "12.3.0",
     "concurrently": "10.0.3",

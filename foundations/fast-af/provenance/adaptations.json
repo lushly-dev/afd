@@ -705,11 +705,11 @@
       "upstream_sha256": "231e23c3cce3b36a999bfc27ecc23ce6d62c26d32b64f6c9a2c35bd21c6ba1a0",
       "staged_path": "packages/element/packages/fast-element/package.json",
       "staged_sha256": "231e23c3cce3b36a999bfc27ecc23ce6d62c26d32b64f6c9a2c35bd21c6ba1a0",
-      "current_import_sha256": "698526653a9f7fac0a1fad118ce58f2684c2a062a55e12e023f3d91bfabb2d7a",
+      "current_import_sha256": "3d3d544d76fceeba0e42d8f311ac63c706d04ab9ff8961624ab548352e251d97",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); test:ci and all other scripts, dependencies and metadata are unchanged and fast-af.yml runs test:ci"
+      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; test:ci and all other scripts, dependencies and metadata are unchanged and fast-af.yml runs test:ci"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/playwright.config.ts",
@@ -5565,11 +5565,11 @@
       "upstream_sha256": "42cc73c3e7d1819c88fdce5df16fb34953d068aa2a96840a92d22aa239321655",
       "staged_path": "packages/violet-elements/package.json",
       "staged_sha256": "42cc73c3e7d1819c88fdce5df16fb34953d068aa2a96840a92d22aa239321655",
-      "current_import_sha256": "cba4175750bf15a23cb4b8756674fa622b5a9e264e0248eac643f36c3e6cd197",
+      "current_import_sha256": "c3ad0373e4df8f32f281fb863b849fb9f0ab7a123ee5ea53d6a8b9e44989d36e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Add test:browser and the devDependencies the upstream root workspace supplied for lint and the Vitest browser suite (@biomejs/biome, vitest, @vitest/browser-playwright, @vitest/coverage-v8, playwright, vite) with the upstream root specifiers; private, exports, dependencies and peer unchanged"
+      "import_reason": "Add test:browser and the devDependencies the upstream root workspace supplied for lint and the Vitest browser suite (@biomejs/biome, vitest, @vitest/browser-playwright, @vitest/coverage-v8, playwright, vite) with the upstream root specifiers, except playwright, raised from ^1.58.2 to ^1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; private, exports, dependencies and peer unchanged"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/scripts/build-icons.mjs",

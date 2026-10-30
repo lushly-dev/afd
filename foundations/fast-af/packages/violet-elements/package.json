@@ -52,7 +52,7 @@
     "@lushly-dev/fast-element": "workspace:*",
     "@vitest/browser-playwright": "^4.1.11",
     "@vitest/coverage-v8": "^4.1.11",
-    "playwright": "^1.58.2",
+    "playwright": "^1.64.0",
     "rimraf": "^6.0.0",
     "typescript": "^5.9.3",
     "vite": "8.0.1",
