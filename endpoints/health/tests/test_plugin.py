@@ -10,8 +10,8 @@ pytest.importorskip("botcore")
 
 from botcore import ExecutionContext, build_host  # noqa: E402
 
-from botcore_health import HealthPlugin  # noqa: E402
-from botcore_health.commands import host_policies  # noqa: E402
+from lushly_health import HealthPlugin  # noqa: E402
+from lushly_health.commands import host_policies  # noqa: E402
 
 
 def snapshot(root: Path) -> dict[str, bytes]:
@@ -72,7 +72,7 @@ async def test_admitted_audit_is_inspection_only_and_confined(workspace):
     denied = await host.execute("health_audit", selection(check_ids=("last_commit",)))
     assert denied.error.code == "EFFECT_DENIED"
     capabilities = await host.execute("health_capabilities", {})
-    assert capabilities.success and capabilities.data["schema_version"] == "1.0"
+    assert capabilities.success and capabilities.data["schema_version"] == "1.1"
 
 
 async def test_trusted_local_host_may_run_the_git_metric(workspace):

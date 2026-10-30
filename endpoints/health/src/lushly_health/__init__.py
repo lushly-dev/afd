@@ -7,10 +7,13 @@ from importlib import resources
 
 from .config import load_policy, load_targets, policy_from_mapping, targets_from_mapping
 from .core import (
+    CONFIG_SCHEMA_VERSION,
+    REPORT_SCHEMA_VERSIONS,
     SCHEMA_VERSION,
     ArtifactScope,
     Policy,
     Target,
+    aggregate_verdict,
     audit,
     capabilities,
     onboard,
@@ -20,12 +23,15 @@ from .core import (
 __version__ = "0.1.0"
 
 __all__ = [
+    "CONFIG_SCHEMA_VERSION",
+    "REPORT_SCHEMA_VERSIONS",
     "SCHEMA_VERSION",
     "ArtifactScope",
     "HealthPlugin",
     "Policy",
     "Target",
     "__version__",
+    "aggregate_verdict",
     "audit",
     "capabilities",
     "load_policy",
@@ -38,9 +44,12 @@ __all__ = [
 ]
 
 
-def report_schema() -> dict:
-    """The JSON Schema for the report contract this version emits."""
-    text = resources.files(__name__).joinpath(f"schemas/report-{SCHEMA_VERSION}.json").read_text()
+def report_schema(version: str = SCHEMA_VERSION) -> dict:
+    """The JSON Schema for a report version; by default the one this version emits."""
+    if version not in REPORT_SCHEMA_VERSIONS:
+        known = ", ".join(REPORT_SCHEMA_VERSIONS)
+        raise ValueError(f"Unknown report schema version; known: {known}")
+    text = resources.files(__name__).joinpath(f"schemas/report-{version}.json").read_text()
     return json.loads(text)
 
 

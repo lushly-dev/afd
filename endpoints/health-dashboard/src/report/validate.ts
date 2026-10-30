@@ -2,11 +2,12 @@
  * Turn untrusted file text into a validated report or an actionable failure.
  *
  * Nothing is rendered from a file until it parses as JSON, declares the supported
- * schema_version, validates against Health's report-1.0 schema and is internally
- * consistent. A failure never carries a partially accepted report.
+ * schema_version, validates against Health's report-1.1 schema and is internally
+ * consistent, including Health's own verdict against the outcomes. A failure never carries a partially accepted report.
  */
 import { schemaVersion, validateReport } from 'virtual:health-report-schema';
 import { type HealthReport, STATUSES, type Status } from './types';
+import { deriveVerdict, expectedReportVerdict } from './verdict';
 
 /** Health reports are small; anything this large is almost certainly the wrong file. */
 export const MAX_REPORT_BYTES = 10 * 1024 * 1024;
@@ -42,7 +43,7 @@ export interface LoadedReport {
 export type LoadResult = LoadedReport | LoadFailure;
 
 export const SUPPORTED_SCHEMA_VERSION = schemaVersion;
-const AUDIT_COMMAND = 'python -m botcore_health audit --output-dir <directory>';
+const AUDIT_COMMAND = 'python -m lushly_health audit --output-dir <directory>';
 
 export function failure(
 	source: string,
@@ -132,6 +133,7 @@ function consistencyDetails(report: HealthReport): string[] {
 		targets.add(target.id);
 	}
 	const checks = new Set(report.policy.check_ids);
+	const disabled = new Set(report.policy.disabled);
 	const counts = Object.fromEntries(STATUSES.map((status) => [status, 0])) as Record<
 		Status,
 		number
@@ -144,11 +146,24 @@ function consistencyDetails(report: HealthReport): string[] {
 			details.push(
 				`outcomes[${index}] names check ${outcome.check_id}, which isn't in policy.check_ids.`
 			);
+		// Only the policy may exclude a check from the verdict, and it always does.
+		if ((outcome.status === 'disabled') !== disabled.has(outcome.check_id))
+			details.push(
+				outcome.status === 'disabled'
+					? `outcomes[${index}] is disabled, but policy.disabled doesn't list ${outcome.check_id}.`
+					: `outcomes[${index}] is ${outcome.status}, but policy.disabled lists ${outcome.check_id}.`
+			);
 	});
 	for (const status of STATUSES)
 		if (report.summary[status] !== counts[status])
 			details.push(
 				`summary.${status} is ${report.summary[status]}, but ${counts[status]} outcomes have status ${status}.`
+			);
+	const expected = expectedReportVerdict(deriveVerdict(report.outcomes));
+	for (const key of ['status', 'required_count', 'blocking_count'] as const)
+		if (report.verdict[key] !== expected[key])
+			details.push(
+				`verdict.${key} is ${report.verdict[key]}, but the outcomes give ${expected[key]}.`
 			);
 	return details;
 }

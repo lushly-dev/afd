@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
  * Generate the dashboard's report fixtures by running the real Health CLI
- * (`python -m botcore_health audit`, through uv and endpoints/health's lock) against
+ * (`python -m lushly_health audit`, through uv and endpoints/health's lock) against
  * small plain repositories created in a temporary directory.
  *
  * The fixture repositories have no AFD, Botcore, Health or FAST-AF dependency. Each
  * report's caller-local `targets[].path` is replaced by `<fixture>/<id>` so committed
- * fixtures carry no machine path; nothing else is edited. `--check` regenerates into
+ * fixtures carry no machine path, and `generated_at` is pinned to FIXTURE_TIME so they
+ * are reproducible; nothing else is edited. `--check` regenerates into
  * memory and fails when a committed fixture differs.
  */
 import { spawnSync } from 'node:child_process';
@@ -20,6 +21,7 @@ const packageRoot = resolve(here, '..');
 const healthProject = resolve(packageRoot, '../health');
 const output = join(packageRoot, 'fixtures/reports');
 const check = process.argv.includes('--check');
+const FIXTURE_TIME = '2026-01-01T00:00:00Z';
 
 const GITATTRIBUTES = '* text=auto eol=lf\n';
 const ruffProject = (name) =>
@@ -69,6 +71,14 @@ const fixtures = {
 		targets: [['tidy-lib', 'python']],
 		policy: { checks: ['gitattributes_lf', 'lefthook_configured', 'linter_strict'] },
 	},
+	// A failing required check disabled by policy no longer prevents a pass.
+	'passed-with-disabled': {
+		targets: [['tidy-lib', 'python']],
+		policy: {
+			checks: ['gitattributes_lf', 'lefthook_configured', 'dependabot_configured'],
+			disabled: ['dependabot_configured'],
+		},
+	},
 	'advisory-only': {
 		targets: [['tidy-lib', 'python']],
 		policy: {
@@ -106,7 +116,7 @@ function audit(workspace, name, fixture) {
 			healthProject,
 			'python',
 			'-m',
-			'botcore_health',
+			'lushly_health',
 			'audit',
 			'--targets',
 			targetsFile,
@@ -120,6 +130,7 @@ function audit(workspace, name, fixture) {
 		throw new Error(`Health audit for ${name} exited ${result.status}:\n${result.stderr}`);
 	const report = JSON.parse(result.stdout);
 	for (const target of report.targets) target.path = `<fixture>/${target.id}`;
+	report.generated_at = FIXTURE_TIME;
 	const text = `${JSON.stringify(report, null, '\t')}\n`;
 	for (const root of new Set([workspace, realpathSync(workspace)]))
 		if (text.includes(root)) throw new Error(`${name}: a machine path survived sanitizing`);

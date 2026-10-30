@@ -5,6 +5,7 @@ import type { Verdict } from '../report/verdict';
 import {
 	describeEvidence,
 	type EvidenceItem,
+	formatGeneratedAt,
 	plural,
 	SEVERITY_LABEL,
 	STATUS_PRESENTATION,
@@ -96,7 +97,8 @@ export const reportTemplate = html<ReportView>`
 			<p class="report-meta">
 				Health ${(x) => x.report.generator.version} · report schema
 				${(x) => x.report.schema_version} · ${(x) => plural(x.report.targets.length, 'target', 'targets')}
-				· ${(x) => plural(x.report.outcomes.length, 'check result', 'check results')}
+				· ${(x) => plural(x.report.outcomes.length, 'check result', 'check results')} · generated
+				<time datetime="${(x) => x.report.generated_at}">${(x) => formatGeneratedAt(x.report.generated_at)}</time>
 			</p>
 		</header>
 
@@ -113,8 +115,9 @@ export const reportTemplate = html<ReportView>`
 				${repeat((x) => x.verdict.reasons, html<string>`<li>${(x) => x}</li>`)}
 			</ul>
 			<p class="verdict-rule">
-				The dashboard works this out from the report: it passes only when it has required checks
-				and every required check passed.
+				A report passes only when it has required checks and every required check passed. Checks
+				disabled by policy aren't counted. Health records this verdict, and the dashboard checks it
+				against the results.
 			</p>
 		</div>
 

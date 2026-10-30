@@ -9,8 +9,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from botcore_health import ArtifactScope, Policy, Target, audit, capabilities, onboard, write_report
-from botcore_health.core import CHECKS, STATUSES, CheckSpec
+from lushly_health import ArtifactScope, Policy, Target, audit, capabilities, onboard, write_report
+from lushly_health.core import CHECKS, STATUSES, CheckSpec
 
 
 class HealthFixture(unittest.TestCase):
@@ -51,7 +51,7 @@ class HealthFixture(unittest.TestCase):
         self.assertEqual(self.snapshot(), before)
         self.assertEqual(report["artifacts_written"], [])
         self.assertEqual(set(report["summary"]), set(STATUSES))
-        self.assertTrue(all(o["schema_version"] == "1.0" for o in report["outcomes"]))
+        self.assertTrue(all(o["schema_version"] == "1.1" for o in report["outcomes"]))
         self.assertEqual(report["outcomes"][0]["target"], "sample-project")
 
     def test_missing_version_is_failure_with_remediation(self):
@@ -142,17 +142,18 @@ class HealthFixture(unittest.TestCase):
         self.assertEqual(self.run_check("node_version_alignment")["status"], "passed")
 
     def test_git_metric_never_reads_an_enclosing_repository(self):
-        with patch("botcore_health.core.subprocess.run") as run:
+        with patch("lushly_health.core.subprocess.run") as run:
             result = self.run_check("last_commit")
         self.assertEqual(result["status"], "unavailable")
         run.assert_not_called()
 
-    def test_disabled_and_language_inapplicable_are_skipped(self):
+    def test_disabled_is_its_own_status_and_inapplicable_is_skipped(self):
         disabled = audit(
             (self.target,),
             Policy(("node_version_alignment",), frozenset({"node_version_alignment"})),
         )
-        self.assertEqual(disabled["summary"]["skipped"], 1)
+        self.assertEqual(disabled["summary"]["disabled"], 1)
+        self.assertEqual(disabled["summary"]["skipped"], 0)
         other = Target("other", self.repo, "rust")
         self.assertEqual(
             audit((other,), Policy(("node_version_alignment",)))["summary"]["skipped"], 1
@@ -161,7 +162,7 @@ class HealthFixture(unittest.TestCase):
     def test_missing_target_and_tool_are_unavailable(self):
         missing = Target("missing", self.root / "missing", "typescript")
         self.assertEqual(audit((missing,), Policy(("ci_present",)))["summary"]["unavailable"], 1)
-        with patch("botcore_health.core.shutil.which", return_value=None):
+        with patch("lushly_health.core.shutil.which", return_value=None):
             self.assertEqual(self.run_check("last_commit")["status"], "unavailable")
 
     @patch.dict("os.environ", {"GIT_DIR": "elsewhere"})
@@ -169,8 +170,8 @@ class HealthFixture(unittest.TestCase):
         (self.repo / ".git").mkdir()
         completed = subprocess.CompletedProcess([], 0, "12345\n", "")
         with (
-            patch("botcore_health.core.shutil.which", return_value="/tool/git"),
-            patch("botcore_health.core.subprocess.run", return_value=completed) as run,
+            patch("lushly_health.core.shutil.which", return_value="/tool/git"),
+            patch("lushly_health.core.subprocess.run", return_value=completed) as run,
         ):
             result = self.run_check("last_commit")
         self.assertEqual(result["evidence"]["metric"], "12345")
@@ -208,9 +209,9 @@ class HealthFixture(unittest.TestCase):
     def test_git_timeout_does_not_become_zero_or_pass(self):
         (self.repo / ".git").mkdir()
         with (
-            patch("botcore_health.core.shutil.which", return_value="/tool/git"),
+            patch("lushly_health.core.shutil.which", return_value="/tool/git"),
             patch(
-                "botcore_health.core.subprocess.run",
+                "lushly_health.core.subprocess.run",
                 side_effect=subprocess.TimeoutExpired("git", 5),
             ),
         ):
@@ -253,7 +254,7 @@ class HealthFixture(unittest.TestCase):
     def test_report_explicit_output_and_no_implicit_rerun(self):
         report = audit((self.target,), Policy(("ci_present",)))
         scope = ArtifactScope(self.root / "artifacts")
-        with patch("botcore_health.core.audit", side_effect=AssertionError("No implicit audit")):
+        with patch("lushly_health.core.audit", side_effect=AssertionError("No implicit audit")):
             receipt = write_report(report, scope)
         self.assertEqual(receipt["effects"], ["artifact_write"])
         stored = json.loads((scope.root / "health-report.json").read_text())
@@ -316,7 +317,7 @@ class HealthFixture(unittest.TestCase):
         missing = Target("missing", self.root / "missing", "typescript")
         with (
             patch.dict(CHECKS, {"lefthook_configured": CheckSpec(broken)}),
-            patch("botcore_health.core.shutil.which", return_value=None),
+            patch("lushly_health.core.shutil.which", return_value=None),
         ):
             report = audit(
                 (self.target, rust, missing),
@@ -336,7 +337,7 @@ class HealthFixture(unittest.TestCase):
         self.assertEqual(statuses["sample-project", "gitattributes_lf"], "passed")
         self.assertEqual(statuses["sample-project", "commitlint_configured"], "failed")
         self.assertEqual(statuses["sample-project", "changesets_configured"], "warn")
-        self.assertEqual(statuses["sample-project", "ci_present"], "skipped")
+        self.assertEqual(statuses["sample-project", "ci_present"], "disabled")
         self.assertEqual(statuses["rust-app", "commitlint_configured"], "skipped")
         self.assertEqual(statuses["sample-project", "last_commit"], "unavailable")
         self.assertEqual(statuses["missing", "gitattributes_lf"], "unavailable")

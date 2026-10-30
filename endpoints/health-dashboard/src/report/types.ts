@@ -1,10 +1,18 @@
 /**
- * TypeScript view of Health report schema 1.0 (endpoints/health
- * `src/botcore_health/schemas/report-1.0.json`). The schema, not these types, is the
+ * TypeScript view of Health report schema 1.1 (endpoints/health
+ * `src/lushly_health/schemas/report-1.1.json`). The schema, not these types, is the
  * contract: every file is validated against it before any of these types apply.
  */
 
-export const STATUSES = ['passed', 'failed', 'warn', 'skipped', 'unavailable', 'error'] as const;
+export const STATUSES = [
+	'passed',
+	'failed',
+	'warn',
+	'skipped',
+	'disabled',
+	'unavailable',
+	'error',
+] as const;
 export type Status = (typeof STATUSES)[number];
 
 export const SEVERITIES = ['required', 'advisory'] as const;
@@ -26,7 +34,7 @@ export interface Evidence {
 }
 
 export interface Outcome {
-	schema_version: '1.0';
+	schema_version: '1.1';
 	check_id: string;
 	target: string;
 	status: Status;
@@ -38,9 +46,21 @@ export interface Outcome {
 
 export type Summary = Record<Status, number>;
 
+export const REPORT_VERDICTS = ['passed', 'not_passed', 'no_required_checks'] as const;
+export type ReportVerdictStatus = (typeof REPORT_VERDICTS)[number];
+
+/** Health's own verdict; the dashboard recomputes it and rejects a report that disagrees. */
+export interface ReportVerdict {
+	status: ReportVerdictStatus;
+	required_count: number;
+	blocking_count: number;
+}
+
 export interface HealthReport {
-	schema_version: '1.0';
+	schema_version: '1.1';
 	generator: { name: 'lushly-health'; version: string };
+	/** UTC, whole seconds: `YYYY-MM-DDTHH:MM:SSZ`. */
+	generated_at: string;
 	targets: ReportTarget[];
 	policy: {
 		check_ids: string[];
@@ -50,6 +70,7 @@ export interface HealthReport {
 	};
 	outcomes: Outcome[];
 	summary: Summary;
+	verdict: ReportVerdict;
 	effects: ['target_read'];
 	artifacts_written: [];
 }

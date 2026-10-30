@@ -17,9 +17,9 @@ export interface StatusPresentation {
 }
 
 /**
- * Six distinct presentations. Each pair that shares a hue also differs in icon and fill
- * (failed/error, skipped/unavailable), and none of the non-passing statuses uses the
- * success treatment.
+ * Seven distinct presentations. Statuses that share a hue also differ in icon and fill
+ * (failed/error; unavailable/skipped/disabled), and none of the non-passing statuses
+ * uses the success treatment.
  */
 export const STATUS_PRESENTATION: Record<Status, StatusPresentation> = {
 	failed: {
@@ -56,11 +56,19 @@ export const STATUS_PRESENTATION: Record<Status, StatusPresentation> = {
 	},
 	skipped: {
 		label: 'Skipped',
-		description: 'Not run: disabled or not applicable',
+		description: 'Not run: not applicable to the target',
 		icon: 'health/skipped',
 		color: 'neutral',
 		appearance: 'subtle',
 		rank: 4,
+	},
+	disabled: {
+		label: 'Disabled',
+		description: 'Turned off by policy; not counted in the verdict',
+		icon: 'health/disabled',
+		color: 'neutral',
+		appearance: 'filled',
+		rank: 5,
 	},
 	passed: {
 		label: 'Passed',
@@ -68,7 +76,7 @@ export const STATUS_PRESENTATION: Record<Status, StatusPresentation> = {
 		icon: 'health/passed',
 		color: 'success',
 		appearance: 'filled',
-		rank: 5,
+		rank: 6,
 	},
 };
 
@@ -153,3 +161,8 @@ export function describeEvidence(evidence: Evidence): EvidenceItem[] {
 
 export const plural = (count: number, one: string, many: string) =>
 	`${count} ${count === 1 ? one : many}`;
+
+/** `2026-01-02T03:04:05Z` -> `2026-01-02 03:04:05 UTC`; the schema fixes the input format. */
+export function formatGeneratedAt(value: string): string {
+	return `${value.slice(0, 10)} ${value.slice(11, 19)} UTC`;
+}

@@ -10,19 +10,25 @@ import subprocess
 from collections import Counter
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from types import MappingProxyType
 from typing import Literal
 
 from . import checks
 
-Status = Literal["passed", "failed", "warn", "skipped", "unavailable", "error"]
+Status = Literal["passed", "failed", "warn", "skipped", "disabled", "unavailable", "error"]
 Severity = Literal["required", "advisory"]
-STATUSES = ("passed", "failed", "warn", "skipped", "unavailable", "error")
+STATUSES = ("passed", "failed", "warn", "skipped", "disabled", "unavailable", "error")
 SEVERITIES = ("required", "advisory")
+VERDICTS = ("passed", "not_passed", "no_required_checks")
 # Remediation is not implemented; a policy may only declare that it is off.
 REMEDIATION_POLICIES = ("none",)
-SCHEMA_VERSION = "1.0"
+# The report contract this version emits; earlier report schemas stay readable.
+SCHEMA_VERSION = "1.1"
+REPORT_SCHEMA_VERSIONS = ("1.0", "1.1")
+# Caller-owned policy and targets files have their own, separate version.
+CONFIG_SCHEMA_VERSION = "1.0"
 GENERATOR = {"name": "lushly-health", "version": "0.1.0"}
 _IDENTIFIER = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9._-]*")
 
@@ -230,8 +236,10 @@ def capabilities() -> dict:
     return {
         "schema_version": SCHEMA_VERSION,
         "generator": dict(GENERATOR),
+        "config_schema_version": CONFIG_SCHEMA_VERSION,
         "statuses": list(STATUSES),
         "severities": list(SEVERITIES),
+        "verdicts": list(VERDICTS),
         "remediation_policies": list(REMEDIATION_POLICIES),
         "checks": [
             {
@@ -291,7 +299,7 @@ def _evaluate(target: Target, check_id: str, spec: CheckSpec, policy: Policy, is
     }
     remediation = None
     if check_id in policy.disabled:
-        return "skipped", "Explicitly disabled by selected policy", evidence, None
+        return "disabled", "Explicitly disabled by selected policy", evidence, None
     try:
         boundary = issue or _boundary_issue(target.path, spec)
     except (OSError, RuntimeError):
@@ -329,9 +337,36 @@ def _evaluate(target: Target, check_id: str, spec: CheckSpec, policy: Policy, is
         return "error", "Check could not complete", evidence, remediation
 
 
-def audit(targets: tuple[Target, ...], policy: Policy) -> dict:
-    """Read the explicitly selected targets and return a versioned report (no writes)."""
+def aggregate_verdict(outcomes: list[dict]) -> dict:
+    """Overall result under the platform's aggregate rule.
+
+    A report passes only when it has at least one counted required check and every
+    counted required check passed. Required checks disabled by policy are not counted;
+    any other non-passing required status (including ``skipped``) blocks a pass.
+    Advisory results never affect the verdict.
+    """
+    counted = [o for o in outcomes if o["severity"] == "required" and o["status"] != "disabled"]
+    blocking = sum(o["status"] != "passed" for o in counted)
+    status = "no_required_checks" if not counted else "not_passed" if blocking else "passed"
+    return {"status": status, "required_count": len(counted), "blocking_count": blocking}
+
+
+def _timestamp(moment: datetime | None) -> str:
+    moment = datetime.now(UTC) if moment is None else moment
+    if moment.tzinfo is None:
+        raise ValueError("generated_at must be timezone-aware")
+    return moment.astimezone(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def audit(
+    targets: tuple[Target, ...], policy: Policy, *, generated_at: datetime | None = None
+) -> dict:
+    """Read the explicitly selected targets and return a versioned report (no writes).
+
+    ``generated_at`` defaults to now; pass a fixed time for reproducible output.
+    """
     targets = tuple(targets)
+    timestamp = _timestamp(generated_at)
     if len({t.id for t in targets}) != len(targets):
         raise ValueError("Target ids must be unique")
     outcomes = []
@@ -355,10 +390,12 @@ def audit(targets: tuple[Target, ...], policy: Policy) -> dict:
     return {
         "schema_version": SCHEMA_VERSION,
         "generator": dict(GENERATOR),
+        "generated_at": timestamp,
         "targets": [{"id": t.id, "path": str(t.path), "language": t.language} for t in targets],
         "policy": policy.describe(),
         "outcomes": outcomes,
         "summary": {status: counts[status] for status in STATUSES},
+        "verdict": aggregate_verdict(outcomes),
         "effects": ["target_read"],
         "artifacts_written": [],
     }
@@ -375,6 +412,7 @@ class ArtifactScope:
 
 
 def _write_artifact(data: dict, scope: ArtifactScope, name: str, targets: tuple[Path, ...]) -> dict:
+    """Write one JSON artifact; the receipt names the version of what was written."""
     if Path(name).name != name or name in ("", ".", ".."):
         raise ValueError("Artifact name must be a single filename")
     if any(scope.root.is_relative_to(path.resolve()) for path in targets):
@@ -386,7 +424,7 @@ def _write_artifact(data: dict, scope: ArtifactScope, name: str, targets: tuple[
         json.dump(data, stream, indent=2)
         stream.write("\n")
     return {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": data["schema_version"],
         "effects": ["artifact_write"],
         "artifacts_written": [str(destination)],
     }
@@ -417,7 +455,7 @@ def onboard(
         raise ValueError("Onboarding requires an existing Git repository")
     return _write_artifact(
         {
-            "schema_version": SCHEMA_VERSION,
+            "schema_version": CONFIG_SCHEMA_VERSION,
             "targets": [{"id": target.id, "path": str(target.path), "language": target.language}],
         },
         scope,

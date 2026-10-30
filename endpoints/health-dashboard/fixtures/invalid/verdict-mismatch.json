@@ -1,0 +1,101 @@
+{
+	"schema_version": "1.1",
+	"generator": {
+		"name": "lushly-health",
+		"version": "0.1.0"
+	},
+	"generated_at": "2026-01-01T00:00:00Z",
+	"targets": [
+		{
+			"id": "tidy-lib",
+			"path": "<fixture>/tidy-lib",
+			"language": "python"
+		}
+	],
+	"policy": {
+		"check_ids": [
+			"gitattributes_lf",
+			"lefthook_configured",
+			"linter_strict"
+		],
+		"disabled": [],
+		"severity": {
+			"gitattributes_lf": "required",
+			"lefthook_configured": "required",
+			"linter_strict": "required"
+		},
+		"remediation": "none"
+	},
+	"outcomes": [
+		{
+			"check_id": "gitattributes_lf",
+			"target": "tidy-lib",
+			"status": "passed",
+			"severity": "required",
+			"message": ".gitattributes enforces LF line endings",
+			"evidence": {
+				"paths": [
+					".gitattributes"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "LF"
+			},
+			"remediation": null,
+			"schema_version": "1.1"
+		},
+		{
+			"check_id": "lefthook_configured",
+			"target": "tidy-lib",
+			"status": "passed",
+			"severity": "required",
+			"message": "lefthook.yml has pre-commit and pre-push hooks",
+			"evidence": {
+				"paths": [
+					"lefthook.yml"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "2/2"
+			},
+			"remediation": null,
+			"schema_version": "1.1"
+		},
+		{
+			"check_id": "linter_strict",
+			"target": "tidy-lib",
+			"status": "passed",
+			"severity": "required",
+			"message": "pyproject.toml has [tool.ruff] configured",
+			"evidence": {
+				"paths": [
+					"biome.json",
+					"pyproject.toml"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "ruff"
+			},
+			"remediation": null,
+			"schema_version": "1.1"
+		}
+	],
+	"summary": {
+		"passed": 3,
+		"failed": 0,
+		"warn": 0,
+		"skipped": 0,
+		"disabled": 0,
+		"unavailable": 0,
+		"error": 0
+	},
+	"verdict": {
+		"status": "not_passed",
+		"required_count": 3,
+		"blocking_count": 1
+	},
+	"effects": [
+		"target_read"
+	],
+	"artifacts_written": []
+}

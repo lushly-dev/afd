@@ -31,7 +31,7 @@ dev = [
 ]
 
 [project.entry-points."botcore.plugins"]
-health = "botcore_health:HealthPlugin"
+health = "lushly_health:HealthPlugin"
 
 [project.urls]
 Repository = "https://github.com/lushly-dev/afd"
@@ -44,7 +44,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-botcore_health = ["schemas/*.json"]
+lushly_health = ["schemas/*.json"]
 
 # Develop against the in-repository AFD package and Botcore endpoint. uv-only:
 # built artifacts keep the plain requirements above.

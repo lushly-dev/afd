@@ -33,8 +33,9 @@ from privacy import load_deny_terms, scan_member
 ROOT = Path(__file__).resolve().parents[1]
 REPOSITORY = ROOT.parents[1]
 MODULES = {"__init__.py", "__main__.py", "checks.py", "commands.py", "config.py", "core.py"}
-WHEEL_PACKAGE = {f"botcore_health/{name}" for name in MODULES} | {
-    "botcore_health/schemas/report-1.0.json"
+WHEEL_PACKAGE = {f"lushly_health/{name}" for name in MODULES} | {
+    "lushly_health/schemas/report-1.0.json",
+    "lushly_health/schemas/report-1.1.json",
 }
 SDIST_ROOT_FILES = {
     "PKG-INFO",
@@ -86,9 +87,10 @@ def audit_artifacts(artifacts: Path, deny: list[str]) -> list[dict]:
         assert not any("file:" in requirement or "../" in requirement for requirement in requires)
         assert archive.read("lushly_health-0.1.0.dist-info/licenses/LICENSE") == license_text
         entry_points = archive.read("lushly_health-0.1.0.dist-info/entry_points.txt").decode()
-        assert "[botcore.plugins]\nhealth = botcore_health:HealthPlugin" in entry_points
-        schema = (ROOT / "src/botcore_health/schemas/report-1.0.json").read_bytes()
-        assert archive.read("botcore_health/schemas/report-1.0.json") == schema
+        assert "[botcore.plugins]\nhealth = lushly_health:HealthPlugin" in entry_points
+        for version in ("1.0", "1.1"):
+            schema = (ROOT / f"src/lushly_health/schemas/report-{version}.json").read_bytes()
+            assert archive.read(f"lushly_health/schemas/report-{version}.json") == schema
         for name in sorted(names):
             findings += scan_member(f"{wheel.name}!{name}", archive.read(name), deny)
     rows.append({"artifact": wheel.name, "sha256": digest(wheel), "members": len(names)})
@@ -186,12 +188,12 @@ def snapshot(root: Path) -> dict[str, str]:
 HEADLESS = """
 import json, sys
 before = {name.split(".")[0] for name in sys.modules}  # interpreter and venv bootstrap
-import botcore_health
-from botcore_health import load_policy, load_targets, audit
-assert "site-packages" in botcore_health.__file__
+import lushly_health
+from lushly_health import load_policy, load_targets, audit
+assert "site-packages" in lushly_health.__file__
 report = audit(load_targets(sys.argv[1]), load_policy(sys.argv[2]))
 loaded = {name.split(".")[0] for name in sys.modules} - before
-third_party = sorted(loaded - set(sys.stdlib_module_names) - {"botcore_health"})
+third_party = sorted(loaded - set(sys.stdlib_module_names) - {"lushly_health"})
 print(json.dumps({"third_party_modules": third_party, "summary": report["summary"]}))
 """
 
@@ -199,7 +201,7 @@ BOTCORE = """
 import asyncio, json, sys
 from pathlib import Path
 from botcore import ExecutionContext, build_host
-from botcore_health.commands import host_policies
+from lushly_health.commands import host_policies
 
 async def main():
     workspace = Path(sys.argv[1]).resolve()
@@ -236,7 +238,7 @@ def main() -> None:
     parser.add_argument("--skip-botcore", action="store_true", help="Skip the Botcore consumer")
     options = parser.parse_args()
     deny = load_deny_terms(options.deny_file)
-    schema = json.loads((ROOT / "src/botcore_health/schemas/report-1.0.json").read_text())
+    schema = json.loads((ROOT / "src/lushly_health/schemas/report-1.1.json").read_text())
     with tempfile.TemporaryDirectory(prefix="health-wheel-smoke-") as temporary:
         work = Path(temporary).resolve()
         assert not work.is_relative_to(REPOSITORY)
@@ -284,7 +286,7 @@ def main() -> None:
                 str(python),
                 "-I",
                 "-m",
-                "botcore_health",
+                "lushly_health",
                 "audit",
                 "--targets",
                 str(config / "targets.toml"),
@@ -315,7 +317,7 @@ def main() -> None:
         )
         assert headless["third_party_modules"] == [], headless
         printed_schema = json.loads(
-            run([str(python), "-I", "-m", "botcore_health", "schema"], outside).stdout
+            run([str(python), "-I", "-m", "lushly_health", "schema"], outside).stdout
         )
         assert printed_schema == schema
         after = {name: snapshot(path) for name, path in fixtures.items()}

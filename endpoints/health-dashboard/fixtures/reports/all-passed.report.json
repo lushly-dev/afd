@@ -1,9 +1,10 @@
 {
-	"schema_version": "1.0",
+	"schema_version": "1.1",
 	"generator": {
 		"name": "lushly-health",
 		"version": "0.1.0"
 	},
+	"generated_at": "2026-01-01T00:00:00Z",
 	"targets": [
 		{
 			"id": "tidy-lib",
@@ -41,7 +42,7 @@
 				"metric": "LF"
 			},
 			"remediation": null,
-			"schema_version": "1.0"
+			"schema_version": "1.1"
 		},
 		{
 			"check_id": "lefthook_configured",
@@ -58,7 +59,7 @@
 				"metric": "2/2"
 			},
 			"remediation": null,
-			"schema_version": "1.0"
+			"schema_version": "1.1"
 		},
 		{
 			"check_id": "linter_strict",
@@ -76,7 +77,7 @@
 				"metric": "ruff"
 			},
 			"remediation": null,
-			"schema_version": "1.0"
+			"schema_version": "1.1"
 		}
 	],
 	"summary": {
@@ -84,8 +85,14 @@
 		"failed": 0,
 		"warn": 0,
 		"skipped": 0,
+		"disabled": 0,
 		"unavailable": 0,
 		"error": 0
+	},
+	"verdict": {
+		"status": "passed",
+		"required_count": 3,
+		"blocking_count": 0
 	},
 	"effects": [
 		"target_read"

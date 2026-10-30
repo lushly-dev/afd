@@ -1,0 +1,244 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "urn:lushly-health:report:1.1",
+	"title": "Health audit report",
+	"description": "Versioned output of a read-only Health audit. 1.1 adds generated_at, the verdict and the disabled status to 1.0. A breaking change requires a new major schema_version and a new schema file.",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schema_version",
+		"generator",
+		"generated_at",
+		"targets",
+		"policy",
+		"outcomes",
+		"summary",
+		"verdict",
+		"effects",
+		"artifacts_written"
+	],
+	"properties": {
+		"schema_version": {
+			"const": "1.1"
+		},
+		"generator": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["name", "version"],
+			"properties": {
+				"name": {
+					"const": "lushly-health"
+				},
+				"version": {
+					"type": "string",
+					"minLength": 1
+				}
+			}
+		},
+		"generated_at": {
+			"type": "string",
+			"pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+			"description": "When the audit ran, in UTC with whole seconds."
+		},
+		"targets": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["id", "path", "language"],
+				"properties": {
+					"id": {
+						"$ref": "#/$defs/identifier"
+					},
+					"path": {
+						"type": "string",
+						"minLength": 1,
+						"description": "Caller-local absolute path; treat as private when sharing reports."
+					},
+					"language": {
+						"$ref": "#/$defs/identifier"
+					}
+				}
+			}
+		},
+		"policy": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["check_ids", "disabled", "severity", "remediation"],
+			"properties": {
+				"check_ids": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/checkId"
+					}
+				},
+				"disabled": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/checkId"
+					}
+				},
+				"severity": {
+					"type": "object",
+					"propertyNames": {
+						"$ref": "#/$defs/checkId"
+					},
+					"additionalProperties": {
+						"$ref": "#/$defs/severity"
+					}
+				},
+				"remediation": {
+					"const": "none"
+				}
+			}
+		},
+		"outcomes": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/outcome"
+			}
+		},
+		"summary": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["passed", "failed", "warn", "skipped", "disabled", "unavailable", "error"],
+			"properties": {
+				"passed": {
+					"$ref": "#/$defs/count"
+				},
+				"failed": {
+					"$ref": "#/$defs/count"
+				},
+				"warn": {
+					"$ref": "#/$defs/count"
+				},
+				"skipped": {
+					"$ref": "#/$defs/count"
+				},
+				"disabled": {
+					"$ref": "#/$defs/count"
+				},
+				"unavailable": {
+					"$ref": "#/$defs/count"
+				},
+				"error": {
+					"$ref": "#/$defs/count"
+				}
+			}
+		},
+		"verdict": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["status", "required_count", "blocking_count"],
+			"description": "Aggregate rule: passed needs at least one counted required check and every counted required check passed. Required checks disabled by policy are not counted; advisory results never count.",
+			"properties": {
+				"status": {
+					"enum": ["passed", "not_passed", "no_required_checks"]
+				},
+				"required_count": {
+					"$ref": "#/$defs/count",
+					"description": "Required outcomes counted (excludes disabled)."
+				},
+				"blocking_count": {
+					"$ref": "#/$defs/count",
+					"description": "Counted required outcomes that did not pass."
+				}
+			}
+		},
+		"effects": {
+			"const": ["target_read"]
+		},
+		"artifacts_written": {
+			"const": []
+		}
+	},
+	"$defs": {
+		"identifier": {
+			"type": "string",
+			"pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$"
+		},
+		"checkId": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9_]*$"
+		},
+		"severity": {
+			"enum": ["required", "advisory"]
+		},
+		"status": {
+			"enum": ["passed", "failed", "warn", "skipped", "disabled", "unavailable", "error"]
+		},
+		"count": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"outcome": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"schema_version",
+				"check_id",
+				"target",
+				"status",
+				"severity",
+				"message",
+				"evidence",
+				"remediation"
+			],
+			"properties": {
+				"schema_version": {
+					"const": "1.1"
+				},
+				"check_id": {
+					"$ref": "#/$defs/checkId"
+				},
+				"target": {
+					"$ref": "#/$defs/identifier"
+				},
+				"status": {
+					"$ref": "#/$defs/status"
+				},
+				"severity": {
+					"$ref": "#/$defs/severity"
+				},
+				"message": {
+					"type": "string",
+					"minLength": 1
+				},
+				"evidence": {
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["paths", "required_tools", "kind"],
+					"properties": {
+						"paths": {
+							"type": "array",
+							"description": "Target-relative inputs the check reads; declared, not proof each exists.",
+							"items": {
+								"type": "string"
+							}
+						},
+						"required_tools": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						"kind": {
+							"const": "local_configuration_heuristic"
+						},
+						"metric": {
+							"type": "string"
+						},
+						"error_type": {
+							"type": "string",
+							"description": "Exception class name only; messages are redacted."
+						}
+					}
+				},
+				"remediation": {
+					"type": ["string", "null"],
+					"description": "Guidance only; Health never applies it."
+				}
+			}
+		}
+	}
+}

@@ -17,7 +17,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 /** The versioned contract this dashboard supports. */
 export const REPORT_SCHEMA_PATH = resolve(
 	here,
-	'../../health/src/botcore_health/schemas/report-1.0.json'
+	'../../health/src/lushly_health/schemas/report-1.1.json'
 );
 export const MODULE_ID = 'virtual:health-report-schema';
 const RESOLVED_ID = `\0${MODULE_ID}`;

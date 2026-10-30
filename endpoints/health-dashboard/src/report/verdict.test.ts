@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { fixture } from './fixtures.test-helper';
 import type { HealthReport, Outcome, Severity, Status } from './types';
 import { STATUSES } from './types';
-import { deriveVerdict } from './verdict';
+import { deriveVerdict, expectedReportVerdict } from './verdict';
 
 const outcome = (status: Status, severity: Severity = 'required'): Outcome => ({
-	schema_version: '1.0',
+	schema_version: '1.1',
 	check_id: 'gitattributes_lf',
 	target: 'app',
 	status,
@@ -23,7 +23,7 @@ describe('deriveVerdict', () => {
 		expect(verdict.reasons).toEqual(['All 2 required checks passed.']);
 	});
 
-	it.each(STATUSES.filter((status) => status !== 'passed'))(
+	it.each(STATUSES.filter((status) => status !== 'passed' && status !== 'disabled'))(
 		'a required %s result prevents a pass',
 		(status) => {
 			const verdict = deriveVerdict([outcome('passed'), outcome(status)]);
@@ -37,6 +37,25 @@ describe('deriveVerdict', () => {
 	it.each(STATUSES)('an advisory %s result never decides the verdict', (status) => {
 		expect(deriveVerdict([outcome('passed'), outcome(status, 'advisory')]).passed).toBe(true);
 		expect(deriveVerdict([outcome('failed'), outcome(status, 'advisory')]).passed).toBe(false);
+	});
+
+	it('does not count required checks disabled by policy', () => {
+		const verdict = deriveVerdict([outcome('passed'), outcome('disabled'), outcome('disabled')]);
+		expect(verdict).toMatchObject({ passed: true, state: 'passed', requiredCount: 1 });
+		expect(verdict.blocking).toEqual({});
+		expect(verdict.reasons).toEqual([
+			'All 1 required check passed.',
+			"2 required checks are disabled by policy and aren't counted.",
+		]);
+	});
+
+	it('never passes when every required check is disabled', () => {
+		const verdict = deriveVerdict([outcome('disabled'), outcome('passed', 'advisory')]);
+		expect(verdict).toMatchObject({ passed: false, state: 'no-required-checks' });
+		expect(verdict.reasons).toEqual([
+			'Every required check is disabled by policy, so nothing was verified.',
+			"1 required check is disabled by policy and isn't counted.",
+		]);
 	});
 
 	it('never passes an empty plan', () => {
@@ -80,7 +99,16 @@ describe('deriveVerdict', () => {
 		expect(deriveVerdict(report('all-passed').outcomes).passed).toBe(true);
 		expect(deriveVerdict(report('advisory-only').outcomes).state).toBe('no-required-checks');
 		expect(deriveVerdict(report('empty-plan').outcomes).state).toBe('no-required-checks');
+		expect(deriveVerdict(report('passed-with-disabled').outcomes).passed).toBe(true);
 		const mixed = deriveVerdict(report('mixed-status').outcomes);
-		expect(mixed.blocking).toEqual({ failed: 4, error: 1, unavailable: 3, warn: 1, skipped: 4 });
+		expect(mixed.blocking).toEqual({ failed: 4, error: 1, unavailable: 3, warn: 1, skipped: 1 });
 	});
+
+	it.each(['mixed-status', 'all-passed', 'passed-with-disabled', 'advisory-only', 'empty-plan'])(
+		'agrees with the verdict Health wrote into %s',
+		(name) => {
+			const fixture = report(name);
+			expect(expectedReportVerdict(deriveVerdict(fixture.outcomes))).toEqual(fixture.verdict);
+		}
+	);
 });

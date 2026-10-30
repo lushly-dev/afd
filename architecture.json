@@ -193,12 +193,12 @@
 			"manifest": "endpoints/health/pyproject.toml",
 			"family": "health",
 			"layer": "endpoint",
-			"pythonModules": ["botcore_health"],
+			"pythonModules": ["lushly_health"],
 			"publicSurfaces": [
 				"wheel",
 				"sdist",
 				"python-import",
-				"python -m botcore_health",
+				"python -m lushly_health",
 				"report-schema-1.0",
 				"botcore.plugins"
 			]

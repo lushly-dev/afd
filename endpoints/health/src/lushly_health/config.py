@@ -28,7 +28,7 @@ import tomllib
 from collections.abc import Mapping
 from pathlib import Path
 
-from .core import SCHEMA_VERSION, Policy, Target
+from .core import CONFIG_SCHEMA_VERSION, Policy, Target
 
 _POLICY_KEYS = {"schema_version", "checks", "disabled", "severity", "remediation"}
 _TARGET_KEYS = {"id", "path", "language"}
@@ -40,8 +40,8 @@ def _read(path: Path) -> dict:
     data = json.loads(text) if path.suffix == ".json" else tomllib.loads(text)
     if not isinstance(data, dict):
         raise ValueError("Configuration must be an object")
-    if data.get("schema_version") != SCHEMA_VERSION:
-        raise ValueError(f"Configuration schema_version must be {SCHEMA_VERSION}")
+    if data.get("schema_version") != CONFIG_SCHEMA_VERSION:
+        raise ValueError(f"Configuration schema_version must be {CONFIG_SCHEMA_VERSION}")
     return data
 
 
