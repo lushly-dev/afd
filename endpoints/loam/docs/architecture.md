@@ -48,8 +48,8 @@ another?
    copilot, MCP, the CLI and other apps. Layout, scope, overlays, settings,
    experiments, identity and navigation are commands. No surface defines
    behavior the others lack. Command names follow AFD's `domain-action`
-   rule, which Loam's kernel enforces at registration; AFD's
-   `defineCommand` only warns.
+   rule, which Loam's kernel enforces at registration; AFD's TypeScript
+   `defineCommand` only warns, where the Rust registry refuses.
 4. **Opt-in surfaces, nothing inherited.** The shell renders only what a
    manifest declares. No app receives another app's views, inspector,
    panel, status items, overlays or settings. Shared behavior arrives only
@@ -767,7 +767,7 @@ runs adopt it when their records land in phase 5.
 | Prerequisite | Needed by | Tracked in |
 | --- | --- | --- |
 | A browser-safe entry for `createDirectRegistry`, the journal and the approval middleware, with WebCrypto in place of `node:crypto` | Phase 0 | New AFD change; `packages/server` documents its root entry as Node-only |
-| Command names refused at registration when they break `domain-action` | Phase 0 | Loam's kernel refuses them itself; an AFD-wide refusal is optional, and Umbel's D22 makes the same assumption |
+| Command names refused at registration when they break `domain-action` | Phase 0 | Loam's kernel refuses them itself; AFD's Rust registry already refuses them, while the TypeScript `defineCommand` only warns, so matching TypeScript is an optional AFD change |
 | A shared plugin manifest schema reconciled with Umbel and Plugin Discovery, UI contributions as an addition | Phase 1 | New AFD feature proposal, spec first; Umbel's open decision O3 |
 | Serving MCP resources and `ui://` resources from AFD servers, reconciled with Umbel's resources prerequisite | Phase 1 for the sandboxed view | New AFD feature proposal, shared with Umbel |
 | The MCP server forwarding a declared `_meta` key into the command context, as it already reads its own `dev.afd/context` key | Phase 2 | New AFD change; the fallback is scope as command input |
