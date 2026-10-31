@@ -941,6 +941,14 @@ class DatabaseSink:
 
 ## DirectClient (Python)
 
+For approval-gated decorated commands, use `create_direct_registry(commands, middleware=[...])`
+and configure trusted `DirectClientOptions(on_approval_needed=...)`. Only explicit `True`
+permits one retry through a private exchange; public `approval` context is ignored and held
+results/observers/journals stay token-free. The total deadline includes the decision wait.
+`afd call --module file.py` loads an exported registry and uses the same boundary; `--approve`
+or an interactive prompt authorizes once. Remote calls cannot use `--approve`. Raw
+`server.execute` remains a trusted host API for out-of-band tokens.
+
 Zero-overhead in-process command execution, same API as MCP client:
 
 ```python

@@ -344,7 +344,11 @@ impl Gate {
         let actor_binding = actor_json(context.actor.as_ref());
 
         let mut rejected = None;
-        if let Some(evidence) = &context.approval {
+        let evidence = context.direct_approval.as_ref().map_or_else(
+            || context.approval.clone(),
+            |state| crate::direct::locked(state).take(),
+        );
+        if let Some(evidence) = &evidence {
             match self.verify(evidence, &name, &input_binding, &actor_binding, now) {
                 Ok(accepted) => {
                     if self.consume(&accepted, now).await {
@@ -396,7 +400,15 @@ impl Gate {
         }
 
         let single_use = self.options.replay == ApprovalReplay::SingleUse;
-        let include_token = self.options.include_token;
+        if let Some(state) = &context.direct_approval {
+            crate::direct::locked(state).hold(crate::direct::Hold {
+                token: approval_token.clone(),
+                summary: summary.clone(),
+                expires_at: expires_at.clone(),
+                reason: rejected.map(|reason| reason.as_str().to_owned()),
+            });
+        }
+        let include_token = self.options.include_token && context.direct_approval.is_none();
         let why = rejected
             .map(|reason| format!("The approval token was not accepted ({reason}). "))
             .unwrap_or_default();

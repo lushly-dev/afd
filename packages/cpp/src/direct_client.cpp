@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "detail/direct_approval.hpp"
 #include "detail/exceptions.hpp"
 #include "detail/json_io.hpp"
 
@@ -96,6 +97,11 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
         return unknown_tool_failure(name, list_command_names());
     }
 
+    // Public callers cannot supply approval authority, including a copied private marker.
+    context.approval.reset();
+    context.direct_approval = std::make_shared<detail::DirectApprovalState>();
+    const detail::DisposeDirectApproval cleanup{context.direct_approval};
+
     // 3. Context.
     if (!context.trace_id || context.trace_id->empty()) {
         context.trace_id = generate_trace_id(*options_.clock, *options_.random);
@@ -152,6 +158,49 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
 #else
     result = chain.front()();
 #endif
+
+    result = detail::public_approval_result(std::move(result));
+    std::optional<detail::DirectApprovalHold> pending;
+    {
+        std::lock_guard lock(context.direct_approval->mutex);
+        pending = context.direct_approval->hold;
+    }
+    if (!result.success && result.error && result.error->code == "APPROVAL_REQUIRED" && pending &&
+        options_.on_approval_needed && !context.cancellation.is_cancelled()) {
+        bool approved = false;
+#if AFD_HAS_EXCEPTIONS
+        try {
+#endif
+            approved = options_.on_approval_needed(
+                DirectApprovalRequest{.command = command_name,
+                                      .input = args,
+                                      .summary = pending->summary,
+                                      .expires_at = pending->expires_at,
+                                      .reason = pending->reason,
+                                      .cancellation = context.cancellation});
+#if AFD_HAS_EXCEPTIONS
+        } catch (...) {
+            approved = false;
+        }
+#endif
+        if (approved && !context.cancellation.is_cancelled()) {
+            {
+                std::lock_guard lock(context.direct_approval->mutex);
+                context.direct_approval->evidence = pending->token;
+                context.direct_approval->hold.reset();
+            }
+#if AFD_HAS_EXCEPTIONS
+            try {
+                result = chain.front()();
+            } catch (...) {
+                result = execution_failure("approval retry failed");
+            }
+#else
+            result = chain.front()();
+#endif
+            result = detail::public_approval_result(std::move(result));
+        }
+    }
 
     // Only this call's own deadline is a TIMEOUT; a cancelled caller gets the handler's result.
     if (deadline && deadline->token().deadline_passed()) {

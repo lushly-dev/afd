@@ -373,6 +373,16 @@ security time from `with_clock` only (never the context clock). Tokens are byte-
 TypeScript's `createApprovalMiddleware`, including `canonical_json` (JavaScript number spelling,
 UTF-16 key order; integers beyond 2^53 that a float cannot hold fail the call).
 
+## Private in-process approvals
+
+Use `DirectClient::new(Arc<CommandRegistry>)` for agent-facing calls. Its
+`with_on_approval_needed` hook returns a future of `Result<bool, String>`; only `Ok(true)`
+permits one private retry. Errors/panics decline. `DirectApprovalRequest` is token-free;
+public context evidence is ignored and results/journals never receive the private token.
+One deadline covers the initial call, human wait and retry, and dropping the future cancels
+that flow. Raw `CommandRegistry::execute` remains a trusted host token API. This DirectClient
+has `call` but no `pipe`, remote transport or CLI.
+
 ## Batch Execution
 
 ```rust

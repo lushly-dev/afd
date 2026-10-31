@@ -13,6 +13,7 @@
 #include <random>
 #include <utility>
 
+#include "detail/direct_approval.hpp"
 #include "detail/hmac.hpp"
 #include "detail/utf8.hpp"
 
@@ -612,9 +613,11 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         }
 
         std::optional<ApprovalRejection> rejected;
-        if (context.approval) {
+        const auto evidence =
+            context.direct_approval ? context.direct_approval->take() : context.approval;
+        if (evidence) {
             const Verdict verdict =
-                state->verify_token(*context.approval, name, *input_binding, *actor, now);
+                state->verify_token(*evidence, name, *input_binding, *actor, now);
             if (!verdict.rejection) {
                 if (state->consume(verdict.nonce, verdict.expires_at_ms, now)) {
                     return next();
@@ -651,6 +654,13 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
             });
         }
 
+        if (context.direct_approval) {
+            context.direct_approval->deposit(
+                {token, summary, expires_at,
+                 rejected ? std::optional<std::string>(approval_rejection_name(*rejected))
+                          : std::nullopt});
+        }
+        const bool include_token = settings.include_token && !context.direct_approval;
         const std::string why = rejected
                                     ? "The approval token was not accepted (" +
                                           std::string(approval_rejection_name(*rejected)) + "). "
@@ -658,14 +668,14 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         // Addressed to whoever relays the decision: the token is the approval, so the gated
         // caller must not resubmit it on its own, and tool arguments cannot carry it.
         const std::string retry =
-            settings.include_token
+            include_token
                 ? "once they approve, the application retries the same call with the same input "
                   "and details.approvalToken as its approval evidence (tool arguments cannot "
                   "carry it). The token expires at " +
                       expires_at + (state->single_use ? " and works once." : ".")
                 : "the application retries the same call once it has recorded the approval.";
         Json details = Json::object();
-        if (settings.include_token) {
+        if (include_token) {
             details["approvalToken"] = token;
         }
         details["expiresAt"] = expires_at;

@@ -20,6 +20,7 @@ namespace afd {
 
 namespace detail {
 struct JournalCallState;
+struct DirectApprovalState;
 } // namespace detail
 
 /// A surface a command can be exposed to. TypeScript calls this the command's `interface`; C++
@@ -82,6 +83,8 @@ struct CommandContext {
     /// Set by the command journal (journal.hpp) while it records or replays the call; leave it
     /// unset. Nested calls that copy the context carry it on. Never recorded or hashed.
     std::shared_ptr<detail::JournalCallState> journal;
+    /// Internal approval marker. DirectClient ignores caller-provided markers and evidence.
+    std::shared_ptr<detail::DirectApprovalState> direct_approval;
 };
 
 /// Defaults for `with_context_defaults`.

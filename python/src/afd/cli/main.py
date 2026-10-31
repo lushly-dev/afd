@@ -6,6 +6,11 @@ Provides the Click-based command-line interface.
 
 import asyncio
 import json
+import importlib.util
+import math
+import os
+import threading
+import uuid
 import sys
 from pathlib import Path
 from typing import Any
@@ -281,12 +286,52 @@ def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name
         sys.exit(1)
 
 
+async def _terminal_approval() -> bool:
+    """An unanswered terminal must not keep asyncio.run's executor shutdown alive."""
+    loop = asyncio.get_running_loop()
+    decision = loop.create_future()
+
+    click.echo("Approve? [y/N] ", err=True, nl=False)
+    descriptor = sys.stdin.fileno()
+
+    def ask() -> None:
+        # Unbuffered reads avoid holding stdin's Python buffer lock during shutdown.
+        # This daemon may remain in the OS read after timeout; it owns no approval authority.
+        line = bytearray()
+        try:
+            while len(line) < 1024:
+                char = os.read(descriptor, 1)
+                if not char or char in (b"\n", b"\r"):
+                    break
+                line.extend(char)
+            answer = line.strip().lower() in (b"y", b"yes")
+        except (OSError, ValueError):
+            answer = False
+
+        def finish() -> None:
+            if not decision.done():
+                decision.set_result(answer is True)
+
+        try:
+            loop.call_soon_threadsafe(finish)
+        except RuntimeError:
+            pass  # The call expired and its event loop has already closed.
+
+    threading.Thread(target=ask, daemon=True).start()
+    return await decision
+
+
 @cli.command()
 @click.argument("tool")
 @click.argument("args", required=False, default="{}")
 @click.option("--server", "-s", help="Server to use (uses saved connection if omitted)")
+@click.option("--module", "module_path", type=click.Path(exists=True, dir_okay=False, path_type=Path),
+              help="Load a Python file exporting registry for an in-process call")
+@click.option("--approve", is_flag=True, help="Explicitly approve one in-process retry")
+@click.option("--timeout", type=click.FloatRange(min=0, min_open=True), help="Total in-process deadline in ms")
 @click.pass_context
-def call(ctx: click.Context, tool: str, args: str, server: str | None) -> None:
+def call(ctx: click.Context, tool: str, args: str, server: str | None,
+         module_path: Path | None, approve: bool, timeout: float | None) -> None:
     """
     Call a tool on the connected server.
 
@@ -308,6 +353,48 @@ def call(ctx: click.Context, tool: str, args: str, server: str | None) -> None:
         print_error(f"Invalid JSON arguments: {e}")
         sys.exit(1)
     
+    if module_path is not None and server is not None:
+        raise click.UsageError("--module and --server cannot be combined")
+    if module_path is None and (approve or timeout is not None):
+        raise click.UsageError("--approve and --timeout require --module; remote approval belongs to the server")
+    if timeout is not None and not math.isfinite(timeout):
+        raise click.UsageError("--timeout must be finite")
+    if not isinstance(parsed_args, dict):
+        raise click.UsageError("Arguments must be a JSON object")
+
+    async def _call_module() -> None:
+        from afd.direct import DirectClient, DirectClientOptions, DirectCallContext
+
+        spec = importlib.util.spec_from_file_location(f"_afd_call_{uuid.uuid4().hex}", module_path)
+        if spec is None or spec.loader is None:
+            raise click.ClickException("Could not load the command module")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        try:
+            spec.loader.exec_module(module)
+            registry = getattr(module, "registry", None)
+            if registry is None:
+                raise click.ClickException("The module must export registry")
+
+            async def decide(request):
+                # JSON escaping keeps command-provided control characters out of the terminal.
+                plain = lambda value: json.dumps(value, ensure_ascii=True)[1:-1]
+                click.echo(f"{plain(request.command)} needs approval before it runs.\n"
+                           f"Action: {plain(request.summary)}\n"
+                           f"Approval expires: {plain(request.expires_at)}", err=True)
+                if approve:
+                    return True
+                if json_output or not sys.stdin.isatty() or not sys.stderr.isatty():
+                    return False
+                return await _terminal_approval()
+
+            client = DirectClient(registry, DirectClientOptions(on_approval_needed=decide))
+            result = await client.call(tool, parsed_args, DirectCallContext(timeout=timeout))
+            print_result(result, json_output=json_output)
+        finally:
+            if sys.modules.get(spec.name) is module:
+                del sys.modules[spec.name]
+
     async def _call_tool() -> None:
         transport = _get_transport(server)
         try:
@@ -318,7 +405,7 @@ def call(ctx: click.Context, tool: str, args: str, server: str | None) -> None:
             await transport.disconnect()
     
     try:
-        asyncio.run(_call_tool())
+        asyncio.run(_call_module() if module_path is not None else _call_tool())
     except Exception as e:
         print_error(str(e))
         sys.exit(1)

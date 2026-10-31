@@ -4,6 +4,10 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ## Unreleased
 
+### Added
+
+- Add `DirectClientOptions::on_approval_needed` with a private per-call exchange (#460). Public call/pipe evidence is ignored and held results stay token-free; one approved retry still verifies binding, expiry and nonce. Synchronous hooks cooperate with cancellation and cannot retry after a deadline. Trusted registry execution retains its token API.
+
 ## [0.2.0] - 2026-10-27
 
 Implements AFD contract `1.0-rc`.

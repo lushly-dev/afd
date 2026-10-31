@@ -475,6 +475,25 @@ if result.success and is_handoff(result.data):
   `expiresAt`, `maxAttempts`, `backoffMs`); the handoff helpers accept camelCase or
   snake_case.
 
+## Private in-process approvals
+
+`create_direct_registry` runs decorated commands through the server's validation and middleware.
+`DirectClientOptions(on_approval_needed=...)` asks trusted application code with token-free
+metadata; only `True` permits one retry. Public call/pipeline contexts cannot approve, and
+held results, observers and journals receive no token. A deadline includes the human wait.
+Use the server's `execute` only as a trusted host API when handling tokens out of band.
+
+```python
+from afd import DirectClient, DirectClientOptions, create_direct_registry
+from afd.server import create_approval_middleware
+
+registry = create_direct_registry(commands, middleware=[
+    create_approval_middleware(secret=secret_from_environment, commands=commands),
+])
+client = DirectClient(registry, DirectClientOptions(on_approval_needed=ask_human))
+# ask_human(request) returns True only after approval; request never contains a token.
+```
+
 ## CLI
 
 ```bash
@@ -484,7 +503,10 @@ afd call todo-create '{"title": "Hello"}'
 ```
 
 `afd connect` takes a server URL (or `mock` for testing); it does not start or name
-servers.
+servers. `afd call item-delete --module ./commands.py` instead loads a trusted Python file
+exporting `registry`. It prompts for approval on an interactive terminal; `--approve`
+explicitly authorizes one retry. JSON or noninteractive calls remain held without that flag.
+`--timeout 5000` includes the decision wait. Remote `--approve` is rejected.
 
 ## Packages
 
