@@ -24,7 +24,8 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   (`tools.py`, `factory.py`, `tool_router.py`, `types.py`), `packages/rust/src/server.rs` and
   `packages/examples/todo/backends/cpp/src/mcp_stdio.cpp`, and from `spec/command-metadata.md`,
   `spec/error-codes.md` and `spec/protocol-conformance.md`.
-- **Done:** the proposal, in the pull request that adds this file.
+- **Done:** nothing merged.
+- **In progress:** the proposal and this file, in [#522](https://github.com/lushly-dev/afd/pull/522), open for the owner's review.
 - **Not done:** owner approval; the open questions; every row of the proposal's implementation plan
   (spec, TypeScript, Python, Rust, C++, parity and skills).
 
@@ -57,4 +58,4 @@ and meta-tool differences between TypeScript and Python.
 
 | Date | Session | What changed |
 | --- | --- | --- |
-| 2026-10-31 | Design session | Proposal and this status file written after Umbel decision D27; no `spec/` or code changes |
+| 2026-10-31 | Design session | Proposal and this status file written after Umbel decision D27; no `spec/` or code changes. [#522](https://github.com/lushly-dev/afd/pull/522) |
