@@ -94,6 +94,13 @@ can call that tool.
 | Python server | As TypeScript. [#325](https://github.com/lushly-dev/afd/issues/325) tracks the tool strategies that do not serve `afd-discover` remotely | As TypeScript |
 | Python core registry | "List available commands to see valid options" | As C++ |
 
+A hybrid server ([tool strategies](./tool-strategies.md#hybrid)) always lists `afd-discover`, and
+lists `afd-context-list` and `afd-context-enter` whenever it has contexts, so both server
+suggestions above hold on it unchanged, including for a first-class tool called outside its
+context. The hybrid strategy adds no error code: its configuration mistakes fail the server's
+construction ([H2](./tool-strategies.md#h2-validation-at-construction)), so
+[`vectors/error-codes.json`](./vectors/error-codes.json) does not change.
+
 ## The shared catalog
 
 45 codes. The first 22 are the original TypeScript `ErrorCodes`; the next 20 are the codes the

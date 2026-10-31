@@ -16,6 +16,10 @@ version is separate from each implementation's own package version.
   `wire/journal.jsonl` (all four implementations);
 - [`error-codes.md`](./error-codes.md): the shared error-code catalog, checked by
   `vectors/error-codes.json`, and the rules for unknown and unexposed commands.
+- [`tool-strategies.md`](./tool-strategies.md): the MCP tool strategies (`individual`, `grouped`,
+  `lazy` and `hybrid`), their tool lists, routing, contexts and cache hints, with the meta-tool
+  definitions in [`meta-tools.json`](./meta-tools.json) and the hybrid cases in
+  [`tool-strategies.json`](./tool-strategies.json).
 
 The bounded TypeScript/Python protocol acceptance inventory is recorded in
 [`protocol-conformance.md`](./protocol-conformance.md); it does not claim full MCP certification.
@@ -55,6 +59,16 @@ In the same pull request:
 `alfred parity` reports a constant that differs from `VERSION`.
 
 ## 1.0-rc
+
+[`tool-strategies.md`](./tool-strategies.md) specifies the MCP tool strategies. It records the
+individual, grouped and lazy strategies as TypeScript, Python and Rust serve them, with the
+TypeScript/Python differences in their lists as current behavior until #533 decides them, and adds
+the `hybrid` strategy: the five meta-tools, the context tools when contexts are configured, then at
+most 8 first-class command tools named by a server option, in a list that does not vary by context
+and keeps the default `ttlMs` under contexts. `afd-help` gains `toolStrategy` on every strategy and
+`firstClassTools` and `firstClass` on hybrid servers. The change is additive: no existing fixture,
+vector, error code or result changes, and no language serves the hybrid strategy yet. Its cases are
+in `tool-strategies.json`, which joins `vectors/` once all four languages load it.
 
 Stabilization resolves validation ordering and issue caps (#332), pins the UTF-16 pipeline reference
 boundary (#283), accepts fractional timeouts (#329), lets in-flight work finish after `stopOnError`

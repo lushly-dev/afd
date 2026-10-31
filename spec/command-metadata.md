@@ -33,7 +33,7 @@ an unset field stays distinguishable from an explicit `false`.
 | `handoffProtocol` | `websocket`, `webrtc`, `sse`, `http-stream` or another string | None | afd-detail; adds the `handoff:<protocol>` tag |
 | `expose` | `palette`, `agent`, `mcp`, `cli` booleans | `palette` and `agent` true, `mcp` and `cli` false, per flag | Not reported. It decides which surfaces list and run the command; afd-detail reports the result as `callable` |
 | `examples` | `{ title, input }[]` | None | `_meta`, afd-help (full). Each `input` must pass the input schema when the command is defined |
-| `contexts` | string[] | None: the command is visible in every context | `_meta`; tools/list and the context tools scope on it |
+| `contexts` | string[] | None: the command is visible in every context | `_meta`; calls, afd-discover, afd-detail, the context tools and the individual and grouped tools/list scope on it; the hybrid tools/list does not ([H4](./tool-strategies.md#h4-contexts-a-fixed-list-scoped-calls)) |
 
 `destructive`, `confirmPrompt` and `undoable` are declarations for frontends and agents. AFD does
 not act on `destructive` or `undoable`: an undo mechanism belongs to the consumer. A server MAY
@@ -52,6 +52,9 @@ call it requires is held before the handler runs, as [Approvals](#approvals) des
   not `confirmPrompt`, which is for a frontend's confirmation dialog. Agents get it from afd-detail.
 - **Grouped tools** (`toolStrategy: 'grouped'`) carry the per-command `_meta` fields on each entry
   of `_meta.actions`, not on the tool.
+- **First-class tools** (`toolStrategy: 'hybrid'`) are command tools: each carries `_meta`,
+  `annotations` and `outputSchema` exactly as the individual strategy's tool for that command
+  ([tool strategies, H3](./tool-strategies.md#h3-the-tool-list-and-its-order)).
 
 ## Surfaces
 
@@ -60,15 +63,15 @@ call it requires is held before the handler runs, as [Approvals](#approvals) des
 | tools/list `_meta` | `category`, `requires`, `mutation`, `destructive`, `undoable`, `approval`, `examples`, `outputSchema`, `contexts` |
 | afd-detail | `name`, `description`, `category`, `tags`, `mutation`, `executionTime`, `errors`, `inputSchema`, `outputSchema`, `destructive`, `confirmPrompt`, `undoable`, `approval`, `handoff`, `handoffProtocol`, `version`, `callable` |
 | afd-discover | `name`, `description`, `category`, and `mutation` with `includeMutation` |
-| afd-help | `name`, `description`, `requires`; the `full` format adds `category`, `tags`, `mutation`, `destructive`, `undoable`, `examples` |
+| afd-help | `name`, `description`, `requires`; the `full` format adds `category`, `tags`, `mutation`, `destructive`, `undoable`, `examples`. On a hybrid server, `firstClass: true` for a first-class command, in both formats; next to `commands`, the server's `toolStrategy` and, on a hybrid server, `firstClassTools` ([H8](./tool-strategies.md#h8-what-afd-help-serverdiscover-and-afd-detail-report); planned) |
 | afd-docs | `category`, `name`, `description`, `tags`, `mutation`, `destructive`, `confirmPrompt`, `undoable`, `approval`, parameters |
 | afd-schema | `name`, `description`, `inputSchema` |
 
 ## Confirmations
 
 A server MAY enforce `confirmPrompt` with the option `confirmations`: `off` (the default), `enforce`
-or `require-human`. Enforcement applies to the MCP surfaces (individual tools, the meta-tools and
-grouped tools) and to the HTTP `/stream` and REST routes. DirectClient and in-process registries
+or `require-human`. Enforcement applies to the MCP surfaces (individual tools, the hybrid
+strategy's first-class tools, the meta-tools and grouped tools) and to the HTTP `/stream` and REST routes. DirectClient and in-process registries
 never enforce it: the host owns in-process calls.
 
 When enforcement is on, a call to a command with `confirmPrompt` runs only with a confirmation:
@@ -93,7 +96,7 @@ Otherwise the call fails before the handler runs:
 
 Where the acknowledgement goes:
 
-- **Individual tools.** A command with `confirmPrompt` advertises an optional boolean `confirm`
+- **Individual and first-class tools.** A command with `confirmPrompt` advertises an optional boolean `confirm`
   property in its tool `inputSchema`. The server removes it before validating the input, so the
   command's own schema never sees it.
 - **`afd-call`.** An optional `confirm` boolean next to `command` and `input`.
@@ -221,7 +224,8 @@ A server MAY relay the approval to the human behind the MCP client (TypeScript
 question to a person, and a server cannot tell a person's answer from client code that answers on
 its own.
 
-When a call to a single command (its tool, `afd-call` or a grouped tool) needs approval and the
+When a call to a single command (its tool, individual or first-class, `afd-call` or a grouped
+tool) needs approval and the
 request can carry a form elicitation, the server answers as for a confirmation: `input_required` on
 MCP 2026-07-28, or a server-sent elicitation on a 2025-era stdio connection. The form uses the
 input key `approval` and one required boolean property `approve`. Its message is the summary
@@ -294,14 +298,16 @@ default:
 
 `idempotentHint` and `openWorldHint` are not derived. Annotations are hints for clients and are
 never enforced. Grouped and meta-tools carry no annotations, because one tool covers several
-commands; their per-command metadata stays in `_meta.actions`.
+commands; their per-command metadata stays in `_meta.actions`. The hybrid strategy's first-class
+tools are command tools and carry annotations as individual tools do.
 
 ### Structured results
 
 - **`structuredContent`:** a `tools/call` result for a command carries the whole `CommandResult` as
   `structuredContent`, and the same JSON as text in `content[0]` for clients that only read text.
 - **`outputSchema`:** a command with an output schema (`returns`), listed as its own tool
-  (individual strategy), advertises a top-level `outputSchema` that describes the `CommandResult`
+  (the individual strategy, or first-class in the hybrid strategy), advertises a top-level
+  `outputSchema` that describes the `CommandResult`
   envelope, with `data` typed by the command's output schema:
 
   ```json
@@ -333,4 +339,5 @@ follows `destructive`, `false` when it is unset.
 | Confirmations | Yes (`confirmations`, `confirmationKey`; client `onElicitation`, CLI prompt) | Yes (`create_server(confirmations=..., confirmation_key=...)`); individual, grouped and meta-tools | Yes (`McpServer::with_confirmations`, `with_confirmations_key`); individual, grouped and meta-tools | Planned (todo backend) |
 | `structuredContent` | Yes | Planned | Yes (`McpServer`, every tool result of every route, meta-tools, batch and pipeline included) | Planned |
 | Top-level `outputSchema` | Yes (`advertiseOutputSchema`) | Planned | Yes, for commands with `returns` under the individual strategy, as in TypeScript (`McpServer::with_advertise_output_schema`) | Planned |
+| Hybrid first-class tools: command tools with these fields, `confirm` and the single-command approval relay ([tool strategies](./tool-strategies.md#hybrid)) | Planned | Planned | Planned | Planned |
 
