@@ -18,6 +18,7 @@ import {
 } from '@lushly-dev/afd-core';
 import type { ContextState } from './bootstrap/afd-context.js';
 import { type ConfirmationGate, createHttpConfirmationCheck } from './confirmations.js';
+import { type ContextField, contextFieldValues } from './context-fields.js';
 import { bindContextState } from './context-scope.js';
 import {
 	HttpRequestError,
@@ -72,6 +73,8 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	sessions?: SessionStore;
 	/** Per-request values merged into the `CommandContext` of every remotely executed command. */
 	createContext?: CreateRequestContext;
+	/** Declared context fields, read from each request's `_meta`. */
+	contextFields?: readonly ContextField[];
 	/** Receives unexpected errors (including a throwing `createContext`). */
 	onError?: (error: Error) => void;
 	/** Maximum concurrent `/sse` connections (default: 100). */
@@ -111,6 +114,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		isMutation,
 		sessions,
 		createContext,
+		contextFields,
 		onError,
 		modern,
 		confirmations,
@@ -164,13 +168,23 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		req: IncomingMessage,
 		res: ServerResponse,
 		state: ContextState | null | undefined,
-		controller = new AbortController()
+		controller = new AbortController(),
+		meta?: unknown
 	): Promise<CommandContext> {
 		res.once('close', () => {
 			if (!res.writableFinished) controller.abort(new Error('Client disconnected'));
 		});
 		const custom = await requestContextValues(createContext, req);
-		return scoped({ ...custom, signal: controller.signal, interface: 'mcp' }, state);
+		// Declared fields from `_meta` first, so a value `createContext` sets wins.
+		const declared = contextFieldValues(contextFields, meta);
+		return scoped({ ...declared, ...custom, signal: controller.signal, interface: 'mcp' }, state);
+	}
+
+	/** An input object without its `_meta` member, which carries request values, not input. */
+	function splitMeta(input: unknown): { input: unknown; meta: unknown } {
+		if (!isRecord(input) || !('_meta' in input)) return { input, meta: undefined };
+		const { _meta: meta, ...rest } = input;
+		return { input: rest, meta };
 	}
 
 	/** Run a JSON-RPC request. Protocol and internal errors become error objects carrying its id. */
@@ -220,7 +234,11 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 						'Send the tool arguments as a JSON object'
 					);
 				}
-				return routeToolCall(params.name, args, await commandContext(req, res, state));
+				return routeToolCall(
+					params.name,
+					args,
+					await commandContext(req, res, state, undefined, params._meta)
+				);
 			}
 			default:
 				throw methodNotFound(message.method);
@@ -257,11 +275,11 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		const message = parseJsonRpcMessage(await readJsonBody(req, maxBodyBytes));
 		const state = sessionState(req);
 		const body = await answer(message, async () => {
-			const input = message.params ?? {};
+			const { input, meta } = splitMeta(message.params ?? {});
 			const refused = await unconfirmed(req, [{ command: message.method, input }]);
 			if (refused) return { success: false, error: refused };
 			return executeCommand(message.method, input, {
-				...(await commandContext(req, res, state)),
+				...(await commandContext(req, res, state, undefined, meta)),
 				traceId: `rpc-${randomUUID()}`,
 			});
 		});
@@ -312,6 +330,8 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 				throw new HttpRequestError(400, 'Stream input must be valid JSON');
 			}
 		}
+		const split = splitMeta(input);
+		input = split.input;
 		const refused = await unconfirmed(req, [{ command: commandName, input }]);
 		if (refused) {
 			res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
@@ -321,7 +341,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		const state = sessionState(req);
 		const controller = new AbortController();
 		const context: CommandContext = {
-			...(await commandContext(req, res, state, controller)),
+			...(await commandContext(req, res, state, controller, split.meta)),
 			traceId: `stream-${randomUUID()}`,
 		};
 		streams.set(res, controller);
@@ -432,7 +452,8 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 				json(res, 200, createFailedBatchResult(refused, {}));
 				return;
 			}
-			const context = await commandContext(req, res, sessionState(req));
+			const meta = (request as { _meta?: unknown })._meta;
+			const context = await commandContext(req, res, sessionState(req), undefined, meta);
 			json(res, 200, await executeBatch(request, { ...context, traceId: `batch-${randomUUID()}` }));
 			return;
 		}

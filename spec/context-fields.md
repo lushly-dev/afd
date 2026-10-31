@@ -45,8 +45,10 @@ handler run, on every surface:
   context, under `name`. The same declaration validates it, so a call made in process and the same
   call made over MCP see the same values.
 - **MCP `tools/call`, both eras, stdio and HTTP.** The server reads `params._meta[meta]`. Undeclared
-  `_meta` keys are still dropped. AFD's HTTP lanes (`/rpc`, `/batch`, `/stream`) accept the same
-  `_meta` object in their request body.
+  `_meta` keys are still dropped.
+- **AFD's HTTP lanes.** `/message` reads `tools/call`'s `params._meta`, as MCP does. `/rpc` reads
+  `params._meta`, and `/stream` the `_meta` member of its JSON input, and both leave `_meta` out of the
+  command input. `/batch` reads the `_meta` member of the request body.
 - **Batches and pipelines.** The request's values apply to every item and step.
 
 An invalid value, or a missing required one, fails the call with `VALIDATION_ERROR` before the
@@ -71,9 +73,10 @@ and verified credentials, as for actors (#431): neither server takes a caller-de
 
 ## Discovery
 
-`server/discover` and `afd-help` list the declared fields under `_meta["dev.afd/context-fields"]`:
-an array of `{ "name", "meta", "schema", "required", "journal" }`, with `schema` as JSON Schema, so
-clients and agents know what to send.
+`server/discover` lists the declared fields under `_meta["dev.afd/context-fields"]`, and `afd-help`
+returns the same list as `contextFields` in its data: an array of
+`{ "name", "meta", "schema", "required", "journal" }`, with `schema` as JSON Schema, so clients and
+agents know what to send. Both are omitted when no field is declared.
 
 ## Clients that cannot set `_meta`
 
@@ -85,7 +88,7 @@ there); a key sent both ways must agree, or the call fails with `VALIDATION_ERRO
 
 | Language | Declaration and in-process values | Journal | `_meta` delivery and discovery |
 |---|---|---|---|
-| TypeScript | `createMcpServer`, `createMcpHandler` and `createDirectRegistry` take `contextFields` | Recording middleware and `replayJournal` | Planned (#528) |
+| TypeScript | `createMcpServer`, `createMcpHandler` and `createDirectRegistry` take `contextFields` | Recording middleware and `replayJournal` | Yes: both eras over Streamable HTTP and stdio, `/message`, `/rpc`, `/batch` and `/stream`; `server/discover` and `afd-help` |
 | Python | `create_server` takes `context_fields` (`afd.server.ContextField`) | `create_journal_middleware` and `replay_journal` | Planned (#528) |
 | Rust | `CommandRegistry::set_context_fields` (`afd::context_fields::ContextField`, JSON Schema) | The registry's journal recorder and `replay_journal` | Planned (#528) |
 | C++ | `CommandRegistryOptions::context_fields` and `CommandRegistry::create`, which reports a bad declaration | `create_journal_middleware` and `replay_journal` | N/A: no MCP server |

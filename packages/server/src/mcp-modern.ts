@@ -56,6 +56,12 @@ import {
 	type ConfirmationChannel,
 	InputRequiredSignal,
 } from './confirmations.js';
+import {
+	AFD_CONTEXT_FIELDS_META_KEY,
+	type ContextField,
+	contextFieldValues,
+	describeContextFields,
+} from './context-fields.js';
 import { bindContextState } from './context-scope.js';
 import {
 	ANSWER_TTL_SECONDS,
@@ -87,6 +93,8 @@ export interface ModernMcpDeps {
 	) => Promise<ToolCallResult>;
 	/** Configured contexts; enables `_meta["dev.afd/context"]`. */
 	contexts?: ContextConfig[];
+	/** Declared context fields, read from each `tools/call`'s `_meta` and listed by `server/discover`. */
+	contextFields?: readonly ContextField[];
 	/**
 	 * Freshness hint for `tools/list` and `server/discover` (default: 5 minutes; 0 with contexts,
 	 * except for the hybrid strategy, whose list does not vary by context).
@@ -371,6 +379,20 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			}
 		);
 
+		if (deps.contextFields?.length) {
+			// The SDK's serving layer installs its own `server/discover` handler, which calls
+			// `_ondiscover()` per request; wrapping it adds the declared fields to that answer.
+			// `context-fields-mcp.test.ts` fails if an SDK upgrade changes this.
+			const described = describeContextFields(deps.contextFields);
+			const sdk = server as unknown as { _ondiscover(): Record<string, unknown> };
+			const discover = sdk._ondiscover.bind(server);
+			sdk._ondiscover = () => {
+				const result = discover();
+				const meta = result._meta && typeof result._meta === 'object' ? result._meta : {};
+				return { ...result, _meta: { ...meta, [AFD_CONTEXT_FIELDS_META_KEY]: described } };
+			};
+		}
+
 		// The SDK lifts `_meta` (minus the reserved envelope keys) into `ctx.mcpReq._meta`.
 		server.setRequestHandler('tools/list', async (_request, ctx) => {
 			const state = contextStateFor(era, ctx.mcpReq._meta);
@@ -389,8 +411,10 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			const canElicit = canElicitFor(era, server, ctx);
 			const round = elicitationRound(ctx);
 			const relay = canElicit ? approvalRelayFor(round) : undefined;
+			// Declared fields from `_meta` first, so a value `createContext` sets wins.
+			const declared = contextFieldValues(deps.contextFields, ctx.mcpReq._meta);
 			let context = bindConfirmationChannel(
-				scoped({ ...values, signal: ctx.mcpReq.signal, interface: 'mcp' }, state),
+				scoped({ ...declared, ...values, signal: ctx.mcpReq.signal, interface: 'mcp' }, state),
 				confirmationChannelFor(canElicit, round, ctx)
 			);
 			if (relay) context = bindApprovalRelay(context, relay.relay);
