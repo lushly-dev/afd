@@ -237,11 +237,11 @@
       "upstream_sha256": "35dabd0c92a674dd3127c664027596633431bb057787201ba484f9629c4a9ee9",
       "staged_path": "packages/specimen/experiments/consumer-project.mjs",
       "staged_sha256": "35dabd0c92a674dd3127c664027596633431bb057787201ba484f9629c4a9ee9",
-      "current_import_sha256": "50e1cdc16356d0acbc5f18388279467d79275ef0f71ba77653f8a4e8ae982fc3",
+      "current_import_sha256": "1355747be7f9d523bcbb5bd01c8a8a7e55ec5d324d854d554011102971f2dff0",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/fast-af.fixture.mjs",
@@ -429,11 +429,11 @@
       "upstream_sha256": "7b9956d592c543c31177f4a2db9b489a0eb4de60e8b8f76dfe69a4718347e085",
       "staged_path": "packages/specimen/experiments/run-batches.mjs",
       "staged_sha256": "7b9956d592c543c31177f4a2db9b489a0eb4de60e8b8f76dfe69a4718347e085",
-      "current_import_sha256": "59dbf8700301a7bb3abe40a3e4f3baca8e5285f52bc83d656333b735dc297b54",
+      "current_import_sha256": "6bc678fc25aa8cfc9a3be60147ee734db2151265e48cc0edb75f9083ceea5e1b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/run-consumers.mjs",
@@ -441,11 +441,11 @@
       "upstream_sha256": "817f95dd7e13a27ac2f3e7b3e904dfe3a338020061685ef1976daffc3d5794f3",
       "staged_path": "packages/specimen/experiments/run-consumers.mjs",
       "staged_sha256": "817f95dd7e13a27ac2f3e7b3e904dfe3a338020061685ef1976daffc3d5794f3",
-      "current_import_sha256": "817f95dd7e13a27ac2f3e7b3e904dfe3a338020061685ef1976daffc3d5794f3",
+      "current_import_sha256": "aaf06187c0944659935cb3a41b66e9d06e2f086a43bfa944389672d9397ed664",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/run-heap-profile.mjs",
@@ -465,11 +465,11 @@
       "upstream_sha256": "1e29e59005896e388e11441efeedbc5adb8ff5f5f1fd80b9083d89d7c54347f1",
       "staged_path": "packages/specimen/experiments/run-resources.mjs",
       "staged_sha256": "1e29e59005896e388e11441efeedbc5adb8ff5f5f1fd80b9083d89d7c54347f1",
-      "current_import_sha256": "a6ba0cd58d7f7168bab7702512001e62527646d60328fa01b859b1f0f61767ce",
+      "current_import_sha256": "5fb3056f70c72327ebc2e09b285f600ec01e3d402a2615d6f738382b6c0a4c98",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/fixtures/probe.stories.ts",
@@ -1041,7 +1041,7 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "86d435d280f301bff608d0d618ebaa9e769ff6671ddf23dae7a8d765bcfc6b7d",
+      "current_import_sha256": "aa55684c204b0af88ff415be8f6cbb60d7d7cd382c7ebe2b0af90af5b99d5c75",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
@@ -1089,11 +1089,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "2c6d34733e29c7d69278dacc462eb5a7b213d6689b195dcef59533c89a55ffed",
+      "current_import_sha256": "00db13381eb184adc7d7c928cedd001b955fab0f61920f55d6519da7b2712b95",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
+      "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/inputs/inventory.mjs",
@@ -1329,7 +1329,115 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "fdbad6c1dd60d27fc9789cefdd9df4fd8cec86cbc2c71db36bf1783337cb8e53",
+      "current_import_sha256": "e548f769e71dd5266897699a8ea2d450037d65cf4e2d7d2828512bf1231c61a6",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/cold-sample.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "0da1daf3c135633bc91818960eb6a28af76a41c24831ad69aebb62d896d76f50",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/incumbent.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "57e451a084753aae9af48577e1d435be274ee6d14731c42a528caa1f09e5bfb5",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/inputs/font-rewrite.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "c895d53560a7f33e2feaeae86ca87c56794f9472db4ce3b67a1501ebfed3d951",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/inputs/remote-fonts.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "ccfcb6157a249656233dbd1c93cece438bf983616079914420eaeade6631c8fa",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/resources/comparison.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "78dd62036b54fad00a88b0aa2c0a940e91f90a2b76532569b0a8e86757832f4a",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/resources/comparison.test.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "175272cf2778f04eb732878be46e5e0275c0af02ff689afd8e9afe33df5eaaa0",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/resources/session.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "b2f6eed3fedf685fc270412ef9e09b13fbd3683481d1d4fb8c0259cdcb19ab46",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/run-incumbent.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "de21364b6b8c555165f78d087641d4afb92e07b3026acfa851e82915fffb31c1",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T04 resource gate: quiet-window precondition, owner-confirmed host-condition pair rule and controlled synthetic-load pair driver; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/run-t04-pairs.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "3dd4190462d904f3c35ae354d082de04f14a0b67ab9165951119cc3f99dda394",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
