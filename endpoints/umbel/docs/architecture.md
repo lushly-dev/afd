@@ -68,8 +68,8 @@ its own backends, on its own terms?
     Instances behind one URL share the confirmation key and the approval
     nonce store.
 12. **Small surfaces, measured.** A few first-class tools with lazy discovery
-    for the rest, the hybrid strategy recommended under open decision
-    [O2](decisions.md#open-decisions); concise and detailed result formats;
+    for the rest, the hybrid strategy decided in [D27](decisions.md);
+    concise and detailed result formats;
     an evaluation harness runs on every ranking or surface change.
 13. **Same interface at every scale.** A profile switches lanes and backends;
     the tool surface, the eval harness and the plugin contract do not change.
@@ -240,9 +240,10 @@ sequenceDiagram
   records, events and cursors each belong to exactly one space.
 - **MCP surface.** A small fixed set of first-class tools for the hot path,
   such as the four above, with lazy discovery for the rest; this hybrid
-  strategy is open decision [O2](decisions.md#open-decisions) and an AFD
-  feature for every language before Umbel uses it. Documents are also
-  resources; workflows are prompts. Tool lists carry cache hints and a stable
+  strategy is decision [D27](decisions.md) and an AFD feature for every
+  language before Umbel uses it, in the
+  [hybrid tool strategy proposal](../../../docs/features/proposed/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md).
+  Documents are also resources; workflows are prompts. Tool lists carry cache hints and a stable
   order.
 - **Skills.** Plugins contribute skills, and the host delivers them three
   ways: through the Skills over MCP extension where the client supports it,
@@ -528,7 +529,7 @@ criterion.
 | Rust lazy and grouped strategies, meta-tools and AFD contexts | Phase 0 | [Language parity](../../../docs/language-parity.md), D1 |
 | Rust `structuredContent` and top-level `outputSchema` | Phase 0 | #465 |
 | A per-request context hook on the Rust MCP server, so middleware can set the actor and credentials | Phase 0, version 0; phase 5 | MCP Authorization's Rust layer |
-| The hybrid tool strategy, a few first-class tools plus lazy discovery, for every language | Phase 0, if O2 chooses it | New AFD feature proposal |
+| The hybrid tool strategy, a few first-class tools plus lazy discovery, for every language | Phase 0 (D27) | [Hybrid tool strategy proposal](../../../docs/features/proposed/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md), spec first; Rust builds on language parity D1 |
 | MCP resources, prompts and the Skills over MCP extension in AFD servers, reconciled with the Skill Knowledge Layer | Phases 1 and 2 | New AFD feature proposal, spec first |
 | Output budgets per tool | Phase 2 | New AFD feature proposal |
 | The MCP approval relay in Rust | Phase 4 | [Language parity](../../../docs/language-parity.md); no issue yet |
@@ -542,7 +543,8 @@ codebase. A session that changes Umbel updates the status before it ends.
 
 Open decisions are numbered O1 to O5 in the
 [decision log](decisions.md#open-decisions), and move into the log as dated
-decisions when they close.
+decisions when they close. O2, the execution model, closed as D27 on
+2026-10-31.
 
 ## 11. Trajectory watch
 

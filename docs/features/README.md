@@ -57,6 +57,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |
+| [Hybrid Tool Strategy](./proposed/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md) | A fourth MCP tool strategy: up to 8 first-class tools beside the meta-tools, with a fixed tool list; spec first for every language. Requested by Umbel (D27); status in [STATUS.md](./proposed/hybrid-tool-strategy/STATUS.md) |
 | [MCP Authorization](./proposed/mcp-authorization/mcp-authorization.proposal.md) | OAuth resource-server role for HTTP MCP servers: RFC 9728 metadata, audience checks, per-command scopes (MCP follow-on, rank 2) |
 | [MCP Progress](./proposed/mcp-progress/mcp-progress.proposal.md) | A progress hook on the command context, delivered as MCP progress notifications, `/stream` chunks and DirectClient callbacks (MCP follow-on, rank 3) |
 | [MCP Tasks](./proposed/mcp-tasks/mcp-tasks.proposal.md) | Long-running commands as `io.modelcontextprotocol/tasks` tasks (MCP follow-on, rank 4; wait) |

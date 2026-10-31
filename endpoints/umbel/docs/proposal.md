@@ -209,16 +209,17 @@ structural graph is linear at every size.
 
 ## Execution model
 
-Open decision [O2](decisions.md#open-decisions). The recommendation is the
-hybrid strategy: a few first-class tools for the hot path, with lazy
+Decided on 2026-10-31 as [D27](decisions.md), closing open decision O2: the
+hybrid strategy, a few first-class tools for the hot path, with lazy
 discovery, `afd-call`, `afd-batch` and `afd-pipe` for everything else. It
 keeps the tool list fixed as plugins grow, lets commands change without the
 client reloading tools, and runs combinations in one call. AFD's lazy
 strategy today lists only the meta-tools; the hybrid is a deferred AFD
-feature, so it is specified for every language before Umbel uses it. A later
-optional plugin may accept model-written code against the same registry
-inside a WebAssembly sandbox, journaled as one command with the script as its
-input.
+feature, so it is specified for every language before Umbel uses it, in the
+[hybrid tool strategy proposal](../../../docs/features/proposed/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md).
+A later optional plugin may accept model-written code against the same
+registry inside a WebAssembly sandbox, journaled as one command with the
+script as its input.
 
 ## Guides and tools for building your own
 
@@ -261,7 +262,7 @@ input.
 ## Decisions
 
 Closed decisions are in the [decision log](decisions.md); open decisions are
-O1 to O5 there.
+O1 and O3 to O5 there. O2 closed as D27.
 
 ## First proof
 
