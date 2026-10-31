@@ -44,7 +44,7 @@ dev = [
     "alfred[mcp]",
     "pytest>=9.1.1",
     "pytest-asyncio>=0.23",
-    "ruff>=0.16.8",
+    "ruff>=0.17.2",
 ]
 
 [project.scripts]
