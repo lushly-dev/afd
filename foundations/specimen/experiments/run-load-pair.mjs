@@ -6,14 +6,14 @@
  * the loaded jobs cost more CPU for identical verified work while the probes taken outside the
  * load stay in band. It waits for the quiet-window gate itself, immediately before the first job.
  */
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { cpus, release, totalmem } from 'node:os';
-import { join, relative, resolve } from 'node:path';
+import { cpus } from 'node:os';
+import { join, resolve } from 'node:path';
 import { gitEnvironment } from './consumer-project.mjs';
 import { loadEffect, probeBand } from './resources/pairs.mjs';
 import { quietPolicy, waitForQuiet } from './resources/quiet.mjs';
+import { directoryDigest, hostDetails, sha256File } from './resources/session.mjs';
 import { speedProbe } from './resources/speed-probe.mjs';
 
 const args = process.argv.slice(2);
@@ -37,24 +37,6 @@ mkdirSync(out, { recursive: true });
 const policy = JSON.parse(
 	readFileSync(join(import.meta.dirname, 'inputs/baseline-policy.json'), 'utf8')
 );
-const sha = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
-// Every compiled file: dist/index.js alone is a re-export that does not identify the code.
-function directoryDigest(directory) {
-	const files = readdirSync(directory, { recursive: true, withFileTypes: true })
-		.filter((entry) => entry.isFile())
-		.map((entry) => join(entry.parentPath, entry.name))
-		.sort();
-	const hash = createHash('sha256');
-	for (const file of files) hash.update(`${relative(directory, file)}\0${sha(file)}\n`);
-	return { files: files.length, sha256: hash.digest('hex') };
-}
-const readback = (command, args) => {
-	try {
-		return execFileSync(command, args, { encoding: 'utf8' }).trim();
-	} catch {
-		return null;
-	}
-};
 const git = (...command) =>
 	spawnSync('git', ['-C', afd, ...command], {
 		encoding: 'utf8',
@@ -64,20 +46,10 @@ const study = {
 	purpose:
 		'Controlled synthetic-load pair: does background CPU load raise job CPU for identical work?',
 	createdUtc: new Date().toISOString(),
-	host: {
-		cpu: cpus()[0]?.model,
-		logicalCores: cpus().length,
-		totalBytes: totalmem(),
-		kernel: release(),
-		model: readback('/usr/sbin/sysctl', ['-n', 'hw.model']),
-		performanceCores: readback('/usr/sbin/sysctl', ['-n', 'hw.perflevel0.physicalcpu']),
-		efficiencyCores: readback('/usr/sbin/sysctl', ['-n', 'hw.perflevel1.physicalcpu']),
-		os: readback('/usr/bin/sw_vers', ['-productVersion']),
-		osBuild: readback('/usr/bin/sw_vers', ['-buildVersion']),
-	},
+	host: hostDetails(),
 	node: process.version,
 	afd: { revision: git('rev-parse', 'HEAD'), status: git('status', '--porcelain=v1') },
-	driverSha256: sha(import.meta.filename),
+	driverSha256: sha256File(import.meta.filename),
 	dist: directoryDigest(join(afd, 'foundations/specimen/dist')),
 	frozenManifests: (process.env.SPECIMEN_FROZEN_MANIFESTS ?? '').split(':').filter(Boolean),
 	roots,

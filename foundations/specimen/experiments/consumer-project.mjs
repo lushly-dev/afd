@@ -71,6 +71,29 @@ export async function readGitState(root) {
 		status: await run('status', '--porcelain'),
 	};
 }
+/**
+ * The recorded-font condition for the candidate (T04): the incumbent's preview head links these
+ * stylesheets before any story runs, so the wrapper links the same recorded copies and waits
+ * for them before its module finishes loading. SPECIMEN_FONT_STYLESHEETS is a JSON URL list.
+ */
+export function fontPreamble(
+	stylesheets = JSON.parse(process.env.SPECIMEN_FONT_STYLESHEETS ?? '[]')
+) {
+	if (!Array.isArray(stylesheets) || !stylesheets.every((url) => typeof url === 'string'))
+		throw new Error('SPECIMEN_FONT_STYLESHEETS must be a JSON array of URLs');
+	if (!stylesheets.length) return '';
+	return `// Recorded fonts, as the incumbent's preview head loads them.
+await Promise.all(${JSON.stringify(stylesheets)}.map((href) => new Promise((resolve, reject) => {
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = href;
+  link.onload = () => resolve(undefined);
+  link.onerror = () => reject(new Error('Recorded stylesheet failed: ' + href));
+  document.head.append(link);
+})));
+`;
+}
+
 export async function prepareConsumerProject(descriptor, source, destination) {
 	const before = await readGitState(source);
 	if (before.status) throw new Error(`Consumer checkout must be clean: ${source}`);
@@ -86,7 +109,8 @@ export async function prepareConsumerProject(descriptor, source, destination) {
 		await symlink(target, join(destination, link.to), 'dir');
 		dependencies.push({ ...link, target });
 	}
-	await writeFile(join(destination, 'probe.ts'), descriptor.source);
+	const wrapper = `${fontPreamble()}${descriptor.source}`;
+	await writeFile(join(destination, 'probe.ts'), wrapper);
 	await json(join(destination, 'specimen.config.json'), { specimens: descriptor.specimens });
 	if (descriptor.tsconfig) await json(join(destination, 'tsconfig.json'), descriptor.tsconfig);
 	for (const [file, content] of Object.entries(descriptor.generatedFiles ?? {})) {
@@ -130,6 +154,7 @@ export async function prepareConsumerProject(descriptor, source, destination) {
 		dependencies,
 		installed,
 		declaredInputs,
-		wrapperSha256: hash(descriptor.source),
+		wrapperSha256: hash(wrapper),
+		fontStylesheets: JSON.parse(process.env.SPECIMEN_FONT_STYLESHEETS ?? '[]'),
 	};
 }

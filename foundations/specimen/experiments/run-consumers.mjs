@@ -19,6 +19,8 @@ const { createSpecimenBench, diffObservations } = await import(pathToFileURL(api
 const runtimeIsolation = process.env.SPECIMEN_BENCH_ISOLATION ?? 'in-process';
 if (!['in-process', 'process'].includes(runtimeIsolation))
 	throw new Error('SPECIMEN_BENCH_ISOLATION must be in-process or process');
+// T04 runs each pair on the incumbent's browser build; unset uses Playwright's own.
+const executablePath = process.env.SPECIMEN_BENCH_EXECUTABLE || undefined;
 
 const execFile = promisify(execFileCallback);
 const args = process.argv.slice(2);
@@ -116,6 +118,7 @@ const report = {
 	runtime: { node: process.version, executable: process.execPath },
 	apiPath,
 	runtimeIsolation,
+	executablePath: executablePath ?? null,
 	host: {
 		platform: platform(),
 		release: release(),
@@ -180,7 +183,7 @@ for (const descriptor of descriptors) {
 		const captures = {};
 		const bench = await phase(
 			'bench-create',
-			() => createSpecimenBench({ root, runtimeIsolation }),
+			() => createSpecimenBench({ root, runtimeIsolation, executablePath }),
 			{
 				consumer: descriptor.name,
 				kind: 'warm',
@@ -238,7 +241,7 @@ for (const descriptor of descriptors) {
 			const start = performance.now();
 			const cold = await phase(
 				'bench-create',
-				() => createSpecimenBench({ root, runtimeIsolation }),
+				() => createSpecimenBench({ root, runtimeIsolation, executablePath }),
 				{
 					consumer: descriptor.name,
 					kind: 'cold',

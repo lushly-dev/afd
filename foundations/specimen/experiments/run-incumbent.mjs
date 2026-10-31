@@ -57,7 +57,12 @@ const summary = (values) => {
 };
 
 const fontRecord = join(fontStore, 'remote-fonts.json');
-const fonts = await startFontServer(JSON.parse(await readFile(fontRecord, 'utf8')), fontStore);
+// A pair driver serves fonts from outside both measured families and passes its URL; a direct
+// run starts its own server, inside the job.
+const external = process.env.SPECIMEN_FONT_BASE;
+const fonts = external
+	? { url: external, stats: () => ({ server: 'external' }), close: async () => {} }
+	: await startFontServer(JSON.parse(await readFile(fontRecord, 'utf8')), fontStore);
 const result = {
 	name: consumer,
 	status: 'failed',
@@ -125,7 +130,7 @@ try {
 } finally {
 	result.fonts = fonts.stats();
 	await fonts.close();
-	if (result.fonts.missing.length) {
+	if (result.fonts.missing?.length) {
 		result.status = 'failed';
 		result.error ??= `Unrecorded font requests: ${result.fonts.missing.join(', ')}`;
 	}

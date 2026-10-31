@@ -41,6 +41,8 @@ const runtimeIsolation = process.env.SPECIMEN_BENCH_ISOLATION ?? 'in-process';
 if (!['in-process', 'process'].includes(runtimeIsolation)) {
 	throw new Error('SPECIMEN_BENCH_ISOLATION must be in-process or process');
 }
+// T04 runs each pair on the incumbent's browser build; unset uses Playwright's own.
+const executablePath = process.env.SPECIMEN_BENCH_EXECUTABLE || undefined;
 const resourceEvents = process.env.SPECIMEN_RESOURCE_EVENTS;
 const cpuProfileDirectory = process.env.SPECIMEN_CPU_PROFILE_DIRECTORY;
 if (cpuProfileDirectory && (batches < 2 || lifetime !== 'reuse'))
@@ -157,7 +159,7 @@ async function openBench(batchIndex) {
 	await phase(
 		'bench-create',
 		async () => {
-			bench = await createSpecimenBench({ root, runtimeIsolation });
+			bench = await createSpecimenBench({ root, runtimeIsolation, executablePath });
 			result.actualBenchCreates++;
 		},
 		{ batchIndex }
