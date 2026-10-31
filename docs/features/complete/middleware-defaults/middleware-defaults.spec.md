@@ -1,5 +1,7 @@
 # Middleware Defaults Specification
 
+> **Status**: Complete. Shipped in #126 (`packages/server/src/middleware.ts`). Status verified 2026-10-31.
+
 > Production-ready observability out of the box, without duplicating what the base handler already provides.
 
 ## Summary

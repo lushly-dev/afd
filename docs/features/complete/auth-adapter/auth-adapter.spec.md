@@ -3,7 +3,9 @@
 > Provider-agnostic authentication for AFD applications
 
 ---
-status: in-progress
+status: complete
+shipped: "@lushly-dev/afd-auth, #125 (2026-02-22): Mock, Convex and BetterAuth adapters, session sync, React hooks, auth-* commands"
+verified: 2026-10-31
 created: 2026-01-31
 updated: 2026-02-21
 proposal: [auth-adapter.proposal.md](./auth-adapter.proposal.md)

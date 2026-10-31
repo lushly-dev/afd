@@ -4,7 +4,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Active: accepted 2026-10-25 with every recommendation (D1–D9). Phase 0 complete 2026-10-25 ([findings](#phase-0-findings)); D1, D2, D4 and D5 confirmed, one new decision (D10) raised, now resolved by the [confirmations proposal](../mcp-confirmations/mcp-confirmations.proposal.md). Phases 1–7 merged (#391–#396, #407). Follow-ups: #465 (structured results in Python, Rust and C++), #466 (`title`, meta-tool `context`, `x-mcp-header`), #469 (open questions 4–6 and 8). Phase 8 waits on #469. |
+| Status | Active: accepted 2026-10-25 with every recommendation (D1–D9). Phase 0 complete 2026-10-25 ([findings](#phase-0-findings)); D1, D2, D4 and D5 confirmed, one new decision (D10) raised, now resolved by the [confirmations proposal](../mcp-confirmations/mcp-confirmations.proposal.md). Phases 1–7 merged (#391–#396, #407). Follow-ups: #465 (structured results; Rust done in #523, Python and C++ open), #466 (`title`, meta-tool `context`, `x-mcp-header`; item 2 decided 2026-10-31 in #530), #469 (open questions 4–6 and 8). Phase 8 waits on #469. Current state: [STATUS.md](./STATUS.md). |
 | Author | jasfalk (drafted with Claude) |
 | Spec | [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28), [key changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog), [Cloudflare: The next generation of MCP](https://blog.cloudflare.com/mcp-v2/) |
 | Packages | `packages/server`, `packages/client`, `packages/core`, `packages/testing`, `packages/cli`, `python/`, `packages/rust` (D1 server feature), `packages/cpp` (D2 stdio target), `packages/examples/todo`, `spec/` |
@@ -211,7 +211,7 @@ Sizes follow the parity plan: **S** under a day, **M** a few days, **L** a week 
 
 ### Phase 2: TypeScript client, CLI and testing (L)
 
-**Status (2026-10-25): implemented on `claude/mcp-v2-phase2-ts-client`.** `McpClient` passes call, batch, pipe and stream against AFD's `/mcp` in `auto`, `modern` and `legacy` modes, and connects to official SDK servers of both eras. Deviations from the bullets below:
+**Status (2026-10-25): merged in #392.** `McpClient` passes call, batch, pipe and stream against AFD's `/mcp` in `auto`, `modern` and `legacy` modes, and connects to official SDK servers of both eras. Deviations from the bullets below:
 
 - `input_required` is not surfaced yet. AFD servers emit none until D10 is decided, so the transport declares no elicitation capability and the SDK never receives an `input_required` result from them.
 - `refreshTools` is not TTL-aware on its own; the SDK client inside the transport already honours `ttlMs` for `tools/list`.
@@ -226,7 +226,7 @@ Sizes follow the parity plan: **S** under a day, **M** a few days, **L** a week 
 
 ### Phase 3: Python (L)
 
-**Status (2026-10-25): implemented on `claude/mcp-v2-phase3-python`.** The Python todo backend passes 34/34 in `legacy`, `auto` (negotiating `2026-07-28`) and `modern`, and `conformance.yml` runs the `modern` mode. Deviations and findings:
+**Status (2026-10-25): merged in #393.** The Python todo backend passes 34/34 in `legacy`, `auto` (negotiating `2026-07-28`) and `modern`, and `conformance.yml` runs the `modern` mode. Deviations and findings:
 
 - Request context reaches `list_tools`/`call_tool` through the SDK's public `middleware` hook, not the private handlers.
 - **`ctx.session` is a new object per request in mcp 2.x.** 2025-era context stacks are keyed by the session's connection (`session._connection`, no public accessor); the live session-isolation tests guard it.
@@ -243,7 +243,7 @@ Sizes follow the parity plan: **S** under a day, **M** a few days, **L** a week 
 
 ### Phase 4: Rust and C++ (M–L, folds into parity D1 and D2)
 
-**Status (2026-10-25): implemented on `claude/mcp-v2-phase4-rust-cpp`.** The Rust and C++ todo backends pass 34/34 in `legacy`, `auto` (negotiating `2026-07-28`) and `modern`, and `conformance.yml` runs the `modern` mode for both. Deviations:
+**Status (2026-10-25): merged in #394.** The Rust and C++ todo backends pass 34/34 in `legacy`, `auto` (negotiating `2026-07-28`) and `modern`, and `conformance.yml` runs the `modern` mode for both. Deviations:
 
 - **Rust MSRV (open question 8):** the `server` feature documents its own minimum, Rust 1.88 (`rmcp`'s), and is off by default, so the crate keeps 1.82 for everything else; `rust.yml` adds clippy and tests with `--features server`. Raising the whole crate to 1.88 remains a one-line change if preferred.
 - The Rust `server` feature covers the individual tool strategy, exposure and `COMMAND_NOT_FOUND`; grouped and lazy strategies, meta-tools, bootstrap and contexts stay in parity D1. `rmcp` answers malformed bodies, unknown methods and a nameless `tools/call` itself; the backend tests pin those outcomes.
@@ -265,7 +265,7 @@ Sizes follow the parity plan: **S** under a day, **M** a few days, **L** a week 
 
 ### Phase 6: conformance and documentation (M)
 
-**Status (2026-10-25): implemented; lands with the Phase 6 docs PR.** `spec/protocol-conformance.md` is the era matrix (four backends × `legacy`/`auto`/`modern`, plus an acceptance index per criterion and language); `docs/language-parity.md` has MCP rows per era; the `afd`, `afd-developer`, `afd-python` and `afd-rust` skills and the todo README use `/mcp`; the [migration note](./migration.md) covers what changes per language. The package READMEs were updated in Phases 1–4.
+**Status (2026-10-25): merged in #396.** `spec/protocol-conformance.md` is the era matrix (four backends × `legacy`/`auto`/`modern`, plus an acceptance index per criterion and language); `docs/language-parity.md` has MCP rows per era; the `afd`, `afd-developer`, `afd-python` and `afd-rust` skills and the todo README use `/mcp`; the [migration note](./migration.md) covers what changes per language. The package READMEs were updated in Phases 1–4.
 
 - `spec/protocol-conformance.md` rewritten as the era matrix: 4 backends × {legacy, modern} × {stdio or HTTP}, with the discover/`_meta`/header/error criteria added to the acceptance index.
 - `docs/language-parity.md`: transport rows per era; `docs/features/README.md` index row; `packages/*/README.md`, `python/README.md`, the `afd-*` skills, `SETUP.md` and the todo README move every `/sse` example to `/mcp`.

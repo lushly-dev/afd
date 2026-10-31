@@ -1,5 +1,7 @@
 # Lazy-Loading Discovery Specification
 
+> **Status**: Complete. Shipped in #168 (2026-03-10). Status verified 2026-10-31.
+
 > A third tool strategy for AFD MCP servers that defers schema loading until the agent requests it, keeping enumeration cost constant regardless of command count.
 
 ## Summary

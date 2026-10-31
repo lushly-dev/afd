@@ -2,6 +2,8 @@
 
 > Alfred handles the deterministic work so agents can focus on reasoning.
 
+> **Status (verified 2026-10-31):** Partly complete. Shipped: `afd-lint`, `afd-parity`, `afd-quality` (`alfred/src/alfred/commands/`). Not built: `afd-validate-schemas`, `afd-release-check` and most Tier 2 commands. No active plan tracks the remainder; reopen as a new proposal if needed.
+
 ## Summary
 
 Alfred is a botcore-based bot for the AFD repo that provides deterministic quality tooling as MCP commands. Named for the acronym hiding in plain sight (**A**FD → **Alf**re**d**), and for the butler who keeps the Batcave running while Batman handles the hard stuff.

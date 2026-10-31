@@ -4,7 +4,7 @@ Experimental native component observation bench. A separate `@lushly-dev/specime
 
 It captures actual Chromium geometry, selected computed styles, native control state, open-shadow DOM and ARIA snapshots. These observations detect changes that identical DOM markup can conceal. Each render gets a new browser context and registry; declared readiness and cleanup run before the environment is discarded.
 
-The package is the feasibility milestone of the [Specimens proposal](../../docs/features/proposed/specimens/specimens.proposal.md). Storybook migration, full CSF discovery, schema coverage, axe, token dependencies, event history, plugins and pixel comparison remain later work. This package does not establish that removing Storybook is safe.
+The package is the feasibility milestone of the [Specimens proposal](../../docs/features/active/specimens/specimens.proposal.md). Storybook migration, full CSF discovery, schema coverage, axe, token dependencies, event history, plugins and pixel comparison remain later work. This package does not establish that removing Storybook is safe.
 
 ## Run the fixtures
 

@@ -4,6 +4,8 @@
 
 ---
 status: complete
+shipped: "#168 (2026-03-10): lazy tool strategy, afd-discover, afd-detail, afd-call"
+verified: 2026-10-31
 created: 2026-01-15
 origin: Context window pressure — individual strategy loads every command schema at enumeration, consuming agent context. Grouped strategy reduces this but loses per-command schemas.
 effort: M (3-5 days)

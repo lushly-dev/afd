@@ -16,6 +16,7 @@ Counts over time:
 |---|---|---|---|
 | 2026-03-21 (plan written) | 185 | 170 | 90 |
 | 2026-09-26 (`0777217`) | 186 | 179 | 97 (budget 97 in `alfred/tests/test_parity.py`) |
+| 2026-10-31 (`5875e301`) | — | — | 88 (budget 88 in `alfred/tests/test_parity.py`, after #348, #400, #425, #420; export counts not re-measured) |
 
 The count grew because TypeScript added exports, such as the shared executors, faster than Python re-exported its own. Most of Wave 3 is implemented but not exported (see [Status by wave](#status-by-wave-2026-09-26)).
 
@@ -25,7 +26,7 @@ This plan tracks Python name parity only. Behavioral gaps are tracked in the cro
 
 | Field | Value |
 |---|---|
-| Status | Active |
+| Status | Active; current state in [STATUS.md](./STATUS.md) (2026-10-31) |
 | Author | jasfalk |
 | Updated | 2026-09-26 |
 | Package | `python/src/afd` |

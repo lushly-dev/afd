@@ -11,7 +11,7 @@ session that changed it.
 | Spec: `spec/context-fields.md`, journal changes, fixtures | Not started | None | |
 | TypeScript reference | Not started | None | |
 | Python | Not started | None | |
-| Rust | Not started; waits on PR #523's context hook | None | |
+| Rust | Not started; unblocked: PR #523's `McpServer::with_context_hook` merged 2026-10-31 | None | 2026-10-31: `with_context_hook` in `packages/rust/src/server.rs` on main |
 | C++ journal | Not started | None | |
 
 ## Done

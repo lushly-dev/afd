@@ -83,6 +83,14 @@ endpoints/umbel/            # AFD Umbel — proposed Rust host for capability pl
 - **Lint**: Biome — tab indent, single quotes, no `any`, no unused imports
 - **Command Prerequisites**: Declare with `requires: ['command-name']` on `defineCommand()` — metadata only, not enforced at runtime. Exposed via MCP `_meta.requires` (and `afd-help` when the server sets `bootstrap: true`)
 
+## Tracking Work Against Plans
+
+Work tied to an epic, spec, proposal, issue or other outside document must keep that document current, so the next person or agent knows what happened and what remains without scanning the code.
+
+- **Record as you go**: status, done and not done, verification evidence, observed issues, open follow-ups and notes. Use absolute dates. Update before ending any session that changed the work.
+- **Keep `docs/features/` organized** ([lifecycle](docs/README.md)): move a spec from `proposed/` to `active/` once it is accepted and work begins, and from `active/` to `complete/` once it ships. Update links that point to the old path.
+- **Status files**: feature doc sets carry a `STATUS.md` (see [platform-monorepo](docs/features/active/platform-monorepo/STATUS.md)).
+
 ## Quality Gates & CI
 
 **Principle: for TypeScript, lefthook IS the CI pipeline.** `pnpm check` runs the exact same steps as the `CI` workflow (`ci.yml`). If it passes locally, that workflow passes remotely.

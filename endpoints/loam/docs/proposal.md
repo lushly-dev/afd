@@ -791,7 +791,7 @@ workspace without a publish.
   Loam is a web UI head of the kind that plan imagined, built in this
   repository in TypeScript; it reaches the Rust crate through Umbel and
   through measured WebAssembly modules (D37).
-- [Specimens](../../../docs/features/proposed/specimens/specimens.proposal.md):
+- [Specimens](../../../docs/features/active/specimens/specimens.proposal.md):
   the chrome's observation bench and an app.
 - Violet, Specimen, Health and the Health dashboard: Violet and Specimen are
   mounted apps, and Health is a native app built from the dashboard.
