@@ -129,6 +129,20 @@ bool read_digest(const Json& value, const std::string& path, JournalContextDiges
     return reader.ok();
 }
 
+bool read_strings(const Json& value, const std::string& path, std::vector<std::string>& out,
+                  std::string& error) {
+    if (!value.is_array() || !std::all_of(value.begin(), value.end(),
+                                          [](const Json& item) { return item.is_string(); })) {
+        detail::record(error, path, "expected an array of strings");
+        return false;
+    }
+    out.clear();
+    for (const auto& item : value) {
+        out.push_back(item.get<std::string>());
+    }
+    return true;
+}
+
 bool read_entry(const Json& value, JournalEntry& out, std::string& error) {
     EntryReader reader(value, std::string(), error);
     if (const Json* seq = reader.get("seq", true)) {
@@ -154,6 +168,19 @@ bool read_entry(const Json& value, JournalEntry& out, std::string& error) {
     }
     if (const Json* digest = reader.get("contextDigest", true)) {
         read_digest(*digest, reader.at("contextDigest"), out.context_digest, error);
+    }
+    if (const Json* context = reader.get("context", false)) {
+        if (context->is_object()) {
+            out.context = *context;
+        } else {
+            reader.fail("context", "expected an object");
+        }
+    }
+    if (const Json* omitted = reader.get("contextOmitted", false)) {
+        std::vector<std::string> names;
+        if (read_strings(*omitted, reader.at("contextOmitted"), names, error)) {
+            out.context_omitted = std::move(names);
+        }
     }
     if (const Json* result = reader.get("result", true)) {
         detail::read_value(*result, reader.at("result"), out.result, error);
@@ -241,6 +268,8 @@ void to_json(Json& out, const JournalEntry& entry) {
     out["input"] = entry.input;
     detail::put(out, "actor", entry.actor);
     out["contextDigest"] = entry.context_digest;
+    detail::put(out, "context", entry.context);
+    detail::put(out, "contextOmitted", entry.context_omitted);
     out["result"] = entry.result;
     out["durationMs"] = wire::number(entry.duration_ms);
     detail::put(out, "tape", entry.tape);
@@ -289,7 +318,20 @@ Expected<std::vector<JournalEntry>> MemoryJournalSink::read(JournalRange range) 
 
 // --- context digest -----------------------------------------------------------------------
 
-JournalContextDigest create_context_digest(const CommandContext& context) {
+JournalContextDigest create_context_digest(const CommandContext& context,
+                                           const std::optional<Json>& journaled,
+                                           const std::optional<std::vector<std::string>>& omitted) {
+    // The names of the context fields the entry keeps (or lists as too large) leave `keys`.
+    std::vector<std::string> recorded = omitted.value_or(std::vector<std::string>{});
+    if (journaled && journaled->is_object()) {
+        for (auto it = journaled->begin(); it != journaled->end(); ++it) {
+            recorded.push_back(it.key());
+        }
+    }
+    const auto is_recorded = [&recorded](const std::string& key) {
+        return std::find(recorded.begin(), recorded.end(), key) != recorded.end();
+    };
+
     std::optional<std::string> surface;
     if (context.surface) {
         surface = std::string(detail::surface_wire_name(*context.surface));
@@ -318,12 +360,19 @@ JournalContextDigest create_context_digest(const CommandContext& context) {
             }
         }
     }
+    keys.erase(std::remove_if(keys.begin(), keys.end(), is_recorded), keys.end());
     std::sort(keys.begin(), keys.end());
     keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
 
     // `Json` objects keep their keys sorted, so `serialize` writes canonical JSON.
     Json canonical = Json::object();
     canonical["actor"] = context.actor ? Json(*context.actor) : Json(nullptr);
+    if (journaled) {
+        canonical["context"] = *journaled;
+    }
+    if (omitted) {
+        canonical["contextOmitted"] = *omitted;
+    }
     canonical["interface"] = surface ? Json(*surface) : Json(nullptr);
     canonical["keys"] = keys;
     canonical["traceId"] = context.trace_id ? Json(*context.trace_id) : Json(nullptr);
@@ -337,7 +386,8 @@ std::string serialize_journal_entry(const JournalEntry& entry) {
     // The spec's key order for the entry and its actor, so lines read the same across
     // implementations up to the result.
     return ordered_object(Json(entry), {"seq", "timestamp", "traceId", "command", "input", "actor",
-                                        "contextDigest", "result", "durationMs", "tape"});
+                                        "contextDigest", "context", "contextOmitted", "result",
+                                        "durationMs", "tape"});
 }
 
 std::string serialize_journal(const std::vector<JournalEntry>& entries) {

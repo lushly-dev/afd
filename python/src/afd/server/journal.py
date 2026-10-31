@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
+import copy
+import json
 import logging
 import math
 from collections.abc import Callable, Sequence
@@ -34,29 +36,37 @@ from afd.core.clock import (
 )
 from afd.core.commands import CommandContext, CommandMiddleware, NextFn
 from afd.core.journal import (
+    JournalContextFields,
     JournalEntry,
     JournalRecord,
     JournalSink,
     JournalTape,
+    canonical_json,
     create_context_digest,
     journal_actor,
 )
 from afd.core.result import CommandResult, coerce_command_result, execution_failure
 from afd.core.wire import to_wire
+from afd.server.context_fields import JOURNALED_CONTEXT_FIELDS
 
 __all__ = [
+    "MAX_JOURNAL_CONTEXT_BYTES",
     "JournalReplayTarget",
     "ReplayDifference",
     "ReplayEntryReport",
     "ReplayReport",
     "ReplayStatus",
     "create_journal_middleware",
+    "journal_context_fields",
     "replay_journal",
 ]
 
 logger = logging.getLogger("afd.server.journal")
 
 DEFAULT_MAX_TAPE_READS = 1000
+
+MAX_JOURNAL_CONTEXT_BYTES = 4096
+"""Most bytes of UTF-8 canonical JSON a journaled context field value may take (``spec/journal.md``)."""
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -163,6 +173,32 @@ def _trace_id(context: Any) -> str | None:
     return trace_id if isinstance(trace_id, str) else None
 
 
+def journal_context_fields(context: Any, names: Sequence[str]) -> JournalContextFields:
+    """The values of the context fields ``names`` (those declared ``journal=True``) that
+    ``context`` has in ``extra``, as an entry keeps them.
+
+    Each value is kept as JSON with its object keys sorted. A value over
+    :data:`MAX_JOURNAL_CONTEXT_BYTES` of canonical JSON is left out and its name
+    listed in ``context_omitted``. A value of ``None`` counts as no value. Both
+    members are ``None`` when empty.
+    """
+    extra = getattr(context, "extra", None)
+    values = extra if isinstance(extra, dict) else {}
+    kept: dict[str, Any] = {}
+    omitted: list[str] = []
+    for name in sorted(set(names)):
+        value = values.get(name)
+        if value is None:
+            continue
+        text = canonical_json(_input_json(value))
+        # canonical_json escapes lone surrogates, so the text always encodes.
+        if len(text.encode("utf-8")) > MAX_JOURNAL_CONTEXT_BYTES:
+            omitted.append(name)
+        else:
+            kept[name] = json.loads(text)
+    return JournalContextFields(context=kept or None, context_omitted=omitted or None)
+
+
 def _default_filter(command_name: str) -> bool:
     """Commands not recorded by default: the auth commands take passwords and return sessions."""
     return not command_name.startswith("auth-")
@@ -181,11 +217,15 @@ def create_journal_middleware(
 
     Each entry holds the command, its validated input, the actor, the trace
     ID, a context digest (a hash plus the interface; no other context value),
-    the result and the duration. It also holds the tape: every value the
-    handler read from ``context.clock`` and ``context.random``, which
+    the values of the declared context fields marked ``journal=True``
+    (``spec/context-fields.md``; a value over
+    :data:`MAX_JOURNAL_CONTEXT_BYTES` is named in ``context_omitted``
+    instead), the result and the duration. It also holds the tape: every value
+    the handler read from ``context.clock`` and ``context.random``, which
     :func:`replay_journal` feeds back. Place this middleware last in the list,
     so the tape holds only what the handler (and the server's own timing)
-    read, and so the actor it records is the one earlier middleware settled on.
+    read, and so the actor it records is the one earlier middleware settled
+    on.
 
     Appends are awaited, so entries are in call order for sequential calls. A
     sink error goes to ``on_error`` (or the ``afd.server.journal`` logger) and
@@ -277,13 +317,18 @@ def create_journal_middleware(
         if recorded.success or record_failures:
             try:
                 has_tape = bool(tape.clock or tape.random or tape.truncated)
+                journaled = journal_context_fields(
+                    context, getattr(context, JOURNALED_CONTEXT_FIELDS, None) or ()
+                )
                 record: JournalRecord | None = JournalRecord(
                     timestamp=_iso_timestamp(start),
                     trace_id=_trace_id(context),
                     command=command_name,
                     input=_input_json(input),
                     actor=journal_actor(getattr(context, "actor", None)),
-                    context_digest=create_context_digest(context),
+                    context_digest=create_context_digest(context, journaled),
+                    context=journaled.context,
+                    context_omitted=journaled.context_omitted,
                     result=_to_json(recorded),
                     duration_ms=duration_ms,
                     tape=tape if has_tape else None,
@@ -308,7 +353,13 @@ def create_journal_middleware(
 
 
 class JournalReplayTarget(Protocol):
-    """Anything that executes commands by name: ``create_server()``, the core registry, ``SimpleRegistry``."""
+    """Anything that executes commands by name: ``create_server()``, the core registry, ``SimpleRegistry``.
+
+    A target may also have ``context_fields``, the context fields it declares
+    (``MCPServer.context_fields``). When it does, a recorded field it no longer
+    declares is dropped with a note; when it does not, every recorded field is
+    restored.
+    """
 
     async def execute(self, name: str, input: Any, context: Any = None) -> Any: ...
 
@@ -539,7 +590,11 @@ ReplayContext = dict[str, Any] | Callable[[JournalEntry], dict[str, Any]]
 
 
 def _replay_context(
-    entry: JournalEntry, clock: Clock, random: RandomSource, extra: dict[str, Any] | None
+    entry: JournalEntry,
+    clock: Clock,
+    random: RandomSource,
+    restored: dict[str, Any],
+    extra: dict[str, Any] | None,
 ) -> CommandContext:
     context = CommandContext(
         trace_id=entry.trace_id,
@@ -549,6 +604,8 @@ def _replay_context(
     )
     if entry.context_digest.interface is not None:
         context.extra["interface"] = entry.context_digest.interface
+    # Copies, so a target that does not validate them cannot change the journal's objects.
+    context.extra.update(copy.deepcopy(restored))
     for name, value in (extra or {}).items():
         if name in ("trace_id", "timeout", "actor", "clock", "random", "approval"):
             setattr(context, name, value)
@@ -571,16 +628,20 @@ async def replay_journal(
 ) -> ReplayReport:
     """Re-execute journal entries in ``seq`` order and compare each result with the recorded one.
 
-    Each call gets the entry's trace ID, actor and interface, and a clock and
-    random source that return the values recorded on its tape. An entry
-    without a tape gets a clock fixed at its ``timestamp`` and a random source
-    seeded with ``f"{seed}:{seq}"``. The registry should be fresh (or reset to
-    the state the recording started from): replay re-runs mutations. Give it
-    the same middleware as the recording server: a journal middleware in it
-    lines the tape up with the handler and records nothing during replay.
-    Without one, a handler that calls another journaled server would let that
-    server's journal claim the tape mid-call (the replay marker is a context
-    variable, so it reaches calls that build a context of their own).
+    Each call gets the entry's trace ID, actor, interface and journaled
+    context field values (in ``context.extra``, validated by the registry as
+    on any call), and a clock and random source that return the values
+    recorded on its tape. When ``registry`` has ``context_fields``, a recorded
+    field it no longer declares is left out with a note, as is each field the
+    entry names in ``context_omitted``. An entry without a tape gets a clock
+    fixed at its ``timestamp`` and a random source seeded with
+    ``f"{seed}:{seq}"``. The registry should be fresh (or reset to the state
+    the recording started from): replay re-runs mutations. Give it the same
+    middleware as the recording server: a journal middleware in it lines the
+    tape up with the handler and records nothing during replay. Without one, a
+    handler that calls another journaled server would let that server's
+    journal claim the tape mid-call (the replay marker is a context variable,
+    so it reaches calls that build a context of their own).
 
     Args:
         registry: Anything with ``execute(name, input, context)``.
@@ -605,9 +666,24 @@ async def replay_journal(
     ignored = frozenset(DEFAULT_REPLAY_IGNORE if ignore is None else ignore)
     ordered = sorted(entries, key=lambda entry: entry.seq)
     report = ReplayReport()
+    fields = getattr(registry, "context_fields", None)
+    declared = None if fields is None else {item.name for item in fields}
 
     for index, entry in enumerate(ordered):
         tape = entry.tape
+        field_notes: list[str] = []
+        restored: dict[str, Any] = {}
+        for name, value in (entry.context or {}).items():
+            if declared is not None and name not in declared:
+                field_notes.append(
+                    f"context field '{name}' is no longer declared; replayed without it"
+                )
+            else:
+                restored[name] = value
+        for name in entry.context_omitted or []:
+            field_notes.append(
+                f"context field '{name}' was too large to journal; replayed without it"
+            )
         random = _TapeRandom(tape.random if tape else [], f"{seed}:{entry.seq}")
         clock: _TapeClock | None = None
 
@@ -617,7 +693,7 @@ async def replay_journal(
             clock = _TapeClock(tape.clock, _to_epoch_ms(entry.timestamp)) if tape else None
             extra = context(entry) if callable(context) else context
             call_context = _replay_context(
-                entry, clock or fixed_clock(entry.timestamp), random, extra
+                entry, clock or fixed_clock(entry.timestamp), random, restored, extra
             )
 
             def rewind(clock: _TapeClock | None = clock, random: _TapeRandom = random) -> None:
@@ -655,7 +731,7 @@ async def replay_journal(
                 error=str(exc) or type(exc).__name__,
             )
 
-        notes = _tape_notes(entry, clock, random)
+        notes = field_notes + _tape_notes(entry, clock, random)
         if notes:
             outcome.notes = notes
 

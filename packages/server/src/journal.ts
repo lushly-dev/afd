@@ -8,8 +8,10 @@
 
 import type {
 	Clock,
+	CommandContext,
 	CommandMiddleware,
 	CommandResult,
+	JournalEntry,
 	JournalRecord,
 	JournalSink,
 	JournalTape,
@@ -22,6 +24,51 @@ import {
 	systemClock,
 	systemRandom,
 } from '@lushly-dev/afd-core';
+import { JOURNALED_CONTEXT_FIELDS } from './context-fields.js';
+
+/** Most bytes of UTF-8 canonical JSON a journaled context field value may take (`spec/journal.md`). */
+export const MAX_JOURNAL_CONTEXT_BYTES = 4096;
+
+/** JSON with object keys sorted at every level, as the journal hashes it. */
+function canonicalJson(value: unknown): string {
+	const sort = (item: unknown): unknown => {
+		if (Array.isArray(item)) return item.map(sort);
+		if (item && typeof item === 'object') {
+			const record = item as Record<string, unknown>;
+			return Object.fromEntries(
+				Object.keys(record)
+					.sort()
+					.map((key) => [key, sort(record[key])])
+			);
+		}
+		return item;
+	};
+	return JSON.stringify(sort(JSON.parse(JSON.stringify(value) ?? 'null'))) ?? 'null';
+}
+
+/**
+ * The values of the context fields `names` (those declared `journal: true`) that `context` has,
+ * as an entry keeps them. A value over {@link MAX_JOURNAL_CONTEXT_BYTES} of canonical JSON is left
+ * out and its name listed in `contextOmitted`. Both members are omitted when empty.
+ */
+export function journalContextFields(
+	context: CommandContext,
+	names: readonly string[]
+): Pick<JournalEntry, 'context' | 'contextOmitted'> {
+	const kept: Record<string, unknown> = {};
+	const omitted: string[] = [];
+	for (const name of [...new Set(names)].sort()) {
+		const value = context[name];
+		if (value === undefined) continue;
+		const json = canonicalJson(value);
+		if (new TextEncoder().encode(json).length > MAX_JOURNAL_CONTEXT_BYTES) omitted.push(name);
+		else kept[name] = JSON.parse(json);
+	}
+	return {
+		...(Object.keys(kept).length > 0 ? { context: kept } : {}),
+		...(omitted.length > 0 ? { contextOmitted: omitted } : {}),
+	};
+}
 
 /**
  * Context key `replayJournal()` sets on each replayed call. The first journal middleware that
@@ -224,13 +271,18 @@ export function createJournalMiddleware(
 			try {
 				const actor = journalActor(context.actor);
 				const hasTape = tape.clock.length > 0 || tape.random.length > 0 || tape.truncated;
+				const journaled = journalContextFields(
+					context,
+					((context as Record<symbol, unknown>)[JOURNALED_CONTEXT_FIELDS] as string[]) ?? []
+				);
 				const record = redact({
 					timestamp: new Date(start).toISOString(),
 					...(typeof context.traceId === 'string' ? { traceId: context.traceId } : {}),
 					command: commandName,
 					input: toJson(input),
 					...(actor ? { actor } : {}),
-					contextDigest: await createContextDigest(context),
+					contextDigest: await createContextDigest(context, journaled),
+					...journaled,
 					result: toJson(recorded) as CommandResult,
 					durationMs,
 					...(hasTape ? { tape } : {}),

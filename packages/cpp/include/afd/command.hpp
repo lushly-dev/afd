@@ -21,6 +21,7 @@ namespace afd {
 namespace detail {
 struct JournalCallState;
 struct DirectApprovalState;
+struct JournaledContextFields;
 } // namespace detail
 
 /// A surface a command can be exposed to. TypeScript calls this the command's `interface`; C++
@@ -78,13 +79,18 @@ struct CommandContext {
     /// Cooperative cancellation. Handlers that run long should poll it.
     CancellationToken cancellation;
     /// Anything else the host passes along, as a JSON object. TypeScript's `[key: string]:
-    /// unknown`, and the only extension point.
+    /// unknown`, and the only extension point. A declared context field's value goes here under
+    /// its name (`CommandRegistryOptions::context_fields`); the registry replaces it with the
+    /// validated value before middleware runs.
     Json extra = Json::object();
     /// Set by the command journal (journal.hpp) while it records or replays the call; leave it
     /// unset. Nested calls that copy the context carry it on. Never recorded or hashed.
     std::shared_ptr<detail::JournalCallState> journal;
     /// Internal approval marker. DirectClient ignores caller-provided markers and evidence.
     std::shared_ptr<detail::DirectApprovalState> direct_approval;
+    /// Set by the registry once the call's declared context fields validated: which of them the
+    /// journal keeps. Leave it unset. Never recorded or hashed.
+    std::shared_ptr<const detail::JournaledContextFields> journaled_fields;
 };
 
 /// Defaults for `with_context_defaults`.

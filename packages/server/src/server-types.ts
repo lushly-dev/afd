@@ -13,6 +13,7 @@ import type {
 	PipelineResult,
 	RandomSource,
 } from '@lushly-dev/afd-core';
+import type { ContextField } from './context-fields.js';
 import type { ZodCommandDefinition } from './schema.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -137,6 +138,13 @@ export interface McpServerOptions {
 
 	/** Random source given to handlers as `context.random` when the context has none. Default: `systemRandom`. */
 	random?: RandomSource;
+
+	/**
+	 * Request values the host declares (`spec/context-fields.md`): each one's context key, `_meta`
+	 * key, schema, and whether the journal keeps it. A call's value is validated before middleware
+	 * runs, and an invalid or missing required one fails the call with `VALIDATION_ERROR`.
+	 */
+	contextFields?: readonly ContextField[];
 
 	/**
 	 * Actor for commands called over MCP (stdio or HTTP) when the context has none.
@@ -349,6 +357,9 @@ export interface McpServer {
 
 	/** Get registered commands */
 	getCommands(): ZodCommandDefinition[];
+
+	/** The declared context fields, so `replayJournal` can tell which recorded values still apply. */
+	readonly contextFields: readonly ContextField[];
 
 	/**
 	 * Get the resolved transport mode.

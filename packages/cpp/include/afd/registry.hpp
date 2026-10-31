@@ -6,7 +6,9 @@
 #include "afd/batch.hpp"
 #include "afd/builtin_names.hpp"
 #include "afd/command.hpp"
+#include "afd/context_fields.hpp"
 #include "afd/execution.hpp"
+#include "afd/expected.hpp"
 #include "afd/json.hpp"
 #include "afd/pipeline.hpp"
 #include "afd/result.hpp"
@@ -51,6 +53,12 @@ struct CommandRegistryOptions {
     /// `context.actor` when the caller set none, e.g. `{.kind = ActorKind::agent}` for an MCP
     /// host. Default: none.
     std::optional<Actor> actor;
+    /// Request values the host declares (spec/context-fields.md). A call sets each in
+    /// `context.extra[name]`; it is validated before middleware runs, and an invalid value or a
+    /// missing required one fails the call with VALIDATION_ERROR. The journal keeps the values
+    /// of fields declared `journal`. Checked when the registry is created: use
+    /// `CommandRegistry::create` to get the error.
+    std::vector<ContextField> context_fields;
 };
 
 /// A registered command.
@@ -63,7 +71,15 @@ struct RegisteredCommand {
 /// so one registry can serve several threads.
 class CommandRegistry {
 public:
+    /// A registry with `options`. Prefer `create` when declaring context fields: a registry
+    /// constructed with an invalid declaration fails every call with INTERNAL_ERROR.
     explicit CommandRegistry(CommandRegistryOptions options = {});
+
+    /// A registry with `options`, or why they are invalid. The error names the context field
+    /// with an empty, reserved or repeated name, a `meta` key without a reverse-DNS prefix, with
+    /// a reserved prefix or repeated, or an unsupported schema.
+    [[nodiscard]] static Expected<std::shared_ptr<CommandRegistry>>
+    create(CommandRegistryOptions options = {});
 
     /// Registers `command`. Returns an error message, or `std::nullopt` on success. Rejects
     /// invalid and reserved names, duplicates, a missing handler, an unsupported input schema,
@@ -84,13 +100,20 @@ public:
     [[nodiscard]] std::vector<std::shared_ptr<const RegisteredCommand>>
     list_handoff_commands() const;
 
+    /// The declared context fields, so `replay_journal` can tell which recorded values still
+    /// apply.
+    [[nodiscard]] const std::vector<ContextField>& context_fields() const noexcept {
+        return options_.context_fields;
+    }
+
     /// Executes one command, in the TypeScript engine's order:
     ///
     /// 1. Lookup. An unknown name gives COMMAND_NOT_FOUND with up to three "did you mean"
     ///    matches; the name is never echoed untruncated.
     /// 2. Exposure, when `context.surface` is set: COMMAND_NOT_EXPOSED.
     /// 3. Context, when `context.active_context` is set: COMMAND_NOT_IN_CONTEXT.
-    /// 4. Validation against the input schema: VALIDATION_ERROR.
+    /// 4. Validation against the input schema, then of the declared context fields in
+    ///    `context.extra`: VALIDATION_ERROR.
     /// 5. Middleware, then the handler with the validated input.
     /// 6. The handler's result gets `metadata.executionTimeMs`, `commandVersion` and, when the
     ///    context has one after middleware ran, `traceId`.
@@ -126,6 +149,12 @@ private:
     void report_error(std::string_view message) const;
 
     CommandRegistryOptions options_;
+    /// The compiled schema of each declared context field, in declaration order.
+    std::vector<CompiledSchema> context_schemas_;
+    /// The names of the fields declared `journal`, set on each call's context. Null when none.
+    std::shared_ptr<const detail::JournaledContextFields> journaled_fields_;
+    /// Why the context field declarations are invalid; every call then fails.
+    std::optional<std::string> options_error_;
     mutable std::shared_mutex mutex_;
     std::map<std::string, std::shared_ptr<const RegisteredCommand>, std::less<>> commands_;
     std::vector<std::shared_ptr<const RegisteredCommand>> order_;

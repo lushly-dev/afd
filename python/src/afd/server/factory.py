@@ -72,6 +72,7 @@ from afd.server.decorators import (
     validate_command_input,
 )
 from afd.core.builtin_names import AFD_META_TOOL_NAMES
+from afd.server.context_fields import ContextField, apply_context_fields, check_context_fields
 from afd.server.first_class import check_first_class_tools, normalize_first_class_tools
 from afd.server.lazy_tools import not_found_suggestion
 from afd.server.middleware import CommandMiddleware
@@ -153,6 +154,8 @@ class ServerConfig:
     first_class_tools: list[str] | None = None
     """``tool_strategy="hybrid"`` only: the commands listed as tools after the meta-tools, in
     order (1 to 8 names). Checked against the registered commands before the first request."""
+    context_fields: list[ContextField] = field(default_factory=list)
+    """Request values the host declares (``spec/context-fields.md``), checked at construction."""
 
 
 DEFAULT_TOOLS_LIST_TTL_MS = 300_000
@@ -208,6 +211,7 @@ class MCPServer:
         # The set's options are checked here; its entries once the commands are registered.
         first_class = normalize_first_class_tools(config.tool_strategy, config.first_class_tools)
         config.first_class_tools = first_class
+        config.context_fields = check_context_fields(config.context_fields)
         self.config = config
         self._registry = create_command_registry()
         self._commands: dict[str, Callable] = {}
@@ -237,6 +241,12 @@ class MCPServer:
     @property
     def context_state(self) -> ContextState:
         return self._context_state
+
+    @property
+    def context_fields(self) -> tuple[ContextField, ...]:
+        """The declared context fields, so ``replay_journal`` can tell which recorded values
+        still apply."""
+        return tuple(self.config.context_fields)
 
     def list_contexts(self) -> list[ContextConfig]:
         return list(self.config.contexts)
@@ -589,6 +599,11 @@ class MCPServer:
         if isinstance(prepared, CommandResult):
             return prepared
         command, data = prepared
+
+        # Declared context fields, validated in context.extra before any middleware runs.
+        invalid_field = apply_context_fields(self.config.context_fields, context, command.name)
+        if invalid_field is not None:
+            return invalid_field
 
         async def run_handler() -> Any:
             return await self._run_handler(command, data, context)
@@ -1435,10 +1450,22 @@ def create_server(
     confirmations: str = "off",
     confirmation_key: bytes | str | None = None,
     first_class_tools: Sequence[str] | None = None,
+    context_fields: Sequence[ContextField | dict[str, Any]] | None = None,
 ) -> MCPServer:
     """Create a new AFD MCP server.
 
     Args:
+        context_fields: Request values the host declares (``spec/context-fields.md``): each
+            one's name, ``_meta`` key, schema (a Pydantic model or any type
+            ``pydantic.TypeAdapter`` accepts), and whether the journal keeps it
+            (``journal=True``) or a call needs it (``required=True``). A call carries a
+            field's value in ``context.extra[name]``; it is validated before middleware runs
+            and replaced with the schema's output, and an invalid or missing required value
+            fails the call with ``VALIDATION_ERROR`` (``required`` is not enforced for AFD's own
+            ``afd-*`` commands, so a client can discover the fields first). A bad declaration (an empty, reserved or
+            repeated name, a ``meta`` key without a reverse-DNS prefix, with a reserved one or
+            repeated) raises ``ValueError`` naming the field; a schema pydantic cannot use
+            raises ``TypeError``. ``_meta`` delivery over MCP is not implemented yet (#528).
         tool_strategy: How commands become MCP tools: ``"individual"`` (the default), ``"grouped"``,
             ``"lazy"`` or ``"hybrid"`` (``spec/tool-strategies.md``).
         first_class_tools: With ``tool_strategy="hybrid"`` (required there, and refused with any
@@ -1520,5 +1547,7 @@ def create_server(
         confirmations=confirmations,
         confirmation_key=confirmation_key,
         first_class_tools=first_class_tools,  # type: ignore[arg-type]  # MCPServer checks it
+        # MCPServer checks the declarations and converts mappings.
+        context_fields=[] if context_fields is None else context_fields,  # type: ignore[arg-type]
     )
     return MCPServer(config)

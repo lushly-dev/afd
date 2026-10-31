@@ -55,6 +55,7 @@ add_library(
     src/batch.cpp
     src/batch_execution.cpp
     src/command.cpp
+    src/context_fields.cpp
     src/detail/json_io.cpp
     src/direct_client.cpp
     src/errors.cpp

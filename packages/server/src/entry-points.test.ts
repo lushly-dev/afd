@@ -174,15 +174,16 @@ describe('@lushly-dev/afd-server/define', () => {
 
 /**
  * Size budgets for AFD's own code in `/direct`, minified, with Zod left to the application (any
- * app that defines commands loads it anyway). Measured 2026-10-31: 32.2 KB for a host that imports
- * the registry, the journal and `defineCommand`, and 59.8 KB for every export.
+ * app that defines commands loads it anyway). Measured 2026-10-31 with esbuild 0.27.7: 35.3 KB for
+ * a host that imports the registry, the journal and `defineCommand` (32.2 KB before declared
+ * context fields, which add 2.3 KB to the registry), and 63.4 KB for every export.
  */
 const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports:
 			'createDirectRegistry, createJournalMiddleware, defineCommand, failure, MemoryJournalSink, success',
-		bytes: 35_000,
+		bytes: 39_000,
 	},
 	{ what: 'every export', imports: undefined, bytes: 66_000 },
 ];

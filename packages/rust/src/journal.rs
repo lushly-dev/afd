@@ -8,7 +8,8 @@
 //! line (`spec/journal.md`), readable and writable by every AFD implementation.
 //!
 //! Journals never store secrets from the command context: an entry keeps the actor, the
-//! interface and the trace ID, plus a hash over those values and the names (never the values)
+//! interface, the trace ID and the values of the declared context fields marked `journal: true`
+//! ([`crate::context_fields`]), plus a hash over those values and the names (never the values)
 //! of the other context keys.
 //!
 //! [`MemoryJournalSink`] keeps a journal in memory. `FileJournalSink` (the `journal-file`
@@ -16,7 +17,7 @@
 
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use std::sync::{Mutex, PoisonError};
@@ -41,6 +42,11 @@ pub use replay::{
 
 /// Largest integer a JavaScript number represents exactly: the largest `seq` a journal holds.
 const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
+
+/// Most bytes of UTF-8 canonical JSON (object keys sorted, no whitespace) a journaled context
+/// field value may take (`spec/journal.md`, "Declared context fields"). A larger value is left
+/// out of [`JournalEntry::context`] and named in [`JournalEntry::context_omitted`].
+pub const MAX_JOURNAL_CONTEXT_BYTES: usize = 4096;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ENTRY
@@ -91,13 +97,15 @@ fn numbers<S: serde::Serializer>(values: &[f64], serializer: S) -> Result<S::Ok,
 
 /// The parts of the command context a journal keeps besides the actor and trace ID.
 ///
-/// The allowlist is the actor ([`JournalEntry::actor`]), the interface (here) and the trace ID
-/// ([`JournalEntry::trace_id`]). Nothing else from the context is stored.
+/// The allowlist is the actor ([`JournalEntry::actor`]), the interface (here), the trace ID
+/// ([`JournalEntry::trace_id`]) and the declared context fields marked `journal: true`
+/// ([`JournalEntry::context`]). Nothing else from the context is stored.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JournalContextDigest {
     /// `sha256:` and the hex SHA-256 of the canonical JSON of the actor, the interface, the
-    /// trace ID and the sorted names of the context's other keys. Names only, never their
-    /// values, so an auth token or a session never reaches the journal, not even hashed.
+    /// trace ID, the entry's `context` and `contextOmitted` when it has them, and the sorted
+    /// names of the context's other keys. Names only, never their values, so an auth token or
+    /// a session never reaches the journal, not even hashed.
     pub hash: String,
     /// The interface that invoked the command (`context.interface`), such as `mcp`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -127,6 +135,14 @@ pub struct JournalEntry {
     pub actor: Option<Actor>,
     /// The context hash and the allowlisted interface.
     pub context_digest: JournalContextDigest,
+    /// The values of the declared context fields marked `journal: true` that the call had, by
+    /// field name. Omitted when there are none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context: Option<Map<String, Value>>,
+    /// The names of such fields whose value was larger than [`MAX_JOURNAL_CONTEXT_BYTES`],
+    /// sorted. Omitted when there are none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_omitted: Option<Vec<String>>,
     /// The command result, metadata included.
     pub result: CommandResult<Value>,
     /// Duration of the call through the middleware chain, from `context.clock`.
@@ -147,6 +163,8 @@ pub struct JournalRecord {
     pub input: Value,
     pub actor: Option<Actor>,
     pub context_digest: JournalContextDigest,
+    pub context: Option<Map<String, Value>>,
+    pub context_omitted: Option<Vec<String>>,
     pub result: CommandResult<Value>,
     pub duration_ms: f64,
     pub tape: Option<JournalTape>,
@@ -163,6 +181,8 @@ impl JournalRecord {
             input: self.input,
             actor: self.actor,
             context_digest: self.context_digest,
+            context: self.context,
+            context_omitted: self.context_omitted,
             result: self.result,
             duration_ms: self.duration_ms,
             tape: self.tape,
@@ -341,23 +361,99 @@ fn context_key_names(context: &CommandContext) -> Vec<String> {
     names.into_iter().collect()
 }
 
+/// What an entry keeps of a call's declared context fields marked `journal: true`
+/// (`spec/journal.md`, "Declared context fields"), from [`journal_context_fields`].
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct JournalContextFields {
+    /// The kept values, by field name ([`JournalEntry::context`]).
+    pub context: Option<Map<String, Value>>,
+    /// The names of the values too large to keep, sorted ([`JournalEntry::context_omitted`]).
+    pub context_omitted: Option<Vec<String>>,
+}
+
+/// The values of the context fields `names` (those declared `journal: true`) that `context`
+/// has in [`CommandContext::extra`], as an entry keeps them. A `null` value counts as none.
+///
+/// Each value is kept with its object keys sorted. A value whose canonical JSON is larger than
+/// [`MAX_JOURNAL_CONTEXT_BYTES`] is left out and its name listed in `context_omitted` instead.
+/// Both members are `None` when empty.
+pub fn journal_context_fields<I, S>(context: &CommandContext, names: I) -> JournalContextFields
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let names: BTreeSet<String> = names
+        .into_iter()
+        .map(|name| name.as_ref().to_string())
+        .collect();
+    let mut kept = Map::new();
+    let mut omitted = Vec::new();
+    for name in names {
+        let Some(value) = context.extra.get(&name).filter(|value| !value.is_null()) else {
+            continue;
+        };
+        let value = sort_keys(value.clone());
+        let text = serde_json::to_string(&value).expect("JSON values serialize");
+        if text.len() > MAX_JOURNAL_CONTEXT_BYTES {
+            omitted.push(name);
+        } else {
+            kept.insert(name, value);
+        }
+    }
+    JournalContextFields {
+        context: (!kept.is_empty()).then_some(kept),
+        context_omitted: (!omitted.is_empty()).then_some(omitted),
+    }
+}
+
 /// The [`JournalContextDigest`] of `context`.
 ///
 /// The hash covers the actor, the interface, the trace ID and the sorted names of every other
 /// context key that has a value (`spec/journal.md`). Values outside the allowlist never enter
 /// the hash or the digest. A context built like a TypeScript one (clock and random set, no
 /// other key) hashes the same as in TypeScript.
+///
+/// For an entry that keeps declared context fields, use [`create_context_digest_with_fields`].
 pub fn create_context_digest(context: &CommandContext) -> JournalContextDigest {
+    create_context_digest_with_fields(context, &JournalContextFields::default())
+}
+
+/// The [`JournalContextDigest`] of `context` for an entry that keeps `journaled`.
+///
+/// The hashed object gains `journaled`'s `context` and `contextOmitted` members, when set, and
+/// the names they hold leave the key list (`spec/journal.md`, "Context digest"). With neither
+/// set it is [`create_context_digest`].
+pub fn create_context_digest_with_fields(
+    context: &CommandContext,
+    journaled: &JournalContextFields,
+) -> JournalContextDigest {
     let interface = context
         .interface
         .map(|interface| interface.as_str().to_string());
-    let canonical = sort_keys(serde_json::json!({
+    let recorded: BTreeSet<&str> = journaled
+        .context
+        .iter()
+        .flat_map(Map::keys)
+        .chain(journaled.context_omitted.iter().flatten())
+        .map(String::as_str)
+        .collect();
+    let keys: Vec<String> = context_key_names(context)
+        .into_iter()
+        .filter(|name| !recorded.contains(name.as_str()))
+        .collect();
+    let mut canonical = serde_json::json!({
         "actor": context.actor,
         "interface": interface,
-        "keys": context_key_names(context),
+        "keys": keys,
         "traceId": context.trace_id,
-    }));
-    let text = serde_json::to_string(&canonical).expect("JSON values serialize");
+    });
+    if let Some(values) = &journaled.context {
+        canonical["context"] = Value::Object(values.clone());
+    }
+    if let Some(omitted) = &journaled.context_omitted {
+        canonical["contextOmitted"] = serde_json::json!(omitted);
+    }
+    let text = serde_json::to_string(&sort_keys(canonical)).expect("JSON values serialize");
     let digest = Sha256::digest(text.as_bytes());
     let hex: String = digest.iter().map(|byte| format!("{byte:02x}")).collect();
     JournalContextDigest {

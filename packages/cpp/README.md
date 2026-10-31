@@ -72,8 +72,28 @@ afd::ReplayReport report = afd::replay_journal(fresh_registry, *entries);
 ```
 
 - **Format and rules** are [`spec/journal.md`](../../spec/journal.md); `tests/journal_wire_test.cpp` records the session in `spec/wire/journal.jsonl`, compares it entry for entry, and replays the file to `same`.
-- **No secrets from the context.** An entry keeps the actor, the surface and the trace ID; `contextDigest.hash` covers those and the names of the other members, never their values. Inputs and results are kept as they are: commands named `auth-*` are skipped, and `filter` and `redact` handle the rest.
+- **No secrets from the context.** An entry keeps the actor, the surface, the trace ID and the declared context fields marked `journal` (below); `contextDigest.hash` covers those and the names of the other members, never their values. Inputs and results are kept as they are: commands named `auth-*` are skipped, and `filter` and `redact` handle the rest.
 - **The tape** holds every `steady_ms`, `wall_ms` and `random->next()` value the handler and the registry's timing read, so add the middleware last. Replay feeds it back and reports each entry as `same`, `different` (with paths) or `error`.
+
+## Declared context fields
+
+```cpp
+auto registry = afd::CommandRegistry::create({
+    .middleware = {afd::create_journal_middleware(journal)},
+    .context_fields = {
+        {.name = "scope", .meta = "dev.example/scope", .schema = scope_schema, .journal = true},
+        {.name = "locale", .meta = "dev.example/locale", .schema = {{"type", "string"}}},
+    }});
+if (!registry) { /* registry.error() names the field */ }
+
+afd::CommandContext context;
+context.extra["scope"] = {{"project", "p-1"}};   // a host's MCP loop reads it from _meta["dev.example/scope"]
+(*registry)->execute("todo-list", {}, context);
+```
+
+- **Rules** are [`spec/context-fields.md`](../../spec/context-fields.md). `create` refuses an empty, reserved or repeated name, a `meta` key without a reverse-DNS prefix (or with `dev.afd/`, `mcp` or `modelcontextprotocol`), a repeated `meta` key and an unsupported schema. A registry constructed directly with such a declaration fails every call with INTERNAL_ERROR.
+- **Validated on every call**, after the input and before middleware: the handler sees the schema's output in `context.extra[name]`, and an invalid value or a missing required one fails with VALIDATION_ERROR (`details.field`, `details.meta`, `details.errors`). A JSON `null` counts as no value, and `required` is not enforced for `afd-*` commands.
+- **The journal** keeps the values of fields declared `journal` in the entry's `context` (a value over 4096 bytes of canonical JSON is named in `contextOmitted` instead); the registry tells the journal middleware which fields those are. `replay_journal` restores them, and notes a field the registry no longer declares and each omitted one.
 
 ## Approvals
 

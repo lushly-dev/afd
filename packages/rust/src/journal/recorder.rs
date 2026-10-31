@@ -7,10 +7,14 @@ use std::fmt;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, Mutex, PoisonError};
 
-use super::{create_context_digest, JournalContextDigest, JournalRecord, JournalSink, JournalTape};
+use super::{
+    create_context_digest_with_fields, journal_context_fields, JournalContextDigest,
+    JournalContextFields, JournalRecord, JournalSink, JournalTape,
+};
 use crate::actor::Actor;
 use crate::clock::{Clock, RandomSource, SYSTEM_CLOCK, SYSTEM_RANDOM};
 use crate::commands::CommandContext;
+use crate::context_fields::ContextField;
 use crate::result::CommandResult;
 
 const DEFAULT_MAX_TAPE_READS: usize = 1000;
@@ -39,9 +43,12 @@ pub(crate) struct JournalContextState {
 /// chain starts. The tape therefore holds what the middleware and the handler read.
 ///
 /// Each entry holds the command, its validated input, the actor, the trace ID, a context
-/// digest (a hash plus the interface; no other context value), the result, the duration and
-/// the tape. Appends are awaited, so entries are in call order for sequential calls. A sink
-/// error goes to [`with_on_error`](Self::with_on_error) and never changes the command result.
+/// digest (a hash plus the interface), the values of the registry's declared context fields
+/// marked `journal: true` (each up to
+/// [`MAX_JOURNAL_CONTEXT_BYTES`](super::MAX_JOURNAL_CONTEXT_BYTES) of canonical JSON; a larger
+/// one is only named), the result, the duration and the tape. No other context value is kept.
+/// Appends are awaited, so entries are in call order for sequential calls. A sink error goes
+/// to [`with_on_error`](Self::with_on_error) and never changes the command result.
 /// Commands named `auth-*` are not recorded unless [`with_filter`](Self::with_filter) allows
 /// them. During [`replay_journal`](super::replay_journal) nothing is recorded.
 ///
@@ -139,12 +146,13 @@ impl JournalRecorder {
     }
 
     /// Start recording a call: put recording sources on `context` and note what the entry
-    /// needs from it.
+    /// needs from it, including the values of the `fields` declared `journal: true`.
     pub(crate) fn start(
         &self,
         command: &str,
         input: &Value,
         context: &mut CommandContext,
+        fields: &[ContextField],
     ) -> Recording {
         let clock: Arc<dyn Clock> = context
             .clock
@@ -160,7 +168,14 @@ impl JournalRecorder {
             .untaped_clock
             .clone()
             .unwrap_or_else(|| Arc::clone(&clock));
-        let digest = create_context_digest(context);
+        let journaled = journal_context_fields(
+            context,
+            fields
+                .iter()
+                .filter(|field| field.journal)
+                .map(|field| field.name.as_str()),
+        );
+        let digest = create_context_digest_with_fields(context, &journaled);
         let start = timing.now();
 
         let tape = Arc::new(TapeWriter::new(self.max_tape_reads));
@@ -180,6 +195,7 @@ impl JournalRecorder {
             trace_id: context.trace_id.clone(),
             actor: context.actor.clone(),
             digest,
+            journaled,
             start,
             timing,
             tape,
@@ -223,6 +239,8 @@ impl JournalRecorder {
             input: recording.input,
             actor: recording.actor,
             context_digest: recording.digest,
+            context: recording.journaled.context,
+            context_omitted: recording.journaled.context_omitted,
             result: result.clone(),
             duration_ms,
             tape: (!tape.is_empty()).then_some(tape),
@@ -259,6 +277,7 @@ pub(crate) struct Recording {
     trace_id: Option<String>,
     actor: Option<Actor>,
     digest: JournalContextDigest,
+    journaled: JournalContextFields,
     start: i64,
     timing: Arc<dyn Clock>,
     tape: Arc<TapeWriter>,

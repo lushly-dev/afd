@@ -19,6 +19,11 @@ import { JOURNAL_REPLAY, type JournalReplayMarker } from './journal.js';
 /** Anything that executes commands by name: `createMcpServer()`, `createDirectRegistry()`, the core registry. */
 export interface JournalReplayTarget {
 	execute(name: string, input: unknown, context?: CommandContext): Promise<CommandResult>;
+	/**
+	 * The context fields the target declares. When given, a recorded field it no longer declares
+	 * is dropped with a note; when absent, every recorded field is restored.
+	 */
+	readonly contextFields?: readonly { name: string }[];
 }
 
 /** Options for {@link replayJournal}. */
@@ -283,8 +288,24 @@ export async function replayJournal(
 		skipped: 0,
 	};
 
+	const declared = registry.contextFields
+		? new Set(registry.contextFields.map((field) => field.name))
+		: undefined;
+
 	for (const [index, entry] of ordered.entries()) {
 		const { tape } = entry;
+		const fieldNotes: string[] = [];
+		const restored: Record<string, unknown> = {};
+		for (const [name, value] of Object.entries(entry.context ?? {})) {
+			if (declared && !declared.has(name)) {
+				fieldNotes.push(`context field '${name}' is no longer declared; replayed without it`);
+			} else {
+				restored[name] = value;
+			}
+		}
+		for (const name of entry.contextOmitted ?? []) {
+			fieldNotes.push(`context field '${name}' was too large to journal; replayed without it`);
+		}
 		const random = tapeRandom(tape?.random ?? [], `${seed}:${entry.seq}`);
 		let clock: (Clock & TapeSource) | undefined;
 
@@ -301,6 +322,7 @@ export async function replayJournal(
 				...(entry.contextDigest.interface !== undefined
 					? { interface: entry.contextDigest.interface as CommandContext['interface'] }
 					: {}),
+				...restored,
 				clock: clock ?? fixedClock(entry.timestamp),
 				random,
 				...extra,
@@ -340,7 +362,7 @@ export async function replayJournal(
 			};
 		}
 
-		const notes = tapeNotes(entry, clock, random);
+		const notes = [...fieldNotes, ...tapeNotes(entry, clock, random)];
 		if (notes.length > 0) outcome.notes = notes;
 
 		report.entries.push(outcome);

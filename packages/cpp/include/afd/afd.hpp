@@ -6,6 +6,7 @@
 #include "afd/batch.hpp"
 #include "afd/builtin_names.hpp"
 #include "afd/command.hpp"
+#include "afd/context_fields.hpp"
 #include "afd/direct_client.hpp"
 #include "afd/errors.hpp"
 #include "afd/execution.hpp"
