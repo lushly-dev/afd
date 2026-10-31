@@ -38,6 +38,33 @@ def test_smart_truncate_respects_budgets_smaller_than_the_head_and_tail() -> Non
     assert "chars truncated" in result
 
 
+@pytest.mark.parametrize("max_len", [100, 8000, MAX_OUTPUT_LENGTH])
+def test_smart_truncate_keeps_the_whole_budget(max_len: int) -> None:
+    """The kept text fills the budget, split 40% head and 60% tail, at every budget size.
+
+    The head and tail used to be pinned at 3,000 and 4,000 characters, the split that fitted
+    the old 8,000 budget, so after MAX_OUTPUT_LENGTH rose to 100,000 a stream just over the
+    cap still shrank to about 7,000 characters.
+    """
+    text = "h" * (max_len * 2) + "t" * (max_len * 2)
+    result = smart_truncate(text, max_len)
+
+    head_len = int(max_len * 0.4)
+    tail_len = max_len - head_len
+    assert result.startswith("h" * head_len + "\n")
+    assert result.endswith("\n" + "t" * tail_len)
+    marker = f"... [{len(text) - max_len:,} chars truncated] ..."
+    assert marker in result
+    assert len(result) == max_len + len(f"\n\n{marker}\n\n")
+
+
+def test_smart_truncate_just_over_the_default_budget_cuts_only_the_excess() -> None:
+    """Output one character over the default budget loses one character, not 93,000."""
+    result = smart_truncate("x" * (MAX_OUTPUT_LENGTH + 1))
+    assert "[1 chars truncated]" in result
+    assert result.count("x") == MAX_OUTPUT_LENGTH
+
+
 async def test_run_command_success() -> None:
     """Successful command returns success=True with output."""
     result = await run_command([sys.executable, "-c", "print('hello')"])

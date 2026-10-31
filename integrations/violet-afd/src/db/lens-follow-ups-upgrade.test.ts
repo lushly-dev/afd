@@ -6,7 +6,7 @@
  * migration case applies the hosted schema's own files from
  * packages/api/migrations.
  */
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -90,36 +90,43 @@ describe.skipIf(!postgresUrl)('deprecation plan upgrade: Postgres', () => {
 		store = undefined;
 	});
 
-	it('upgrades a database made by the hosted migrations, rows and all', async () => {
-		store = await createPostgresStore({ initSchema: false });
-		const dir = fileURLToPath(new URL('../../../api/migrations/', import.meta.url));
-		const files = readdirSync(dir)
-			.filter((file) => file.endsWith('.sql'))
-			.sort();
-		const upgrade = files.find((file) => file.includes('deprecation_plans'));
-		expect(upgrade).toBeDefined();
-		const before = files.filter((file) => file < (upgrade as string));
+	// The hosted migrations ship with the Violet API app, which this import leaves out;
+	// the case skips until they are imported beside it.
+	const hostedMigrations = fileURLToPath(new URL('../../../api/migrations/', import.meta.url));
+	it.skipIf(!existsSync(hostedMigrations))(
+		'upgrades a database made by the hosted migrations, rows and all',
+		async () => {
+			store = await createPostgresStore({ initSchema: false });
+			const dir = hostedMigrations;
+			const files = readdirSync(dir)
+				.filter((file) => file.endsWith('.sql'))
+				.sort();
+			const upgrade = files.find((file) => file.includes('deprecation_plans'));
+			expect(upgrade).toBeDefined();
+			const before = files.filter((file) => file < (upgrade as string));
 
-		for (const file of before) await store.client.query(readFileSync(path.join(dir, file), 'utf8'));
-		for (const [id, status, owner] of [
-			['old', 'deprecated', 'design@example.com'],
-			['next', 'active', null],
-		]) {
-			await store.client.query(
-				`INSERT INTO nodes (id, name, status, owner, created_at, updated_at)
+			for (const file of before)
+				await store.client.query(readFileSync(path.join(dir, file), 'utf8'));
+			for (const [id, status, owner] of [
+				['old', 'deprecated', 'design@example.com'],
+				['next', 'active', null],
+			]) {
+				await store.client.query(
+					`INSERT INTO nodes (id, name, status, owner, created_at, updated_at)
 				 VALUES ($1, $1, $2, $3, $4, $4)`,
-				[id, status, owner, CREATED],
-			);
-		}
-		for (const file of files.filter((name) => name >= (upgrade as string))) {
-			await store.client.query(readFileSync(path.join(dir, file), 'utf8'));
-		}
-		// Applying it twice, and initSchema on a migrated database, change nothing
-		await store.client.query(readFileSync(path.join(dir, upgrade as string), 'utf8'));
-		await store.db.initSchema();
+					[id, status, owner, CREATED],
+				);
+			}
+			for (const file of files.filter((name) => name >= (upgrade as string))) {
+				await store.client.query(readFileSync(path.join(dir, file), 'utf8'));
+			}
+			// Applying it twice, and initSchema on a migrated database, change nothing
+			await store.client.query(readFileSync(path.join(dir, upgrade as string), 'utf8'));
+			await store.db.initSchema();
 
-		await expectUpgraded(store.db);
-	});
+			await expectUpgraded(store.db);
+		},
+	);
 
 	it('adds the columns when initSchema runs on an older schema', async () => {
 		store = await createPostgresStore();

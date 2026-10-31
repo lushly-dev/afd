@@ -145,9 +145,13 @@ class TestValidateCode:
         assert _validate_code("x = 1 + 2") is None
 
     def test_rejects_too_long(self):
-        err = _validate_code("x = 1\n" * 5000)
+        err = _validate_code("x = 1\n" * 6000)
         assert err is not None
         assert "too long" in err.lower()
+
+    def test_accepts_code_within_the_abuse_guard(self):
+        """The input cap guards against abuse, not the old 8,000-character context budget."""
+        assert _validate_code("x = 1\n" * 5000) is None
 
     def test_rejects_syntax_error(self):
         err = _validate_code("def (bad")
@@ -243,6 +247,20 @@ class TestCreateMcpServer:
         server = create_mcp_server("test")
         result = await server.call_tool("test-run", {"code": "return 42"})
         assert "42" in self._get_text(result)
+
+    @patch("botcore.server.discover_plugins", _mock_discover_empty)
+    @pytest.mark.asyncio
+    async def test_run_tool_output_is_bounded_by_the_shared_budget(self):
+        """Run output is cut at MAX_OUTPUT_LENGTH, not at the old 8,000 characters."""
+        from botcore.server import create_mcp_server
+        from botcore.utils.runner import MAX_OUTPUT_LENGTH
+
+        server = create_mcp_server("test")
+        within = await server.call_tool("test-run", {"code": "print('x' * 20000)"})
+        assert "chars truncated" not in self._get_text(within)
+        code = f"print('x' * {MAX_OUTPUT_LENGTH + 1}, end='')"
+        over = await server.call_tool("test-run", {"code": code})
+        assert "[1 chars truncated]" in self._get_text(over)
 
     @patch("botcore.server.discover_plugins", _mock_discover_empty)
     @pytest.mark.asyncio

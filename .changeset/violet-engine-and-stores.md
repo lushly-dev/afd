@@ -4,7 +4,7 @@
 '@lushly-dev/violet-afd': minor
 ---
 
-Engine and store follow-ups ([#111](https://github.com/lushly-dev/violet/issues/111), [#114](https://github.com/lushly-dev/violet/issues/114), [#115](https://github.com/lushly-dev/violet/issues/115), [#116](https://github.com/lushly-dev/violet/issues/116)):
+Engine and store follow-ups:
 
 - `tokens.matrix` builds cells only for the rows it returns, takes `around` (with `limit`: the page holding a token) and returns `page.offset` and `page.prevCursor`. `violet matrix --around <token>`.
 - `nodes.graph` lists each node's `subtractedTokens` and traces a token without describing every other token; its reads share the resolution cache.

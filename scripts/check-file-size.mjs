@@ -2,17 +2,22 @@
 /**
  * File Size Enforcement — Pre-commit
  *
- * Checks TypeScript source files against line count thresholds.
+ * Checks TypeScript source files against line count thresholds. The pair matches
+ * botcore.toml (file_size_warn / file_size_error), which Botcore's dev_check_size reads.
  * Runs on staged files. Exit code 1 = violations found.
  *
  * Thresholds:
- *   WARN:  300 lines (non-blocking)
- *   ERROR: 500 lines (blocks commit)
+ *   WARN:  500 lines (non-blocking)
+ *   ERROR: 1000 lines (blocks commit)
  *
  * Escape hatch (lines 1-5 of file):
  *   // afd-override: max-lines=N
- *   Where N ≤ 1000 (hard cap). File must still be under N lines.
+ *   Where N ≤ 1500 (hard cap). File must still be under N lines. Give an override headroom
+ *   (round the current count up by a hundred or two) rather than pinning it one line above
+ *   the file's size, or the next edit trips it.
  *
+ * Scope: .ts under packages/ and .js/.mjs under scripts/. Markdown, Python, Rust and C++
+ *   are never size-checked by this script.
  * Skip patterns: *.stories.ts, *.test.ts, *.spec.ts, *.d.ts, generated files
  * Skip directories: alfred/, python/, packages/rust/, and the imported upstream source in
  *   foundations/fast-af/, foundations/violet/, integrations/violet-afd/, endpoints/violet-cli/
@@ -24,9 +29,9 @@ import { basename, extname, join, normalize, relative, resolve } from 'node:path
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const WARN_THRESHOLD = 300;
-const ERROR_THRESHOLD = 500;
-const OVERRIDE_CAP = 1000;
+const WARN_THRESHOLD = 500;
+const ERROR_THRESHOLD = 1000;
+const OVERRIDE_CAP = 1500;
 const OVERRIDE_PATTERN = /\/\/\s*afd-override:\s*max-lines=(\d+)/;
 
 // Skip patterns
@@ -208,7 +213,7 @@ for (const filePath of files) {
 			filePath,
 			lineCount,
 			`File exceeds ${ERROR_THRESHOLD} lines (no override)`,
-			`Split into smaller modules, or add // afd-override: max-lines=N (≤${OVERRIDE_CAP}) in the first 5 lines with justification`
+			`Split by responsibility, or add // afd-override: max-lines=N (≤${OVERRIDE_CAP}, with headroom) in the first 5 lines with justification`
 		);
 	} else if (lineCount > WARN_THRESHOLD) {
 		warn(

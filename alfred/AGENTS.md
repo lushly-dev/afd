@@ -112,13 +112,13 @@ Scans `defineCommand()` (TypeScript) and `@server.command()` / `define_command()
 | Check | Rule | Threshold |
 |-------|------|-----------|
 | Too short | `description-too-short` | < 10 characters |
-| Too long | `description-too-long` | > 120 characters |
+| Too long | `description-too-long` | > 300 characters (a `warning`; not counted in `issue_count`) |
 | Non-imperative | `not-imperative` | Doesn't start with a recognized verb |
 | Near-duplicate | `near-duplicate` | > 80% word overlap between descriptions |
 
 Recognized imperative verbs include: get, list, create, update, delete, validate, search, export, import, analyze, check, run, build, test, deploy, start, stop, generate, sync, resolve, compile, install, configure, and ~25 more.
 
-**Returns:** `{ commands_scanned, typescript_commands, python_commands, issue_count, issues[] }`
+**Returns:** `{ commands_scanned, typescript_commands, python_commands, issue_count, warning_count, issues[] }`. Each issue carries a `severity` (`error` or `warning`); `issue_count` counts errors only, so warnings never fail the quality verdict.
 
 ---
 

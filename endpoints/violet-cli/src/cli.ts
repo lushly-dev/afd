@@ -53,6 +53,7 @@ import {
 	formatViolations,
 	formatWarning,
 } from './output.js';
+import { PACKAGE_VERSION } from './version.js';
 
 /**
  * Create the Violet CLI
@@ -69,7 +70,7 @@ export function createCLI(skipInit = false): Command {
 	program
 		.name('violet')
 		.description('Violet Design - Hierarchical design token management')
-		.version('0.1.0')
+		.version(PACKAGE_VERSION)
 		.option('--db <path>', 'Database file path', getDefaultDbPath())
 		.option('--memory', 'Use in-memory database (for testing)')
 		.option(
@@ -1582,7 +1583,7 @@ function addMcpCommands(program: Command): void {
 			const { startStdioServer } = await import('@lushly-dev/violet-server');
 			await startStdioServer({
 				name: 'violet-mcp',
-				version: '0.1.0',
+				version: PACKAGE_VERSION,
 				dbPath: globalOpts.memory ? undefined : globalOpts.db,
 				useMemory: globalOpts.memory,
 			});

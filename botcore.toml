@@ -7,7 +7,8 @@ linter = "biome"
 test_runner = "vitest"
 formatter = "biome"
 
-# Quality thresholds
+# Quality thresholds. The file-size pair is shared with scripts/check-file-size.mjs
+# (TypeScript and repository scripts); neither tool size-checks markdown.
 file_size_warn = 500
 file_size_error = 1000
 coverage_threshold = 80

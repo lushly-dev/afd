@@ -20,16 +20,26 @@ _T = TypeVar("_T")
 # than a smaller object. Pass ``max_output=None`` for machine-readable payloads.
 MAX_OUTPUT_LENGTH = 100_000
 
+# Share of the budget kept from the start of the stream; the rest is kept from the end. Tools
+# print their summary first and their verdict or final error last, so both parts scale with
+# the budget rather than staying pinned at the 3000/4000 split sized for the old 8000 budget.
+_HEAD_SHARE = 0.4
+
 
 def smart_truncate(output: str, max_len: int = MAX_OUTPUT_LENGTH) -> str:
-    """Truncate output while preserving head and tail."""
+    """Truncate output to ``max_len`` characters, keeping its head and tail.
+
+    The kept text is split 40% head and 60% tail at every budget size, with a marker
+    between them stating how many characters were cut. Output within the budget is
+    returned whole.
+    """
     if len(output) <= max_len:
         return output
 
-    head_len = min(3000, max_len // 2)
-    tail_len = min(4000, max_len - head_len)
+    head_len = int(max_len * _HEAD_SHARE)
+    tail_len = max_len - head_len
     head = output[:head_len]
-    tail = output[-tail_len:]
+    tail = output[len(output) - tail_len :]
     omitted = len(output) - head_len - tail_len
 
     return f"{head}\n\n... [{omitted:,} chars truncated] ...\n\n{tail}"

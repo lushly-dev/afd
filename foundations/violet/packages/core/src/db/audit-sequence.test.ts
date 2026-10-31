@@ -5,7 +5,7 @@
  * store-adapters.test-support.ts); the migration case applies the hosted
  * schema's own files from packages/api/migrations.
  */
-import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -102,26 +102,33 @@ describe.skipIf(!postgresUrl)('audit sequence upgrade: Postgres', () => {
 		expect(await order(store.db)).toEqual(['0', 'c', 'b', 'a']);
 	});
 
-	it('upgrades a database made by the hosted migrations, rows and all', async () => {
-		store = await createPostgresStore({ initSchema: false });
-		const dir = fileURLToPath(new URL('../../../api/migrations/', import.meta.url));
-		const files = readdirSync(dir)
-			.filter((file) => file.endsWith('.sql'))
-			.sort();
-		const before = files.filter((file) => file < '0003');
-		expect(before).toEqual(['0001_core_schema.sql', '0002_api_auth_and_rate_limits.sql']);
+	// The hosted migrations ship with the Violet API app, which this import leaves out;
+	// the case skips until they are imported beside it.
+	const hostedMigrations = fileURLToPath(new URL('../../../api/migrations/', import.meta.url));
+	it.skipIf(!existsSync(hostedMigrations))(
+		'upgrades a database made by the hosted migrations, rows and all',
+		async () => {
+			store = await createPostgresStore({ initSchema: false });
+			const dir = hostedMigrations;
+			const files = readdirSync(dir)
+				.filter((file) => file.endsWith('.sql'))
+				.sort();
+			const before = files.filter((file) => file < '0003');
+			expect(before).toEqual(['0001_core_schema.sql', '0002_api_auth_and_rate_limits.sql']);
 
-		for (const file of before) await store.client.query(readFileSync(path.join(dir, file), 'utf8'));
-		await insertLegacyRows(['b', 'c', 'a']);
-		for (const file of files.filter((name) => name >= '0003')) {
-			await store.client.query(readFileSync(path.join(dir, file), 'utf8'));
-		}
+			for (const file of before)
+				await store.client.query(readFileSync(path.join(dir, file), 'utf8'));
+			await insertLegacyRows(['b', 'c', 'a']);
+			for (const file of files.filter((name) => name >= '0003')) {
+				await store.client.query(readFileSync(path.join(dir, file), 'utf8'));
+			}
 
-		expect(await order(store.db)).toEqual(['c', 'b', 'a']);
-		// initSchema on a migrated database changes nothing
-		await store.db.initSchema();
-		await store.db.addAuditEvent(event('0'));
-		await store.db.addAuditEvent(event('1'));
-		expect(await order(store.db)).toEqual(['1', '0', 'c', 'b', 'a']);
-	});
+			expect(await order(store.db)).toEqual(['c', 'b', 'a']);
+			// initSchema on a migrated database changes nothing
+			await store.db.initSchema();
+			await store.db.addAuditEvent(event('0'));
+			await store.db.addAuditEvent(event('1'));
+			expect(await order(store.db)).toEqual(['1', '0', 'c', 'b', 'a']);
+		},
+	);
 });

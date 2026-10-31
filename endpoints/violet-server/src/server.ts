@@ -15,6 +15,7 @@ import {
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { generateTools } from './tools/generator.js';
+import { PACKAGE_VERSION } from './version.js';
 
 /**
  * Server configuration options
@@ -47,7 +48,7 @@ export async function createMcpServer(options: ServerOptions = {}): Promise<McpS
 		dbPath = './violet.db',
 		useMemory = false,
 		name = 'violet-design',
-		version = '0.1.0',
+		version = PACKAGE_VERSION,
 		skipInit = false,
 	} = options;
 

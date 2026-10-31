@@ -56,7 +56,7 @@
     },
     "adaptations": {
       "manifest": "adaptations.json",
-      "sha256": "9552703b12044bedba4c6174beb63a637c8110c13f0e31deb2091e5bffe1bf84"
+      "sha256": "4ce09956d03a8db17c7768fe91d6064b6edaf4f34eb6406f23d1581571319969"
     }
   },
   "units": [
@@ -92,9 +92,7 @@
   "publisher_authority": "original Violet repository: main-branch Changesets release workflow, fixed group @lushly-dev/violet-*; sole publishing authority; no handoff authorized",
   "publication_state": "quarantined",
   "compatibility_holds": [
-    "Breaking for direct importers of the moved command, result, demo and Neon names; release needs a breaking pre-1.0 bump above what Violet has published (PR #135 would publish 0.3.0)",
-    "The integration keeps @lushly-dev/afd-core ^0.1.1 (resolved to 0.1.1), not the workspace AFD 2.2.0",
-    "Postgres/Neon store legs and the hosted-migration cases (packages/api/migrations) did not run",
-    "violet --version prints 0.1.0, hard-coded upstream"
+    "Breaking for direct importers of the moved command, result, demo and Neon names; the first publication is 0.3.0 from AFD (owner decision 2026-10-30), and the Violet repository's release PR #135 is not merged",
+    "Hosted Neon and the two hosted-migration cases (packages/api/migrations, not imported) are not exercised; the Postgres leg and the Neon driver leg run in violet.yml's stores job"
   ]
 }

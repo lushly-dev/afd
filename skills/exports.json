@@ -85,6 +85,10 @@
 					"canonical": "browser-automation"
 				},
 				{
+					"name": "build-mcp-servers",
+					"canonical": "mcp-builder"
+				},
+				{
 					"name": "build-stories",
 					"canonical": "storybook-builder"
 				},
@@ -266,12 +270,6 @@
 					"name": "build-botcore-plugins",
 					"owner": "afd",
 					"canonical": "plugin-builder",
-					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
-				},
-				{
-					"name": "build-mcp-servers",
-					"owner": "afd",
-					"canonical": "mcp-builder",
 					"reason": "AFD repository workflow or locally maintained guidance; preserve the full local tree."
 				},
 				{

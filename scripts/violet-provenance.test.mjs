@@ -21,6 +21,53 @@ const upstream = record('upstream-selected.json');
 const adaptations = record('adaptations.json');
 const git = (args) => execFileSync('git', args, { cwd: root, stdio: ['ignore', 'pipe', 'ignore'] });
 const unchanged = new Set(['unchanged', 'moved-unchanged', 'fixture-copy']);
+const inventory = json('scripts/release/inventory.json');
+const violet = inventory.units.find((unit) => unit.id === 'violet-npm');
+const initialVersion = new Map(
+	violet.distributions.map((distribution) => [
+		dirname(distribution.manifest),
+		distribution.initialVersion,
+	])
+);
+
+/**
+ * Undo what a Changesets version step writes, so a release PR keeps passing: the manifest's
+ * version and the fixed group's workspace ranges, and each released CHANGELOG section, which
+ * Changesets inserts below the title above the earlier ones.
+ */
+function beforeRelease(path, bytes) {
+	const initial = initialVersion.get(dirname(path));
+	const name = path.slice(path.lastIndexOf('/') + 1);
+	if (!initial || (name !== 'package.json' && name !== 'CHANGELOG.md')) return bytes;
+	const text = bytes.toString('utf8');
+	if (name === 'package.json') {
+		const { version } = JSON.parse(text);
+		if (version === initial) return bytes;
+		return Buffer.from(
+			text
+				.replace(`"version": "${version}"`, `"version": "${initial}"`)
+				.replaceAll(`"workspace:^${version}"`, `"workspace:^${initial}"`)
+		);
+	}
+	// Only the run of sections right below the title, newest first from the manifest's own
+	// version down to above initialVersion, is the version step's; anything else must match.
+	const { version } = JSON.parse(readFileSync(join(root, dirname(path), 'package.json'), 'utf8'));
+	if (!semver.gt(version, initial)) return bytes;
+	const [title, ...sections] = text.split(/(?=^## )/m);
+	let released = 0;
+	let previous;
+	for (const section of sections) {
+		const heading = /^## (\S+)\n/.exec(section)?.[1];
+		if (!semver.valid(heading) || !semver.gt(heading, initial)) break;
+		if (previous ? !semver.lt(heading, previous) : heading !== version) break;
+		previous = heading;
+		released++;
+	}
+	if (released === 0) return bytes;
+	const rest = sections.slice(released).join('');
+	// A CHANGELOG that held only its title gains a blank line before the first section.
+	return Buffer.from(rest ? title + rest : title.replace(/\n\n$/, '\n'));
+}
 
 test('Violet provenance records are bound by hash and every unit stays quarantined', () => {
 	for (const entry of Object.values(provenance.records))
@@ -28,7 +75,6 @@ test('Violet provenance records are bound by hash and every unit stays quarantin
 	assert.equal(upstream.revision, provenance.source_revision);
 	assert.equal(adaptations.source_revision, provenance.source_revision);
 	assert.equal(provenance.publication_state, 'quarantined');
-	const inventory = json('scripts/release/inventory.json');
 	const architecture = json('architecture.json');
 	for (const unit of provenance.units) {
 		const manifestPath = `${unit.path}/package.json`;
@@ -44,7 +90,13 @@ test('Violet provenance records are bound by hash and every unit stays quarantin
 		assert.equal(declared.manifest, manifestPath);
 		const manifest = json(manifestPath);
 		assert.equal(manifest.name, unit.name);
-		assert.equal(manifest.version, declared.initialVersion, `${unit.name} version reset`);
+		assert(semver.gte(manifest.version, declared.initialVersion), `${unit.name} version reset`);
+		// One fixed group: every distribution releases at the same version.
+		assert.equal(
+			manifest.version,
+			json(`${provenance.units[0].path}/package.json`).version,
+			unit.name
+		);
 		assert.notEqual(manifest.private, true, unit.name);
 		const classified = architecture.units.find((item) => item.manifest === manifestPath);
 		assert.deepEqual([classified?.family, classified?.layer], ['violet', unit.layer], unit.name);
@@ -126,7 +178,7 @@ test('every imported Violet file is present, recorded and unchanged since review
 		assert(present.includes(file.path), `not visible to Git (check .gitignore): ${file.path}`);
 		assert(known.has(file.classification), `${file.path}: ${file.classification}`);
 		assert.equal(
-			sha(readFileSync(join(root, file.path))),
+			sha(beforeRelease(file.path, readFileSync(join(root, file.path)))),
 			file.current_import_sha256,
 			`${file.path} changed; record the adaptation`
 		);
@@ -150,7 +202,7 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 	for (const file of adaptations.files) {
 		if (!unchanged.has(file.classification)) continue;
 		assert.equal(
-			blob(readFileSync(join(root, file.path))),
+			blob(beforeRelease(file.path, readFileSync(join(root, file.path)))),
 			byPath.get(file.upstream_path).git_blob,
 			file.path
 		);
