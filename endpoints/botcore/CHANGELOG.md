@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **skills: mcp-builder token guidance** -- the skill and its `token-budget`/`troubleshooting`
+  references replaced the fixed "under 10 tools" and "under 50 tokens per description" caps
+  with measuring the serialized `tools/list` payload and keeping it small, dropped
+  model-version claims in favour of model-neutral observations to re-test, and made the
+  execute pattern an option to re-test on the target client rather than a rule. Skill
+  version 1.2.0.
 - Managed raw Python requires explicit trusted-local mode. Legacy trusted-local MCP/CLI
   aliases retain their behavior and are ineligible for restricted profiles.
 - Duplicate command/docs registrations and foreign category fragments now reject clearly.

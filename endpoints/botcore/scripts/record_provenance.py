@@ -105,6 +105,15 @@ IMPORT_REASONS = {
     "tests/test_server.py": (
         "Accept the installed SDK result envelope while retaining tool behavior"
     ),
+    "src/botcore/skills/mcp-builder/SKILL.md": (
+        "Measure the tools/list payload; execute pattern as a re-tested option, no model claims"
+    ),
+    "src/botcore/skills/mcp-builder/references/token-budget.md": (
+        "Replace fixed tool-count and description caps with tools/list payload measurement"
+    ),
+    "src/botcore/skills/mcp-builder/references/troubleshooting.md": (
+        "Describe schema failures model-neutrally; re-test before adding the execute fallback"
+    ),
     "uv.lock": ("Lock local AFD 0.10 and MCP 2.3 development dependencies"),
 }
 

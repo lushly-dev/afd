@@ -4,7 +4,51 @@ Common issues and solutions for MCP server development.
 
 ## Connection Issues
 
-### Server Not Starting
+### Server Not Starting (VS Code)
+
+**Symptom:** MCP server shows in the tools panel but stays "not started" or errors on start.
+
+**Check:**
+
+1. **`type` field is present** — VS Code requires `"type": "stdio"` in `.vscode/mcp.json`.
+   Without it, the server silently fails to start:
+
+   ```json
+   {
+     "servers": {
+       "my-server": {
+         "type": "stdio",
+         "command": "uv",
+         "args": ["run", "python", "-m", "mypackage"]
+       }
+     }
+   }
+   ```
+
+2. **`cwd` points to the right project** — for consumer projects that live outside
+   the botcore repo, `cwd` must point to the consumer project's root (where the
+   venv with botcore is installed), not the workspace folder:
+
+   ```json
+   "cwd": "D:\\Github\\my-org\\my-bot"
+   ```
+
+3. **Build-system is defined** — without `[build-system]` in `pyproject.toml`,
+   `uv sync` installs dependencies but NOT the project itself, so
+   `python -m mypackage` fails with `ModuleNotFoundError`.
+
+4. **Local deps have `[tool.uv.sources]`** — if the project depends on
+   `botcore-agents`, `botcore-llm`, etc. (unpublished packages), they need
+   local path references or `uv sync` fails with "package not found".
+
+5. Module loads without errors:
+
+   ```bash
+   cd /path/to/my-bot
+   uv run python -c "from mypackage.__main__ import main; print('OK')"
+   ```
+
+### Server Not Starting (Claude Code)
 
 **Symptom:** MCP server does not appear in Claude Code
 
@@ -85,9 +129,9 @@ Look for "Large MCP tools context" in output.
 2. Consolidate tools with action parameters
 3. Disable unused MCP servers
 
-### Claude Opus 4.5/4.6 Crashes
+### Client Crashes on Large or Complex Schemas
 
-**Symptom:** Agent terminates when MCP server is active
+**Symptom:** Agent terminates when the MCP server is active. Observed on earlier Claude model versions; re-test on the current one before working around it.
 
 **Common culprits:**
 
@@ -105,11 +149,11 @@ def tool(config: Dict[str, Dict[str, Any]]): ...
 def tool(action: str, target: str = None): ...
 ```
 
-### Claude Opus Silent Tool Failures
+### Silent Tool Failures on One Model
 
-**Symptom:** Specific tools return "Sorry, no response was returned" or silently fail, while other tools on the same server work perfectly. Gemini and GPT call the same tools successfully.
+**Symptom:** Specific tools return "Sorry, no response was returned" or silently fail on one client and model, while other tools on the same server work, and other models call the same tools successfully.
 
-**Root cause:** Opus has issues with certain Pydantic model schemas during tool-call serialization. This is NOT about:
+**Root cause (as observed on earlier Claude model versions):** the client failed to construct tool-call parameters for certain Pydantic model schemas. This is NOT about:
 
 - Tool count (other tools work fine)
 - Output size (compact responses still fail)
@@ -117,11 +161,12 @@ def tool(action: str, target: str = None): ...
 
 **Diagnosis:**
 
-1. Test the failing tool with Gemini -- if it works, it is an Opus issue
+1. Test the failing tool with another model or client -- if it works, the schema, not the server, is the problem
 2. Check if the tool input uses Pydantic models with `Literal`, `EntityType` enums, or `dict[str, Any]` fields
 3. Simpler tools (no input or basic `str` params) on the same server work
+4. Re-test on the current model version before adding a workaround: the failures recorded here were observed on earlier versions and may not reproduce
 
-**Fix: Add an execute tool (recommended)**
+**Fix: Add an execute tool (once the failure reproduces)**
 
 Add a code-execution tool with a single `code: str` parameter that exposes the failing functionality through async wrapper functions:
 
@@ -135,28 +180,40 @@ async def my_execute(code: str) -> dict:
     ...
 ```
 
-**Why it works:** Opus writes Python fluently. The issue is in structured tool-call parameter construction, not in the model's ability to reason about the operation. A simple `code: str` schema bypasses the parsing entirely.
+**Why it works:** models write Python fluently; the failure was in structured tool-call parameter construction, not in reasoning about the operation. A simple `code: str` schema bypasses the parsing entirely.
 
 **Production examples:**
 
 - `lushx-execute` in lushbot (27 functions, 4 MCP tools total)
 - `nexus-execute` in kb-tooling (search, graph_stats, graph_query, etc.)
 
-**Keep original tools:** Do not remove the structured tools -- they work fine for Gemini, GPT, and other models. The execute tool is an Opus compatibility layer, not a replacement.
+**Keep original tools:** Do not remove the structured tools -- other clients call them directly. The execute tool is a compatibility fallback, not a replacement, and should be re-tested on each model update.
 
 ## Output Issues
 
 ### Truncated Results
 
-**Symptom:** Tool output ends with "..."
+**Symptom:** Tool output ends with "..." -- or, for a tool returning JSON, fails to parse
 
-**Check:** Is output exceeding limits?
+**Check:** Is output exceeding the budget?
 
 ```python
-MAX_OUTPUT_LENGTH = 8000
+result = run_command(cmd)
+if result["truncated"]:
+    ...  # the payload was clipped
+```
 
-if len(output) > MAX_OUTPUT_LENGTH:
-    output = output[:MAX_OUTPUT_LENGTH] + "\n... (truncated)"
+**If the tool returns structured data, do not raise the budget -- remove it.**
+Truncated JSON is not shorter JSON, it is a decode error:
+
+```python
+run_command(cmd, max_output=None)
+```
+
+**For prose output, raise the budget:**
+
+```python
+run_command(cmd, max_output=250_000)
 ```
 
 **Increase limit if needed:**
