@@ -152,6 +152,7 @@ const template = html<VioletTextField>`
                 maxlength="${x => x.maxLength}"
                 pattern="${x => x.pattern || null}"
                 autocomplete="${x => x.autocomplete}"
+                inputmode="${x => x.inputMode || null}"
                 placeholder="${x => x.placeholder}"
                 :value="${x => x.value}"
                 ?disabled="${x => x.effectiveDisabled}"
@@ -298,6 +299,12 @@ export class VioletTextField extends FASTElement {
      * Native `autocomplete` hint forwarded to the input.
      */
     declare public autocomplete?: string | null;
+
+    /**
+     * Native `inputmode` virtual-keyboard hint forwarded to the input
+     * (`none`, `text`, `decimal`, `numeric`, `tel`, `search`, `email` or `url`).
+     */
+    declare public inputMode: string;
 
     public constructor() {
         super();
@@ -577,6 +584,7 @@ attr({ attribute: "minlength", converter: nullableNumberConverter })(VioletTextF
 attr({ attribute: "maxlength", converter: nullableNumberConverter })(VioletTextField.prototype, "maxLength");
 attr(VioletTextField.prototype, "pattern");
 attr(VioletTextField.prototype, "autocomplete");
+attr({ attribute: "inputmode" })(VioletTextField.prototype, "inputMode");
 attr({ attribute: "supporting-text" })(VioletTextField.prototype, "supportingText");
 attr({ mode: "boolean" })(VioletTextField.prototype, "disabled");
 installFormDisabled(VioletTextField.prototype);

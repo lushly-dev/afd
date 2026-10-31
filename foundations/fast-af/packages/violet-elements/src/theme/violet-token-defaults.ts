@@ -14,6 +14,10 @@ export const violetActionTokenDefaults: ElementStyles = css`
         --_action-secondary-border: var(--color-action-secondary-border, rgba(28, 26, 13, 0.18));
         --_action-secondary-hover: var(--color-action-secondary-hover, #e7e4d8);
         --_action-secondary-pressed: var(--color-action-secondary-pressed, #ddd9cb);
+        --_action-danger-background: var(--color-action-danger-background, #b42318);
+        --_action-danger-text: var(--color-action-danger-text, #ffffff);
+        --_action-danger-hover: var(--color-action-danger-hover, #a32015);
+        --_action-danger-pressed: var(--color-action-danger-pressed, #911d12);
         --_focus-ring: var(--color-focus-ring, rgba(24, 24, 27, 0.5));
         --_border-subtle: var(--color-border-subtle, rgba(28, 26, 13, 0.10));
         --_text-secondary: var(--color-text-secondary, #414651);

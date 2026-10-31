@@ -2,40 +2,71 @@
   "schema_version": 1,
   "family": "fast-af",
   "source_repository": "https://github.com/lushly-dev/fast-af",
-  "source_revision": "dc3a2b98edb2d60a1162b142523e839d2b686e57",
+  "source_revision": "5e64a6a5e7d459643fa62d0fe8ea22146afc4db1",
+  "import_revision": "dc3a2b98edb2d60a1162b142523e839d2b686e57",
   "source_branch_at_selection": "main",
   "source_readback": "Fresh clone at the selected revision on 2026-10-28. Main had since advanced by one Dependabot commit, d5079dc7fedaa4a4fdad2b78b65f588cb87e9d4d (fast-element devDependency @ast-grep/cli ^0.37.0 to ^0.51.0 and its lockfile), which is not imported",
-  "in_flight_source_changes": [
+  "reconciliations": [
     {
-      "ref": "main d5079dc7fedaa4a4fdad2b78b65f588cb87e9d4d",
-      "touches": [
-        "packages/element/packages/fast-element/package.json"
+      "from": "dc3a2b98edb2d60a1162b142523e839d2b686e57",
+      "to": "5e64a6a5e7d459643fa62d0fe8ea22146afc4db1",
+      "date": "2026-10-30",
+      "reason": "Moved code is frozen in the source repository from 2026-10-30; upstream commits to the selected paths made after the import are ported to AFD",
+      "commits": [
+        {
+          "ref": "d5079dc7fedaa4a4fdad2b78b65f588cb87e9d4d",
+          "summary": "chore(deps-dev): bump @ast-grep/cli from 0.37.0 to 0.51.0 (#186)",
+          "touches": [
+            "packages/element/packages/fast-element/package.json"
+          ]
+        },
+        {
+          "ref": "737ea31879f18f82b5c5496720c87d2270fd414a",
+          "summary": "chore(deps-dev): bump vite from 5.4.21 to 8.3.5 (#185); fast-element vite 7.3.5 to 8.3.5 and the root vite 8.0.1 to 8.3.5 that violet-elements mirrors",
+          "touches": [
+            "packages/element/packages/fast-element/package.json"
+          ]
+        },
+        {
+          "ref": "81a3a74990d000be886e85a43dec9ad1d10f94cd",
+          "summary": "fix(violet): lay out the color-picker panel only while open (#230)",
+          "touches": [
+            "packages/violet-elements"
+          ]
+        },
+        {
+          "ref": "74ec8df7b4a6a039a10dc4d748e7878356cda7c7",
+          "summary": "feat(violet): message-media image error fallback and allowed-origins policy (#232)",
+          "touches": [
+            "packages/violet-elements"
+          ]
+        },
+        {
+          "ref": "b8cfd280530df70dbe37c0b20e6860e5ac50208e",
+          "summary": "feat(violet): upstream the consumer repairs from #221 (#235)",
+          "touches": [
+            "packages/violet-elements"
+          ]
+        },
+        {
+          "ref": "80321153c41943bfc0f61d2a8b5880bfc2e21868",
+          "summary": "test(violet): guard data-grid picker closed panels against base display (#237)",
+          "touches": [
+            "packages/violet-elements"
+          ]
+        }
       ],
-      "summary": "chore(deps-dev): bump @ast-grep/cli from 0.37.0 to 0.51.0 (#186)"
-    },
-    {
-      "ref": "PR #232 head d9864fe12f",
-      "touches": [
-        "packages/violet-elements"
-      ],
-      "summary": "feat(violet): message-media image error fallback and allowed-origins policy (also regenerates custom-elements.json and attribute-taxonomy.jsonc)"
-    },
-    {
-      "ref": "PR #230 head c0a0733056",
-      "touches": [
-        "packages/violet-elements"
-      ],
-      "summary": "fix(violet): lay out the color-picker panel only while open"
-    },
-    {
-      "ref": "PR #185 head 36d1062c9b",
-      "touches": [
-        "packages/element/packages/fast-element/package.json"
-      ],
-      "summary": "chore(deps-dev): bump vite from 5.4.21 to 8.3.5"
+      "not_ported": {
+        "scripts/check-v3.mjs": "Upstream root tooling (#235 adds verify:exports to its violet scope); not selected. AFD runs verify:exports in fast-af.yml",
+        "pnpm-lock.yaml": "Replaced by the AFD lockfile, regenerated for the reconciled specifiers",
+        "package.json": "Upstream root; its vite specifier is mirrored in the violet-elements manifest",
+        "benchmarks/js-framework-benchmark/package.json": "Not selected"
+      },
+      "changesets": "The three upstream fragments for these changes (color-picker-closed-panel, message-media-remote-policy, consumer-repairs-upstream; all @lushly-dev/violet-elements) are carried into AFD .changeset; both units stay quarantined",
+      "still_upstream": "Draft fast-af PR #239 (violet-elements data-grid ARIA grid) is open and not ported"
     }
   ],
-  "in_flight_reconciliation": "Reconcile these, and every later upstream change to the selected paths, before any source or publisher cutover. Upstream .changeset holds 45 pending fragments for these packages; they were not imported and remain upstream release intent",
+  "in_flight_reconciliation": "All upstream main commits to the selected paths through 5e64a6a5 are reconciled (see reconciliations). Moved code is frozen upstream; later changes are made in AFD. The 45 upstream .changeset fragments that predate the import were not imported and remain upstream release intent",
   "staged_candidate": {
     "description": "Disposable staging directory outside the repository prepared by another agent; candidate evidence, not upstream identity",
     "receipt_sha256": "7ad119898bde61a5ff2ff0287bd96eb1e00f281462229f789cdd58a8f28ccc4b",
@@ -55,11 +86,11 @@
   "records": {
     "upstream": {
       "manifest": "upstream-selected.json",
-      "sha256": "a58f87fb5a4acf20e44b7cb1d241aa801896a4ed681914f8aa3a859e188d96f4"
+      "sha256": "3aa1e0c76e087f2242696cdaf36528eaff66b9d8a52317e01c7e42708f33afb4"
     },
     "adaptations": {
       "manifest": "adaptations.json",
-      "sha256": "4f45875f3443682e76e7734dfa197590b8c7bcbf364e35d08dbda084db5f56b3"
+      "sha256": "c82762ac87b9d28704259925eed3ce46070c81364bb38f6ca3f95614fcb853cf"
     }
   },
   "units": [
@@ -81,9 +112,9 @@
   "publisher_authority": "original FAST-AF repository: Changesets version records and manual package-level publication; no publish workflow, tags or releases; no handoff authorized",
   "publication_state": "quarantined",
   "compatibility_holds": [
-    "Violet web keeps its patched FAST archives (a989bfb3030272d381c3416364fc466b0c7738ef, patch digest 49e69e2): this source lacks their host-font inheritance, segment spacing and ./dist/* exports; no equivalence is claimed",
+    "Violet web keeps its patched FAST archives (a989bfb3030272d381c3416364fc466b0c7738ef, patch digest 49e69e2): fast-af #235, reconciled at 5e64a6a5, upstreams segment spacing and ./dist/* exports, but host-font inheritance is not verified; no equivalence is claimed",
     "Component declarations keep extensionless ESM specifiers: bundler resolution is supported, NodeNext component types are not claimed",
-    "Component sourcemaps reference TypeScript sources that are not packed",
+    "Component JavaScript source maps embed their TypeScript sources (inlineSources, fast-af #235); declaration maps are not emitted",
     "No package may publish under a Microsoft or other upstream namespace; the upstream-named router stays excluded"
   ]
 }

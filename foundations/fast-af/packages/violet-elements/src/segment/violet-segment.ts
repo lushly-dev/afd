@@ -1,9 +1,10 @@
 import { FASTElement, Observable, attr, css, html } from "@lushly-dev/fast-element";
 
-import { violetActionTokenDefaults } from "../theme/violet-token-defaults";
+import { violetActionTokenDefaults, violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 const styles = css`
     ${violetActionTokenDefaults}
+    ${violetSurfaceTokenDefaults}
 
     :host {
         display: block;
@@ -20,8 +21,9 @@ const styles = css`
         align-items: center;
         justify-content: center;
         inline-size: 100%;
-        min-block-size: calc(var(--_target-size) - var(--_space-xs));
-        padding: var(--_space-sm) var(--_space-md);
+        /* The group adds 2px padding and a 1px border per side, so the control matches a button's height. */
+        min-block-size: calc(var(--_target-size) - 6px);
+        padding: 0 var(--_space-md);
         border: 1px solid transparent;
         border-radius: calc(var(--_radius-md) - 2px);
         background: transparent;
@@ -30,7 +32,8 @@ const styles = css`
         font: inherit;
         font-size: var(--_control-body-size);
         font-weight: var(--_type-label-weight);
-        line-height: var(--_type-body-line);
+        /* Never taller than the target minus the group chrome and the border, so compact controls stay button-sized. */
+        line-height: min(var(--_type-body-line), calc(var(--_target-size) - 8px));
         text-align: center;
         transition:
             background-color var(--_duration-fast) var(--_easing-standard),

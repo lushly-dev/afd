@@ -253,4 +253,44 @@ describe("violet-color-picker", () => {
         expect(picker.panelTitleText).toBe("No color selected");
         expect(new FormData(form).get("accent-color")).toBeNull();
     });
+
+    describe("closed panel", () => {
+        it("is not laid out and ignores pointer events while closed", async () => {
+            const picker = await renderPicker();
+            const panel = picker.shadowRoot?.querySelector(".panel") as HTMLElement;
+            const trigger = picker.shadowRoot?.querySelector(".trigger") as HTMLElement;
+
+            expect(panel.matches(":popover-open")).toBe(false);
+            expect(getComputedStyle(panel).display).toBe("none");
+            expect(panel.getBoundingClientRect().width).toBe(0);
+
+            // Whatever sits at the trigger's centre must not be the panel.
+            const rect = trigger.getBoundingClientRect();
+            const hit = picker.shadowRoot?.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+            expect(panel.contains(hit as Node)).toBe(false);
+        });
+
+        it("opens from a real pointer click on the trigger and lays out the panel", async () => {
+            const picker = await renderPicker();
+            const panel = picker.shadowRoot?.querySelector(".panel") as HTMLElement;
+            const trigger = picker.shadowRoot?.querySelector(".trigger") as HTMLElement;
+
+            await userEvent.click(trigger);
+            await nextFrame();
+            await nextFrame();
+
+            expect(picker.open).toBe(true);
+            expect(getComputedStyle(panel).display).toBe("grid");
+        });
+
+        it("keeps the open/close transition on opacity and display", async () => {
+            const picker = await renderPicker();
+            const panel = picker.shadowRoot?.querySelector(".panel") as HTMLElement;
+            const style = getComputedStyle(panel);
+
+            expect(style.transitionProperty).toContain("opacity");
+            expect(style.transitionProperty).toContain("display");
+            expect(style.transitionBehavior).toContain("allow-discrete");
+        });
+    });
 });

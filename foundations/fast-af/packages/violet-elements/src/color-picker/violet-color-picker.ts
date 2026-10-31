@@ -176,7 +176,6 @@ const styles = css`
         box-shadow: var(--_shadow-floating);
         color: inherit;
         z-index: var(--_layer-popover);
-        display: grid;
         gap: var(--_space-stack-sm);
         opacity: 0;
         transform: translateY(calc(var(--_space-stack-xs) * -1));
@@ -187,14 +186,22 @@ const styles = css`
             overlay var(--_duration-fast) var(--_easing-standard) allow-discrete;
     }
 
-    .panel:popover-open {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
+    /*
+     * Only lay the panel out while it is open. A base \`display\` would override the UA's
+     * \`[popover]:not(:popover-open) { display: none }\`, leaving the closed panel laid out
+     * (just transparent) and intercepting clicks meant for the trigger. The
+     * \`display ... allow-discrete\` transition above keeps the fade-out.
+     */
+    .panel:popover-open,
     .panel.open {
+        display: grid;
         opacity: 1;
         transform: translateY(0);
+
+        @starting-style {
+            opacity: 0;
+            transform: translateY(calc(var(--_space-stack-xs) * -1));
+        }
     }
 
     .panel::backdrop {

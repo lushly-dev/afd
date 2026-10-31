@@ -547,7 +547,7 @@ const fullTableTemplate = html<VioletDataGrid>`
                 <th
                     id="${(x) => x.selectionHeaderId}"
                     class="selection-header"
-                    part="header-cell"
+                    part="header-cell selection-header-cell"
                     scope="col"
                     aria-label="${(x) => x.selectionHeaderLabel}"
                     ?hidden="${(x) => x.selectionMode === "none"}"
@@ -794,6 +794,7 @@ const template = html<VioletDataGrid>`
  * @csspart body - Table body region.
  * @csspart header-row - Header row wrapper.
  * @csspart header-cell - Header cell surface.
+ * @csspart selection-header-cell - The selection column's header cell (also a header-cell part).
  * @csspart row - Body row wrapper.
  * @csspart cell - Body cell surface.
  * @csspart active-cell - Active cell state hook.
@@ -815,6 +816,13 @@ export class VioletDataGrid extends FASTElement {
      * Uses reflected primitive attribute state for HTML configuration.
      */
   public declare selectionMode: VioletDataGridSelectionMode;
+
+    /**
+     * Optional verb phrase naming what a single-selection radio does, such as "Open". The radio's
+     * accessible name becomes "<selection-label> <row label>" ("Open First bed") instead of
+     * "Select row <row label>". Ignored outside `selection-mode="single"`.
+     */
+  public declare selectionLabel: string | null;
 
     /**
      * Enables sticky table headers.
@@ -1375,7 +1383,12 @@ export class VioletDataGrid extends FASTElement {
     }
 
     public selectionLabelFor(rowId: string, rowLabel?: string): string {
-        return `Select row ${rowLabel?.trim() || rowId}`;
+        const name = rowLabel?.trim() || rowId;
+        const verb = this.selectionLabel?.trim();
+        if (verb && this.selectionMode === "single") {
+            return `${verb} ${name}`;
+        }
+        return `Select row ${name}`;
     }
 
     public handleToolbarSlotChange(event: Event): void {
@@ -4133,6 +4146,7 @@ export class VioletDataGrid extends FASTElement {
 let violetDataGridInstanceCount = 0;
 
 attr({ attribute: "selection-mode" })(VioletDataGrid.prototype, "selectionMode");
+attr({ attribute: "selection-label" })(VioletDataGrid.prototype, "selectionLabel");
 attr({ attribute: "sticky-header", mode: "boolean" })(VioletDataGrid.prototype, "stickyHeader");
 attr({ mode: "boolean" })(VioletDataGrid.prototype, "busy");
 attr({ mode: "boolean" })(VioletDataGrid.prototype, "virtualize");

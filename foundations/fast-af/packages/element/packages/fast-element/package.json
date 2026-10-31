@@ -210,7 +210,7 @@
     "@webcomponents/scoped-custom-element-registry": "^0.0.10"
   },
   "devDependencies": {
-    "@ast-grep/cli": "^0.37.0",
+    "@ast-grep/cli": "^0.51.0",
     "@biomejs/biome": "^2.4.7",
     "@microsoft/api-extractor": "7.58.1",
     "@playwright/test": "1.64.0",
@@ -221,7 +221,7 @@
     "rollup": "4.59.0",
     "tslib": "^2.8.1",
     "typescript": "~5.9.3",
-    "vite": "7.3.5"
+    "vite": "8.3.5"
   },
   "files": [
     "dist",

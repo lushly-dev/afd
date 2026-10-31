@@ -390,6 +390,37 @@ describe("violet-data-grid", () => {
         }
     });
 
+    it("names single-selection radios with selection-label and exposes a selection-header-cell part", async () => {
+        const grid = await renderGrid();
+        (grid as any).selectionMode = "single";
+        await nextFrame();
+
+        const radios = () =>
+            grid.shadowRoot?.querySelectorAll("violet-radio.selection-radio") as NodeListOf<HTMLElement>;
+        expect(radios()[0]?.getAttribute("aria-label")).toBe("Select row Black currant");
+
+        grid.setAttribute("selection-label", "Open");
+        await nextFrame();
+        expect(radios()[0]?.getAttribute("aria-label")).toBe("Open Black currant");
+
+        grid.removeAttribute("selection-label");
+        await nextFrame();
+        expect(radios()[0]?.getAttribute("aria-label")).toBe("Select row Black currant");
+
+        const headerCell = grid.shadowRoot?.querySelector("th.selection-header");
+        expect(headerCell?.getAttribute("part")?.split(" ")).toEqual(["header-cell", "selection-header-cell"]);
+    });
+
+    it("keeps the generic row label for multiple selection even with selection-label", async () => {
+        const grid = await renderGrid();
+        (grid as any).selectionMode = "multiple";
+        grid.setAttribute("selection-label", "Open");
+        await nextFrame();
+
+        const rowCheckbox = grid.shadowRoot?.querySelector("tbody violet-checkbox.selection-checkbox");
+        expect(rowCheckbox?.getAttribute("aria-label")).toBe("Select row Black currant");
+    });
+
     it("uses violet-radio controls for single row selection", async () => {
         const grid = await renderGrid();
         (grid as any).selectionMode = "single";

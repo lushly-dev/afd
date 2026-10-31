@@ -185,8 +185,85 @@ describe("violet-button", () => {
         expect(native.getAttribute("aria-haspopup")).toBe("listbox");
     });
 
+    it("forwards aria-pressed to the native control", async () => {
+        const button = await renderButton(el => {
+            el.ariaPressed = "false";
+        });
+        const native = control(button);
+        expect(native.getAttribute("aria-pressed")).toBe("false");
+
+        button.ariaPressed = "true";
+        await nextFrame();
+        expect(native.getAttribute("aria-pressed")).toBe("true");
+
+        button.setAttribute("aria-pressed", "mixed");
+        await nextFrame();
+        expect(native.getAttribute("aria-pressed")).toBe("mixed");
+
+        button.removeAttribute("aria-pressed");
+        await nextFrame();
+        expect(native.hasAttribute("aria-pressed")).toBe(false);
+    });
+
+    describe("danger appearance", () => {
+        function channels(color: string): number[] {
+            const probe = document.createElement("canvas").getContext("2d") as CanvasRenderingContext2D;
+            probe.fillStyle = color;
+            probe.fillRect(0, 0, 1, 1);
+            return Array.from(probe.getImageData(0, 0, 1, 1).data).slice(0, 3);
+        }
+
+        function luminance([r, g, b]: number[]): number {
+            const [lr, lg, lb] = [r, g, b].map(value => {
+                const c = value / 255;
+                return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+            });
+            return 0.2126 * lr + 0.7152 * lg + 0.0722 * lb;
+        }
+
+        function contrast(a: string, b: string): number {
+            const [hi, lo] = [luminance(channels(a)), luminance(channels(b))].sort((x, y) => y - x);
+            return (hi + 0.05) / (lo + 0.05);
+        }
+
+        it("sets data-appearance and fills with the danger action tokens", async () => {
+            const button = await renderButton(el => {
+                el.setAttribute("appearance", "danger");
+            }, "Delete");
+            const native = control(button);
+            expect(button.appearance).toBe("danger");
+            expect(native.getAttribute("data-appearance")).toBe("danger");
+
+            const style = getComputedStyle(native);
+            expect(channels(style.backgroundColor)).toEqual(channels("#b42318"));
+            expect(channels(style.color)).toEqual(channels("#ffffff"));
+        });
+
+        it("honors the --color-action-danger-* token overrides", async () => {
+            document.body.style.setProperty("--color-action-danger-background", "rgb(1, 2, 3)");
+            document.body.style.setProperty("--color-action-danger-text", "rgb(250, 251, 252)");
+            try {
+                const button = await renderButton(el => {
+                    el.appearance = "danger";
+                }, "Delete");
+                const style = getComputedStyle(control(button));
+                expect(style.backgroundColor).toBe("rgb(1, 2, 3)");
+                expect(style.color).toBe("rgb(250, 251, 252)");
+            } finally {
+                document.body.style.removeProperty("--color-action-danger-background");
+                document.body.style.removeProperty("--color-action-danger-text");
+            }
+        });
+
+        it("keeps text legible on the fill, including the dark preset values", () => {
+            expect(contrast("#ffffff", "#b42318")).toBeGreaterThanOrEqual(4.5);
+            expect(contrast("#ffffff", "#c4301f")).toBeGreaterThanOrEqual(4.5);
+            expect(contrast("#ffffff", "#cf4030")).toBeGreaterThanOrEqual(4.5);
+        });
+    });
+
     describe("sizing", () => {
-        const appearances = ["primary", "secondary", "quiet", "transparent"] as const;
+        const appearances = ["primary", "secondary", "quiet", "transparent", "danger"] as const;
 
         function targetSize(button: VioletButton): number {
             return Number.parseFloat(getComputedStyle(control(button)).getPropertyValue("--_target-size"));
