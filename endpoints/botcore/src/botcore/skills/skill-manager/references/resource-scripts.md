@@ -127,10 +127,9 @@ def lint_skill(skill_path: Path) -> dict:
     if not content.startswith("---"):
         issues.append({"rule": "SK001", "severity": "error", "message": "Missing frontmatter"})
 
-    # Check file size
-    lines = content.splitlines()
-    if len(lines) > 500:
-        issues.append({"rule": "SK009", "severity": "warning", "message": f"Body too long ({len(lines)} lines, max 500)"})
+    # Check body size (the same threshold as botcore's SK009)
+    if len(content) > 50_000:
+        issues.append({"rule": "SK009", "severity": "warning", "message": f"Body too long ({len(content)} chars, max 50,000)"})
 
     return {"path": str(skill_path), "issues": issues, "total": len(issues)}
 

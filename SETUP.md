@@ -104,7 +104,7 @@ Lefthook manages git hooks. Installed automatically via `pnpm install`.
 
 | Script | What it checks |
 |--------|---------------|
-| `check-file-size.mjs` | Warn >300, error >500 lines. Escape: `// afd-override: max-lines=N` (cap 1000) |
+| `check-file-size.mjs` | `.ts` under `packages/` and `.js`/`.mjs` under `scripts/`: warn >500 lines, error >1000 (the same pair as `botcore.toml`). Escape: `// afd-override: max-lines=N` (cap 1500; leave headroom). Markdown is not size-checked |
 | `check-portability.mjs` | Machine-specific paths (drive letters, user homes). Escape: `// portability-ok: reason` |
 | `check-orphan-files.mjs` | Unreferenced `.ts` files across packages (warning only) |
 | `check-versions.mjs` | Package versions and the AFD contract version (`spec/VERSION`) against the language constants, `docs/language-parity.md` and the README table |

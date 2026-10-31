@@ -181,7 +181,7 @@ description: >
 ---
 
 ### SK009: Body Too Long
-SKILL.md body exceeds 800 lines, impacting context efficiency.
+SKILL.md body exceeds 50,000 characters (`_MAX_BODY_LENGTH` in `botcore/commands/skill/lint.py`); the whole body is loaded whenever the skill activates.
 
 **Fix:** Move detailed content to `references/` subdirectory.
 

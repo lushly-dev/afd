@@ -190,15 +190,20 @@ fi
 exit 0
 ```
 
-**Validate file size before writes:**
+**Validate code file size before writes:**
 
 ```bash
 #!/usr/bin/env bash
-# hooks/check-file-size.sh
-CONTENT="${1:-}"
-LINE_COUNT=$(echo "$CONTENT" | wc -l)
-if [ "$LINE_COUNT" -gt 500 ]; then
-    echo "File too large ($LINE_COUNT lines). Max 500 lines per file." >&2
+# hooks/check-file-size.sh — code files only; markdown, data and config files are exempt
+FILE_PATH="${1:-}"
+CONTENT="${2:-}"
+case "$FILE_PATH" in
+    *.ts|*.tsx|*.js|*.mjs|*.py|*.rs|*.cpp|*.h) ;;
+    *) exit 0 ;;
+esac
+LINE_COUNT=$(printf '%s\n' "$CONTENT" | wc -l)
+if [ "$LINE_COUNT" -gt 1000 ]; then
+    echo "File too large ($LINE_COUNT lines). Split code files above 1000 lines." >&2
     exit 2
 fi
 exit 0
