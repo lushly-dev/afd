@@ -9,8 +9,8 @@ session that changed it.
 |---|---|---|---|
 | [Proposal](./proposal.md) | Approved 2026-10-31 and moved to `active/`; open questions decided the same day | [#527](https://github.com/lushly-dev/afd/issues/527) | 2026-10-31: the browser bundles in "Today" measured with esbuild 0.27.7 against `packages/server/dist`, whose sources are unchanged on `main` at `03815e26`; the Rust parity row read from #526 |
 | Part 1: `/direct` entry and bundle test | Not started | None | |
-| #458: shared approval-token vectors, before part 2 | Not started | None | |
-| Part 2: approvals on WebCrypto | Not started; waits on #458 | None | |
+| #458: shared approval-token vectors, before part 2 | Done: `spec/vectors/approval-tokens.json`, loaded by all four suites | #458; `packages/server/src/approval-vectors.test.ts` runs in `ci.yml` | 2026-10-31: TypeScript 65 tests, Python 42, Rust 2 (every case), C++ 2 (278 assertions); `alfred parity` vectors: 0 gaps |
+| Part 2: approvals on WebCrypto | Not started; unblocked by #458 | None | |
 | Part 3: contexts and the tool surface in process | Not started; waits on the hybrid strategy in TypeScript | None | |
 
 ## Done
@@ -51,3 +51,4 @@ Everything in the proposal's "Done when" list.
 | 2026-10-31 | Loam review follow-up | Proposal and status written from the Loam review's finding that the direct registry, journal and approvals cannot be bundled for a browser |
 | 2026-10-31 | Owner decisions | Open questions replaced by "Decisions"; part 3 now names the typed call option and `DirectClient.listTools` filtered by the allowlist |
 | 2026-10-31 | Pre-implementation check | Approved and moved to `active/`. Corrected the Node-free claim for the router and tool list, set the size budgets from measurement, put #458 before part 2, sequenced part 3 after the hybrid strategy, matched context enter and exit to the 2026-07-28 lane, and updated Rust parity for #526 |
+| 2026-10-31 | #458 | Shared approval token vectors landed and loaded by TypeScript, Python, Rust and C++, so part 2 is held to known answers in `ci.yml` |

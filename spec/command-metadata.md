@@ -178,6 +178,14 @@ Rules:
    `details.approvalToken` out unless the server opts in, and the token goes to the approver
    another way.
 
+The token is `afdap1.<payload>.<mac>`, both parts base64url without padding. The payload is the
+JSON `{"c","i","a","iat","exp","n"}` in that order: the command, the base64url HMAC-SHA256 of
+`input\0` and the canonical input JSON, the same for `actor\0` and the actor JSON (`null` without
+an actor), the issue and expiry times in epoch milliseconds, and a 128-bit nonce. The MAC is
+HMAC-SHA256 over `afdap1.<payload>`, compared in its encoded form so a token has one valid
+spelling. [`vectors/approval-tokens.json`](./vectors/approval-tokens.json) pins the format, canonical
+JSON and every rejection reason, and all four languages load it.
+
 ### Private in-process approval exchange
 
 DirectClient in all four languages reserves approval authority for trusted application code.
