@@ -35,7 +35,7 @@ should never have to scan the codebase to learn what is current.
 
 | Phase | State | Owner | Evidence | Next gate |
 | --- | --- | --- | --- | --- |
-| AFD prerequisites | In progress | Owner's sessions | [#523](https://github.com/lushly-dev/afd/pull/523) and [#526](https://github.com/lushly-dev/afd/pull/526) merged; hybrid proposal approved in [#522](https://github.com/lushly-dev/afd/pull/522) | The phase 0 rows of the architecture's prerequisites table land in AFD, including the hybrid tool strategy (D27), and [#531](https://github.com/lushly-dev/afd/issues/531) is fixed |
+| AFD prerequisites | In progress | Owner's sessions | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539) and the hybrid spec [#538](https://github.com/lushly-dev/afd/pull/538) merged | The hybrid tool strategy (D27) implemented in Rust, after TypeScript and Python |
 | 0. Host skeleton | Not started | None | None | Specification written and approved by the owner (D24) |
 | 1. Plugin contract | Not started | None | None | Phase 0 exit criterion met |
 | 2. Knowledge | Not started | None | None | Phase 1 exit criterion met |
@@ -51,7 +51,7 @@ should never have to scan the codebase to learn what is current.
 ### AFD prerequisites
 
 - **State:** in progress. Last verified 2026-10-31 against `main` at
-  `03815e26`.
+  `977a0a35`.
 - **Done:** Rust `structuredContent` and top-level `outputSchema` (the Rust
   part of #465, which stays open for Python and C++) and the per-request
   context hook (`McpServer::with_context_hook`), both merged in
@@ -64,13 +64,17 @@ should never have to scan the codebase to learn what is current.
   and with confirmations. Every route carries `structuredContent` and runs the
   context hook once per call; `grouped` is now the Rust default, which the
   owner accepted on 2026-10-31.
-- **Not done:** the hybrid strategy (D27). Its
-  [proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md)
-  was approved on 2026-10-31 with every recommendation; its spec step comes
-  first, then TypeScript and Python, then Rust on the #526 strategy API. Also not done:
-  [#531](https://github.com/lushly-dev/afd/issues/531), a panicking handler
-  hangs the Rust MCP request, which a host of third-party plugins must not
-  ship with.
+- **Done:** [#531](https://github.com/lushly-dev/afd/issues/531), a panic in
+  the server's own request handling hanging the MCP request, fixed in
+  [#539](https://github.com/lushly-dev/afd/pull/539) as `2552748c`; a
+  handler's panic was already a `COMMAND_EXECUTION_ERROR` result. The hybrid
+  strategy's spec step, [`spec/tool-strategies.md`](../../../spec/tool-strategies.md),
+  merged in [#538](https://github.com/lushly-dev/afd/pull/538) as `977a0a35`.
+- **Not done:** the hybrid strategy (D27) in code. Following its
+  [status](../../../docs/features/active/hybrid-tool-strategy/STATUS.md),
+  TypeScript and Python come next, then Rust on the #526 strategy API (a unit
+  `ToolStrategy::Hybrid` with `with_first_class_tools`). That Rust step is the
+  last AFD prerequisite for phase 0.
 - **Note:** the hybrid strategy, resources, prompts, the Skills over MCP
   extension and output budgets are AFD-wide features; each needs a
   `docs/features` proposal, spec first, before Rust implements it (D25).
@@ -98,7 +102,7 @@ starts.
 | 2026-10-30 | End-to-end review | Reconcile vocabulary and the proposal record with the Agent Engine proposal, whose modules are Umbel's plugins and whose loop overlaps the curator | Open |
 | 2026-10-30 | End-to-end review | Over MCP, the Rust approval middleware includes approval tokens by default; Umbel must turn that off on the MCP path. Re-checked 2026-10-31: [#518](https://github.com/lushly-dev/afd/pull/518) closed #460 with the private in-process exchange, and the default on the MCP path is unchanged | Open |
 | 2026-10-31 | Owner review | Confirmation `requestState` is bound to the command and input, not the actor; with the context hook admitting several actors, one could replay another's confirmation | Issue [#532](https://github.com/lushly-dev/afd/issues/532); needed before phase 5 |
-| 2026-10-31 | Owner review | A panicking command handler hangs the Rust MCP request | Issue [#531](https://github.com/lushly-dev/afd/issues/531); needed before phase 0 |
+| 2026-10-31 | Owner review | A panicking command handler hangs the Rust MCP request | Done: fixed in [#539](https://github.com/lushly-dev/afd/pull/539) |
 
 ## Session log
 
@@ -112,3 +116,4 @@ starts.
 | 2026-10-31 | Loam cross-review | From the Loam proposal's end-to-end review: corrected the placement rule (D21 consequence, the architecture's repository placement and the follow-up) so Umbel's units join only the release inventory, since `architecture.json` lists foundation families only and endpoint manifests are classified by path; noted on O3 that Loam's app manifest will extend Umbel's; marked the resources prerequisite as shared with Loam; added "surface" to the glossary with Loam's different meaning. Checked and unchanged: D22's registry enforcement holds in Rust (`CommandRegistry::register` rejects invalid names); the architecture's one use of "handoff" is AFD's pattern. Loam keeps Umbel's event field names where the shapes overlap. [#522](https://github.com/lushly-dev/afd/pull/522), open |
 | 2026-10-31 | Owner review of the blockers | The owner accepted every recommendation: #523 merged first and #526 rebased onto it; grouped becomes the Rust default; the hybrid proposal approved and moved to `docs/features/active/` with the six answers recorded; issues [#531](https://github.com/lushly-dev/afd/issues/531), [#532](https://github.com/lushly-dev/afd/issues/532) and [#533](https://github.com/lushly-dev/afd/issues/533) filed. [#522](https://github.com/lushly-dev/afd/pull/522) |
 | 2026-10-31 | Owner review of the blockers | [#526](https://github.com/lushly-dev/afd/pull/526) rebased onto #523, integrated (structured results and the context hook on every route) and merged as `03815e26`. Of the phase 0 prerequisites, only the hybrid strategy and [#531](https://github.com/lushly-dev/afd/issues/531) remain. [#534](https://github.com/lushly-dev/afd/pull/534) |
+| 2026-10-31 | Phase 0 blockers | [#531](https://github.com/lushly-dev/afd/issues/531) fixed in [#539](https://github.com/lushly-dev/afd/pull/539); the hybrid spec merged in [#538](https://github.com/lushly-dev/afd/pull/538). Only the hybrid implementation remains among the AFD prerequisites. [#540](https://github.com/lushly-dev/afd/pull/540) |

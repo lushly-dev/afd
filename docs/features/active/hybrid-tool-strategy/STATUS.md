@@ -17,7 +17,8 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 - **State:** approved by the owner on 2026-10-31 with every recommendation; the six open questions
   are answered in the proposal's [owner decisions](hybrid-tool-strategy.proposal.md#owner-decisions-2026-10-31).
-  Step 0 (`spec/`) is in review; no language implements the strategy.
+  Step 0 (`spec/`) merged in [#538](https://github.com/lushly-dev/afd/pull/538) as `977a0a35`;
+  no language implements the strategy yet. Steps 1 (TypeScript) and 2 (Python) can start.
 - **Last verified:** 2026-10-31, against `main` at `5875e301`, for step 0: every statement about
   current behavior in [`spec/tool-strategies.md`](../../../../spec/tool-strategies.md) was re-read
   from `packages/server/src` (`tools.ts`, `tool-router.ts`, `command-names.ts`,
@@ -41,9 +42,9 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 | Step | State | Evidence | Next gate |
 | --- | --- | --- | --- |
-| 0. `spec/` | In review | New [`spec/tool-strategies.md`](../../../../spec/tool-strategies.md) and [`spec/tool-strategies.json`](../../../../spec/tool-strategies.json); amendments to `command-metadata.md`, `error-codes.md`, `protocol-conformance.md`, `vectors/README.md` and `CHANGELOG.md`; parity rows. `spec/VERSION` stays `1.0-rc` | Owner review and merge |
-| 1. TypeScript | Not started | None | Step 0 merged |
-| 2. Python | Not started | None | Step 0 merged |
+| 0. `spec/` | Done | New [`spec/tool-strategies.md`](../../../../spec/tool-strategies.md) and [`spec/tool-strategies.json`](../../../../spec/tool-strategies.json); amendments to `command-metadata.md`, `error-codes.md`, `protocol-conformance.md`, `vectors/README.md` and `CHANGELOG.md`; parity rows. `spec/VERSION` stays `1.0-rc` | Merged in [#538](https://github.com/lushly-dev/afd/pull/538), 22/22 checks green |
+| 1. TypeScript | Not started | None | Step 0 merged ([#538](https://github.com/lushly-dev/afd/pull/538)); ready |
+| 2. Python | Not started | None | Step 0 merged ([#538](https://github.com/lushly-dev/afd/pull/538)); ready |
 | 3. Rust | Not started | None | Step 0 merged; parity D1 merged in [#526](https://github.com/lushly-dev/afd/pull/526) |
 | 4. C++ | Not started | None | Step 0 and language parity D2 merged |
 | 5. Parity matrix, conformance rows, skills | Not started | None | Each language's step merged |
@@ -61,7 +62,7 @@ proposal's [owner decisions](hybrid-tool-strategy.proposal.md#owner-decisions-20
 | 2026-10-31 | Design session | TypeScript and Python list different meta-tools in the individual and grouped strategies, and different tools in `lazy`; `spec/tool-strategies.md` records this until it is decided | Issue [#533](https://github.com/lushly-dev/afd/issues/533) |
 | 2026-10-31 | Design session | When every backend has the strategy, consider a `--strategy hybrid` run of the todo conformance suite | Open |
 | 2026-10-31 | Step 0 session | `spec/tool-strategies.json` sits in `spec/`, not `spec/vectors/`, because `alfred parity` fails on any vector a language does not load; move it into `spec/vectors/` (and the `vectors/README.md` loader table) in the step that makes the fourth language load it | Open |
-| 2026-10-31 | Step 0 session | `spec/error-codes.md` D4 still says "Rust has no MCP server or DirectClient yet" and that Python answers unlisted names with FastMCP's plain text; #526 and #325 changed both. Left for a separate correction | Open |
+| 2026-10-31 | Step 0 session | `spec/error-codes.md` D4 still says "Rust has no MCP server or DirectClient yet" and that Python answers unlisted names with FastMCP's plain text; #526 and #325 changed both. Left for a separate correction | Done 2026-10-31 in [#540](https://github.com/lushly-dev/afd/pull/540) |
 
 ## Session log
 
@@ -71,3 +72,4 @@ proposal's [owner decisions](hybrid-tool-strategy.proposal.md#owner-decisions-20
 | 2026-10-31 | Owner review | The owner approved the proposal with every recommendation; the open questions became the proposal's owner decisions. Decision 6's alignment work filed as [#533](https://github.com/lushly-dev/afd/issues/533). [#522](https://github.com/lushly-dev/afd/pull/522) |
 | 2026-10-31 | D1 landed | Parity D1 merged in [#526](https://github.com/lushly-dev/afd/pull/526); the Rust step's gate and API shape updated. [#534](https://github.com/lushly-dev/afd/pull/534) |
 | 2026-10-31 | Step 0 session | Wrote `spec/tool-strategies.md` (all four strategies, H1 to H8 normative), the hand-written hybrid cases in `spec/tool-strategies.json`, and the amendments the proposal lists; re-verified current behavior against `main` at `5875e301`, including Rust after #526. `spec/VERSION` unchanged: an additive change during `1.0-rc` is recorded under the `1.0-rc` entry, as earlier additions were. Pull request open for review |
+| 2026-10-31 | Coordinator | Step 0 merged in [#538](https://github.com/lushly-dev/afd/pull/538); corrected the stale D4 paragraph in `spec/error-codes.md`. [#540](https://github.com/lushly-dev/afd/pull/540) |
