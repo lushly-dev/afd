@@ -182,15 +182,16 @@ const HOST_IMPORTS =
 /**
  * Size budgets for AFD's own code in `/direct`, minified, with Zod left to the application (any
  * app that defines commands loads it anyway). Measured 2026-10-31 with esbuild 0.27.7, after
- * part 3 of #527 (contexts and the tool surface in process):
+ * part 3 of #527 (contexts and the tool surface in process) and part 2 (approvals on WebCrypto):
  *
- * - 37.3 KB for a host that imports the registry, the journal and `defineCommand` (35.3 KB
- *   before part 3, whose contexts add 2.0 KB to the registry; 32.2 KB before declared context
- *   fields). The budget stays 39 KB: the tool surface is not in this bundle.
- * - 67.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool list,
- *   the meta-tools, `lazy-tools` and `bootstrap/`.
- * - 94.4 KB for every export. The budget was 66 KB (63.4 KB measured) before the tool surface
- *   joined the entry; it is now 104 KB.
+ * - 37.3 KB for a host that imports the registry, the journal and `defineCommand`
+ *   (35.3 KB before part 3, whose contexts add 2.0 KB to the registry; 32.2 KB before declared
+ *   context fields). The budget stays 39 KB: neither the tool surface nor approvals are in it.
+ * - 47.2 KB for a host that also imports `createApprovalMiddleware`.
+ * - 67.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
+ *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
+ * - 102.6 KB for every export. The budget was 66 KB (63.4 KB measured) before the tool
+ *   surface and approvals joined the entry; it is now 113 KB.
  */
 const DIRECT_BUDGETS = [
 	{
@@ -199,11 +200,16 @@ const DIRECT_BUDGETS = [
 		bytes: 39_000,
 	},
 	{
+		what: 'the same host with the approval middleware',
+		imports: `${HOST_IMPORTS}, createApprovalMiddleware`,
+		bytes: 52_000,
+	},
+	{
 		what: 'a host with the tool surface',
 		imports: `${HOST_IMPORTS}, createDirectToolSurface`,
 		bytes: 74_000,
 	},
-	{ what: 'every export', imports: undefined, bytes: 104_000 },
+	{ what: 'every export', imports: undefined, bytes: 113_000 },
 ];
 
 /** The modules only the tool surface needs. */
@@ -229,6 +235,7 @@ describe('@lushly-dev/afd-server/direct', () => {
 	it('re-exports the registry, journal and middleware of the root entry, and all of /define', () => {
 		expect(direct.createDirectRegistry).toBe(root.createDirectRegistry);
 		expect(direct.createDirectToolSurface).toBe(root.createDirectToolSurface);
+		expect(direct.createApprovalMiddleware).toBe(root.createApprovalMiddleware);
 		expect(direct.createJournalMiddleware).toBe(root.createJournalMiddleware);
 		expect(direct.replayJournal).toBe(root.replayJournal);
 		expect(direct.composeMiddleware).toBe(root.composeMiddleware);
@@ -248,6 +255,7 @@ describe('@lushly-dev/afd-server/direct', () => {
 		const inputs = Object.keys(result.metafile?.inputs ?? {});
 		expect(inputs.some((input) => input.endsWith('src/direct-registry.ts'))).toBe(true);
 		expect(inputs.some((input) => input.endsWith('src/journal-replay.ts'))).toBe(true);
+		expect(inputs.some((input) => input.endsWith('src/approval-crypto.ts'))).toBe(true);
 		expect(inputs.filter((input) => /modelcontextprotocol|^node:/.test(input))).toEqual([]);
 		expect(inputs.filter((input) => NODE_ONLY_CORE.test(input))).toEqual([]);
 	});

@@ -156,7 +156,8 @@ if (result.error?.code === 'TIMEOUT') {
 
 ### Human Approval (`onApprovalNeeded`)
 
-When the registry runs `createApprovalMiddleware` (from `@lushly-dev/afd-server`), a
+When the registry runs `createApprovalMiddleware` (from `@lushly-dev/afd-server`, or
+`@lushly-dev/afd-server/direct` in a browser or webview; it runs on WebCrypto), a
 command whose `approval` policy requires sign-off returns `APPROVAL_REQUIRED`
 before its handler runs. `onApprovalNeeded` lets the app ask the human and retry:
 
@@ -179,6 +180,9 @@ const client = createDirectClient(registry, {
 - `false`, any non-`true` value, a hook that throws, or no hook: the original
   token-free `APPROVAL_REQUIRED` result is returned. Custom registries must support
   the private exchange; token-in-result registries do not trigger the hook.
+- In a page, the approval secret is visible to every script on that page. The gate
+  stops a model from approving its own call through tool input, not code running in
+  the page; keep approvals on a server when you need that boundary.
 - The hook is trusted app code and never sees the token. Credentials stay in private
   exchange state. Public call and pipe contexts strip `approval`; results, observer hooks
   and failure journals do not receive it. Use matching client/core/server versions.

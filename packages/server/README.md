@@ -207,6 +207,7 @@ imports from `/direct`. It exports everything `/define` does, plus:
   per call;
 - `createDirectToolSurface`, the MCP tool surface for that registry (see
   below);
+- `createApprovalMiddleware`, on WebCrypto (see [Approvals](#approvals));
 - `createJournalMiddleware`, `replayJournal` and `MemoryJournalSink`;
 - the middleware with no Node.js builtin in its module graph:
   `composeMiddleware`, `defaultMiddleware`, `createLoggingMiddleware`,
@@ -231,11 +232,12 @@ await registry.execute('panel-open', { id: 'settings' });
 
 A test bundles `/direct` for the browser, failing on any MCP SDK or Node.js
 builtin, and holds AFD's own code (minified, Zod excluded) to 39 KB for a host
-that imports the registry, the journal and `defineCommand`, 74 KB for a host that
-also imports `createDirectToolSurface`, and 104 KB for every export. A host that
-does not import the tool surface does not bundle the tool router. The approval
-middleware still needs Node.js, so it is exported only from the root entry for
-now.
+that imports the registry, the journal and `defineCommand`, 52 KB with the
+approval middleware as well, 74 KB for a host that also imports
+`createDirectToolSurface`, and 113 KB for every export. A host that does
+not import the tool surface does not bundle the tool router. A Chromium test
+runs a command through the registry with the journal and approval middleware,
+approves it through `DirectClient`, and replays the journal.
 
 #### Contexts and `activeContext`
 
@@ -670,6 +672,8 @@ To resume, retry the same command with the same input and `context.approval` set
 - **Single-use by default.** A token runs the command once (`reason: 'already-used'` after). `replay: 'within-ttl'` lets it run the same call as often as it is presented until it expires, so one approval also covers repeats such as duplicate batch items. Spent tokens are remembered in memory by this middleware instance: share one `nonceStore` (`consume(nonce, expiresAt)` returning `true` only for an unused nonce, atomically) between every instance that uses the secret, across processes or between a server and a `createDirectRegistry`.
 - **Short-lived.** `ttlMs` defaults to 5 minutes, at most 24 hours. Time comes from the `clock` option, else the system clock; never from `context.clock`, which a caller can set.
 - **Key rotation:** pass `secret: [newKey, oldKey]`; the first signs, any verifies.
+- **WebCrypto.** The middleware uses `globalThis.crypto` (Node.js 22 and every current browser on a secure origin), so it also runs in a browser or webview through `@lushly-dev/afd-server/direct`. Tokens are byte for byte the same in TypeScript, Python, Rust and C++ (`spec/vectors/approval-tokens.json`).
+- **In a page, the secret is not a boundary.** A signing secret held in a page is visible to every script on that page. The gate still stops a model from approving its own call through tool input, and DirectClient's private exchange never puts the secret or a token in a result the model reads, but it does not protect against code running in the page. When you need that, keep approvals on a server.
 - **Fails closed.** A policy function that returns anything but `'not-required'` holds the call; one that throws fails it before the handler. Write policies so that a missing actor is held (`kind === 'human' ? 'not-required' : 'required'`).
 - **Gates only the listed commands.** Pass the same `commands` as the server or registry: a command missing from the list is never held.
 - **Actor binding is as strong as the actor.** The MCP default actor is `{ kind: 'agent' }` with no `id`, so tokens are bound to a specific agent or user only when `createContext` or auth middleware sets one. Install the middleware after any middleware that sets or refines `context.actor`.

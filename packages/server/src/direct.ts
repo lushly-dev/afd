@@ -2,8 +2,9 @@
  * @fileoverview In-process entry point: `@lushly-dev/afd-server/direct`
  *
  * Exposes what a host that runs commands in its own process needs: the validating
- * `createDirectRegistry`, the command journal with an in-memory sink and its replay, and the
- * middleware whose module graph loads no Node.js built-in, plus everything `/define` exports. It
+ * `createDirectRegistry`, the approval middleware, the command journal with an in-memory sink and
+ * its replay, and the middleware whose module graph loads no Node.js built-in, plus everything
+ * `/define` exports. It
  * loads neither the MCP SDK nor a Node.js built-in, so the same code runs in a browser, a web
  * worker or a webview as in Node.js. The name says what the entry is for, not where it runs: a
  * Node.js host that does not want the MCP SDK can use it too.
@@ -12,8 +13,12 @@
  * strategy, the meta-tools, the context tools and, optionally, the bootstrap tools, from the same
  * code the MCP server runs. A registry built without it does not bundle the tool router.
  *
- * The root entry (`@lushly-dev/afd-server`) still exports everything below. The approval
- * middleware joins this entry once it runs on WebCrypto.
+ * The root entry (`@lushly-dev/afd-server`) still exports everything below.
+ *
+ * Approvals run on WebCrypto. In a page, the approval secret is visible to every script on that
+ * page: the gate stops a model from approving its own call through tool input, and the registry's
+ * private approval exchange keeps tokens out of results the model reads, but the secret is not a
+ * boundary against code running in the page. Keep approvals on a server when you need one.
  *
  * Module-graph rule: nothing reachable from this file may import the MCP SDK, a Node.js built-in
  * or the core subpaths that need Node.js (`/platform`, `/connectors`, `/journal-file`).
@@ -59,6 +64,15 @@ export type {
 	TelemetrySink,
 } from '@lushly-dev/afd-core';
 export { MemoryJournalSink } from '@lushly-dev/afd-core';
+export {
+	type ApprovalCommand,
+	type ApprovalMiddlewareOptions,
+	type ApprovalNonceStore,
+	type ApprovalRejection,
+	type ApprovalRequest,
+	type ApprovalSecret,
+	createApprovalMiddleware,
+} from './approval.js';
 export * from './define.js';
 export {
 	createDirectRegistry,

@@ -17,14 +17,18 @@
  *
  * The MAC is HMAC-SHA256 over `afdap1.<payload>` with the application's secret. The input and
  * actor are keyed digests rather than plain hashes, so a token reveals neither a low-entropy
- * input (such as a record ID) nor the actor ID. Every comparison is constant-time.
+ * input (such as a record ID) nor the actor ID. Every comparison is constant-time, and compares
+ * the encoded form, so a token has exactly one valid spelling.
+ *
+ * The crypto is WebCrypto (`globalThis.crypto`), so the middleware runs in Node.js 22 and in a
+ * browser alike. In a page, the secret is visible to every script on that page: it stops a model
+ * from approving its own call through tool input, not code running in the page.
  *
  * With `relay: 'mcp-elicitation'` (#418), an MCP call that can carry a form elicitation is not
  * answered with a token at all: the MCP lane asks the human behind the client, and the retry runs
  * once the signed `requestState` and the human's answer check out (see `approval-relay.ts`).
  */
 
-import { randomBytes } from 'node:crypto';
 import type {
 	Actor,
 	ApprovalDecision,
@@ -40,13 +44,18 @@ import {
 	takeDirectApproval,
 } from '@lushly-dev/afd-core/internal/direct-approval';
 import {
+	type ApprovalKey,
 	type ApprovalSecret,
 	actorJson,
+	base64url,
+	base64urlText,
 	canonicalJson,
 	createMemoryNonceStore,
+	decodeBase64urlText,
 	digest,
 	hmac,
-	safeEqual,
+	randomBytes,
+	safeEqualText,
 	toKeys,
 } from './approval-crypto.js';
 import { type ApprovalAnswer, approvalRelay, relayMessage } from './approval-relay.js';
@@ -267,13 +276,13 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		return (await decide(input, context)) !== 'not-required';
 	}
 
-	function verify(
+	async function verify(
 		evidence: unknown,
 		commandName: string,
 		input: string,
 		actor: string,
 		now: number
-	): Verdict {
+	): Promise<Verdict> {
 		if (typeof evidence !== 'string' || evidence.length > MAX_TOKEN_LENGTH) {
 			return { ok: false, reason: 'malformed' };
 		}
@@ -282,53 +291,66 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		const [, encodedPayload = '', encodedMac = ''] = parts;
 		const signingInput = `${TOKEN_PREFIX}.${encodedPayload}`;
 		// Compare the encoded MACs, so that a token has exactly one valid spelling (base64url
-		// decoding ignores padding bits and stray characters). The key that signed the token
-		// also keyed its digests.
-		const mac = Buffer.from(encodedMac);
-		const key = keys.find((candidate) =>
-			safeEqual(mac, Buffer.from(hmac(candidate, signingInput).toString('base64url')))
-		);
+		// decoding ignores padding bits). The key that signed the token also keyed its digests.
+		let key: ApprovalKey | undefined;
+		for (const candidate of keys) {
+			if (safeEqualText(encodedMac, base64url(await hmac(candidate, signingInput)))) {
+				key = candidate;
+				break;
+			}
+		}
 		if (!key) return { ok: false, reason: 'invalid-signature' };
 
 		const payload = parsePayload(encodedPayload);
 		if (!payload) return { ok: false, reason: 'malformed' };
 		if (now >= payload.exp) return { ok: false, reason: 'expired' };
-		if (!safeEqual(Buffer.from(payload.c), Buffer.from(commandName))) {
+		if (!safeEqualText(payload.c, commandName)) {
 			return { ok: false, reason: 'command-mismatch' };
 		}
-		if (!safeEqual(Buffer.from(payload.i, 'base64url'), digest(key, 'input', input))) {
+		if (!safeEqualText(payload.i, base64url(await digest(key, 'input', input)))) {
 			return { ok: false, reason: 'input-mismatch' };
 		}
-		if (!safeEqual(Buffer.from(payload.a, 'base64url'), digest(key, 'actor', actor))) {
+		if (!safeEqualText(payload.a, base64url(await digest(key, 'actor', actor)))) {
 			return { ok: false, reason: 'actor-mismatch' };
 		}
 		return { ok: true, nonce: payload.n, expiresAt: payload.exp };
 	}
 
-	function issue(commandName: string, input: string, actor: string, now: number): TokenPayload {
-		const key = keys[0] as Buffer;
+	async function issue(
+		commandName: string,
+		input: string,
+		actor: string,
+		now: number
+	): Promise<TokenPayload> {
+		const key = keys[0] as ApprovalKey;
 		return {
 			c: commandName,
-			i: digest(key, 'input', input).toString('base64url'),
-			a: digest(key, 'actor', actor).toString('base64url'),
+			i: base64url(await digest(key, 'input', input)),
+			a: base64url(await digest(key, 'actor', actor)),
 			iat: now,
 			exp: now + ttlMs,
-			n: randomBytes(16).toString('base64url'),
+			n: base64url(randomBytes(16)),
 		};
 	}
 
 	/** The binding of a relayed approval, one per key: a keyed digest of the command, input and actor. */
-	function relayBindings(commandName: string, input: string, actor: string): string[] {
-		return keys.map((key) =>
-			hmac(key, `relay\0${canonicalJson([commandName, input, actor])}`).toString('base64url')
-		);
+	async function relayBindings(
+		commandName: string,
+		input: string,
+		actor: string
+	): Promise<string[]> {
+		const data = `relay\0${canonicalJson([commandName, input, actor])}`;
+		return Promise.all(keys.map(async (key) => base64url(await hmac(key, data))));
 	}
 
 	/** The MAC of a relayed approval's nonce and expiry, so the elicitation state cannot set them. */
-	function holdMac(key: Buffer, binding: string, nonce: string, expiresAt: number): string {
-		return hmac(key, `relay-hold\0${canonicalJson([binding, nonce, expiresAt])}`).toString(
-			'base64url'
-		);
+	async function holdMac(
+		key: ApprovalKey,
+		binding: string,
+		nonce: string,
+		expiresAt: number
+	): Promise<string> {
+		return base64url(await hmac(key, `relay-hold\0${canonicalJson([binding, nonce, expiresAt])}`));
 	}
 
 	/** Whether an accepted relayed approval is genuine, unexpired and (single-use) unspent. */
@@ -339,8 +361,8 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 	): Promise<boolean> {
 		const key = keys[bindings.indexOf(answer.binding)];
 		if (!key) return false;
-		const expected = Buffer.from(holdMac(key, answer.binding, answer.nonce, answer.expiresAt));
-		if (!safeEqual(Buffer.from(answer.mac), expected)) return false;
+		const expected = await holdMac(key, answer.binding, answer.nonce, answer.expiresAt);
+		if (!safeEqualText(answer.mac, expected)) return false;
 		if (now >= answer.expiresAt || answer.expiresAt > now + ttlMs) return false;
 		return spend(answer.nonce, answer.expiresAt, now);
 	}
@@ -354,10 +376,9 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			: (await options.nonceStore?.consume(nonce, expiresAt)) === true;
 	}
 
-	function sign(payload: TokenPayload): string {
-		const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
-		const signingInput = `${TOKEN_PREFIX}.${encodedPayload}`;
-		return `${signingInput}.${hmac(keys[0] as Buffer, signingInput).toString('base64url')}`;
+	async function sign(payload: TokenPayload): Promise<string> {
+		const signingInput = `${TOKEN_PREFIX}.${base64urlText(JSON.stringify(payload))}`;
+		return `${signingInput}.${base64url(await hmac(keys[0] as ApprovalKey, signingInput))}`;
 	}
 
 	return async (commandName, input, context, next) => {
@@ -376,7 +397,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		const directExchange = directApprovalExchange(context);
 		const evidence = directExchange ? takeDirectApproval(context) : context.approval;
 		if (evidence !== undefined) {
-			const verdict = verify(evidence, commandName, inputBinding, actorBinding, now);
+			const verdict = await verify(evidence, commandName, inputBinding, actorBinding, now);
 			if (verdict.ok) {
 				if (await spend(verdict.nonce, verdict.expiresAt, now)) return next();
 				rejected = 'already-used';
@@ -391,7 +412,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			`Run ${commandName}`;
 
 		if (relay) {
-			const bindings = relayBindings(commandName, inputBinding, actorBinding);
+			const bindings = await relayBindings(commandName, inputBinding, actorBinding);
 			const answer = await relay.answer(bindings);
 			if (answer.kind === 'decline') {
 				return failure({
@@ -408,14 +429,14 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			}
 			// An expired, spent or invalid approval is asked again, saying why.
 			const binding = bindings[0] as string;
-			const nonce = randomBytes(16).toString('base64url');
+			const nonce = base64url(randomBytes(16));
 			const expiresAt = now + ttlMs;
 			relay.hold({
 				binding,
 				bindings,
 				nonce,
 				expiresAt,
-				mac: holdMac(keys[0] as Buffer, binding, nonce, expiresAt),
+				mac: await holdMac(keys[0] as ApprovalKey, binding, nonce, expiresAt),
 				message: relayMessage(
 					summary,
 					commandName,
@@ -435,8 +456,8 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			});
 		}
 
-		const payload = issue(commandName, inputBinding, actorBinding, now);
-		const approvalToken = sign(payload);
+		const payload = await issue(commandName, inputBinding, actorBinding, now);
+		const approvalToken = await sign(payload);
 		const expiresAt = new Date(payload.exp).toISOString();
 		const includeToken = !directExchange && (options.includeToken ?? context.interface !== 'mcp');
 		if (directExchange) {
@@ -484,9 +505,11 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 }
 
 function parsePayload(encoded: string): TokenPayload | undefined {
+	const text = decodeBase64urlText(encoded);
+	if (text === undefined) return undefined;
 	let value: unknown;
 	try {
-		value = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+		value = JSON.parse(text);
 	} catch {
 		return undefined;
 	}
