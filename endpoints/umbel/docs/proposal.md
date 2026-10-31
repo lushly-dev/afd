@@ -21,6 +21,7 @@ that team's systems, sources and knowledge. It starts with no capability of
 its own: it is a host into which plugins land. Knowledge, memory and context
 are the first plugins, built in this repository as working examples, but a
 deployment may run the host with any set of plugins, including none of them.
+One deployment can hold several isolated knowledge bases, called spaces.
 
 The host contains no language model. The frontier model calling it does the
 reasoning. A separate curator process may use a configured model for
@@ -159,6 +160,11 @@ flowchart LR
   tree-sitter, co-citation. Model-extracted entities are a per-collection
   opt-in with a budget. The graph is exposed as neighbors, related, path and
   outline commands and as a rank-expansion signal.
+- **Spaces.** Content, stores, memory, events, packs and curator policy are
+  kept per space, and nothing mixes unless a caller explicitly queries
+  several spaces it can read. Separate deployments are the stronger boundary.
+  The architecture's [data and content](architecture.md#7-data-and-content)
+  section has the three levels of coupling.
 - **Two stores, two write paths.** Memory is agent-writable, scoped, bitemporal
   and expiring, with episodic, semantic and procedural class labels; nothing
   in memory is verified knowledge. The knowledge base changes only through a

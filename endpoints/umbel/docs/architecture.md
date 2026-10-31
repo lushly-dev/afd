@@ -80,6 +80,11 @@ its own backends, on its own terms?
 15. **AFD first.** Where AFD has or proposes a mechanism, Umbel uses or
     extends it and records any divergence as a decision.
     [Section 6](#6-built-on-afd) is the map.
+16. **Spaces do not mix.** A deployment holds one or more spaces, each an
+    isolated knowledge base with its own content, stores, memory, events,
+    packs, curator policy and permissions. Every read and write names its
+    space; nothing crosses spaces unless a caller explicitly asks for several
+    it can read, and results stay labeled by space.
 
 ## 3. System shape
 
@@ -96,7 +101,7 @@ flowchart LR
         J["Journal and event log"]
         L["Plugin loader: compiled, WebAssembly, mounted MCP"]
         G["Host services: stores, events, HTTP, secrets"]
-        W["Workspace: config, packs, plugin list, profile"]
+        W["Workspace: spaces, config, packs, plugin list, profile"]
     end
     subgraph Plugins
         K["knowledge"]
@@ -138,11 +143,11 @@ organization.
 | Registry and discovery | One command registry; bootstrap help, docs and schema; lazy discover, detail and call; batch and pipe; AFD contexts; docs generated from the live registry | Advertising anything that cannot be called |
 | Auth middleware | The tower layer from [MCP Authorization](../../../docs/features/proposed/mcp-authorization/mcp-authorization.proposal.md): token verification, protected-resource metadata, per-command scopes, then the principal projected onto the command context; modes from none to gateway-trusted | Owning any identity provider |
 | Approvals, confirmations, journal, telemetry | From the `afd` crate: approval policies and tokens, confirmation prompts, the append-only journal with replay, telemetry events | Business policy about what needs approval; that is per command and per workspace |
-| Event log | A journal projection: each mutation command's entry becomes an event with a record reference, the provenance envelope and per-principal cursors; replay by cursor; the store behind subscriptions, webhooks, harness channels and audit | Guaranteeing delivery to a disconnected consumer; consumers resume by cursor |
+| Event log | A journal projection: each mutation command's entry becomes an event with a record reference, the provenance envelope and per-principal cursors, in one stream per space; replay by cursor; the store behind subscriptions, webhooks, harness channels and audit | Guaranteeing delivery to a disconnected consumer; consumers resume by cursor |
 | Plugin loader | Three kinds: compiled-in crates, WebAssembly components against the host WIT world, mounted external MCP servers; the [Plugin Discovery](../../../docs/features/proposed/plugin-discovery/plugin-discovery.spec.md) protocol version, conflict policy, command origin and diagnostics; capability grants | Plugin discovery by scanning; plugins calling plugins |
 | Host services | The grants in the catalog below; provenance enforcement on every store write; permission filtering on every store read | Domain logic |
-| Workspace | Deployer-owned directory: configuration, content roots, schema, packs, plugin list and settings, scale profile, store location | Anything company-specific inside the binary |
-| Store traits | Document store, search index, graph, memory store; a conformance suite every backend passes | Choosing a vendor for the deployer |
+| Workspace | Deployer-owned directory: configuration; spaces, each with its content roots, schema, packs, plugin settings and backend; the plugin list; the scale profile | Anything company-specific inside the binary |
+| Store traits | Document store, search index, graph, memory store, instantiated per space; a conformance suite every backend passes | Choosing a vendor for the deployer |
 | Embedded reference backend | Fielded lexical index, embedded key-value store, in-memory graph loaded from it, optional local embeddings | Multi-instance hosting; that is an alternative backend's job |
 | knowledge plugin | Ingest, chunk, index, structural graph, search, open, find, metadata, citations; the proposal, approve and reject commands for the knowledge base; the eval harness | Writing to the knowledge base outside a proposal |
 | memory plugin | Scoped, bitemporal, expiring memory in three classes; capture from harness hooks; recall | Promoting anything to the knowledge base |
@@ -153,6 +158,9 @@ organization.
 | Distribution | Per-platform binaries, a bundle for desktop hosts, an OCI image, a registry entry, a server card | A hosted service; deployers host it |
 
 ### Host services catalog
+
+Every grant is scoped to the spaces a plugin is enabled for and the caller
+may read; isolation between spaces is enforced here, not by plugins.
 
 | Grant | The host provides | Rule |
 | --- | --- | --- |
@@ -225,6 +233,11 @@ sequenceDiagram
   example `knowledge-search`, `knowledge-open`, `context-bundle` and
   `memory-remember`. A mounted server's tools are renamed into the rule under
   the mount's prefix, and the original tool name is kept in `_meta`.
+- **Spaces.** Every command that reads or writes content takes a space, or
+  the default space a session or AFD context binds. A query may name several
+  spaces only when the caller can read each; results are labeled by space,
+  fused for display and never written back across spaces. Proposals, memory
+  records, events and cursors each belong to exactly one space.
 - **MCP surface.** A small fixed set of first-class tools for the hot path,
   such as the four above, with lazy discovery for the rest; this hybrid
   strategy is open decision [O2](decisions.md#open-decisions) and an AFD
@@ -385,6 +398,15 @@ flowchart TD
     KB -. invalidates superseded facts .-> M
 ```
 
+The diagram runs inside one space. Three levels of coupling separate
+material, from loosest to strongest:
+
+| Level | What is separate | When |
+| --- | --- | --- |
+| Collections in one space | Nothing: they share the space's index and graph and are filtered by metadata | Material that may mix |
+| Spaces in one deployment | Content roots, stores, graph, memory, event stream, packs, curator policy and permissions; the host, plugin set and sign-in are shared | One owner, domains that must not mix by default |
+| Separate deployments | Processes, stores, keys and sign-in, possibly machines; a harness connects to each as its own MCP server, and one deployment may mount another read-only through federation | Different owners, or content that must never share a process |
+
 - The workspace holds content roots of markdown with frontmatter under a
   schema the workspace declares; a default schema ships. The on-disk container
   is compatible with the [Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
@@ -402,10 +424,11 @@ flowchart TD
 - The graph is built deterministically from hierarchy, headings, links, tags,
   owners, timestamps, code symbols and co-citation; model-extracted entities
   are a per-collection opt-in with a budget and their own provenance layer.
+  No edge crosses spaces.
 - Memory records carry a class label: episodic records of runs and sessions,
   semantic facts that people or agents asserted, and procedural notes on how
   something is done. Nothing in memory is verified knowledge. Records are
-  scoped by org, project, actor and session, bitemporal and expiring, and
+  scoped by space, project, actor and session, bitemporal and expiring, and
   indexed by the same search and graph with provenance labels. The curator
   proposes stable semantic memory as knowledge entries and stable procedural
   memory as skills in a pack, always through proposals.
@@ -479,13 +502,13 @@ flowchart LR
 
 | Phase | Goal | Exit criterion | The specification must settle |
 | --- | --- | --- | --- |
-| 0. Host skeleton | The empty host serves MCP and CLI from one registry with bootstrap discovery, the journal and its event log, and approvals, from a workspace with defaults | With zero plugins, the host's built-in commands pass the Rust server's protocol tests in both MCP eras, and the workspace doctor reports the workspace | Workspace layout and config schema; CLI envelope; event and cursor shape; version 0 of the principal projection and the provenance envelope, with reserved fields; the Cargo workspace's dependency on `packages/rust`, its MSRV, CI workflow and inventory placement |
+| 0. Host skeleton | The empty host serves MCP and CLI from one registry with bootstrap discovery, the journal and its event log, and approvals, from a workspace with defaults | With zero plugins, the host's built-in commands pass the Rust server's protocol tests in both MCP eras, and the workspace doctor reports the workspace | Workspace layout and config schema, including spaces and the default space; CLI envelope; event and cursor shape; version 0 of the principal projection and the provenance envelope, with reserved fields; the Cargo workspace's dependency on `packages/rust`, its MSRV, CI workflow and inventory placement |
 | 1. Plugin contract | Manifest, grants and the host services catalog, the WIT world, three loader kinds, skills on all three delivery paths, plugin new and plugin check, the test kit, the hello plugin | hello loads compiled, as a component and mounted; a second plugin lands with no host change; the 34-case todo conformance suite passes in legacy and modern modes with the todo example loaded as a plugin | Manifest format; WIT world v1 with clock and random; grant semantics; protocol versioning; mounted-tool renaming |
-| 2. Knowledge | Sources from the filesystem, chunking, the lexical index, the structural graph, search, open, find, metadata, citations as AFD sources, the access field on every document and chunk, the eval harness | A thousand documents indexed; results filtered by principal; recall and ranking reported on a seeded query set | Frontmatter schema and the on-disk container; access field; chunking rules; query syntax; locator format; eval set shape |
-| 3. Memory and context | Memory with class labels, scoped and bitemporal; capture through harness adapters on the shared contract; import and export of harness memory; context bundles; the provenance envelope enforced | A harness hook captures a session; a context call returns a budgeted bundle with omissions listed | Scope tuple; envelope version 1; adapter contract; bundle budget rules; hygiene and redaction policy |
-| 4. Curator | Settling window, candidates, conflict sets, proposals as decision traces, approvals per area, the verification lifecycle and inconsistency proposals, rejection feedback, scheduled runs | One proposal approved from the CLI lands in the knowledge base with full provenance | Proposal record; approval policy and the AFD approval on the apply command; settling and re-verification defaults; the optional model configuration |
-| 5. Auth and hosted | The MCP Authorization layer, the principal projected onto actor and credentials, enterprise-managed authorization, protected-resource metadata, gateway-trusted mode, the shared confirmation key and approval nonce store, Tasks for long jobs, usage events | A hosted deployment behind an external identity provider returns results filtered for its users | Trait shapes; the principal's extension fields; scope mapping; audience rules; hosted profile |
-| 6. Backends | Store traits finalized, conformance suite, embedded reference backend certified, a second backend | The second backend passes the suite; a workspace switches backends by configuration | Trait boundaries; suite contents; migration between backends |
+| 2. Knowledge | Sources from the filesystem, chunking, per-space lexical indexes and structural graphs, search, open, find, metadata, citations as AFD sources, the access field on every document and chunk, the eval harness | A thousand documents indexed across two spaces; no result crosses spaces without an explicit multi-space query; results filtered by principal; recall and ranking reported on a seeded query set | Frontmatter schema and the on-disk container; access field; chunking rules; query syntax; locator format; eval set shape |
+| 3. Memory and context | Memory with class labels, scoped by space and bitemporal; capture through harness adapters on the shared contract; import and export of harness memory; context bundles; the provenance envelope enforced | A harness hook captures a session; a context call returns a budgeted bundle with omissions listed | Scope tuple; envelope version 1; adapter contract; bundle budget rules; hygiene and redaction policy |
+| 4. Curator | Settling window, candidates and conflict sets per space, proposals as decision traces, approvals per area, the verification lifecycle and inconsistency proposals, rejection feedback, scheduled runs | One proposal approved from the CLI lands in the knowledge base with full provenance | Proposal record; approval policy and the AFD approval on the apply command; settling and re-verification defaults; the optional model configuration |
+| 5. Auth and hosted | The MCP Authorization layer, the principal projected onto actor and credentials, enterprise-managed authorization, protected-resource metadata, gateway-trusted mode, the shared confirmation key and approval nonce store, Tasks for long jobs, usage events | A hosted deployment behind an external identity provider returns results filtered for its users | Trait shapes; the principal's extension fields; scope mapping, including per-space scopes; audience rules; hosted profile |
+| 6. Backends | Store traits finalized, conformance suite, embedded reference backend certified, a second backend selectable per space | The second backend passes the suite; a workspace moves one space to it by configuration while another stays embedded | Trait boundaries; suite contents; migration between backends |
 | 7. Distribution and guides | Binaries, bundle, image, registry entry, server card and the well-known catalog file; authoring skills and guides for plugins, connectors and packs | A newcomer builds and loads a plugin from the guide alone | Artifact set; guide structure; which skills the host emits |
 
 Sequencing: phases 0 and 1 are the core and come first. The knowledge plugin,
@@ -539,6 +562,9 @@ document needs as an amendment.
 | Connector | A plugin's binding to an external system or source |
 | Backend | A swappable implementation behind a store trait |
 | Adapter | An infrastructure binding, such as auth or a harness adapter |
+| Workspace | The deployer-owned directory for one deployment: configuration, spaces, plugin list, profile |
+| Space | An isolated knowledge base inside a deployment; nothing crosses spaces by default |
+| Collection | A content root inside a space; collections in one space share its index and graph |
 | Pack | Content a plugin ships by default and an instance overrides |
 | Skill | A guidance document a plugin contributes, in the Agent Skills format |
 | AFD context | A named scope that changes which commands are visible, through `afd-context-*` |

@@ -4,9 +4,10 @@ AFD Umbel is an empty host for capability plugins, reachable over MCP and as
 a CLI. It ships with no capability of its own; knowledge, memory, context,
 tools and connectors arrive as plugins, some built here as examples and
 first-party defaults, most built by the people who deploy it for their own
-stack. The frontier model calling it does the reasoning; Umbel keeps that
-model informed, remembered and connected, with every answer traceable to its
-source.
+stack. One deployment can hold several isolated knowledge bases, called
+spaces, that never mix by default. The frontier model calling it does the
+reasoning; Umbel keeps that model informed, remembered and connected, with
+every answer traceable to its source.
 
 An umbel is an inflorescence in which every flower stalk rises from a single
 point and none depends on another. That is the architecture.
