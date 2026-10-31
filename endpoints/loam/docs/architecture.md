@@ -766,14 +766,14 @@ runs adopt it when their records land in phase 5.
 
 | Prerequisite | Needed by | Tracked in |
 | --- | --- | --- |
-| A browser-safe entry for `createDirectRegistry`, the journal and the approval middleware, with WebCrypto in place of `node:crypto` | Phase 0 | [Browser-safe direct registry](../../../docs/features/proposed/browser-direct-registry/proposal.md), parts 1 and 2; [#527](https://github.com/lushly-dev/afd/issues/527) |
+| A browser-safe entry for `createDirectRegistry`, the journal and the approval middleware, with WebCrypto in place of `node:crypto` | Phase 0 | [Browser-safe direct registry](../../../docs/features/active/browser-direct-registry/proposal.md), parts 1 and 2; [#527](https://github.com/lushly-dev/afd/issues/527) |
 | Command names refused at registration when they break `domain-action` | Phase 0 | Loam's kernel refuses them itself; AFD's Rust registry already refuses them, while the TypeScript `defineCommand` only warns, so matching TypeScript is an optional AFD change |
 | A shared plugin manifest schema reconciled with Umbel and Plugin Discovery, UI contributions as an addition | Phase 1 | New AFD feature proposal, spec first; Umbel's open decision O3 |
 | Serving MCP resources and `ui://` resources from AFD servers, reconciled with Umbel's resources prerequisite | Phase 1 for the sandboxed view | New AFD feature proposal, shared with Umbel |
-| The MCP server forwarding a declared `_meta` key into the command context, as it already reads its own `dev.afd/context` key | Phase 2 | [Declared context fields](../../../docs/features/proposed/declared-context-fields/proposal.md); [#528](https://github.com/lushly-dev/afd/issues/528); the fallback is scope as command input |
-| Journal entries that keep declared context fields, so scope, the calling app, session and turn survive into the journal and replay | Phase 2 for scope, phase 5 for the rest | [Declared context fields](../../../docs/features/proposed/declared-context-fields/proposal.md); [#528](https://github.com/lushly-dev/afd/issues/528) |
+| The MCP server forwarding a declared `_meta` key into the command context, as it already reads its own `dev.afd/context` key | Phase 2 | [Declared context fields](../../../docs/features/active/declared-context-fields/proposal.md); [#528](https://github.com/lushly-dev/afd/issues/528); the fallback is scope as command input |
+| Journal entries that keep declared context fields, so scope, the calling app, session and turn survive into the journal and replay | Phase 2 for scope, phase 5 for the rest | [Declared context fields](../../../docs/features/active/declared-context-fields/proposal.md); [#528](https://github.com/lushly-dev/afd/issues/528) |
 | The TypeScript token-verification layer, `scopes` and `credentials` for `createMcpHandler` | Phase 3, hosted | MCP Authorization proposal |
-| AFD contexts and the lazy strategy in the direct registry, not only the MCP server | Phase 5 | [Browser-safe direct registry](../../../docs/features/proposed/browser-direct-registry/proposal.md), part 3; [#527](https://github.com/lushly-dev/afd/issues/527) |
+| AFD contexts and the lazy strategy in the direct registry, not only the MCP server | Phase 5 | [Browser-safe direct registry](../../../docs/features/active/browser-direct-registry/proposal.md), part 3; [#527](https://github.com/lushly-dev/afd/issues/527) |
 | An `apps` exposure flag, specified for every language | Phase 5 | D30; new AFD feature proposal |
 | Agent, delegation, run and session record shapes, proposed to the Agent Engine proposal | Phase 5 | Agent Engine proposal |
 | A fetch-style `createMcpHandler` on web-standard Request and Response | Phase 6, optional | New AFD change; until then Hono mounts the Node handler (D36) |
