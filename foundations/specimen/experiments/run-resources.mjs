@@ -42,11 +42,15 @@ if (!consumers.length) throw new Error('--consumer must be all, fast-af or lushl
 await mkdir(directory, { recursive: true });
 if ((await readdir(directory)).length) throw new Error('Resource evidence directory must be empty');
 const json = (file, data) => writeFile(file, `${JSON.stringify(data, null, 2)}\n`);
+const policyLimits = JSON.parse(
+	await readFile(join(import.meta.dirname, 'inputs/baseline-policy.json'), 'utf8')
+).limits;
 const implementationFiles = [
 	'run-resources.mjs',
 	'run-consumers.mjs',
 	'run-batches.mjs',
 	'run-incumbent.mjs',
+	'cold-sample.mjs',
 	'incumbent.mjs',
 	'inputs/font-rewrite.mjs',
 	'inputs/remote-fonts.mjs',
@@ -88,7 +92,11 @@ const report = {
 		concurrentJobs: 1,
 		minFreeMemoryPercent: 25,
 		reservedCores: 2,
-		maxFootprintBytes: 2 * 1024 ** 3,
+		// The policy allows the incumbent's representative jobs a larger family limit (T04).
+		maxFootprintBytes:
+			workload === 'incumbent'
+				? policyLimits.incumbentFamilyFootprintBytes
+				: policyLimits.familyFootprintBytes,
 		intervalMs: 100,
 		graceMs: 500,
 		idleWindowMs: 1000,

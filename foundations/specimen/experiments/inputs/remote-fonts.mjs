@@ -63,7 +63,7 @@ export async function startFontServer(record, store) {
 	const fonts = new Map(
 		record.stylesheets.flatMap((sheet) => sheet.fonts.map((font) => [font.url, font]))
 	);
-	const stats = { stylesheets: 0, fonts: 0, bytes: 0, missing: [] };
+	const stats = { stylesheets: 0, fonts: 0, bytes: 0, missing: [], other: [] };
 	let base = '';
 	const server = createServer((request, response) => {
 		void (async () => {
@@ -73,7 +73,11 @@ export async function startFontServer(record, store) {
 					? record.stylesheets.find((sheet) => sheet.sha256 === digest)
 					: [...fonts.values()].find((font) => font.sha256 === digest);
 			if (!known) {
-				stats.missing.push(request.url ?? '');
+				// A runner only asks for recorded paths; an unknown digest there is a real miss.
+				// Anything else (for example a host tool probing new local ports) is noted apart.
+				const entry = `${request.method} ${request.url ?? ''} ${request.headers['user-agent'] ?? ''}`;
+				if (kind) stats.missing.push(entry);
+				else stats.other.push(entry);
 				response.writeHead(404, { 'access-control-allow-origin': '*' }).end();
 				return;
 			}

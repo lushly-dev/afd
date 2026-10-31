@@ -155,9 +155,17 @@ const readJson = (file) => {
 		return null;
 	}
 };
-const plan = consumers.flatMap((consumer) =>
-	['incumbent', 'candidate', 'candidate', 'incumbent'].map((path) => ({ consumer, path }))
-);
+// Nested ABBA: the incumbent outside, the candidate's in-process default and its opt-in
+// isolated worker inside, so both candidate modes sit between the same incumbent jobs.
+const paths = [
+	'incumbent',
+	'candidate',
+	'candidate-isolated',
+	'candidate-isolated',
+	'candidate',
+	'incumbent',
+];
+const plan = consumers.flatMap((consumer) => paths.map((path) => ({ consumer, path })));
 for (const [index, job] of plan.entries()) {
 	const details = study.consumers[job.consumer];
 	const server = servers[job.consumer];
@@ -175,6 +183,7 @@ for (const [index, job] of plan.entries()) {
 							details.fonts.stylesheets.map((sha) => `${server.url}/css/${sha}`)
 						),
 						SPECIMEN_BENCH_EXECUTABLE: details.browser.executable,
+						SPECIMEN_COLD_PROCESS: '1',
 					}),
 		};
 		const run = await runJob(
@@ -190,6 +199,7 @@ for (const [index, job] of plan.entries()) {
 				'--samples',
 				samples,
 				...(job.path === 'incumbent' ? ['--fonts', join(fontsRoot, job.consumer)] : []),
+				...(job.path === 'candidate-isolated' ? ['--isolation', 'process'] : []),
 				'--out',
 				directory,
 			],
@@ -200,9 +210,9 @@ for (const [index, job] of plan.entries()) {
 		const profile = report.consumers?.[0];
 		const workload = profile?.probeReport ? readJson(profile.probeReport) : null;
 		const receipt = workload?.consumers?.[0];
-		const postClose = profile?.resources?.phases?.filter(
-			(phase) => phase.name === 'post-close-idle'
-		);
+		// After every bench or Vitest process has closed: the end of each job.
+		const postCloseName = job.path === 'incumbent' ? 'post-close-idle' : 'final-idle';
+		const postClose = profile?.resources?.phases?.filter((phase) => phase.name === postCloseName);
 		const record = {
 			...job,
 			name,
@@ -234,6 +244,7 @@ for (const [index, job] of plan.entries()) {
 				files: fontsAfter.fonts - fontsBefore.fonts,
 				bytes: fontsAfter.bytes - fontsBefore.bytes,
 				missing: fontsAfter.missing.slice(fontsBefore.missing.length),
+				other: fontsAfter.other.slice(fontsBefore.other.length),
 			},
 			hostBefore: profile?.hostBefore ?? report.hostBefore ?? null,
 		};
@@ -251,19 +262,29 @@ for (const [index, job] of plan.entries()) {
 	}
 }
 study.band = probeBand(study.jobs, policy.hostCondition.maxProbeRatio);
-study.comparison = compare(study.jobs, study.band, {
+const tolerance = {
 	maxSpreadPercent: policy.tolerances.repeatability.cpuSpreadPercent,
 	noiseFloorPercent: policy.tolerances.noiseFloorPercent,
-});
+};
+study.comparison = Object.fromEntries(
+	['candidate', 'candidate-isolated'].map((candidate) => [
+		candidate,
+		compare(
+			study.jobs.filter((job) => job.path === 'incumbent' || job.path === candidate),
+			study.band,
+			{ ...tolerance, candidate }
+		),
+	])
+);
 study.finishedUtc = new Date().toISOString();
 save();
-for (const row of study.comparison) {
-	process.stdout.write(
-		`${row.consumer}${row.held.length ? ` held: ${row.held.join('; ')}` : ''}\n`
-	);
-	for (const entry of row.results)
-		process.stdout.write(
-			`  ${entry.label}: incumbent ${entry.incumbent} candidate ${entry.candidate} ratio ${entry.ratio?.toFixed(3)} ${entry.verdict}\n`
-		);
-}
+for (const [candidate, rows] of Object.entries(study.comparison))
+	for (const row of rows) {
+		const held = row.held.length ? ` held: ${row.held.join('; ')}` : '';
+		process.stdout.write(`${row.consumer} incumbent vs ${candidate}${held}\n`);
+		for (const entry of row.results)
+			process.stdout.write(
+				`  ${entry.label}: incumbent ${entry.incumbent} candidate ${entry.candidate} ratio ${entry.ratio?.toFixed(3)} ${entry.verdict}\n`
+			);
+	}
 for (const server of Object.values(servers)) await server.close();
