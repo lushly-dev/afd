@@ -77,6 +77,13 @@ afd::ReplayReport report = afd::replay_journal(fresh_registry, *entries);
 
 ## Approvals
 
+For agents, use `DirectClient` with `DirectClientOptions::on_approval_needed`. Its
+`DirectApprovalRequest` contains command, input, summary, expiry, rejection reason and
+cancellation, never the credential. Only a true answer enables one private retry. Public
+call/pipe contexts cannot approve, and held results, observers and journals contain no token.
+The synchronous hook must cooperate with `request.cancellation`; a late answer never retries.
+The raw registry example below is a trusted host API for out-of-band approval handling.
+
 ```cpp
 afd::CommandDefinition remove{.name = "todo-delete", /* ... */ .approval = afd::ApprovalDecision::required};
 auto approval = afd::create_approval_middleware(

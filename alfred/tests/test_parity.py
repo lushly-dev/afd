@@ -877,6 +877,7 @@ NAME_GAP_BUDGET = {
     # C++ 92 → 79 (#427): afd-cpp exports all 13 command-journal names.
     # Python 91 → 88 (#420): ApprovalDecision, ApprovalPolicy and approval_mode.
     # C++ 79 → 76 (#422): afd-cpp exports ApprovalDecision, ApprovalPolicy and approval_mode.
+    # #460 adds client-layer approval hooks; these core-export budgets stay unchanged.
     "missing_from_python": 88,
     "missing_from_rust": 9,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC

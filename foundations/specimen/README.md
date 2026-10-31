@@ -96,7 +96,9 @@ The static page's Theme control applies CSS color-scheme and theme attributes. F
 
 `pnpm -F @lushly-dev/specimen test:browser` runs the full native suite: unit, resource-collector, process-worker and Chromium integration tests. Chromium must be installed (`pnpm -F @lushly-dev/specimen exec playwright install chromium`); missing binaries are failures, not skipped acceptance. The repository-wide `pnpm test` and `pnpm check` run only the browser-free subset (`pnpm -F @lushly-dev/specimen test`, see `vitest.unit.config.ts`); the full suite and the packed-artifact consumers run in the path-filtered `specimen.yml` workflow. The adapter and CLI retain their tests in their own packages. Browser-runtime coverage comes from those real-browser assertions; the Node V8 coverage report excludes browser-only modules because they execute in a different process.
 
-See [implementation status](../../docs/features/active/specimens/implementation.md) for the current acceptance boundary and remaining proposal gates.
+Read [current status](../../docs/features/active/specimens/STATUS.md) for verified progress, known gaps and delivery state, then the [implementation plan](../../docs/features/active/specimens/implementation.md) for ordered tasks and the remaining acceptance gates.
+
+The [warm CPU investigation](../../docs/features/active/specimens/cpu-hotspot-validation.md) records a development-server sourcemap optimization and its separate diagnostic and ordinary resource measurements. Existing maps and source invalidation remain covered by HTTP/browser regressions.
 
 The opt-in [real consumer probes](experiments/README.md) exercise actual FAST-AF and Lushly source with recorded dependency limitations. They are separate from the self-contained package suite and do not establish retained-CSF parity.
 

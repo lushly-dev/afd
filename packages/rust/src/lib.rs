@@ -60,6 +60,8 @@ pub struct ReadmeDoctests;
 // Module declarations
 pub mod actor;
 pub mod approval;
+pub mod direct;
+pub use direct::{DirectApprovalHook, DirectApprovalRequest, DirectClient};
 pub mod batch;
 pub mod bootstrap;
 pub mod builtin_names;

@@ -144,6 +144,7 @@ class CommandContext:
     clock: Optional[Clock] = None
     random: Optional[RandomSource] = None
     approval: Optional[str] = None
+    _direct_approval: Any = field(default=None, repr=False, compare=False)
 
 
 # Type alias for command handler functions

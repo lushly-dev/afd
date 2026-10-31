@@ -1,0 +1,168 @@
+{
+	"schema": "specimen-consumer-inputs/1",
+	"consumers": {
+		"lushly": {
+			"repository": "https://github.com/lushly-dev/lushly",
+			"storybookConfig": ".storybook",
+			"prepare": ["pnpm cem:analyze", "pnpm --filter @lushly/web prebuild"],
+			"incumbentRunner": "pnpm test:storybook (scripts/run-browser-iteration.mjs storybook over vitest.storybook.config.ts)",
+			"configFiles": [
+				".storybook/main.ts",
+				".storybook/preview.ts",
+				".storybook/preview-head.html",
+				".storybook/manager.ts",
+				".storybook/tsconfig.json",
+				"vitest.storybook.config.ts",
+				"package.json",
+				"apps/web/package.json",
+				"pnpm-workspace.yaml",
+				"custom-elements-manifest.config.js",
+				"lefthook.yml"
+			],
+			"obligations": [
+				{
+					"id": "check-storybook",
+					"summary": "check:cem, type-check:storybook, test:storybook, build-storybook and the bundle budget",
+					"files": ["package.json", "scripts/check-storybook-bundle.mjs"]
+				},
+				{
+					"id": "browser-iteration",
+					"summary": "Storybook Vitest run, two-worker cap and host evidence",
+					"files": [
+						"scripts/run-browser-iteration.mjs",
+						"scripts/storybook-browser-dependencies.mjs",
+						"scripts/storybook-selection-config.mjs",
+						"vitest.storybook.config.ts"
+					]
+				},
+				{
+					"id": "final-validation",
+					"summary": "Exclusive storybook stage, once-only retry and flake identities keyed storybook:<file>::<titles>",
+					"files": [
+						"scripts/final-validation-plan.mjs",
+						"scripts/run-final-storybook.mjs",
+						"scripts/final-validation-flakes.mjs",
+						"scripts/final-validation-workers.test.mjs"
+					]
+				},
+				{
+					"id": "ci-selection",
+					"summary": ".storybook paths select Storybook validation",
+					"files": ["scripts/ci-selection.test.mjs"]
+				},
+				{
+					"id": "scaffold",
+					"summary": "Component scaffold emits a story with a play assertion",
+					"files": ["scripts/create-lushly-component.mjs"]
+				},
+				{
+					"id": "cem",
+					"summary": "Generated custom-elements.json feeds autodocs and type checks",
+					"files": ["custom-elements-manifest.config.js", "scripts/normalize-custom-elements.mjs"]
+				}
+			],
+			"vendor": [
+				"vendor/lushly-dev-fast-element-3.0.1.tgz",
+				"vendor/lushly-dev-violet-elements-0.1.0-repaired-d5e6eaf-grid-cell-hints.tgz",
+				"vendor/lushly-dev-violet-elements-0.1.0.upstream.tgz"
+			],
+			"staticDirs": ["apps/web/public/site", "apps/web/public/field-notes"],
+			"remoteHtml": [".storybook/preview-head.html"],
+			"packages": {
+				".": [
+					"storybook",
+					"@storybook/addon-a11y",
+					"@storybook/addon-docs",
+					"@storybook/addon-vitest",
+					"@storybook/web-components-vite",
+					"vitest",
+					"@vitest/browser-playwright",
+					"@vitest/browser-playwright>playwright",
+					"vite",
+					"@storybook/addon-a11y>axe-core",
+					"@vitest/browser-playwright>playwright>playwright-core"
+				],
+				"apps/web": [
+					"@lushly-dev/fast-element",
+					"@lushly-dev/violet-elements",
+					"@webcomponents/scoped-custom-element-registry"
+				]
+			}
+		},
+		"fast-af": {
+			"repository": "https://github.com/lushly-dev/fast-af",
+			"storybookConfig": ".storybook",
+			"prepare": [
+				"pnpm theme:violet",
+				"pnpm icons:violet",
+				"pnpm cem:violet",
+				"pnpm --dir packages/element/packages/fast-element build:tsc"
+			],
+			"incumbentRunner": "pnpm test-storybook (vitest --project=storybook --run)",
+			"configFiles": [
+				".storybook/main.ts",
+				".storybook/preview.ts",
+				".storybook/preview-head.html",
+				".storybook/manager.ts",
+				".storybook/tsconfig.json",
+				"vitest.config.ts",
+				"package.json",
+				"packages/violet-elements/package.json",
+				"pnpm-workspace.yaml",
+				"lefthook.yml"
+			],
+			"obligations": [
+				{
+					"id": "ci-storybook-scope",
+					"summary": "CI v3 storybook scope: test-storybook then build-storybook in the Playwright 1.58.2 container",
+					"files": [".github/workflows/ci.yml", "scripts/check-v3.mjs"]
+				},
+				{
+					"id": "pre-push",
+					"summary": "build-storybook and Fastbot tests on pre-push; Fastbot validate on pre-commit",
+					"files": ["lefthook.yml"]
+				},
+				{
+					"id": "fastbot-story-contract",
+					"summary": "Story contract, a11y policy/exception and story performance validation",
+					"files": [
+						"plugins/fastbot-fast-af/src/fastbot_fast_af/commands.py",
+						"plugins/fastbot-fast-af/src/fastbot_fast_af/plugin.py"
+					]
+				},
+				{
+					"id": "story-performance-baselines",
+					"summary": "Recorded CDP story performance baselines",
+					"files": ["packages/violet-elements/story-performance-baselines.jsonc"]
+				},
+				{
+					"id": "cem",
+					"summary": "Committed custom-elements.json feeds autodocs",
+					"files": [
+						"packages/violet-elements/custom-elements-manifest.config.js",
+						"packages/violet-elements/custom-elements.json"
+					]
+				}
+			],
+			"vendor": [],
+			"staticDirs": [],
+			"remoteHtml": [".storybook/preview-head.html"],
+			"packages": {
+				".": [
+					"storybook",
+					"@storybook/addon-a11y",
+					"@storybook/addon-docs",
+					"@storybook/addon-vitest",
+					"@storybook/web-components-vite",
+					"vitest",
+					"@vitest/browser-playwright",
+					"playwright",
+					"vite",
+					"@storybook/addon-a11y>axe-core",
+					"playwright>playwright-core",
+					"@lushly-dev/fast-element"
+				]
+			}
+		}
+	}
+}

@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { arch, cpus, platform, release } from 'node:os';
 import { join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { calibrate } from './resources/calibrate.mjs';
 import { apiIdentity } from './resources/heap.mjs';
 import { admission, hostSnapshot } from './resources/host.mjs';
@@ -27,6 +28,9 @@ if (!Number.isInteger(batches) || batches < 1 || batches > 10)
 	throw new Error('--batches must be 1..10');
 const lifetime = option('--lifetime', 'reuse');
 if (!['reuse', 'batch'].includes(lifetime)) throw new Error('--lifetime must be reuse or batch');
+const cpuProfiling = args.includes('--cpu-profile');
+if (cpuProfiling && (workload !== 'batches' || batches < 2 || lifetime !== 'reuse'))
+	throw new Error('--cpu-profile requires batch workload, at least two rounds and lifetime reuse');
 const runtimeIsolation = option('--isolation', 'in-process');
 if (!['in-process', 'process'].includes(runtimeIsolation))
 	throw new Error('--isolation must be in-process or process');
@@ -62,10 +66,13 @@ const report = {
 	formatVersion: 1,
 	runtimeIsolation,
 	workload,
+	cpuProfiling,
 	...(workload === 'batches' ? { batches, lifetime } : {}),
 	createdUtc: new Date().toISOString(),
 	status: 'failed',
-	purpose: 'Single-job native resource pilot; no incumbent savings or concurrency claim',
+	purpose: cpuProfiling
+		? 'Diagnostic warmed Node CPU profiles; instrumented resource totals are not ordinary acceptance'
+		: 'Single-job native resource pilot; no incumbent savings or concurrency claim',
 	runtime: { node: process.version, executable: process.execPath },
 	host: { platform: platform(), release: release(), arch: arch(), cpu: cpus()[0]?.model },
 	budgets: {
@@ -111,6 +118,8 @@ try {
 				throw new Error(`Host admission: ${profile.admission.reasons.join(', ')}`);
 			const probeOutput = join(profileDirectory, 'probe');
 			const phasesFile = join(profileDirectory, 'phases.jsonl');
+			const cpuProfileDirectory = join(profileDirectory, 'cpu-profiles');
+			if (cpuProfiling) await mkdir(cpuProfileDirectory);
 			const childArgs = [
 				join(import.meta.dirname, workload === 'batches' ? 'run-batches.mjs' : 'run-consumers.mjs'),
 				'--consumer',
@@ -134,6 +143,17 @@ try {
 				command: process.execPath,
 				args: childArgs,
 				env: {
+					...(cpuProfiling
+						? {
+								SPECIMEN_CPU_PROFILE_DIRECTORY: cpuProfileDirectory,
+								NODE_OPTIONS: [
+									process.env.NODE_OPTIONS ?? '',
+									`--import=${pathToFileURL(join(import.meta.dirname, 'resources/cpu-profile-preload.mjs')).href}`,
+								]
+									.join(' ')
+									.trim(),
+							}
+						: {}),
 					SPECIMEN_BENCH_ISOLATION: runtimeIsolation,
 					...(option('--api') ? { SPECIMEN_BENCH_API: resolve(option('--api')) } : {}),
 					SPECIMEN_RESOURCE_EVENTS: phasesFile,
@@ -164,6 +184,7 @@ try {
 			profile.consumerAfter = result.consumerAfter;
 			profile.probeStatus = result.status;
 			profile.probeReport = join(probeOutput, 'report.json');
+			if (cpuProfiling) profile.cpuProfiles = result.cpuProfiles;
 			if (workload === 'batches') {
 				profile.batchWorkload = {
 					batchCount: result.batchCount,

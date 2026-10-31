@@ -453,6 +453,7 @@ pub struct CommandContext {
 
     /// What a journal recorder and replay pass to nested calls.
     pub(crate) journal_state: JournalContextState,
+    pub(crate) direct_approval: Option<Arc<std::sync::Mutex<crate::direct::Exchange>>>,
 }
 
 impl fmt::Debug for CommandContext {

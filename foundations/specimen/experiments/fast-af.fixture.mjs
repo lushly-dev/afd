@@ -183,6 +183,7 @@ export default {
 	],
 	dependencyLinks: [
 		{ from: 'packages/element/packages/fast-element', to: 'node_modules/@microsoft/fast-element' },
+		{ from: 'packages/element/packages/fast-element', to: 'node_modules/@lushly-dev/fast-element' },
 	],
 	tsconfig: {
 		compilerOptions: {

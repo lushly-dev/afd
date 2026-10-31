@@ -1,21 +1,22 @@
 # Specimens: an agent-first component bench to replace Storybook
 
-> **Status:** Proposed — revised after review; executable acceptance gates remain open
-> **Last Updated:** 2026-10-28
-> **Tracking Area:** `docs/features/proposed/specimens`
+> **Status:** Proposed replacement contract; native feasibility implemented, complete workstream 0 gate open
+> **Last Updated:** 2026-10-30
+> **Read First:** [Current status](../../active/specimens/STATUS.md), then the [implementation plan](../../active/specimens/implementation.md)
+> **Tracking Area:** `docs/features/active/specimens` for progress; this file retains the full acceptance contract
 > **Origin:** Moved from Violet on 2026-10-28; source commit `2b1f94321a1ef458c1364a91ad63f29b304266e4`. See [detailed review](review.md).
 > **Builds on:** FAST-AF [Definition Schema](https://github.com/lushly-dev/fast-af/blob/main/docs/features/complete/definition-schema/definition-schema.proposal.md), [`@command` decorator](https://github.com/lushly-dev/fast-af/tree/main/docs/features/complete/command-decorator) and [trust events](https://github.com/lushly-dev/fast-af/blob/main/docs/features/complete/trust-events-v2/trust-events-v2.proposal.md); `@lushly-dev/afd-testing` scenario runner; Violet [lens plan](https://github.com/lushly-dev/violet/blob/2b1f94321a1ef458c1364a91ad63f29b304266e4/docs/features/active/violet-ux-lenses.plan.md) workstream 4 (visual specimens) and workstream 2 (`changes.impact`)
-> **Scope:** Any web component. A project needs nothing from the Ultraviolet stack to use it; FAST-AF, Violet and AFD support are optional plugins (see *Compatibility scope*). The first consumers are the Ultraviolet stack: fast-af, Lushly and Violet. The brainstorm started in Violet; this proposal now lives in AFD, the proposed home of the core package. Violet web remains the proposed first consumer of the agent-facing commands.
+> **Scope:** Any web component. A project needs nothing from the Ultraviolet stack to use it; FAST-AF, Violet and AFD support are optional plugins (see *Compatibility scope*). The first consumers are the Ultraviolet stack: fast-af, Lushly and Violet. The brainstorm started in Violet; native core, AFD bindings and CLI now live as separate units in the AFD monorepo. Violet web remains a proposed consumer of the agent-facing commands; its lens is not implemented.
 
 ## Summary
 
-Specimens is a proposed component bench built on AFD: commands list, validate, render, inspect, run, diff and profile component states; a minimal human index and an optional Violet lens consume the same operations. Projects need no AFD, FAST-AF or Violet integration to use it. Stack-specific behavior belongs in optional plugins.
+Specimens is an agent-first component bench with a native foundation and optional AFD command bindings. The target commands list, validate, render, inspect, run, diff and profile component states; a minimal human index and an optional Violet lens use the common lifecycle and accepted operations. The native core requires no AFD, FAST-AF or Violet package. Stack-specific behavior belongs in optional integrations.
 
 The opportunity is a shared observation contract for web components, schema-backed coverage, and token impact with provenance. Storybook already provides an interaction-test harness and agent-facing tools. Replacing it must earn its cost through capabilities and measured operation, rather than an assumption that all of its static bundles load in every test.
 
 The first deliverable is a feasibility experiment with a real bench page and commands. It must detect defined CSS, accessibility and state changes, expose unsupported observations, and establish runtime cost. Then a compatibility runner must preserve the existing suites and gates. **Storybook removal is conditional on full parity and operational replacement checks.** The optional catalog lens follows those proofs.
 
-This revision addresses the design findings in [the review](review.md). Requirements below describe proposed behavior. The initial native feasibility implementation and its acceptance boundary are tracked in the [implementation plan](../../active/specimens/implementation.md); the complete workstream and migration gates remain open.
+This revision retains the design findings in [the review](review.md) and reconciles package ownership with the reviewed monorepo split. Requirements below describe target behavior, including unimplemented commands and plugins. The [status ledger](../../active/specimens/STATUS.md) records main delivery, branch verification, gaps and evidence; the [implementation plan](../../active/specimens/implementation.md) orders the remaining tasks. Native list/render/diff/build, the static index and resource pilots exist; complete workstream 0 and migration gates remain open.
 
 ## Problem and existing capabilities
 
@@ -61,7 +62,7 @@ The first resource milestone MUST calibrate whole-process measurement on a contr
 
 - The bench MUST expose each capability as an AFD command before adding its UI. CLI, MCP and programmatic adapters MUST share command behavior.
 - The migration MUST preserve discovery, identities, assertions, accessibility policy, flake handling, worker limits, profiling, typechecks, scaffolding and human review before removing Storybook.
-- A project MUST be able to install the core without declaring any AFD, FAST-AF or Violet package itself. AFD remains a transitive bench dependency.
+- A project MUST be able to install the native core without any AFD, FAST-AF or Violet dependency, peer or install hook. AFD command definitions MUST live in the separate optional integration; the CLI endpoint MAY depend on that integration for its own operation.
 - Tests MUST NOT require a live Violet service. Node context and hypothetical token changes MUST use a versioned local snapshot.
 - Observations MUST state their channels, checkpoint, provenance and completeness. An empty structural diff MUST NOT be presented as visual equivalence.
 - Coverage MUST distinguish a represented state, an executed assertion and a verified behavior. Unknown evidence MUST NOT count as covered.
@@ -202,10 +203,12 @@ Comparing git refs MUST build each revision with its recorded dependency state i
 
 ```mermaid
 flowchart LR
-  CLI[CLI / MCP / API] --> Commands[Shared AFD commands]
-  Tests[Vitest driver] --> Life[Common case lifecycle]
+  CLI[CLI / MCP composition] --> Commands[Optional AFD bindings]
+  API[Native API] --> Life[Common case lifecycle]
+  Tests[Planned Vitest driver] --> Life
   Commands --> Life
-  Index[Static index / Violet lens] --> Commands
+  Index[Static index] --> Life
+  Lens[Optional Violet lens] --> Commands
   Life --> Page[Isolated specimen document]
   Page --> Capture[Versioned observations and evidence]
   Capture --> Results[Diff / coverage / impact / profile]
@@ -356,24 +359,29 @@ A coverage claim MUST bind `target`, schema member/partition, `checkpoint`, and 
 
 ## Packages and surfaces
 
-| Piece | Proposed home |
-| --- | --- |
-| Core format, compatibility adapter, Vite plugin, lifecycle, observations, test helpers, commands, profiler, CLI/MCP, static index | `@lushly-dev/specimen` in AFD; accept fixed versioning initially |
-| Definition Schema, theme context, component-command runner, trust events, private token aliases | `@lushly-dev/specimen-fast-af` in FAST-AF |
-| Offline snapshot/name-map export, node context, impact, node matrix and token specimens | `@lushly-dev/specimen-violet` in Violet |
-| Application-command/view-state runner and assertions | `@lushly-dev/specimen-afd` in AFD |
-| Contract/profile adapter | Existing Fastbot plugin; consumes core commands |
-| Optional Specimens lens | Violet web; consumes core commands and Violet plugin |
+The monorepo split supersedes the original all-in-one package allocation. Current paths and unreleased import changes are recorded in the [split transition](../../active/platform-monorepo/specimen-transition.md). These units remain quarantined; future package rows below are proposals, not publication admission.
 
-Core publishing does not depend on FAST-AF publishing. The FAST-AF plugin MUST obtain a supported package distribution before consumer cutover; [Violet #42](https://github.com/lushly-dev/violet/issues/42) is the recorded publishing dependency and MUST be rechecked. Vendoring costs remain documented in Violet's vendor README. A no-stack consumer fixture MUST prove core install, render and run without explicit AFD/FAST-AF/Violet packages in its manifest.
+| Piece | Current or proposed home | Delivery state |
+| --- | --- | --- |
+| Native format/configuration, Vite tooling, lifecycle, observations, diff, static index and data validators | `@lushly-dev/specimen`, `foundations/specimen` | Implemented bounded native milestone; no AFD dependency or peer |
+| AFD command definitions, `CommandResult` validation and MCP-host composition | `@lushly-dev/specimen-afd`, `integrations/specimen-afd` | list/render/diff/build only; not the application-command runner |
+| JSON CLI binary and embedding API | `@lushly-dev/specimen-cli`, `endpoints/specimen-cli` | Same four operations through the bindings |
+| Retained-CSF adapter, browser test helpers, full runner, remaining core commands and profiler | Native foundation plus optional AFD bindings/CLI where appropriate | Planned; exact entry points/contracts MUST be specified and exercised in workstreams 1–2 |
+| Definition Schema, theme context, component-command runner, trust events and private token aliases | Proposed `@lushly-dev/specimen-fast-af` integration in the AFD monorepo | Not implemented; unit/path and release placement MUST be recorded before creation |
+| Offline snapshot/name-map export, node context, impact, node matrix and token specimens | Proposed `@lushly-dev/specimen-violet` integration in the AFD monorepo | Not implemented; Violet owns token semantics and the integration owns bench composition |
+| Application-command/view-state runner and assertions | Optional AFD integration; distribution allocation remains open | Not implemented; `specimen-afd` currently names the command bindings and MUST NOT imply this capability |
+| Contract/profile adapter | Existing Fastbot tooling consuming accepted commands | Not implemented |
+| Optional Specimens lens | Violet consumer frontend over accepted commands | Not implemented; native static review exists independently |
 
-The bench configuration and static output live at each consumer's repository root, matching the current test-tooling boundary; source stories stay co-located. The core lives in AFD; implementation issues belong to the repository owning each change. An app-command consumer is the technical checkpoint for the optional AFD plugin; it is not a prerequisite for the Storybook replacement.
+Native core publication MUST remain independent of FAST-AF plugin publication. The FAST-AF plugin MUST obtain a supported package distribution before consumer cutover. The earlier [Violet #42](https://github.com/lushly-dev/violet/issues/42) publishing reference is historical; its current applicability MUST be reconciled against the monorepo release inventory and accepted artifacts rather than treated as a verified current blocker. No issue or registry state is asserted by this plan update. A no-stack consumer fixture MUST prove core install, render and run without AFD/FAST-AF/Violet packages; the current packed native fixture proves install/render/build, while the full runner remains future work.
 
-Violet's optional lens MUST show the command-provided identities, observations, incomplete states and evidence links. Its iframe MUST use the common viewport/context contract. It MAY provide Tree/Matrix token links, labeled as candidates until impact is observed. Arg editing remains in source in the first lens; screenshots and the index provide human review before that lens exists.
+Bench configuration and static output live at each consumer's repository root; source stories stay co-located. Implementation changes to native/FAST-AF/Violet units belong to this monorepo; Lushly application migration remains owned by Lushly. New units and publication MUST follow the architecture/release inventory and normal admission workflow. An app-command consuming scenario is the checkpoint for its optional runner, not a prerequisite for Storybook replacement.
+
+Violet's optional lens MUST show command-provided identities, observations, incomplete states and evidence links. Its iframe MUST use the common viewport/context contract. It MAY provide Tree/Matrix token links, labeled as candidates until impact is observed. Arg editing remains in source in the first lens; screenshots and the index provide human review before that lens exists.
 
 ## Sequencing and acceptance
 
-Each workstream MUST expose commands and pass its stated checks before dependent surfaces ship. Sizes are estimates, not permission to omit a gate.
+Each workstream MUST expose commands and pass its stated checks before dependent surfaces ship. Sizes are estimates, not permission to omit a gate. Current workstream states and verification are in [STATUS.md](../../active/specimens/STATUS.md#workstream-progress); tasks T01–T11 in the [implementation plan](../../active/specimens/implementation.md#ordered-implementation-queue) name what remains. The table below is the target delivery sequence, not a completion claim.
 
 | Order | Workstream | Size | Acceptance gate |
 | --- | --- | --- | --- |
@@ -413,7 +421,7 @@ An agent MUST receive only the captures/diffs for the supported structured cases
 | CSS dependency analysis is incomplete | Preserve partial status, broaden candidate runs, and return unknown for unobserved combinations |
 | Components do not adopt commands/trust events | Continue actions/DOM checks; expose absent capability, never claim command coverage |
 | Baselines lose comparability | Record the exact environment and cutover; separate runner changes from component changes |
-| Cross-repo package/release timing diverges | Require published compatible plugin artifacts and consumer full gates before each cutover |
+| Family package/release timing diverges | Require admitted compatible plugin artifacts and consumer full gates before each cutover; reconcile the monorepo inventory and remaining external consumers |
 | Human review depends on unavailable generated assets | Build and reopen the static index/screenshots as a required cutover check |
 
 Decisions made in this revision: core home is AFD; name is Specimens; files retain `.stories.ts`; scenarios are validated TypeScript objects exportable to JSON; render defaults to mount with explicit state checkpoints; public token maps belong to Violet and private aliases to FAST-AF; screenshot capture is required and pixel comparison optional. Remaining work is executable evidence and repository-owned implementation issues.

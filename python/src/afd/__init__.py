@@ -238,6 +238,9 @@ from afd.core.streaming import (
 )
 from afd.direct import (
     DirectClient,
+    DirectApprovalRequest,
+    DirectCommandRegistry,
+    create_direct_registry,
     DirectRegistry,
     SimpleRegistry,
     DirectClientOptions,
@@ -536,6 +539,9 @@ __all__ = [
     "create_timeout_controller",
     # Direct execution
     "DirectClient",
+    "DirectApprovalRequest",
+    "DirectCommandRegistry",
+    "create_direct_registry",
     "DirectRegistry",
     "SimpleRegistry",
     "DirectClientOptions",

@@ -2134,9 +2134,9 @@
       "path": "integrations/violet-afd/src/commands/import/tree.test.ts",
       "upstream_path": "packages/core/src/commands/import/tree.test.ts",
       "upstream_sha256": "5cc6d46ec7970585b572ef228f31042dbda98d0f8fc52d5a784238ddc40b70d2",
-      "current_import_sha256": "62c49876793156b033dab1f0787217c7780335bfb1f3ede83ba50568c8d51b00",
+      "current_import_sha256": "f4e43e1d88d480d4d6ae82cc557e65e85285838ab288fe55ed4e4293b5cde2f7",
       "classification": "adapted",
-      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9; document the synthetic Windows path fixture exemption for the root portability hook",
       "candidate": {
         "path": "packages/afd/src/commands/import/tree.test.ts",
         "sha256": "5cc6d46ec7970585b572ef228f31042dbda98d0f8fc52d5a784238ddc40b70d2",
