@@ -55,7 +55,7 @@ The primary ordinary plan uses two isolated before/after pairs in ABBA order, al
 | Isolated candidate, repetition 2 | 53.028 | 0.589 | 542.44 | 42.54 |
 | Isolated baseline, repetition 2 | 54.777 | 0.609 | 548.07 | 42.82 |
 
-Isolated candidate CPU was **8.85% / 3.19% lower** than its paired baselines. This is a small shared-host pilot, not a universal savings estimate or a significance claim. The isolated baseline/candidate ranges overlap; browser CPU also varied. The profiles establish the specific hotspot reduction without turning sampled attribution into an authoritative total.
+Isolated candidate CPU was **8.85% / 3.19% lower** than its paired baselines. This is a small shared-host pilot, not a universal savings estimate or a significance claim. Browser CPU also varied. The profiles establish the specific hotspot reduction without turning sampled attribution into an authoritative total.
 
 Isolated active peaks changed **+0.36% / −1.03%**, so the data does not show a consistent peak-memory improvement. Post-close footprint remained **42.54–42.88 MiB** across all four jobs. The isolated close-time recovery benefit remains, while retaining an open worker still incurs its full active footprint. Default isolation and worker lifetime policies are unchanged.
 

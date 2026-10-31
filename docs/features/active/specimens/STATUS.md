@@ -1,6 +1,6 @@
 # Specimens status
 
-Read this before the implementation plan. This ledger records verified progress, known gaps and the next gates. Last reconciled **2026-10-30** against branch `codex/specimen-cpu-profile` at `bb54a03b` and fetched `origin/main` at `40b6a7cc`.
+Read this before the implementation plan. This ledger records verified progress, known gaps and the next gates. Last reconciled **2026-10-30** against reviewed branch source `ea359184` and fetched main base `40b6a7cc`. [PR #517](https://github.com/lushly-dev/afd/pull/517) records delivery of the branch milestones; use its merge state and resulting commit for current main delivery. Named source SHAs retain the measured/reviewed checkpoints.
 
 ## Keeping this current
 
@@ -15,8 +15,8 @@ Read this before the implementation plan. This ledger records verified progress,
 | Area | State | Evidence and last verification | Still open |
 | --- | --- | --- | --- |
 | Native feasibility, consumer probes, calibrated macOS measurement, lazy runtime and optional worker | Done / merged as the bounded native milestone | [#476](https://github.com/lushly-dev/afd/pull/476), `05dad725`; ancestry and split contracts verified against `origin/main` on 2026-10-30 | Complete workstream 0 acceptance, incumbent parity and release admission |
-| Cached fallback sourcemaps and warm Node CPU profiling | Implemented on branch | `22c6106c`; [CPU study](cpu-hotspot-validation.md), ordinary layout-preserving comparisons and browser/HTTP regressions | Main merge and broader frozen-input performance evidence |
-| Updated monorepo resource matrix and runtime alias compatibility | Implemented on branch | `71505dc6`, `bb54a03b`; [rerun](monorepo-resource-validation.md), 14 completed jobs / 832 verified captures on 2026-10-30 | Attribution of the CPU increase, frozen current dependency/assets and incumbent measurements |
+| Cached fallback sourcemaps and warm Node CPU profiling | Implemented; [delivery record #517](https://github.com/lushly-dev/afd/pull/517) | `22c6106c`; [CPU study](cpu-hotspot-validation.md), ordinary layout-preserving comparisons and browser/HTTP regressions | Main delivery readback via #517; broader frozen-input performance evidence remains open |
+| Updated monorepo resource matrix and runtime alias compatibility | Implemented; [delivery record #517](https://github.com/lushly-dev/afd/pull/517) | `71505dc6`, `bb54a03b`; [rerun](monorepo-resource-validation.md), 14 completed jobs / 832 verified captures on 2026-10-30 | Attribution of the CPU increase, frozen current dependency/assets and incumbent measurements |
 | Full replacement | In progress; workstream 0 gate open | Native API, four AFD definitions, JSON CLI, static page and resource pilots | Compatibility adapter, full runner, operational replacement and qualified consumer cutover |
 | Distribution | Quarantined | [Release inventory](../../../../scripts/release/inventory.json) and [split transition](../platform-monorepo/specimen-transition.md), read back on 2026-10-30 | Publisher authority and guarded release admission; no registry-publication claim |
 
@@ -71,7 +71,7 @@ The native core is `foundations/specimen`; AFD bindings are `integrations/specim
 | G08 | Consumer operational replacements and coverage are absent | No full export/policy parity, axe enforcement, contract/profile-rule retirement, CEM/typecheck/scaffold/flake replacement, evidence-backed coverage or three-run qualification. T06–T08 MUST retain existing rules during overlap. |
 | G09 | Long worker lifetimes, concurrent capacity and platform cleanup lack proof | Ten rounds do not establish a plateau; Lushly open-worker footprint remains roughly 34–39 MiB above round one. Only one admitted job was tested. A blocked/SIGKILLed worker can leave descendants; Windows cleanup and non-macOS whole-family accounting remain unverified. Additional capacity/platform claims MUST await separate bounded evidence. |
 | G10 | Violet context, token/event channels and lens are absent | Native light/dark wrapper checks do not implement offline node snapshots, composed token maps or observed impact. T09/T10 MUST retain unknown/incomplete results and keep optional scope outside core cutover gates; core declared-event history belongs to T06. |
-| G11 | Branch delivery and publication are separate remaining work | Cached-map/profile changes and the latest rerun are pushed on this branch, not verified on `main`. All three packages remain quarantined with no publisher recorded. Future plugin allocation and release dependencies MUST be reconciled with the monorepo inventory before release/cutover. |
+| G11 | Publication admission remains open; main delivery has a separate record | [PR #517](https://github.com/lushly-dev/afd/pull/517) records main delivery of the cached-map/profile changes and latest rerun. All three packages remain quarantined with no publisher recorded. Future plugin allocation and release dependencies MUST be reconciled with the monorepo inventory before release/cutover. |
 
 ## Current resource decision
 
@@ -87,6 +87,7 @@ All rows were reconciled on 2026-10-30. No new owner or issue is claimed by this
 | --- | --- | --- |
 | Freeze current FAST-AF/Lushly source/dependency/assets and refresh retained-story inventory | T01; record exact input manifests and unresolved assets/policies | Open, unassigned |
 | Explain the current CPU increase before selecting another optimization | T02; warmed profiles and ordinary matched CPU/memory readback | Open, unassigned |
+| Extend profiler regression fixtures for rejected identity/nonce, duplicate roles and error receipts | T02 diagnostic hardening; existing source rejection paths reviewed, additional negative fixtures remain open | Open, unassigned |
 | Close driver/observation and complete resource/budget feasibility evidence | T03/T04; explicit decision on workstream 0 exit | Open, unassigned |
 | Deliver the supported retained-CSF compatibility slice and codemod | T05; positive/failing reference receipts | Open, unassigned |
 | Deliver full runner/operations, coverage replacements and qualified migration | T06–T08; separate rule retirement, full qualification and rollback records | Open, unassigned |
@@ -103,3 +104,5 @@ All rows were reconciled on 2026-10-30. No new owner or issue is claimed by this
 | 2026-10-30 | Main import readback | `05dad725` / #476 verified on main; native/AFD/CLI split and quarantine preserved |
 | 2026-10-30 | Monorepo refresh | `71505dc6` / `bb54a03b`, branch evidence; 14 completed jobs, 832 verified captures, 32 creates/closes, one held admission, stable selected inputs and no owned survivors |
 | 2026-10-30 | Plan reconciliation | Added this ledger, current package/command boundaries, known gaps and T01–T11; retained the original proposal gates and historical validation records |
+
+| 2026-10-30 | Independent merge review | Full 24-file review at `ea359184`, followed by focused verification of the corrected CPU-range wording and optional negative-profiler-fixture follow-up; no merge blockers. Main delivery is tracked by #517. |

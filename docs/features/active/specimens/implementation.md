@@ -3,7 +3,7 @@
 | Field | Current value |
 | --- | --- |
 | State | Active native implementation; complete workstream 0 acceptance remains open |
-| Last reconciled | 2026-10-30, branch source `bb54a03b`, fetched main `40b6a7cc` |
+| Last reconciled | 2026-10-30, reviewed branch source `ea359184`, main base `40b6a7cc`; [delivery record #517](https://github.com/lushly-dev/afd/pull/517) |
 | Read first | [STATUS.md](STATUS.md): delivery state, known gaps, evidence and unassigned follow-ups |
 | Acceptance contract | [Proposal](../../proposed/specimens/specimens.proposal.md), including its original workstreams 0–6 and cutover/rollback gates |
 | Historical milestone | `f1bc4488` on `codex/specimens-feasibility`, base `bc43019a`; later source imported by [#476](https://github.com/lushly-dev/afd/pull/476) as three units |

@@ -45,11 +45,11 @@
       "upstream_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
       "staged_path": "docs/features/active/specimens/implementation.md",
       "staged_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
-      "current_import_sha256": "c77409d555a7513ba35aae24fe95f450a5a120f77d4f9175bbe72fd0c368844b",
+      "current_import_sha256": "c2571847d7158a9c58f254b3766dcee164f8d37294a43d11007b3ab8b7b4b677",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts"
+      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; link PR 517 as the durable main-delivery record"
     },
     {
       "path": "docs/features/active/specimens/resource-validation.md",
@@ -957,11 +957,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "2515a624796bd0d6936dafbb5e5ff3e9909b52b03356094c1bf37e19d085e6aa",
+      "current_import_sha256": "bd3639fdadc39450cb23b4a9b7b1b8edb60d8ab724b545f0f9a0b022d7cf4809",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Warm Node CPU profiling diagnostics and regression/measurement evidence; native unit remains quarantined; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
+      "import_reason": "Warm Node CPU profiling diagnostics and regression/measurement evidence; native unit remains quarantined; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; independent merge review corrects the CPU-range wording and records optional profiler rejection fixtures"
     },
     {
       "path": "foundations/specimen/experiments/resources/cpu-profile-control.mjs",
@@ -1017,11 +1017,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "bc918c9f637a763f460f7b8b9784639653e4634a326b8e9a350b3991b8177623",
+      "current_import_sha256": "499d060e08f210399fc4c82c2a73a5501e44f4b81930b505ca48a05e4a10a47b",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Living Specimens progress ledger with source/validation evidence, gaps and remaining work; publication authority unchanged"
+      "import_reason": "Living Specimens progress ledger with source/validation evidence, gaps and remaining work; publication authority unchanged; independent merge review corrects the CPU-range wording and records optional profiler rejection fixtures; link PR 517 as the durable main-delivery record"
     }
   ]
 }
