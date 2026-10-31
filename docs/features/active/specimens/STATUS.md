@@ -104,5 +104,4 @@ All rows were reconciled on 2026-10-30. No new owner or issue is claimed by this
 | 2026-10-30 | Main import readback | `05dad725` / #476 verified on main; native/AFD/CLI split and quarantine preserved |
 | 2026-10-30 | Monorepo refresh | `71505dc6` / `bb54a03b`, branch evidence; 14 completed jobs, 832 verified captures, 32 creates/closes, one held admission, stable selected inputs and no owned survivors |
 | 2026-10-30 | Plan reconciliation | Added this ledger, current package/command boundaries, known gaps and T01–T11; retained the original proposal gates and historical validation records |
-
 | 2026-10-30 | Independent merge review | Full 24-file review at `ea359184`, followed by focused verification of the corrected CPU-range wording and optional negative-profiler-fixture follow-up; no merge blockers. Main delivery is tracked by #517. |
