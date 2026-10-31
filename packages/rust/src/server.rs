@@ -9,6 +9,12 @@
 //! unexposed tool returns a `COMMAND_NOT_FOUND` `CommandResult` as the tool result, so private
 //! commands are indistinguishable from missing ones (`spec/error-codes.md`, D4).
 //!
+//! Every command tool result carries the whole `CommandResult` as `structuredContent` next to the
+//! JSON text, and a command with `returns` advertises a top-level `outputSchema`
+//! ([`McpServer::with_advertise_output_schema`] switches that off).
+//! [`McpServer::with_context_hook`] sets the per-request context (the actor) from the transport;
+//! read [`context_hook`] before using it.
+//!
 //! This module covers the individual tool strategy only. Grouped and lazy strategies, the
 //! meta-tools and context scoping remain in the parity plan (D1).
 //!
@@ -39,8 +45,8 @@ use rmcp::{ErrorData, RoleServer, ServerHandler, ServiceExt};
 use serde_json::{json, Value};
 
 use crate::{
-    failure, with_context_defaults, Actor, ActorKind, Clock, CommandContext, CommandError,
-    CommandInterface, CommandRegistry, ContextDefaults, RandomSource,
+    failure, Actor, ActorKind, Clock, CommandContext, CommandError, CommandInterface,
+    CommandRegistry, ContextDefaults, RandomSource,
 };
 
 /// The MCP revision served statelessly.
@@ -52,8 +58,12 @@ pub const DEFAULT_TOOLS_LIST_TTL_MS: u64 = 300_000;
 static TRACE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 pub mod confirmations;
+pub mod context_hook;
+mod structured;
 pub use confirmations::{ConfirmationMode, AFD_CONFIRM_META_KEY};
 use confirmations::{Decision, Gate};
+use context_hook::ContextHook;
+pub use context_hook::ContextHookRequest;
 
 /// Origin, Host and body-size policy for [`McpServer::streamable_http_service`].
 #[derive(Debug, Clone)]
@@ -89,6 +99,8 @@ struct Inner {
     tools_list_ttl_ms: u64,
     context_defaults: ContextDefaults,
     confirmations: Arc<Gate>,
+    context_hook: Option<ContextHook>,
+    advertise_output_schema: bool,
     /// Whether a 2025 connection can receive server-sent requests (stdio: yes; the stateless
     /// Streamable HTTP service: no).
     legacy_back_channel: bool,
@@ -122,6 +134,8 @@ impl McpServer {
                     Gate::new(ConfirmationMode::Off, None)
                         .expect("the OS random source is available"),
                 ),
+                context_hook: None,
+                advertise_output_schema: true,
                 legacy_back_channel: true,
             }),
         }
@@ -137,6 +151,8 @@ impl McpServer {
             tools_list_ttl_ms: shared.tools_list_ttl_ms,
             context_defaults: shared.context_defaults.clone(),
             confirmations: Arc::clone(&shared.confirmations),
+            context_hook: shared.context_hook.clone(),
+            advertise_output_schema: shared.advertise_output_schema,
             legacy_back_channel: shared.legacy_back_channel,
         });
         change(&mut inner);
@@ -209,6 +225,36 @@ impl McpServer {
         Ok(self.with(|inner| inner.confirmations = Arc::new(gate)))
     }
 
+    /// Advertise a top-level `outputSchema` on tools whose command declares `returns` (the
+    /// `CommandResult` envelope with `data` typed by `returns`). Default: `true`. MCP clients
+    /// validate each result's `structuredContent` against it, so a handler whose `data` does not
+    /// match its `returns` fails on the client; pass `false` to leave `outputSchema` out, also
+    /// from tools given to [`Self::with_tools`]. `structuredContent` is sent either way.
+    pub fn with_advertise_output_schema(self, advertise: bool) -> Self {
+        self.with(|inner| inner.advertise_output_schema = advertise)
+    }
+
+    /// Set the context every tool call runs with from the request itself (the actor, later
+    /// credentials). The hook gets the request and the [`CommandContext`] being built and returns
+    /// the context to use, or a [`CommandError`] that becomes the call's failed `CommandResult`.
+    /// It replaces any hook set before.
+    ///
+    /// **The hook is trust-bearing and is not token verification**; read the security notes in
+    /// [`context_hook`] first. In short: trust identity only from what a layer in front of the
+    /// service verified, refuse by returning `Err` (nothing then runs, not even a confirmation
+    /// prompt), and put nothing in the refusal you would not tell an unauthenticated caller.
+    ///
+    /// The hook runs on every `tools/call`, for unknown tools too, and again on each round of a
+    /// confirmation flow. It does not run for `tools/list`, `server/discover` or `initialize`.
+    pub fn with_context_hook<F, Fut>(self, hook: F) -> Self
+    where
+        F: Fn(ContextHookRequest, CommandContext) -> Fut + Send + Sync + 'static,
+        Fut: std::future::Future<Output = Result<CommandContext, CommandError>> + Send + 'static,
+    {
+        let hook = context_hook::boxed(hook);
+        self.with(|inner| inner.context_hook = Some(hook))
+    }
+
     /// Add the `confirm` acknowledgement to a confirm-gated tool under `Enforce`.
     fn with_confirm_argument(&self, mut tool: Value) -> Value {
         if self.inner.confirmations.mode != ConfirmationMode::Enforce
@@ -260,7 +306,28 @@ impl McpServer {
         tools
             .into_iter()
             .map(|tool| self.with_confirm_argument(tool))
+            .map(|tool| self.with_output_schema(tool))
             .collect()
+    }
+
+    /// Set (or, when switched off, remove) the top-level `outputSchema` of a listed tool.
+    fn with_output_schema(&self, mut tool: Value) -> Value {
+        let Some(object) = tool.as_object_mut() else {
+            return tool;
+        };
+        if !self.inner.advertise_output_schema {
+            object.remove("outputSchema");
+        } else if !object.contains_key("outputSchema") {
+            let schema = object
+                .get("name")
+                .and_then(Value::as_str)
+                .and_then(|name| self.inner.registry.get(name))
+                .and_then(|command| structured::output_schema(&command));
+            if let Some(schema) = schema {
+                object.insert("outputSchema".to_owned(), schema);
+            }
+        }
+        tool
     }
 
     /// The Streamable HTTP endpoint as a `tower` service, for mounting in an HTTP server
@@ -368,61 +435,75 @@ impl ServerHandler for McpServer {
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
         let name = request.name.as_ref();
-        let result = if self.exposed(name) {
-            let gate = &self.inner.confirmations;
-            let prompt = self
-                .inner
-                .registry
-                .get(name)
-                .and_then(|command| command.confirm_prompt.clone());
-            let decision = match prompt {
-                Some(prompt) if gate.mode != ConfirmationMode::Off => {
-                    let tool = self.inner.registry.get_tool(name);
-                    confirmations::check(
-                        gate,
-                        name,
-                        &prompt,
-                        tool.as_ref(),
-                        &request,
-                        &context,
-                        self.inner.legacy_back_channel,
-                    )
-                    .await
-                }
-                _ => {
-                    Decision::Proceed(Value::Object(request.arguments.clone().unwrap_or_default()))
-                }
-            };
-            match decision {
-                Decision::Ask(response) => return Ok(response),
-                Decision::Refuse(error) => failure(error),
-                Decision::Proceed(input) => {
-                    let context = CommandContext::new()
-                        .with_trace_id(Self::trace_id())
-                        .with_interface(CommandInterface::Mcp);
-                    let context = with_context_defaults(context, &self.inner.context_defaults);
-                    self.inner
-                        .registry
-                        .execute(name, input, Some(context))
+        // The hook runs before anything else, so a refused caller reaches neither a
+        // confirmation prompt nor the unknown-tool answer.
+        let command_context = context_hook::build_context(
+            self.inner.context_hook.as_ref(),
+            &self.inner.context_defaults,
+            name,
+            &context,
+            CommandContext::new()
+                .with_trace_id(Self::trace_id())
+                .with_interface(CommandInterface::Mcp),
+        )
+        .await;
+        let result = match command_context {
+            Err(error) => failure(*error),
+            Ok(command_context) if self.exposed(name) => {
+                let gate = &self.inner.confirmations;
+                let prompt = self
+                    .inner
+                    .registry
+                    .get(name)
+                    .and_then(|command| command.confirm_prompt.clone());
+                let decision = match prompt {
+                    Some(prompt) if gate.mode != ConfirmationMode::Off => {
+                        let tool = self.inner.registry.get_tool(name);
+                        confirmations::check(
+                            gate,
+                            name,
+                            &prompt,
+                            tool.as_ref(),
+                            &request,
+                            &context,
+                            self.inner.legacy_back_channel,
+                        )
                         .await
+                    }
+                    _ => Decision::Proceed(Value::Object(
+                        request.arguments.clone().unwrap_or_default(),
+                    )),
+                };
+                match decision {
+                    Decision::Ask(response) => return Ok(response),
+                    Decision::Refuse(error) => failure(error),
+                    Decision::Proceed(input) => {
+                        self.inner
+                            .registry
+                            .execute(name, input, Some(command_context))
+                            .await
+                    }
                 }
             }
-        } else {
-            // Unknown and unexposed commands look the same from outside.
-            let shown: String = name.chars().take(64).collect();
-            failure(
-                CommandError::new("COMMAND_NOT_FOUND", format!("Unknown tool: {shown}"))
-                    .with_suggestion("Call tools/list to see the available tools")
-                    .with_retryable(false),
-            )
+            Ok(_) => {
+                // Unknown and unexposed commands look the same from outside.
+                let shown: String = name.chars().take(64).collect();
+                failure(
+                    CommandError::new("COMMAND_NOT_FOUND", format!("Unknown tool: {shown}"))
+                        .with_suggestion("Call tools/list to see the available tools")
+                        .with_retryable(false),
+                )
+            }
         };
         let text = serde_json::to_string(&result).map_err(internal)?;
+        let structured = serde_json::to_value(&result).map_err(internal)?;
         let content = vec![ContentBlock::text(text)];
-        Ok(if result.success {
+        let mut reply = if result.success {
             CallToolResult::success(content)
         } else {
             CallToolResult::error(content)
-        }
-        .into())
+        };
+        reply.structured_content = Some(structured);
+        Ok(reply.into())
     }
 }

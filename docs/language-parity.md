@@ -96,7 +96,7 @@ Limits of these checks:
 | Duplicate and reserved names | Throws for meta-tools, and for bootstrap and context names when enabled | Partial: meta-tools only; a command named like a bootstrap tool silently shadows it | Partial: bootstrap names only | Yes: meta-tools (C++ has no bootstrap or context tools) |
 | Input validated before the handler ([`spec/validation.md`](../spec/validation.md)) | Yes: Zod | Yes: advertised JSON Schema enforced before middleware, then Pydantic conversion where applicable | Yes: legacy parameters or additive `register_with_schema`; use `get_tool` for authoritative discovery | Yes: required subset; unsupported optional keywords reject registration |
 | Examples validated at definition | Yes | Yes | No: stored only | Yes |
-| Output schema advertised | Yes (`_meta.outputSchema`) | Yes | Partial: `returns` not surfaced by `afd-schema` | No: stored, never emitted |
+| Output schema advertised | Yes (`_meta.outputSchema`) | Yes | Partial: top-level `outputSchema` on `McpServer` tools (see the MCP tool fields row); `returns` not surfaced by `afd-schema` and no `_meta.outputSchema` | No: stored, never emitted |
 | Command to MCP tool with `_meta` | Yes | Partial: no `category` in `_meta` | Partial: `command_to_mcp_tool`, no plural helper | Deferred |
 
 ### Single-command execution
@@ -159,7 +159,8 @@ Limits of these checks:
 | MCP 2026-07-28 (stateless, per-request `_meta`, `server/discover`) and 2025 `initialize` on one endpoint or connection | Yes: `/mcp` and stdio | Yes: stdio and Streamable HTTP | Yes: Streamable HTTP and stdio | Todo backend stdio only |
 | MCP Streamable HTTP | Yes: `/mcp`; the 2024-11-05 `/sse` + `/message` lane is deprecated | Yes, through `run`, `run_async` and `streamable_http_app` | Yes (`streamable_http_service`) | N/A: no HTTP by design |
 | Contexts as request input (`_meta["dev.afd/context"]`) on the modern era | Yes | Yes | N/A: no contexts yet | N/A |
-| MCP tool fields: annotations, `structuredContent`, CommandResult `outputSchema` ([`spec/command-metadata.md`](../spec/command-metadata.md#mcp-tool-fields-mcp-2026-07-28-tool-surface)) | Yes | Partial: annotations | Partial: annotations | Partial: annotations (todo backend) |
+| MCP tool fields: annotations, `structuredContent`, CommandResult `outputSchema` ([`spec/command-metadata.md`](../spec/command-metadata.md#mcp-tool-fields-mcp-2026-07-28-tool-surface)) | Yes | Partial: annotations | Partial: annotations, `structuredContent` and top-level `outputSchema` on `McpServer` tools (`with_advertise_output_schema` opts out); #465 | Partial: annotations (todo backend) |
+| Per-request context from the transport (actor; later credentials) ([MCP authorization proposal](features/proposed/mcp-authorization/mcp-authorization.proposal.md)) | Yes: `createContext(req)` on the HTTP handler merges values, including `actor`; not called for stdio | Partial: a fixed server `actor`; no per-request hook | Yes: `McpServer::with_context_hook`, async, sees the HTTP request parts (none on stdio) and may refuse with a `CommandError`; runs before the confirmation gate; no `credentials` field or token verification yet | N/A: no HTTP server in the library |
 | Tool strategies: individual, grouped, lazy | Yes (default grouped) | Partial: default individual; all strategies serve discovery/detail, but grouped per-action schema/default alignment remains planned | No | Deferred |
 | Meta-tools: `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail` | Yes | Yes | No | Deferred |
 | Bootstrap: `afd-help`, `afd-docs`, `afd-schema` | Yes, opt-in | Partial: always registered and MCP-exposed | Yes (`register_bootstrap_commands`) | Deferred |
