@@ -336,7 +336,7 @@ sequenceDiagram
 | Caller identity | `actor` with `onBehalfOf`; `credentials` | `actor` exists; `credentials` proposed in MCP Authorization |
 | Per-command scopes | `scopes` command field | Proposed in MCP Authorization |
 | Human confirmation | `confirmPrompt` under `enforce` or `require-human` | Exists in the Rust server |
-| Approval of consequential commands | Approval policies and signed, short-lived, single-use tokens | Exists in Rust; the MCP approval relay and private approval exchange are parity work (#460) |
+| Approval of consequential commands | Approval policies and signed, short-lived, single-use tokens | Exists in Rust, with the private in-process exchange (#460, closed by #518); the MCP approval relay is parity work |
 | Record of calls and replay | Journal with `seq`, actor, context digest, clock and random tape, replay | Exists |
 | Event log | A journal sink projecting mutation commands | New, built on the journal |
 | Composition | `afd-batch`, `afd-pipe`, pipeline variables | Exists; Rust rejects parallel pipelines and streaming steps |
@@ -356,7 +356,7 @@ sequenceDiagram
 
 | Need | Choice, as of 2026-10-30 | Why | Constraint |
 | --- | --- | --- | --- |
-| Commands, results, approvals, journal, MCP server | the `afd` crate with its `server` feature on rmcp | One contract across four languages; stateless MCP implemented | `server` needs Rust 1.88; the crate's lock is on rmcp 3.7.0 and 3.8 is current |
+| Commands, results, approvals, journal, MCP server | the `afd` crate with its `server` feature on rmcp | One contract across four languages; stateless MCP implemented | `server` needs Rust 1.88; the crate requires rmcp 3.7, which admits the current 3.8.0, and commits no lock. A phase that needs something new in 3.8 raises the floor |
 | HTTP | the SDK's tower service, mounted in an HTTP server | The auth layer composes there | |
 | Lexical index | tantivy 0.27 | Fielded BM25 with boolean, phrase, field, boost and range syntax, embedded | Rust 1.88 |
 | Embedded storage | an embedded key-value store | Single-directory deployments, transactions, no service | Chosen in phase 0 |
@@ -528,11 +528,10 @@ criterion.
 | Rust lazy and grouped strategies, meta-tools and AFD contexts | Phase 0 | [Language parity](../../../docs/language-parity.md), D1 |
 | Rust `structuredContent` and top-level `outputSchema` | Phase 0 | #465 |
 | A per-request context hook on the Rust MCP server, so middleware can set the actor and credentials | Phase 0, version 0; phase 5 | MCP Authorization's Rust layer |
-| The rmcp lock moved from 3.7.0 to 3.8 | Phase 0 | New chore |
 | The hybrid tool strategy, a few first-class tools plus lazy discovery, for every language | Phase 0, if O2 chooses it | New AFD feature proposal |
 | MCP resources, prompts and the Skills over MCP extension in AFD servers, reconciled with the Skill Knowledge Layer | Phases 1 and 2 | New AFD feature proposal, spec first |
 | Output budgets per tool | Phase 2 | New AFD feature proposal |
-| The private approval exchange and the MCP approval relay in Rust | Phase 4 | #460 and language parity |
+| The MCP approval relay in Rust | Phase 4 | [Language parity](../../../docs/language-parity.md); no issue yet |
 | The Rust token-verification layer, the `scopes` field and the `credentials` context field | Phase 5 | MCP Authorization proposal |
 | The MCP Tasks runtime in Rust | Phase 5 | MCP Tasks proposal; Umbel's ingestion and curator jobs are a natural Rust pilot |
 
