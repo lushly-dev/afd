@@ -14,16 +14,6 @@ on:
       - '.github/workflows/python.yml'
       - '.github/workflows/publish-python.yml'
       - 'scripts/python-wheel-smoke.py'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'python/**'
-      - 'spec/wire/**'
-      - 'spec/vectors/**'
-      - 'spec/VERSION'
-      - '.github/workflows/python.yml'
-      - '.github/workflows/publish-python.yml'
-      - 'scripts/python-wheel-smoke.py'
 
 permissions:
   contents: read

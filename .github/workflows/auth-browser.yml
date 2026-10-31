@@ -4,9 +4,7 @@ on:
   push:
     branches: [main]
     paths: ['packages/auth/**', 'packages/core/**', 'pnpm-lock.yaml', '.github/workflows/auth-browser.yml']
-  pull_request:
-    branches: [main]
-    paths: ['packages/auth/**', 'packages/core/**', 'pnpm-lock.yaml', '.github/workflows/auth-browser.yml']
+  workflow_call:
   workflow_dispatch:
 
 permissions:

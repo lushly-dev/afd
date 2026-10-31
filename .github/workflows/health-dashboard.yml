@@ -11,15 +11,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/health-dashboard.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'endpoints/health-dashboard/**'
-      - 'endpoints/health/**'
-      - 'foundations/fast-af/**'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - '.github/workflows/health-dashboard.yml'
+  workflow_call:
   workflow_dispatch:
 
 permissions:
