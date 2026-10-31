@@ -14,19 +14,7 @@ on:
       - 'package.json'
       - 'pnpm-lock.yaml'
       - '.github/workflows/hosted-fixtures.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'packages/auth/**'
-      - 'packages/local-db/**'
-      - 'packages/view-state/**'
-      - 'packages/core/**'
-      - 'packages/server/**'
-      - 'scripts/run-hosted-local.mjs'
-      - 'scripts/hosted/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/hosted-fixtures.yml'
+  workflow_call:
   workflow_dispatch:
 
 permissions:

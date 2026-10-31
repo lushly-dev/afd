@@ -13,18 +13,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/violet.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'foundations/violet/**'
-      - 'integrations/violet-afd/**'
-      - 'endpoints/violet-cli/**'
-      - 'endpoints/violet-server/**'
-      - 'tests/consumers/violet/**'
-      - 'packages/core/**'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - '.github/workflows/violet.yml'
+  workflow_call:
   workflow_dispatch:
 
 permissions:

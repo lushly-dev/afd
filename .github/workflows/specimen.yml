@@ -12,17 +12,7 @@ on:
       - 'packages/server/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/specimen.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'foundations/specimen/**'
-      - 'integrations/specimen-afd/**'
-      - 'endpoints/specimen-cli/**'
-      - 'tests/consumers/specimen/**'
-      - 'packages/core/**'
-      - 'packages/server/**'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/specimen.yml'
+  workflow_call:
   workflow_dispatch:
 
 permissions:

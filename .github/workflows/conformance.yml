@@ -18,17 +18,7 @@ on:
       - 'python/**'
       - 'pnpm-lock.yaml'
       - '.github/workflows/conformance.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'packages/examples/todo/**'
-      - 'packages/server/**'
-      - 'packages/core/**'
-      - 'packages/rust/**'
-      - 'packages/cpp/**'
-      - 'python/**'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/conformance.yml'
+  workflow_call:
 
 permissions:
   contents: read

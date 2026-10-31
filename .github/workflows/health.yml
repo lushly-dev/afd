@@ -10,14 +10,7 @@ on:
       - 'python/**'
       - 'LICENSE'
       - '.github/workflows/health.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'endpoints/health/**'
-      - 'endpoints/botcore/**'
-      - 'python/**'
-      - 'LICENSE'
-      - '.github/workflows/health.yml'
+  workflow_call:
 
 permissions:
   contents: read

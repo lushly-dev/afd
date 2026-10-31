@@ -12,14 +12,6 @@ on:
       # tests/contract_version.rs checks CONTRACT_VERSION against it.
       - 'spec/VERSION'
       - '.github/workflows/rust.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'packages/rust/**'
-      - 'spec/wire/**'
-      - 'spec/vectors/**'
-      - 'spec/VERSION'
-      - '.github/workflows/rust.yml'
   # publish-rust.yml runs these same checks before `cargo publish`.
   workflow_call:
 

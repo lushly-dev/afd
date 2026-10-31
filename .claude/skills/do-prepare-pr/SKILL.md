@@ -171,16 +171,28 @@ landed (do not open a duplicate PR).
    - A base advance does not reset the review. Only re-review seams that the
      integration actually changed.
 
-9. **Merge only when authorized.** `main` has no branch protection or required
-   checks, so nothing on GitHub stops a red merge, and auto-merge would not wait
-   for CI. Do not enable auto-merge. When the user has authorized the merge, verify
-   every check on the exact head is green, then bind the merge to that head:
+9. **Merge only when authorized.** Every PR runs `pr.yml`, whose `PR gate` job
+   passes only when every workflow the PR touched passed. Auto-merge waits for it
+   only while a `main` ruleset requires it, so confirm that first:
 
    ```bash
-   gh pr merge <n> --squash --match-head-commit <verified-head-sha>
+   gh api repos/lushly-dev/afd/rules/branches/main \
+     --jq '[.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context]'
    ```
 
-   A head mismatch sends you back to step 8. After GitHub reports merged, verify
+   When the user has authorized the merge and the list contains `PR gate`, bind
+   auto-merge to the head you reviewed; it merges once the gate passes:
+
+   ```bash
+   gh pr merge <n> --auto --squash --match-head-commit <reviewed-head-sha>
+   ```
+
+   Without the ruleset nothing on GitHub stops a red merge and auto-merge would
+   not wait, so do not enable it: verify every check on the exact head is green,
+   then run the same command without `--auto`.
+
+   A head mismatch sends you back to step 8. A push after auto-merge is enabled
+   also sends you back: GitHub keeps auto-merge on for the new head. After GitHub reports merged, verify
    the content landed with the landing check from `do-init-afd` before calling it
    done. The repo deletes head branches on merge. When the merge was not authorized, stop with the PR URL, head SHA, check
    state and the next action for its owner.

@@ -136,6 +136,61 @@ test('workflow actions are pinned to full commit SHAs', () => {
 	}
 });
 
+function pushPaths(workflow) {
+	const lines = workflow.split('\n');
+	const found = [];
+	for (let i = lines.indexOf('  push:') + 1; i < lines.length && !/^ {0,2}\S/.test(lines[i]); i++) {
+		const inline = lines[i].match(/^ {4}paths: \[(.*)\]$/);
+		if (inline) return inline[1].split(',').map((path) => path.trim().replace(/^'|'$/g, ''));
+		const item = lines[i].match(/^ {6}- '(.*)'$/);
+		if (item) found.push(item[1]);
+	}
+	return found;
+}
+
+test('pull requests run through the PR workflow, whose filters match each push trigger', () => {
+	const pr = read('.github/workflows/pr.yml');
+	const filters = new Map();
+	let current;
+	for (const line of pr.slice(pr.indexOf('filters: |')).split('\n').slice(1)) {
+		const name = line.match(/^ {12}([\w-]+):$/);
+		const path = line.match(/^ {14}- '(.*)'$/);
+		if (name) {
+			current = name[1];
+			filters.set(current, []);
+		} else if (path) filters.get(current).push(path[1]);
+		else break;
+	}
+	const called = [...pr.matchAll(/^ {4}uses: \.\/\.github\/workflows\/([\w-]+)\.yml$/gm)].map(
+		(match) => match[1]
+	);
+	const gate = pr.match(/^ {4}needs: \[(.*)\]$/m)[1].split(', ');
+	assert.deepEqual(gate, ['changes', ...called], 'PR gate must need every job');
+
+	for (const entry of readdirSync(join(repoRoot, '.github/workflows'))) {
+		const workflow = read(`.github/workflows/${entry}`);
+		if (entry === 'pr.yml') continue;
+		assert.doesNotMatch(workflow, /^ {2}pull_request:/m, `${entry}: let pr.yml call it instead`);
+		const name = entry.replace(/\.yml$/, '');
+		if (!called.includes(name)) continue;
+		assert.match(workflow, /^ {2}workflow_call:/m, entry);
+		const paths = pushPaths(workflow);
+		if (paths.length === 0) assert.ok(!filters.has(name), `${entry}: runs on every PR`);
+		else
+			assert.deepEqual(
+				filters.get(name),
+				[...paths, '.github/workflows/pr.yml'],
+				`${entry} filter`
+			);
+	}
+	assert.deepEqual(
+		[...filters.keys()],
+		called.filter((name) => filters.has(name))
+	);
+	for (const name of filters.keys())
+		assert.match(pr, new RegExp(`if: needs\\.changes\\.outputs\\.${name} == 'true'`), name);
+});
+
 function publishedPackageDirectories() {
 	return readdirSync(join(repoRoot, 'packages'), { withFileTypes: true })
 		.filter((entry) => entry.isDirectory())

@@ -1,0 +1,258 @@
+name: PR
+
+# Every pull request runs this workflow and nothing else. It calls the path-filtered
+# workflows whose paths the PR touches, and the PR gate job passes only when every
+# job that ran passed. PR gate is the one required check on main, so auto-merge
+# waits for it. Each filter is that workflow's push.paths plus this file; the
+# repository contract test keeps them equal.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Changed paths
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      alfred: ${{ steps.filter.outputs.alfred }}
+      auth-browser: ${{ steps.filter.outputs.auth-browser }}
+      botcore: ${{ steps.filter.outputs.botcore }}
+      conformance: ${{ steps.filter.outputs.conformance }}
+      cpp: ${{ steps.filter.outputs.cpp }}
+      fast-af: ${{ steps.filter.outputs.fast-af }}
+      health: ${{ steps.filter.outputs.health }}
+      health-dashboard: ${{ steps.filter.outputs.health-dashboard }}
+      hosted-fixtures: ${{ steps.filter.outputs.hosted-fixtures }}
+      python: ${{ steps.filter.outputs.python }}
+      rust: ${{ steps.filter.outputs.rust }}
+      specimen: ${{ steps.filter.outputs.specimen }}
+      violet: ${{ steps.filter.outputs.violet }}
+    steps:
+      - name: Match changed files to workflows
+        id: filter
+        uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        with:
+          filters: |
+            alfred:
+              - 'alfred/**'
+              - 'python/**'
+              - 'endpoints/botcore/**'
+              - 'scripts/release*/**'
+              - 'scripts/release-*.mjs'
+              - 'architecture.json'
+              - 'botcore.toml'
+              - 'skills/exports.json'
+              - 'scripts/skill-profiles*.mjs'
+              - '.claude/skills/**'
+              - '.codex/skills'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - '.nvmrc'
+              - 'spec/**'
+              - 'packages/**'
+              - '.github/workflows/alfred.yml'
+              - '.github/workflows/pr.yml'
+            auth-browser:
+              - 'packages/auth/**'
+              - 'packages/core/**'
+              - 'pnpm-lock.yaml'
+              - '.github/workflows/auth-browser.yml'
+              - '.github/workflows/pr.yml'
+            botcore:
+              - 'endpoints/botcore/**'
+              - 'python/**'
+              - '.github/workflows/botcore.yml'
+              - '.github/workflows/pr.yml'
+            conformance:
+              - 'packages/examples/todo/**'
+              - 'packages/server/**'
+              - 'packages/core/**'
+              - 'packages/rust/**'
+              - 'packages/cpp/**'
+              - 'python/**'
+              - 'pnpm-lock.yaml'
+              - '.github/workflows/conformance.yml'
+              - '.github/workflows/pr.yml'
+            cpp:
+              - 'packages/cpp/**'
+              - 'spec/wire/**'
+              - 'spec/vectors/**'
+              - 'spec/pipeline-variables.md'
+              - 'spec/VERSION'
+              - 'packages/examples/todo/spec/**'
+              - 'packages/examples/todo/backends/cpp/**'
+              - '.github/workflows/cpp.yml'
+              - '.github/workflows/pr.yml'
+            fast-af:
+              - 'foundations/fast-af/**'
+              - 'tests/consumers/fast-af/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.github/workflows/fast-af.yml'
+              - '.github/workflows/pr.yml'
+            health:
+              - 'endpoints/health/**'
+              - 'endpoints/botcore/**'
+              - 'python/**'
+              - 'LICENSE'
+              - '.github/workflows/health.yml'
+              - '.github/workflows/pr.yml'
+            health-dashboard:
+              - 'endpoints/health-dashboard/**'
+              - 'endpoints/health/**'
+              - 'foundations/fast-af/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.github/workflows/health-dashboard.yml'
+              - '.github/workflows/pr.yml'
+            hosted-fixtures:
+              - 'packages/auth/**'
+              - 'packages/local-db/**'
+              - 'packages/view-state/**'
+              - 'packages/core/**'
+              - 'packages/server/**'
+              - 'scripts/run-hosted-local.mjs'
+              - 'scripts/hosted/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - '.github/workflows/hosted-fixtures.yml'
+              - '.github/workflows/pr.yml'
+            python:
+              - 'python/**'
+              - 'spec/wire/**'
+              - 'spec/vectors/**'
+              - 'spec/VERSION'
+              - '.github/workflows/python.yml'
+              - '.github/workflows/publish-python.yml'
+              - 'scripts/python-wheel-smoke.py'
+              - '.github/workflows/pr.yml'
+            rust:
+              - 'packages/rust/**'
+              - 'spec/wire/**'
+              - 'spec/vectors/**'
+              - 'spec/VERSION'
+              - '.github/workflows/rust.yml'
+              - '.github/workflows/pr.yml'
+            specimen:
+              - 'foundations/specimen/**'
+              - 'integrations/specimen-afd/**'
+              - 'endpoints/specimen-cli/**'
+              - 'tests/consumers/specimen/**'
+              - 'packages/core/**'
+              - 'packages/server/**'
+              - 'pnpm-lock.yaml'
+              - '.github/workflows/specimen.yml'
+              - '.github/workflows/pr.yml'
+            violet:
+              - 'foundations/violet/**'
+              - 'integrations/violet-afd/**'
+              - 'endpoints/violet-cli/**'
+              - 'endpoints/violet-server/**'
+              - 'tests/consumers/violet/**'
+              - 'packages/core/**'
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - '.github/workflows/violet.yml'
+              - '.github/workflows/pr.yml'
+
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  alfred:
+    name: Alfred
+    needs: changes
+    if: needs.changes.outputs.alfred == 'true'
+    uses: ./.github/workflows/alfred.yml
+
+  auth-browser:
+    name: Auth browser integration
+    needs: changes
+    if: needs.changes.outputs.auth-browser == 'true'
+    uses: ./.github/workflows/auth-browser.yml
+
+  botcore:
+    name: Botcore
+    needs: changes
+    if: needs.changes.outputs.botcore == 'true'
+    uses: ./.github/workflows/botcore.yml
+
+  conformance:
+    name: Conformance
+    needs: changes
+    if: needs.changes.outputs.conformance == 'true'
+    uses: ./.github/workflows/conformance.yml
+
+  cpp:
+    name: C++
+    needs: changes
+    if: needs.changes.outputs.cpp == 'true'
+    uses: ./.github/workflows/cpp.yml
+
+  fast-af:
+    name: FAST-AF
+    needs: changes
+    if: needs.changes.outputs.fast-af == 'true'
+    uses: ./.github/workflows/fast-af.yml
+
+  health:
+    name: Health
+    needs: changes
+    if: needs.changes.outputs.health == 'true'
+    uses: ./.github/workflows/health.yml
+
+  health-dashboard:
+    name: Health dashboard
+    needs: changes
+    if: needs.changes.outputs.health-dashboard == 'true'
+    uses: ./.github/workflows/health-dashboard.yml
+
+  hosted-fixtures:
+    name: Local hosted-test fixtures
+    needs: changes
+    if: needs.changes.outputs.hosted-fixtures == 'true'
+    uses: ./.github/workflows/hosted-fixtures.yml
+
+  python:
+    name: Python
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    uses: ./.github/workflows/python.yml
+
+  rust:
+    name: Rust
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    uses: ./.github/workflows/rust.yml
+
+  specimen:
+    name: Specimen
+    needs: changes
+    if: needs.changes.outputs.specimen == 'true'
+    uses: ./.github/workflows/specimen.yml
+
+  violet:
+    name: Violet
+    needs: changes
+    if: needs.changes.outputs.violet == 'true'
+    uses: ./.github/workflows/violet.yml
+
+  gate:
+    name: PR gate
+    needs: [changes, ci, alfred, auth-browser, botcore, conformance, cpp, fast-af, health, health-dashboard, hosted-fixtures, python, rust, specimen, violet]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every job that ran to pass
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<< "$NEEDS"
+          jq -e 'all(.[]; .result == "success" or .result == "skipped")' <<< "$NEEDS" > /dev/null

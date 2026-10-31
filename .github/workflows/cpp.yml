@@ -16,18 +16,7 @@ on:
       # The format job also checks the C++ todo backend.
       - 'packages/examples/todo/backends/cpp/**'
       - '.github/workflows/cpp.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'packages/cpp/**'
-      - 'spec/wire/**'
-      - 'spec/vectors/**'
-      - 'spec/pipeline-variables.md'
-      - 'spec/VERSION'
-      - 'packages/examples/todo/spec/**'
-      # The format job also checks the C++ todo backend.
-      - 'packages/examples/todo/backends/cpp/**'
-      - '.github/workflows/cpp.yml'
+  workflow_call:
 
 permissions:
   contents: read
