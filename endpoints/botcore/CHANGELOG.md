@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `{name}-run` output is bounded by `MAX_OUTPUT_LENGTH` (100,000 characters) instead of a
+  hard-coded 8,000; the code input guard is `MAX_RUN_CODE_LENGTH` (32,000 characters), an
+  abuse guard rather than a context budget.
+- `research_stream` and `research_query` take `max_length`; the default
+  `MAX_RESEARCH_LENGTH` is 100,000 characters (was 12,000).
+- Bundled skills state the linter's SK009 threshold (50,000 characters) instead of line
+  targets, describe file-size thresholds from configuration, and ground the file-length
+  target in cohesion rather than context-window size.
 - Managed raw Python requires explicit trusted-local mode. Legacy trusted-local MCP/CLI
   aliases retain their behavior and are ineligible for restricted profiles.
 - Duplicate command/docs registrations and foreign category fragments now reject clearly.
@@ -27,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Agents wildcard discovery declares an optional connectors extra and returns an
   actionable unavailable-integration result before session creation when absent.
 
+### Fixed
+
+- `smart_truncate` keeps 40% head and 60% tail of its budget at every size. The head and
+  tail had stayed pinned at 3,000 and 4,000 characters after `MAX_OUTPUT_LENGTH` rose to
+  100,000, so output just over the cap shrank to about 7,000 characters.
 
 ## [0.5.0] - 2026-07-28
 

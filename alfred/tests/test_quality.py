@@ -128,8 +128,9 @@ async def test_quality_python_commands(tmp_dir):
 
 @pytest.mark.asyncio
 async def test_quality_long_description(tmp_dir):
-    """A too-long description should be flagged."""
-    long_desc = "Get " + "a very detailed and comprehensive " * 5 + "result from the server"
+    """A description over 300 characters is a warning that does not fail the check."""
+    long_desc = "Get " + "a very detailed and comprehensive " * 10 + "result from the server"
+    assert len(long_desc) > 300
     ts_file = tmp_dir / "commands.ts"
     ts_file.write_text(
         "const cmd = defineCommand({\n"
@@ -141,8 +142,28 @@ async def test_quality_long_description(tmp_dir):
     result = await alfred_quality(str(tmp_dir))
     assert result.success is True
     issues = result.data["issues"]
-    checks = [i["check"] for i in issues]
-    assert "description-too-long" in checks
+    assert [(i["check"], i["severity"]) for i in issues] == [("description-too-long", "warning")]
+    assert result.data["issue_count"] == 0
+    assert result.data["warning_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_quality_description_over_the_old_cap_is_clean(tmp_dir):
+    """A description between 120 and 300 characters raises nothing; 120 was the old cap."""
+    desc = "Get " + "a very detailed and comprehensive " * 5 + "result from the server"
+    assert 120 < len(desc) <= 300
+    ts_file = tmp_dir / "commands.ts"
+    ts_file.write_text(
+        "const cmd = defineCommand({\n"
+        f"  name: 'data-fetch',\n"
+        f"  description: '{desc}',\n"
+        "});\n",
+        encoding="utf-8",
+    )
+    result = await alfred_quality(str(tmp_dir))
+    assert result.data["issue_count"] == 0
+    assert result.data["warning_count"] == 0
+    assert result.data["issues"] == []
 
 
 # ─── Parser coverage ─────────────────────────────────────────────────────────

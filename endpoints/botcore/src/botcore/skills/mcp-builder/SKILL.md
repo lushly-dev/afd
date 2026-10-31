@@ -160,7 +160,7 @@ stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300)
 | Tool descriptions (total) | <500 tokens | Loaded on every request |
 | Single tool description | <50 tokens | Keep concise |
 | Command output | 100,000 chars | ~25,000 tokens; use `max_output=None` for structured payloads |
-| Research output | 12,000 chars | ~3,000 tokens, still safe |
+| Research output | 100,000 chars | default for `research_stream(..., max_length=...)` |
 | Tool count | <10 tools | LLMs degrade above 10-20 |
 
 ### Minimal FastMCP 2.x Server

@@ -17,7 +17,7 @@
 
 | Error | Cause | Resolution |
 |---|---|---|
-| Files exceeding error threshold | File has too many lines | Refactor into smaller modules. Target < 300 lines per file. |
+| Files exceeding error threshold | File has too many lines | Split by responsibility. Stay under the warning threshold (500 lines by default); the error threshold (1000) blocks. |
 | Many files at warning level | Growing code without splitting | Proactively split before files reach error threshold |
 
 **Tips for reducing file size:**

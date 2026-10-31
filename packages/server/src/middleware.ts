@@ -1,4 +1,3 @@
-// afd-override: max-lines=850 — Cohesive public middleware factories and their option types.
 /**
  * @fileoverview Command middleware utilities
  *

@@ -31,8 +31,10 @@ REASONING_EFFORT = {
     "thinking": "high",
 }
 
-# Answer budget in characters, a context-economy guard for LLM-facing callers.
-MAX_RESEARCH_LENGTH = 12000
+# Default answer budget in characters: a context-economy guard for LLM-facing callers, sized
+# for long-context models. ``research_stream`` and ``research_query`` take ``max_length`` to
+# tighten or widen it per call.
+MAX_RESEARCH_LENGTH = 100_000
 _TRUNCATION_MARKER = "\n\n... (truncated for token safety)"
 
 
@@ -101,7 +103,9 @@ def _error_chunk(code: str, message: str, suggestion: str, chunks_before_error: 
     )
 
 
-async def research_stream(query: str, mode: str = "fast") -> AsyncIterator[StreamChunk]:
+async def research_stream(
+    query: str, mode: str = "fast", max_length: int = MAX_RESEARCH_LENGTH
+) -> AsyncIterator[StreamChunk]:
     """Stream a research query with an OpenAI GPT model and web search.
 
     Yields a progress chunk when the search starts, a data chunk ``{"text": ...}``
@@ -112,6 +116,7 @@ async def research_stream(query: str, mode: str = "fast") -> AsyncIterator[Strea
     Args:
         query: The research query
         mode: 'fast' (default), 'deep', or 'thinking' (most reasoning)
+        max_length: Answer budget in characters; a longer answer is cut there and marked
 
     Requires openai: pip install botcore[research]
     """
@@ -176,7 +181,7 @@ async def research_stream(query: str, mode: str = "fast") -> AsyncIterator[Strea
                     text = event.delta
                     if not text:
                         continue
-                    room = MAX_RESEARCH_LENGTH - len(answer)
+                    room = max_length - len(answer)
                     truncated = len(text) > room
                     if truncated:
                         text = text[:room] + _TRUNCATION_MARKER
@@ -263,7 +268,9 @@ def research_result(chunk: StreamChunk) -> CommandResult[dict] | None:
     return None
 
 
-async def research_query(query: str, mode: str = "fast") -> CommandResult[dict]:
+async def research_query(
+    query: str, mode: str = "fast", max_length: int = MAX_RESEARCH_LENGTH
+) -> CommandResult[dict]:
     """Run a research query with an OpenAI GPT model and web search.
 
     Collects ``research_stream`` into a single result.
@@ -271,10 +278,11 @@ async def research_query(query: str, mode: str = "fast") -> CommandResult[dict]:
     Args:
         query: The research query
         mode: 'fast' (default), 'deep', or 'thinking' (most reasoning)
+        max_length: Answer budget in characters; a longer answer is cut there and marked
 
     Requires openai: pip install botcore[research]
     """
-    async for chunk in research_stream(query, mode):
+    async for chunk in research_stream(query, mode, max_length):
         result = research_result(chunk)
         if result is not None:
             return result

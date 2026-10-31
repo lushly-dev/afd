@@ -1,8 +1,5 @@
 /**
  * @fileoverview Streaming types for AFD commands
- * // afd-override: max-lines=600
- * Justification: Streaming chunk types, helpers, guards, and utilities are intentionally grouped
- * here as a single public surface; this small parity addition does not justify a module split yet.
  *
  * Streaming enables incremental delivery of large results with real-time
  * progress feedback. Commands can emit progress updates, data chunks,

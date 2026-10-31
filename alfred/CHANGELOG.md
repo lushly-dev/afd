@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `alfred_quality` reports `description-too-long` above 300 characters (was 120) as a `warning` that does not count toward `issue_count`; each issue carries a `severity` and the result adds `warning_count`.
+
 ## 0.2.0
 
 - Add one Alfred command host shared by CLI, MCP and AFD DirectClient, with explicit worktree/package/area selection and discoverable command effects and applicability.

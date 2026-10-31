@@ -38,7 +38,7 @@ Sources:
 ```python
 # Budgets for modern long-context models
 MAX_OUTPUT_LENGTH = 100_000   # ~25,000 tokens
-MAX_RESEARCH_LENGTH = 12000   # ~3000 tokens (for long-form content)
+MAX_RESEARCH_LENGTH = 100_000 # default for research_stream(..., max_length=...)
 
 # Structured payloads (JSON/NDJSON) must not be truncated at all --
 # clipping them yields a decode error, not a smaller result.

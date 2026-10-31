@@ -15,7 +15,7 @@ function fixture(lines, head = '') {
 test('no-argument mode discovers and rejects oversized source files', () => {
 	const root = mkdtempSync(join(tmpdir(), 'afd-file-size-'));
 	mkdirSync(join(root, 'packages', 'demo', 'src'), { recursive: true });
-	writeFileSync(join(root, 'packages', 'demo', 'src', 'large.ts'), fixture(501));
+	writeFileSync(join(root, 'packages', 'demo', 'src', 'large.ts'), fixture(1001));
 
 	const result = spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' });
 	assert.equal(result.status, 1);
@@ -27,21 +27,45 @@ test('discovery skips tests and honors a bounded override', () => {
 	const root = mkdtempSync(join(tmpdir(), 'afd-file-size-'));
 	const source = join(root, 'packages', 'demo', 'src');
 	mkdirSync(source, { recursive: true });
-	writeFileSync(join(source, 'large.test.ts'), fixture(501));
+	writeFileSync(join(source, 'large.test.ts'), fixture(1001));
 	writeFileSync(
 		join(source, 'intentional.ts'),
-		fixture(550, '// afd-override: max-lines=600\n// Cohesive generated command catalog.\n')
+		fixture(1050, '// afd-override: max-lines=1200\n// Cohesive generated command catalog.\n')
 	);
 
 	const output = execFileSync(process.execPath, [script], { cwd: root, encoding: 'utf8' });
 	assert.match(output, /1 file\(s\) with afd-override/);
 });
 
+test('a file between the thresholds warns without failing', () => {
+	const root = mkdtempSync(join(tmpdir(), 'afd-file-size-'));
+	const source = join(root, 'packages', 'demo', 'src');
+	mkdirSync(source, { recursive: true });
+	writeFileSync(join(source, 'growing.ts'), fixture(600));
+
+	const result = spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' });
+	assert.equal(result.status, 0, result.stderr);
+	assert.match(result.stderr, /growing\.ts/);
+	assert.match(result.stderr, /approaching size limit \(>500 lines\)/);
+	assert.match(result.stderr, /1 file size warning/);
+});
+
+test('an override above the hard cap is rejected', () => {
+	const root = mkdtempSync(join(tmpdir(), 'afd-file-size-'));
+	const source = join(root, 'packages', 'demo', 'src');
+	mkdirSync(source, { recursive: true });
+	writeFileSync(join(source, 'huge.ts'), fixture(1200, '// afd-override: max-lines=1600\n'));
+
+	const result = spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' });
+	assert.equal(result.status, 1);
+	assert.match(result.stderr, /exceeds hard cap of 1500/);
+});
+
 test('explicit staged-file mode still checks only supplied paths', () => {
 	const root = mkdtempSync(join(tmpdir(), 'afd-file-size-'));
 	const source = join(root, 'packages', 'demo', 'src');
 	mkdirSync(source, { recursive: true });
-	writeFileSync(join(source, 'large.ts'), fixture(501));
+	writeFileSync(join(source, 'large.ts'), fixture(1001));
 	writeFileSync(join(source, 'small.ts'), fixture(20));
 
 	const result = spawnSync(process.execPath, [script, join(source, 'small.ts')], {
@@ -64,7 +88,7 @@ test('staged imported FAST-AF and Violet source is skipped while other staged so
 	const owned = join('foundations', 'specimen', 'src', 'large.ts');
 	for (const path of [imported, ...violet, owned]) {
 		mkdirSync(join(root, dirname(path)), { recursive: true });
-		writeFileSync(join(root, path), fixture(501));
+		writeFileSync(join(root, path), fixture(1001));
 	}
 
 	const skipped = spawnSync(process.execPath, [script, imported, ...violet], {

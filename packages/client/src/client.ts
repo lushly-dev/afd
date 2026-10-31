@@ -1,4 +1,3 @@
-// afd-override: max-lines=950 — MCP client lifecycle and public request APIs; parsing and transport helpers are separate modules
 /**
  * @fileoverview MCP Client implementation
  */
