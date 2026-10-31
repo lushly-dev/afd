@@ -43,7 +43,8 @@ async function walk(root, { skipNodeModules = true } = {}) {
 	return files.sort();
 }
 
-async function contentDigest(root) {
+/** Digest of every file below root outside node_modules; symlinks contribute their link text. */
+export async function contentDigest(root) {
 	const lines = [];
 	let bytes = 0;
 	for (const file of await walk(root)) {
@@ -129,6 +130,8 @@ async function bindSource(snapshot, repository, revision) {
 		submodules,
 		missing,
 		modified,
+		// Re-checked by consumer runners so later edits to the snapshot are detected.
+		snapshotDigest: await contentDigest(snapshot),
 		generatedOrUntracked: {
 			count: generated.length,
 			sha256: sha256(JSON.stringify(generated)),
@@ -188,7 +191,12 @@ async function bindPackages(snapshot, packages) {
 	const records = [];
 	for (const [workspace, specs] of Object.entries(packages)) {
 		for (const spec of specs) {
-			const directory = await resolvePackage(snapshot, workspace, spec);
+			// Older or differently laid-out snapshots may not install every descriptor package.
+			const directory = await resolvePackage(snapshot, workspace, spec).catch(() => undefined);
+			if (!directory) {
+				records.push({ workspace, spec, missing: true });
+				continue;
+			}
 			const manifest = JSON.parse(await readFile(join(directory, 'package.json'), 'utf8'));
 			records.push({
 				workspace,
@@ -350,10 +358,11 @@ async function main() {
 			}))
 		),
 		staticDirs: await Promise.all(
-			descriptor.staticDirs.map(async (path) => ({
-				path,
-				...(await contentDigest(join(snapshot, path))),
-			}))
+			descriptor.staticDirs.map(async (path) =>
+				existsSync(join(snapshot, path))
+					? { path, ...(await contentDigest(join(snapshot, path))) }
+					: { path, missing: true }
+			)
 		),
 		remoteAssets: await bindRemote(
 			snapshot,
@@ -374,7 +383,9 @@ async function main() {
 		generatedOrUntracked: manifest.source.generatedOrUntracked.count,
 		lockfileMatchesInstall: manifest.install.lockfileMatchesInstall,
 		virtualStoreEntries: manifest.install.virtualStore.entries,
-		packages: packages.map((item) => `${item.name}@${item.version}`),
+		packages: packages.map((item) =>
+			item.missing ? `${item.spec} missing` : `${item.name}@${item.version}`
+		),
 		browsers: manifest.browsers.map(
 			(item) => `${item.name} ${item.browserVersion} r${item.revision} present=${item.present}`
 		),

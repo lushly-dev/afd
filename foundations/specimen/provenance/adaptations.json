@@ -45,11 +45,11 @@
       "upstream_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
       "staged_path": "docs/features/active/specimens/implementation.md",
       "staged_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
-      "current_import_sha256": "07530621ca95c7e43f61590b986d8eefedec77052a80437c7c36b3abb70a8257",
+      "current_import_sha256": "e335b84365b20edb7bdd5887deb3f827db110607fbecb4969d2f92423cfd12a2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
+      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
     },
     {
       "path": "docs/features/active/specimens/resource-validation.md",
@@ -225,11 +225,11 @@
       "upstream_sha256": "1679fd7a89642030f5ded5a2fd38701e3c6a745beca1c0565fa709b5c16a329d",
       "staged_path": "packages/specimen/experiments/README.md",
       "staged_sha256": "1679fd7a89642030f5ded5a2fd38701e3c6a745beca1c0565fa709b5c16a329d",
-      "current_import_sha256": "f8925e5ea8302e101b737f3e909d328d38be04d91b2a52a45cdac4cf1f5d04e4",
+      "current_import_sha256": "555ef80410cb57800f9c0e5e5ced433bf867cd9a11877d7ef0710b749aacde21",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Driver commands use the imported foundations/specimen path; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; link the updated monorepo CPU/memory rerun; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
+      "import_reason": "Driver commands use the imported foundations/specimen path; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; link the updated monorepo CPU/memory rerun; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/consumer-project.mjs",
@@ -237,11 +237,11 @@
       "upstream_sha256": "35dabd0c92a674dd3127c664027596633431bb057787201ba484f9629c4a9ee9",
       "staged_path": "packages/specimen/experiments/consumer-project.mjs",
       "staged_sha256": "35dabd0c92a674dd3127c664027596633431bb057787201ba484f9629c4a9ee9",
-      "current_import_sha256": "35dabd0c92a674dd3127c664027596633431bb057787201ba484f9629c4a9ee9",
+      "current_import_sha256": "f1e829674ba06e028208623ceea58bbd98e668e8887e91ca6d27fa14a8a24f3a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/fast-af.fixture.mjs",
@@ -465,11 +465,11 @@
       "upstream_sha256": "1e29e59005896e388e11441efeedbc5adb8ff5f5f1fd80b9083d89d7c54347f1",
       "staged_path": "packages/specimen/experiments/run-resources.mjs",
       "staged_sha256": "1e29e59005896e388e11441efeedbc5adb8ff5f5f1fd80b9083d89d7c54347f1",
-      "current_import_sha256": "78e6dd88c1c658fad122fe2d8714cb56cd81ecfddf875d98a8750cbcf462e21d",
+      "current_import_sha256": "a6ba0cd58d7f7168bab7702512001e62527646d60328fa01b859b1f0f61767ce",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
+      "import_reason": "Imported exact staged candidate bytes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/fixtures/probe.stories.ts",
@@ -1017,11 +1017,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "aabf65a77d6201705965f33c873a166bd269097ea7f73f0a7484c2b131ebe7b4",
+      "current_import_sha256": "468f0c6218737de12b9b63b5b9a92808504612547765af7829e34dcca9f4a587",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Living Specimens progress ledger with source/validation evidence, gaps and remaining work; publication authority unchanged; independent merge review corrects the CPU-range wording and records optional profiler rejection fixtures; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
+      "import_reason": "Living Specimens progress ledger with source/validation evidence, gaps and remaining work; publication authority unchanged; independent merge review corrects the CPU-range wording and records optional profiler rejection fixtures; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
     },
     {
       "path": "docs/features/active/specimens/frozen-inputs-inventory.md",
@@ -1089,11 +1089,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "5589c30b15146e19ca1995112704912390d9be730fdbc80f5ef27ba3c0861879",
+      "current_import_sha256": "2c6d34733e29c7d69278dacc462eb5a7b213d6689b195dcef59533c89a55ffed",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
+      "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/inputs/inventory.mjs",
@@ -1130,6 +1130,54 @@
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
       "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
+    },
+    {
+      "path": "docs/features/active/specimens/cpu-attribution-validation.md",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "b7c85cd67c2ba600bae2e9273d69d479bc642410c9dd269d406dde0744cf88cc",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/consumer-project.test.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "fd3f6b871459f61fbd962fe65398ce2b369797296593fe0c3bfae2c3eb260bf1",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/resources/speed-probe.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "84654786ef59b18857b03440217c8cc0c90e428d0a19bd1868d12aa4c4e07bf9",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/resources/speed-probe.test.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "0bb560d6da008eab751cd576582d6552361fec9f0172f28cc9098b112dc193e5",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
     }
   ]
 }
