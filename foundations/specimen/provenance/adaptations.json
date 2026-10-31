@@ -45,11 +45,11 @@
       "upstream_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
       "staged_path": "docs/features/active/specimens/implementation.md",
       "staged_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
-      "current_import_sha256": "c2571847d7158a9c58f254b3766dcee164f8d37294a43d11007b3ab8b7b4b677",
+      "current_import_sha256": "07530621ca95c7e43f61590b986d8eefedec77052a80437c7c36b3abb70a8257",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; link PR 517 as the durable main-delivery record"
+      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
     },
     {
       "path": "docs/features/active/specimens/resource-validation.md",
@@ -225,11 +225,11 @@
       "upstream_sha256": "1679fd7a89642030f5ded5a2fd38701e3c6a745beca1c0565fa709b5c16a329d",
       "staged_path": "packages/specimen/experiments/README.md",
       "staged_sha256": "1679fd7a89642030f5ded5a2fd38701e3c6a745beca1c0565fa709b5c16a329d",
-      "current_import_sha256": "97b7dec441518adf64c2004bc18d3454ddb75e5366d5415a98ff67306b703d8f",
+      "current_import_sha256": "f8925e5ea8302e101b737f3e909d328d38be04d91b2a52a45cdac4cf1f5d04e4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Driver commands use the imported foundations/specimen path; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; link the updated monorepo CPU/memory rerun"
+      "import_reason": "Driver commands use the imported foundations/specimen path; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; link the updated monorepo CPU/memory rerun; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/consumer-project.mjs",
@@ -825,11 +825,11 @@
       "upstream_sha256": "687841ac1a16f34379cddf8c4ccc6c48ab49fa3c0f55cf13a7e13046f0835838",
       "staged_path": "packages/specimen/vitest.config.ts",
       "staged_sha256": "687841ac1a16f34379cddf8c4ccc6c48ab49fa3c0f55cf13a7e13046f0835838",
-      "current_import_sha256": "687841ac1a16f34379cddf8c4ccc6c48ab49fa3c0f55cf13a7e13046f0835838",
+      "current_import_sha256": "5c70da4b621894d811de02443d2d35ad323c51210210d96219f5a5c74e83a7fd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/vitest.unit.config.ts",
@@ -1017,11 +1017,119 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "e5b7da26dc1b684ad533e359651abe343a008fd48e2ad525b1c3aa747dcd7691",
+      "current_import_sha256": "aabf65a77d6201705965f33c873a166bd269097ea7f73f0a7484c2b131ebe7b4",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Living Specimens progress ledger with source/validation evidence, gaps and remaining work; publication authority unchanged; independent merge review corrects the CPU-range wording and records optional profiler rejection fixtures; link PR 517 as the durable main-delivery record"
+      "import_reason": "Living Specimens progress ledger with source/validation evidence, gaps and remaining work; publication authority unchanged; independent merge review corrects the CPU-range wording and records optional profiler rejection fixtures; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
+    },
+    {
+      "path": "docs/features/active/specimens/frozen-inputs-inventory.md",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "44edb082ed4cf2d11103a367fe30e47bafdebfeb6cb18448f0764b475c49595b",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/inputs/baseline-policy.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "30858de550c6b8fe484749a51b8f1026c92c653cd2a1083fc186d659eee4f592",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/inputs/consumers.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "eea4e14ccdf17ce1bb534f71c7d9a74e31b0c7dca3a2adb22da01868bfe3ef42",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/inputs/csf.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "00b8e3d7ec21fa12b2068af0866ca60b98356a82a72144c326bf1acd5bd22f85",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/inputs/csf.test.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "7317ce1d1079cad6dc6b35362bcb657419f4ae5e25da63d6355f8b75f8c5f155",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/inputs/freeze.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "5589c30b15146e19ca1995112704912390d9be730fdbc80f5ef27ba3c0861879",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/inputs/inventory.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "3fad2a4c8743d26648920f53140bb05b8d3a7a6d4fef1145ea97685b19da00a3",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/inputs/freeze.test.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "cd856ccf4ca6bc1a8245be95383be528fa52973d4f16edad0c48181c4de68b1e",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/experiments/inputs/inventory.test.mjs",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "43693027cd70485c46e973e417fe94a1b49cd3050814e4dff78cf6c23ba23da1",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged"
     }
   ]
 }

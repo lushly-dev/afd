@@ -1,6 +1,6 @@
 # Specimens status
 
-Read this before the implementation plan. This ledger records verified progress, known gaps and the next gates. Last reconciled **2026-10-30** against reviewed branch source `ea359184` and fetched main base `40b6a7cc`. [PR #517](https://github.com/lushly-dev/afd/pull/517) records delivery of the branch milestones; use its merge state and resulting commit for current main delivery. Named source SHAs retain the measured/reviewed checkpoints.
+Read this before the implementation plan. This ledger records verified progress, known gaps and the next gates. Last reconciled **2026-10-31** against fetched main `ea22a844`, which contains [PR #517](https://github.com/lushly-dev/afd/pull/517) as `459f8965`. T01 is implemented on branch `lush/specimens-implementation`. Named source SHAs retain the measured/reviewed checkpoints.
 
 ## Keeping this current
 
@@ -15,12 +15,13 @@ Read this before the implementation plan. This ledger records verified progress,
 | Area | State | Evidence and last verification | Still open |
 | --- | --- | --- | --- |
 | Native feasibility, consumer probes, calibrated macOS measurement, lazy runtime and optional worker | Done / merged as the bounded native milestone | [#476](https://github.com/lushly-dev/afd/pull/476), `05dad725`; ancestry and split contracts verified against `origin/main` on 2026-10-30 | Complete workstream 0 acceptance, incumbent parity and release admission |
-| Cached fallback sourcemaps and warm Node CPU profiling | Implemented; [delivery record #517](https://github.com/lushly-dev/afd/pull/517) | `22c6106c`; [CPU study](cpu-hotspot-validation.md), ordinary layout-preserving comparisons and browser/HTTP regressions | Main delivery readback via #517; broader frozen-input performance evidence remains open |
-| Updated monorepo resource matrix and runtime alias compatibility | Implemented; [delivery record #517](https://github.com/lushly-dev/afd/pull/517) | `71505dc6`, `bb54a03b`; [rerun](monorepo-resource-validation.md), 14 completed jobs / 832 verified captures on 2026-10-30 | Attribution of the CPU increase, frozen current dependency/assets and incumbent measurements |
+| Cached fallback sourcemaps and warm Node CPU profiling | Done / merged | [#517](https://github.com/lushly-dev/afd/pull/517), `459f8965`, read back on `origin/main` on 2026-10-31; [CPU study](cpu-hotspot-validation.md), ordinary layout-preserving comparisons and browser/HTTP regressions | Broader frozen-input performance evidence (T02) |
+| Updated monorepo resource matrix and runtime alias compatibility | Done / merged | [#517](https://github.com/lushly-dev/afd/pull/517), `459f8965`; [rerun](monorepo-resource-validation.md), 14 completed jobs / 832 verified captures on 2026-10-30 | Attribution of the CPU increase (T02) and incumbent measurements (T04) |
+| T01 frozen inputs and retained-story inventory | Implemented on branch | `lush/specimens-implementation`; [record](frozen-inputs-inventory.md): Lushly `b8906b75` and FAST-AF `24e4eb86` snapshots bound by Git blob, lockfile-to-install agreement and package digests; 858 / 407 indexed stories inventoried; recorded twice with identical results on 2026-10-31 | One font and browser condition for T03/T04 (G12); main delivery |
 | Full replacement | In progress; workstream 0 gate open | Native API, four AFD definitions, JSON CLI, static page and resource pilots | Compatibility adapter, full runner, operational replacement and qualified consumer cutover |
 | Distribution | Quarantined | [Release inventory](../../../../scripts/release/inventory.json) and [split transition](../platform-monorepo/specimen-transition.md), read back on 2026-10-30 | Publisher authority and guarded release admission; no registry-publication claim |
 
-The native core is `foundations/specimen`; AFD bindings are `integrations/specimen-afd`; the CLI is `endpoints/specimen-cli`. All three units are quarantined. The current native full suite has **100 tests**, with integration/CLI suites separate and **12 packed-artifact consumer checks**. The last code-bearing branch passed `pnpm check`, `pnpm test:specimen` and pre-push hooks on Node 24.21.0. These are local receipts, not hosted CI or consumer qualification.
+The native core is `foundations/specimen`; AFD bindings are `integrations/specimen-afd`; the CLI is `endpoints/specimen-cli`. All three units are quarantined. The current native full suite has **119 tests** (#517's 100 plus 19 T01 input-tool tests), with integration/CLI suites separate and **12 packed-artifact consumer checks**. On 2026-10-31 the T01 branch passed all eleven `pnpm check` stages and `pnpm test:specimen` on Node 24.21.0. These are local receipts, not hosted CI or consumer qualification.
 
 ## Documents and their roles
 
@@ -35,12 +36,13 @@ The native core is `foundations/specimen`; AFD bindings are `integrations/specim
 | [Worker reuse](worker-reuse-validation.md) | Historical 90/70-capture reuse/restart matrix |
 | [Warm CPU study](cpu-hotspot-validation.md) | Confirmed map hotspot, fix, valid matched controls and excluded preliminary cohort |
 | [Monorepo rerun](monorepo-resource-validation.md) | Latest ordinary resource results and historical input differences |
+| [Frozen inputs and inventory](frozen-inputs-inventory.md) | T01: accepted revisions, bound installs/assets/browsers/host, declared policy, retained-story inventory and operational obligations |
 
 ## Workstream progress
 
 | Workstream | State | Verified progress | Exit still open / next gate |
 | --- | --- | --- | --- |
-| 0. Feasibility and observation | In progress | Native cases, scoped observations/diffs, screenshots/index, lifecycle, shell ceiling, calibrated whole-job accounting, optional worker and real consumer batches | Frozen inputs, representative incumbent cost/check equivalence, cross-driver context, complete budget accounting and accepted resource/latency tolerances; tasks T01–T04 |
+| 0. Feasibility and observation | In progress | Native cases, scoped observations/diffs, screenshots/index, lifecycle, shell ceiling, calibrated whole-job accounting, optional worker and real consumer batches; frozen inputs, inventory and owner-confirmed tolerances on branch (T01) | Representative incumbent cost/check equivalence, cross-driver context and complete budget accounting; tasks T02–T04 |
 | 1. Compatibility slice | Not started as a delivered adapter | Explicit metadata loading and native custom renderers only | Refreshed retained-CSF inventory; positive/failing reference pairs; exercised schema/context/token-map/runner contracts; validate/inspect and preview-first codemod; T05 |
 | 2. Full runner and operations | Not started | Native action/checkpoint subset and static build are reusable foundations | Exact discovery/outcome parity, plays/helpers, axe, ready-checkpoint profiler, CEM/typechecks, scaffold and flake/worker integration; T06 |
 | 3. Coverage and replacement gates | Not started | Unknown/unsupported observation channels remain explicit | Represented/asserted/verified obligations, coverage/suggest, Fastbot adapters and every rule's passing/failing retirement evidence; T07 |
@@ -51,17 +53,18 @@ The native core is `foundations/specimen`; AFD bindings are `integrations/specim
 ### Workstream 0 verification block
 
 - **State:** in progress, full exit criterion open.
-- **Last verified:** 2026-10-30; source/package readback at `bb54a03b`, main import `05dad725`, and the linked ordinary monorepo resource receipts.
+- **Last verified:** 2026-10-31; main `7c94e223` (including #517) and the [T01 record](frozen-inputs-inventory.md); 2026-10-30 for the linked ordinary monorepo resource receipts.
 - **Done / merged:** bounded native observation/lifecycle/static tooling, command/CLI split, calibrated macOS recorder, lazy loading and opt-in worker. Initial native honesty fixtures and the five-case capture-only interpretation experiment are recorded in the implementation history.
-- **Implemented on branch:** cached dev maps, dual Node profiler diagnostics and the current ordinary FAST-AF/Lushly rerun. The six preliminary flat-copy comparison jobs remain excluded from accepted performance claims.
+- **Merged since the native milestone:** cached dev maps, dual Node profiler diagnostics and the current ordinary FAST-AF/Lushly rerun (#517). The six preliminary flat-copy comparison jobs remain excluded from accepted performance claims.
+- **Implemented on branch:** T01 snapshots, input manifests, story inventory and the baseline policy, whose tolerances the owner confirmed on 2026-10-31. No measurement ran in T01.
 - **Not done:** equivalent Storybook/Vitest baselines, full driver/asset/dependency conditions, remaining budgets and broader acceptance below. Native wrappers do not prove retained stories, plays, axe, coverage or operational parity.
-- **Follow-ups:** T01–T04, including a frozen-input investigation of Lushly CPU. No Rust rewrite or concurrent-session capacity is accepted by these pilots.
+- **Follow-ups:** T02–T04, including a frozen-input investigation of Lushly CPU. No Rust rewrite or concurrent-session capacity is accepted by these pilots.
 
 ## Known gaps and scope limits
 
 | ID | Gap / limit | Evidence and required follow-up |
 | --- | --- | --- |
-| G01 | Current source, installed dependencies, assets and story inventory are not one frozen accepted consumer baseline | Lushly source was held at `70d48221`, but its linked Violet build changed (63 selected files modified, 18 added). The proposal's 2026-10-28 file/play counts remain historical. T01 MUST refresh exports/effective policies and bind source, installed bytes, fonts/assets and cache conditions. |
+| G01 | Input baseline recorded on branch; runtime fonts unfrozen | [T01](frozen-inputs-inventory.md) binds Lushly `b8906b75` (Violet now vendored) and FAST-AF `24e4eb86` source, installs, generated inputs and story inventory. Earlier `70d48221` measurements keep their drifted inputs. Both incumbents still load Google Fonts live. T03/T04 MUST pick one font condition for both runners. |
 | G02 | CPU rose in the monorepo rerun; cause unconfirmed | FAST-AF isolated median CPU is 56.37 core-seconds, +10.37% against the valid post-cache cohort; Lushly is 54.43, +81.17% against the older reuse cohort. Those baselines differ in age and inputs. T02 MUST use frozen inputs and distinguish diagnostic attribution from ordinary whole-job acceptance. |
 | G03 | No equivalent incumbent resource or full-suite baseline | Native wrappers exercise eight components, not retained CSF or identical incumbent work. T04/T05 MUST compare the actual Storybook/Vitest-addon path with equivalent cases, checks and readiness before any savings or replacement claim. |
 | G04 | Cross-driver context and complete provenance are unproven | CLI versus static-page media preferences and the future Vitest driver still need viewport/`matchMedia`/units/theme parity. Capture 0.1 does not yet provide every proposed installed-version, font/resource, clock/random or context identity. T03/T06 MUST settle and test these fields and lifecycle semantics. |
@@ -71,7 +74,8 @@ The native core is `foundations/specimen`; AFD bindings are `integrations/specim
 | G08 | Consumer operational replacements and coverage are absent | No full export/policy parity, axe enforcement, contract/profile-rule retirement, CEM/typecheck/scaffold/flake replacement, evidence-backed coverage or three-run qualification. T06–T08 MUST retain existing rules during overlap. |
 | G09 | Long worker lifetimes, concurrent capacity and platform cleanup lack proof | Ten rounds do not establish a plateau; Lushly open-worker footprint remains roughly 34–39 MiB above round one. Only one admitted job was tested. A blocked/SIGKILLed worker can leave descendants; Windows cleanup and non-macOS whole-family accounting remain unverified. Additional capacity/platform claims MUST await separate bounded evidence. |
 | G10 | Violet context, token/event channels and lens are absent | Native light/dark wrapper checks do not implement offline node snapshots, composed token maps or observed impact. T09/T10 MUST retain unknown/incomplete results and keep optional scope outside core cutover gates; core declared-event history belongs to T06. |
-| G11 | Publication admission remains open; main delivery has a separate record | [PR #517](https://github.com/lushly-dev/afd/pull/517) records main delivery of the cached-map/profile changes and latest rerun. All three packages remain quarantined with no publisher recorded. Future plugin allocation and release dependencies MUST be reconciled with the monorepo inventory before release/cutover. |
+| G11 | Publication admission remains open | #517 merged the cached-map/profile changes and latest rerun as `459f8965`. All three packages remain quarantined with no publisher recorded. Future plugin allocation and release dependencies MUST be reconciled with the monorepo inventory before release/cutover. |
+| G12 | Incumbents and candidate run different browsers, and AFD has no runner for its FAST-AF stories | Chromium 153 (Lushly, Playwright 1.63.0), 145 (FAST-AF, 1.58.2) and 156 (Specimen, 1.64.0); axe-core 4.13.0 and 4.11.1. FAST-AF's Storybook, Fastbot and CI scope remain upstream against a frozen copy of the stories AFD now owns. T03/T04 MUST run each pair on one browser build or report the difference; T06–T08 MUST settle where the FAST-AF suite runs. |
 
 ## Current resource decision
 
@@ -81,11 +85,13 @@ These outcomes support an opt-in worker reused across related captures and expli
 
 ## Follow-ups not yet issues
 
-All rows were reconciled on 2026-10-30. No new owner or issue is claimed by this documentation update.
+All rows were reconciled on 2026-10-31. No owner or issue is claimed; T01 was taken on in this session without an issue.
 
 | Follow-up | Next task / completion record | State |
 | --- | --- | --- |
-| Freeze current FAST-AF/Lushly source/dependency/assets and refresh retained-story inventory | T01; record exact input manifests and unresolved assets/policies | Open, unassigned |
+| Freeze current FAST-AF/Lushly source/dependency/assets and refresh retained-story inventory | T01; [record](frozen-inputs-inventory.md) | Implemented on branch `lush/specimens-implementation`; tolerances confirmed 2026-10-31; main delivery open |
+| Choose one font and browser condition for incumbent/candidate pairs | T03/T04; G01, G12 | Open, unassigned |
+| Decide where the AFD-owned FAST-AF stories run before upstream Storybook retires | T06–T08; G12 | Open, unassigned |
 | Explain the current CPU increase before selecting another optimization | T02; warmed profiles and ordinary matched CPU/memory readback | Open, unassigned |
 | Extend profiler regression fixtures for rejected identity/nonce, duplicate roles and error receipts | T02 diagnostic hardening; existing source rejection paths reviewed, additional negative fixtures remain open | Open, unassigned |
 | Close driver/observation and complete resource/budget feasibility evidence | T03/T04; explicit decision on workstream 0 exit | Open, unassigned |
@@ -105,3 +111,4 @@ All rows were reconciled on 2026-10-30. No new owner or issue is claimed by this
 | 2026-10-30 | Monorepo refresh | `71505dc6` / `bb54a03b`, branch evidence; 14 completed jobs, 832 verified captures, 32 creates/closes, one held admission, stable selected inputs and no owned survivors |
 | 2026-10-30 | Plan reconciliation | Added this ledger, current package/command boundaries, known gaps and T01–T11; retained the original proposal gates and historical validation records |
 | 2026-10-30 | Independent merge review | Full 24-file review at `ea359184`, followed by focused verification of the corrected CPU-range wording and optional negative-profiler-fixture follow-up; no merge blockers. Main delivery is tracked by #517. |
+| 2026-10-31 | T01 frozen inputs and inventory | Branch evidence, `lush/specimens-implementation`. Lushly `b8906b75` / FAST-AF `24e4eb86` snapshots: 5,822 / 2,699 tracked files bound, installed lock equals lockfile, 858 / 407 stories inventoried with 0 index mismatches, 7 / 2 unreadable stories kept explicit (5 unknown plays), browser divergence recorded, tolerances declared and confirmed by the owner. No measurement ran. |

@@ -1,0 +1,66 @@
+{
+	"schema": "specimen-baseline-policy/1",
+	"declared": "2026-10-31",
+	"status": "Declared by T01 and confirmed by the owner on 2026-10-31, before any incumbent/candidate comparison. Revise only before the T04 comparison runs, with the reason recorded.",
+	"admission": {
+		"concurrentJobs": 1,
+		"reservedLogicalCores": 2,
+		"minimumFreeMemoryPercent": 25,
+		"freeMemorySource": "memory_pressure -Q"
+	},
+	"limits": {
+		"familyFootprintBytes": 2147483648,
+		"jobTimeoutSeconds": 120,
+		"scope": "Native and representative-sample jobs; full-suite parity runs use each consumer's authoritative path and limits"
+	},
+	"sampling": {
+		"intervalMs": 100,
+		"idleWindowMs": 1000,
+		"exitGraceMs": 500,
+		"memoryMetric": "process-accounted phys_footprint summed per simultaneous sample (macOS)",
+		"cpuMetric": "waited root plus reaped descendant user+system core-seconds"
+	},
+	"cache": {
+		"cold": "First render after process start with an emptied Vite dependency cache and a fresh browser profile; OS file cache not flushed",
+		"warm": "Subsequent render in the same process with populated Vite transform/dependency caches; every render keeps a fresh browser context",
+		"incumbentCold": "Storybook Vitest run after removing node_modules/.cache/storybook and node_modules/.vite in the snapshot",
+		"incumbentWarm": "Immediate rerun of the same Storybook Vitest selection"
+	},
+	"workers": {
+		"specimenDefault": "in-process",
+		"specimenIsolated": "Opt-in process worker reused across related captures and closed explicitly",
+		"incumbentMaxWorkers": {
+			"lushly": "2 (vitest.storybook.config.ts)",
+			"fast-af": "Vitest default for the storybook project"
+		}
+	},
+	"samples": {
+		"cold": 5,
+		"warm": 5,
+		"repetitionOrder": "ABBA for paired cells; held, failed and diagnostic runs supply no ratios"
+	},
+	"tolerances": {
+		"repeatability": {
+			"cpuSpreadPercent": 10,
+			"peakFootprintSpreadPercent": 10,
+			"rule": "Two repetitions of one cell differing by more than this are unstable: rerun or hold the cell, and derive no ratio from it"
+		},
+		"noiseFloorPercent": 5,
+		"noiseFloorRule": "A median difference within this band is reported as no measurable difference, not as a reduction or regression",
+		"acceptance": {
+			"cpuPerVerifiedCase": "Candidate median at most the incumbent median for equivalent verified work",
+			"activePeakFootprint": "Candidate median at most the incumbent median",
+			"postCloseFootprint": "Candidate median at most the incumbent median",
+			"coldStartupLatency": "Candidate median at most 1.25 times the incumbent median",
+			"warmRenderLatency": "Candidate median at most 1.25 times the incumbent median",
+			"rule": "CPU and memory are the outcome; latency is a guardrail. A savings claim also requires the difference to exceed the noise floor."
+		}
+	},
+	"budgets": {
+		"unit": "minified UTF-8 JavaScript bytes",
+		"shell": 50000,
+		"helpers": 600000,
+		"axe": 650000,
+		"total": 1300000
+	}
+}
