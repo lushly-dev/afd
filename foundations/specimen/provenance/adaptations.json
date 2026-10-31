@@ -249,11 +249,11 @@
       "upstream_sha256": "51256ea34cacf0c76f439d6ac1585e89d5987622b9a5893cfd01e44868e40ec9",
       "staged_path": "packages/specimen/experiments/fast-af.fixture.mjs",
       "staged_sha256": "51256ea34cacf0c76f439d6ac1585e89d5987622b9a5893cfd01e44868e40ec9",
-      "current_import_sha256": "51256ea34cacf0c76f439d6ac1585e89d5987622b9a5893cfd01e44868e40ec9",
+      "current_import_sha256": "319ccd55b04f54fdb572bbf1d41a4ffbe61d3f609a1c0658e5ce77ae65ce17f3",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; link the current @lushly-dev/fast-element identity alongside the former alias to the same runtime for updated monorepo probes"
     },
     {
       "path": "foundations/specimen/experiments/lushly.fixture.mjs",
