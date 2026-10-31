@@ -5,7 +5,7 @@
 | Status | Living document; the through line every phase implements against |
 | Owner | Repository owner; each phase's owning agent proposes amendments by pull request |
 | Elevation | Infrastructure, libraries, interfaces, principles and phases. No code. Each phase writes its own detailed specification under its folder and cites the principles and [decisions](decisions.md) it serves |
-| Companion documents | [Proposal](proposal.md), [Decision log](decisions.md), [Research](research.md), [Sources](sources.md) |
+| Companion documents | [Status](STATUS.md) first, then [Proposal](proposal.md), [Decision log](decisions.md), [Trajectory watch](trajectory.md), [Research](research.md), [Sources](sources.md) |
 
 ## 1. Vision
 
@@ -64,6 +64,9 @@ its own backends, on its own terms?
     runs on every ranking or surface change.
 13. **Same interface at every scale.** A profile switches lanes and backends;
     the tool surface, the eval harness and the plugin contract do not change.
+14. **Every mutation is an event.** Knowledge and memory writes append to one
+    event log with monotonic ids and per-principal cursors; subscriptions,
+    webhooks, harness channels and the audit trail all read that log.
 
 ## 3. System shape
 
@@ -115,7 +118,8 @@ organization.
 | Surfaces | MCP on the current stateless revision over stdio and Streamable HTTP; the CLI with JSON envelopes and exit codes; in-process library use | Defining behavior a sibling surface lacks |
 | Registry and discovery | One command registry; bootstrap help, docs and schema; lazy discover, detail and call; batch and pipe; docs generated from the live registry | Advertising anything that cannot be called |
 | Auth middleware | Authenticator, protected-resource metadata, per-command scope resolution, principal injection; modes from none to gateway-trusted | Owning any identity provider |
-| Approvals, confirmations, journal, telemetry | From the AFD crate: approval tokens bound to command and input, confirmation prompts, an append-only journal with replay, trace context | Business policy about what needs approval; that is per command and per workspace |
+| Approvals, confirmations, journal, telemetry | From the AFD crate: approval tokens bound to command and input, confirmation prompts, an append-only journal with replay, trace context; usage events per tool and principal | Business policy about what needs approval; that is per command and per workspace |
+| Event log | Monotonic event ids and per-principal cursors for every knowledge and memory mutation; replay; the one store behind subscriptions, webhooks, harness channels and audit | Guaranteeing delivery to a disconnected consumer; consumers resume by cursor |
 | Plugin loader | Three kinds: compiled-in crates, WebAssembly components against the host WIT world, mounted external MCP servers with prefixed names; capability grants; contract version checks; doctor report | Plugin discovery by scanning; plugins calling plugins |
 | Workspace | Deployer-owned directory: configuration, content roots, schema, packs, plugin list and settings, scale profile, store location | Anything company-specific inside the binary |
 | Store traits | Document store, search index, graph, memory store; a conformance suite every backend passes | Choosing a vendor for the deployer |
@@ -123,7 +127,7 @@ organization.
 | knowledge plugin | Ingest, chunk, index, structural graph, search, open, find, metadata, citations, the eval harness | Writing to the knowledge base directly |
 | memory and context plugins | Scoped, bitemporal, expiring memory; capture from harness hooks; budgeted context bundles | Promoting anything to the knowledge base |
 | curator plugin | Settling window, candidates, conflict sets, proposals with evidence, approval flow, rejection feedback; runs on a schedule with an optional configured model | Running in the request path |
-| sources and connectors | Change detection, permission mirroring, indexed-copy and live modes, mounted MCP servers as sources | Copying content the caller is not allowed to see |
+| sources and connectors | Change detection, permission mirroring, indexed-copy and live modes; mounted external MCP servers as a first-class federation path across vendor systems | Copying content the caller is not allowed to see |
 | Evaluation harness | Seeded queries with unanswerables, recall and ranking metrics, logged result ids, a calibrated judge | Replacing human review of content |
 | Distribution | Per-platform binaries, a bundle for desktop hosts, an OCI image, a registry entry, a server card | A hosted service; deployers host it |
 
@@ -181,9 +185,13 @@ sequenceDiagram
 
 - **MCP surface.** A small fixed set of first-class tools for the hot path,
   such as search, open, context and remember, plus the lazy strategy for the
-  long tail. Documents are also resources; workflows are prompts. Tool lists
-  carry cache hints and a stable order. Results carry structured content with
-  an output schema and the same as text.
+  long tail. Documents are also resources; workflows are prompts. Skills over
+  MCP is the primary surface for how to use a deployment: the host serves the
+  skills its plugins contribute through the skills extension. Tool lists carry
+  cache hints and a stable order. Results carry structured content with an
+  output schema and the same as text; fragments are tagged internally by
+  audience, assistant, user or programmatic, and projected onto those fields.
+  Resources are content-addressed, with digest, size and cache hints.
 - **CLI.** The same registry as commands and subcommands, JSON out, stable
   exit codes, a doctor command, reindex, backup and restore, plugin new and
   plugin check. Harness adapters are thin scripts over the CLI.
@@ -194,16 +202,33 @@ sequenceDiagram
   and the exports a component provides. Versioned with the manifest.
 - **Store traits.** Document store, index, graph, memory store, each with a
   conformance suite; the embedded backend is the reference implementation.
-- **Auth traits.** Authenticator, protected-resource metadata provider,
-  required-scope resolver, principal.
+- **Auth traits and principal.** Authenticator, protected-resource metadata
+  provider, required-scope resolver. The principal carries the originating
+  user with authentication strength, the client, the agent identity with
+  blueprint and instance, the delegation chain with its depth, token binding,
+  a human-presence flag, and the policy decision with its version.
+  Enterprise-managed authorization is accepted on connections; a per-tool
+  flag says a human must be present.
 - **Provenance envelope.** The fields every stored record carries, and the
   rule that writes which drop them are rejected.
-- **Proposal record.** A diff against the knowledge base, evidence, provenance,
-  rationale, target area, state, approver, rejection reason.
+- **Event and cursor.** Each mutation's event carries an id, a per-principal
+  cursor, the record reference and the provenance envelope; consumers poll,
+  stream or receive signed webhooks from the same log.
+- **Proposal record.** A diff against the knowledge base, evidence with
+  content hashes, provenance, rationale, target area, the policy applied and
+  its version, any exception, state, approver, proposing agent and run,
+  resulting state, rejection reason. A proposal is a decision trace about the
+  knowledge itself.
 - **Context bundle.** A budgeted, deterministic assembly for a task from
   knowledge, memory and graph, with a list of what was left out and why.
-- **Capture.** What a harness hook sends at session end: episodes, decisions,
-  artifacts, with scope and principal.
+- **Capture and harness adapters.** What a harness hook sends at session end:
+  episodes, decisions, artifacts, with scope and principal. Adapters share
+  one JSON contract: session start returns a context pack under the harness's
+  injection cap, written as facts rather than instructions; tool-use and stop
+  events capture; pre-compaction snapshots. Import and export cover the
+  harness memory directories, so memory moves between harnesses.
+- **Usage event.** Tool, principal, bytes and tokens served, per request, for
+  metering and chargeback.
 - **Pack.** A directory with a manifest, data, reference material and
   declarative rules, selected per instance, overriding a plugin's default.
 
@@ -242,7 +267,7 @@ sequenceDiagram
 | Plugin sandbox | wasmtime with the component model and wit-bindgen | Language-agnostic plugins, fuel and memory limits |
 | Code structure | tree-sitter | Deterministic symbol graph for repositories |
 | Schemas | JSON Schema 2020-12 through serde and schemars | Matches the MCP revision |
-| Observability | OpenTelemetry trace context in request metadata, stderr logs | No deprecated protocol logging |
+| Observability | OpenTelemetry GenAI semantic conventions: tool-execution spans, trace context from request metadata, agent and session baggage carried into stored records, stderr logs | No deprecated protocol logging; the conventions are still in development, so the schema is pinned |
 
 Deliberately absent from the host: any language-model client, any cloud
 vendor SDK, any dynamic-library plugin loading, in-memory sessions.
@@ -272,15 +297,27 @@ flowchart TD
 ```
 
 - The workspace holds content roots of markdown with frontmatter under a
-  schema the workspace declares; a default schema ships.
+  schema the workspace declares; a default schema ships. The on-disk container
+  is compatible with the Open Knowledge Format: one concept per file, path as
+  identity, a required type, recommended title, description, tags and
+  timestamp, and reserved index and log files.
 - Documents are chunked structure-aware; chunks carry title, heading path and
   metadata as context; hits are presented per document.
 - The graph is built deterministically from hierarchy, headings, links, tags,
   owners, timestamps, code symbols and co-citation; model-extracted entities
   are a per-collection opt-in with a budget and their own provenance layer.
-- Memory records are scoped by org, project, actor and session, bitemporal
-  and expiring; they are indexed by the same search and graph with provenance
-  labels.
+- Memory has three classes: episodic records of runs, semantic verified
+  facts, and procedural knowledge kept as skills. Records are scoped by org,
+  project, actor and session, bitemporal and expiring; they are indexed by the
+  same search and graph with provenance labels. The curator promotes episodic
+  memory to semantic or procedural.
+- Knowledge entries carry a verification lifecycle: proposed, confirmed,
+  verified with an owner and a verify-by date, stale. The curator schedules
+  re-verification and raises inconsistency proposals rather than choosing
+  silently.
+- Every concept and chunk carries a reference to its source's access control
+  and a sensitivity label; derived content whose source the reader cannot
+  open is denied by default.
 - Proposals, approvals, ledger events and artifacts are records with
   idempotency keys and content hashes.
 - Every search hit carries a stable locator: document id, section or line
@@ -290,7 +327,10 @@ flowchart TD
 
 - **Security.** Sandboxed plugins; no token forwarding to plugins or mounted
   servers; untrusted content labeled on read and scanned on write; rate limits
-  and size caps per agent; audit log on every write.
+  and size caps per agent; audit log on every write, recording both the agent
+  and the person on whose behalf it acted.
+- **Compatibility.** The host negotiates the 2025 revision for hosts that
+  still require it on push paths, such as harness channels, through the SDK.
 - **Determinism and replay.** Every command journaled; results stamped with
   index version and content hash; evaluation replays a journal against a
   pinned index.
@@ -327,18 +367,30 @@ flowchart LR
 
 | Phase | Goal | Exit criterion | The specification must settle |
 | --- | --- | --- | --- |
-| 0. Host skeleton | The empty host serves MCP and CLI from one registry with discovery, journal and approvals, from a workspace with defaults | Zero plugins, protocol conformance passes, doctor reports the workspace | Workspace layout and config schema; CLI envelope; profile names |
-| 1. Plugin contract | Manifest, capability grants, the WIT world, three loader kinds, plugin new and plugin check, the test kit, the hello plugin | hello loads compiled, as a component and mounted, and a second plugin lands with no host change | Manifest format; WIT world v1; grant semantics; contract versioning |
-| 2. Knowledge | Sources from the filesystem, chunking, lexical index, structural graph, search, open, find, metadata, citations, the eval harness | A thousand documents indexed; recall and ranking reported on a seeded query set | Frontmatter schema; chunking rules; query syntax; locator format; eval set shape |
-| 3. Memory and context | Scoped bitemporal memory, capture from harness hooks, context bundles, provenance envelope enforced | A harness hook captures a session; a context call returns a budgeted bundle with omissions listed | Scope tuple; envelope fields; bundle budget rules; hygiene policy |
-| 4. Curator | Settling window, candidates, conflict sets, proposals, approvals per area, rejection feedback, scheduled runs | One proposal approved from the CLI lands in the knowledge base with full provenance | Proposal record; approval policy; settling defaults; the optional model configuration |
-| 5. Auth and hosted | Auth traits and middleware, protected-resource metadata, gateway-trusted mode, Tasks for long jobs, permission-aware retrieval | A hosted deployment behind an external identity provider with filtered results | Trait shapes; scope mapping; audience rules; hosted profile |
+| 0. Host skeleton | The empty host serves MCP and CLI from one registry with discovery, journal, event log and approvals, from a workspace with defaults | Zero plugins, protocol conformance passes, doctor reports the workspace | Workspace layout and config schema; CLI envelope; profile names; event and cursor shape |
+| 1. Plugin contract | Manifest, capability grants, the WIT world, three loader kinds, skills served through the skills extension, plugin new and plugin check, the test kit, the hello plugin | hello loads compiled, as a component and mounted, and a second plugin lands with no host change | Manifest format; WIT world v1; grant semantics; contract versioning |
+| 2. Knowledge | Sources from the filesystem, chunking, lexical index, structural graph, search, open, find, metadata, citations, the eval harness | A thousand documents indexed; recall and ranking reported on a seeded query set | Frontmatter schema and the on-disk container; chunking rules; query syntax; locator format; eval set shape |
+| 3. Memory and context | Three memory classes, scoped and bitemporal; capture through harness adapters on the shared contract; import and export of harness memory; context bundles; provenance envelope enforced | A harness hook captures a session; a context call returns a budgeted bundle with omissions listed | Scope tuple; envelope fields; adapter contract; bundle budget rules; hygiene policy |
+| 4. Curator | Settling window, candidates, conflict sets, proposals as decision traces, approvals per area, verification lifecycle and inconsistency proposals, rejection feedback, scheduled runs | One proposal approved from the CLI lands in the knowledge base with full provenance | Proposal record; approval policy; settling and re-verification defaults; the optional model configuration |
+| 5. Auth and hosted | Auth traits and middleware, the full principal, enterprise-managed authorization, the human-required flag, protected-resource metadata, gateway-trusted mode, Tasks for long jobs, usage events, permission-aware retrieval | A hosted deployment behind an external identity provider with filtered results | Trait shapes; principal fields; scope mapping; audience rules; hosted profile |
 | 6. Backends | Store traits finalized, conformance suite, embedded reference backend certified, a second backend | The second backend passes the suite; a workspace switches backends by configuration | Trait boundaries; suite contents; migration between backends |
-| 7. Distribution and guides | Binaries, bundle, image, registry entry, server card; authoring skills and guides for plugins, connectors and packs | A newcomer builds and loads a plugin from the guide alone | Artifact set; guide structure; what the host emits as skills |
+| 7. Distribution and guides | Binaries, bundle, image, registry entry, server card and the well-known catalog file; authoring skills and guides for plugins, connectors and packs | A newcomer builds and loads a plugin from the guide alone | Artifact set; guide structure; what the host emits as skills |
 
 Optional lanes such as vectors, rerankers and model-extracted entities attach
 to phase 2 and later phases as opt-ins gated by the eval harness; they never
 block an exit criterion.
+
+Sequencing: the core, phases 0 and 1, comes first. The knowledge plugin
+follows because it is a present need and drives the others; memory, context
+and the curator complete the first-party set. Further first-class plugins,
+including federation through mounted servers with indexed and live modes,
+follow the core phases and get their own specifications.
+
+Progress is recorded in [STATUS.md](STATUS.md), not inferred from the
+codebase. Every phase specification carries the same status block: state,
+last verified with date and evidence, exactly what is done, exactly what is
+not, and follow-ups that are not yet issues. A session that changes Umbel
+updates the status before it ends.
 
 ## 10. Open decisions
 
@@ -346,3 +398,11 @@ Recorded in the [proposal](proposal.md) and moved into the decision log as
 they close: the first external integration, the execution model beyond the
 lazy strategy, the manifest format and WIT world shape, the default embedding
 model per profile, tenancy.
+
+## 11. Trajectory watch
+
+The movements this design anticipates, what is reserved for each, the dated
+watchlist and what is deliberately not chased are in the
+[trajectory watch](trajectory.md). A phase's owning agent refreshes the rows
+it depends on before writing its specification, and records any change this
+document needs as an amendment.

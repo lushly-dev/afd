@@ -93,10 +93,13 @@ Each feature folder contains:
 feature-name/
 ├── proposal.md      # The what/why (required)
 ├── spec.md          # The how (after approval)
+├── STATUS.md        # Exactly what is done and not done, how it was verified, and follow-ups not yet issues; kept current by every session once work starts
 └── assets/          # Diagrams, screenshots (optional)
 ```
 
 > **Plan files and `.gitignore`.** `.gitignore` ignores `*.plan.md` everywhere except `docs/features/active/` (and `PLAN/` and `archive/`). A `*.plan.md` written under `proposed/` or `complete/` is silently left out of commits; `git status` does not list it. Name plans outside `active/` without the `.plan` suffix, for example `complete/<feature>/plan.md`, and check that `git status` shows any new plan file before committing.
+
+A status file exists so that an agent never has to scan the codebase to learn what is current: it names what is done with evidence, what is not, and what future sessions must know. The [Umbel status](../../umbel/docs/STATUS.md) is the reference shape.
 
 ## Workflow
 
