@@ -7,13 +7,15 @@
 //! - an accepted MCP elicitation: an `input_required` result on MCP 2026-07-28, whose
 //!   `requestState` is HMAC-signed and bound to the command and its input, or a server-sent
 //!   elicitation on a 2025 stdio connection; or
-//! - under [`ConfirmationMode::Enforce`], an acknowledgement: `confirm: true` in the arguments, or
-//!   `_meta["dev.afd/confirm"]: true`.
+//! - under [`ConfirmationMode::Enforce`], an acknowledgement: `confirm: true` in the arguments of
+//!   a command's tool, a grouped tool or `afd-call`; `confirm: [names]` in the arguments of
+//!   `afd-batch` or `afd-pipe`; or `_meta["dev.afd/confirm"]: true`.
 //!
-//! Otherwise the call fails with `CONFIRMATION_REQUIRED` or `CONFIRMATION_DECLINED` before the
-//! handler runs. A 2025 request over Streamable HTTP has no back channel, so it never elicits.
+//! Otherwise the call fails with `CONFIRMATION_REQUIRED` or `CONFIRMATION_DECLINED` before any
+//! handler runs. A batch or pipeline is checked as a whole, before its first command: one
+//! elicitation covers every gated command in it. A 2025 request over Streamable HTTP has no back channel, so it never elicits.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use rmcp::model::{
@@ -22,7 +24,7 @@ use rmcp::model::{
 };
 use rmcp::service::RequestContext;
 use rmcp::RoleServer;
-use serde_json::{json, Map, Value};
+use serde_json::{json, Value};
 
 use crate::{error_codes, CommandError};
 
@@ -86,9 +88,18 @@ fn canonical(value: &Value) -> String {
     }
 }
 
-/// The associated data of a confirmation: the command and its input, canonically.
+/// The associated data of a confirmation for one command: the command and its input, canonically.
 pub fn confirmation_binding(command: &str, input: &Value) -> Vec<u8> {
-    canonical(&json!([[command, input]])).into_bytes()
+    steps_binding(&[Step::new(command, input.clone())])
+}
+
+/// The associated data of a confirmation: the gated commands and their input, canonically.
+fn steps_binding(steps: &[Step]) -> Vec<u8> {
+    let steps: Vec<Value> = steps
+        .iter()
+        .map(|step| json!([step.command, step.input]))
+        .collect();
+    canonical(&Value::Array(steps)).into_bytes()
 }
 
 /// Whether a tool's own input schema declares a `confirm` property.
@@ -123,17 +134,41 @@ impl Gate {
     }
 }
 
+/// One command a call would run, with its input as sent.
+#[derive(Debug, Clone)]
+pub(crate) struct Step {
+    pub(crate) command: String,
+    pub(crate) input: Value,
+}
+
+impl Step {
+    pub(crate) fn new(command: impl Into<String>, input: Value) -> Self {
+        Self {
+            command: command.into(),
+            input,
+        }
+    }
+}
+
+/// How the caller acknowledges confirm-gated commands: all of them (`confirm: true`), or the
+/// named ones (`afd-batch` and `afd-pipe` take `confirm: [names]`).
+pub(crate) enum Acknowledgement {
+    None,
+    All,
+    Names(HashSet<String>),
+}
+
 /// What the gate decided for one call.
 pub(crate) enum Decision {
-    /// Run the command with this input (`confirm` removed when the server added it).
-    Proceed(Value),
+    /// Run the call.
+    Proceed,
     /// Answer with this failure.
     Refuse(CommandError),
     /// Answer with this `input_required` result.
     Ask(CallToolResponse),
 }
 
-fn is_modern(context: &RequestContext<RoleServer>) -> bool {
+pub(crate) fn is_modern(context: &RequestContext<RoleServer>) -> bool {
     context.protocol_version().is_some_and(|version| {
         serde_json::to_value(&version)
             .ok()
@@ -158,64 +193,114 @@ fn answer(action: &Value, content: &Value) -> bool {
     action == "accept" && content["confirm"] == Value::Bool(true)
 }
 
-fn declined(command: &str) -> CommandError {
+fn quoted(names: &[String]) -> String {
+    names
+        .iter()
+        .map(|name| format!("'{name}'"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn declined(names: &[String]) -> CommandError {
     CommandError::new(
         error_codes::CONFIRMATION_DECLINED,
-        format!("The user did not confirm '{command}'"),
+        format!("The user did not confirm {}", quoted(names)),
     )
     .with_suggestion(
         "Do not run this again without asking the user first; the user chose not to proceed.",
     )
     .with_retryable(false)
-    .with_details(HashMap::from([("commands".to_owned(), json!([command]))]))
+    .with_details(HashMap::from([("commands".to_owned(), json!(names))]))
 }
 
-/// Decide a tool call for `command`, whose `confirm_prompt` is `prompt`.
+/// The elicitation message: the prompt of a single command, or every gated command's.
+fn elicitation_message(steps: &[(Step, String)]) -> String {
+    match steps {
+        [(_, prompt)] => prompt.clone(),
+        _ => std::iter::once("This request runs commands that need confirmation:".to_owned())
+            .chain(
+                steps
+                    .iter()
+                    .map(|(step, prompt)| format!("- {}: {prompt}", step.command)),
+            )
+            .collect::<Vec<_>>()
+            .join("\n"),
+    }
+}
+
+/// What the request being decided can carry.
+pub(crate) struct Channel<'a> {
+    pub(crate) request: &'a CallToolRequestParams,
+    pub(crate) context: &'a RequestContext<RoleServer>,
+    /// Whether a 2025 connection can receive a server-sent elicitation.
+    pub(crate) legacy_back_channel: bool,
+}
+
+/// Decide a tool call that runs `steps`. `prompt` returns a command's `confirm_prompt`;
+/// `how_to_acknowledge` is the recovery text for this tool, such as "repeat the call with
+/// confirm: true".
 pub(crate) async fn check(
     gate: &Gate,
-    command: &str,
-    prompt: &str,
-    tool: Option<&Value>,
-    request: &CallToolRequestParams,
-    context: &RequestContext<RoleServer>,
-    legacy_back_channel: bool,
+    steps: &[Step],
+    prompt: impl Fn(&str) -> Option<String>,
+    acknowledged: Acknowledgement,
+    how_to_acknowledge: &str,
+    channel: &Channel<'_>,
 ) -> Decision {
-    let mut input = Map::new();
-    if let Some(arguments) = &request.arguments {
-        input.clone_from(arguments);
+    let (request, context) = (channel.request, channel.context);
+    if gate.mode == ConfirmationMode::Off {
+        return Decision::Proceed;
     }
-    let acknowledged = input.get("confirm") == Some(&Value::Bool(true))
-        || context.meta.get(AFD_CONFIRM_META_KEY) == Some(&Value::Bool(true));
-    if !declares_confirm(tool) {
-        input.remove("confirm");
+    let gated: Vec<(Step, String)> = steps
+        .iter()
+        .filter_map(|step| prompt(&step.command).map(|prompt| (step.clone(), prompt)))
+        .collect();
+    if gated.is_empty() {
+        return Decision::Proceed;
     }
-    let input = Value::Object(input);
-    let binding = confirmation_binding(command, &input);
+    let mut names: Vec<String> = Vec::new();
+    for (step, _) in &gated {
+        if !names.contains(&step.command) {
+            names.push(step.command.clone());
+        }
+    }
+    let gated_steps: Vec<Step> = gated.iter().map(|(step, _)| step.clone()).collect();
+    let binding = steps_binding(&gated_steps);
     let modern = is_modern(context);
 
-    // The retry of an earlier elicitation, if its state verifies for this command and input.
+    // The retry of an earlier elicitation, if its state verifies for these commands and input.
     if modern {
         if let (Some(responses), Some(state)) = (&request.input_responses, &request.request_state) {
             let responses = serde_json::to_value(responses).unwrap_or(Value::Null);
             let response = &responses[CONFIRM_INPUT_KEY];
             if !response["action"].is_null() && gate.codec.open_with(state, &binding).is_ok() {
                 return if answer(&response["action"], &response["content"]) {
-                    Decision::Proceed(input)
+                    Decision::Proceed
                 } else {
-                    Decision::Refuse(declined(command))
+                    Decision::Refuse(declined(&names))
                 };
             }
         }
     }
 
-    if gate.mode == ConfirmationMode::Enforce && acknowledged {
-        return Decision::Proceed(input);
+    if gate.mode == ConfirmationMode::Enforce {
+        let covered = context.meta.get(AFD_CONFIRM_META_KEY) == Some(&Value::Bool(true))
+            || match &acknowledged {
+                Acknowledgement::None => false,
+                Acknowledgement::All => true,
+                Acknowledgement::Names(acknowledged) => {
+                    names.iter().all(|name| acknowledged.contains(name))
+                }
+            };
+        if covered {
+            return Decision::Proceed;
+        }
     }
 
     if allows_form_elicitation(context) {
         let elicitation = json!({
             "mode": "form",
-            "message": prompt,
+            "message": elicitation_message(&gated),
             "requestedSchema": confirm_requested_schema(),
         });
         if modern {
@@ -233,14 +318,14 @@ pub(crate) async fn check(
             if let Ok(result) = result {
                 return Decision::Ask(CallToolResponse::InputRequired(result));
             }
-        } else if legacy_back_channel {
+        } else if channel.legacy_back_channel {
             if let Ok(params) = serde_json::from_value::<ElicitRequestParams>(elicitation) {
                 if let Ok(result) = context.peer.create_elicitation(params).await {
                     let result = serde_json::to_value(result).unwrap_or(Value::Null);
                     return if answer(&result["action"], &result["content"]) {
-                        Decision::Proceed(input)
+                        Decision::Proceed
                     } else {
-                        Decision::Refuse(declined(command))
+                        Decision::Refuse(declined(&names))
                     };
                 }
             }
@@ -248,17 +333,19 @@ pub(crate) async fn check(
     }
 
     let suggestion = if gate.mode == ConfirmationMode::Enforce {
-        "Make sure the user intends this, then repeat the call with confirm: true."
+        format!("Make sure the user intends this, then {how_to_acknowledge}.")
     } else {
-        "This server accepts only a confirmation from the user: use an MCP client that supports elicitation."
+        "This server accepts only a confirmation from the user: use an MCP client that supports elicitation.".to_owned()
+    };
+    let message = match gated.as_slice() {
+        [(step, prompt)] => format!("'{}' needs confirmation: {prompt}", step.command),
+        _ if names.len() == 1 => format!("'{}' needs confirmation: {}", names[0], gated[0].1),
+        _ => format!("{} need confirmation", quoted(&names)),
     };
     Decision::Refuse(
-        CommandError::new(
-            error_codes::CONFIRMATION_REQUIRED,
-            format!("'{command}' needs confirmation: {prompt}"),
-        )
-        .with_suggestion(suggestion)
-        .with_retryable(false)
-        .with_details(HashMap::from([("commands".to_owned(), json!([command]))])),
+        CommandError::new(error_codes::CONFIRMATION_REQUIRED, message)
+            .with_suggestion(suggestion)
+            .with_retryable(false)
+            .with_details(HashMap::from([("commands".to_owned(), json!(names))])),
     )
 }

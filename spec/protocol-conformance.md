@@ -45,8 +45,9 @@ Each criterion names the tests that exercise it over a real transport. "Runner" 
 | `GET` on the endpoint → 405 | `mcp-modern.test.ts` | Not asserted (the SDK's 2025 stateless lane opens an SSE stream) | todo backend `get_on_the_endpoint_is_405` | N/A |
 | Host and Origin validation before the SDK | `mcp-modern.test.ts` | SDK `transport_security` (default) | `server_http.rs` (`enforce_origin_validation`); todo backend guard tests | N/A |
 | Only MCP-exposed commands listed; unknown and private tools → `COMMAND_NOT_FOUND` tool result | `mcp-modern.test.ts`, `mcp-modern-client.test.ts` | `test_mcp_modern_live.py`, `test_mcp_protocol_live.py` | `server_http.rs`; todo backend | `mcp_stdio_test.cpp` |
-| Contexts are request input on the modern era (`_meta["dev.afd/context"]`), never stored | `mcp-modern.test.ts` | `test_mcp_modern_live.py` | N/A (no contexts in the `server` feature yet) | N/A |
-| Legacy sessions keep separate context stacks | stdio `mcp-modern.test.ts`; `session-contexts.test.ts` (`/message` lane) | `test_mcp_protocol_live.py` | N/A | N/A |
+| Contexts are request input on the modern era (`_meta["dev.afd/context"]`), never stored | `mcp-modern.test.ts` | `test_mcp_modern_live.py` | `packages/rust/tests/server_contexts.rs` | N/A |
+| Legacy sessions keep separate context stacks | stdio `mcp-modern.test.ts`; `session-contexts.test.ts` (`/message` lane) | `test_mcp_protocol_live.py` | `server_contexts.rs` (one stack per 2025 connection; stateless HTTP is `SESSION_REQUIRED`) | N/A |
+| Tool strategies and meta-tools: the same tool lists, definitions, routing, D4 hiding, confirmations and approval on every route | `tool-surface.test.ts`, `grouped-tools.test.ts`, `lazy-tools.test.ts`, `meta-tools.test.ts` (definitions equal `spec/meta-tools.json`) | `test_mcp_server_tools.py`, `test_mcp_unknown_tools.py` | `packages/rust/tests/server_strategies.rs` (definitions equal `spec/meta-tools.json`), `server_approval.rs` | N/A (#341) |
 | `tools/list` cache hints (`ttlMs`, `cacheScope`) | `mcp-modern.test.ts` | `test_mcp_modern_live.py` | `server_http.rs` | `mcp_stdio_test.cpp` |
 | MCP annotations from command metadata | `tool-surface.test.ts` | `tests/test_tool_annotations.py` | `tests/tool_annotations.rs` | `mcp_stdio_test.cpp` |
 | `structuredContent` validated against the CommandResult `outputSchema` | `tool-surface.test.ts`; runner (todo `output` schemas) | Planned | Planned | Planned |
@@ -56,5 +57,5 @@ Each criterion names the tests that exercise it over a real transport. "Runner" 
 
 - The per-language suites are independent; there is no shared executable protocol fixture beyond the todo runner.
 - Where a row says "SDK behaviour", AFD relies on the official SDK for that rule and does not assert it separately.
-- Rust's `server` feature covers the individual tool strategy only; grouped and lazy strategies, meta-tools, bootstrap and contexts are tracked in the [parity plan](../docs/features/active/parity-closure/parity-closure.plan.md) (D1). The C++ loop lives in the todo backend until `afd::mcp_stdio` lands (#341).
+- The C++ loop lives in the todo backend until `afd::mcp_stdio` lands (#341).
 - The deprecated TypeScript `/sse` and `/message` lane keeps its own tests in `packages/server/src/http-transport.test.ts`; it is removed in 3.0.

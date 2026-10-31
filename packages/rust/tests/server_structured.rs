@@ -3,16 +3,20 @@
 //! connection. The checks are SDK-shaped: the wire JSON is parsed into the SDK's own `Tool` and
 //! `CallToolResult` types, the way a client reads it, and `structuredContent` is validated
 //! against the advertised schema the way a client does before it hands the result on.
+//!
+//! `outputSchema` is advertised under the individual strategy only, as in TypeScript (grouped
+//! tools take `{ action, params }`, and lazy lists only meta-tools); `structuredContent` is on
+//! every tool result of every route and strategy.
 #![cfg(feature = "server")]
 
 mod common;
 
 use std::sync::Arc;
 
-use afd::server::McpServer;
+use afd::server::{McpServer, ToolStrategy};
 use afd::{
     failure, success, CommandContext, CommandDefinition, CommandError, CommandHandler,
-    CommandRegistry, CommandResult, JsonSchema, JsonSchemaType,
+    CommandRegistry, CommandResult, ContextConfig, JsonSchema, JsonSchemaType,
 };
 use async_trait::async_trait;
 use common::{modern_post, Stdio};
@@ -84,6 +88,7 @@ fn server() -> McpServer {
         registry.register(command).unwrap();
     }
     McpServer::new(Arc::new(registry), "structured", "1.0.0")
+        .with_tool_strategy(ToolStrategy::Individual)
 }
 
 /// A client's validation of `structuredContent` against `outputSchema`, through the library's
@@ -304,4 +309,108 @@ async fn the_validator_rejects_a_malformed_envelope() {
     assert!(validates(&schema, &json!({ "success": true, "data": { "id": "a" } })).await);
     assert!(!validates(&schema, &json!({ "success": "yes" })).await);
     assert!(!validates(&schema, &json!({ "data": { "id": "a" } })).await);
+}
+
+#[test]
+fn grouped_and_lazy_tools_advertise_no_output_schema_as_in_typescript() {
+    for strategy in [ToolStrategy::Grouped, ToolStrategy::Lazy] {
+        let tools = server().with_tool_strategy(strategy).tools();
+        assert!(!tools.is_empty());
+        assert!(
+            tools.iter().all(|tool| tool.get("outputSchema").is_none()),
+            "{strategy:?}"
+        );
+    }
+}
+
+/// Calls `name` and checks the result the way a client reads it: `structuredContent` is the
+/// whole result and equals the JSON text.
+async fn structured(server: &McpServer, name: &str, arguments: Value) -> (Value, bool) {
+    let response = modern_post(
+        server,
+        "tools/call",
+        json!({ "name": name, "arguments": arguments }),
+        &[],
+    )
+    .await;
+    let result = call_result(&response);
+    let structured = result
+        .structured_content
+        .clone()
+        .unwrap_or_else(|| panic!("{name}: structuredContent in {response}"));
+    let text = result.content[0]
+        .as_text()
+        .expect("a text block")
+        .text
+        .clone();
+    assert_eq!(
+        serde_json::from_str::<Value>(&text).unwrap(),
+        structured,
+        "{name}"
+    );
+    (structured, result.is_error == Some(true))
+}
+
+#[tokio::test]
+async fn every_route_carries_the_whole_result_as_structured_content() {
+    let server = server()
+        .with_tool_strategy(ToolStrategy::Grouped)
+        .with_contexts(vec![ContextConfig::new("items")])
+        .unwrap();
+    let cases = [
+        ("item-get", json!({}), false, "success"),
+        ("item", json!({ "action": "get" }), false, "success"),
+        ("item", json!({ "action": "missing" }), true, "success"),
+        ("item", json!({}), true, "success"),
+        (
+            "afd-call",
+            json!({ "command": "item-get" }),
+            false,
+            "success",
+        ),
+        ("afd-call", json!({ "command": "nope" }), true, "success"),
+        ("afd-discover", json!({}), false, "success"),
+        (
+            "afd-detail",
+            json!({ "command": "item-get" }),
+            false,
+            "success",
+        ),
+        (
+            "afd-batch",
+            json!({ "commands": [{ "command": "item-get" }, { "command": "item-missing" }] }),
+            false,
+            "summary",
+        ),
+        ("afd-batch", json!({ "commands": "x" }), true, "success"),
+        (
+            "afd-pipe",
+            json!({ "steps": [{ "command": "item-get" }] }),
+            false,
+            "steps",
+        ),
+        ("afd-pipe", json!({ "steps": 1 }), true, "steps"),
+        ("afd-context-list", json!({}), false, "success"),
+        (
+            "afd-context-enter",
+            json!({ "context": "items" }),
+            false,
+            "success",
+        ),
+        ("no-such-tool", json!({}), true, "success"),
+    ];
+    for (name, arguments, failed, key) in cases {
+        let (result, is_error) = structured(&server, name, arguments.clone()).await;
+        assert_eq!(is_error, failed, "{name} {arguments}: {result}");
+        assert!(result.get(key).is_some(), "{name} {arguments}: {result}");
+    }
+    let (missing, _) = structured(&server, "no-such-tool", json!({})).await;
+    assert_eq!(missing["error"]["code"], "COMMAND_NOT_FOUND");
+    let (batch, _) = structured(
+        &server,
+        "afd-batch",
+        json!({ "commands": [{ "command": "item-get" }] }),
+    )
+    .await;
+    assert_eq!(batch["results"][0]["result"]["data"]["id"], "item-1");
 }
