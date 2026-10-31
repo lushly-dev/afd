@@ -6,6 +6,7 @@
 #include <cmath>
 #include <mutex>
 
+#include "detail/context_fields.hpp"
 #include "detail/exceptions.hpp"
 
 namespace afd {
@@ -91,6 +92,21 @@ CommandRegistry::CommandRegistry(CommandRegistryOptions options) : options_(std:
     if (!options_.random) {
         options_.random = std::make_shared<SystemRandom>();
     }
+    auto fields = detail::compile_context_fields(options_.context_fields);
+    if (fields) {
+        context_schemas_ = std::move(fields->schemas);
+        journaled_fields_ = std::move(fields->journaled);
+    } else {
+        options_error_ = fields.error();
+    }
+}
+
+Expected<std::shared_ptr<CommandRegistry>> CommandRegistry::create(CommandRegistryOptions options) {
+    auto registry = std::make_shared<CommandRegistry>(std::move(options));
+    if (registry->options_error_) {
+        return unexpected(*registry->options_error_);
+    }
+    return registry;
 }
 
 ExecutorOptions CommandRegistry::executor_options() const {
@@ -257,6 +273,16 @@ void CommandRegistry::report_error(std::string_view message) const {
 
 CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
                                        CommandContext context) const {
+    // A registry whose context field declarations are invalid cannot validate a call: it runs
+    // none. `create` reports the problem before any call.
+    if (options_error_) {
+        return failure(create_error(
+            error_codes::INTERNAL_ERROR,
+            "The command registry is misconfigured: " + *options_error_,
+            {.suggestion = "Fix CommandRegistryOptions::context_fields; CommandRegistry::create "
+                           "reports this error when the registry is created",
+             .retryable = false}));
+    }
     context = with_context_defaults(
         std::move(context),
         {.clock = options_.clock, .random = options_.random, .actor = options_.actor});
@@ -324,6 +350,13 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
     if (!validated) {
         return failure(validation_failure_error(validated.error()));
     }
+    // The declared context fields, validated in place, and the journaled ones marked for the
+    // journal middleware.
+    if (auto invalid = detail::apply_context_fields(options_.context_fields, context_schemas_,
+                                                    definition.name, context)) {
+        return std::move(*invalid);
+    }
+    context.journaled_fields = journaled_fields_;
 
     // 5-6. Middleware and handler.
     CommandResult result;

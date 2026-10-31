@@ -18,6 +18,16 @@ export default function createRegistry() {
 		name: 'journal-fixture',
 		version: '1.0.0',
 		middleware: [createJournalMiddleware(new MemoryJournalSink(), { recordFailures: true })],
+		// The fixture's declared context fields: `scope` is journaled, `locale` is not.
+		contextFields: [
+			{
+				name: 'scope',
+				meta: 'dev.example/scope',
+				schema: z.object({ project: z.string() }),
+				journal: true,
+			},
+			{ name: 'locale', meta: 'dev.example/locale', schema: z.string() },
+		],
 		commands: [
 			defineCommand({
 				name: 'todo-create',
@@ -58,6 +68,13 @@ export default function createRegistry() {
 				version: '1.0.0',
 				input: z.object({}),
 				handler: async () => success({ items: [...todos.values()], count: todos.size }),
+			}),
+			defineCommand({
+				name: 'todo-scope',
+				description: 'Report the declared scope the call carries',
+				version: '1.0.0',
+				input: z.object({}),
+				handler: async (_input, context) => success({ project: context?.scope?.project ?? null }),
 			}),
 		],
 	});

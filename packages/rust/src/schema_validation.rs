@@ -502,6 +502,30 @@ fn bounds(
     }
 }
 
+/// Validate one value against a schema [`compile`] accepted, as a declared context field's value
+/// is validated (`spec/context-fields.md`).
+///
+/// Returns the parsed value (defaults applied, undeclared keys dropped, as for input), or each
+/// problem as `{"path", "message"}`: a dotted path, empty for the value itself, as TypeScript
+/// joins a Zod issue's path.
+pub(crate) fn validate_value(schema: &Value, value: &Value) -> Result<Value, Vec<Value>> {
+    let mut errors = Vec::new();
+    let parsed = validate(Some(value), schema, schema, "", &mut errors, 0);
+    if errors.is_empty() {
+        return Ok(parsed.unwrap_or_else(|| value.clone()));
+    }
+    Err(errors
+        .into_iter()
+        .map(|error| {
+            let path = match error["path"].as_str() {
+                Some("(root)") | None => "",
+                Some(path) => path,
+            };
+            json!({"path": path, "message": error["message"]})
+        })
+        .collect())
+}
+
 pub(crate) fn execute(schema: &Value, input: Value) -> Result<Value, Box<CommandError>> {
     let input = if input.is_null() { json!({}) } else { input };
     let mut errors = Vec::new();

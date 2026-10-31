@@ -9,6 +9,7 @@
 #include <set>
 #include <utility>
 
+#include "detail/context_fields.hpp"
 #include "detail/exceptions.hpp"
 #include "detail/journal_state.hpp"
 
@@ -480,6 +481,24 @@ ReplayEntryReport replay_entry(const CommandExecutor& execute, const JournalEntr
                                     "' is not one this version knows; replayed without one");
         }
     }
+    // The recorded context field values, which the target validates again. One it no longer
+    // declares, or one too large to have been kept, is replayed without its value.
+    if (entry.context && entry.context->is_object()) {
+        for (auto it = entry.context->begin(); it != entry.context->end(); ++it) {
+            const auto& declared = options.context_fields;
+            if (declared &&
+                std::find(declared->begin(), declared->end(), it.key()) == declared->end()) {
+                outcome.notes.push_back("context field '" + it.key() +
+                                        "' is no longer declared; replayed without it");
+            } else {
+                context.extra[it.key()] = it.value();
+            }
+        }
+    }
+    for (const auto& name : entry.context_omitted.value_or(std::vector<std::string>{})) {
+        outcome.notes.push_back("context field '" + name +
+                                "' was too large to journal; replayed without it");
+    }
     context.clock = clock ? std::shared_ptr<const Clock>(clock) : fixed_clock(*start);
     context.random = random;
 
@@ -611,12 +630,17 @@ CommandMiddleware create_journal_middleware(std::shared_ptr<JournalSink> sink,
                 JournalTape recorded = tape->tape();
                 const bool has_tape =
                     !recorded.clock.empty() || !recorded.random.empty() || recorded.truncated;
+                detail::JournaledContextValues fields = detail::journaled_context_values(context);
+                JournalContextDigest digest =
+                    create_context_digest(context, fields.context, fields.omitted);
                 return JournalRecord{.timestamp = wire::iso8601_utc(started_at),
                                      .trace_id = context.trace_id,
                                      .command = std::string(name),
                                      .input = input,
                                      .actor = context.actor,
-                                     .context_digest = create_context_digest(context),
+                                     .context_digest = std::move(digest),
+                                     .context = std::move(fields.context),
+                                     .context_omitted = std::move(fields.omitted),
                                      .result = result,
                                      .duration_ms = duration_ms,
                                      .tape = has_tape ? std::optional(std::move(recorded))
@@ -668,11 +692,19 @@ ReplayReport replay_journal(const CommandExecutor& execute,
 ReplayReport replay_journal(const CommandRegistry& registry,
                             const std::vector<JournalEntry>& entries,
                             const ReplayJournalOptions& options) {
-    return replay_journal(
-        [&registry](std::string_view name, const Json& input, CommandContext& context) {
-            return registry.execute(name, input, context);
-        },
-        entries, options);
+    const CommandExecutor execute = [&registry](std::string_view name, const Json& input,
+                                                CommandContext& context) {
+        return registry.execute(name, input, context);
+    };
+    if (options.context_fields) {
+        return replay_journal(execute, entries, options);
+    }
+    ReplayJournalOptions declared = options;
+    declared.context_fields.emplace();
+    for (const auto& field : registry.context_fields()) {
+        declared.context_fields->push_back(field.name);
+    }
+    return replay_journal(execute, entries, declared);
 }
 
 std::string_view replay_status_name(ReplayStatus status) noexcept {

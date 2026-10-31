@@ -1,7 +1,8 @@
 // The golden journal fixture, spec/wire/journal.jsonl (spec/journal.md). The same session the
 // TypeScript test records (packages/server/src/journal-wire.test.ts) is recorded here and must
 // equal the file entry for entry as JSON. The file must round-trip through parse_journal and
-// serialize_journal, and replay to `same` on a fresh registry.
+// serialize_journal, and replay to `same` on a fresh registry. Its last two lines carry the
+// declared context fields (spec/context-fields.md): `scope` journaled, `locale` not.
 #include "afd/afd.hpp"
 
 #include <cmath>
@@ -60,9 +61,24 @@ afd::Json string_input(const char* name) {
             {"required", afd::Json::array({name})}};
 }
 
+/// The fixture's declared context fields: `scope` is journaled, `locale` is not.
+std::vector<afd::ContextField> fixture_context_fields() {
+    return {
+        afd::ContextField{.name = "scope",
+                          .meta = "dev.example/scope",
+                          .schema = string_input("project"),
+                          .journal = true},
+        afd::ContextField{
+            .name = "locale", .meta = "dev.example/locale", .schema = {{"type", "string"}}},
+    };
+}
+
 // The fixture's todo commands: ids from context.random, timestamps from context.clock.
-std::unique_ptr<afd::CommandRegistry> todo_registry(afd::CommandRegistryOptions options) {
-    auto registry = std::make_unique<afd::CommandRegistry>(std::move(options));
+std::shared_ptr<afd::CommandRegistry> todo_registry(afd::CommandRegistryOptions options) {
+    options.context_fields = fixture_context_fields();
+    auto created = afd::CommandRegistry::create(std::move(options));
+    REQUIRE_MESSAGE(created.has_value(), created.error());
+    std::shared_ptr<afd::CommandRegistry> registry = *created;
     auto todos = std::make_shared<std::map<std::string, afd::Json>>();
     auto order = std::make_shared<std::vector<std::string>>();
     const afd::ExposeOptions mcp{.mcp = true};
@@ -123,6 +139,22 @@ std::unique_ptr<afd::CommandRegistry> todo_registry(afd::CommandRegistryOptions 
                  .version = "1.0.0",
                  .expose = mcp,
              },
+             afd::CommandDefinition{
+                 .name = "todo-scope",
+                 .description = "Report the declared scope the call carries",
+                 .handler =
+                     [](const afd::Json&, afd::CommandContext& context) {
+                         afd::Json project = nullptr;
+                         const auto scope = context.extra.find("scope");
+                         if (scope != context.extra.end() && scope->is_object() &&
+                             scope->contains("project")) {
+                             project = (*scope)["project"];
+                         }
+                         return afd::success({{"project", project}});
+                     },
+                 .version = "1.0.0",
+                 .expose = mcp,
+             },
          }) {
         const auto error = registry->register_command(std::move(command));
         REQUIRE_MESSAGE(!error, error.value_or(""));
@@ -153,18 +185,34 @@ TEST_CASE("journal.jsonl: a recorded session equals the fixture entry for entry"
         afd::Json input;
         afd::Actor actor;
         const char* trace_id;
+        afd::Json fields = afd::Json::object();
     };
     for (const auto& call : std::vector<Call>{
              {"todo-create", {{"title", "Buy milk"}}, agent, "trace-1"},
              {"todo-create", {{"title", "Walk the dog"}}, human, "trace-2"},
              {"todo-get", {{"id", "todo-missing"}}, agent, "trace-3"},
              {"todo-list", afd::Json::object(), agent, "trace-4"},
+             // Declared fields: `scope` is kept in `context`, `locale` stays a key name only.
+             {"todo-scope",
+              afd::Json::object(),
+              agent,
+              "trace-5",
+              {{"scope", {{"project", "p-1"}}}, {"locale", "en-GB"}}},
+             // Over 4096 bytes: `scope` is named in `contextOmitted`, its value left out.
+             {"todo-list",
+              afd::Json::object(),
+              agent,
+              "trace-6",
+              {{"scope", {{"project", std::string(5000, 'x')}}}}},
          }) {
         afd::CommandContext context;
         context.trace_id = call.trace_id;
         context.actor = call.actor;
         context.surface = afd::Interface::mcp;
-        (void)registry->execute(call.command, call.input, context);
+        context.extra = call.fields;
+        const afd::CommandResult result = registry->execute(call.command, call.input, context);
+        CHECK_MESSAGE((result.success || call.command == std::string("todo-get")),
+                      afd::wire::serialize(afd::Json(result)));
         clock->advance(1000);
     }
 
@@ -183,7 +231,7 @@ TEST_CASE("journal.jsonl: a recorded session equals the fixture entry for entry"
 
 TEST_CASE("journal.jsonl round-trips through parse_journal and serialize_journal") {
     const auto entries = parse_fixture();
-    REQUIRE(entries.size() == 4);
+    REQUIRE(entries.size() == 6);
     for (std::size_t i = 0; i < entries.size(); ++i) {
         CHECK(entries[i].seq == static_cast<std::int64_t>(i + 1));
     }
@@ -205,6 +253,16 @@ TEST_CASE("journal.jsonl round-trips through parse_journal and serialize_journal
     CHECK(entries[0].context_digest.surface == "mcp");
     REQUIRE(entries[1].actor.has_value());
     CHECK(entries[1].actor->id == "user-1");
+    // The declared context fields: line 5 keeps `scope`, line 6 lists it as too large.
+    for (std::size_t i = 0; i < 4; ++i) {
+        CHECK_FALSE(entries[i].context.has_value());
+        CHECK_FALSE(entries[i].context_omitted.has_value());
+    }
+    REQUIRE(entries[4].context.has_value());
+    CHECK(*entries[4].context == afd::Json{{"scope", {{"project", "p-1"}}}});
+    CHECK_FALSE(entries[4].context_omitted.has_value());
+    CHECK_FALSE(entries[5].context.has_value());
+    CHECK(entries[5].context_omitted == std::vector<std::string>{"scope"});
 }
 
 TEST_CASE("journal.jsonl replays to the same results on a fresh registry") {
@@ -213,14 +271,23 @@ TEST_CASE("journal.jsonl replays to the same results on a fresh registry") {
     auto fresh = todo_registry({.middleware = {afd::create_journal_middleware(replay_sink)}});
     const auto report =
         afd::replay_journal(*fresh, parse_fixture(), {.ignore = std::vector<std::string>{}});
-    REQUIRE(report.entries.size() == 4);
+    REQUIRE(report.entries.size() == 6);
     for (const auto& entry : report.entries) {
         CAPTURE(entry.seq);
         CHECK(entry.status == afd::ReplayStatus::same);
-        CHECK(entry.notes.empty());
         CHECK(entry.differences.empty());
+        if (entry.seq == 6) {
+            CHECK(entry.notes == std::vector<std::string>{
+                                     "context field 'scope' was too large to journal; replayed "
+                                     "without it"});
+        } else {
+            CHECK(entry.notes.empty());
+        }
     }
-    CHECK(report.same == 4);
+    // The fifth entry replayed with its recorded scope: todo-scope saw it.
+    REQUIRE(report.entries[4].replayed.has_value());
+    CHECK(report.entries[4].replayed->data == afd::Json{{"project", "p-1"}});
+    CHECK(report.same == 6);
     CHECK_FALSE(report.diverged);
     // The journal middleware records nothing during replay.
     CHECK(replay_sink->read()->empty());

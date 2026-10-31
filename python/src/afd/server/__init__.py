@@ -78,13 +78,19 @@ from afd.server.approval import (
     ApprovalSecret,
     create_approval_middleware,
 )
+from afd.server.context_fields import (
+    ContextField,
+    check_context_fields,
+)
 from afd.server.journal import (
+    MAX_JOURNAL_CONTEXT_BYTES,
     JournalReplayTarget,
     ReplayDifference,
     ReplayEntryReport,
     ReplayReport,
     ReplayStatus,
     create_journal_middleware,
+    journal_context_fields,
     replay_journal,
 )
 from afd.server.validation import (
@@ -150,8 +156,13 @@ __all__ = [
     "ApprovalRejection",
     "ApprovalRequest",
     "ApprovalSecret",
+    # Declared context fields
+    "ContextField",
+    "check_context_fields",
     # Command journal: recording middleware and replay
     "create_journal_middleware",
+    "journal_context_fields",
+    "MAX_JOURNAL_CONTEXT_BYTES",
     "replay_journal",
     "JournalReplayTarget",
     "ReplayDifference",

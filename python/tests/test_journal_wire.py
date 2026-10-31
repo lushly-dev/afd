@@ -2,7 +2,9 @@
 
 TypeScript writes the fixture. Python must read it, write it back byte for
 byte, record the same session to the same entries (compared as JSON values),
-and replay it to ``same`` on a fresh server.
+and replay it to ``same`` on a fresh server. Lines 5 and 6 carry declared
+context fields (spec/context-fields.md): ``scope`` kept in ``context``, then a
+``scope`` too large to keep, named in ``contextOmitted``.
 """
 
 from __future__ import annotations
@@ -27,7 +29,12 @@ from afd import (
 )
 from afd.core.commands import CommandContext, ExposeOptions
 from afd.core.errors import CommandError
-from afd.server import create_journal_middleware, create_server, replay_journal
+from afd.server import (
+    ContextField,
+    create_journal_middleware,
+    create_server,
+    replay_journal,
+)
 
 FIXTURE = Path(__file__).resolve().parents[2] / "spec" / "wire" / "journal.jsonl"
 
@@ -44,6 +51,17 @@ class Empty(BaseModel):
     pass
 
 
+class Scope(BaseModel):
+    project: str
+
+
+# The fixture's declared context fields: ``scope`` is journaled, ``locale`` is not.
+CONTEXT_FIELDS = [
+    ContextField(name="scope", meta="dev.example/scope", schema=Scope, journal=True),
+    ContextField(name="locale", meta="dev.example/locale", schema=str),
+]
+
+
 def _iso(ms: float) -> str:
     moment = datetime(1970, 1, 1, tzinfo=timezone.utc) + timedelta(milliseconds=ms)
     return moment.strftime("%Y-%m-%dT%H:%M:%S.") + f"{moment.microsecond // 1000:03d}Z"
@@ -51,6 +69,7 @@ def _iso(ms: float) -> str:
 
 def _todo_server(**options: Any):
     """The fixture's todo commands (``journal-wire.test.ts``), on a fresh server."""
+    options.setdefault("context_fields", CONTEXT_FIELDS)
     server = create_server("journal-fixture", version="1.0.0", **options)
     todos: dict[str, dict[str, str]] = {}
     mcp = ExposeOptions(mcp=True)
@@ -98,6 +117,17 @@ def _todo_server(**options: Any):
     async def list_todos(input: Empty, context: CommandContext):
         return success({"items": list(todos.values()), "count": len(todos)})
 
+    @server.command(
+        name="todo-scope",
+        description="Report the declared scope the call carries",
+        input_schema=Empty,
+        expose=mcp,
+        version="1.0.0",
+    )
+    async def todo_scope(input: Empty, context: CommandContext):
+        scope = context.extra.get("scope")
+        return success({"project": scope.project if scope is not None else None})
+
     return server
 
 
@@ -108,7 +138,7 @@ def _fixture_lines() -> list[dict[str, Any]]:
 def test_round_trips_byte_for_byte():
     text = FIXTURE.read_text(encoding="utf-8")
     entries = parse_journal(text)
-    assert [entry.seq for entry in entries] == [1, 2, 3, 4]
+    assert [entry.seq for entry in entries] == [1, 2, 3, 4, 5, 6]
     assert serialize_journal(entries) == text
 
 
@@ -119,6 +149,15 @@ def test_parsed_entries_hold_the_fixture_values():
     assert first.context_digest.interface == "mcp"
     assert first.tape is not None and first.tape.random == [0.7345767796505243]
     assert first.result["metadata"]["actorKind"] == "agent"
+    assert first.context is None and first.context_omitted is None
+
+
+def test_parsed_entries_hold_the_declared_context_fields():
+    entries = parse_journal(FIXTURE.read_text(encoding="utf-8"))
+    assert entries[4].context == {"scope": {"project": "p-1"}}
+    assert entries[4].context_omitted is None
+    assert entries[5].context is None
+    assert entries[5].context_omitted == ["scope"]
 
 
 @pytest.mark.asyncio
@@ -132,23 +171,27 @@ async def test_records_the_same_session_as_typescript():
     )
     agent = Actor(kind="agent", label="Claude", on_behalf_of="user-1")
     human = Actor(kind="human", id="user-1")
-    calls = [
-        ("todo-create", {"title": "Buy milk"}, agent, "trace-1"),
-        ("todo-create", {"title": "Walk the dog"}, human, "trace-2"),
-        ("todo-get", {"id": "todo-missing"}, agent, "trace-3"),
-        ("todo-list", {}, agent, "trace-4"),
+    calls: list[tuple[str, dict[str, Any], Actor, str, dict[str, Any]]] = [
+        ("todo-create", {"title": "Buy milk"}, agent, "trace-1", {}),
+        ("todo-create", {"title": "Walk the dog"}, human, "trace-2", {}),
+        ("todo-get", {"id": "todo-missing"}, agent, "trace-3", {}),
+        ("todo-list", {}, agent, "trace-4", {}),
+        # Declared fields: ``scope`` is kept in ``context``, ``locale`` stays a key name only.
+        ("todo-scope", {}, agent, "trace-5", {"scope": {"project": "p-1"}, "locale": "en-GB"}),
+        # Over 4096 bytes: ``scope`` is named in ``contextOmitted``, its value left out.
+        ("todo-list", {}, agent, "trace-6", {"scope": {"project": "x" * 5000}}),
     ]
-    for command, input, actor, trace_id in calls:
+    for command, input, actor, trace_id, fields in calls:
         await server.execute(
             command,
             input,
-            CommandContext(trace_id=trace_id, actor=actor, extra={"interface": "mcp"}),
+            CommandContext(trace_id=trace_id, actor=actor, extra={"interface": "mcp", **fields}),
         )
         clock.advance(1000)
 
     recorded = [entry.to_dict() for entry in await sink.read()]
     # The same JSON values, context hashes included: Python's context has the same
-    # non-allowlisted keys (clock and random) as TypeScript's here.
+    # non-allowlisted keys (clock, random and, on line 5, locale) as TypeScript's here.
     assert recorded == _fixture_lines()
 
 
@@ -161,6 +204,8 @@ async def test_replays_the_fixture_to_the_same_results():
         (2, "same", None),
         (3, "same", None),
         (4, "same", None),
+        (5, "same", None),
+        (6, "same", ["context field 'scope' was too large to journal; replayed without it"]),
     ]
     assert not report.diverged
 
@@ -171,5 +216,5 @@ async def test_replay_through_a_journal_middleware_records_nothing():
     sink = MemoryJournalSink()
     server = _todo_server(middleware=[create_journal_middleware(sink, record_failures=True)])
     report = await replay_journal(server, entries, ignore=[])
-    assert report.same == 4
+    assert report.same == 6
     assert await sink.read() == []

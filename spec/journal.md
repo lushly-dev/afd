@@ -31,6 +31,8 @@ Keys are camelCase. Optional fields that are not set are omitted, never `null`.
 | `input` | JSON | yes | The validated input the handler received |
 | `actor` | object | no | The caller: `kind` (`human`, `agent`, `service`, `script` or `test`), and `id`, `label` and `onBehalfOf` when set. No other actor field is kept |
 | `contextDigest` | object | yes | `hash`, and `interface` when set (below) |
+| `context` | object | no | The values of the [declared context fields](#declared-context-fields) marked `journal: true` that the call had, by field name. Omitted when there are none |
+| `contextOmitted` | string[] | no | The names of such fields whose value was too large to keep, sorted. Omitted when there are none |
 | `result` | `CommandResult` | yes | The result, `metadata` included (the shapes in [`wire/`](./wire/README.md)) |
 | `durationMs` | number | yes | Duration of the call through the rest of the middleware chain |
 | `tape` | object | no | The clock and random values the handler read (below). Omitted when it read none |
@@ -38,8 +40,9 @@ Keys are camelCase. Optional fields that are not set are omitted, never `null`.
 ### Context digest: no secrets
 
 A journal never stores a value from the command context outside an allowlist: the actor (as
-`actor`), the interface (as `contextDigest.interface`) and the trace ID (as `traceId`). Auth
-sessions, tokens, headers, cookies and every other context value are left out.
+`actor`), the interface (as `contextDigest.interface`), the trace ID (as `traceId`) and the
+declared context fields marked `journal: true` (as `context`, below). Auth sessions, tokens,
+headers, cookies and every other context value are left out.
 
 `contextDigest.hash` is `sha256:` followed by the lowercase hex SHA-256 of the canonical JSON
 (object keys sorted, no whitespace) of:
@@ -50,7 +53,15 @@ sessions, tokens, headers, cookies and every other context value are left out.
 
 `keys` is the sorted list of the names of the other context keys that have a value. Only the
 names enter the hash, never the values, so a secret cannot be recovered from the journal even by
-guessing. Two calls with the same hash had the same allowlisted values and the same context shape.
+guessing. When the entry has `context` or `contextOmitted`, the hashed object gains the same
+members with the same values, and the names they hold leave `keys`:
+
+```json
+{"actor": …, "context": {"scope": …}, "contextOmitted": ["space"], "interface": …, "keys": [<names>], "traceId": …}
+```
+
+An entry without either hashes exactly as before, so existing journals and fixture lines keep
+their hashes. Two calls with the same hash had the same allowlisted values and the same context shape.
 Replay does not compare hashes: the replaying surface builds its own context. Hashes compare only
 within one implementation, because the context key names (`clock`, `random` and the rest) differ
 between languages.
@@ -60,6 +71,18 @@ argument, an issued token) must be filtered out or redacted by the recorder. The
 and Python middleware skip commands named `auth-*` by default and have `filter` and `redact`
 options for the rest. When a secret is derived from `context.random`, the redaction must drop the tape too: its
 random values would rebuild the secret.
+
+### Declared context fields
+
+A host declares context fields ([`context-fields.md`](./context-fields.md)): named, validated
+request values such as a workspace scope. The recorder keeps the value of each field declared
+`journal: true` that the call had, in `context`, keyed by field name. A field declared without
+`journal` (the default) is treated like any other context key: its name enters `keys`, never its
+value.
+
+Each kept value is capped at 4096 bytes of UTF-8 canonical JSON (object keys sorted, no
+whitespace, numbers as JavaScript writes them). A larger value is left out of `context`, and its name goes in `contextOmitted`, so an
+entry stays bounded, the omission is visible, and every value in `context` is the real one.
 
 ### Tape: clock and random
 
@@ -83,6 +106,9 @@ the recording started from), and compares each result with the recorded one. For
 restores:
 
 - `traceId`, `actor` and `interface` from the entry;
+- each value in `context`, under its field name. The replaying surface validates it as on any call,
+  so a value that no longer validates fails the call. A field the surface no longer declares is
+  dropped with a note on the entry, and each name in `contextOmitted` gets a note too;
 - a clock that returns the `tape.clock` readings in order, then repeats the last one;
 - a random source that returns the `tape.random` values in order, then continues with a seeded
   source.
@@ -127,7 +153,12 @@ it did when recorded.
 
 [`wire/journal.jsonl`](./wire/journal.jsonl) is compared byte for byte by the TypeScript test, so
 its key order is TypeScript's (the order of the table above). Other implementations should compare
-entries as JSON values, not as text.
+entries as JSON values, not as text. Its first four lines record a todo session without declared
+fields. The fifth and sixth declare `scope` (`journal: true`, `meta` `dev.example/scope`, an object
+with a string `project`) and `locale` (`meta` `dev.example/locale`, a string, not journaled): the
+fifth keeps `scope` in `context` and leaves `locale` in `keys`, and the sixth carries a `scope` too
+large to keep, so it lists it in `contextOmitted`. `todo-scope` returns the `scope` it sees, so
+replaying the fifth line shows the value was restored.
 
 ## Out of scope
 

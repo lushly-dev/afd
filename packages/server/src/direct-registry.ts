@@ -23,6 +23,7 @@ import {
 	directApprovalExchange,
 	publicDirectContext,
 } from '@lushly-dev/afd-core/internal/direct-approval';
+import { type ContextField, checkContextFields } from './context-fields.js';
 import { createExecutionEngine } from './execution.js';
 import type { ZodCommandDefinition } from './schema.js';
 
@@ -65,6 +66,13 @@ export interface DirectRegistryOptions {
 	 * actor (`human` unless configured), so this only applies to direct `execute()` calls.
 	 */
 	actor?: Actor;
+
+	/**
+	 * Request values the host declares (`spec/context-fields.md`). A call sets each on its context
+	 * under the field's name; it is validated before middleware runs, and an invalid or missing
+	 * required one fails the call with `VALIDATION_ERROR`.
+	 */
+	contextFields?: readonly ContextField[];
 }
 
 /**
@@ -89,6 +97,9 @@ export interface DirectRegistryCommand {
 export interface DirectCommandRegistry {
 	/** The interface this registry serves. */
 	readonly interface: ExposeInterface;
+
+	/** The declared context fields, so `replayJournal` can tell which recorded values still apply. */
+	readonly contextFields: readonly ContextField[];
 
 	/**
 	 * Validate the input with the command's Zod schema, then run the command
@@ -163,6 +174,7 @@ export function createDirectRegistry(
 	}
 
 	const exposed = new Map([...registered].filter(([, command]) => isExposedTo(command, iface)));
+	const contextFields = checkContextFields(options.contextFields);
 
 	const engine = createExecutionEngine({
 		commandMap: exposed,
@@ -171,10 +183,12 @@ export function createDirectRegistry(
 		onCommand: options.onCommand,
 		onError: options.onError,
 		contextDefaults: { clock: options.clock, random: options.random, actor: options.actor },
+		contextFields,
 	});
 
 	return {
 		interface: iface,
+		contextFields,
 
 		async execute<T>(
 			name: string,

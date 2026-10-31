@@ -620,9 +620,33 @@ The relay trusts the MCP client application to put the question to a person. The
 
 `spec/command-metadata.md` ("Approvals") is the cross-language contract.
 
+### Declared Context Fields
+
+Some values belong to a request rather than to one command's input: the project a shell is scoped to, the space a query targets, the calling app, a locale. Declare each one on the server or registry with `contextFields`, and a call carries it on its context under the field's name:
+
+```typescript
+const server = createMcpServer({
+  name: 'shell',
+  version: '1.0.0',
+  commands,
+  contextFields: [
+    { name: 'scope', meta: 'dev.example/scope', schema: z.object({ project: z.string() }), journal: true },
+    { name: 'locale', meta: 'dev.example/locale', schema: z.string().max(35) },
+  ],
+});
+await server.execute('project-summary', {}, { scope: { project: 'p-1' } });
+// The handler reads context.scope, validated by its schema.
+```
+
+- The value is validated before middleware runs. An invalid value, or a missing `required: true` one, fails the call with `VALIDATION_ERROR`, whose `details` name the `field` and its `meta` key. `null` is no value. AFD's own `afd-*` commands do not enforce `required`, so a client can discover the fields first.
+- Names AFD already uses (`actor`, `approval`, `auth`, `clock`, `credentials`, `interface`, `random`, `session`, `signal`, `source`, `timeout`, `traceId`) are refused, as is a `meta` key without a reverse-DNS prefix or with `dev.afd/` or an MCP-reserved prefix.
+- A field is a claim made by the caller: use it to narrow what a handler does (pick a project), never to grant access. Check the caller's access to the claimed scope.
+- `journal: true` keeps the value in the journal (below). Only declare it for a field that never holds a secret.
+- Over MCP the value will come from `params._meta[meta]` (planned, #528). `spec/context-fields.md` is the cross-language contract.
+
 ### Command Journal and Replay
 
-`createJournalMiddleware(sink)` records each accepted call (validation and lookup rejections never reach middleware) as a `JournalEntry`: command, validated input, actor, trace ID, a context digest, the result and the duration. Context values outside the allowlist (actor, interface, trace ID) are never stored, so auth sessions and tokens stay out of the journal. Each entry also holds a tape of the values the handler read from `context.clock` and `context.random`. Failures are recorded only with `recordFailures: true`. Commands named `auth-*` are skipped by default; `filter` and `redact` keep other secret inputs or results out (drop `tape` as well when a secret comes from `context.random`). Put it last in the middleware list.
+`createJournalMiddleware(sink)` records each accepted call (validation and lookup rejections never reach middleware) as a `JournalEntry`: command, validated input, actor, trace ID, a context digest, the result and the duration. Context values outside the allowlist (actor, interface, trace ID) are never stored, so auth sessions and tokens stay out of the journal. Each entry also holds a tape of the values the handler read from `context.clock` and `context.random`. Failures are recorded only with `recordFailures: true`. A [declared context field](#declared-context-fields) marked `journal: true` is kept in the entry's `context`, or named in `contextOmitted` when its canonical JSON exceeds 4096 bytes, and replay restores it. Commands named `auth-*` are skipped by default; `filter` and `redact` keep other secret inputs or results out (drop `tape` as well when a secret comes from `context.random`). Put it last in the middleware list.
 
 `replayJournal(registry, entries)` re-runs the entries in order against a fresh server or registry, feeds each call its recorded clock and random values, and reports every entry as `same`, `different` (with a structural diff) or `error`. Replay against a server with the same middleware: the journal middleware in it lines the tape up with the handler and records nothing during replay. It reports divergence; it does not make other nondeterminism go away. The format is specified in [`spec/journal.md`](../../spec/journal.md).
 

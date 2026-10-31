@@ -8,8 +8,9 @@ On disk, a journal is JSON Lines: one :class:`JournalEntry` per line (see
 ``spec/journal.md``).
 
 Journals never store secrets from the command context: an entry keeps the
-actor, the interface and the trace ID, plus a hash over those values and the
-names (never the values) of the other context keys.
+actor, the interface, the trace ID and the declared context fields marked
+``journal=True`` (``spec/context-fields.md``), plus a hash over those values
+and the names (never the values) of the other context keys.
 
 Mirrors ``packages/core/src/journal.ts`` and ``journal-file.ts``. Entries
 written here and by TypeScript are the same JSON values: keys are camelCase,
@@ -46,6 +47,7 @@ from afd.core.actor import Actor, is_actor_kind
 __all__ = [
     "FileJournalSink",
     "JournalContextDigest",
+    "JournalContextFields",
     "JournalEntry",
     "JournalRange",
     "JournalRecord",
@@ -95,7 +97,8 @@ class JournalContextDigest:
 
     Attributes:
         hash: ``sha256:`` and the hex SHA-256 of the canonical JSON of the
-            actor, the interface, the trace ID and the sorted names of the
+            actor, the interface, the trace ID, the journaled context field
+            values (when the entry has any) and the sorted names of the
             context's other keys. Names only, never their values.
         interface: The interface that invoked the command.
     """
@@ -118,6 +121,11 @@ class JournalRecord:
         trace_id: ``context.trace_id``, when the call had one.
         actor: Who called: ``kind``, and ``id``, ``label`` and ``on_behalf_of`` when set.
         tape: The clock and random values the handler read. ``None`` when it read none.
+        context: The values of the declared context fields marked ``journal=True``
+            that the call had, as JSON, by field name (``spec/context-fields.md``).
+            ``None`` when there are none.
+        context_omitted: The names of such fields whose value was too large to
+            keep, sorted. ``None`` when there are none.
     """
 
     timestamp: str
@@ -129,6 +137,8 @@ class JournalRecord:
     trace_id: str | None = None
     actor: Actor | None = None
     tape: JournalTape | None = None
+    context: dict[str, Any] | None = None
+    context_omitted: list[str] | None = None
 
 
 @dataclass
@@ -160,6 +170,10 @@ class JournalEntry(JournalRecord):
         if self.context_digest.interface is not None:
             digest["interface"] = self.context_digest.interface
         data["contextDigest"] = digest
+        if self.context is not None:
+            data["context"] = self.context
+        if self.context_omitted is not None:
+            data["contextOmitted"] = self.context_omitted
         data["result"] = self.result
         data["durationMs"] = self.duration_ms
         if self.tape is not None:
@@ -189,6 +203,10 @@ class JournalEntry(JournalRecord):
             actor=_actor_from_dict(data["actor"]) if "actor" in data else None,
             context_digest=JournalContextDigest(
                 hash=digest["hash"], interface=digest.get("interface")
+            ),
+            context=data.get("context"),
+            context_omitted=(
+                list(data["contextOmitted"]) if "contextOmitted" in data else None
             ),
             result=data["result"],
             duration_ms=data["durationMs"],
@@ -354,34 +372,60 @@ def _context_values(context: Any) -> dict[str, Any]:
     return values
 
 
-def create_context_digest(context: Any) -> JournalContextDigest:
+@dataclass
+class JournalContextFields:
+    """The journaled context field values of a call, as an entry holds them.
+
+    See ``spec/journal.md``, "Declared context fields".
+
+    Attributes:
+        context: The kept values, as JSON, by field name. ``None`` when there are none.
+        context_omitted: The names of the fields whose value was too large to
+            keep, sorted. ``None`` when there are none.
+    """
+
+    context: dict[str, Any] | None = None
+    context_omitted: list[str] | None = None
+
+
+def create_context_digest(
+    context: Any, journaled: JournalContextFields | None = None
+) -> JournalContextDigest:
     """The :class:`JournalContextDigest` of ``context``.
 
     The hash covers the actor (its four fields), the interface
     (``context.extra["interface"]``), the trace ID and the sorted names of
     every other context attribute and ``extra`` key whose value is not
     ``None``. Values outside the allowlist are only checked for ``None``; they
-    never enter the hash or the digest.
+    never enter the hash or the digest. With ``journaled``, the values the
+    entry keeps for declared context fields, the hash also covers those values
+    and omitted names, and their names leave the key list; without it the hash
+    is unchanged.
     """
+    journaled = journaled or JournalContextFields()
     values = _context_values(context)
     actor = journal_actor(values.get("actor"))
     interface = values.get("interface")
     interface = interface if isinstance(interface, str) else None
     trace_id = values.get("trace_id")
     trace_id = trace_id if isinstance(trace_id, str) else None
+    recorded = {*(journaled.context or {}), *(journaled.context_omitted or [])}
     keys = sorted(
         name
         for name, value in values.items()
-        if name not in _ALLOWLISTED_ATTRIBUTES and value is not None
+        if name not in _ALLOWLISTED_ATTRIBUTES and name not in recorded and value is not None
     )
-    text = canonical_json(
-        {
-            "actor": _actor_to_dict(actor) if actor is not None else None,
-            "interface": interface,
-            "keys": keys,
-            "traceId": trace_id,
-        }
-    )
+    hashed: dict[str, Any] = {
+        "actor": _actor_to_dict(actor) if actor is not None else None,
+        "interface": interface,
+        "keys": keys,
+        "traceId": trace_id,
+    }
+    if journaled.context is not None:
+        hashed["context"] = journaled.context
+    if journaled.context_omitted is not None:
+        hashed["contextOmitted"] = journaled.context_omitted
+    text = canonical_json(hashed)
     digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
     return JournalContextDigest(hash=f"sha256:{digest}", interface=interface)
 
@@ -500,6 +544,14 @@ def is_journal_entry(value: Any) -> bool:
         and isinstance(result.get("success"), bool)
         and _is_number(value.get("durationMs"))
         and ("tape" not in value or _is_tape(value["tape"]))
+        and ("context" not in value or isinstance(value["context"], dict))
+        and (
+            "contextOmitted" not in value
+            or (
+                isinstance(value["contextOmitted"], list)
+                and all(isinstance(name, str) for name in value["contextOmitted"])
+            )
+        )
     )
 
 

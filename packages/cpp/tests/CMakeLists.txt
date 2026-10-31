@@ -7,6 +7,7 @@ add_executable(
     batch_test.cpp
     batch_vectors_test.cpp
     command_test.cpp
+    context_fields_test.cpp
     context_test.cpp
     direct_client_test.cpp
     handoff_test.cpp

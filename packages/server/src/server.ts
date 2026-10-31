@@ -19,6 +19,7 @@ import { getBootstrapCommands } from './bootstrap/registry.js';
 import { assertValidCommandNames, assertValidFirstClassTools } from './command-names.js';
 import { filterByContext } from './command-routing.js';
 import { createConfirmationGate } from './confirmations.js';
+import { checkContextFields } from './context-fields.js';
 import { resolveContextState } from './context-scope.js';
 import { createExecutionEngine } from './execution.js';
 import { createHttpHandler } from './http-handler.js';
@@ -131,6 +132,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 	}
 
 	const contextDefaults = { clock: options.clock, random: options.random };
+	const contextFields = checkContextFields(options.contextFields);
 	const engine = createExecutionEngine({
 		commandMap,
 		middleware,
@@ -138,6 +140,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		onCommand,
 		onError,
 		contextDefaults,
+		contextFields,
 	});
 
 	const remoteCommands = registeredCommands.filter((command) => isMcpExposed(command));
@@ -149,6 +152,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		onError,
 		contextState,
 		contextDefaults: { ...contextDefaults, actor: options.actor ?? { kind: 'agent' } },
+		contextFields,
 	});
 	const exposedCommandNames = new Set(remoteCommands.map((c) => c.name));
 	const confirmations = createConfirmationGate(options.confirmations ?? 'off', remoteCommands);
@@ -229,6 +233,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 
 	return {
 		engine,
+		contextFields,
 		routeToolCall,
 		getToolsList: boundGetToolsList,
 		handler,
@@ -396,6 +401,8 @@ export function createMcpServer(options: McpServerOptions): McpServer {
 		getUrl() {
 			return useHttp ? sharedRuntime.url : 'stdio://';
 		},
+
+		contextFields: sharedRuntime.contextFields,
 
 		getCommands() {
 			return commands;

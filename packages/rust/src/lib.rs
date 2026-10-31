@@ -68,6 +68,7 @@ pub mod builtin_names;
 pub mod clock;
 pub mod commands;
 pub mod connectors;
+pub mod context_fields;
 pub mod contexts;
 pub mod errors;
 pub mod handoff;

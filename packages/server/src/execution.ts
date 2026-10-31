@@ -36,6 +36,7 @@ import {
 	notFoundSuggestion,
 	notInContextError,
 } from './command-routing.js';
+import { applyContextFields, type ContextField } from './context-fields.js';
 import { resolveContextState } from './context-scope.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { EnhancedValidationResult } from './validation.js';
@@ -55,6 +56,8 @@ export interface ExecutionDeps {
 	onError?: (error: Error) => void;
 	/** `clock`, `random` and `actor` for contexts that do not set them. */
 	contextDefaults?: ContextDefaults;
+	/** Declared context fields, validated on each call's context (`spec/context-fields.md`). */
+	contextFields?: readonly ContextField[];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -153,6 +156,9 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 				},
 			});
 		}
+
+		const invalidField = applyContextFields(deps.contextFields ?? [], context, commandName);
+		if (invalidField) return invalidField;
 
 		const data = validation.data;
 

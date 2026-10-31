@@ -124,5 +124,5 @@ TEST_CASE("FileJournalSink reports a corrupt journal instead of appending to it"
 
 TEST_CASE("FileJournalSink reads the golden fixture") {
     afd::FileJournalSink sink(fs::path(AFD_WIRE_DIR) / "journal.jsonl");
-    CHECK(file_seqs(sink) == std::vector<std::int64_t>{1, 2, 3, 4});
+    CHECK(file_seqs(sink) == std::vector<std::int64_t>{1, 2, 3, 4, 5, 6});
 }

@@ -3,8 +3,9 @@
 // format is spec/journal.md: JSON Lines, one `JournalEntry` per line.
 //
 // A journal never stores a value from the command context outside an allowlist: the actor, the
-// surface (`interface` on the wire) and the trace ID. The context digest hashes those values with
-// the names, never the values, of the context's other members.
+// surface (`interface` on the wire), the trace ID, and the declared context fields marked
+// `journal` (context_fields.hpp). The context digest hashes those values with the names, never
+// the values, of the context's other members.
 //
 // The file sink is an optional component in afd/journal_file.hpp.
 #pragma once
@@ -63,6 +64,12 @@ struct JournalRecord {
     /// Who called: `kind`, and `id`, `label` and `on_behalf_of` when set.
     std::optional<Actor> actor;
     JournalContextDigest context_digest;
+    /// The values of the declared context fields marked `journal` that the call had, as a JSON
+    /// object by field name. Unset when there are none.
+    std::optional<Json> context;
+    /// The names of such fields whose value was too large to keep (over 4096 bytes of canonical
+    /// JSON), sorted. Unset when there are none.
+    std::optional<std::vector<std::string>> context_omitted;
     /// The command result, metadata included. Read through `CommandResult`, so top-level result
     /// members it does not model are dropped (unknown metadata members are kept).
     CommandResult result;
@@ -123,10 +130,17 @@ std::vector<JournalEntry> select_journal_range(const std::vector<JournalEntry>& 
 std::optional<Actor> journal_actor(const Json& value);
 
 /// The digest of `context`. The hash covers the actor, the surface, the trace ID and the sorted
-/// names of the other members that are set: `activeContext`, `clock`, `random` and `timeoutMs`,
-/// and each key of `extra`. Their values never enter the hash or the digest. The cancellation
-/// token is not a key: an unset token cannot be told from a set one.
-JournalContextDigest create_context_digest(const CommandContext& context);
+/// names of the other members that are set: `activeContext`, `approval`, `clock`, `random` and
+/// `timeoutMs`, and each key of `extra`. Their values never enter the hash or the digest. The
+/// cancellation token is not a key: an unset token cannot be told from a set one.
+///
+/// `journaled` and `omitted` are an entry's `context` and `context_omitted`: when either is set,
+/// the hash also covers it, and the names it holds leave the key list. Without them the hash is
+/// unchanged (spec/journal.md, "Context digest").
+JournalContextDigest
+create_context_digest(const CommandContext& context,
+                      const std::optional<Json>& journaled = std::nullopt,
+                      const std::optional<std::vector<std::string>>& omitted = std::nullopt);
 
 /// Whether `value` has the shape of a journal entry (spec/journal.md).
 bool is_journal_entry(const Json& value);
@@ -168,7 +182,8 @@ struct JournalMiddlewareOptions {
 /// A middleware that appends an entry to `sink` for each call that reaches it. Registry
 /// middleware runs after lookup, exposure and validation, so rejected calls are never recorded.
 ///
-/// The entry holds the validated input, the actor, the trace ID, the context digest, the result,
+/// The entry holds the validated input, the actor, the trace ID, the context digest, the values
+/// of the declared context fields marked `journal` (the registry tells it which), the result,
 /// the duration and the tape: every value the handler, and the registry's own timing of it,
 /// read from `context.clock` and `context.random`. Add it last, so the tape holds only those.
 /// During `replay_journal` it records nothing and restarts the replay tape at its position.
@@ -190,6 +205,10 @@ struct ReplayJournalOptions {
     bool stop_on_divergence = false;
     /// Most differences listed per entry.
     std::size_t max_differences = 100;
+    /// The names of the context fields the target declares. When set, a recorded value for any
+    /// other name is dropped with a note; unset restores every recorded value. The
+    /// `CommandRegistry` overload sets it from the registry's `context_fields()` when unset.
+    std::optional<std::vector<std::string>> context_fields;
 };
 
 /// How a replayed entry compares with the recording.
@@ -239,10 +258,12 @@ struct ReplayReport {
 };
 
 /// Re-executes `entries` in `seq` order through `execute` and compares each result with the
-/// recorded one. Each call gets the entry's trace ID, actor and surface, and a clock and random
-/// source that return the values on its tape (then hold the last reading, and continue from a
-/// `SeededRandom` of `<seed>:<seq>`). An entry without a tape gets a clock fixed at its
-/// `timestamp`. Replay against a fresh registry with the recording's middleware.
+/// recorded one. Each call gets the entry's trace ID, actor and surface, its recorded context
+/// field values in `extra` (the target validates them again), and a clock and random source that
+/// return the values on its tape (then hold the last reading, and continue from a `SeededRandom`
+/// of `<seed>:<seq>`). An entry without a tape gets a clock fixed at its `timestamp`. A field
+/// the target no longer declares, and each name in `context_omitted`, is replayed without its
+/// value and noted. Replay against a fresh registry with the recording's middleware.
 ReplayReport replay_journal(const CommandExecutor& execute,
                             const std::vector<JournalEntry>& entries,
                             const ReplayJournalOptions& options = {});

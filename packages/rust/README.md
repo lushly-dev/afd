@@ -231,10 +231,15 @@ assert_eq!(request.steps[1].alias, None);
   `with_record_failures(true)`. The `server` feature guards each request as well: a panic in its
   own code (a `with_group_by` closure, say) answers a generic `INTERNAL_ERROR` instead of leaving
   the client waiting.
+- **Declared context fields.** `registry.set_context_fields([ContextField::new("scope",
+  "dev.example/scope", schema).with_journal(true)])` (`afd::context_fields`) declares request
+  values (`spec/context-fields.md`). A call carries each in `CommandContext::extra` under its name;
+  it is validated against its JSON Schema after the input and before the middleware, and an
+  invalid or missing required value returns `VALIDATION_ERROR` naming the field and its `_meta` key.
 - **Journal and replay.** `registry.set_journal(JournalRecorder::new(sink))` appends a
   `JournalEntry` for each accepted call (`spec/journal.md`): the validated input, the actor, trace ID
-  and interface, a context hash (never other context values), the result and the tape of clock and
-  random values read. It runs after validation and around the middleware chain, records successes
+  and interface, the values of the declared context fields marked `journal: true`, a context hash
+  (never other context values), the result and the tape of clock and random values read. It runs after validation and around the middleware chain, records successes
   only unless `with_record_failures(true)`, and skips `auth-*` commands unless `with_filter` allows
   them. Sinks: `MemoryJournalSink` and `FileJournalSink` (JSON Lines). `parse_journal` and
   `serialize_journal` read and write the format TypeScript writes, and

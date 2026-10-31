@@ -16,6 +16,8 @@ version is separate from each implementation's own package version.
   `wire/journal.jsonl` (all four implementations);
 - [`error-codes.md`](./error-codes.md): the shared error-code catalog, checked by
   `vectors/error-codes.json`, and the rules for unknown and unexposed commands.
+- [`context-fields.md`](./context-fields.md): declared context fields, request values a host
+  declares, validated on every surface and kept by the journal when declared `journal: true`;
 - [`tool-strategies.md`](./tool-strategies.md): the MCP tool strategies (`individual`, `grouped`,
   `lazy` and `hybrid`), their tool lists, routing, contexts and cache hints, with the meta-tool
   definitions in [`meta-tools.json`](./meta-tools.json) and the hybrid cases in
@@ -59,6 +61,15 @@ In the same pull request:
 `alfred parity` reports a constant that differs from `VERSION`.
 
 ## 1.0-rc
+
+[`context-fields.md`](./context-fields.md) specifies declared context fields (#528): a host declares
+a field's context name, `_meta` key, schema, `journal` and `required` flags, and AFD validates the
+value before middleware runs, failing an invalid or missing required one with `VALIDATION_ERROR`.
+Journal entries gain the optional `context` and `contextOmitted` ([`journal.md`](./journal.md#declared-context-fields)):
+the values of fields declared `journal: true`, capped at 4096 bytes each, which replay restores.
+The hash of an entry without them is unchanged, so `wire/journal.jsonl` keeps its first four lines
+and gains two, with a kept and an omitted field. TypeScript, Python, Rust and C++ implement the
+declaration and the journal; `_meta` delivery over MCP and discovery follow.
 
 [`vectors/approval-tokens.json`](./vectors/approval-tokens.json) pins the approval token format
 for existing behavior (#458): canonical JSON, the keyed digests and payload layout of 11 calls, and

@@ -22,6 +22,7 @@ use crate::batch::{
     BatchTiming,
 };
 use crate::clock::{Clock, RandomSource, SYSTEM_CLOCK, SYSTEM_RANDOM};
+use crate::context_fields::{apply_context_fields, check_context_fields, ContextField};
 use crate::errors::{error_codes, CommandError};
 use crate::handoff::HandoffCommandLike;
 use crate::journal::{JournalContextState, JournalRecorder};
@@ -930,6 +931,7 @@ pub struct CommandRegistry {
     commands: RwLock<RegisteredCommands>,
     middleware: RwLock<Vec<CommandMiddleware>>,
     journal: RwLock<Option<Arc<JournalRecorder>>>,
+    context_fields: RwLock<Arc<Vec<ContextField>>>,
 }
 
 /// Commands by name, plus their registration order.
@@ -1053,6 +1055,36 @@ impl CommandRegistry {
         *write_lock(&self.journal) = None;
     }
 
+    /// Declare the request values calls may carry (`spec/context-fields.md`), replacing any
+    /// declared before; an empty list removes them.
+    ///
+    /// A call carries its value for a field in [`CommandContext::extra`] under the field's name.
+    /// [`Self::execute`] validates it after the input and before the middleware and the handler,
+    /// and gives them the schema's output. An invalid value, or a missing required one, fails
+    /// the call with `VALIDATION_ERROR`. A journal recorder keeps the values of the fields
+    /// declared `journal: true`, and [`replay_journal`](crate::replay_journal) restores them;
+    /// see [`crate::context_fields`]. The MCP server does not read the fields from `_meta` yet.
+    ///
+    /// # Errors
+    /// Returns a message naming the field, and keeps the previous declarations, for an empty,
+    /// reserved or repeated name, a `meta` key without a reverse-DNS prefix, with a reserved
+    /// prefix (`dev.afd/`, or a label `mcp` or `modelcontextprotocol`) or repeated, or a schema
+    /// outside the subset [`Self::register_with_schema`] supports.
+    pub fn set_context_fields(
+        &self,
+        fields: impl IntoIterator<Item = ContextField>,
+    ) -> Result<(), String> {
+        let fields: Vec<ContextField> = fields.into_iter().collect();
+        check_context_fields(&fields)?;
+        *write_lock(&self.context_fields) = Arc::new(fields);
+        Ok(())
+    }
+
+    /// The context fields declared with [`Self::set_context_fields`], in declaration order.
+    pub fn context_fields(&self) -> Vec<ContextField> {
+        read_lock(&self.context_fields).as_ref().clone()
+    }
+
     /// Get a command by name.
     pub fn get(&self, name: &str) -> Option<Arc<CommandDefinition>> {
         read_lock(&self.commands).by_name.get(name).cloned()
@@ -1115,7 +1147,14 @@ impl CommandRegistry {
     ///    TypeScript. Invalid input returns `VALIDATION_ERROR` (`Input
     ///    validation failed`) with the problems in `suggestion` and
     ///    `details.errors`.
-    /// 6. The middleware chain and then the handler run with the validated
+    /// 6. The declared context fields ([`Self::set_context_fields`]) are
+    ///    validated on `context.extra`, each value replaced by its schema's
+    ///    output; `null` counts as no value. An invalid value or a missing
+    ///    required one returns `VALIDATION_ERROR` (`Context field '<name>'
+    ///    is not valid` or `is required`), with `details.field`,
+    ///    `details.meta` and `details.errors`. Commands named `afd-*` do not
+    ///    enforce `required`.
+    /// 7. The middleware chain and then the handler run with the validated
     ///    input. With `context.timeout_ms`, a run that outlasts it returns
     ///    `TIMEOUT` (this needs a Tokio runtime with time enabled). A panic in
     ///    a middleware layer or the handler returns `COMMAND_EXECUTION_ERROR`
@@ -1219,16 +1258,21 @@ impl CommandRegistry {
             Err(error) => return failure(*error),
         };
 
+        let mut context = context;
+        let context_fields = Arc::clone(&read_lock(&self.context_fields));
+        if let Err(error) = apply_context_fields(&context_fields, &command.name, &mut context) {
+            return failure(*error);
+        }
+
         let timeout_ms = context.timeout_ms;
         let middleware = read_lock(&self.middleware).clone();
         // Replayed calls, and the calls nested in them, are never recorded.
         let journal = read_lock(&self.journal)
             .clone()
             .filter(|recorder| !context.journal_state.replaying && recorder.records(name));
-        let mut context = context;
         let recording = journal
             .as_ref()
-            .map(|recorder| recorder.start(&command.name, &input, &mut context));
+            .map(|recorder| recorder.start(&command.name, &input, &mut context, &context_fields));
         let chain = middleware_chain(&command, &middleware, input, context);
         // `chain()` runs inside the guarded future, so a middleware layer that
         // panics while building its future is caught too.

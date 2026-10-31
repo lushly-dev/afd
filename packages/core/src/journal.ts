@@ -71,6 +71,13 @@ export interface JournalEntry {
 	actor?: Actor;
 	/** The context hash and the allowlisted interface. */
 	contextDigest: JournalContextDigest;
+	/**
+	 * The values of the declared context fields marked `journal: true` that the call had, by field
+	 * name (`spec/context-fields.md`). Omitted when there are none.
+	 */
+	context?: Record<string, unknown>;
+	/** The names of such fields whose value was too large to keep, sorted. Omitted when none. */
+	contextOmitted?: string[];
 	/** The command result, metadata included. */
 	result: CommandResult;
 	/** Wall time of the call through the rest of the middleware chain, from `context.clock`. */
@@ -185,22 +192,42 @@ async function sha256Hex(text: string): Promise<string> {
 }
 
 /**
+ * The journaled context field values of a call, as an entry holds them (`spec/journal.md`,
+ * "Declared context fields").
+ */
+export interface JournalContextFields {
+	context?: Record<string, unknown>;
+	contextOmitted?: string[];
+}
+
+/**
  * The {@link JournalContextDigest} of `context`.
  *
  * The hash covers the actor (its four fields), the interface, the trace ID and the sorted
  * names of every other key whose value is not `undefined`. Values outside the allowlist are
- * only checked for `undefined`; they never enter the hash or the digest.
+ * only checked for `undefined`; they never enter the hash or the digest. With `journaled`, the
+ * values the entry keeps for declared context fields, the hash also covers those values and
+ * omitted names, and their names leave the key list; without it the hash is unchanged.
  */
-export async function createContextDigest(context: CommandContext): Promise<JournalContextDigest> {
+export async function createContextDigest(
+	context: CommandContext,
+	journaled: JournalContextFields = {}
+): Promise<JournalContextDigest> {
 	const actor = journalActor(context.actor);
 	const iface = typeof context.interface === 'string' ? context.interface : undefined;
 	const traceId = typeof context.traceId === 'string' ? context.traceId : undefined;
+	const recorded = new Set([
+		...Object.keys(journaled.context ?? {}),
+		...(journaled.contextOmitted ?? []),
+	]);
 	const keys = Object.keys(context)
-		.filter((key) => !ALLOWLISTED_KEYS.has(key) && context[key] !== undefined)
+		.filter((key) => !ALLOWLISTED_KEYS.has(key) && !recorded.has(key) && context[key] !== undefined)
 		.sort();
 	const hash = await sha256Hex(
 		canonicalJson({
 			actor: actor ?? null,
+			...(journaled.context ? { context: journaled.context } : {}),
+			...(journaled.contextOmitted ? { contextOmitted: journaled.contextOmitted } : {}),
 			interface: iface ?? null,
 			keys,
 			traceId: traceId ?? null,
@@ -249,7 +276,12 @@ export function isJournalEntry(value: unknown): value is JournalEntry {
 		typeof result === 'object' &&
 		typeof result.success === 'boolean' &&
 		Number.isFinite(entry.durationMs) &&
-		(entry.tape === undefined || isTape(entry.tape))
+		(entry.tape === undefined || isTape(entry.tape)) &&
+		(entry.context === undefined ||
+			(!!entry.context && typeof entry.context === 'object' && !Array.isArray(entry.context))) &&
+		(entry.contextOmitted === undefined ||
+			(Array.isArray(entry.contextOmitted) &&
+				entry.contextOmitted.every((name) => typeof name === 'string')))
 	);
 }
 

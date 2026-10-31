@@ -1,8 +1,9 @@
 //! Replay a command journal against a registry and diff the results.
 //!
-//! Replay restores the clock and random values each call read (its tape) and reports, per
-//! entry, whether the result is the same. It does not make handlers deterministic: any other
-//! nondeterminism (I/O, global state, the system time read directly) shows up as divergence.
+//! Replay restores the clock and random values each call read (its tape) and the declared
+//! context field values the journal kept, and reports, per entry, whether the result is the
+//! same. It does not make handlers deterministic: any other nondeterminism (I/O, global
+//! state, the system time read directly) shows up as divergence.
 
 use serde::Serialize;
 use serde_json::Value;
@@ -26,8 +27,8 @@ type ContextFn = Arc<dyn Fn(&JournalEntry, CommandContext) -> CommandContext + S
 #[derive(Clone)]
 pub struct ReplayJournalOptions {
     /// Adjusts each call's context, e.g. to add a fresh database handle. It receives the entry
-    /// and the restored context (trace ID, actor, interface, clock and random source) and
-    /// returns the context to execute with; what it sets wins.
+    /// and the restored context (trace ID, actor, interface, declared context field values,
+    /// clock and random source) and returns the context to execute with; what it sets wins.
     pub context: Option<ContextFn>,
     /// Exact result paths left out of the comparison, with everything under them, such as
     /// `metadata`, `metadata.executionTimeMs` or `data.items[0].updatedAt` (no wildcards).
@@ -158,7 +159,8 @@ pub struct ReplayEntryReport {
     /// Why the entry could not be replayed, when `status` is `error`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
-    /// What replay could not restore, e.g. a tape that ran out. Hints for a divergence.
+    /// What replay could not restore, e.g. a context field value too large to journal or a tape
+    /// that ran out. Hints for a divergence.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub notes: Vec<String>,
 }
@@ -405,6 +407,31 @@ fn added(path: String, replayed: &Value) -> ReplayDifference {
 // REPLAY
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/// The values of `entry.context` that `declared` still declares, and a note for each value
+/// dropped and each name in `entry.context_omitted`.
+fn restore_context_fields(
+    entry: &JournalEntry,
+    declared: &BTreeSet<String>,
+) -> (Vec<(String, Value)>, Vec<String>) {
+    let mut restored = Vec::new();
+    let mut notes = Vec::new();
+    for (name, value) in entry.context.iter().flatten() {
+        if declared.contains(name) {
+            restored.push((name.clone(), value.clone()));
+        } else {
+            notes.push(format!(
+                "context field '{name}' is no longer declared; replayed without it"
+            ));
+        }
+    }
+    for name in entry.context_omitted.iter().flatten() {
+        notes.push(format!(
+            "context field '{name}' was too large to journal; replayed without it"
+        ));
+    }
+    (restored, notes)
+}
+
 /// The context to replay an entry with, and its tape sources.
 struct ReplayCall {
     context: CommandContext,
@@ -413,7 +440,11 @@ struct ReplayCall {
     random: Arc<TapeRandom>,
 }
 
-fn replay_call(entry: &JournalEntry, seed: &str) -> Result<ReplayCall, String> {
+fn replay_call(
+    entry: &JournalEntry,
+    seed: &str,
+    fields: Vec<(String, Value)>,
+) -> Result<ReplayCall, String> {
     let start = ClockInstant::parse(&entry.timestamp)?.as_millis();
     let tape = entry.tape.clone().unwrap_or_default();
     let random = Arc::new(TapeRandom::new(
@@ -433,6 +464,7 @@ fn replay_call(entry: &JournalEntry, seed: &str) -> Result<ReplayCall, String> {
             .map_err(|_| format!("Interface '{interface}' is not one this implementation knows"))?;
         context.interface = Some(interface);
     }
+    context.extra.extend(fields);
     context.clock = Some(match &clock {
         Some(clock) => Arc::clone(clock) as Arc<dyn Clock>,
         None => Arc::new(fixed_clock(start)),
@@ -449,12 +481,20 @@ fn replay_call(entry: &JournalEntry, seed: &str) -> Result<ReplayCall, String> {
 /// Re-execute journal entries in `seq` order against `registry` and compare each result with
 /// the recorded one.
 ///
-/// Each call gets the entry's trace ID, actor and interface, and a clock and random source
-/// that return the values recorded on its tape. An entry without a tape gets a clock fixed at
-/// its `timestamp` and a random source seeded with `<seed>:<seq>`. The registry should be fresh
-/// (or reset to the state the recording started from): replay re-runs mutations. Give it the
-/// same middleware as the recording registry, since the tape holds what the middleware read
-/// too. A journal recorder set on it records nothing during replay.
+/// Each call gets the entry's trace ID, actor and interface, its declared context field values
+/// in [`CommandContext::extra`], and a clock and random source that return the values recorded
+/// on its tape. An entry without a tape gets a clock fixed at its `timestamp` and a random
+/// source seeded with `<seed>:<seq>`.
+///
+/// The registry validates restored field values as on any call, so a value that no longer
+/// validates fails the call. A field `registry` no longer declares
+/// ([`CommandRegistry::set_context_fields`]) is left out with a note, and so is each field the
+/// entry names in `contextOmitted` (too large to journal); these notes come before the tape's.
+///
+/// The registry should be fresh (or reset to the state the recording started from): replay
+/// re-runs mutations. Give it the same middleware as the recording registry, since the tape
+/// holds what the middleware read too. A journal recorder set on it records nothing during
+/// replay.
 ///
 /// An entry is `error` when it cannot be replayed here: a timestamp that is not RFC 3339, or
 /// an interface this implementation does not have.
@@ -480,8 +520,14 @@ pub async fn replay_journal(
     let mut ordered: Vec<&JournalEntry> = entries.iter().collect();
     ordered.sort_by_key(|entry| entry.seq);
     let mut report = ReplayReport::default();
+    let declared: BTreeSet<String> = registry
+        .context_fields()
+        .into_iter()
+        .map(|field| field.name)
+        .collect();
 
     for (index, entry) in ordered.iter().enumerate() {
+        let (fields, notes) = restore_context_fields(entry, &declared);
         let mut outcome = ReplayEntryReport {
             seq: entry.seq,
             command: entry.command.clone(),
@@ -490,9 +536,9 @@ pub async fn replay_journal(
             replayed: None,
             differences: Vec::new(),
             error: None,
-            notes: Vec::new(),
+            notes,
         };
-        match replay_call(entry, &options.seed) {
+        match replay_call(entry, &options.seed, fields) {
             Err(error) => outcome.error = Some(error),
             Ok(ReplayCall {
                 context,
@@ -541,7 +587,9 @@ pub async fn replay_journal(
                     ReplayStatus::Different
                 };
                 outcome.replayed = Some(replayed);
-                outcome.notes = tape_notes(entry, clock.as_deref(), &random);
+                outcome
+                    .notes
+                    .extend(tape_notes(entry, clock.as_deref(), &random));
             }
         }
 

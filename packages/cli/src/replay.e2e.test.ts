@@ -45,8 +45,9 @@ describe('afd replay against the recorded fixture', { timeout: 60_000 }, () => {
 		expect(run.code, run.stdout + run.stderr).toBe(0);
 		expect(run.stdout).toContain('✓ #1 todo-create same');
 		expect(run.stdout).toContain('✓ #4 todo-list same');
+		expect(run.stdout).toContain('✓ #5 todo-scope same');
 		expect(run.stdout).toContain(
-			'✓ Replay matched: 4 entries replayed, 4 same, 0 different, 0 errors'
+			'✓ Replay matched: 6 entries replayed, 6 same, 0 different, 0 errors'
 		);
 	});
 
@@ -65,6 +66,8 @@ describe('afd replay against the recorded fixture', { timeout: 60_000 }, () => {
 			[2, 'different'],
 			[3, 'same'],
 			[4, 'different'],
+			[5, 'same'],
+			[6, 'different'],
 		]);
 		expect(report.entries[0]?.differences).toEqual([
 			{ path: 'data.title', kind: 'changed', recorded: 'Buy milk', replayed: 'BUY MILK' },
