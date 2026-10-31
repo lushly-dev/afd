@@ -37,7 +37,7 @@ shape of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 0. `spec/` | Not started | None | Proposal approved 2026-10-31; ready to start |
 | 1. TypeScript | Not started | None | Step 0 merged |
 | 2. Python | Not started | None | Step 0 merged |
-| 3. Rust | Not started | None | Step 0 and language parity D1 merged |
+| 3. Rust | Not started | None | Step 0 merged; parity D1 merged in [#526](https://github.com/lushly-dev/afd/pull/526) |
 | 4. C++ | Not started | None | Step 0 and language parity D2 merged |
 | 5. Parity matrix, conformance rows, skills | Not started | None | Each language's step merged |
 
@@ -50,7 +50,7 @@ proposal's [owner decisions](hybrid-tool-strategy.proposal.md#owner-decisions-20
 
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
-| 2026-10-31 | Design session | Parity D1 is in [#526](https://github.com/lushly-dev/afd/pull/526), whose `ToolStrategy` enum is non-exhaustive so hybrid adds a variant; when it merges, re-check that the Rust step still fits and update step 3's size | Open |
+| 2026-10-31 | Design session | Parity D1 is in [#526](https://github.com/lushly-dev/afd/pull/526), whose `ToolStrategy` enum is non-exhaustive so hybrid adds a variant; when it merges, re-check that the Rust step still fits and update step 3's size | Done 2026-10-31: #526 merged; step 3 stays S. `ToolStrategy` derives `Copy`, so the Rust step adds a unit `ToolStrategy::Hybrid` with a `McpServer::with_first_class_tools` builder, not a `Hybrid { first_class }` variant |
 | 2026-10-31 | Design session | TypeScript and Python list different meta-tools in the individual and grouped strategies, and different tools in `lazy`; `spec/tool-strategies.md` records this until it is decided | Issue [#533](https://github.com/lushly-dev/afd/issues/533) |
 | 2026-10-31 | Design session | When every backend has the strategy, consider a `--strategy hybrid` run of the todo conformance suite | Open |
 
@@ -60,3 +60,4 @@ proposal's [owner decisions](hybrid-tool-strategy.proposal.md#owner-decisions-20
 | --- | --- | --- |
 | 2026-10-31 | Design session | Proposal and this status file written after Umbel decision D27; no `spec/` or code changes. [#522](https://github.com/lushly-dev/afd/pull/522) |
 | 2026-10-31 | Owner review | The owner approved the proposal with every recommendation; the open questions became the proposal's owner decisions. Decision 6's alignment work filed as [#533](https://github.com/lushly-dev/afd/issues/533). [#522](https://github.com/lushly-dev/afd/pull/522) |
+| 2026-10-31 | D1 landed | Parity D1 merged in [#526](https://github.com/lushly-dev/afd/pull/526); the Rust step's gate and API shape updated. [#534](https://github.com/lushly-dev/afd/pull/534) |
