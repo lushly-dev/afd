@@ -11,6 +11,7 @@ dependencies = [
  "futures-util",
  "getrandom",
  "hmac 0.12.1",
+ "http",
  "regex",
  "rmcp",
  "ryu-js",
