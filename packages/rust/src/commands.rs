@@ -1063,7 +1063,9 @@ impl CommandRegistry {
     /// and gives them the schema's output. An invalid value, or a missing required one, fails
     /// the call with `VALIDATION_ERROR`. A journal recorder keeps the values of the fields
     /// declared `journal: true`, and [`replay_journal`](crate::replay_journal) restores them;
-    /// see [`crate::context_fields`]. The MCP server does not read the fields from `_meta` yet.
+    /// see [`crate::context_fields`]. The MCP server (feature `server`) reads the values from
+    /// each `tools/call`'s `_meta` and lists the fields in `server/discover`; `afd-help` returns
+    /// them as `contextFields`.
     ///
     /// # Errors
     /// Returns a message naming the field, and keeps the previous declarations, for an empty,

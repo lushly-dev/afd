@@ -93,6 +93,17 @@ impl RegistryRef {
         }
     }
 
+    /// The registry's declared context fields; none once a weakly held registry is gone.
+    pub(crate) fn context_fields(&self) -> Vec<crate::context_fields::ContextField> {
+        match self {
+            Self::Strong(registry) => registry.context_fields(),
+            Self::Weak(registry) => registry
+                .upgrade()
+                .map(|registry| registry.context_fields())
+                .unwrap_or_default(),
+        }
+    }
+
     /// The commands the calling context may see: all of them, or only those
     /// exposed to `context.interface` when it is set, and only those available
     /// in its active context.

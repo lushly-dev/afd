@@ -33,7 +33,15 @@
 //!   the active context is the request's own (`_meta["dev.afd/context"]` or the connection's
 //!   stack; see [`McpServer::with_contexts`](super::McpServer::with_contexts)), whatever the hook
 //!   set. Everything else, including `approval` evidence and `extra`, is exactly what the hook
-//!   returns. Never copy request input into `approval`.
+//!   returns, except that `extra` also gets the request's declared context fields (below). Never
+//!   copy request input into `approval`.
+//! - **Declared context fields are the caller's claims, and the hook wins.** After the hook, each
+//!   field declared with
+//!   [`CommandRegistry::set_context_fields`](crate::CommandRegistry::set_context_fields) whose
+//!   `_meta` key the request sends is added to `extra` under the field's name, unless the hook set
+//!   that name (`spec/context-fields.md`, "Trusted code wins"). The hook does not see these
+//!   values, so it never mistakes one for something verified. To overrule a caller's value, set
+//!   the name yourself (`null` for none). The values are never read from HTTP headers.
 //! - **Every route.** The hook runs once for the call whatever the tool: a command's own tool, a
 //!   grouped tool, `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail` or an
 //!   unknown name. Every batch item and pipeline step runs with its context.
@@ -82,7 +90,9 @@ use futures_util::future::BoxFuture;
 use futures_util::FutureExt;
 use rmcp::service::RequestContext;
 use rmcp::RoleServer;
+use serde_json::{Map, Value};
 
+use crate::context_fields::ContextField;
 use crate::{
     with_context_defaults, CommandContext, CommandError, CommandInterface, ContextDefaults,
 };
@@ -183,4 +193,28 @@ pub(crate) async fn build_context(
         context.trace_id = trace_id;
     }
     Ok(with_context_defaults(context, defaults))
+}
+
+/// Add each declared field's value from a request's `_meta` to `context.extra`, under the field's
+/// name (`spec/context-fields.md`, "Values"), as TypeScript's `contextFieldValues` does.
+///
+/// `context` is [`build_context`]'s answer. The server's base context has no `extra`, so a name
+/// already there was set by the hook, which is trusted and keeps it, even a `null`. Undeclared
+/// `_meta` keys are never read. The values are not checked here: [`CommandRegistry::execute`]
+/// validates them for every command a call runs, as it does in process.
+///
+/// [`CommandRegistry::execute`]: crate::CommandRegistry::execute
+pub(crate) fn add_declared_fields(
+    fields: &[ContextField],
+    meta: &Map<String, Value>,
+    context: &mut CommandContext,
+) {
+    for field in fields {
+        if let Some(value) = meta.get(&field.meta) {
+            context
+                .extra
+                .entry(field.name.clone())
+                .or_insert_with(|| value.clone());
+        }
+    }
 }

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Optional
+import copy
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from pydantic import BaseModel, Field, ValidationError
 
@@ -16,6 +17,7 @@ from afd.core.contract import CONTRACT_VERSION
 from afd.core.result import CommandResult, success
 from afd.core.wire import WireModel
 from afd.server.bootstrap.afd_context import BOOTSTRAP_EXPOSE
+from afd.server.context_fields import ContextField, describe_context_fields
 from afd.server.validation import _input_validation_failure
 
 
@@ -57,6 +59,13 @@ class AfdHelpOutput(WireModel):
     first_class_tools: Optional[List[str]] = Field(
         default=None, description="Hybrid servers only: the first-class tools, in list order"
     )
+    context_fields: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description=(
+            "The declared context fields and their _meta keys (spec/context-fields.md): "
+            "name, meta, schema, required, journal; omitted when none"
+        ),
+    )
 
 
 def _serialize_examples(examples: list[CommandExample]) -> list[dict[str, Any]]:
@@ -69,6 +78,7 @@ async def _afd_help_handler(
     get_commands: Callable[[], List[CommandDefinition]],
     tool_strategy: Optional[str] = None,
     first_class_tools: Optional[List[str]] = None,
+    context_fields: Optional[List[Dict[str, Any]]] = None,
 ) -> CommandResult[AfdHelpOutput]:
     all_commands = get_commands()
     first_class = set(first_class_tools or [])
@@ -118,6 +128,7 @@ async def _afd_help_handler(
         grouped_by_category=grouped_by_category,
         tool_strategy=tool_strategy,
         first_class_tools=list(first_class_tools) if first_class_tools else None,
+        context_fields=copy.deepcopy(context_fields) if context_fields else None,
     )
     reasoning = (
         f'Found {len(command_infos)} commands matching "{input.filter}"'
@@ -131,13 +142,16 @@ def create_afd_help_command(
     get_commands: Callable[[], List[CommandDefinition]],
     tool_strategy: Optional[str] = None,
     first_class_tools: Optional[List[str]] = None,
+    context_fields: Optional[Sequence[ContextField]] = None,
 ) -> CommandDefinition:
     """Create the ``afd-help`` bootstrap command.
 
-    A server passes its ``tool_strategy`` (reported as ``toolStrategy``) and, for the hybrid
-    strategy, its ``first_class_tools`` (reported as ``firstClassTools``, with ``firstClass:
-    true`` on each of their entries). Both are omitted when not given.
+    A server passes its ``tool_strategy`` (reported as ``toolStrategy``), for the hybrid
+    strategy its ``first_class_tools`` (reported as ``firstClassTools``, with ``firstClass:
+    true`` on each of their entries), and its declared ``context_fields`` (reported as
+    ``contextFields``, as ``server/discover`` lists them). Each is omitted when not given.
     """
+    described = describe_context_fields(context_fields) if context_fields else None
 
     async def handler(
         input: Any,
@@ -148,7 +162,7 @@ def create_afd_help_command(
         except ValidationError as exc:
             return _input_validation_failure(AfdHelpInput, input, exc)
         return await _afd_help_handler(
-            parsed_input, context, get_commands, tool_strategy, first_class_tools
+            parsed_input, context, get_commands, tool_strategy, first_class_tools, described
         )
 
     return CommandDefinition(

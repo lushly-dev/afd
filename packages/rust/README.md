@@ -236,6 +236,8 @@ assert_eq!(request.steps[1].alias, None);
   values (`spec/context-fields.md`). A call carries each in `CommandContext::extra` under its name;
   it is validated against its JSON Schema after the input and before the middleware, and an
   invalid or missing required value returns `VALIDATION_ERROR` naming the field and its `_meta` key.
+  `afd-help` returns the declarations as `contextFields`. Over MCP (the `server` feature), the
+  values come from each `tools/call`'s `_meta`.
 - **Journal and replay.** `registry.set_journal(JournalRecorder::new(sink))` appends a
   `JournalEntry` for each accepted call (`spec/journal.md`): the validated input, the actor, trace ID
   and interface, the values of the declared context fields marked `journal: true`, a context hash
@@ -400,8 +402,11 @@ This client does not add a pipeline client, remote transport, or CLI.
   the per-request context, such as the actor, from the transport (HTTP headers or request
   extensions; nothing on stdio) and may refuse a request; it runs once per call on every route,
   before the active context is applied, and is trust-bearing, so read the
-  `afd::server::context_hook` docs. **The `server` feature needs Rust 1.88**
-  (`rmcp`'s minimum); the rest of the crate keeps the 1.82 minimum.
+  `afd::server::context_hook` docs. The registry's declared context fields reach every
+  `tools/call` from `params._meta[field.meta]` on both eras and both transports (a name the context
+  hook set wins; undeclared keys are dropped; `tools/list` never varies by them), and
+  `server/discover` lists them under `_meta["dev.afd/context-fields"]`. **The `server` feature
+  needs Rust 1.88** (`rmcp`'s minimum); the rest of the crate keeps the 1.82 minimum.
 
 Builds without `native` reject deadline options with `UNSUPPORTED_OPTION` before invoking any
 command. Execution without a deadline remains available. Parallel pipelines and pipeline steps with

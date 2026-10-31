@@ -24,9 +24,10 @@ def get_bootstrap_commands(
     context_state = options.get("context_state")
     tool_strategy = options.get("tool_strategy")
     first_class_tools = options.get("first_class_tools")
+    context_fields = options.get("context_fields")
 
     commands = [
-        create_afd_help_command(get_commands, tool_strategy, first_class_tools),
+        create_afd_help_command(get_commands, tool_strategy, first_class_tools, context_fields),
         create_afd_docs_command(get_commands),
         create_afd_schema_command(get_commands, get_json_schema),
     ]

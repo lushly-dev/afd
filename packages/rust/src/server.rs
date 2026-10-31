@@ -37,6 +37,14 @@
 //! [`McpServer::with_context_hook`] sets the per-request context (the actor) from the transport;
 //! read [`context_hook`] before using it.
 //!
+//! The registry's declared context fields ([`CommandRegistry::set_context_fields`],
+//! `spec/context-fields.md`) reach every `tools/call` from `params._meta[field.meta]`, on both
+//! eras and both transports, into [`CommandContext::extra`] under the field's name; a name the
+//! context hook set wins, undeclared `_meta` keys are dropped, and
+//! [`CommandRegistry::execute`] validates each value (an invalid one is a `VALIDATION_ERROR`
+//! tool result naming the field). They never change `tools/list`. `server/discover` lists them
+//! under `_meta["dev.afd/context-fields"]`, and `afd-help` returns them as `contextFields`.
+//!
 //! [`McpServer::with_confirmations`] enforces `confirm_prompt` (see [`confirmations`]).
 //!
 //! A panicking command handler is a `COMMAND_EXECUTION_ERROR` result on every route (the
@@ -60,7 +68,7 @@ use std::sync::Arc;
 
 use rmcp::model::{
     CacheScope, CallToolRequestParams, CallToolResponse, DiscoverResult, ListToolsResult,
-    PaginatedRequestParams, ServerCapabilities, ServerConfig, Tool, ToolsCapability,
+    MetaObject, PaginatedRequestParams, ServerCapabilities, ServerConfig, Tool, ToolsCapability,
 };
 use rmcp::service::RequestContext;
 use rmcp::transport::streamable_http_server::{
@@ -70,6 +78,7 @@ use rmcp::{ErrorData, RoleServer, ServerHandler, ServiceExt};
 use serde_json::{json, Value};
 
 use crate::commands::ToolSurface;
+use crate::context_fields::AFD_CONTEXT_FIELDS_META_KEY;
 use crate::contexts::{ContextConfig, ContextScope, ContextStack, AFD_CONTEXT_META_KEY};
 use crate::{
     with_context_defaults, Actor, ActorKind, Clock, CommandContext, CommandDefinition,
@@ -370,8 +379,9 @@ impl McpServer {
     /// The hook runs once on every `tools/call` and every route (command and grouped tools, every
     /// meta-tool, unknown tools too), and again on each round of a confirmation flow; batch items
     /// and pipeline steps run with its context. The request's active context
-    /// ([`Self::with_contexts`]) is applied after it, and the hook cannot set one. It does not run
-    /// for `tools/list`, `server/discover` or `initialize`.
+    /// ([`Self::with_contexts`]) is applied after it, and the hook cannot set one. The request's
+    /// declared context fields are added after it too, except a name the hook set, which wins.
+    /// It does not run for `tools/list`, `server/discover` or `initialize`.
     pub fn with_context_hook<F, Fut>(self, hook: F) -> Self
     where
         F: Fn(ContextHookRequest, CommandContext) -> Fut + Send + Sync + 'static,
@@ -800,12 +810,24 @@ impl ServerHandler for McpServer {
         _context: RequestContext<RoleServer>,
     ) -> Result<DiscoverResult, ErrorData> {
         self.validate().map_err(internal)?;
-        Ok(DiscoverResult::from_server_info(
+        let mut result = DiscoverResult::from_server_info(
             self.supported_protocol_versions().into_owned(),
             self.get_info(),
         )
         .with_ttl_ms(self.tools_list_ttl_ms())
-        .with_cache_scope(CacheScope::Public))
+        .with_cache_scope(CacheScope::Public);
+        // The declared context fields (`spec/context-fields.md`, "Discovery"), next to the
+        // `serverInfo` that `from_server_info` puts in `_meta`. Not in `initialize`, as in
+        // TypeScript.
+        let fields = self.inner.registry.context_fields();
+        if !fields.is_empty() {
+            let described = serde_json::to_value(fields).map_err(internal)?;
+            result
+                .meta
+                .get_or_insert_with(MetaObject::new)
+                .insert(AFD_CONTEXT_FIELDS_META_KEY.to_owned(), described);
+        }
+        Ok(result)
     }
 
     async fn call_tool(

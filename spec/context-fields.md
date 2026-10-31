@@ -89,6 +89,6 @@ there); a key sent both ways must agree, or the call fails with `VALIDATION_ERRO
 | Language | Declaration and in-process values | Journal | `_meta` delivery and discovery |
 |---|---|---|---|
 | TypeScript | `createMcpServer`, `createMcpHandler` and `createDirectRegistry` take `contextFields` | Recording middleware and `replayJournal` | Yes: both eras over Streamable HTTP and stdio, `/message`, `/rpc`, `/batch` and `/stream`; `server/discover` and `afd-help` |
-| Python | `create_server` takes `context_fields` (`afd.server.ContextField`) | `create_journal_middleware` and `replay_journal` | Planned (#528) |
-| Rust | `CommandRegistry::set_context_fields` (`afd::context_fields::ContextField`, JSON Schema) | The registry's journal recorder and `replay_journal` | Planned (#528) |
+| Python | `create_server` takes `context_fields` (`afd.server.ContextField`) | `create_journal_middleware` and `replay_journal` | Yes: both eras over Streamable HTTP, SSE and stdio (no AFD-native HTTP lanes, no host-context hook); `server/discover` and `afd-help` |
+| Rust | `CommandRegistry::set_context_fields` (`afd::context_fields::ContextField`, JSON Schema) | The registry's journal recorder and `replay_journal` | Yes: both eras over Streamable HTTP and stdio; the context hook wins; `server/discover` and `afd-help` |
 | C++ | `CommandRegistryOptions::context_fields` and `CommandRegistry::create`, which reports a bad declaration | `create_journal_middleware` and `replay_journal` | N/A: no MCP server |

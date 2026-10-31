@@ -8,6 +8,7 @@ use std::sync::{Arc, Weak};
 use crate::commands::{
     CommandContext, CommandDefinition, CommandHandler, CommandParameter, CommandRegistry,
 };
+use crate::context_fields::ContextField;
 use crate::result::{failure, success_with, CommandResult, ResultOptions};
 
 use super::{bootstrap_expose, RegistryRef, BOOTSTRAP_CATEGORY, BOOTSTRAP_TAGS};
@@ -70,6 +71,12 @@ pub struct HelpOutput {
     /// The first-class command names in list order, on a hybrid MCP server only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub first_class_tools: Option<Vec<String>>,
+    /// The described registry's declared context fields
+    /// ([`CommandRegistry::set_context_fields`]), in declaration order and as `server/discover`
+    /// lists them, so an agent knows which `_meta` keys to send (`spec/context-fields.md`,
+    /// "Discovery"). Left out when none are declared.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub context_fields: Option<Vec<ContextField>>,
 }
 
 /// Handler for `afd-help`.
@@ -182,6 +189,8 @@ impl CommandHandler for AfdHelpHandler {
             first_class_tools: surface
                 .and_then(|surface| surface.first_class_tools.as_deref())
                 .cloned(),
+            context_fields: Some(self.registry.context_fields())
+                .filter(|fields| !fields.is_empty()),
         };
 
         let reasoning = if filtered {
@@ -302,6 +311,46 @@ mod tests {
         let data = result.data.unwrap();
         assert_eq!(data["contractVersion"], crate::CONTRACT_VERSION);
         assert_eq!(data["total"], 0);
+    }
+
+    #[tokio::test]
+    async fn test_afd_help_lists_declared_context_fields() {
+        let registry = create_test_registry();
+        let handler = AfdHelpHandler::new(Arc::clone(&registry));
+        let result = handler
+            .execute(serde_json::json!({}), CommandContext::new())
+            .await;
+        // Left out when none are declared.
+        assert!(result.data.unwrap().get("contextFields").is_none());
+
+        let scope = ContextField::new(
+            "scope",
+            "dev.example/scope",
+            serde_json::json!({"type": "object"}),
+        )
+        .with_journal(true);
+        let locale = ContextField::new(
+            "locale",
+            "dev.example/locale",
+            serde_json::json!({"type": "string"}),
+        )
+        .with_required(true);
+        registry
+            .set_context_fields([scope.clone(), locale.clone()])
+            .unwrap();
+        let result = handler
+            .execute(serde_json::json!({}), CommandContext::new())
+            .await;
+        let data = result.data.unwrap();
+        assert_eq!(
+            data["contextFields"],
+            serde_json::json!([
+                {"name": "scope", "meta": "dev.example/scope", "schema": {"type": "object"}, "required": false, "journal": true},
+                {"name": "locale", "meta": "dev.example/locale", "schema": {"type": "string"}, "required": true, "journal": false},
+            ])
+        );
+        let output: HelpOutput = serde_json::from_value(data).unwrap();
+        assert_eq!(output.context_fields, Some(vec![scope, locale]));
     }
 
     #[tokio::test]

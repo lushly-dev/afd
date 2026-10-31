@@ -3,7 +3,9 @@
 //!
 //! The context hook ([`super::context_hook`]) runs first, once per call, before the tool is
 //! looked up and before the confirmation gate; a refusal answers the call whatever its name.
-//! Every route then ends in [`CommandRegistry::execute`](crate::CommandRegistry::execute)
+//! The request's declared context fields (`spec/context-fields.md`) are then added from `_meta`
+//! for each name the hook did not set. Every route then ends in
+//! [`CommandRegistry::execute`](crate::CommandRegistry::execute)
 //! (directly, or for each batch item or pipeline step) with the hook's context, on which the
 //! server re-asserts interface `mcp`, the remote flag (under which an unexposed command is
 //! indistinguishable from an unknown one, D4), a trace ID, its default actor, clock and random
@@ -578,7 +580,7 @@ pub(crate) async fn route(
     let base = server
         .base_context()
         .with_trace_id(trace_id(trace_prefix(server, name)));
-    let base = match context_hook::build_context(
+    let mut base = match context_hook::build_context(
         server.inner.context_hook.as_ref(),
         &server.inner.context_defaults,
         name,
@@ -590,6 +592,13 @@ pub(crate) async fn route(
         Ok(base) => base,
         Err(error) => return refused(*error),
     };
+    // The declared context fields from `_meta`, after the hook so a name it set wins. `rmcp`
+    // moves `params._meta` into the request context on both eras and both transports.
+    context_hook::add_declared_fields(
+        &server.inner.registry.context_fields(),
+        &context.meta,
+        &mut base,
+    );
     let scope = server.request_scope(context)?;
     let call = Call {
         server,
