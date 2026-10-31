@@ -157,6 +157,7 @@ describe('import.tree command', () => {
 
 	it('derives node IDs from file names', () => {
 		expect(nodeIdFromFileName('themes/vintage-dark.tokens.json')).toBe('vintage-dark');
+		// portability-ok: Synthetic Windows path verifies cross-platform file-name parsing.
 		expect(nodeIdFromFileName('C:\\tokens\\base.json')).toBe('base');
 	});
 

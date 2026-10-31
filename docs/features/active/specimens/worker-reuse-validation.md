@@ -2,6 +2,8 @@
 
 Status: fourteen completed real consumer jobs passed locally, verifying 832 captures, 2026-10-28. Reuse preserved the post-close memory benefit and used less CPU than the per-round restart controls. This follows the [heap/cache lifetime study](heap-lifetime-validation.md), whose cold-heavy workflow showed substantial post-close memory recovery and a repeated-worker startup CPU cost.
 
+The [updated monorepo rerun](monorepo-resource-validation.md) repeats this matrix after the FAST-AF import and upstream reconciliation, retaining the historical results below for comparison.
+
 ## Question and controls
 
 The question is whether one isolated runtime can process a larger capture batch while approaching in-process CPU cost and retaining the memory recovery benefit when closed. These are two separate outcomes: an open worker still owns Vite/Playwright caches, and closing it releases those caches. A worker kept open indefinitely does not provide the post-close benefit.
@@ -56,7 +58,7 @@ FAST-AF's CPU premium persisted after the first round. For rounds 2–10, sample
 
 Lushly's Node role CPU was also higher with isolation in both pairs, but browser CPU varied enough to reverse the whole-job ranking. Role/phase counters are sampled lower bounds and must not be added to or subtracted from waited totals. The `batch` phase encloses `render`, so their CPU counters overlap.
 
-The supported policy is to reuse an opt-in isolated bench across related captures and explicitly close it at the end of a run. This amortizes startup relative to restarting each round and retains memory recovery on close. Keep in-process execution as the default: FAST-AF has a remaining measured CPU premium, Lushly ordering is inconsistent, and active peaks are higher with isolation. The next performance investigation should profile the already-started worker's Node path before selecting a transport or serialization change. Long-lived worker recycling, concurrent capacity and a broader component suite still require separate evidence.
+The supported policy is to reuse an opt-in isolated bench across related captures and explicitly close it at the end of a run. This amortizes startup relative to restarting each round and retains memory recovery on close. Keep in-process execution as the default: FAST-AF has a remaining measured CPU premium, Lushly ordering is inconsistent, and active peaks are higher with isolation. The follow-up [warm Node CPU investigation](cpu-hotspot-validation.md) identified repeated Vite fallback-map generation and tested cached maps, without changing worker transport or shutdown. Long-lived worker recycling, concurrent capacity and a broader component suite still require separate evidence.
 
 ## Review and evidence
 

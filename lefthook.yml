@@ -24,7 +24,8 @@ pre-commit:
       # foundations/fast-af and the Violet units keep upstream formatting under their own Biome
       # configs (provenance-bound).
       exclude: "{.claude/**,alfred/**,site/**,foundations/fast-af/**,foundations/violet/**,integrations/violet-afd/**,endpoints/violet-cli/**,endpoints/violet-server/**}"
-      run: npx biome check --write {staged_files}
+      # Provenance-only changes may contain no files admitted by Biome's config.
+      run: npx biome check --write --no-errors-on-unmatched {staged_files}
       stage_fixed: true
 
     portability:

@@ -96,3 +96,22 @@ Baseline, open-bench checkpoints after rounds 1/5/10, and post-close windows use
 Waited CPU and CPU per verified capture include preparation, verification, phase/artifact writing and cleanup. Coordinator-only Node counters in the batch receipt exclude the isolated worker/browser and must not replace the whole-family measurements. No inspector sampling, forced GC, cold representative samples or offline diff loops run in this workload. Existing 120-second/2-GiB limits and host admission remain unchanged; partial or held jobs do not supply valid comparison ratios.
 
 See the [worker-reuse validation](../../../docs/features/active/specimens/worker-reuse-validation.md) for the paired experiment, open-worker memory trend and post-close cost.
+
+For this monorepo's FAST-AF source, pass `--fast-af foundations/fast-af`. The fixture links both runtime package aliases to the same physical package. The [monorepo rerun](../../../docs/features/active/specimens/monorepo-resource-validation.md) compares the refreshed 90/70-capture workloads with prior CPU and memory results.
+
+## Warm Node CPU profiles
+
+Add `--cpu-profile` to the reused batch workload for a diagnostic run:
+
+```sh
+node foundations/specimen/experiments/run-resources.mjs \
+  --consumer fast-af --fast-af /path/to/clean/fast-af \
+  --workload batches --batches 10 --lifetime reuse --isolation process \
+  --cpu-profile --out /path/to/empty-profile-evidence
+```
+
+Both Node main-isolate profilers start after round one warms the runtime, acknowledge a shared nonce before round two, and stop/flush after the final round before bench close. Ten rounds still execute 90 verified FAST-AF captures; the profiles cover the 81 warmed captures in rounds 2–10 plus checkpoint-idle/barrier work. In-process mode profiles only its coordinator. Profiling requires at least two rounds and `--lifetime reuse`.
+
+The driver saves raw `.cpuprofile` files and atomic role/PID/PPID/nonce receipts under each consumer's `cpu-profiles/`. Workers inherit the explicit diagnostic preload through `NODE_OPTIONS` while retaining their ordinary empty `execArgv`. Missing acknowledgements, profiler errors or empty samples fail the run. Without the flag the preload and profiler are absent.
+
+Inspector profile weights describe statistical wall sampling in each main isolate, excluding Chromium and native/background threads. Inclusive ancestry categories overlap. Keep these diagnostic runs separate from ordinary CPU/memory acceptance; rerun the same workload without the flag for waited process-family CPU, footprint and post-close measurements. See [CPU hotspot validation](../../../docs/features/active/specimens/cpu-hotspot-validation.md) for the confirmed sourcemap hotspot, cached-map change and matched measurements.
