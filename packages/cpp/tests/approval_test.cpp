@@ -280,60 +280,6 @@ TEST_CASE("canonical_json fails closed on values that could collide") {
     CHECK_FALSE(afd::canonical_json(deep));
 }
 
-TEST_CASE("a token issued by TypeScript verifies, and C++ tokens have TypeScript's layout") {
-    // Issued by TypeScript's createApprovalMiddleware with the same secret, at start_ms, for
-    // this command, input and actor.
-    const std::string typescript_token =
-        "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiSjBVNUVQTHpQNU50RVdrbFJxaUtWekN1cVJVaUZsanhjQUFw"
-        "ZWdsdk9JOCIsImEiOiJfTDRydmM3YXZybkYwaGhQQjd4aTRWbUhvekl1NHFUVTVNbzdCTEJmRXZNIiwiaWF0Ijox"
-        "NzY3MjI1NjAwMDAwLCJleHAiOjE3NjcyMjU5MDAwMDAsIm4iOiJLZS1kNkdlVXdHdDI5TktBdTRxVVB3In0."
-        "hmuceFGy2XuSvd2dllrbSsu2AOw2oQz68s3BsEdj4hw";
-    const afd::Json input = afd::Json::parse(
-        R"({"id":42,"b":[1.5,"x\u00e9\n\u0001\"\\"],"\ud83d\ude42":true,"\ue000":null,)"
-        R"("a":{"z":-0.0,"y":1e21,"x":1.5e-7}})");
-    const afd::Actor actor{
-        .kind = afd::ActorKind::agent, .id = "u1", .label = "Claude", .on_behalf_of = "h1"};
-
-    auto clock = afd::fixed_clock(start_ms);
-    afd::ApprovalMiddlewareOptions options{
-        .secrets = {secret},
-        .commands = {afd::ApprovalCommand("todo-delete", afd::ApprovalDecision::required)},
-        .clock = clock,
-        .random_bytes =
-            [](std::uint8_t* out, std::size_t size) {
-                for (std::size_t i = 0; i < size; ++i) {
-                    out[i] = static_cast<std::uint8_t>(i);
-                }
-            },
-    };
-    auto middleware = afd::create_approval_middleware(std::move(options));
-    REQUIRE(middleware);
-    int runs = 0;
-    const afd::Next next = [&runs] {
-        ++runs;
-        return afd::success(nullptr);
-    };
-    afd::CommandContext context;
-    context.actor = actor;
-    context.approval = typescript_token;
-    CHECK((*middleware)("todo-delete", input, context, next).success);
-    CHECK(runs == 1);
-
-    // A fresh C++ token for the same call carries the same keyed digests TypeScript computed.
-    context.approval.reset();
-    const auto held = (*middleware)("todo-delete", input, context, next);
-    const std::string token = token_of(held);
-    const auto first = token.find('.');
-    const auto decoded = afd::detail::base64url_decode(
-        token.substr(first + 1, token.find('.', first + 1) - first - 1));
-    REQUIRE(decoded);
-    CHECK(*decoded ==
-          "{\"c\":\"todo-delete\",\"i\":\"J0U5EPLzP5NtEWklRqiKVzCuqRUiFljxcAApeglvOI8\","
-          "\"a\":\"_L4rvc7avrnF0hhPB7xi4VmHozIu4qTU5Mo7BLBfEvM\",\"iat\":1767225600000,"
-          "\"exp\":1767225900000,\"n\":\"AAECAwQFBgcICQoLDA0ODw\"}");
-    CHECK(held.error->details->at("expiresAt") == "2026-01-01T00:05:00.000Z");
-}
-
 TEST_CASE("the approval middleware") {
     SUBCASE("runs commands with no policy or a not-required policy") {
         Gate gate({}, afd::ApprovalDecision::not_required);

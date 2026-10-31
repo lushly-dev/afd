@@ -9,6 +9,7 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
 | `error-codes.json` | The shared error-code catalog of [`spec/error-codes.md`](../error-codes.md), in catalog order | Written by hand; TypeScript's `ErrorCodes` must equal it |
 | `batch-controls.json` | Batch and pipeline execution controls: `stopOnError`, `parallelism`, the batch `timeout` and pipeline `timeoutMs` deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION`, and envelope validation | `generate-batch-controls.mjs` |
 | `validation.json` | Command input validation ([`spec/validation.md`](../validation.md)): unknown keys, the `VALIDATION_ERROR` shape, length units, the JSON Schema subset, explicit `null` and defaults | `generate-validation.mjs` |
+| `approval-tokens.json` | Approval tokens ([`spec/command-metadata.md`](../command-metadata.md#approvals)): canonical JSON, the keyed input and actor digests, the payload layout, and every acceptance and rejection reason | `generate-approval-tokens.mjs` |
 
 ## Contract
 
@@ -18,12 +19,12 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
   language does not load a file yet, the entry is tracked in the
   [parity closure plan](../../docs/features/active/parity-closure/parity-closure.plan.md):
 
-  | Language | `pipeline-variables.json` | `batch-controls.json` | `validation.json` | `error-codes.json` |
-  | --- | --- | --- | --- | --- |
-  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` | `packages/server/src/validation-vectors.test.ts` | `packages/core/src/errors.test.ts` |
-  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` | Not yet ([#310](https://github.com/lushly-dev/afd/issues/310)) | `python/tests/test_error_codes.py` |
-  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` | Not yet ([#311](https://github.com/lushly-dev/afd/issues/311)) | `packages/rust/tests/error_codes.rs` |
-  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | Not yet ([#312](https://github.com/lushly-dev/afd/issues/312)) | `packages/cpp/tests/vectors_test.cpp` |
+  | Language | `pipeline-variables.json` | `batch-controls.json` | `validation.json` | `error-codes.json` | `approval-tokens.json` |
+  | --- | --- | --- | --- | --- | --- |
+  | TypeScript | `packages/core/src/pipeline-variables-vectors.test.ts` | `packages/core/src/batch-controls-vectors.test.ts` | `packages/server/src/validation-vectors.test.ts` | `packages/core/src/errors.test.ts` | `packages/server/src/approval-vectors.test.ts` |
+  | Python | `python/tests/test_pipeline_vectors.py` | `python/tests/test_batch_controls_vectors.py` | `python/tests/test_validation_vectors.py` | `python/tests/test_error_codes.py` | `python/tests/test_approval_vectors.py` |
+  | Rust | `packages/rust/tests/pipeline_vectors.rs` | `packages/rust/tests/batch_controls_vectors.rs` | `packages/rust/tests/validation_vectors.rs` | `packages/rust/tests/error_codes.rs` | `packages/rust/tests/approval_vectors.rs` |
+  | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/approval_vectors_test.cpp` |
 
 - Changes to `spec/vectors` run the Python, Rust and C++ workflows as well as `ci.yml`.
 - A vector file joins this directory once all four languages load it, because `alfred parity`
@@ -97,6 +98,29 @@ Comparison rules:
   of them.
 - `exceptions` marks tests where a named language may differ, and says why.
 
+### `approval-tokens.json`
+
+The generator takes canonical JSON from the TypeScript reference and builds every token itself from
+the documented format, with a fixed nonce per case, so the file pins the format rather than one
+implementation's output and is the same on every run. `secrets`, `now`, `ttlMs`, `commands` and
+`actors` configure the middleware: every command has `approval: 'required'`, and an `actor` of
+`null` means a call without one.
+
+Each case in `bindings` is one call. A language must:
+- encode `input` as `canonicalInput`, where it exposes canonical JSON;
+- issue, at `now` with the `current` secret, a token whose decoded payload equals `payload` once
+  its own random `n` replaces `nonce`, and whose `n` decodes to 16 bytes. A language that can fix
+  its random source issues `token` exactly;
+- accept `token` for that call.
+
+Each case in `verify` builds one middleware from its `secrets` (names in `secrets`, the first
+signs; default `current`), `now` (default the top-level `now`) and `replay` (default single use),
+then presents `token` to the call it names once per entry in `expected`. The outcomes must equal
+`expected`: `accepted` when the handler ran, else `details.reason` of the `APPROVAL_REQUIRED`
+result. The cases cover single use and reuse within the TTL, the expiry boundary, each mismatch
+and the order they are checked in, key rotation, changed payloads and MACs, a MAC respelled with
+nonzero padding bits, and malformed tokens.
+
 ## Regenerating
 
 After an intentional TypeScript change:
@@ -107,6 +131,7 @@ pnpm -F @lushly-dev/afd-server build
 node spec/vectors/generate-pipeline-variables.mjs
 node spec/vectors/generate-batch-controls.mjs
 node spec/vectors/generate-validation.mjs
+node spec/vectors/generate-approval-tokens.mjs
 npx biome format --write spec/vectors
 ```
 

@@ -60,6 +60,12 @@ In the same pull request:
 
 ## 1.0-rc
 
+[`vectors/approval-tokens.json`](./vectors/approval-tokens.json) pins the approval token format
+for existing behavior (#458): canonical JSON, the keyed digests and payload layout of 11 calls, and
+31 verification cases covering single use, expiry, each mismatch and the order they are checked in,
+key rotation, changed and respelled MACs, and malformed tokens. `command-metadata.md` now states the
+token layout. All four languages load the file; no token, result or error code changes.
+
 [`tool-strategies.md`](./tool-strategies.md) specifies the MCP tool strategies. It records the
 individual, grouped and lazy strategies as TypeScript, Python and Rust serve them, with the
 TypeScript/Python differences in their lists as current behavior until #533 decides them, and adds

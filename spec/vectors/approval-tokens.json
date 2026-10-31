@@ -1,0 +1,555 @@
+{
+	"description": "Approval tokens (spec/command-metadata.md, \"Approvals\"). Canonical JSON from the TypeScript reference; tokens built from the documented format with fixed nonces. Regenerate with node spec/vectors/generate-approval-tokens.mjs.",
+	"secrets": {
+		"current": "afd-approval-vectors-current-secret-0123456789",
+		"previous": "afd-approval-vectors-previous-secret-0123456789",
+		"unknown": "afd-approval-vectors-unknown-secret-0123456789"
+	},
+	"now": 1793016000000,
+	"ttlMs": 300000,
+	"commands": ["todo-delete", "todo-archive"],
+	"actors": {
+		"agent": {
+			"kind": "agent",
+			"id": "advisor",
+			"label": "Advisor",
+			"onBehalfOf": "user-1"
+		},
+		"agent-relabelled": {
+			"kind": "agent",
+			"id": "advisor",
+			"label": "Another label",
+			"onBehalfOf": "user-1"
+		},
+		"agent-other-id": {
+			"kind": "agent",
+			"id": "reviewer",
+			"label": "Advisor",
+			"onBehalfOf": "user-1"
+		},
+		"agent-other-principal": {
+			"kind": "agent",
+			"id": "advisor",
+			"label": "Advisor",
+			"onBehalfOf": "user-2"
+		},
+		"human": {
+			"kind": "human",
+			"id": "user-1"
+		}
+	},
+	"bindings": [
+		{
+			"description": "a flat object",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"canonicalInput": "{\"id\":42}",
+			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
+			"nonce": "8xksVfpHe2KVl5HiM0zK5g",
+			"payload": "{\"c\":\"todo-delete\",\"i\":\"XwbSN9PzqBV5Fzn7oPmOgmovpnyEdgZOueuQB93biao\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"8xksVfpHe2KVl5HiM0zK5g\"}",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiI4eGtzVmZwSGUyS1ZsNUhpTTB6SzVnIn0.V0N8c1RZlzcOKW53K9LVyyowdmPvQMnyObR52Sz68Bo"
+		},
+		{
+			"description": "object keys sorted at every depth",
+			"command": "todo-delete",
+			"input": {
+				"title": "x",
+				"id": 42,
+				"nested": {
+					"z": true,
+					"a": false,
+					"m": {
+						"b": 2,
+						"a": 1
+					}
+				}
+			},
+			"actor": "agent",
+			"canonicalInput": "{\"id\":42,\"nested\":{\"a\":false,\"m\":{\"a\":1,\"b\":2},\"z\":true},\"title\":\"x\"}",
+			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
+			"nonce": "4PTGEvZ-qCJPwhnRGbIWcw",
+			"payload": "{\"c\":\"todo-delete\",\"i\":\"sfNof3qw2maGEG8X5j2jwFmoMuEpy3j8QJVWwReHd3E\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"4PTGEvZ-qCJPwhnRGbIWcw\"}",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoic2ZOb2YzcXcybWFHRUc4WDVqMmp3Rm1vTXVFcHkzajhRSlZXd1JlSGQzRSIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiI0UFRHRXZaLXFDSlB3aG5SR2JJV2N3In0.4f7EKoXvy-6roGsOBoCCqsQ2ROpO6_zfbuQ9ZG8VZeQ"
+		},
+		{
+			"description": "arrays keep their order",
+			"command": "todo-delete",
+			"input": {
+				"tags": ["b", "a"],
+				"items": [
+					{
+						"y": 1,
+						"x": 2
+					},
+					3,
+					null
+				]
+			},
+			"actor": "agent",
+			"canonicalInput": "{\"items\":[{\"x\":2,\"y\":1},3,null],\"tags\":[\"b\",\"a\"]}",
+			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
+			"nonce": "1W49xpGeh14oMrI_w_MXAA",
+			"payload": "{\"c\":\"todo-delete\",\"i\":\"IUOqaR7fsTE8PYbX-nDC5bv7nCLJZPjvUYQ1DpPRnBM\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"1W49xpGeh14oMrI_w_MXAA\"}",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiSVVPcWFSN2ZzVEU4UFliWC1uREM1YnY3bkNMSlpQanZVWVExRHBQUm5CTSIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiIxVzQ5eHBHZWgxNG9Ncklfd19NWEFBIn0.CQWzu4zbnDs6tV3uEs8LXTEXm1xkWsG2f-YrJguzgkM"
+		},
+		{
+			"description": "strings escaped as JSON.stringify escapes them",
+			"command": "todo-delete",
+			"input": {
+				"note": "café ✓ \"quoted\" back\\slash /path <tag> \b\f\n\r\t \u0001 \u001f     "
+			},
+			"actor": "agent",
+			"canonicalInput": "{\"note\":\"café ✓ \\\"quoted\\\" back\\\\slash /path <tag> \\b\\f\\n\\r\\t \\u0001 \\u001f     \"}",
+			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
+			"nonce": "TrvupdHrjVv3TaL23DRyKQ",
+			"payload": "{\"c\":\"todo-delete\",\"i\":\"vu1CjKiJMlU0k6vEoixzHoSUiJaLeQQH5XQxsTJxjM4\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"TrvupdHrjVv3TaL23DRyKQ\"}",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoidnUxQ2pLaUpNbFUwazZ2RW9peHpIb1NVaUphTGVRUUg1WFF4c1RKeGpNNCIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUcnZ1cGRIcmpWdjNUYUwyM0RSeUtRIn0.JXAjfLTHfw-oTLSKJ42MgTvlh6IBx2sjv-Kz7BtjnaU"
+		},
+		{
+			"description": "object keys sorted by UTF-16 code unit",
+			"command": "todo-delete",
+			"input": {
+				"": 1,
+				"😀": 2,
+				"é": 3,
+				"z": 4,
+				"Z": 5,
+				"": 6,
+				"a b": 7
+			},
+			"actor": "agent",
+			"canonicalInput": "{\"\":6,\"Z\":5,\"a b\":7,\"z\":4,\"é\":3,\"😀\":2,\"\":1}",
+			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
+			"nonce": "xcISfkat_cmXcLck5Z9xPg",
+			"payload": "{\"c\":\"todo-delete\",\"i\":\"hUQ9jDPg6jW2dRHXJz5FxNlgrUyVRcXWr2w4oTWqG1k\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"xcISfkat_cmXcLck5Z9xPg\"}",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiaFVROWpEUGc2alcyZFJIWEp6NUZ4TmxnclV5VlJjWFdyMnc0b1RXcUcxayIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJ4Y0lTZmthdF9jbVhjTGNrNVo5eFBnIn0.S3Poa0HLWjtS42QYE5crQOwapFzherARHbUq5mFMEko"
+		},
+		{
+			"description": "numbers in JavaScript spelling",
+			"command": "todo-delete",
+			"input": {
+				"integer": 42,
+				"negative": -7,
+				"zero": 0,
+				"half": 0.5,
+				"tenth": 0.1,
+				"third": 0.3333333333333333,
+				"small": 1e-7,
+				"micro": 0.000001,
+				"tiny": 5e-324,
+				"exact": 100000000000000000000,
+				"large": 1e21,
+				"max": 1.7976931348623157e308,
+				"safe": 9007199254740991,
+				"negativeExponent": -2.5e-10,
+				"powerOfTwo": 5.960464477539063e-8
+			},
+			"actor": "agent",
+			"canonicalInput": "{\"exact\":100000000000000000000,\"half\":0.5,\"integer\":42,\"large\":1e+21,\"max\":1.7976931348623157e+308,\"micro\":0.000001,\"negative\":-7,\"negativeExponent\":-2.5e-10,\"powerOfTwo\":5.960464477539063e-8,\"safe\":9007199254740991,\"small\":1e-7,\"tenth\":0.1,\"third\":0.3333333333333333,\"tiny\":5e-324,\"zero\":0}",
+			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
+			"nonce": "qitGMHTntIWX7tBp-gLDpA",
+			"payload": "{\"c\":\"todo-delete\",\"i\":\"_3F1-2RyMfwTJiPPWvZOsCexvp-XNouqJ5GGjGXzv_E\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"qitGMHTntIWX7tBp-gLDpA\"}",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiXzNGMS0yUnlNZndUSmlQUFd2Wk9zQ2V4dnAtWE5vdXFKNUdHakdYenZfRSIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJxaXRHTUhUbnRJV1g3dEJwLWdMRHBBIn0.9dG1FXTCmfQS7UgSKUbP6j50oAhXJKKogyEmGlIFaac"
+		},
+		{
+			"description": "literals and empty containers",
+			"command": "todo-delete",
+			"input": {
+				"t": true,
+				"f": false,
+				"n": null,
+				"o": {},
+				"a": [],
+				"s": ""
+			},
+			"actor": "agent",
+			"canonicalInput": "{\"a\":[],\"f\":false,\"n\":null,\"o\":{},\"s\":\"\",\"t\":true}",
+			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
+			"nonce": "YaZGM_rPVXNDNRpF7s2rLw",
+			"payload": "{\"c\":\"todo-delete\",\"i\":\"zIYv-qSF8BP05u9xUavip0W5oAf7xESu1sCZjDISdp4\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"YaZGM_rPVXNDNRpF7s2rLw\"}",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoieklZdi1xU0Y4QlAwNXU5eFVhdmlwMFc1b0FmN3hFU3Uxc0NaakRJU2RwNCIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJZYVpHTV9yUFZYTkROUnBGN3Myckx3In0.pdHp1JlDywXFLZ2CBJK84ugdn9tAafDlDtzlGaFlVGM"
+		},
+		{
+			"description": "deep nesting",
+			"command": "todo-delete",
+			"input": {
+				"a": {
+					"b": {
+						"c": {
+							"d": [[[]]]
+						}
+					}
+				}
+			},
+			"actor": "agent",
+			"canonicalInput": "{\"a\":{\"b\":{\"c\":{\"d\":[[[]]]}}}}",
+			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
+			"nonce": "_sjVtHU2T9X6w6gFAW3__g",
+			"payload": "{\"c\":\"todo-delete\",\"i\":\"5V3O0-DaEKgv6Suh9qpNp1uRptzMcC5tmGK8TrWqN10\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"_sjVtHU2T9X6w6gFAW3__g\"}",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiNVYzTzAtRGFFS2d2NlN1aDlxcE5wMXVScHR6TWNDNXRtR0s4VHJXcU4xMCIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJfc2pWdEhVMlQ5WDZ3NmdGQVczX19nIn0.ddogyOq13u5VtOEZBzI9tUw3UtltLBr9cf7UajA_DCQ"
+		},
+		{
+			"description": "an actor without onBehalfOf",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "human",
+			"canonicalInput": "{\"id\":42}",
+			"canonicalActor": "{\"id\":\"user-1\",\"kind\":\"human\"}",
+			"nonce": "HIxPBFXxKvX1VC9G0RRjMA",
+			"payload": "{\"c\":\"todo-delete\",\"i\":\"XwbSN9PzqBV5Fzn7oPmOgmovpnyEdgZOueuQB93biao\",\"a\":\"_krUNSatBccMRssb7AgkoXdZ1Kfsf-APT1mKUAdopIg\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"HIxPBFXxKvX1VC9G0RRjMA\"}",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiJfa3JVTlNhdEJjY01Sc3NiN0Fna29YZFoxS2ZzZi1BUFQxbUtVQWRvcElnIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJISXhQQkZYeEt2WDFWQzlHMFJSak1BIn0.3fCtBsv9MXxHUgBwWdhjFwPdXmJjvI2K14Oh1NGZu4E"
+		},
+		{
+			"description": "the actor label is not bound",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent-relabelled",
+			"canonicalInput": "{\"id\":42}",
+			"canonicalActor": "{\"id\":\"advisor\",\"kind\":\"agent\",\"onBehalfOf\":\"user-1\"}",
+			"nonce": "GYotbn1XreOb8U61Q_-wfQ",
+			"payload": "{\"c\":\"todo-delete\",\"i\":\"XwbSN9PzqBV5Fzn7oPmOgmovpnyEdgZOueuQB93biao\",\"a\":\"22OHIqPMtm1MHoU0JICzYGTqkK8UdhOfDOx9N32qErU\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"GYotbn1XreOb8U61Q_-wfQ\"}",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJHWW90Ym4xWHJlT2I4VTYxUV8td2ZRIn0.3ro4M_zJEYx6ZfgQQgM6m67Qk_goQNJwimoVUYqeUWA"
+		},
+		{
+			"description": "no actor",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": null,
+			"canonicalInput": "{\"id\":42}",
+			"canonicalActor": "null",
+			"nonce": "Zmzo7sEtb977QG9_lm2frA",
+			"payload": "{\"c\":\"todo-delete\",\"i\":\"XwbSN9PzqBV5Fzn7oPmOgmovpnyEdgZOueuQB93biao\",\"a\":\"0QTNuq4esNH3SRuQQfV--t_gILzIZAQZiNs4N_pcYUk\",\"iat\":1793016000000,\"exp\":1793016300000,\"n\":\"Zmzo7sEtb977QG9_lm2frA\"}",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIwUVROdXE0ZXNOSDNTUnVRUWZWLS10X2dJTHpJWkFRWmlOczROX3BjWVVrIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJabXpvN3NFdGI5NzdRRzlfbG0yZnJBIn0.aheaITShhM4M8k9_4jdVu1KDQcPTzpqX9f0uXhnoyLw"
+		}
+	],
+	"verify": [
+		{
+			"description": "single use: accepted once, then already used",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["accepted", "already-used"]
+		},
+		{
+			"description": "within the TTL: accepted every time",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"replay": "within-ttl",
+			"expected": ["accepted", "accepted"]
+		},
+		{
+			"description": "one millisecond before expiry",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"now": 1793016299999,
+			"expected": ["accepted"]
+		},
+		{
+			"description": "at expiry",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"now": 1793016300000,
+			"expected": ["expired"]
+		},
+		{
+			"description": "another command",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-archive",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["command-mismatch"]
+		},
+		{
+			"description": "another input",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-delete",
+			"input": {
+				"id": 43
+			},
+			"actor": "agent",
+			"expected": ["input-mismatch"]
+		},
+		{
+			"description": "the same input with its keys in another order",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoib2o4S1d4QWJYdjBfYXdFMGxwNGUyTHdsdzFiQ0xEM0dRVnNxZlNRXzdYYyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiIwZ3hpcjJqSUV6WGRWUXFYMWJjbEZ3In0.RI3cfUevrVMuHt3mn0MGP4LhKnT9ZLX_PPZ4gUC1mAM",
+			"command": "todo-delete",
+			"input": {
+				"b": {
+					"c": 3,
+					"d": 4
+				},
+				"a": 1
+			},
+			"actor": "agent",
+			"expected": ["accepted"]
+		},
+		{
+			"description": "the same actor with another label",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent-relabelled",
+			"expected": ["accepted"]
+		},
+		{
+			"description": "another actor id",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent-other-id",
+			"expected": ["actor-mismatch"]
+		},
+		{
+			"description": "the same agent for another principal",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent-other-principal",
+			"expected": ["actor-mismatch"]
+		},
+		{
+			"description": "an actor-bound token presented without an actor",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": null,
+			"expected": ["actor-mismatch"]
+		},
+		{
+			"description": "a token bound to no actor, presented by an agent",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIwUVROdXE0ZXNOSDNTUnVRUWZWLS10X2dJTHpJWkFRWmlOczROX3BjWVVrIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJabXpvN3NFdGI5NzdRRzlfbG0yZnJBIn0.aheaITShhM4M8k9_4jdVu1KDQcPTzpqX9f0uXhnoyLw",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["actor-mismatch"]
+		},
+		{
+			"description": "a token signed with the previous secret during a rotation",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiRlhGVkYwbE5XN1VVUkxRblB3YXJqaFRnOFVQRHJqV1d6Q0ZkbmFOb0ZQTSIsImEiOiJPSDM4ZGY5d2NfWXV2emwtUUd4VG9LZUZOVUF1VHZaUWJ2ZGpINmJiazFNIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJIV1VVTU41dUozYUdDNHNmRUtmcmNnIn0.WJaeaxk2Kefer-2-_k9RhmjYMfIWe1HfS50zWamJE4c",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"secrets": ["current", "previous"],
+			"expected": ["accepted"]
+		},
+		{
+			"description": "a token signed with the previous secret after the rotation",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiRlhGVkYwbE5XN1VVUkxRblB3YXJqaFRnOFVQRHJqV1d6Q0ZkbmFOb0ZQTSIsImEiOiJPSDM4ZGY5d2NfWXV2emwtUUd4VG9LZUZOVUF1VHZaUWJ2ZGpINmJiazFNIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJIV1VVTU41dUozYUdDNHNmRUtmcmNnIn0.WJaeaxk2Kefer-2-_k9RhmjYMfIWe1HfS50zWamJE4c",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["invalid-signature"]
+		},
+		{
+			"description": "a token signed with an unknown secret",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoicGtzQjZFampfNF9LOFFtSkhtYTFGT3VOZzI1TlRRdFhKVjNZaTdhLXdCVSIsImEiOiIxMDRhM0RDOUp3aFhVRFBiZ1NLNmt2YTVTckppSUxjejhWR3UzamFnaHFJIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiIzS3NtTEJzRTRBeU1ISmtmR1hCa1dnIn0.M90Pzcr8oPIx15VqHCRTeknWeCXpJcWUreT2VJnyuyk",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["invalid-signature"]
+		},
+		{
+			"description": "a payload changed after signing",
+			"token": "afdap1.eyJjIjoidG9kby1hcmNoaXZlIiwiaSI6Ilh3YlNOOVB6cUJWNUZ6bjdvUG1PZ21vdnBueUVkZ1pPdWV1UUI5M2JpYW8iLCJhIjoiMjJPSElxUE10bTFNSG9VMEpJQ3pZR1Rxa0s4VWRoT2ZET3g5TjMycUVyVSIsImlhdCI6MTc5MzAxNjAwMDAwMCwiZXhwIjoxNzkzMDE2MzAwMDAwLCJuIjoiVGFGb0tSMy1KOFB6cTdxblVjSWU5QSJ9.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-archive",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["invalid-signature"]
+		},
+		{
+			"description": "a changed MAC",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbACzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["invalid-signature"]
+		},
+		{
+			"description": "the MAC spelled with nonzero padding bits, which decode to the same bytes",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxN",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["invalid-signature"]
+		},
+		{
+			"description": "an empty payload",
+			"token": "afdap1..hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["invalid-signature"]
+		},
+		{
+			"description": "expired and for another command: expiry is checked first",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-archive",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"now": 1793016300000,
+			"expected": ["expired"]
+		},
+		{
+			"description": "another command and another input: the command is checked first",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-archive",
+			"input": {
+				"id": 43
+			},
+			"actor": "agent",
+			"expected": ["command-mismatch"]
+		},
+		{
+			"description": "an empty string",
+			"token": "",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["malformed"]
+		},
+		{
+			"description": "the prefix alone",
+			"token": "afdap1",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["malformed"]
+		},
+		{
+			"description": "two parts",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["malformed"]
+		},
+		{
+			"description": "four parts",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM.extra",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["malformed"]
+		},
+		{
+			"description": "another prefix",
+			"token": "afdap2.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxM",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["malformed"]
+		},
+		{
+			"description": "longer than 1024 characters",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDAsIm4iOiJUYUZvS1IzLUo4UHpxN3FuVWNJZTlBIn0.hoKPTexpDbgCzWl9YoGfUoRUR1i4hdOVMNwFeMZ6QxMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["malformed"]
+		},
+		{
+			"description": "a signed payload that is not JSON",
+			"token": "afdap1.bm90IGpzb24.ov4aa5GC0cTcwoHHDEE25lj9m20KpJC0tOCQznDL8-U",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["malformed"]
+		},
+		{
+			"description": "a signed payload that is a JSON array",
+			"token": "afdap1.W10.6WAMK3cdNWuVSn0TdOD83a2yJjMOJEz_oyq5jKkF0Jw",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["malformed"]
+		},
+		{
+			"description": "a signed payload without a nonce",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOjE3OTMwMTYzMDAwMDB9.U7jQhqywKepiJsZGApfratt0tYBYZx3Yvl5WQyCbddM",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["malformed"]
+		},
+		{
+			"description": "a signed payload whose expiry is a string",
+			"token": "afdap1.eyJjIjoidG9kby1kZWxldGUiLCJpIjoiWHdiU045UHpxQlY1RnpuN29QbU9nbW92cG55RWRnWk91ZXVRQjkzYmlhbyIsImEiOiIyMk9ISXFQTXRtMU1Ib1UwSklDellHVHFrSzhVZGhPZkRPeDlOMzJxRXJVIiwiaWF0IjoxNzkzMDE2MDAwMDAwLCJleHAiOiIxNzkzMDE2MzAwMDAwIiwibiI6IlRhRm9LUjMtSjhQenE3cW5VY0llOUEifQ.NZdEGzieJrb-ejXzpy88u5RQPLqjcYmTFbrb2vSSYys",
+			"command": "todo-delete",
+			"input": {
+				"id": 42
+			},
+			"actor": "agent",
+			"expected": ["malformed"]
+		}
+	]
+}

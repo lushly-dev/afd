@@ -4,7 +4,7 @@ What each AFD implementation provides, where they differ, and which differences 
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-31 (hybrid tool strategy specified, planned in every language); 2026-10-30 (private approval flows, #460); 2026-10-29 (package versions: TypeScript 2.2.1, Python 0.10.0, Rust 0.2.1, C++ 0.2.0); 2026-10-25 (MCP 2026-07-28 rows); 2026-10-13 otherwise |
+| Updated | 2026-10-31 (approval token vectors in every language, #458; hybrid tool strategy specified, planned in every language); 2026-10-30 (private approval flows, #460); 2026-10-29 (package versions: TypeScript 2.2.1, Python 0.10.0, Rust 0.2.1, C++ 0.2.0); 2026-10-25 (MCP 2026-07-28 rows); 2026-10-13 otherwise |
 | Reviewed at | Stabilization `f19257e` (#367); Python 0.9.0 published from `4e16a06` (#372); npm 2.1.0 published from `0148d22` (#338); C++ and Rust 0.1.0 published from `a311562` (#377); fresh consumers verified |
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans, which now link here |
@@ -48,6 +48,7 @@ Versions below describe repository manifests. Registry checks independently conf
 | `spec/vectors/pipeline-variables.json`, 51 references and 27 conditions | Pipeline reference and `when` behavior | Yes (generator) | Yes | Yes | Yes |
 | `spec/vectors/batch-controls.json`, 24 batch and 25 pipeline cases | `stopOnError`, `parallelism`, deadlines, `continueOnFailure`, `UNSUPPORTED_OPTION` and envelope validation in the batch and pipeline executors | Yes (generator) | Yes, through `afd-batch` and `afd-pipe` | Yes | Yes |
 | `spec/vectors/error-codes.json`, 45 codes | The shared `ErrorCodes` catalog of `spec/error-codes.md` | Yes | Yes | Yes | Yes |
+| `spec/vectors/approval-tokens.json`, 11 bindings and 31 verification cases | Approval token format: canonical JSON, keyed digests, payload layout and every rejection reason | Yes (generator) | Yes | Yes | Yes, issuing the exact tokens with a fixed random source |
 | `spec/vectors/validation.json`, 34 cases / 130 tests | Required schema subset; unsupported optional keywords must reject registration | Yes | Yes: 130 execute | Yes: 102 execute, 28 optional rejections | Yes: 98 execute, 32 optional rejections |
 | [AFD protocol conformance tier](../spec/protocol-conformance.md) | Both MCP eras over real transports: discovery, `_meta`, headers, exposure, contexts, cache hints, tool fields | `/mcp` and stdio, both eras | Streamable HTTP and stdio, both eras | `server` feature over Streamable HTTP | Todo backend stdio |
 | Todo conformance, 34 cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes | Yes | Yes | Yes |
