@@ -143,7 +143,18 @@ async fn tools_list_shows_exposed_commands_with_cache_hints() {
         .iter()
         .map(|tool| tool["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names, ["item-echo", "context-probe"]);
+    // The default grouped strategy: the meta-tools, then one tool per group.
+    assert_eq!(
+        names,
+        [
+            "afd-batch",
+            "afd-pipe",
+            "afd-call",
+            "afd-detail",
+            "item",
+            "context"
+        ]
+    );
 }
 
 #[tokio::test]

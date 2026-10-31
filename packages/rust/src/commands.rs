@@ -454,6 +454,11 @@ pub struct CommandContext {
     /// What a journal recorder and replay pass to nested calls.
     pub(crate) journal_state: JournalContextState,
     pub(crate) direct_approval: Option<Arc<std::sync::Mutex<crate::direct::Exchange>>>,
+    /// The active-context state: a session stack, one request's context, or no session.
+    pub(crate) context_scope: Option<crate::contexts::ContextScope>,
+    /// A remote MCP caller: an unexposed command looks unknown, and recovery points to
+    /// `afd-discover` (`spec/error-codes.md`, D4). Only the MCP server sets it.
+    pub(crate) remote: bool,
 }
 
 impl fmt::Debug for CommandContext {
@@ -469,6 +474,7 @@ impl fmt::Debug for CommandContext {
             .field("random", &self.random.as_ref().map(|_| ".."))
             .field("extra", &self.extra)
             .field("journal_state", &self.journal_state)
+            .field("context_scope", &self.context_scope)
             .finish()
     }
 }
@@ -535,6 +541,35 @@ impl CommandContext {
             Some(random) => random.as_ref(),
             None => &SYSTEM_RANDOM,
         }
+    }
+
+    /// Run with `context` active, for this call only: commands outside it return
+    /// `COMMAND_NOT_IN_CONTEXT`, and `afd-context-enter` and `afd-context-exit` report that
+    /// nothing persists (see [`crate::contexts`]).
+    pub fn with_active_context(mut self, context: impl Into<String>) -> Self {
+        self.context_scope = Some(crate::contexts::ContextScope::Request(Some(context.into())));
+        self
+    }
+
+    /// Run in the session whose contexts `stack` holds: its top is the active context, and
+    /// `afd-context-enter` and `afd-context-exit` change it (see [`crate::contexts`]).
+    pub fn with_context_stack(mut self, stack: crate::contexts::ContextStack) -> Self {
+        self.context_scope = Some(crate::contexts::ContextScope::Session(stack));
+        self
+    }
+
+    /// Carry `scope` (the MCP server's per-request context state).
+    #[cfg_attr(not(feature = "server"), allow(dead_code))]
+    pub(crate) fn with_context_scope(mut self, scope: crate::contexts::ContextScope) -> Self {
+        self.context_scope = Some(scope);
+        self
+    }
+
+    /// The active context, if any.
+    pub fn active_context(&self) -> Option<String> {
+        self.context_scope
+            .as_ref()
+            .and_then(crate::contexts::ContextScope::active)
     }
 
     /// Add a custom context value.
@@ -661,9 +696,9 @@ pub struct CommandDefinition {
 
     /// Contexts this command belongs to.
     ///
-    /// Metadata for hosts that scope commands by an active context: see
-    /// [`CommandDefinition::is_accessible_in_context`]. The registry does not
-    /// enforce it.
+    /// [`CommandRegistry::execute`] runs the command only when no context is
+    /// active or one of these is ([`CommandDefinition::is_accessible_in_context`];
+    /// see [`crate::contexts`]).
     pub contexts: Option<Vec<String>>,
 
     /// Whether this command performs side effects.
@@ -798,7 +833,7 @@ impl CommandDefinition {
         self
     }
 
-    /// Set the contexts this command belongs to (metadata only).
+    /// Set the contexts this command belongs to (see [`crate::contexts`]).
     pub fn with_contexts<I, S>(mut self, contexts: I) -> Self
     where
         I: IntoIterator<Item = S>,
@@ -1058,18 +1093,24 @@ impl CommandRegistry {
     ///
     /// 1. An unknown name returns `COMMAND_NOT_FOUND`. Its suggestion names up
     ///    to three close matches, as in TypeScript, chosen among the commands
-    ///    exposed to `context.interface` (all commands when it is unset), and
-    ///    points to `afd-help` when that is one of them.
+    ///    exposed to `context.interface` (all commands when it is unset) and
+    ///    available in the active context, and points to `afd-help` when that
+    ///    is one of them (`afd-discover` for the MCP server's calls).
     /// 2. When `context.interface` is set, a command not exposed to that
-    ///    interface returns `COMMAND_NOT_EXPOSED` (see [`ExposeOptions`]).
-    /// 3. A `context.timeout_ms` without the `native` feature returns
+    ///    interface returns `COMMAND_NOT_EXPOSED` (see [`ExposeOptions`]); the
+    ///    MCP server's calls get `COMMAND_NOT_FOUND` instead, as for an unknown
+    ///    name.
+    /// 3. With an active context ([`CommandContext::active_context`]), a
+    ///    command outside it returns `COMMAND_NOT_IN_CONTEXT` (see
+    ///    [`crate::contexts`]).
+    /// 4. A `context.timeout_ms` without the `native` feature returns
     ///    `UNSUPPORTED_OPTION`.
-    /// 4. The input is validated against the command's `parameters`, parameter
+    /// 5. The input is validated against the command's `parameters`, parameter
     ///    defaults are applied, and undeclared keys are dropped, as Zod does in
     ///    TypeScript. Invalid input returns `VALIDATION_ERROR` (`Input
     ///    validation failed`) with the problems in `suggestion` and
     ///    `details.errors`.
-    /// 5. The middleware chain and then the handler run with the validated
+    /// 6. The middleware chain and then the handler run with the validated
     ///    input. With `context.timeout_ms`, a run that outlasts it returns
     ///    `TIMEOUT` (this needs a Tokio runtime with time enabled). A panic in
     ///    a middleware layer or the handler returns `COMMAND_EXECUTION_ERROR`
@@ -1090,17 +1131,24 @@ impl CommandRegistry {
         context: Option<CommandContext>,
     ) -> CommandResult<serde_json::Value> {
         let context = with_context_defaults(context.unwrap_or_default(), &ContextDefaults::new());
-        let Some(command) = self.get(name) else {
+        let active_context = context.active_context();
+        let visible = |candidate: &CommandDefinition| {
+            context
+                .interface
+                .is_none_or(|interface| candidate.expose.is_exposed_to(interface))
+        };
+        // A remote caller cannot tell an unexposed command from a missing one (D4).
+        let command = self
+            .get(name)
+            .filter(|command| !context.remote || visible(command));
+        let Some(command) = command else {
             // Suggest only names the caller could call: an interface caller must
             // not learn the names of commands that are not exposed to it.
             let callable: Vec<String> = read_lock(&self.commands)
                 .ordered
                 .iter()
-                .filter(|candidate| {
-                    context
-                        .interface
-                        .is_none_or(|interface| candidate.expose.is_exposed_to(interface))
-                })
+                .filter(|candidate| visible(candidate))
+                .filter(|candidate| candidate.is_accessible_in_context(active_context.as_deref()))
                 .map(|candidate| candidate.name.clone())
                 .collect();
             return failure(
@@ -1108,7 +1156,7 @@ impl CommandRegistry {
                     error_codes::COMMAND_NOT_FOUND,
                     format!("Command '{}' not found", truncate_name(name)),
                 )
-                .with_suggestion(not_found_suggestion(name, &callable))
+                .with_suggestion(not_found_suggestion(name, &callable, context.remote))
                 .with_retryable(false),
             );
         };
@@ -1125,6 +1173,19 @@ impl CommandRegistry {
                     ))
                     .with_retryable(false),
                 );
+            }
+        }
+
+        if let Some(active) = active_context.as_deref() {
+            if !command.is_accessible_in_context(Some(active)) {
+                let context_tools = self
+                    .get(crate::builtin_names::AFD_CONTEXT_COMMAND_NAMES[0])
+                    .is_some_and(|list| visible(&list));
+                return failure(crate::contexts::not_in_context_error(
+                    &command,
+                    active,
+                    context_tools,
+                ));
             }
         }
 
@@ -1404,7 +1465,7 @@ const MAX_ECHOED_NAME_LENGTH: usize = crate::similarity::MAX_SIMILARITY_INPUT_LE
 /// `name` cut to [`MAX_ECHOED_NAME_LENGTH`] UTF-16 code units, with `…` when
 /// cut, as TypeScript's `truncateName` does. A character that would straddle
 /// the cut (a surrogate pair) is left out whole.
-fn truncate_name(name: &str) -> String {
+pub(crate) fn truncate_name(name: &str) -> String {
     let mut length = 0;
     for (end, character) in name.char_indices() {
         length += character.len_utf16();
@@ -1433,8 +1494,11 @@ const HELP_COMMAND: &str = "afd-help";
 ///
 /// `name` is untrusted and never echoed; `callable` holds the names the caller
 /// may call, in registration order (ties keep that order, as in TypeScript).
-fn not_found_suggestion(name: &str, callable: &[String]) -> String {
-    let list = if callable.iter().any(|candidate| candidate == HELP_COMMAND) {
+pub(crate) fn not_found_suggestion(name: &str, callable: &[String], remote: bool) -> String {
+    // The MCP server routes afd-discover in every tool strategy.
+    let list = if remote {
+        "Use afd-discover to list all commands."
+    } else if callable.iter().any(|candidate| candidate == HELP_COMMAND) {
         "Use afd-help to list all commands."
     } else {
         "Check the command name against the available commands."

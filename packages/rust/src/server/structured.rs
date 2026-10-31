@@ -1,8 +1,9 @@
 //! Structured results (`spec/command-metadata.md`, "Structured results").
 //!
-//! Every command tool result carries the whole `CommandResult` as `structuredContent`, and a
-//! command that declares `returns` advertises a top-level `outputSchema` describing the
-//! `CommandResult` envelope with `data` typed by `returns`. MCP clients validate
+//! Every tool result carries the whole result as `structuredContent` (built by the router's
+//! `tool_result`), and under the individual strategy a command that declares `returns`
+//! advertises a top-level `outputSchema` describing the `CommandResult` envelope with `data`
+//! typed by `returns`, as TypeScript does. MCP clients validate
 //! `structuredContent` against `outputSchema`, so
 //! [`McpServer::with_advertise_output_schema`](super::McpServer::with_advertise_output_schema)
 //! can switch the advertising off.

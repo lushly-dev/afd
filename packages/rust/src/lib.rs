@@ -68,6 +68,7 @@ pub mod builtin_names;
 pub mod clock;
 pub mod commands;
 pub mod connectors;
+pub mod contexts;
 pub mod errors;
 pub mod handoff;
 pub mod journal;
@@ -152,6 +153,11 @@ pub use commands::{
     CommandContext, CommandDefinition, CommandExample, CommandHandler, CommandInterface,
     CommandMiddleware, CommandParameter, CommandRegistry, ExecutionTime, ExposeOptions, JsonSchema,
     JsonSchemaType, McpInputSchema, McpTool, MiddlewareNext,
+};
+
+pub use contexts::{
+    get_context_commands, register_context_commands, ContextConfig, ContextStack,
+    AFD_CONTEXT_META_KEY, DEFAULT_CONTEXT_MAX_DEPTH,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
