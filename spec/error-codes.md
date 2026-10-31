@@ -143,7 +143,7 @@ engines emitted without a constant; then the 2 confirmation codes and the approv
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
-| `INTERNAL_ERROR` | Something failed inside the engine or the command. `internalError()` and `wrapError()` set `retryable: true`; the pipeline's failure to resolve a step's references leaves it unset; the client maps JSON-RPC `-32603` to it as retryable | Varies | Core executors, client, application |
+| `INTERNAL_ERROR` | Something failed inside the engine or the command. `internalError()` and `wrapError()` set `retryable: true`; the pipeline's failure to resolve a step's references leaves it unset; the client maps JSON-RPC `-32603` to it as retryable; the Rust MCP server answers a panic in its own request handling (not a handler's, which is `COMMAND_EXECUTION_ERROR`) with a generic message and `retryable: true` | Varies | Core executors, client, application |
 | `NOT_IMPLEMENTED` | The command or option exists but is not implemented | No | Application |
 | `UNKNOWN_ERROR` | A thrown value that is not an `Error` (`wrapError()`) | Yes | Core executors |
 

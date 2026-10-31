@@ -84,8 +84,7 @@ use rmcp::service::RequestContext;
 use rmcp::RoleServer;
 
 use crate::{
-    error_codes, with_context_defaults, CommandContext, CommandError, CommandInterface,
-    ContextDefaults,
+    with_context_defaults, CommandContext, CommandError, CommandInterface, ContextDefaults,
 };
 
 /// What the hook is told about the request. Extra fields can be added without breaking hooks.
@@ -142,16 +141,6 @@ where
     Arc::new(move |request, context| hook(request, context).boxed())
 }
 
-/// The error a caller sees when the hook panics.
-fn hook_failed() -> CommandError {
-    CommandError::new(
-        error_codes::INTERNAL_ERROR,
-        "The request could not be processed",
-    )
-    .with_suggestion("Retry later or contact the server operator")
-    .with_retryable(true)
-}
-
 /// A refusal as the caller sees it: nothing beyond the four fields a client can act on.
 fn visible(error: CommandError) -> CommandError {
     CommandError {
@@ -186,7 +175,7 @@ pub(crate) async fn build_context(
     let mut context = match answer {
         Ok(Ok(context)) => context,
         Ok(Err(error)) => return Err(Box::new(visible(error))),
-        Err(_) => return Err(Box::new(hook_failed())),
+        Err(_) => return Err(Box::new(super::panic_guard::internal_failure())),
     };
     context.interface = Some(CommandInterface::Mcp);
     context.remote = true;

@@ -32,6 +32,13 @@
 //!
 //! [`McpServer::with_confirmations`] enforces `confirm_prompt` (see [`confirmations`]).
 //!
+//! A panicking command handler is a `COMMAND_EXECUTION_ERROR` result on every route (the
+//! registry catches it, so a batch item or pipeline step fails alone and the journal records
+//! it). A panic in code outside the registry, such as a [`McpServer::with_group_by`] closure,
+//! would otherwise end `rmcp`'s request task and leave the client waiting: the server guards
+//! each request, and answers a generic `INTERNAL_ERROR` (a `-32603` error for `tools/list`) with
+//! no panic message. Only unwinding panics are caught; with `panic = "abort"` the process aborts.
+//!
 //! ```no_run
 //! # async fn run() -> Result<(), String> {
 //! use std::sync::Arc;
@@ -70,6 +77,7 @@ pub const DEFAULT_TOOLS_LIST_TTL_MS: u64 = 300_000;
 pub mod confirmations;
 pub mod context_hook;
 pub mod meta_tools;
+mod panic_guard;
 mod router;
 pub mod strategy;
 mod structured;
@@ -616,27 +624,30 @@ impl ServerHandler for McpServer {
         _request: Option<PaginatedRequestParams>,
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
-        let active = self
-            .request_scope(&context)?
-            .and_then(|scope| scope.active());
-        let tools: Vec<Tool> =
-            serde_json::from_value(Value::Array(self.tools_in(active.as_deref())))
-                .map_err(internal)?;
-        let ttl_ms = self
-            .inner
-            .tools_list_ttl_ms
-            .unwrap_or(if self.inner.contexts.is_some() {
-                0
-            } else {
-                DEFAULT_TOOLS_LIST_TTL_MS
-            });
-        serde_json::from_value(json!({
-            "resultType": "complete",
-            "tools": tools,
-            "ttlMs": ttl_ms,
-            "cacheScope": "public",
-        }))
-        .map_err(internal)
+        panic_guard::guard_request(async {
+            let active = self
+                .request_scope(&context)?
+                .and_then(|scope| scope.active());
+            let tools: Vec<Tool> =
+                serde_json::from_value(Value::Array(self.tools_in(active.as_deref())))
+                    .map_err(internal)?;
+            let ttl_ms = self
+                .inner
+                .tools_list_ttl_ms
+                .unwrap_or(if self.inner.contexts.is_some() {
+                    0
+                } else {
+                    DEFAULT_TOOLS_LIST_TTL_MS
+                });
+            serde_json::from_value(json!({
+                "resultType": "complete",
+                "tools": tools,
+                "ttlMs": ttl_ms,
+                "cacheScope": "public",
+            }))
+            .map_err(internal)
+        })
+        .await
     }
 
     async fn call_tool(
@@ -644,6 +655,6 @@ impl ServerHandler for McpServer {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
-        router::route(self, &request, &context).await
+        panic_guard::guard_call(router::route(self, &request, &context)).await
     }
 }

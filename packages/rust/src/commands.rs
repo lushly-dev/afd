@@ -1109,7 +1109,11 @@ impl CommandRegistry {
     ///    a middleware layer or the handler returns `COMMAND_EXECUTION_ERROR`
     ///    with the generic message of [`execution_failure`], as TypeScript
     ///    does for a thrown exception outside `devMode`; the panic payload is
-    ///    never included.
+    ///    never included. The failure is what the journal records (with
+    ///    `with_record_failures(true)`), and a batch or pipeline treats it as
+    ///    any failed command. Only unwinding panics are caught: with
+    ///    `panic = "abort"`, and on `wasm32-unknown-unknown` (which cannot
+    ///    unwind), a panic aborts the process.
     ///
     /// The middleware and the handler always see a `clock` and a `random`
     /// source on the context ([`SYSTEM_CLOCK`] and [`SYSTEM_RANDOM`] unless the
