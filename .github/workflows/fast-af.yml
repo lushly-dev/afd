@@ -9,14 +9,7 @@ on:
       - 'pnpm-lock.yaml'
       - 'pnpm-workspace.yaml'
       - '.github/workflows/fast-af.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'foundations/fast-af/**'
-      - 'tests/consumers/fast-af/**'
-      - 'pnpm-lock.yaml'
-      - 'pnpm-workspace.yaml'
-      - '.github/workflows/fast-af.yml'
+  workflow_call:
   workflow_dispatch:
 
 permissions:

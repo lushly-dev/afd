@@ -7,12 +7,7 @@ on:
       - 'endpoints/botcore/**'
       - 'python/**'
       - '.github/workflows/botcore.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      - 'endpoints/botcore/**'
-      - 'python/**'
-      - '.github/workflows/botcore.yml'
+  workflow_call:
 
 permissions:
   contents: read

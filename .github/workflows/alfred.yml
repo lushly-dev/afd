@@ -23,28 +23,7 @@ on:
       - 'spec/**'
       - 'packages/**'
       - '.github/workflows/alfred.yml'
-  pull_request:
-    branches: [main]
-    paths:
-      # alfred's tests read the Python package, the wire fixtures and the
-      # TypeScript/Rust export surfaces, so changes there must run them too.
-      - 'alfred/**'
-      - 'python/**'
-      - 'endpoints/botcore/**'
-      - 'scripts/release*/**'
-      - 'scripts/release-*.mjs'
-      - 'architecture.json'
-      - 'botcore.toml'
-      - 'skills/exports.json'
-      - 'scripts/skill-profiles*.mjs'
-      - '.claude/skills/**'
-      - '.codex/skills'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - '.nvmrc'
-      - 'spec/**'
-      - 'packages/**'
-      - '.github/workflows/alfred.yml'
+  workflow_call:
 
 permissions:
   contents: read
