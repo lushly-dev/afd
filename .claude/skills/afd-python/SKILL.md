@@ -466,11 +466,13 @@ Use `afd.core.wire.to_wire(result)` to produce the same JSON yourself.
 
 ### Tool Strategies and Bootstrap Tools
 
-Python servers support the same three discovery modes as the shared AFD surface:
+Python servers support the shared AFD tool strategies ([`spec/tool-strategies.md`](../../../spec/tool-strategies.md)):
 
 - `tool_strategy="individual"` — one MCP tool per command
 - `tool_strategy="grouped"` — one MCP tool per category/group with `action`
 - `tool_strategy="lazy"` — stable meta-tools for large command sets
+- `tool_strategy="hybrid"` with `first_class_tools=[...]` — the lazy meta-tools plus 1 to 8 named
+  commands as their own tools (see below)
 
 ```python
 from afd.server import ContextConfig, create_server
@@ -493,6 +495,28 @@ Built-in tools exposed by strategy:
 - When contexts are configured: `afd-context-list`, `afd-context-enter`, `afd-context-exit`
 
 Context-scoped commands stay hidden from discovery outside the active context and return actionable `COMMAND_NOT_IN_CONTEXT` errors when called directly.
+
+#### Hybrid: a few first-class tools, everything else through `afd-call`
+
+```python
+server = create_server(
+    "todo-app",
+    tool_strategy="hybrid",
+    first_class_tools=["todo-list", "todo-create", "todo-complete"],  # the hot path, in this order
+)
+```
+
+- The list is `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`, then the context
+  tools when `contexts` are configured, then the first-class tools in the order given. Each is the
+  tool the individual strategy would list (same schema, `_meta`, `confirm`).
+- The list never varies by context, so `tools_list_ttl_ms` defaults to 300000 even with contexts. A
+  first-class command called outside its context fails with `COMMAND_NOT_IN_CONTEXT`.
+- The set takes 1 to 8 commands, each registered, exposed to MCP (`expose.mcp`), not a built-in tool
+  and not repeated; `first_class_tools` without `hybrid`, or `hybrid` without it, is an error. A bad
+  entry raises `ValueError` naming it before the server answers its first request (so `@server.command`
+  may follow `create_server`), and a later `register` cannot unexpose a first-class command.
+- Every other command runs by name, through `afd-call`, `afd-batch` or `afd-pipe`; `afd-help`
+  reports `toolStrategy` on every strategy, and on hybrid also `firstClassTools` and `firstClass: true`.
 
 ### Surface Validation
 

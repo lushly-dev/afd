@@ -30,13 +30,13 @@ explains why the hybrid exists and records the owner's decisions it follows.
 
 | | TypeScript (`createMcpServer`, `createMcpHandler`) | Python (`create_server`, `ServerConfig`) | Rust (`McpServer`, `server` feature) | C++ |
 | --- | --- | --- | --- | --- |
-| Strategy | `toolStrategy: 'individual' \| 'grouped' \| 'lazy'` | `tool_strategy: Literal["individual", "grouped", "lazy"]` | `with_tool_strategy(ToolStrategy::Individual \| Grouped \| Lazy)` | None (#341) |
+| Strategy | `toolStrategy: 'individual' \| 'grouped' \| 'lazy'` | `tool_strategy: Literal["individual", "grouped", "lazy", "hybrid"]` | `with_tool_strategy(ToolStrategy::Individual \| Grouped \| Lazy)` | None (#341) |
 | Default | `grouped` | `individual` | `Grouped` | — |
 | Group name | `groupByFn` | `group_by` | `with_group_by` | — |
 | Contexts | `contexts` | `contexts` | `with_contexts` | — |
 | Bootstrap tools | `bootstrap: true` (default `false`) | Always registered | `register_bootstrap_commands` on the registry | — |
 | `ttlMs` | `toolsListTtlMs` | `tools_list_ttl_ms` | `with_tools_list_ttl_ms` | — |
-| Hybrid first-class set | Planned: `firstClassTools` | Planned: `first_class_tools` | Planned: `with_first_class_tools` | Planned |
+| Hybrid first-class set | Planned: `firstClassTools` | `first_class_tools` | Planned: `with_first_class_tools` | Planned |
 
 The C++ todo backend's hand-rolled stdio loop lists one command tool per command; parity item D2
 promotes it to `afd::mcp_stdio` ([#341](https://github.com/lushly-dev/afd/issues/341)).
@@ -360,8 +360,8 @@ name, which every strategy serves, so it does not change.
 | `individual` | Yes | Yes (the default) | Yes | Todo backend only (#341) |
 | `grouped` | Yes (the default) | Yes, see [Current differences](#current-differences) | Yes (the default) | No (#341) |
 | `lazy` | Yes | Yes, see [Current differences](#current-differences) | Yes | No (#341) |
-| `hybrid` | Planned | Planned | Planned | Planned |
-| `afd-help` `toolStrategy`, `firstClassTools`, `firstClass` | Planned | Planned | Planned | Planned |
-| Loads [`tool-strategies.json`](./tool-strategies.json) | Planned | Planned | Planned | Planned |
+| `hybrid` | Planned | Yes (`create_server(tool_strategy="hybrid", first_class_tools=[...])`) | Planned | Planned |
+| `afd-help` `toolStrategy`, `firstClassTools`, `firstClass` | Planned | Yes | Planned | Planned |
+| Loads [`tool-strategies.json`](./tool-strategies.json) | Planned | Yes (`python/tests/test_hybrid_tool_strategy.py`) | Planned | Planned |
 
 Progress is recorded in the [hybrid tool strategy status](../docs/features/active/hybrid-tool-strategy/STATUS.md).

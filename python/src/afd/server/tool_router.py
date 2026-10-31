@@ -44,6 +44,11 @@ class ToolRouterDeps:
     # Confirmation enforcement (`confirmations` server option); None means off.
     confirmations: ConfirmationGate | None = None
 
+NOT_IN_CONTEXT_SUGGESTION = (
+    "Use afd-context-list to see available contexts, or afd-context-enter to switch."
+)
+"""The ``COMMAND_NOT_IN_CONTEXT`` suggestion (spec/error-codes.md)."""
+
 _MCP_ACTOR = Actor(kind="agent")
 """The default actor of a call over MCP."""
 
@@ -104,7 +109,7 @@ def create_tool_router(deps: ToolRouterDeps):
         return error(
             "COMMAND_NOT_IN_CONTEXT",
             f"Command '{name}' is not available in context '{active_context}'",
-            suggestion="Use afd-context-list to see contexts or afd-context-enter to switch.",
+            suggestion=NOT_IN_CONTEXT_SUGGESTION,
         )
 
     gate = deps.confirmations if deps.confirmations and deps.confirmations.mode != "off" else None
@@ -247,7 +252,7 @@ def create_tool_router(deps: ToolRouterDeps):
                     return error(
                         "COMMAND_NOT_IN_CONTEXT",
                         f"Grouped tool '{tool_name}' is not available in context '{active_context}'",
-                        suggestion="Use afd-context-list to see contexts or afd-context-enter to switch.",
+                        suggestion=NOT_IN_CONTEXT_SUGGESTION,
                     )
 
             if group_commands and not isinstance(action, str):

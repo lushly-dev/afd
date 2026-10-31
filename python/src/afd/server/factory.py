@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -72,6 +72,7 @@ from afd.server.decorators import (
     validate_command_input,
 )
 from afd.core.builtin_names import AFD_META_TOOL_NAMES
+from afd.server.first_class import check_first_class_tools, normalize_first_class_tools
 from afd.server.lazy_tools import not_found_suggestion
 from afd.server.middleware import CommandMiddleware
 from afd.server.confirmations import (
@@ -87,7 +88,12 @@ from afd.server.session_context import (
     UnknownContextError,
     is_modern_protocol,
 )
-from afd.server.tool_router import ToolRouterDeps, create_tool_router, new_trace_id
+from afd.server.tool_router import (
+    NOT_IN_CONTEXT_SUGGESTION,
+    ToolRouterDeps,
+    create_tool_router,
+    new_trace_id,
+)
 from afd.server.tools import get_tools_list
 from afd.server.types import ContextConfig, GroupByFn, ToolStrategy
 from afd.server.validation import _input_validation_failure
@@ -144,6 +150,9 @@ class ServerConfig:
     actor: Actor | None = None
     confirmations: str = "off"
     confirmation_key: bytes | str | None = None
+    first_class_tools: list[str] | None = None
+    """``tool_strategy="hybrid"`` only: the commands listed as tools after the meta-tools, in
+    order (1 to 8 names). Checked against the registered commands before the first request."""
 
 
 DEFAULT_TOOLS_LIST_TTL_MS = 300_000
@@ -173,6 +182,11 @@ def default_instructions(
             "Each tool groups related commands: pass { action, params }. afd-detail returns "
             "a command schema; afd-call runs any command by name."
         )
+    elif tool_strategy == "hybrid":
+        lines.append(
+            "The command tools listed are the common ones. Call afd-discover to find others, "
+            "afd-detail for a schema, and afd-call to run one."
+        )
     else:
         lines.append("Each command is its own tool; afd-call also runs any command by name.")
     lines.append("Use afd-batch for several independent commands and afd-pipe to chain them.")
@@ -191,6 +205,9 @@ class MCPServer:
     def __init__(self, config: ServerConfig):
         if config.max_batch_size < 1 or config.max_batch_parallelism < 1:
             raise ValueError("max_batch_size and max_batch_parallelism must be at least 1")
+        # The set's options are checked here; its entries once the commands are registered.
+        first_class = normalize_first_class_tools(config.tool_strategy, config.first_class_tools)
+        config.first_class_tools = first_class
         self.config = config
         self._registry = create_command_registry()
         self._commands: dict[str, Callable] = {}
@@ -203,6 +220,7 @@ class MCPServer:
         # Per-call caches, rebuilt after register() or a context change.
         self._command_index: dict[str, CommandDefinition] | None = None
         self._router: Callable[[str, Any], Any] | None = None
+        self._first_class_checked = False
 
     @property
     def name(self) -> str:
@@ -294,6 +312,14 @@ class MCPServer:
                 "Rename the command."
             )
 
+        first_class = self.config.first_class_tools or []
+        if definition.name in first_class and not self._is_exposed_to(definition, "mcp"):
+            # The first-class set cannot change while the server runs (H2).
+            raise ValueError(
+                f"Command '{definition.name}' is in first_class_tools, so it must stay exposed "
+                "to MCP (expose.mcp true): listing it would reveal a private command."
+            )
+
         self._registry.register(definition)
         self._commands[definition.name] = func
         self._metadata[definition.name] = metadata
@@ -303,12 +329,30 @@ class MCPServer:
     def _invalidate_caches(self) -> None:
         self._command_index = None
         self._router = None
+        self._first_class_checked = False
+
+    def _check_first_class_tools(self) -> None:
+        """Check a hybrid server's first-class set against its commands (spec H2).
+
+        Run before the server answers a request, and again after each registration.
+        """
+        if self._first_class_checked or self.config.tool_strategy != "hybrid":
+            return
+        check_first_class_tools(
+            self.config.first_class_tools or [],
+            self._get_command_index(),
+            lambda command: self._is_exposed_to(command, "mcp"),
+        )
+        self._first_class_checked = True
 
     def _get_bootstrap_commands(self) -> list[CommandDefinition]:
         if self._bootstrap_commands is None:
             options: dict[str, Any] = {
                 "get_json_schema": lambda command: command.input_schema or {},
             }
+            options["tool_strategy"] = self.config.tool_strategy
+            if self.config.tool_strategy == "hybrid":
+                options["first_class_tools"] = list(self.config.first_class_tools or [])
             if self.config.contexts:
                 options["get_contexts"] = self.list_contexts
                 options["context_state"] = self._context_state
@@ -446,7 +490,7 @@ class MCPServer:
             return error(
                 "COMMAND_NOT_IN_CONTEXT",
                 f"Command '{command.name}' is not available in context '{active_context}'",
-                suggestion="Use afd-context-list to inspect contexts, or afd-context-enter to switch.",
+                suggestion=NOT_IN_CONTEXT_SUGGESTION,
             )
 
         metadata = get_command_metadata(command.handler)
@@ -568,6 +612,7 @@ class MCPServer:
     ) -> Any:
         """Execute a command or built-in tool by name."""
 
+        self._check_first_class_tools()
         if name in META_TOOL_NAMES:
             return await self.route_tool_call(name, input)
         return await self._execute_command(name, input, context)
@@ -582,6 +627,27 @@ class MCPServer:
         ):
             self._router = None
             # The shared FastMCP registry stays complete; tools/list filters per session.
+
+    def _advertise_fixed_tools_list(self) -> None:
+        """Report ``capabilities.tools.listChanged`` as false, as the spec says (H6).
+
+        No AFD server sends ``notifications/tools/list_changed``, but the SDK derives the flag
+        from the methods it serves (``subscriptions/listen`` on 2026-07-28), which would
+        promise a notification that never comes.
+        """
+        lowlevel = getattr(self._mcp_server, "_lowlevel_server", None)
+        get_capabilities = getattr(lowlevel, "get_capabilities", None)
+        if get_capabilities is None or getattr(lowlevel, "_afd_fixed_tools_list", False):
+            return
+
+        def fixed(*args: Any, **kwargs: Any) -> Any:
+            capabilities = get_capabilities(*args, **kwargs)
+            if capabilities.tools is not None:
+                capabilities.tools = capabilities.tools.model_copy(update={"list_changed": False})
+            return capabilities
+
+        lowlevel.get_capabilities = fixed
+        lowlevel._afd_fixed_tools_list = True
 
     def _install_fastmcp_context_error_translation(self) -> None:
         """Translate stale direct tool calls into actionable context errors when possible."""
@@ -619,10 +685,7 @@ class MCPServer:
                         error(
                             "COMMAND_NOT_IN_CONTEXT",
                             f"Command '{name}' is not available in context '{active_context}'",
-                            suggestion=(
-                                "Use afd-context-list to inspect contexts, "
-                                "or afd-context-enter to switch."
-                            ),
+                            suggestion=NOT_IN_CONTEXT_SUGGESTION,
                         )
                     )
 
@@ -932,6 +995,7 @@ class MCPServer:
 
     def _get_router(self) -> Callable[[str, Any], Any]:
         """The tool router, built once and rebuilt after register() or a context change."""
+        self._check_first_class_tools()
         if self._router is None:
             commands = self.list_exposed_commands(
                 interface="mcp", include_bootstrap=True, context_filtered=False
@@ -972,12 +1036,14 @@ class MCPServer:
     def get_tool_definitions(self) -> list[dict[str, Any]]:
         """Return the MCP-visible tool definitions for the current strategy."""
 
+        self._check_first_class_tools()
         return get_tools_list(
             self.list_exposed_commands(interface="mcp", include_bootstrap=True, context_filtered=False),
             self.config.tool_strategy,
             group_by_fn=self.config.group_by,
             active_context=self._context_state.get_active(),
             confirmations=self.config.confirmations,
+            first_class_tools=self.config.first_class_tools,
         )
 
     def get_mcp_tools(self) -> list[dict[str, Any]]:
@@ -1003,6 +1069,7 @@ class MCPServer:
             group_by_fn=self.config.group_by,
             active_context=None,
             confirmations=self.config.confirmations,
+            first_class_tools=self.config.first_class_tools,
         )
         for tool_definition in definitions:
             tool = self._create_fastmcp_tool(tool_definition)
@@ -1078,13 +1145,16 @@ class MCPServer:
         except ImportError as exc:  # pragma: no cover - optional dependency
             raise ImportError("mcp not installed. Install with: pip install afd[server]") from exc
 
+        self._check_first_class_tools()
         server = self
         context_names = {item.name for item in self.config.contexts}
         ttl_ms = self.config.tools_list_ttl_ms
         if ttl_ms is None:
             # With contexts, tools/list varies by _meta["dev.afd/context"], which SDK
-            # clients leave out of their cache key, so the default is "always stale".
-            ttl_ms = 0 if self.config.contexts else DEFAULT_TOOLS_LIST_TTL_MS
+            # clients leave out of their cache key, so the default is "always stale". The
+            # hybrid list never varies by context (H4), so it keeps the default.
+            varies = bool(self.config.contexts) and self.config.tool_strategy != "hybrid"
+            ttl_ms = 0 if varies else DEFAULT_TOOLS_LIST_TTL_MS
         if isinstance(ttl_ms, bool) or not isinstance(ttl_ms, int) or ttl_ms < 0:
             raise ValueError("tools_list_ttl_ms must be a non-negative integer")
         hint = CacheHint(ttl_ms=ttl_ms, scope="public")
@@ -1144,6 +1214,7 @@ class MCPServer:
         )
         self._sync_mcp_tool_definitions()
         self._install_fastmcp_context_error_translation()
+        self._advertise_fixed_tools_list()
         return self._mcp_server
 
     def streamable_http_app(self, **options: Any) -> Any:
@@ -1363,10 +1434,21 @@ def create_server(
     actor: Actor | None = None,
     confirmations: str = "off",
     confirmation_key: bytes | str | None = None,
+    first_class_tools: Sequence[str] | None = None,
 ) -> MCPServer:
     """Create a new AFD MCP server.
 
     Args:
+        tool_strategy: How commands become MCP tools: ``"individual"`` (the default), ``"grouped"``,
+            ``"lazy"`` or ``"hybrid"`` (``spec/tool-strategies.md``).
+        first_class_tools: With ``tool_strategy="hybrid"`` (required there, and refused with any
+            other strategy), the commands to list as tools after the five meta-tools and the
+            context tools, in order: 1 to 8 registered commands exposed to MCP, none a built-in
+            tool, none repeated. Every other command is reached with ``afd-discover``,
+            ``afd-detail`` and ``afd-call``. The list does not vary by context, so
+            ``tools_list_ttl_ms`` defaults to 300000 even with ``contexts``. The set is checked
+            against the registered commands before the first request, so ``@server.command``
+            may follow ``create_server``.
         dev_mode: Development mode. When False (the default), a command that
             raises returns the generic message "An internal error occurred"
             instead of the exception text. The exception and its traceback are
@@ -1383,7 +1465,7 @@ def create_server(
         tools_list_ttl_ms: ``ttlMs`` freshness hint of MCP 2026-07-28 ``tools/list``
             and ``server/discover`` results (default 300000, or 0 when ``contexts``
             are configured, because clients cache ``tools/list`` without its
-            ``_meta``).
+            ``_meta``; the hybrid strategy's list does not vary, so it keeps 300000).
         clock: Clock given to handlers as ``context.clock`` when the context has
             none. Default: ``system_clock``. Pass ``fixed_clock()`` in tests.
         random: Random source given to handlers as ``context.random`` when the
@@ -1437,5 +1519,6 @@ def create_server(
         actor=actor,
         confirmations=confirmations,
         confirmation_key=confirmation_key,
+        first_class_tools=first_class_tools,  # type: ignore[arg-type]  # MCPServer checks it
     )
     return MCPServer(config)

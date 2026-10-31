@@ -115,3 +115,74 @@ async def test_server_discover_describes_the_server():
         # The fixture configures contexts, so the default freshness hint is 0.
         assert result["ttlMs"] == 0
         assert result["cacheScope"] == "public"
+
+
+HYBRID_LIST = [
+    "afd-discover", "afd-detail", "afd-call", "afd-batch", "afd-pipe",
+    "afd-context-list", "afd-context-enter", "afd-context-exit",
+    "alpha-run", "beta-run", "probe-read",
+]
+
+
+@pytest.mark.parametrize("stateless", [False, True])
+async def test_hybrid_list_is_fixed_and_first_class_calls_are_scoped_by_context(stateless):
+    async with protocol_server("hybrid", "streamable-http", stateless=stateless) as url:
+        async with Client(url, mode="auto") as client:
+            assert client.protocol_version == MODERN
+            for meta in (None, {"dev.afd/context": "alpha"}, {"dev.afd/context": "beta"}):
+                listed = await client.list_tools(meta=meta, cache_mode="bypass")
+                assert [tool.name for tool in listed.tools] == HYBRID_LIST
+                # The list does not vary by context, so contexts keep the default hint.
+                assert listed.ttl_ms == 300_000
+
+            ran = await client.call_tool("alpha-run", {"value": 2}, meta={"dev.afd/context": "alpha"})
+            assert payload(ran)["data"]["context"] == "alpha"
+            denied = await client.call_tool("alpha-run", {"value": 2}, meta={"dev.afd/context": "beta"})
+            assert denied.is_error is True
+            assert payload(denied)["error"]["code"] == "COMMAND_NOT_IN_CONTEXT"
+            assert "afd-context-enter" in payload(denied)["error"]["suggestion"]
+
+            # A command outside the first-class set runs by name and through afd-call.
+            direct = await client.call_tool("probe-write", {})
+            assert payload(direct)["success"] is True
+            via_call = await client.call_tool("afd-call", {"command": "probe-write"})
+            assert payload(via_call)["data"]["writes"] == 2
+            for name in ("private-rotate", "no-such-command"):
+                hidden = payload(await client.call_tool(name, {}))
+                assert hidden["error"]["code"] == "COMMAND_NOT_FOUND"
+                assert hidden["error"]["suggestion"].endswith("Use afd-discover to list all commands.")
+
+            helped = payload(await client.call_tool("afd-help", {}))["data"]
+            assert helped["toolStrategy"] == "hybrid"
+            assert helped["firstClassTools"] == ["alpha-run", "beta-run", "probe-read"]
+
+
+async def test_hybrid_server_discover_reports_instructions_hints_and_no_list_changes():
+    async with protocol_server("hybrid", "streamable-http", stateless=True) as url:
+        import httpx2
+
+        meta = {
+            "io.modelcontextprotocol/protocolVersion": MODERN,
+            "io.modelcontextprotocol/clientCapabilities": {},
+        }
+        async with httpx2.AsyncClient() as http:
+            response = await http.post(
+                url,
+                headers={
+                    "Accept": "application/json, text/event-stream",
+                    "MCP-Protocol-Version": MODERN,
+                    "Mcp-Method": "server/discover",
+                },
+                json={"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {"_meta": meta}},
+            )
+        body = response.text
+        data = json.loads(body.split("data: ", 1)[1].splitlines()[0]) if body.startswith("event") else json.loads(body)
+        result = data["result"]
+        assert (
+            "The command tools listed are the common ones. Call afd-discover to find others, "
+            "afd-detail for a schema, and afd-call to run one." in result["instructions"]
+        )
+        assert "dev.afd/context" in result["instructions"]
+        assert result["ttlMs"] == 300_000
+        assert result["cacheScope"] == "public"
+        assert result["capabilities"]["tools"]["listChanged"] is False

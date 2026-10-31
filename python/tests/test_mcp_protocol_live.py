@@ -87,7 +87,7 @@ async def call(session, name, arguments=None):
 
 
 async def invoke(session, strategy, command, value=7):
-    if strategy == "individual":
+    if strategy in ("individual", "hybrid"):  # the hybrid fixture lists every command it invokes
         return await call(session, command, {"value": value})
     if strategy == "grouped":
         group, action = command.split("-", 1)
@@ -101,7 +101,7 @@ async def discovered(session):
 
 
 @pytest.mark.parametrize("transport", ["sse", "streamable-http"])
-@pytest.mark.parametrize("strategy", ["individual", "grouped", "lazy"])
+@pytest.mark.parametrize("strategy", ["individual", "grouped", "lazy", "hybrid"])
 async def test_protocol_discovery_exposure_errors_and_meta_tools(strategy, transport):
     async with (
         protocol_server(strategy, transport) as url,
@@ -116,7 +116,14 @@ async def test_protocol_discovery_exposure_errors_and_meta_tools(strategy, trans
         detail = await call(session, "afd-detail", {"command": "alpha-run"})
         assert detail["success"] is True
         assert "probe-read" in json.dumps(detail)
-        if strategy == "individual":
+        if strategy == "hybrid":
+            # The five meta-tools, the context tools, then the first-class tools in order.
+            assert [item.name for item in tools] == [
+                "afd-discover", "afd-detail", "afd-call", "afd-batch", "afd-pipe",
+                "afd-context-list", "afd-context-enter", "afd-context-exit",
+                "alpha-run", "beta-run", "probe-read",
+            ]
+        if strategy in ("individual", "hybrid"):
             alpha = next(item for item in tools if item.name == "alpha-run")
             assert alpha.meta["contexts"] == ["alpha"]
             assert alpha.meta["requires"] == ["probe-read"]
@@ -168,7 +175,7 @@ async def test_protocol_discovery_exposure_errors_and_meta_tools(strategy, trans
 
 
 @pytest.mark.parametrize("transport", ["sse", "streamable-http"])
-@pytest.mark.parametrize("strategy", ["individual", "grouped", "lazy"])
+@pytest.mark.parametrize("strategy", ["individual", "grouped", "lazy", "hybrid"])
 async def test_two_transport_sessions_isolate_contexts_and_fresh_connections(strategy, transport):
     async with protocol_server(strategy, transport) as url, client_session(url, transport) as alice:
         async with client_session(url, transport) as bob:
@@ -195,6 +202,9 @@ async def test_two_transport_sessions_isolate_contexts_and_fresh_connections(str
                 if strategy == "individual":
                     assert f"{allowed}-run" in listed
                     assert f"{forbidden}-run" not in listed
+                elif strategy == "hybrid":
+                    # The list never varies by session context; the call is refused instead.
+                    assert {"alpha-run", "beta-run"} <= listed
                 elif strategy == "grouped":
                     assert allowed in listed
                     assert forbidden not in listed
@@ -254,3 +264,30 @@ async def test_stateless_http_context_mutation_requires_a_persistent_session():
             result = await call(session, name, args)
             assert result["error"]["code"] == "SESSION_REQUIRED"
         assert {"alpha-run", "beta-run"} <= await discovered(session)
+
+
+@pytest.mark.parametrize("mode", ["auto", "legacy"])
+async def test_hybrid_strategy_over_stdio(mode):
+    from mcp import Client, StdioServerParameters
+
+    root = Path(__file__).resolve().parents[1]
+    params = StdioServerParameters(
+        command=sys.executable,
+        args=[str(root / "tests/fixtures/protocol_server.py"), "0", "hybrid", "stdio"],
+        env=dict(os.environ, PYTHONPATH=str(root / "src")),
+    )
+    async with Client(params, mode=mode) as client:
+        names = [item.name for item in (await client.list_tools()).tools]
+        assert names[:5] == ["afd-discover", "afd-detail", "afd-call", "afd-batch", "afd-pipe"]
+        assert names[8:] == ["alpha-run", "beta-run", "probe-read"]
+        entered = json.loads(
+            (await client.call_tool("afd-context-enter", {"context": "beta"})).content[0].text
+        )
+        if mode == "legacy":
+            # A 2025 stdio connection is one session: its context stack scopes the calls.
+            assert entered["success"] is True
+            denied = json.loads(
+                (await client.call_tool("alpha-run", {"value": 1})).content[0].text
+            )
+            assert denied["error"]["code"] == "COMMAND_NOT_IN_CONTEXT"
+            assert [item.name for item in (await client.list_tools()).tools] == names

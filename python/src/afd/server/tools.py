@@ -1,4 +1,4 @@
-"""MCP tool list generation for individual, grouped, and lazy strategies."""
+"""MCP tool list generation for individual, grouped, lazy, and hybrid strategies."""
 
 from __future__ import annotations
 
@@ -7,6 +7,13 @@ from typing import Any, Callable, Optional, Sequence
 from afd.core.commands import CommandDefinition, command_to_mcp_tool
 from afd.server.confirmations import CONFIRM_PROPERTY, accepts_confirm
 from afd.server.types import ToolStrategy
+
+MAX_FIRST_CLASS_TOOLS = 8
+"""The most first-class tools a hybrid server lists (spec/tool-strategies.md, H5)."""
+
+# The context tools in list order. The hybrid list names them explicitly, so that its order
+# does not depend on how the server registered its bootstrap commands.
+CONTEXT_TOOL_ORDER = ("afd-context-list", "afd-context-enter", "afd-context-exit")
 
 
 BatchToolSchema = {
@@ -169,6 +176,30 @@ def _individual_tool(command: CommandDefinition, confirmations: str) -> dict[str
     return tool
 
 
+def _hybrid_tools_list(
+    commands: Sequence[CommandDefinition],
+    first_class_tools: Sequence[str],
+    confirmations: str,
+) -> list[dict[str, Any]]:
+    """The hybrid list (spec/tool-strategies.md, H3): the five meta-tools, the context tools
+    when the server has contexts, then the first-class command tools in configured order.
+
+    The list is a function of the server's configuration alone, so it takes no active
+    context: a first-class command outside the active context stays listed and is refused
+    when called (H4). Each command tool is the individual strategy's tool.
+    """
+    by_name: dict[str, CommandDefinition] = {}
+    for command in commands:
+        by_name.setdefault(command.name, command)  # a registered command shadows a bootstrap one
+    meta_tools = [DiscoverToolSchema, DetailToolSchema, CallToolSchema, BatchToolSchema, PipeToolSchema]
+    context_tools = [by_name[name] for name in CONTEXT_TOOL_ORDER if name in by_name]
+    first_class = [by_name[name] for name in first_class_tools if name in by_name]
+    return [
+        *meta_tools,
+        *(_individual_tool(command, confirmations) for command in [*context_tools, *first_class]),
+    ]
+
+
 def filter_commands_by_context(
     commands: Sequence[CommandDefinition],
     active_context: Optional[str],
@@ -215,11 +246,16 @@ def get_tools_list(
 	group_by_fn: Optional[Callable[[CommandDefinition], Optional[str]]] = None,
 	active_context: Optional[str] = None,
 	confirmations: str = "off",
+	first_class_tools: Optional[Sequence[str]] = None,
 ) -> list[dict[str, Any]]:
 	"""Return the MCP-visible tool list for the selected strategy.
 
 	With ``confirmations="enforce"``, confirm-gated tools advertise the ``confirm`` argument.
+	The hybrid strategy lists ``first_class_tools`` and ignores ``active_context``.
 	"""
+
+	if tool_strategy == "hybrid":
+		return _hybrid_tools_list(commands, first_class_tools or [], confirmations)
 
 	builtins = [DiscoverToolSchema, DetailToolSchema, BatchToolSchema, PipeToolSchema, CallToolSchema]
 	filtered_commands = filter_commands_by_context(commands, active_context)

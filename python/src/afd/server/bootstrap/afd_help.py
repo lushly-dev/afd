@@ -40,6 +40,7 @@ class CommandInfo(WireModel):
     contexts: Optional[List[str]] = None
     examples: Optional[List[dict[str, Any]]] = None
     output_schema: Optional[dict[str, Any]] = None
+    first_class: Optional[bool] = None
 
 
 class AfdHelpOutput(WireModel):
@@ -50,6 +51,12 @@ class AfdHelpOutput(WireModel):
     total: int
     filtered: bool
     grouped_by_category: Dict[str, List[CommandInfo]]
+    tool_strategy: Optional[str] = Field(
+        default=None, description="The server's tool strategy; omitted when not served by an MCP server"
+    )
+    first_class_tools: Optional[List[str]] = Field(
+        default=None, description="Hybrid servers only: the first-class tools, in list order"
+    )
 
 
 def _serialize_examples(examples: list[CommandExample]) -> list[dict[str, Any]]:
@@ -60,8 +67,11 @@ async def _afd_help_handler(
     input: AfdHelpInput,
     context: Optional[CommandContext],
     get_commands: Callable[[], List[CommandDefinition]],
+    tool_strategy: Optional[str] = None,
+    first_class_tools: Optional[List[str]] = None,
 ) -> CommandResult[AfdHelpOutput]:
     all_commands = get_commands()
+    first_class = set(first_class_tools or [])
     filtered = input.filter is not None
     commands = all_commands
 
@@ -84,6 +94,7 @@ async def _afd_help_handler(
             description=command.description,
             requires=command.requires or None,
             contexts=command.contexts or None,
+            first_class=True if command.name in first_class else None,
         )
 
         if input.format == "full":
@@ -105,6 +116,8 @@ async def _afd_help_handler(
         total=len(command_infos),
         filtered=filtered,
         grouped_by_category=grouped_by_category,
+        tool_strategy=tool_strategy,
+        first_class_tools=list(first_class_tools) if first_class_tools else None,
     )
     reasoning = (
         f'Found {len(command_infos)} commands matching "{input.filter}"'
@@ -116,8 +129,15 @@ async def _afd_help_handler(
 
 def create_afd_help_command(
     get_commands: Callable[[], List[CommandDefinition]],
+    tool_strategy: Optional[str] = None,
+    first_class_tools: Optional[List[str]] = None,
 ) -> CommandDefinition:
-    """Create the ``afd-help`` bootstrap command."""
+    """Create the ``afd-help`` bootstrap command.
+
+    A server passes its ``tool_strategy`` (reported as ``toolStrategy``) and, for the hybrid
+    strategy, its ``first_class_tools`` (reported as ``firstClassTools``, with ``firstClass:
+    true`` on each of their entries). Both are omitted when not given.
+    """
 
     async def handler(
         input: Any,
@@ -127,7 +147,9 @@ def create_afd_help_command(
             parsed_input = input if isinstance(input, AfdHelpInput) else AfdHelpInput(**(input or {}))
         except ValidationError as exc:
             return _input_validation_failure(AfdHelpInput, input, exc)
-        return await _afd_help_handler(parsed_input, context, get_commands)
+        return await _afd_help_handler(
+            parsed_input, context, get_commands, tool_strategy, first_class_tools
+        )
 
     return CommandDefinition(
         name="afd-help",
