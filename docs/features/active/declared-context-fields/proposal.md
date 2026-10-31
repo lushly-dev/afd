@@ -8,11 +8,11 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed 2026-10-31; its open questions decided by the owner the same day (see [Decisions](#decisions)). Tracked in [#528](https://github.com/lushly-dev/afd/issues/528). Progress is in [STATUS.md](./STATUS.md) |
+| Status | Approved by the owner 2026-10-31, with its open questions decided (see [Decisions](#decisions)) and the order in [Effort and order](#effort-and-order). Tracked in [#528](https://github.com/lushly-dev/afd/issues/528). Progress is in [STATUS.md](./STATUS.md) |
 | Author | jasfalk (drafted with Claude) |
 | Spec | [`spec/journal.md`](../../../../spec/journal.md), [`spec/protocol-conformance.md`](../../../../spec/protocol-conformance.md), [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) per-request `_meta` |
 | Packages | `spec/`, `packages/core`, `packages/server`, `python/`, `packages/rust`, `packages/cpp` (journal only) |
-| Related | [Loam architecture, AFD prerequisites](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), [Umbel spaces (D26)](../../../../endpoints/umbel/docs/decisions.md), [Browser-safe direct registry](../browser-direct-registry/proposal.md) (#527), #466 (meta-tool `context` argument), open PR #523 (Rust per-request context hook), #431 (no caller-declared actor) |
+| Related | [Loam architecture, AFD prerequisites](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), [Umbel spaces (D26)](../../../../endpoints/umbel/docs/decisions.md), [Browser-safe direct registry](../browser-direct-registry/proposal.md) (#527), #466 (meta-tool `context` argument), #523 (Rust per-request context hook, merged 2026-10-31), [Hybrid tool strategy](../hybrid-tool-strategy/hybrid-tool-strategy.proposal.md) (also changes `spec/`), #431 (no caller-declared actor) |
 
 ## Why
 
@@ -38,9 +38,9 @@ binds (Umbel decision D26).
   `createContext(req)` sees the HTTP request and its headers, not the
   JSON-RPC `_meta`, and stdio has no request object at all.
 - **Python.** The server reads the same two keys and drops the rest.
-- **Rust.** Open PR #523 adds `McpServer::with_context_hook`. A host's hook
-  can read `_meta` and set fields imperatively, but nothing declares or
-  validates them, and the journal does not keep them.
+- **Rust.** `McpServer::with_context_hook`, merged in #523 on 2026-10-31,
+  lets a host's hook read `_meta` and set fields imperatively, but nothing
+  declares or validates them, and the journal does not keep them.
 - **C++.** No MCP server. `CommandContext::extra` holds host values.
 - **The journal.** `spec/journal.md` keeps three context values: the actor,
   the interface and the trace ID. For every other context key it hashes the
@@ -153,6 +153,8 @@ argument carries the AFD context and every declared field:
   with `VALIDATION_ERROR`.
 
 `spec/command-metadata.md` records the decision when #466 is implemented.
+The argument ships with #466, not as part of this proposal's "Done when",
+so the rest of this proposal does not wait on #466's other two items.
 
 ## Parity
 
@@ -160,7 +162,7 @@ argument carries the AFD context and every declared field:
 |---|---|---|
 | TypeScript | Reference: `createMcpServer`, `createMcpHandler` and `createDirectRegistry` take `contextFields` | Recording middleware and `replayJournal` |
 | Python | The server factory already parses `_meta` for `dev.afd/confirm` and reads declared keys the same way | `afd.core.journal` and `replay_journal` |
-| Rust | `McpServer::with_context_fields`, built on PR #523's context hook | The registry's journal recorder and `replay_journal` |
+| Rust | `McpServer::with_context_fields`, built on #523's context hook | The registry's journal recorder and `replay_journal` |
 | C++ | No MCP server; hosts set `extra[name]` | `create_journal_middleware` and `replay_journal` read and write `context` |
 
 The spec, the fixtures and the TypeScript reference land first. The other
@@ -193,10 +195,18 @@ languages follow in the order the parity plan sets.
   replays the new fixture lines.
 - `docs/language-parity.md` and the language skills describe the feature.
 
-## Effort
+## Effort and order
 
 L: a contract change across four languages. The TypeScript reference and
 the spec are M.
+
+Approved order, 2026-10-31: the spec and the TypeScript reference start
+after the [browser-safe direct registry](../browser-direct-registry/proposal.md)'s
+parts 1 and 2, because the in-process delivery lands in the registry that
+part 1 exports. The other languages follow. The spec change lands in its own
+pull request, never alongside the hybrid strategy's, because both edit
+`spec/` and bump `spec/VERSION`; whichever merges second rebases and takes
+the next minor version.
 
 ## Decisions
 

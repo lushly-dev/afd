@@ -6,10 +6,10 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed 2026-10-31; its open questions decided by the owner the same day (see [Decisions](#decisions)). Tracked in [#527](https://github.com/lushly-dev/afd/issues/527). Progress is in [STATUS.md](./STATUS.md) |
+| Status | Approved by the owner 2026-10-31, with its open questions decided (see [Decisions](#decisions)) and the order in [Effort and order](#effort-and-order). Tracked in [#527](https://github.com/lushly-dev/afd/issues/527). Progress is in [STATUS.md](./STATUS.md) |
 | Author | jasfalk (drafted with Claude) |
 | Packages | `packages/server`, `packages/core` (a stale comment only), `packages/client` (docs), the `afd-typescript` and `afd-directclient` skills, `docs/language-parity.md` |
-| Related | [Loam architecture, AFD prerequisites](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), [View State](../../complete/view-state/view-state.proposal.md), #466 (meta-tool `context` argument), #474 (`afd-detail` fields), #458 (shared approval-token vectors), #460 (private approval exchange) |
+| Related | [Loam architecture, AFD prerequisites](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), [View State](../../complete/view-state/view-state.proposal.md), [Hybrid tool strategy](../hybrid-tool-strategy/hybrid-tool-strategy.proposal.md), #533 (tool lists per strategy), #466 (meta-tool `context` argument), #474 (`afd-detail` fields), #458 (shared approval-token vectors), #460 (private approval exchange) |
 
 ## Why
 
@@ -26,27 +26,32 @@ with an in-page agent or a command palette needs the same.
 
 ## Today
 
-Measured on 2026-10-31 by bundling each entry with esbuild for
-`platform: 'browser'`, as `define.test.ts` does for `/define`:
+Measured on 2026-10-31 by bundling each entry with esbuild 0.27.7 for
+`platform: 'browser'`, as `define.test.ts` does for `/define`, against
+`packages/server/dist` built from sources unchanged on `main` at `03815e26`:
 
 | Entry | Browser bundle | Why |
 |---|---|---|
 | `@lushly-dev/afd-core` root | Builds | |
 | `@lushly-dev/afd-server` root | Fails, 13 errors | The MCP SDK's Node HTTP server (`node:http`, `node:http2`, `node:stream`), and `http-handler`, `http-security`, `http-sessions`, `mcp-modern`, `confirmations` and `approval` (`node:crypto`, `node:events`, `node:tls`, `node:async_hooks`) |
-| `direct-registry.js`, imported by path | Builds: 25.5 KB minified and 9.0 KB gzipped with Zod external; 469 KB and 100 KB with Zod | The module is free of Node built-ins, but the package exports it only from the root entry |
-| `journal.js`, the recording middleware, by path | Builds | |
+| `direct-registry.js`, imported by path | Builds: 26.3 KB minified and 9.3 KB gzipped with Zod external; 469 KB and 100 KB with Zod | The module is free of Node built-ins, but the package exports it only from the root entry |
+| `journal.js`, the recording middleware, by path | Builds; with the registry, 29.0 KB minified and 10.3 KB gzipped | |
 | `approval.js`, by path | Fails | `node:crypto`: `createHmac`, `timingSafeEqual` and `randomBytes`, and `Buffer` |
+| `context-scope.js`, `command-routing.js` and `lazy-tools.js`, by path | Build | |
+| `tool-router.js` and `tools.js`, by path | Fail | Both import `confirmations.js` for `declaresConfirmInput` and `InputRequiredSignal`, and it imports `node:crypto` for `createHash` in `confirmationBinding`. That is the only Node import the router, the tool list and `bootstrap/` reach |
 
 Zod is most of the full bundle, and any app that defines commands loads it
-anyway, so the registry's own cost is the 9 KB.
+anyway, so the registry's own cost is the 9 KB. With `node:crypto` left
+external, the registry, journal, router, tool list and `bootstrap/`
+together measure 58.5 KB minified and 19.9 KB gzipped.
 
 AFD contexts do not reach in-process calls. The direct registry never binds
 a context state, and `afd-context-list`, `afd-context-enter`,
 `afd-context-exit` and the meta-tools (`afd-discover`, `afd-detail`,
 `afd-call`, `afd-batch`, `afd-pipe`) are registered only by
-`createMcpServer`. The modules that implement them (`tool-router`,
-`command-routing`, `lazy-tools`, `context-scope` and `bootstrap/`) import no
-Node built-in, so the gap is wiring, not portability.
+`createMcpServer`. The modules that implement them are free of Node
+built-ins except through `confirmations.js`, so the gap is wiring plus one
+module split.
 
 `define.ts` says the core root entry "still re-exports the process-spawning
 connectors". The probe shows the core root bundles for the browser, so that
@@ -71,7 +76,9 @@ nothing that needs Node.js:
 The root entry keeps exporting all of it, so nothing breaks. A test bundles
 `/direct` with esbuild for the browser, as `define.test.ts` does for
 `/define`. It fails on any `node:` import, and on a size budget for AFD's own
-code with Zod external, starting at 40 KB minified. The name describes what
+code with Zod external: 35 KB minified for part 1, against the 29.0 KB
+measured, raised to 65 KB by part 3, against the 58.5 KB measured for the
+router, tool list and `bootstrap/`. The name describes what
 the entry is for, not where it runs: a Node host that does not want the MCP
 SDK can use it too.
 
@@ -94,9 +101,13 @@ crypto helpers are not exported, so the public API does not change:
 Node and browsers.
 
 Tokens must stay byte for byte what they are today, because Python, Rust and
-C++ verify them. The existing cross-language token tests must pass
-unchanged, and the shared vectors proposed in #458 become the long-term
-check.
+C++ verify them. Those suites each check a hard-coded token that TypeScript
+issued, but their workflows do not run on a pull request that changes only
+`packages/server`, and TypeScript's own tests only check that its tokens
+verify in TypeScript. So #458's shared vectors land first: generated from
+today's `node:crypto` implementation and loaded in the TypeScript suite at
+least, they hold this part to known answers in the TypeScript CI. Part 2
+must pass them unchanged.
 
 **Threat model in a page.** A signing secret held in a page is visible to
 every script on that page. That is acceptable for what approvals guard
@@ -107,13 +118,19 @@ not a boundary against code running in the page. A deployment that needs
 one keeps approvals on a server. The README and the `afd-directclient` skill
 say this in so many words.
 
-`confirmations.ts` also uses `node:crypto`, through `createHash`. Only the
-MCP server's confirmation gate uses it, so it is out of scope here.
+`confirmations.ts` also uses `node:crypto`, through `createHash` in
+`confirmationBinding`, which only the MCP server's confirmation gate calls.
+Part 3 moves it out of the router's import graph.
 
 ### 3. AFD contexts and the tool surface in process
 
 - `createDirectRegistry(commands, { contexts })` takes the same context
   definitions as `createMcpServer`.
+- `confirmations.ts` splits: `confirmationBinding`, its only `node:crypto`
+  use, moves with `createConfirmationGate` and `createHttpConfirmationCheck`
+  into a module that only the MCP server and HTTP handler import. The
+  router and tool list keep importing the plain helpers. The package root
+  exports none of these, so no public API changes.
 - The active context is per-call input, as on the MCP 2026-07-28 lane
   (`_meta["dev.afd/context"]`), never registry state. A call names its
   context in a typed call option on `registry.execute` and on
@@ -123,7 +140,11 @@ MCP server's confirmation gate uses it, so it is out of scope here.
   active one, fails with the same result the MCP lane returns.
 - `registry.listTools({ strategy, context })` returns the tool list an MCP
   server with the same commands would advertise for that strategy and
-  context: individual, grouped or lazy. `DirectClient.listTools` forwards
+  context, by calling the server's own `getToolsList` rather than building
+  its own. Every strategy the server has comes with it, including `hybrid`
+  from the [hybrid tool strategy](../hybrid-tool-strategy/hybrid-tool-strategy.proposal.md),
+  and #533's settlement of which tools each strategy lists applies to both.
+  `DirectClient.listTools` forwards
   it with the client's allowlist applied, as `listCommands` and
   `hasCommand` already filter, so a client never lists a tool it would
   refuse to call.
@@ -131,11 +152,14 @@ MCP server's confirmation gate uses it, so it is out of scope here.
   tool router the server uses, so an in-process agent sees exactly the
   surface an MCP agent sees. A fix to the router, such as #474's
   `afd-detail` fields, reaches both.
-- `afd-context-enter` and `afd-context-exit` are refused, as on the
-  stateless HTTP lane. A host that wants a context stack keeps it itself and
-  passes the top of it on each call.
+- `afd-context-enter` and `afd-context-exit` behave as on the MCP
+  2026-07-28 lane: they validate the name and change nothing, returning
+  `persisted: false` with the hint to send the context on each call. A host
+  that wants a context stack keeps it itself and passes the top of it on
+  each call.
 
-C++ already takes the active context from the caller, which is the shape
+C++ already takes the active context from the caller, and Rust's registry
+does since #526 (`CommandContext::with_active_context`), which is the shape
 this part adopts.
 
 ## Parity
@@ -144,7 +168,7 @@ this part adopts.
 |---|---|---|
 | TypeScript | This proposal | This proposal |
 | Python | Not applicable | Local calls use a deliberate default scope |
-| Rust | Yes: the `wasm` feature builds the registry and approvals for `wasm32-unknown-unknown` | No: `contexts` is metadata only; open PR #526 adds contexts to the `server` feature |
+| Rust | Yes: the `wasm` feature builds the registry and approvals for `wasm32-unknown-unknown` | Yes since #526: `CommandContext::with_active_context` for one call, or `with_context_stack` for a session |
 | C++ | Emscripten builds run under Node in CI | Partial: `active_context` supplied by the caller |
 
 No wire format changes. `docs/language-parity.md` gains a row for in-process
@@ -154,9 +178,9 @@ context scoping that cites this proposal.
 
 - `/direct` bundles for the browser in CI with no `node:` import and within
   its size budget.
-- Approval tokens minted by the WebCrypto middleware verify in Python, Rust
-  and C++, theirs verify in TypeScript, and the approval suite passes
-  unchanged.
+- Approval tokens minted by the WebCrypto middleware match #458's shared
+  vectors byte for byte, verify in Python, Rust and C++, theirs verify in
+  TypeScript, and the approval suite passes unchanged.
 - A shared test runs one set of commands with contexts through
   `createMcpServer` and through `createDirectRegistry`. The tool lists and
   the refusals are equal for every strategy and context.
@@ -170,10 +194,12 @@ context scoping that cites this proposal.
 | Part | Effort | Note |
 |---|---|---|
 | 1. `/direct` and its bundle test | S | No behavior change |
-| 2. WebCrypto approvals | M | Security-sensitive: the pull request stops at green for the owner's review |
-| 3. Contexts and the tool surface | M | Shares the router with the MCP server |
+| 2. WebCrypto approvals | M | Starts after #458's shared vectors land. Security-sensitive: the pull request stops at green for the owner's review |
+| 3. Contexts and the tool surface | M | Shares the router with the MCP server. Starts after the hybrid strategy lands in TypeScript, because both change `tools.ts` and `tool-router.ts` |
 
-Loam's phase 0 needs part 1 and part 2. Its phase 5 needs part 3.
+Approved order, 2026-10-31: #458's vectors, part 1, part 2, then part 3
+after the hybrid strategy. Loam's phase 0 needs part 1 and part 2. Its
+phase 5 needs part 3.
 
 ## Decisions
 

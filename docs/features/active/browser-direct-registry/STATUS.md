@@ -7,10 +7,11 @@ session that changed it.
 
 | Item | State | Evidence | Verified |
 |---|---|---|---|
-| [Proposal](./proposal.md) | Proposed 2026-10-31; open questions decided 2026-10-31; not yet approved for implementation | [#527](https://github.com/lushly-dev/afd/issues/527) | 2026-10-31: the browser bundles in "Today" measured with esbuild 0.27.7 against `packages/server/dist` and `packages/core/dist` at `d8419ae5` |
+| [Proposal](./proposal.md) | Approved 2026-10-31 and moved to `active/`; open questions decided the same day | [#527](https://github.com/lushly-dev/afd/issues/527) | 2026-10-31: the browser bundles in "Today" measured with esbuild 0.27.7 against `packages/server/dist`, whose sources are unchanged on `main` at `03815e26`; the Rust parity row read from #526 |
 | Part 1: `/direct` entry and bundle test | Not started | None | |
-| Part 2: approvals on WebCrypto | Not started | None | |
-| Part 3: contexts and the tool surface in process | Not started | None | |
+| #458: shared approval-token vectors, before part 2 | Not started | None | |
+| Part 2: approvals on WebCrypto | Not started; waits on #458 | None | |
+| Part 3: contexts and the tool surface in process | Not started; waits on the hybrid strategy in TypeScript | None | |
 
 ## Done
 
@@ -23,6 +24,14 @@ session that changed it.
   typed call option for the context, and `listTools` on the registry with
   `DirectClient` forwarding it through its allowlist (proposal,
   "Decisions").
+- The owner approved the proposal and its order: #458's vectors, part 1,
+  part 2, then part 3 after the hybrid strategy.
+- Corrections before implementation: `tool-router.js` and `tools.js` reach
+  `node:crypto` through `confirmations.js`, so part 3 splits that module;
+  the size budget is 35 KB for part 1 and 65 KB after part 3, from
+  measurement; part 3 reuses `getToolsList`; context enter and exit report
+  `persisted: false` as on the MCP 2026-07-28 lane rather than refusing;
+  Rust's registry takes a per-call context since #526.
 
 ## Not done
 
@@ -41,3 +50,4 @@ Everything in the proposal's "Done when" list.
 |---|---|---|
 | 2026-10-31 | Loam review follow-up | Proposal and status written from the Loam review's finding that the direct registry, journal and approvals cannot be bundled for a browser |
 | 2026-10-31 | Owner decisions | Open questions replaced by "Decisions"; part 3 now names the typed call option and `DirectClient.listTools` filtered by the allowlist |
+| 2026-10-31 | Pre-implementation check | Approved and moved to `active/`. Corrected the Node-free claim for the router and tool list, set the size budgets from measurement, put #458 before part 2, sequenced part 3 after the hybrid strategy, matched context enter and exit to the 2026-07-28 lane, and updated Rust parity for #526 |

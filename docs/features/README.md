@@ -24,6 +24,8 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [MCP Confirmations](./active/mcp-confirmations/mcp-confirmations.proposal.md) | Enforce `confirmPrompt` through MCP `input_required` elicitation, with an acknowledgement fallback; resolves D10 of the MCP upgrade |
 | [Versioning and Release](./active/versioning/versioning.plan.md) | Maintain independent semver for each implementation and the shared AFD contract; keep release paths and current versions accurate |
 | [Hybrid Tool Strategy](./active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md) | A fourth MCP tool strategy: up to 8 first-class tools beside the meta-tools, with a fixed tool list; spec first for every language. Approved 2026-10-31; requested by Umbel (D27); status in [STATUS.md](./active/hybrid-tool-strategy/STATUS.md) |
+| [Browser-Safe Direct Registry](./active/browser-direct-registry/proposal.md) | A `/direct` entry point that runs the validating registry, journal, approvals (on WebCrypto) and AFD contexts in a browser or webview. Approved 2026-10-31; status in [STATUS.md](./active/browser-direct-registry/STATUS.md) |
+| [Declared Context Fields](./active/declared-context-fields/proposal.md) | Host-declared, schema-validated request values carried in `_meta` and in process, with the journal recording the ones declared safe so dependent calls replay. Approved 2026-10-31; status in [STATUS.md](./active/declared-context-fields/STATUS.md) |
 
 ## Complete Features
 
@@ -55,8 +57,6 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 |---------|-------------|
 | [Umbel](../../endpoints/umbel/README.md) | AFD Umbel, an empty Rust host for capability plugins over MCP and CLI, with knowledge, memory and context as first-party plugins; owner-approved direction, documented in `endpoints/umbel/` |
 | [Loam](../../endpoints/loam/README.md) | AFD Loam, an application shell for AFD apps: a TypeScript kernel for the browser, Tauri desktop and hosted server, a FAST-AF chrome on a Violet design foundation and a TanStack AI copilot; shell-level projects, documents, multiplayer, identity, agent members, settings, experiments, overlays, a provider-agnostic copilot and an in-shell app builder that apps subscribe to; drafted 2026-10-30, awaiting review, documented in `endpoints/loam/` |
-| [Browser-Safe Direct Registry](./proposed/browser-direct-registry/proposal.md) | A `/direct` entry point that runs the validating registry, journal, approvals (on WebCrypto) and AFD contexts in a browser or webview |
-| [Declared Context Fields](./proposed/declared-context-fields/proposal.md) | Host-declared, schema-validated request values carried in `_meta` and in process, with the journal recording the ones declared safe so dependent calls replay |
 | [Agent Engine](./proposed/agent-engine/proposal.md) | Research and proposed new packages for modular, controllable, ongoing agentic work |
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
