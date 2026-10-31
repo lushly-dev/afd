@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { readGitState } from './consumer-project.mjs';
+import { gitEnvironment, readGitState } from './consumer-project.mjs';
 import { contentDigest } from './inputs/freeze.mjs';
 
 describe('readGitState for frozen snapshots', () => {
@@ -66,7 +66,8 @@ describe('readGitState for frozen snapshots', () => {
 
 	it('prefers a listed manifest over an enclosing Git work tree', async () => {
 		const repository = await mkdtemp(join(tmpdir(), 'specimen-outer-'));
-		execFileSync('git', ['init', '-q', repository]);
+		// Never inherit a hook's GIT_DIR: `git init` would reinitialise that repository instead.
+		execFileSync('git', ['init', '-q', repository], { env: gitEnvironment() });
 		const nested = join(repository, 'snapshot');
 		await mkdir(nested);
 		await writeFile(join(nested, 'file.txt'), 'x\n');
@@ -102,5 +103,21 @@ describe('readGitState for frozen snapshots', () => {
 		await expect(readGitState(snapshot)).rejects.toThrow(
 			/Cannot read frozen manifest .*garbled\.json/
 		);
+	});
+
+	it('ignores an inherited GIT_DIR when reading consumer state', async () => {
+		const repository = await mkdtemp(join(tmpdir(), 'specimen-hook-'));
+		execFileSync('git', ['init', '-q', repository], { env: gitEnvironment() });
+		const saved = process.env.GIT_DIR;
+		process.env.GIT_DIR = join(repository, 'not-a-repository');
+		try {
+			delete process.env.SPECIMEN_FROZEN_MANIFESTS;
+			await expect(readGitState(snapshot)).rejects.toThrow(/neither a listed frozen snapshot/);
+			expect(Object.keys(gitEnvironment()).some((name) => name.startsWith('GIT_'))).toBe(false);
+		} finally {
+			if (saved === undefined) delete process.env.GIT_DIR;
+			else process.env.GIT_DIR = saved;
+			await rm(repository, { recursive: true, force: true });
+		}
 	});
 });

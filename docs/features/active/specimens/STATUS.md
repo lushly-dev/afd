@@ -22,7 +22,7 @@ Read this before the implementation plan. This ledger records verified progress,
 | Full replacement | In progress; workstream 0 gate open | Native API, four AFD definitions, JSON CLI, static page and resource pilots | Compatibility adapter, full runner, operational replacement and qualified consumer cutover |
 | Distribution | Quarantined | [Release inventory](../../../../scripts/release/inventory.json) and [split transition](../platform-monorepo/specimen-transition.md), read back on 2026-10-30 | Publisher authority and guarded release admission; no registry-publication claim |
 
-The native core is `foundations/specimen`; AFD bindings are `integrations/specimen-afd`; the CLI is `endpoints/specimen-cli`. All three units are quarantined. The current native full suite has **125 tests** (#517's 100, 19 T01 input-tool tests and 6 T02 frozen-snapshot and speed-probe tests), with integration/CLI suites separate and **12 packed-artifact consumer checks**. On 2026-10-31 the T02 branch passed all eleven `pnpm check` stages and `pnpm test:specimen` on Node 24.21.0. These are local receipts, not hosted CI or consumer qualification.
+The native core is `foundations/specimen`; AFD bindings are `integrations/specimen-afd`; the CLI is `endpoints/specimen-cli`. All three units are quarantined. The current native full suite has **126 tests** (#517's 100, 19 T01 input-tool tests and 7 T02 frozen-snapshot and speed-probe tests), with integration/CLI suites separate and **12 packed-artifact consumer checks**. On 2026-10-31 the T02 branch passed all eleven `pnpm check` stages and `pnpm test:specimen` on Node 24.21.0. These are local receipts, not hosted CI or consumer qualification.
 
 ## Documents and their roles
 

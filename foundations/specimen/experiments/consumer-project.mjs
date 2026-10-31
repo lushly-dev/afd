@@ -9,6 +9,12 @@ const execFile = promisify(execFileCallback);
 const json = (file, value) => writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 /**
+ * Git hooks export GIT_DIR, GIT_INDEX_FILE and similar; inherited, they would make `git -C root`
+ * read the hook's repository instead of root. Consumer state must come from root alone.
+ */
+export const gitEnvironment = () =>
+	Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')));
+/**
  * A frozen T01 snapshot (inputs/freeze.mjs) has no `.git`; its manifest stands in for Git
  * state. SPECIMEN_FROZEN_MANIFESTS lists manifest files separated by the path delimiter. A
  * listed manifest naming this root takes precedence, even inside another work tree. It must
@@ -50,7 +56,8 @@ async function readFrozenState(root) {
 export async function readGitState(root) {
 	const frozen = await readFrozenState(root);
 	if (frozen) return frozen;
-	const run = async (...command) => (await execFile('git', ['-C', root, ...command])).stdout.trim();
+	const run = async (...command) =>
+		(await execFile('git', ['-C', root, ...command], { env: gitEnvironment() })).stdout.trim();
 	const inside = await run('rev-parse', '--is-inside-work-tree').catch((error) => {
 		throw new Error(
 			`Consumer is neither a listed frozen snapshot nor a readable Git checkout: ${root} (${error.message.split('\n')[0]})`
