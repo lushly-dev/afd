@@ -35,7 +35,7 @@ should never have to scan the codebase to learn what is current.
 
 | Phase | State | Owner | Evidence | Next gate |
 | --- | --- | --- | --- | --- |
-| AFD prerequisites | In progress | Owner's sessions | [#523](https://github.com/lushly-dev/afd/pull/523) merged; [#526](https://github.com/lushly-dev/afd/pull/526) open; hybrid proposal approved in [#522](https://github.com/lushly-dev/afd/pull/522) | The phase 0 rows of the architecture's prerequisites table land in AFD, including the hybrid tool strategy (D27), and [#531](https://github.com/lushly-dev/afd/issues/531) is fixed |
+| AFD prerequisites | In progress | Owner's sessions | [#523](https://github.com/lushly-dev/afd/pull/523) and [#526](https://github.com/lushly-dev/afd/pull/526) merged; hybrid proposal approved in [#522](https://github.com/lushly-dev/afd/pull/522) | The phase 0 rows of the architecture's prerequisites table land in AFD, including the hybrid tool strategy (D27), and [#531](https://github.com/lushly-dev/afd/issues/531) is fixed |
 | 0. Host skeleton | Not started | None | None | Specification written and approved by the owner (D24) |
 | 1. Plugin contract | Not started | None | None | Phase 0 exit criterion met |
 | 2. Knowledge | Not started | None | None | Phase 1 exit criterion met |
@@ -51,21 +51,23 @@ should never have to scan the codebase to learn what is current.
 ### AFD prerequisites
 
 - **State:** in progress. Last verified 2026-10-31 against `main` at
-  `77f176d3`.
+  `03815e26`.
 - **Done:** Rust `structuredContent` and top-level `outputSchema` (the Rust
   part of #465, which stays open for Python and C++) and the per-request
   context hook (`McpServer::with_context_hook`), both merged in
   [#523](https://github.com/lushly-dev/afd/pull/523) as `77f176d3` with all
   nine checks green.
-- **In progress:** the Rust grouped, individual and lazy strategies, the five
-  meta-tools and AFD contexts (language parity D1) in
-  [#526](https://github.com/lushly-dev/afd/pull/526), being rebased onto #523
-  so every route carries `structuredContent` and runs the context hook. It
-  makes `grouped` the Rust default, which the owner accepted on 2026-10-31.
+- **Done:** the Rust grouped, individual and lazy strategies, the five
+  meta-tools and AFD contexts (language parity D1), merged in
+  [#526](https://github.com/lushly-dev/afd/pull/526) as `03815e26` with all
+  eleven checks green and the todo conformance suite at 34/34 in both MCP eras
+  and with confirmations. Every route carries `structuredContent` and runs the
+  context hook once per call; `grouped` is now the Rust default, which the
+  owner accepted on 2026-10-31.
 - **Not done:** the hybrid strategy (D27). Its
   [proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md)
   was approved on 2026-10-31 with every recommendation; its spec step comes
-  first, then TypeScript and Python, then Rust on top of #526. Also not done:
+  first, then TypeScript and Python, then Rust on the #526 strategy API. Also not done:
   [#531](https://github.com/lushly-dev/afd/issues/531), a panicking handler
   hangs the Rust MCP request, which a host of third-party plugins must not
   ship with.
@@ -109,3 +111,4 @@ starts.
 | 2026-10-31 | Execution-model decision | The owner decided O2: the hybrid strategy, with code mode later and optional, recorded as D27. O2 references in the proposal, architecture and this file now point at D27; the hybrid prerequisite is required for phase 0. Wrote the AFD [hybrid tool strategy proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md) with its status file; no `spec/` or code changes. Links and anchors checked. [#522](https://github.com/lushly-dev/afd/pull/522), open |
 | 2026-10-31 | Loam cross-review | From the Loam proposal's end-to-end review: corrected the placement rule (D21 consequence, the architecture's repository placement and the follow-up) so Umbel's units join only the release inventory, since `architecture.json` lists foundation families only and endpoint manifests are classified by path; noted on O3 that Loam's app manifest will extend Umbel's; marked the resources prerequisite as shared with Loam; added "surface" to the glossary with Loam's different meaning. Checked and unchanged: D22's registry enforcement holds in Rust (`CommandRegistry::register` rejects invalid names); the architecture's one use of "handoff" is AFD's pattern. Loam keeps Umbel's event field names where the shapes overlap. [#522](https://github.com/lushly-dev/afd/pull/522), open |
 | 2026-10-31 | Owner review of the blockers | The owner accepted every recommendation: #523 merged first and #526 rebased onto it; grouped becomes the Rust default; the hybrid proposal approved and moved to `docs/features/active/` with the six answers recorded; issues [#531](https://github.com/lushly-dev/afd/issues/531), [#532](https://github.com/lushly-dev/afd/issues/532) and [#533](https://github.com/lushly-dev/afd/issues/533) filed. [#522](https://github.com/lushly-dev/afd/pull/522) |
+| 2026-10-31 | Owner review of the blockers | [#526](https://github.com/lushly-dev/afd/pull/526) rebased onto #523, integrated (structured results and the context hook on every route) and merged as `03815e26`. Of the phase 0 prerequisites, only the hybrid strategy and [#531](https://github.com/lushly-dev/afd/issues/531) remain. [#534](https://github.com/lushly-dev/afd/pull/534) |

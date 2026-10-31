@@ -341,7 +341,7 @@ sequenceDiagram
 | Record of calls and replay | Journal with `seq`, actor, context digest, clock and random tape, replay | Exists |
 | Event log | A journal sink projecting mutation commands | New, built on the journal |
 | Composition | `afd-batch`, `afd-pipe`, pipeline variables | Exists; Rust rejects parallel pipelines and streaming steps |
-| Discovery | Bootstrap commands; lazy meta-tools; AFD contexts | Bootstrap exists in Rust; lazy and contexts are parity D1 |
+| Discovery | Bootstrap commands; lazy meta-tools; AFD contexts | Exist in Rust: bootstrap, and the strategies, meta-tools and contexts of parity D1 (#526) |
 | Plugin contract | Plugin Discovery: protocol version, conflict policy, command origin, diagnostics | Proposed |
 | Grants and effects | Botcore command policy: declared effects and capabilities | Exists in Botcore |
 | Plugin check | Surface validation, including `afd validate --surface` against a server | Exists |
@@ -529,10 +529,10 @@ criterion.
 
 | Prerequisite | Needed by | Tracked in |
 | --- | --- | --- |
-| Rust lazy and grouped strategies, meta-tools and AFD contexts | Phase 0 | [Language parity](../../../docs/language-parity.md), D1 |
+| Rust lazy and grouped strategies, meta-tools and AFD contexts | Phase 0 | [Language parity](../../../docs/language-parity.md), D1; done in #526 |
 | Rust `structuredContent` and top-level `outputSchema` | Phase 0 | #465; Rust done in #523 |
 | A per-request context hook on the Rust MCP server, so middleware can set the actor and credentials | Phase 0, version 0; phase 5 | MCP Authorization's Rust layer; the hook landed in #523, and binding confirmations to the actor is #532 |
-| The hybrid tool strategy, a few first-class tools plus lazy discovery, for every language | Phase 0 (D27) | [Hybrid tool strategy proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md), spec first; Rust builds on language parity D1 |
+| The hybrid tool strategy, a few first-class tools plus lazy discovery, for every language | Phase 0 (D27) | [Hybrid tool strategy proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md), spec first; Rust builds on the #526 strategy API |
 | MCP resources, prompts and the Skills over MCP extension in AFD servers, reconciled with the Skill Knowledge Layer | Phases 1 and 2 | New AFD feature proposal, spec first; shared with Loam, which also needs `ui://` resources for MCP Apps views, so one proposal covers both |
 | Output budgets per tool | Phase 2 | New AFD feature proposal |
 | The MCP approval relay in Rust | Phase 4 | [Language parity](../../../docs/language-parity.md); no issue yet |

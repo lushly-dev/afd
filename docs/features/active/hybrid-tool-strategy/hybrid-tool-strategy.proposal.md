@@ -130,7 +130,7 @@ server, not a field of the command definition:
 |---|---|
 | TypeScript | `createMcpServer({ toolStrategy: 'hybrid', firstClassTools: ['knowledge-search', ...] })`, also on `createMcpHandler` |
 | Python | `create_server(tool_strategy="hybrid", first_class_tools=[...])` and `ServerConfig.first_class_tools` |
-| Rust | `McpServer::with_tool_strategy(ToolStrategy::Hybrid { first_class })` or a `with_first_class_tools` builder, whichever fits the D1 API |
+| Rust | `McpServer::with_tool_strategy(ToolStrategy::Hybrid)` with a `with_first_class_tools` builder: the D1 `ToolStrategy` (#526) derives `Copy`, so the variant carries no list |
 | C++ | The `afd::mcp_stdio` options struct gains `first_class_tools` once D2 lands |
 
 Why an option and not a metadata field such as `firstClass: true`:
