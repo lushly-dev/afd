@@ -13,6 +13,10 @@
 		"./define": {
 			"types": "./dist/define.d.ts",
 			"import": "./dist/define.js"
+		},
+		"./direct": {
+			"types": "./dist/direct.d.ts",
+			"import": "./dist/direct.js"
 		}
 	},
 	"files": [

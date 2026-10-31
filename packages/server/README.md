@@ -196,6 +196,42 @@ export const panelOpen = defineCommand({
 
 The same functions are still exported from `@lushly-dev/afd-server`.
 
+### In-process entry point: `@lushly-dev/afd-server/direct`
+
+A host that runs commands in its own process (a browser app, a web worker, a
+Tauri or Electron webview, or a Node.js host that does not want the MCP SDK)
+imports from `/direct`. It exports everything `/define` does, plus:
+
+- `createDirectRegistry`, with validation, middleware, exposure checks and
+  error sanitization, as `createMcpServer` runs them;
+- `createJournalMiddleware`, `replayJournal` and `MemoryJournalSink`;
+- the middleware with no Node.js builtin in its module graph:
+  `composeMiddleware`, `defaultMiddleware`, `createLoggingMiddleware`,
+  `createTimingMiddleware`, `createRetryMiddleware`, `createTracingMiddleware`,
+  `createAutoTraceIdMiddleware`, `createRateLimitMiddleware`,
+  `createTelemetryMiddleware` and `ConsoleTelemetrySink`.
+
+```typescript
+import {
+  createDirectRegistry,
+  createJournalMiddleware,
+  MemoryJournalSink,
+} from '@lushly-dev/afd-server/direct';
+import { panelOpen } from './commands.js';
+
+const journal = new MemoryJournalSink();
+const registry = createDirectRegistry([panelOpen], {
+  middleware: [createJournalMiddleware(journal)],
+});
+await registry.execute('panel-open', { id: 'settings' });
+```
+
+A test bundles `/direct` for the browser, failing on any MCP SDK or Node.js
+builtin, and holds AFD's own code (minified, Zod excluded) to 35 KB for a host
+that imports the registry, the journal and `defineCommand`, and 66 KB for every
+export. The approval middleware still needs Node.js, so it is exported only from
+the root entry for now.
+
 ### Basic Command
 
 ```typescript

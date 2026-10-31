@@ -8,10 +8,10 @@ session that changed it.
 | Item | State | Evidence | Verified |
 |---|---|---|---|
 | [Proposal](./proposal.md) | Approved 2026-10-31 and moved to `active/`; open questions decided the same day | [#527](https://github.com/lushly-dev/afd/issues/527) | 2026-10-31: the browser bundles in "Today" measured with esbuild 0.27.7 against `packages/server/dist`, whose sources are unchanged on `main` at `03815e26`; the Rust parity row read from #526 |
-| Part 1: `/direct` entry and bundle test | Not started | None | |
+| Part 1: `/direct` entry and bundle test | Done | `packages/server/src/direct.ts`, the `./direct` export, `src/entry-points.test.ts` (renamed from `define.test.ts`), server README, `afd-typescript` and `afd-directclient` skills, changeset `server-direct-entry` | 2026-10-31: browser bundle has no MCP SDK, `node:` import or Node-only core subpath; 32.2 KB for the registry, journal and `defineCommand` (budget 35 KB), 59.8 KB for every export (budget 66 KB), esbuild 0.27.7 |
 | #458: shared approval-token vectors, before part 2 | Done: `spec/vectors/approval-tokens.json`, loaded by all four suites | #458; `packages/server/src/approval-vectors.test.ts` runs in `ci.yml` | 2026-10-31: TypeScript 65 tests, Python 42, Rust 2 (every case), C++ 2 (278 assertions); `alfred parity` vectors: 0 gaps |
 | Part 2: approvals on WebCrypto | Not started; unblocked by #458 | None | |
-| Part 3: contexts and the tool surface in process | Not started; waits on the hybrid strategy in TypeScript | None | |
+| Part 3: contexts and the tool surface in process | Not started; the hybrid strategy has landed in TypeScript, so it follows part 2 | None | |
 
 ## Done
 
@@ -41,7 +41,7 @@ Everything in the proposal's "Done when" list.
 
 | Date | Raised by | Follow-up | Status |
 |---|---|---|---|
-| 2026-10-31 | Proposal | Remove the stale comment in `packages/server/src/define.ts` that says the core root re-exports the process-spawning connectors; the core root now bundles for the browser | Open; fold into part 1 |
+| 2026-10-31 | Proposal | Remove the stale comment in `packages/server/src/define.ts` that says the core root re-exports the process-spawning connectors; the core root now bundles for the browser | Done in part 1: the comment and the matching test comment now say why `/define` keeps to the narrow core subpaths |
 | 2026-10-31 | Proposal | Decide the three open questions before part 1's specification | Done 2026-10-31; see the proposal's "Decisions" |
 
 ## Session log
@@ -52,3 +52,4 @@ Everything in the proposal's "Done when" list.
 | 2026-10-31 | Owner decisions | Open questions replaced by "Decisions"; part 3 now names the typed call option and `DirectClient.listTools` filtered by the allowlist |
 | 2026-10-31 | Pre-implementation check | Approved and moved to `active/`. Corrected the Node-free claim for the router and tool list, set the size budgets from measurement, put #458 before part 2, sequenced part 3 after the hybrid strategy, matched context enter and exit to the 2026-07-28 lane, and updated Rust parity for #526 |
 | 2026-10-31 | #458 | Shared approval token vectors landed and loaded by TypeScript, Python, Rust and C++, so part 2 is held to known answers in `ci.yml` |
+| 2026-10-31 | Part 1 | `/direct` entry, browser bundle test and two measured size budgets; `/define` comment corrected; README, skills and changeset |

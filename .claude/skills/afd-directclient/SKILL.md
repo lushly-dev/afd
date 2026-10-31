@@ -30,8 +30,11 @@ DirectClient bypasses MCP transport for ~0.03ms command execution (vs ~2-10ms MC
 
 ## The Registry: Always `createDirectRegistry`
 
-Build the registry with `createDirectRegistry` from `@lushly-dev/afd-server`.
-It runs every call through the same engine as `createMcpServer`:
+Build the registry with `createDirectRegistry` from `@lushly-dev/afd-server`,
+or from `@lushly-dev/afd-server/direct` in a browser, web worker or webview:
+that entry loads neither the MCP SDK nor any Node.js builtin, and also exports
+the journal and the Node-free middleware. It runs every call through the same
+engine as `createMcpServer`:
 
 - **Zod validation** of the full input before the handler runs (nested objects,
   wrong types, lengths, enums, defaults and transforms)
