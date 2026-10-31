@@ -23,6 +23,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [MCP 2026-07-28 upgrade](./active/mcp-2026-07-28/proposal.md) | Move every AFD MCP surface to the stateless 2026-07-28 spec, served dual-era, with legacy lanes removed in 3.0 |
 | [MCP Confirmations](./active/mcp-confirmations/mcp-confirmations.proposal.md) | Enforce `confirmPrompt` through MCP `input_required` elicitation, with an acknowledgement fallback; resolves D10 of the MCP upgrade |
 | [Versioning and Release](./active/versioning/versioning.plan.md) | Maintain independent semver for each implementation and the shared AFD contract; keep release paths and current versions accurate |
+| [Hybrid Tool Strategy](./active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md) | A fourth MCP tool strategy: up to 8 first-class tools beside the meta-tools, with a fixed tool list; spec first for every language. Approved 2026-10-31; requested by Umbel (D27); status in [STATUS.md](./active/hybrid-tool-strategy/STATUS.md) |
 
 ## Complete Features
 

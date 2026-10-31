@@ -68,8 +68,8 @@ its own backends, on its own terms?
     Instances behind one URL share the confirmation key and the approval
     nonce store.
 12. **Small surfaces, measured.** A few first-class tools with lazy discovery
-    for the rest, the hybrid strategy recommended under open decision
-    [O2](decisions.md#open-decisions); concise and detailed result formats;
+    for the rest, the hybrid strategy decided in [D27](decisions.md);
+    concise and detailed result formats;
     an evaluation harness runs on every ranking or surface change.
 13. **Same interface at every scale.** A profile switches lanes and backends;
     the tool surface, the eval harness and the plugin contract do not change.
@@ -240,9 +240,10 @@ sequenceDiagram
   records, events and cursors each belong to exactly one space.
 - **MCP surface.** A small fixed set of first-class tools for the hot path,
   such as the four above, with lazy discovery for the rest; this hybrid
-  strategy is open decision [O2](decisions.md#open-decisions) and an AFD
-  feature for every language before Umbel uses it. Documents are also
-  resources; workflows are prompts. Tool lists carry cache hints and a stable
+  strategy is decision [D27](decisions.md) and an AFD feature for every
+  language before Umbel uses it, in the
+  [hybrid tool strategy proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md).
+  Documents are also resources; workflows are prompts. Tool lists carry cache hints and a stable
   order.
 - **Skills.** Plugins contribute skills, and the host delivers them three
   ways: through the Skills over MCP extension where the client supports it,
@@ -467,11 +468,14 @@ material, from loosest to strongest:
 - **Repository placement.** Umbel lives in `endpoints/umbel/`, following
   Botcore's layout: the host runtime, plugin SDK, first-party plugins and
   binary are endpoint units, beside these documents. An engine with no AFD
-  dependency, if one emerges, goes under `foundations/umbel/`. `umbel` joins
-  the families in `architecture.json` and the release inventory when the
-  first manifest lands, and every unit starts quarantined under the
-  [platform migration](../../../docs/features/active/platform-monorepo/)
-  rules. Generic server features land in the `afd` crate first; section 9
+  dependency, if one emerges, goes under `foundations/umbel/`. When the
+  first manifest lands, its units join the release inventory
+  (`scripts/release/inventory.json`) and every unit starts quarantined under
+  the [platform migration](../../../docs/features/active/platform-monorepo/)
+  rules. `architecture.json` needs no change: its `families` list names
+  foundation families only, and the boundary check classifies any manifest
+  under `endpoints/umbel/`, `Cargo.toml` included, as an endpoint unit of the
+  `umbel` family by its path, as it does for Botcore and Health. Generic server features land in the `afd` crate first; section 9
   lists them. Authoring skills are declared in `skills/exports.json` and
   follow the repository's projection pipeline.
 - **Decisions.** Architecture decisions are dated entries in the
@@ -526,10 +530,10 @@ criterion.
 | Prerequisite | Needed by | Tracked in |
 | --- | --- | --- |
 | Rust lazy and grouped strategies, meta-tools and AFD contexts | Phase 0 | [Language parity](../../../docs/language-parity.md), D1 |
-| Rust `structuredContent` and top-level `outputSchema` | Phase 0 | #465 |
-| A per-request context hook on the Rust MCP server, so middleware can set the actor and credentials | Phase 0, version 0; phase 5 | MCP Authorization's Rust layer |
-| The hybrid tool strategy, a few first-class tools plus lazy discovery, for every language | Phase 0, if O2 chooses it | New AFD feature proposal |
-| MCP resources, prompts and the Skills over MCP extension in AFD servers, reconciled with the Skill Knowledge Layer | Phases 1 and 2 | New AFD feature proposal, spec first |
+| Rust `structuredContent` and top-level `outputSchema` | Phase 0 | #465; Rust done in #523 |
+| A per-request context hook on the Rust MCP server, so middleware can set the actor and credentials | Phase 0, version 0; phase 5 | MCP Authorization's Rust layer; the hook landed in #523, and binding confirmations to the actor is #532 |
+| The hybrid tool strategy, a few first-class tools plus lazy discovery, for every language | Phase 0 (D27) | [Hybrid tool strategy proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md), spec first; Rust builds on language parity D1 |
+| MCP resources, prompts and the Skills over MCP extension in AFD servers, reconciled with the Skill Knowledge Layer | Phases 1 and 2 | New AFD feature proposal, spec first; shared with Loam, which also needs `ui://` resources for MCP Apps views, so one proposal covers both |
 | Output budgets per tool | Phase 2 | New AFD feature proposal |
 | The MCP approval relay in Rust | Phase 4 | [Language parity](../../../docs/language-parity.md); no issue yet |
 | The Rust token-verification layer, the `scopes` field and the `credentials` context field | Phase 5 | MCP Authorization proposal |
@@ -542,7 +546,8 @@ codebase. A session that changes Umbel updates the status before it ends.
 
 Open decisions are numbered O1 to O5 in the
 [decision log](decisions.md#open-decisions), and move into the log as dated
-decisions when they close.
+decisions when they close. O2, the execution model, closed as D27 on
+2026-10-31.
 
 ## 11. Trajectory watch
 
@@ -558,6 +563,7 @@ document needs as an amendment.
 | --- | --- |
 | Plugin | The unit that lands in the host. Plugin Discovery's term; the Agent Engine proposal calls the same idea a module |
 | Command | AFD's unit of capability, exposed to every surface from one registry |
+| Surface | A way callers reach the registry: MCP over stdio or Streamable HTTP, the CLI, or in-process. Loam (`endpoints/loam/`) uses "surface" for a region of its shell UI; its glossary records the difference |
 | Connector | A plugin's binding to an external system or source |
 | Backend | A swappable implementation behind a store trait |
 | Adapter | An infrastructure binding, such as auth or a harness adapter |
