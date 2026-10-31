@@ -133,3 +133,17 @@ node foundations/specimen/experiments/inputs/freeze.mjs --consumer lushly \
 The inventory takes discovered identities and tags from Storybook's index. A static TypeScript reading of each story module (`inputs/csf.mjs`) adds plays, render sources, policy parameters, globals, decorators, lifecycle hooks and helper imports. Same-file constants, spreads and `Story.field` references resolve. Anything else is reported as unresolved, and its play presence as unknown. The project policy is passed explicitly because preview files execute code.
 
 The manifest binds every snapshot file outside `node_modules` to the pinned Git tree by blob id, hashes generated files, checks pnpm's installed `lock.yaml` against the lockfile, and digests selected installed packages, vendored artifacts, static directories and obligation files. It also records the browsers each consumer's Playwright expects, the host and [`inputs/baseline-policy.json`](inputs/baseline-policy.json). `--fetch-remote` downloads and hashes the remote font stylesheets and files named in `preview-head.html`; runners still load them live. Neither tool installs, prepares or modifies anything. See [frozen inputs and inventory](../../../docs/features/active/specimens/frozen-inputs-inventory.md) for the T01 results.
+
+## Frozen snapshots and the host-condition probe
+
+The consumer runners normally require a clean Git checkout. To run against a T01 snapshot, which has no `.git`, list its manifest from `inputs/freeze.mjs` in `SPECIMEN_FROZEN_MANIFESTS` (paths separated by `:`). The manifest must name the snapshot root and record no missing or modified tracked files. Its revision then stands in for Git state, and drift is rejected:
+
+```sh
+SPECIMEN_FROZEN_MANIFESTS=/path/to/lushly-inputs.json \
+node foundations/specimen/experiments/run-resources.mjs \
+  --consumer lushly --lushly /path/to/snapshot \
+  --workload batches --batches 10 --lifetime reuse --isolation process \
+  --out /path/to/empty-evidence
+```
+
+Each resource report records `speedProbe.before` and `speedProbe.after`: fixed single-threaded work in a separate process, outside the measured family. On a contended host its CPU seconds rise along with job CPU. It shows when two receipts ran under different host conditions; it does not correct them. See the [CPU attribution record](../../../docs/features/active/specimens/cpu-attribution-validation.md): whole-job CPU from different sessions is not comparable without this control.

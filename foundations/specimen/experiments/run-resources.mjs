@@ -8,6 +8,7 @@ import { calibrate } from './resources/calibrate.mjs';
 import { apiIdentity } from './resources/heap.mjs';
 import { admission, hostSnapshot } from './resources/host.mjs';
 import { buildCollector, readJsonLines, runCollected } from './resources/native.mjs';
+import { speedProbe } from './resources/speed-probe.mjs';
 import { summarizeResources } from './resources/summary.mjs';
 
 const args = process.argv.slice(2);
@@ -134,6 +135,8 @@ try {
 				const value = option(name);
 				if (value) childArgs.push(name, resolve(value));
 			}
+			// Host-condition covariate around the job; outside the collected family.
+			profile.speedProbe = { before: speedProbe() };
 			const observerCpu = process.cpuUsage();
 			const apiPath = resolve(option('--api', join(import.meta.dirname, '../dist/index.js')));
 			profile.apiBefore = await apiIdentity(apiPath);
@@ -162,6 +165,7 @@ try {
 				...report.budgets,
 			});
 			profile.controllerCpu = process.cpuUsage(observerCpu);
+			profile.speedProbe.after = speedProbe();
 			profile.apiAfter = await apiIdentity(apiPath);
 			profile.controllerRssBytes = process.memoryUsage().rss;
 			profile.collectorExit = {
@@ -226,8 +230,13 @@ try {
 		} catch (error) {
 			profile.error = error.stack ?? String(error);
 		}
+		const probes = profile.speedProbe ? [profile.speedProbe.before, profile.speedProbe.after] : [];
+		profile.speedProbeComplete =
+			probes.length === 2 && probes.every((item) => item?.status === 'complete');
 		await json(join(profileDirectory, 'resources.json'), profile);
-		process.stdout.write(`${consumer}: ${profile.status}\n`);
+		process.stdout.write(
+			`${consumer}: ${profile.status}${profile.speedProbeComplete ? '' : ' (speed probe incomplete)'}\n`
+		);
 	}
 	report.status = report.consumers.every((entry) => entry.status === 'passed')
 		? 'passed'
