@@ -57,6 +57,27 @@ pnpm -F @lushly-dev/specimen exec vitest run experiments/resources
 
 See the [resource validation record](../../../docs/features/active/specimens/resource-validation.md) for measured results and remaining limits.
 
+## Quiet window and the controlled load pair
+
+On a host other sessions share, wait for a sustained quiet window before measuring:
+
+```sh
+node foundations/specimen/experiments/resources/quiet.mjs --wait --window 600 --interval 30 --timeout 14400
+```
+
+It samples every 30 seconds and exits 0 once the last ten minutes all had at most 1.5 busy cores, at least 25% free memory and no test runner, Playwright browser, Storybook, Vite, compiler or other busy process outside its own family. Idle agent tool servers such as `@playwright/mcp` count only when busy. Exit 3 means the timeout passed first. The gate is a precondition, not evidence: another session can still start work during a run, and the probe band then rejects the affected pairs.
+
+`run-load-pair.mjs` runs the controlled synthetic-load test: per consumer, ordinary ten-batch isolated-reuse jobs ABBA, the loaded ones beside `--load` (default 5) busy loops outside the job's family. It writes `study.json` with every job's probes, the policy's probe band and the loaded-versus-unloaded ratio from in-band jobs only:
+
+```sh
+SPECIMEN_FROZEN_MANIFESTS=/path/to/lushly-manifest.json \
+node foundations/specimen/experiments/run-load-pair.mjs \
+  --lushly /path/to/lushly-snapshot --fast-af /path/to/fast-af \
+  --out /path/to/empty-evidence-directory
+```
+
+`resources/pairs.mjs` applies the baseline policy's `hostCondition`: a job counts only if both of its probes are at most 1.10 times the session's quietest probe.
+
 ## Diagnostic heap lifetime
 
 Run a separate, guarded allocation-sampling job:

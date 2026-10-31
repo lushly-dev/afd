@@ -1,10 +1,21 @@
-/** Host-condition rule from the baseline policy, applied after a session's jobs complete. */
+/** Host-condition and repeatability rules from the baseline policy, applied after a session. */
 
 const median = (values) => {
 	const sorted = [...values].sort((a, b) => a - b);
 	const middle = Math.floor(sorted.length / 2);
 	return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 };
+
+/** Spread of repetitions, as the policy measures it: (max − min) / min. */
+export const spreadPercent = (values) =>
+	values.length ? ((Math.max(...values) - Math.min(...values)) / Math.min(...values)) * 100 : null;
+
+/** Each planned job's final attempt; attempts are named `<slot>-a<attempt>`. */
+export function finalAttempts(jobs) {
+	const slots = new Map();
+	for (const job of jobs) slots.set(job.name.replace(/-a\d+$/, ''), job);
+	return [...slots.values()];
+}
 
 /**
  * Mark each completed job in or out of the probe band: both its before and after probes must
@@ -36,31 +47,49 @@ export function probeBand(jobs, maxRatio) {
 }
 
 /**
- * Compare loaded with unloaded jobs per consumer, using only in-band jobs. A consumer whose
- * cells lack an in-band job on either side yields no ratio.
+ * Compare loaded with unloaded jobs per consumer. The comparison is held, with no ratio, if any
+ * planned job did not finally pass in band, or if either cell spreads beyond the repeatability
+ * tolerance. Held comparisons keep their values for diagnosis.
  */
-export function loadEffect(jobs, band) {
-	const included = new Set(band.jobs.filter((job) => job.inBand).map((job) => job.name));
-	const consumers = [...new Set(jobs.map((job) => job.consumer))];
-	return consumers.map((consumer) => {
+export function loadEffect(jobs, band, { maxSpreadPercent }) {
+	const inBand = new Map(band.jobs.map((job) => [job.name, job.inBand]));
+	const planned = finalAttempts(jobs);
+	return [...new Set(planned.map((job) => job.consumer))].map((consumer) => {
+		const own = planned.filter((job) => job.consumer === consumer);
+		const held = [];
+		for (const job of own)
+			if (!inBand.get(job.name))
+				held.push(
+					`${job.name}: ${job.status !== 'passed' || job.held ? 'did not pass' : 'probe out of band'}`
+				);
 		const cell = (loaded) =>
-			jobs
-				.filter(
-					(job) =>
-						job.consumer === consumer && included.has(job.name) && Boolean(job.load) === loaded
-				)
+			own
+				.filter((job) => Boolean(job.load) === loaded)
 				.map((job) => job.cpuSeconds)
 				.filter((value) => typeof value === 'number');
 		const unloaded = cell(false);
 		const loaded = cell(true);
-		const ratio = unloaded.length && loaded.length ? median(loaded) / median(unloaded) : null;
+		for (const [name, values] of [
+			['unloaded', unloaded],
+			['loaded', loaded],
+		]) {
+			if (values.length < 2) held.push(`${name}: fewer than two repetitions`);
+			else if (spreadPercent(values) > maxSpreadPercent)
+				held.push(
+					`${name}: spread ${spreadPercent(values).toFixed(2)}% exceeds ${maxSpreadPercent}%`
+				);
+		}
+		const unloadedMedian = unloaded.length ? median(unloaded) : null;
+		const loadedMedian = loaded.length ? median(loaded) : null;
 		return {
 			consumer,
 			unloaded,
 			loaded,
-			unloadedMedian: unloaded.length ? median(unloaded) : null,
-			loadedMedian: loaded.length ? median(loaded) : null,
-			ratio,
+			unloadedMedian,
+			loadedMedian,
+			spreadPercent: { unloaded: spreadPercent(unloaded), loaded: spreadPercent(loaded) },
+			held,
+			ratio: held.length ? null : loadedMedian / unloadedMedian,
 		};
 	});
 }
