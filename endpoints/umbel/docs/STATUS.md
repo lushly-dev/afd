@@ -35,8 +35,8 @@ should never have to scan the codebase to learn what is current.
 
 | Phase | State | Owner | Evidence | Next gate |
 | --- | --- | --- | --- | --- |
-| AFD prerequisites | In progress | Owner's sessions | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539) and the hybrid spec [#538](https://github.com/lushly-dev/afd/pull/538) merged | The hybrid tool strategy (D27) implemented in Rust, after TypeScript and Python |
-| 0. Host skeleton | Not started | None | None | Specification written and approved by the owner (D24) |
+| AFD prerequisites | Done for phase 0 | Owner's sessions | [#523](https://github.com/lushly-dev/afd/pull/523), [#526](https://github.com/lushly-dev/afd/pull/526), [#539](https://github.com/lushly-dev/afd/pull/539), [#538](https://github.com/lushly-dev/afd/pull/538), [#555](https://github.com/lushly-dev/afd/pull/555), [#556](https://github.com/lushly-dev/afd/pull/556) and [#560](https://github.com/lushly-dev/afd/pull/560) merged | Later phases' rows of the prerequisites table, each before the phase that needs it |
+| 0. Host skeleton | Not started; unblocked | None | None | Specification written and approved by the owner (D24) |
 | 1. Plugin contract | Not started | None | None | Phase 0 exit criterion met |
 | 2. Knowledge | Not started | None | None | Phase 1 exit criterion met |
 | 3. Memory and context | Not started | None | None | Phase 2 exit criterion met |
@@ -50,8 +50,8 @@ should never have to scan the codebase to learn what is current.
 
 ### AFD prerequisites
 
-- **State:** in progress. Last verified 2026-10-31 against `main` at
-  `977a0a35`.
+- **State:** done for phase 0; the rows for phases 1 to 5 remain. Last
+  verified 2026-10-31 against `main` at `57c731d2`.
 - **Done:** Rust `structuredContent` and top-level `outputSchema` (the Rust
   part of #465, which stays open for Python and C++) and the per-request
   context hook (`McpServer::with_context_hook`), both merged in
@@ -70,11 +70,23 @@ should never have to scan the codebase to learn what is current.
   handler's panic was already a `COMMAND_EXECUTION_ERROR` result. The hybrid
   strategy's spec step, [`spec/tool-strategies.md`](../../../spec/tool-strategies.md),
   merged in [#538](https://github.com/lushly-dev/afd/pull/538) as `977a0a35`.
-- **Not done:** the hybrid strategy (D27) in code. Following its
-  [status](../../../docs/features/active/hybrid-tool-strategy/STATUS.md),
-  TypeScript and Python come next, then Rust on the #526 strategy API (a unit
-  `ToolStrategy::Hybrid` with `with_first_class_tools`). That Rust step is the
-  last AFD prerequisite for phase 0.
+- **Done:** the hybrid tool strategy (D27) in Rust,
+  `ToolStrategy::Hybrid` with `McpServer::with_first_class_tools`, merged in
+  [#560](https://github.com/lushly-dev/afd/pull/560) as `57c731d2` with all 25
+  checks green; `tests/server_hybrid.rs` runs every case of
+  `spec/tool-strategies.json` over stdio and Streamable HTTP in both MCP eras.
+  Python ([#555](https://github.com/lushly-dev/afd/pull/555), `51f8d9d8`) and
+  TypeScript ([#556](https://github.com/lushly-dev/afd/pull/556), `0d9720a1`)
+  landed first. C++ (step 4) waits on its MCP target (parity D2, #341) and
+  does not block Umbel. The [hybrid status](../../../docs/features/active/hybrid-tool-strategy/STATUS.md)
+  tracks it.
+- **Not done:** the later rows of the
+  [prerequisites table](architecture.md#afd-prerequisites): resources,
+  prompts and Skills over MCP (phases 1 and 2, shared with Loam), output
+  budgets (phase 2), the MCP approval relay in Rust (phase 4), token
+  verification, `scopes` and `credentials` (phase 5, with
+  [#532](https://github.com/lushly-dev/afd/issues/532)) and the Rust MCP Tasks
+  runtime (phase 5).
 - **Note:** the hybrid strategy, resources, prompts, the Skills over MCP
   extension and output budgets are AFD-wide features; each needs a
   `docs/features` proposal, spec first, before Rust implements it (D25).
@@ -117,3 +129,4 @@ starts.
 | 2026-10-31 | Owner review of the blockers | The owner accepted every recommendation: #523 merged first and #526 rebased onto it; grouped becomes the Rust default; the hybrid proposal approved and moved to `docs/features/active/` with the six answers recorded; issues [#531](https://github.com/lushly-dev/afd/issues/531), [#532](https://github.com/lushly-dev/afd/issues/532) and [#533](https://github.com/lushly-dev/afd/issues/533) filed. [#522](https://github.com/lushly-dev/afd/pull/522) |
 | 2026-10-31 | Owner review of the blockers | [#526](https://github.com/lushly-dev/afd/pull/526) rebased onto #523, integrated (structured results and the context hook on every route) and merged as `03815e26`. Of the phase 0 prerequisites, only the hybrid strategy and [#531](https://github.com/lushly-dev/afd/issues/531) remain. [#534](https://github.com/lushly-dev/afd/pull/534) |
 | 2026-10-31 | Phase 0 blockers | [#531](https://github.com/lushly-dev/afd/issues/531) fixed in [#539](https://github.com/lushly-dev/afd/pull/539); the hybrid spec merged in [#538](https://github.com/lushly-dev/afd/pull/538). Only the hybrid implementation remains among the AFD prerequisites. [#540](https://github.com/lushly-dev/afd/pull/540) |
+| 2026-10-31 | Phase 0 blockers | The hybrid strategy merged in TypeScript, Python and Rust ([#556](https://github.com/lushly-dev/afd/pull/556), [#555](https://github.com/lushly-dev/afd/pull/555), [#560](https://github.com/lushly-dev/afd/pull/560)). Every AFD prerequisite for phase 0 is done; phase 0 now waits only on its specification and the owner's approval (D24). [#562](https://github.com/lushly-dev/afd/pull/562) |
