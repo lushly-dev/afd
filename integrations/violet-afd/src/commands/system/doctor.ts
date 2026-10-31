@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { CommandResult } from '../../types/command-result.js';
+import { PACKAGE_VERSION } from '../../version.js';
 import { type CommandContext, type CommandDefinition, registry } from '../registry.js';
 
 /**
@@ -173,7 +174,7 @@ function getEnvironmentInfo(): EnvironmentInfo {
 		platform: process.platform,
 		arch: process.arch,
 		cwd: process.cwd(),
-		packageVersion: '0.1.0', // Would read from package.json in production
+		packageVersion: PACKAGE_VERSION,
 	};
 }
 

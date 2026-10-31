@@ -15,7 +15,14 @@
 	"publishConfig": {
 		"access": "public"
 	},
-	"keywords": ["violet", "design-tokens", "dtcg", "design-system", "theming", "agent-first"],
+	"keywords": [
+		"violet",
+		"design-tokens",
+		"dtcg",
+		"design-system",
+		"theming",
+		"agent-first"
+	],
 	"engines": {
 		"node": ">=24"
 	},
@@ -76,7 +83,11 @@
 		"vitest": "^3.2.7",
 		"ws": "^8.22.0"
 	},
-	"files": ["dist", "README.md", "LICENSE"],
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	],
 	"optionalDependencies": {
 		"better-sqlite3": "^13.0.3"
 	},

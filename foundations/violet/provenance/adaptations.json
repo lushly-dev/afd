@@ -15,9 +15,9 @@
       "path": "docs/features/active/platform-monorepo/violet-transition.md",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "552d0781d9f8f1f795ffabef77c17809d506560281b04f094b811470c8337fff",
+      "current_import_sha256": "b79eb545cd9063f6854f849572e3bd0114a5aab3c41865f7baa3b7f8615dfe5f",
       "classification": "afd-authored",
-      "reason": "Public contract changes and upgrade steps for the split; first publication as 0.3.0 from AFD and the move to AFD core 2.x",
+      "reason": "Public contract changes and upgrade steps for the split; first publication as 0.3.0 from AFD and the move to AFD core 2.x; release readiness, version reporting and store legs recorded",
       "candidate": {
         "path": null,
         "sha256": null,
@@ -80,9 +80,9 @@
       "path": "endpoints/violet-cli/package.json",
       "upstream_path": "packages/cli/package.json",
       "upstream_sha256": "0c4b5cbc44d8ed4c4fe8239b51428c7c96de18f7eac8fd1a1b006fda51a96f91",
-      "current_import_sha256": "96cd04347f2c6ad9a0432567b40829020dd88acc48b6d11cce1bc83c11c84bf3",
+      "current_import_sha256": "61d5b4bd2f01054d682a26093e70cbfdd75ccecab0fbceddb56cde6c376a13f9",
       "classification": "adapted",
-      "reason": "Depend on @lushly-dev/violet-afd and directly on @lushly-dev/violet-core (the integration only peers on it); Biome 1.9 dev dependency Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository.",
+      "reason": "Depend on @lushly-dev/violet-afd and directly on @lushly-dev/violet-core (the integration only peers on it); Biome 1.9 dev dependency Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository. Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines.",
       "candidate": {
         "path": "packages/cli/package.json",
         "sha256": "3f4d5de9963def5ea02322e1e2f45c7bedc7ecd09749c07fc7253b72ab61da12",
@@ -145,9 +145,9 @@
       "path": "endpoints/violet-cli/src/cli.ts",
       "upstream_path": "packages/cli/src/cli.ts",
       "upstream_sha256": "09ec3df6132767797ab6af062ca0f60d0f52ae34f4ba51aa999c928d494d8e76",
-      "current_import_sha256": "a393bcd8067bd18f45ca4507428327019b8dc275ddea580003f9b1f08297684d",
+      "current_import_sha256": "682ef089be9face2a1feda929ceee5e7742484fa80ebb505c305b97e3bc545ea",
       "classification": "adapted",
-      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; code otherwise unchanged",
+      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; code otherwise unchanged; reports its package version (src/version.ts) instead of the hard-coded upstream 0.1.0",
       "candidate": {
         "path": "packages/cli/src/cli.ts",
         "sha256": "475f80decc27712ff654f3c981d96f6d2e374793846f48a4dd0ccebf85ab3c5b",
@@ -191,6 +191,32 @@
         "path": "packages/cli/src/skill-commands.test.ts",
         "sha256": "e4bb80e8ce11ccfc23e9477b732d823d45f1d5d21b0c0fef042ab3080d0886ff",
         "relation": "differs"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/src/version.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "d074ce6e622578bf66f41bd2737a92faa35849f43d237a4e5bfd15e60e657d46",
+      "classification": "afd-authored",
+      "reason": "Checks PACKAGE_VERSION against package.json",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "endpoints/violet-cli/src/version.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "60e209e6e55b2faea78b8c8116c5d34087f8a9dfbcff314c7da549ac7710d6ba",
+      "classification": "afd-authored",
+      "reason": "Package version read from the manifest, replacing the hard-coded upstream 0.1.0",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
       }
     },
     {
@@ -288,9 +314,9 @@
       "path": "endpoints/violet-server/package.json",
       "upstream_path": "packages/server/package.json",
       "upstream_sha256": "5f34f53cbff0550a001eb43a3b9540352aa49984e4ce3f11c4f2a633bd72912e",
-      "current_import_sha256": "df4445bc826304e7658fb9c2eb14f2dee97b78e62a89299a1c2486551b6d1116",
+      "current_import_sha256": "123dd891f737a70b1ddc59c905232acdf5aae723de78f345c164010545011217",
       "classification": "adapted",
-      "reason": "Depend on @lushly-dev/violet-afd and directly on @lushly-dev/violet-core (the integration only peers on it); Biome 1.9 dev dependency Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository.",
+      "reason": "Depend on @lushly-dev/violet-afd and directly on @lushly-dev/violet-core (the integration only peers on it); Biome 1.9 dev dependency Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository. Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines.",
       "candidate": {
         "path": "packages/server/package.json",
         "sha256": "5d41d6c4cfa4452ac78bca816f4e7af42b70d7d08ef93df7c55518738b9b8556",
@@ -379,9 +405,9 @@
       "path": "endpoints/violet-server/src/server.ts",
       "upstream_path": "packages/server/src/server.ts",
       "upstream_sha256": "4468c269a7a64ba554cfc39e69736d6da0570bb07c61b1b541678ad127fa261e",
-      "current_import_sha256": "9f7b725b84312cb41ce80a61eea98482082ba227544339a238409355c8ba1268",
+      "current_import_sha256": "5d2eec38a983af4adbaa355bb403475021d93e21fd983710ffb6190fe3fab939",
       "classification": "adapted",
-      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; code otherwise unchanged",
+      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; code otherwise unchanged; reports its package version (src/version.ts) instead of the hard-coded upstream 0.1.0",
       "candidate": {
         "path": "packages/server/src/server.ts",
         "sha256": "bf16ea771c8314732c6cd99128f775137aac7138bbdf626b7d6aca794e4216a9",
@@ -428,6 +454,32 @@
       }
     },
     {
+      "path": "endpoints/violet-server/src/version.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "d074ce6e622578bf66f41bd2737a92faa35849f43d237a4e5bfd15e60e657d46",
+      "classification": "afd-authored",
+      "reason": "Checks PACKAGE_VERSION against package.json",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "endpoints/violet-server/src/version.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "60e209e6e55b2faea78b8c8116c5d34087f8a9dfbcff314c7da549ac7710d6ba",
+      "classification": "afd-authored",
+      "reason": "Package version read from the manifest, replacing the hard-coded upstream 0.1.0",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
       "path": "endpoints/violet-server/tsconfig.json",
       "upstream_path": "packages/server/tsconfig.json",
       "upstream_sha256": "2e41df0b6e59599756a8830095b71c9379d3d0dc0525a772b05d0fb55bbe1076",
@@ -444,9 +496,9 @@
       "path": "foundations/violet/README.md",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "b9075821ad9d1580cf9f068275bbf0c4e4354cfcf85c4b7bf8563b945b5aad27",
+      "current_import_sha256": "2dfe90a8d6e950cdded68f8bda0e0b2e45b58326561d9d7212815eb0023e8aef",
       "classification": "afd-authored",
-      "reason": "Describe the imported units, configuration, gates and quarantine in the AFD tree",
+      "reason": "Describe the imported units, configuration, gates and quarantine in the AFD tree; gates list the Postgres and Neon driver store legs",
       "candidate": {
         "path": null,
         "sha256": null,
@@ -509,9 +561,9 @@
       "path": "foundations/violet/packages/core/package.json",
       "upstream_path": "packages/core/package.json",
       "upstream_sha256": "1966100f0c58be7e00832c9962d9ce6fd50c6ebb17b3a3c876bfaf84043e94ce",
-      "current_import_sha256": "e50fb789cb2e54c429d8658c5d0f7a43018eb791dcf118ba44a71c55a1b15869",
+      "current_import_sha256": "4700d68ba5992a7dbf117a7d3d0e80ac4e8f81460d320bc2b5785b88576a19b1",
       "classification": "adapted",
-      "reason": "Native manifest: remove ./commands, the AFD, zod-to-json-schema and nanoid dependencies (nanoid stays for test support); better-sqlite3 stays optional and Neon/ws become optional peers (also dev dependencies) so a consumer's copies satisfy ./neon under strict layouts; add ./engine and ./neon; test runs the store-free subset and test:db the full suite; Biome 1.9 dev dependency Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository.",
+      "reason": "Native manifest: remove ./commands, the AFD, zod-to-json-schema and nanoid dependencies (nanoid stays for test support); better-sqlite3 stays optional and Neon/ws become optional peers (also dev dependencies) so a consumer's copies satisfy ./neon under strict layouts; add ./engine and ./neon; test runs the store-free subset and test:db the full suite; Biome 1.9 dev dependency Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository. Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines.",
       "candidate": {
         "path": "packages/core/package.json",
         "sha256": "71e22d1ec46e057acbfdafe1fe94f4504788b68fbded2639e62d42fd55b6088b",
@@ -613,9 +665,9 @@
       "path": "foundations/violet/packages/core/src/db/audit-sequence.test.ts",
       "upstream_path": "packages/core/src/db/audit-sequence.test.ts",
       "upstream_sha256": "47c479fea10a2613d8e881a836ed968082aa18a70a3fba663ba4853ea4663d04",
-      "current_import_sha256": "e5665061d590870f0e51f163d48faca91644a6b77b1fb90e89125bc1c91a314a",
+      "current_import_sha256": "d558038ddf80b7e04b1c81ab05d72f62ae197b21d4a9339809f1c8fe67f8e1a2",
       "classification": "adapted",
-      "reason": "The Database type is imported from the native storage module instead of the command registry",
+      "reason": "The Database type is imported from the native storage module instead of the command registry. The hosted-migration case skips while packages/api/migrations (the Violet API app, not imported) is absent",
       "candidate": {
         "path": "packages/core/src/db/audit-sequence.test.ts",
         "sha256": "e5665061d590870f0e51f163d48faca91644a6b77b1fb90e89125bc1c91a314a",
@@ -659,6 +711,19 @@
         "path": "packages/core/src/db/memory.ts",
         "sha256": "f8cd92e1e659bced4a690009a71ff3c953633fb4b4dc64e150bec8cfc5645c62",
         "relation": "differs"
+      }
+    },
+    {
+      "path": "foundations/violet/packages/core/src/db/neon-local.test-support.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "3e78f339e69226212e03fa4a9a0b2494369e11b4c93c04659f237f7d48d47c5c",
+      "classification": "afd-authored",
+      "reason": "In-process Neon WebSocket proxy to the Postgres test server, so the Neon leg runs without a Neon account",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
       }
     },
     {
@@ -1211,9 +1276,9 @@
       "path": "foundations/violet/packages/core/vitest.config.ts",
       "upstream_path": "packages/core/vitest.config.ts",
       "upstream_sha256": "dd17e43e9613b203957535775e66cfe079fe12d5bc145931987d8e813d8034bd",
-      "current_import_sha256": "dd17e43e9613b203957535775e66cfe079fe12d5bc145931987d8e813d8034bd",
-      "classification": "unchanged",
-      "reason": "Upstream bytes",
+      "current_import_sha256": "e98cae0a9f5974f4147fefd9c868c84c63bad58929472c22c0df216dd8db128d",
+      "classification": "adapted",
+      "reason": "Registers src/db/neon-local.test-support.ts as a setup file, so the Neon leg can run the real driver against local Postgres",
       "candidate": {
         "path": "packages/core/vitest.config.ts",
         "sha256": "dd17e43e9613b203957535775e66cfe079fe12d5bc145931987d8e813d8034bd",
@@ -1276,9 +1341,9 @@
       "path": "foundations/violet/packages/runtime/package.json",
       "upstream_path": "packages/runtime/package.json",
       "upstream_sha256": "53464ac59e55d40f06e2a2988dec06ced6d776156a114d479d08d12f0bec7e9c",
-      "current_import_sha256": "997d4ccff44e647f1a052eb72ea8b2b7d7297130965bf36009d9a0c3755ddfdf",
+      "current_import_sha256": "72b3b1cdd352a5fc56ffd56167454abb0af437d1b468e49175e4c6e49394ec1c",
       "classification": "adapted",
-      "reason": "Biome 1.9 dev dependency, which the upstream root supplied to the lint script Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository.",
+      "reason": "Biome 1.9 dev dependency, which the upstream root supplied to the lint script Repository, homepage and bugs point at lushly-dev/afd and this directory, because AFD publishes with npm provenance, which requires the manifest repository to match the publishing repository. Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines.",
       "candidate": {
         "path": "packages/runtime/package.json",
         "sha256": "62eacdd88535bbad845c623b946107498a522658872cd4551806ace989466ec3",
@@ -1455,6 +1520,19 @@
       }
     },
     {
+      "path": "integrations/violet-afd/CHANGELOG.md",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "04939a215102f215469b6d70f180f6abed09b27bef7d3306bab046378a0558c0",
+      "classification": "afd-authored",
+      "reason": "Title only, so the first version step edits a recorded file instead of creating one",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
       "path": "integrations/violet-afd/LICENSE",
       "upstream_path": "packages/core/LICENSE",
       "upstream_sha256": "e5b8c0ee6b3a97163e390d5a20dc01a351d62540609cc213d9ed64634aa07754",
@@ -1497,9 +1575,9 @@
       "path": "integrations/violet-afd/package.json",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "9f96a9e7bb0d87f6488f47ca4a6f9f2c45abc8a0770e524115f0becb9025dafd",
+      "current_import_sha256": "99f7ca990ca0ba46b9f9c4d1f9282f33f348b19972e133bdf5646a1a1ea567b1",
       "classification": "afd-authored",
-      "reason": "New integration manifest: the pre-split core entry points, peer violet-core ^0.2.0 || ^0.3.0 (so the first 0.3.0 release keeps the fixed group on a minor bump), the workspace @lushly-dev/afd-core ^2.2.0, version 0.2.0 like its family",
+      "reason": "New integration manifest: the pre-split core entry points, peer violet-core ^0.2.0 || ^0.3.0 (so the first 0.3.0 release keeps the fixed group on a minor bump), the workspace @lushly-dev/afd-core ^2.2.0, version 0.2.0 like its family Formatted as Changesets writes it (arrays expanded), so a version step changes only the version lines.",
       "candidate": {
         "path": "packages/afd/package.json",
         "sha256": "0007e820a3b32fb06d1ea01ae27cfff2ff4e539580b7f6fac5b9e46096b42a91",
@@ -2446,9 +2524,9 @@
       "path": "integrations/violet-afd/src/commands/system/doctor.ts",
       "upstream_path": "packages/core/src/commands/system/doctor.ts",
       "upstream_sha256": "1f6b04a85f5e4cb5ebae1b658a9d55c70a2d6c2f7ef5d3684785425c950c5a5b",
-      "current_import_sha256": "1f6b04a85f5e4cb5ebae1b658a9d55c70a2d6c2f7ef5d3684785425c950c5a5b",
-      "classification": "moved-unchanged",
-      "reason": "Upstream bytes at a new path",
+      "current_import_sha256": "571e69a6687fd4fe38fe6210c9619e552ad62b8a6ff2f5243ff0c7bc48b40382",
+      "classification": "adapted",
+      "reason": "Moved from core; packageVersion reads the package manifest (src/version.ts) instead of the hard-coded upstream 0.1.0",
       "candidate": {
         "path": "packages/afd/src/commands/system/doctor.ts",
         "sha256": "1f6b04a85f5e4cb5ebae1b658a9d55c70a2d6c2f7ef5d3684785425c950c5a5b",
@@ -3096,9 +3174,9 @@
       "path": "integrations/violet-afd/src/db/lens-follow-ups-upgrade.test.ts",
       "upstream_path": "packages/core/src/db/lens-follow-ups-upgrade.test.ts",
       "upstream_sha256": "b040d798e3cac28d2032552240855c7eb3ace6e9aec6082ee99372b097e2598e",
-      "current_import_sha256": "384b5ba552da1ed3c5043190e3657047680046fea36bf4f445aa147685469447",
+      "current_import_sha256": "d9da4e86a48a5ac86187c557f3ffe56ee5f77909d4e02e582ea1a7243dff1925",
       "classification": "adapted",
-      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9. The hosted-migration case skips while packages/api/migrations (the Violet API app, not imported) is absent",
       "candidate": {
         "path": null,
         "sha256": null,
@@ -3112,6 +3190,19 @@
       "current_import_sha256": "656bc51e7bfceff41580691bba9bb9275bac41d9e34bbd6da6e4a762683ac1b0",
       "classification": "adapted",
       "reason": "Relative imports of native modules use @lushly-dev/violet-core public entry points (root, types, engine, css, neon, worker); imports re-sorted by upstream Biome 1.9",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/db/neon-local.test-support.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "3e78f339e69226212e03fa4a9a0b2494369e11b4c93c04659f237f7d48d47c5c",
+      "classification": "afd-authored",
+      "reason": "In-process Neon WebSocket proxy to the Postgres test server, so the Neon leg runs without a Neon account",
       "candidate": {
         "path": null,
         "sha256": null,
@@ -3249,6 +3340,32 @@
       }
     },
     {
+      "path": "integrations/violet-afd/src/version.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "d074ce6e622578bf66f41bd2737a92faa35849f43d237a4e5bfd15e60e657d46",
+      "classification": "afd-authored",
+      "reason": "Checks PACKAGE_VERSION against package.json",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
+      "path": "integrations/violet-afd/src/version.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "current_import_sha256": "60e209e6e55b2faea78b8c8116c5d34087f8a9dfbcff314c7da549ac7710d6ba",
+      "classification": "afd-authored",
+      "reason": "Package version read from the manifest, replacing the hard-coded upstream 0.1.0",
+      "candidate": {
+        "path": null,
+        "sha256": null,
+        "relation": "absent"
+      }
+    },
+    {
       "path": "integrations/violet-afd/src/webhooks/dispatcher.test.ts",
       "upstream_path": "packages/core/src/webhooks/dispatcher.test.ts",
       "upstream_sha256": "e5060648d811e3210e71571c9262e1271063a6809281cd1740ae9d32e9cab6cd",
@@ -3369,9 +3486,9 @@
       "path": "integrations/violet-afd/vitest.config.ts",
       "upstream_path": "packages/core/vitest.config.ts",
       "upstream_sha256": "dd17e43e9613b203957535775e66cfe079fe12d5bc145931987d8e813d8034bd",
-      "current_import_sha256": "dd17e43e9613b203957535775e66cfe079fe12d5bc145931987d8e813d8034bd",
-      "classification": "moved-unchanged",
-      "reason": "Upstream bytes at a new path",
+      "current_import_sha256": "e98cae0a9f5974f4147fefd9c868c84c63bad58929472c22c0df216dd8db128d",
+      "classification": "adapted",
+      "reason": "Registers src/db/neon-local.test-support.ts as a setup file, so the Neon leg can run the real driver against local Postgres",
       "candidate": {
         "path": "packages/afd/vitest.config.ts",
         "sha256": "dd17e43e9613b203957535775e66cfe079fe12d5bc145931987d8e813d8034bd",
@@ -3395,9 +3512,9 @@
       "path": "tests/consumers/violet/verify-artifacts.mjs",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "714591174fbd540ad6d0cf5ac31f5099dba6f6dcd50d7d306b9f302486389c93",
+      "current_import_sha256": "5c1df21ffc4e1d78b66041333e8a7d7d793303540dce51e479e94e65d4b82101",
       "classification": "afd-authored",
-      "reason": "Packed-artifact consumers outside the workspace (Phase 3 evidence); afd-core is packed from the workspace and shared with the consumer after the move to AFD 2.x",
+      "reason": "Packed-artifact consumers outside the workspace (Phase 3 evidence); afd-core is packed from the workspace and shared with the consumer after the move to AFD 2.x; reads the fixed-group version and the integration peer range from the workspace manifests, so a version step needs no edit",
       "candidate": {
         "path": null,
         "sha256": null,

@@ -20,7 +20,8 @@ The Violet API, web, Figma applications, the test workspace and the patched FAST
 
 - `pnpm check` builds all five packages and runs their store-free suites (`test`).
 - [`violet.yml`](../../.github/workflows/violet.yml) builds the SQLite driver and runs the full upstream suites (`test:db`), the upstream Biome lint, and the packed-artifact consumers in [`tests/consumers/violet`](../../tests/consumers/violet/verify-artifacts.mjs).
-- The Postgres and Neon legs of the store contract suites are skipped without `VIOLET_TEST_POSTGRES_URL` / `VIOLET_NEON_DATABASE_URL`, and the two hosted-migration cases read `packages/api/migrations`, which arrives with the API in Phase 4. Neither runs here.
+- Its `stores` job runs the core and integration suites on a `postgres:17` service with the Postgres leg required (`VIOLET_TEST_POSTGRES=required`). With `VIOLET_NEON_LOCAL_PROXY=1`, `src/db/neon-local.test-support.ts` bridges Neon's WebSocket protocol to that server in-process, so the Neon leg runs the real `@neondatabase/serverless` driver path; hosted Neon is not exercised. Locally: `VIOLET_TEST_POSTGRES_URL=postgres://… VIOLET_NEON_LOCAL_PROXY=1 pnpm -F @lushly-dev/violet-core -F @lushly-dev/violet-afd test:db`.
+- The two hosted-migration cases read `packages/api/migrations`, which ships with the Violet API app; they skip until it is imported.
 
 ## Release
 

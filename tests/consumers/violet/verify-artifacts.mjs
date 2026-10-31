@@ -25,7 +25,7 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
@@ -65,9 +65,13 @@ const AFD = '@lushly-dev/violet-afd';
 const SERVER = '@lushly-dev/violet-server';
 const CLI = '@lushly-dev/violet-cli';
 const AFD_CORE = '@lushly-dev/afd-core';
-// Widened so the first 0.3.0 release keeps the fixed group on a minor bump (Changesets
-// major-bumps a dependent whose peer range the new version leaves).
-const CORE_PEER = '^0.2.0 || ^0.3.0';
+const workspaceManifest = (path) =>
+	JSON.parse(readFileSync(join(repository, path, 'package.json'), 'utf8'));
+// The fixed group's version, so a Changesets version step needs no edit here.
+const VERSION = workspaceManifest('foundations/violet/packages/core').version;
+// Widened before each minor release (Changesets major-bumps a dependent whose peer range
+// the new version leaves); scripts/violet-provenance.test.mjs checks the widening.
+const CORE_PEER = workspaceManifest('integrations/violet-afd').peerDependencies[CORE];
 // pnpm quotes a peer range that contains spaces.
 const CORE_PEER_SPEC = `${CORE}@"${CORE_PEER}"`;
 const checks = [];
@@ -193,23 +197,27 @@ const runtime = packedManifest(RUNTIME);
 assert.equal(runtime.dependencies, undefined);
 const afd = packedManifest(AFD);
 assert.deepEqual(afd.peerDependencies, { [CORE]: CORE_PEER });
+assert(
+	semver.satisfies(VERSION, CORE_PEER),
+	`the integration peer ${CORE_PEER} rejects core ${VERSION}`
+);
 assert.equal(afd.dependencies[AFD_CORE], '^2.2.0');
 assert.deepEqual(Object.keys(afd.exports), ['.', './worker', './commands', './css', './types']);
 const cli = packedManifest(CLI);
 assert.deepEqual(cli.bin, { violet: './dist/bin.js' });
-assert.equal(cli.dependencies[AFD], '0.2.0');
+assert.equal(cli.dependencies[AFD], VERSION);
 // Endpoints depend on core directly: the integration only peers on it.
-assert.equal(cli.dependencies[CORE], '0.2.0');
+assert.equal(cli.dependencies[CORE], VERSION);
 const server = packedManifest(SERVER);
-assert.equal(server.dependencies[CORE], '0.2.0');
+assert.equal(server.dependencies[CORE], VERSION);
 assert.deepEqual(server.bin, { 'violet-mcp': './dist/bin.js' });
 assert.deepEqual(Object.keys(server.exports), ['.', './server', './api']);
 for (const manifest of [core, runtime, afd, cli, server]) {
-	assert.equal(manifest.version, '0.2.0', manifest.name);
+	assert.equal(manifest.version, VERSION, manifest.name);
 	assert(!JSON.stringify(manifest).includes('workspace:'), `${manifest.name} leaks workspace:`);
 }
 passed(
-	'packed manifests: core needs only zod (storage drivers optional), no AFD text in its files; integration peers core ^0.2.0 || ^0.3.0 and depends on afd-core ^2.2.0; binaries and versions preserved'
+	`packed manifests: core needs only zod (storage drivers optional), no AFD text in its files; integration peers core ${CORE_PEER} and depends on afd-core ^2.2.0; binaries preserved; all at ${VERSION}`
 );
 
 // ---- Violet only: native core without optional drivers, and runtime ---------------------------
@@ -604,15 +612,15 @@ const outputs = invocations.map((args) => {
 	return { args, status: result.status, stdout: result.stdout, stderr: result.stderr };
 });
 await writeFile(join(output, 'violet-cli-outputs.json'), `${JSON.stringify(outputs, null, 2)}\n`);
-// Upstream cli.ts hard-codes .version('0.1.0'); the 0.2.0 package keeps that output.
-assert.equal(outputs[0].stdout.trim(), '0.1.0');
+// Upstream cli.ts hard-coded .version('0.1.0'); the CLI now reports its package version.
+assert.equal(outputs[0].stdout.trim(), VERSION);
 assert.equal(JSON.parse(outputs[1].stdout).data.commands.length, 46);
 assert.equal(JSON.parse(outputs[2].stdout).success, true);
 assert.match(outputs[3].stdout, /--color-accent:\s*#4CC2FF/i);
 assert.equal(outputs[6].status, 1);
 assert.equal(JSON.parse(outputs[6].stdout).error.code, 'NODE_NOT_FOUND');
 passed(
-	'violet binary: --version (0.1.0, hard-coded upstream), 46 commands, --from resolve/export/validate, failure envelope and exit 1'
+	`violet binary: --version (${VERSION}), 46 commands, --from resolve/export/validate, failure envelope and exit 1`
 );
 if (baseline) {
 	const upstream = join(baseline, 'packages/cli/dist/bin.js');
@@ -623,7 +631,9 @@ if (baseline) {
 			/\[\d+ms\]|"(?:durationMs|executionTimeMs)": \d+|"traceId": "[^"]+"|Generated: \S+|\d{4}-\d\d-\d\dT[\d:.]+Z/g,
 			'<v>'
 		);
-	for (const entry of outputs) {
+	// --version is the one intended difference: upstream hard-coded 0.1.0.
+	const compared = outputs.filter((entry) => entry.args[0] !== '--version');
+	for (const entry of compared) {
 		const result = spawnSync(process.execPath, [upstream, ...entry.args], {
 			cwd: endpointRoot,
 			encoding: 'utf8',
@@ -632,7 +642,7 @@ if (baseline) {
 		assert.equal(volatile(entry.stdout), volatile(result.stdout), entry.args.join(' '));
 	}
 	passed(
-		`violet serialized output equals the upstream binary at ${baseline} for ${outputs.length} invocations`
+		`violet serialized output equals the upstream binary at ${baseline} for ${compared.length} invocations (all but --version)`
 	);
 }
 
