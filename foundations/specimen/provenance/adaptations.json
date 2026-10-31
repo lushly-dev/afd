@@ -45,11 +45,11 @@
       "upstream_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
       "staged_path": "docs/features/active/specimens/implementation.md",
       "staged_sha256": "632d2dc7ee9b72b5b53a31a08d0c2488f805bbc779018a8f99bc1d4b91ba4b09",
-      "current_import_sha256": "e335b84365b20edb7bdd5887deb3f827db110607fbecb4969d2f92423cfd12a2",
+      "current_import_sha256": "93e7880883e777a8314138d5c6181dd56d9463abd9577eac0b301b52aeae6122",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
+      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "docs/features/active/specimens/resource-validation.md",
@@ -105,11 +105,11 @@
       "upstream_sha256": null,
       "staged_path": "endpoints/specimen-cli/README.md",
       "staged_sha256": "0e5509a61bb71e912871962bb332ccd46a2e06a2960800b13d95fd1c27843050",
-      "current_import_sha256": "7cdc2048b4c5dae1af04d76fd27b97c8be5468be3d72ceeef66a191674ac830f",
+      "current_import_sha256": "294df598a357f929c02f1bf4bb17532266a32552c13c760d252b5626cb9261f2",
       "stage_classification": "added-in-staging",
       "stage_reason": "New split-package configuration or documentation",
       "import_classification": "modified-after-staging",
-      "import_reason": "Link the in-repository transition document instead of the staging-only SPECIMEN-SPLIT.md"
+      "import_reason": "Link the in-repository transition document instead of the staging-only SPECIMEN-SPLIT.md; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "endpoints/specimen-cli/package.json",
@@ -141,11 +141,11 @@
       "upstream_sha256": "09cfa93b8b3511830ad06601f97af28caf97b1ae25920f636b324f6157ec24b1",
       "staged_path": "endpoints/specimen-cli/src/cli.test.ts",
       "staged_sha256": "232fde377d630bfd7952d2c0bba0ab6c6884d8ee81700a466b73d6a68020ea1f",
-      "current_import_sha256": "ef6722d6c37163f6335db253c8ea5191f9270c0040f0c55d8713c8f42a7b8372",
+      "current_import_sha256": "585dbf6ae76188566b29a64dc8b6866b246b08e7ef3d2e37f479c5faef9f9390",
       "stage_classification": "modified-upstream",
       "stage_reason": "Moved from packages/specimen/src; import SpecimenCommandBench from the integration",
       "import_classification": "modified-after-staging",
-      "import_reason": "Cover default process stdout/stderr IO; after the split the standalone suite left function coverage at 75%, below the 80% threshold"
+      "import_reason": "Cover default process stdout/stderr IO; after the split the standalone suite left function coverage at 75%, below the 80% threshold; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "endpoints/specimen-cli/src/cli.ts",
@@ -153,11 +153,11 @@
       "upstream_sha256": "05bee6e04928e79101da5f71aecf1b5b35a6c098040d416471e3eaccf251b794",
       "staged_path": "endpoints/specimen-cli/src/cli.ts",
       "staged_sha256": "1f494c4857a693577bbb55fddd687959fc4d2bf53af51ecaa55e26ca429bfbac",
-      "current_import_sha256": "1f494c4857a693577bbb55fddd687959fc4d2bf53af51ecaa55e26ca429bfbac",
+      "current_import_sha256": "1f1728a5e6113fba7e640c25ade8b5efc346fce0592a6a7b2538d5b7b0ba01e7",
       "stage_classification": "modified-upstream",
       "stage_reason": "Moved from packages/specimen/src; import bench and commands through public native and integration exports",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "endpoints/specimen-cli/src/index.ts",
@@ -213,11 +213,11 @@
       "upstream_sha256": "3994cd025d5f9b53f0e7ecf77bb36de470db315285468f55bf8dcc58537ffc8b",
       "staged_path": "packages/specimen/README.md",
       "staged_sha256": "19c9331ebd067dd32bee9a8cbf1170434f76327642aeca7d598b73ca3a3db2ca",
-      "current_import_sha256": "0147451bb0bdc29c3e76b69b6934cf071028100c9c0403b3eb1bf869eb6e958c",
+      "current_import_sha256": "4f89da124fb888210116c7b5b225fa66b30d6e7335e89c4e2bdcee090601cbfa",
       "stage_classification": "modified-upstream",
       "stage_reason": "Document the native/integration/endpoint split",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported fixture paths, transition document link and validation routes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts"
+      "import_reason": "Imported fixture paths, transition document link and validation routes; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; reconcile the living Specimens plan with split packages, verified resource evidence and remaining acceptance gates while retaining dated receipts; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/experiments/README.md",
@@ -489,11 +489,11 @@
       "upstream_sha256": "f6394f8ff74cb6549e98b9f15a28e6dd862d224a012e2a93efb72720707c73c8",
       "staged_path": "packages/specimen/fixtures/specimen.config.json",
       "staged_sha256": "f6394f8ff74cb6549e98b9f15a28e6dd862d224a012e2a93efb72720707c73c8",
-      "current_import_sha256": "f6394f8ff74cb6549e98b9f15a28e6dd862d224a012e2a93efb72720707c73c8",
+      "current_import_sha256": "42e42290e77bf0ce413c0fff3b4a5fab27288cc26d79db36f5c7fec5b8452b1d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/fixtures/unrelated.stories.ts",
@@ -513,11 +513,11 @@
       "upstream_sha256": "d7edc73530a7f4fc9e87990b1f84b6b80015dc6b6cedc7b8c31ef7e8a1647783",
       "staged_path": "packages/specimen/package.json",
       "staged_sha256": "2c1a240634881e2fe2c7d5f691a1466d8e03e343adb7a6d359cc818964b11ba3",
-      "current_import_sha256": "c3be7a532c59a79d7ecbd69468c66d91db00e022ce3b6d933f04c47d4b52e7a5",
+      "current_import_sha256": "1cb4aaccce3a2efdf1e2299fa84e9b7f4ca70b2ffd598e3e0b7b8b53889756af",
       "stage_classification": "modified-upstream",
       "stage_reason": "Remove AFD core/server dependencies and the bin; add the native ./schema export",
       "import_classification": "modified-after-staging",
-      "import_reason": "test runs the browser-free subset for pnpm check; test:browser runs the full suite; repository directory foundations/specimen"
+      "import_reason": "test runs the browser-free subset for pnpm check; test:browser runs the full suite; repository directory foundations/specimen; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/bench-runtime.ts",
@@ -525,11 +525,11 @@
       "upstream_sha256": "c6ce5889f316575e7351ad9d4d94a0d377952a63d0b41746add91c6683ee9967",
       "staged_path": "packages/specimen/src/bench-runtime.ts",
       "staged_sha256": "c6ce5889f316575e7351ad9d4d94a0d377952a63d0b41746add91c6683ee9967",
-      "current_import_sha256": "c6ce5889f316575e7351ad9d4d94a0d377952a63d0b41746add91c6683ee9967",
+      "current_import_sha256": "093a434890f406aac8be8ad33a3751709841e084ad926186f1ca3df6f00fcf8b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/bench-worker-client.ts",
@@ -585,11 +585,11 @@
       "upstream_sha256": "5e7bed3421aa729b4f857a3b87c4a7887ac9415d68a9395651ad70356c177522",
       "staged_path": "packages/specimen/src/browser/capture.ts",
       "staged_sha256": "5e7bed3421aa729b4f857a3b87c4a7887ac9415d68a9395651ad70356c177522",
-      "current_import_sha256": "5e7bed3421aa729b4f857a3b87c4a7887ac9415d68a9395651ad70356c177522",
+      "current_import_sha256": "bba875c3e6b7c590e8f41ea4efd1cfc0f1f4606eaf0c90ede8d03bccfc788a7d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/browser/html-observation.ts",
@@ -597,11 +597,11 @@
       "upstream_sha256": "e85e11cbb3589c058c2f9b0ece8a5b354d5d357fef265f93398b5400ca6f842c",
       "staged_path": "packages/specimen/src/browser/html-observation.ts",
       "staged_sha256": "e85e11cbb3589c058c2f9b0ece8a5b354d5d357fef265f93398b5400ca6f842c",
-      "current_import_sha256": "e85e11cbb3589c058c2f9b0ece8a5b354d5d357fef265f93398b5400ca6f842c",
+      "current_import_sha256": "f586a90b469f008592346ce7867002085682a1788cc0c3eebff7517e0a0113b4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/browser/index.ts",
@@ -609,11 +609,11 @@
       "upstream_sha256": "0aa40ffd93b8c398ebb203e6c1a3d30a37283c261f6cbc14da22458348cebea9",
       "staged_path": "packages/specimen/src/browser/index.ts",
       "staged_sha256": "0aa40ffd93b8c398ebb203e6c1a3d30a37283c261f6cbc14da22458348cebea9",
-      "current_import_sha256": "0aa40ffd93b8c398ebb203e6c1a3d30a37283c261f6cbc14da22458348cebea9",
+      "current_import_sha256": "1b29aa77a25f95ba4a0a820f6ce6a787c150a45a1ce9c4a6958e38dfc267c90b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/browser/instrumentation.ts",
@@ -633,11 +633,11 @@
       "upstream_sha256": "497e8ad7cd6373ae4ad5879a7c0b9f814e3077a500ff7404b0f732d210bf1be6",
       "staged_path": "packages/specimen/src/browser/page.ts",
       "staged_sha256": "497e8ad7cd6373ae4ad5879a7c0b9f814e3077a500ff7404b0f732d210bf1be6",
-      "current_import_sha256": "497e8ad7cd6373ae4ad5879a7c0b9f814e3077a500ff7404b0f732d210bf1be6",
+      "current_import_sha256": "77e839a6a92ad9bacc98af7b6eec92da3b2b4a92be48deac274c90192e7294ef",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/browser/validate.ts",
@@ -693,11 +693,11 @@
       "upstream_sha256": "0af6a6ce3370540ce2ef1e14458de4e90bfdc053674b2ffeea4ac81dfd0d89be",
       "staged_path": "packages/specimen/src/feasibility.test.ts",
       "staged_sha256": "0af6a6ce3370540ce2ef1e14458de4e90bfdc053674b2ffeea4ac81dfd0d89be",
-      "current_import_sha256": "0af6a6ce3370540ce2ef1e14458de4e90bfdc053674b2ffeea4ac81dfd0d89be",
+      "current_import_sha256": "d3fbca97f29a2850783c3d8a65b857233853f9004285be553bd6a45ad55d8120",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/index.ts",
@@ -765,11 +765,11 @@
       "upstream_sha256": "09c8a7ae03929807198fb977b06daa655537f1db50a3d7d9d01b2f831223f22d",
       "staged_path": "packages/specimen/src/schema.ts",
       "staged_sha256": "8c5269378f112d21ad06484ceefa033a9b0671eb3961f3401cb190709ea6bf36",
-      "current_import_sha256": "8c5269378f112d21ad06484ceefa033a9b0671eb3961f3401cb190709ea6bf36",
+      "current_import_sha256": "43abc783e7e496ada5ea22d8a49f0f783557985dc3dbc9c076707405b677654e",
       "stage_classification": "modified-upstream",
       "stage_reason": "Move observation/build data validators into the native public schema module",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/types.ts",
@@ -777,11 +777,11 @@
       "upstream_sha256": "4973c2aff8f6411fc44a342de0b7ae85248af25b441157950e15fde0e2906ea5",
       "staged_path": "packages/specimen/src/types.ts",
       "staged_sha256": "4973c2aff8f6411fc44a342de0b7ae85248af25b441157950e15fde0e2906ea5",
-      "current_import_sha256": "4973c2aff8f6411fc44a342de0b7ae85248af25b441157950e15fde0e2906ea5",
+      "current_import_sha256": "45e0663b2d83e8a2fb9e26e68ec4c4939f31b059ff4cde08926c18ed0888989c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged candidate bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact staged candidate bytes; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/src/vite.ts",
@@ -813,11 +813,11 @@
       "upstream_sha256": "126cde4e0f04b802cfea584b4508463730e7a45a46e7e2e9283bd8d6f7669446",
       "staged_path": "packages/specimen/tsconfig.typecheck.json",
       "staged_sha256": "126cde4e0f04b802cfea584b4508463730e7a45a46e7e2e9283bd8d6f7669446",
-      "current_import_sha256": "b81cffac0b28d8937659277454f950844d37a9ba71bc1dcba782a874cc5ea14d",
+      "current_import_sha256": "7a3dff69fe301cf2d7ceb1f36f43ce7935744480c67dfcd3396011687f1e5c05",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Type-check vitest.unit.config.ts"
+      "import_reason": "Type-check vitest.unit.config.ts; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "foundations/specimen/vitest.config.ts",
@@ -837,11 +837,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "fa7d4295f41cfc95c2393ce6ec52610f38037f0ca9f1c6c2182a0e073638b721",
+      "current_import_sha256": "34ad27cf554a19c17748cb912392d469db45985d5e751ddc7dd9560dc1489dd6",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not present in the staged candidate",
       "import_classification": "added-after-staging",
-      "import_reason": "Browser-free configuration for the repository-wide pnpm test; coverage scoped to the modules it exercises"
+      "import_reason": "Browser-free configuration for the repository-wide pnpm test; coverage scoped to the modules it exercises; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "integrations/specimen-afd/README.md",
@@ -1017,11 +1017,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "986d958350e0c30c88e67a003382ad0aa79ce091dad709e6447300fe9087ae36",
+      "current_import_sha256": "6de2c26f70cd8ab366a69a2e7e8235a708b63bae136518c6a6cf295af6c6b16f",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Living Specimens progress ledger with source/validation evidence, gaps and remaining work; publication authority unchanged; independent merge review corrects the CPU-range wording and records optional profiler rejection fixtures; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
+      "import_reason": "Living Specimens progress ledger with source/validation evidence, gaps and remaining work; publication authority unchanged; independent merge review corrects the CPU-range wording and records optional profiler rejection fixtures; link PR 517 as the durable main-delivery record; T01 frozen consumer inputs, retained-story inventory and declared baseline policy; no measurement or runtime change; publication authority unchanged; T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     },
     {
       "path": "docs/features/active/specimens/frozen-inputs-inventory.md",
@@ -1178,6 +1178,102 @@
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
       "import_reason": "T02 CPU increase attribution: frozen-snapshot consumer support, fixed-work host-condition probe and evidence record; no product runtime change; publication authority unchanged"
+    },
+    {
+      "path": "docs/features/active/specimens/driver-context-validation.md",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "5abe3d17d147a0fbb62747aa78d37051205c8ee7176b97ec44a4a53d0e34d419",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/fixtures/context-matrix.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "f9a90b06ba5c8653d61d8e26b75e44991976d36653c5ce3f0c65b64da976821a",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/fixtures/context.stories.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "1ca89c9d8c00ff93dce0bfdc8bdde3ad150cf9b313c68669d908e3206edf65f2",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/fixtures/serve-static.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "0228977d2bbe5325d93c336fab9bba6eb6b339bb6f2fc95f0e9ab6ec0d492155",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/reference/drivers.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "d50fe9ef4421fcae227bb2f0f7c8d557d9dd906e0e88eb3d77cdd979cfe36ceb",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/src/drivers.test.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "68e7f8ef0c703554fd6911f0fedb23fa6325656b9a2a8f84560a3d2b7136bb3b",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/vitest.reference.config.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "5eddbe35c5f95ccdf5f1c2359e27ef2c7a926dd5dbffcf6f5a4f5aa301f64eff",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
+    },
+    {
+      "path": "foundations/specimen/reference/provider.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "1532cea363cea8d3235b2a0ef1c3f64ff9f0526bceeed097c444b2f4079d2f02",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged"
     }
   ]
 }

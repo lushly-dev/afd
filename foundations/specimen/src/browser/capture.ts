@@ -1,4 +1,4 @@
-import type { BrowserObservation, ElementObservation } from '../types.js';
+import type { BrowserObservation, ElementObservation, SpecimenContext } from '../types.js';
 
 const properties = [
 	'display',
@@ -247,6 +247,50 @@ export function captureDocument(
 			width: innerWidth,
 			height: innerHeight,
 			media: matchMedia('(max-width: 600px)').matches,
+			colorScheme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light',
+			reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches
+				? 'reduce'
+				: 'no-preference',
+			language: navigator.language,
+			devicePixelRatio,
 		},
 	};
+}
+
+/** Compare language tags as the browser does, so `EN-us` and `en-US` are one locale. */
+export function sameLocale(left: string, right: string): boolean {
+	try {
+		return Intl.getCanonicalLocales(left)[0] === Intl.getCanonicalLocales(right)[0];
+	} catch {
+		return left === right;
+	}
+}
+
+/**
+ * A driver that cannot emulate part of the requested context must say so: a document's
+ * attributes alone do not change what its media queries and navigator report.
+ */
+export function contextMismatches(
+	context: SpecimenContext,
+	observed: BrowserObservation['viewport']
+): string[] {
+	const reasons: string[] = [];
+	const { width, height } = context.viewport;
+	if (observed.width !== width || observed.height !== height)
+		reasons.push(
+			`Context mismatch: the viewport is ${observed.width}x${observed.height}, not the requested ${width}x${height}.`
+		);
+	if (observed.colorScheme !== context.theme)
+		reasons.push(
+			`Context mismatch: prefers-color-scheme is ${observed.colorScheme}, not the requested ${context.theme}; only the theme attribute and color-scheme apply.`
+		);
+	if (observed.reducedMotion !== context.reducedMotion)
+		reasons.push(
+			`Context mismatch: prefers-reduced-motion is ${observed.reducedMotion}, not the requested ${context.reducedMotion}.`
+		);
+	if (!sameLocale(observed.language, context.locale))
+		reasons.push(
+			`Context mismatch: navigator.language is ${observed.language}, not the requested ${context.locale}; only the lang attribute applies.`
+		);
+	return reasons;
 }

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const contextSchema = z.strictObject({
+const recordedContextSchema = z.strictObject({
 	viewport: z.strictObject({
 		width: z.number().int().min(1).max(8192),
 		height: z.number().int().min(1).max(8192),
@@ -15,6 +15,19 @@ export const contextSchema = z.strictObject({
 	locale: z.string().min(1),
 	reducedMotion: z.enum(['reduce', 'no-preference']),
 	motion: z.enum(['natural', 'settled']),
+});
+/** New requests need a BCP 47 locale; saved captures keep whatever locale they recorded. */
+export const contextSchema = recordedContextSchema.extend({
+	locale: z
+		.string()
+		.min(1)
+		.refine((value) => {
+			try {
+				return Intl.getCanonicalLocales(value).length === 1;
+			} catch {
+				return false;
+			}
+		}, 'Locale must be a BCP 47 language tag'),
 });
 export const captureRequestSchema = z.strictObject({
 	id: z.string().min(1),
@@ -66,7 +79,7 @@ export const observationSchema = z
 					.strict(),
 				dependencies: z.string().min(1),
 				browser: z.object({ name: z.string().min(1), version: z.string().min(1) }).strict(),
-				context: contextSchema,
+				context: recordedContextSchema,
 			})
 			.strict(),
 		channels: z

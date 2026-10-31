@@ -35,6 +35,9 @@ const valueOptions = new Set([
 	'viewport',
 	'container',
 	'theme',
+	'locale',
+	'reduced-motion',
+	'motion',
 	'screenshot',
 	'output',
 	'allow-context',
@@ -82,6 +85,9 @@ function validateOptions(parsed: ParsedArguments): void {
 			'viewport',
 			'container',
 			'theme',
+			'locale',
+			'reduced-motion',
+			'motion',
 			'screenshot',
 		]),
 		diff: new Set(['root', 'output', 'allow-context', 'require-visual']),
@@ -156,11 +162,20 @@ export async function runCli(args: string[], io: CliIO = {}): Promise<number> {
 				const container = parsed.options.get('container');
 				if (viewport) context.viewport = dimensions(viewport);
 				if (container) context.container = dimensions(container);
-				const theme = parsed.options.get('theme');
-				// Validate the raw value through the AFD schema rather than coercing a typo to a theme.
+				// Validate raw values through the AFD schema rather than coercing a typo to a context.
+				const raw: Record<string, string> = {};
+				for (const [option, field] of [
+					['theme', 'theme'],
+					['locale', 'locale'],
+					['reduced-motion', 'reducedMotion'],
+					['motion', 'motion'],
+				] as const) {
+					const value = parsed.options.get(option);
+					if (value) raw[field] = value;
+				}
 				const input = {
 					id: parsed.positionals[0],
-					context: { ...context, ...(theme ? { theme } : {}) },
+					context: { ...context, ...raw },
 					...(parsed.options.has('checkpoint')
 						? { checkpoint: parsed.options.get('checkpoint') }
 						: {}),

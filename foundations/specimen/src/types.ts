@@ -86,7 +86,16 @@ export interface BrowserObservation {
 	dom: string;
 	elements: ElementObservation[];
 	limitations: string[];
-	viewport: { width: number; height: number; media: boolean };
+	/** What the specimen document observes, compared with the requested context at capture. */
+	viewport: {
+		width: number;
+		height: number;
+		media: boolean;
+		colorScheme: 'light' | 'dark';
+		reducedMotion: 'reduce' | 'no-preference';
+		language: string;
+		devicePixelRatio: number;
+	};
 }
 export interface CaptureManifest {
 	captureVersion: string;

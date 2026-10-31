@@ -1,9 +1,10 @@
 import { mkdtemp, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { extname, join, relative, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { type Browser, chromium } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { serveStatic } from '../fixtures/serve-static.js';
 import { createInProcessBench as createSpecimenBench } from './bench-runtime.js';
 import { diffObservations } from './diff.js';
 import type { ElementObservation, Observation } from './types.js';
@@ -16,50 +17,6 @@ function element(capture: Observation, tag: string): ElementObservation {
 	const found = capture.channels.elements.find((entry) => entry.tag === tag);
 	if (!found) throw new Error(`No ${tag} observation in ${capture.manifest.specimenId}`);
 	return found;
-}
-
-async function serveStatic(directory: string): Promise<{ url: string; close(): Promise<void> }> {
-	const mime: Record<string, string> = {
-		'.html': 'text/html',
-		'.js': 'text/javascript',
-		'.css': 'text/css',
-		'.json': 'application/json',
-		'.png': 'image/png',
-	};
-	const server = createServer((request, response) => {
-		void (async () => {
-			try {
-				const pathname = decodeURIComponent(
-					new URL(request.url ?? '/', 'http://localhost').pathname
-				);
-				const file = resolve(directory, `.${pathname === '/' ? '/index.html' : pathname}`);
-				if (relative(directory, file).startsWith('..')) {
-					response.writeHead(403).end();
-					return;
-				}
-				const body = await readFile(file);
-				response.writeHead(200, {
-					'Content-Type': mime[extname(file)] ?? 'application/octet-stream',
-				});
-				response.end(body);
-			} catch {
-				response.writeHead(404).end();
-			}
-		})();
-	});
-	await new Promise<void>((resolveListen, reject) => {
-		server.once('error', reject);
-		server.listen(0, '127.0.0.1', resolveListen);
-	});
-	const address = server.address();
-	if (!address || typeof address === 'string') throw new Error('No static server address');
-	return {
-		url: `http://127.0.0.1:${address.port}`,
-		close: () =>
-			new Promise<void>((resolveClose, reject) => {
-				server.close((error) => (error ? reject(error) : resolveClose()));
-			}),
-	};
 }
 
 async function serveEventStream(): Promise<{ url: string; close(): Promise<void> }> {

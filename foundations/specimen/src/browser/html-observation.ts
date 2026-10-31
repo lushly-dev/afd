@@ -2,6 +2,23 @@
 export function observeHtmlConstruction(): readonly string[] {
 	const reasons: string[] = [];
 	const observed = new Set<string>();
+	// Captured before any specimen module loads. The native stringifier checks its receiver's
+	// internal slot and returns the policy's stored output, so it never runs user code.
+	const trusted = (globalThis as { TrustedHTML?: { prototype: { toString(): string } } })
+		.TrustedHTML;
+	const trustedToString = trusted?.prototype.toString;
+	const apply = Reflect.apply;
+
+	function trustedText(value: unknown): string | undefined {
+		if (!trustedToString || typeof value !== 'object' || value === null) return undefined;
+		try {
+			const text: unknown = apply(trustedToString, value, []);
+			return typeof text === 'string' ? text : undefined;
+		} catch {
+			// Not a genuine TrustedHTML: proxies and look-alikes fail the brand check.
+			return undefined;
+		}
+	}
 
 	function incomplete(api: string, detail: string): void {
 		const key = `${api}:${detail}`;
@@ -12,11 +29,16 @@ export function observeHtmlConstruction(): readonly string[] {
 		);
 	}
 
+	function text(value: unknown): string | undefined {
+		return typeof value === 'string' ? value : trustedText(value);
+	}
+
 	function inspect(value: unknown, api: string): void {
-		if (typeof value === 'string') {
-			if (/shadowrootmode/i.test(value)) incomplete(api, 'input contains shadowrootmode');
+		const html = text(value);
+		if (html !== undefined) {
+			if (/shadowrootmode/i.test(html)) incomplete(api, 'input contains shadowrootmode');
 		} else {
-			// TrustedHTML and other objects retain their native conversion behavior.
+			// Other objects retain their native conversion behavior.
 			// Calling String(value) here could invoke user code a second time.
 			incomplete(api, 'non-string HTML input cannot be inspected without coercion');
 		}
@@ -30,11 +52,12 @@ export function observeHtmlConstruction(): readonly string[] {
 			if (name.startsWith('stream')) incomplete(api, 'streamed HTML input cannot be inspected');
 			else if (name === 'write' || name === 'writeln') {
 				if (args.length) {
-					if (args.every((value) => typeof value === 'string')) inspect(args.join(''), api);
+					const parts = args.map(text);
+					if (parts.every((part) => part !== undefined)) inspect(parts.join(''), api);
 					else incomplete(api, 'non-string HTML input cannot be inspected without coercion');
 				}
 			} else inspect(args[inputIndex], api);
-			return Reflect.apply(original, this, args);
+			return apply(original, this, args);
 		};
 		try {
 			Object.defineProperty(target, name, {
@@ -55,7 +78,7 @@ export function observeHtmlConstruction(): readonly string[] {
 				...descriptor,
 				set(this: unknown, value: unknown) {
 					inspect(value, api);
-					Reflect.apply(original, this, [value]);
+					apply(original, this, [value]);
 				},
 			});
 		} catch {

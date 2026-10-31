@@ -1,5 +1,5 @@
 import type { MountHandle, SpecimenContext, SpecimenModule } from '../types.js';
-import { captureDocument, openElements } from './capture.js';
+import { captureDocument, contextMismatches, openElements } from './capture.js';
 import { installInstrumentation } from './instrumentation.js';
 import { validateSpecimen } from './validate.js';
 
@@ -47,6 +47,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	const mountRoot = root;
 	let active = false;
 	let motion: 'natural' | 'settled' = 'natural';
+	let requested: SpecimenContext | undefined;
 	const disposers: Disposer[] = [];
 
 	async function dispose(): Promise<void> {
@@ -60,6 +61,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		}
 		mountRoot.replaceChildren();
 		instrumentation.setMotionMode('natural');
+		requested = undefined;
 		active = false;
 		if (errors.length) {
 			const details = errors
@@ -98,6 +100,7 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 				mountRoot.style.height = `${context.container.height}px`;
 		}
 		motion = context.motion;
+		requested = context;
 		instrumentation.setMotionMode(motion);
 	}
 
@@ -164,6 +167,8 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			instrumentation.setMotionMode(motion);
 			const observation = captureDocument(mountRoot, instrumentation.closedHosts);
 			observation.limitations.push(...instrumentation.limitations);
+			if (requested)
+				observation.limitations.push(...contextMismatches(requested, observation.viewport));
 			return observation;
 		},
 		dispose,
