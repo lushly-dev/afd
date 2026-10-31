@@ -9,8 +9,19 @@
 //! unexposed tool returns a `COMMAND_NOT_FOUND` `CommandResult` as the tool result, so private
 //! commands are indistinguishable from missing ones (`spec/error-codes.md`, D4).
 //!
-//! This module covers the individual tool strategy only. Grouped and lazy strategies, the
-//! meta-tools and context scoping remain in the parity plan (D1).
+//! [`McpServer::with_tool_strategy`] chooses how `tools/list` presents the commands: grouped
+//! (the default, as in TypeScript), individual or lazy (see [`strategy`]). Every strategy serves
+//! the meta-tools `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail` (see
+//! [`meta_tools`]), and routes each through the same exposure, context and confirmation checks
+//! and the same [`CommandRegistry::execute`] as a command's own tool, so the
+//! registry's middleware, the approval middleware among them, wraps every execution.
+//!
+//! [`McpServer::with_contexts`] scopes commands by context ([`crate::contexts`]) and registers
+//! `afd-context-list`, `afd-context-enter` and `afd-context-exit`. An MCP 2026-07-28 request
+//! selects its context with `_meta["dev.afd/context"]` (stateless: the context tools never store
+//! anything); a 2025 stdio connection keeps one context stack; a 2025 request over the
+//! stateless Streamable HTTP endpoint has no session, so it has no active context and the
+//! context tools return `SESSION_REQUIRED`.
 //!
 //! [`McpServer::with_confirmations`] enforces `confirm_prompt` (see [`confirmations`]).
 //!
@@ -24,12 +35,11 @@
 //! # }
 //! ```
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use rmcp::model::{
-    CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, ListToolsResult,
-    PaginatedRequestParams, ServerCapabilities, ServerConfig, Tool,
+    CallToolRequestParams, CallToolResponse, ListToolsResult, PaginatedRequestParams,
+    ServerCapabilities, ServerConfig, Tool,
 };
 use rmcp::service::RequestContext;
 use rmcp::transport::streamable_http_server::{
@@ -38,8 +48,9 @@ use rmcp::transport::streamable_http_server::{
 use rmcp::{ErrorData, RoleServer, ServerHandler, ServiceExt};
 use serde_json::{json, Value};
 
+use crate::contexts::{ContextConfig, ContextScope, ContextStack, AFD_CONTEXT_META_KEY};
 use crate::{
-    failure, with_context_defaults, Actor, ActorKind, Clock, CommandContext, CommandError,
+    with_context_defaults, Actor, ActorKind, Clock, CommandContext, CommandDefinition,
     CommandInterface, CommandRegistry, ContextDefaults, RandomSource,
 };
 
@@ -49,11 +60,13 @@ pub const MODERN_PROTOCOL_VERSION: &str = "2026-07-28";
 /// Default freshness hint of `tools/list` results (5 minutes).
 pub const DEFAULT_TOOLS_LIST_TTL_MS: u64 = 300_000;
 
-static TRACE_COUNTER: AtomicU64 = AtomicU64::new(0);
-
 pub mod confirmations;
+pub mod meta_tools;
+mod router;
+pub mod strategy;
+use confirmations::Gate;
 pub use confirmations::{ConfirmationMode, AFD_CONFIRM_META_KEY};
-use confirmations::{Decision, Gate};
+pub use strategy::{GroupBy, ToolStrategy};
 
 /// Origin, Host and body-size policy for [`McpServer::streamable_http_service`].
 #[derive(Debug, Clone)]
@@ -86,7 +99,10 @@ struct Inner {
     version: String,
     instructions: Option<String>,
     tools: Option<Vec<Value>>,
-    tools_list_ttl_ms: u64,
+    tools_list_ttl_ms: Option<u64>,
+    strategy: ToolStrategy,
+    group_by: Option<GroupBy>,
+    contexts: Option<Arc<Vec<ContextConfig>>>,
     context_defaults: ContextDefaults,
     confirmations: Arc<Gate>,
     /// Whether a 2025 connection can receive server-sent requests (stdio: yes; the stateless
@@ -96,10 +112,14 @@ struct Inner {
 
 /// An MCP server for the MCP-exposed commands of a [`CommandRegistry`].
 ///
-/// Cloning is cheap: the HTTP service builds one handler per request from clones.
+/// Cloning is cheap: the HTTP service builds one handler per request from clones. Clones share
+/// the context stack of a 2025 connection, so serve each connection from its own server (as
+/// [`McpServer::serve_stdio`] does).
 #[derive(Clone)]
 pub struct McpServer {
     inner: Arc<Inner>,
+    /// The context stack of a 2025 connection (stdio); `None` on stateless HTTP.
+    session: Option<ContextStack>,
 }
 
 impl McpServer {
@@ -116,7 +136,10 @@ impl McpServer {
                 version: version.into(),
                 instructions: None,
                 tools: None,
-                tools_list_ttl_ms: DEFAULT_TOOLS_LIST_TTL_MS,
+                tools_list_ttl_ms: None,
+                strategy: ToolStrategy::default(),
+                group_by: None,
+                contexts: None,
                 context_defaults: ContextDefaults::new().with_actor(ActorKind::Agent),
                 confirmations: Arc::new(
                     Gate::new(ConfirmationMode::Off, None)
@@ -124,6 +147,7 @@ impl McpServer {
                 ),
                 legacy_back_channel: true,
             }),
+            session: Some(ContextStack::new()),
         }
     }
 
@@ -135,6 +159,9 @@ impl McpServer {
             instructions: shared.instructions.clone(),
             tools: shared.tools.clone(),
             tools_list_ttl_ms: shared.tools_list_ttl_ms,
+            strategy: shared.strategy,
+            group_by: shared.group_by.clone(),
+            contexts: shared.contexts.clone(),
             context_defaults: shared.context_defaults.clone(),
             confirmations: Arc::clone(&shared.confirmations),
             legacy_back_channel: shared.legacy_back_channel,
@@ -142,6 +169,7 @@ impl McpServer {
         change(&mut inner);
         Self {
             inner: Arc::new(inner),
+            session: self.session,
         }
     }
 
@@ -159,8 +187,38 @@ impl McpServer {
     }
 
     /// `ttlMs` freshness hint of `tools/list` results (0 when the command set can change).
+    /// Default: [`DEFAULT_TOOLS_LIST_TTL_MS`], or 0 with contexts, because `tools/list` then
+    /// varies by `_meta["dev.afd/context"]`, which clients leave out of their cache key.
     pub fn with_tools_list_ttl_ms(self, ttl_ms: u64) -> Self {
-        self.with(|inner| inner.tools_list_ttl_ms = ttl_ms)
+        self.with(|inner| inner.tools_list_ttl_ms = Some(ttl_ms))
+    }
+
+    /// How `tools/list` presents the commands. Default: [`ToolStrategy::Grouped`], as in
+    /// TypeScript. Every strategy routes every meta-tool and every command by its own name.
+    pub fn with_tool_strategy(self, strategy: ToolStrategy) -> Self {
+        self.with(|inner| inner.strategy = strategy)
+    }
+
+    /// Name the grouped tool of each command (default: its `category`, else the first segment
+    /// of its name; `None` or an empty name is `general`).
+    pub fn with_group_by(
+        self,
+        group_by: impl Fn(&CommandDefinition) -> Option<String> + Send + Sync + 'static,
+    ) -> Self {
+        let group_by: GroupBy = Arc::new(group_by);
+        self.with(|inner| inner.group_by = Some(group_by))
+    }
+
+    /// Scope commands by these contexts and register `afd-context-list`, `afd-context-enter` and
+    /// `afd-context-exit` into the registry (see the [module documentation](self)).
+    ///
+    /// # Errors
+    /// No contexts, a blank or repeated name, or a registry that already has a command with a
+    /// context command's name ([`crate::register_context_commands`]).
+    pub fn with_contexts(self, contexts: Vec<ContextConfig>) -> Result<Self, String> {
+        crate::register_context_commands(&self.inner.registry, contexts.clone())?;
+        let contexts = Arc::new(contexts);
+        Ok(self.with(|inner| inner.contexts = Some(contexts)))
     }
 
     /// The actor on every tool call's context. Default: `{ kind: "agent" }`, reported as
@@ -233,34 +291,171 @@ impl McpServer {
         tool
     }
 
-    fn exposed(&self, name: &str) -> bool {
+    /// MCP-exposed commands, in registration order.
+    fn exposed_commands(&self) -> Vec<Arc<CommandDefinition>> {
         self.inner
             .registry
-            .get(name)
-            .is_some_and(|command| command.expose.mcp)
+            .list()
+            .into_iter()
+            .filter(|command| command.expose.mcp)
+            .collect()
     }
 
-    /// The listed tools: MCP-exposed commands, in registration order.
+    /// A command's tool: from [`McpServer::with_tools`] when it lists the command, else the
+    /// registry's.
+    fn command_tool(&self, name: &str) -> Option<Value> {
+        self.inner
+            .tools
+            .as_ref()
+            .and_then(|tools| tools.iter().find(|tool| tool["name"] == name).cloned())
+            .or_else(|| self.inner.registry.get_tool(name))
+    }
+
+    /// The listed tools with no active context (see [`McpServer::with_tool_strategy`]).
     pub fn tools(&self) -> Vec<Value> {
-        let tools: Vec<Value> = match &self.inner.tools {
-            Some(tools) => tools
-                .iter()
-                .filter(|tool| tool["name"].as_str().is_some_and(|name| self.exposed(name)))
-                .cloned()
-                .collect(),
-            None => self
-                .inner
-                .registry
-                .list()
-                .iter()
-                .filter(|command| command.expose.mcp)
-                .filter_map(|command| self.inner.registry.get_tool(&command.name))
-                .collect(),
-        };
-        tools
+        self.tools_in(None)
+    }
+
+    /// The listed tools while `active` is the active context.
+    fn tools_in(&self, active: Option<&str>) -> Vec<Value> {
+        let mut tools = Vec::new();
+        if self.inner.strategy == ToolStrategy::Lazy {
+            tools.push(meta_tools::discover_tool());
+            tools.push(meta_tools::detail_tool());
+            tools.extend(strategy::built_in_tools());
+            return tools;
+        }
+        let in_context: Vec<Arc<CommandDefinition>> = self
+            .exposed_commands()
             .into_iter()
-            .map(|tool| self.with_confirm_argument(tool))
-            .collect()
+            .filter(|command| command.is_accessible_in_context(active))
+            .collect();
+        tools.extend(strategy::built_in_tools());
+        if self.inner.strategy == ToolStrategy::Individual {
+            let listed: Vec<Value> = match &self.inner.tools {
+                Some(defined) => defined
+                    .iter()
+                    .filter(|tool| {
+                        in_context
+                            .iter()
+                            .any(|command| tool["name"] == command.name.as_str())
+                    })
+                    .cloned()
+                    .collect(),
+                None => in_context
+                    .iter()
+                    .filter_map(|command| self.inner.registry.get_tool(&command.name))
+                    .collect(),
+            };
+            tools.extend(
+                listed
+                    .into_iter()
+                    .map(|tool| self.with_confirm_argument(tool)),
+            );
+            return tools;
+        }
+        let enforce = self.inner.confirmations.mode == ConfirmationMode::Enforce;
+        let listed: Vec<strategy::Listed> = in_context
+            .into_iter()
+            .map(|command| {
+                let tool = self.command_tool(&command.name);
+                let accepts_confirm = enforce
+                    && command.confirm_prompt.is_some()
+                    && !confirmations::declares_confirm(tool.as_ref());
+                strategy::Listed {
+                    command,
+                    tool,
+                    accepts_confirm,
+                }
+            })
+            .collect();
+        tools.push(meta_tools::detail_tool());
+        tools.extend(strategy::grouped_tools(
+            &listed,
+            self.inner.group_by.as_ref(),
+        ));
+        tools
+    }
+
+    /// The context command executions start from: interface `mcp`, the configured actor, clock
+    /// and random source, and the remote flag (D4).
+    fn base_context(&self) -> CommandContext {
+        let mut context = CommandContext::new().with_interface(CommandInterface::Mcp);
+        context.remote = true;
+        with_context_defaults(context, &self.inner.context_defaults)
+    }
+
+    /// The context state of one request: none without contexts; on MCP 2026-07-28 the
+    /// `_meta["dev.afd/context"]` context, for that request only; on a 2025 connection its
+    /// stack, or no session over stateless HTTP.
+    ///
+    /// # Errors
+    /// `-32602` for a `_meta` context the server does not configure.
+    fn request_scope(
+        &self,
+        context: &RequestContext<RoleServer>,
+    ) -> Result<Option<ContextScope>, ErrorData> {
+        let Some(contexts) = &self.inner.contexts else {
+            return Ok(None);
+        };
+        if !confirmations::is_modern(context) {
+            return Ok(Some(match &self.session {
+                Some(stack) => ContextScope::Session(stack.clone()),
+                None => ContextScope::NoSession,
+            }));
+        }
+        let requested = match context.meta.get(AFD_CONTEXT_META_KEY) {
+            None => return Ok(Some(ContextScope::Request(None))),
+            Some(requested) => requested,
+        };
+        match requested.as_str() {
+            Some(name) if contexts.iter().any(|config| config.name == name) => {
+                Ok(Some(ContextScope::Request(Some(name.to_owned()))))
+            }
+            _ => {
+                let names: Vec<&str> = contexts.iter().map(|config| config.name.as_str()).collect();
+                Err(ErrorData::invalid_params(
+                    format!("Unknown context in _meta[\"{AFD_CONTEXT_META_KEY}\"]"),
+                    Some(json!({ "suggestion": format!("Use one of: {}", names.join(", ")) })),
+                ))
+            }
+        }
+    }
+
+    fn default_instructions(&self) -> String {
+        let inner = &self.inner;
+        let mut lines = vec![format!(
+            "{} is an AFD server. Every tool returns a CommandResult as JSON text: \
+             {{ success, data, error: {{ code, message, suggestion }} }}; follow \
+             error.suggestion to recover.",
+            inner.name
+        )];
+        lines.push(
+            match inner.strategy {
+                ToolStrategy::Lazy => "Call afd-discover to find commands, afd-detail for a command schema, and afd-call to run one.",
+                ToolStrategy::Grouped => "Each tool groups related commands: pass { action, params }. afd-detail returns a command schema; afd-call runs any command by name.",
+                ToolStrategy::Individual => "Each command is its own tool; afd-call also runs any command by name.",
+            }
+            .to_owned(),
+        );
+        lines.push(
+            "Use afd-batch for several independent commands and afd-pipe to chain them.".to_owned(),
+        );
+        let bootstrap = crate::AFD_BOOTSTRAP_COMMAND_NAMES.iter().all(|name| {
+            inner
+                .registry
+                .get(name)
+                .is_some_and(|command| command.expose.mcp)
+        });
+        if bootstrap {
+            lines.push("afd-help, afd-docs and afd-schema describe this server.".to_owned());
+        }
+        if inner.contexts.is_some() {
+            lines.push(format!(
+                "Commands are scoped by context (afd-context-list lists them). Send _meta[\"{AFD_CONTEXT_META_KEY}\"] with a context name on tools/list and tools/call to work in that context."
+            ));
+        }
+        lines.join(" ")
     }
 
     /// The Streamable HTTP endpoint as a `tower` service, for mounting in an HTTP server
@@ -276,8 +471,10 @@ impl McpServer {
         config.allowed_hosts = options.allowed_hosts;
         config.allowed_origins = options.allowed_origins;
         let config = config.enforce_origin_validation_if_empty();
-        // Stateless HTTP: a 2025 request cannot receive server-sent requests.
-        let server = self.clone().with(|inner| inner.legacy_back_channel = false);
+        // Stateless HTTP: a 2025 request cannot receive server-sent requests, and has no session
+        // to hold a context stack.
+        let mut server = self.clone().with(|inner| inner.legacy_back_channel = false);
+        server.session = None;
         StreamableHttpService::new(
             move || Ok(server.clone()),
             Arc::new(LocalSessionManager::default()),
@@ -290,7 +487,12 @@ impl McpServer {
     /// # Errors
     /// Returns the SDK error message when the connection cannot be established.
     pub async fn serve_stdio(self) -> Result<(), String> {
-        let service = self
+        // One connection, one context stack.
+        let server = Self {
+            session: Some(ContextStack::new()),
+            ..self
+        };
+        let service = server
             .serve(rmcp::transport::stdio())
             .await
             .map_err(|error| format!("MCP stdio server failed to start: {error}"))?;
@@ -299,14 +501,6 @@ impl McpServer {
             .await
             .map(|_| ())
             .map_err(|error| format!("MCP stdio server stopped: {error}"))
-    }
-
-    fn trace_id() -> String {
-        let nanos = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |elapsed| elapsed.as_nanos());
-        let count = TRACE_COUNTER.fetch_add(1, Ordering::Relaxed);
-        format!("mcp-{nanos:x}-{count}")
     }
 }
 
@@ -335,28 +529,38 @@ impl ServerHandler for McpServer {
         let mut info = ServerConfig::new(ServerCapabilities::builder().enable_tools().build());
         info.server_info.name = self.inner.name.clone();
         info.server_info.version = self.inner.version.clone();
-        info.instructions = Some(self.inner.instructions.clone().unwrap_or_else(|| {
-            format!(
-                "{} is an AFD server. Every tool returns a CommandResult as JSON text: \
-                 {{ success, data, error: {{ code, message, suggestion }} }}; follow \
-                 error.suggestion to recover.",
-                self.inner.name
-            )
-        }));
+        info.instructions = Some(
+            self.inner
+                .instructions
+                .clone()
+                .unwrap_or_else(|| self.default_instructions()),
+        );
         info
     }
 
     async fn list_tools(
         &self,
         _request: Option<PaginatedRequestParams>,
-        _context: RequestContext<RoleServer>,
+        context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
+        let active = self
+            .request_scope(&context)?
+            .and_then(|scope| scope.active());
         let tools: Vec<Tool> =
-            serde_json::from_value(Value::Array(self.tools())).map_err(internal)?;
+            serde_json::from_value(Value::Array(self.tools_in(active.as_deref())))
+                .map_err(internal)?;
+        let ttl_ms = self
+            .inner
+            .tools_list_ttl_ms
+            .unwrap_or(if self.inner.contexts.is_some() {
+                0
+            } else {
+                DEFAULT_TOOLS_LIST_TTL_MS
+            });
         serde_json::from_value(json!({
             "resultType": "complete",
             "tools": tools,
-            "ttlMs": self.inner.tools_list_ttl_ms,
+            "ttlMs": ttl_ms,
             "cacheScope": "public",
         }))
         .map_err(internal)
@@ -367,62 +571,6 @@ impl ServerHandler for McpServer {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
-        let name = request.name.as_ref();
-        let result = if self.exposed(name) {
-            let gate = &self.inner.confirmations;
-            let prompt = self
-                .inner
-                .registry
-                .get(name)
-                .and_then(|command| command.confirm_prompt.clone());
-            let decision = match prompt {
-                Some(prompt) if gate.mode != ConfirmationMode::Off => {
-                    let tool = self.inner.registry.get_tool(name);
-                    confirmations::check(
-                        gate,
-                        name,
-                        &prompt,
-                        tool.as_ref(),
-                        &request,
-                        &context,
-                        self.inner.legacy_back_channel,
-                    )
-                    .await
-                }
-                _ => {
-                    Decision::Proceed(Value::Object(request.arguments.clone().unwrap_or_default()))
-                }
-            };
-            match decision {
-                Decision::Ask(response) => return Ok(response),
-                Decision::Refuse(error) => failure(error),
-                Decision::Proceed(input) => {
-                    let context = CommandContext::new()
-                        .with_trace_id(Self::trace_id())
-                        .with_interface(CommandInterface::Mcp);
-                    let context = with_context_defaults(context, &self.inner.context_defaults);
-                    self.inner
-                        .registry
-                        .execute(name, input, Some(context))
-                        .await
-                }
-            }
-        } else {
-            // Unknown and unexposed commands look the same from outside.
-            let shown: String = name.chars().take(64).collect();
-            failure(
-                CommandError::new("COMMAND_NOT_FOUND", format!("Unknown tool: {shown}"))
-                    .with_suggestion("Call tools/list to see the available tools")
-                    .with_retryable(false),
-            )
-        };
-        let text = serde_json::to_string(&result).map_err(internal)?;
-        let content = vec![ContentBlock::text(text)];
-        Ok(if result.success {
-            CallToolResult::success(content)
-        } else {
-            CallToolResult::error(content)
-        }
-        .into())
+        router::route(self, &request, &context).await
     }
 }

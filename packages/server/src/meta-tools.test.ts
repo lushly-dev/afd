@@ -3,6 +3,7 @@
  * validation: invalid arguments return structured failures, never thrown errors.
  */
 
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -221,6 +222,13 @@ describe('meta-tool definitions', () => {
 				expect(tool.inputSchema).not.toHaveProperty(key);
 			}
 		}
+	});
+
+	it('equal spec/meta-tools.json, which the Rust server also lists', () => {
+		const shared = JSON.parse(
+			readFileSync(new URL('../../../spec/meta-tools.json', import.meta.url), 'utf8')
+		);
+		expect([callTool, batchTool, pipeTool, discoverTool, detailTool]).toEqual(shared);
 	});
 
 	it('accept every batch envelope the shared validator accepts', () => {

@@ -61,7 +61,7 @@ Limits of these checks:
   - exposure;
   - the batch, pipeline or stream executors;
   - unknown-command handling.
-- **Name parity is not behavioral parity.** Rust is 9 names short of TypeScript but has no stream executor and its MCP server covers the individual tool strategy only. Python is 97 names short, but 61 of those exist and are just not exported (see [Name parity](#name-parity-alfred-parity)).
+- **Name parity is not behavioral parity.** Rust is 9 names short of TypeScript but has no stream executor. Python is 97 names short, but 61 of those exist and are just not exported (see [Name parity](#name-parity-alfred-parity)).
 - **The behavior vectors cover pipeline references, conditions, executor controls, validation (loaded by all four implementations) and the error-code catalog.** Streams and single-command dispatch have no vectors yet, so a change there can still drift unnoticed.
 
 ## Capability matrix
@@ -91,7 +91,7 @@ Limits of these checks:
 | Core metadata: name, description, category, tags, version, mutation, requires, contexts, expose, handoff, examples, executionTime | Yes | Partial: the decorator has no `errors` or `execution_time`; `MCPServer.command` drops `handoff` | Yes | Yes (`requires` is `prerequisites`) |
 | `destructive`, `confirmPrompt`, `undoable` ([`spec/command-metadata.md`](../spec/command-metadata.md)) | Yes: on core `CommandDefinition` and `defineCommand`; `_meta` has `destructive` and `undoable`, afd-detail all three | Yes: on `CommandDefinition`, `define_command` and `@server.command`; same surfaces as TypeScript | Yes: on `CommandDefinition` (`with_destructive`, `with_confirm_prompt`, `with_undoable`); afd-help (full) and afd-docs, no `_meta` | Yes |
 | `approval` policy, `_meta.approval` ([`spec/command-metadata.md`](../spec/command-metadata.md#approvals), #272) | Yes: on core `CommandDefinition` and `defineCommand`; `_meta`, afd-detail and afd-docs | Yes: on `CommandDefinition`, `define_command` and `@server.command`; same surfaces as TypeScript, and `afd validate` warns on a mutation or destructive tool without one | Yes: `CommandDefinition::with_approval` (`ApprovalPolicy::when` for a function); `_meta` on `get_tool`, `afd-help` (full) and afd-docs | Yes (#422): `CommandDefinition::approval` (an `ApprovalDecision` or a function), `approval_mode`; the todo backend reports `_meta.approval` (C++ has no afd-detail or afd-docs) |
-| `confirmPrompt` enforcement ([`spec/command-metadata.md`](../spec/command-metadata.md#confirmations)) | Yes: `confirmations` server option, elicitation on `/mcp` and stdio, acknowledgement fallback; client `onElicitation`, CLI prompt | Yes: `create_server(confirmations=...)`, elicitation on 2026-07-28 and stateful 2025 connections; no client handler yet | Yes: `McpServer::with_confirmations`, individual tools; elicitation on 2026-07-28 and 2025 stdio | Planned |
+| `confirmPrompt` enforcement ([`spec/command-metadata.md`](../spec/command-metadata.md#confirmations)) | Yes: `confirmations` server option, elicitation on `/mcp` and stdio, acknowledgement fallback; client `onElicitation`, CLI prompt | Yes: `create_server(confirmations=...)`, elicitation on 2026-07-28 and stateful 2025 connections; no client handler yet | Yes: `McpServer::with_confirmations`, individual, grouped and meta-tools; elicitation on 2026-07-28 and 2025 stdio | Planned |
 | Kebab-case name rule | Warns in `defineCommand` | Yes: warns in `define_command` and in the core registry for a raw definition | Yes, rejects at registration | Yes, rejects at registration |
 | Duplicate and reserved names | Throws for meta-tools, and for bootstrap and context names when enabled | Partial: meta-tools only; a command named like a bootstrap tool silently shadows it | Partial: bootstrap names only | Yes: meta-tools (C++ has no bootstrap or context tools) |
 | Input validated before the handler ([`spec/validation.md`](../spec/validation.md)) | Yes: Zod | Yes: advertised JSON Schema enforced before middleware, then Pydantic conversion where applicable | Yes: legacy parameters or additive `register_with_schema`; use `get_tool` for authoritative discovery | Yes: required subset; unsupported optional keywords reject registration |
@@ -104,9 +104,9 @@ Limits of these checks:
 | Capability | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
 | Dispatch order: lookup, context, validation, middleware, handler, stamp, `onCommand` | Reference | Partial: matches through the stamp; no `onCommand` hook | Partial: no stamping or hooks | Yes |
-| "Did you mean" on an unknown command | Yes | Yes | Yes (points to `afd-help`) | Yes |
+| "Did you mean" on an unknown command | Yes | Yes | Yes (points to `afd-help`, or `afd-discover` over MCP) | Yes |
 | Exposure enforced | Yes: the remote engine holds only MCP-exposed commands | Yes | Yes | Yes, when `context.surface` is set |
-| Active-context scoping | Yes: a stack per session, depth 16 | Yes: trusted transport-session stacks, depth 16; stateless HTTP mutation returns `SESSION_REQUIRED` | No: `contexts` is metadata only | Partial: `active_context` is supplied by the caller |
+| Active-context scoping | Yes: a stack per session, depth 16 | Yes: trusted transport-session stacks, depth 16; stateless HTTP mutation returns `SESSION_REQUIRED` | Yes: `CommandRegistry::execute` enforces `with_active_context` or a `ContextStack` (depth 16), for batch items and pipeline steps too; the MCP server keeps a stack per 2025 stdio connection, and stateless HTTP mutation returns `SESSION_REQUIRED` | Partial: `active_context` is supplied by the caller |
 | Result metadata stamped (`executionTimeMs`, `commandVersion`, `traceId`) | Yes | Yes | No | Yes |
 | `onCommand` / `onError` hooks | Yes | No | No | Yes |
 | A thrown error becomes a redacted `COMMAND_EXECUTION_ERROR` | Yes (`devMode` shows detail) | Yes (`dev_mode` shows detail in the server, `create_command_registry`, `execute_pipeline` and `SimpleRegistry`) | Yes: a panic in `execute`, a batch or a pipeline (`execution_failure`); there is no dev mode to show detail | Yes, when built with exceptions |
@@ -158,12 +158,12 @@ Limits of these checks:
 | MCP server in the library | Yes (SDK v2) | Yes (`mcp` 2.x `MCPServer`) | Yes: `server` feature (`rmcp`), off by default, needs Rust 1.88 | Deferred: the todo backend hand-rolls stdio (#341) |
 | MCP 2026-07-28 (stateless, per-request `_meta`, `server/discover`) and 2025 `initialize` on one endpoint or connection | Yes: `/mcp` and stdio | Yes: stdio and Streamable HTTP | Yes: Streamable HTTP and stdio | Todo backend stdio only |
 | MCP Streamable HTTP | Yes: `/mcp`; the 2024-11-05 `/sse` + `/message` lane is deprecated | Yes, through `run`, `run_async` and `streamable_http_app` | Yes (`streamable_http_service`) | N/A: no HTTP by design |
-| Contexts as request input (`_meta["dev.afd/context"]`) on the modern era | Yes | Yes | N/A: no contexts yet | N/A |
+| Contexts as request input (`_meta["dev.afd/context"]`) on the modern era | Yes | Yes | Yes (`McpServer::with_contexts`) | N/A |
 | MCP tool fields: annotations, `structuredContent`, CommandResult `outputSchema` ([`spec/command-metadata.md`](../spec/command-metadata.md#mcp-tool-fields-mcp-2026-07-28-tool-surface)) | Yes | Partial: annotations | Partial: annotations | Partial: annotations (todo backend) |
-| Tool strategies: individual, grouped, lazy | Yes (default grouped) | Partial: default individual; all strategies serve discovery/detail, but grouped per-action schema/default alignment remains planned | No | Deferred |
-| Meta-tools: `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail` | Yes | Yes | No | Deferred |
+| Tool strategies: individual, grouped, lazy | Yes (default grouped) | Partial: default individual; all strategies serve discovery/detail, but grouped per-action schema/default alignment remains planned | Yes (default grouped, `with_tool_strategy`, `with_group_by`) | Deferred |
+| Meta-tools: `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail` | Yes | Yes | Yes: definitions equal TypeScript's (`spec/meta-tools.json`) | Deferred |
 | Bootstrap: `afd-help`, `afd-docs`, `afd-schema` | Yes, opt-in | Partial: always registered and MCP-exposed | Yes (`register_bootstrap_commands`) | Deferred |
-| Context tools: `afd-context-list`, `-enter`, `-exit` | Yes | Yes: backed by trusted transport sessions, with a deliberate local/default scope | No | No |
+| Context tools: `afd-context-list`, `-enter`, `-exit` | Yes | Yes: backed by trusted transport sessions, with a deliberate local/default scope | Yes (`register_context_commands`; `McpServer::with_contexts`) | No |
 | HTTP hardening: Host/Origin checks, body cap | Yes | SDK `transport_security` defaults (foreign `Origin` refused); body cap through `max_request_body_size` | Yes: `HttpOptions` (unlisted origins refused) | N/A |
 | MCP JSON-RPC types and helpers | Yes | Partial: Pythonic names; no notification type or error-code constants | Yes | Deferred |
 
@@ -209,7 +209,7 @@ These gaps are planned. They are listed so the name budgets stay honest. D1/D2/D
   - connectors;
   - `CommandParameter`;
   - streamable-command metadata.
-- **Rust** (the `afd-rust` skill's parity note): an MCP server, active-context scoping at execution time, and the server-side tool strategies.
+- **Rust** (the `afd-rust` skill's parity note): a hybrid tool strategy (proposed), `structuredContent` and full `_meta` on the server's tools, and reserved meta-tool names at registration.
 
 **Accepted role decisions (D6).** Native MCP clients, CLIs, testing toolkits and handoff clients are N/A; Python auth is planned. Remaining implementation gaps include:
 
@@ -247,7 +247,6 @@ Ordered by how much an agent or a security boundary is affected.
 10. **Add a stream executor to Python and Rust,** and a public batch executor to Python. Collapse Python's two pipeline engines into one.
 11. **Rust single-command engine:**
     - result metadata stamping;
-    - active-context scoping;
     - `onCommand` and `onError` hooks;
     - the built-in middleware bundle.
 12. **Validation alignment in the candidate.** [`spec/validation.md`](../spec/validation.md) and 34 cases / 130 tests cover the required subset in all four languages. Python executes all 130; Rust executes 102 and rejects 28 tests across unsupported optional cases; C++ executes 98 and rejects 32. These rejection checks are conformance to the subset contract, not skipped tests.
@@ -325,7 +324,7 @@ The Python README and skill examples listed here previously were corrected in #3
 1. **Validate and deliver the candidate boundary fixes.** C++ `DirectClient` parent cancellation was fixed in #315; custom TypeScript pipeline exception redaction is fixed in this candidate (#366). Publication remains separate.
 2. **Complete review and release gates for the validation candidate** (#310, #311, #312). All four suites now load validation, reference and executor-control vectors; fresh review fixes need final validation before merge.
 3. **Write the unknown and unexposed error codes into a spec,** and add the emitted codes to the `ErrorCodes` catalog. Done: [`spec/error-codes.md`](../spec/error-codes.md).
-4. **Extend the [AFD protocol conformance tier](../spec/protocol-conformance.md).** All four backends run the todo suite in both MCP eras. Rust's grouped and lazy strategies, meta-tools and contexts (D1), the C++ `afd::mcp_stdio` target (#341) and a shared executable protocol fixture remain follow-up work.
+4. **Extend the [AFD protocol conformance tier](../spec/protocol-conformance.md).** All four backends run the todo suite in both MCP eras. Rust's server tiers are in the acceptance index (D1); the C++ `afd::mcp_stdio` target (#341) and a shared executable protocol fixture remain follow-up work.
 5. **Python export cleanup:** resolve the `afd.direct` name collisions, then re-export the pipeline, similarity and registry contract. This removes 61 names from the budget.
 6. **Decide the undeclared gaps** listed under [Declared deferred](#declared-deferred), and record each decision here.
 

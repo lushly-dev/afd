@@ -6,8 +6,9 @@
 //! so that they list themselves alongside the application's commands.
 //!
 //! When the calling [`CommandContext`] has an `interface`, they describe only
-//! the commands exposed to that interface. They are themselves exposed to
-//! MCP, as in TypeScript.
+//! the commands exposed to that interface, and with an active context only the
+//! commands available in it ([`crate::contexts`]). They are themselves exposed
+//! to MCP, as in TypeScript.
 
 mod afd_docs;
 mod afd_help;
@@ -93,7 +94,8 @@ impl RegistryRef {
     }
 
     /// The commands the calling context may see: all of them, or only those
-    /// exposed to `context.interface` when it is set.
+    /// exposed to `context.interface` when it is set, and only those available
+    /// in its active context.
     pub(crate) fn describable_commands(
         &self,
         context: &CommandContext,
@@ -113,10 +115,15 @@ impl RegistryRef {
                 )
             })?,
         };
-        Ok(match context.interface {
+        let commands = match context.interface {
             Some(interface) => registry.list_by_exposure(interface),
             None => registry.list(),
-        })
+        };
+        let active = context.active_context();
+        Ok(commands
+            .into_iter()
+            .filter(|command| command.is_accessible_in_context(active.as_deref()))
+            .collect())
     }
 }
 

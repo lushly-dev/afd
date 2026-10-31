@@ -878,6 +878,8 @@ NAME_GAP_BUDGET = {
     # Python 91 → 88 (#420): ApprovalDecision, ApprovalPolicy and approval_mode.
     # C++ 79 → 76 (#422): afd-cpp exports ApprovalDecision, ApprovalPolicy and approval_mode.
     # #460 adds client-layer approval hooks; these core-export budgets stay unchanged.
+    # D1 (Rust server strategies, meta-tools and contexts) adds Rust-only server and context
+    # exports (ContextConfig, ContextStack, register_context_commands, ...): Rust stays at 9.
     "missing_from_python": 88,
     "missing_from_rust": 9,
     # 73 at first measurement (Phase 5 of the C++ plan). The deferred groups: MCP JSON-RPC
