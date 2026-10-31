@@ -53,6 +53,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | Feature | Description |
 |---------|-------------|
 | [Umbel](../../endpoints/umbel/README.md) | AFD Umbel, an empty Rust host for capability plugins over MCP and CLI, with knowledge, memory and context as first-party plugins; owner-approved direction, documented in `endpoints/umbel/` |
+| [Loam](../../endpoints/loam/README.md) | AFD Loam, an application shell for AFD apps: a TypeScript kernel for the browser, Tauri desktop and hosted server, a FAST-AF chrome on a Violet design foundation and a TanStack AI copilot; shell-level projects, documents, multiplayer, identity, agent members, settings, experiments, overlays, a provider-agnostic copilot and an in-shell app builder that apps subscribe to; drafted 2026-10-30, awaiting review, documented in `endpoints/loam/` |
 | [Agent Engine](./proposed/agent-engine/proposal.md) | Research and proposed new packages for modular, controllable, ongoing agentic work |
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
