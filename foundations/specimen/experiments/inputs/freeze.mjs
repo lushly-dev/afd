@@ -17,7 +17,7 @@ const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 /** Git's blob id; for a symlink Git hashes the link text, not the target. */
 export const gitBlob = (bytes) =>
 	createHash('sha1').update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
-const CHROMIUM_UA =
+export const CHROMIUM_UA =
 	'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36';
 
 function run(command, args, options = {}) {
