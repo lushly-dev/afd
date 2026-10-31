@@ -63,6 +63,10 @@ from afd.core.pipeline import (
 )
 from afd.core.pipeline_variables import MAX_INPUT_DEPTH, exceeds_depth
 
+from afd.core.direct_approval import (
+    DirectApprovalRequest, _DirectApprovalExchange, _public_result,
+)
+
 logger = logging.getLogger("afd.direct")
 
 
@@ -84,7 +88,7 @@ class CommandContext:
     another). ``clock`` and ``random`` are set only when the client or call
     configures them, so a registry can apply its own defaults (see
     :func:`afd.core.with_context_defaults`). ``approval`` is the call's approval
-    evidence, for a registry that runs ``create_approval_middleware``.
+    evidence for trusted host execution. DirectClient ignores caller-provided evidence.
     """
     
     trace_id: str
@@ -95,6 +99,7 @@ class CommandContext:
     clock: Optional[Clock] = None
     random: Optional[RandomSource] = None
     approval: Optional[str] = None
+    _direct_approval: Any = field(default=None, repr=False, compare=False)
 
 
 @dataclass
@@ -144,6 +149,8 @@ class DirectClientOptions:
     actor: Optional[Actor] = None
     clock: Optional[Clock] = None
     random: Optional[RandomSource] = None
+    on_approval_needed: Optional[Callable[[DirectApprovalRequest], Any]] = None
+    """Trusted host hook. Only an explicit True permits one private retry."""
 
 
 @dataclass
@@ -165,7 +172,7 @@ class DirectCallContext:
     random: Optional[RandomSource] = None
     """Random source for this call; wins over the client's."""
     approval: Optional[str] = None
-    """Approval evidence (an ``approvalToken``) once a human approved; set by trusted code only."""
+    """Ignored on public calls; configure on_approval_needed to approve."""
 
 
 @dataclass
@@ -590,42 +597,77 @@ class DirectClient:
             actor=copy.copy(actor),
             clock=(context.clock if context else None) or self.options.clock,
             random=(context.random if context else None) or self.options.random,
-            approval=getattr(context, "approval", None),
+            approval=None,
         )
         
-        # Execute the command
+        # The exchange survives context copies, but credentials never enter public contexts.
+        exchange = _DirectApprovalExchange()
+        cmd_context._direct_approval = exchange
+
         timeout = cmd_context.timeout
-        if (
-            isinstance(timeout, (int, float))
-            and not isinstance(timeout, bool)
-            and (isinstance(timeout, int) or math.isfinite(timeout))
-            and timeout > 0
-        ):
-            execution = asyncio.create_task(self.registry.execute(name, args, cmd_context))
-            try:
-                done, _ = await asyncio.wait({execution}, timeout=min(timeout, 2_147_483_647) / 1000)
+        seconds = (min(timeout, 2_147_483_647) / 1000 if
+            isinstance(timeout, (int, float)) and not isinstance(timeout, bool)
+            and (isinstance(timeout, int) or math.isfinite(timeout)) and timeout > 0 else None)
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + seconds if seconds is not None else None
+
+        def expired():
+            return deadline is not None and loop.time() >= deadline
+
+        def timed_out():
+            return failure(CommandError(
+                code="TIMEOUT",
+                message=f"Command '{truncate_name(name)}' timed out after {timeout}ms",
+                suggestion=("Retry with a larger timeout. The command was signalled to abort "
+                    "but may have completed, so check its effect before retrying a mutation."),
+                retryable=True, details={"command": name, "timeoutMs": timeout},
+            ))
+
+        async def run():
+            result = _public_result(await self.registry.execute(name, args, cmd_context), name)
+            if expired():
+                return timed_out()
+            pending = exchange.pending()
+            hook = self.options.on_approval_needed
+            if (not result.success and result.error is not None
+                    and result.error.code == "APPROVAL_REQUIRED" and pending and hook):
+                request = DirectApprovalRequest(command=name, input=copy.deepcopy(args), **pending)
+                try:
+                    answer = hook(request)
+                    if inspect.isawaitable(answer):
+                        answer = await answer
+                except Exception:
+                    answer = False
+                # A blocking hook may prevent the event-loop timer from firing on time.
+                if expired():
+                    return timed_out()
+                if answer is True and exchange.approve():
+                    result = _public_result(await self.registry.execute(name, args, cmd_context), name)
+            return timed_out() if expired() else result
+
+        # Shield the worker so caller cancellation disposes authority immediately, even
+        # when trusted middleware or a hook catches CancelledError and finishes later.
+        execution = asyncio.create_task(run())
+        try:
+            if seconds is None:
+                result = await asyncio.shield(execution)
+            else:
+                done, _ = await asyncio.wait({execution}, timeout=seconds)
                 if execution in done:
                     result = execution.result()
                 else:
+                    exchange.dispose()
                     execution.cancel()
                     execution.add_done_callback(_consume_execution)
-                    result = failure(CommandError(
-                        code="TIMEOUT",
-                        message=f"Command '{truncate_name(name)}' timed out after {timeout}ms",
-                        suggestion=(
-                            "Retry with a larger timeout. The command was signalled to abort "
-                            "but may have completed, so check its effect before retrying a mutation."
-                        ),
-                        retryable=True,
-                        details={"command": name, "timeoutMs": timeout},
-                    ))
-            except BaseException:
-                execution.cancel()
-                execution.add_done_callback(_consume_execution)
-                raise
-        else:
-            result = await self.registry.execute(name, args, cmd_context)
-        
+                    result = timed_out()
+        except BaseException:
+            exchange.dispose()
+            execution.cancel()
+            execution.add_done_callback(_consume_execution)
+            raise
+        finally:
+            exchange.dispose()
+
         if self.options.debug:
             duration = (time.perf_counter() - start_time) * 1000
             self._debug(f"[{trace_id}] Completed in {duration:.3f}ms", {
@@ -1015,6 +1057,8 @@ def create_direct_client(
     source: Optional[str] = None,
     debug: bool = False,
     validate_inputs: bool = True,
+    *,
+    on_approval_needed: Optional[Callable[[DirectApprovalRequest], Any]] = None,
 ) -> DirectClient:
     """Create a DirectClient for zero-overhead command execution.
     
@@ -1037,5 +1081,61 @@ def create_direct_client(
             source=source,
             debug=debug,
             validate_inputs=validate_inputs,
+            on_approval_needed=on_approval_needed,
         ),
     )
+
+
+class DirectCommandRegistry:
+    """Validating agent registry over the server engine, with private approval results.
+
+    Use this boundary for untrusted in-process callers. The server's own execute
+    remains a trusted host API and preserves out-of-band approval evidence.
+    """
+
+    def __init__(self, server: Any, *, interface: str = "agent") -> None:
+        self._server = server
+        self._interface = interface
+
+    def list_commands(self) -> List[CommandInfo]:
+        return [CommandInfo(c.name, c.description) for c in
+                self._server.list_exposed_commands(interface=self._interface)]
+
+    def list_command_names(self) -> List[str]:
+        return [c.name for c in self.list_commands()]
+
+    def has_command(self, name: str) -> bool:
+        return name in self.list_command_names()
+
+    async def execute(self, name: str, args: Any = None, context: Any = None) -> CommandResult:
+        from afd.core.direct_approval import _exchange, _public_context
+
+        # server.execute also routes MCP meta-tools, which build a fresh MCP context.
+        # Only registered commands may cross this direct boundary; never dispatch a router.
+        if not any(command.name == name for command in self._server.list_commands()):
+            return failure(CommandError(code="COMMAND_NOT_FOUND",
+                message=f"Command '{truncate_name(name)}' not found",
+                suggestion="List available commands to see valid options", retryable=False))
+        context = context or CommandContext(trace_id=_generate_trace_id())
+        exchange = _exchange(context)
+        owned = exchange is None
+        exchange = exchange or _DirectApprovalExchange()
+        clean = _public_context(context)
+        clean._direct_approval = exchange
+        clean.extra["interface"] = self._interface
+        try:
+            return _public_result(await self._server.execute(name, {} if args is None else args, clean), name)
+        finally:
+            if owned:
+                exchange.dispose()
+
+
+def create_direct_registry(commands: List[Callable], *, middleware: Optional[List[Any]] = None,
+                           interface: str = "agent", **options: Any) -> DirectCommandRegistry:
+    """Create an agent boundary for decorated commands using the validating server engine."""
+    from afd.server import create_server
+
+    server = create_server("direct-registry", middleware=middleware, **options)
+    for command in commands:
+        server.register(command)
+    return DirectCommandRegistry(server, interface=interface)

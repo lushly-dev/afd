@@ -327,6 +327,17 @@ async fn main() {
 }
 ```
 
+## Private in-process approvals
+
+`DirectClient::new(Arc<CommandRegistry>)` provides agent-facing `call`. Configure
+`with_on_approval_needed(Arc::new(|request| Box::pin(async move { ... })))` in trusted host
+code: only `Ok(true)` permits one retry; errors or panics return the original hold.
+`DirectApprovalRequest` contains command, input, summary, expiry and rejection metadata,
+never a token. Credentials stay out of result observers and journals. Caller-supplied
+approval is ignored, and `CommandContext::with_timeout` covers both attempts and the decision.
+Dropping the call cancels the flow. Raw registry execution remains a trusted host token API.
+This client does not add a pipeline client, remote transport, or CLI.
+
 ## Features
 
 - `native` (default) - Deadlines through `tokio::time::timeout`: command timeouts

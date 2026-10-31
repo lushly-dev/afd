@@ -141,6 +141,9 @@ class _Accepted:
     expires_at: float
 
 
+from afd.core.direct_approval import _exchange
+
+
 def create_approval_middleware(
     *,
     secret: Union[ApprovalSecret, Sequence[ApprovalSecret]],
@@ -312,7 +315,8 @@ def create_approval_middleware(
         actor_binding = _actor_json(actor)
 
         rejected: Optional[ApprovalRejection] = None
-        evidence = getattr(context, "approval", None)
+        exchange = _exchange(context)
+        evidence = exchange.take() if exchange is not None else getattr(context, "approval", None)
         if evidence is not None:
             verdict = verify(evidence, command_name, input_binding, actor_binding, now)
             if isinstance(verdict, _Accepted):
@@ -360,6 +364,10 @@ def create_approval_middleware(
             if inspect.isawaitable(notified):
                 await notified
 
+        if exchange is not None:
+            exchange.hold(approval_token=approval_token, expires_at=expires_at,
+                          summary=summary, reason=rejected)
+        public_token = include_token and exchange is None
         why = f"The approval token was not accepted ({rejected}). " if rejected else ""
         # Addressed to whoever relays the decision: the token is the approval, so the gated
         # caller must not resubmit it on its own, and tool arguments cannot carry it.
@@ -367,11 +375,11 @@ def create_approval_middleware(
             "once they approve, the application retries the same call with the same input and "
             "details.approvalToken as its approval evidence (tool arguments cannot carry it). "
             f"The token expires at {expires_at}{' and works once' if single_use else ''}."
-            if include_token
+            if public_token
             else "the application retries the same call once it has recorded the approval."
         )
         details: dict[str, Any] = {}
-        if include_token:
+        if public_token:
             details["approvalToken"] = approval_token
         details["expiresAt"] = expires_at
         details["summary"] = summary

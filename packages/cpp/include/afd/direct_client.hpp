@@ -17,6 +17,16 @@
 
 namespace afd {
 
+/// Public decision metadata; credentials stay in the private per-call exchange.
+struct DirectApprovalRequest {
+    std::string command;
+    Json input;
+    std::string summary;
+    std::string expires_at;
+    std::optional<std::string> reason;
+    CancellationToken cancellation;
+};
+
 struct DirectClientOptions {
     /// The surface calls come through. Only commands exposed to it are visible. Default: agent.
     Interface surface = Interface::agent;
@@ -33,6 +43,8 @@ struct DirectClientOptions {
     /// the registry's apply.
     std::shared_ptr<const Clock> clock;
     std::shared_ptr<RandomSource> random;
+    /// Trusted host hook. A true answer permits exactly one verified retry.
+    std::function<bool(const DirectApprovalRequest&)> on_approval_needed;
 };
 
 /// Calls commands on a registry in process, as an agent would through MCP, with the same

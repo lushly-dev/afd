@@ -808,7 +808,7 @@ async def test_request_meta_never_becomes_approval_evidence():
             assert json.loads(result.content[0].text)["error"]["code"] == "APPROVAL_REQUIRED"
 
 
-async def test_direct_client_passes_the_approval_evidence():
+async def test_legacy_direct_registry_cannot_restore_public_approval_evidence():
     from afd.direct import DirectCallContext, DirectClient
 
     server = _server()
@@ -830,9 +830,13 @@ async def test_direct_client_passes_the_approval_evidence():
 
     client = DirectClient(Registry())
     held = await client.call("todo-delete", {"id": 3})
-    token = held.error.details["approvalToken"]
-    approved = await client.call("todo-delete", {"id": 3}, DirectCallContext(approval=token))
-    assert approved.success
+    assert "approvalToken" not in held.error.details
+    # Trusted host execution still issues a credential, but public DirectClient cannot use it.
+    host_hold = await server.execute("todo-delete", {"id": 3}, CommandContext(actor=Actor(kind="human")))
+    token = host_hold.error.details["approvalToken"]
+    replayed = await client.call("todo-delete", {"id": 3}, DirectCallContext(approval=token))
+    assert not replayed.success and replayed.error.code == "APPROVAL_REQUIRED"
+    assert "approvalToken" not in replayed.error.details
 
 
 # ─── afd validate ───────────────────────────────────────────────────────────

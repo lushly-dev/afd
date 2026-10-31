@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Add approval-aware in-process `DirectClient.call` and an async trusted hook (#460). Tokens stay in a private per-call exchange; caller evidence is stripped, errors or panics decline, and a single deadline covers the decision and retry. Raw `CommandRegistry::execute` remains a trusted host API.
+
 ## [0.2.1] - 2026-10-27
 
 Implements AFD contract **1.0-rc**.

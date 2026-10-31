@@ -33,7 +33,9 @@ def print_result(result: CommandResult[Any], *, json_output: bool = False) -> No
     if json_output:
         from afd.core.wire import to_wire
 
-        console.print(json.dumps(to_wire(result), indent=2))
+        import click
+
+        click.echo(json.dumps(to_wire(result), indent=2))
         return
 
     # Handle both dict and CommandResult objects
@@ -83,7 +85,7 @@ def _print_success_result(result: CommandResult[Any]) -> None:
         console.print("[green]✓ Command completed successfully[/green]")
 
     # Show warnings if present
-    warnings = _get_attr(result, "warnings", [])
+    warnings = _get_attr(result, "warnings", []) or []
     for warning in warnings:
         if isinstance(warning, dict):
             print_warning(warning.get("message", str(warning)))

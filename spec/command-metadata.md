@@ -177,8 +177,9 @@ Rules:
 
 ### Private in-process approval exchange
 
-TypeScript DirectClient and createDirectRegistry reserve approval authority for trusted
-application code. Their public `call`, `pipe` and `execute` contexts strip `approval`; their
+DirectClient in all four languages reserves approval authority for trusted application code.
+Public `call` and `pipe` contexts, and TypeScript/Python direct-registry `execute` contexts,
+strip caller-provided `approval`; their
 held results omit `details.approvalToken`, even when middleware sets `includeToken: true`.
 The client invokes its configured `onApprovalNeeded` hook with public decision metadata.
 Only an explicit `true` permits one private retry. The middleware still verifies the signed
@@ -191,9 +192,27 @@ registry and authenticated context: this is not isolation from arbitrary same-pr
 Custom registries must implement the exchange; legacy token-in-result registries remain held
 by DirectClient, which removes their credential field. Use matching client/core/server versions.
 
-This exchange currently ships in TypeScript. Python, Rust and C++ still require a review of
-their token-in-result defaults and caller context boundaries; track that work with #460 rather
-than copying the previous TypeScript token-return behavior.
+The Python hook is `DirectClientOptions.on_approval_needed`; the Rust builder is
+`DirectClient::with_on_approval_needed` (`Ok(true)` approves, errors and panics decline);
+C++ uses `DirectClientOptions::on_approval_needed`. All receive token-free
+`DirectApprovalRequest` metadata. Python copies the hook input, and Rust/C++ pass owned
+input, so a hook cannot silently change the retried payload. Each call owns its exchange;
+concurrent calls and pipeline steps do not share authority. Disposed markers remain
+recognizable after cancellation, so late middleware cannot fall back to public tokens.
+
+Python `create_direct_registry` wraps decorated commands in the validating server engine.
+Rust and C++ `CommandRegistry::execute` remain trusted host APIs, just like Python
+`server.execute`; use DirectClient as the agent-facing boundary. Rust's new DirectClient
+provides approval-aware `call`, without adding a pipeline client, MCP client or CLI.
+The deadline covers the initial attempt, the decision and the retry. Rust drops the flow on
+cancellation; Python ignores late decisions; C++ hooks are synchronous and must cooperate
+with `request.cancellation`, and a late answer never releases a retry.
+
+Python `afd call --module <file.py>` loads an exported `registry`. An explicit `--approve`
+authorizes one retry; otherwise it prompts only with interactive input/stderr and without
+`--json`. Noninteractive calls remain held. `--timeout` is the total deadline in milliseconds.
+Remote Python calls reject `--approve`; accepting a remote response is never approval evidence.
+Rust and C++ have no CLI. MCP approval relay remains a separate capability.
 
 ### Asking the human over MCP
 
@@ -252,8 +271,8 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 | --- | --- | --- | --- | --- |
 | `approval` field and `_meta.approval` | Yes | Yes | Yes | Yes (`_meta.approval` in the todo backend) |
 | Approval middleware | Yes (`createApprovalMiddleware`) | Yes (`create_approval_middleware`) | Yes (`create_approval_middleware`) | Yes (`create_approval_middleware`) |
-| DirectClient `onApprovalNeeded` | Yes | Planned | Planned | Planned |
-| CLI approval flow (`afd call --module`, in-process only) | Yes | Planned | Planned | Planned |
+| DirectClient approval hook and private exchange | Yes | Yes (`on_approval_needed`) | Yes (`with_on_approval_needed`) | Yes (`on_approval_needed`) |
+| CLI approval flow (`afd call --module`, in-process only) | Yes | Yes (`--approve` or interactive prompt) | N/A: no CLI | N/A: no CLI |
 | MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Planned | Planned | Planned |
 
 ## MCP tool fields (MCP 2026-07-28 tool surface)

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Add the private DirectClient approval hook, validating direct registry, and in-process CLI `call --module` with `--approve` or an interactive prompt (#460). Public caller evidence is ignored, held results and observers stay token-free, and one total deadline covers the decision and retry. Trusted host middleware retains its token API. Raw JSON CLI output no longer receives Rich wrapping.
+
 ## [0.10.0] - 2026-10-27
 
 Implements AFD contract `1.0-rc`.

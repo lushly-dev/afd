@@ -158,6 +158,13 @@ afd::CommandResult t = agent.call("todo-create", {{"title", "x"}}, timed);
 
 The client sees only commands exposed to its surface, and further filtered by `allow`. `pipe()` runs pipelines through `call`.
 
+For approvals, configure trusted `DirectClientOptions::on_approval_needed`. The hook receives
+`DirectApprovalRequest` with command, input, summary, expiry, reason and cancellation, never
+the token. Only true permits one private retry; errors or decline retain the token-free hold.
+Caller context evidence is ignored on call/pipe. Synchronous hooks must cooperate with
+`request.cancellation`; the call never retries a late answer. Raw registry execute remains a
+trusted host API for out-of-band approval tokens.
+
 ## Batch, Pipeline and Stream
 
 ```cpp

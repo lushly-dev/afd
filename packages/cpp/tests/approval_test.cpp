@@ -3,6 +3,10 @@
 #include "afd/afd.hpp"
 
 #include <atomic>
+#if AFD_ENABLE_THREADS
+#include <barrier>
+#include <thread>
+#endif
 #include <cstdint>
 #include <limits>
 #include <memory>
@@ -29,7 +33,8 @@ struct Gate {
     std::vector<afd::ApprovalRequest> requests;
 
     explicit Gate(afd::ApprovalMiddlewareOptions options = {},
-                  std::optional<afd::ApprovalPolicy> policy = afd::ApprovalDecision::required) {
+                  std::optional<afd::ApprovalPolicy> policy = afd::ApprovalDecision::required,
+                  std::vector<afd::CommandMiddleware> outer = {}) {
         auto counter = runs;
         afd::CommandDefinition remove{
             .name = "todo-delete",
@@ -71,8 +76,9 @@ struct Gate {
         }
         auto middleware = afd::create_approval_middleware(std::move(options));
         REQUIRE_MESSAGE(middleware.has_value(), (middleware ? "" : middleware.error()));
+        outer.push_back(*middleware);
         registry = std::make_unique<afd::CommandRegistry>(
-            afd::CommandRegistryOptions{.middleware = {*middleware}});
+            afd::CommandRegistryOptions{.middleware = std::move(outer)});
         REQUIRE(!registry->register_command(std::move(remove)));
         REQUIRE(!registry->register_command(std::move(list)));
     }
@@ -724,3 +730,157 @@ TEST_CASE("the journal names approval evidence in the context digest, never its 
     other.approval = "afdap1.another.token";
     CHECK(digest.hash == afd::create_context_digest(other).hash);
 }
+
+TEST_CASE("DirectClient keeps approval holds private and rejects public context evidence") {
+    Gate gate;
+    auto registry = std::shared_ptr<const afd::CommandRegistry>(gate.registry.get(), [](auto*) {});
+    afd::DirectClient client(registry);
+    afd::CommandContext context;
+    context.actor = afd::Actor{.kind = afd::ActorKind::agent, .id = "u1"};
+    const auto held = client.call("todo-delete", {{"id", 42}}, context);
+    REQUIRE(held.error);
+    CHECK(held.error->code == "APPROVAL_REQUIRED");
+    CHECK_FALSE(held.error->details->contains("approvalToken"));
+    context.approval = gate.requests.back().approval_token;
+    CHECK_FALSE(client.call("todo-delete", {{"id", 42}}, context).success);
+    CHECK(*gate.runs == 0);
+}
+
+TEST_CASE("DirectClient asks once and only trusted approval releases evidence") {
+    for (bool approve : {false, true}) {
+        Gate gate;
+        auto registry =
+            std::shared_ptr<const afd::CommandRegistry>(gate.registry.get(), [](auto*) {});
+        int decisions = 0;
+        afd::DirectClient client(
+            registry, {.on_approval_needed = [&](const afd::DirectApprovalRequest& request) {
+                ++decisions;
+                CHECK(request.command == "todo-delete");
+                CHECK(request.input == afd::Json{{"id", 42}});
+                CHECK(request.summary == "Delete the todo");
+                return approve;
+            }});
+        const auto result = client.call("todo-delete", {{"id", 42}});
+        CHECK(result.success == approve);
+        CHECK(decisions == 1);
+        CHECK(*gate.runs == (approve ? 1 : 0));
+        if (!approve)
+            CHECK_FALSE(result.error->details->contains("approvalToken"));
+    }
+}
+
+TEST_CASE("DirectClient never retries after expiry, cancellation or decision deadline") {
+    for (int mode : {0, 1, 2}) {
+        Gate gate;
+        auto registry =
+            std::shared_ptr<const afd::CommandRegistry>(gate.registry.get(), [](auto*) {});
+        afd::CancellationSource cancelled;
+        int decisions = 0;
+        afd::DirectClientOptions options;
+        options.clock = gate.clock;
+        options.on_approval_needed = [&](const afd::DirectApprovalRequest&) {
+            ++decisions;
+            if (mode == 0)
+                gate.clock->advance(300001);
+            if (mode == 1)
+                cancelled.cancel();
+            if (mode == 2)
+                gate.clock->advance(11);
+            return true;
+        };
+        afd::DirectClient client(registry, options);
+        afd::CommandContext context;
+        context.cancellation = cancelled.token();
+        if (mode == 2)
+            context.timeout_ms = 10;
+        const auto result = client.call("todo-delete", {{"id", 42}}, context);
+        CHECK_FALSE(result.success);
+        CHECK(decisions == 1);
+        CHECK(*gate.runs == 0);
+        CHECK_FALSE(result.error->details->contains("approvalToken"));
+        CHECK(result.error->code == (mode == 2 ? "TIMEOUT" : "APPROVAL_REQUIRED"));
+        if (mode == 0)
+            CHECK((*result.error->details)["reason"] == "expired");
+        CHECK(gate.requests.size() == (mode == 0 ? 2 : 1));
+    }
+}
+
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+TEST_CASE("DirectClient returns the original private hold when the hook throws") {
+    Gate gate;
+    auto registry = std::shared_ptr<const afd::CommandRegistry>(gate.registry.get(), [](auto*) {});
+    afd::DirectClient client(registry,
+                             {.on_approval_needed = [](const afd::DirectApprovalRequest&) -> bool {
+                                 throw std::runtime_error("failed");
+                             }});
+    const auto result = client.call("todo-delete", {{"id", 42}});
+    CHECK(result.error->code == "APPROVAL_REQUIRED");
+    CHECK_FALSE(result.error->details->contains("approvalToken"));
+    CHECK(*gate.runs == 0);
+}
+#endif
+
+TEST_CASE("DirectClient pipeline holds and approves each step separately") {
+    Gate gate;
+    auto registry = std::shared_ptr<const afd::CommandRegistry>(gate.registry.get(), [](auto*) {});
+    int decisions = 0;
+    afd::DirectClient client(registry,
+                             {.on_approval_needed = [&](const afd::DirectApprovalRequest&) {
+                                 ++decisions;
+                                 return true;
+                             }});
+    const auto request = afd::Json{{"steps",
+                                    {{{"command", "todo-delete"}, {"input", {{"id", 1}}}},
+                                     {{"command", "todo-delete"}, {"input", {{"id", 2}}}}}}};
+    CHECK(client.pipe(request).metadata.completed_steps == 2);
+    CHECK(decisions == 2);
+    CHECK(*gate.runs == 2);
+}
+
+TEST_CASE("DirectClient observer and journal holds have no transferable credential") {
+    auto sink = std::make_shared<afd::MemoryJournalSink>();
+    std::vector<afd::Json> observed;
+    afd::CommandMiddleware observer = [&](std::string_view, const afd::Json&, afd::CommandContext&,
+                                          const afd::Next& next) {
+        auto result = next();
+        observed.push_back(afd::Json(result));
+        return result;
+    };
+    Gate gate({}, afd::ApprovalDecision::required,
+              {observer, afd::create_journal_middleware(sink, {.record_failures = true})});
+    auto registry = std::shared_ptr<const afd::CommandRegistry>(gate.registry.get(), [](auto*) {});
+    const auto held = afd::DirectClient(registry).call("todo-delete", {{"id", 42}});
+    CHECK(held.error->code == "APPROVAL_REQUIRED");
+    auto entries = sink->read();
+    REQUIRE(entries);
+    CHECK(entries->size() == 1);
+    CHECK(afd::serialize_journal(*entries).find("approvalToken") == std::string::npos);
+    CHECK(observed.size() == 1);
+    CHECK_FALSE(observed.front()["error"]["details"].contains("approvalToken"));
+}
+
+#if AFD_ENABLE_THREADS
+TEST_CASE("concurrent DirectClient decisions cannot approve each other's calls") {
+    Gate gate({.on_approval_required = [](const afd::ApprovalRequest&) {}});
+    auto registry = std::shared_ptr<const afd::CommandRegistry>(gate.registry.get(), [](auto*) {});
+    std::barrier rendezvous(2);
+    afd::DirectClientOptions options;
+    options.on_approval_needed = [&](const afd::DirectApprovalRequest& request) {
+        rendezvous.arrive_and_wait();
+        return request.input["id"] == 1;
+    };
+    afd::DirectClient first(registry, options);
+    afd::DirectClient second(registry, options);
+    afd::CommandResult approved;
+    afd::CommandResult declined;
+    std::thread one([&] { approved = first.call("todo-delete", {{"id", 1}}); });
+    std::thread two([&] { declined = second.call("todo-delete", {{"id", 2}}); });
+    one.join();
+    two.join();
+    CHECK(approved.success);
+    REQUIRE(declined.error);
+    CHECK(declined.error->code == "APPROVAL_REQUIRED");
+    CHECK_FALSE(declined.error->details->contains("approvalToken"));
+    CHECK(*gate.runs == 1);
+}
+#endif
