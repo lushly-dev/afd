@@ -51,7 +51,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 
 | Feature | Description |
 |---------|-------------|
-| [Umbel](../../umbel/docs/proposal.md) | AFD Umbel, an empty Rust host for capability plugins over MCP and CLI, with knowledge, memory and context as first-party plugins; owner-approved direction, documented in the `umbel/` area |
+| [Umbel](../../endpoints/umbel/README.md) | AFD Umbel, an empty Rust host for capability plugins over MCP and CLI, with knowledge, memory and context as first-party plugins; owner-approved direction, documented in `endpoints/umbel/` |
 | [Agent Engine](./proposed/agent-engine/proposal.md) | Research and proposed new packages for modular, controllable, ongoing agentic work |
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
@@ -99,7 +99,7 @@ feature-name/
 
 > **Plan files and `.gitignore`.** `.gitignore` ignores `*.plan.md` everywhere except `docs/features/active/` (and `PLAN/` and `archive/`). A `*.plan.md` written under `proposed/` or `complete/` is silently left out of commits; `git status` does not list it. Name plans outside `active/` without the `.plan` suffix, for example `complete/<feature>/plan.md`, and check that `git status` shows any new plan file before committing.
 
-A status file exists so that an agent never has to scan the codebase to learn what is current: it names what is done with evidence, what is not, and what future sessions must know. The [Umbel status](../../umbel/docs/STATUS.md) is the reference shape.
+A status file exists so that an agent never has to scan the codebase to learn what is current: it names what is done with evidence, what is not, and what future sessions must know. The [Umbel status](../../endpoints/umbel/docs/STATUS.md) is the reference shape.
 
 ## Workflow
 

@@ -11,28 +11,33 @@ seam for it without implementing a draft.
    MCP 2026-07-28 removed sessions and the initialize handshake. The next two
    revisions, scheduled for 2027-03-30 and 2027-09, are about server-initiated
    events with cursors and webhooks, agent identity and delegation, a single
-   result contract and progressive discovery. ChatGPT already consumes the
-   draft events shape. Nothing newer has a final specification.
+   result contract and progressive discovery. ChatGPT already consumes webhooks
+   built on an earlier design sketch for events. Nothing newer has a final
+   specification.
 2. **Harnesses are where differentiation moved.** Hooks are the universal
-   injection point: Claude Code exposes more than thirty events with a
-   10,000-character cap on injected context; Codex, Cursor, Gemini and Copilot
+   injection point: Claude Code exposes 33 events and caps each injected
+   string at 10,000 characters, putting overflow in a file behind a short
+   preview; Codex, Cursor, Gemini and Copilot
    all ship hooks. AGENTS.md and SKILL.md are read natively across harnesses,
    and Agent Skills moved to the Linux Foundation's Agentic AI Foundation on
    2026-10-22.
 3. **Memory went first-party, consolidation went offline, and nothing is
    shared across harnesses.** Claude Code auto-memory is per repository and
-   machine-local; Codex Memories v2 became the default on 2026-10-27 and
-   imports other agents' memories; Anthropic, OpenAI and Google all
+   machine-local; Codex Memories v2 became the default for fresh profiles on
+   2026-10-27, with memories still opt-in, and can import other agents'
+   memories; Anthropic, OpenAI and Google all
    consolidate in the background on their own stores. A deployer-owned layer
    shared across harnesses is the unserved need.
 4. **Every enterprise platform exposes its context over remote MCP with a
    small facade, and curated knowledge is converging on markdown with
    frontmatter.** Slack, ServiceNow, Atlassian, Microsoft, Salesforce,
-   Palantir and Google shipped remote MCP in 2026. Microsoft's SharePoint
-   knowledge base, Google's Open Knowledge Format and Agent Skills all use
-   one concept per file, path as identity, an index and a change log.
-   Agent-written, human-approved curation is shipping and is metered apart
-   from reading.
+   Palantir and Google shipped remote MCP in 2026. Google's Open Knowledge
+   Format, now v0.2, and Agent Skills use one concept per file with
+   frontmatter; the format reserves optional index and change-log files.
+   Microsoft's SharePoint knowledge base is interlinked markdown with
+   frontmatter that Copilot creates and maintains; its pages do not inherit
+   source permissions, and its updates can reverse people's edits.
+   Agent-written curation is shipping and is metered apart from reading.
 5. **Governance stays guidance-only through 2027, with a clear bar.** NIST's
    agent-standards work frames auditing and non-repudiation; the EU high-risk
    obligations moved to December 2027. The practical bar is reconstructable
@@ -41,39 +46,40 @@ seam for it without implementing a draft.
 
 ## What Umbel reserves because of them
 
-| Reservation | Movement | Where it lands |
-| --- | --- | --- |
-| An event log as a host primitive: monotonic ids, per-principal cursors, one store behind subscriptions, webhooks, channels and audit | 1 | Architecture section 4 and 5; phase 0 |
-| A principal with user, client, agent identity, delegation chain, token binding, human presence and policy decision; enterprise-managed authorization on connections; a per-tool human-required flag | 1, 5 | Architecture section 5; phase 5 |
-| Audience-tagged result fragments projected to today's content fields; content-addressed resources with digest, size and cache hints | 1 | Architecture section 5 |
-| Skills over MCP as the primary "how to use this company" surface, served from plugin contributions | 2 | Architecture section 5; phase 1 |
-| Harness adapters with a stable JSON contract and import and export for harness memory directories | 2, 3 | Architecture section 5; phase 3 |
-| Three memory classes, a verification lifecycle with owners and dates, inconsistency proposals | 3, 4 | Architecture section 7; phases 3 and 4 |
-| An Open Knowledge Format compatible container on disk | 4 | Architecture section 7; phase 2 |
-| Proposals recorded as decision traces | 4, 5 | Architecture section 5; phase 4 |
-| Mounted MCP servers as a first-class federation capability with indexed and live modes | 4 | Proposal; phase 1 and 2 |
-| Telemetry in the GenAI semantic conventions with trace context carried into stored records; usage events per tool and principal | 5 | Architecture section 8 |
-| A server card, the well-known catalog file and a registry entry | 1 | Phase 7 |
+| ID | Reservation | Movement | Where it lands |
+| --- | --- | --- | --- |
+| R1 | An event log projected from the journal: per-principal cursors, one store behind subscriptions, webhooks, channels and audit | 1 | Architecture sections 4 and 5; phase 0 |
+| R2 | A principal on AFD's actor and credentials, with delegation chain, token binding, human presence and policy decision; enterprise-managed authorization on connections | 1, 5 | Architecture section 5; version 0 in phase 0, complete in phase 5 |
+| R3 | Audience tags carried inside the result; content-addressed resources with digest, size and cache hints | 1 | Architecture section 5 |
+| R4 | Skills delivered three ways: Skills over MCP where supported, as resources, and exported into harness skill directories | 2 | Architecture section 5; phase 1 |
+| R5 | Harness adapters with a stable JSON contract and import and export for harness memory directories | 2, 3 | Architecture section 5; phase 3 |
+| R6 | Memory class labels, a verification lifecycle in the Open Knowledge Format's terms, inconsistency proposals | 3, 4 | Architecture section 7; phases 3 and 4 |
+| R7 | An Open Knowledge Format v0.2 compatible container on disk | 4 | Architecture section 7; phase 2 |
+| R8 | Proposals recorded as decision traces | 4, 5 | Architecture section 5; phase 4 |
+| R9 | Mounted MCP servers as the federation path with indexed and live modes | 4 | After phase 2, its own specification |
+| R10 | Telemetry in the GenAI semantic conventions with trace context carried into stored records; usage events in the event log | 5 | Architecture sections 5 and 6 |
+| R11 | A server card, the well-known catalog file and a registry entry | 1 | Phase 7 |
 
 ## Watchlist
 
-| Item | Status on 2026-10-30 | Next date | What changes for Umbel |
-| --- | --- | --- | --- |
-| MCP release cycle, SEP-3398 | Accepted; releases on the last Tuesday of March and September | 2027-03-30, soft freeze mid-January 2027 | Phase specifications pin the revision they target |
-| MCP Events, SEP-3415 | Draft; working group targets a v1 by April 2027; ChatGPT consumes the webhook mode | April 2027 | The event log's poll, stream and webhook projections |
-| Single `tools/call` result contract, SEP-3279 direction | Roadmap commitment; the only proposal has no sponsor | 2027-03 or 2027-09 | The audience projection becomes a renderer |
-| Progressive discovery | Roadmap effort; working group forming; no mechanism text | Unknown | The lazy strategy maps onto whatever ships |
-| Agent identity: DPoP SEP-1932, workload identity SEP-1933, Agent Identity working group | Drafts; SDKs ship DPoP; enterprise-managed authorization stable since 2026-06-18 | 2027 | Principal fields fill from standard claims |
-| HTTP over stdio | Transports working group chartered 2026-08-23; no SEP | 2027 | Transport is the SDK's concern |
-| Tasks to core | Beta, destination core, no date | 2027-09 at the earliest | Long jobs stay behind the extension |
-| Interceptors, SEP-1763 | Draft | Unknown | Internal hooks only until it lands |
-| Agent Skills versioning and security guidance | On the foundation's roadmap after the 2026-10-22 donation | Unknown | Signed, versioned packs align when the format does |
-| Apache Ossie ontology working group | Incubating since 2026-07-08; metrics vocabulary converging | Unknown | A plugin may mount an Ossie bundle; Umbel defines no metrics |
-| Open Knowledge Format | v0.1, 2026-06-12, "a starting point" | Unknown | The on-disk convention follows the format |
-| OpenTelemetry GenAI conventions | Own repository since June 2026, status development, no tagged release | Unknown | Pin the development schema; expect attribute churn |
-| NIST agent standards | Concept paper 2026-02-05; initiative 2026-02-17 | 2027 | Audit fields map to its auditing and non-repudiation pair |
-| EU AI Act high-risk obligations | Moved to 2027-12-02 by the 2026 omnibus | 2027-12 | Reconstructable logs suffice until then |
-| Claude Code channels and 2026-07-28 | Channel servers must still negotiate the 2025 revision | Unknown | Keep the SDK's 2025 compatibility for push paths |
+| ID | Item | Status on 2026-10-30 | Next date | What changes for Umbel |
+| --- | --- | --- | --- | --- |
+| W1 | MCP release cycle, SEP-3398 | Accepted; releases on the last Tuesday of March and September | 2027-03-30, subject to the transition calendar; soft freeze 2.5 months before | Phase specifications pin the revision they target |
+| W2 | MCP Events, SEP-3415 | Open pull request, ready for review since 2026-10-28, no sponsor; ChatGPT's webhooks follow an earlier design sketch | Unknown | The event log's poll, stream and webhook projections |
+| W3 | Single `tools/call` result contract, SEP-3279 direction | Roadmap commitment; the only proposal has no sponsor | 2027-03 or 2027-09 | The audience projection becomes a renderer |
+| W4 | Progressive discovery | Roadmap effort; working group forming; no mechanism text | Unknown | The lazy strategy maps onto whatever ships |
+| W5 | Agent identity: DPoP SEP-1932, workload identity SEP-1933, Agent Identity working group | Drafts; SDKs ship DPoP; enterprise-managed authorization stable since 2026-06-18, with Okta the named provider and rmcp's support client-side only | 2027 | Principal fields fill from standard claims |
+| W6 | HTTP over stdio | Transports working group chartered 2026-08-23; no SEP | 2027 | Transport is the SDK's concern |
+| W7 | Tasks to core | Beta, destination core, no date | 2027-09 at the earliest | Long jobs stay behind the extension |
+| W8 | Interceptors, SEP-1763 | Draft | Unknown | Internal hooks only until it lands |
+| W9 | Agent Skills versioning and security guidance | On the foundation's roadmap after the 2026-10-22 donation | Unknown | Signed, versioned packs align when the format does |
+| W10 | Apache Ossie ontology working group | Incubating since 2026-07-08; metrics vocabulary converging | Unknown | A plugin may mount an Ossie bundle; Umbel defines no metrics |
+| W11 | Open Knowledge Format | v0.2, adding `sources`, `generated`, `verified`, `status` and `stale_after` to v0.1 of 2026-06-12 | Unknown | The on-disk convention follows the format |
+| W12 | OpenTelemetry GenAI conventions | Own repository since June 2026, status development, no tagged release | Unknown | Pin the development schema; expect attribute churn |
+| W13 | NIST agent standards | Concept paper 2026-02-05; initiative 2026-02-17 | 2027 | Audit fields map to its auditing and non-repudiation pair |
+| W14 | EU AI Act high-risk obligations | Moved to 2027-12-02 by the 2026 omnibus | 2027-12 | Reconstructable logs suffice until then |
+| W15 | Claude Code channels and 2026-07-28 | Channel servers must negotiate 2025-11-25 or earlier; channels are a research preview | Unknown | Keep the SDK's 2025-11-25 compatibility for push paths |
+| W16 | Skills over MCP client support | Extension beta; partial support in ChatGPT only, none in Claude, Claude Code, Cursor or VS Code | Unknown | Resources and harness exports stay required delivery paths |
 
 ## Deliberately not chased
 
@@ -95,13 +101,15 @@ Protocol: [MCP roadmap](https://modelcontextprotocol.io/development/roadmap) (20
 [SEP-3392 extension lifecycle](https://modelcontextprotocol.io/seps/3392-extension-lifecycle);
 [Tasks and Events working group](https://modelcontextprotocol.io/community/working-groups/tasks-events) (renamed 2026-10-16);
 [subscriptions](https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/subscriptions);
-[SEP-3415 Events summary](https://hookdeck.com/webhooks/guides/what-are-mcp-events) (2026-10-26);
+[SEP-3415 pull request](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3415);
+[SEP-3415 summary](https://hookdeck.com/webhooks/guides/what-are-mcp-events) (2026-10-26, secondary);
 [ChatGPT MCP Events](https://developers.openai.com/plugins/build/mcp-events);
 [SEP-3279](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/3279) (2026-08-19);
 [SEP-1932 DPoP](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/1932);
 [SEP-1933 workload identity](https://github.com/modelcontextprotocol/modelcontextprotocol/pull/1933);
 [Enterprise-managed authorization stable](https://blog.modelcontextprotocol.io/posts/enterprise-managed-auth/) (2026-06-18);
 [Skills over MCP](https://modelcontextprotocol.io/extensions/skills/overview);
+[extension client matrix](https://modelcontextprotocol.io/extensions/client-matrix);
 [Server Cards, SEP-2127](https://modelcontextprotocol.io/seps/2127-mcp-server-cards);
 [client best practices](https://modelcontextprotocol.io/docs/2026-07-28/develop/clients/client-best-practices);
 [A2A 1.0](https://a2a-protocol.org/latest/specification/);
@@ -125,8 +133,10 @@ Harnesses: [Claude Code hooks](https://code.claude.com/docs/en/hooks),
 [OpenTelemetry GenAI MCP conventions](https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/mcp.md).
 
 Enterprise context: [Work IQ APIs](https://www.microsoft.com/en-us/copilot/blog/2026/06/02/announcing-the-new-work-iq-apis/) (2026-06-02);
-[SharePoint knowledge base](https://techcommunity.microsoft.com/blog/spblog/introducing-a-team-knowledge-base-curated-by-copilot-and-agents/4564203) (2026-10-14);
-[Open Knowledge Format](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) (2026-06-12);
+[SharePoint knowledge base announcement](https://techcommunity.microsoft.com/blog/spblog/introducing-a-team-knowledge-base-curated-by-copilot-and-agents/4564203) (2026-10-14) and
+[documentation](https://learn.microsoft.com/en-us/sharepoint/sharepoint-knowledge-base);
+[Open Knowledge Format specification](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md) (v0.2) and
+[announcement](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) (v0.1, 2026-06-12);
 [Glean MCP gateway](https://www.glean.com/blog/introducing-glean-mcp-gateway);
 [Atlassian Teamwork Graph](https://siliconangle.com/2026/05/06/atlassian-opens-teamwork-graph-pushes-rovo-agentic-execution-team-26/) (2026-05-06);
 [Slack MCP](https://docs.slack.dev/changelog/2026/02/17/slack-mcp/) (2026-02-17);

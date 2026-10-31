@@ -33,7 +33,10 @@ help model accuracy.
   extraction, Guru's daily verification runs [S03, S08, S09, S13].
 - Durable writes are human-gated in enterprise products: Notion suggested
   edits, Glean pause-before-write, LangChain approval on every edit,
-  SharePoint confirmation for restructures [S10, S11, S06, S12].
+  and Guru's verification by owners [S10, S11, S06, S13]. Microsoft's
+  SharePoint knowledge base is the counterexample: Copilot maintains it, its
+  updates can reverse people's edits, and its pages do not inherit source
+  permissions [S12].
 - Provenance and validity intervals beat deletion. Graphiti invalidates
   rather than deletes; Vertex exposes revisions [S05, S09].
 - Memory is an attack surface: query-only poisoning (MINJA), payloads that
@@ -45,7 +48,7 @@ help model accuracy.
 
 | Finding | Result | Source |
 | --- | --- | --- |
-| Consolidation drops the source's constraints | 48 of 49 consolidator and model configurations; unauthorised actions 50.3% without authority metadata, 0.0% with authority labels stored at write time | S16 |
+| Consolidation drops the source's constraints | 48 of 49 consolidator and model configurations; end to end, authority labels stored at write time cut unauthorised actions from 16.9% to 0.0% (50.3% was a controlled baseline) | S16 |
 | Embedding retrieval for updated facts | unreliable, 0.30 to 0.95; agents act on a correctly retrieved value 55% of the time; update-on-write structured stores do best | S17 |
 | Environment-probing curation | pass rate 39% to 73%, cost per task halved | S18 |
 | Vendor memory benchmarks | not reproducible across vendors; one benchmark described as saturating | S04, S20 |
@@ -67,11 +70,13 @@ answering alone.
 ### Converged practice
 
 - Lexical search is the default first stage. Over 511,959 enterprise
-  documents, BM25 was the only method that stayed Pareto-optimal; dense-only
+  documents, BM25 anchored the low-cost end of the cost-quality frontier,
+  while an agent over the raw files scored higher at far greater cost; dense-only
   retrieval degraded and model-built graphs could not be constructed at scale
   [S21].
 - Hybrid BM25 plus dense retrieval fused by reciprocal rank, with an optional
-  reranker, beats either constituent in every 2026 domain benchmark found
+  reranker, beat BM25 alone in every 2026 domain benchmark found; in one, a
+  dense model alone beat the fusion, so the lanes are worth gating by evaluation
   [S27, S28].
 - Reasoning moved out of the index into the agent loop. Cheap deterministic
   search plus follow-up reads, iterated by the model, is the shape used by
@@ -85,8 +90,8 @@ answering alone.
 | --- | --- | --- |
 | Graphs versus plain retrieval | fact retrieval: basic RAG with rerank 60.9 vs 49.3; multi-hop: HippoRAG 2 53.4 vs 42.9; per-query prompt tokens 879 vs 1,008 to 331,375 | S22 |
 | Graph advantage by question type | +0.5 exact match on general questions, +27 on multi-hop | S23 |
-| Cost at scale | HippoRAG 2 built to 131,876 documents at about 2.9B generative tokens; LightRAG to 2,254; Microsoft GraphRAG to 8,750 | S21 |
-| Hybrid fusion | BM25 recall@10 0.500, hybrid 0.715, hybrid plus rerank 0.720 | S28 |
+| Cost at scale | HippoRAG 2 built to 131,876 documents with 724M generative tokens measured, about 2.9B extrapolated to the full corpus; LightRAG to 2,254; Microsoft GraphRAG to 8,750 | S21 |
+| Hybrid fusion | BM25 recall@10 0.500, hybrid 0.715, hybrid plus rerank 0.720; the dense model alone reached 0.746 | S28 |
 | Agentic retrieval with four tools | recall@1 8.41% single-shot to 49.6% at 2.6x tokens | S31 |
 | Boolean query syntax over BM25 | matched an agentic hybrid system at 41x lower build cost with fewer hallucinations | S32 |
 | Rerankers | neutral or negative on 2 of 5 technical-documentation topics; listwise LLM reranking can degrade strong retrievers | S29, S30 |
@@ -135,7 +140,7 @@ repository; routing and effort left to the calling model.
 - A server using authorization is an OAuth 2.1 resource server: protected
   resource metadata, audience validation, 401 and 403 challenges with scope,
   scope hierarchies; client registration by metadata document; enterprise-
-  managed authorization is stable and supported by major identity providers
+  managed authorization is stable, with Okta the provider named
   [S35, S47, S48].
 - WebAssembly components are production-grade: WASI 0.3 final in June 2026,
   Wasmtime 50 in October 2026, wit-bindgen 0.63. Fuel is deterministic, epochs

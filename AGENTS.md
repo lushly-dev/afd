@@ -70,6 +70,7 @@ endpoints/violet-cli/       # @lushly-dev/violet-cli — the `violet` CLI; quara
 endpoints/violet-server/    # @lushly-dev/violet-server — `violet-mcp`, MCP server and local REST API; quarantined
 endpoints/health/           # lushly-health (tentative) — explicit-target repository audits, versioned report schema, opt-in Botcore plugin; stdlib-only core; quarantined
 endpoints/health-dashboard/ # @lushly-dev/health-dashboard — static FAST-AF page for Health report-1.1 files; local-only, private, quarantined, no route
+endpoints/umbel/            # AFD Umbel — proposed Rust host for capability plugins over MCP and CLI; documents only; read docs/STATUS.md first
 ```
 
 ## Key Conventions

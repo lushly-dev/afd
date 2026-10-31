@@ -14,8 +14,9 @@ point and none depends on another. That is the architecture.
 ## Status
 
 Proposed, documentation only. No crate, package or release exists yet. When
-code lands, this area becomes a Cargo workspace and its units start
-quarantined under the [platform migration](../docs/features/active/platform-monorepo/)
+code lands, this area holds the Cargo workspace beside these documents,
+following Botcore's layout under `endpoints/`, and its units start
+quarantined under the [platform migration](../../docs/features/active/platform-monorepo/)
 rules.
 
 ## Documents
@@ -34,5 +35,5 @@ codebase to learn what is current.
 | [Research](docs/research.md) | Synthesis of public sources on agent memory, retrieval and the MCP stack |
 | [Sources](docs/sources.md) | Annotated source ledger with dates and inference limits |
 
-The feature index in [docs/features](../docs/features/README.md) lists Umbel
+The feature index in [docs/features](../../docs/features/README.md) lists Umbel
 under proposed features and points here.
