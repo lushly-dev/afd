@@ -115,6 +115,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 			registeredCommands.push(command);
 		}
 	}
+	const contextFields = checkContextFields(options.contextFields);
 	if (bootstrap) {
 		// afd-help/afd-docs/afd-schema describe what a remote agent can see and call:
 		// MCP-exposed commands in the active context (built-ins included).
@@ -122,7 +123,9 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		const describe = (context?: CommandContext) =>
 			filterByContext(remoteCommands, resolveContextState(context, contextState)?.getActive());
 		registeredCommands.push(
-			...getBootstrapCommands(describe, { toolSurface: { toolStrategy, firstClassTools } })
+			...getBootstrapCommands(describe, {
+				toolSurface: { toolStrategy, firstClassTools, contextFields },
+			})
 		);
 	}
 	assertValidFirstClassTools({ toolStrategy, firstClassTools, commands: registeredCommands });
@@ -132,7 +135,6 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 	}
 
 	const contextDefaults = { clock: options.clock, random: options.random };
-	const contextFields = checkContextFields(options.contextFields);
 	const engine = createExecutionEngine({
 		commandMap,
 		middleware,
@@ -195,6 +197,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		getToolsList: boundGetToolsList,
 		routeToolCall,
 		contexts,
+		contextFields,
 		toolsListTtlMs: options.toolsListTtlMs,
 		toolStrategy,
 		confirmationKey: options.confirmationKey,
@@ -227,6 +230,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		confirmations,
 		sessions,
 		createContext: options.createContext,
+		contextFields,
 		onError,
 		modern,
 	});

@@ -4,9 +4,10 @@
  * `journal: true`, the journal.
  */
 
-import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import type { CommandContext, CommandResult, JsonSchema } from '@lushly-dev/afd-core';
 import { failure } from '@lushly-dev/afd-core';
 import type { z } from 'zod';
+import { zodToJsonSchema } from './schema.js';
 
 /** A request value a host declares: where it lands in the context and how it is validated. */
 export interface ContextField<T = unknown> {
@@ -49,6 +50,46 @@ const META_KEY = new RegExp(
  * the journal middleware. A symbol, so it never shows up among the context's keys.
  */
 export const JOURNALED_CONTEXT_FIELDS: unique symbol = Symbol('afd.journaledContextFields');
+
+/** The `_meta` key under which `server/discover` lists the declared fields. */
+export const AFD_CONTEXT_FIELDS_META_KEY = 'dev.afd/context-fields';
+
+/** A declared field as discovery describes it, with its schema as JSON Schema. */
+export interface DescribedContextField {
+	name: string;
+	meta: string;
+	schema: JsonSchema;
+	required: boolean;
+	journal: boolean;
+}
+
+/** The declared fields as `server/discover` and `afd-help` list them. */
+export function describeContextFields(fields: readonly ContextField[]): DescribedContextField[] {
+	return fields.map((field) => ({
+		name: field.name,
+		meta: field.meta,
+		schema: zodToJsonSchema(field.schema),
+		required: field.required === true,
+		journal: field.journal === true,
+	}));
+}
+
+/**
+ * The declared fields' values in a request's `_meta`, by field name. Undeclared keys are left out.
+ * Callers spread trusted values (from `createContext`) after these, so trusted code wins.
+ */
+export function contextFieldValues(
+	fields: readonly ContextField[] | undefined,
+	meta: unknown
+): Record<string, unknown> {
+	if (!fields?.length || !meta || typeof meta !== 'object' || Array.isArray(meta)) return {};
+	const values: Record<string, unknown> = {};
+	for (const field of fields) {
+		const value = (meta as Record<string, unknown>)[field.meta];
+		if (value !== undefined) values[field.name] = value;
+	}
+	return values;
+}
 
 /**
  * Check declarations when a server or registry is created.

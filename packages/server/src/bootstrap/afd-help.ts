@@ -7,6 +7,11 @@
 import type { CommandExample } from '@lushly-dev/afd-core';
 import { AFD_CONTRACT_VERSION, success } from '@lushly-dev/afd-core';
 import { z } from 'zod';
+import {
+	type ContextField,
+	type DescribedContextField,
+	describeContextFields,
+} from '../context-fields.js';
 import { defineCommand, type ZodCommandDefinition } from '../schema.js';
 import type { ToolStrategy } from '../server-types.js';
 import { describableCommands, type GetDescribedCommands } from './described-command.js';
@@ -37,6 +42,8 @@ interface HelpOutput {
 	toolStrategy?: ToolStrategy;
 	/** The first-class command names in list order; hybrid servers only. */
 	firstClassTools?: string[];
+	/** The declared context fields and their `_meta` keys (`spec/context-fields.md`); omitted when none. */
+	contextFields?: DescribedContextField[];
 	commands: CommandInfo[];
 	total: number;
 	filtered: boolean;
@@ -48,6 +55,8 @@ export interface ToolSurface {
 	toolStrategy: ToolStrategy;
 	/** The hybrid strategy's first-class command names, in list order. */
 	firstClassTools?: readonly string[];
+	/** The declared context fields, which `afd-help` lists so agents know what to send. */
+	contextFields?: readonly ContextField[];
 }
 
 /**
@@ -137,6 +146,9 @@ export function createAfdHelpCommand(
 				...(toolSurface && { toolStrategy: toolSurface.toolStrategy }),
 				...(toolSurface?.toolStrategy === 'hybrid' && {
 					firstClassTools: [...(toolSurface.firstClassTools ?? [])],
+				}),
+				...(toolSurface?.contextFields?.length && {
+					contextFields: describeContextFields(toolSurface.contextFields),
 				}),
 				commands: commandInfos,
 				total: commandInfos.length,
