@@ -496,7 +496,7 @@
       "path": "foundations/violet/README.md",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "2dfe90a8d6e950cdded68f8bda0e0b2e45b58326561d9d7212815eb0023e8aef",
+      "current_import_sha256": "8410c31d73c672d76338fb838192ec7ca33a78c5e3109d871f34c38c87642353",
       "classification": "afd-authored",
       "reason": "Describe the imported units, configuration, gates and quarantine in the AFD tree; gates list the Postgres and Neon driver store legs",
       "candidate": {
