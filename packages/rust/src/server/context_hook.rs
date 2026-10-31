@@ -27,10 +27,16 @@
 //! - **A panic is a refusal.** A hook that panics refuses the request with a generic
 //!   `INTERNAL_ERROR`; the panic message is never sent.
 //! - **The server keeps its own invariants.** After the hook, the context's `interface` is set to
-//!   [`CommandInterface::Mcp`] (so `expose.mcp` is always enforced), a missing `trace_id` is
-//!   refilled, and a missing `actor`, `clock` or `random` falls back to the server's defaults.
-//!   Everything else, including `approval` evidence and `extra`, is exactly what the hook
+//!   [`CommandInterface::Mcp`] and the call is marked remote (so `expose.mcp` is always enforced
+//!   and an unexposed command stays indistinguishable from a missing one), a missing `trace_id`
+//!   is refilled, a missing `actor`, `clock` or `random` falls back to the server's defaults, and
+//!   the active context is the request's own (`_meta["dev.afd/context"]` or the connection's
+//!   stack; see [`McpServer::with_contexts`](super::McpServer::with_contexts)), whatever the hook
+//!   set. Everything else, including `approval` evidence and `extra`, is exactly what the hook
 //!   returns. Never copy request input into `approval`.
+//! - **Every route.** The hook runs once for the call whatever the tool: a command's own tool, a
+//!   grouped tool, `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail` or an
+//!   unknown name. Every batch item and pipeline step runs with its context.
 //!
 //! The hook does not cover `tools/list`, `server/discover` or `initialize`; to refuse a request
 //! before any MCP handling (a missing or invalid bearer token, for example), put a `tower` layer
@@ -157,7 +163,7 @@ fn visible(error: CommandError) -> CommandError {
 
 /// Build the context a tool call runs with.
 ///
-/// `base` already carries the trace id and the `mcp` interface. Without a hook the result is
+/// `base` already carries the trace id, the `mcp` interface and the remote flag. Without a hook the result is
 /// `base` with the server's defaults; with one, the hook's answer is normalized so it cannot
 /// drop the server's invariants (see the module docs).
 pub(crate) async fn build_context(
@@ -183,6 +189,7 @@ pub(crate) async fn build_context(
         Err(_) => return Err(Box::new(hook_failed())),
     };
     context.interface = Some(CommandInterface::Mcp);
+    context.remote = true;
     if context.trace_id.is_none() {
         context.trace_id = trace_id;
     }

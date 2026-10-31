@@ -558,13 +558,6 @@ impl CommandContext {
         self
     }
 
-    /// Carry `scope` (the MCP server's per-request context state).
-    #[cfg_attr(not(feature = "server"), allow(dead_code))]
-    pub(crate) fn with_context_scope(mut self, scope: crate::contexts::ContextScope) -> Self {
-        self.context_scope = Some(scope);
-        self
-    }
-
     /// The active context, if any.
     pub fn active_context(&self) -> Option<String> {
         self.context_scope

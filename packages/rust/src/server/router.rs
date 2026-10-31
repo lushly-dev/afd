@@ -1,13 +1,19 @@
 //! Tool call routing: the meta-tools, grouped tools and command tools, as TypeScript's tool
 //! router dispatches them.
 //!
-//! Every route ends in [`CommandRegistry::execute`](crate::CommandRegistry::execute) (directly,
-//! or for each batch item or pipeline step) with the same context: interface `mcp`, the
-//! server's actor, clock and random source, the request's active context, and the remote
-//! flag, under which an unexposed command is indistinguishable from an unknown one (D4). The
-//! confirmation gate sees every command a call would run before any of them runs, and the
-//! registry's middleware (the approval middleware among them) wraps each execution. No route
-//! reaches a command that a direct tool call could not.
+//! The context hook ([`super::context_hook`]) runs first, once per call, before the tool is
+//! looked up and before the confirmation gate; a refusal answers the call whatever its name.
+//! Every route then ends in [`CommandRegistry::execute`](crate::CommandRegistry::execute)
+//! (directly, or for each batch item or pipeline step) with the hook's context, on which the
+//! server re-asserts interface `mcp`, the remote flag (under which an unexposed command is
+//! indistinguishable from an unknown one, D4), a trace ID, its default actor, clock and random
+//! source, and the request's active context, which the hook cannot set. The confirmation gate
+//! sees every command a call would run before any of them runs, and the registry's middleware
+//! (the approval middleware among them) wraps each execution. No route reaches a command that a
+//! direct tool call could not.
+//!
+//! Every tool result carries the whole result as `structuredContent` next to the JSON text, as
+//! TypeScript's `resultContent` does.
 
 use std::collections::HashSet;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -26,6 +32,7 @@ use crate::{
 };
 
 use super::confirmations::{self, Acknowledgement, Decision, Step};
+use super::context_hook;
 use super::meta_tools;
 use super::strategy::{command_action, command_group, ToolStrategy};
 use super::McpServer;
@@ -45,19 +52,24 @@ fn internal(error: impl std::fmt::Display) -> ErrorData {
     ErrorData::internal_error(error.to_string(), None)
 }
 
-/// A tool result: the JSON as text content, and `isError`.
+/// A tool result: the JSON as text content, the same JSON as `structuredContent` (when it is an
+/// object, as every AFD result is), and `isError`.
 pub(crate) fn tool_result(
     value: &impl Serialize,
     is_error: bool,
 ) -> Result<CallToolResponse, ErrorData> {
-    let text = serde_json::to_string(value).map_err(internal)?;
+    let structured = serde_json::to_value(value).map_err(internal)?;
+    let text = serde_json::to_string(&structured).map_err(internal)?;
     let content = vec![ContentBlock::text(text)];
-    Ok(if is_error {
+    let mut result = if is_error {
         CallToolResult::error(content)
     } else {
         CallToolResult::success(content)
+    };
+    if structured.is_object() {
+        result.structured_content = Some(structured);
     }
-    .into())
+    Ok(result.into())
 }
 
 fn command_result(result: &CommandResult<Value>) -> Result<CallToolResponse, ErrorData> {
@@ -141,6 +153,8 @@ pub(crate) struct Call<'a> {
     request: &'a CallToolRequestParams,
     context: &'a RequestContext<RoleServer>,
     scope: Option<ContextScope>,
+    /// The hook's context, with the server's invariants (see the module docs).
+    base: CommandContext,
 }
 
 impl Call<'_> {
@@ -177,13 +191,11 @@ impl Call<'_> {
         Some(refused(not_in_context_error(command, &active, tools)))
     }
 
-    /// The context every execution of this call starts from, with `prefix`'s trace ID.
-    fn execution_context(&self, prefix: &str) -> CommandContext {
-        let mut context = self.server.base_context();
-        context.trace_id = Some(trace_id(prefix));
-        if let Some(scope) = &self.scope {
-            context = context.with_context_scope(scope.clone());
-        }
+    /// The context every execution of this call starts from: the hook's context with the
+    /// request's context scope, which only the server sets.
+    fn execution_context(&self) -> CommandContext {
+        let mut context = self.base.clone();
+        context.context_scope = self.scope.clone();
         context
     }
 
@@ -215,17 +227,12 @@ impl Call<'_> {
         .await
     }
 
-    async fn execute(
-        &self,
-        name: &str,
-        input: Value,
-        prefix: &str,
-    ) -> Result<CallToolResponse, ErrorData> {
+    async fn execute(&self, name: &str, input: Value) -> Result<CallToolResponse, ErrorData> {
         let result = self
             .server
             .inner
             .registry
-            .execute(name, input, Some(self.execution_context(prefix)))
+            .execute(name, input, Some(self.execution_context()))
             .await;
         command_result(&result)
     }
@@ -271,7 +278,7 @@ impl Call<'_> {
             )
             .await
         {
-            Decision::Proceed => self.execute(name, input, "afd-call").await,
+            Decision::Proceed => self.execute(name, input).await,
             Decision::Refuse(error) => refused(error),
             Decision::Ask(response) => Ok(response),
         }
@@ -355,7 +362,7 @@ impl Call<'_> {
             .server
             .inner
             .registry
-            .execute_batch_with_context(request, self.execution_context("batch"))
+            .execute_batch_with_context(request, self.execution_context())
             .await;
         tool_result(&result, !result.success)
     }
@@ -403,7 +410,7 @@ impl Call<'_> {
             Decision::Ask(response) => return Ok(response),
         }
         let registry = Arc::clone(&self.server.inner.registry);
-        let base = self.execution_context("pipeline");
+        let base = self.execution_context();
         let executor: CommandExecutor = Arc::new(move |command, input, step| {
             let registry = Arc::clone(&registry);
             let mut context = base.clone();
@@ -475,7 +482,7 @@ impl Call<'_> {
                     )
                     .await
                 {
-                    Decision::Proceed => self.execute(&command.name, params, "trace").await,
+                    Decision::Proceed => self.execute(&command.name, params).await,
                     Decision::Refuse(error) => refused(error),
                     Decision::Ask(response) => Ok(response),
                 },
@@ -532,10 +539,28 @@ impl Call<'_> {
             )
             .await
         {
-            Decision::Proceed => self.execute(name, input, "mcp").await,
+            Decision::Proceed => self.execute(name, input).await,
             Decision::Refuse(error) => refused(error),
             Decision::Ask(response) => Ok(response),
         }
+    }
+}
+
+/// The trace ID prefix of the executions `name` routes to, as TypeScript names them.
+fn trace_prefix(server: &McpServer, name: &str) -> &'static str {
+    match name {
+        "afd-call" => "afd-call",
+        "afd-batch" => "batch",
+        "afd-pipe" => "pipeline",
+        _ if server.inner.strategy == ToolStrategy::Grouped
+            && server
+                .exposed_commands()
+                .iter()
+                .any(|command| command_group(command, server.inner.group_by.as_ref()) == name) =>
+        {
+            "trace"
+        }
+        _ => "mcp",
     }
 }
 
@@ -545,15 +570,33 @@ pub(crate) async fn route(
     request: &CallToolRequestParams,
     context: &RequestContext<RoleServer>,
 ) -> Result<CallToolResponse, ErrorData> {
+    let name = request.name.as_ref();
+    // The hook runs before anything else, so a refused caller reaches neither a confirmation
+    // prompt nor the unknown-tool answer.
+    let base = server
+        .base_context()
+        .with_trace_id(trace_id(trace_prefix(server, name)));
+    let base = match context_hook::build_context(
+        server.inner.context_hook.as_ref(),
+        &server.inner.context_defaults,
+        name,
+        context,
+        base,
+    )
+    .await
+    {
+        Ok(base) => base,
+        Err(error) => return refused(*error),
+    };
     let scope = server.request_scope(context)?;
     let call = Call {
         server,
         request,
         context,
         scope,
+        base,
     };
     let args = request.arguments.clone().unwrap_or_default();
-    let name = request.name.as_ref();
     match name {
         "afd-call" => call.afd_call(&args).await,
         "afd-discover" => call.afd_discover(&args),

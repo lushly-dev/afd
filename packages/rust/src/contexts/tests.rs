@@ -290,7 +290,10 @@ async fn context_changes_need_a_session() {
             .execute(
                 name,
                 input,
-                Some(CommandContext::new().with_context_scope(ContextScope::NoSession)),
+                Some(CommandContext {
+                    context_scope: Some(ContextScope::NoSession),
+                    ..CommandContext::new()
+                }),
             )
             .await;
         assert_eq!(no_session.error.unwrap().code, "SESSION_REQUIRED");
