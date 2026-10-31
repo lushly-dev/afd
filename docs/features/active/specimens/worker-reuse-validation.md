@@ -2,6 +2,8 @@
 
 Status: fourteen completed real consumer jobs passed locally, verifying 832 captures, 2026-10-28. Reuse preserved the post-close memory benefit and used less CPU than the per-round restart controls. This follows the [heap/cache lifetime study](heap-lifetime-validation.md), whose cold-heavy workflow showed substantial post-close memory recovery and a repeated-worker startup CPU cost.
 
+The [updated monorepo rerun](monorepo-resource-validation.md) repeats this matrix after the FAST-AF import and upstream reconciliation, retaining the historical results below for comparison.
+
 ## Question and controls
 
 The question is whether one isolated runtime can process a larger capture batch while approaching in-process CPU cost and retaining the memory recovery benefit when closed. These are two separate outcomes: an open worker still owns Vite/Playwright caches, and closing it releases those caches. A worker kept open indefinitely does not provide the post-close benefit.

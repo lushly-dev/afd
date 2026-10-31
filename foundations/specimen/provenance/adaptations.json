@@ -69,11 +69,11 @@
       "upstream_sha256": "e61a3798dc8310d60087bb0a5202f48f92b12d90a75b6523dfa78b2ae512e298",
       "staged_path": "docs/features/active/specimens/worker-reuse-validation.md",
       "staged_sha256": "e61a3798dc8310d60087bb0a5202f48f92b12d90a75b6523dfa78b2ae512e298",
-      "current_import_sha256": "fecdc8620036dd99c0cecad4bba22a5f1de2fdd6b50a19103ef92552fe170129",
+      "current_import_sha256": "f1b7c3b5d8a49cd01b8a18254012828406c4c288f573e217030d355b8ce5786f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
+      "import_reason": "Relocate links from packages/specimen to foundations/specimen; text otherwise unchanged; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; link the updated monorepo CPU/memory rerun"
     },
     {
       "path": "docs/features/proposed/specimens/review.md",
@@ -225,11 +225,11 @@
       "upstream_sha256": "1679fd7a89642030f5ded5a2fd38701e3c6a745beca1c0565fa709b5c16a329d",
       "staged_path": "packages/specimen/experiments/README.md",
       "staged_sha256": "1679fd7a89642030f5ded5a2fd38701e3c6a745beca1c0565fa709b5c16a329d",
-      "current_import_sha256": "a57328a17c913320ebae1a9658c725b2144a7fc487a12752e4d9fa45f1f4029e",
+      "current_import_sha256": "97b7dec441518adf64c2004bc18d3454ddb75e5366d5415a98ff67306b703d8f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Driver commands use the imported foundations/specimen path; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged"
+      "import_reason": "Driver commands use the imported foundations/specimen path; Post-import warm CPU investigation: opt-in profiler diagnostics, cached fallback sourcemaps, executable regressions and measured results; source/publisher authority unchanged; link the updated monorepo CPU/memory rerun"
     },
     {
       "path": "foundations/specimen/experiments/consumer-project.mjs",
@@ -998,6 +998,18 @@
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
       "import_reason": "Warm Node CPU profiling diagnostics and regression/measurement evidence; native unit remains quarantined"
+    },
+    {
+      "path": "docs/features/active/specimens/monorepo-resource-validation.md",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "9c8be21ae47bc1ab74055e826f0509f5d38c1823df86fbe517421c0369259e66",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Record the updated monorepo CPU/memory matrix and historical input/comparison limits; publication authority unchanged"
     }
   ]
 }

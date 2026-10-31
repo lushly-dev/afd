@@ -97,6 +97,8 @@ Waited CPU and CPU per verified capture include preparation, verification, phase
 
 See the [worker-reuse validation](../../../docs/features/active/specimens/worker-reuse-validation.md) for the paired experiment, open-worker memory trend and post-close cost.
 
+For this monorepo's FAST-AF source, pass `--fast-af foundations/fast-af`. The fixture links both runtime package aliases to the same physical package. The [monorepo rerun](../../../docs/features/active/specimens/monorepo-resource-validation.md) compares the refreshed 90/70-capture workloads with prior CPU and memory results.
+
 ## Warm Node CPU profiles
 
 Add `--cpu-profile` to the reused batch workload for a diagnostic run:
