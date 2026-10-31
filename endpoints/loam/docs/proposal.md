@@ -7,8 +7,8 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Proposed; drafted in a design session on 2026-10-30, direction not yet approved, implementation not started |
-| Date | 2026-10-30 |
+| Status | Proposed; drafted in design sessions on 2026-10-30 and 2026-10-31 and revised after three independent reviews; the owner decided D22 and D25 to D49; the whole is not yet approved; implementation not started |
+| Date | 2026-10-30, revised 2026-10-31 |
 | Package boundary | New TypeScript units under `endpoints/loam/`, as the architecture's repository placement describes; Rust WebAssembly modules only where a measurement shows they pay |
 | Implementation | Not started by this proposal |
 | Name | Loam, decided 2026-10-30 (D22); "AFD Loam" in full |
@@ -19,15 +19,17 @@
 Loam is an application shell for AFD applications. One chrome holds many
 apps. Each app is a plugin that declares what it contributes and subscribes
 to the shell's surfaces; the shell provides everything that every app would
-otherwise build again: sign-in, account and persona; workspaces and projects
-that group what the apps make; documents, with types any plugin contributes
-and an editor area that holds many at once; settings, experiments and
-notifications; the command palette, the copilot and the status bar; overlays
-that belong to the app that opened them; a layout engine and a library of
-shared UX patterns; and one component library with Violet tokens.
+otherwise build again: sign-in, account, persona and agent members;
+workspaces and projects that group what the apps make; documents, with
+types any plugin contributes and an editor area that holds many at once;
+multiplayer for every document; settings, experiments and notifications;
+the command palette, the copilot and the status bar; overlays that belong
+to the app that opened them; a layout engine and a library of shared UX
+patterns; one component library on a Violet design foundation; and a
+builder in which the copilot makes and publishes apps.
 
 Loam ships empty. With no app installed it is a signed-in chrome with a
-palette, a projects section, settings, experiments and an agent panel, and
+palette, a projects section, settings, experiments and the copilot, and
 nothing to do. Capability arrives as apps: some built here as examples and
 first-party defaults, most built by the people who deploy it, without
 touching this codebase.
@@ -72,7 +74,7 @@ interfaces, and the gaps between them, is where that position is tested.
 ## Why a shell built on AFD
 
 AFD already provides most of what a shell needs: one command registry for
-palette, in-app agent, MCP and CLI callers with per-interface exposure;
+palette, copilot, MCP and CLI callers with per-interface exposure;
 `CommandResult` with reasoning, warnings, confidence and undo; the actor and
 an extensible command context; confirmations and approvals; the journal and
 its replay; batch and pipeline composition; bootstrap discovery and AFD
@@ -80,7 +82,10 @@ contexts; view-state commands; the auth adapter with Better Auth and Convex
 behind it; and servers in TypeScript, Python, Rust and C++. Loam builds on
 those and adds only what a shell of apps needs: the surface catalog, the
 layout engine, scope, the overlay manager, the experiments lifecycle, the
-app loader and the bus. The architecture's
+app loader and the bus. The gaps are small and named: a browser-safe entry
+for the registry, journal and approvals; declared context fields in the
+journal and over MCP; AFD contexts in the direct registry; and an `apps`
+exposure flag. The architecture's
 [Built on AFD](architecture.md#6-built-on-afd) table is the map, and its
 prerequisites table lists the AFD features that land first.
 
@@ -93,8 +98,8 @@ glossary is in the [architecture](architecture.md#12-glossary).
 | --- | --- | --- |
 | App | A plugin with a user interface: the unit that lands in the shell | Umbel's plugin; [Plugin Discovery](../../../docs/features/proposed/plugin-discovery/plugin-discovery.proposal.md) |
 | Command | The unit of capability inside an app or the shell, exposed to every interface from one registry | AFD core |
-| Interface | Who is calling: palette, agent, MCP, CLI, and the proposed `apps` flag | AFD `expose` |
-| Surface | A shell-owned region or section an app subscribes to: rail, sidebar, main, inspector, panel, status bar, palette, settings, experiments, notifications, overlays, agent | New; VS Code calls the same idea a contribution point |
+| Interface | Who is calling: palette, agent, MCP, CLI, and the `apps` flag Loam proposes (D30) | AFD `expose` |
+| Surface | A shell-owned region or section an app subscribes to: rail, sidebar, header, main, documents, editor, inspector, panel, status, palette, settings, experiments, notifications, overlays, agent, automations and the rest of the catalog | New; VS Code calls the same idea a contribution point |
 | Part | A region of the layout engine's grid: title bar, rail, sidebar, main, inspector, panel, status bar | VS Code's workbench parts |
 | Scope | The shell-level context a command runs in: a workspace, optionally narrowed to a project | New; Lushly's active-workspace rule |
 | Workspace, project | The two levels of scope; a project groups resources that apps make | Linear, Notion, Slack use the same words |
@@ -104,14 +109,20 @@ glossary is in the [architecture](architecture.md#12-glossary).
 | Kit | The shell's own components, built on the FAST-AF component set | New |
 | Document, document type | A shell resource with one model and any number of editors; the type any plugin contributes that gives it a schema, an editor and commands | VS Code custom editors, Obsidian leaves |
 | Editor area | The main part when documents are open: tabs, splits, pinned and preview editors | VS Code's editor groups |
-| Copilot | The shell's chat panel that drives apps and documents through commands; its agents, handoffs and sessions are AFD records | The Agent Engine proposal |
+| Copilot | The shell's chat panel that drives apps and documents through commands; its agents, delegations, runs and sessions are Loam's records on AFD's actor and journal | Loam proposes these records to the Agent Engine proposal |
 | Agent | A record naming instructions, AFD contexts, skills, a tools filter, a model preference and an owner; the shell's orchestrator or an app's specialist | New |
-| Design foundation | Loam's semantic token layer on Violet, its themes, the bridge to the component set, the design document, its skill and the component checklist | The afd.dev design record |
+| Design foundation | Loam's semantic token layer on Violet, its themes, the shared components fed by Violet themes, the design document, its skill and the component checklist | The afd.dev design record |
+| Agent member | An agent admitted to the workspace with a human sponsor, scoped to projects, not a seat | Linear's agents; Microsoft's agent identities |
+| Run | A unit of agent work with scope, isolation, plan, artifacts and status | Coding agent managers; Slack's code channels |
+| Autonomy policy | Suggest, ask or act, set per workspace, project, app and command | Practitioner guidance on approval fatigue |
 
 "Surface" in Umbel's documents means a transport (MCP, CLI, library); here it
-means a shell region. The two glossaries cross-reference each other
-(decision D13). "Module" and "extension" are not used, for the reasons Umbel
-gives.
+means a shell region. The two glossaries should cross-reference each other
+(D13); Umbel's side is a follow-up in the status. "Module" is not used, and
+"extension" keeps only MCP's meaning, for the reasons Umbel gives.
+"Delegation" names what the copilot does when it hands a turn to another
+agent, so that AFD's handoff pattern, which bootstraps realtime sessions,
+keeps its own word.
 
 Apps carry plain semantic names for what they do, such as `projects`,
 `violet`, `health` and `console`, and their commands follow AFD's
@@ -125,13 +136,13 @@ in particular.
 With no app installed the shell provides the chrome and every part of the
 layout; sign-in, account, persona and sessions; workspaces and projects with
 their store and a projects section; an editor area, a documents section and
-a New menu whose only entry is App, which opens the builder; settings and experiments sections with
-no app entries; the notifications inbox; the command palette over the
-shell's own commands; the copilot over the same registry; the overlay
-manager; the journal; the app loader; the kit; and, on the hosted server,
-MCP and REST over the shell's exposed commands. The architecture's
-[components](architecture.md#4-components) table says what each owns and
-what it does not.
+a New menu whose only entry is App, which opens the builder; settings and
+experiments sections with no app entries; the notifications inbox; the
+command palette over the shell's own commands; the copilot over the same
+registry; the overlay manager; the journal; the app loader; the kit; and, on
+the hosted server, MCP and REST over the shell's exposed commands. The
+architecture's [components](architecture.md#4-components) table says what
+each owns and what it does not.
 
 ## The shape of the chrome
 
@@ -139,7 +150,7 @@ The default layout, with one project active. Letters on the rail are apps.
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────┐
-│ Title bar   workspace ▾        search and palette (⌘K)      agent  me ▾  │
+│ Title bar   workspace ▾        search and palette (⌘K)      copilot  me ▾│
 ├────┬──────────────────┬───────────────────────────────────┬──────────────┤
 │Rail│ Sidebar          │ Main                              │ Inspector    │
 │    │                  │                                   │              │
@@ -186,8 +197,9 @@ The rail has two bands with a divider between them, in the pattern the
 research found in Arc, Things, Linear and Notion. The top band is headed by
 the projects section and the project switcher and lists the apps that
 subscribe to the project scope; the bottom band lists the apps that never
-take a project. An app that supports both scopes appears once: in the top band under the
-project when one is active, otherwise in workspace scope (D29).
+take a project. An app that supports both scopes appears once: in the top
+band under the project when one is active, otherwise in workspace scope
+(D29).
 
 | Option | Shape | Strength | Weakness |
 | --- | --- | --- | --- |
@@ -203,9 +215,10 @@ Recommendation: C, with B's projects section as the project home. Rules:
   `project-summary` surface, so the project home shows what every app made
   without the shell knowing what it is.
 - The active scope reaches every command as a field on the command context
-  and, over MCP, as explicit per-request input in `_meta`, never as
-  connection state, because `tools/list` must not vary per connection under
-  MCP 2026-07-28. The URL carries it too: `/<workspace>/<app>/...` and
+  and, over MCP, as explicit per-request input in a declared `_meta` key,
+  never as connection state, because `tools/list` must not vary per
+  connection under MCP 2026-07-28; AFD's MCP server must forward that key,
+  a prerequisite. The URL carries it too: `/<workspace>/<app>/...` and
   `/<workspace>/p/<project>/<app>/...`.
 - The active project narrows, never grants. Authorization comes from
   membership and the provider's roles; a cross-project mutation is refused
@@ -276,8 +289,8 @@ sessions must be revalidated when membership changes and that a share link
 needs a generation so revoking it ends the sessions bound to it [S78].
 
 Loam makes collaboration a shell service with four parts, bound by a
-contract every document type and run declares from phase 2, so that no
-type is ever built for itself (D46).
+contract every document type declares from phase 2, and every run when run
+records land in phase 5, so that no type is ever built for itself (D46).
 
 - **Sync.** The command journal is the system of record: every change to a
   shared document is a journaled command, so agents and people share one
@@ -333,6 +346,7 @@ contract and ownership rule, is in the
 | inspector | Selection-driven properties | The app; cleared on switch |
 | panel | Bottom views such as results, logs, a terminal | The app; parked on switch |
 | status | Items on the left for workspace and project, on the right for the app and the active item | Left: shell; right: the app, removed on switch |
+| account | Sections in the account area, as for settings | Shell |
 | documents | Document types with their templates, schema, editor and optional surfaces | Shell |
 | new | Creators beyond document types: a title, an icon and a command | Shell, filtered by scope |
 | editor | The editor frame for an open document: mount, instance id, selection model, dirty, save and dispose hooks | The document's plugin; tabs stay, the active editor changes |
@@ -342,7 +356,8 @@ contract and ownership rule, is in the
 | experiments | Flags the app declares, with a lifecycle | Shell |
 | notifications | Persistent items in the inbox | Shell |
 | overlays | Toasts, dialogs, modals, popovers, prompts through shell commands | The app session; policy on switch |
-| agent | AFD contexts, skills, prompts and specialist agents for the copilot | Shell |
+| agent | AFD contexts, skills, prompts, specialist agents and agent packs for the copilot | Shell |
+| automations | Triggers from the app's events and actions from its commands | Shell |
 | keybindings, menus | Bindings and context-menu entries | Shell; conflicts refused at registration |
 | project-summary | A summary of what the app holds in a project | Shell, rendered in the projects section |
 
@@ -402,9 +417,10 @@ empty states, command list), through the SDK.
 An app may bring its own elements. They register under a scoped custom
 element registry, so tag names never collide between apps or with the shell,
 and each app's root resets inherited styles so that no app's typography or
-spacing reaches another. Scoped registries ship in Chromium and Safari but
-not Firefox, so the SDK carries a polyfill until the watchlist says
-otherwise.
+spacing reaches another. Scoped registries ship in Chromium 146, Safari 26
+and Firefox 159; the SDK keeps the polyfill fast-element already depends on
+only for older Firefox and retires it when the support floor passes 159
+(D34).
 
 ## Design foundation
 
@@ -430,8 +446,8 @@ extending it come first, in phase 0 (D26).
   become two Violet design systems feeding the same components. Nothing is
   forked. Lushly's move to Violet throughout starts with these shared
   components; its theme and the rest of that transition are specified in
-  Lushly's repository (D28). This is a phase 0 deliverable and a
-  prerequisite for everything visual.
+  Lushly's repository (D28). This is a phase 0 deliverable that everything
+  visual depends on.
 - **Guidance before components.** A design document in the shape of the
   afd.dev design record: the token layer, the type ramp, color-field and
   density rules, the rhythm of the parts, motion rules, iconography and the
@@ -442,7 +458,8 @@ extending it come first, in phase 0 (D26).
 - **Components as needed, under a checklist.** A kit or app component ships
   when it is used, with: semantic tokens only, verified by a lint; every
   state (hover, focus, active, disabled, invalid, loading); keyboard and
-  ARIA; light, dark and high contrast; a Specimen fixture; an axe pass; a
+  ARIA; light, dark and high contrast; a Specimen fixture; an axe pass in
+  the Chromium suite; a
   line in the design document. The checklist is the gate, not a catalog
   built ahead of use.
 - **What the first consumer gets.** The Lushly support application runs
@@ -461,6 +478,11 @@ extending it come first, in phase 0 (D26).
 - **Account** is a shell section: profile, email, passkeys and sessions,
   organizations and memberships, agent credentials, data export, deletion.
   Apps contribute sections to it the way they do to settings.
+- **Agent members.** An agent joins the workspace the way Linear admits
+  one: a workspace owner installs it, a human sponsor is accountable for
+  it, it is scoped to projects, it is not a seat, it reads workspace and
+  project guidance, and it cannot sign in or administer. Work delegated to
+  it stays visible to the person who delegated it (D40).
 - **Persona** is a lens, never a grant. It holds how a person presents
   (name, avatar, pronouns), their defaults (landing app, default scope,
   density, theme) and an emphasis (which rail bands expand, which settings
@@ -470,16 +492,19 @@ extending it come first, in phase 0 (D26).
   Enterprise consoles that let a persona hide a section and call it security
   are the counterexample the research records.
 - **Actor.** Every command carries AFD's actor. A person is `human`; the
-  in-app agent is `agent` acting `onBehalfOf` the person; the persona is
-  recorded in the command context's extension, not in the actor.
+  copilot and every agent member are `agent` acting `onBehalfOf` the person
+  they act for; the persona is recorded in Loam's context fields, not in
+  the actor.
 
 ## Settings, experiments, notifications
 
 - **Settings** are a tree of sections. The shell owns its own; each app
   contributes a section with a JSON Schema and a scope (user, workspace or
-  project). Values are read and written through `settings-*` commands,
+  project). Values are read and written through `setting-*` commands,
   searched across apps from the palette, and persisted through the kernel's
   store.
+- **Autonomy** is a settings section: suggest, ask or act, set per
+  workspace, project, app and command and inherited downward (D41).
 - **Experiments** are flags with a lifecycle: hidden, visible, enabled,
   graduated, removed. Nothing is on by default. A person opts in per
   experiment; a workspace owner may enable one for everyone; an experiment
@@ -499,10 +524,11 @@ app declares the grant in its manifest; the kernel enforces both at the
 registry. Composition is `afd-batch` and `afd-pipe`. Navigation between apps
 is a command, `shell-open`, with a resource link that names the app, the
 resource and the scope. Events are the journal: every mutation is a
-journaled command, and `shell-events` lets an app read them by cursor and
-pattern, in the shape Umbel's event log takes. The callee's new `apps`
-exposure flag beside palette, agent, MCP and CLI and the caller's `calls`
-grant are both required (D30); the flag is a small AFD feature proposal.
+journaled command, and `event-list` lets an app read them by cursor and
+pattern, aligned with Umbel's event log where the fields overlap (D10). The
+callee's new `apps` exposure flag beside palette, agent, MCP and CLI and the
+caller's `calls` grant are both required (D30); the flag is a small AFD
+feature proposal.
 
 ## The copilot
 
@@ -515,53 +541,78 @@ vendor's copilot SDK.
   id, title, instructions, the AFD contexts it may enter, skills, a tools
   filter, a model preference and an owner. The shell ships an orchestrator;
   apps and document types contribute specialists through the `agent`
-  surface. A handoff is a journaled command. Sessions, turns and tool calls
-  are records in the store and the journal. Because these are AFD data, the
-  model SDK underneath only does model calls, streaming and the tool loop,
-  and can change without changing an app.
+  surface. A delegation, `copilot-delegate`, is a journaled command.
+  Sessions, turns and tool calls are records in the store and the journal.
+  Because these are AFD data, the model SDK underneath only does model
+  calls, streaming and the tool loop, and can change without changing an
+  app.
 - **Tools are the registry.** In the browser the copilot calls commands
-  through the DirectClient against the kernel; on the hosted server, through
-  the registry; both under `expose.agent`. A command's `confirmPrompt`
-  becomes the runtime's interrupt and the shell's `prompt` overlay; a
-  command with an approval policy runs only with a token minted by trusted
-  shell code. Mounted servers appear as tools under their mounts, with Umbel
-  as the knowledge and memory source.
+  through the DirectClient against the kernel, which needs a browser-safe
+  entry and AFD contexts in the direct registry, both prerequisites; on the
+  hosted server, through the registry; both under `expose.agent`. A
+  command's `confirmPrompt` becomes the runtime's interrupt and the shell's
+  `prompt` overlay; a command with an approval policy runs only with a token
+  minted by trusted shell code. Mounted servers appear as tools under their
+  mounts, with Umbel as the knowledge and memory source.
 - **Provider-agnostic.** The first consumer runs Gemini; others will run
   Claude or OpenAI; a deployment may run a local model. The runtime adapter
   swaps providers by configuration.
-- **Multi-agent by design, bounded by budget.** The orchestrator may hand a
-  turn to a specialist with typed input, a budget and a timeout, in series
-  or in parallel, and the specialist's contexts limit what it can call.
-  Every hop is visible in the panel and in the journal.
-- **Where it runs.** In the browser the runtime runs in a worker, with
-  model calls streamed through the hosted server, which holds the keys; on
-  the hosted server it runs in the same Node process as MCP and REST; on
-  the desktop it runs in the webview's worker, with keys from the hosted
-  server or a local configuration. The stream to the panel is AG-UI
-  events, so another runtime can attach later.
-- **The SDK.** Decided on 2026-10-31 (D27): TanStack AI 1.0,
-  released 2026-10-23: 23 provider adapters plus an OpenAI-compatible one; a
-  headless client for any framework or none, which a web-component panel
-  needs; isomorphic tools that map one definition to a client-side
-  DirectClient call and a server-side registry call; subagents with typed
-  input, budgets and serial or parallel runs; approvals as interrupts;
-  durable sessions; AG-UI as its stream; MCP in both directions; MIT. The
-  OpenAI Agents SDK has the cleanest handoff and guardrail primitives and
-  MCP support, and its model interface takes other providers through an AI
-  SDK extension, but its defaults, tracing and vocabulary are OpenAI's. The
-  AI SDK is the most adopted and has agent classes and signed approvals, but
-  its gateway framing and Node-only runtime fit less well. TanStack AI's
-  risks are real: 1.0 is a week old, its harness is experimental, and web
-  components are not documented. A spike of the headless client inside a
-  web-component panel is the first task of the phase 5 specification. The
-  GitHub Copilot SDK was considered and set
-  aside: it drives the Copilot CLI as a separate process over JSON-RPC,
-  needs a Copilot subscription or key-only BYOK, keeps the agent loop
-  inside that process, and its session handling has been hard to get right
-  in the owner's production use. Choosing TanStack also lets Loam reuse
-  Lushly's copilot code, which already runs on a TanStack server with
-  approval evidence over AFD commands, and extract shared libraries where
-  they fit; D19 keeps whatever is extracted generic.
+- **Multi-agent by design, bounded by budget.** The orchestrator may
+  delegate a turn to a specialist with typed input, a budget and a timeout,
+  in series or in parallel, and the specialist's contexts limit what it can
+  call. Budgets are enforced by the shell on its own records. Every hop is
+  visible in the panel and in the journal.
+- **Where it runs.** In the browser the runtime runs in a worker, with model
+  calls streamed through the hosted server, which holds the keys; on the
+  hosted server it runs in the same Node process as MCP and REST; on the
+  desktop it runs in the webview's worker, with keys from the hosted server
+  or a local configuration. The stream to the panel is AG-UI events, so
+  another runtime can attach later.
+- **The SDK.** Decided on 2026-10-31 (D27): TanStack AI 1.0, released
+  2026-10-23. Its stable core gives 23 provider adapters plus an
+  OpenAI-compatible one; a headless client for any framework or none, which
+  a web-component panel needs; isomorphic tools that map one definition to a
+  client-side DirectClient call and a server-side registry call; subagents
+  with typed input and limits; `decide()`; approvals as interrupts; AG-UI as
+  its stream; MCP in both directions; MIT. Its durable sessions and budgeted
+  parallel agents live in the experimental harness, which Loam does not
+  need, because sessions and runs are Loam's records (D24). The OpenAI
+  Agents SDK has the cleanest handoffs and guardrails and MCP support, and
+  takes other providers through an AI SDK extension, but its defaults,
+  tracing and vocabulary are OpenAI's. The AI SDK is the most adopted and
+  has agent classes and signed approvals, but its Node 22 floor and
+  framework hooks fit a web-component panel less well. TanStack AI's risks
+  are real: 1.0 is a week old and web components are not documented, so a
+  spike of the headless client inside a web-component panel is the first
+  task of the phase 5 specification. The GitHub Copilot SDK, generally
+  available since 2026-06-02 with bring-your-own-key for several providers
+  including Entra tokens, was considered and set aside: it drives the
+  Copilot CLI as a separate process over JSON-RPC and keeps the agent loop
+  and its sessions inside that process, where the shell cannot own them, and
+  its session handling has been hard to get right in the owner's production
+  use. Choosing TanStack also lets Loam reuse Lushly's copilot code, which
+  already runs on a TanStack server with approval evidence over AFD
+  commands, and extract shared libraries where they fit; D19 keeps whatever
+  is extracted generic.
+- **Runs.** A copilot session that works on its own becomes a run: scope,
+  isolation (a sandbox, or a worktree for code), plan, artifacts and status,
+  which anyone with access can pause, redirect or stop, shared in a project
+  like a document with presence and a thread. Automations start runs from an
+  app's events or a schedule (D42, D49).
+- **Autonomy and approvals.** Every agent action follows the autonomy
+  policy. An approval can cover one call, a plan or a capability within
+  limits; every approval shows the resolved action; the shell reports
+  approval, override and auto-approve rates so approval cannot quietly
+  become a rubber stamp; tool results and mounted content are labeled
+  untrusted (D41).
+- **Agent packs and agent UI.** The agent surface loads Agent Skills
+  directories and plugin-shaped directories, so existing open role plugins
+  work without Loam code (D44). Agents render UI as MCP Apps views and,
+  later, as A2UI rendered from the kit's own components (D43). An on-device
+  model joins the adapter only for suggestions, summaries and classification
+  (D45).
+- **Beyond the shell.** In the browser, commands exposed to MCP are also
+  registered as WebMCP tools, so a browser's own agent can call them (D39).
 
 ## Three kinds of app
 
@@ -569,10 +620,11 @@ vendor's copilot SDK.
 | --- | --- | --- |
 | Native app | An ES module with a manifest that renders FAST-AF elements into shell mount points under a scoped registry, through the SDK | The default; the Lushly support application's apps |
 | Sandboxed view | An iframe speaking the MCP Apps profile: a `ui://` resource rendered by the shell as host, with data pushed after the view reports ready | Any MCP server with Apps support appears as an app with no Loam code; any Loam view can be served to other MCP hosts |
-| Mounted AFD server | An AFD server over MCP or HTTP mounted as an app with no UI of its own; the shell's console renders its commands as forms from input schemas and its results through `@lushly-dev/afd-adapters` | Violet, Health, Specimen and Umbel on day one; the fastest way to put anything with commands in the shell |
+| Mounted AFD server | An AFD server over MCP or HTTP mounted as an app with no UI of its own; the shell's console renders its commands as forms from input schemas and its results through `@lushly-dev/afd-adapters` | Violet and Specimen once the minimal console lands in phase 1; Umbel after its phase 2; the fastest way to put anything with commands in the shell |
 
-The three kinds mirror Umbel's three loader kinds and share its manifest
-fields, so a plugin with UI is one manifest with UI contributions added. A
+The three kinds mirror Umbel's three loader kinds and will share the
+manifest Umbel settles, so a plugin with UI is one manifest with UI
+contributions added. A
 document type is a contribution any of the three can make: a native plugin
 ships its editor as a view, a sandboxed one as a `ui://` resource, and a
 mounted server's documents open in the console's generic editor.
@@ -586,11 +638,11 @@ app, keeps the choice reversible per part.
 | Part | Language | Why |
 | --- | --- | --- |
 | Chrome, kit, apps, document editors | TypeScript web components | The platform's component set, Violet, and the only language app authors need (D21) |
-| Kernel: registry, exposure, grants, bus, scope, documents, settings, experiments, overlays, layout | TypeScript on `@lushly-dev/afd-server` and `@lushly-dev/afd-view-state` | Everything the kernel needs exists in AFD's TypeScript today: the validating registry, middleware, exposure, AFD contexts, the lazy strategy, the journal, confirmations, approvals, view-state. In Rust these are open parity items. One language with the apps and the copilot removes a binding boundary and a second toolchain |
-| Stores | TypeScript over store traits: IndexedDB in the browser, SQLite or Postgres hosted, `@lushly-dev/local-db` as the adapter shape | Data access, not computation |
+| Kernel: registry, exposure, grants, bus, scope, documents, settings, experiments, overlays, layout | TypeScript on `@lushly-dev/afd-server` and `@lushly-dev/afd-view-state` | Most of what the kernel needs exists in AFD's TypeScript today: the validating registry, middleware, exposure, AFD contexts and the lazy strategy in the MCP server, the journal, confirmations, approvals, view-state. The gaps are AFD prerequisites, not rewrites. In Rust, AFD contexts, the grouped and lazy strategies and view-state are still open parity items. One language with the apps and the copilot removes a binding boundary and a second toolchain |
+| Stores | TypeScript over store interfaces: IndexedDB in the browser and the desktop webview, SQLite or Postgres hosted, `@lushly-dev/local-db` as the adapter shape | Data access, not computation |
 | Identity | TypeScript on `@lushly-dev/afd-auth` | The adapters and Better Auth are TypeScript |
 | Copilot runtime | TypeScript on TanStack AI (D27) | Decided |
-| Hosted server | One Node process: AFD's `createMcpHandler` for MCP 2026-07-28, REST, the auth layer and the copilot runtime | One process and no cross-language seam; Hono, which the owner's other applications already use: web-standard Request and Response, the MCP SDK's Hono package, Better Auth mounts on it, and TanStack AI's `chat()` returns a Response (D36) |
+| Hosted server | One Node process on Hono: AFD's `createMcpHandler`, mounted by Hono's Node adapter, for MCP 2026-07-28, REST, the auth layer and the copilot runtime | One process and no cross-language seam; the owner's other applications use Hono, Better Auth mounts on it and TanStack AI's `chat()` returns a Response; AFD's handler keeps its Host and Origin checks, contexts, confirmations and approval relay (D36) |
 | Desktop | Tauri 2: its Rust host process with the TypeScript kernel in the webview; native plugins only for menus, files, notifications and updates | Native integration and small installers without writing Rust for logic |
 | Measured accelerators | Rust compiled to WebAssembly behind a TypeScript interface | Only by the admission rule in D37, a measured operation on a reference workspace over a budget: the palette and reference index, journal replay and diff, document content indexing, tree-sitter for code documents. The TypeScript implementation ships first |
 | Umbel | Rust, by its own decision | Mounted as an app and as the copilot's knowledge; never embedded |
@@ -618,11 +670,11 @@ Each is small enough to read as a tutorial and real enough to use.
 | --- | --- | --- | --- |
 | hello | One surface each: rail, sidebar, main, a setting, an experiment, a toast; the reference for the contract and the test kit | Native | Phase 1 |
 | notes | The reference document type: text with links, backlinks and embeds; one model, many editors | Native document type | Phase 2 |
-| console | Any mounted AFD server: commands, schemas, forms, results, the journal | Native, over mounted servers | Phase 5 |
+| console | Any mounted AFD server and every new app: commands, schemas, forms, results, then the journal and usage | Native, over mounted servers | Minimal in phase 1, complete in phase 5 |
 | violet | Token sets, themes and exports over `@lushly-dev/violet-afd` | Mounted, then native views | Phase 5 |
 | health | Health reports in the shell: the existing dashboard's reading of report 1.1 files, under a project | Native, from `endpoints/health-dashboard` | Phase 5 |
-| specimen | The component bench: list, render, diff | Mounted | Phase 5 |
-| umbel | Knowledge, memory and context for the in-app agent and a browser over them | Mounted Umbel | After Umbel's phase 2 |
+| specimen | The component bench: list, render, diff | Mounted | After phase 5 |
+| umbel | Knowledge, memory and context for the copilot and a browser over them | Mounted Umbel | After Umbel's phase 2 |
 
 The projects section, the documents section, the builder, settings,
 experiments, account, notifications and the copilot are shell sections, not
@@ -653,7 +705,7 @@ environment for its own apps (D47).
   `app-draft-write`, `app-check`, `app-preview`, `app-publish`,
   `app-version-list`, `app-export` and the store. Everything it does is a
   journaled command, with approvals where the autonomy policy asks, and
-  what it writes passes `app check`, the manifest, the surfaces, the
+  what it writes passes `app-check`, the manifest, the surfaces, the
   grants, the design lint and the test kit, before it runs.
 - **Drafts run sandboxed.** An app built inside the shell runs as a
   sandboxed view by default, with the kit delivered inside it and tokens
@@ -676,7 +728,7 @@ environment for its own apps (D47).
   commands, which the automations surface composes; affordance tests in
   the test kit that grade whether a model picks their commands from their
   descriptions, contexts and skills; packaging as workspace artifacts or
-  npm packages, validated on install, with no store.
+  npm packages, validated on install, with no app store.
 
 This is why the vision is safe: the agent's capability is bounded by the
 registry and the grants, every action is journaled and reviewable, the
@@ -693,47 +745,56 @@ workspace without a publish.
   against what the shell allows, the layout preset, and AFD's surface
   validation run against a shell with only the app loaded.
 - A test kit that boots a headless shell with only the app under test, runs
-  AFD scenarios through the palette, the agent and MCP, drives the layout
-  through view-state commands, and replays the journal; Specimen captures the
-  chrome.
+  AFD scenarios through the palette, the copilot and MCP, drives the layout
+  through view-state commands, replays the journal, and grades whether a
+  model picks the app's commands; Specimen captures the chrome.
 - Authoring skills for apps, surfaces and compositions, declared in
   `skills/exports.json`; the shell emits skills for installed apps.
 
 ## Relationship to other proposals
 
 - [Umbel](../../umbel/README.md): the agent-side host, in Rust by its own
-  decision. Loam's manifest extends Umbel's with UI contributions, the
-  loader kinds correspond, the event shape is shared as a language-neutral
-  contract, and Loam mounts Umbel as the copilot's knowledge and memory. A
-  shared schema package is extracted when both exist (D10).
-- [View State](../../../docs/features/complete/view-state/view-state.proposal.md):
-  the shell's layout commands are these commands; the kernel implements the
-  registry in Rust and the TypeScript package stays the contract.
+  decision. Loam will extend the manifest Umbel settles with UI
+  contributions, the loader kinds correspond, the event fields both have
+  keep Umbel's names, and Loam mounts Umbel as the copilot's knowledge and
+  memory. A shared schema package is extracted when both exist (D10).
+- [View
+  State](../../../docs/features/complete/view-state/view-state.proposal.md):
+  the shell's layout commands are these commands, used directly by the
+  TypeScript kernel.
 - [Auth Adapter](../../../docs/features/complete/auth-adapter/): sign-in,
   the middleware and the adapters.
-- [Contextual Tool Loading](../../../docs/features/complete/contextual-tool-loading/)
-  and the [MCP 2026-07-28 upgrade](../../../docs/features/active/mcp-2026-07-28/proposal.md):
-  the in-app agent's contexts follow the active app and scope as explicit
-  per-request input.
-- [Plugin Discovery](../../../docs/features/proposed/plugin-discovery/plugin-discovery.proposal.md):
+- [Contextual Tool
+  Loading](../../../docs/features/complete/contextual-tool-loading/) and the
+  [MCP 2026-07-28
+  upgrade](../../../docs/features/active/mcp-2026-07-28/proposal.md): the
+  copilot's contexts follow the active app and scope as explicit per-request
+  input.
+- [Plugin
+  Discovery](../../../docs/features/proposed/plugin-discovery/plugin-discovery.proposal.md):
   the manifest fields; Loam loads declared apps rather than scanning.
-- [MCP Authorization](../../../docs/features/proposed/mcp-authorization/mcp-authorization.proposal.md):
-  the hosted server's Rust layer, per-command scopes and `credentials`.
+- [MCP
+  Authorization](../../../docs/features/proposed/mcp-authorization/mcp-authorization.proposal.md):
+  the hosted server's TypeScript token-verification layer, per-command
+  scopes and `credentials`.
 - [Agent Engine](../../../docs/features/proposed/agent-engine/proposal.md):
-  the copilot is the engine's first host: its agents, handoffs and sessions
-  are the engine's records, and its loop runs behind the panel.
+  the engine defines runs, events, schedules and a control lifecycle and
+  leaves its first host open. Loam proposes agent, delegation, run and
+  session records to it and offers the copilot as a host.
 - [Chat History Panel](../../../docs/features/proposed/chat-history-panel/):
   the copilot's session history.
-- [Skill Knowledge Layer](../../../docs/features/proposed/skill-knowledge-layer/):
-  skills the agent surface delivers.
-- [Rust Support](../../../docs/features/proposed/rust-support/00-overview.md)
-  and [Rust Distribution](../../../docs/features/proposed/rust-distribution/00-overview.md):
-  Loam is the UI head those plans imagined, built in this repository in
-  TypeScript; it reaches the Rust crate through Umbel and through measured
-  WebAssembly modules.
+- [Skill Knowledge
+  Layer](../../../docs/features/proposed/skill-knowledge-layer/): skills the
+  agent surface delivers.
+- [Rust
+  Distribution](../../../docs/features/proposed/rust-distribution/00-overview.md):
+  Loam is a web UI head of the kind that plan imagined, built in this
+  repository in TypeScript; it reaches the Rust crate through Umbel and
+  through measured WebAssembly modules (D37).
 - [Specimens](../../../docs/features/proposed/specimens/specimens.proposal.md):
   the chrome's observation bench and an app.
-- Violet, Health and the Health dashboard: first mounted and native apps.
+- Violet, Specimen, Health and the Health dashboard: Violet and Specimen are
+  mounted apps, and Health is a native app built from the dashboard.
 
 ## Decisions
 
@@ -755,31 +816,37 @@ open on 2026-10-31. What the phase specifications settle is listed in the
 4. The copilot opens a project, switches apps, changes a setting and
    enables an experiment through commands alone; the same commands run over
    MCP against the hosted server with the scope in `_meta`.
-5. Violet and Health appear as apps through the console with no Loam code of
-   their own; the same build runs on the desktop through Tauri.
+5. Violet appears through the console with no Loam code of its own, Health
+   appears as a native app built from the existing dashboard, and the same
+   build runs on the desktop through Tauri.
 6. The Lushly support application runs on the shell with its own apps and no
    change to Loam.
 7. Two `notes` documents open side by side and link to each other; the
    copilot edits one through its commands while the other is unchanged;
    both restore after a reload with their backlinks intact.
 8. The copilot answers through one model adapter, is switched to a second
-   provider by configuration, and hands a turn to a specialist an app
+   provider by configuration, and delegates a turn to a specialist an app
    contributed, under a budget, with every hop journaled.
 9. The chrome references semantic tokens only, in light, dark and high
    contrast, and a component an agent builds from the design skill passes
    the checklist without a human edit.
 10. A person with no repository creates an app from New, describes it to
     the copilot, and the builder agent produces a draft that passes
-    `app check` and runs sandboxed on the console; after an owner's
+    `app-check` and runs sandboxed on the console; after an owner's
     approval it is published to the team and a second person installs it;
     `app-export` produces a package the repository workflow accepts.
 
 ## Research and evidence
 
-- [Status](STATUS.md), what is done, what is not, and follow-ups; read it first
-- [Architecture](architecture.md), the through line each phase implements against
+- [Status](STATUS.md), what is done, what is not, and follow-ups; read it
+  first
+- [Architecture](architecture.md), the through line each phase implements
+  against
 - [Decision log](decisions.md)
-- [Trajectory watch](trajectory.md), the movements anticipated and the dated watchlist
+- [Landscape](landscape.md), the AI-first shells of 2026, their gaps and the
+  opportunities taken
+- [Trajectory watch](trajectory.md), the movements anticipated and the dated
+  watchlist
 - [Research synthesis](research.md)
 - [Annotated source ledger](sources.md)
 

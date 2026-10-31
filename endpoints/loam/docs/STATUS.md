@@ -25,12 +25,12 @@ should never have to scan the codebase to learn what is current.
 
 | Document | State | Evidence | Verified |
 | --- | --- | --- | --- |
-| [Architecture](architecture.md) | Drafted in the 2026-10-30 design session; the through line, awaiting the owner's review | Uncommitted draft on 2026-10-30 | 2026-10-30: relative links checked by hand; not yet reviewed independently |
-| [Proposal](proposal.md) | Drafted; direction not yet approved by the owner | Same | Same |
-| [Decision log](decisions.md) | D1 to D49; D22 decided by the owner on 2026-10-30, D25 to D49 on 2026-10-31; no decision open | Same | Same |
-| [Trajectory watch](trajectory.md) | Current as of 2026-10-30; rows carry R and W numbers | Same | External claims checked against the sources in the ledger on 2026-10-30 |
-| [Research](research.md), [Sources](sources.md) | Current as of 2026-10-31 | Same | Same |
-| [Landscape](landscape.md) | Drafted 2026-10-31; opportunities OP1 to OP11 with dispositions, closed as D39 to D46 | Uncommitted draft | 2026-10-31: primary pages read for Windows, Android, Apple, Linear, Slack, A2UI, OWASP, Chrome and Anthropic claims; secondary claims marked |
+| [Architecture](architecture.md) | The through line; drafted 2026-10-30 and 2026-10-31, revised after review; awaiting the owner's read of the whole | Committed in `00356630` on `lush/plan-modular-afd-app-shell`, not merged; review fixes in the following commit | 2026-10-31: three independent reviews (AFD and repository accuracy, cross-document coherence, external facts); every relative link and anchor resolved; portability gate passed |
+| [Proposal](proposal.md) | Rationale; the architecture wins where they differ | Same | Same |
+| [Decision log](decisions.md) | D1 to D49; D22 decided by the owner on 2026-10-30, D25 to D49 on 2026-10-31; no decision open; review corrections marked in consequences | Same | Same |
+| [Landscape](landscape.md) | Opportunities OP1 to OP12 with dispositions; OP1 to OP8 closed as D39 to D46, OP12 as D47 to D49 | Same | 2026-10-31: primary pages read for the platform, product and standards claims; secondary claims marked |
+| [Trajectory watch](trajectory.md) | Current as of 2026-10-31; movements 1 to 8, R1 to R18, W1 to W28 | Same | External claims fact-checked against primary sources on 2026-10-31 |
+| [Research](research.md), [Sources](sources.md) | Current as of 2026-10-31; S01 to S79 | Same | Same |
 
 ## Phases
 
@@ -41,10 +41,10 @@ should never have to scan the codebase to learn what is current.
 | 0. Kernel, chrome and design foundation | Not started | None | None | Specification written and approved by the owner (D17) |
 | 1. App contract | Not started | None | None | Phase 0 exit criterion met |
 | 2. Scope, projects and documents | Not started | None | None | Phase 1 exit criterion met |
-| 3. Identity | Not started | None | None | Phase 1 exit criterion met |
+| 3. Identity | Not started | None | None | Phase 1 exit criterion met; the hosted criterion also needs phase 6's hosted lane at its development profile |
 | 4. Settings, experiments, notifications, overlays | Not started | None | None | Phase 2 exit criterion met |
-| 5. Bus, copilot and mounted servers | Not started | None | None | Phases 2 and 3 exit criteria met |
-| 6. Hosts and distribution | Not started | None | None | Phase 1 exit criterion met; desktop and hosted lanes may run in parallel with phases 2 to 5 |
+| 5. Bus, copilot and mounted servers | Not started | None | None | Phases 2 and 3 exit criteria met and phase 6's hosted lane at its development profile |
+| 6. Hosts and distribution | Not started | None | None | Phase 1 exit criterion met; the hosted lane must reach its development profile before phases 3 and 5 need it, while the desktop lane and distribution gate nothing before phase 7 |
 | 7. Builder | Not started | None | None | Phases 4, 5 and 6 exit criteria met |
 | 8. Guides and the first consumer | Not started | None | None | Phase 7 exit criterion met |
 | Collaboration service (unnumbered) | Not started | None | None | Phases 2 and 6 exit criteria met; its own specification (D46) |
@@ -55,27 +55,36 @@ should never have to scan the codebase to learn what is current.
 
 - **State:** in progress.
 - **Done:** research across loved application layouts, plugin shells, web
-  platform isolation and overlay primitives, client-side Rust, identity and
-  experiments ([research](research.md), [sources](sources.md)); the
-  proposal, architecture, decision log and trajectory watch drafted; name
-  collision checks run for Loam and nine alternatives and the name decided
-  (D22); the feature index row added.
-- **Not done:** the owner's review of the full set as a whole; an independent review of the document
-  set for AFD alignment and coherence, in the shape Umbel's review took.
+  platform isolation and overlay primitives, client-side runtimes, identity,
+  experiments, agent runtimes, documents and multiplayer
+  ([research](research.md), [sources](sources.md)); the AI-first shell
+  [landscape](landscape.md); the proposal, architecture, decision log and
+  trajectory watch; name collision checks and the name (D22); every open
+  decision closed by the owner (D22, D25 to D49); the feature index row;
+  the set committed in `00356630`; three independent reviews on
+  2026-10-31 and their fixes, recorded in the session log.
+- **Not done:** the owner's read of the full set as a whole; a pull request
+  and merge to `main`.
 
 ### AFD prerequisites
 
 - **State:** not started.
 - **Done:** nothing.
 - **Not done:** every row of the
-  [prerequisites table](architecture.md#afd-prerequisites). Phase 0 needs
-  the FAST-AF and Violet units consumable from the workspace and the
-  `violet-elements` theme registries bridged to Violet tokens; phase 1 needs
-  the shared manifest proposal and the `apps` exposure flag proposal (D30). Nothing waits on Rust parity since D25.
-- **Note:** the shared plugin manifest, the `apps` exposure flag, scope as a
-  command-context field, and serving MCP Apps resources from AFD servers are
-  AFD-wide features; each needs a `docs/features` proposal, spec first,
-  before Loam implements it (D15).
+  [prerequisites table](architecture.md#afd-prerequisites). Phase 0 needs a
+  browser-safe entry for `createDirectRegistry`, the journal and the
+  approval middleware, and Loam's kernel refusing badly named commands.
+  Phase 1 needs the shared manifest proposal and serving `ui://` resources
+  from AFD servers. Phase 2 needs the MCP server to forward a declared
+  `_meta` key and the journal to keep declared context fields. Phase 5
+  needs AFD contexts in the direct registry and the `apps` exposure flag
+  (D30). Nothing waits on Rust parity since D25, and the FAST-AF and Violet
+  units are already consumable from the workspace.
+- **Note:** the shared plugin manifest, the `apps` exposure flag, `_meta`
+  forwarding, declared journal fields, and serving MCP Apps resources from
+  AFD servers are AFD-wide changes; each that crosses languages needs a
+  `docs/features` proposal, spec first, before Loam implements against it
+  (D15). Scope itself stays a field Loam adds to the command context (D31).
 
 Phases 0 to 8 have no detail yet; add a heading in this shape when one
 starts.
@@ -92,18 +101,21 @@ starts.
 | 2026-10-30 | Design session | Write the `docs/features` proposal for the shared plugin manifest, reconciled with Umbel's manifest and Plugin Discovery, before phase 1 | Open |
 | 2026-10-30 | Design session | Write the `docs/features` proposal for the `apps` exposure flag (D30), specified for every language | Open |
 | 2026-10-30 | Design session | Port the view-state commands to the `afd` crate or specify them for the kernel; the TypeScript package stays the contract | Closed 2026-10-31 by D25: the kernel is TypeScript and uses the package directly |
-| 2026-10-30 | Design session | Reconcile vocabulary with Umbel: "surface" means a shell UI region here and a transport there; the glossaries cross-reference each other | Open |
-| 2026-10-30 | Design session | When crates and packages land, add `loam` to the families in `architecture.json` and to the release inventory under `endpoints/loam/` (D14); units start quarantined | Open |
+| 2026-10-30 | Design session | Reconcile vocabulary with Umbel: "surface" means a shell UI region here and a transport there; add the cross-reference from Umbel's glossary, which does not mention Loam yet | Open |
+| 2026-10-30 | Design session | When packages land, add a `pnpm-workspace.yaml` glob for `endpoints/loam/*` and the units to the release inventory; `architecture.json` lists foundation families only, so it needs nothing (D14, corrected 2026-10-31); units start quarantined | Open |
 | 2026-10-30 | Design session | Refresh the trajectory watchlist rows before each phase specification, in particular W1, W2 and W6 ahead of phase 1 | Open, recurring |
 | 2026-10-30 | Design session | The Lushly support application is specified in Lushly's repository; record here only the generic shell needs it surfaces, as they appear | Open, recurring |
 | 2026-10-31 | Discussion with the owner | Move `violet-elements` onto Violet themes through the runtime in place of its local theme registries (D28), with baked-in defaults and every edit recorded in `foundations/fast-af/provenance/adaptations.json`; coordinate with Lushly's transition to Violet throughout, specified in Lushly's repository; a phase 0 deliverable until an issue owns it | Open |
 | 2026-10-31 | Discussion with the owner | Write the Loam design document and its authoring skill, declared in `skills/exports.json`, before the chrome grows past a skeleton (D26); add the token-only lint and the component checklist to the phase 0 specification | Open |
 | 2026-10-31 | Discussion with the owner | Set the operations and budgets of the accelerator admission rule (D37) in the phase 0 specification | Open; the rule itself is decided |
 | 2026-10-31 | Landscape research | Decide O10 to O17, the opportunities the landscape opens | Closed 2026-10-31 as D39 to D46 by the owner |
-| 2026-10-31 | Landscape research | Before the phase 5 specification, verify WebMCP's shipping shape against Chrome's own page and the Chrome 157 default-on claim (W20) | Open |
-| 2026-10-31 | Multiplayer discussion | Choose the CRDT library behind the document store trait in the collaboration specification (W28), and add a two-client journal-replay scenario to the test kit | Open |
+| 2026-10-31 | Landscape research | Before the phase 5 specification, verify WebMCP's shipping shape and milestone against chromestatus, which on 2026-10-31 showed the feature as proposed with a trial extension to Chrome 162 requested (W20) | Open |
+| 2026-10-31 | Multiplayer discussion | Choose the CRDT library behind the document store interface in the collaboration specification (W28), and add a two-client journal-replay scenario to the test kit | Open |
 | 2026-10-31 | Builder discussion | Specify the sandbox policy for drafts built in the shell, including kit delivery into the sandbox and the content security policy, in the phase 7 specification (D47) | Open |
 | 2026-10-31 | Builder discussion | Write the builder agent's skills, the SDK skill and the design skill, in `skills/exports.json`, so the same guidance serves the copilot and repository agents | Open |
+| 2026-10-31 | Review | Write the AFD changes the review found missing: a browser-safe entry for `createDirectRegistry`, the journal and the approval middleware with WebCrypto; MCP forwarding a declared `_meta` key into the command context; journal entries that keep declared context fields; AFD contexts and the lazy strategy in the direct registry; optionally a fetch-style `createMcpHandler` | Open |
+| 2026-10-31 | Review | Umbel's D22 says the registry enforces `domain-action` names, but AFD's `defineCommand` only warns; Umbel's architecture also says Umbel joins the `architecture.json` families, which list foundations only. Raise both in Umbel's status | Open |
+| 2026-10-31 | Review | Revisit D45 when the runtime adapter is stable: Chrome 148 shipped the Prompt API on pages, so Chrome meets its condition | Open |
 
 ## Session log
 
@@ -119,3 +131,4 @@ starts.
 | 2026-10-31 | Landscape research | Surveyed AI-first shells and platforms: chat products as shells, OS and browser agent hosts, agents as members, agent managers, agent-rendered UI, the interface of trust; [landscape](landscape.md) written with OP1 to OP11; sources S55 to S74; trajectory movements 7 and 8, reservations R13 to R17, watchlist W20 to W27; open decisions O10 to O17 with recommendations |
 | 2026-10-31 | Multiplayer discussion | The owner adopted all eight landscape opportunities (D39 to D46) and raised multiplayer from a reserved backend to a shell-level collaboration service for every document type and run, learning from an earlier one-type service: sync on the journal with CRDT updates as commands, presence in the type's selection model, sharing with link generations and authorization epochs, threads on locators (D46). Proposal section, architecture principle 19, component, grant, binding interface and glossary, research section 9, sources S75 to S78, trajectory R18 and W28 added |
 | 2026-10-31 | Builder discussion | The owner's vision of building and publishing apps from the copilot without a repository recorded as D47, with the console as every app's first UI and a usage view (D48) and the builder promises, document type kit, triggers and actions, affordance tests, packaging (D49). Builder added as phase 7 and the guides phase renumbered to 8; principle 20, the builder component, `app-*` commands, the artifact lifecycle, the security rule and glossary added; the proposal's building-inside-Loam section and first proof 10 written; landscape OP12 added |
+| 2026-10-31 | Commit and review | The set committed as `00356630`. Three independent reviews ran: AFD and repository accuracy, cross-document coherence, external facts. Fixed: four AFD gaps added as prerequisites (browser-safe registry, `_meta` forwarding, journal context fields, contexts in the direct registry) and D31 and D36 corrected; D39 to D45 carried into the architecture's components, interfaces, commands, phases and glossary; Rust-kernel, agent-panel and `trait` leftovers removed; "handoff" renamed "delegation" to avoid AFD's handoff pattern; commands made singular and verb-final (`setting-*`, `event-list`, `document-link-list`, `app-usage-get`); a minimal console moved into phase 1; phase 6's hosted lane gating phases 3 and 5; Health made a native app; facts corrected for Firefox 159 scoped registries, Chrome 148 Prompt API, TanStack AI's harness, the Copilot SDK's GA and BYOK, Tauri 2.12, Grafana, Slack Code, Stack Overflow and others |

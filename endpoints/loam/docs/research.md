@@ -9,19 +9,25 @@ row reports a number it says whose it is.
 
 ## Executive conclusion
 
-Five findings shape the proposal. The layouts people keep choosing share one
-shape, a stable global band beside a contextual band, and one discipline,
-keyboard and palette first with a personal, collapsible sidebar. Plugin
-shells have converged on declared contributions plus versioned runtime
-extension points, and the ones that leave cleanup to plugins regret it. The
-web platform now ships the primitives shells used to fake: the top layer,
-anchor positioning, scoped custom element registries, the Navigation API and
-view transitions, so isolation and overlays can be built on the platform
-with fallbacks rather than a framework. Client-side Rust is production-grade
-for a kernel but not a reason to abandon the platform's component set. And
-identity, experiments and persona have settled conventions: organizations
-and passkeys from the provider, experiments off by default with a lifecycle,
-and persona as a lens that never grants.
+Nine findings shape the proposal; the first five are about the shell and the
+last four came as the design grew. The layouts people keep choosing share
+one shape, a stable global band beside a contextual band, and one
+discipline, keyboard and palette first with a personal, collapsible sidebar.
+Plugin shells have converged on declared contributions plus versioned
+runtime extension points, and the ones that leave cleanup to plugins regret
+it. The web platform now ships the primitives shells used to fake: the top
+layer, anchor positioning, scoped custom element registries, the Navigation
+API and view transitions, so isolation and overlays can be built on the
+platform with fallbacks rather than a framework. Client-side Rust is mature
+but is not a reason to abandon the platform's component set, and nothing in
+the shell needs it until a measurement says so. Identity, experiments and
+persona have settled conventions: organizations and passkeys from the
+provider, experiments off by default with a lifecycle, and persona as a lens
+that never grants. Then: documents are one model with many editors inside a
+frame the shell owns; agent runtimes split into loop libraries, frameworks
+and vendor harnesses, and only a loop library leaves the loop to the shell;
+a design foundation comes before components; and multiplayer belongs to the
+shell, not to one document type.
 
 ## 1. Application layouts people love
 
@@ -59,7 +65,7 @@ and persona as a lens that never grants.
 
 | Finding | Result | Source |
 | --- | --- | --- |
-| Usage and admiration of the shell most developers live in | VS Code 70.9% usage among 30,903 respondents; 55.7% admired; 40.6% desired, the highest | S04 |
+| Usage and admiration of the shell most developers live in | VS Code 70.9% of the 13,193 who answered the editor question, in a survey of 30,903; 55.7% admired; 40.6% desired, the highest | S04 |
 | Figma's independent panel toggle | Requested since July 2024, still open in March 2026 | S11 |
 
 ### Design implications
@@ -77,21 +83,23 @@ collapsible by rule.
 
 - **Declared contributions.** VS Code reads a `contributes` block at startup
   for commands, menus, views, view containers, configuration, keybindings,
-  walkthroughs and now chat agents, prompt files and agent skills;
-  `when` clauses govern visibility and `enablement` governs commands [S02].
-  View containers land only in the activity bar or the panel; views attach
-  to built-in or custom containers [S02, S03].
+  walkthroughs and now chat agents, prompt files and agent skills; `when`
+  clauses govern visibility and `enablement` governs commands [S02]. View
+  containers land only in the activity bar or the panel; views attach to
+  built-in or custom containers [S02, S03].
 - **Runtime extension points with versioned ids.** Grafana's app plugins
   register links, components and functions against extension points such as
   `grafana/dashboard/panel/menu/v1`; plugins must prefix their own extension
-  point ids; the February 2026 release removed every deprecated extension
-  API [S14]. Backstage's new frontend system builds apps from blueprints and
-  discovers plugin extensions at app creation [S15].
-- **Cleanup is the plugin's problem where the shell does not own it.**
-  Obsidian's workspace is a tree of splits and leaves; leaves a plugin adds
-  persist after the plugin is disabled unless the plugin removes them, and
-  there is no public API to list or reorder ribbon buttons, so community
-  plugins read private objects [S12].
+  point ids; Grafana 12.0.0 removed the deprecated extension APIs in 2025,
+  and its February 2026 entry deprecated more configuration [S14].
+  Backstage's new frontend system builds apps from blueprints and discovers
+  plugin extensions at app creation [S15].
+- **Cleanup policy belongs to the shell.** Obsidian's workspace is a tree of
+  splits and leaves; leaves a plugin adds persist after the plugin is
+  disabled, and Obsidian's own guidelines tell plugins not to detach them on
+  unload so the layout returns intact; there is no public API to list or
+  reorder ribbon buttons, so community plugins read private objects [S12].
+  Whether a view parks or closes is a shell decision either way.
 - **Status bar items are created in code, not declared**, in VS Code and
   Obsidian [S02, S12].
 - **Agents get UI through the host.** MCP Apps, stable as 2026-01-26, serves
@@ -118,15 +126,15 @@ coupling.
 
 ### Converged practice
 
-- **Shadow DOM stops selectors, not inheritance.** Global styles cannot reach
-  into a shadow root and custom properties pass through, but inherited
+- **Shadow DOM stops selectors, not inheritance.** Global styles cannot
+  reach into a shadow root and custom properties pass through, but inherited
   properties leak across app roots; `all: initial` on the root is the
   practical reset; cascade layers and `@scope` control precedence inside one
   app but are not a boundary [S23].
-- **Scoped custom element registries ship.** Chrome and Edge 146 and Safari
-  26 support them, Firefox does not; a registry attaches to a shadow root, a
-  document or an element, and declarative shadow DOM takes a
-  `shadowrootcustomelementregistry` attribute [S18].
+- **Scoped custom element registries ship in every engine.** Chrome and Edge
+  146, Safari 26 and, since 2026-10-27, Firefox 159 support them; a registry
+  attaches to a shadow root, a document or an element, and declarative
+  shadow DOM takes a `shadowrootcustomelementregistry` attribute [S18].
 - **The top layer replaces z-index management.** Popovers and dialogs render
   above the document regardless of DOM position; `popover="auto"` gives
   light dismiss; a modal dialog makes the rest of the page inert; anchor
@@ -135,8 +143,8 @@ coupling.
 - **Routing moved into the platform.** The Navigation API became Baseline
   Newly Available on 2026-01-13 with Safari 26.2 and Firefox 147, Safari
   lacking the precommit handler; same-document view transitions are in every
-  engine since Firefox 144, cross-document ones are not in Firefox
-  [S21, S22].
+  engine since Firefox 144, cross-document ones are not in Firefox [S21,
+  S22].
 - **Boundary choice.** Shadow DOM keeps one JavaScript context; iframes give
   hard isolation at the cost of communication and performance [S23].
 
@@ -154,9 +162,9 @@ by the watchlist.
 ### Converged practice
 
 - **Tauri 2** went stable on 2024-10-02 with desktop and mobile from one
-  codebase, native plugins in Swift and Kotlin, and point releases through
-  2.10 in 2026; reviewers call mobile younger than desktop and the plugin
-  ecosystem smaller than Electron's [S24].
+  codebase, native plugins in Swift and Kotlin, and point releases to 2.12.5
+  on 2026-10-21, with 3.0 in alpha; reviewers call mobile younger than
+  desktop and the plugin ecosystem smaller than Electron's [S24].
 - **Rust frontends are production-ready and moving fast.** Dioxus 0.7 added
   runtime hot-patching, a native renderer and an Axum full-stack layer, and
   0.8 is in alpha [S25]; Leptos is at 0.8.22 with a 0.9 release candidate
@@ -165,11 +173,11 @@ by the watchlist.
 - **Rust in a Tauri frontend** needs `withGlobalTauri` and hand-written or
   community bindings to `invoke`; the usual crate type is `cdylib` plus
   `rlib` so one crate serves WebAssembly and native [S29].
-- **Components run in browsers by transpilation, not natively.** WASI 0.3 was
-  ratified on 2026-06-11 with async in the component model; jco transpiles
-  any component into core WebAssembly plus JavaScript glue for browsers; the
-  component model cannot reach 1.0 without native browser implementations
-  [S27].
+- **Components run in browsers by transpilation, not natively.** WASI 0.3
+  was ratified on 2026-06-11 with async in the component model; jco
+  transpiles any component into core WebAssembly plus JavaScript glue for
+  browsers; the component model cannot reach 1.0 without native browser
+  implementations [S27].
 
 ### Design implications
 
@@ -230,8 +238,10 @@ hides a section and is treated as security.
   contribution only says which resources an editor handles [S02, S47].
   Figma and Notion give every document the same chrome around a different
   model [S08, S11].
-- **Cleanup is the shell's or it does not happen.** Obsidian leaves persist
-  after a plugin is disabled unless the plugin removes them [S12].
+- **The shell decides what happens to views.** Obsidian keeps a plugin's
+  leaves after it is disabled so the layout survives, by design [S12]; a
+  shell that hosts documents from many types must own that policy, not
+  each type.
 
 ### Design implications
 
@@ -257,15 +267,16 @@ its editor frame and built from the kit.
 - **Provider-agnostic is table stakes for the first two shapes.** TanStack
   AI 1.0 ships 23 adapters plus an OpenAI-compatible one; the AI SDK about
   38 plus a gateway; the OpenAI Agents SDK takes other providers through an
-  AI SDK extension; Mastra routes through the AI SDK [S43, S44, S45, S50].
-  The harnesses are not: the Copilot SDK needs a Copilot subscription or
-  key-only BYOK for OpenAI, Microsoft Foundry, Anthropic and Ollama, and
-  the Claude Agent SDK runs Claude only, directly or through Bedrock,
-  Vertex and Foundry [S48, S49].
-- **Approvals became interrupts and sessions became durable.** TanStack AI
-  treats tool approvals as interrupts that survive restarts; the AI SDK
-  signs approvals; the Copilot SDK routes tool calls through a permission
-  handler [S43, S44, S48].
+  AI SDK extension; Mastra supports AI SDK models [S43, S44, S45, S50].
+  The harnesses are narrower: the Copilot SDK needs a Copilot subscription
+  or bring-your-own-key for OpenAI, Azure OpenAI, Microsoft Foundry,
+  Anthropic, Ollama and OpenAI-compatible endpoints, including Entra tokens
+  and managed identity, and the Claude Agent SDK runs Claude only,
+  directly or through Bedrock, Vertex and Foundry [S48, S49].
+- **Approvals became interrupts.** TanStack AI's core treats tool approvals
+  as interrupts, and its experimental harness makes sessions and waits
+  durable across restarts; the AI SDK signs approvals; the Copilot SDK
+  routes tool calls through a permission handler [S43, S44, S48].
 - **AG-UI is the stream.** TanStack AI emits AG-UI events natively, and a
   dozen frameworks integrate with it [S43, S46].
 - **Headless matters for web components.** TanStack AI's `@tanstack/ai-client`
@@ -281,16 +292,17 @@ its editor frame and built from the kit.
 
 | Finding | Result | Source |
 | --- | --- | --- |
-| Adoption of the two loop libraries | AI SDK cites 16 million weekly downloads at 7.0; TanStack AI won AI Project of the Year at the 2026 Open Source Awards | S44 |
-| Release recency | TanStack AI 1.0 on 2026-10-23; AI SDK 7.0 on 2026-06-25; `@mastra/core` 1.78.0 on 2026-10-15; `@openai/agents` 0.20.0 on 2026-10-08 | S43, S44, S45, S50 |
+| Adoption of the two loop libraries | AI SDK cites 16 million weekly downloads at 7.0; Vercel's comparison page reports that TanStack AI won AI Project of the Year at the 2026 Open Source Awards, unconfirmed elsewhere | S44 |
+| Release recency | TanStack AI 1.0 on 2026-10-23; AI SDK 7.0 on 2026-06-25; `@mastra/core` 1.78.0 on 2026-10-15; `@openai/agents` 0.21.0 on 2026-10-20; the Copilot SDK generally available on 2026-06-02 | S43, S44, S45, S48, S50 |
 
 ### Design implications
 
-A runtime adapter so the SDK is replaceable; agents, handoffs and sessions
-as AFD records above it; TanStack AI first for its headless client, its
-isomorphic tools that map to DirectClient and hosted calls, its subagents
-with budgets, its AG-UI stream and the fit with Lushly's existing TanStack
-server [S53]; the AI SDK as the fallback; no vendor harness, because the
+A runtime adapter so the SDK is replaceable; agents, delegations, runs and
+sessions as Loam's records above it; TanStack AI first for its headless
+client, its isomorphic tools that map to DirectClient and hosted calls, its
+subagents with typed input and limits in the stable core, its AG-UI stream
+and the fit with Lushly's existing TanStack server, without its experimental
+harness [S53]; the AI SDK as the fallback; no vendor harness, because the
 copilot's loop must be the shell's.
 
 ## 8. Design foundations before interface
@@ -315,11 +327,12 @@ copilot's loop must be the shell's.
 
 ### Design implications
 
-A semantic layer on Violet in light, dark and high contrast; a bridge onto
-the component set's registries built once in phase 0; a design document and
-an authoring skill before the kit grows; components built when used, under
-a checklist with a token-only lint, every state, keyboard and ARIA, a
-Specimen fixture and an axe pass.
+A semantic layer on Violet in light, dark and high contrast; the component
+set moved onto Violet themes in place of its own registries, once, in
+phase 0 (D28); a design document and an authoring skill before the kit
+grows; components built when used, under a checklist with a token-only
+lint, every state, keyboard and ARIA, a Specimen fixture and an axe pass
+in the Chromium suite.
 
 ## 9. Multiplayer as a service
 
@@ -356,8 +369,9 @@ that replays a journal into two clients and compares the models.
 ## 10. Scale and cost
 
 Nothing in this domain publishes shell-level measurements worth a table.
-The relevant figures are AFD's own: deferred tool loading cut context tokens
-and raised accuracy in the evaluation Umbel's ledger records, which is why
+The relevant figures are Anthropic's published evaluation, recorded in
+Umbel's ledger: deferred tool loading cut context tokens and raised
+accuracy, which is why
 the copilot scopes contexts to the active app and document, the shell's
 bundle must fit a budget the phase 0 specification sets, and any
 WebAssembly accelerator must earn its bytes by a measurement on a real
