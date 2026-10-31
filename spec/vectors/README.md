@@ -26,6 +26,10 @@ reference implementation. Where `spec/wire` pins the *shapes* of results, these 
   | C++ | `packages/cpp/tests/vectors_test.cpp` | `packages/cpp/tests/batch_vectors_test.cpp` | Not yet ([#312](https://github.com/lushly-dev/afd/issues/312)) | `packages/cpp/tests/vectors_test.cpp` |
 
 - Changes to `spec/vectors` run the Python, Rust and C++ workflows as well as `ci.yml`.
+- A vector file joins this directory once all four languages load it, because `alfred parity`
+  fails on any file here that a language does not load. Until then it sits in `spec/` next to the
+  page it pins: [`tool-strategies.json`](../tool-strategies.json), for the hybrid tool strategy
+  ([`tool-strategies.md`](../tool-strategies.md#conformance)), loaded by no language yet.
 
 ### `pipeline-variables.json`
 

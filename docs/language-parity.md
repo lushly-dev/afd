@@ -4,7 +4,7 @@ What each AFD implementation provides, where they differ, and which differences 
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-30 (private approval flows, #460); 2026-10-29 (package versions: TypeScript 2.2.1, Python 0.10.0, Rust 0.2.1, C++ 0.2.0); 2026-10-25 (MCP 2026-07-28 rows); 2026-10-13 otherwise |
+| Updated | 2026-10-31 (hybrid tool strategy specified, planned in every language); 2026-10-30 (private approval flows, #460); 2026-10-29 (package versions: TypeScript 2.2.1, Python 0.10.0, Rust 0.2.1, C++ 0.2.0); 2026-10-25 (MCP 2026-07-28 rows); 2026-10-13 otherwise |
 | Reviewed at | Stabilization `f19257e` (#367); Python 0.9.0 published from `4e16a06` (#372); npm 2.1.0 published from `0148d22` (#338); C++ and Rust 0.1.0 published from `a311562` (#377); fresh consumers verified |
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans, which now link here |
@@ -161,7 +161,8 @@ Limits of these checks:
 | Contexts as request input (`_meta["dev.afd/context"]`) on the modern era | Yes | Yes | Yes (`McpServer::with_contexts`) | N/A |
 | MCP tool fields: annotations, `structuredContent`, CommandResult `outputSchema` ([`spec/command-metadata.md`](../spec/command-metadata.md#mcp-tool-fields-mcp-2026-07-28-tool-surface)) | Yes | Partial: annotations | Yes: annotations, `structuredContent` on every route's result, and top-level `outputSchema` on individual tools (`with_advertise_output_schema` opts out); #465 | Partial: annotations (todo backend) |
 | Per-request context from the transport (actor; later credentials) ([MCP authorization proposal](features/proposed/mcp-authorization/mcp-authorization.proposal.md)) | Yes: `createContext(req)` on the HTTP handler merges values, including `actor`; not called for stdio | Partial: a fixed server `actor`; no per-request hook | Yes: `McpServer::with_context_hook`, async, sees the HTTP request parts (none on stdio) and may refuse with a `CommandError`; runs once per call on every route, before the confirmation gate; the request's active context applies after it; no `credentials` field or token verification yet | N/A: no HTTP server in the library |
-| Tool strategies: individual, grouped, lazy | Yes (default grouped) | Partial: default individual; all strategies serve discovery/detail, but grouped per-action schema/default alignment remains planned | Yes (default grouped, `with_tool_strategy`, `with_group_by`) | Deferred |
+| Tool strategies: individual, grouped, lazy ([`spec/tool-strategies.md`](../spec/tool-strategies.md)) | Yes (default grouped) | Partial: default individual; all strategies serve discovery/detail, but grouped per-action schema/default alignment remains planned | Yes (default grouped, `with_tool_strategy`, `with_group_by`) | Deferred |
+| Tool strategy: hybrid ([`spec/tool-strategies.md`](../spec/tool-strategies.md#hybrid)): meta-tools, context tools, then at most 8 first-class tools; `afd-help` reports `toolStrategy` | Planned | Planned | Planned | Planned |
 | Meta-tools: `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail` | Yes | Yes | Yes: definitions equal TypeScript's (`spec/meta-tools.json`) | Deferred |
 | Bootstrap: `afd-help`, `afd-docs`, `afd-schema` | Yes, opt-in | Partial: always registered and MCP-exposed | Yes (`register_bootstrap_commands`) | Deferred |
 | Context tools: `afd-context-list`, `-enter`, `-exit` | Yes | Yes: backed by trusted transport sessions, with a deliberate local/default scope | Yes (`register_context_commands`; `McpServer::with_contexts`) | No |
@@ -210,7 +211,7 @@ These gaps are planned. They are listed so the name budgets stay honest. D1/D2/D
   - connectors;
   - `CommandParameter`;
   - streamable-command metadata.
-- **Rust** (the `afd-rust` skill's parity note): a hybrid tool strategy (proposed), `structuredContent` and full `_meta` on the server's tools, and reserved meta-tool names at registration.
+- **Rust** (the `afd-rust` skill's parity note): the hybrid tool strategy (specified in [`spec/tool-strategies.md`](../spec/tool-strategies.md#hybrid), planned in every language), `structuredContent` and full `_meta` on the server's tools, and reserved meta-tool names at registration.
 
 **Accepted role decisions (D6).** Native MCP clients, CLIs, testing toolkits and handoff clients are N/A; Python auth is planned. Remaining implementation gaps include:
 

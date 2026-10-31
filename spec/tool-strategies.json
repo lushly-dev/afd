@@ -1,0 +1,406 @@
+{
+	"description": "Hybrid tool strategy (spec/tool-strategies.md, H1 to H8): expected tools/list names in order, ttlMs, call outcomes, and the configurations that must fail construction. Written by hand from the spec; see the Conformance section of spec/tool-strategies.md.",
+	"cap": 8,
+	"metaTools": ["afd-discover", "afd-detail", "afd-call", "afd-batch", "afd-pipe"],
+	"contextTools": ["afd-context-list", "afd-context-enter", "afd-context-exit"],
+	"contexts": [
+		{ "name": "planning", "description": "Planning work" },
+		{ "name": "review", "description": "Review work" }
+	],
+	"commands": [
+		{
+			"name": "note-list",
+			"description": "List notes",
+			"mutation": false,
+			"expose": { "mcp": true }
+		},
+		{
+			"name": "note-get",
+			"description": "Get a note",
+			"mutation": false,
+			"expose": { "mcp": true }
+		},
+		{
+			"name": "note-add",
+			"description": "Add a note",
+			"mutation": true,
+			"expose": { "mcp": true }
+		},
+		{
+			"name": "note-update",
+			"description": "Update a note",
+			"mutation": true,
+			"expose": { "mcp": true }
+		},
+		{
+			"name": "note-delete",
+			"description": "Delete a note",
+			"mutation": true,
+			"destructive": true,
+			"confirmPrompt": "Delete this note?",
+			"expose": { "mcp": true }
+		},
+		{
+			"name": "tag-list",
+			"description": "List tags",
+			"mutation": false,
+			"expose": { "mcp": true }
+		},
+		{ "name": "tag-add", "description": "Add a tag", "mutation": true, "expose": { "mcp": true } },
+		{
+			"name": "tag-remove",
+			"description": "Remove a tag",
+			"mutation": true,
+			"expose": { "mcp": true }
+		},
+		{
+			"name": "plan-draft",
+			"description": "Draft a plan",
+			"mutation": true,
+			"contexts": ["planning"],
+			"expose": { "mcp": true }
+		},
+		{
+			"name": "review-approve",
+			"description": "Approve a review",
+			"mutation": true,
+			"contexts": ["review"],
+			"expose": { "mcp": true }
+		},
+		{
+			"name": "admin-reset",
+			"description": "Reset all data",
+			"mutation": true,
+			"expose": { "mcp": false }
+		}
+	],
+	"servers": [
+		{
+			"id": "contexts",
+			"description": "Three first-class tools with contexts: 5 meta-tools, 3 context tools, then the set; the same list in every context",
+			"config": {
+				"toolStrategy": "hybrid",
+				"firstClassTools": ["note-list", "note-add", "plan-draft"],
+				"contexts": true,
+				"bootstrap": true
+			},
+			"lists": [
+				{
+					"context": null,
+					"tools": [
+						"afd-discover",
+						"afd-detail",
+						"afd-call",
+						"afd-batch",
+						"afd-pipe",
+						"afd-context-list",
+						"afd-context-enter",
+						"afd-context-exit",
+						"note-list",
+						"note-add",
+						"plan-draft"
+					]
+				},
+				{
+					"context": "planning",
+					"tools": [
+						"afd-discover",
+						"afd-detail",
+						"afd-call",
+						"afd-batch",
+						"afd-pipe",
+						"afd-context-list",
+						"afd-context-enter",
+						"afd-context-exit",
+						"note-list",
+						"note-add",
+						"plan-draft"
+					]
+				},
+				{
+					"context": "review",
+					"tools": [
+						"afd-discover",
+						"afd-detail",
+						"afd-call",
+						"afd-batch",
+						"afd-pipe",
+						"afd-context-list",
+						"afd-context-enter",
+						"afd-context-exit",
+						"note-list",
+						"note-add",
+						"plan-draft"
+					]
+				}
+			],
+			"ttlMs": 300000,
+			"calls": [
+				{ "tool": "plan-draft", "context": null, "expected": { "success": true } },
+				{ "tool": "plan-draft", "context": "planning", "expected": { "success": true } },
+				{
+					"tool": "plan-draft",
+					"context": "review",
+					"expected": { "success": false, "code": "COMMAND_NOT_IN_CONTEXT" }
+				},
+				{ "tool": "note-add", "context": "review", "expected": { "success": true } },
+				{ "tool": "tag-list", "context": null, "expected": { "success": true } },
+				{
+					"tool": "review-approve",
+					"context": "planning",
+					"expected": { "success": false, "code": "COMMAND_NOT_IN_CONTEXT" }
+				},
+				{
+					"tool": "admin-reset",
+					"context": null,
+					"expected": { "success": false, "code": "COMMAND_NOT_FOUND" }
+				},
+				{
+					"tool": "note-archive",
+					"context": null,
+					"expected": { "success": false, "code": "COMMAND_NOT_FOUND" }
+				},
+				{
+					"tool": "afd-call",
+					"arguments": { "command": "tag-add" },
+					"context": null,
+					"expected": { "success": true }
+				},
+				{
+					"tool": "afd-call",
+					"arguments": { "command": "admin-reset" },
+					"context": null,
+					"expected": { "success": false, "code": "COMMAND_NOT_FOUND" }
+				},
+				{
+					"tool": "afd-call",
+					"arguments": { "command": "plan-draft" },
+					"context": "review",
+					"expected": { "success": false, "code": "COMMAND_NOT_IN_CONTEXT" }
+				}
+			]
+		},
+		{
+			"id": "no-contexts",
+			"description": "No contexts: 5 meta-tools, then the set in configured order; a bootstrap tool may be first-class, the others are not listed",
+			"config": {
+				"toolStrategy": "hybrid",
+				"firstClassTools": ["note-delete", "afd-help", "tag-list"],
+				"contexts": false,
+				"bootstrap": true,
+				"confirmations": "enforce"
+			},
+			"lists": [
+				{
+					"context": null,
+					"tools": [
+						"afd-discover",
+						"afd-detail",
+						"afd-call",
+						"afd-batch",
+						"afd-pipe",
+						"note-delete",
+						"afd-help",
+						"tag-list"
+					]
+				}
+			],
+			"ttlMs": 300000,
+			"calls": [
+				{ "tool": "note-list", "context": null, "expected": { "success": true } },
+				{ "tool": "afd-docs", "context": null, "expected": { "success": true } },
+				{
+					"tool": "note-delete",
+					"arguments": { "confirm": true },
+					"context": null,
+					"expected": { "success": true }
+				},
+				{
+					"tool": "note-delete",
+					"context": null,
+					"expected": { "success": false, "code": "CONFIRMATION_REQUIRED" }
+				}
+			]
+		},
+		{
+			"id": "ttl",
+			"description": "toolsListTtlMs, when set, is the ttlMs, with or without contexts",
+			"config": {
+				"toolStrategy": "hybrid",
+				"firstClassTools": ["note-get"],
+				"contexts": true,
+				"bootstrap": true,
+				"toolsListTtlMs": 60000
+			},
+			"lists": [
+				{
+					"context": null,
+					"tools": [
+						"afd-discover",
+						"afd-detail",
+						"afd-call",
+						"afd-batch",
+						"afd-pipe",
+						"afd-context-list",
+						"afd-context-enter",
+						"afd-context-exit",
+						"note-get"
+					]
+				}
+			],
+			"ttlMs": 60000,
+			"calls": []
+		},
+		{
+			"id": "cap",
+			"description": "Exactly 8 first-class tools, listed in configured order, not registration order: 16 tools",
+			"config": {
+				"toolStrategy": "hybrid",
+				"firstClassTools": [
+					"tag-remove",
+					"note-list",
+					"plan-draft",
+					"note-get",
+					"tag-add",
+					"note-delete",
+					"review-approve",
+					"note-update"
+				],
+				"contexts": true,
+				"bootstrap": true
+			},
+			"lists": [
+				{
+					"context": "planning",
+					"tools": [
+						"afd-discover",
+						"afd-detail",
+						"afd-call",
+						"afd-batch",
+						"afd-pipe",
+						"afd-context-list",
+						"afd-context-enter",
+						"afd-context-exit",
+						"tag-remove",
+						"note-list",
+						"plan-draft",
+						"note-get",
+						"tag-add",
+						"note-delete",
+						"review-approve",
+						"note-update"
+					]
+				}
+			],
+			"ttlMs": 300000,
+			"calls": []
+		}
+	],
+	"constructionFailures": [
+		{
+			"id": "unregistered",
+			"config": {
+				"toolStrategy": "hybrid",
+				"firstClassTools": ["note-list", "note-archive"],
+				"contexts": false,
+				"bootstrap": true
+			},
+			"entry": "note-archive"
+		},
+		{
+			"id": "private",
+			"config": {
+				"toolStrategy": "hybrid",
+				"firstClassTools": ["admin-reset"],
+				"contexts": false,
+				"bootstrap": true
+			},
+			"entry": "admin-reset"
+		},
+		{
+			"id": "meta-tool",
+			"config": {
+				"toolStrategy": "hybrid",
+				"firstClassTools": ["note-list", "afd-call"],
+				"contexts": false,
+				"bootstrap": true
+			},
+			"entry": "afd-call"
+		},
+		{
+			"id": "context-tool",
+			"config": {
+				"toolStrategy": "hybrid",
+				"firstClassTools": ["afd-context-enter"],
+				"contexts": true,
+				"bootstrap": true
+			},
+			"entry": "afd-context-enter"
+		},
+		{
+			"id": "duplicate",
+			"config": {
+				"toolStrategy": "hybrid",
+				"firstClassTools": ["note-list", "note-add", "note-list"],
+				"contexts": false,
+				"bootstrap": true
+			},
+			"entry": "note-list"
+		},
+		{
+			"id": "over-cap",
+			"config": {
+				"toolStrategy": "hybrid",
+				"firstClassTools": [
+					"note-list",
+					"note-get",
+					"note-add",
+					"note-update",
+					"note-delete",
+					"tag-list",
+					"tag-add",
+					"tag-remove",
+					"plan-draft"
+				],
+				"contexts": true,
+				"bootstrap": true
+			},
+			"entry": "plan-draft"
+		},
+		{
+			"id": "individual-with-set",
+			"config": {
+				"toolStrategy": "individual",
+				"firstClassTools": ["note-list"],
+				"contexts": false,
+				"bootstrap": true
+			},
+			"entry": null
+		},
+		{
+			"id": "lazy-with-set",
+			"config": {
+				"toolStrategy": "lazy",
+				"firstClassTools": ["note-list"],
+				"contexts": false,
+				"bootstrap": true
+			},
+			"entry": null
+		},
+		{
+			"id": "hybrid-without-set",
+			"config": { "toolStrategy": "hybrid", "contexts": false, "bootstrap": true },
+			"entry": null
+		},
+		{
+			"id": "hybrid-empty-set",
+			"config": {
+				"toolStrategy": "hybrid",
+				"firstClassTools": [],
+				"contexts": false,
+				"bootstrap": true
+			},
+			"entry": null
+		}
+	]
+}
