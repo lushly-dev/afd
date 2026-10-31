@@ -6,7 +6,7 @@
 
 | Field | Value |
 |---|---|
-| Status | Proposed 2026-10-31. Tracked in [#527](https://github.com/lushly-dev/afd/issues/527). Progress is in [STATUS.md](./STATUS.md) |
+| Status | Proposed 2026-10-31; its open questions decided by the owner the same day (see [Decisions](#decisions)). Tracked in [#527](https://github.com/lushly-dev/afd/issues/527). Progress is in [STATUS.md](./STATUS.md) |
 | Author | jasfalk (drafted with Claude) |
 | Packages | `packages/server`, `packages/core` (a stale comment only), `packages/client` (docs), the `afd-typescript` and `afd-directclient` skills, `docs/language-parity.md` |
 | Related | [Loam architecture, AFD prerequisites](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), [View State](../../complete/view-state/view-state.proposal.md), #466 (meta-tool `context` argument), #474 (`afd-detail` fields), #458 (shared approval-token vectors), #460 (private approval exchange) |
@@ -116,11 +116,17 @@ MCP server's confirmation gate uses it, so it is out of scope here.
   definitions as `createMcpServer`.
 - The active context is per-call input, as on the MCP 2026-07-28 lane
   (`_meta["dev.afd/context"]`), never registry state. A call names its
-  context in its call options. An unknown context, or a command outside the
+  context in a typed call option on `registry.execute` and on
+  `DirectClient.call`, such as `{ context: 'billing' }`, passed beside the
+  command context rather than inside it, so a handler or a pipeline step
+  cannot set it by accident. An unknown context, or a command outside the
   active one, fails with the same result the MCP lane returns.
 - `registry.listTools({ strategy, context })` returns the tool list an MCP
   server with the same commands would advertise for that strategy and
-  context: individual, grouped or lazy.
+  context: individual, grouped or lazy. `DirectClient.listTools` forwards
+  it with the client's allowlist applied, as `listCommands` and
+  `hasCommand` already filter, so a client never lists a tool it would
+  refuse to call.
 - `execute` routes the meta-tools and `afd-context-list` through the same
   tool router the server uses, so an in-process agent sees exactly the
   surface an MCP agent sees. A fix to the router, such as #474's
@@ -169,11 +175,20 @@ context scoping that cites this proposal.
 
 Loam's phase 0 needs part 1 and part 2. Its phase 5 needs part 3.
 
-## Open questions
+## Decisions
 
-1. The entry name: `/direct`, recommended because it says what the entry is
-   for, or `/browser`.
-2. How a call names its context: a call option on `execute` and on
-   `DirectClient`, recommended, or a reserved command-context key.
-3. Whether `listTools` belongs on the registry, recommended because the
-   router is there, or on `DirectClient`.
+Decided by the owner on 2026-10-31.
+
+1. **The entry is `/direct`, not `/browser`.** Nothing in it is
+   browser-only: it runs the same way in Node, a web worker and a Tauri
+   webview, and the name matches `createDirectRegistry` and
+   `DirectClient`.
+2. **A call names its context in a typed call option** on `execute` and on
+   `DirectClient` calls, not in a reserved command-context key. Handlers
+   read the command context, so a key there could be set by accident, and
+   the option matches MCP, where the context travels in `_meta` beside the
+   arguments.
+3. **The registry implements `listTools`, and `DirectClient` forwards it
+   with its allowlist applied.** The tool router lives in the registry,
+   and `DirectClient` already filters `listCommands` and `hasCommand`, so an
+   unfiltered list would expose commands the client hides.
