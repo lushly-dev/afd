@@ -97,6 +97,32 @@ describe("violet-dialog", () => {
         expect(nativeDialog(dialog).open).toBe(false);
     });
 
+    it("never transforms the dialog, so fixed descendants keep viewport coordinates", async () => {
+        const dialog = await renderDialog(el => {
+            const popup = document.createElement("div");
+            popup.id = "popup";
+            popup.style.cssText = "position:fixed;inset-block-start:10px;inset-inline-start:10px;inline-size:20px;block-size:20px";
+            el.append(popup);
+        });
+        const popup = dialog.querySelector("#popup") as HTMLElement;
+
+        dialog.show();
+        // Sample while the opacity fade is still running as well as after it settles.
+        for (let frame = 0; frame < 3; frame += 1) {
+            expect(getComputedStyle(nativeDialog(dialog)).transform).toBe("none");
+            const rect = popup.getBoundingClientRect();
+            expect(rect.top).toBe(10);
+            expect(rect.left).toBe(10);
+            await nextFrame();
+        }
+        await waitFor(() => getComputedStyle(nativeDialog(dialog)).opacity === "1");
+        expect(getComputedStyle(nativeDialog(dialog)).transform).toBe("none");
+        expect(popup.getBoundingClientRect().top).toBe(10);
+
+        dialog.hide();
+        expect(getComputedStyle(nativeDialog(dialog)).transform).toBe("none");
+    });
+
     it("opens as a modal dialog via show() and reflects the open attribute", async () => {
         const dialog = await renderDialog();
 

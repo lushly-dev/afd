@@ -453,6 +453,82 @@
       }
     },
     {
+      "id": "color.action.danger.background",
+      "value": "#B42318",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Fill for destructive actions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["action", "danger", "background"]
+      },
+      "usage": {
+        "intent": "Use for the resting fill of a destructive action such as delete or remove.",
+        "allowedIn": ["danger buttons"],
+        "avoid": ["non-destructive actions", "informational state messaging", "surface backgrounds"],
+        "whyDistinct": "Destructive actions need a filled action fill that stays legible in every theme; the state danger text tokens are tuned for text on tinted surfaces and cannot be a fill."
+      }
+    },
+    {
+      "id": "color.action.danger.text",
+      "value": "#FFFFFF",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Foreground for text and icons on destructive actions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["action", "danger", "text"]
+      },
+      "usage": {
+        "intent": "Use for labels and icons on the danger action fill.",
+        "allowedIn": ["danger buttons"],
+        "avoid": ["non-destructive actions", "informational state messaging", "surface backgrounds"],
+        "whyDistinct": "Destructive actions need a filled action fill that stays legible in every theme; the state danger text tokens are tuned for text on tinted surfaces and cannot be a fill."
+      }
+    },
+    {
+      "id": "color.action.danger.hover",
+      "value": "#A32015",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Hover fill for destructive actions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["action", "danger", "hover"]
+      },
+      "usage": {
+        "intent": "Use for hovered destructive action surfaces.",
+        "allowedIn": ["hovered danger buttons"],
+        "avoid": ["non-destructive actions", "informational state messaging", "surface backgrounds"],
+        "whyDistinct": "Destructive actions need a filled action fill that stays legible in every theme; the state danger text tokens are tuned for text on tinted surfaces and cannot be a fill."
+      }
+    },
+    {
+      "id": "color.action.danger.pressed",
+      "value": "#911D12",
+      "metadata": {
+        "category": "color",
+        "tier": "semantic",
+        "status": "beta",
+        "description": "Pressed fill for destructive actions.",
+        "owner": "violet-elements",
+        "platforms": ["web"],
+        "tags": ["action", "danger", "pressed"]
+      },
+      "usage": {
+        "intent": "Use for pressed or active destructive action surfaces.",
+        "allowedIn": ["pressed danger buttons"],
+        "avoid": ["non-destructive actions", "informational state messaging", "surface backgrounds"],
+        "whyDistinct": "Destructive actions need a filled action fill that stays legible in every theme; the state danger text tokens are tuned for text on tinted surfaces and cannot be a fill."
+      }
+    },
+    {
       "id": "color.state.success.background",
       "value": "#E3F1E7",
       "metadata": {

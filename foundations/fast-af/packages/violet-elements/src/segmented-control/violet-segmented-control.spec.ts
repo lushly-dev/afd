@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import "../button/violet-button";
 import "../segment/violet-segment";
 import "./violet-segmented-control";
 import type { VioletSegmentedControl } from "./violet-segmented-control";
@@ -239,5 +240,35 @@ describe("violet-segmented-control", () => {
         before.focus();
         await userEvent.tab();
         expect(document.activeElement).toBe(segments[1]);
+    });
+
+    describe("segment sizing", () => {
+        it("pads each segment horizontally and matches a button's height at every target size", async () => {
+            for (const target of ["24px", "32px", "44px"]) {
+                document.body.innerHTML = `
+                    <div style="display:flex;align-items:flex-start;gap:8px;--violet-target-size:${target}">
+                        <violet-button appearance="secondary">Day</violet-button>
+                        <violet-segmented-control value="a">
+                            <violet-segment value="a">Day</violet-segment>
+                            <violet-segment value="b">Week</violet-segment>
+                        </violet-segmented-control>
+                    </div>
+                `;
+                await customElements.whenDefined("violet-segment");
+                await nextFrame();
+
+                const button = document.querySelector("violet-button") as HTMLElement;
+                const group = document.querySelector("violet-segmented-control") as HTMLElement;
+                const segment = document.querySelector("violet-segment") as HTMLElement;
+                const inner = segment.shadowRoot?.querySelector(".button") as HTMLElement;
+
+                const style = getComputedStyle(inner);
+                expect(Number.parseFloat(style.paddingLeft)).toBeGreaterThan(0);
+                expect(Number.parseFloat(style.paddingRight)).toBeGreaterThan(0);
+                expect(Number.isNaN(Number.parseFloat(style.minHeight))).toBe(false);
+                expect(Number.parseFloat(style.minHeight)).toBe(Number.parseFloat(target) - 6);
+                expect(group.getBoundingClientRect().height).toBeCloseTo(button.getBoundingClientRect().height, 0);
+            }
+        });
     });
 });

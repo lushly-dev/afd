@@ -5,14 +5,48 @@ import type { VioletMessageMedia } from "./violet-message-media";
 
 // Remote hosts use the reserved .invalid TLD so nothing real is ever contacted.
 const REMOTE_IMAGE = "https://media.example.invalid/photos/cat.png";
+const REMOTE_ORIGIN = "https://media.example.invalid";
+const PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 function nextFrame(): Promise<void> {
     return new Promise(resolve => requestAnimationFrame(() => resolve()));
 }
 
-async function renderMedia(props: Partial<Record<"src" | "mediaType" | "filename" | "alt", string>>): Promise<VioletMessageMedia> {
+type MediaProps = Partial<Record<"src" | "mediaType" | "filename" | "alt" | "allowedOrigins", string>>;
+
+/**
+ * Specs that assert on the rendered remote <img> must not race the real network:
+ * the .invalid hosts fail to load, and a failed load now swaps the img for the file row.
+ * Only real (trusted) load errors are swallowed; events a spec dispatches itself still reach the img.
+ */
+function holdNetworkImageErrors(media: VioletMessageMedia): void {
+    media.shadowRoot?.addEventListener("error", event => {
+        if (event.isTrusted) {
+            event.stopPropagation();
+        }
+    }, true);
+}
+
+/** Builds the element from attributes (the markup path) with network errors held. */
+async function renderFromAttributes(attributes: Record<string, string>): Promise<VioletMessageMedia> {
     document.body.innerHTML = "";
     const media = document.createElement("violet-message-media") as VioletMessageMedia;
+    holdNetworkImageErrors(media);
+    for (const [name, value] of Object.entries(attributes)) {
+        media.setAttribute(name, value);
+    }
+    document.body.append(media);
+    await nextFrame();
+    await nextFrame();
+    return media;
+}
+
+async function renderMedia(props: MediaProps, options: { holdNetworkErrors?: boolean } = {}): Promise<VioletMessageMedia> {
+    document.body.innerHTML = "";
+    const media = document.createElement("violet-message-media") as VioletMessageMedia;
+    if (options.holdNetworkErrors !== false) {
+        holdNetworkImageErrors(media);
+    }
     Object.assign(media, props);
     document.body.append(media);
     await customElements.whenDefined("violet-message-media");
@@ -42,13 +76,11 @@ describe("violet-message-media", () => {
             expect(media.mediaType).toBe("");
             expect(media.filename).toBe("");
             expect(media.alt).toBe("");
+            expect(media.allowedOrigins).toBe("");
         });
 
         it("maps the media-type attribute to the mediaType property", async () => {
-            document.body.innerHTML = `<violet-message-media src="${REMOTE_IMAGE}" media-type="image/png" filename="cat.png" alt="A cat"></violet-message-media>`;
-            await nextFrame();
-            await nextFrame();
-            const media = document.querySelector("violet-message-media") as VioletMessageMedia;
+            const media = await renderFromAttributes({ "src": REMOTE_IMAGE, "media-type": "image/png", "filename": "cat.png", "alt": "A cat" });
 
             expect(media.src).toBe(REMOTE_IMAGE);
             expect(media.mediaType).toBe("image/png");
@@ -132,14 +164,50 @@ describe("violet-message-media", () => {
             expect(media.shadowRoot?.querySelector("img")?.getAttribute("src")).toBe("javascript:alert(1)");
         });
 
-        it("keeps rendering the img when the remote image fails to load (no error fallback)", async () => {
-            const media = await renderMedia({ src: REMOTE_IMAGE, mediaType: "image/png", alt: "A cat" });
+        it("replaces the img with the file row when the image fails to load", async () => {
+            const media = await renderMedia({ src: REMOTE_IMAGE, mediaType: "image/png", alt: "A cat", filename: "cat.png" });
             const img = media.shadowRoot?.querySelector("img") as HTMLImageElement;
 
             img.dispatchEvent(new Event("error"));
             await nextFrame();
+            await nextFrame();
 
-            expect(media.shadowRoot?.querySelector("img")).toBe(img);
+            expect(media.shadowRoot?.querySelector("img")).toBeNull();
+            expect(media.shadowRoot?.querySelector('[part="preview"]')).toBeNull();
+            expect(media.shadowRoot?.querySelector('[part="filename"]')?.textContent?.trim()).toBe("cat.png");
+            expect(media.shadowRoot?.querySelector(".file-type")?.textContent?.trim()).toBe("image/png");
+            expect(media.shadowRoot?.querySelector("a, [href], [src]")).toBeNull();
+        });
+
+        it("tries again when src changes after a failed load", async () => {
+            const media = await renderMedia({ src: REMOTE_IMAGE, mediaType: "image/png" });
+            media.shadowRoot?.querySelector("img")?.dispatchEvent(new Event("error"));
+            await nextFrame();
+            await nextFrame();
+            expect(media.shadowRoot?.querySelector("img")).toBeNull();
+
+            media.src = PIXEL;
+            await nextFrame();
+            await nextFrame();
+
+            expect(media.shadowRoot?.querySelector("img")?.getAttribute("src")).toBe(PIXEL);
+            expect(media.shadowRoot?.querySelector(".file-row")).toBeNull();
+        });
+
+        it("falls back on a real load failure too (undecodable data URL, no network)", async () => {
+            const media = await renderMedia({ src: "data:image/png;base64,AAAA", mediaType: "image/png", filename: "broken.png" }, { holdNetworkErrors: false });
+            await new Promise(resolve => setTimeout(resolve, 200));
+            await nextFrame();
+
+            expect(media.shadowRoot?.querySelector("img")).toBeNull();
+            expect(media.shadowRoot?.querySelector('[part="filename"]')?.textContent?.trim()).toBe("broken.png");
+        });
+
+        it("keeps the img when a data URL image loads (no error)", async () => {
+            const media = await renderMedia({ src: PIXEL, mediaType: "image/gif" }, { holdNetworkErrors: false });
+            await nextFrame();
+
+            expect(media.shadowRoot?.querySelector("img")).not.toBeNull();
             expect(media.shadowRoot?.querySelector(".file-row")).toBeNull();
         });
 
@@ -251,6 +319,124 @@ describe("violet-message-media", () => {
 
             expect(media.shadowRoot?.querySelector("img")).toBeNull();
             expect(media.shadowRoot?.querySelector(".file-row")).not.toBeNull();
+        });
+    });
+
+    describe("remote-source policy (allowed-origins)", () => {
+        it("loads any source when allowed-origins is not set (default unchanged)", async () => {
+            const image = await renderMedia({ src: REMOTE_IMAGE, mediaType: "image/png" });
+            const audio = await renderMedia({ src: "https://other.example.invalid/a.mp3", mediaType: "audio/mpeg" });
+
+            expect(image.shadowRoot?.querySelector("img")).not.toBeNull();
+            expect(audio.shadowRoot?.querySelector("audio")).not.toBeNull();
+        });
+
+        it("maps the allowed-origins attribute to the allowedOrigins property", async () => {
+            const media = await renderFromAttributes({ "src": REMOTE_IMAGE, "media-type": "image/png", "allowed-origins": REMOTE_ORIGIN });
+
+            expect(media.allowedOrigins).toBe(REMOTE_ORIGIN);
+            expect(media.shadowRoot?.querySelector("img")).not.toBeNull();
+        });
+
+        it("loads a remote source whose origin is listed", async () => {
+            const media = await renderMedia({ src: REMOTE_IMAGE, mediaType: "image/png", allowedOrigins: `https://a.example.invalid ${REMOTE_ORIGIN}` });
+
+            expect(media.shadowRoot?.querySelector("img")?.getAttribute("src")).toBe(REMOTE_IMAGE);
+        });
+
+        it("renders the file row, without loading anything, for an unlisted remote image", async () => {
+            const media = await renderMedia({ src: REMOTE_IMAGE, mediaType: "image/png", filename: "cat.png", allowedOrigins: "https://cdn.example.invalid" });
+
+            expect(media.shadowRoot?.querySelector("img, audio, video, source")).toBeNull();
+            expect(media.shadowRoot?.querySelector('[part="filename"]')?.textContent?.trim()).toBe("cat.png");
+            expect(media.shadowRoot?.querySelector(".file-type")?.textContent?.trim()).toBe("image/png");
+            expect(media.shadowRoot?.querySelector("a, [href], [src]")).toBeNull();
+        });
+
+        it("applies to audio and video as well", async () => {
+            const audio = await renderMedia({ src: "https://media.example.invalid/a.mp3", mediaType: "audio/mpeg", allowedOrigins: "https://cdn.example.invalid" });
+            const video = await renderMedia({ src: "https://media.example.invalid/v.mp4", mediaType: "video/mp4", allowedOrigins: "https://cdn.example.invalid" });
+
+            expect(audio.shadowRoot?.querySelector("audio, source")).toBeNull();
+            expect(audio.shadowRoot?.querySelector(".file-row")).not.toBeNull();
+            expect(video.shadowRoot?.querySelector("video, source")).toBeNull();
+            expect(video.shadowRoot?.querySelector(".file-row")).not.toBeNull();
+        });
+
+        it("matches origins exactly: scheme, host and port all count", async () => {
+            for (const allowed of ["http://media.example.invalid", "https://media.example.invalid:8443", "https://example.invalid", "https://evil.media.example.invalid"]) {
+                const media = await renderMedia({ src: REMOTE_IMAGE, mediaType: "image/png", allowedOrigins: allowed });
+                expect(media.shadowRoot?.querySelector("img"), allowed).toBeNull();
+            }
+        });
+
+        it("accepts origins written with a path, a trailing slash or different case", async () => {
+            const media = await renderMedia({ src: REMOTE_IMAGE, mediaType: "image/png", allowedOrigins: "HTTPS://Media.Example.Invalid/some/path/" });
+
+            expect(media.shadowRoot?.querySelector("img")).not.toBeNull();
+        });
+
+        it("blocks protocol-relative and credentialed look-alike URLs that resolve elsewhere", async () => {
+            const lookalike = await renderMedia({ src: `${REMOTE_ORIGIN}@evil.example.invalid/cat.png`, mediaType: "image/png", allowedOrigins: REMOTE_ORIGIN });
+            const protocolRelative = await renderMedia({ src: "//evil.example.invalid/cat.png", mediaType: "image/png", allowedOrigins: REMOTE_ORIGIN });
+
+            expect(lookalike.shadowRoot?.querySelector("img")).toBeNull();
+            expect(protocolRelative.shadowRoot?.querySelector("img")).toBeNull();
+        });
+
+        it("always allows data: and blob: sources, which never touch the network", async () => {
+            const data = await renderMedia({ src: PIXEL, mediaType: "image/gif", allowedOrigins: REMOTE_ORIGIN }, { holdNetworkErrors: false });
+            const blobUrl = URL.createObjectURL(new Blob(["x"], { type: "image/png" }));
+            const blob = await renderMedia({ src: blobUrl, mediaType: "image/png", allowedOrigins: REMOTE_ORIGIN });
+
+            expect(data.shadowRoot?.querySelector("img")).not.toBeNull();
+            expect(blob.shadowRoot?.querySelector("img")).not.toBeNull();
+            URL.revokeObjectURL(blobUrl);
+        });
+
+        it("allows relative and same-origin sources", async () => {
+            const relative = await renderMedia({ src: "/assets/cat.png", mediaType: "image/png", allowedOrigins: REMOTE_ORIGIN });
+            const sameOrigin = await renderMedia({ src: `${location.origin}/assets/cat.png`, mediaType: "image/png", allowedOrigins: REMOTE_ORIGIN });
+
+            expect(relative.shadowRoot?.querySelector("img")).not.toBeNull();
+            expect(sameOrigin.shadowRoot?.querySelector("img")).not.toBeNull();
+        });
+
+        it("blocks other schemes and unparsable sources once a policy is set", async () => {
+            const script = await renderMedia({ src: "javascript:alert(1)", mediaType: "image/png", allowedOrigins: REMOTE_ORIGIN });
+            const ftp = await renderMedia({ src: "ftp://media.example.invalid/cat.png", mediaType: "image/png", allowedOrigins: REMOTE_ORIGIN });
+            const garbage = await renderMedia({ src: "http://", mediaType: "image/png", allowedOrigins: REMOTE_ORIGIN });
+
+            expect(script.shadowRoot?.querySelector("img")).toBeNull();
+            expect(ftp.shadowRoot?.querySelector("img")).toBeNull();
+            expect(garbage.shadowRoot?.querySelector("img")).toBeNull();
+        });
+
+        it("blocks every remote source when the list holds no valid origin (for example 'none')", async () => {
+            const media = await renderMedia({ src: REMOTE_IMAGE, mediaType: "image/png", allowedOrigins: "none" });
+
+            expect(media.shadowRoot?.querySelector("img")).toBeNull();
+            expect(media.shadowRoot?.querySelector(".file-row")).not.toBeNull();
+        });
+
+        it("re-evaluates when allowed-origins or src change", async () => {
+            const media = await renderMedia({ src: REMOTE_IMAGE, mediaType: "image/png", allowedOrigins: "https://cdn.example.invalid" });
+            expect(media.shadowRoot?.querySelector("img")).toBeNull();
+
+            media.allowedOrigins = REMOTE_ORIGIN;
+            await nextFrame();
+            await nextFrame();
+            expect(media.shadowRoot?.querySelector("img")).not.toBeNull();
+
+            media.src = "https://other.example.invalid/dog.png";
+            await nextFrame();
+            await nextFrame();
+            expect(media.shadowRoot?.querySelector("img")).toBeNull();
+
+            media.allowedOrigins = "";
+            await nextFrame();
+            await nextFrame();
+            expect(media.shadowRoot?.querySelector("img")).not.toBeNull();
         });
     });
 

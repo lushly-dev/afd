@@ -82,11 +82,30 @@ describe("violet-text-field native constraints", () => {
         expect(field.maxLength).toBe(4);
     });
 
+    it("forwards inputmode to the input, from the attribute or the property", async () => {
+        const { field } = await renderField({
+            configure: el => {
+                el.setAttribute("inputmode", "numeric");
+            },
+        });
+        const native = input(field);
+        expect(native.getAttribute("inputmode")).toBe("numeric");
+
+        field.inputMode = "decimal";
+        await nextFrame();
+        expect(native.getAttribute("inputmode")).toBe("decimal");
+        expect(field.getAttribute("inputmode")).toBe("decimal");
+
+        field.removeAttribute("inputmode");
+        await nextFrame();
+        expect(native.hasAttribute("inputmode")).toBe(false);
+    });
+
     it("omits the attributes when unset and removes them when cleared", async () => {
         const { field } = await renderField();
         const native = input(field);
 
-        for (const name of ["min", "max", "step", "minlength", "maxlength", "pattern", "autocomplete"]) {
+        for (const name of ["min", "max", "step", "minlength", "maxlength", "pattern", "autocomplete", "inputmode"]) {
             expect(native.hasAttribute(name)).toBe(false);
         }
 

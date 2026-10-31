@@ -46,6 +46,7 @@
       "valueType": "enum",
       "allowedValues": ["primary", "secondary", "quiet", "transparent"],
       "allowedValuesByComponent": {
+        "violet-button": ["primary", "secondary", "quiet", "transparent", "danger"],
         "violet-card": ["filled", "outline", "subtle"],
         "violet-badge": ["filled", "outline", "subtle"],
         "violet-divider": ["subtle", "strong"],
@@ -362,6 +363,16 @@
       "definition": "Indicates whether content controlled by an interactive trigger is currently expanded or collapsed.",
       "useFor": ["button wrappers that forward disclosure or popup state to their native control"],
       "doNotUseFor": ["selection state", "visibility that is unrelated to the control"],
+      "usedBy": ["violet-button"]
+    },
+    {
+      "name": "aria-pressed",
+      "property": "ariaPressed",
+      "valueType": "string",
+      "category": "accessibility",
+      "definition": "Indicates the pressed state of a toggle button: \"true\", \"false\" or \"mixed\".",
+      "useFor": ["button wrappers that act as a toggle and forward their pressed state to their native control"],
+      "doNotUseFor": ["selection state of options or rows", "disclosure state (use aria-expanded)"],
       "usedBy": ["violet-button"]
     },
     {
@@ -688,6 +699,17 @@
       "usedBy": ["violet-text-field"]
     },
     {
+      "name": "inputmode",
+      "property": "inputMode",
+      "valueType": "enum",
+      "allowedValues": ["none", "text", "decimal", "numeric", "tel", "search", "email", "url"],
+      "category": "native-form",
+      "definition": "Passes through the native inputmode hint so touch devices show a matching virtual keyboard for the wrapped text control.",
+      "useFor": ["single-line field primitives that mirror native virtual-keyboard hints"],
+      "doNotUseFor": ["validation (use type, pattern, min and max)", "restricting which characters may be typed"],
+      "usedBy": ["violet-text-field"]
+    },
+    {
       "name": "max-files",
       "property": "maxFiles",
       "valueType": "number",
@@ -773,6 +795,16 @@
       "useFor": ["data grids", "lists or collection views with explicit selection behavior"],
       "doNotUseFor": ["binary checked state", "appearance variants"],
       "usedBy": ["violet-data-grid", "violet-calendar", "violet-file-explorer"]
+    },
+    {
+      "name": "selection-label",
+      "property": "selectionLabel",
+      "valueType": "string",
+      "category": "accessibility",
+      "definition": "Names what selecting a row does, so a single-selection radio is announced with that action (\"Open First bed\") instead of the generic \"Select row\".",
+      "useFor": ["collections whose single selection triggers a specific action such as opening or switching"],
+      "doNotUseFor": ["multiple selection checkboxes", "visible column or row labels"],
+      "usedBy": ["violet-data-grid"]
     },
     {
       "name": "focus-mode",
@@ -1270,6 +1302,16 @@
       "definition": "Provides alternative text for image media, used as the alt attribute on rendered images.",
       "useFor": ["image media attachments"],
       "doNotUseFor": ["tooltips", "visible labels"],
+      "usedBy": ["violet-message-media"]
+    },
+    {
+      "name": "allowed-origins",
+      "property": "allowedOrigins",
+      "valueType": "string",
+      "category": "behavior",
+      "definition": "Space-separated list of origins a remote media source may load from. When set, a source that is not relative, same-origin, data: or blob: and whose origin is not listed is not requested and the component renders its generic file row instead.",
+      "useFor": ["restricting remote media sources for untrusted or model-supplied content"],
+      "doNotUseFor": ["CORS configuration", "link or navigation allowlists", "values that are not URLs"],
       "usedBy": ["violet-message-media"]
     },
     {

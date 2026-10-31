@@ -45,8 +45,6 @@ jobs:
         run: pnpm -F @lushly-dev/fast-element build
       - name: Build leaves tracked sources and API reports unchanged
         run: git diff --exit-code -- foundations/fast-af && test -z "$(git status --porcelain -- foundations/fast-af)"
-      - name: Link the ast-grep binary (pnpm does not run dependency install scripts here)
-        run: node foundations/fast-af/packages/element/packages/fast-element/node_modules/@ast-grep/cli/postinstall.js
       - run: pnpm -F @lushly-dev/fast-element exec playwright install --with-deps chromium firefox webkit
       - name: Upstream test:ci (docs, API reports, exports, types, migration rules, Playwright)
         run: pnpm -F @lushly-dev/fast-element test:ci
@@ -64,6 +62,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -F "@lushly-dev/violet-elements..." build
+      - name: Packed package exports, contents and source maps (upstream check:v3 violet scope)
+        run: pnpm -F @lushly-dev/violet-elements verify:exports
       - name: Regenerated theme, icons and custom-elements manifest match the tracked files
         run: |
           pnpm -F @lushly-dev/violet-elements theme:build

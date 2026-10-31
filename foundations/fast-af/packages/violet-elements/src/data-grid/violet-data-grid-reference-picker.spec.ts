@@ -94,6 +94,36 @@ async function openPicker(element: VioletDataGridReferencePicker) {
 }
 
 describe("violet-data-grid-reference-picker", () => {
+  describe("closed panel", () => {
+    it("is not rendered or hit-testable while closed (guards against a base display on the popover)", async () => {
+      const element = await renderReferencePicker();
+      const trigger = shadowElement<HTMLElement>(element, ".trigger");
+      const panel = element.shadowRoot?.querySelector<HTMLElement>(".panel") ?? null;
+
+      expect(element.open).toBe(false);
+      if (panel) {
+        expect(panel.matches(":popover-open")).toBe(false);
+        expect(getComputedStyle(panel).display).toBe("none");
+      }
+
+      const rect = trigger.getBoundingClientRect();
+      const hit = element.shadowRoot?.elementFromPoint(
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2,
+      );
+      expect(panel?.contains(hit as Node) ?? false).toBe(false);
+    });
+
+    it("opens from a real pointer click on the trigger and lays out the panel", async () => {
+      const element = await renderReferencePicker();
+      const { trigger } = await openPicker(element);
+      const panel = shadowElement<HTMLElement>(element, ".panel");
+
+      expect(trigger).toBeTruthy();
+      expect(getComputedStyle(panel).display).toBe("grid");
+    });
+  });
+
   it("preserves search through pointer-induced null blur and clears pointer state on cancellation", async () => {
     const element = await renderReferencePicker();
     element.selectedValues = ["record-gh-04"];

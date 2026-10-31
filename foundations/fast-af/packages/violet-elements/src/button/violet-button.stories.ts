@@ -8,7 +8,7 @@ import "./violet-button";
 import type { VioletButton } from "./violet-button";
 
 type VioletButtonStoryArgs = {
-    appearance: "primary" | "secondary" | "quiet" | "transparent";
+    appearance: "primary" | "secondary" | "quiet" | "transparent" | "danger";
     disabled: boolean;
     label: string;
     before: "" | "system/search" | "system/settings" | "system/close";
@@ -53,14 +53,14 @@ const meta = {
     parameters: {
         docs: {
             description: {
-                component: "Reusable Violet action button primitive for primary, secondary, quiet, and transparent action emphasis.",
+                component: "Reusable Violet action button primitive for primary, secondary, quiet, transparent, and danger action emphasis.",
             },
         },
     },
     argTypes: {
         appearance: {
             control: "inline-radio",
-            options: ["primary", "secondary", "quiet", "transparent"],
+            options: ["primary", "secondary", "quiet", "transparent", "danger"],
         },
         disabled: { control: "boolean" },
         before: {
@@ -130,6 +130,20 @@ export const Transparent: Story = {
         label: "View details",
         before: "",
         after: "",
+    },
+};
+
+export const Danger: Story = {
+    args: {
+        appearance: "danger",
+        disabled: false,
+        label: "Delete bed",
+        before: "",
+        after: "",
+    },
+    play: async ({ canvasElement }) => {
+        const control = canvasElement.querySelector("violet-button")?.shadowRoot?.querySelector("button");
+        await expect(control?.dataset.appearance).toBe("danger");
     },
 };
 

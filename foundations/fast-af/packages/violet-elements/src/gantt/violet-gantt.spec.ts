@@ -780,4 +780,40 @@ describe("violet-gantt", () => {
       "half-open YYYY-MM-DD range",
     );
   });
+
+  it("throws nothing when torn down while repeat updates are queued", async () => {
+    const errors: unknown[] = [];
+    const onError = (event: ErrorEvent) => {
+      errors.push(event.error ?? event.message);
+      event.preventDefault();
+    };
+    const onRejection = (event: PromiseRejectionEvent) => {
+      errors.push(event.reason);
+      event.preventDefault();
+    };
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+
+    try {
+      for (const teardown of ["remove", "innerHTML"] as const) {
+        const element = await renderGantt();
+        // Queue the repeat bindings (days and rows) to re-evaluate, then unbind before they run.
+        element.viewport = { start: "2028-03-01", endExclusive: "2028-03-20", scale: "day" };
+        element.expandedRowIds = [];
+        element.renderedRows = [...element.renderedRows];
+        element.renderedDays = [...element.renderedDays];
+        if (teardown === "remove") {
+          element.remove();
+        } else {
+          document.body.innerHTML = "";
+        }
+        await nextFrames(4);
+      }
+    } finally {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    }
+
+    expect(errors).toEqual([]);
+  });
 });
