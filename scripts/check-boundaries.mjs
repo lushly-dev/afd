@@ -452,6 +452,10 @@ export function checkBoundaries(root, config = JSON.parse(read(join(root, 'archi
 	return {
 		errors: [...new Set(errors)],
 		units,
+		// Direct repository-owned edges per unit name; third-party packages are not units.
+		dependencies: Object.fromEntries(
+			units.map((unit) => [unit.name, [...graph.get(unit)].map((target) => target.name).sort()])
+		),
 		coverage: coverageMap(units, config.coverageContract),
 	};
 }
@@ -460,6 +464,13 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
 	try {
 		const result = checkBoundaries(process.cwd());
 		if (process.argv.includes('--coverage')) console.log(JSON.stringify(result.coverage, null, 2));
+		const shown = process.argv.indexOf('--dependencies');
+		if (shown !== -1) {
+			const name = process.argv[shown + 1];
+			if (!name || !Object.hasOwn(result.dependencies, name))
+				throw new Error(`--dependencies needs a classified unit name, got ${name ?? 'nothing'}`);
+			console.log(`${name} -> ${result.dependencies[name].join(', ') || '(none)'}`);
+		}
 		for (const error of result.errors) console.error(`✘ ${error}`);
 		if (result.errors.length) process.exitCode = 1;
 		else if (!process.argv.includes('--coverage'))

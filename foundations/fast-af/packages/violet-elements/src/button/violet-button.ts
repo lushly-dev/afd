@@ -2,7 +2,7 @@ import { FASTElement, attr, css, html, observable } from "@lushly-dev/fast-eleme
 
 import { violetActionTokenDefaults } from "../theme/violet-token-defaults";
 
-export type VioletButtonAppearance = "primary" | "secondary" | "quiet" | "transparent";
+export type VioletButtonAppearance = "primary" | "secondary" | "quiet" | "transparent" | "danger";
 
 const styles = css`
     ${violetActionTokenDefaults}
@@ -101,6 +101,19 @@ const styles = css`
         background: var(--_action-secondary-pressed);
     }
 
+    .control[data-appearance="danger"] {
+        background: var(--_action-danger-background);
+        color: var(--_action-danger-text);
+    }
+
+    .control[data-appearance="danger"]:hover {
+        background: var(--_action-danger-hover);
+    }
+
+    .control[data-appearance="danger"]:active {
+        background: var(--_action-danger-pressed);
+    }
+
     .control[disabled] {
         opacity: 0.55;
         cursor: not-allowed;
@@ -159,6 +172,7 @@ const template = html<VioletButton>`
         aria-controls="${x => x.ariaControls}"
         aria-expanded="${x => x.ariaExpanded}"
         aria-haspopup="${x => x.ariaHasPopup}"
+        aria-pressed="${x => x.ariaPressed}"
     >
         <slot name="before" part="before"></slot>
         <span class="label" part="label"><slot></slot></span>
@@ -169,7 +183,7 @@ const template = html<VioletButton>`
 /**
  * Violet reusable button primitive.
  *
- * @summary Token-driven action button for primary, secondary, quiet, and transparent actions.
+ * @summary Token-driven action button for primary, secondary, quiet, transparent, and danger actions.
  * @slot before - Leading inline content such as an icon.
  * @slot - Button label content.
  * @slot after - Trailing inline content such as a status glyph.
@@ -229,6 +243,11 @@ export class VioletButton extends FASTElement {
      */
     declare public ariaHasPopup: string | null;
 
+    /**
+     * Optional pressed state ("true", "false" or "mixed") forwarded to the inner button for toggle buttons.
+     */
+    declare public ariaPressed: string | null;
+
     public constructor() {
         super();
         this.appearance = "primary";
@@ -250,6 +269,10 @@ export class VioletButton extends FASTElement {
 
     private ariaHasPopupChanged(_previous: string | null, next: string | null): void {
         this.#forwardAriaAttribute("aria-haspopup", next);
+    }
+
+    private ariaPressedChanged(_previous: string | null, next: string | null): void {
+        this.#forwardAriaAttribute("aria-pressed", next);
     }
 
     #forwardAriaAttribute(name: string, value: string | null): void {
@@ -276,6 +299,7 @@ observable(VioletButton.prototype, "ariaErrormessage");
 attr({ attribute: "aria-controls" })(VioletButton.prototype, "ariaControls");
 attr({ attribute: "aria-expanded" })(VioletButton.prototype, "ariaExpanded");
 attr({ attribute: "aria-haspopup" })(VioletButton.prototype, "ariaHasPopup");
+attr({ attribute: "aria-pressed" })(VioletButton.prototype, "ariaPressed");
 
 if (!customElements.get("violet-button")) {
     await FASTElement.define(VioletButton, {

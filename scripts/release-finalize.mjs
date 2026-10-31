@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 /** Finalize verified npm uploads; never upload packages or overwrite GitHub state. */
-import { createHash } from 'node:crypto';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import semver from 'semver';
 import { loadInventory } from './release/control.mjs';
+import { readPublished, verifyPublished } from './release-operations/prerequisites.mjs';
 import { notes, validatePlan } from './release-operations/publish.mjs';
-import { json, registryUrl, run } from './release-operations/shared.mjs';
+import { json, run } from './release-operations/shared.mjs';
 
 function verifyRepository(command, root, units) {
 	const inventory = loadInventory(root);
@@ -66,7 +66,15 @@ function verifyRelease(release, entry) {
 	)
 		throw new Error(`Existing GitHub release differs; reconcile ${entry.tag}`);
 }
-export function finalizeRelease({ root, receipt, plan, receiptFile, command = run }) {
+export function finalizeRelease({
+	root,
+	receipt,
+	plan,
+	receiptFile,
+	command = run,
+	readback = readPublished,
+	pushRoot = root,
+}) {
 	if (!receiptFile) throw new Error('Finalization requires a durable receipt path');
 	if (
 		receipt.state !== 'complete' ||
@@ -74,12 +82,27 @@ export function finalizeRelease({ root, receipt, plan, receiptFile, command = ru
 		receipt.sourceRevision !== plan.sourceRevision ||
 		receipt.intentDigest !== plan.intentDigest ||
 		!Array.isArray(receipt.publishedPackages) ||
+		receipt.publishedPackages.length !== plan.artifacts.length ||
 		receipt.finalization?.state === 'held' ||
 		receipt.finalization?.state === 'running'
 	)
 		throw new Error('Invalid or unresolved publication receipt; reconcile before finalization');
 	validatePlan(root, plan, plan.core.registryEvidence);
 	verifyRepository(command, root, plan.core.selectedUnits);
+	if (pushRoot !== root) {
+		verifyRepository(command, pushRoot, plan.core.selectedUnits);
+		const common = (directory) =>
+			realpathSync(
+				command(
+					'git',
+					['rev-parse', '--path-format=absolute', '--git-common-dir'],
+					directory
+				).trim()
+			);
+		if (common(root) !== common(pushRoot))
+			throw new Error('Tag push checkout uses a different Git common directory');
+	}
+	const hookHead = command('git', ['rev-parse', 'HEAD'], pushRoot).trim();
 	const head = command('git', ['rev-parse', 'HEAD'], root).trim();
 	if (head !== plan.sourceRevision) throw new Error('Finalization candidate revision changed');
 	const seen = new Set();
@@ -102,29 +125,7 @@ export function finalizeRelease({ root, receipt, plan, receiptFile, command = ru
 		).trim();
 		if (target !== head)
 			throw new Error(`Local tag does not resolve to approved candidate: ${entry.tag}`);
-		const integrity = createHash('sha512').update(readFileSync(artifact.file)).digest('base64');
-		const registryIntegrity = JSON.parse(
-			command(
-				'npm',
-				[
-					'view',
-					`${entry.name}@${entry.version}`,
-					'dist.integrity',
-					'--json',
-					'--registry',
-					registryUrl,
-					...(entry.name.startsWith('@')
-						? [`--${entry.name.split('/')[0]}:registry=${registryUrl}`]
-						: []),
-				],
-				root
-			)
-		);
-		if (
-			typeof registryIntegrity !== 'string' ||
-			!registryIntegrity.split(/\s+/).includes(`sha512-${integrity}`)
-		)
-			throw new Error(`Published artifact integrity differs: ${entry.name}`);
+		verifyPublished(artifact, readback);
 		const remote = remoteTarget(
 			command(
 				'git',
@@ -143,16 +144,25 @@ export function finalizeRelease({ root, receipt, plan, receiptFile, command = ru
 	const temporary = mkdtempSync(join(tmpdir(), 'afd-release-notes-'));
 	const save = () => writeFileSync(receiptFile, `${JSON.stringify(receipt, null, '\t')}\n`);
 	try {
-		for (const [index, item] of expected.entries()) {
-			if (item.remote && item.release) continue;
-			receipt.finalization = { state: 'running', head, tag: item.entry.tag };
+		const missing = expected.filter((item) => !item.remote);
+		if (missing.length) {
+			receipt.finalization = {
+				state: 'running',
+				head,
+				hookHead,
+				tags: missing.map((item) => item.entry.tag),
+			};
 			save();
-			if (!item.remote) {
-				command(
-					'git',
-					['push', 'origin', `refs/tags/${item.entry.tag}:refs/tags/${item.entry.tag}`],
-					root
-				);
+			command(
+				'git',
+				[
+					'push',
+					'origin',
+					...missing.map((item) => `refs/tags/${item.entry.tag}:refs/tags/${item.entry.tag}`),
+				],
+				pushRoot
+			);
+			for (const item of missing) {
 				const remote = remoteTarget(
 					command(
 						'git',
@@ -168,7 +178,13 @@ export function finalizeRelease({ root, receipt, plan, receiptFile, command = ru
 					item.entry.tag
 				);
 				if (remote !== head) throw new Error(`Remote tag readback failed: ${item.entry.tag}`);
+				item.remote = remote;
 			}
+		}
+		for (const [index, item] of expected.entries()) {
+			if (item.release) continue;
+			receipt.finalization = { state: 'running', head, hookHead, tag: item.entry.tag };
+			save();
 			if (!item.release) {
 				const noteFile = join(temporary, `${index}.md`);
 				writeFileSync(noteFile, item.entry.notes);
@@ -195,12 +211,13 @@ export function finalizeRelease({ root, receipt, plan, receiptFile, command = ru
 		receipt.finalization = {
 			state: 'complete',
 			head,
+			hookHead,
 			tags: expected.map(({ entry }) => entry.tag),
 		};
 		save();
 		return receipt.finalization;
 	} catch (error) {
-		receipt.finalization = { state: 'held', head, reason: error.message };
+		receipt.finalization = { state: 'held', head, hookHead, reason: error.message };
 		save();
 		throw new Error(`Finalization held; reconcile ${receiptFile}: ${error.message}`);
 	} finally {

@@ -13,6 +13,7 @@ export const testFiles = [
 	'scripts/skill-profiles.test.mjs',
 	'scripts/specimen-provenance.test.mjs',
 	'scripts/fast-af-provenance.test.mjs',
+	'scripts/violet-provenance.test.mjs',
 	'scripts/release-control.test.mjs',
 	'scripts/release/changeset.test.mjs',
 	'scripts/release/control.test.mjs',
@@ -22,6 +23,9 @@ export const testFiles = [
 	'scripts/release-native.test.mjs',
 	'scripts/release-finalize.test.mjs',
 	'scripts/release-claim.test.mjs',
+	'scripts/release-readback.test.mjs',
+	'scripts/registry-readback.test.mjs',
+	'scripts/release-recovery-approval.test.mjs',
 	'scripts/run-tooling-tests.test.mjs',
 ];
 

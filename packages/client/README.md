@@ -397,13 +397,20 @@ With `createApprovalMiddleware` installed on the registry, a gated command retur
 `{ command, input, summary, expiresAt, actor, reason?, signal? }`:
 
 - On `true`, the client retries the same call once, with the same input and
-  actor and `context.approval` set to the result's `details.approvalToken`, and
+  actor using a private credential exchange, and
   returns the retry's result. If the token expired while the human decided, the
   retry is held again (`details.reason: 'expired'`) and returned as is; the
   client never retries twice.
 - On `false`, a non-`true` value, a hook error, or without a hook, the original
   `APPROVAL_REQUIRED` result is returned unchanged.
-- The hook never sees the token, and the token never goes into command input.
+- The hook never sees the token. With exchange-aware registries, credentials are absent from results, result
+  observer hooks and failure journals. Public `call()`/`pipe()` contexts strip caller-supplied `approval`.
+- Pair current `afd-client`, `afd-core` and `afd-server` versions. Custom registries must
+  support the private exchange; legacy token-in-result registries remain held and their
+  credential field is removed from the returned failure. This cannot remove a credential
+  that a legacy registry already sent to its own middleware, observers or journals.
+- The application owns the hook and registry configuration. This boundary protects tool
+  callers; arbitrary hostile JavaScript in the host process requires process isolation.
 - `timeout` applies to each attempt, not the wait. The hook's `signal` is the
   call's signal; a call cancelled during the wait counts as denied.
 - In `pipe()`, each gated step asks when it is reached, with its resolved input,

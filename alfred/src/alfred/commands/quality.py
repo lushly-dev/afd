@@ -27,6 +27,7 @@ class QualityIssue:
     check: str
     message: str
     suggestion: str | None = None
+    severity: str = "error"
 
     def to_dict(self) -> dict:
         return {
@@ -36,6 +37,7 @@ class QualityIssue:
             "check": self.check,
             "message": self.message,
             "suggestion": self.suggestion,
+            "severity": self.severity,
         }
 
 
@@ -430,7 +432,10 @@ def _find_py_commands(root: Path) -> list[CommandDef]:
 # ─── Quality checks ─────────────────────────────────────────────────────────
 
 _MIN_DESC_LENGTH = 10
-_MAX_DESC_LENGTH = 120
+# A long description costs tokens on every tool listing but does not make the command
+# wrong, so exceeding this is a warning. The old 120-character cap was sized for clients
+# that loaded every description into a small context.
+_MAX_DESC_LENGTH = 300
 
 _IMPERATIVE_VERBS = {
     "get", "list", "create", "update", "delete", "remove", "add", "set",
@@ -463,6 +468,7 @@ def _check_length(cmd: CommandDef) -> QualityIssue | None:
             check="description-too-long",
             message=f"Description is {length} chars (max {_MAX_DESC_LENGTH})",
             suggestion="Shorten the description; move details to docs or examples",
+            severity="warning",
         )
     return None
 
@@ -521,7 +527,7 @@ async def alfred_quality(path: str | None = None) -> CommandResult[dict]:
 
     Scans for defineCommand() (TypeScript) and @server.command() (Python)
     definitions, then checks:
-    - Description length (not too short, not too long)
+    - Description length (too short is an issue; over 300 characters is a warning)
     - Imperative mood (starts with a verb)
     - Near-duplicate descriptions (>80% word overlap)
 
@@ -529,7 +535,8 @@ async def alfred_quality(path: str | None = None) -> CommandResult[dict]:
         path: Directory to scan. Defaults to current working directory.
 
     Returns:
-        CommandResult with quality issues and summary.
+        CommandResult with the issues (each carrying a severity), ``issue_count`` for the
+        errors, ``warning_count`` for the warnings, and a summary.
     """
     root = Path(path) if path else Path(".")
 
@@ -548,19 +555,22 @@ async def alfred_quality(path: str | None = None) -> CommandResult[dict]:
             issues.append(imperative_issue)
 
     issues.extend(_check_duplicates(all_commands))
+    errors = [i for i in issues if i.severity == "error"]
+    warnings = [i for i in issues if i.severity == "warning"]
 
     return success(
         data={
             "commands_scanned": len(all_commands),
             "typescript_commands": len(ts_commands),
             "python_commands": len(py_commands),
-            "issue_count": len(issues),
+            "issue_count": len(errors),
+            "warning_count": len(warnings),
             "issues": [i.to_dict() for i in issues],
         },
         confidence=1.0,
         reasoning=(
             f"Scanned {len(all_commands)} command definitions "
             f"({len(ts_commands)} TS, {len(py_commands)} Python): "
-            f"{len(issues)} quality issues found"
+            f"{len(errors)} quality issues and {len(warnings)} warnings found"
         ),
     )

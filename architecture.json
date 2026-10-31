@@ -116,6 +116,31 @@
 			"layer": "foundation"
 		},
 		{
+			"manifest": "foundations/violet/packages/core/package.json",
+			"family": "violet",
+			"layer": "foundation"
+		},
+		{
+			"manifest": "foundations/violet/packages/runtime/package.json",
+			"family": "violet",
+			"layer": "foundation"
+		},
+		{
+			"manifest": "integrations/violet-afd/package.json",
+			"family": "violet",
+			"layer": "integration"
+		},
+		{
+			"manifest": "endpoints/violet-cli/package.json",
+			"family": "violet",
+			"layer": "endpoint"
+		},
+		{
+			"manifest": "endpoints/violet-server/package.json",
+			"family": "violet",
+			"layer": "endpoint"
+		},
+		{
 			"manifest": "alfred/pyproject.toml",
 			"family": "alfred",
 			"layer": "endpoint",
@@ -163,6 +188,26 @@
 			"layer": "endpoint",
 			"pythonModules": ["botcore_teams"],
 			"publicSurfaces": ["wheel", "sdist", "python-import", "botcore.plugins"]
+		},
+		{
+			"manifest": "endpoints/health/pyproject.toml",
+			"family": "health",
+			"layer": "endpoint",
+			"pythonModules": ["lushly_health"],
+			"publicSurfaces": [
+				"wheel",
+				"sdist",
+				"python-import",
+				"python -m lushly_health",
+				"report-schema-1.0",
+				"botcore.plugins"
+			]
+		},
+		{
+			"manifest": "endpoints/health-dashboard/package.json",
+			"family": "health",
+			"layer": "endpoint",
+			"configurationDependencies": ["lushly-health"]
 		}
 	],
 	"coverageContract": {

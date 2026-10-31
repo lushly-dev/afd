@@ -1,6 +1,6 @@
 {
   "kind": "reviewed-import-adaptations",
-  "source_revision": "dc3a2b98edb2d60a1162b142523e839d2b686e57",
+  "source_revision": "5e64a6a5e7d459643fa62d0fe8ea22146afc4db1",
   "scope": "Reviewed import scope; future edits to listed files require explicit adaptation updates",
   "files": [
     {
@@ -33,7 +33,7 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "161ea7f4d02c2f6908478b875591e7fee049de0938c68227aa14bac54e2d6b73",
+      "current_import_sha256": "9978ea6e3454df174cd8cecd5a032f9f8781c12c032c2cc4632afb32f755c41a",
       "stage_classification": "not-in-staging",
       "stage_reason": "AFD-authored",
       "import_classification": "added-after-staging",
@@ -702,14 +702,14 @@
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/package.json",
       "upstream_path": "packages/element/packages/fast-element/package.json",
-      "upstream_sha256": "231e23c3cce3b36a999bfc27ecc23ce6d62c26d32b64f6c9a2c35bd21c6ba1a0",
+      "upstream_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
       "staged_path": "packages/element/packages/fast-element/package.json",
-      "staged_sha256": "231e23c3cce3b36a999bfc27ecc23ce6d62c26d32b64f6c9a2c35bd21c6ba1a0",
-      "current_import_sha256": "698526653a9f7fac0a1fad118ce58f2684c2a062a55e12e023f3d91bfabb2d7a",
+      "staged_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
+      "current_import_sha256": "b1053e4b0c770119c2e4fcd4c34d4acdb78a2335f2f1f875613b4152cab14ac7",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #186, fast-af #185) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); test:ci and all other scripts, dependencies and metadata are unchanged and fast-af.yml runs test:ci"
+      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; test:ci and all other scripts, dependencies and metadata, including the reconciled upstream devDependencies @ast-grep/cli ^0.51.0 (fast-af #186) and vite 8.3.5 (fast-af #185), are upstream and fast-af.yml runs test:ci"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/playwright.config.ts",
@@ -5310,14 +5310,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/attribute-taxonomy.jsonc",
       "upstream_path": "packages/violet-elements/attribute-taxonomy.jsonc",
-      "upstream_sha256": "00f3c8d1f5c04219959e5bdbe8ccd3b5c720bfc5f3c5b509b4bb98792c27c4b9",
+      "upstream_sha256": "c4b2261f9a199b28f59f5e1cb8b9d3b8c9b31d3235df872d00bace453f42779f",
       "staged_path": "packages/violet-elements/attribute-taxonomy.jsonc",
-      "staged_sha256": "00f3c8d1f5c04219959e5bdbe8ccd3b5c720bfc5f3c5b509b4bb98792c27c4b9",
-      "current_import_sha256": "00f3c8d1f5c04219959e5bdbe8ccd3b5c720bfc5f3c5b509b4bb98792c27c4b9",
+      "staged_sha256": "c4b2261f9a199b28f59f5e1cb8b9d3b8c9b31d3235df872d00bace453f42779f",
+      "current_import_sha256": "c4b2261f9a199b28f59f5e1cb8b9d3b8c9b31d3235df872d00bace453f42779f",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #232, fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #232, fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/custom-elements-manifest.config.js",
@@ -5334,14 +5334,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/custom-elements.json",
       "upstream_path": "packages/violet-elements/custom-elements.json",
-      "upstream_sha256": "c670713faa810207725baca98ba55a7b5011edc9acd3e479ec0bda93233a4c66",
+      "upstream_sha256": "a555ff7f61244885c9269bfb90a238eb80c221b0745ec5f5429ec8c8b5d5186d",
       "staged_path": "packages/violet-elements/custom-elements.json",
-      "staged_sha256": "c670713faa810207725baca98ba55a7b5011edc9acd3e479ec0bda93233a4c66",
-      "current_import_sha256": "c670713faa810207725baca98ba55a7b5011edc9acd3e479ec0bda93233a4c66",
+      "staged_sha256": "a555ff7f61244885c9269bfb90a238eb80c221b0745ec5f5429ec8c8b5d5186d",
+      "current_import_sha256": "a555ff7f61244885c9269bfb90a238eb80c221b0745ec5f5429ec8c8b5d5186d",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #232, fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #232, fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/icons/ATTRIBUTION.md",
@@ -5562,14 +5562,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/package.json",
       "upstream_path": "packages/violet-elements/package.json",
-      "upstream_sha256": "42cc73c3e7d1819c88fdce5df16fb34953d068aa2a96840a92d22aa239321655",
+      "upstream_sha256": "683df4bb03235160b4776b793096949b3791ba64f8540d5b9e901098b3caf904",
       "staged_path": "packages/violet-elements/package.json",
-      "staged_sha256": "42cc73c3e7d1819c88fdce5df16fb34953d068aa2a96840a92d22aa239321655",
-      "current_import_sha256": "cba4175750bf15a23cb4b8756674fa622b5a9e264e0248eac643f36c3e6cd197",
+      "staged_sha256": "683df4bb03235160b4776b793096949b3791ba64f8540d5b9e901098b3caf904",
+      "current_import_sha256": "9c666c1417b1023be518c7ea018e0f05a15e853c4a97f7a0d0afcfc3417869f3",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "Add test:browser and the devDependencies the upstream root workspace supplied for lint and the Vitest browser suite (@biomejs/biome, vitest, @vitest/browser-playwright, @vitest/coverage-v8, playwright, vite) with the upstream root specifiers; private, exports, dependencies and peer unchanged"
+      "import_reason": "Add test:browser and the devDependencies the upstream root workspace supplied for lint and the Vitest browser suite (@biomejs/biome, vitest, @vitest/browser-playwright, @vitest/coverage-v8, playwright, vite) with the upstream root specifiers at 5e64a6a5, including vite 8.3.5 (fast-af #185), except playwright, raised from ^1.58.2 to ^1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; private, exports (with the reconciled ./dist/* entry), the reconciled verify:exports script (fast-af #235), dependencies and peer are upstream"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/scripts/build-icons.mjs",
@@ -5618,6 +5618,18 @@
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "unchanged-staged",
       "import_reason": "Imported exact staged bytes"
+    },
+    {
+      "path": "foundations/fast-af/packages/violet-elements/scripts/verify-package-exports.mjs",
+      "upstream_path": "packages/violet-elements/scripts/verify-package-exports.mjs",
+      "upstream_sha256": "d7f8e79258255727cf46dc865b8e4632da2535ef653d2098116370711ee1d97d",
+      "staged_path": "packages/violet-elements/scripts/verify-package-exports.mjs",
+      "staged_sha256": "d7f8e79258255727cf46dc865b8e4632da2535ef653d2098116370711ee1d97d",
+      "current_import_sha256": "d7f8e79258255727cf46dc865b8e4632da2535ef653d2098116370711ee1d97d",
+      "stage_classification": "unchanged-upstream",
+      "stage_reason": "Added upstream after the import; Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object",
+      "import_classification": "unchanged-staged",
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/accordion-item/violet-accordion-item.spec.ts",
@@ -5838,38 +5850,38 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/button/violet-button.spec.ts",
       "upstream_path": "packages/violet-elements/src/button/violet-button.spec.ts",
-      "upstream_sha256": "a371b6cc417b251a60bba638296f235801e021d8311870ea97993e50871d200d",
+      "upstream_sha256": "f900e281099b8352bf3dcc29a3d4ec659c28b6cf749af029c54911edbbe6274d",
       "staged_path": "packages/violet-elements/src/button/violet-button.spec.ts",
-      "staged_sha256": "a371b6cc417b251a60bba638296f235801e021d8311870ea97993e50871d200d",
-      "current_import_sha256": "a371b6cc417b251a60bba638296f235801e021d8311870ea97993e50871d200d",
+      "staged_sha256": "f900e281099b8352bf3dcc29a3d4ec659c28b6cf749af029c54911edbbe6274d",
+      "current_import_sha256": "f900e281099b8352bf3dcc29a3d4ec659c28b6cf749af029c54911edbbe6274d",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/button/violet-button.stories.ts",
       "upstream_path": "packages/violet-elements/src/button/violet-button.stories.ts",
-      "upstream_sha256": "3567ae1c6418c568b33448b4b2d442d9d7c3a2a7f542ea3d04b52e24d6597d5b",
+      "upstream_sha256": "bbd52da431d49365658a86815e90df7e11e381c582f7ca442b40a6ec9bd2a8a6",
       "staged_path": "packages/violet-elements/src/button/violet-button.stories.ts",
-      "staged_sha256": "3567ae1c6418c568b33448b4b2d442d9d7c3a2a7f542ea3d04b52e24d6597d5b",
-      "current_import_sha256": "3567ae1c6418c568b33448b4b2d442d9d7c3a2a7f542ea3d04b52e24d6597d5b",
+      "staged_sha256": "bbd52da431d49365658a86815e90df7e11e381c582f7ca442b40a6ec9bd2a8a6",
+      "current_import_sha256": "bbd52da431d49365658a86815e90df7e11e381c582f7ca442b40a6ec9bd2a8a6",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/button/violet-button.ts",
       "upstream_path": "packages/violet-elements/src/button/violet-button.ts",
-      "upstream_sha256": "b2c8159cf2553338d591c1ee0b2e0335e3276739bfb26bdb7984e9e46877ebac",
+      "upstream_sha256": "674130f3c19c690122cc8add2f724e75a34f6fef63931b0b6ace666b19670d81",
       "staged_path": "packages/violet-elements/src/button/violet-button.ts",
-      "staged_sha256": "b2c8159cf2553338d591c1ee0b2e0335e3276739bfb26bdb7984e9e46877ebac",
-      "current_import_sha256": "b2c8159cf2553338d591c1ee0b2e0335e3276739bfb26bdb7984e9e46877ebac",
+      "staged_sha256": "674130f3c19c690122cc8add2f724e75a34f6fef63931b0b6ace666b19670d81",
+      "current_import_sha256": "674130f3c19c690122cc8add2f724e75a34f6fef63931b0b6ace666b19670d81",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/calendar/violet-calendar.spec.ts",
@@ -6018,14 +6030,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/color-picker/violet-color-picker.spec.ts",
       "upstream_path": "packages/violet-elements/src/color-picker/violet-color-picker.spec.ts",
-      "upstream_sha256": "4a54e4ae1befa888971c1f351589d6dafab52b57d0c43a30bcfb6963caa1de9c",
+      "upstream_sha256": "3df008590ca0de3cdf2e29500d784c4639f8451a7c78d9c0b86367b18834b3ba",
       "staged_path": "packages/violet-elements/src/color-picker/violet-color-picker.spec.ts",
-      "staged_sha256": "4a54e4ae1befa888971c1f351589d6dafab52b57d0c43a30bcfb6963caa1de9c",
-      "current_import_sha256": "4a54e4ae1befa888971c1f351589d6dafab52b57d0c43a30bcfb6963caa1de9c",
+      "staged_sha256": "3df008590ca0de3cdf2e29500d784c4639f8451a7c78d9c0b86367b18834b3ba",
+      "current_import_sha256": "3df008590ca0de3cdf2e29500d784c4639f8451a7c78d9c0b86367b18834b3ba",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #230) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #230)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/color-picker/violet-color-picker.stories.ts",
@@ -6042,14 +6054,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/color-picker/violet-color-picker.ts",
       "upstream_path": "packages/violet-elements/src/color-picker/violet-color-picker.ts",
-      "upstream_sha256": "6b0402d4660876929e8deb0e55fbc0a580f6cb7062a7c443a2f266e0c3b13154",
+      "upstream_sha256": "888d26c37c96bc48906146abe6933eb81ba7e1635d7e10a824e6dcd2e77ab658",
       "staged_path": "packages/violet-elements/src/color-picker/violet-color-picker.ts",
-      "staged_sha256": "6b0402d4660876929e8deb0e55fbc0a580f6cb7062a7c443a2f266e0c3b13154",
-      "current_import_sha256": "6b0402d4660876929e8deb0e55fbc0a580f6cb7062a7c443a2f266e0c3b13154",
+      "staged_sha256": "888d26c37c96bc48906146abe6933eb81ba7e1635d7e10a824e6dcd2e77ab658",
+      "current_import_sha256": "888d26c37c96bc48906146abe6933eb81ba7e1635d7e10a824e6dcd2e77ab658",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #230) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #230)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/color-picker/violet-color-utils.ts",
@@ -6282,38 +6294,38 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-message-media.spec.ts",
       "upstream_path": "packages/violet-elements/src/conversation/violet-message-media.spec.ts",
-      "upstream_sha256": "8f2dd3357c69079f552c09ff909257419690a7ba8aff6617d199fbf22decfb8f",
+      "upstream_sha256": "a2a92de3b9f20184484cbf1dc2e2f227804e32882254aeef2b78496042e31782",
       "staged_path": "packages/violet-elements/src/conversation/violet-message-media.spec.ts",
-      "staged_sha256": "8f2dd3357c69079f552c09ff909257419690a7ba8aff6617d199fbf22decfb8f",
-      "current_import_sha256": "8f2dd3357c69079f552c09ff909257419690a7ba8aff6617d199fbf22decfb8f",
+      "staged_sha256": "a2a92de3b9f20184484cbf1dc2e2f227804e32882254aeef2b78496042e31782",
+      "current_import_sha256": "a2a92de3b9f20184484cbf1dc2e2f227804e32882254aeef2b78496042e31782",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #232) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #232)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-message-media.stories.ts",
       "upstream_path": "packages/violet-elements/src/conversation/violet-message-media.stories.ts",
-      "upstream_sha256": "ad327c51a56e94d43ad9f6dd1af5ea8d86d67694f82d8e3a425a19693511ade3",
+      "upstream_sha256": "59f75d485c997a38e0588bd13ec096ee44a300ca707b6a1a8c57dc72f4127ff9",
       "staged_path": "packages/violet-elements/src/conversation/violet-message-media.stories.ts",
-      "staged_sha256": "ad327c51a56e94d43ad9f6dd1af5ea8d86d67694f82d8e3a425a19693511ade3",
-      "current_import_sha256": "ad327c51a56e94d43ad9f6dd1af5ea8d86d67694f82d8e3a425a19693511ade3",
+      "staged_sha256": "59f75d485c997a38e0588bd13ec096ee44a300ca707b6a1a8c57dc72f4127ff9",
+      "current_import_sha256": "59f75d485c997a38e0588bd13ec096ee44a300ca707b6a1a8c57dc72f4127ff9",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #232) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #232)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-message-media.ts",
       "upstream_path": "packages/violet-elements/src/conversation/violet-message-media.ts",
-      "upstream_sha256": "4d398a44146192a413c4259a64716088925a7900700da711c2fbab224ecf6963",
+      "upstream_sha256": "5d0f6a4d47c7fee52f699ed230a0a26a775f0039fc2282b88d8151e148617127",
       "staged_path": "packages/violet-elements/src/conversation/violet-message-media.ts",
-      "staged_sha256": "4d398a44146192a413c4259a64716088925a7900700da711c2fbab224ecf6963",
-      "current_import_sha256": "4d398a44146192a413c4259a64716088925a7900700da711c2fbab224ecf6963",
+      "staged_sha256": "5d0f6a4d47c7fee52f699ed230a0a26a775f0039fc2282b88d8151e148617127",
+      "current_import_sha256": "5d0f6a4d47c7fee52f699ed230a0a26a775f0039fc2282b88d8151e148617127",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #232) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #232)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/conversation/violet-message-status.spec.ts",
@@ -6882,14 +6894,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-multi-picker.spec.ts",
       "upstream_path": "packages/violet-elements/src/data-grid/violet-data-grid-multi-picker.spec.ts",
-      "upstream_sha256": "a6cb08d0d709c09fe7d07cda97f999b2a5f63a4f1f943e9a8ccacfb9eab36bf3",
+      "upstream_sha256": "e1d751632538e78006d91973a781ba784aeec39042d43fff7b6830c4ff55be86",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-multi-picker.spec.ts",
-      "staged_sha256": "a6cb08d0d709c09fe7d07cda97f999b2a5f63a4f1f943e9a8ccacfb9eab36bf3",
-      "current_import_sha256": "a6cb08d0d709c09fe7d07cda97f999b2a5f63a4f1f943e9a8ccacfb9eab36bf3",
+      "staged_sha256": "e1d751632538e78006d91973a781ba784aeec39042d43fff7b6830c4ff55be86",
+      "current_import_sha256": "e1d751632538e78006d91973a781ba784aeec39042d43fff7b6830c4ff55be86",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #237) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #237)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-multi-picker.stories.ts",
@@ -7134,14 +7146,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-reference-picker.spec.ts",
       "upstream_path": "packages/violet-elements/src/data-grid/violet-data-grid-reference-picker.spec.ts",
-      "upstream_sha256": "f9c11dc2feb1bc4d0c4638e17efcfd2df76ebaddc96c1c47be65fba97370ede7",
+      "upstream_sha256": "a7fc1834efcf685a481030fe44a2eb00890a2a9796a83a85e2449f403979b192",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-reference-picker.spec.ts",
-      "staged_sha256": "f9c11dc2feb1bc4d0c4638e17efcfd2df76ebaddc96c1c47be65fba97370ede7",
-      "current_import_sha256": "f9c11dc2feb1bc4d0c4638e17efcfd2df76ebaddc96c1c47be65fba97370ede7",
+      "staged_sha256": "a7fc1834efcf685a481030fe44a2eb00890a2a9796a83a85e2449f403979b192",
+      "current_import_sha256": "a7fc1834efcf685a481030fe44a2eb00890a2a9796a83a85e2449f403979b192",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #237) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #237)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-reference-picker.stories.ts",
@@ -7350,14 +7362,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid.spec.ts",
       "upstream_path": "packages/violet-elements/src/data-grid/violet-data-grid.spec.ts",
-      "upstream_sha256": "0e02710b546ca48b7ec7c5e1f972ade01cd2e3c59654eb7e3546b0e2d4e8dfb3",
+      "upstream_sha256": "5d72ec89f0abc449c2e6096cd05f57abc9916dd7f29f2e122e65fc9427ffc16e",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid.spec.ts",
-      "staged_sha256": "0e02710b546ca48b7ec7c5e1f972ade01cd2e3c59654eb7e3546b0e2d4e8dfb3",
-      "current_import_sha256": "0e02710b546ca48b7ec7c5e1f972ade01cd2e3c59654eb7e3546b0e2d4e8dfb3",
+      "staged_sha256": "5d72ec89f0abc449c2e6096cd05f57abc9916dd7f29f2e122e65fc9427ffc16e",
+      "current_import_sha256": "5d72ec89f0abc449c2e6096cd05f57abc9916dd7f29f2e122e65fc9427ffc16e",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid.stories.ts",
@@ -7386,14 +7398,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid.ts",
       "upstream_path": "packages/violet-elements/src/data-grid/violet-data-grid.ts",
-      "upstream_sha256": "c655939712d64dcca4ac04e79462e0d06eec017213b344e9d470eccdb08b329b",
+      "upstream_sha256": "a5f5b88e48529ec406ae5b33160df1cf4d053fcfaca99ec699fb345adfafc729",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid.ts",
-      "staged_sha256": "c655939712d64dcca4ac04e79462e0d06eec017213b344e9d470eccdb08b329b",
-      "current_import_sha256": "c655939712d64dcca4ac04e79462e0d06eec017213b344e9d470eccdb08b329b",
+      "staged_sha256": "a5f5b88e48529ec406ae5b33160df1cf4d053fcfaca99ec699fb345adfafc729",
+      "current_import_sha256": "a5f5b88e48529ec406ae5b33160df1cf4d053fcfaca99ec699fb345adfafc729",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/date-picker/violet-date-picker.spec.ts",
@@ -7494,14 +7506,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/dialog/violet-dialog.spec.ts",
       "upstream_path": "packages/violet-elements/src/dialog/violet-dialog.spec.ts",
-      "upstream_sha256": "6f08a57cf964ddd126d1c168e18700aa9aa83bbcb6acd87cf921b7103000adfb",
+      "upstream_sha256": "8e5ca39cb50b5b9fb9afd18e025912590b47b20b321c369f8362ff6e202c9604",
       "staged_path": "packages/violet-elements/src/dialog/violet-dialog.spec.ts",
-      "staged_sha256": "6f08a57cf964ddd126d1c168e18700aa9aa83bbcb6acd87cf921b7103000adfb",
-      "current_import_sha256": "6f08a57cf964ddd126d1c168e18700aa9aa83bbcb6acd87cf921b7103000adfb",
+      "staged_sha256": "8e5ca39cb50b5b9fb9afd18e025912590b47b20b321c369f8362ff6e202c9604",
+      "current_import_sha256": "8e5ca39cb50b5b9fb9afd18e025912590b47b20b321c369f8362ff6e202c9604",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/dialog/violet-dialog.stories.ts",
@@ -7518,14 +7530,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/dialog/violet-dialog.ts",
       "upstream_path": "packages/violet-elements/src/dialog/violet-dialog.ts",
-      "upstream_sha256": "38430b1fb2f91eda7b89f5b1e6aba8d0e2c950c6303cf926ac5219b5ee2d5215",
+      "upstream_sha256": "5af8f43eeb800db9fa1b9bc07bcd2afe54f480aacf707b275035796022b775b6",
       "staged_path": "packages/violet-elements/src/dialog/violet-dialog.ts",
-      "staged_sha256": "38430b1fb2f91eda7b89f5b1e6aba8d0e2c950c6303cf926ac5219b5ee2d5215",
-      "current_import_sha256": "38430b1fb2f91eda7b89f5b1e6aba8d0e2c950c6303cf926ac5219b5ee2d5215",
+      "staged_sha256": "5af8f43eeb800db9fa1b9bc07bcd2afe54f480aacf707b275035796022b775b6",
+      "current_import_sha256": "5af8f43eeb800db9fa1b9bc07bcd2afe54f480aacf707b275035796022b775b6",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/divider/violet-divider.spec.ts",
@@ -7842,14 +7854,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/gantt/violet-gantt.spec.ts",
       "upstream_path": "packages/violet-elements/src/gantt/violet-gantt.spec.ts",
-      "upstream_sha256": "74b2624fdb8abff73266d4690aa5fe9d965a92859c027de0415112d91628454f",
+      "upstream_sha256": "ae12207ffd93ed92bd34998a793ae2e8b6666a9340e23e6ca56995160fc6d018",
       "staged_path": "packages/violet-elements/src/gantt/violet-gantt.spec.ts",
-      "staged_sha256": "74b2624fdb8abff73266d4690aa5fe9d965a92859c027de0415112d91628454f",
-      "current_import_sha256": "74b2624fdb8abff73266d4690aa5fe9d965a92859c027de0415112d91628454f",
+      "staged_sha256": "ae12207ffd93ed92bd34998a793ae2e8b6666a9340e23e6ca56995160fc6d018",
+      "current_import_sha256": "ae12207ffd93ed92bd34998a793ae2e8b6666a9340e23e6ca56995160fc6d018",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/gantt/violet-gantt.stories.ts",
@@ -7878,14 +7890,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/gantt/violet-gantt.ts",
       "upstream_path": "packages/violet-elements/src/gantt/violet-gantt.ts",
-      "upstream_sha256": "e95d42641eeab7e9b16de195e1ba683f2ea307f19cfa270368c703509cf9d094",
+      "upstream_sha256": "1850fe1447dee6e8ff01ff58cbfcf4a0e622ca906f95a11b106ae797496ace10",
       "staged_path": "packages/violet-elements/src/gantt/violet-gantt.ts",
-      "staged_sha256": "e95d42641eeab7e9b16de195e1ba683f2ea307f19cfa270368c703509cf9d094",
-      "current_import_sha256": "e95d42641eeab7e9b16de195e1ba683f2ea307f19cfa270368c703509cf9d094",
+      "staged_sha256": "1850fe1447dee6e8ff01ff58cbfcf4a0e622ca906f95a11b106ae797496ace10",
+      "current_import_sha256": "1850fe1447dee6e8ff01ff58cbfcf4a0e622ca906f95a11b106ae797496ace10",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/gantt/violet-gantt.ux.spec.ts",
@@ -8682,26 +8694,26 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/segment/violet-segment.ts",
       "upstream_path": "packages/violet-elements/src/segment/violet-segment.ts",
-      "upstream_sha256": "c335c31517931f60539fcb30ce46ceb3b2ed6fd7e997efc3447262c9a12c685a",
+      "upstream_sha256": "46f35695034e82388a4d8efb4bae940088abc70e84c95044a89e4ed41905d2aa",
       "staged_path": "packages/violet-elements/src/segment/violet-segment.ts",
-      "staged_sha256": "c335c31517931f60539fcb30ce46ceb3b2ed6fd7e997efc3447262c9a12c685a",
-      "current_import_sha256": "c335c31517931f60539fcb30ce46ceb3b2ed6fd7e997efc3447262c9a12c685a",
+      "staged_sha256": "46f35695034e82388a4d8efb4bae940088abc70e84c95044a89e4ed41905d2aa",
+      "current_import_sha256": "46f35695034e82388a4d8efb4bae940088abc70e84c95044a89e4ed41905d2aa",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/segmented-control/violet-segmented-control.spec.ts",
       "upstream_path": "packages/violet-elements/src/segmented-control/violet-segmented-control.spec.ts",
-      "upstream_sha256": "b3a9adef11663a95a0027ab0f9651ea82beb07535f95d242ee8505055389b5db",
+      "upstream_sha256": "43fa025ec891478bb9c94812c87915e5d9150a227bcab7eb7b9b68ea56efaee6",
       "staged_path": "packages/violet-elements/src/segmented-control/violet-segmented-control.spec.ts",
-      "staged_sha256": "b3a9adef11663a95a0027ab0f9651ea82beb07535f95d242ee8505055389b5db",
-      "current_import_sha256": "b3a9adef11663a95a0027ab0f9651ea82beb07535f95d242ee8505055389b5db",
+      "staged_sha256": "43fa025ec891478bb9c94812c87915e5d9150a227bcab7eb7b9b68ea56efaee6",
+      "current_import_sha256": "43fa025ec891478bb9c94812c87915e5d9150a227bcab7eb7b9b68ea56efaee6",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/segmented-control/violet-segmented-control.stories.ts",
@@ -9150,14 +9162,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/text-field/violet-text-field.constraints.spec.ts",
       "upstream_path": "packages/violet-elements/src/text-field/violet-text-field.constraints.spec.ts",
-      "upstream_sha256": "58c49bf9684765e57643f995540f09424c1f7759ea46e45220fecf439064eadc",
+      "upstream_sha256": "982c161de579a106d8f8efda9f8fec30065d75272c91ed3763a25affa08d625f",
       "staged_path": "packages/violet-elements/src/text-field/violet-text-field.constraints.spec.ts",
-      "staged_sha256": "58c49bf9684765e57643f995540f09424c1f7759ea46e45220fecf439064eadc",
-      "current_import_sha256": "58c49bf9684765e57643f995540f09424c1f7759ea46e45220fecf439064eadc",
+      "staged_sha256": "982c161de579a106d8f8efda9f8fec30065d75272c91ed3763a25affa08d625f",
+      "current_import_sha256": "982c161de579a106d8f8efda9f8fec30065d75272c91ed3763a25affa08d625f",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/text-field/violet-text-field.spec.ts",
@@ -9186,14 +9198,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/text-field/violet-text-field.ts",
       "upstream_path": "packages/violet-elements/src/text-field/violet-text-field.ts",
-      "upstream_sha256": "fdacd66683680e4188fdaa1c5c70132fc959a295e59ca541a53ea0c0a1e95dfb",
+      "upstream_sha256": "875eeee6864c93a534f5259f46f5eed705e89022323b8abc1d093c418cfe945d",
       "staged_path": "packages/violet-elements/src/text-field/violet-text-field.ts",
-      "staged_sha256": "fdacd66683680e4188fdaa1c5c70132fc959a295e59ca541a53ea0c0a1e95dfb",
-      "current_import_sha256": "fdacd66683680e4188fdaa1c5c70132fc959a295e59ca541a53ea0c0a1e95dfb",
+      "staged_sha256": "875eeee6864c93a534f5259f46f5eed705e89022323b8abc1d093c418cfe945d",
+      "current_import_sha256": "875eeee6864c93a534f5259f46f5eed705e89022323b8abc1d093c418cfe945d",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/text/violet-text.spec.ts",
@@ -9234,14 +9246,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/theme/generated/violet-theme.generated.ts",
       "upstream_path": "packages/violet-elements/src/theme/generated/violet-theme.generated.ts",
-      "upstream_sha256": "66b75afb0adb317c7c636e1f5911800c3f799d144c916a193488030175cd0cc9",
+      "upstream_sha256": "38951f2487fb88555e123c319616f7c48e078075ad3e781a32f227fe68eb4da9",
       "staged_path": "packages/violet-elements/src/theme/generated/violet-theme.generated.ts",
-      "staged_sha256": "66b75afb0adb317c7c636e1f5911800c3f799d144c916a193488030175cd0cc9",
-      "current_import_sha256": "66b75afb0adb317c7c636e1f5911800c3f799d144c916a193488030175cd0cc9",
+      "staged_sha256": "38951f2487fb88555e123c319616f7c48e078075ad3e781a32f227fe68eb4da9",
+      "current_import_sha256": "38951f2487fb88555e123c319616f7c48e078075ad3e781a32f227fe68eb4da9",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/theme/index.ts",
@@ -9294,14 +9306,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/src/theme/violet-token-defaults.ts",
       "upstream_path": "packages/violet-elements/src/theme/violet-token-defaults.ts",
-      "upstream_sha256": "499120d216c1c80c5effc47b33688e2099a50fec2248eb35d7078accd783932d",
+      "upstream_sha256": "aa0a8aefb71f41fb2bf109dee409d3dc62865ed3d155380f1ab2ce06b5e53ba2",
       "staged_path": "packages/violet-elements/src/theme/violet-token-defaults.ts",
-      "staged_sha256": "499120d216c1c80c5effc47b33688e2099a50fec2248eb35d7078accd783932d",
-      "current_import_sha256": "499120d216c1c80c5effc47b33688e2099a50fec2248eb35d7078accd783932d",
+      "staged_sha256": "aa0a8aefb71f41fb2bf109dee409d3dc62865ed3d155380f1ab2ce06b5e53ba2",
+      "current_import_sha256": "aa0a8aefb71f41fb2bf109dee409d3dc62865ed3d155380f1ab2ce06b5e53ba2",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/time-picker/violet-time-picker.spec.ts",
@@ -9510,14 +9522,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/tokens/master-semantic.tokens.jsonc",
       "upstream_path": "packages/violet-elements/tokens/master-semantic.tokens.jsonc",
-      "upstream_sha256": "6584f75c67d71f21bf14ccba5ed646030e63f0514900fa96c9f73d72cdad4aa5",
+      "upstream_sha256": "18a8bf653714e179f841624a61190aa6e4af4deea2db144771d45649058c5e37",
       "staged_path": "packages/violet-elements/tokens/master-semantic.tokens.jsonc",
-      "staged_sha256": "6584f75c67d71f21bf14ccba5ed646030e63f0514900fa96c9f73d72cdad4aa5",
-      "current_import_sha256": "6584f75c67d71f21bf14ccba5ed646030e63f0514900fa96c9f73d72cdad4aa5",
+      "staged_sha256": "18a8bf653714e179f841624a61190aa6e4af4deea2db144771d45649058c5e37",
+      "current_import_sha256": "18a8bf653714e179f841624a61190aa6e4af4deea2db144771d45649058c5e37",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/tokens/raw-palette.proposal.jsonc",
@@ -9534,14 +9546,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/tokens/theme-presets.jsonc",
       "upstream_path": "packages/violet-elements/tokens/theme-presets.jsonc",
-      "upstream_sha256": "42cb53ea1dd01a0977e926148edb7b0bf4a6cea9c33a26a99519210bbc2a22a2",
+      "upstream_sha256": "d3b5ac61aa9df3eeb035f5569ee0408e50a102900c60d60bab2057ab1e37170d",
       "staged_path": "packages/violet-elements/tokens/theme-presets.jsonc",
-      "staged_sha256": "42cb53ea1dd01a0977e926148edb7b0bf4a6cea9c33a26a99519210bbc2a22a2",
-      "current_import_sha256": "42cb53ea1dd01a0977e926148edb7b0bf4a6cea9c33a26a99519210bbc2a22a2",
+      "staged_sha256": "d3b5ac61aa9df3eeb035f5569ee0408e50a102900c60d60bab2057ab1e37170d",
+      "current_import_sha256": "d3b5ac61aa9df3eeb035f5569ee0408e50a102900c60d60bab2057ab1e37170d",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/tsconfig.json",
@@ -9558,14 +9570,14 @@
     {
       "path": "foundations/fast-af/packages/violet-elements/tsconfig.lib.json",
       "upstream_path": "packages/violet-elements/tsconfig.lib.json",
-      "upstream_sha256": "06bec4bd50a874076dc5e690564d07c1faaeb2f3852ad9b5df009098e9850104",
+      "upstream_sha256": "74d2a5249260eb07016b79cf70446bbc4f1b7c0b1a765f86acf60d80ede2679d",
       "staged_path": "packages/violet-elements/tsconfig.lib.json",
-      "staged_sha256": "06bec4bd50a874076dc5e690564d07c1faaeb2f3852ad9b5df009098e9850104",
-      "current_import_sha256": "06bec4bd50a874076dc5e690564d07c1faaeb2f3852ad9b5df009098e9850104",
+      "staged_sha256": "74d2a5249260eb07016b79cf70446bbc4f1b7c0b1a765f86acf60d80ede2679d",
+      "current_import_sha256": "74d2a5249260eb07016b79cf70446bbc4f1b7c0b1a765f86acf60d80ede2679d",
       "stage_classification": "unchanged-upstream",
-      "stage_reason": "Staged bytes match the immutable upstream Git object",
+      "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_reason": "Imported exact upstream bytes (fast-af #235)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/vitest.config.ts",
@@ -9597,11 +9609,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "400e244f546270e315cbd6653fd9e9814e5cfe7f3c4b6283c0fc16eedf80eff3",
+      "current_import_sha256": "7163314e9853d22d9a1d62fefd7d9722b8c0a4021b05756c2b991a20b471c9ae",
       "stage_classification": "not-in-staging",
       "stage_reason": "Replaces the staged consumer/ directory and upstream scripts/check-v3-pack-consumer.mjs",
       "import_classification": "added-after-staging",
-      "import_reason": "Packed-artifact consumers outside the workspace: every runtime export for NodeNext types and both runtime conditions (retargeting the package export smoke as upstream does), components with strict bundler types, assets, missing peer and a browser render/registration smoke"
+      "import_reason": "Packed-artifact consumers outside the workspace: every runtime export for NodeNext types and both runtime conditions (retargeting the package export smoke as upstream does), components with strict bundler types and the ./dist/* export reconciled from fast-af #235, assets, missing peer and a browser render/registration smoke"
     }
   ]
 }

@@ -78,12 +78,18 @@ function completed(f, claim) {
 	const plan = {
 		intentDigest: claim.intentDigest,
 		binding: 'bound',
+		artifacts: [{ name: '@fixture/a', version: '1.0.0' }],
 		core: { registryEvidence: [] },
 	};
 	const receipt = {
 		state: 'complete',
 		binding: 'bound',
-		finalization: { state: 'complete', head: git(f.root, ['rev-parse', 'HEAD']).trim() },
+		publishedPackages: [{ name: '@fixture/a', version: '1.0.0', tag: '@fixture/a@1.0.0' }],
+		finalization: {
+			state: 'complete',
+			head: git(f.root, ['rev-parse', 'HEAD']).trim(),
+			tags: ['@fixture/a@1.0.0'],
+		},
 	};
 	return { claim, plan, receipt };
 }
@@ -248,6 +254,17 @@ test('complete validates plan, receipt, finalization and current intent before s
 			}),
 		/stale current plan/
 	);
+
+	for (const patch of [
+		{ publishedPackages: [] },
+		{ publishedPackages: [...valid.receipt.publishedPackages, ...valid.receipt.publishedPackages] },
+		{ publishedPackages: [{ name: 'foreign', version: '1.0.0', tag: 'foreign@1.0.0' }] },
+		{ finalization: { ...valid.receipt.finalization, tags: [] } },
+	])
+		assert.throws(
+			() => f.invoke('complete', { ...valid, receipt: { ...valid.receipt, ...patch } }),
+			/incomplete/
+		);
 	let validated = 0;
 	const result = f.invoke('complete', {
 		...valid,
@@ -363,4 +380,52 @@ test('intent history ignores only known missing paths and propagates other git e
 		/corrupt git object/
 	);
 	assert.equal(f.state.calls.length, 0);
+});
+
+test('explicit recovery preserves failed history and binds the replacement claim', (t) => {
+	const f = fixture(t);
+	const first = f.invoke('acquire');
+	const failed = f.invoke('fail', { claim: first });
+	const nextEnvironment = { ...environment, GITHUB_RUN_ID: '456' };
+	const plan = { sourceRevision: failed.commit, intentDigest: failed.intentDigest };
+	let reconciled = 0;
+	const options = {
+		claim: failed,
+		plan,
+		receipt: { state: 'held' },
+		environment: nextEnvironment,
+		reconcile: () => {
+			reconciled++;
+			return { verified: ['a'], missing: [] };
+		},
+	};
+	for (const bad of [
+		{ ...failed, statusId: 999 },
+		{ ...failed, intentDigest: 'wrong' },
+		{ ...failed, targetUrl: 'wrong' },
+	]) {
+		assert.throws(() => f.invoke('reconcile', { ...options, claim: bad }), /exact failed claim/);
+	}
+	assert.equal(reconciled, 0);
+	assert.throws(
+		() =>
+			f.invoke('reconcile', {
+				...options,
+				reconcile: () => {
+					throw new Error('artifact differs');
+				},
+			}),
+		/artifact differs/
+	);
+	assert.equal(f.state.entries[0].state, 'failure');
+	const recovered = f.invoke('reconcile', options);
+	assert.equal(reconciled, 1);
+	assert.equal(recovered.state, 'pending');
+	assert.deepEqual(recovered.recoveredFrom, {
+		statusId: failed.statusId,
+		targetUrl: failed.targetUrl,
+	});
+	assert.equal(f.state.entries[1].state, 'failure');
+	assert.match(recovered.targetUrl, /456/);
+	assert.throws(() => f.invoke('reconcile', options), /exact failed claim/);
 });

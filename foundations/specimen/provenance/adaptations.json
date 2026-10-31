@@ -945,11 +945,11 @@
       "upstream_sha256": null,
       "staged_path": "verify-artifacts.mjs",
       "staged_sha256": "ad7f35d1389cd0bddd8c128d568f2031dab888df9b12f2077faa1151554270df",
-      "current_import_sha256": "7a1d25412414a8982909abadf54de4e7c2bda78f67f86d7ddd7a2cc28c2ecc36",
+      "current_import_sha256": "568a4b4907454257d54d40359a516d0f20f6d2710437d624d286b0e80876ab62",
       "stage_classification": "staging-evidence",
       "stage_reason": "Candidate staging tool or record, not upstream source",
       "import_classification": "derived-from-staging",
-      "import_reason": "Packed-artifact consumers re-rooted on the AFD workspace; receipt written outside the repository; exact peer assertions and an incompatible AFD core case added"
+      "import_reason": "Packed-artifact consumers re-rooted on the AFD workspace; receipt written outside the repository; exact peer assertions and an incompatible AFD core case added; server-to-core dependency wired to the local candidate tarball so negative peer checks work before publication without overriding incompatible root peers"
     },
     {
       "path": "docs/features/active/specimens/cpu-hotspot-validation.md",

@@ -1,0 +1,40 @@
+{
+	"name": "@lushly-dev/health-dashboard",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Local, static FAST-AF dashboard for Health report-1.1 files",
+	"license": "MIT",
+	"type": "module",
+	"engines": {
+		"node": ">=22.12.0"
+	},
+	"scripts": {
+		"build": "vite build",
+		"clean": "rimraf dist coverage",
+		"typecheck": "tsc -p tsconfig.typecheck.json",
+		"test": "vitest run --config vitest.config.ts",
+		"test:browser": "vitest run --config vitest.browser.config.ts",
+		"fixtures": "node scripts/generate-fixtures.mjs",
+		"fixtures:check": "node scripts/generate-fixtures.mjs --check"
+	},
+	"dependencies": {
+		"@lushly-dev/fast-element": "workspace:*",
+		"@lushly-dev/violet-elements": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "^25.9.5",
+		"@vitest/coverage-v8": "^4.1.11",
+		"ajv": "^8.20.0",
+		"axe-core": "4.13.0",
+		"playwright": "^1.64.0",
+		"rimraf": "^6.1.3",
+		"typescript": "^5.9.3",
+		"vite": "^8.3.0",
+		"vitest": "^4.1.11"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "endpoints/health-dashboard"
+	}
+}

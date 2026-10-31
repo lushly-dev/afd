@@ -4,6 +4,7 @@
 
 import { Writable } from 'node:stream';
 import type { CommandResult } from '@lushly-dev/afd-core';
+import { createDirectApprovalExchange } from '@lushly-dev/afd-core/internal/direct-approval';
 import chalk from 'chalk';
 import type { Command } from 'commander';
 import ora from 'ora';
@@ -62,11 +63,11 @@ export function registerCallCommand(program: Command): void {
 			`
 Approvals: when a call fails with APPROVAL_REQUIRED, an in-process call
 (--module) shows the summary and expiry, asks "Approve? [y/N]" on a terminal,
-and on yes retries the same command and input with the token the server
-returned as the context's approval evidence. --approve approves without
-asking, once, and still only with a token the server issued for this call.
-With no terminal and no --approve, the APPROVAL_REQUIRED result is printed
-unchanged and the exit code is 1.
+and on yes retries the same command and input through a private approval
+exchange. --approve approves without asking, once. Approval credentials
+never appear in the held result.
+With no terminal and no --approve, a token-free APPROVAL_REQUIRED result is
+printed and the exit code is 1.
 
 Over MCP the CLI cannot deliver approval evidence: tool arguments never carry
 it, and MCP has no trusted channel for it yet. The result is printed unchanged.`
@@ -156,17 +157,23 @@ async function callInProcess(
 	}
 
 	const prompt = options.approve ? undefined : interactiveApproval();
+	const exchange = createDirectApprovalExchange();
 	try {
 		return await callWithApproval(
 			name,
 			// Same command, input and context on every attempt; only the evidence is added.
 			(approval) =>
-				registry.execute(name, input, {
-					interface: 'cli',
-					...(approval !== undefined ? { approval } : {}),
-				}),
+				registry.execute(
+					name,
+					input,
+					exchange.bind({
+						interface: 'cli',
+						...(approval !== undefined ? { approval } : {}),
+					})
+				),
 			{
 				approve: options.approve === true,
+				exchange,
 				...(prompt ? { prompt } : {}),
 				// Keep stderr quiet for JSON consumers unless a human is being asked.
 				output:
@@ -178,5 +185,7 @@ async function callInProcess(
 	} catch (error) {
 		printError('Command execution failed', error instanceof Error ? error : undefined);
 		return undefined;
+	} finally {
+		exchange.dispose();
 	}
 }

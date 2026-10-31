@@ -132,14 +132,15 @@ const client = createDirectClient(registry, {
 ```
 
 - `true`: the client retries the same call **once**, with the same input and
-  actor and `context.approval` set to `details.approvalToken`, and returns the
+  actor using a private approval exchange, and returns the
   retry's result. A retry that is held again (for example `reason: 'expired'`,
   when the human took longer than the token's TTL) is returned as is.
 - `false`, any non-`true` value, a hook that throws, or no hook: the original
-  `APPROVAL_REQUIRED` result is returned unchanged. So is a result without
-  `details.approvalToken` (a server that delivers tokens another way).
-- The hook is trusted app code and never sees the token. The token goes into
-  the context only, never into command input or tool arguments (spec rule 1).
+  token-free `APPROVAL_REQUIRED` result is returned. Custom registries must support
+  the private exchange; token-in-result registries do not trigger the hook.
+- The hook is trusted app code and never sees the token. Credentials stay in private
+  exchange state. Public call and pipe contexts strip `approval`; results, observer hooks
+  and failure journals do not receive it. Use matching client/core/server versions.
 - `timeout` bounds each attempt, not the human's decision. `request.signal` is
   the call's signal: close the prompt when it aborts. A call cancelled during
   the wait counts as denied.

@@ -1,0 +1,66 @@
+{
+	"name": "@lushly-dev/violet-cli",
+	"version": "0.2.0",
+	"license": "MIT",
+	"author": "Falkicon",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "endpoints/violet-cli"
+	},
+	"homepage": "https://github.com/lushly-dev/afd#readme",
+	"bugs": {
+		"url": "https://github.com/lushly-dev/afd/issues"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"keywords": [
+		"violet",
+		"design-tokens",
+		"dtcg",
+		"cli",
+		"css-variables",
+		"agent-first"
+	],
+	"engines": {
+		"node": ">=24"
+	},
+	"description": "Violet Design CLI - Command-line interface for token management",
+	"type": "module",
+	"bin": {
+		"violet": "./dist/bin.js"
+	},
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"scripts": {
+		"build": "tsc",
+		"dev": "tsc --watch",
+		"lint": "biome check src/",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest run --coverage",
+		"clean": "rm -rf dist *.tsbuildinfo"
+	},
+	"dependencies": {
+		"@lushly-dev/violet-afd": "workspace:*",
+		"@lushly-dev/violet-core": "workspace:*",
+		"@lushly-dev/violet-server": "workspace:*",
+		"chalk": "^5.6.2",
+		"commander": "^12.1.0",
+		"nanoid": "^5.1.16",
+		"yaml": "^2.9.1"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"@types/node": "^26.6.5",
+		"@vitest/coverage-v8": "^3.2.7",
+		"typescript": "^5.9.3",
+		"vitest": "^3.2.7"
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE"
+	]
+}

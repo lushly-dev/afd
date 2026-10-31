@@ -366,7 +366,7 @@
 			"id": "fast-element",
 			"family": "fast-af",
 			"protocol": "npm-changesets",
-			"sourceRevision": "dc3a2b98edb2d60a1162b142523e839d2b686e57",
+			"sourceRevision": "5e64a6a5e7d459643fa62d0fe8ea22146afc4db1",
 			"authority": "original lushly-dev/fast-af repository: Changesets version records and manual package-level publication, no root publish workflow, tags or GitHub releases; no handoff authorized",
 			"state": "quarantined",
 			"routes": ["npm-main"],
@@ -392,7 +392,7 @@
 			"id": "violet-elements",
 			"family": "fast-af",
 			"protocol": "npm-changesets",
-			"sourceRevision": "dc3a2b98edb2d60a1162b142523e839d2b686e57",
+			"sourceRevision": "5e64a6a5e7d459643fa62d0fe8ea22146afc4db1",
 			"authority": "original lushly-dev/fast-af repository: Changesets version records and manual package-level publication, no root publish workflow, tags or GitHub releases; no handoff authorized; manifest is private: true upstream and cannot publish",
 			"state": "quarantined",
 			"routes": ["npm-main"],
@@ -409,6 +409,101 @@
 					"name": "@lushly-dev/violet-elements",
 					"registry": "npm",
 					"manifest": "foundations/fast-af/packages/violet-elements/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
+			"id": "violet-npm",
+			"family": "violet",
+			"protocol": "npm-changesets",
+			"sourceRevision": "59b4bfa64a8cf423322b857c5c697e110201e0f2",
+			"authority": "github: lushly-dev/violet (main-branch Changesets release workflow, fixed group @lushly-dev/violet-*; sole publishing authority; no handoff authorized). @lushly-dev/violet-afd is new in this split and has no upstream release record",
+			"state": "quarantined",
+			"routes": ["npm-main"],
+			"gates": [
+				"pnpm check",
+				"violet.yml",
+				"artifact-contents",
+				"isolated-install",
+				"release-approval"
+			],
+			"fixed": true,
+			"distributions": [
+				{
+					"name": "@lushly-dev/violet-core",
+					"registry": "npm",
+					"manifest": "foundations/violet/packages/core/package.json",
+					"format": "npm",
+					"initialVersion": "0.2.0"
+				},
+				{
+					"name": "@lushly-dev/violet-runtime",
+					"registry": "npm",
+					"manifest": "foundations/violet/packages/runtime/package.json",
+					"format": "npm",
+					"initialVersion": "0.2.0"
+				},
+				{
+					"name": "@lushly-dev/violet-afd",
+					"registry": "npm",
+					"manifest": "integrations/violet-afd/package.json",
+					"format": "npm",
+					"initialVersion": "0.2.0"
+				},
+				{
+					"name": "@lushly-dev/violet-cli",
+					"registry": "npm",
+					"manifest": "endpoints/violet-cli/package.json",
+					"format": "npm",
+					"initialVersion": "0.2.0"
+				},
+				{
+					"name": "@lushly-dev/violet-server",
+					"registry": "npm",
+					"manifest": "endpoints/violet-server/package.json",
+					"format": "npm",
+					"initialVersion": "0.2.0"
+				}
+			]
+		},
+		{
+			"id": "health",
+			"family": "health",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "35e3cf041f9daff1354c9e8aee05388389397a0d",
+			"authority": "github: lushly-dev/health (private source repository with no declared license; reviewed generic code extracted under MIT by owner authorization; no publisher, release route or registry identity exists; distribution name tentative)",
+			"state": "quarantined",
+			"routes": ["pypi-health"],
+			"gates": ["health.yml", "artifact-contents", "isolated-install", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "lushly-health",
+					"registry": "pypi",
+					"manifest": "endpoints/health/pyproject.toml",
+					"format": "python",
+					"initialVersion": "0.1.0"
+				}
+			]
+		},
+		{
+			"id": "health-dashboard",
+			"family": "health",
+			"protocol": "npm-changesets",
+			"sourceRevision": "d221201f0fbbe3b1d013fddc5b00579fc33380b1",
+			"authority": "none: new endpoint authored in lushly-dev/afd on top of this revision, not imported; manifest is private: true and cannot publish; no route, registry identity, deployment or handoff exists",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "health-dashboard.yml", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/health-dashboard",
+					"registry": "npm",
+					"manifest": "endpoints/health-dashboard/package.json",
 					"format": "npm",
 					"initialVersion": "0.1.0",
 					"private": true

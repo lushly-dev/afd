@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/afd-core",
-	"version": "2.2.0",
+	"version": "2.2.1",
 	"description": "Core types and utilities for Agent-First Development",
 	"type": "module",
 	"exports": {
@@ -19,6 +19,10 @@
 		"./journal-file": {
 			"types": "./dist/journal-file.d.ts",
 			"import": "./dist/journal-file.js"
+		},
+		"./internal/direct-approval": {
+			"types": "./dist/direct-approval.d.ts",
+			"import": "./dist/direct-approval.js"
 		},
 		"./commands": {
 			"types": "./dist/commands.d.ts",

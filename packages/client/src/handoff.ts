@@ -1,4 +1,3 @@
-// afd-override: max-lines=700 — single-module cohesion: registry + connectHandoff + reconnection + helpers
 /**
  * @fileoverview Handoff Protocol Handlers & Utilities
  *

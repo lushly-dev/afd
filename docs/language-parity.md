@@ -4,7 +4,7 @@ What each AFD implementation provides, where they differ, and which differences 
 
 | Field | Value |
 |---|---|
-| Updated | 2026-10-27 (versions: TypeScript 2.2.0, Python 0.10.0, Rust 0.2.0, C++ 0.2.0); 2026-10-25 (MCP 2026-07-28 rows); 2026-10-13 otherwise |
+| Updated | 2026-10-29 (package versions: TypeScript 2.2.1, Python 0.10.0, Rust 0.2.1, C++ 0.2.0); 2026-10-25 (MCP 2026-07-28 rows); 2026-10-13 otherwise |
 | Reviewed at | Stabilization `f19257e` (#367); Python 0.9.0 published from `4e16a06` (#372); npm 2.1.0 published from `0148d22` (#338); C++ and Rust 0.1.0 published from `a311562` (#377); fresh consumers verified |
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans, which now link here |
@@ -32,7 +32,7 @@ Versions below describe repository manifests. Registry checks independently conf
 | | TypeScript | Python | Rust | C++ |
 |---|---|---|---|---|
 | Package | 9 `@lushly-dev/*` packages | `afd` | `afd` crate | `afd-cpp` (`afd::afd`) |
-| Version | 2.2.0 | 0.10.0 | 0.2.1 (published) | 0.2.0 |
+| Version | 2.2.1 | 0.10.0 | 0.2.1 (published) | 0.2.0 |
 | Contract | 1.0-rc (`AFD_CONTRACT_VERSION`) | 1.0-rc (`afd.CONTRACT_VERSION`) | 1.0-rc (`afd::CONTRACT_VERSION`) | 1.0-rc (`afd::contract_version`) |
 | Distribution | npm | PyPI | [crates.io](https://crates.io/crates/afd); published 0.2.0 | CMake `FetchContent`, `find_package`, `add_subdirectory`; published [cpp-v0.2.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.2.0) |
 | Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, FastMCP server, client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch and pipeline executors, bootstrap commands, optional MCP server (`server` feature). No client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors. No server or client |
@@ -125,6 +125,7 @@ Limits of these checks:
 | Tracing (OpenTelemetry-shaped), `composeMiddleware` | Yes | Yes | No | No: not declared |
 | Auth middleware | Yes (`packages/auth`) | No | No | N/A: built by the host |
 | Approval middleware (`APPROVAL_REQUIRED`, signed tokens) | Yes (`createApprovalMiddleware`) | Yes (`create_approval_middleware`; tokens verify across the two) | Yes (`create_approval_middleware`, `approval` feature, default); tokens verify across TypeScript and Rust | Yes (#422): `create_approval_middleware` and `canonical_json`, evidence in `CommandContext::approval`; tokens are TypeScript's byte for byte and verify across the two. Configuration errors are an `Expected`, not an exception. An integer beyond 2^53 − 1 can be bound only when spelled as JavaScript writes its double (`2^53 + 1` cannot; `1e18` can) |
+| Private DirectClient/registry approval exchange | Yes (credentials stay out of results; public approval context is stripped) | Follow-up #460; token-return defaults need boundary review | Follow-up #460; host approval boundary needs review | Follow-up #460; host approval boundary needs review |
 | Approval relay over MCP (form elicitation, #418) | Yes (`relay: 'mcp-elicitation'`) | No | No | N/A: built by the host |
 
 ### Batch, pipeline and stream

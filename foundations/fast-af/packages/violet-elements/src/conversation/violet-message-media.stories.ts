@@ -9,7 +9,11 @@ type MediaStoryArgs = {
     mediaType: string;
     filename: string;
     alt: string;
+    allowedOrigins?: string;
 };
+
+// Inline SVG so these stories never depend (a failed remote image now falls back to the file row) on the network.
+const GARDEN_IMAGE = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="400" height="200" fill="#8fbf8f"/></svg>')}`;
 
 const meta = {
     title: "Conversation/Message Media",
@@ -26,6 +30,7 @@ const meta = {
         mediaType: { control: "text" },
         filename: { control: "text" },
         alt: { control: "text" },
+        allowedOrigins: { control: "text" },
     },
     render: (args: MediaStoryArgs) => {
         const el = document.createElement("violet-message-media") as VioletMessageMedia;
@@ -33,6 +38,7 @@ const meta = {
         el.setAttribute("media-type", args.mediaType);
         if (args.filename) { el.setAttribute("filename", args.filename); }
         if (args.alt) { el.setAttribute("alt", args.alt); }
+        if (args.allowedOrigins) { el.setAttribute("allowed-origins", args.allowedOrigins); }
         return el;
     },
 } satisfies Meta<MediaStoryArgs>;
@@ -43,15 +49,46 @@ type Story = StoryObj<MediaStoryArgs>;
 
 export const Overview: Story = {
     args: {
-        src: "https://picsum.photos/seed/garden/400/300",
-        mediaType: "image/jpeg",
-        filename: "garden-layout.jpg",
+        src: GARDEN_IMAGE,
+        mediaType: "image/svg+xml",
+        filename: "garden-layout.svg",
         alt: "A garden layout showing raised beds with shade-tolerant plants",
     },
     play: async ({ canvasElement }) => {
         const el = canvasElement.querySelector("violet-message-media") as VioletMessageMedia | null;
         const img = el?.shadowRoot?.querySelector("img");
         await expect(img).toBeTruthy();
+    },
+};
+
+/** A blocked remote image degrades to the file row; nothing is requested. */
+export const BlockedRemoteSource: Story = {
+    args: {
+        src: "https://tracker.example.invalid/pixel.png",
+        mediaType: "image/png",
+        filename: "tracker.png",
+        alt: "",
+        allowedOrigins: "https://cdn.example.com",
+    },
+    play: async ({ canvasElement }) => {
+        const el = canvasElement.querySelector("violet-message-media") as VioletMessageMedia | null;
+        await expect(el?.shadowRoot?.querySelector("img")).toBeNull();
+        await expect(el?.shadowRoot?.querySelector('[part="filename"]')?.textContent?.trim()).toBe("tracker.png");
+    },
+};
+
+/** Local (data:) sources always load, even under a policy. */
+export const AllowedLocalSource: Story = {
+    args: {
+        src: GARDEN_IMAGE,
+        mediaType: "image/svg+xml",
+        filename: "garden.svg",
+        alt: "A green garden bed",
+        allowedOrigins: "https://cdn.example.com",
+    },
+    play: async ({ canvasElement }) => {
+        const el = canvasElement.querySelector("violet-message-media") as VioletMessageMedia | null;
+        await expect(el?.shadowRoot?.querySelector("img")).toBeTruthy();
     },
 };
 

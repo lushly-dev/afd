@@ -32,6 +32,23 @@ function fixture(t) {
 	return { root, config, write, npm, check: () => checkBoundaries(root, config) };
 }
 
+test("dependencies list each unit's direct repository-owned edges", (t) => {
+	const f = fixture(t);
+	f.npm('foundations/violet/base', '@x/violet');
+	f.npm('endpoints/app', '@x/app', {
+		dependencies: { '@x/violet': '^1', 'third-party': '^1' },
+		devDependencies: { '@x/tool': '^1' },
+	});
+	f.npm('endpoints/tool', '@x/tool');
+	const result = f.check();
+	assert.deepEqual(result.errors, []);
+	assert.deepEqual(result.dependencies, {
+		'@x/app': ['@x/violet'],
+		'@x/tool': [],
+		'@x/violet': [],
+	});
+});
+
 test('all foundation families reject runtime, required peer, optional install and transitive coupling', (t) => {
 	const f = fixture(t);
 	f.npm('foundations/violet/base', '@x/violet');

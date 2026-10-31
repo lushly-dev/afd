@@ -8,7 +8,7 @@ Every skill lives in its own directory under `.claude/skills/`. Only `SKILL.md` 
 
 ```
 {skill-name}/
-├── SKILL.md              # Required: Entry point (< 500 lines)
+├── SKILL.md              # Required: entry point (SK009 warns above 50,000 chars)
 ├── references/           # Optional: Deep-dive documents
 │   └── {topic}.md
 ├── scripts/              # Optional: Deterministic helpers
@@ -34,16 +34,16 @@ Skills load in three stages to minimize context window usage:
 | Stage | What loads | When | Token budget |
 |-------|-----------|------|-------------|
 | **Discovery** | Frontmatter only (`name`, `description`, `triggers`) | Session start (all skills) | ~30 tokens per skill |
-| **Brain** | SKILL.md body | When a skill is triggered by name or context | < 500 lines (~5,000 tokens) |
+| **Brain** | SKILL.md body | When a skill is triggered by name or context | SK009 warns above 50,000 chars (~12,500 tokens) |
 | **Resources** | `references/`, `scripts/`, `hooks/` | When explicitly needed during execution | No hard limit |
 
 **Total description budget** across all skills: ~2% of context window (~16K chars fallback).
 
-### The 500 Line Rule
+### Body Size: Cohesion First
 
-`SKILL.md` body must stay under **500 lines**. This is the content an agent loads into context every time the skill activates — bloated skills waste the token budget and dilute focus.
+The linter's one size signal is **SK009**, a warning when the body exceeds **50,000 characters** (`_MAX_BODY_LENGTH` in `botcore/commands/skill/lint.py`). Below that there is no line target: the body is loaded whole every time the skill activates, so the test is whether everything in it serves the one workflow the skill exists for. A body that mixes catalogs, examples and background with its rules dilutes the rules, whatever its length.
 
-If your SKILL.md exceeds 500 lines:
+Split by content, not by count:
 1. Move detailed reference material to `references/`
 2. Move examples and catalogs to `references/`
 3. Keep only the workflow, rules, and routing table in the body
@@ -160,13 +160,13 @@ Omit the section when no such command exists.
    └── references/ (100+ files)
 ```
 
-**Problem:** SKILL.md exceeds 500 lines, slow loading, unfocused, hard to maintain.
+**Problem:** SKILL.md trips SK009 or mixes several workflows: unfocused, hard to maintain.
 
 ### Right Size
 
 ```
 ✓ content-design/
-   ├── SKILL.md (< 500 lines)
+   ├── SKILL.md (workflow, rules, routing)
    └── references/
        ├── style/ (10 files)
        ├── patterns/ (15 files)
@@ -174,7 +174,7 @@ Omit the section when no such command exists.
        └── strategy/ (3 files)
 ```
 
-**Sweet spot:** 20-40 reference files, clear domain boundary, SKILL.md under 500 lines.
+**Sweet spot:** 20-40 reference files, clear domain boundary, SKILL.md focused on one workflow.
 
 ## Organizing Multiple Skills
 
@@ -289,7 +289,7 @@ Create a `shared/` or `common/` folder within each skill that needs it, or creat
 ### Growing
 
 1. When skill exceeds ~40 references, evaluate split
-2. When SKILL.md exceeds ~500 lines, extract to references
+2. When SKILL.md carries catalogs or examples, or trips SK009 (50,000 characters), extract to references
 3. Look for distinct sub-domains
 4. Split along natural boundaries
 
@@ -298,7 +298,7 @@ Create a `shared/` or `common/` folder within each skill that needs it, or creat
 1. Stable set of 3-6 skills
 2. Clear domain ownership
 3. Regular reference updates
-4. All SKILL.md files under 500 lines
+4. All SKILL.md files lint clean with no SK009 warning
 
 ## Skill Discovery
 
@@ -322,4 +322,4 @@ In your repo README or AGENTS.md:
 - [ ] Skill name is intuitive
 - [ ] AGENTS.md lists available skills with trigger words
 - [ ] Examples show when to use each skill
-- [ ] SKILL.md body is under 500 lines
+- [ ] SKILL.md body lints with no SK009 warning and holds one workflow

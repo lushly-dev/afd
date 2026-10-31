@@ -218,7 +218,7 @@ const cmd = defineCommand({
 
 ### Keep it concise
 
-- Target < 500 lines for the body
+- Keep the body to one workflow; the linter warns above 50,000 characters (SK009)
 - Move detailed reference material into `references/` subdirectory files
 - Use a routing table to point to references on demand
 - The body is always loaded; references are loaded only when needed

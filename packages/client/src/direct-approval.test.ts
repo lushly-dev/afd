@@ -7,6 +7,10 @@
 
 import type { CommandContext, CommandResult, ManualClock } from '@lushly-dev/afd-core';
 import { failure, fixedClock, isFailure, success } from '@lushly-dev/afd-core';
+import {
+	holdDirectApproval,
+	takeDirectApproval,
+} from '@lushly-dev/afd-core/internal/direct-approval';
 import { describe, expect, it, vi } from 'vitest';
 import { createDirectClient, type DirectApprovalHook, type DirectRegistry } from './direct.js';
 
@@ -14,22 +18,34 @@ const TTL_MS = 60_000;
 
 function gatedRegistry(clock: ManualClock, options: { includeToken?: boolean } = {}) {
 	const issued = new Map<string, { input: string; exp: number; used: boolean }>();
-	const calls: Array<{ name: string; input: unknown; context: CommandContext }> = [];
+	const calls: Array<{ name: string; input: unknown; context: CommandContext; approval?: string }> =
+		[];
 	const ran: string[] = [];
 	const held: CommandResult<never>[] = [];
 	let count = 0;
 
-	function hold(name: string, input: unknown, reason?: string): CommandResult<never> {
+	function hold(
+		name: string,
+		input: unknown,
+		context: CommandContext,
+		reason?: string
+	): CommandResult<never> {
 		const token = `tok-${++count}`;
 		const exp = clock.now() + TTL_MS;
 		issued.set(token, { input: JSON.stringify(input), exp, used: false });
+		if (options.includeToken !== false)
+			holdDirectApproval(context, {
+				approvalToken: token,
+				expiresAt: new Date(exp).toISOString(),
+				summary: `Delete todo ${(input as { id?: unknown }).id}`,
+				...(reason && { reason }),
+			});
 		const result = failure({
 			code: 'APPROVAL_REQUIRED',
 			message: `${name} needs approval before it runs`,
 			suggestion: 'Ask the user to approve',
 			retryable: false,
 			details: {
-				...(options.includeToken !== false && { approvalToken: token }),
 				expiresAt: new Date(exp).toISOString(),
 				summary: `Delete todo ${(input as { id?: unknown }).id}`,
 				...(reason && { reason }),
@@ -41,14 +57,16 @@ function gatedRegistry(clock: ManualClock, options: { includeToken?: boolean } =
 
 	const registry: DirectRegistry = {
 		async execute<T>(name: string, input?: unknown, context: CommandContext = {}) {
-			calls.push({ name, input, context: { ...context } });
+			const approval = takeDirectApproval(context);
+			calls.push({ name, input, context: { ...context }, approval });
 			if (name === 'todo-get') return success({ id: 42 }) as CommandResult<T>;
-			if (context.approval === undefined) return hold(name, input);
-			const token = issued.get(context.approval);
-			if (!token) return hold(name, input, 'invalid-signature');
-			if (clock.now() >= token.exp) return hold(name, input, 'expired');
-			if (token.input !== JSON.stringify(input)) return hold(name, input, 'input-mismatch');
-			if (token.used) return hold(name, input, 'already-used');
+			if (approval === undefined) return hold(name, input, context);
+			const token = issued.get(approval);
+			if (!token) return hold(name, input, context, 'invalid-signature');
+			if (clock.now() >= token.exp) return hold(name, input, context, 'expired');
+			if (token.input !== JSON.stringify(input))
+				return hold(name, input, context, 'input-mismatch');
+			if (token.used) return hold(name, input, context, 'already-used');
 			token.used = true;
 			ran.push(name);
 			return success({ deleted: (input as { id?: unknown }).id }) as CommandResult<T>;
@@ -89,10 +107,11 @@ describe('DirectClient onApprovalNeeded', () => {
 			actor: { kind: 'human' },
 		});
 		expect(JSON.stringify(request)).not.toContain('tok-');
-		// The retry carries the token in the context only, with the same input and actor.
+		// The retry takes private evidence, with the same input and actor; public context is clean.
 		expect(calls).toHaveLength(2);
 		expect(calls[0]?.context.approval).toBeUndefined();
-		expect(calls[1]?.context.approval).toBe('tok-1');
+		expect(calls[1]?.approval).toBe('tok-1');
+		expect(calls[1]?.context.approval).toBeUndefined();
 		expect(calls[1]?.input).toEqual({ id: 42 });
 		expect(calls[1]?.context.actor).toEqual({ kind: 'human' });
 		expect(calls[1]?.context.traceId).toBe(calls[0]?.context.traceId);
@@ -130,7 +149,7 @@ describe('DirectClient onApprovalNeeded', () => {
 
 		const result = await client.call('todo-delete', { id: 42 });
 
-		expect(isFailure(result) && result.error.details?.approvalToken).toBe('tok-1');
+		expect(isFailure(result) && result.error.details?.approvalToken).toBeUndefined();
 		expect(calls).toHaveLength(1);
 		expect(ran).toEqual([]);
 	});
@@ -144,7 +163,7 @@ describe('DirectClient onApprovalNeeded', () => {
 		expect(calls).toHaveLength(1);
 	});
 
-	it('does not ask when the result carries no approval token', async () => {
+	it('does not ask when the registry provides no private approval exchange', async () => {
 		const hook = vi.fn<DirectApprovalHook>(async () => true);
 		const { client, calls } = setup(hook, { includeToken: false });
 
@@ -177,7 +196,7 @@ describe('DirectClient onApprovalNeeded', () => {
 
 		expect(isFailure(result) && result.error.code).toBe('APPROVAL_REQUIRED');
 		expect(isFailure(result) && result.error.details).toEqual(
-			expect.objectContaining({ reason: 'expired', approvalToken: 'tok-2' })
+			expect.objectContaining({ reason: 'expired' })
 		);
 		expect(hook).toHaveBeenCalledOnce();
 		expect(env.calls).toHaveLength(2);
@@ -258,13 +277,13 @@ describe('DirectClient onApprovalNeeded', () => {
 		expect(ran).toEqual(['todo-delete']);
 	});
 
-	it('passes the rejection reason of a token the call already carried', async () => {
+	it('strips caller-supplied approval evidence before asking the hook', async () => {
 		const hook = vi.fn<DirectApprovalHook>(async () => false);
 		const { client } = setup(hook);
 
 		await client.call('todo-delete', { id: 42 }, { approval: 'forged' });
 
-		expect(hook.mock.calls[0]?.[0].reason).toBe('invalid-signature');
+		expect(hook.mock.calls[0]?.[0].reason).toBeUndefined();
 	});
 
 	describe('pipe()', () => {
@@ -284,7 +303,8 @@ describe('DirectClient onApprovalNeeded', () => {
 			);
 			// The hook ran after the first step, between the gated step's two attempts.
 			expect(calls.map((call) => call.name)).toEqual(['todo-get', 'todo-delete', 'todo-delete']);
-			expect(calls[2]?.context.approval).toBe('tok-1');
+			expect(calls[2]?.approval).toBe('tok-1');
+			expect(calls[2]?.context.approval).toBeUndefined();
 			expect(ran).toEqual(['todo-delete']);
 		});
 
@@ -326,5 +346,26 @@ describe('DirectClient onApprovalNeeded', () => {
 			expect(result.steps[0]?.error?.code).toBe('APPROVAL_REQUIRED');
 			expect(calls.map((call) => call.name)).toEqual(['todo-delete']);
 		});
+	});
+});
+
+describe('legacy registry approval results', () => {
+	it('removes a legacy credential without prompting or resubmitting it', async () => {
+		const { registry } = gatedRegistry(fixedClock('2026-10-26T12:00:00Z'));
+		const execute = vi.fn(async () =>
+			failure({
+				code: 'APPROVAL_REQUIRED',
+				message: 'Held',
+				suggestion: 'Ask the application',
+				details: { approvalToken: 'legacy-secret', summary: 'Run' },
+			})
+		);
+		const hook = vi.fn(async () => true);
+		const client = createDirectClient({ ...registry, execute }, { onApprovalNeeded: hook });
+		const result = await client.call('todo-delete', { id: 1 }, { approval: 'legacy-secret' });
+		expect(result.error?.details).toEqual({ summary: 'Run' });
+		expect(hook).not.toHaveBeenCalled();
+		expect(execute).toHaveBeenCalledOnce();
+		expect(execute.mock.calls[0]).toBeDefined();
 	});
 });

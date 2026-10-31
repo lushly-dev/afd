@@ -19,7 +19,7 @@ from typing import Any
 from botcore.config import load_config
 from botcore.docs import CORE_DOCS
 from botcore.plugin import PluginRegistry, discover_plugins
-from botcore.utils.runner import smart_truncate
+from botcore.utils.runner import MAX_OUTPUT_LENGTH, smart_truncate
 
 
 def build_namespace(
@@ -85,10 +85,15 @@ def build_docs(
     return docs
 
 
+# Input guard for ``{name}-run`` code. It bounds abuse of the exec surface, not the model's
+# context: a run's output is bounded separately by MAX_OUTPUT_LENGTH.
+MAX_RUN_CODE_LENGTH = 32_000
+
+
 def _validate_code(code: str) -> str | None:
     """Basic AST validation — returns error message or None if OK."""
-    if len(code) > 8000:
-        return "Code too long (max 8000 chars)"
+    if len(code) > MAX_RUN_CODE_LENGTH:
+        return f"Code too long (max {MAX_RUN_CODE_LENGTH} chars)"
     try:
         ast.parse(code)
     except SyntaxError as e:
@@ -208,7 +213,7 @@ def create_mcp_server(
         except Exception:
             output = traceback.format_exc()
 
-        return smart_truncate(output, max_len=8000)
+        return smart_truncate(output, max_len=MAX_OUTPUT_LENGTH)
 
     # ── {name}-research (optional) ────────────────────────────────────
     if include_research:

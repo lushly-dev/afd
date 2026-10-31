@@ -68,10 +68,15 @@ async function install(name, dependencies, { expected = true, overrides = false 
 	const root = join(consumers, name);
 	await mkdir(root, { recursive: true });
 	const manifest = { name, private: true, type: 'module', dependencies };
-	if (overrides)
-		manifest.pnpm = {
-			overrides: Object.fromEntries(Object.keys(packs).map((key) => [key, file(key)])),
-		};
+	manifest.pnpm = {
+		overrides: overrides
+			? Object.fromEntries(Object.keys(packs).map((key) => [key, file(key)]))
+			: {
+					// Keep the server's dependency local before the candidate is published,
+					// while preserving the root peer versions tested by the negative cases.
+					'@lushly-dev/afd-server>@lushly-dev/afd-core': file('@lushly-dev/afd-core'),
+				},
+	};
 	await writeFile(join(root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 	const result = spawnSync(
 		'pnpm',

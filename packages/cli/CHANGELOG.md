@@ -1,5 +1,19 @@
 # @lushly-dev/afd-cli
 
+## 2.2.1
+
+### Patch Changes
+
+- [#479](https://github.com/lushly-dev/afd/pull/479) [`2f90983`](https://github.com/lushly-dev/afd/commit/2f90983dfc41d3b302d0254a02e38b1c297b4b1e) Thanks [@Falkicon](https://github.com/Falkicon)! - Keep DirectClient approval credentials in a private exchange instead of returning them to the gated caller. Public call, pipe and DirectRegistry contexts discard caller-supplied approval evidence; only an affirmative trusted hook enables one verified retry. Preserve in-process CLI approval through the same exchange.
+
+  Use matching client, core and server versions. Applications that submitted approval tokens directly through createDirectRegistry must migrate to DirectClient's onApprovalNeeded hook. Custom registries must support the private exchange; legacy token-in-result failures remain held and are returned without their token.
+
+- Updated dependencies [[`2f90983`](https://github.com/lushly-dev/afd/commit/2f90983dfc41d3b302d0254a02e38b1c297b4b1e)]:
+  - @lushly-dev/afd-core@2.2.1
+  - @lushly-dev/afd-client@2.2.1
+  - @lushly-dev/afd-server@2.2.1
+  - @lushly-dev/afd-testing@2.2.1
+
 ## 2.2.0
 
 ### Minor Changes

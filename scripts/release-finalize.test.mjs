@@ -11,7 +11,7 @@ import { notes } from './release-operations/publish.mjs';
 
 const run = (root, command, args) =>
 	execFileSync(command, args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-function fixture(t) {
+function fixture(t, { twoPackages = false } = {}) {
 	const base = mkdtempSync(join(tmpdir(), 'afd-finalize-test-')),
 		root = join(base, 'repo');
 	mkdirSync(root);
@@ -55,6 +55,21 @@ function fixture(t) {
 			},
 		],
 	});
+	if (twoPackages) {
+		write('packages/b/package.json', { name: '@fixture/b', version: '1.0.0', files: ['index.js'] });
+		write('packages/b/index.js', 'export const b = true;\n');
+		write('packages/b/CHANGELOG.md', '# fixture\n\n## 1.0.0\n\nSecond package notes\n');
+		const path = join(root, 'scripts/release/inventory.json');
+		const inventory = JSON.parse(readFileSync(path, 'utf8'));
+		inventory.units[0].distributions.push({
+			name: '@fixture/b',
+			registry: 'npm',
+			manifest: 'packages/b/package.json',
+			format: 'npm',
+			initialVersion: '1.0.0',
+		});
+		write('scripts/release/inventory.json', inventory);
+	}
 	run(root, 'git', ['init', '-b', 'main']);
 	run(root, 'git', ['config', 'user.name', 'Fixture']);
 	run(root, 'git', ['config', 'user.email', 'fixture@example.invalid']);
@@ -70,17 +85,26 @@ function fixture(t) {
 		registryEvidence: [{ registry: 'npm', name: '@fixture/a', versions: [] }],
 		artifactsDirectory: join(base, 'artifacts'),
 	});
-	const artifact = plan.artifacts[0],
-		tag = '@fixture/a@1.0.0';
-	run(root, 'git', ['tag', '-a', tag, '-m', tag]);
+	const tag = '@fixture/a@1.0.0';
+	for (const artifact of plan.artifacts)
+		run(root, 'git', [
+			'tag',
+			'-a',
+			`${artifact.name}@${artifact.version}`,
+			'-m',
+			`${artifact.name}@${artifact.version}`,
+		]);
 	const receipt = {
 		binding: plan.binding,
 		sourceRevision: plan.sourceRevision,
 		intentDigest: plan.intentDigest,
 		state: 'complete',
-		publishedPackages: [
-			{ name: artifact.name, version: artifact.version, tag, notes: notes(root, artifact) },
-		],
+		publishedPackages: plan.artifacts.map((artifact) => ({
+			name: artifact.name,
+			version: artifact.version,
+			tag: `${artifact.name}@${artifact.version}`,
+			notes: notes(root, artifact),
+		})),
 	};
 	const receiptFile = join(base, 'receipt.json');
 	writeFileSync(receiptFile, JSON.stringify(receipt));
@@ -90,24 +114,20 @@ function fixture(t) {
 function spy(f, { remote = null, release = null, badIntegrity = false, failRelease = false } = {}) {
 	const calls = [],
 		effects = [],
-		state = { remote, release };
+		state = { remote, release, releases: new Map() };
 	const command = (program, args, root) => {
 		calls.push([program, ...args]);
-		if (program === 'npm')
-			return JSON.stringify(
-				badIntegrity
-					? 'sha512-wrong'
-					: `sha512-${createHash('sha512').update(readFileSync(f.plan.artifacts[0].file)).digest('base64')}`
-			);
 		if (program === 'git' && args[0] === 'ls-remote')
-			return state.remote ? `${state.remote}\trefs/tags/${f.tag}\n` : '';
+			return state.remote ? `${state.remote}\t${args[3]}\n` : '';
 		if (program === 'git' && args[0] === 'push') {
 			effects.push(['push', ...args]);
 			state.remote = f.head;
 			return '';
 		}
 		if (program === 'gh' && args[0] === 'api') {
-			if (state.release) return JSON.stringify(state.release);
+			const tag = decodeURIComponent(args[1].split('/').at(-1));
+			const release = tag === f.tag ? state.release : state.releases.get(tag);
+			if (release) return JSON.stringify(release);
 			const error = new Error('not found');
 			error.stderr = 'gh: Not Found (HTTP 404)';
 			throw error;
@@ -116,18 +136,37 @@ function spy(f, { remote = null, release = null, badIntegrity = false, failRelea
 			effects.push(['release', ...args]);
 			if (failRelease) throw new Error('GitHub unavailable');
 			const noteFile = args[args.indexOf('--notes-file') + 1];
-			assert.equal(readFileSync(noteFile, 'utf8'), f.receipt.publishedPackages[0].notes);
-			state.release = {
-				tag_name: f.tag,
+			assert.equal(
+				readFileSync(noteFile, 'utf8'),
+				f.receipt.publishedPackages.find((entry) => entry.tag === args[2]).notes
+			);
+			const created = {
+				tag_name: args[2],
 				body: readFileSync(noteFile, 'utf8'),
 				draft: false,
 				prerelease: false,
 			};
+			if (args[2] === f.tag) state.release = created;
+			else state.releases.set(args[2], created);
 			return '';
 		}
 		return run(root, program, args);
 	};
-	return { command, calls, effects, state };
+	return {
+		command,
+		calls,
+		effects,
+		state,
+		readback: (artifact) => ({
+			name: artifact.name,
+			version: artifact.version,
+			dist: {
+				integrity: badIntegrity
+					? 'sha512-wrong'
+					: `sha512-${createHash('sha512').update(readFileSync(artifact.file)).digest('base64')}`,
+			},
+		}),
+	};
 }
 const finalize = (f, s) =>
 	finalizeRelease({
@@ -136,6 +175,7 @@ const finalize = (f, s) =>
 		plan: f.plan,
 		receiptFile: f.receiptFile,
 		command: s.command,
+		readback: s.readback,
 	});
 
 test('verified receipt pushes exact tag then creates release through a literal notes file', (t) => {
@@ -212,7 +252,7 @@ test('fabricated, incomplete, stale and wrong-integrity receipts fail before eff
 	assert.throws(() => finalize(f, s), /Invalid.*receipt/);
 	f.receipt.state = 'complete';
 	const integrity = spy(f, { badIntegrity: true });
-	assert.throws(() => finalize(f, integrity), /integrity differs/);
+	assert.throws(() => finalize(f, integrity), /readback is missing or uncertain/);
 	assert.deepEqual(integrity.effects, []);
 	f.receipt.publishedPackages[0].notes = 'fabricated notes';
 	assert.throws(() => finalize(f, s), /outside the approved plan/);
@@ -249,5 +289,67 @@ test('a local tag moved to another commit fails while the approved HEAD remains 
 	run(f.root, 'git', ['tag', '-fa', f.tag, other, '-m', f.tag]);
 	const s = spy(f);
 	assert.throws(() => finalize(f, s), /Local tag does not resolve to approved candidate/);
+	assert.deepEqual(s.effects, []);
+});
+
+test('empty and duplicate completion receipts cannot finalize', (t) => {
+	const f = fixture(t);
+	const s = spy(f);
+	for (const entries of [[], [f.receipt.publishedPackages[0], f.receipt.publishedPackages[0]]]) {
+		assert.throws(
+			() =>
+				finalizeRelease({
+					...f,
+					receipt: { ...f.receipt, publishedPackages: entries },
+					command: s.command,
+				}),
+			/Invalid/
+		);
+	}
+	assert.deepEqual(s.effects, []);
+});
+
+test('one explicit tag batch runs from the built checkout while every target remains the frozen source', (t) => {
+	const f = fixture(t, { twoPackages: true });
+	const control = join(f.base, 'control');
+	run(f.root, 'git', ['worktree', 'add', '--detach', control, f.head]);
+	writeFileSync(join(control, 'controller.txt'), 'built checkout');
+	run(control, 'git', ['add', '.']);
+	run(control, 'git', ['commit', '-m', 'control tooling']);
+	const hookHead = run(control, 'git', ['rev-parse', 'HEAD']).trim();
+	assert.notEqual(hookHead, f.head);
+	const s = spy(f),
+		pushes = [];
+	const result = finalizeRelease({
+		...f,
+		pushRoot: control,
+		readback: s.readback,
+		command: (program, args, directory) => {
+			if (program === 'git' && args[0] === 'push') pushes.push({ args, directory });
+			return s.command(program, args, directory);
+		},
+	});
+	assert.equal(pushes.length, 1);
+	assert.equal(pushes[0].directory, control);
+	assert.deepEqual(pushes[0].args, [
+		'push',
+		'origin',
+		'refs/tags/@fixture/a@1.0.0:refs/tags/@fixture/a@1.0.0',
+		'refs/tags/@fixture/b@1.0.0:refs/tags/@fixture/b@1.0.0',
+	]);
+	assert.equal(result.head, f.head);
+	assert.equal(result.hookHead, hookHead);
+	assert.equal(result.tags.length, 2);
+	assert.equal(s.effects.filter((entry) => entry[0] === 'release').length, 2);
+});
+test('a separate Git store with the same origin cannot supply the push context', (t) => {
+	const f = fixture(t),
+		foreign = fixture(t),
+		s = spy(f);
+	assert.throws(
+		() =>
+			finalizeRelease({ ...f, pushRoot: foreign.root, command: s.command, readback: s.readback }),
+		/different Git common/
+	);
 	assert.deepEqual(s.effects, []);
 });

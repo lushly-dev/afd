@@ -1,0 +1,82 @@
+{
+	"schema_version": "1.1",
+	"generator": {
+		"name": "lushly-health",
+		"version": "0.1.0"
+	},
+	"generated_at": "2026-01-01T00:00:00Z",
+	"targets": [
+		{
+			"id": "tidy-lib",
+			"path": "<fixture>/tidy-lib",
+			"language": "python"
+		}
+	],
+	"policy": {
+		"check_ids": [
+			"gitattributes_lf",
+			"linter_strict"
+		],
+		"disabled": [],
+		"severity": {
+			"gitattributes_lf": "advisory",
+			"linter_strict": "advisory"
+		},
+		"remediation": "none"
+	},
+	"outcomes": [
+		{
+			"check_id": "gitattributes_lf",
+			"target": "tidy-lib",
+			"status": "passed",
+			"severity": "advisory",
+			"message": ".gitattributes enforces LF line endings",
+			"evidence": {
+				"paths": [
+					".gitattributes"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "LF"
+			},
+			"remediation": null,
+			"schema_version": "1.1"
+		},
+		{
+			"check_id": "linter_strict",
+			"target": "tidy-lib",
+			"status": "passed",
+			"severity": "advisory",
+			"message": "pyproject.toml has [tool.ruff] configured",
+			"evidence": {
+				"paths": [
+					"biome.json",
+					"pyproject.toml"
+				],
+				"required_tools": [],
+				"kind": "local_configuration_heuristic",
+				"metric": "ruff"
+			},
+			"remediation": null,
+			"schema_version": "1.1"
+		}
+	],
+	"summary": {
+		"passed": 2,
+		"failed": 0,
+		"warn": 0,
+		"skipped": 0,
+		"disabled": 0,
+		"unavailable": 0,
+		"error": 0
+	},
+	"verdict": {
+		"status": "no_required_checks",
+		"required_count": 0,
+		"blocking_count": 0
+	},
+	"effects": [
+		"target_read"
+	],
+	"artifacts_written": []
+}

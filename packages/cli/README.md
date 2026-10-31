@@ -106,7 +106,7 @@ runs the command in-process, on the registry a module exports:
 
 ```bash
 # On a terminal: shows the summary and expiry, asks "Approve? [y/N]", and on
-# yes retries the same command and input with the server's token
+# yes retries the same command and input through a private approval exchange
 afd call todo-delete id=42 --module ./dist/registry.js
 
 # Scripts: approve without asking
@@ -114,10 +114,10 @@ afd call todo-delete id=42 --module ./dist/registry.js --approve --format json
 ```
 
 `--module` takes the same exports as `afd replay`: a registry or a factory
-returning one. The CLI never makes a token. It retries only with the
-`details.approvalToken` the server returned for this call, and the server
-checks that the token matches the command, input and actor, has not expired
-and has not been used. `--approve` approves once: when the retry is held
+returning one. The CLI uses a private approval exchange: the middleware-issued
+credential stays out of held results and is released to one retry only after
+approval. The server checks command/input/actor binding, expiry and replay.
+The exchange also works when the CLI and project load separate copies of core. `--approve` approves once: when the retry is held
 again (an expired token, say), the result is printed and the exit code is 1.
 On a terminal, a held retry asks again.
 

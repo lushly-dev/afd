@@ -21,8 +21,9 @@ pre-commit:
   commands:
     lint:
       glob: "*.{ts,tsx,js,mjs,cjs,json}"
-      # foundations/fast-af keeps upstream formatting under its own Biome config (provenance-bound).
-      exclude: "{.claude/**,alfred/**,site/**,foundations/fast-af/**}"
+      # foundations/fast-af and the Violet units keep upstream formatting under their own Biome
+      # configs (provenance-bound).
+      exclude: "{.claude/**,alfred/**,site/**,foundations/fast-af/**,foundations/violet/**,integrations/violet-afd/**,endpoints/violet-cli/**,endpoints/violet-server/**}"
       run: npx biome check --write {staged_files}
       stage_fixed: true
 

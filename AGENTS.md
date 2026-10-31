@@ -24,6 +24,7 @@ from application LLM selection in `integrate-llms`.
 | `pnpm test:hosted:local` | Credential-free HTTPS/OAuth, Convex fixture and durable REST/view-state checks (Node 24, OpenSSL and Chromium) |
 | `pnpm test:specimen` | Specimen full Chromium suite and packed-artifact consumers outside the workspace (Node 24, Chromium) |
 | `pnpm test:fast-af` | FAST-AF runtime and component Chromium suites and packed-artifact consumers outside the workspace (Node 24, Chromium) |
+| `pnpm test:violet` | Violet full suites with the SQLite store legs and packed-artifact consumers outside the workspace (Node 24, Chromium) |
 | `pnpm changeset` | Create a changeset describing your change and its semver impact |
 | `pnpm version-packages` | Consume changesets, bump versions, update CHANGELOGs |
 | `pnpm release:select` | Inspect eligible pending npm release units |
@@ -61,6 +62,15 @@ endpoints/specimen-cli/     # @lushly-dev/specimen-cli — the `specimen` JSON C
 foundations/fast-af/        # FAST-AF, upstream layout and provenance; quarantined, no AFD/Specimen/Violet dependency
 ├── packages/element/packages/fast-element/  # @lushly-dev/fast-element — web component runtime (38 exports)
 └── packages/violet-elements/                # @lushly-dev/violet-elements — FAST-AF components (private upstream)
+foundations/violet/         # Violet, upstream configs and provenance; quarantined, no AFD dependency
+├── packages/core/          # @lushly-dev/violet-core — native token engine: storage, resolution, export
+└── packages/runtime/       # @lushly-dev/violet-runtime — browser SDK for loading and applying tokens
+integrations/violet-afd/    # @lushly-dev/violet-afd — Violet commands, registry and CommandResult (afd-core ^0.1.1); quarantined
+endpoints/violet-cli/       # @lushly-dev/violet-cli — the `violet` CLI; quarantined
+endpoints/violet-server/    # @lushly-dev/violet-server — `violet-mcp`, MCP server and local REST API; quarantined
+endpoints/health/           # lushly-health (tentative) — explicit-target repository audits, versioned report schema, opt-in Botcore plugin; stdlib-only core; quarantined
+endpoints/health-dashboard/ # @lushly-dev/health-dashboard — static FAST-AF page for Health report-1.1 files; local-only, private, quarantined, no route
+endpoints/umbel/            # AFD Umbel — proposed Rust host for capability plugins over MCP and CLI; documents only; read docs/STATUS.md first
 ```
 
 ## Key Conventions
@@ -77,7 +87,7 @@ foundations/fast-af/        # FAST-AF, upstream layout and provenance; quarantin
 
 **Principle: for TypeScript, lefthook IS the CI pipeline.** `pnpm check` runs the exact same steps as the `CI` workflow (`ci.yml`). If it passes locally, that workflow passes remotely.
 
-Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/rust/`), C++ (`packages/cpp/`), alfred, Specimen's Chromium suite (`pnpm check` runs only its browser-free subset) or FAST-AF's browser suites (`pnpm check` builds both packages and runs only fast-element's browser-free test). Each has its own path-filtered workflow, listed below. The TypeScript, Python, Rust and C++ todo example backends all run the shared conformance suite in `conformance.yml`.
+Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/rust/`), C++ (`packages/cpp/`), alfred, Health (`endpoints/health/`), Specimen's Chromium suite (`pnpm check` runs only its browser-free subset), FAST-AF's browser suites (`pnpm check` builds both packages and runs only fast-element's browser-free test), the Health dashboard's Chromium suite (`pnpm check` builds it and runs its browser-free units) or Violet's store suites, upstream lint and consumers (`pnpm check` builds the five Violet packages and runs their store-free suites). Each has its own path-filtered workflow, listed below. The TypeScript, Python, Rust and C++ todo example backends all run the shared conformance suite in `conformance.yml`.
 
 | Layer | When | What |
 |-------|------|------|
@@ -91,7 +101,10 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 | **Conformance** (`conformance.yml`) | Push to main / PR touching the todo example, `packages/server`, `packages/core`, `packages/rust`, `packages/cpp`, `python/` or the lockfile | Todo example: Python backend pytest, Rust backend fmt/clippy/test, C++ backend build/test, then the 34-case conformance suite against the TypeScript, Python, Rust and C++ backends |
 | **Alfred** (`alfred.yml`) | Push to main / PR touching Alfred, Botcore, its controller inputs or AFD language surfaces | ruff, pytest (including parity budgets and managed-host/controller fixtures), isolated wheel smoke |
 | **Botcore** (`botcore.yml`) | Push to main / PR touching `endpoints/botcore/**` or `python/**` | Python 3.11/3.12 core tests, Ruff, frozen lock, six-distribution asset/provenance/wheel checks; optional stateful integrations remain quarantined |
+| **Health** (`health.yml`) | Push to main / PR touching `endpoints/health/**`, `endpoints/botcore/**`, `python/**` or `LICENSE` | Python 3.11/3.12: frozen lock, Ruff, tests (report schema, provenance, privacy scan, Botcore admission), wheel/sdist contents and privacy scan, isolated headless consumer (wheel only, no Botcore or AFD) auditing plain TypeScript/Python fixtures that stay byte-identical, and a Botcore-extra consumer |
+| **Health dashboard** (`health-dashboard.yml`) | Push to main / PR touching `endpoints/health-dashboard/**`, `endpoints/health/**`, `foundations/fast-af/**`, the lockfile or workspace | Node 24, Python 3.12, Chromium; build, typecheck, unit suites with coverage, committed fixtures equal to the Health CLI's output, headless Health wheel free of frontend dependencies, Chromium suite (all six statuses, invalid files, `?report=`, keyboard, CSP, axe WCAG 2.2 AA in light and dark), tracked files unchanged |
 | **FAST-AF** (`fast-af.yml`) | Push to main / PR touching `foundations/fast-af`, `tests/consumers/fast-af`, the lockfile or workspace | Node 24; fast-element build-cleanliness, migration rules and upstream `test:ci` on Chromium, Firefox and WebKit; violet-elements regenerated theme/icons/CEM, lint, Chromium suite with coverage thresholds; packed-artifact consumers (every runtime export, components, missing peer, Chromium render) |
+| **Violet** (`violet.yml`) | Push to main / PR touching the five Violet units, `tests/consumers/violet`, `packages/core`, the lockfile or workspace | Node 24, Chromium; build-cleanliness, upstream Biome 1.9 lint, full core/integration suites with SQLite legs (`test:db`; no Postgres/Neon), runtime/CLI/server suites, packed-artifact consumers (Violet only with no AFD or driver, plain HTML and runtime in Chromium, integration present/absent/incompatible/unavailable, AFD 2.x beside it, `violet`/`violet-mcp`) |
 | **Specimen** (`specimen.yml`) | Push to main / PR touching the three Specimen units, `tests/consumers/specimen`, `packages/core`, `packages/server` or the lockfile | Node 24, Chromium; full native suite (`test:browser`), integration/CLI suites, packed-artifact consumers (native-only, integration present/absent/unavailable, missing/incompatible peers) |
 | **Local hosted-test fixtures** (`hosted-fixtures.yml`) | Path-filtered auth/persistence/runtime/tooling changes; manual dispatch | Node 24, Chromium, `pnpm test:hosted:local`; no external services or credentials; not hosted-provider evidence |
 | **Release** (GitHub Actions) | Push to main | `pnpm check` → Changesets opens a version PR or publishes to npm |
@@ -100,7 +113,10 @@ Lefthook and `pnpm check` do **not** cover Python (`python/`), Rust (`packages/r
 - Always run `pnpm check` before pushing — catches everything `ci.yml` would catch
 - The pre-push `test` step does not install or build, and packages import each other's `dist`: after pulling `main` run `pnpm install`, and after changing a package another one imports run `pnpm build` (or `pnpm check`), before `git push`, or the hook fails on stale output
 - Changed FAST-AF? `pnpm check` builds it and runs only fast-element's browser-free test; also run `pnpm test:fast-af` (Chromium required). Edits to imported files, including API reports the build rewrites, must update `foundations/fast-af/provenance/adaptations.json`, or the tooling tests fail. Do not run upstream `check:v3` scopes or sync upstream.
+- Changed a Violet unit? `pnpm check` runs only the store-free suites; also run `pnpm test:violet` (Chromium required) and each package's `lint` (upstream Biome 1.9; the root Biome config skips these directories). Edits to imported Violet files must update `foundations/violet/provenance/adaptations.json`, or the tooling tests fail.
 - Changed a Specimen unit? `pnpm check` runs only its browser-free tests; also run `pnpm test:specimen` (Chromium required). Edits to imported Specimen files must update `foundations/specimen/provenance/adaptations.json`, or the tooling tests fail.
+- Changed Health (`endpoints/health/`)? `pnpm check` does not test it. Run `cd endpoints/health && uv lock --check && uv sync --frozen --extra dev && uv run --frozen ruff check src tests scripts && uv run --frozen pytest -q && uv run --frozen python scripts/package_smoke.py`. A changed `checks.py` or any added file fails the provenance test until `provenance/provenance.json` and its pinned digest are updated; never import private Health inventories, reports, history or configuration.
+- Changed the Health dashboard, or Health's schema or CLI? `pnpm check` runs only the dashboard's build and browser-free units; also run `pnpm -F @lushly-dev/health-dashboard test:browser` (Chromium required) and `pnpm -F @lushly-dev/health-dashboard fixtures:check` (uv required). A schema change that breaks a committed fixture fails both.
 - Changed `python/`, `packages/rust/` or `packages/cpp/`? `pnpm check` does not test them. Run the commands from `python.yml`, `rust.yml` or `cpp.yml` locally (`cd python && uv run pytest -q`; `cd packages/rust && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test`; `cd packages/cpp && cmake --preset dev && cmake --build --preset dev && ctest --preset dev`)
 - Workflow actions are pinned to full commit SHAs with a `# vX.Y.Z` comment; Dependabot updates them
 - Changesets manages versioning — run `pnpm changeset` to describe publishable package changes

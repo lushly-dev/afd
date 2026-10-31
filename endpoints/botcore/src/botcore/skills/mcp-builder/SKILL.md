@@ -2,14 +2,16 @@
 name: mcp-builder
 source: botcore
 description: >
-  Guides construction of MCP servers using FastMCP 2.x with emphasis on token
-  budget management, tool consolidation, output truncation, and the execute
-  pattern for Opus compatibility. Covers async subprocess patterns, safe output
-  limits, and action-based tool design. Use when creating MCP servers, debugging
-  tool overload or context overflow, optimizing token usage, fixing Opus silent
-  failures, or consolidating tools. Triggers: MCP, FastMCP, tool schema, token
-  limit, context overflow, MCP server, execute pattern, tool consolidation.
-version: 1.1.0
+  Guides construction of MCP servers using FastMCP 2.x with emphasis on
+  measuring the tools/list payload, consolidating tools, bounding prose output
+  without truncating structured output, and the execute pattern as a
+  re-testable fallback for clients that mishandle complex schemas. Covers async
+  subprocess patterns, output budgets, and action-based tool design. Use when
+  creating MCP servers, debugging tool overload or context overflow, measuring
+  token usage, diagnosing silent tool-call failures, or consolidating tools.
+  Triggers: MCP, FastMCP, tool schema, token limit, context overflow, MCP
+  server, execute pattern, tool consolidation.
+version: 1.2.0
 triggers:
   - MCP
   - FastMCP
@@ -24,15 +26,15 @@ portable: true
 
 # Building MCP Servers
 
-Expert guidance for building MCP servers with FastMCP 2.x that work reliably with Claude and other LLMs.
+Expert guidance for building MCP servers with FastMCP 2.x that work reliably with Claude and other LLM clients.
 
 ## Capabilities
 
 1. **FastMCP 2.x Server Setup** -- Modern async MCP server scaffolding with stdio and SSE transports
-2. **Token Budget Management** -- Prevent context overflow and model crashes with safe limits
+2. **Token Budget Management** -- Measure what the server costs a client per request and keep it small
 3. **Tool Consolidation** -- Reduce tool count using action-based and provider-based patterns
-4. **Output Truncation** -- Enforce safe character limits on all tool outputs
-5. **Execute Pattern** -- Code-execution tool that bypasses Opus schema incompatibilities
+4. **Output Bounding** -- Bound prose output; never truncate structured output
+5. **Execute Pattern** -- A single `code: str` tool as a fallback for clients that mishandle complex schemas
 6. **Async Subprocess** -- Non-blocking command execution with timeout and stdin isolation
 7. **Troubleshooting** -- Diagnose connection failures, context overflow, and platform-specific issues
 
@@ -46,9 +48,21 @@ Expert guidance for building MCP servers with FastMCP 2.x that work reliably wit
 
 ## Core Principles
 
-### 1. Keep Tool Count Under 10
+### 1. Measure the `tools/list` Payload and Keep It Small
 
-LLMs struggle when presented with 10-20+ tools. Consolidate related operations behind a single tool using an `action` parameter.
+Every tool's name, description and input schema is sent to the client on `tools/list` and sits in the model's context for the whole session. The cost is the serialized payload, not the tool count, so measure it instead of aiming at a fixed number:
+
+```python
+import json
+from fastmcp import Client
+
+async with Client(mcp) as client:
+    tools = await client.list_tools()
+payload = json.dumps([tool.model_dump() for tool in tools])
+print(f"tools/list is about {len(payload) // 4:,} tokens")
+```
+
+Record the number next to the tool list in the README, re-measure when tools change, and compare it with what the deployment can afford: a server that is one of many a session loads should cost a small fraction of the total, and Claude Code's `/doctor` reports per-server totals. When the payload grows, consolidate related operations behind one tool with an `action` parameter and move reference text out of descriptions into a docs tool:
 
 ```python
 # GOOD: 1 consolidated tool
@@ -59,17 +73,17 @@ async def dev(action: str, params: dict = None) -> str:
     elif action == "build": ...
 ```
 
-### 2. Keep Descriptions Under 50 Tokens Each
+### 2. Write Descriptions That Earn Their Tokens
 
-Tool descriptions are loaded into context on every request. Target less than 500 tokens total across all tools, under 50 per tool.
+A description is loaded into context on every request. Say what the tool does and how to call it; put reference material, examples and option catalogs behind a docs tool or a resource. Measure the total (Principle 1) rather than policing each description against a fixed count.
 
 ```python
-# BAD (~100 tokens)
+# BAD: reference text in the description
 description="""Consolidated development tools for the monorepo.
 Actions: lint, test, build. Params: {"package": "...", "fix": bool}
 Example: {"action": "lint", "params": {"package": "core"}}"""
 
-# GOOD (~30 tokens)
+# GOOD: purpose and call shape only
 description="""Dev tools. Actions: lint, test, build.
 Params: {"package": "...", "fix": bool}"""
 ```
@@ -99,14 +113,16 @@ def truncate_output(output: str, max_length: int = MAX_OUTPUT_LENGTH) -> str:
 
 Use `run_command(..., max_output=None)` for structured payloads, and always surface
 the returned `truncated` flag so a clipped result is diagnosable rather than silent.
+Botcore's `smart_truncate()` keeps the head and the tail of a stream, 40% and 60% of
+the budget, so the summary at the top and the verdict at the bottom both survive.
 
-> The old 8,000-char default dated from small-context models. Modern models
-> comfortably handle far more, and the cost of corrupting a structured payload
-> exceeds the cost of a larger read.
+> A budget bounds runaway output; it is not a context limit to fit. The old
+> 8,000-character default was sized for small-context models, and the cost of
+> corrupting a structured payload exceeds the cost of a larger read.
 
-### 4. Use the Execute Pattern for Opus Compatibility
+### 4. Consider the Execute Pattern -- Re-test Before Relying on It
 
-Claude Opus can silently fail on tools with complex Pydantic/JSON Schema parameters while simpler tools on the same server work fine. The fix: expose an execute tool with a single `code: str` parameter.
+Some client and model combinations have failed silently on tools whose parameters are complex Pydantic or JSON Schema structures (nested objects, enums, `dict[str, Any]`) while simpler tools on the same server worked. An execute tool with a single `code: str` parameter sidesteps structured parameter construction entirely:
 
 ```python
 @mcp.tool()
@@ -135,7 +151,7 @@ async def my_execute(code: str) -> dict:
     return {"stdout": stdout_buf.getvalue(), "stderr": stderr_buf.getvalue()}
 ```
 
-**Why it works:** The schema is trivially simple (`code: str`). Opus writes Python fluently -- it is the structured parameter serialization that fails. Keep original tools for Gemini/GPT compatibility.
+**When to add it:** after reproducing the failure on the client and model you target, and re-tested on each model update. The failures recorded in the troubleshooting reference were observed on earlier model versions and may not reproduce on current ones. It is an option, not a rule: keep the structured tools, which other clients call directly, and treat the execute tool as a fallback and as a power-user surface (botcore's `{name}-run`).
 
 ### 5. Always Use Async Subprocess with stdin=DEVNULL
 
@@ -153,15 +169,16 @@ stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=300)
 
 ## Quick Reference
 
-### Safe Token Budgets
+### Budgets to Measure
 
-| Component | Limit | Reasoning |
+| Component | What to measure | Guidance |
 |---|---|---|
-| Tool descriptions (total) | <500 tokens | Loaded on every request |
-| Single tool description | <50 tokens | Keep concise |
-| Command output | 100,000 chars | ~25,000 tokens; use `max_output=None` for structured payloads |
-| Research output | 12,000 chars | ~3,000 tokens, still safe |
-| Tool count | <10 tools | LLMs degrade above 10-20 |
+| `tools/list` payload | Serialized names, descriptions and schemas; ~4 chars per token | Measure per release; keep it a small fraction of what the session can afford |
+| Single tool description | Characters | Purpose and call shape only; reference text goes behind a docs tool |
+| Prose output | Characters per response | Bound with `MAX_OUTPUT_LENGTH` (100,000 chars by default, ~25,000 tokens) and surface the `truncated` flag |
+| Structured output | Nothing to bound | Never truncated: `max_output=None` |
+| Research output | Characters per answer | `research_stream(..., max_length=...)`, 100,000 chars by default |
+| Tool count | The payload, not the count | Consolidate when the payload grows, not at a fixed number |
 
 ### Minimal FastMCP 2.x Server
 
@@ -170,7 +187,7 @@ from fastmcp import FastMCP
 
 mcp = FastMCP("my-server", instructions="Brief description.")
 
-@mcp.tool(name="my-tool", description="Concise description under 50 tokens.")
+@mcp.tool(name="my-tool", description="Concise description: purpose and call shape.")
 async def my_tool(action: str) -> str:
     return "SUCCESS\n\nResult here"
 
@@ -236,12 +253,12 @@ In `~/.claude/mcp.json`:
 
 Before shipping an MCP server, verify:
 
-- [ ] Tool count is under 10 (`@mcp.tool` decorator count)
-- [ ] Total description tokens under 500 (estimate ~4 chars per token)
+- [ ] `tools/list` payload measured and recorded; re-measured when tools change
+- [ ] Descriptions state purpose and call shape; reference text lives behind a docs tool
 - [ ] Prose outputs bounded by `MAX_OUTPUT_LENGTH`; structured outputs use `max_output=None`
 - [ ] All subprocess calls use `asyncio.create_subprocess_exec`
 - [ ] All subprocess calls set `stdin=asyncio.subprocess.DEVNULL`
-- [ ] Execute tool added if any tools fail silently on Opus
+- [ ] Execute tool added only after reproducing a structured-schema failure on the target client, and re-tested on model updates
 - [ ] Return format uses `SUCCESS`/`FAILED` prefix consistently
 - [ ] FastMCP pinned to `>=2.13.0,<3`
 
@@ -251,4 +268,4 @@ Before shipping an MCP server, verify:
 - Need to expose 20+ distinct operations that resist consolidation
 - Integration with non-Python MCP clients or SDKs
 - Real-time streaming requirements beyond stdio/SSE
-- Opus failures that persist even with the execute pattern
+- Tool-call failures that persist on a target client even with the execute pattern

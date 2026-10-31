@@ -1,0 +1,62 @@
+{
+	"schemaVersion": 1,
+	"selectedUnits": ["afd-npm"],
+	"inventoryHash": "aaf6e40d20403f0c83cf826020f5a246852b0f1f212c39533902f784cdab32bc",
+	"sourceDigest": "de1f5c9ec39cde8f0f6c332a035fc8d48f89527cf8cf3d61271e78dfcc6d693c",
+	"distributions": [
+		{
+			"name": "@lushly-dev/afd-adapters",
+			"version": "2.2.1",
+			"manifest": "packages/adapters/package.json",
+			"manifestHash": "6fbe7bee4e649876377e381f804f14b394f09c0e94cc8496bd91e051fcdfaf1e"
+		},
+		{
+			"name": "@lushly-dev/afd-auth",
+			"version": "2.2.1",
+			"manifest": "packages/auth/package.json",
+			"manifestHash": "709152bf56334321f8009364a23765e2b290e8ef7f56be2d93367bce5cc2c381"
+		},
+		{
+			"name": "@lushly-dev/afd-cli",
+			"version": "2.2.1",
+			"manifest": "packages/cli/package.json",
+			"manifestHash": "577d3456474d4fd706698ad71136b8543cbd4ae876396fe4da251d8a7f5fdf9c"
+		},
+		{
+			"name": "@lushly-dev/afd-client",
+			"version": "2.2.1",
+			"manifest": "packages/client/package.json",
+			"manifestHash": "5dff4d11a8e1b59cf255b06832289d107e8a1b54dfea6226fd319d6e1744c629"
+		},
+		{
+			"name": "@lushly-dev/afd-core",
+			"version": "2.2.1",
+			"manifest": "packages/core/package.json",
+			"manifestHash": "23966e6fa1fc1e4c8f603dcad034da9ae9045684e7c7b658a44070bb970b067d"
+		},
+		{
+			"name": "@lushly-dev/local-db",
+			"version": "2.2.1",
+			"manifest": "packages/local-db/package.json",
+			"manifestHash": "ba862b6ecc817099c862218e77b23365aa0c7724ad3b61d2da5d56ae811794e2"
+		},
+		{
+			"name": "@lushly-dev/afd-server",
+			"version": "2.2.1",
+			"manifest": "packages/server/package.json",
+			"manifestHash": "b2595691b07d8f1aa00b601119b82adfa7a67eab576718b67f072a8655560074"
+		},
+		{
+			"name": "@lushly-dev/afd-testing",
+			"version": "2.2.1",
+			"manifest": "packages/testing/package.json",
+			"manifestHash": "bf54bf888ef7693b51bce5c46972f94ffce169773e4894ffe06785f512360ab2"
+		},
+		{
+			"name": "@lushly-dev/afd-view-state",
+			"version": "2.2.1",
+			"manifest": "packages/view-state/package.json",
+			"manifestHash": "764b16f8f05fcecba35f256516f03ff299ab8e3c6d24013b07c9f7dbe5ab476d"
+		}
+	]
+}

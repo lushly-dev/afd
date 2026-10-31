@@ -57,11 +57,14 @@ const styles = css`
         font-family: inherit;
         overflow: hidden;
 
+        /*
+         * Opacity only: any \`transform\` (even a transitional one) makes the dialog the containing
+         * block of its \`position: fixed\` descendants, so popups slotted into it would be placed
+         * against the dialog instead of the viewport while it animates.
+         */
         opacity: 0;
-        transform: translateY(var(--_space-sm)) scale(0.97);
         transition:
             opacity var(--_duration-base) var(--_easing-standard),
-            transform var(--_duration-base) var(--_easing-standard),
             display var(--_duration-base) var(--_easing-standard) allow-discrete,
             overlay var(--_duration-base) var(--_easing-standard) allow-discrete;
     }
@@ -75,11 +78,9 @@ const styles = css`
     dialog[open] {
         display: flex;
         opacity: 1;
-        transform: translateY(0) scale(1);
 
         @starting-style {
             opacity: 0;
-            transform: translateY(var(--_space-sm)) scale(0.97);
         }
     }
 

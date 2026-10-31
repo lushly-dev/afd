@@ -157,6 +157,73 @@ function testFiles(directory, root = directory) {
 	return found;
 }
 
+test('Health stays a quarantined endpoint with no publication route', async () => {
+	const { assertAdmission, loadInventory } = await import('./release/control.mjs');
+	const inventory = loadInventory(repoRoot);
+	const unit = inventory.units.find((entry) => entry.id === 'health');
+	assert.equal(unit.state, 'quarantined');
+	assert.deepEqual(
+		unit.distributions.map((entry) => [entry.name, entry.manifest]),
+		[['lushly-health', 'endpoints/health/pyproject.toml']]
+	);
+	assert.throws(
+		() => assertAdmission({ root: repoRoot, inventory, unit: 'health', route: 'pypi-health' }),
+		/not admitted/
+	);
+	for (const workflow of readdirSync(join(repoRoot, '.github/workflows')))
+		if (workflow !== 'health.yml')
+			assert.doesNotMatch(
+				read(`.github/workflows/${workflow}`),
+				/lushly-health|pypi-health|unit health/,
+				workflow
+			);
+	const health = read('.github/workflows/health.yml');
+	assert.match(health, /permissions:\n {2}contents: read/);
+	assert.doesNotMatch(health, /publish|upload|id-token|secrets\./);
+});
+
+test('the Health dashboard is a private, route-less endpoint over FAST-AF and the report contract', async () => {
+	const { assertAdmission, discoverDistributions, loadInventory } = await import(
+		'./release/control.mjs'
+	);
+	const { checkBoundaries } = await import('./check-boundaries.mjs');
+	const inventory = loadInventory(repoRoot);
+	const unit = inventory.units.find((entry) => entry.id === 'health-dashboard');
+	assert.equal(unit.state, 'quarantined');
+	assert.deepEqual(unit.routes, []);
+	assert.deepEqual(
+		unit.distributions.map((entry) => [entry.name, entry.manifest, entry.private]),
+		[['@lushly-dev/health-dashboard', 'endpoints/health-dashboard/package.json', true]]
+	);
+	const manifest = JSON.parse(read('endpoints/health-dashboard/package.json'));
+	assert.equal(manifest.private, true);
+	assert.ok(!discoverDistributions(repoRoot, inventory).some((entry) => entry.unit === unit.id));
+	assert.throws(
+		() => assertAdmission({ root: repoRoot, inventory, unit: unit.id, route: 'npm-main' }),
+		/not admitted/
+	);
+	// Runtime edges: FAST-AF only; plus the build-time read of Health's report-1.1 schema.
+	const { dependencies, errors } = checkBoundaries(repoRoot);
+	assert.deepEqual(errors, []);
+	assert.deepEqual(dependencies['@lushly-dev/health-dashboard'], [
+		'@lushly-dev/fast-element',
+		'@lushly-dev/violet-elements',
+		'lushly-health',
+	]);
+	assert.deepEqual(Object.keys(manifest.dependencies).sort(), [
+		'@lushly-dev/fast-element',
+		'@lushly-dev/violet-elements',
+	]);
+	// Nothing depends on the dashboard, so Health and its consumers never pull it in.
+	for (const [name, targets] of Object.entries(dependencies))
+		assert.ok(!targets.includes('@lushly-dev/health-dashboard'), name);
+	const health = read('endpoints/health/pyproject.toml');
+	assert.match(health, /^dependencies = \[\]$/m);
+	const workflow = read('.github/workflows/health-dashboard.yml');
+	assert.match(workflow, /permissions:\n {2}contents: read/);
+	assert.doesNotMatch(workflow, /publish|deploy|pages|id-token|secrets\./);
+});
+
 test('every published package type-checks its tests', () => {
 	const packages = publishedPackageDirectories();
 	assert.ok(packages.includes('packages/core'), 'expected to find the published packages');

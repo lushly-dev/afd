@@ -91,6 +91,7 @@ assert.equal(component.private, true, 'violet-elements keeps its upstream privat
 assert.equal(Object.keys(runtime.exports).length, 38);
 assert.deepEqual(Object.keys(component.exports), [
 	'.',
+	'./dist/*',
 	'./custom-elements.json',
 	'./tokens/*',
 	'./package.json',

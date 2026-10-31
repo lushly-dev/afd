@@ -14,6 +14,7 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./dist/*": "./dist/*",
     "./custom-elements.json": "./custom-elements.json",
     "./tokens/*": "./tokens/*",
     "./package.json": "./package.json"
@@ -31,7 +32,8 @@
     "test:browser": "vitest --run --coverage",
     "theme:build": "node ./scripts/build-runtime-theme.mjs",
     "icons:build": "node ./scripts/build-icons.mjs",
-    "cem:analyze": "cem analyze --config custom-elements-manifest.config.js && node ./scripts/normalize-custom-elements.mjs"
+    "cem:analyze": "cem analyze --config custom-elements-manifest.config.js && node ./scripts/normalize-custom-elements.mjs",
+    "verify:exports": "node ./scripts/verify-package-exports.mjs"
   },
   "dependencies": {
     "@tanstack/virtual-core": "3.13.23",
@@ -52,10 +54,10 @@
     "@lushly-dev/fast-element": "workspace:*",
     "@vitest/browser-playwright": "^4.1.11",
     "@vitest/coverage-v8": "^4.1.11",
-    "playwright": "^1.58.2",
+    "playwright": "^1.64.0",
     "rimraf": "^6.0.0",
     "typescript": "^5.9.3",
-    "vite": "8.0.1",
+    "vite": "8.3.5",
     "vitest": "^4.1.11"
   }
 }

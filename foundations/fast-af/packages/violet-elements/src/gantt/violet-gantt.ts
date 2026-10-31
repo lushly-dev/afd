@@ -423,14 +423,14 @@ const template = html<VioletGantt>`
             >
               ${(x) => x.axisContextLabel}
             </span>
-            ${repeat((x) => x.renderedDays, dayTemplate)}
+            ${repeat((x) => x?.renderedDays ?? [], dayTemplate)}
           </div>
         </div>
         <div class="body" part="body" style="${(x) => x.bodyStyle}">
           <div class="body-grid" aria-hidden="true">
-            ${repeat((x) => x.renderedDays, gridLineTemplate)}
+            ${repeat((x) => x?.renderedDays ?? [], gridLineTemplate)}
           </div>
-          ${repeat((x) => x.renderedRows, rowTemplate)}
+          ${repeat((x) => x?.renderedRows ?? [], rowTemplate)}
         </div>
       </div>
       ${when(
