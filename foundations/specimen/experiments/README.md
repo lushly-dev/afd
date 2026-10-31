@@ -115,3 +115,21 @@ Both Node main-isolate profilers start after round one warms the runtime, acknow
 The driver saves raw `.cpuprofile` files and atomic role/PID/PPID/nonce receipts under each consumer's `cpu-profiles/`. Workers inherit the explicit diagnostic preload through `NODE_OPTIONS` while retaining their ordinary empty `execArgv`. Missing acknowledgements, profiler errors or empty samples fail the run. Without the flag the preload and profiler are absent.
 
 Inspector profile weights describe statistical wall sampling in each main isolate, excluding Chromium and native/background threads. Inclusive ancestry categories overlap. Keep these diagnostic runs separate from ordinary CPU/memory acceptance; rerun the same workload without the flag for waited process-family CPU, footprint and post-close measurements. See [CPU hotspot validation](../../../docs/features/active/specimens/cpu-hotspot-validation.md) for the confirmed sourcemap hotspot, cached-map change and matched measurements.
+
+## Frozen inputs and story inventory
+
+`inputs/` records what a comparison runs against before any measurement. Snapshot each consumer outside every repository (`git archive <revision>`), install it from its own lockfile with its declared pnpm, run the preparation scripts listed in [`inputs/consumers.json`](inputs/consumers.json), and generate Storybook's index with `node_modules/.bin/storybook index -c .storybook -o <evidence>/<consumer>-index.json`. Then:
+
+```sh
+node foundations/specimen/experiments/inputs/inventory.mjs --consumer lushly \
+  --root /path/to/snapshot --index /path/to/lushly-index.json \
+  --project '{"a11y":{"test":"error"},"includeTags":["test"],"excludeTags":[],"skipTags":[]}' \
+  --out /path/to/lushly-inventory.json
+node foundations/specimen/experiments/inputs/freeze.mjs --consumer lushly \
+  --snapshot /path/to/snapshot --repo /path/to/lushly --revision <full-sha> \
+  --fetch-remote --out /path/to/lushly-inputs.json
+```
+
+The inventory takes discovered identities and tags from Storybook's index. A static TypeScript reading of each story module (`inputs/csf.mjs`) adds plays, render sources, policy parameters, globals, decorators, lifecycle hooks and helper imports. Same-file constants, spreads and `Story.field` references resolve. Anything else is reported as unresolved, and its play presence as unknown. The project policy is passed explicitly because preview files execute code.
+
+The manifest binds every snapshot file outside `node_modules` to the pinned Git tree by blob id, hashes generated files, checks pnpm's installed `lock.yaml` against the lockfile, and digests selected installed packages, vendored artifacts, static directories and obligation files. It also records the browsers each consumer's Playwright expects, the host and [`inputs/baseline-policy.json`](inputs/baseline-policy.json). `--fetch-remote` downloads and hashes the remote font stylesheets and files named in `preview-head.html`; runners still load them live. Neither tool installs, prepares or modifies anything. See [frozen inputs and inventory](../../../docs/features/active/specimens/frozen-inputs-inventory.md) for the T01 results.

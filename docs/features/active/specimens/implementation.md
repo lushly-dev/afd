@@ -3,7 +3,7 @@
 | Field | Current value |
 | --- | --- |
 | State | Active native implementation; complete workstream 0 acceptance remains open |
-| Last reconciled | 2026-10-30, reviewed branch source `ea359184`, main base `40b6a7cc`; [delivery record #517](https://github.com/lushly-dev/afd/pull/517) |
+| Last reconciled | 2026-10-31, main `ea22a844` including [#517](https://github.com/lushly-dev/afd/pull/517); T01 on branch `lush/specimens-implementation` |
 | Read first | [STATUS.md](STATUS.md): delivery state, known gaps, evidence and unassigned follow-ups |
 | Acceptance contract | [Proposal](../../proposed/specimens/specimens.proposal.md), including its original workstreams 0–6 and cutover/rollback gates |
 | Historical milestone | `f1bc4488` on `codex/specimens-feasibility`, base `bc43019a`; later source imported by [#476](https://github.com/lushly-dev/afd/pull/476) as three units |
@@ -47,7 +47,9 @@ The [status ledger](STATUS.md#current-delivery-state) distinguishes main deliver
 
 The resource work adds calibrated macOS process-family CPU/footprint recording, lazy initialization, optional process containment, larger reused-worker batches and cached Vite fallback maps. The [current monorepo rerun](monorepo-resource-validation.md) verifies 832 captures; it preserves memory recovery while recording higher CPU and changed historical inputs. It is not a consumer-runner parity result.
 
-The latest code-bearing branch passed 100 native tests, separate integration/CLI suites, 12 packed-artifact checks and all eleven `pnpm check` stages on Node 24.21.0. Older 68/94/108 counts belong to earlier, differently grouped suites and MUST NOT replace the current split-package counts. No retained consumer story suite, axe policy or root Storybook dependency was removed.
+T01 [froze the consumer inputs and inventoried every retained story](frozen-inputs-inventory.md): Lushly `b8906b75` and FAST-AF `24e4eb86`, 858 and 407 indexed stories, the operational obligations, and a baseline policy whose tolerances the owner confirmed on 2026-10-31. It also found that the incumbents and the candidate run three different Chromium builds, and that AFD has no runner for the FAST-AF stories it now owns.
+
+The last native code change (#517) passed 100 native tests, separate integration/CLI suites, 12 packed-artifact checks and all eleven `pnpm check` stages on Node 24.21.0. Older 68/94/108 counts belong to earlier, differently grouped suites and MUST NOT replace the current split-package counts. No retained consumer story suite, axe policy or root Storybook dependency was removed.
 
 ## Ordered implementation queue
 
