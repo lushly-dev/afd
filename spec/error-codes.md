@@ -74,11 +74,12 @@ Rules:
    or, with no close match, where to find valid names: the client's `listCommandNames()`
    (`list_command_names()` in Python and C++).
 
-All four implementations follow these rules, with one exception: a Python MCP server answers a
-tools/call for a name it does not list with FastMCP's plain "Unknown tool" text rather than a
-`COMMAND_NOT_FOUND` result ([#325](https://github.com/lushly-dev/afd/issues/325)). It still does not
-reveal a private command. Rust has no MCP server or DirectClient yet; its todo example backend
-answers `COMMAND_NOT_FOUND` for both cases.
+All four implementations follow these rules. A Python MCP server answers a tools/call for a name it
+does not list with a `COMMAND_NOT_FOUND` result (formerly FastMCP's plain "Unknown tool" text,
+fixed for [#325](https://github.com/lushly-dev/afd/issues/325)). Rust's MCP server (`server`
+feature) answers `COMMAND_NOT_FOUND` for both cases in every tool strategy; its `DirectClient` calls
+the registry with the `agent` interface, so it answers `COMMAND_NOT_FOUND` and
+`COMMAND_NOT_EXPOSED` rather than `UNKNOWN_TOOL`.
 
 ### Suggestions name only tools the host provides
 
