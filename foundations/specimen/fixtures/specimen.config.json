@@ -179,6 +179,60 @@
 			"title": "Feasibility/DeclarativeClosed",
 			"module": "./probe.stories.ts",
 			"exportName": "DeclarativeClosed"
+		},
+		{
+			"id": "context-probe",
+			"title": "Drivers/ContextProbe",
+			"module": "./context.stories.ts",
+			"exportName": "ContextProbe"
+		},
+		{
+			"id": "isolation-leak",
+			"title": "Drivers/IsolationLeak",
+			"module": "./context.stories.ts",
+			"exportName": "IsolationLeak"
+		},
+		{
+			"id": "isolation-probe",
+			"title": "Drivers/IsolationProbe",
+			"module": "./context.stories.ts",
+			"exportName": "IsolationProbe"
+		},
+		{
+			"id": "fixed-clock",
+			"title": "Drivers/FixedClock",
+			"module": "./context.stories.ts",
+			"exportName": "FixedClock"
+		},
+		{
+			"id": "timeout-disposal",
+			"title": "Drivers/TimeoutDisposal",
+			"module": "./context.stories.ts",
+			"exportName": "TimeoutDisposal"
+		},
+		{
+			"id": "trusted-markup",
+			"title": "Drivers/TrustedMarkup",
+			"module": "./context.stories.ts",
+			"exportName": "TrustedMarkup"
+		},
+		{
+			"id": "trusted-declarative-closed",
+			"title": "Drivers/TrustedDeclarativeClosed",
+			"module": "./context.stories.ts",
+			"exportName": "TrustedDeclarativeClosed"
+		},
+		{
+			"id": "spoofed-markup",
+			"title": "Drivers/SpoofedMarkup",
+			"module": "./context.stories.ts",
+			"exportName": "SpoofedMarkup"
+		},
+		{
+			"id": "misreported-language",
+			"title": "Drivers/MisreportedLanguage",
+			"module": "./context.stories.ts",
+			"exportName": "MisreportedLanguage"
 		}
 	]
 }

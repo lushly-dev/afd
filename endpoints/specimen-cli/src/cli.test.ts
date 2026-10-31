@@ -86,6 +86,9 @@ describe('specimen CLI', () => {
 			['render', 'button', '--viewport', 'phone'],
 			['render', 'button', '--viewport', '0x812'],
 			['render', 'button', '--theme', 'drak'],
+			['render', 'button', '--reduced-motion', 'less'],
+			['render', 'button', '--motion', 'frozen'],
+			['render', 'button', '--locale', 'not a locale'],
 		]) {
 			const h = harness();
 			expect(await runCli(args, h.io)).toBe(1);
@@ -109,6 +112,12 @@ describe('specimen CLI', () => {
 					'300x500',
 					'--theme',
 					'dark',
+					'--locale',
+					'fr-FR',
+					'--reduced-motion',
+					'reduce',
+					'--motion',
+					'settled',
 					'--checkpoint',
 					'focused',
 					'--screenshot',
@@ -123,6 +132,9 @@ describe('specimen CLI', () => {
 				viewport: { width: 375, height: 812 },
 				container: { width: 300, height: 500 },
 				theme: 'dark',
+				locale: 'fr-FR',
+				reducedMotion: 'reduce',
+				motion: 'settled',
 			},
 			checkpoint: 'focused',
 			screenshot: join(root, 'shot.png'),

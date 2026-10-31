@@ -205,6 +205,11 @@ export async function createInProcessBench(
 						]);
 						const limitations = captured.limitations;
 						const unstable = limitations.filter((value) => value.includes('time-dependent'));
+						// Layout and styles observed under a context other than the manifest's are not evidence for it.
+						const contextual = [
+							...unstable,
+							...limitations.filter((value) => value.startsWith('Context mismatch')),
+						];
 						return {
 							manifest: {
 								captureVersion: CAPTURE_VERSION,
@@ -236,14 +241,14 @@ export async function createInProcessBench(
 								),
 								a11y: coverage('partial', 'ARIA snapshot; axe not run', ['AXE_NOT_RUN']),
 								layout: coverage(
-									unstable.length ? 'partial' : 'complete',
+									contextual.length ? 'partial' : 'complete',
 									'boxes and scroll extents of accessible elements; pseudo-element geometry excluded',
-									unstable
+									contextual
 								),
 								styles: coverage(
-									unstable.length ? 'partial' : 'complete',
+									contextual.length ? 'partial' : 'complete',
 									'versioned selected computed CSS properties on accessible elements',
-									unstable
+									contextual
 								),
 								tokens: coverage('unsupported', 'token dependencies', [
 									'TOKEN_DETECTOR_NOT_IMPLEMENTED',

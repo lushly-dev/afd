@@ -1,4 +1,5 @@
 import type { SpecimenContext, SpecimenEntry } from '../types.js';
+import { sameLocale } from './capture.js';
 
 function viewport(value: string): SpecimenContext['viewport'] {
 	const dimensions = /^(\d+)x(\d+)$/.exec(value.trim());
@@ -10,16 +11,77 @@ function viewport(value: string): SpecimenContext['viewport'] {
 	return { width, height };
 }
 
+function container(value: string): NonNullable<SpecimenContext['container']> {
+	const dimensions = /^(\d+)(?:x(\d+))?$/.exec(value.trim());
+	const width = Number(dimensions?.[1]);
+	const height = dimensions?.[2] === undefined ? undefined : Number(dimensions[2]);
+	if (
+		!dimensions ||
+		width < 1 ||
+		width > 8192 ||
+		(height !== undefined && (height < 1 || height > 8192))
+	)
+		throw new Error(
+			'Container must be WIDTH or WIDTHxHEIGHT with each dimension between 1 and 8192.'
+		);
+	return height === undefined ? { width } : { width, height };
+}
+
+function choice<T extends string>(
+	params: URLSearchParams,
+	name: string,
+	values: T[],
+	fallback: T
+): T {
+	const value = params.get(name) ?? fallback;
+	if (!values.includes(value as T)) throw new Error(`${name} must be ${values.join(' or ')}.`);
+	return value as T;
+}
+
 function readContext(params: URLSearchParams, defaults: SpecimenContext): SpecimenContext {
-	const theme = params.get('theme') ?? defaults.theme;
-	if (theme !== 'light' && theme !== 'dark') throw new Error('Theme must be light or dark.');
-	return {
+	const locale = params.get('locale') ?? defaults.locale;
+	try {
+		Intl.getCanonicalLocales(locale);
+	} catch {
+		throw new Error(`Locale must be a BCP 47 language tag, not ${locale}.`);
+	}
+	const context: SpecimenContext = {
 		...defaults,
-		theme,
+		theme: choice(params, 'theme', ['light', 'dark'], defaults.theme),
+		locale,
+		reducedMotion: choice(
+			params,
+			'reducedMotion',
+			['reduce', 'no-preference'],
+			defaults.reducedMotion
+		),
+		motion: choice(params, 'motion', ['natural', 'settled'], defaults.motion),
 		viewport: params.has('viewport')
 			? viewport(params.get('viewport') ?? '')
 			: { ...defaults.viewport },
 	};
+	if (params.has('container')) context.container = container(params.get('container') ?? '');
+	return context;
+}
+
+/** An iframe cannot emulate media or navigator values; say which ones the preview shows. */
+function hostDifferences(context: SpecimenContext): string[] {
+	const differences: string[] = [];
+	const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+	if (dark !== (context.theme === 'dark'))
+		differences.push(
+			`prefers-color-scheme is ${dark ? 'dark' : 'light'} from this browser, not ${context.theme}`
+		);
+	const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+	if (reduce !== (context.reducedMotion === 'reduce'))
+		differences.push(
+			`prefers-reduced-motion is ${reduce ? 'reduce' : 'no-preference'} from this browser, not ${context.reducedMotion}`
+		);
+	if (!sameLocale(navigator.language, context.locale))
+		differences.push(
+			`navigator.language is ${navigator.language} from this browser, not ${context.locale}`
+		);
+	return differences;
 }
 
 function showError(root: HTMLElement, error: unknown): void {
@@ -38,6 +100,16 @@ function specimenUrl(id: string, context: SpecimenContext): URL {
 	url.searchParams.set('id', id);
 	url.searchParams.set('theme', context.theme);
 	url.searchParams.set('viewport', `${context.viewport.width}x${context.viewport.height}`);
+	url.searchParams.set('locale', context.locale);
+	url.searchParams.set('reducedMotion', context.reducedMotion);
+	url.searchParams.set('motion', context.motion);
+	if (context.container)
+		url.searchParams.set(
+			'container',
+			context.container.height === undefined
+				? String(context.container.width)
+				: `${context.container.width}x${context.container.height}`
+		);
 	return url;
 }
 
@@ -132,7 +204,15 @@ export async function installPage(
 			frame.width = String(context.viewport.width);
 			frame.height = String(context.viewport.height);
 			frame.style.cssText = `display:block;border:0;width:${context.viewport.width}px;height:${context.viewport.height}px;color-scheme:${context.theme};`;
-			root.append(back, title, frame);
+			root.append(back, title);
+			const differences = hostDifferences(context);
+			if (differences.length) {
+				const notice = document.createElement('p');
+				notice.id = 'specimen-page-context-notice';
+				notice.textContent = `This preview cannot emulate part of the requested context: ${differences.join('; ')}. Components that read these values show this browser's settings; the CLI render applies them.`;
+				root.append(notice);
+			}
+			root.append(frame);
 			return;
 		}
 		document.title = 'Specimens';

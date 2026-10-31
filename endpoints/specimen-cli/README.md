@@ -7,4 +7,6 @@ specimen list --root ./component-project
 specimen render button --root ./component-project --viewport 375x812
 ```
 
+`render` also accepts `--container`, `--theme`, `--locale`, `--reduced-motion`, `--motion`, `--checkpoint` and `--screenshot`. Context values pass through the shared schema, so a misspelled theme or an invalid locale tag fails before a browser starts.
+
 Chromium is required when rendering, not for importing or listing. Browser installation remains explicit; this package has no install hooks. See [the unreleased transition](../../docs/features/active/platform-monorepo/specimen-transition.md). Publication remains quarantined.

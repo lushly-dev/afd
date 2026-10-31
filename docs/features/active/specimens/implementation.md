@@ -3,7 +3,7 @@
 | Field | Current value |
 | --- | --- |
 | State | Active native implementation; complete workstream 0 acceptance remains open |
-| Last reconciled | 2026-10-31, main `cdfbbfb7` including [#517](https://github.com/lushly-dev/afd/pull/517) and T01 ([#521](https://github.com/lushly-dev/afd/pull/521)); T02 on branch `lush/specimens-t02-cpu` |
+| Last reconciled | 2026-10-31, main `5875e301` including [#517](https://github.com/lushly-dev/afd/pull/517), T01 ([#521](https://github.com/lushly-dev/afd/pull/521)) and T02 ([#525](https://github.com/lushly-dev/afd/pull/525)); T03 on branch `lush/specimens-t03-drivers` |
 | Read first | [STATUS.md](STATUS.md): delivery state, known gaps, evidence and unassigned follow-ups |
 | Acceptance contract | [Proposal](../../proposed/specimens/specimens.proposal.md), including its original workstreams 0–6 and cutover/rollback gates |
 | Historical milestone | `f1bc4488` on `codex/specimens-feasibility`, base `bc43019a`; later source imported by [#476](https://github.com/lushly-dev/afd/pull/476) as three units |
@@ -50,6 +50,8 @@ The resource work adds calibrated macOS process-family CPU/footprint recording, 
 T01 [froze the consumer inputs and inventoried every retained story](frozen-inputs-inventory.md): Lushly `b8906b75` and FAST-AF `24e4eb86`, 858 and 407 indexed stories, the operational obligations, and a baseline policy whose tolerances the owner confirmed on 2026-10-31. It also found that the incumbents and the candidate run three different Chromium builds, and that AFD has no runner for the FAST-AF stories it now owns.
 
 T02 [found host contention the best-supported explanation for the CPU increase](cpu-attribution-validation.md). Changing Lushly's inputs made no measurable difference within a session, and quiet-host jobs were 43–51% below the 2026-10-30 rerun on identical native source. A job under external contention reproduced the rerun's Lushly value. A controlled synthetic-load pair is still outstanding. The resource runner now records a fixed-work speed probe around every job, and cross-session CPU comparisons need that control.
+
+T03 [compared what each driver gives a specimen](driver-context-validation.md). The bench, the static preview and a reference driver in Vitest browser mode agree on viewport, `innerWidth`, width queries, units, container and theme in three contexts. The static preview cannot emulate media preferences or `navigator.language`; it labels them, and so does every capture taken there. Isolation and failure ownership are tested per driver. Genuine `TrustedHTML` is now readable, so FAST-AF and Lushly pilot captures report complete DOM. The remaining provenance fields are defined, and the owner chose the font and browser condition T04 applies.
 
 The last native code change (#517) passed 100 native tests, separate integration/CLI suites, 12 packed-artifact checks and all eleven `pnpm check` stages on Node 24.21.0. Older 68/94/108 counts belong to earlier, differently grouped suites and MUST NOT replace the current split-package counts. No retained consumer story suite, axe policy or root Storybook dependency was removed.
 
