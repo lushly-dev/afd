@@ -138,7 +138,9 @@ afd validate --surface --strict --verbose
 
 `afd validate --surface` validates the server's commands whatever its `toolStrategy`:
 grouped tools are expanded into the commands listed in their `_meta.actions`, lazy
-servers are enumerated with `afd-discover` and `afd-detail`, and the tools AFD provides
+servers are enumerated with `afd-discover` and `afd-detail`, hybrid servers (first-class
+command tools beside `afd-discover`) are completed with the same two tools and warned about a
+first-class command that declares `contexts` (`afd-help` tells the CLI the server is hybrid), and the tools AFD provides
 itself (`afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`, `afd-help`,
 `afd-docs`, `afd-schema`, `afd-context-*`; `AFD_BUILTIN_TOOL_NAMES` in
 `@lushly-dev/afd-core`) are skipped.

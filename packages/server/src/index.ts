@@ -174,11 +174,13 @@ export {
 	createMcpHandler,
 	createMcpServer,
 	isStdinPiped,
+	MAX_FIRST_CLASS_TOOLS,
 	type McpHandler,
 	type McpHandlerOptions,
 	type McpServer,
 	type McpServerOptions,
 	type McpTransport,
+	type ToolStrategy,
 } from './server.js';
 // Validation utilities
 export {

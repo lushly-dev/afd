@@ -15,7 +15,7 @@ import {
 	createAfdContextListCommand,
 } from './afd-context.js';
 import { createAfdDocsCommand } from './afd-docs.js';
-import { createAfdHelpCommand } from './afd-help.js';
+import { createAfdHelpCommand, type ToolSurface } from './afd-help.js';
 import { createAfdSchemaCommand } from './afd-schema.js';
 import type { DescribedCommand, GetDescribedCommands } from './described-command.js';
 
@@ -44,10 +44,12 @@ export function getBootstrapCommands(
 		getJsonSchema?: (cmd: DescribedCommand) => Record<string, unknown>;
 		contexts?: ContextConfig[];
 		contextState?: ContextState;
+		/** How the MCP server lists its tools, reported by `afd-help`. */
+		toolSurface?: ToolSurface;
 	}
 ): ZodCommandDefinition[] {
 	const cmds: ZodCommandDefinition[] = [
-		createAfdHelpCommand(getCommands),
+		createAfdHelpCommand(getCommands, options?.toolSurface),
 		createAfdDocsCommand(getCommands),
 		createAfdSchemaCommand(getCommands, options?.getJsonSchema),
 	];

@@ -140,6 +140,56 @@ describe('surface commands from a real server', () => {
 		expect(misattributed(set.commands)).toEqual([]);
 	});
 
+	it('hybrid: validates the first-class tools and the commands behind afd-discover', async () => {
+		const set = await collect({ toolStrategy: 'hybrid', firstClassTools: ['todo-get'] });
+
+		expect(set.discovered).toBe(true);
+		expect(set.commands.map((command) => command.name).sort()).toEqual(['todo-create', 'todo-get']);
+		expect(set.skippedBuiltins).toEqual(expect.arrayContaining(['afd-call', 'afd-discover']));
+		expect(set.warnings).toEqual([]);
+		expect(misattributed(set.commands)).toEqual([]);
+	});
+
+	it('hybrid: warns about a first-class command that declares contexts', async () => {
+		const scoped = defineCommand({
+			name: 'todo-archive',
+			description: 'Archive finished todo items',
+			category: 'todo',
+			contexts: ['editing'],
+			input: z.object({}),
+			expose: { mcp: true },
+			async handler() {
+				return success({});
+			},
+		});
+		const options = {
+			commands: [...quickstartCommands, scoped],
+			contexts: [{ name: 'editing', description: 'Editing todos' }],
+			bootstrap: true,
+		};
+
+		const hybrid = await collect({
+			...options,
+			toolStrategy: 'hybrid',
+			firstClassTools: ['todo-archive', 'todo-get'],
+		});
+		expect(hybrid.warnings).toHaveLength(1);
+		expect(hybrid.warnings[0]).toContain('todo-archive');
+		expect(hybrid.warnings[0]).not.toContain('todo-get');
+		expect(hybrid.warnings[0]).toContain('contexts');
+
+		// Listed in every context by design under hybrid only; the other strategies list it
+		// by context, and a context-scoped command outside the first-class set is fine.
+		const individual = await collect({ ...options, toolStrategy: 'individual' });
+		expect(individual.warnings).toEqual([]);
+		const unlisted = await collect({
+			...options,
+			toolStrategy: 'hybrid',
+			firstClassTools: ['todo-get'],
+		});
+		expect(unlisted.warnings).toEqual([]);
+	});
+
 	it('skips bootstrap and context commands in every strategy', async () => {
 		const contexts = [{ name: 'editing', description: 'Editing todos' }];
 		for (const toolStrategy of ['grouped', 'individual', 'lazy'] as const) {
@@ -264,6 +314,28 @@ describe('surface commands from other servers', () => {
 
 		expect(set.commands.map((command) => command.name)).toEqual(['todo']);
 		expect(set.expandedGroups).toEqual([]);
+	});
+
+	it('lists the commands behind a hybrid listing, and says so when discovery fails', async () => {
+		const tools: McpTool[] = [
+			builtinTool('afd-discover'),
+			builtinTool('afd-detail'),
+			builtinTool('afd-call'),
+			{ name: 'todo-list', description: 'List todo items', inputSchema: { type: 'object' } },
+		];
+		const set = await collectSurfaceCommands(tools, fakeClient(['todo-list', 'todo-create']));
+		expect(set.commands.map((command) => command.name)).toEqual(['todo-list', 'todo-create']);
+		expect(set.discovered).toBe(true);
+
+		const broken: SurfaceClient = {
+			async call<T>() {
+				return failure({ code: 'BOOM', message: 'down', suggestion: 'retry' }) as CommandResult<T>;
+			},
+		};
+		const failed = await collectSurfaceCommands(tools, broken);
+		expect(failed.commands.map((command) => command.name)).toEqual(['todo-list']);
+		expect(failed.warnings).toHaveLength(1);
+		expect(failed.warnings[0]).toContain('only the 1 listed tools');
 	});
 
 	it('does not call the server when the listing carries every command', async () => {

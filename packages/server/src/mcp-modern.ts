@@ -65,7 +65,7 @@ import {
 	type RoundState,
 } from './elicitation-state.js';
 import { requestContextValues } from './request-context.js';
-import type { ContextConfig, CreateRequestContext } from './server-types.js';
+import type { ContextConfig, CreateRequestContext, ToolStrategy } from './server-types.js';
 import type { ToolCallResult } from './tool-router.js';
 
 /** The MCP protocol revision this lane serves statelessly. */
@@ -87,8 +87,13 @@ export interface ModernMcpDeps {
 	) => Promise<ToolCallResult>;
 	/** Configured contexts; enables `_meta["dev.afd/context"]`. */
 	contexts?: ContextConfig[];
-	/** Freshness hint for `tools/list` and `server/discover` (default: 5 minutes, 0 with contexts). */
+	/**
+	 * Freshness hint for `tools/list` and `server/discover` (default: 5 minutes; 0 with contexts,
+	 * except for the hybrid strategy, whose list does not vary by context).
+	 */
 	toolsListTtlMs?: number;
+	/** The tool strategy; `hybrid` keeps the default hint under contexts. */
+	toolStrategy?: ToolStrategy;
 	/**
 	 * HMAC key for the `requestState` of confirmation and approval elicitations (default: a random
 	 * key per process).
@@ -137,7 +142,7 @@ function allowsFormElicitation(capabilities: unknown): boolean {
  */
 export function defaultInstructions(options: {
 	name: string;
-	toolStrategy: 'individual' | 'grouped' | 'lazy';
+	toolStrategy: ToolStrategy;
 	contexts?: ContextConfig[];
 	bootstrap?: boolean;
 }): string {
@@ -147,6 +152,10 @@ export function defaultInstructions(options: {
 	if (options.toolStrategy === 'lazy') {
 		lines.push(
 			'Call afd-discover to find commands, afd-detail for a command schema, and afd-call to run one.'
+		);
+	} else if (options.toolStrategy === 'hybrid') {
+		lines.push(
+			'The command tools listed are the common ones. Call afd-discover to find others, afd-detail for a schema, and afd-call to run one.'
 		);
 	} else if (options.toolStrategy === 'grouped') {
 		lines.push(
@@ -173,8 +182,10 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 	const report = reporter(deps.onError);
 	const contextNames = new Set((deps.contexts ?? []).map((context) => context.name));
 	// With contexts, tools/list varies by `_meta["dev.afd/context"]`, which SDK clients leave
-	// out of their cache key, so the default is "always stale" there.
-	const ttlMs = deps.toolsListTtlMs ?? (deps.contexts?.length ? 0 : DEFAULT_TOOLS_LIST_TTL_MS);
+	// out of their cache key, so the default is "always stale" there. The hybrid list does not
+	// vary by context (spec/tool-strategies.md, H6).
+	const listVariesByContext = Boolean(deps.contexts?.length) && deps.toolStrategy !== 'hybrid';
+	const ttlMs = deps.toolsListTtlMs ?? (listVariesByContext ? 0 : DEFAULT_TOOLS_LIST_TTL_MS);
 	if (!Number.isSafeInteger(ttlMs) || ttlMs < 0) {
 		throw new Error('toolsListTtlMs must be a non-negative integer');
 	}

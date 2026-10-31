@@ -1,6 +1,8 @@
 /**
  * @fileoverview Shared MCP tool call routing — dispatches tool calls to the
  * appropriate execution function (batch, pipeline, call, lazy discovery, grouped, or individual).
+ * The hybrid strategy needs no route of its own: its first-class tools are commands called by
+ * name, exactly as under the individual strategy.
  *
  * Used by both stdio and HTTP transports to eliminate routing duplication.
  */
@@ -51,6 +53,7 @@ import {
 	pipeArgsSchema,
 } from './meta-tools.js';
 import type { ZodCommandDefinition } from './schema.js';
+import type { ToolStrategy } from './server-types.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -72,7 +75,7 @@ export interface ToolRouterDeps {
 	executeBatch: (request: BatchRequest, context?: CommandContext) => Promise<BatchResult>;
 	executePipeline: (request: PipelineRequest, context?: CommandContext) => Promise<PipelineResult>;
 	commands: ZodCommandDefinition[];
-	toolStrategy: 'individual' | 'grouped' | 'lazy';
+	toolStrategy: ToolStrategy;
 	groupByFn?: GroupByFn;
 	devMode: boolean;
 	/** All registered commands, including those outside the commands array */
