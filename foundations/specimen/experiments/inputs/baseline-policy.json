@@ -1,7 +1,7 @@
 {
 	"schema": "specimen-baseline-policy/1",
 	"declared": "2026-10-31",
-	"status": "Declared by T01 and confirmed by the owner on 2026-10-31, before any incumbent/candidate comparison. Revise only before the T04 comparison runs, with the reason recorded. Revised 2026-10-31 before T04: the owner confirmed T02's proposed host-condition gate.",
+	"status": "Declared by T01 and confirmed by the owner on 2026-10-31, before any incumbent/candidate comparison. Revise only before the T04 comparison runs, with the reason recorded. Revised 2026-10-31 before T04: the owner confirmed T02's proposed host-condition gate. Revised again before the T04 comparison runs: a 4 GiB family limit for the incumbent's representative jobs, with the reason in limits.incumbentReason.",
 	"admission": {
 		"concurrentJobs": 1,
 		"reservedLogicalCores": 2,
@@ -10,8 +10,10 @@
 	},
 	"limits": {
 		"familyFootprintBytes": 2147483648,
+		"incumbentFamilyFootprintBytes": 4294967296,
 		"jobTimeoutSeconds": 120,
-		"scope": "Native and representative-sample jobs; full-suite parity runs use each consumer's authoritative path and limits"
+		"scope": "Native and representative-sample jobs; full-suite parity runs use each consumer's authoritative path and limits",
+		"incumbentReason": "Revised 2026-10-31 before the T04 comparison runs: the incumbent's representative Storybook Vitest job reached 2.0 GB (FAST-AF) and exceeded 2 GiB (Lushly) in smoke runs, so the 2 GiB limit would stop the baseline itself. The candidate keeps 2 GiB; the incumbent's peak remains an outcome metric."
 	},
 	"sampling": {
 		"intervalMs": 100,

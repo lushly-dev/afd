@@ -21,6 +21,7 @@ if (!['in-process', 'process'].includes(runtimeIsolation))
 	throw new Error('SPECIMEN_BENCH_ISOLATION must be in-process or process');
 // T04 runs each pair on the incumbent's browser build; unset uses Playwright's own.
 const executablePath = process.env.SPECIMEN_BENCH_EXECUTABLE || undefined;
+const coldProcess = process.env.SPECIMEN_COLD_PROCESS === '1';
 
 const execFile = promisify(execFileCallback);
 const args = process.argv.slice(2);
@@ -237,7 +238,28 @@ for (const descriptor of descriptors) {
 		}
 		if (resourceEvents) await idle('post-close-idle', descriptor.name);
 		result.cold = [];
-		for (let index = 0; index < samples; index++) {
+		for (let index = 0; index < samples && coldProcess; index++) {
+			// Policy cold: the first render after process start, so each sample is a new process.
+			const start = performance.now();
+			const { stdout } = await phase(
+				'cold-process',
+				() =>
+					execFile(process.execPath, [
+						join(import.meta.dirname, 'cold-sample.mjs'),
+						apiPath,
+						root,
+						JSON.stringify(descriptor.captures[0].request),
+						runtimeIsolation,
+						executablePath ?? '',
+					]),
+				{ consumer: descriptor.name, kind: 'cold', index }
+			);
+			const sample = JSON.parse(stdout.trim().split('\n').at(-1));
+			assert.equal(sample.status, 'passed', `cold sample ${index}: browser errors`);
+			result.successfulRenders++;
+			result.cold.push({ ...sample, startupAndRenderMs: performance.now() - start });
+		}
+		for (let index = 0; index < samples && !coldProcess; index++) {
 			const start = performance.now();
 			const cold = await phase(
 				'bench-create',
@@ -262,6 +284,8 @@ for (const descriptor of descriptors) {
 			}
 		}
 		result.coldMilliseconds = summary(result.cold.map((sample) => sample.startupAndRenderMs));
+		result.coldMode = coldProcess ? 'new process per sample' : 'new bench in the job process';
+		if (resourceEvents) await idle('final-idle', descriptor.name);
 		result.status = 'passed';
 	} catch (error) {
 		result.error = error instanceof Error ? error.stack : String(error);

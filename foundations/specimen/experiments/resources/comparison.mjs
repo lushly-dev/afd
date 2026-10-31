@@ -33,7 +33,11 @@ export const criteria = [
 	{ key: 'warmMs', limit: 1.25, label: 'Warm render latency' },
 ];
 
-export function compare(jobs, band, { maxSpreadPercent, noiseFloorPercent }) {
+export function compare(
+	jobs,
+	band,
+	{ maxSpreadPercent, noiseFloorPercent, candidate = 'candidate' }
+) {
 	const inBand = new Map(band.jobs.map((entry) => [entry.name, entry.inBand]));
 	const planned = finalAttempts(jobs);
 	return [...new Set(planned.map((job) => job.consumer))].map((consumer) => {
@@ -44,12 +48,10 @@ export function compare(jobs, band, { maxSpreadPercent, noiseFloorPercent }) {
 				(job) =>
 					`${job.name}: ${job.status !== 'passed' || job.held ? 'did not pass' : 'probe out of band'}`
 			);
-		const sides = Object.fromEntries(
-			['incumbent', 'candidate'].map((path) => [
-				path,
-				own.filter((job) => job.path === path).map(jobMetrics),
-			])
-		);
+		const sides = {
+			incumbent: own.filter((job) => job.path === 'incumbent').map(jobMetrics),
+			candidate: own.filter((job) => job.path === candidate).map(jobMetrics),
+		};
 		for (const path of ['incumbent', 'candidate']) {
 			const cpu = sides[path].map((metrics) => metrics.cpuSeconds);
 			if (cpu.length < 2) held.push(`${path}: fewer than two repetitions`);
